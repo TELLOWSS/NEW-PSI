@@ -376,8 +376,8 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                 <form onSubmit={handleSubmit} className="space-y-4 mt-4 p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div>
-                            <label htmlFor="workerId" className="block text-sm font-medium text-slate-700">근로자</label>
-                            <select id="workerId" value={selectedWorkerId} onChange={e => setSelectedWorkerId(e.target.value)} disabled={workerOptions.length === 0} className={`mt-1 block w-full rounded-md border shadow-sm focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-60 ${BRAND_TONE.slate}`}>
+                            <label htmlFor="workerId" className="block text-sm font-medium text-slate-700 dark:text-slate-300">근로자</label>
+                            <select id="workerId" value={selectedWorkerId} onChange={e => setSelectedWorkerId(e.target.value)} disabled={workerOptions.length === 0} className={`mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-700 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-60 ${BRAND_TONE.slate}`}>
                                 <option value="">근로자 선택</option>
                                 {workerOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
                             </select>
@@ -388,27 +388,27 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                             )}
                         </div>
                         <div>
-                            <label htmlFor="date" className="block text-sm font-medium text-slate-700">점검일</label>
-                            <input type="date" id="date" value={date} onChange={e => setDate(e.target.value)} className="mt-1 block w-full border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" />
+                            <label htmlFor="date" className="block text-sm font-medium text-slate-700 dark:text-slate-300">점검일</label>
+                            <input type="date" id="date" value={date} onChange={e => setDate(e.target.value)} className="mt-1 block w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" />
                         </div>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">점검 유형</label>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">점검 유형</label>
                         <div className="flex space-x-2">
-                             <button type="button" onClick={() => setType('unsafe_action')} className={`px-4 py-2 rounded-md text-sm font-medium ${type === 'unsafe_action' ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-700'}`}>불안전한 행동</button>
-                             <button type="button" onClick={() => setType('unsafe_condition')} className={`px-4 py-2 rounded-md text-sm font-medium ${type === 'unsafe_condition' ? 'bg-orange-500 text-white' : 'bg-slate-200 text-slate-700'}`}>불안전한 상태</button>
+                             <button type="button" onClick={() => setType('unsafe_action')} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${type === 'unsafe_action' ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700'}`}>불안전한 행동</button>
+                             <button type="button" onClick={() => setType('unsafe_condition')} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${type === 'unsafe_condition' ? 'bg-orange-500 text-white' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700'}`}>불안전한 상태</button>
                         </div>
                     </div>
                      <div>
-                        <label htmlFor="riskType" className="block text-sm font-medium text-slate-700">위험 요인</label>
-                        <input type="text" id="riskType" value={riskType} onChange={e => setRiskType(e.target.value)} placeholder="예: 고소작업" className="mt-1 block w-full border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" />
+                        <label htmlFor="riskType" className="block text-sm font-medium text-slate-700 dark:text-slate-300">위험 요인</label>
+                        <input type="text" id="riskType" value={riskType} onChange={e => setRiskType(e.target.value)} placeholder="예: 고소작업" className="mt-1 block w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" />
                     </div>
                     <div>
-                        <label htmlFor="details" className="block text-sm font-medium text-slate-700">상세 내용</label>
-                        <textarea id="details" value={details} onChange={e => setDetails(e.target.value)} placeholder={`예: 안전고리 착용 ${BRAND_STATUS_LABELS.supplementaryReview}`} rows={3} className="mt-1 block w-full border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" />
+                        <label htmlFor="details" className="block text-sm font-medium text-slate-700 dark:text-slate-300">상세 내용</label>
+                        <textarea id="details" value={details} onChange={e => setDetails(e.target.value)} placeholder={`예: 안전고리 착용 ${BRAND_STATUS_LABELS.supplementaryReview}`} rows={3} className="mt-1 block w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">사진 첨부</label>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">사진 첨부</label>
                         <input
                             ref={imageInputRef}
                             type="file"
@@ -421,7 +421,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                             <button
                                 type="button"
                                 onClick={() => imageInputRef.current?.click()}
-                                className={`px-3 py-2 border text-slate-700 text-sm font-medium rounded-md hover:bg-slate-200 ${BRAND_TONE.slateMuted}`}
+                                className={`px-3 py-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium rounded-md hover:bg-slate-200 dark:hover:bg-slate-800 ${BRAND_TONE.slateMuted}`}
                             >
                                 📷 사진 첨부(카메라/갤러리)
                             </button>

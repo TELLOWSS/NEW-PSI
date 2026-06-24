@@ -52,6 +52,13 @@ export const isAdminAuthConfigured = (): boolean => {
     return Boolean(getLoginPassword() && getSessionSecret());
 };
 
+export const isBypassAllowed = (): boolean => {
+    const allowBypass = String(process.env.ALLOW_ADMIN_BYPASS || '').trim().toLowerCase() === 'true';
+    const allowViteBypass = String(process.env.VITE_ALLOW_ADMIN_BYPASS || '').trim().toLowerCase() === 'true';
+    const isDev = process.env.NODE_ENV === 'development';
+    return allowBypass || allowViteBypass || isDev;
+};
+
 export const verifyAdminLoginPassword = (providedPassword: unknown): boolean => {
     const expectedPassword = getLoginPassword();
     const provided = String(providedPassword || '').trim();

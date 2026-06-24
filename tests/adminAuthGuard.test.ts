@@ -4,6 +4,7 @@ import {
     createAdminSessionToken,
     isAdminAuthConfigured,
     isValidAdminAuthRequest,
+    isBypassAllowed,
     verifyAdminLoginPassword,
 } from '../lib/server/adminAuthGuard';
 
@@ -36,5 +37,22 @@ describe('adminAuthGuard', () => {
         const cookie = buildAdminSessionCookie(token, true).split(';')[0];
         expect(isValidAdminAuthRequest({ headers: { cookie } })).toBe(true);
         expect(isValidAdminAuthRequest({ headers: { cookie: `${cookie}tampered` } })).toBe(false);
+    });
+
+    it('allows bypass when environment explicitly permits it', () => {
+        process.env.NODE_ENV = 'production';
+        process.env.ALLOW_ADMIN_BYPASS = 'true';
+        expect(isBypassAllowed()).toBe(true);
+
+        process.env.ALLOW_ADMIN_BYPASS = 'false';
+        process.env.VITE_ALLOW_ADMIN_BYPASS = 'true';
+        expect(isBypassAllowed()).toBe(true);
+    });
+
+    it('allows bypass in development mode regardless of bypass env flags', () => {
+        process.env.NODE_ENV = 'development';
+        delete process.env.ALLOW_ADMIN_BYPASS;
+        delete process.env.VITE_ALLOW_ADMIN_BYPASS;
+        expect(isBypassAllowed()).toBe(true);
     });
 });

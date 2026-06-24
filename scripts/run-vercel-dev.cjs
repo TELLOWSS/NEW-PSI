@@ -4,7 +4,7 @@ const command = process.platform === 'win32' ? 'vercel.cmd' : 'vercel';
 const child = spawn(command, ['dev', '--listen', '3001'], {
     cwd: process.cwd(),
     stdio: 'inherit',
-    shell: false,
+    shell: true,
 });
 
 child.on('error', (error) => {

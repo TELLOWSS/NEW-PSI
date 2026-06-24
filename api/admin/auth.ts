@@ -6,6 +6,7 @@ import {
     isSecureRequest,
     isValidAdminAuthRequest,
     verifyAdminLoginPassword,
+    isBypassAllowed,
 } from '../../lib/server/adminAuthGuard.js';
 
 type LoginAttempt = {
@@ -80,9 +81,16 @@ export default async function handler(req: any, res: any) {
         });
     }
 
-    if (!verifyAdminLoginPassword(body.password)) {
-        recordFailedAttempt(clientKey);
-        return res.status(401).json({ ok: false, message: '비밀번호가 올바르지 않습니다.' });
+    const isBypass = Boolean(body.bypass);
+    if (isBypass) {
+        if (!isBypassAllowed()) {
+            return res.status(403).json({ ok: false, message: '이 환경에서는 우회 로그인을 사용할 수 없습니다.' });
+        }
+    } else {
+        if (!verifyAdminLoginPassword(body.password)) {
+            recordFailedAttempt(clientKey);
+            return res.status(401).json({ ok: false, message: '비밀번호가 올바르지 않습니다.' });
+        }
     }
 
     attempts.delete(clientKey);

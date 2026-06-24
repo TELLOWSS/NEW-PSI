@@ -1508,10 +1508,10 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 />
             </div>
 
-            <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-100">
+            <div className="bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-100 dark:border-indigo-950/40">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">UI 모드 실험 KPI 요약</h3>
+                        <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100">UI 모드 실험 KPI 요약</h3>
                         <p className="mt-1 text-xs sm:text-sm text-slate-500 leading-relaxed">
                             Dashboard/PerformanceAnalysis의 모드 전환, 핵심 클릭, 체류시간 로그를 로컬 기준으로 빠르게 확인합니다.
                         </p>
@@ -1520,14 +1520,14 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                         <button
                             type="button"
                             onClick={loadUIViewMetrics}
-                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                            className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-xs font-black text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850"
                         >
                             지표 새로고침
                         </button>
                         <button
                             type="button"
                             onClick={handleClearUIViewMetrics}
-                            className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-100"
+                            className="rounded-xl border border-rose-200 dark:border-rose-900/30 bg-rose-50 dark:bg-rose-950/20 px-3 py-2 text-xs font-black text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/40"
                         >
                             지표 초기화
                         </button>
@@ -1638,12 +1638,12 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 />
             )}
 
-            <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-100">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+            <div className="bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-100 dark:border-indigo-950/40">
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 px-4 py-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                            <h3 className="text-base sm:text-lg font-black text-slate-900">중앙 서버 연동 및 데이터 보존 상태</h3>
-                            <p className="mt-1 text-xs sm:text-sm text-slate-500 leading-relaxed">
+                            <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100">중앙 서버 연동 및 데이터 보존 상태</h3>
+                            <p className="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
                                 중앙 저장소 연결값, 운영 키 방식, 서버 테이블 준비 상태와 현재 적재 건수를 한 번에 확인해 실제 데이터 저장 전 환경 문제를 먼저 분리합니다.
                             </p>
                         </div>
@@ -1651,50 +1651,50 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                             type="button"
                             onClick={handleRunHarnessHealthCheck}
                             disabled={harnessHealthState.status === 'loading'}
-                            className={`px-4 py-2.5 rounded-2xl text-sm font-black transition-all ${harnessHealthState.status === 'loading' ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg'}`}
+                            className={`px-4 py-2.5 rounded-2xl text-sm font-black transition-all ${harnessHealthState.status === 'loading' ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed' : 'bg-slate-900 dark:bg-slate-800 text-white hover:bg-slate-800 dark:hover:bg-slate-700 shadow-lg'}`}
                         >
                             {harnessHealthState.status === 'loading' ? '환경 점검 중...' : '환경 상태 점검'}
                         </button>
                     </div>
 
                     <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                        <div className={`rounded-2xl border px-4 py-3 ${harnessHealthState.data?.envConfigured ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80'}`}>
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">연결값</p>
-                            <p className="mt-1 text-xl font-black text-slate-900">{harnessHealthState.data?.envConfigured ? '준비됨' : '연결값 필요'}</p>
+                        <div className={`rounded-2xl border px-4 py-3 ${harnessHealthState.data?.envConfigured ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-950/50 dark:bg-emerald-950/20' : 'border-amber-200 bg-amber-50/80 dark:border-amber-950/50 dark:bg-amber-950/20'}`}>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600 dark:text-slate-400">연결값</p>
+                            <p className="mt-1 text-xl font-black text-slate-900 dark:text-slate-100">{harnessHealthState.data?.envConfigured ? '준비됨' : '연결값 필요'}</p>
                         </div>
-                        <div className={`rounded-2xl border px-4 py-3 ${harnessHealthState.data?.keyMode === 'service_role' ? 'border-indigo-200 bg-indigo-50/70' : harnessHealthState.data?.keyMode === 'anon' ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50'}`}>
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">운영 키</p>
-                            <p className="mt-1 text-xl font-black text-slate-900">{harnessHealthState.data?.keyMode === 'service_role' ? '서버 운영키' : harnessHealthState.data?.keyMode === 'anon' ? '제한 운영키' : '-'}</p>
+                        <div className={`rounded-2xl border px-4 py-3 ${harnessHealthState.data?.keyMode === 'service_role' ? 'border-indigo-200 bg-indigo-50/70 dark:border-indigo-950/50 dark:bg-indigo-950/20' : harnessHealthState.data?.keyMode === 'anon' ? 'border-amber-200 bg-amber-50/80 dark:border-amber-950/50 dark:bg-amber-950/20' : 'border-slate-200 bg-slate-50 dark:border-slate-850 dark:bg-slate-900/40'}`}>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600 dark:text-slate-400">운영 키</p>
+                            <p className="mt-1 text-xl font-black text-slate-900 dark:text-slate-100">{harnessHealthState.data?.keyMode === 'service_role' ? '서버 운영키' : harnessHealthState.data?.keyMode === 'anon' ? '제한 운영키' : '-'}</p>
                         </div>
-                        <div className={`rounded-2xl border px-4 py-3 ${harnessHealthState.data?.tablesReady ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80'}`}>
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">테이블 준비</p>
-                            <p className="mt-1 text-xl font-black text-slate-900">{harnessHealthState.data?.tablesReady ? '완료' : '미확인'}</p>
+                        <div className={`rounded-2xl border px-4 py-3 ${harnessHealthState.data?.tablesReady ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-950/50 dark:bg-emerald-950/20' : 'border-amber-200 bg-amber-50/80 dark:border-amber-950/50 dark:bg-amber-950/20'}`}>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600 dark:text-slate-400">테이블 준비</p>
+                            <p className="mt-1 text-xl font-black text-slate-900 dark:text-slate-100">{harnessHealthState.data?.tablesReady ? '완료' : '미확인'}</p>
                         </div>
-                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">처리 기록</p>
-                            <p className="mt-1 text-xl font-black text-slate-900">{harnessHealthState.data?.counts.workflowRuns ?? 0}</p>
+                        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/40 px-4 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600 dark:text-slate-400">처리 기록</p>
+                            <p className="mt-1 text-xl font-black text-slate-900 dark:text-slate-100">{harnessHealthState.data?.counts.workflowRuns ?? 0}</p>
                         </div>
-                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">이력 / 승인</p>
-                            <p className="mt-1 text-xl font-black text-slate-900">{`${harnessHealthState.data?.counts.workflowEvents ?? 0} / ${harnessHealthState.data?.counts.humanApprovals ?? 0}`}</p>
+                        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/40 px-4 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600 dark:text-slate-400">이력 / 승인</p>
+                            <p className="mt-1 text-xl font-black text-slate-900 dark:text-slate-100">{`${harnessHealthState.data?.counts.workflowEvents ?? 0} / ${harnessHealthState.data?.counts.humanApprovals ?? 0}`}</p>
                         </div>
                     </div>
 
                     {harnessHealthState.status === 'error' ? (
-                        <p className="mt-3 text-xs font-bold text-rose-700">{formatCentralStorageMessage(harnessHealthState.message)}</p>
+                        <p className="mt-3 text-xs font-bold text-rose-700 dark:text-rose-450">{formatCentralStorageMessage(harnessHealthState.message)}</p>
                     ) : null}
                     {harnessHealthState.data?.warning ? (
-                        <p className="mt-3 text-xs font-bold text-amber-700">{formatCentralStorageMessage(harnessHealthState.data.warning)}</p>
+                        <p className="mt-3 text-xs font-bold text-amber-700 dark:text-amber-550">{formatCentralStorageMessage(harnessHealthState.data.warning)}</p>
                     ) : null}
                     {harnessHealthState.data?.checkedAt ? (
-                        <p className="mt-2 text-[11px] font-semibold text-slate-500">마지막 점검: {new Date(harnessHealthState.data.checkedAt).toLocaleString('ko-KR')}</p>
+                        <p className="mt-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">마지막 점검: {new Date(harnessHealthState.data.checkedAt).toLocaleString('ko-KR')}</p>
                     ) : null}
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">중앙 저장소 보존 진단 준비</h3>
-                        <p className="mt-1 text-xs sm:text-sm text-slate-500 leading-relaxed">
+                        <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100">중앙 저장소 보존 진단 준비</h3>
+                        <p className="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
                             최근 처리 번호가 연결된 기록을 기준으로 서버 저장 상태를 즉시 조회해 직접 확인, 원본 기록 기준 확인, 실데이터 미발견 케이스를 설정 화면에서 바로 분류할 수 있습니다.
                         </p>
                     </div>
@@ -1703,7 +1703,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                             type="button"
                             onClick={handleExportHarnessProbeCsv}
                             disabled={harnessCandidates.length === 0}
-                            className={`px-4 py-2.5 rounded-2xl text-sm font-black transition-all ${harnessCandidates.length === 0 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}
+                            className={`px-4 py-2.5 rounded-2xl text-sm font-black transition-all ${harnessCandidates.length === 0 ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed' : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                         >
                             진단 CSV 내보내기
                         </button>
@@ -1711,7 +1711,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                             type="button"
                             onClick={handleExportHarnessProbeJson}
                             disabled={harnessCandidates.length === 0}
-                            className={`px-4 py-2.5 rounded-2xl text-sm font-black transition-all ${harnessCandidates.length === 0 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}
+                            className={`px-4 py-2.5 rounded-2xl text-sm font-black transition-all ${harnessCandidates.length === 0 ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed' : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                         >
                             진단 JSON 내보내기
                         </button>
@@ -1719,7 +1719,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                             type="button"
                             onClick={handleRunHarnessProbe}
                             disabled={isHarnessProbeLoading || harnessCandidates.length === 0}
-                            className={`px-4 py-2.5 rounded-2xl text-sm font-black transition-all ${isHarnessProbeLoading || harnessCandidates.length === 0 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg'}`}
+                            className={`px-4 py-2.5 rounded-2xl text-sm font-black transition-all ${isHarnessProbeLoading || harnessCandidates.length === 0 ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg'}`}
                         >
                             {isHarnessProbeLoading ? '진단 조회 중...' : '최근 조치 흐름 진단 새로고침'}
                         </button>
@@ -1727,26 +1727,26 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 </div>
 
                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3">
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">직접 조회</p>
-                        <p className="mt-1 text-2xl font-black text-slate-900">{harnessProbeSummary.direct}</p>
+                    <div className="rounded-2xl border border-emerald-200 dark:border-emerald-950 bg-emerald-50/80 dark:bg-emerald-950/20 px-4 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-400">직접 조회</p>
+                        <p className="mt-1 text-2xl font-black text-slate-900 dark:text-slate-100">{harnessProbeSummary.direct}</p>
                     </div>
-                    <div className="rounded-2xl border border-indigo-200 bg-indigo-50/70 px-4 py-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-700">원본 레코드 보정</p>
-                        <p className="mt-1 text-2xl font-black text-slate-900">{harnessProbeSummary.sourceFallback}</p>
+                    <div className="rounded-2xl border border-indigo-200 dark:border-indigo-950 bg-indigo-50/70 dark:bg-indigo-950/20 px-4 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-700 dark:text-indigo-400">원본 레코드 보정</p>
+                        <p className="mt-1 text-2xl font-black text-slate-900 dark:text-slate-100">{harnessProbeSummary.sourceFallback}</p>
                     </div>
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">실데이터 미발견</p>
-                        <p className="mt-1 text-2xl font-black text-slate-900">{harnessProbeSummary.missing}</p>
+                    <div className="rounded-2xl border border-amber-200 dark:border-amber-950 bg-amber-50/80 dark:bg-amber-950/20 px-4 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-400">실데이터 미발견</p>
+                        <p className="mt-1 text-2xl font-black text-slate-900 dark:text-slate-100">{harnessProbeSummary.missing}</p>
                     </div>
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">경고 포함</p>
-                        <p className="mt-1 text-2xl font-black text-slate-900">{harnessProbeSummary.warning}</p>
+                    <div className="rounded-2xl border border-amber-200 dark:border-amber-950 bg-amber-50/80 dark:bg-amber-950/20 px-4 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-400">경고 포함</p>
+                        <p className="mt-1 text-2xl font-black text-slate-900 dark:text-slate-100">{harnessProbeSummary.warning}</p>
                     </div>
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">룰 개입 런</p>
-                        <p className="mt-1 text-2xl font-black text-slate-900">{harnessProbeSummary.overrideRuns}</p>
-                        <p className="mt-1 text-[10px] font-bold text-amber-700">Critical 합계 {harnessProbeSummary.criticalRules}</p>
+                    <div className="rounded-2xl border border-amber-200 dark:border-amber-950 bg-amber-50/80 dark:bg-amber-950/20 px-4 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-400">룰 개입 런</p>
+                        <p className="mt-1 text-2xl font-black text-slate-900 dark:text-slate-100">{harnessProbeSummary.overrideRuns}</p>
+                        <p className="mt-1 text-[10px] font-bold text-amber-700 dark:text-amber-500">Critical 합계 {harnessProbeSummary.criticalRules}</p>
                     </div>
                     <div className="rounded-2xl border border-rose-200 bg-rose-50/80 px-4 py-3">
                         <p className="text-[10px] font-black uppercase tracking-[0.18em] text-rose-700">조회 실패</p>

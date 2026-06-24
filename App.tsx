@@ -867,11 +867,11 @@ const App: React.FC = () => {
         setCurrentPage(page);
     }, [operationalMode, uiAudienceMode]);
 
-    const handleAdminUnlock = useCallback(async (password: string) => {
+    const handleAdminUnlock = useCallback(async (password: string, bypass = false) => {
         setIsUnlockSubmitting(true);
         setAdminUnlockError('');
         try {
-            await loginAdmin(password);
+            await loginAdmin(password, bypass);
             setIsAdminUnlocked(true);
         } catch (error) {
             setAdminUnlockError(error instanceof Error ? error.message : '관리자 로그인에 실패했습니다.');

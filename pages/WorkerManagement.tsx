@@ -4125,7 +4125,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             )}
 
             {/* Controls */}
-            <div className="bg-white p-6 rounded-[30px] shadow-xl border border-slate-100 flex flex-col gap-4 items-stretch no-print">
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-[30px] shadow-xl border border-slate-100 dark:border-slate-800 flex flex-col gap-4 items-stretch no-print">
                 {isUnassignedFilterActive && (
                     <NoticeCallout
                         variant="amber"
@@ -4183,14 +4183,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     onChange={handleBulkFileChange}
                 />
                 <div className="w-full relative min-w-0">
-                    <svg className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={3}/></svg>
-                    <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="근로자 이름으로 검색..." className={`w-full border-transparent focus:bg-white focus:border-indigo-500 rounded-2xl pl-14 pr-6 py-4 font-bold text-base transition-all shadow-inner ${BRAND_TONE.slate}`} />
+                    <svg className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 dark:text-slate-650" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={3}/></svg>
+                    <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="근로자 이름으로 검색..." className={`w-full border-transparent focus:bg-white dark:focus:bg-slate-850 focus:border-indigo-500 rounded-2xl pl-14 pr-6 py-4 font-bold text-base transition-all shadow-inner ${BRAND_TONE.slate} dark:bg-slate-950 dark:text-slate-100 dark:border-slate-800`} />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 w-full">
                     <button
                         type="button"
                         onClick={handleDownloadTemplate}
-                        className={`w-full px-4 py-3 text-emerald-700 border rounded-xl text-xs sm:text-sm font-black hover:bg-emerald-100 transition-colors ${BRAND_TONE.emerald}`}
+                        className={`w-full px-4 py-3 text-emerald-700 dark:text-emerald-400 border rounded-xl text-xs sm:text-sm font-black hover:bg-emerald-100 dark:hover:bg-emerald-950/40 transition-colors ${BRAND_TONE.emerald} dark:bg-emerald-950/20 dark:border-emerald-900/50`}
                     >
                         업로드 양식 다운로드
                     </button>
@@ -4198,7 +4198,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         type="button"
                         onClick={() => bulkFileInputRef.current?.click()}
                         disabled={isBulkUploading}
-                        className={`w-full px-4 py-3 text-indigo-700 border rounded-xl text-xs sm:text-sm font-black hover:bg-indigo-100 transition-colors disabled:opacity-60 ${BRAND_TONE.indigo}`}
+                        className={`w-full px-4 py-3 text-indigo-700 dark:text-indigo-400 border rounded-xl text-xs sm:text-sm font-black hover:bg-indigo-100 dark:hover:bg-indigo-950/40 transition-colors disabled:opacity-60 ${BRAND_TONE.indigo} dark:bg-indigo-950/20 dark:border-indigo-900/50`}
                     >
                         {isBulkUploading ? 'CSV 대량 업로드 처리 중...' : 'CSV 대량 업로드'}
                     </button>
@@ -4214,49 +4214,49 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             <button
                                 type="button"
                                 onClick={() => setPhotoFilter('missing-photo')}
-                                className={`px-3 py-2 rounded-xl text-xs font-black border transition-colors ${photoFilter === 'missing-photo' ? `${BRAND_TONE.indigoStrong} text-white` : `${BRAND_TONE.indigoWhite} text-indigo-700 hover:bg-indigo-100`}`}
+                                className={`px-3 py-2 rounded-xl text-xs font-black border transition-colors ${photoFilter === 'missing-photo' ? `${BRAND_TONE.indigoStrong} text-white` : `${BRAND_TONE.indigoWhite} text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:bg-slate-900 dark:border-slate-800 dark:hover:bg-slate-800`}`}
                             >
                                 사진 미등록자만 보기
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setPhotoFilter('all')}
-                                className={`px-3 py-2 rounded-xl text-xs font-black border transition-colors ${photoFilter === 'all' ? `${BRAND_TONE.slateStrong} text-white` : `${BRAND_TONE.slateWhite} text-slate-700 hover:bg-slate-100`}`}
+                                className={`px-3 py-2 rounded-xl text-xs font-black border transition-colors ${photoFilter === 'all' ? `${BRAND_TONE.slateStrong} text-white` : `${BRAND_TONE.slateWhite} text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:hover:bg-slate-800`}`}
                             >
                                 전체 보기
                             </button>
                         </div>
                     )}
                     headerClassName="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between"
-                    titleClassName="text-sm font-black text-indigo-900"
-                    descriptionClassName="mt-1 text-[11px] font-bold text-indigo-700"
+                    titleClassName="text-sm font-black text-indigo-900 dark:text-indigo-200"
+                    descriptionClassName="mt-1 text-[11px] font-bold text-indigo-700 dark:text-indigo-300"
                     bodyClassName="mt-3"
                 >
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                        <div className={`rounded-xl border px-3 py-3 ${BRAND_TONE.indigoSoft}`}>
-                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">STEP 1</p>
-                            <p className="mt-1 text-xs font-black text-slate-900">사진 미등록자만 필터</p>
-                            <p className="mt-1 text-[11px] font-bold text-slate-500">누락자만 남겨서 등록 대상을 한 번에 정리</p>
+                        <div className={`rounded-xl border px-3 py-3 ${BRAND_TONE.indigoSoft} dark:bg-indigo-950/20 dark:border-indigo-900/30`}>
+                            <p className="text-[10px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em]">STEP 1</p>
+                            <p className="mt-1 text-xs font-black text-slate-900 dark:text-slate-100">사진 미등록자만 필터</p>
+                            <p className="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">누락자만 남겨서 등록 대상을 한 번에 정리</p>
                         </div>
-                        <div className={`rounded-xl border px-3 py-3 ${BRAND_TONE.indigoSoft}`}>
-                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">STEP 2</p>
-                            <p className="mt-1 text-xs font-black text-slate-900">근로자 카드 클릭 → 상세 보기</p>
-                            <p className="mt-1 text-[11px] font-bold text-slate-500">상단 `증명사진(프로필) 등록` 영역에서 즉시 업로드</p>
+                        <div className={`rounded-xl border px-3 py-3 ${BRAND_TONE.indigoSoft} dark:bg-indigo-950/20 dark:border-indigo-900/30`}>
+                            <p className="text-[10px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em]">STEP 2</p>
+                            <p className="mt-1 text-xs font-black text-slate-900 dark:text-slate-100">근로자 카드 클릭 → 상세 보기</p>
+                            <p className="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">상단 `증명사진(프로필) 등록` 영역에서 즉시 업로드</p>
                         </div>
-                        <div className={`rounded-xl border px-3 py-3 ${BRAND_TONE.indigoSoft}`}>
-                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">STEP 3</p>
-                            <p className="mt-1 text-xs font-black text-slate-900">저장 후 스티커/사원증 발급</p>
-                            <p className="mt-1 text-[11px] font-bold text-slate-500">얼굴 기반 본인 확인이 가능해져 현장 신뢰감이 크게 올라감</p>
+                        <div className={`rounded-xl border px-3 py-3 ${BRAND_TONE.indigoSoft} dark:bg-indigo-950/20 dark:border-indigo-900/30`}>
+                            <p className="text-[10px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em]">STEP 3</p>
+                            <p className="mt-1 text-xs font-black text-slate-900 dark:text-slate-100">저장 후 스티커/사원증 발급</p>
+                            <p className="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">얼굴 기반 본인 확인이 가능해져 현장 신뢰감이 크게 올라감</p>
                         </div>
                     </div>
                 </SectionPanelCard>
 
                 <SectionPanelCard
-                    className={`w-full rounded-2xl border px-4 py-4 ${BRAND_TONE.slate}`}
+                    className={`w-full rounded-2xl border px-4 py-4 ${BRAND_TONE.slate} dark:bg-slate-900/40 dark:border-slate-800`}
                     title="프로그램에서 근로자 직접 등록"
                     description="CSV 없이 1명씩 바로 등록할 수 있습니다. (공종: 관리 포함)"
-                    titleClassName="text-sm font-black text-slate-800"
-                    descriptionClassName="mt-1 text-[11px] font-bold text-slate-500"
+                    titleClassName="text-sm font-black text-slate-800 dark:text-slate-200"
+                    descriptionClassName="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-400"
                     bodyClassName="mt-3"
                 >
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
@@ -4265,29 +4265,29 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             value={manualWorkerForm.name}
                             onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, name: e.target.value }))}
                             placeholder="이름*"
-                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
+                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100"
                         />
                         <input
                             type="text"
                             value={manualWorkerForm.nationality}
                             onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, nationality: e.target.value }))}
                             placeholder="국적*"
-                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
+                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100"
                         />
                         <select
                             value={manualWorkerForm.job_field}
                             onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, job_field: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
+                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100"
                         >
                             {ALLOWED_JOB_FIELDS.map((field) => (
-                                <option key={field} value={field}>{field}</option>
+                                <option key={field} value={field} className="dark:bg-slate-950 dark:text-slate-100">{field}</option>
                             ))}
                         </select>
                         <input
                             type="text"
                             onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, team_name: e.target.value }))}
                             placeholder="팀명*"
-                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
+                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100"
                         />
                     </div>
                     <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -4298,7 +4298,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             inputMode="numeric"
                             maxLength={11}
                             placeholder="핸드폰번호 숫자만 입력 (선택)"
-                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
+                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100"
                         />
                         <input
                             type="text"
@@ -4307,25 +4307,25 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             inputMode="numeric"
                             maxLength={8}
                             placeholder="생년월일 6/8자리 (선택)"
-                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
+                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100"
                         />
                         <input
                             type="text"
                             value={manualWorkerForm.passport_number}
                             onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, passport_number: e.target.value }))}
                             placeholder="여권번호 (선택)"
-                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
+                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100"
                         />
                     </div>
                     <button
                         type="button"
                         onClick={handleManualRegisterWorker}
                         disabled={isManualRegistering || isBulkUploading}
-                        className={`mt-3 inline-flex items-center rounded-xl border px-4 py-2 text-xs font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-60 ${BRAND_TONE.indigo}`}
+                        className={`mt-3 inline-flex items-center rounded-xl border px-4 py-2 text-xs font-black text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-950/40 disabled:opacity-60 ${BRAND_TONE.indigo} dark:bg-indigo-950/20 dark:border-indigo-900/50`}
                     >
                         {isManualRegistering ? '프로그램 등록 처리 중...' : '프로그램에서 1명 등록'}
                     </button>
-                    <p className="mt-2 text-[11px] font-bold text-slate-500">동일 이름·공종·팀 기준에서 전화번호/생년월일/여권번호가 같으면 새 행을 만들지 않고 기존 등록자 유지 또는 보완 업데이트로 처리합니다.</p>
+                    <p className="mt-2 text-[11px] font-bold text-slate-500 dark:text-slate-400">동일 이름·공종·팀 기준에서 전화번호/생년월일/여권번호가 같으면 새 행을 만들지 않고 기존 등록자 유지 또는 보완 업데이트로 처리합니다.</p>
                 </SectionPanelCard>
 
                 {bulkUploadMessage && (
@@ -4363,35 +4363,35 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3 w-full">
                     <div className="min-w-0">
-                        <select value={selectedJobField} onChange={e => setSelectedJobField(e.target.value)} className={`w-full border text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[140px] ${BRAND_TONE.slate}`}>
-                            {jobFields.map(field => <option key={field} value={field}>{`공종: ${field}`}</option>)}
+                        <select value={selectedJobField} onChange={e => setSelectedJobField(e.target.value)} className={`w-full border text-slate-900 dark:text-slate-100 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[140px] ${BRAND_TONE.slate} dark:bg-slate-950 dark:border-slate-800`}>
+                            {jobFields.map(field => <option key={field} value={field} className="dark:bg-slate-950 dark:text-slate-100">{`공종: ${field}`}</option>)}
                         </select>
                     </div>
                     <div className="min-w-0">
-                        <select value={selectedCrew} onChange={e => setSelectedCrew(e.target.value)} className={`w-full border text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[140px] ${BRAND_TONE.slate}`}>
-                            {crews.map(crew => <option key={crew} value={crew}>{`팀: ${crew}`}</option>)}
+                        <select value={selectedCrew} onChange={e => setSelectedCrew(e.target.value)} className={`w-full border text-slate-900 dark:text-slate-100 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[140px] ${BRAND_TONE.slate} dark:bg-slate-950 dark:border-slate-800`}>
+                            {crews.map(crew => <option key={crew} value={crew} className="dark:bg-slate-950 dark:text-slate-100">{`팀: ${crew}`}</option>)}
                         </select>
                     </div>
                     <div className="min-w-0">
-                        <select value={filterLevel} onChange={e => setFilterLevel(e.target.value)} className={`w-full border text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[120px] ${BRAND_TONE.slate}`}>
-                            <option value="전체">전체 등급</option>
-                            <option value="초급">초급</option>
-                            <option value="중급">중급</option>
-                            <option value="고급">고급</option>
+                        <select value={filterLevel} onChange={e => setFilterLevel(e.target.value)} className={`w-full border text-slate-900 dark:text-slate-100 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[120px] ${BRAND_TONE.slate} dark:bg-slate-950 dark:border-slate-800`}>
+                            <option value="전체" className="dark:bg-slate-950 dark:text-slate-100">전체 등급</option>
+                            <option value="초급" className="dark:bg-slate-950 dark:text-slate-100">초급</option>
+                            <option value="중급" className="dark:bg-slate-950 dark:text-slate-100">중급</option>
+                            <option value="고급" className="dark:bg-slate-950 dark:text-slate-100">고급</option>
                         </select>
                     </div>
                     <div className="min-w-0">
-                        <select value={reliabilityFilter} onChange={e => setReliabilityFilter(e.target.value as 'all' | 'trusted' | 'needs-review')} className={`w-full border text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[150px] ${BRAND_TONE.slate}`}>
-                            <option value="all">검증 상태: 전체</option>
-                            <option value="trusted">검증 통과만</option>
-                            <option value="needs-review">검증 필요만</option>
+                        <select value={reliabilityFilter} onChange={e => setReliabilityFilter(e.target.value as 'all' | 'trusted' | 'needs-review')} className={`w-full border text-slate-900 dark:text-slate-100 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[150px] ${BRAND_TONE.slate} dark:bg-slate-950 dark:border-slate-800`}>
+                            <option value="all" className="dark:bg-slate-950 dark:text-slate-100">검증 상태: 전체</option>
+                            <option value="trusted" className="dark:bg-slate-950 dark:text-slate-100">검증 통과만</option>
+                            <option value="needs-review" className="dark:bg-slate-950 dark:text-slate-100">검증 필요만</option>
                         </select>
                     </div>
                     <div className="min-w-0">
-                        <select value={photoFilter} onChange={e => setPhotoFilter(e.target.value as 'all' | 'with-photo' | 'missing-photo')} className={`w-full border text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[150px] ${BRAND_TONE.slate}`}>
-                            <option value="all">사진 상태: 전체</option>
-                            <option value="with-photo">사진 등록자만</option>
-                            <option value="missing-photo">사진 미등록자만</option>
+                        <select value={photoFilter} onChange={e => setPhotoFilter(e.target.value as 'all' | 'with-photo' | 'missing-photo')} className={`w-full border text-slate-900 dark:text-slate-100 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[150px] ${BRAND_TONE.slate} dark:bg-slate-950 dark:border-slate-800`}>
+                            <option value="all" className="dark:bg-slate-950 dark:text-slate-100">사진 상태: 전체</option>
+                            <option value="with-photo" className="dark:bg-slate-950 dark:text-slate-100">사진 등록자만</option>
+                            <option value="missing-photo" className="dark:bg-slate-950 dark:text-slate-100">사진 미등록자만</option>
                         </select>
                     </div>
                 </div>
@@ -4443,7 +4443,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 )}
                 {missingPhotoQueue.length > 0 && (
                     <SectionPanelCard
-                        className="w-full rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-sm"
+                        className="w-full rounded-[28px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-4 shadow-sm"
                         title="사진 미등록자 빠른 등록 큐"
                         description={`실제 등록자는 아래 순서대로 열어서 사진만 연속 업로드하면 된다. 현재 화면 기준 상위 ${missingPhotoQueue.length}명만 우선 노출된다.`}
                         headerAction={(
@@ -4451,22 +4451,22 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <button
                                     type="button"
                                     onClick={() => setPhotoFilter('missing-photo')}
-                                    className="px-3 py-2 rounded-xl text-xs font-black bg-slate-900 text-white hover:bg-slate-800 transition-colors"
+                                    className="px-3 py-2 rounded-xl text-xs font-black bg-slate-900 dark:bg-slate-800 text-white hover:bg-slate-800 dark:hover:bg-slate-700 transition-colors"
                                 >
                                     미등록자 작업 모드 유지
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => missingPhotoQueue[0] && openPhotoRegistration(missingPhotoQueue[0])}
-                                    className="px-3 py-2 rounded-xl text-xs font-black bg-indigo-600 text-white hover:bg-indigo-500 transition-colors"
+                                    className="px-3 py-2 rounded-xl text-xs font-black bg-indigo-600 dark:bg-indigo-700 text-white hover:bg-indigo-500 dark:hover:bg-indigo-600 transition-colors"
                                 >
                                     첫 대상 바로 열기
                                 </button>
                             </div>
                         )}
                         headerClassName="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between"
-                        titleClassName="text-sm font-black text-slate-900"
-                        descriptionClassName="mt-1 text-[11px] font-bold text-slate-500"
+                        titleClassName="text-sm font-black text-slate-900 dark:text-slate-100"
+                        descriptionClassName="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-400"
                         bodyClassName="mt-4"
                     >
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -4500,13 +4500,13 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 w-full">
                     <button
                         onClick={() => startProcessing('sticker', filteredRecords)}
-                        className={`w-full px-4 py-3 text-orange-700 border rounded-xl text-xs sm:text-sm font-black hover:bg-orange-100 transition-colors whitespace-normal break-keep ${BRAND_TONE.orange}`}
+                        className={`w-full px-4 py-3 text-orange-700 dark:text-orange-400 border rounded-xl text-xs sm:text-sm font-black hover:bg-orange-100 dark:hover:bg-orange-950/40 transition-colors whitespace-normal break-keep ${BRAND_TONE.orange} dark:bg-orange-950/20 dark:border-orange-900/50`}
                     >
                         필터 대상 스티커 일괄 인쇄
                     </button>
                     <button
                         onClick={() => startProcessing('idcard', filteredRecords)}
-                        className={`w-full px-4 py-3 text-indigo-700 border rounded-xl text-xs sm:text-sm font-black hover:bg-indigo-100 transition-colors whitespace-normal break-keep ${BRAND_TONE.indigo}`}
+                        className={`w-full px-4 py-3 text-indigo-700 dark:text-indigo-400 border rounded-xl text-xs sm:text-sm font-black hover:bg-indigo-100 dark:hover:bg-indigo-950/40 transition-colors whitespace-normal break-keep ${BRAND_TONE.indigo} dark:bg-indigo-950/20 dark:border-indigo-900/50`}
                     >
                         필터 대상 사원증 일괄 인쇄
                     </button>
@@ -4663,25 +4663,25 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             </div>
             )}
 
-            <div className="mt-8 bg-white rounded-[24px] border border-slate-100 shadow-xl p-5 sm:p-6">
+            <div className="mt-8 bg-white dark:bg-slate-900 rounded-[24px] border border-slate-100 dark:border-slate-800 shadow-xl p-5 sm:p-6">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                     <div>
-                        <h3 className="text-base sm:text-lg font-black text-slate-900">등록 근로자 관리자 센터</h3>
-                        <p className="mt-1 text-[11px] font-bold text-slate-500">근로자 기본정보 수정과 문자 발송 이력을 같은 화면에서 저용량 호출 방식으로 확인합니다.</p>
-                        <p className="mt-1 text-[11px] font-bold text-slate-400">완전 동일한 중복 행은 자동 숨김 처리하고, 동명이인은 그대로 유지합니다.</p>
+                        <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100">등록 근로자 관리자 센터</h3>
+                        <p className="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">근로자 기본정보 수정과 문자 발송 이력을 같은 화면에서 저용량 호출 방식으로 확인합니다.</p>
+                        <p className="mt-1 text-[11px] font-bold text-slate-400 dark:text-slate-500">완전 동일한 중복 행은 자동 숨김 처리하고, 동명이인은 그대로 유지합니다.</p>
                     </div>
                     <div className="flex items-center gap-2">
                         <button
                             type="button"
                             onClick={() => setRegisteredWorkerAdminTab('list')}
-                            className={`px-3 py-2 rounded-xl border text-xs font-black transition-colors ${registeredWorkerAdminTab === 'list' ? `${BRAND_TONE.slateStrong} text-white` : `${BRAND_TONE.slateWhite} text-slate-700 hover:bg-slate-100`}`}
+                            className={`px-3 py-2 rounded-xl border text-xs font-black transition-colors ${registeredWorkerAdminTab === 'list' ? `${BRAND_TONE.slateStrong} text-white` : `${BRAND_TONE.slateWhite} text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-750 dark:hover:bg-slate-700`}`}
                         >
                             등록 리스트
                         </button>
                         <button
                             type="button"
                             onClick={() => setRegisteredWorkerAdminTab('message-history')}
-                            className={`px-3 py-2 rounded-xl border text-xs font-black transition-colors ${registeredWorkerAdminTab === 'message-history' ? `${BRAND_TONE.indigoStrong} text-white` : `${BRAND_TONE.indigo} text-indigo-700 hover:bg-indigo-100`}`}
+                            className={`px-3 py-2 rounded-xl border text-xs font-black transition-colors ${registeredWorkerAdminTab === 'message-history' ? `${BRAND_TONE.indigoStrong} text-white` : `${BRAND_TONE.indigo} text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:bg-slate-800 dark:border-slate-750 dark:hover:bg-slate-700`}`}
                         >
                             문자 발송 이력
                         </button>
@@ -4689,7 +4689,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             type="button"
                             onClick={() => void fetchRegisteredWorkers()}
                             disabled={isRegisteredWorkersLoading}
-                            className={`px-3 py-2 rounded-xl border text-indigo-700 text-xs font-black hover:bg-indigo-100 disabled:opacity-60 ${BRAND_TONE.indigo}`}
+                            className={`px-3 py-2 rounded-xl border text-indigo-700 dark:text-indigo-400 text-xs font-black hover:bg-indigo-100 dark:hover:bg-indigo-950/40 disabled:opacity-60 ${BRAND_TONE.indigo} dark:bg-indigo-950/20 dark:border-indigo-900/50`}
                         >
                             {isRegisteredWorkersLoading ? '불러오는 중...' : '새로고침'}
                         </button>
@@ -4788,60 +4788,60 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 )}
 
                 <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-                    <ControlPanelCard className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate}`} contentClassName="">
+                    <ControlPanelCard className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate} dark:bg-slate-950 dark:border-slate-800`} contentClassName="">
                         <input
                             type="text"
                             value={registeredWorkerSearchTerm}
                             onChange={(event) => setRegisteredWorkerSearchTerm(event.target.value)}
                             placeholder="이름/전화/생년월일/여권번호 검색"
-                            className="w-full text-sm font-bold text-slate-800 bg-transparent focus:bg-white focus:border-indigo-500 rounded-lg px-0 py-0 border-0 outline-none"
+                            className="w-full text-sm font-bold text-slate-800 dark:text-slate-100 bg-transparent focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg px-0 py-0 border-0 outline-none"
                         />
                     </ControlPanelCard>
-                    <ControlPanelCard className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate}`} contentClassName="">
+                    <ControlPanelCard className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate} dark:bg-slate-950 dark:border-slate-800`} contentClassName="">
                         <select
                             value={registeredWorkerJobFilter}
                             onChange={(event) => setRegisteredWorkerJobFilter(event.target.value)}
-                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white border-0 px-0 py-0"
+                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 dark:text-slate-100 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-800 border-0 px-0 py-0"
                         >
                             {registeredWorkerJobOptions.map((option) => (
-                                <option key={option} value={option}>{`공종: ${option}`}</option>
+                                <option key={option} value={option} className="dark:bg-slate-950 dark:text-slate-100">{`공종: ${option}`}</option>
                             ))}
                         </select>
                     </ControlPanelCard>
-                    <ControlPanelCard className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate}`} contentClassName="">
+                    <ControlPanelCard className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate} dark:bg-slate-950 dark:border-slate-800`} contentClassName="">
                         <select
                             value={registeredWorkerTeamFilter}
                             onChange={(event) => setRegisteredWorkerTeamFilter(event.target.value)}
-                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white border-0 px-0 py-0"
+                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 dark:text-slate-100 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-800 border-0 px-0 py-0"
                         >
                             {registeredWorkerTeamOptions.map((option) => (
-                                <option key={option} value={option}>{`팀명: ${option}`}</option>
+                                <option key={option} value={option} className="dark:bg-slate-950 dark:text-slate-100">{`팀명: ${option}`}</option>
                             ))}
                         </select>
                     </ControlPanelCard>
-                    <ControlPanelCard className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate}`} contentClassName="">
+                    <ControlPanelCard className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate} dark:bg-slate-950 dark:border-slate-800`} contentClassName="">
                         <select
                             value={registeredWorkerMissingFilter}
                             onChange={(event) => setRegisteredWorkerMissingFilter(event.target.value as 'all' | 'missing-any' | 'missing-phone' | 'missing-birth' | 'missing-passport')}
-                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white border-0 px-0 py-0"
+                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 dark:text-slate-100 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-800 border-0 px-0 py-0"
                         >
-                            <option value="all">누락 필터: 전체</option>
-                            <option value="missing-any">누락 필터: 하나라도 누락</option>
-                            <option value="missing-phone">누락 필터: 전화번호 누락</option>
-                            <option value="missing-birth">누락 필터: 생년월일 누락</option>
-                            <option value="missing-passport">누락 필터: 여권번호 누락</option>
+                            <option value="all" className="dark:bg-slate-950 dark:text-slate-100">누락 필터: 전체</option>
+                            <option value="missing-any" className="dark:bg-slate-950 dark:text-slate-100">누락 필터: 하나라도 누락</option>
+                            <option value="missing-phone" className="dark:bg-slate-950 dark:text-slate-100">누락 필터: 전화번호 누락</option>
+                            <option value="missing-birth" className="dark:bg-slate-950 dark:text-slate-100">누락 필터: 생년월일 누락</option>
+                            <option value="missing-passport" className="dark:bg-slate-950 dark:text-slate-100">누락 필터: 여권번호 누락</option>
                         </select>
                     </ControlPanelCard>
-                    <ControlPanelCard className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate}`} contentClassName="">
+                    <ControlPanelCard className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate} dark:bg-slate-950 dark:border-slate-800`} contentClassName="">
                         <select
                             value={registeredWorkerDuplicateFilter}
                             onChange={(event) => setRegisteredWorkerDuplicateFilter(event.target.value as RegisteredWorkerDuplicateFilter)}
-                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white border-0 px-0 py-0"
+                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 dark:text-slate-100 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-800 border-0 px-0 py-0"
                         >
-                            <option value="all">중복 필터: 전체</option>
-                            <option value="duplicates">중복 필터: 중복 후보만</option>
-                            <option value="suggested-delete">중복 필터: 삭제 권장만</option>
-                            <option value="exact-duplicates">중복 필터: 완전 동일 중복만</option>
+                            <option value="all" className="dark:bg-slate-950 dark:text-slate-100">중복 필터: 전체</option>
+                            <option value="duplicates" className="dark:bg-slate-950 dark:text-slate-100">중복 필터: 중복 후보만</option>
+                            <option value="suggested-delete" className="dark:bg-slate-950 dark:text-slate-100">중복 필터: 삭제 권장만</option>
+                            <option value="exact-duplicates" className="dark:bg-slate-950 dark:text-slate-100">중복 필터: 완전 동일 중복만</option>
                         </select>
                     </ControlPanelCard>
                 </div>
@@ -4896,15 +4896,15 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 </div>
                 {registeredWorkerDuplicateGroupPreview.length > 0 && (
                     <SectionPanelCard
-                        className={`mt-3 rounded-2xl border px-4 py-4 ${BRAND_TONE.amberSoft70}`}
+                        className={`mt-3 rounded-2xl border px-4 py-4 ${BRAND_TONE.amberSoft70} dark:bg-amber-950/20 dark:border-amber-900/30`}
                         eyebrow="DUPLICATE PREVIEW"
                         title="중복 그룹 미리보기"
                         description="각 그룹의 보존 후보와 삭제 권장 대상을 바로 확인할 수 있습니다."
-                        headerAction={<span className="rounded-full border border-amber-200 bg-white px-3 py-1 text-[11px] font-black text-amber-700">표시 {Math.min(registeredWorkerDuplicateGroupPreview.length, 8)} / 전체 {registeredWorkerDuplicateGroupPreview.length}그룹</span>}
+                        headerAction={<span className="rounded-full border border-amber-200 dark:border-amber-900/40 bg-white dark:bg-slate-950 px-3 py-1 text-[11px] font-black text-amber-700 dark:text-amber-400">표시 {Math.min(registeredWorkerDuplicateGroupPreview.length, 8)} / 전체 {registeredWorkerDuplicateGroupPreview.length}그룹</span>}
                         headerClassName="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
-                        eyebrowClassName="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700"
-                        titleClassName="mt-1 text-sm font-black text-slate-900"
-                        descriptionClassName="mt-1 text-[11px] font-bold text-slate-600"
+                        eyebrowClassName="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-450"
+                        titleClassName="mt-1 text-sm font-black text-slate-900 dark:text-slate-100"
+                        descriptionClassName="mt-1 text-[11px] font-bold text-slate-600 dark:text-slate-400"
                         bodyClassName="mt-4"
                     >
                         <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
@@ -5879,18 +5879,18 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     title={(
                         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                             <div>
-                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-sky-700">BULK REPORT MESSAGE</p>
-                                <p className="mt-1 text-sm font-black text-slate-900">선택 근로자 리포트 일괄 문자 발송</p>
+                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-sky-700 dark:text-sky-400">BULK REPORT MESSAGE</p>
+                                <p className="mt-1 text-sm font-black text-slate-900 dark:text-slate-100">선택 근로자 리포트 일괄 문자 발송</p>
                             </div>
                             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black">
-                                <span className="rounded-full border border-sky-200 bg-white px-3 py-1 text-sky-700">선택 {selectedBulkMessageWorkerIds.length}명</span>
-                                <span className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-emerald-700">발송 가능 {selectedBulkMessageWorkers.filter((worker) => normalizePhone(worker.phone_number).length >= 10 && findLatestRecordForRegisteredWorker(worker)).length}명</span>
+                                <span className="rounded-full border border-sky-200 dark:border-sky-900 bg-white dark:bg-slate-950 px-3 py-1 text-sky-700 dark:text-sky-400">선택 {selectedBulkMessageWorkerIds.length}명</span>
+                                <span className="rounded-full border border-emerald-200 dark:border-emerald-900 bg-white dark:bg-slate-950 px-3 py-1 text-emerald-700 dark:text-emerald-400">발송 가능 {selectedBulkMessageWorkers.filter((worker) => normalizePhone(worker.phone_number).length >= 10 && findLatestRecordForRegisteredWorker(worker)).length}명</span>
                             </div>
                         </div>
                     )}
                     description="선택한 등록 근로자의 저장된 전화번호를 그대로 사용해 최신 개인 리포트를 순차 발송합니다."
                     titleClassName="text-inherit"
-                    descriptionClassName="mt-1 text-[11px] font-bold text-slate-600"
+                    descriptionClassName="mt-1 text-[11px] font-bold text-slate-600 dark:text-slate-400"
                     bodyClassName="mt-3"
                 >
                     <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
@@ -5898,21 +5898,21 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             value={bulkMessageNote}
                             onChange={(event) => setBulkMessageNote(event.target.value.slice(0, 180))}
                             rows={3}
-                            className="w-full resize-none rounded-2xl border border-sky-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 focus:border-sky-400"
+                            className="w-full resize-none rounded-2xl border border-sky-200 dark:border-sky-900/50 bg-white dark:bg-slate-950 px-4 py-3 text-sm font-bold text-slate-700 dark:text-slate-100 focus:border-sky-450"
                             placeholder="선택 근로자 일괄 발송 메모"
                         />
                         <div className="flex flex-col gap-2 xl:w-[220px]">
                             <button
                                 type="button"
                                 onClick={toggleSelectAllFilteredWorkersForBulkMessage}
-                                className={`rounded-xl border px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 ${BRAND_TONE.slateWhite}`}
+                                className={`rounded-xl border px-3 py-2 text-xs font-black text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 ${BRAND_TONE.slateWhite} dark:bg-slate-900 dark:border-slate-800`}
                             >
                                 {visibleRegisteredWorkers.length > 0 && visibleRegisteredWorkers.every((worker) => selectedBulkMessageWorkerIds.includes(worker.id)) ? '필터 결과 전체 해제' : '필터 결과 전체 선택'}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setSelectedBulkMessageWorkerIds([])}
-                                className={`rounded-xl border px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100 ${BRAND_TONE.slate}`}
+                                className={`rounded-xl border px-3 py-2 text-xs font-black text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-850 ${BRAND_TONE.slate} dark:bg-slate-900 dark:border-slate-800`}
                             >
                                 선택 초기화
                             </button>
@@ -5920,7 +5920,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <button
                                     type="button"
                                     onClick={reselectLastBulkFailedWorkers}
-                                    className={`rounded-xl border px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-100 ${BRAND_TONE.rose}`}
+                                    className={`rounded-xl border px-3 py-2 text-xs font-black text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/40 ${BRAND_TONE.rose} dark:bg-rose-950/20 dark:border-rose-900/50`}
                                 >
                                     {BRAND_STATUS_LABELS.attention} 대상 다시 선택 ({lastBulkFailedWorkerIds.length}명)
                                 </button>
@@ -5929,7 +5929,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 type="button"
                                 onClick={() => void handleBulkSendSelectedWorkerReports()}
                                 disabled={isBulkSendingReports || selectedBulkMessageWorkerIds.length === 0}
-                                className={`rounded-xl border px-3 py-2 text-xs font-black text-white hover:bg-sky-700 disabled:opacity-60 ${BRAND_TONE.skyStrong}`}
+                                className={`rounded-xl border px-3 py-2 text-xs font-black text-white hover:bg-sky-700 disabled:opacity-60 ${BRAND_TONE.skyStrong} dark:bg-sky-700 dark:border-sky-600`}
                             >
                                 {isBulkSendingReports ? '일괄 발송 중...' : `선택 근로자 일괄 발송 (${selectedBulkMessageWorkerIds.length}명)`}
                             </button>
@@ -5938,7 +5938,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     type="button"
                                     onClick={requestCancelBulkSend}
                                     disabled={isBulkSendCancelRequested}
-                                    className={`rounded-xl border px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-100 disabled:opacity-60 ${BRAND_TONE.roseSoftStrong}`}
+                                    className={`rounded-xl border px-3 py-2 text-xs font-black text-rose-700 dark:text-rose-450 hover:bg-rose-100 dark:hover:bg-rose-950/40 disabled:opacity-60 ${BRAND_TONE.roseSoftStrong} dark:bg-rose-950/20 dark:border-rose-900/50`}
                                 >
                                     {isBulkSendCancelRequested ? '중단 요청됨' : '일괄 발송 중단'}
                                 </button>
@@ -5973,36 +5973,36 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         </p>
                     )}
                 </SectionPanelCard>
-                <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+                <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
                     <table className="min-w-full text-sm">
-                        <thead className="bg-slate-50">
+                        <thead className="bg-slate-50 dark:bg-slate-950">
                             <tr>
-                                <th className="px-4 py-3 text-center text-xs font-black text-slate-600">선택</th>
-                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600">이름</th>
-                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600">공종</th>
-                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600">팀명</th>
-                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600">
+                                <th className="px-4 py-3 text-center text-xs font-black text-slate-600 dark:text-slate-400">선택</th>
+                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600 dark:text-slate-400">이름</th>
+                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600 dark:text-slate-400">공종</th>
+                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600 dark:text-slate-400">팀명</th>
+                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600 dark:text-slate-400">
                                     <button
                                         type="button"
                                         onClick={() => toggleRegisteredWorkersSort('birth_date')}
-                                        className="inline-flex items-center gap-1 hover:text-slate-900"
+                                        className="inline-flex items-center gap-1 hover:text-slate-900 dark:hover:text-slate-100"
                                     >
                                         생년월일
                                         {registeredWorkersSort.key === 'birth_date' ? (registeredWorkersSort.order === 'asc' ? '▲' : '▼') : ''}
                                     </button>
                                 </th>
-                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600">
+                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600 dark:text-slate-400">
                                     <button
                                         type="button"
                                         onClick={() => toggleRegisteredWorkersSort('phone_number')}
-                                        className="inline-flex items-center gap-1 hover:text-slate-900"
+                                        className="inline-flex items-center gap-1 hover:text-slate-900 dark:hover:text-slate-100"
                                     >
                                         전화번호
                                         {registeredWorkersSort.key === 'phone_number' ? (registeredWorkersSort.order === 'asc' ? '▲' : '▼') : ''}
                                     </button>
                                 </th>
-                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600">관리</th>
-                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600">중복 상태</th>
+                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600 dark:text-slate-400">관리</th>
+                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600 dark:text-slate-400">중복 상태</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -6058,13 +6058,13 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             : '문자 이력을 열어 최근 전달 상태를 확인하거나 선택 발송 대상으로 묶으세요.';
 
                                 return (
-                                <tr key={worker.id} className={`border-t ${duplicateMeta ? BRAND_TONE.roseRowHover : BRAND_TONE.slateRowHover}`}>
+                                <tr key={worker.id} className={`border-t border-slate-200 dark:border-slate-800 ${duplicateMeta ? BRAND_TONE.roseRowHover : BRAND_TONE.slateRowHover}`}>
                                     <td className="px-4 py-3 text-center">
                                         <input
                                             type="checkbox"
                                             checked={selectedBulkMessageWorkerIds.includes(worker.id)}
                                             onChange={() => toggleBulkMessageWorkerSelection(worker.id)}
-                                            className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                                            className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sky-600 focus:ring-sky-500"
                                         />
                                     </td>
                                     <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap align-top">
@@ -6073,11 +6073,11 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 type="text"
                                                 value={editingWorkerDraft?.name || ''}
                                                 onChange={(event) => setEditingWorkerDraft((prev) => prev ? ({ ...prev, name: event.target.value }) : prev)}
-                                                className="w-32 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold"
+                                                className="w-32 rounded-lg border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-950 px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100"
                                             />
                                         ) : (
                                             <div className="min-w-[180px]">
-                                                <p className="font-black text-slate-900">{worker.name || '-'}</p>
+                                                <p className="font-black text-slate-900 dark:text-slate-100">{worker.name || '-'}</p>
                                                 <div className="mt-1 flex flex-wrap gap-1.5">
                                                     {selectedBulkMessageWorkerIds.includes(worker.id) && (
                                                         <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black text-sky-700 ${BRAND_TONE.sky}`}>
@@ -6102,30 +6102,30 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             </div>
                                         )}
                                     </td>
-                                    <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">
+                                    <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                                         {editingWorkerId === worker.id ? (
                                             <select
                                                 value={editingWorkerDraft?.job_field || ''}
                                                 onChange={(event) => setEditingWorkerDraft((prev) => prev ? ({ ...prev, job_field: event.target.value }) : prev)}
-                                                className="w-36 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold"
+                                                className="w-36 rounded-lg border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-950 px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100"
                                             >
                                                 {ALLOWED_JOB_FIELDS.map((field) => (
-                                                    <option key={field} value={field}>{field}</option>
+                                                    <option key={field} value={field} className="dark:bg-slate-950 dark:text-slate-100">{field}</option>
                                                 ))}
                                             </select>
                                         ) : (worker.job_field || '-')}
                                     </td>
-                                    <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">
+                                    <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                                         {editingWorkerId === worker.id ? (
                                             <input
                                                 type="text"
                                                 value={editingWorkerDraft?.team_name || ''}
                                                 onChange={(event) => setEditingWorkerDraft((prev) => prev ? ({ ...prev, team_name: event.target.value }) : prev)}
-                                                className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold"
+                                                className="w-28 rounded-lg border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-950 px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100"
                                             />
                                         ) : (worker.team_name || '-')}
                                     </td>
-                                    <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">
+                                    <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                                         {editingWorkerId === worker.id ? (
                                             <input
                                                 type="text"
@@ -6133,11 +6133,11 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 onChange={(event) => setEditingWorkerDraft((prev) => prev ? ({ ...prev, birth_date: normalizeBirthDate(event.target.value).slice(0, 8) }) : prev)}
                                                 inputMode="numeric"
                                                 maxLength={8}
-                                                className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold"
+                                                className="w-24 rounded-lg border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-950 px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100"
                                             />
                                         ) : (formatBirthDateForDisplay(worker.birth_date) || '-')}
                                     </td>
-                                    <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">
+                                    <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                                         {editingWorkerId === worker.id ? (
                                             <input
                                                 type="text"
@@ -6145,7 +6145,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 onChange={(event) => setEditingWorkerDraft((prev) => prev ? ({ ...prev, phone_number: normalizePhone(event.target.value).slice(0, 11) }) : prev)}
                                                 inputMode="numeric"
                                                 maxLength={11}
-                                                className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold"
+                                                className="w-28 rounded-lg border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-950 px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100"
                                             />
                                         ) : (formatPhoneForDisplay(worker.phone_number) || '-')}
                                     </td>
@@ -6156,7 +6156,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     type="button"
                                                     onClick={() => void handleSaveRegisteredWorker()}
                                                     disabled={isSavingWorkerEdit}
-                                                    className={`rounded-lg border px-2 py-1 text-[11px] font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-60 ${BRAND_TONE.emerald}`}
+                                                    className={`rounded-lg border px-2 py-1 text-[11px] font-black text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-950/40 disabled:opacity-60 ${BRAND_TONE.emerald} dark:bg-emerald-950/20 dark:border-emerald-900/50`}
                                                 >
                                                     {isSavingWorkerEdit ? '저장중' : '저장'}
                                                 </button>
@@ -6164,7 +6164,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     type="button"
                                                     onClick={cancelEditRegisteredWorker}
                                                     disabled={isSavingWorkerEdit}
-                                                    className={`rounded-lg border px-2 py-1 text-[11px] font-black text-slate-700 hover:bg-slate-200 disabled:opacity-60 ${BRAND_TONE.slatePanel}`}
+                                                    className={`rounded-lg border px-2 py-1 text-[11px] font-black text-slate-700 dark:text-slate-350 hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-60 ${BRAND_TONE.slatePanel} dark:bg-slate-800 dark:border-slate-750`}
                                                 >
                                                     취소
                                                 </button>
@@ -6175,7 +6175,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     type="button"
                                                     onClick={() => startEditRegisteredWorker(worker)}
                                                     disabled={deletingWorkerId === worker.id || deletingWorkerId === '__bulk__'}
-                                                    className={`rounded-lg border px-2 py-1 text-[11px] font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-60 ${BRAND_TONE.indigo}`}
+                                                    className={`rounded-lg border px-2 py-1 text-[11px] font-black text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-950/40 disabled:opacity-60 ${BRAND_TONE.indigo} dark:bg-indigo-950/20 dark:border-indigo-900/50`}
                                                 >
                                                     수정
                                                 </button>
@@ -6183,7 +6183,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     type="button"
                                                     onClick={() => handleOpenWorkerMessageHistory(worker)}
                                                     disabled={deletingWorkerId === worker.id || deletingWorkerId === '__bulk__'}
-                                                    className={`rounded-lg border px-2 py-1 text-[11px] font-black text-sky-700 hover:bg-sky-100 disabled:opacity-60 ${BRAND_TONE.sky}`}
+                                                    className={`rounded-lg border px-2 py-1 text-[11px] font-black text-sky-700 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-950/40 disabled:opacity-60 ${BRAND_TONE.sky} dark:bg-sky-950/20 dark:border-sky-900/50`}
                                                 >
                                                     문자이력
                                                 </button>
@@ -6191,7 +6191,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     type="button"
                                                     onClick={() => void handleDeleteRegisteredWorker(worker)}
                                                     disabled={deletingWorkerId === worker.id || deletingWorkerId === '__bulk__'}
-                                                    className={`rounded-lg border px-2 py-1 text-[11px] font-black text-rose-700 hover:bg-rose-100 disabled:opacity-60 ${BRAND_TONE.rose}`}
+                                                    className={`rounded-lg border px-2 py-1 text-[11px] font-black text-rose-700 dark:text-rose-450 hover:bg-rose-100 dark:hover:bg-rose-950/40 disabled:opacity-60 ${BRAND_TONE.rose} dark:bg-rose-950/20 dark:border-rose-900/50`}
                                                 >
                                                     {deletingWorkerId === worker.id ? '삭제중' : '삭제'}
                                                 </button>

@@ -3311,10 +3311,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         <button type="button" onClick={handleNavigateToIntervention} className="rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-black text-white transition duration-200 hover:-translate-y-0.5 hover:bg-indigo-500">
                             8번 개입 화면
                         </button>
-                        <button type="button" onClick={handleNavigateToTaggingValidation} className="rounded-2xl border border-violet-200 bg-white px-4 py-3 text-sm font-black text-violet-700 transition duration-200 hover:-translate-y-0.5 hover:bg-violet-50">
+                        <button type="button" onClick={handleNavigateToTaggingValidation} className="rounded-2xl border border-violet-200 bg-white dark:border-violet-800 dark:bg-slate-900 px-4 py-3 text-sm font-black text-violet-700 dark:text-violet-300 transition duration-200 hover:-translate-y-0.5 hover:bg-violet-50 dark:hover:bg-slate-800">
                             10번 태깅 검증
                         </button>
-                        <button type="button" onClick={() => onNavigateToPage?.('dashboard')} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition duration-200 hover:-translate-y-0.5 hover:bg-slate-50">
+                        <button type="button" onClick={() => onNavigateToPage?.('dashboard')} className="rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 px-4 py-3 text-sm font-black text-slate-700 dark:text-slate-300 transition duration-200 hover:-translate-y-0.5 hover:bg-slate-50 dark:hover:bg-slate-800">
                             대시보드로 이동
                         </button>
                     </div>
@@ -3324,10 +3324,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     <p className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">MOBILE ACTION FLOW</p>
                     <div className="mt-2 flex items-center justify-between gap-2">
                         <div>
-                            <h3 className="text-lg font-black text-slate-900">리포트에서 바로 조치</h3>
-                            <p className="mt-1 text-sm font-semibold text-slate-600">모바일은 읽는 것보다 움직이는 동선을 먼저 보여줍니다.</p>
+                            <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">리포트에서 바로 조치</h3>
+                            <p className="mt-1 text-sm font-semibold text-slate-650 dark:text-slate-350">모바일은 읽는 것보다 움직이는 동선을 먼저 보여줍니다.</p>
                         </div>
-                        <span className="rounded-full bg-violet-100 px-3 py-1 text-[10px] font-black text-violet-700">최신 기준</span>
+                        <span className="rounded-full bg-violet-100 dark:bg-violet-950 px-3 py-1 text-[10px] font-black text-violet-700 dark:text-violet-300">최신 기준</span>
                     </div>
 
                     <div className="mt-4 grid grid-cols-2 gap-2">
@@ -3341,11 +3341,11 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 key={item.step}
                                 type="button"
                                 onClick={() => onNavigateToPage?.(item.step === '8' ? 'intervention-coaching' : item.step === '10' ? 'ocr-analysis' : item.step === '11' ? 'reports' : 'settings')}
-                                className="rounded-2xl border border-white bg-white px-3 py-3 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                                className="rounded-2xl border border-white dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-3 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md dark:shadow-none"
                             >
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-500">STEP {item.step}</p>
-                                <p className="mt-1 text-sm font-black text-slate-900">{item.label}</p>
-                                <p className="mt-1 text-[11px] font-semibold text-slate-500">{item.action}</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-500 dark:text-violet-400">STEP {item.step}</p>
+                                <p className="mt-1 text-sm font-black text-slate-900 dark:text-slate-100">{item.label}</p>
+                                <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">{item.action}</p>
                             </button>
                         ))}
                     </div>
