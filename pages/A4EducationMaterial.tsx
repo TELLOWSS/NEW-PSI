@@ -12,10 +12,12 @@ import {
     buildTbmEducationDraft,
     estimateEducationTokens,
     getFiveMinuteVideoDuration,
+    getTbmEducationScopeKey,
     normalizeTbmEducationDraft,
     TBM_MONTHLY_PACKAGE_STORAGE_KEY,
     type TbmEducationDraft,
     type TbmEvidenceSource,
+    type TbmMonthlyPackagePayload,
 } from '../utils/tbmEducationStudio';
 import { extractTbmSourceFromFile } from '../utils/tbmSourceExtraction';
 
@@ -46,6 +48,8 @@ const CHECKLIST_TEMPLATES = [
 ];
 
 const STUDIO_STORAGE_KEY = 'psi_tbm_education_studio_v2';
+const STUDIO_STORE_VERSION = 3;
+const DEFAULT_WORK_TYPE = '전체 공종';
 
 interface StoredStudioState {
     educationMonth: string;
@@ -54,19 +58,126 @@ interface StoredStudioState {
     draft: TbmEducationDraft;
     translatedTexts?: Record<string, string>;
     translationSourceText?: string;
+    savedAt?: string;
 }
 
-const loadStudioState = (): StoredStudioState | null => {
-    if (typeof window === 'undefined') return null;
+interface StoredStudioStore {
+    version: typeof STUDIO_STORE_VERSION;
+    lastScopeKey: string;
+    snapshots: Record<string, StoredStudioState>;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    Boolean(value && typeof value === 'object' && !Array.isArray(value));
+
+const normalizeStoredStudioState = (value: unknown): StoredStudioState | null => {
+    if (!isRecord(value) || !value.draft || !Array.isArray(value.sources)) return null;
+    const draft = normalizeTbmEducationDraft(value.draft as TbmEducationDraft);
+    const educationMonth = typeof value.educationMonth === 'string' && value.educationMonth.trim()
+        ? value.educationMonth
+        : draft.month || getNextMonth();
+    const workType = typeof value.workType === 'string' && value.workType.trim()
+        ? value.workType
+        : draft.workType || DEFAULT_WORK_TYPE;
+    return {
+        educationMonth,
+        workType,
+        sources: value.sources.filter(isRecord) as unknown as TbmEvidenceSource[],
+        draft: {
+            ...draft,
+            month: educationMonth,
+            workType,
+        },
+        translatedTexts: isRecord(value.translatedTexts) ? value.translatedTexts as Record<string, string> : {},
+        translationSourceText: typeof value.translationSourceText === 'string' ? value.translationSourceText : '',
+        savedAt: typeof value.savedAt === 'string' ? value.savedAt : undefined,
+    };
+};
+
+const emptyStudioStore = (): StoredStudioStore => ({
+    version: STUDIO_STORE_VERSION,
+    lastScopeKey: '',
+    snapshots: {},
+});
+
+const readStudioStore = (): StoredStudioStore => {
+    if (typeof window === 'undefined') return emptyStudioStore();
     try {
-        const parsed = JSON.parse(localStorage.getItem(STUDIO_STORAGE_KEY) || 'null') as StoredStudioState | null;
-        return parsed?.draft && Array.isArray(parsed.sources)
-            ? { ...parsed, draft: normalizeTbmEducationDraft(parsed.draft) }
-            : null;
+        const parsed = JSON.parse(localStorage.getItem(STUDIO_STORAGE_KEY) || 'null') as unknown;
+        if (!isRecord(parsed)) return emptyStudioStore();
+        if (parsed.version === STUDIO_STORE_VERSION && isRecord(parsed.snapshots)) {
+            const snapshots = Object.fromEntries(
+                Object.entries(parsed.snapshots)
+                    .map(([key, snapshot]) => [key, normalizeStoredStudioState(snapshot)] as const)
+                    .filter((entry): entry is [string, StoredStudioState] => Boolean(entry[1])),
+            );
+            const lastScopeKey = typeof parsed.lastScopeKey === 'string' && snapshots[parsed.lastScopeKey]
+                ? parsed.lastScopeKey
+                : Object.keys(snapshots)[0] || '';
+            return { version: STUDIO_STORE_VERSION, lastScopeKey, snapshots };
+        }
+
+        const legacyState = normalizeStoredStudioState(parsed);
+        if (!legacyState) return emptyStudioStore();
+        const scopeKey = getTbmEducationScopeKey(legacyState.educationMonth, legacyState.workType);
+        return {
+            version: STUDIO_STORE_VERSION,
+            lastScopeKey: scopeKey,
+            snapshots: { [scopeKey]: legacyState },
+        };
     } catch {
-        return null;
+        return emptyStudioStore();
     }
 };
+
+const loadStudioState = (scope?: { educationMonth: string; workType: string }): StoredStudioState | null => {
+    if (typeof window === 'undefined') return null;
+    const store = readStudioStore();
+    if (scope) {
+        return store.snapshots[getTbmEducationScopeKey(scope.educationMonth, scope.workType)] || null;
+    }
+    return (store.lastScopeKey && store.snapshots[store.lastScopeKey])
+        || Object.values(store.snapshots)
+            .sort((left, right) => String(right.savedAt || '').localeCompare(String(left.savedAt || '')))[0]
+        || null;
+};
+
+const saveStudioState = (state: StoredStudioState): void => {
+    if (typeof window === 'undefined') return;
+    const normalized = normalizeStoredStudioState({
+        ...state,
+        savedAt: new Date().toISOString(),
+    });
+    if (!normalized) return;
+    const scopeKey = getTbmEducationScopeKey(normalized.educationMonth, normalized.workType);
+    const store = readStudioStore();
+    localStorage.setItem(STUDIO_STORAGE_KEY, JSON.stringify({
+        version: STUDIO_STORE_VERSION,
+        lastScopeKey: scopeKey,
+        snapshots: {
+            ...store.snapshots,
+            [scopeKey]: normalized,
+        },
+    } satisfies StoredStudioStore));
+};
+
+const createFreshStudioState = (
+    workerRecords: WorkerRecord[],
+    educationMonth: string,
+    workType: string,
+): StoredStudioState => ({
+    educationMonth,
+    workType,
+    sources: [],
+    draft: buildTbmEducationDraft({
+        workerRecords,
+        sources: [],
+        month: educationMonth,
+        workType,
+    }),
+    translatedTexts: {},
+    translationSourceText: '',
+});
 
 const updateAt = (items: string[], index: number, value: string): string[] =>
     items.map((item, itemIndex) => itemIndex === index ? value : item);
@@ -534,28 +645,25 @@ const parseTbmTranslation = (text: string): ParsedTbmTranslation => {
 };
 
 const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining }) => {
-    const initialState = useRef(loadStudioState());
+    const [initialState] = useState<StoredStudioState | null>(() => loadStudioState());
+    const initialEducationMonth = initialState?.educationMonth || getNextMonth();
+    const initialWorkType = initialState?.workType || DEFAULT_WORK_TYPE;
     const [activeTab, setActiveTab] = useState<StudioTab>('sources');
-    const [educationMonth, setEducationMonth] = useState(initialState.current?.educationMonth || getNextMonth);
-    const [workType, setWorkType] = useState(initialState.current?.workType || '전체 공종');
+    const [educationMonth, setEducationMonth] = useState(initialEducationMonth);
+    const [workType, setWorkType] = useState(initialWorkType);
     const [manualText, setManualText] = useState('');
-    const [sources, setSources] = useState<TbmEvidenceSource[]>(initialState.current?.sources || []);
+    const [sources, setSources] = useState<TbmEvidenceSource[]>(initialState?.sources || []);
     const [isExtracting, setIsExtracting] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const [notice, setNotice] = useState('');
     const [translatedTexts, setTranslatedTexts] = useState<Record<string, string>>(
-        initialState.current?.translatedTexts || {},
+        initialState?.translatedTexts || {},
     );
     const [translationSourceText, setTranslationSourceText] = useState(
-        initialState.current?.translationSourceText || '',
+        initialState?.translationSourceText || '',
     );
     const [draft, setDraft] = useState<TbmEducationDraft>(() =>
-        initialState.current?.draft || buildTbmEducationDraft({
-            workerRecords,
-            sources: [],
-            month: getNextMonth(),
-            workType: '전체 공종',
-        }),
+        initialState?.draft || createFreshStudioState(workerRecords, initialEducationMonth, initialWorkType).draft,
     );
     const [previewLanguage, setPreviewLanguage] = useState<string>('ko-KR');
     const [viewMode, setViewMode] = useState<'split' | 'single'>('split');
@@ -563,7 +671,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const sheetRef = useRef<HTMLElement>(null);
 
     const workTypes = useMemo(
-        () => ['전체 공종', ...Array.from(new Set(workerRecords.map((item) => item.jobField).filter(Boolean))).sort()],
+        () => [DEFAULT_WORK_TYPE, ...Array.from(new Set(workerRecords.map((item) => item.jobField).filter(Boolean))).sort()],
         [workerRecords],
     );
     const fieldSource = useMemo(
@@ -577,18 +685,28 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const estimatedTokens = estimateEducationTokens(allSources);
     const videoDuration = getFiveMinuteVideoDuration(draft);
 
-    // 교육월 & 대상 공종 변경 시 draft 문서와 실시간 동기화
-    useEffect(() => {
-        setDraft((prev) => {
-            if (prev.month === educationMonth && prev.workType === workType) return prev;
-            return {
-                ...prev,
-                month: educationMonth,
-                workType: workType,
-                title: `${educationMonth} ${workType} 위험성평가 전파교육`,
-            };
-        });
-    }, [educationMonth, workType]);
+    const applyStudioState = (nextState: StoredStudioState) => {
+        setEducationMonth(nextState.educationMonth);
+        setWorkType(nextState.workType);
+        setSources(nextState.sources);
+        setTranslatedTexts(nextState.translatedTexts || {});
+        setTranslationSourceText(nextState.translationSourceText || '');
+        setDraft(nextState.draft);
+        setManualText('');
+    };
+
+    const switchStudioScope = (nextMonth: string, nextWorkType: string) => {
+        if (!/^\d{4}-\d{2}$/.test(nextMonth)) return;
+        const scopedState = loadStudioState({ educationMonth: nextMonth, workType: nextWorkType });
+        if (scopedState) {
+            applyStudioState(scopedState);
+            setNotice(`${nextMonth} · ${nextWorkType} 저장본을 불러왔습니다. 다른 월의 영상/공지/번역은 섞지 않습니다.`);
+            return;
+        }
+
+        applyStudioState(createFreshStudioState(workerRecords, nextMonth, nextWorkType));
+        setNotice(`${nextMonth} · ${nextWorkType} 새 교육자료를 시작했습니다. 지난달 영상·사고사례·공지사항은 자동 복사하지 않습니다.`);
+    };
 
     // 실시간 오버플로우(A4 1장 범위 초과) 감지
     useEffect(() => {
@@ -609,14 +727,14 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     }, [activeTab, draft, previewLanguage, viewMode, translatedTexts]);
 
     useEffect(() => {
-        localStorage.setItem(STUDIO_STORAGE_KEY, JSON.stringify({
+        saveStudioState({
             educationMonth,
             workType,
             sources,
             draft,
             translatedTexts,
             translationSourceText,
-        } satisfies StoredStudioState));
+        });
     }, [draft, educationMonth, sources, translatedTexts, translationSourceText, workType]);
 
     const generateDraft = () => {
@@ -636,19 +754,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
 
     const resetStudio = () => {
         const month = getNextMonth();
-        const nextDraft = buildTbmEducationDraft({
-            workerRecords,
-            sources: [],
-            month,
-            workType: '전체 공종',
-        });
-        setEducationMonth(month);
-        setWorkType('전체 공종');
-        setSources([]);
-        setManualText('');
-        setTranslatedTexts({});
-        setTranslationSourceText('');
-        setDraft(nextDraft);
+        applyStudioState(createFreshStudioState(workerRecords, month, DEFAULT_WORK_TYPE));
         setNotice('교육자료 작업 내용을 초기화했습니다.');
     };
 
@@ -690,12 +796,17 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const sendToTraining = () => {
         const sourceText = buildMonthlyEducationPackageText(draft);
         const translationsMatchCurrentDraft = translationSourceText === sourceText;
-        localStorage.setItem(TBM_MONTHLY_PACKAGE_STORAGE_KEY, JSON.stringify({
+        const payload: TbmMonthlyPackagePayload = {
             draft,
             sourceText,
             translatedTexts: translationsMatchCurrentDraft ? translatedTexts : {},
             savedAt: new Date().toISOString(),
-        }));
+            month: draft.month,
+            workType: draft.workType,
+            title: draft.title,
+            scopeKey: getTbmEducationScopeKey(draft.month, draft.workType),
+        };
+        localStorage.setItem(TBM_MONTHLY_PACKAGE_STORAGE_KEY, JSON.stringify(payload));
         setNotice(
             translationsMatchCurrentDraft || Object.keys(translatedTexts).length === 0
                 ? '5단계 교육 원문을 다국어 교육에 전달했습니다.'
@@ -885,11 +996,11 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             <section className="psi-enterprise-panel grid gap-4 p-5 lg:grid-cols-3 no-print">
                 <label className="text-sm font-black text-slate-800 dark:text-slate-100">
                     교육 대상월
-                    <input type="month" value={educationMonth} onChange={(event) => setEducationMonth(event.target.value)} className="mt-2 w-full rounded-xl border px-3 py-3 bg-white dark:bg-slate-900" />
+                    <input type="month" value={educationMonth} onInput={(event) => switchStudioScope(event.currentTarget.value, workType)} className="mt-2 w-full rounded-xl border px-3 py-3 bg-white dark:bg-slate-900" />
                 </label>
                 <label className="text-sm font-black text-slate-800 dark:text-slate-100">
                     대상 공종
-                    <select value={workType} onChange={(event) => setWorkType(event.target.value)} className="mt-2 w-full rounded-xl border px-3 py-3 bg-white dark:bg-slate-900">
+                    <select value={workType} onChange={(event) => switchStudioScope(educationMonth, event.target.value)} className="mt-2 w-full rounded-xl border px-3 py-3 bg-white dark:bg-slate-900">
                         {workTypes.map((item) => <option key={item}>{item}</option>)}
                     </select>
                 </label>

@@ -59,6 +59,26 @@ export interface TbmEducationDraft {
 
 export const TBM_MONTHLY_PACKAGE_STORAGE_KEY = 'psi_tbm_monthly_education_package_v1';
 
+const normalizeScopeValue = (value: unknown): string => String(value ?? '').replace(/\s+/g, ' ').trim();
+
+export const getTbmEducationScopeKey = (month: string, workType: string): string => {
+    const normalizedMonth = normalizeScopeValue(month);
+    const safeMonth = /^\d{4}-\d{2}$/.test(normalizedMonth) ? normalizedMonth : 'unknown-month';
+    const safeWorkType = normalizeScopeValue(workType) || '전체 공종';
+    return `${safeMonth}::${safeWorkType}`;
+};
+
+export interface TbmMonthlyPackagePayload {
+    draft: TbmEducationDraft;
+    sourceText: string;
+    translatedTexts: Record<string, string>;
+    savedAt: string;
+    month: string;
+    workType: string;
+    title: string;
+    scopeKey: string;
+}
+
 const DEFAULT_RISKS = ['추락', '끼임', '충돌'];
 
 const ACTION_RULES: Array<{ risk: string; keywords: string[]; action: string }> = [

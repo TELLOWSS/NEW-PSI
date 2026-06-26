@@ -4,6 +4,7 @@ import {
     buildTbmEducationDraft,
     estimateEducationTokens,
     getFiveMinuteVideoDuration,
+    getTbmEducationScopeKey,
 } from '../utils/tbmEducationStudio';
 
 describe('TBM education studio', () => {
@@ -58,5 +59,11 @@ describe('TBM education studio', () => {
             text: '가'.repeat(320),
             createdAt: '2026-06-10T00:00:00.000Z',
         }])).toBe(100);
+    });
+
+    it('separates saved education drafts by month and work type', () => {
+        expect(getTbmEducationScopeKey('2026-06', 'steel')).toBe('2026-06::steel');
+        expect(getTbmEducationScopeKey('2026-07', 'steel')).not.toBe(getTbmEducationScopeKey('2026-06', 'steel'));
+        expect(getTbmEducationScopeKey('2026-07', 'formwork')).not.toBe(getTbmEducationScopeKey('2026-07', 'steel'));
     });
 });

@@ -4,7 +4,7 @@ import type { AppSettings } from '../types';
 import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { fetchWithTimeout, postAdminJson } from '../utils/adminApiClient';
-import { TBM_MONTHLY_PACKAGE_STORAGE_KEY } from '../utils/tbmEducationStudio';
+import { TBM_MONTHLY_PACKAGE_STORAGE_KEY, type TbmMonthlyPackagePayload } from '../utils/tbmEducationStudio';
 import type { TranslationQualityReport } from '../utils/constructionTrainingTranslation';
 import {
     completeSafetyCaseStage,
@@ -28,12 +28,18 @@ type SafetyCaseTrainingHandoff = {
     createdAt: string;
 };
 
-const loadMonthlyPackage = (): { sourceText: string; translatedTexts: Record<string, string> } => {
+type LoadedMonthlyPackage = {
+    sourceText: string;
+    translatedTexts: Record<string, string>;
+    month: string;
+    workType: string;
+    title: string;
+    savedAt: string;
+};
+
+const loadMonthlyPackage = (): LoadedMonthlyPackage => {
     try {
-        const parsed = JSON.parse(localStorage.getItem(TBM_MONTHLY_PACKAGE_STORAGE_KEY) || 'null') as {
-            sourceText?: unknown;
-            translatedTexts?: unknown;
-        } | null;
+        const parsed = JSON.parse(localStorage.getItem(TBM_MONTHLY_PACKAGE_STORAGE_KEY) || 'null') as Partial<TbmMonthlyPackagePayload> | null;
         const translatedTexts = parsed?.translatedTexts && typeof parsed.translatedTexts === 'object'
             ? Object.fromEntries(
                 Object.entries(parsed.translatedTexts as Record<string, unknown>)
@@ -43,9 +49,13 @@ const loadMonthlyPackage = (): { sourceText: string; translatedTexts: Record<str
         return {
             sourceText: typeof parsed?.sourceText === 'string' ? parsed.sourceText : '',
             translatedTexts,
+            month: typeof parsed?.month === 'string' ? parsed.month : '',
+            workType: typeof parsed?.workType === 'string' ? parsed.workType : '',
+            title: typeof parsed?.title === 'string' ? parsed.title : '',
+            savedAt: typeof parsed?.savedAt === 'string' ? parsed.savedAt : '',
         };
     } catch {
-        return { sourceText: '', translatedTexts: {} };
+        return { sourceText: '', translatedTexts: {}, month: '', workType: '', title: '', savedAt: '' };
     }
 };
 
@@ -1478,14 +1488,18 @@ const AdminTraining: React.FC = () => {
                             }
                             setSourceTextKo(monthlyPackage.sourceText);
                             setPretranslatedTexts(monthlyPackage.translatedTexts);
+                            if (monthlyPackage.title) {
+                                setTrainingTitle((current) => current.trim() ? current : monthlyPackage.title);
+                            }
                             const availableCodes = Object.keys(monthlyPackage.translatedTexts).filter(isValidLanguageCode);
+                            const packageLabel = [monthlyPackage.month, monthlyPackage.workType].filter(Boolean).join(' · ') || '월/공종 미표시';
                             if (availableCodes.length > 0) {
                                 setSelectedLanguages((current) => Array.from(new Set([...current, ...availableCodes])));
                             }
                             setMessage(
                                 availableCodes.length > 0
-                                    ? `5단계 원문과 AI 번역 ${availableCodes.length}개를 불러왔습니다. 기존 번역은 다시 생성하지 않아 사용량을 줄입니다.`
-                                    : '5단계 월간 교육 원문을 불러왔습니다. 내용을 확인한 뒤 세션을 생성해 주세요.',
+                                    ? `5단계 원문(${packageLabel})과 AI 번역 ${availableCodes.length}개를 불러왔습니다. 기존 번역은 다시 생성하지 않아 사용량을 줄입니다.`
+                                    : `5단계 월간 교육 원문(${packageLabel})을 불러왔습니다. 내용을 확인한 뒤 세션을 생성해 주세요.`,
                             );
                         }}
                         className="psi-button-primary"
