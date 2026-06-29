@@ -66,6 +66,26 @@ type ExportFeedback = {
     fileName?: string;
 } | null;
 
+type BackupWritableTarget = {
+    write: (data: string | Blob) => Promise<void>;
+    close: () => Promise<void>;
+    abort?: () => Promise<void>;
+};
+
+type BackupFileHandle = {
+    createWritable: () => Promise<BackupWritableTarget>;
+};
+
+type BackupSaveFilePickerWindow = Window & {
+    showSaveFilePicker?: (options: {
+        suggestedName?: string;
+        types?: Array<{
+            description: string;
+            accept: Record<string, string[]>;
+        }>;
+    }) => Promise<BackupFileHandle>;
+};
+
 const formatExportFileSize = (bytes: number): string => {
     if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB';
     if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -83,6 +103,52 @@ const getExportFeedbackClassName = (tone: NonNullable<ExportFeedback>['tone']): 
         default:
             return 'border-sky-300 bg-sky-50 text-sky-800';
     }
+};
+
+const yieldToBrowser = (): Promise<void> => (
+    new Promise((resolve) => window.setTimeout(resolve, 0))
+);
+
+const buildBackupJsonPrefix = (records: WorkerRecord[]): string => {
+    const envelope = createBackupEnvelope(records);
+    const metadata: Partial<ReturnType<typeof createBackupEnvelope>> = { ...envelope };
+    delete metadata.records;
+
+    const metadataJson = JSON.stringify(metadata, null, 2);
+    const closingBraceIndex = metadataJson.lastIndexOf('\n}');
+    const metadataWithoutClosingBrace = closingBraceIndex >= 0
+        ? metadataJson.slice(0, closingBraceIndex)
+        : metadataJson.replace(/\}$/, '');
+
+    return `${metadataWithoutClosingBrace},\n  "records": [\n`;
+};
+
+const writeBackupJsonChunks = async (
+    records: WorkerRecord[],
+    writeChunk: (chunk: string) => Promise<void>,
+    onProgress?: (writtenRecords: number, totalRecords: number) => void,
+): Promise<void> => {
+    await writeChunk(buildBackupJsonPrefix(records));
+
+    for (let index = 0; index < records.length; index += 1) {
+        let recordJson = '';
+        try {
+            recordJson = JSON.stringify(records[index]);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error || '알 수 없는 오류');
+            throw new Error(`백업 ${index + 1}번째 기록 JSON 변환 실패: ${message}`);
+        }
+
+        await writeChunk(`${index > 0 ? ',\n' : ''}${recordJson}`);
+
+        const writtenRecords = index + 1;
+        if (writtenRecords === 1 || writtenRecords % 20 === 0 || writtenRecords === records.length) {
+            onProgress?.(writtenRecords, records.length);
+            await yieldToBrowser();
+        }
+    }
+
+    await writeChunk('\n  ]\n}\n');
 };
 
 const buildMasterDataLoadErrorMessage = (rawMessage?: string) => {
@@ -4607,11 +4673,99 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             fileName,
         });
 
-        await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
-
         try {
-            const dataStr = JSON.stringify(createBackupEnvelope(existingRecords), null, 2);
-            const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8' });
+            const saveFilePicker = (window as BackupSaveFilePickerWindow).showSaveFilePicker;
+            if (saveFilePicker) {
+                let writable: BackupWritableTarget | null = null;
+
+                try {
+                    const fileHandle = await saveFilePicker({
+                        suggestedName: fileName,
+                        types: [
+                            {
+                                description: 'NEW-PSI 전체 백업 JSON',
+                                accept: { 'application/json': ['.json'] },
+                            },
+                        ],
+                    });
+                    writable = await fileHandle.createWritable();
+                    setExportFeedback({
+                        tone: 'info',
+                        message: '전체 백업 파일을 저장 중입니다.',
+                        detail: `대용량 안전 저장 방식으로 ${existingRecords.length}건을 순차 기록하고 있습니다. 저장이 끝날 때까지 창을 닫지 마세요.`,
+                        fileName,
+                    });
+
+                    await writeBackupJsonChunks(
+                        existingRecords,
+                        (chunk) => writable!.write(chunk),
+                        (writtenRecords, totalRecords) => {
+                            setExportFeedback({
+                                tone: 'info',
+                                message: '전체 백업 파일을 저장 중입니다.',
+                                detail: `${writtenRecords}/${totalRecords}건 기록 중입니다. 원본 이미지가 많은 백업은 시간이 걸릴 수 있습니다.`,
+                                fileName,
+                            });
+                        },
+                    );
+                    await writable.close();
+
+                    setExportFeedback({
+                        tone: 'success',
+                        message: '전체 백업 저장이 완료되었습니다.',
+                        detail: `${fileName} 파일을 선택한 위치에 저장했습니다. 이 파일은 원본 이미지와 전체 수기문장을 포함한 정밀 검증용 백업입니다.`,
+                        fileName,
+                    });
+                    alert(`전체 백업 저장이 완료되었습니다.\n\n파일명: ${fileName}\n\n이 파일은 원본 이미지와 전체 수기문장을 포함한 정밀 검증용 백업입니다.`);
+                    return;
+                } catch (pickerError) {
+                    if (writable?.abort) {
+                        await writable.abort().catch(() => undefined);
+                    }
+
+                    const pickerErrorName = pickerError instanceof DOMException
+                        ? pickerError.name
+                        : String((pickerError as { name?: unknown })?.name || '');
+
+                    if (pickerErrorName === 'AbortError') {
+                        setExportFeedback({
+                            tone: 'warning',
+                            message: '전체 백업 저장을 취소했습니다.',
+                            detail: '저장 위치 선택이 취소되어 파일을 만들지 않았습니다.',
+                            fileName,
+                        });
+                        return;
+                    }
+
+                    console.warn('File picker backup export failed. Falling back to browser download.', pickerError);
+                }
+            }
+
+            setExportFeedback({
+                tone: 'info',
+                message: '전체 백업 다운로드 파일을 조립 중입니다.',
+                detail: `브라우저 다운로드 방식으로 ${existingRecords.length}건을 레코드별로 묶고 있습니다.`,
+                fileName,
+            });
+            await yieldToBrowser();
+
+            const parts: BlobPart[] = [];
+            await writeBackupJsonChunks(
+                existingRecords,
+                async (chunk) => {
+                    parts.push(chunk);
+                },
+                (writtenRecords, totalRecords) => {
+                    setExportFeedback({
+                        tone: 'info',
+                        message: '전체 백업 다운로드 파일을 조립 중입니다.',
+                        detail: `${writtenRecords}/${totalRecords}건 처리 중입니다. 완료 후 다운로드 폴더에 저장됩니다.`,
+                        fileName,
+                    });
+                },
+            );
+
+            const blob = new Blob(parts, { type: 'application/json;charset=utf-8' });
             triggerBrowserDownload(blob, fileName);
             setExportFeedback({
                 tone: 'success',
