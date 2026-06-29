@@ -47,6 +47,7 @@
     "analyze:backfill-readiness:tuned": "node scripts/analyze-backfill-readiness.cjs --input reports/records-export.json --output-json reports/backfill-readiness.json --output-md reports/backfill-readiness.md --est-input-tokens 900 --est-output-tokens 350 --ocr-input-tokens 1800 --ocr-output-tokens 250 --cost-input-1k 0.002 --cost-output-1k 0.006",
     "audit:data": "node scripts/audit-data.mjs",
     "audit:productization": "node scripts/audit-productization.mjs",
+    "audit:existing-records": "node scripts/audit-existing-psi-records.cjs",
     "audit:core-metrics": "node scripts/audit-core-metrics.mjs",
     "check:core-metrics": "node scripts/audit-core-metrics.mjs",
     "audit:ui-language": "node scripts/audit-ui-language.mjs",

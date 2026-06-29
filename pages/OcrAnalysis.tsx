@@ -59,6 +59,32 @@ const OCR_STATUS_COPY = {
     },
 } as const;
 
+type ExportFeedback = {
+    tone: 'info' | 'success' | 'warning' | 'error';
+    message: string;
+    detail?: string;
+    fileName?: string;
+} | null;
+
+const formatExportFileSize = (bytes: number): string => {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB';
+    if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const getExportFeedbackClassName = (tone: NonNullable<ExportFeedback>['tone']): string => {
+    switch (tone) {
+        case 'success':
+            return 'border-emerald-300 bg-emerald-50 text-emerald-800';
+        case 'warning':
+            return 'border-amber-300 bg-amber-50 text-amber-800';
+        case 'error':
+            return 'border-rose-300 bg-rose-50 text-rose-800';
+        default:
+            return 'border-sky-300 bg-sky-50 text-sky-800';
+    }
+};
+
 const buildMasterDataLoadErrorMessage = (rawMessage?: string) => {
     const message = String(rawMessage || '알 수 없는 오류');
     return `기록 양식/배정 데이터 조회 실패: ${message}\n\n현재 group 전용 모드입니다. 중앙 서버에 작업 그룹 설정이 적용되었는지 확인해 주세요.`;
@@ -1213,6 +1239,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [mobileMode, setMobileMode] = useState<'quick' | 'detailed'>('quick');
     const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
     const [isPaidApiMode, setIsPaidApiMode] = useState<boolean>(() => getIsPaidApiMode());
+    const [exportFeedback, setExportFeedback] = useState<ExportFeedback>(null);
     const masterDataLoadingRef = useRef(false);
     
     // JSON 품질 데이터 로드
@@ -4540,16 +4567,69 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         }
     };
 
-    const handleExport = () => {
-        if(!confirm("경고: 이미지 데이터가 포함된 백업 파일은 용량이 매우 클 수 있습니다.\n계속하시겠습니까?")) return;
-        const dataStr = JSON.stringify(createBackupEnvelope(existingRecords), null, 2);
-        const blob = new Blob([dataStr], { type: 'application/json' });
+    const triggerBrowserDownload = (blob: Blob, fileName: string) => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `PSI_Backup_${new Date().toISOString().slice(0,10)}.json`;
+        link.download = fileName;
+        link.style.display = 'none';
+        document.body.appendChild(link);
         link.click();
-        URL.revokeObjectURL(url);
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+    };
+
+    const handleExport = async () => {
+        if (existingRecords.length === 0) {
+            setExportFeedback({
+                tone: 'warning',
+                message: '내보낼 분석 기록이 없습니다.',
+                detail: 'OCR 분석을 먼저 진행하거나 전체 백업 파일을 불러온 뒤 다시 실행하세요.',
+            });
+            return;
+        }
+
+        const confirmed = confirm("경고: 이미지 데이터가 포함된 백업 파일은 용량이 매우 클 수 있습니다.\n계속하시겠습니까?");
+        if (!confirmed) {
+            setExportFeedback({
+                tone: 'warning',
+                message: '전체 백업 내보내기를 취소했습니다.',
+                detail: '비식별 요약은 별도로 저장할 수 있지만, 정밀 검증에는 전체 백업 JSON이 필요합니다.',
+            });
+            return;
+        }
+
+        const fileName = `PSI_Backup_${new Date().toISOString().slice(0,10)}.json`;
+        setExportFeedback({
+            tone: 'info',
+            message: '전체 백업 파일을 준비 중입니다.',
+            detail: `기록 ${existingRecords.length}건과 원본 이미지 데이터를 JSON으로 묶고 있습니다. 큰 파일은 잠시 멈춘 것처럼 보일 수 있습니다.`,
+            fileName,
+        });
+
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+
+        try {
+            const dataStr = JSON.stringify(createBackupEnvelope(existingRecords), null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8' });
+            triggerBrowserDownload(blob, fileName);
+            setExportFeedback({
+                tone: 'success',
+                message: '전체 백업 저장 요청이 완료되었습니다.',
+                detail: `다운로드 폴더에서 ${fileName} 파일을 확인하세요. 예상 용량: ${formatExportFileSize(blob.size)}.`,
+                fileName,
+            });
+            alert(`전체 백업 저장 요청이 완료되었습니다.\n\n파일명: ${fileName}\n예상 용량: ${formatExportFileSize(blob.size)}\n\n브라우저 다운로드 폴더에서 파일을 확인하세요.`);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error || '알 수 없는 오류');
+            setExportFeedback({
+                tone: 'error',
+                message: '전체 백업 내보내기에 실패했습니다.',
+                detail: message,
+                fileName,
+            });
+            alert(`전체 백업 내보내기에 실패했습니다.\n\n${message}`);
+        }
     };
 
     const handleExportEvidenceSnapshot = () => {
@@ -4622,13 +4702,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             })),
         };
 
+        const fileName = `NEW-PSI_검증용_비식별_요약_${new Date().toISOString().slice(0, 10)}.json`;
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `NEW-PSI_검증용_비식별_요약_${new Date().toISOString().slice(0, 10)}.json`;
-        link.click();
-        URL.revokeObjectURL(url);
+        triggerBrowserDownload(blob, fileName);
+        setExportFeedback({
+            tone: 'success',
+            message: '검증용 비식별 요약 저장 요청이 완료되었습니다.',
+            detail: `${fileName} 파일은 공개 설명·제안·실증 요약용입니다. 원본 이미지와 전체 수기문장은 포함하지 않아 정밀 재검증용 전체 백업을 대체하지 않습니다.`,
+            fileName,
+        });
         alert('검증용 비식별 요약 JSON을 저장했습니다. 이 파일은 원본 이미지와 전체 수기문장을 포함하지 않습니다.');
     };
 
@@ -5107,7 +5189,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <button onClick={() => importInputRef.current?.click()} className="w-full px-5 py-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-black text-sm transition-all">백업 파일 불러오기(JSON)</button>
                                 <button onClick={() => { void handleCopyReanalysisSummary(); }} className="w-full px-5 py-3 bg-slate-700 hover:bg-slate-800 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 복사</button>
                                 <button onClick={handleExportReanalysisSummary} className="w-full px-5 py-3 bg-cyan-600 hover:bg-cyan-700 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 내보내기</button>
-                                <button onClick={handleExport} className="w-full px-5 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-2xl font-black text-sm shadow-xl transition-all">백업 내보내기</button>
+                                <button onClick={() => { void handleExport(); }} className="w-full px-5 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-2xl font-black text-sm shadow-xl transition-all">전체 백업 내보내기</button>
+                                {exportFeedback && (
+                                    <div className={`rounded-2xl border px-3 py-2 text-[11px] font-bold leading-relaxed ${getExportFeedbackClassName(exportFeedback.tone)}`}>
+                                        <p className="font-black">{exportFeedback.message}</p>
+                                        {exportFeedback.fileName && <p className="mt-1">파일명: {exportFeedback.fileName}</p>}
+                                        {exportFeedback.detail && <p className="mt-1">{exportFeedback.detail}</p>}
+                                    </div>
+                                )}
                                 <button onClick={onDeleteAll} className="w-full px-5 py-3 bg-rose-600 hover:bg-rose-700 rounded-2xl font-black text-sm shadow-xl transition-all">전체 삭제</button>
                             </>
                         )}
@@ -5756,7 +5845,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     onClick={handleExportEvidenceSnapshot}
                                     className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-700 hover:bg-emerald-100"
                                 >
-                                    검증용 요약 저장
+                                    검증용 비식별 요약 저장
                                 </button>
                             )}
                             <button
@@ -5764,22 +5853,33 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 onClick={() => importInputRef.current?.click()}
                                 className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-indigo-700 hover:bg-indigo-100 flex items-center gap-1"
                             >
-                                📤 실증자료 불러오기 (JSON)
+                                📤 전체 백업 불러오기 (JSON)
                             </button>
                         </div>
                     )}
                 >
+                    {exportFeedback && (
+                        <div className={`mb-4 rounded-2xl border px-4 py-3 text-xs font-bold leading-relaxed ${getExportFeedbackClassName(exportFeedback.tone)}`}>
+                            <p className="font-black">{exportFeedback.message}</p>
+                            {exportFeedback.fileName && (
+                                <p className="mt-1">파일명: {exportFeedback.fileName}</p>
+                            )}
+                            {exportFeedback.detail && (
+                                <p className="mt-1">{exportFeedback.detail}</p>
+                            )}
+                        </div>
+                    )}
                     {existingRecords.length === 0 ? (
                         <div className="mt-4 rounded-2xl border-2 border-dashed border-slate-200 bg-white p-6 text-center">
                             <svg className="mx-auto h-12 w-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                             <h3 className="mt-2 text-sm font-black text-slate-900">현장 데이터가 비어 있습니다</h3>
-                            <p className="mt-1 text-xs font-bold text-slate-500">실증자료(JSON)를 불러오거나 OCR 분석을 진행하면 실증 증빙 준비도가 활성화됩니다.</p>
+                            <p className="mt-1 text-xs font-bold text-slate-500">전체 백업(JSON)을 불러오거나 OCR 분석을 진행하면 실증 증빙 준비도가 활성화됩니다. 검증용 비식별 요약은 공개 설명용이며 복원용 전체 백업을 대체하지 않습니다.</p>
                             <button
                                 type="button"
                                 onClick={() => importInputRef.current?.click()}
                                 className="mt-4 inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 text-xs font-black text-white shadow-md transition-all"
                             >
-                                📤 실증자료 불러오기 (JSON)
+                                📤 전체 백업 불러오기 (JSON)
                             </button>
                         </div>
                     ) : (
