@@ -11,6 +11,9 @@ const DEFAULTS = {
   today: '',
 };
 
+const LARGE_JSON_STREAMING_THRESHOLD_BYTES = 100 * 1024 * 1024;
+const IMAGE_PLACEHOLDER = '__IMAGE_PRESENT_IN_BACKUP__';
+
 const REQUIRED_FIELDS = [
   'id',
   'name',
@@ -141,6 +144,175 @@ function resolveRecords(payload) {
   };
 }
 
+function readPrefixMetadata(filePath) {
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const buffer = Buffer.alloc(1024 * 1024);
+    const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, 0);
+    const prefix = buffer.subarray(0, bytesRead).toString('utf8');
+    const schemaVersion = (prefix.match(/"schemaVersion"\s*:\s*"([^"]*)"/) || [])[1] || '';
+    const exportedAt = (prefix.match(/"exportedAt"\s*:\s*"([^"]*)"/) || [])[1] || '';
+    return {
+      schemaVersion: schemaVersion || 'large-backup-stream',
+      exportedAt,
+    };
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function shrinkLargeRecordForAudit(record) {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) return record;
+  const clone = { ...record };
+  [
+    'originalImage',
+    'profileImage',
+    'image',
+    'imageData',
+    'fileData',
+    'documentImage',
+    'scanImage',
+  ].forEach((key) => {
+    if (typeof clone[key] === 'string' && clone[key].length > 50) {
+      clone[key] = IMAGE_PLACEHOLDER;
+    }
+  });
+  return clone;
+}
+
+function streamRecordsFromBackup(filePath, options = {}) {
+  const records = [];
+  const logEvery = Number(options.logEvery || 25);
+  let scanBuffer = '';
+  let foundRecordsArray = false;
+  let done = false;
+  let startedObject = false;
+  let currentObject = '';
+  let objectDepth = 0;
+  let inString = false;
+  let escaping = false;
+
+  const processRecordObject = (rawJson) => {
+    try {
+      records.push(shrinkLargeRecordForAudit(JSON.parse(rawJson)));
+      if (logEvery > 0 && records.length % logEvery === 0) {
+        console.log(`[audit:stream] ${records.length} records parsed`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error || 'unknown error');
+      throw new Error(`records[${records.length}] JSON parse failed: ${message}`);
+    }
+  };
+
+  const processText = (text) => {
+    for (let index = 0; index < text.length; index += 1) {
+      const char = text[index];
+
+      if (!startedObject) {
+        if (char === '{') {
+          startedObject = true;
+          currentObject = '{';
+          objectDepth = 1;
+          inString = false;
+          escaping = false;
+          continue;
+        }
+        if (char === ']') {
+          done = true;
+          return;
+        }
+        continue;
+      }
+
+      currentObject += char;
+
+      if (inString) {
+        if (escaping) {
+          escaping = false;
+        } else if (char === '\\') {
+          escaping = true;
+        } else if (char === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (char === '"') {
+        inString = true;
+      } else if (char === '{') {
+        objectDepth += 1;
+      } else if (char === '}') {
+        objectDepth -= 1;
+        if (objectDepth === 0) {
+          processRecordObject(currentObject);
+          startedObject = false;
+          currentObject = '';
+        }
+      }
+    }
+  };
+
+  return new Promise((resolve, reject) => {
+    const stream = fs.createReadStream(filePath, { encoding: 'utf8', highWaterMark: 1024 * 1024 });
+
+    stream.on('data', (chunk) => {
+      try {
+        if (done) return;
+
+        if (!foundRecordsArray) {
+          scanBuffer += chunk;
+          const recordsKeyIndex = scanBuffer.indexOf('"records"');
+          if (recordsKeyIndex < 0) {
+            if (scanBuffer.length > 20 * 1024 * 1024) {
+              throw new Error('records array was not found in the first 20MB of the backup file');
+            }
+            return;
+          }
+
+          const arrayStartIndex = scanBuffer.indexOf('[', recordsKeyIndex);
+          if (arrayStartIndex < 0) return;
+
+          foundRecordsArray = true;
+          const tail = scanBuffer.slice(arrayStartIndex + 1);
+          scanBuffer = '';
+          processText(tail);
+          return;
+        }
+
+        processText(chunk);
+      } catch (error) {
+        stream.destroy(error);
+      }
+    });
+
+    stream.on('error', reject);
+    stream.on('end', () => {
+      if (!foundRecordsArray) {
+        reject(new Error('records array was not found in the backup file'));
+        return;
+      }
+      if (startedObject) {
+        reject(new Error('backup ended while reading a record object'));
+        return;
+      }
+      console.log(`[audit:stream] done, ${records.length} records parsed`);
+      resolve(records);
+    });
+  });
+}
+
+async function loadRecordsForAudit(inputPath, fileSize) {
+  if (fileSize >= LARGE_JSON_STREAMING_THRESHOLD_BYTES) {
+    console.log(`[audit] large backup detected: ${(fileSize / (1024 * 1024)).toFixed(1)}MB. Using streaming parser.`);
+    const metadata = readPrefixMetadata(inputPath);
+    const records = await streamRecordsFromBackup(inputPath);
+    return { ...metadata, records, loadMode: 'streaming-large-backup' };
+  }
+
+  const payload = loadJson(inputPath);
+  return { ...resolveRecords(payload), loadMode: 'full-json-parse' };
+}
+
 function normalizeText(value) {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
 }
@@ -243,7 +415,7 @@ function hasImageEvidence(record) {
     record.documentImage,
     record.scanImage,
   ];
-  return candidates.some((value) => normalizeText(value).length > 50);
+  return candidates.some((value) => normalizeText(value) === IMAGE_PLACEHOLDER || normalizeText(value).length > 50);
 }
 
 function normalizeQuestionSlot(value) {
@@ -876,7 +1048,7 @@ function writeMarkdown(filePath, audit) {
   fs.writeFileSync(filePath, `${lines.join('\n')}\n`, 'utf8');
 }
 
-function main() {
+async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
     printHelp();
@@ -890,9 +1062,8 @@ function main() {
     process.exit(1);
   }
 
-  const payload = loadJson(inputPath);
-  const metadata = resolveRecords(payload);
   const fileSize = fs.statSync(inputPath).size;
+  const metadata = await loadRecordsForAudit(inputPath, fileSize);
   const audit = buildAudit(metadata.records, metadata, options, fileSize);
 
   const outputJsonPath = resolvePath(options.outputJson);
@@ -916,4 +1087,7 @@ function main() {
   console.log(`Markdown 리포트: ${options.outputMd}`);
 }
 
-main();
+main().catch((error) => {
+  console.error(error instanceof Error ? error.stack || error.message : String(error));
+  process.exit(1);
+});

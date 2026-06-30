@@ -32,4 +32,8 @@ dist-ssr
 artifacts/
 .vercel/
 reports/score-consistency-strict8.*
+reports/PSI_Backup_*.json
+reports/records-export.json
+reports/existing-records-audit-*.json
+reports/existing-records-audit-*.md
 
