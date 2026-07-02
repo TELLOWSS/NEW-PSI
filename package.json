@@ -29,6 +29,7 @@
     "check:score-consistency:report:strict8": "node scripts/check-score-consistency-gate.cjs --strict --max-gap 8 --report-json reports/score-consistency-strict8.json --report-md reports/score-consistency-strict8.md",
     "check:mobile-field-mode": "node scripts/check-mobile-field-mode-contract.cjs",
     "check:ocr-record-view": "node scripts/check-ocr-record-view-contract.cjs",
+    "check:ocr-scale-view": "node scripts/check-ocr-scale-view-contract.cjs",
     "check:mobile-qa:evidence": "node scripts/check-mobile-qa-evidence.cjs",
     "check:mobile-qa:evidence:report": "node scripts/check-mobile-qa-evidence.cjs --write-report",
     "qa:mobile:capture": "node scripts/capture-mobile-qa-evidence.cjs",
@@ -67,7 +68,7 @@
     "check:types": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify:fast": "npm run check:context && npm run check:hotspot && npm run check:tdz && npm run check:page-tone && npm run check:ocr-contract && npm run check:mobile-field-mode && npm run check:ocr-record-view && npm run check:security-headers && npm run check:ui-language && npm run check:report-language && npm run check:core-metrics && npm run check:score-consistency:strict8 && npm run check:types",
+    "verify:fast": "npm run check:context && npm run check:hotspot && npm run check:tdz && npm run check:page-tone && npm run check:ocr-contract && npm run check:mobile-field-mode && npm run check:ocr-record-view && npm run check:ocr-scale-view && npm run check:security-headers && npm run check:ui-language && npm run check:report-language && npm run check:core-metrics && npm run check:score-consistency:strict8 && npm run check:types",
     "verify:release": "npm run verify:fast && npm run check:score-consistency:report:strict8 && npm run build",
     "build": "vite build",
     "preview": "vite preview"

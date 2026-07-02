@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect, useDeferredValue } from 'react';
 import { FileUpload } from '../components/FileUpload';
 import { Spinner } from '../components/Spinner';
 import { analyzeWorkerRiskAssessment, updateAnalysisBasedOnEdits, getQuotaState, setQuotaExhausted, clearQuotaState, isRateLimitError, inferOcrFailureCode, validateImageFormat, isFormatCompatibleWithAI, verifyActiveOcrApiKey } from '../services/geminiService';
@@ -580,8 +580,35 @@ const hasRetryableOriginalImage = (image?: string): boolean => {
 const UNKNOWN_RECORD_MONTH_KEY = 'unknown-month';
 const INITIAL_RECORD_RENDER_LIMIT = 80;
 const RECORD_RENDER_INCREMENT = 80;
+const LARGE_RECORD_MONTH_FIRST_THRESHOLD = 240;
 
 type OcrRecordScopeFilter = 'ocr-only' | 'all';
+
+type OcrRecordMonthBucket = {
+    key: string;
+    label: string;
+    count: number;
+    records: WorkerRecord[];
+    ocrCount: number;
+    failedCount: number;
+    successCount: number;
+    imageReadyCount: number;
+    averageScore: number | null;
+    latestDateLabel: string;
+    newestTimestamp: number;
+};
+
+type OcrRecordMonthIndex = {
+    records: WorkerRecord[];
+    buckets: OcrRecordMonthBucket[];
+    bucketByKey: Map<string, OcrRecordMonthBucket>;
+    total: number;
+    totalFailedCount: number;
+    totalImageReadyCount: number;
+    averageScore: number | null;
+    latestMonthKey: string;
+    largeDataset: boolean;
+};
 
 const isOcrAnalyzedRecord = (record: WorkerRecord): boolean => {
     return Boolean(
@@ -611,6 +638,96 @@ const formatRecordMonthLabel = (monthKey: string): string => {
     if (monthKey === UNKNOWN_RECORD_MONTH_KEY) return '날짜 미확인';
     const [year, month] = monthKey.split('-');
     return `${year}년 ${Number(month)}월`;
+};
+
+const getRecordTimestamp = (record: WorkerRecord): number => {
+    const parsed = new Date(record.date || '').getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getRecordDateLabel = (record: WorkerRecord): string => {
+    const raw = String(record.date || '').slice(0, 10);
+    return raw || '날짜 미확인';
+};
+
+const buildOcrRecordMonthIndex = (records: WorkerRecord[]): OcrRecordMonthIndex => {
+    const bucketByKey = new Map<string, OcrRecordMonthBucket & { scoreTotal: number; scoreCount: number }>();
+    let totalFailedCount = 0;
+    let totalImageReadyCount = 0;
+    let scoreTotal = 0;
+    let scoreCount = 0;
+
+    records.forEach((record) => {
+        const key = getRecordMonthKey(record);
+        const timestamp = getRecordTimestamp(record);
+        const failed = isFailedRecord(record);
+        const imageReady = hasRetryableOriginalImage(record.originalImage) || hasRetryableOriginalImage(record.profileImage);
+        const score = Number(record.safetyScore);
+        const bucket = bucketByKey.get(key) || {
+            key,
+            label: formatRecordMonthLabel(key),
+            count: 0,
+            records: [],
+            ocrCount: 0,
+            failedCount: 0,
+            successCount: 0,
+            imageReadyCount: 0,
+            averageScore: null,
+            latestDateLabel: '날짜 미확인',
+            newestTimestamp: 0,
+            scoreTotal: 0,
+            scoreCount: 0,
+        };
+
+        bucket.records.push(record);
+        bucket.count += 1;
+        if (isOcrAnalyzedRecord(record)) bucket.ocrCount += 1;
+        if (failed) bucket.failedCount += 1;
+        else bucket.successCount += 1;
+        if (imageReady) bucket.imageReadyCount += 1;
+        if (Number.isFinite(score)) {
+            bucket.scoreTotal += score;
+            bucket.scoreCount += 1;
+            scoreTotal += score;
+            scoreCount += 1;
+        }
+        if (timestamp >= bucket.newestTimestamp) {
+            bucket.newestTimestamp = timestamp;
+            bucket.latestDateLabel = getRecordDateLabel(record);
+        }
+
+        if (failed) totalFailedCount += 1;
+        if (imageReady) totalImageReadyCount += 1;
+        bucketByKey.set(key, bucket);
+    });
+
+    const buckets = Array.from(bucketByKey.values())
+        .map((bucket) => ({
+            ...bucket,
+            averageScore: bucket.scoreCount > 0 ? Math.round(bucket.scoreTotal / bucket.scoreCount) : null,
+        }))
+        .sort((left, right) => {
+            if (left.key === UNKNOWN_RECORD_MONTH_KEY) return 1;
+            if (right.key === UNKNOWN_RECORD_MONTH_KEY) return -1;
+            return right.key.localeCompare(left.key);
+        });
+
+    const publicBucketByKey = new Map<string, OcrRecordMonthBucket>(
+        buckets.map((bucket) => [bucket.key, bucket])
+    );
+    const latestMonthKey = buckets.find((bucket) => bucket.key !== UNKNOWN_RECORD_MONTH_KEY)?.key || buckets[0]?.key || 'all';
+
+    return {
+        records,
+        buckets,
+        bucketByKey: publicBucketByKey,
+        total: records.length,
+        totalFailedCount,
+        totalImageReadyCount,
+        averageScore: scoreCount > 0 ? Math.round(scoreTotal / scoreCount) : null,
+        latestMonthKey,
+        largeDataset: records.length >= LARGE_RECORD_MONTH_FIRST_THRESHOLD,
+    };
 };
 
 const OCR_FAILED_ONLY_DEFAULT_KEY = 'psi_ocr_failed_only_default';
@@ -1874,36 +1991,67 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, [isAnalyzing]);
 
-    const ocrAnalyzedRecords = useMemo(() => {
-        return existingRecords.filter(isOcrAnalyzedRecord);
+    const deferredSearchTerm = useDeferredValue(searchTerm);
+    const normalizedDeferredSearchTerm = useMemo(() => deferredSearchTerm.trim().toLowerCase(), [deferredSearchTerm]);
+    const isSearchDeferred = deferredSearchTerm !== searchTerm;
+
+    const recordMonthIndexes = useMemo(() => {
+        const ocrRecords: WorkerRecord[] = [];
+        existingRecords.forEach((record) => {
+            if (isOcrAnalyzedRecord(record)) ocrRecords.push(record);
+        });
+
+        return {
+            all: buildOcrRecordMonthIndex(existingRecords),
+            ocr: buildOcrRecordMonthIndex(ocrRecords),
+        };
     }, [existingRecords]);
 
-    const sourceScopedRecords = useMemo(() => {
-        return recordScopeFilter === 'ocr-only' ? ocrAnalyzedRecords : existingRecords;
-    }, [existingRecords, ocrAnalyzedRecords, recordScopeFilter]);
+    const allRecordMonthIndex = recordMonthIndexes.all;
+    const ocrRecordMonthIndex = recordMonthIndexes.ocr;
+    const ocrAnalyzedRecords = ocrRecordMonthIndex.records;
+
+    const sourceRecordMonthIndex = useMemo(() => {
+        return recordScopeFilter === 'ocr-only' ? ocrRecordMonthIndex : allRecordMonthIndex;
+    }, [allRecordMonthIndex, ocrRecordMonthIndex, recordScopeFilter]);
 
     const recordMonthOptions = useMemo(() => {
-        const counts = new Map<string, number>();
-        sourceScopedRecords.forEach((record) => {
-            const monthKey = getRecordMonthKey(record);
-            counts.set(monthKey, (counts.get(monthKey) || 0) + 1);
-        });
-
-        const sortedMonths = Array.from(counts.entries()).sort(([left], [right]) => {
-            if (left === UNKNOWN_RECORD_MONTH_KEY) return 1;
-            if (right === UNKNOWN_RECORD_MONTH_KEY) return -1;
-            return right.localeCompare(left);
-        });
-
         return [
-            { key: 'all', label: '전체 월', count: sourceScopedRecords.length },
-            ...sortedMonths.map(([key, count]) => ({
-                key,
-                label: formatRecordMonthLabel(key),
-                count,
+            {
+                key: 'all',
+                label: '전체 월',
+                count: sourceRecordMonthIndex.total,
+                failedCount: sourceRecordMonthIndex.totalFailedCount,
+                averageScore: sourceRecordMonthIndex.averageScore,
+                latestDateLabel: sourceRecordMonthIndex.buckets[0]?.latestDateLabel || '날짜 미확인',
+            },
+            ...sourceRecordMonthIndex.buckets.map((bucket) => ({
+                key: bucket.key,
+                label: bucket.label,
+                count: bucket.count,
+                failedCount: bucket.failedCount,
+                averageScore: bucket.averageScore,
+                latestDateLabel: bucket.latestDateLabel,
             })),
         ];
-    }, [sourceScopedRecords]);
+    }, [sourceRecordMonthIndex]);
+
+    const autoMonthFirstAppliedRef = useRef('');
+
+    useEffect(() => {
+        const latestMonthKey = sourceRecordMonthIndex.latestMonthKey;
+        const autoKey = `${recordScopeFilter}:${sourceRecordMonthIndex.total}:${latestMonthKey}`;
+        if (!sourceRecordMonthIndex.largeDataset) return;
+        if (recordMonthFilter !== 'all') return;
+        if (!latestMonthKey || latestMonthKey === 'all') return;
+        if (autoMonthFirstAppliedRef.current === autoKey) return;
+
+        autoMonthFirstAppliedRef.current = autoKey;
+        setRecordMonthFilter(latestMonthKey);
+        setRecordRenderLimit(INITIAL_RECORD_RENDER_LIMIT);
+        setFocusedWorkerGroupKey(null);
+        setSelectedIds([]);
+    }, [recordMonthFilter, recordScopeFilter, sourceRecordMonthIndex.largeDataset, sourceRecordMonthIndex.latestMonthKey, sourceRecordMonthIndex.total]);
 
     useEffect(() => {
         if (recordMonthFilter === 'all') return;
@@ -1912,28 +2060,59 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     }, [recordMonthFilter, recordMonthOptions]);
 
     const monthScopedRecords = useMemo(() => {
-        if (recordMonthFilter === 'all') return sourceScopedRecords;
-        return sourceScopedRecords.filter((record) => getRecordMonthKey(record) === recordMonthFilter);
-    }, [recordMonthFilter, sourceScopedRecords]);
+        if (recordMonthFilter === 'all') return sourceRecordMonthIndex.records;
+        return sourceRecordMonthIndex.bucketByKey.get(recordMonthFilter)?.records || [];
+    }, [recordMonthFilter, sourceRecordMonthIndex]);
 
     const selectedMonthLabel = useMemo(() => {
         return recordMonthOptions.find((option) => option.key === recordMonthFilter)?.label || '전체 월';
     }, [recordMonthFilter, recordMonthOptions]);
 
+    const selectedMonthBucket = useMemo(() => {
+        if (recordMonthFilter === 'all') return null;
+        return sourceRecordMonthIndex.bucketByKey.get(recordMonthFilter) || null;
+    }, [recordMonthFilter, sourceRecordMonthIndex]);
+
+    const activeMonthStats = useMemo(() => {
+        if (selectedMonthBucket) {
+            return {
+                count: selectedMonthBucket.count,
+                failedCount: selectedMonthBucket.failedCount,
+                averageScore: selectedMonthBucket.averageScore,
+                imageReadyCount: selectedMonthBucket.imageReadyCount,
+                latestDateLabel: selectedMonthBucket.latestDateLabel,
+            };
+        }
+
+        return {
+            count: sourceRecordMonthIndex.total,
+            failedCount: sourceRecordMonthIndex.totalFailedCount,
+            averageScore: sourceRecordMonthIndex.averageScore,
+            imageReadyCount: sourceRecordMonthIndex.totalImageReadyCount,
+            latestDateLabel: sourceRecordMonthIndex.buckets[0]?.latestDateLabel || '날짜 미확인',
+        };
+    }, [selectedMonthBucket, sourceRecordMonthIndex]);
+
+    const monthlyWorkingSetLabel = sourceRecordMonthIndex.largeDataset
+        ? recordMonthFilter === 'all'
+            ? '전체 월 수동 보기'
+            : '월 단위 작업세트'
+        : '표준 보기';
+
     const teamLeaders = useMemo(() => {
-        const leaders = new Set(sourceScopedRecords.map(r => r.teamLeader || '미지정'));
+        const leaders = new Set(monthScopedRecords.map(r => r.teamLeader || '미지정'));
         return Array.from(leaders).sort();
-    }, [sourceScopedRecords]);
+    }, [monthScopedRecords]);
 
     const jobFields = useMemo(() => {
-        const fields = new Set(sourceScopedRecords.map(r => r.jobField).filter(Boolean));
+        const fields = new Set(monthScopedRecords.map(r => r.jobField).filter(Boolean));
         return Array.from(fields).sort();
-    }, [sourceScopedRecords]);
+    }, [monthScopedRecords]);
 
     const baseFilteredRecords = useMemo(() => {
         return monthScopedRecords.filter(r => {
             const searchStr = `${r.name || ''} ${r.jobField || ''} ${r.nationality || ''} ${r.teamLeader || ''}`.toLowerCase();
-            const matchesSearch = searchStr.includes(searchTerm.toLowerCase());
+            const matchesSearch = !normalizedDeferredSearchTerm || searchStr.includes(normalizedDeferredSearchTerm);
             const matchesLevel = filterLevel === 'all' || r.safetyLevel === filterLevel;
             const matchesField = filterField === 'all' || r.jobField === filterField;
             const matchesLeader = filterLeader === 'all' || (r.teamLeader || '미지정') === filterLeader;
@@ -1961,7 +2140,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 (secondPassStatusFilter === 'not-done' && r.secondPassStatus !== 'DONE');
             return matchesSearch && matchesLevel && matchesField && matchesLeader && matchesTrust && matchesReason && matchesStatus && matchesSecondPassStatus;
         });
-    }, [monthScopedRecords, searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterReason, filterStatus, secondPassStatusFilter, getReviewTrustState]);
+    }, [monthScopedRecords, normalizedDeferredSearchTerm, filterLevel, filterField, filterLeader, filterTrust, filterReason, filterStatus, secondPassStatusFilter, getReviewTrustState]);
 
     const secondPassSkippedCounts = useMemo(() => {
         return baseFilteredRecords.reduce<Record<string, number>>((acc, record) => {
@@ -6505,7 +6684,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             현재 {recordScopeFilter === 'ocr-only' ? `OCR 분석 기록 ${ocrAnalyzedRecords.length}건` : `전체 기록 ${existingRecords.length}건`} 중 {selectedMonthLabel} 기준 {filteredRecords.length}건을 표시합니다.
                         </p>
                     </div>
-                    <div className="grid grid-cols-3 gap-2 text-center text-[11px] font-black sm:min-w-[360px]">
+                    <div className="grid grid-cols-2 gap-2 text-center text-[11px] font-black sm:min-w-[520px] sm:grid-cols-4">
                         <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2">
                             <p className="text-indigo-500">OCR 기록</p>
                             <p className="mt-1 text-lg text-indigo-800">{ocrAnalyzedRecords.length}건</p>
@@ -6518,7 +6697,53 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <p className="text-emerald-600">화면 표시</p>
                             <p className="mt-1 text-lg text-emerald-800">{visibleRecordListRecords.length}/{recordListRecords.length}</p>
                         </div>
+                        <div className="rounded-2xl border border-violet-100 bg-violet-50 px-3 py-2" data-ocr-record-view="month-index">
+                            <p className="text-violet-600">{monthlyWorkingSetLabel}</p>
+                            <p className="mt-1 text-lg text-violet-800">{sourceRecordMonthIndex.buckets.length}개월</p>
+                        </div>
                     </div>
+                </div>
+
+                <div
+                    className="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-[11px] font-black text-slate-600 sm:grid-cols-4"
+                    data-ocr-record-view="monthly-working-set"
+                >
+                    <div>
+                        <p className="text-slate-400">현재 작업세트</p>
+                        <p className="mt-1 text-sm text-slate-900">{activeMonthStats.count}건</p>
+                    </div>
+                    <div>
+                        <p className="text-slate-400">확인 필요</p>
+                        <p className={`mt-1 text-sm ${activeMonthStats.failedCount > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{activeMonthStats.failedCount}건</p>
+                    </div>
+                    <div>
+                        <p className="text-slate-400">평균 점수</p>
+                        <p className="mt-1 text-sm text-slate-900">{activeMonthStats.averageScore === null ? '-' : `${activeMonthStats.averageScore}점`}</p>
+                    </div>
+                    <div>
+                        <p className="text-slate-400">이미지 보유</p>
+                        <p className="mt-1 text-sm text-slate-900">{activeMonthStats.imageReadyCount}건</p>
+                    </div>
+                    {sourceRecordMonthIndex.largeDataset && (
+                        <div className="col-span-2 flex flex-col gap-2 rounded-xl border border-indigo-100 bg-white px-3 py-2 text-indigo-700 sm:col-span-4 sm:flex-row sm:items-center sm:justify-between">
+                            <span>
+                                대량 기록 모드입니다. 최신 월부터 작업세트로 열어 스크롤과 렌더링 부담을 줄입니다.
+                                {isSearchDeferred ? ' 검색 결과를 가볍게 반영 중입니다.' : ''}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setRecordMonthFilter(recordMonthFilter === 'all' ? sourceRecordMonthIndex.latestMonthKey : 'all');
+                                    setFocusedWorkerGroupKey(null);
+                                    setSelectedIds([]);
+                                    setShowAllWorkerAccumulations(false);
+                                }}
+                                className="shrink-0 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-black text-indigo-700 hover:bg-indigo-100"
+                            >
+                                {recordMonthFilter === 'all' ? '최신월 작업세트로' : '전체 월 수동 보기'}
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[320px_minmax(0,1fr)]">
@@ -6587,7 +6812,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     }`}
                                 >
                                     <span className="block text-[12px] font-black">{option.label}</span>
-                                    <span className={`mt-0.5 block text-[10px] font-black ${recordMonthFilter === option.key ? 'text-slate-300' : 'text-slate-400'}`}>{option.count}건</span>
+                                    <span className={`mt-0.5 block text-[10px] font-black ${recordMonthFilter === option.key ? 'text-slate-300' : 'text-slate-400'}`}>
+                                        {option.count}건 · 확인 {option.failedCount}건
+                                    </span>
+                                    {option.averageScore !== null && (
+                                        <span className={`mt-0.5 block text-[10px] font-black ${recordMonthFilter === option.key ? 'text-slate-300' : 'text-slate-400'}`}>
+                                            평균 {option.averageScore}점 · 최근 {option.latestDateLabel}
+                                        </span>
+                                    )}
                                 </button>
                             ))}
                         </div>
