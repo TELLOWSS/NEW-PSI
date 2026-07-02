@@ -1806,6 +1806,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const stopRef = useRef<boolean>(false);
     const importInputRef = useRef<HTMLInputElement>(null);
     const failedQuickActionsRef = useRef<HTMLDivElement>(null);
+    const newOcrCaptureSectionRef = useRef<HTMLDivElement>(null);
+    const evidenceReadinessSectionRef = useRef<HTMLDivElement>(null);
+    const workerTrackingSectionRef = useRef<HTMLDivElement>(null);
 
     const { guideMessage: mobileBackGuideMessage } = useMobileBackGuard({
         hasActiveWork: isAnalyzing || files.length > 0,
@@ -5060,6 +5063,90 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         reader.readAsText(file);
     };
 
+    const mobilePriorityReportRecord = useMemo(() => {
+        const scoreValue = (record: WorkerRecord): number => {
+            const value = Number(record.safetyScore);
+            return Number.isFinite(value) ? value : 101;
+        };
+
+        const mobilePriority = (record: WorkerRecord): number => {
+            if (isFailedRecord(record)) return 0;
+            if (scoreValue(record) < 60) return 1;
+            if (typeof record.ocrConfidence === 'number' && record.ocrConfidence < 0.7) return 2;
+            return 3;
+        };
+
+        return [...filteredRecords].sort((a, b) => {
+            const priorityDiff = mobilePriority(a) - mobilePriority(b);
+            if (priorityDiff !== 0) return priorityDiff;
+
+            const scoreDiff = scoreValue(a) - scoreValue(b);
+            if (scoreDiff !== 0) return scoreDiff;
+
+            return getWorkerGroupDateValue(b) - getWorkerGroupDateValue(a);
+        })[0] || null;
+    }, [filteredRecords]);
+
+    const mobileProofSnapshot = useMemo(() => {
+        const totalRecords = evidenceReadinessSummary.totalRecords;
+        const trackedWorkers = evidenceReadinessSummary.multiMonthWorkerGroups;
+        const workerGroups = evidenceReadinessSummary.workerGroups;
+        const reviewRequired = workerTrackingReviewSummary.reviewRequiredGroups;
+        const candidateGroups = workerTrackingReviewSummary.candidateGroups;
+        const lowScoreRecords = evidenceReadinessSummary.lowScoreRecords;
+        const attentionRecords = failedRecords.length + lowConfidenceCount + lowScoreRecords;
+        const evidenceReady =
+            totalRecords > 0
+            && evidenceReadinessSummary.handwrittenCoverageRate >= 80
+            && evidenceReadinessSummary.nativeGuidanceCoverageRate >= 70;
+        const statusLabel = totalRecords === 0
+            ? '데이터 대기'
+            : evidenceReady
+                ? '발표 증빙 가능'
+                : '보강 확인';
+        const proofLine = totalRecords > 0
+            ? `OCR ${totalRecords}건이 근로자 ${workerGroups}명, 다월 추적 ${trackedWorkers}명, 확인 후보 ${reviewRequired}명으로 연결됩니다.`
+            : '촬영 또는 백업 불러오기 후 근로자 진단, 리포트, 추적평가가 한 흐름으로 열립니다.';
+
+        return {
+            totalRecords,
+            trackedWorkers,
+            workerGroups,
+            reviewRequired,
+            candidateGroups,
+            lowScoreRecords,
+            attentionRecords,
+            evidenceReady,
+            statusLabel,
+            proofLine,
+        };
+    }, [evidenceReadinessSummary, failedRecords.length, lowConfidenceCount, workerTrackingReviewSummary]);
+
+    const handleOpenMobileCapture = useCallback(() => {
+        setIsNewOcrSectionCollapsed(false);
+        setMobileMode('quick');
+        window.setTimeout(() => {
+            newOcrCaptureSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 40);
+    }, []);
+
+    const handleOpenMobilePriorityReport = useCallback(() => {
+        if (mobilePriorityReportRecord) {
+            onOpenReport(mobilePriorityReportRecord);
+            return;
+        }
+        handleOpenMobileCapture();
+    }, [handleOpenMobileCapture, mobilePriorityReportRecord, onOpenReport]);
+
+    const handleOpenMobileTrackingReview = useCallback(() => {
+        setShowAllWorkerAccumulations(true);
+        setMobileMode('quick');
+        window.setTimeout(() => {
+            const target = workerTrackingSectionRef.current || evidenceReadinessSectionRef.current || newOcrCaptureSectionRef.current;
+            target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 40);
+    }, []);
+
     const isCompactMobile = viewportWidth < 640;
 
     return (
@@ -5080,6 +5167,104 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     <p className="mt-1 text-xs font-bold leading-5 text-amber-800">분석 화면과 파일 업로드는 사용할 수 있습니다. 실제 자동 분석 전 분석 연결키, 현장 정보, 저장 연결 상태를 확인해 주세요.</p>
                 </div>
             )}
+            <section
+                data-mobile-proof="field-mode"
+                className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl sm:rounded-3xl"
+                aria-label="모바일 현장 원터치 모드"
+            >
+                <div className="bg-slate-950 px-4 py-5 text-white sm:px-6 sm:py-6">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className={`rounded-full px-3 py-1 text-[11px] font-black ${mobileProofSnapshot.evidenceReady ? 'bg-emerald-400/15 text-emerald-200 border border-emerald-300/20' : 'bg-amber-400/15 text-amber-200 border border-amber-300/20'}`}>
+                                    {mobileProofSnapshot.statusLabel}
+                                </span>
+                                <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[11px] font-black text-slate-200">
+                                    모바일 현장 모드
+                                </span>
+                            </div>
+                            <h3 className="mt-3 text-xl font-black leading-tight text-white sm:text-2xl">
+                                촬영한 위험성평가 기록지를 진단·리포트·추적평가로 즉시 연결
+                            </h3>
+                            <p data-mobile-proof="proof-line" className="mt-2 max-w-3xl text-xs font-bold leading-relaxed text-slate-300 sm:text-sm">
+                                {mobileProofSnapshot.proofLine}
+                            </p>
+                        </div>
+                        <div className="grid min-w-0 grid-cols-2 gap-2 text-center text-[11px] font-black sm:min-w-[320px]">
+                            <div data-mobile-proof="metric-total-records" className="rounded-2xl border border-white/10 bg-white/10 px-3 py-3">
+                                <p className="text-slate-400">OCR 기록</p>
+                                <p className="mt-1 text-xl text-indigo-200">{mobileProofSnapshot.totalRecords}건</p>
+                            </div>
+                            <div data-mobile-proof="metric-tracked-workers" className="rounded-2xl border border-white/10 bg-white/10 px-3 py-3">
+                                <p className="text-slate-400">다월 추적</p>
+                                <p className="mt-1 text-xl text-emerald-200">{mobileProofSnapshot.trackedWorkers}명</p>
+                            </div>
+                            <div data-mobile-proof="metric-review-required" className="rounded-2xl border border-white/10 bg-white/10 px-3 py-3">
+                                <p className="text-slate-400">확인 후보</p>
+                                <p className="mt-1 text-xl text-amber-200">{mobileProofSnapshot.reviewRequired}명</p>
+                            </div>
+                            <div data-mobile-proof="metric-protection" className="rounded-2xl border border-white/10 bg-white/10 px-3 py-3">
+                                <p className="text-slate-400">보호 우선</p>
+                                <p className="mt-1 text-xl text-rose-200">{mobileProofSnapshot.lowScoreRecords}건</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-4 sm:p-4">
+                    <button
+                        type="button"
+                        data-mobile-proof="action-scan"
+                        onClick={handleOpenMobileCapture}
+                        className="flex min-h-[54px] items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-3 py-3 text-xs font-black text-white shadow-md transition-colors hover:bg-indigo-700 active:scale-[0.99]"
+                    >
+                        <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M5 7h2l1.5-2h7L17 7h2a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" />
+                            <circle cx="12" cy="13" r="3.5" />
+                        </svg>
+                        촬영/스캔
+                    </button>
+                    <button
+                        type="button"
+                        data-mobile-proof="action-report"
+                        onClick={handleOpenMobilePriorityReport}
+                        className="flex min-h-[54px] items-center justify-center gap-2 rounded-2xl bg-slate-900 px-3 py-3 text-xs font-black text-white shadow-md transition-colors hover:bg-black active:scale-[0.99]"
+                    >
+                        <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M14 3v4a2 2 0 0 0 2 2h4" />
+                            <path d="M6 3h8l6 6v12H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+                            <path d="M8 13h8M8 17h5" />
+                        </svg>
+                        리포트 열기
+                    </button>
+                    <button
+                        type="button"
+                        data-mobile-proof="action-tracking"
+                        onClick={handleOpenMobileTrackingReview}
+                        className="flex min-h-[54px] items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-xs font-black text-emerald-800 transition-colors hover:bg-emerald-100 active:scale-[0.99]"
+                    >
+                        <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M4 19V5" />
+                            <path d="M4 19h16" />
+                            <path d="m7 15 4-4 3 3 5-7" />
+                        </svg>
+                        추적평가
+                    </button>
+                    <button
+                        type="button"
+                        data-mobile-proof="action-evidence-export"
+                        onClick={handleExportEvidenceSnapshot}
+                        disabled={existingRecords.length === 0}
+                        className="flex min-h-[54px] items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-3 text-xs font-black text-cyan-800 transition-colors hover:bg-cyan-100 active:scale-[0.99] disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                    >
+                        <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M12 3v12" />
+                            <path d="m7 10 5 5 5-5" />
+                            <path d="M5 21h14" />
+                        </svg>
+                        증빙 저장
+                    </button>
+                </div>
+            </section>
             {/* Control Panel */}
             <div className="bg-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl text-white relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -mr-48 -mt-48"></div>
@@ -5555,7 +5740,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 )}
             </div>
 
-            <div id="new-ocr-capture-section" className="bg-white p-5 sm:p-10 rounded-3xl shadow-xl border border-slate-100 overflow-hidden relative">
+            <div
+                id="new-ocr-capture-section"
+                ref={newOcrCaptureSectionRef}
+                className="bg-white p-5 sm:p-10 rounded-3xl shadow-xl border border-slate-100 overflow-hidden relative"
+            >
                 <div className="flex items-center justify-between gap-3 mb-6">
                     <h3 className="text-xl sm:text-2xl font-black text-slate-900">신규 기록 분석</h3>
                     <button
@@ -6046,6 +6235,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             )}
 
             {existingRecords.length >= 0 && (
+                <div id="psi-evidence-readiness-summary" ref={evidenceReadinessSectionRef}>
                 <SectionPanelCard
                     variant="indigoGradientSoft"
                     className="mb-4"
@@ -6176,6 +6366,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </>
                     )}
                 </SectionPanelCard>
+                </div>
             )}
 
             {/* 공종/팀장 일괄 수정 UI */}
@@ -6268,7 +6459,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </div>
                 </div>
                 {workerAccumulationGroups.length > 0 && (
-                    <div className="px-4 sm:px-6 py-4 border-b border-slate-100 bg-slate-50/70">
+                    <div
+                        id="psi-worker-tracking-summary"
+                        ref={workerTrackingSectionRef}
+                        data-mobile-proof="tracking-summary"
+                        className="px-4 sm:px-6 py-4 border-b border-slate-100 bg-slate-50/70"
+                    >
                         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-2">
                             <div>
                                 <p className="text-[11px] font-black uppercase tracking-wider text-indigo-600">근로자별 누적 보기</p>
@@ -8011,6 +8207,40 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </div>
                 </CollapsibleSection>
             </div>
+
+            {!isAnalyzing && files.length === 0 && !showPostAnalysisCta && !mobileBackGuideMessage && (
+                <div
+                    data-mobile-proof="sticky-actions"
+                    className="fixed left-3 right-3 z-[90] grid grid-cols-3 gap-2 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-2xl backdrop-blur sm:hidden"
+                    style={{ bottom: 'calc(env(safe-area-inset-bottom) + 4.75rem)' }}
+                    aria-label="모바일 현장 빠른 실행"
+                >
+                    <button
+                        type="button"
+                        data-mobile-proof="sticky-scan"
+                        onClick={handleOpenMobileCapture}
+                        className="min-h-[44px] rounded-xl bg-indigo-600 px-2 py-2 text-[11px] font-black text-white"
+                    >
+                        촬영
+                    </button>
+                    <button
+                        type="button"
+                        data-mobile-proof="sticky-report"
+                        onClick={handleOpenMobilePriorityReport}
+                        className="min-h-[44px] rounded-xl bg-slate-900 px-2 py-2 text-[11px] font-black text-white"
+                    >
+                        리포트
+                    </button>
+                    <button
+                        type="button"
+                        data-mobile-proof="sticky-tracking"
+                        onClick={handleOpenMobileTrackingReview}
+                        className="min-h-[44px] rounded-xl bg-emerald-600 px-2 py-2 text-[11px] font-black text-white"
+                    >
+                        추적
+                    </button>
+                </div>
+            )}
 
             {mobileBackGuideMessage && (
                 <div className="fixed bottom-4 left-1/2 z-[120] w-[calc(100%-32px)] max-w-sm -translate-x-1/2 rounded-2xl border border-slate-200 bg-slate-900/95 px-4 py-3 text-center text-[12px] font-bold text-white shadow-2xl sm:hidden">
