@@ -1,5 +1,5 @@
 import type { WorkerRecord } from '../types';
-import { analyzeWorkerEvidenceReadiness, getWorkerIdentityKey } from './workerIdentity';
+import { analyzeWorkerEvidenceReadiness, getWorkerIdentityKey, getWorkerTrackingCandidateIdentityKey } from './workerIdentity';
 
 export const PSI_BACKUP_SCHEMA_VERSION = 'psi-backup/v2';
 export const BACKUP_LARGE_FILE_WARNING_BYTES = 50 * 1024 * 1024;
@@ -386,7 +386,7 @@ export const createBackupEnvelope = (
     records: WorkerRecord[],
     now: Date = new Date(),
 ): PsiBackupEnvelope => {
-    const readiness = analyzeWorkerEvidenceReadiness(records, now);
+    const readiness = analyzeWorkerEvidenceReadiness(records, now, getWorkerTrackingCandidateIdentityKey);
     const dateStats = getDateStats(records, now);
     const warnings: string[] = [];
     if (dateStats.singleDateConcentration) {
@@ -415,7 +415,7 @@ export const createBackupEnvelope = (
             handwrittenCoverageRate: readiness.handwrittenCoverageRate,
             aiInsightCoverageRate: readiness.aiInsightCoverageRate,
             nativeGuidanceCoverageRate: readiness.nativeGuidanceCoverageRate,
-            identityBasis: '공종 + 한글 관리명 + 국적, 보조 식별자 UUID/사번/QR',
+            identityBasis: '추적 후보 기준: 이름 + 국적. 정확 식별 기준은 UUID/사번/QR을 우선합니다.',
             warnings,
         },
         records,

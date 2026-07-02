@@ -39,7 +39,7 @@ import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils';
 import { useJudgmentTaggingQuality } from '../hooks/useJudgmentTaggingQuality';
-import { analyzeWorkerEvidenceReadiness, getWorkerIdentityKey } from '../utils/workerIdentity';
+import { analyzeWorkerEvidenceReadiness, getWorkerTrackingCandidateIdentityKey } from '../utils/workerIdentity';
 import {
     analyzeBackupImport,
     BACKUP_HARD_FILE_LIMIT_BYTES,
@@ -992,7 +992,7 @@ const formatWorkerGroupMonth = (record: WorkerRecord): string => {
 };
 
 const getWorkerAccumulationKey = (record: WorkerRecord): string => {
-    return getWorkerIdentityKey(record);
+    return getWorkerTrackingCandidateIdentityKey(record);
 };
 
 const formatComparisonValue = (value: unknown): string => {
@@ -2012,7 +2012,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     }, [focusedWorkerGroup, filteredRecords]);
 
     const evidenceReadinessSummary = useMemo(() => {
-        return analyzeWorkerEvidenceReadiness(existingRecords);
+        return analyzeWorkerEvidenceReadiness(existingRecords, new Date(), getWorkerTrackingCandidateIdentityKey);
     }, [existingRecords]);
 
     const recordsWithImages = useMemo(() => {
@@ -4798,7 +4798,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             snapshotType: 'NEW-PSI public evidence summary',
             generatedAt: new Date().toISOString(),
             privacyNotice: '원본 이미지, 서명, 전체 수기문장, 전화번호, 관리자 식별번호는 제외한 비식별 요약입니다.',
-            identityBasis: '동일인 기준은 공종+한글이름+국적입니다.',
+            identityBasis: '추적 후보 기준은 이름+국적입니다. 정확 식별 기준은 UUID/사번/QR을 우선합니다.',
             viewScope: focusedWorkerGroup ? '선택 근로자 월별 보기' : '현재 필터 전체 보기',
             activeFilters: {
                 searchApplied: searchTerm.trim().length > 0,

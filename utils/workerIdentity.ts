@@ -143,6 +143,25 @@ export const getWorkerNameIdentitySeed = (record: Partial<WorkerRecord>): string
     return `${normalizedJobField}|${normalizedName}|${normalizedNationality}`;
 };
 
+export const getWorkerLegacyTrackingIdentitySeed = (record: Partial<WorkerRecord>): string => {
+    const normalizedName = normalizeWorkerIdentityText(record.name);
+    if (!normalizedName || GENERIC_WORKER_NAMES.has(normalizedName)) return '';
+
+    const normalizedNationality = normalizeWorkerIdentityText(record.nationality);
+    if (!normalizedNationality || GENERIC_NATIONALITIES.has(normalizedNationality)) return '';
+
+    return `${normalizedName}|${normalizedNationality}`;
+};
+
+export const getWorkerTrackingCandidateIdentityKey = (record: Partial<WorkerRecord>): string => {
+    if (hasWorkerUuidConflict(record)) return getWorkerIdentityKey(record);
+
+    const trackingSeed = getWorkerLegacyTrackingIdentitySeed(record);
+    return trackingSeed
+        ? `tracking-candidate:name-nationality:${trackingSeed}`
+        : getWorkerIdentityKey(record);
+};
+
 export const buildNameBasedWorkerUuid = (record: Partial<WorkerRecord>): string => {
     const seed = getWorkerNameIdentitySeed(record);
     return seed ? `WN-${stableWorkerHash(seed).slice(0, 12)}` : '';
@@ -400,8 +419,9 @@ const rate = (count: number, total: number): number => {
 export const analyzeWorkerEvidenceReadiness = (
     records: WorkerRecord[],
     today: Date = new Date(),
+    resolveIdentityKey: (record: WorkerRecord) => string = getWorkerIdentityKey,
 ): WorkerEvidenceReadinessSummary => {
-    const groups = buildWorkerTimelineGroups(records);
+    const groups = buildWorkerTimelineGroups(records, resolveIdentityKey);
     const validToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
 
     let improvingWorkerGroups = 0;

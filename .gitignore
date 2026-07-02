@@ -36,4 +36,6 @@ reports/PSI_Backup_*.json
 reports/records-export.json
 reports/existing-records-audit-*.json
 reports/existing-records-audit-*.md
+reports/worker-identity-linkage-*.json
+reports/worker-identity-linkage-*.md
 
