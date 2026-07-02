@@ -39,7 +39,7 @@ import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils';
 import { useJudgmentTaggingQuality } from '../hooks/useJudgmentTaggingQuality';
-import { analyzeWorkerEvidenceReadiness, getWorkerTrackingCandidateIdentityKey } from '../utils/workerIdentity';
+import { analyzeWorkerEvidenceReadiness, getWorkerIdentityKey, getWorkerTrackingCandidateIdentityKey } from '../utils/workerIdentity';
 import {
     analyzeBackupImport,
     BACKUP_HARD_FILE_LIMIT_BYTES,
@@ -995,6 +995,35 @@ const getWorkerAccumulationKey = (record: WorkerRecord): string => {
     return getWorkerTrackingCandidateIdentityKey(record);
 };
 
+const getWorkerDateBucket = (record: WorkerRecord): string => {
+    const parsed = getWorkerGroupDateValue(record);
+    if (parsed) return new Date(parsed).toISOString().slice(0, 10);
+    return String(record.date || '').slice(0, 10) || 'unknown-date';
+};
+
+const getMaxDuplicateDateCount = (records: WorkerRecord[]): number => {
+    const dateCounts = new Map<string, number>();
+    records.forEach((record) => {
+        const dateBucket = getWorkerDateBucket(record);
+        dateCounts.set(dateBucket, (dateCounts.get(dateBucket) || 0) + 1);
+    });
+    return Math.max(0, ...Array.from(dateCounts.values()));
+};
+
+const buildTrackingReviewReason = (
+    trackingMode: WorkerAccumulationGroup['trackingMode'],
+    sameDateDuplicateCount: number,
+    jobFieldCount: number,
+    teamLeaderCount: number,
+): string => {
+    const reasons: string[] = [];
+    if (trackingMode === 'candidate') reasons.push('이름+국적 후보');
+    if (sameDateDuplicateCount > 1) reasons.push('같은 날짜 중복');
+    if (jobFieldCount > 1) reasons.push('공종 변경');
+    if (teamLeaderCount > 1) reasons.push('반장/팀 변경');
+    return reasons.join(' · ') || '자동 확정';
+};
+
 const formatComparisonValue = (value: unknown): string => {
     if (Array.isArray(value)) {
         const items = value.map((item) => String(item || '').trim()).filter(Boolean);
@@ -1083,6 +1112,11 @@ type WorkerAccumulationGroup = {
     finalizedCount: number;
     jobFields: string[];
     teamLeaders: string[];
+    trackingMode: 'exact' | 'candidate';
+    trackingReviewRequired: boolean;
+    trackingReviewReason: string;
+    exactIdentityCount: number;
+    sameDateDuplicateCount: number;
 };
 
 const getRecordSortModeLabel = (mode: RecordSortMode): string => {
@@ -1969,6 +2003,16 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             const dateRangeLabel = records.length > 1
                 ? `${String(firstRecord.date || '').slice(0, 10)} ~ ${String(latestRecord.date || '').slice(0, 10)}`
                 : String(latestRecord.date || '').slice(0, 10);
+            const exactIdentityCount = new Set(records.map(getWorkerIdentityKey)).size;
+            const sameDateDuplicateCount = getMaxDuplicateDateCount(records);
+            const jobFields = Array.from(new Set(records.map((record) => record.jobField).filter(Boolean))).sort();
+            const teamLeaders = Array.from(new Set(records.map((record) => record.teamLeader || '미지정').filter(Boolean))).sort();
+            const trackingMode = records.length > 1 && exactIdentityCount > 1 ? 'candidate' : 'exact';
+            const trackingReviewRequired =
+                trackingMode === 'candidate' ||
+                sameDateDuplicateCount > 1 ||
+                jobFields.length > 1 ||
+                teamLeaders.length > 1;
 
             return {
                 key,
@@ -1982,8 +2026,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 dateRangeLabel,
                 failedCount: records.filter((record) => isFailedRecord(record)).length,
                 finalizedCount: records.filter((record) => getReviewTrustState(record) === 'FINALIZED').length,
-                jobFields: Array.from(new Set(records.map((record) => record.jobField).filter(Boolean))).sort(),
-                teamLeaders: Array.from(new Set(records.map((record) => record.teamLeader || '미지정').filter(Boolean))).sort(),
+                jobFields,
+                teamLeaders,
+                trackingMode,
+                trackingReviewRequired,
+                trackingReviewReason: buildTrackingReviewReason(trackingMode, sameDateDuplicateCount, jobFields.length, teamLeaders.length),
+                exactIdentityCount,
+                sameDateDuplicateCount,
             };
         }).sort((a, b) => {
             const latestDateDiff = getWorkerGroupDateValue(b.latestRecord) - getWorkerGroupDateValue(a.latestRecord);
@@ -1991,6 +2040,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             return String(a.latestRecord.name || '').localeCompare(String(b.latestRecord.name || ''), 'ko-KR');
         });
     }, [filteredRecords, getReviewTrustState]);
+
+    const workerTrackingReviewSummary = useMemo(() => {
+        const candidateGroups = workerAccumulationGroups.filter((group) => group.trackingMode === 'candidate' && group.records.length > 1);
+        const reviewRequiredGroups = workerAccumulationGroups.filter((group) => group.trackingReviewRequired);
+        const sameDateDuplicateGroups = workerAccumulationGroups.filter((group) => group.sameDateDuplicateCount > 1);
+        return {
+            exactGroups: workerAccumulationGroups.filter((group) => !group.trackingReviewRequired).length,
+            candidateGroups: candidateGroups.length,
+            reviewRequiredGroups: reviewRequiredGroups.length,
+            sameDateDuplicateGroups: sameDateDuplicateGroups.length,
+        };
+    }, [workerAccumulationGroups]);
 
     const visibleWorkerAccumulationGroups = useMemo(() => {
         return showAllWorkerAccumulations ? workerAccumulationGroups : workerAccumulationGroups.slice(0, 18);
@@ -4818,6 +4879,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 filteredRecords: filteredRecords.length,
                 visibleMonthlyRecords: recordListRecords.length,
                 workerGroups: workerAccumulationGroups.length,
+                trackingAutoConfirmedGroups: workerTrackingReviewSummary.exactGroups,
+                trackingCandidateGroups: workerTrackingReviewSummary.candidateGroups,
+                trackingReviewRequiredGroups: workerTrackingReviewSummary.reviewRequiredGroups,
+                sameDateDuplicateGroups: workerTrackingReviewSummary.sameDateDuplicateGroups,
             },
             evidenceReadinessSummary,
             focusedWorker: focusedWorkerGroup
@@ -4845,6 +4910,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 deltaScore: group.deltaScore,
                 failedCount: group.failedCount,
                 finalizedCount: group.finalizedCount,
+                trackingMode: group.trackingMode,
+                trackingReviewRequired: group.trackingReviewRequired,
+                trackingReviewReason: group.trackingReviewReason,
+                exactIdentityCount: group.exactIdentityCount,
+                sameDateDuplicateCount: group.sameDateDuplicateCount,
                 monthlyScores: [...group.records].reverse().map((record) => ({
                     month: formatWorkerGroupMonth(record),
                     date: String(record.date || '').slice(0, 10) || '날짜 없음',
@@ -6212,6 +6282,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <div className="flex flex-wrap gap-2 text-[11px] font-black text-slate-600">
                                 <span className="rounded-full bg-white border border-slate-200 px-3 py-1">전체 기록 {filteredRecords.length}건</span>
                                 <span className="rounded-full bg-white border border-slate-200 px-3 py-1">누적 근로자 {workerAccumulationGroups.length}명</span>
+                                <span className="rounded-full bg-emerald-50 border border-emerald-100 px-3 py-1 text-emerald-700">자동 확정 {workerTrackingReviewSummary.exactGroups}명</span>
+                                <span className="rounded-full bg-amber-50 border border-amber-100 px-3 py-1 text-amber-700">확인 후보 {workerTrackingReviewSummary.candidateGroups}명</span>
+                                {workerTrackingReviewSummary.reviewRequiredGroups > 0 && (
+                                    <span className="rounded-full bg-rose-50 border border-rose-100 px-3 py-1 text-rose-700">관리자 확인 {workerTrackingReviewSummary.reviewRequiredGroups}명</span>
+                                )}
                             </div>
                         </div>
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
@@ -6257,9 +6332,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                     {latest.nationality || '국적 미확인'} · {group.dateRangeLabel}
                                                 </p>
                                             </button>
-                                            <span className="shrink-0 rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-black text-indigo-700">
-                                                {group.records.length}건
-                                            </span>
+                                            <div className="shrink-0 flex flex-col items-end gap-1">
+                                                <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-black text-indigo-700">
+                                                    {group.records.length}건
+                                                </span>
+                                                <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${group.trackingReviewRequired ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                                                    {group.trackingReviewRequired ? '확인 후보' : '자동 확정'}
+                                                </span>
+                                            </div>
                                         </div>
                                         <div className="mt-3 grid grid-cols-4 gap-2 text-center">
                                             <div className="rounded-xl bg-slate-50 px-2 py-2">
@@ -6286,6 +6366,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             {group.teamLeaders.slice(0, 2).map((leader) => (
                                                 <span key={`${group.key}-${leader}`} className="rounded-full bg-slate-100 px-2 py-1 text-slate-600">{leader}</span>
                                             ))}
+                                            {group.trackingReviewRequired && (
+                                                <span className="rounded-full bg-amber-50 px-2 py-1 text-amber-700">{group.trackingReviewReason}</span>
+                                            )}
+                                            {group.sameDateDuplicateCount > 1 && (
+                                                <span className="rounded-full bg-rose-50 px-2 py-1 text-rose-700">같은 날 {group.sameDateDuplicateCount}건</span>
+                                            )}
                                             {group.failedCount > 0 && (
                                                 <span className="rounded-full bg-rose-50 px-2 py-1 text-rose-700">확인 필요 {group.failedCount}건</span>
                                             )}
