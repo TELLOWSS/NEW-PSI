@@ -577,6 +577,42 @@ const hasRetryableOriginalImage = (image?: string): boolean => {
     return normalizeRetryImageData(image).length >= 100;
 };
 
+const UNKNOWN_RECORD_MONTH_KEY = 'unknown-month';
+const INITIAL_RECORD_RENDER_LIMIT = 80;
+const RECORD_RENDER_INCREMENT = 80;
+
+type OcrRecordScopeFilter = 'ocr-only' | 'all';
+
+const isOcrAnalyzedRecord = (record: WorkerRecord): boolean => {
+    return Boolean(
+        hasRetryableOriginalImage(record.originalImage) ||
+        String(record.filename || '').trim() ||
+        typeof record.ocrConfidence === 'number' ||
+        record.ocrTrace ||
+        record.ocrErrorType ||
+        record.ocrFailureCode ||
+        record.ocrStatus ||
+        record.secondPassStatus ||
+        (record.auditTrail || []).some((entry) => entry.stage === 'ocr' || entry.actor === 'psi-harness')
+    );
+};
+
+const getRecordMonthKey = (record: WorkerRecord): string => {
+    const raw = String(record.date || '').trim();
+    const matched = raw.match(/^(\d{4})-(\d{2})/);
+    if (matched) return `${matched[1]}-${matched[2]}`;
+
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return UNKNOWN_RECORD_MONTH_KEY;
+    return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const formatRecordMonthLabel = (monthKey: string): string => {
+    if (monthKey === UNKNOWN_RECORD_MONTH_KEY) return '날짜 미확인';
+    const [year, month] = monthKey.split('-');
+    return `${year}년 ${Number(month)}월`;
+};
+
 const OCR_FAILED_ONLY_DEFAULT_KEY = 'psi_ocr_failed_only_default';
 const OCR_VIEW_STATE_KEY = 'psi_ocr_view_state_v1';
 const OCR_BATCH_CHECKPOINT_KEY = 'psi_ocr_batch_checkpoint_v1';
@@ -595,6 +631,8 @@ type OcrViewState = {
     secondPassExcludedOnly: boolean;
     secondPassReasonFilter: string;
     recordSortMode: RecordSortMode;
+    recordScopeFilter: OcrRecordScopeFilter;
+    recordMonthFilter: string;
 };
 
 type OcrBatchCheckpoint = {
@@ -1334,9 +1372,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [showAllFailureCodeCards, setShowAllFailureCodeCards] = useState(false);
     const [showMobileUtilityPanel, setShowMobileUtilityPanel] = useState(false);
     const [showPostAnalysisCta, setShowPostAnalysisCta] = useState(false);
-    const [showAllWorkerAccumulations, setShowAllWorkerAccumulations] = useState(true);
+    const [showAllWorkerAccumulations, setShowAllWorkerAccumulations] = useState(false);
     const [focusedWorkerGroupKey, setFocusedWorkerGroupKey] = useState<string | null>(null);
     const [mobileMode, setMobileMode] = useState<'quick' | 'detailed'>('quick');
+    const [recordScopeFilter, setRecordScopeFilter] = useState<OcrRecordScopeFilter>(() => storedViewState.recordScopeFilter || 'ocr-only');
+    const [recordMonthFilter, setRecordMonthFilter] = useState<string>(() => storedViewState.recordMonthFilter || 'all');
+    const [recordRenderLimit, setRecordRenderLimit] = useState(INITIAL_RECORD_RENDER_LIMIT);
     const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
     const [isPaidApiMode, setIsPaidApiMode] = useState<boolean>(() => getIsPaidApiMode());
     const [exportFeedback, setExportFeedback] = useState<ExportFeedback>(null);
@@ -1608,12 +1649,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 secondPassExcludedOnly,
                 secondPassReasonFilter,
                 recordSortMode,
+                recordScopeFilter,
+                recordMonthFilter,
             };
             localStorage.setItem(OCR_VIEW_STATE_KEY, JSON.stringify(nextState));
         } catch {
             // ignore storage errors
         }
-    }, [searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterReason, filterStatus, secondPassStatusFilter, secondPassEditedOnly, secondPassExcludedOnly, secondPassReasonFilter, recordSortMode]);
+    }, [searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterReason, filterStatus, secondPassStatusFilter, secondPassEditedOnly, secondPassExcludedOnly, secondPassReasonFilter, recordSortMode, recordScopeFilter, recordMonthFilter]);
 
     const handleCreateMasterTemplate = async (payload: { name: string; version: string; fieldSchema: string }) => {
         const result = await supabase
@@ -1831,18 +1874,64 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, [isAnalyzing]);
 
-    const teamLeaders = useMemo(() => {
-        const leaders = new Set(existingRecords.map(r => r.teamLeader || '미지정'));
-        return Array.from(leaders).sort();
+    const ocrAnalyzedRecords = useMemo(() => {
+        return existingRecords.filter(isOcrAnalyzedRecord);
     }, [existingRecords]);
+
+    const sourceScopedRecords = useMemo(() => {
+        return recordScopeFilter === 'ocr-only' ? ocrAnalyzedRecords : existingRecords;
+    }, [existingRecords, ocrAnalyzedRecords, recordScopeFilter]);
+
+    const recordMonthOptions = useMemo(() => {
+        const counts = new Map<string, number>();
+        sourceScopedRecords.forEach((record) => {
+            const monthKey = getRecordMonthKey(record);
+            counts.set(monthKey, (counts.get(monthKey) || 0) + 1);
+        });
+
+        const sortedMonths = Array.from(counts.entries()).sort(([left], [right]) => {
+            if (left === UNKNOWN_RECORD_MONTH_KEY) return 1;
+            if (right === UNKNOWN_RECORD_MONTH_KEY) return -1;
+            return right.localeCompare(left);
+        });
+
+        return [
+            { key: 'all', label: '전체 월', count: sourceScopedRecords.length },
+            ...sortedMonths.map(([key, count]) => ({
+                key,
+                label: formatRecordMonthLabel(key),
+                count,
+            })),
+        ];
+    }, [sourceScopedRecords]);
+
+    useEffect(() => {
+        if (recordMonthFilter === 'all') return;
+        if (recordMonthOptions.some((option) => option.key === recordMonthFilter)) return;
+        setRecordMonthFilter('all');
+    }, [recordMonthFilter, recordMonthOptions]);
+
+    const monthScopedRecords = useMemo(() => {
+        if (recordMonthFilter === 'all') return sourceScopedRecords;
+        return sourceScopedRecords.filter((record) => getRecordMonthKey(record) === recordMonthFilter);
+    }, [recordMonthFilter, sourceScopedRecords]);
+
+    const selectedMonthLabel = useMemo(() => {
+        return recordMonthOptions.find((option) => option.key === recordMonthFilter)?.label || '전체 월';
+    }, [recordMonthFilter, recordMonthOptions]);
+
+    const teamLeaders = useMemo(() => {
+        const leaders = new Set(sourceScopedRecords.map(r => r.teamLeader || '미지정'));
+        return Array.from(leaders).sort();
+    }, [sourceScopedRecords]);
 
     const jobFields = useMemo(() => {
-        const fields = new Set(existingRecords.map(r => r.jobField).filter(Boolean));
+        const fields = new Set(sourceScopedRecords.map(r => r.jobField).filter(Boolean));
         return Array.from(fields).sort();
-    }, [existingRecords]);
+    }, [sourceScopedRecords]);
 
     const baseFilteredRecords = useMemo(() => {
-        return existingRecords.filter(r => {
+        return monthScopedRecords.filter(r => {
             const searchStr = `${r.name || ''} ${r.jobField || ''} ${r.nationality || ''} ${r.teamLeader || ''}`.toLowerCase();
             const matchesSearch = searchStr.includes(searchTerm.toLowerCase());
             const matchesLevel = filterLevel === 'all' || r.safetyLevel === filterLevel;
@@ -1872,7 +1961,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 (secondPassStatusFilter === 'not-done' && r.secondPassStatus !== 'DONE');
             return matchesSearch && matchesLevel && matchesField && matchesLeader && matchesTrust && matchesReason && matchesStatus && matchesSecondPassStatus;
         });
-    }, [existingRecords, searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterReason, filterStatus, secondPassStatusFilter, getReviewTrustState]);
+    }, [monthScopedRecords, searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterReason, filterStatus, secondPassStatusFilter, getReviewTrustState]);
 
     const secondPassSkippedCounts = useMemo(() => {
         return baseFilteredRecords.reduce<Record<string, number>>((acc, record) => {
@@ -1941,6 +2030,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         setSecondPassExcludedOnly(false);
         setSecondPassReasonFilter('all');
         setRecordSortMode('recent-correction');
+        setRecordScopeFilter('ocr-only');
+        setRecordMonthFilter('all');
+        setRecordRenderLimit(INITIAL_RECORD_RENDER_LIMIT);
         setFailedOnlyDefault(false);
         setSelectedIds([]);
     }, []);
@@ -1956,9 +2048,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             filterStatus !== 'all' ||
             secondPassStatusFilter !== 'all' ||
             secondPassExcludedOnly ||
-            secondPassReasonFilter !== 'all'
+            secondPassReasonFilter !== 'all' ||
+            recordMonthFilter !== 'all' ||
+            recordScopeFilter !== 'ocr-only'
         );
-    }, [filterField, filterLeader, filterLevel, filterReason, filterStatus, filterTrust, searchTerm, secondPassExcludedOnly, secondPassReasonFilter, secondPassStatusFilter]);
+    }, [filterField, filterLeader, filterLevel, filterReason, filterStatus, filterTrust, recordMonthFilter, recordScopeFilter, searchTerm, secondPassExcludedOnly, secondPassReasonFilter, secondPassStatusFilter]);
 
     const autoResetEmptyFilterRef = useRef(false);
 
@@ -2075,6 +2169,31 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         return focusedWorkerGroup ? focusedWorkerGroup.records : filteredRecords;
     }, [focusedWorkerGroup, filteredRecords]);
 
+    useEffect(() => {
+        setRecordRenderLimit(INITIAL_RECORD_RENDER_LIMIT);
+    }, [
+        recordScopeFilter,
+        recordMonthFilter,
+        searchTerm,
+        filterLevel,
+        filterField,
+        filterLeader,
+        filterTrust,
+        filterReason,
+        filterStatus,
+        secondPassStatusFilter,
+        secondPassExcludedOnly,
+        secondPassReasonFilter,
+        recordSortMode,
+        focusedWorkerGroupKey,
+    ]);
+
+    const visibleRecordListRecords = useMemo(() => {
+        return recordListRecords.slice(0, recordRenderLimit);
+    }, [recordListRecords, recordRenderLimit]);
+
+    const hiddenRecordListCount = Math.max(0, recordListRecords.length - visibleRecordListRecords.length);
+
     const evidenceReadinessSummary = useMemo(() => {
         return analyzeWorkerEvidenceReadiness(existingRecords, new Date(), getWorkerTrackingCandidateIdentityKey);
     }, [existingRecords]);
@@ -2145,6 +2264,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const activeFilterSummaryItems = useMemo(() => {
         const items: string[] = [];
         const normalizedSearch = String(searchTerm || '').trim();
+        if (recordScopeFilter === 'all') items.push(`보기: 전체 기록 (${existingRecords.length}건)`);
+        if (recordMonthFilter !== 'all') items.push(`월별: ${selectedMonthLabel}`);
         if (normalizedSearch) items.push(`검색: ${normalizedSearch}`);
         if (filterField !== 'all') items.push(`공종: ${filterField}`);
         if (filterLeader !== 'all') items.push(`팀장: ${filterLeader}`);
@@ -2165,7 +2286,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         if (secondPassReasonFilter !== 'all') items.push(`2차 제외 사유: ${secondPassReasonFilter}`);
         if (recordSortMode !== 'recent-correction') items.push(`정렬: ${getRecordSortModeLabel(recordSortMode)}`);
         return items;
-    }, [filterField, filterLeader, filterLevel, filterReason, filterStatus, secondPassStatusFilter, filterTrust, recordSortMode, searchTerm, secondPassExcludedOnly, secondPassReasonFilter]);
+    }, [existingRecords.length, filterField, filterLeader, filterLevel, filterReason, filterStatus, recordMonthFilter, recordScopeFilter, secondPassStatusFilter, filterTrust, recordSortMode, searchTerm, secondPassExcludedOnly, secondPassReasonFilter, selectedMonthLabel]);
 
     const retrySuccessRate = useMemo(() => {
         if (!retryDiagnostics || retryDiagnostics.total === 0) return 0;
@@ -4365,6 +4486,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         setSecondPassExcludedOnly(false);
         setSecondPassReasonFilter('all');
         setRecordSortMode('recent-correction');
+        setRecordMonthFilter('all');
+        setRecordRenderLimit(INITIAL_RECORD_RENDER_LIMIT);
         setFilterStatus(failedOnlyDefault ? 'failed' : 'all');
     }, [failedOnlyDefault]);
 
@@ -6369,6 +6492,115 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 </div>
             )}
 
+            <section
+                data-ocr-record-view="scope-month-filter"
+                className="mb-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-xl sm:p-5"
+                aria-label="OCR 기록 보기 범위와 월별 분류"
+            >
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="min-w-0">
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-indigo-600">OCR 기록 보기</p>
+                        <h3 className="mt-1 text-lg font-black text-slate-900">분석 기록만 따로 보고, 월별로 끊어 봅니다.</h3>
+                        <p className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
+                            현재 {recordScopeFilter === 'ocr-only' ? `OCR 분석 기록 ${ocrAnalyzedRecords.length}건` : `전체 기록 ${existingRecords.length}건`} 중 {selectedMonthLabel} 기준 {filteredRecords.length}건을 표시합니다.
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center text-[11px] font-black sm:min-w-[360px]">
+                        <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2">
+                            <p className="text-indigo-500">OCR 기록</p>
+                            <p className="mt-1 text-lg text-indigo-800">{ocrAnalyzedRecords.length}건</p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                            <p className="text-slate-500">전체 기록</p>
+                            <p className="mt-1 text-lg text-slate-900">{existingRecords.length}건</p>
+                        </div>
+                        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2">
+                            <p className="text-emerald-600">화면 표시</p>
+                            <p className="mt-1 text-lg text-emerald-800">{visibleRecordListRecords.length}/{recordListRecords.length}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[320px_minmax(0,1fr)]">
+                    <div className="grid grid-cols-2 gap-2">
+                        {([
+                            ['ocr-only', 'OCR 분석만', `${ocrAnalyzedRecords.length}건`],
+                            ['all', '전체 기록', `${existingRecords.length}건`],
+                        ] as Array<[OcrRecordScopeFilter, string, string]>).map(([value, label, count]) => (
+                            <button
+                                key={value}
+                                type="button"
+                                data-ocr-record-view={`scope-${value}`}
+                                onClick={() => {
+                                    setRecordScopeFilter(value);
+                                    setRecordMonthFilter('all');
+                                    setFocusedWorkerGroupKey(null);
+                                    setSelectedIds([]);
+                                    setShowAllWorkerAccumulations(false);
+                                }}
+                                aria-pressed={recordScopeFilter === value}
+                                className={`min-h-[54px] rounded-2xl border px-3 py-3 text-left transition-colors ${
+                                    recordScopeFilter === value
+                                        ? 'border-indigo-600 bg-indigo-600 text-white shadow-md'
+                                        : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                                }`}
+                            >
+                                <span className="block text-sm font-black">{label}</span>
+                                <span className={`mt-1 block text-[11px] font-black ${recordScopeFilter === value ? 'text-indigo-100' : 'text-slate-500'}`}>{count}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="text-[11px] font-black text-slate-500">월별 분류</p>
+                            {recordMonthFilter !== 'all' && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setRecordMonthFilter('all');
+                                        setFocusedWorkerGroupKey(null);
+                                    }}
+                                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-600 hover:bg-slate-50"
+                                >
+                                    전체 월로 보기
+                                </button>
+                            )}
+                        </div>
+                        <div className="mt-2 flex gap-2 overflow-x-auto pb-1 custom-scrollbar" data-ocr-record-view="month-tabs">
+                            {recordMonthOptions.map((option) => (
+                                <button
+                                    key={option.key}
+                                    type="button"
+                                    data-ocr-record-view={`month-${option.key}`}
+                                    onClick={() => {
+                                        setRecordMonthFilter(option.key);
+                                        setFocusedWorkerGroupKey(null);
+                                        setSelectedIds([]);
+                                        setShowAllWorkerAccumulations(false);
+                                    }}
+                                    aria-pressed={recordMonthFilter === option.key}
+                                    className={`shrink-0 rounded-2xl border px-3 py-2 text-left transition-colors ${
+                                        recordMonthFilter === option.key
+                                            ? 'border-slate-900 bg-slate-900 text-white'
+                                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    <span className="block text-[12px] font-black">{option.label}</span>
+                                    <span className={`mt-0.5 block text-[10px] font-black ${recordMonthFilter === option.key ? 'text-slate-300' : 'text-slate-400'}`}>{option.count}건</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {recordScopeFilter === 'ocr-only' && ocrAnalyzedRecords.length === 0 && existingRecords.length > 0 && (
+                    <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold leading-relaxed text-amber-800">
+                        OCR 흔적이 있는 기록을 찾지 못했습니다. 기존 수기 등록 기록까지 확인하려면 전체 기록 보기를 선택하세요.
+                    </div>
+                )}
+            </section>
+
             {/* 공종/팀장 일괄 수정 UI */}
             <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden mb-4">
                 <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 items-stretch sm:items-center p-4 border-b border-slate-100">
@@ -6677,7 +6909,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </div>
                 )}
                 <div className="sm:hidden p-3 space-y-3">
-                    {recordListRecords.map((r: WorkerRecord) => {
+                    {visibleRecordListRecords.map((r: WorkerRecord) => {
                         const checked = selectedIds.includes(r.id);
                         const failed = isFailedRecord(r);
                         const failureCode = failed ? resolveFailureCodeFromRecord(r) : 'UNKNOWN';
@@ -6872,7 +7104,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </thead>
                         <tbody className="divide-y divide-slate-50 font-medium">
                             {/* 선택 체크박스 컬럼 추가 */}
-                            {recordListRecords.map((r: WorkerRecord) => {
+                            {visibleRecordListRecords.map((r: WorkerRecord) => {
                                 const checked = selectedIds.includes(r.id);
                                 const isManager = isManagementRole(r.jobField);
                                 const hasImage = hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage);
@@ -7090,6 +7322,30 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </tbody>
                     </table>
                 </div>
+                {hiddenRecordListCount > 0 && (
+                    <div className="border-t border-slate-100 bg-slate-50/80 px-4 py-4 text-center">
+                        <p className="text-[11px] font-bold text-slate-500">
+                            화면 성능을 위해 {visibleRecordListRecords.length}건만 먼저 표시 중입니다. 남은 기록 {hiddenRecordListCount}건
+                        </p>
+                        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-center">
+                            <button
+                                type="button"
+                                data-ocr-record-view="load-more"
+                                onClick={() => setRecordRenderLimit((prev) => prev + RECORD_RENDER_INCREMENT)}
+                                className="rounded-2xl bg-slate-900 px-5 py-3 text-xs font-black text-white hover:bg-black"
+                            >
+                                다음 {Math.min(RECORD_RENDER_INCREMENT, hiddenRecordListCount)}건 더 보기
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setRecordRenderLimit(recordListRecords.length)}
+                                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-xs font-black text-slate-700 hover:bg-slate-50"
+                            >
+                                현재 조건 전체 표시
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             <CollapsibleSection
