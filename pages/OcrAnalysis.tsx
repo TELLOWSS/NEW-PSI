@@ -1490,6 +1490,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [showMobileUtilityPanel, setShowMobileUtilityPanel] = useState(false);
     const [showPostAnalysisCta, setShowPostAnalysisCta] = useState(false);
     const [showAllWorkerAccumulations, setShowAllWorkerAccumulations] = useState(false);
+    const [showRecordControlPanel, setShowRecordControlPanel] = useState(false);
+    const [showWorkerTrackingPanel, setShowWorkerTrackingPanel] = useState(false);
+    const [showRecordListPanel, setShowRecordListPanel] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 640 : true));
     const [focusedWorkerGroupKey, setFocusedWorkerGroupKey] = useState<string | null>(null);
     const [mobileMode, setMobileMode] = useState<'quick' | 'detailed'>('quick');
     const [recordScopeFilter, setRecordScopeFilter] = useState<OcrRecordScopeFilter>(() => storedViewState.recordScopeFilter || 'ocr-only');
@@ -4767,6 +4770,30 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         setSelectedIds([]);
     };
 
+    const handleDeleteSingleRecord = useCallback((record: WorkerRecord) => {
+        const label = `${record.name || '이름 미확인'} / ${String(record.date || '').slice(0, 10) || '날짜 미확인'}`;
+        if (!confirm(`${label} 기록 1건을 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.`)) {
+            return;
+        }
+
+        onDeleteRecord(record.id);
+        setSelectedIds((ids) => ids.filter((id) => id !== record.id));
+    }, [onDeleteRecord]);
+
+    const handleDeleteWorkerRecords = useCallback((records: WorkerRecord[], label: string) => {
+        const uniqueRecords = Array.from(new Map(records.map((record) => [record.id, record])).values());
+        if (uniqueRecords.length === 0) return;
+
+        if (!confirm(`${label} 기록 ${uniqueRecords.length}건을 모두 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.`)) {
+            return;
+        }
+
+        const deletedIds = new Set(uniqueRecords.map((record) => record.id));
+        uniqueRecords.forEach((record) => onDeleteRecord(record.id));
+        setSelectedIds((ids) => ids.filter((id) => !deletedIds.has(id)));
+        setFocusedWorkerGroupKey(null);
+    }, [onDeleteRecord]);
+
     const handleRetryFailed = async () => {
         if (!ocrExecutionKeyStatus.ready) {
             alert(`문서 분석 연결 정보가 설정되지 않았습니다.\n현재 방식: ${ocrExecutionKeyStatus.modeApiLabel}\n연결 정보 위치: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 분석 서비스 연결키를 먼저 등록해 주세요.`);
@@ -6834,7 +6861,49 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             </section>
 
             {/* 공종/팀장 일괄 수정 UI */}
-            <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden mb-4">
+            <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden mb-4" data-ocr-collapse-delete="record-hub">
+                <div className="border-b border-slate-100 bg-slate-950 px-4 py-4 text-white sm:px-6">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-indigo-200">기록 관리 접힘 보기</p>
+                            <h3 className="mt-1 text-lg font-black">필요한 묶음만 펼쳐서 확인합니다</h3>
+                            <p className="mt-1 text-xs font-bold leading-relaxed text-slate-300">
+                                현재 조건 {recordListRecords.length}건 · 선택 {selectedRecords.length}건 · 근로자 묶음 {workerAccumulationGroups.length}명
+                            </p>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 text-[11px] font-black sm:grid-cols-3">
+                            <button
+                                type="button"
+                                data-ocr-collapse-delete="toggle-controls"
+                                onClick={() => setShowRecordControlPanel((prev) => !prev)}
+                                className={`rounded-2xl border px-3 py-2 text-left transition-colors ${showRecordControlPanel ? 'border-indigo-300 bg-indigo-500 text-white' : 'border-white/10 bg-white/10 text-slate-100 hover:bg-white/15'}`}
+                            >
+                                <span className="block">검색·일괄관리</span>
+                                <span className="mt-0.5 block text-[10px] opacity-80">{showRecordControlPanel ? '접기' : '펼치기'}</span>
+                            </button>
+                            <button
+                                type="button"
+                                data-ocr-collapse-delete="toggle-tracking"
+                                onClick={() => setShowWorkerTrackingPanel((prev) => !prev)}
+                                className={`rounded-2xl border px-3 py-2 text-left transition-colors ${showWorkerTrackingPanel ? 'border-emerald-300 bg-emerald-500 text-white' : 'border-white/10 bg-white/10 text-slate-100 hover:bg-white/15'}`}
+                            >
+                                <span className="block">근로자별 누적</span>
+                                <span className="mt-0.5 block text-[10px] opacity-80">{workerAccumulationGroups.length}명 · {showWorkerTrackingPanel ? '접기' : '펼치기'}</span>
+                            </button>
+                            <button
+                                type="button"
+                                data-ocr-collapse-delete="toggle-record-list"
+                                onClick={() => setShowRecordListPanel((prev) => !prev)}
+                                className={`rounded-2xl border px-3 py-2 text-left transition-colors ${showRecordListPanel ? 'border-cyan-300 bg-cyan-500 text-white' : 'border-white/10 bg-white/10 text-slate-100 hover:bg-white/15'}`}
+                            >
+                                <span className="block">상세 기록 목록</span>
+                                <span className="mt-0.5 block text-[10px] opacity-80">{visibleRecordListRecords.length}/{recordListRecords.length}건 · {showRecordListPanel ? '접기' : '펼치기'}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {showRecordControlPanel && (
+                <>
                 <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 items-stretch sm:items-center p-4 border-b border-slate-100">
                     <span className="font-bold text-slate-700 text-xs mr-2">근로자 일괄 선택</span>
                     <button
@@ -6922,7 +6991,25 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </label>
                     </div>
                 </div>
-                {workerAccumulationGroups.length > 0 && (
+                </>
+                )}
+                {workerAccumulationGroups.length > 0 && !showWorkerTrackingPanel && (
+                    <div className="border-b border-slate-100 bg-slate-50 px-4 py-3 sm:px-6" data-ocr-collapse-delete="tracking-summary-collapsed">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="text-[12px] font-bold text-slate-600">
+                                근로자별 누적 {workerAccumulationGroups.length}명은 접혀 있습니다. 확인 필요 {workerTrackingReviewSummary.reviewRequiredGroups}명, 후보 연결 {workerTrackingReviewSummary.candidateGroups}명입니다.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => setShowWorkerTrackingPanel(true)}
+                                className="rounded-xl bg-emerald-600 px-4 py-2 text-[11px] font-black text-white hover:bg-emerald-700"
+                            >
+                                근로자별 누적 펼치기
+                            </button>
+                        </div>
+                    </div>
+                )}
+                {workerAccumulationGroups.length > 0 && showWorkerTrackingPanel && (
                     <div
                         id="psi-worker-tracking-summary"
                         ref={workerTrackingSectionRef}
@@ -6955,6 +7042,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     ? '누적 근로자 전체를 표시합니다. 카드 영역 안에서 스크롤해 찾을 수 있습니다.'
                                     : '최근 기준 18명만 간략 표시 중입니다.'}
                             </p>
+                            <button
+                                type="button"
+                                onClick={() => setShowWorkerTrackingPanel(false)}
+                                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-600 hover:bg-slate-50"
+                            >
+                                근로자별 누적 접기
+                            </button>
                             {workerAccumulationGroups.length > 18 && (
                                 <button
                                     type="button"
@@ -7057,10 +7151,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 </span>
                                             )}
                                         </div>
-                                        <div className="mt-3 grid grid-cols-3 gap-2">
+                                        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                                             <button
                                                 type="button"
-                                                onClick={() => setFocusedWorkerGroupKey(group.key)}
+                                                onClick={() => {
+                                                    setFocusedWorkerGroupKey(group.key);
+                                                    setShowRecordListPanel(true);
+                                                }}
                                                 className="rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-black text-white hover:bg-indigo-700"
                                                 title="아래 월별 기록 목록을 이 근로자 기록만 보이도록 좁힙니다."
                                             >
@@ -7081,6 +7178,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 title="이 근로자의 가장 최근 기록으로 관리자 분석 리포트를 엽니다."
                                             >
                                                 최신 관리자 리포트
+                                            </button>
+                                            <button
+                                                type="button"
+                                                data-ocr-collapse-delete="delete-worker-records"
+                                                onClick={() => handleDeleteWorkerRecords(group.records, `${latest.name || '이름 미확인'} 근로자`)}
+                                                className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] font-black text-rose-700 hover:bg-rose-100"
+                                                title="이 근로자로 묶인 현재 기록 전체를 삭제합니다."
+                                            >
+                                                이 근로자 기록 삭제
                                             </button>
                                         </div>
                                     </div>
@@ -7112,6 +7218,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 </button>
                                 <button
                                     type="button"
+                                    data-ocr-collapse-delete="delete-focused-worker"
+                                    onClick={() => handleDeleteWorkerRecords(recordListRecords, `${focusedWorkerGroup.latestRecord.name || '이름 미확인'} 근로자`)}
+                                    className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] font-black text-rose-700 hover:bg-rose-100"
+                                >
+                                    이 근로자 기록 삭제
+                                </button>
+                                <button
+                                    type="button"
                                     onClick={() => setFocusedWorkerGroupKey(null)}
                                     className="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-[11px] font-black text-indigo-700 hover:bg-indigo-50"
                                 >
@@ -7140,6 +7254,22 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </p>
                     </div>
                 )}
+                {!showRecordListPanel && (
+                    <div className="border-b border-slate-100 bg-slate-50 px-4 py-4 text-center sm:px-6" data-ocr-collapse-delete="record-list-collapsed">
+                        <p className="text-[12px] font-bold text-slate-600">
+                            상세 기록 목록 {recordListRecords.length}건이 접혀 있습니다. 현재 화면 표시 대상은 {visibleRecordListRecords.length}건입니다.
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => setShowRecordListPanel(true)}
+                            className="mt-3 rounded-2xl bg-cyan-600 px-5 py-2.5 text-xs font-black text-white hover:bg-cyan-700"
+                        >
+                            상세 기록 목록 펼치기
+                        </button>
+                    </div>
+                )}
+                {showRecordListPanel && (
+                <>
                 <div className="sm:hidden p-3 space-y-3">
                     {visibleRecordListRecords.map((r: WorkerRecord) => {
                         const checked = selectedIds.includes(r.id);
@@ -7286,6 +7416,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <div className="mt-3 grid grid-cols-2 gap-2">
                                     <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-3 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl">상세 판단</button>
                                     <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-3 py-2 bg-slate-900 text-white font-black text-xs rounded-xl">보호 리포트</button>
+                                    <button
+                                        type="button"
+                                        data-ocr-collapse-delete="delete-single-record"
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteSingleRecord(r); }}
+                                        className="col-span-2 px-3 py-2 bg-rose-50 text-rose-700 border border-rose-200 font-black text-xs rounded-xl"
+                                    >
+                                        이 기록 삭제
+                                    </button>
                                     {failed && !isAnalyzing && hasImage && (
                                         <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className={`col-span-2 px-3 py-2 font-bold text-xs rounded-xl border transition-all ${retryActionButtonClass}`}>원문 다시 읽기</button>
                                     )}
@@ -7313,7 +7451,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                     ))}
                                                 </div>
                                             )}
-                                            <button onClick={(e) => { e.stopPropagation(); onDeleteRecord(r.id); }} className="col-span-2 px-3 py-2 bg-slate-100 text-slate-500 font-bold text-xs rounded-xl">삭제</button>
+                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteSingleRecord(r); }} className="col-span-2 px-3 py-2 bg-slate-100 text-slate-500 font-bold text-xs rounded-xl">삭제</button>
                                         </>
                                     )}
                                 </div>
@@ -7519,6 +7657,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 </div>
                                                 <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-4 py-2 bg-indigo-600 border border-indigo-600 text-white font-black text-xs rounded-xl hover:bg-indigo-700 transition-all shadow-sm">상세 판단 바로보기</button>
                                                 <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-4 py-2 bg-slate-900 text-white font-black text-xs rounded-xl hover:bg-black transition-all shadow-sm">보호 리포트 바로가기</button>
+                                                <button
+                                                    type="button"
+                                                    data-ocr-collapse-delete="delete-single-record"
+                                                    onClick={(e) => { e.stopPropagation(); handleDeleteSingleRecord(r); }}
+                                                    className="px-4 py-2 bg-rose-50 border border-rose-200 text-rose-700 font-black text-xs rounded-xl hover:bg-rose-100 transition-all shadow-sm"
+                                                >
+                                                    이 기록 삭제
+                                                </button>
                                                 {failed && !isAnalyzing && hasImage && (
                                                     <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className={`px-3 py-2 font-bold text-xs rounded-xl border transition-all ${retryActionButtonClass}`} title={preflightReason || '사전진단 통과'}>
                                                         원문 다시 읽기
@@ -7541,7 +7687,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                                 {action.label}
                                                             </button>
                                                         ))}
-                                                        <button onClick={(e) => { e.stopPropagation(); onDeleteRecord(r.id); }} className="p-2 bg-slate-100 text-slate-400 hover:bg-rose-500 hover:text-white rounded-xl transition-all" title="삭제">
+                                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteSingleRecord(r); }} className="p-2 bg-slate-100 text-slate-400 hover:bg-rose-500 hover:text-white rounded-xl transition-all" title="삭제">
                                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                         </button>
                                                     </>
@@ -7577,6 +7723,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             </button>
                         </div>
                     </div>
+                )}
+                <div className="border-t border-slate-100 bg-white px-4 py-3 text-center">
+                    <button
+                        type="button"
+                        onClick={() => setShowRecordListPanel(false)}
+                        className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-2.5 text-xs font-black text-slate-700 hover:bg-slate-100"
+                    >
+                        상세 기록 목록 접기
+                    </button>
+                </div>
+                </>
                 )}
             </div>
 
