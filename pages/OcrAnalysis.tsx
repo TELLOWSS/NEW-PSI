@@ -40,6 +40,7 @@ import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils';
 import { useJudgmentTaggingQuality } from '../hooks/useJudgmentTaggingQuality';
 import { analyzeWorkerEvidenceReadiness, getWorkerIdentityKey, getWorkerTrackingCandidateIdentityKey } from '../utils/workerIdentity';
+import { normalizeOcrRecordMetadata } from '../utils/ocrRecordNormalization';
 import {
     analyzeBackupImport,
     BACKUP_HARD_FILE_LIMIT_BYTES,
@@ -662,7 +663,7 @@ const buildOcrRecordMonthIndex = (records: WorkerRecord[]): OcrRecordMonthIndex 
         const timestamp = getRecordTimestamp(record);
         const failed = isFailedRecord(record);
         const imageReady = hasRetryableOriginalImage(record.originalImage) || hasRetryableOriginalImage(record.profileImage);
-        const score = Number(record.safetyScore);
+        const score = getOperationalSafetyScore(record);
         const bucket = bucketByKey.get(key) || {
             key,
             label: formatRecordMonthLabel(key),
@@ -685,7 +686,7 @@ const buildOcrRecordMonthIndex = (records: WorkerRecord[]): OcrRecordMonthIndex 
         if (failed) bucket.failedCount += 1;
         else bucket.successCount += 1;
         if (imageReady) bucket.imageReadyCount += 1;
-        if (Number.isFinite(score)) {
+        if (score !== null) {
             bucket.scoreTotal += score;
             bucket.scoreCount += 1;
             scoreTotal += score;
@@ -733,6 +734,9 @@ const buildOcrRecordMonthIndex = (records: WorkerRecord[]): OcrRecordMonthIndex 
 const OCR_FAILED_ONLY_DEFAULT_KEY = 'psi_ocr_failed_only_default';
 const OCR_VIEW_STATE_KEY = 'psi_ocr_view_state_v1';
 const OCR_BATCH_CHECKPOINT_KEY = 'psi_ocr_batch_checkpoint_v1';
+const MAX_FREE_OCR_BATCH_RECORDS = 10;
+const FREE_MODE_QUOTA_ABORT_THRESHOLD = 1;
+const PAID_MODE_QUOTA_ABORT_THRESHOLD = 3;
 
 type OcrViewState = {
     savedAt: number;
@@ -971,6 +975,14 @@ const isFailedRecord = (r: WorkerRecord): boolean => {
     if (!String(r.aiInsights || '').trim() && !hasSourceText) return true;
     
     return false;
+};
+
+const isOperationalScoreRecord = (record: WorkerRecord): boolean => {
+    return !isFailedRecord(record) && Number.isFinite(Number(record.safetyScore));
+};
+
+const getOperationalSafetyScore = (record: WorkerRecord): number | null => {
+    return isOperationalScoreRecord(record) ? Number(record.safetyScore) : null;
 };
 
 const hasOperationalFailureSignal = (record: Partial<WorkerRecord>): boolean => {
@@ -1296,6 +1308,7 @@ type WorkerAccumulationGroup = {
     latestScore: number;
     previousScore: number | null;
     deltaScore: number | null;
+    scoredCount: number;
     monthCount: number;
     dateRangeLabel: string;
     failedCount: number;
@@ -2300,18 +2313,19 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             const sortedDesc = [...records].sort((a, b) => getWorkerGroupDateValue(b) - getWorkerGroupDateValue(a));
             const sortedAsc = [...records].sort((a, b) => getWorkerGroupDateValue(a) - getWorkerGroupDateValue(b));
             const latestRecord = sortedDesc[0];
-            const validScores = records
+            const operationalRecordsDesc = sortedDesc.filter(isOperationalScoreRecord);
+            const operationalRecordsAsc = sortedAsc.filter(isOperationalScoreRecord);
+            const latestScoredRecord = operationalRecordsDesc[0] || null;
+            const validScores = operationalRecordsAsc
                 .map((record) => Number(record.safetyScore))
                 .filter((score) => Number.isFinite(score));
             const averageScore = validScores.length > 0
                 ? Math.round(validScores.reduce((sum, score) => sum + score, 0) / validScores.length)
                 : 0;
-            const latestScore = Number.isFinite(Number(latestRecord.safetyScore)) ? Number(latestRecord.safetyScore) : 0;
-            const previousRecord = sortedAsc.length > 1 ? sortedAsc[sortedAsc.length - 2] : null;
-            const previousScore = previousRecord && Number.isFinite(Number(previousRecord.safetyScore))
-                ? Number(previousRecord.safetyScore)
-                : null;
-            const deltaScore = previousScore === null ? null : latestScore - previousScore;
+            const latestScore = latestScoredRecord ? Number(latestScoredRecord.safetyScore) : 0;
+            const previousRecord = operationalRecordsAsc.length > 1 ? operationalRecordsAsc[operationalRecordsAsc.length - 2] : null;
+            const previousScore = previousRecord ? Number(previousRecord.safetyScore) : null;
+            const deltaScore = previousScore === null || !latestScoredRecord ? null : latestScore - previousScore;
             const monthKeys = new Set(records.map(formatWorkerGroupMonth));
             const firstRecord = sortedAsc[0] || latestRecord;
             const dateRangeLabel = records.length > 1
@@ -2336,6 +2350,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 latestScore,
                 previousScore,
                 deltaScore,
+                scoredCount: validScores.length,
                 monthCount: monthKeys.size,
                 dateRangeLabel,
                 failedCount: records.filter((record) => isFailedRecord(record)).length,
@@ -3761,8 +3776,28 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     };
 
     const runBatchAnalysis = async (targetRecords: WorkerRecord[], title: string, forceReanalyze: boolean = false) => {
-        const total = targetRecords.length;
-        if (total === 0) return alert('재분석할 대상이 없습니다.');
+        const requestedTotal = targetRecords.length;
+        if (requestedTotal === 0) return alert('재분석할 대상이 없습니다.');
+        const shouldCapFreeBatch = !isPaidApiMode && !forceReanalyze && requestedTotal > MAX_FREE_OCR_BATCH_RECORDS;
+        if (shouldCapFreeBatch) {
+            const confirmed = confirm(
+                `무료 분석 모드에서는 대량 처리 안정성을 위해 한 번에 ${MAX_FREE_OCR_BATCH_RECORDS}건씩 처리합니다.\n\n` +
+                `- 요청: ${requestedTotal}건\n` +
+                `- 이번 실행: ${MAX_FREE_OCR_BATCH_RECORDS}건\n` +
+                `- 나머지: ${requestedTotal - MAX_FREE_OCR_BATCH_RECORDS}건은 이번 실행 후 이어서 처리\n\n` +
+                `계속 진행할까요?`
+            );
+            if (!confirmed) return;
+        }
+        const executionRecords = shouldCapFreeBatch
+            ? targetRecords.slice(0, MAX_FREE_OCR_BATCH_RECORDS)
+            : targetRecords;
+        const total = executionRecords.length;
+        const deferredCount = requestedTotal - total;
+        const quotaAbortThreshold = isPaidApiMode ? PAID_MODE_QUOTA_ABORT_THRESHOLD : FREE_MODE_QUOTA_ABORT_THRESHOLD;
+        const quotaProtectionLabel = isPaidApiMode
+            ? `운영 API 보호 기준 ${PAID_MODE_QUOTA_ABORT_THRESHOLD}건`
+            : `무료 모드 보호 기준 ${FREE_MODE_QUOTA_ABORT_THRESHOLD}건`;
 
         // 서버 재분석이 1차 경로이므로 브라우저 quota 상태만으로 전체 재분석을 선차단하지 않는다.
         const quotaState = getQuotaState();
@@ -3824,10 +3859,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         
         // [Adaptive Throttling State]
         // Start with a 4s buffer. If we hit limits, increase this dynamically.
-        let dynamicDelayBuffer = quotaRecoveryTime > 0 ? 8 : 5;
+        let dynamicDelayBuffer = isPaidApiMode
+            ? (quotaRecoveryTime > 0 ? 8 : 5)
+            : (quotaRecoveryTime > 0 ? 10 : 8);
 
         // [Priority Queue] 고위험→실패→저신뢰 순으로 정렬
-        const processQueue = [...targetRecords].sort((a, b) => getRetryPriorityScore(a) - getRetryPriorityScore(b));
+        const processQueue = [...executionRecords].sort((a, b) => getRetryPriorityScore(a) - getRetryPriorityScore(b));
 
         try {
             const startIndex = canResumeFromCheckpoint ? Math.max(0, storedCheckpoint?.nextIndex || 0) : 0;
@@ -4301,10 +4338,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             setDailyCounter(next);
                         }
 
-                        if (!forceReanalyze && quotaFailureCount >= 2) {
+                        if (!forceReanalyze && quotaFailureCount >= quotaAbortThreshold) {
                             stopped = true;
                             stopRef.current = true;
-                            alert('할당량(QUOTA) 실패가 반복되어 무료 플랜 보호를 위해 일괄 재분석을 자동 중단했습니다. 잠시 후 재개하세요.');
+                            alert(`할당량(QUOTA) 실패가 ${quotaFailureCount}건 감지되어 ${quotaProtectionLabel}에 따라 일괄 재분석을 자동 중단했습니다. 잠시 후 재개하세요.`);
                             break;
                         }
 
@@ -4405,10 +4442,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             );
                             break;
                         }
-                        if (!forceReanalyze && quotaFailureCount >= 2) {
+                        if (!forceReanalyze && quotaFailureCount >= quotaAbortThreshold) {
                             stopped = true;
                             stopRef.current = true;
-                            alert('할당량(QUOTA) 실패가 반복되어 무료 플랜 보호를 위해 일괄 재분석을 자동 중단했습니다. 잠시 후 재개하세요.');
+                            alert(`할당량(QUOTA) 실패가 ${quotaFailureCount}건 감지되어 ${quotaProtectionLabel}에 따라 일괄 재분석을 자동 중단했습니다. 잠시 후 재개하세요.`);
                             break;
                         }
                         // Safety cooldown even on fail
@@ -4476,10 +4513,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         );
                         break;
                     }
-                    if (!forceReanalyze && quotaFailureCount >= 2) {
+                    if (!forceReanalyze && quotaFailureCount >= quotaAbortThreshold) {
                         stopped = true;
                         stopRef.current = true;
-                        alert('할당량(QUOTA) 실패가 반복되어 무료 플랜 보호를 위해 일괄 재분석을 자동 중단했습니다. 잠시 후 재개하세요.');
+                        alert(`할당량(QUOTA) 실패가 ${quotaFailureCount}건 감지되어 ${quotaProtectionLabel}에 따라 일괄 재분석을 자동 중단했습니다. 잠시 후 재개하세요.`);
                         break;
                     }
                 } finally {
@@ -4530,7 +4567,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             const fallbackRecoveryState = fallbackOpportunity <= 0
                 ? '집계 대기'
                 : (Number(fallbackRecoveryRateText.replace('%', '')) < 30 ? '위험' : Number(fallbackRecoveryRateText.replace('%', '')) < 70 ? '주의' : '안정');
-            const reasonsReport = `\n[원인 집계]\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 대체 분석 성공: ${clientFallbackSuccessCount}\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}\n- KEY/권한 실패: ${keyFailureCount}\n- 대체 분석 회복률: ${fallbackRecoveryRateText} (${fallbackRecoveryState})${keyFailureAbortTriggered ? `\n- 자동중단: KEY 연속 실패 ${consecutiveKeyFailureCount}건` : ''}${lastUnhandledBatchErrorMessage ? `\n- 전역중단코드: ${lastUnhandledBatchErrorCode || 'UNKNOWN'}\n- 전역중단메시지: ${lastUnhandledBatchErrorMessage.slice(0, 140)}` : ''}`;
+            const reasonsReport = `\n[원인 집계]\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 대체 분석 성공: ${clientFallbackSuccessCount}\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}\n- KEY/권한 실패: ${keyFailureCount}\n- QUOTA 보호 기준: ${quotaProtectionLabel}${deferredCount > 0 ? `\n- 무료 모드 보호로 이번 실행 제외: ${deferredCount}건` : ''}\n- 대체 분석 회복률: ${fallbackRecoveryRateText} (${fallbackRecoveryState})${keyFailureAbortTriggered ? `\n- 자동중단: KEY 연속 실패 ${consecutiveKeyFailureCount}건` : ''}${lastUnhandledBatchErrorMessage ? `\n- 전역중단코드: ${lastUnhandledBatchErrorCode || 'UNKNOWN'}\n- 전역중단메시지: ${lastUnhandledBatchErrorMessage.slice(0, 140)}` : ''}`;
             
             if (stopped) {
                 alert(`${modeLabel} 분석이 중단되었습니다.\n(완료: ${successCount}, ${BRAND_STATUS_LABELS.attentionPending}: ${failCount})${reasonsReport}`);
@@ -5413,6 +5450,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 ocrErrorMessage: truncateText(record.ocrErrorMessage, 240),
                 ocrConfidence: typeof record.ocrConfidence === 'number' ? Number(record.ocrConfidence.toFixed(3)) : null,
                 safetyScore: Number.isFinite(Number(record.safetyScore)) ? Number(record.safetyScore) : null,
+                operationalSafetyScore: getOperationalSafetyScore(record),
                 safetyLevel: record.safetyLevel || '',
                 questionCoverage: coverage,
                 handwrittenAnswerCount: Array.isArray(record.handwrittenAnswers) ? record.handwrittenAnswers.length : 0,
@@ -5543,6 +5581,52 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         });
         alert(`OCR 검증 패키지를 저장했습니다.\n\n파일명: ${fileName}\n대상: ${records.length}건\n\n이 파일을 reports 폴더에 넣어주면 제가 71건 결과를 같이 검증할 수 있습니다.`);
     };
+
+    const handleNormalizeCurrentOcrMetadata = useCallback(() => {
+        const targetRecords = selectedRecords.length > 0
+            ? selectedRecords
+            : (recordListRecords.length > 0 ? recordListRecords : ocrAnalyzedRecords);
+
+        if (targetRecords.length === 0) {
+            setExportFeedback({
+                tone: 'warning',
+                message: '날짜·공종 표준화 대상이 없습니다.',
+                detail: 'OCR 분석 기록을 불러오거나 현재 화면 조건을 조정한 뒤 다시 실행해 주세요.',
+            });
+            return;
+        }
+
+        let changedCount = 0;
+        let skippedCount = 0;
+        const fieldCounts = new Map<string, number>();
+
+        targetRecords.forEach((record) => {
+            const result = normalizeOcrRecordMetadata<WorkerRecord>(record);
+            if (result.skipped) {
+                skippedCount++;
+                return;
+            }
+            if (!result.changed) return;
+
+            changedCount++;
+            result.changes.forEach((change) => {
+                fieldCounts.set(change.field, (fieldCounts.get(change.field) || 0) + 1);
+            });
+            onUpdateRecord(result.record);
+        });
+
+        const fieldSummary = Array.from(fieldCounts.entries())
+            .map(([field, count]) => `${field} ${count}건`)
+            .join(', ') || '변경 없음';
+        const scopeLabel = selectedRecords.length > 0 ? '선택 기록' : '현재 화면 기록';
+
+        setExportFeedback({
+            tone: changedCount > 0 ? 'success' : 'info',
+            message: '날짜·공종 표준화가 완료되었습니다.',
+            detail: `${scopeLabel} ${targetRecords.length}건 중 ${changedCount}건 보정, 실패 전용 기록 ${skippedCount}건 제외. 변경 항목: ${fieldSummary}`,
+        });
+        alert(`날짜·공종 표준화를 완료했습니다.\n\n대상: ${targetRecords.length}건\n보정: ${changedCount}건\n실패 전용 기록 제외: ${skippedCount}건\n\n변경 항목: ${fieldSummary}`);
+    }, [ocrAnalyzedRecords, onUpdateRecord, recordListRecords, selectedRecords, setExportFeedback]);
 
     const handleExportReanalysisSummary = () => {
         const blob = new Blob([reanalysisSummaryText], { type: 'text/plain;charset=utf-8' });
@@ -6201,6 +6285,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <button onClick={() => importInputRef.current?.click()} className="w-full px-5 py-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-black text-sm transition-all">백업 파일 불러오기(JSON)</button>
                                 <button onClick={() => { void handleCopyReanalysisSummary(); }} className="w-full px-5 py-3 bg-slate-700 hover:bg-slate-800 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 복사</button>
                                 <button onClick={handleExportReanalysisSummary} className="w-full px-5 py-3 bg-cyan-600 hover:bg-cyan-700 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 내보내기</button>
+                                <button onClick={handleNormalizeCurrentOcrMetadata} className="w-full px-5 py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-2xl font-black text-sm shadow-xl transition-all">날짜·공종 표준화</button>
                                 <button onClick={handleExportOcrVerificationPackage} className="w-full px-5 py-3 bg-emerald-600 hover:bg-emerald-700 rounded-2xl font-black text-sm shadow-xl transition-all">OCR 검증 패키지 저장</button>
                                 <button onClick={() => { void handleExport(); }} className="w-full px-5 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-2xl font-black text-sm shadow-xl transition-all">전체 백업 내보내기</button>
                                 {exportFeedback && (
@@ -6869,6 +6954,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             {ocrAnalyzedRecords.length > 0 && (
                                 <button
                                     type="button"
+                                    onClick={handleNormalizeCurrentOcrMetadata}
+                                    className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-800 hover:bg-amber-100"
+                                >
+                                    날짜·공종 표준화
+                                </button>
+                            )}
+                            {ocrAnalyzedRecords.length > 0 && (
+                                <button
+                                    type="button"
                                     onClick={handleExportOcrVerificationPackage}
                                     className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-cyan-700 hover:bg-cyan-100"
                                 >
@@ -7386,11 +7480,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             </div>
                                             <div className="rounded-xl bg-blue-50 px-2 py-2">
                                                 <p className="text-[10px] font-black text-blue-500">평균</p>
-                                                <p className="mt-0.5 text-sm font-black text-blue-700">{group.averageScore}</p>
+                                                <p className="mt-0.5 text-sm font-black text-blue-700">{group.scoredCount > 0 ? group.averageScore : '-'}</p>
                                             </div>
                                             <div className="rounded-xl bg-slate-50 px-2 py-2">
                                                 <p className="text-[10px] font-black text-slate-400">최신</p>
-                                                <p className="mt-0.5 text-sm font-black text-slate-900">{group.latestScore}</p>
+                                                <p className="mt-0.5 text-sm font-black text-slate-900">{group.scoredCount > 0 ? group.latestScore : '-'}</p>
                                             </div>
                                             <div className="rounded-xl bg-slate-50 px-2 py-2">
                                                 <p className="text-[10px] font-black text-slate-400">변화</p>
@@ -7413,22 +7507,30 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             {group.failedCount > 0 && (
                                                 <span className="rounded-full bg-rose-50 px-2 py-1 text-rose-700">확인 필요 {group.failedCount}건</span>
                                             )}
+                                            {group.scoredCount < group.records.length && (
+                                                <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-600">점수 집계 제외 {group.records.length - group.scoredCount}건</span>
+                                            )}
                                             {group.finalizedCount > 0 && (
                                                 <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">확정 {group.finalizedCount}건</span>
                                             )}
                                         </div>
                                         <div className="mt-3 flex flex-wrap gap-2">
-                                            {group.records.slice(0, 6).map((record) => (
-                                                <button
-                                                    key={record.id}
-                                                    type="button"
-                                                    onClick={() => onViewDetails(record)}
-                                                    className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-black text-slate-700 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
-                                                    title={`${record.name || '근로자'} · ${record.date || '날짜 없음'} · ${record.safetyScore}점`}
-                                                >
-                                                    {formatWorkerGroupMonth(record)} · {record.safetyScore}점
-                                                </button>
-                                            ))}
+                                            {group.records.slice(0, 6).map((record) => {
+                                                const scoreLabel = isOperationalScoreRecord(record)
+                                                    ? `${record.safetyScore}점`
+                                                    : '확인 필요';
+                                                return (
+                                                    <button
+                                                        key={record.id}
+                                                        type="button"
+                                                        onClick={() => onViewDetails(record)}
+                                                        className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-black text-slate-700 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                                                        title={`${record.name || '근로자'} · ${record.date || '날짜 없음'} · ${scoreLabel}`}
+                                                    >
+                                                        {formatWorkerGroupMonth(record)} · {scoreLabel}
+                                                    </button>
+                                                );
+                                            })}
                                             {group.records.length > 6 && (
                                                 <span className="rounded-xl bg-slate-100 px-2.5 py-1.5 text-[11px] font-black text-slate-500">
                                                     +{group.records.length - 6}건

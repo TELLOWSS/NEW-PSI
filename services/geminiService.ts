@@ -11,6 +11,7 @@ import { resolveOcrExecutionKeyStatus } from '../utils/ocrExecutionKeyStatus';
 import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils';
 import { supabase } from '../lib/supabaseClient';
 import { getAiEngineSettings, resolveGeminiOcrModelChain } from '../utils/aiEngineSettings';
+import { normalizeOcrRecordMetadata } from '../utils/ocrRecordNormalization';
 
 /**
  * [API Rate Limiting State Management]
@@ -1617,12 +1618,14 @@ async function callGeminiWithRetry(
                             safetyScore
                         );
 
-                        const auditedRecord: WorkerRecord = {
+                        const metadataNormalizedRecord = normalizeOcrRecordMetadata<WorkerRecord>({
                             ...enforced,
                             safetyScore: verified.safetyScore,
                             safetyLevel: verified.safetyLevel,
                             scoreReasoning: verified.scoreReasoning,
-                        };
+                        }).record;
+
+                        const auditedRecord: WorkerRecord = metadataNormalizedRecord;
 
                         const verificationAudit = evaluateOcrVerificationCompleteness(auditedRecord);
 

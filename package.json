@@ -33,6 +33,7 @@
     "check:ocr-collapse-delete": "node scripts/check-ocr-collapse-delete-contract.cjs",
     "check:ocr-quota-form-gate": "node scripts/check-ocr-quota-form-gate-contract.cjs",
     "check:ocr-verification-package": "node scripts/check-ocr-verification-package-contract.cjs",
+    "check:ocr-operational-hardening": "node scripts/check-ocr-operational-hardening-contract.cjs",
     "check:mobile-qa:evidence": "node scripts/check-mobile-qa-evidence.cjs",
     "check:mobile-qa:evidence:report": "node scripts/check-mobile-qa-evidence.cjs --write-report",
     "qa:mobile:capture": "node scripts/capture-mobile-qa-evidence.cjs",
@@ -71,7 +72,7 @@
     "check:types": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify:fast": "npm run check:context && npm run check:hotspot && npm run check:tdz && npm run check:page-tone && npm run check:ocr-contract && npm run check:mobile-field-mode && npm run check:ocr-record-view && npm run check:ocr-scale-view && npm run check:ocr-collapse-delete && npm run check:ocr-quota-form-gate && npm run check:ocr-verification-package && npm run check:security-headers && npm run check:ui-language && npm run check:report-language && npm run check:core-metrics && npm run check:score-consistency:strict8 && npm run check:types",
+    "verify:fast": "npm run check:context && npm run check:hotspot && npm run check:tdz && npm run check:page-tone && npm run check:ocr-contract && npm run check:mobile-field-mode && npm run check:ocr-record-view && npm run check:ocr-scale-view && npm run check:ocr-collapse-delete && npm run check:ocr-quota-form-gate && npm run check:ocr-verification-package && npm run check:ocr-operational-hardening && npm run check:security-headers && npm run check:ui-language && npm run check:report-language && npm run check:core-metrics && npm run check:score-consistency:strict8 && npm run check:types",
     "verify:release": "npm run verify:fast && npm run check:score-consistency:report:strict8 && npm run build",
     "build": "vite build",
     "preview": "vite preview"

@@ -9,6 +9,7 @@ import handleHarnessWorkflowStatus from '../lib/server/harness/handlers/workflow
 import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils.js';
 import { resolveGeminiOcrModelChain, type OcrEngineMode } from '../utils/aiEngineSettings.js';
 import { normalizeNationality as importedNormalizeNationality } from '../utils/workerIdentity.js';
+import { normalizeOcrRecordMetadata } from '../utils/ocrRecordNormalization.js';
 import {
     buildWorkerAuthenticationProof,
     verifyTrainingLinkToken,
@@ -1349,32 +1350,34 @@ async function analyzeSingleRecord(
         ? parsedSafetyScore
         : (hasExtractedText ? 60 : 0);
 
+    const normalizedRecord = normalizeOcrRecordMetadata({
+        name: String(parsed.name || '식별 대기').trim(),
+        jobField: String(parsed.jobField || '기타').trim(),
+        teamLeader: String(parsed.teamLeader || '미지정').trim(),
+        date: String(parsed.date || new Date().toISOString().split('T')[0]).trim(),
+        nationality: normalizedNationality,
+        language: String(parsed.language || 'unknown').trim(),
+        safetyScore,
+        safetyLevel: resolveSafetyLevel(safetyScore, parsed.safetyLevel),
+        strengths: toStringArray(parsed.strengths),
+        strengths_native: toStringArray(parsed.strengths_native),
+        weakAreas: toStringArray(parsed.weakAreas),
+        weakAreas_native: toStringArray(parsed.weakAreas_native),
+        improvement: String(parsed.improvement || '').trim(),
+        improvement_native: String(parsed.improvement_native || '').trim(),
+        suggestions: toStringArray(parsed.suggestions),
+        suggestions_native: toStringArray(parsed.suggestions_native),
+        aiInsights: String(parsed.aiInsights || '').trim(),
+        aiInsights_native: nativeInsights,
+        fullText: String(parsed.fullText || '').trim(),
+        koreanTranslation: String(parsed.koreanTranslation || '').trim(),
+        scoreReasoning: coverageAwareScoreReasoning,
+        ocrConfidence: Number.isFinite(Number(parsed.ocrConfidence)) ? Number(parsed.ocrConfidence) : 0.9,
+        handwrittenAnswers: normalizedHandwrittenAnswers,
+    }, { appendAuditTrail: false }).record;
+
     return {
-        record: {
-            name: String(parsed.name || '식별 대기').trim(),
-            jobField: String(parsed.jobField || '기타').trim(),
-            teamLeader: String(parsed.teamLeader || '미지정').trim(),
-            date: String(parsed.date || new Date().toISOString().split('T')[0]).trim(),
-            nationality: normalizedNationality,
-            language: String(parsed.language || 'unknown').trim(),
-            safetyScore,
-            safetyLevel: resolveSafetyLevel(safetyScore, parsed.safetyLevel),
-            strengths: toStringArray(parsed.strengths),
-            strengths_native: toStringArray(parsed.strengths_native),
-            weakAreas: toStringArray(parsed.weakAreas),
-            weakAreas_native: toStringArray(parsed.weakAreas_native),
-            improvement: String(parsed.improvement || '').trim(),
-            improvement_native: String(parsed.improvement_native || '').trim(),
-            suggestions: toStringArray(parsed.suggestions),
-            suggestions_native: toStringArray(parsed.suggestions_native),
-            aiInsights: String(parsed.aiInsights || '').trim(),
-            aiInsights_native: nativeInsights,
-            fullText: String(parsed.fullText || '').trim(),
-            koreanTranslation: String(parsed.koreanTranslation || '').trim(),
-            scoreReasoning: coverageAwareScoreReasoning,
-            ocrConfidence: Number.isFinite(Number(parsed.ocrConfidence)) ? Number(parsed.ocrConfidence) : 0.9,
-            handwrittenAnswers: normalizedHandwrittenAnswers,
-        },
+        record: normalizedRecord,
         attempts,
         fallbackDepth,
     };
