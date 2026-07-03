@@ -268,11 +268,11 @@ const getOcrErrorTypeKoreanLabel = (errorType: OcrErrorType): string => {
 };
 
 const FAILURE_CODE_LABELS: Record<OcrFailureCode, string> = {
-    QUOTA: '할당량',
+    QUOTA: 'API 한도',
     KEY: '키/권한',
-    FORMAT: '형식',
-    PARSE: '응답 파싱',
-    PAYLOAD: '입력 데이터',
+    FORMAT: '파일 형식',
+    PARSE: '양식 판독',
+    PAYLOAD: '이미지 데이터',
     NETWORK: '네트워크',
     UNKNOWN: '기타',
 };
@@ -920,6 +920,41 @@ const normalizeFailureCode = (value: unknown): OcrFailureCode | undefined => {
         default:
             return undefined;
     }
+};
+
+const getFailureCodeDisplayLabel = (code: OcrFailureCode): string => {
+    switch (code) {
+        case 'QUOTA':
+            return 'API 한도 초과';
+        case 'KEY':
+            return 'API 키/권한 문제';
+        case 'NETWORK':
+            return '네트워크/서버 연결 문제';
+        case 'FORMAT':
+            return '파일 형식 문제';
+        case 'PAYLOAD':
+            return '이미지 데이터 문제';
+        case 'PARSE':
+            return '양식 판독/응답 파싱 문제';
+        default:
+            return '기타 확인 필요';
+    }
+};
+
+const getRecordFailureDisplayLabel = (record: WorkerRecord): string => {
+    const failureCode = resolveFailureCodeFromRecord(record);
+    if (failureCode && failureCode !== 'UNKNOWN') return getFailureCodeDisplayLabel(failureCode);
+    return getOcrErrorTypeKoreanLabel(getOcrErrorTypeFromRecord(record));
+};
+
+const getRecordFailureHeadline = (record: WorkerRecord): string => {
+    const failureCode = resolveFailureCodeFromRecord(record);
+    if (failureCode === 'QUOTA') return 'API 한도 초과로 대기 중입니다.';
+    if (failureCode === 'KEY') return 'API 키 또는 권한 확인이 필요합니다.';
+    if (failureCode === 'NETWORK') return '서버 또는 네트워크 연결 확인이 필요합니다.';
+    if (failureCode === 'PARSE') return '양식 판독 결과 검증이 필요합니다.';
+    if (failureCode === 'FORMAT' || failureCode === 'PAYLOAD') return '이미지 파일 형식 또는 데이터 확인이 필요합니다.';
+    return `${getRecordFailureDisplayLabel(record)} 신호가 남아 있습니다.`;
 };
 
 // [강화된 실패 판단 로직 - 안전성 강화]
@@ -3626,6 +3661,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 imageSource: bestImageSource,
                 filenameHint: record.filename || record.name,
                 ocrEngine,
+                isPaidApiMode,
             }),
         });
 
@@ -3676,7 +3712,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 }
                 : undefined,
         } as WorkerRecord;
-    }, [getBestRetryImageSource, ocrEngine]);
+    }, [getBestRetryImageSource, isPaidApiMode, ocrEngine]);
 
     const extractGatewayErrorCode = useCallback((message: string): string | undefined => {
         const matched = String(message || '').trim().match(/^\[([A-Z0-9_]+)\]/);
@@ -4175,7 +4211,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     if (stopRef.current) { stopped = true; break; }
 
                     if (apiResult) {
-                        const previousErrorLabel = isFailedRecord(record) ? getOcrErrorTypeKoreanLabel(getOcrErrorTypeFromRecord(record)) : '기타 오류';
+                        const previousErrorLabel = isFailedRecord(record) ? getRecordFailureDisplayLabel(record) : '기타 오류';
                         // P0: UNKNOWN 2차 분류 — 실패 시 sub-category 결정
                         const resolvedFailureCode = resolveFailureCodeFromRecord(apiResult);
                         const unknownSubCategory =
@@ -7289,7 +7325,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         const preflightReason = failed ? getPreflightFailureReason(r) : null;
                         const reviewTrustState = getReviewTrustState(r);
                         const rowStatusSummary = failed
-                            ? `${getOcrErrorTypeKoreanLabel(rowErrorType || 'UNKNOWN')} 신호가 남아 있습니다.`
+                            ? getRecordFailureHeadline(r)
                             : reviewTrustState === 'PENDING'
                                 ? '관리자 재검토가 남아 있는 상태입니다.'
                                 : reviewTrustState === 'FINALIZED'
@@ -7355,7 +7391,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                                 {failed && rowErrorType && (
                                     <div className="mt-2 space-y-1">
-                                        <p className="text-[11px] font-black text-rose-700">⚠️ {getOcrErrorTypeKoreanLabel(rowErrorType)}</p>
+                                        <p className="text-[11px] font-black text-rose-700">⚠️ {getRecordFailureDisplayLabel(r)}</p>
                                         {rowGuideMessage && <p className="text-[11px] font-bold text-rose-600">{rowGuideMobile}</p>}
                                         {preflightReason && <p className="text-[11px] font-bold text-amber-700">사전검증: {preflightReason}</p>}
                                     </div>
@@ -7494,7 +7530,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const rowGuideMobile = rowErrorType ? getOcrErrorMobileLabel(rowErrorType) : '';
                                 const reviewTrustState = getReviewTrustState(r);
                                 const rowStatusSummary = failed
-                                    ? `${getOcrErrorTypeKoreanLabel(rowErrorType || 'UNKNOWN')} 신호가 남아 있습니다.`
+                                    ? getRecordFailureHeadline(r)
                                     : reviewTrustState === 'PENDING'
                                         ? '관리자 재검토가 남아 있는 상태입니다.'
                                         : reviewTrustState === 'FINALIZED'
@@ -7562,7 +7598,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 {failed && <span className="text-[9px] text-rose-500 font-bold">⚠️ 추가 확인 안내</span>}
                                                 {failed && rowErrorType && (
                                                     <span className="mt-1 inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-100 text-rose-700 border border-rose-200">
-                                                        {getOcrErrorTypeKoreanLabel(rowErrorType)}
+                                                        {getRecordFailureDisplayLabel(r)}
                                                     </span>
                                                 )}
                                                 {failed && rowGuideMessage && (

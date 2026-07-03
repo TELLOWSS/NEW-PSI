@@ -984,6 +984,68 @@ const normalizeHandwrittenAnswers = (raw: unknown): Array<{ questionNumber: stri
         .filter((item) => item.answerText.length > 0 || item.koreanTranslation.length > 0 || String(item.nativeTranslation || '').trim().length > 0);
 };
 
+const REQUIRED_CHANGED_PSI_QUESTIONS = [1, 2, 3, 4, 5] as const;
+
+type RetryHandwrittenAnswer = ReturnType<typeof normalizeHandwrittenAnswers>[number];
+
+const normalizeQuestionNumber = (value: unknown): number | null => {
+    const digits = String(value || '').match(/\d+/)?.[0];
+    const questionNumber = Number(digits);
+    return Number.isInteger(questionNumber) && questionNumber >= 1 && questionNumber <= 5 ? questionNumber : null;
+};
+
+const getHandwrittenAnswerText = (answer: RetryHandwrittenAnswer): string => [
+    answer.answerText,
+    answer.koreanTranslation,
+    answer.nativeTranslation,
+].filter(Boolean).join(' ').trim();
+
+const evaluateChangedPsiFormCoverage = (record: {
+    filename?: string;
+    fullText?: string;
+    koreanTranslation?: string;
+    handwrittenAnswers?: RetryHandwrittenAnswer[];
+}) => {
+    const answers = Array.isArray(record.handwrittenAnswers) ? record.handwrittenAnswers : [];
+    const searchableText = [
+        record.filename,
+        record.fullText,
+        record.koreanTranslation,
+        ...answers.flatMap((answer) => [answer.questionNumber, answer.answerText, answer.koreanTranslation, answer.nativeTranslation]),
+    ].filter(Boolean).join(' ').toLowerCase();
+
+    const looksLikeChangedPsiForm =
+        searchableText.includes('new-psi') ||
+        searchableText.includes('psi-ra-01') ||
+        /\bq[1-5]\b/i.test(searchableText) ||
+        answers.length >= 3;
+
+    const present = new Set<number>();
+    answers.forEach((answer, index) => {
+        const questionNumber = normalizeQuestionNumber(answer.questionNumber) ?? (index >= 0 && index < 5 ? index + 1 : null);
+        if (questionNumber && getHandwrittenAnswerText(answer).length >= 2) {
+            present.add(questionNumber);
+        }
+    });
+
+    const presentQuestions = REQUIRED_CHANGED_PSI_QUESTIONS.filter((questionNumber) => present.has(questionNumber));
+    const missingQuestions = REQUIRED_CHANGED_PSI_QUESTIONS.filter((questionNumber) => !present.has(questionNumber));
+    const isComplete = !looksLikeChangedPsiForm || missingQuestions.length === 0;
+    const isAcceptable = !looksLikeChangedPsiForm || presentQuestions.length >= 4;
+    const message = isComplete
+        ? '변경 PSI 양식 Q1~Q5 답변 추출 완료'
+        : `변경 PSI 양식 Q${missingQuestions.join(', Q')} 답변 추출 확인 필요`;
+
+    return {
+        looksLikeChangedPsiForm,
+        presentQuestions,
+        missingQuestions,
+        isAcceptable,
+        isComplete,
+        message,
+    };
+};
+
 const normalizeImagePayload = (input: string) => {
     if (!input || typeof input !== 'string') {
         throw createGatewayHttpError('imageSource가 필요합니다.', 400, 'INVALID_IMAGE_SOURCE');
@@ -1108,7 +1170,12 @@ const shouldTryNextModel = (code?: string): boolean => {
     return true;
 };
 
-async function analyzeSingleRecord(imageSource: string, filenameHint: string, engine: OcrEngineMode = 'auto') {
+async function analyzeSingleRecord(
+    imageSource: string,
+    filenameHint: string,
+    engine: OcrEngineMode = 'auto',
+    isPaidApiMode = true,
+) {
     const apiKey = resolveGeminiApiKey();
     if (!apiKey) {
         throw createGatewayHttpError('서버 Gemini API 키가 설정되지 않았습니다. GEMINI_API_KEY 환경변수를 확인하세요.', 502, 'MISSING_SERVER_GEMINI_KEY');
@@ -1123,7 +1190,7 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string, en
     if (engine === 'openai-precise') {
         throw createGatewayHttpError('ChatGPT Plus 구독은 OpenAI API가 아닙니다. 별도 OpenAI API 키 연결이 필요합니다.', 400, 'OPENAI_API_NOT_CONFIGURED');
     }
-    const modelChain = resolveGeminiOcrModelChain(engine);
+    const modelChain = resolveGeminiOcrModelChain(engine, { isPaidApiMode });
     for (let modelIndex = 0; modelIndex < modelChain.length; modelIndex++) {
         const model = modelChain[modelIndex];
         attempts = modelIndex + 1;
@@ -1154,6 +1221,7 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string, en
                                             '- koreanTranslation: 해당 답변의 한국어 해석 (항상 한국어만)',
                                             '- nativeTranslation: 외국인 근로자는 해당 모국어로 완전 번역하여 반드시 채울 것. 한국인은 빈 문자열.',
                                             '문항형 위험성평가표(1~5번)가 보이면 handwrittenAnswers를 절대 비워두지 마세요.',
+                                            'NEW-PSI 양식 또는 PSI-RA-01 양식이면 Q1 위험 작업, Q2 위험요인/사고 이유, Q3 위험수준과 이유, Q4 감소대책, Q5 지킬 행동을 각각 분리해서 5개 항목으로 반환하세요.',
                                             OCR_RETRY_LANGUAGE_POLICY,
                                             `파일명: ${filenameHint || 'unknown'}`,
                                         ].join('\n'),
@@ -1260,6 +1328,23 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string, en
         throw createGatewayHttpError(`서버 OCR 구조 검증 실패: ${verificationAudit.issues.join(', ')}`, 502, 'OCR_PARSE_FAILURE');
     }
 
+    const changedFormCoverage = evaluateChangedPsiFormCoverage({
+        filename: filenameHint,
+        fullText: String(parsed.fullText || '').trim(),
+        koreanTranslation: String(parsed.koreanTranslation || '').trim(),
+        handwrittenAnswers: normalizedHandwrittenAnswers,
+    });
+
+    if (!changedFormCoverage.isAcceptable) {
+        throw createGatewayHttpError(changedFormCoverage.message, 502, 'OCR_PARSE_FAILURE');
+    }
+
+    const scoreReasoning = toStringArray(parsed.scoreReasoning);
+    const coverageAwareScoreReasoning =
+        changedFormCoverage.looksLikeChangedPsiForm && !changedFormCoverage.isComplete
+            ? [...scoreReasoning, changedFormCoverage.message]
+            : scoreReasoning;
+
     const safetyScore = Number.isFinite(parsedSafetyScore)
         ? parsedSafetyScore
         : (hasExtractedText ? 60 : 0);
@@ -1286,7 +1371,7 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string, en
             aiInsights_native: nativeInsights,
             fullText: String(parsed.fullText || '').trim(),
             koreanTranslation: String(parsed.koreanTranslation || '').trim(),
-            scoreReasoning: toStringArray(parsed.scoreReasoning),
+            scoreReasoning: coverageAwareScoreReasoning,
             ocrConfidence: Number.isFinite(Number(parsed.ocrConfidence)) ? Number(parsed.ocrConfidence) : 0.9,
             handwrittenAnswers: normalizedHandwrittenAnswers,
         },
@@ -1318,7 +1403,8 @@ async function handleOcrRetry(req: any, res: any) {
     const engine: OcrEngineMode = ['auto', 'gemini-fast', 'gemini-precise', 'openai-precise'].includes(requestedEngine)
         ? requestedEngine
         : 'auto';
-    const result = await analyzeSingleRecord(imageSource, filenameHint || recordId, engine);
+    const isPaidApiMode = req.body?.isPaidApiMode === true;
+    const result = await analyzeSingleRecord(imageSource, filenameHint || recordId, engine, isPaidApiMode);
     const traceLatencyMs = Date.now() - traceStartMs;
 
     return res.status(200).json({

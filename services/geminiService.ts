@@ -584,6 +584,70 @@ const normalizeHandwrittenAnswers = (raw: unknown): HandwrittenAnswer[] => {
         .filter((item) => item.answerText.length > 0 || item.koreanTranslation.length > 0 || String(item.nativeTranslation || '').trim().length > 0);
 };
 
+const REQUIRED_CHANGED_PSI_QUESTIONS = [1, 2, 3, 4, 5] as const;
+
+type ChangedPsiQuestionCoverage = {
+    looksLikeChangedPsiForm: boolean;
+    presentQuestions: number[];
+    missingQuestions: number[];
+    isAcceptable: boolean;
+    isComplete: boolean;
+    message: string;
+};
+
+const normalizeQuestionNumber = (value: unknown): number | null => {
+    const digits = String(value || '').match(/\d+/)?.[0];
+    const questionNumber = Number(digits);
+    return Number.isInteger(questionNumber) && questionNumber >= 1 && questionNumber <= 5 ? questionNumber : null;
+};
+
+const getHandwrittenAnswerText = (answer: HandwrittenAnswer): string => [
+    answer.answerText,
+    answer.koreanTranslation,
+    answer.nativeTranslation,
+].filter(Boolean).join(' ').trim();
+
+const evaluateChangedPsiFormCoverage = (record: Pick<WorkerRecord, 'filename' | 'fullText' | 'koreanTranslation' | 'handwrittenAnswers'>): ChangedPsiQuestionCoverage => {
+    const answers = Array.isArray(record.handwrittenAnswers) ? record.handwrittenAnswers : [];
+    const searchableText = [
+        record.filename,
+        record.fullText,
+        record.koreanTranslation,
+        ...answers.flatMap((answer) => [answer.questionNumber, answer.answerText, answer.koreanTranslation, answer.nativeTranslation]),
+    ].filter(Boolean).join(' ').toLowerCase();
+
+    const looksLikeChangedPsiForm =
+        searchableText.includes('new-psi') ||
+        searchableText.includes('psi-ra-01') ||
+        /\bq[1-5]\b/i.test(searchableText) ||
+        answers.length >= 3;
+
+    const present = new Set<number>();
+    answers.forEach((answer, index) => {
+        const questionNumber = normalizeQuestionNumber(answer.questionNumber) ?? (index >= 0 && index < 5 ? index + 1 : null);
+        if (questionNumber && getHandwrittenAnswerText(answer).length >= 2) {
+            present.add(questionNumber);
+        }
+    });
+
+    const presentQuestions = REQUIRED_CHANGED_PSI_QUESTIONS.filter((questionNumber) => present.has(questionNumber));
+    const missingQuestions = REQUIRED_CHANGED_PSI_QUESTIONS.filter((questionNumber) => !present.has(questionNumber));
+    const isComplete = !looksLikeChangedPsiForm || missingQuestions.length === 0;
+    const isAcceptable = !looksLikeChangedPsiForm || presentQuestions.length >= 4;
+    const message = isComplete
+        ? '변경 PSI 양식 Q1~Q5 답변 추출 완료'
+        : `변경 PSI 양식 Q${missingQuestions.join(', Q')} 답변 추출 확인 필요`;
+
+    return {
+        looksLikeChangedPsiForm,
+        presentQuestions,
+        missingQuestions,
+        isAcceptable,
+        isComplete,
+        message,
+    };
+};
+
 const classifyOcrErrorType = (rawMessage: string): OcrErrorType => {
     const message = (rawMessage || '').toLowerCase();
 
@@ -1421,6 +1485,8 @@ async function callGeminiWithRetry(
             - koreanTranslation: 각 답변의 관리자 검토용 한국어 해석 (항상 한국어)
             - nativeTranslation: 각 답변을 작업자 모국어로 번역한 내용 — 외국인 근로자는 LANGUAGE_POLICY 기준 해당 국적 모국어로 번역하여 반드시 채울 것. 한국인은 빈 문자열.
             문항형 평가표의 handwrittenAnswers는 절대 비워두지 마십시오.
+            NEW-PSI 양식 또는 PSI-RA-01 양식이 보이면 Q1, Q2, Q3, Q4, Q5 답변을 각각 분리해서 반드시 5개 항목으로 반환하십시오.
+            Q1은 위험 작업, Q2는 위험요인/사고 이유, Q3는 위험수준과 이유, Q4는 감소대책, Q5는 지킬 행동입니다.
 
             ${bestPracticeSection}
 
@@ -1567,6 +1633,52 @@ async function callGeminiWithRetry(
                                 ocrFailureCode: 'PARSE',
                                 ocrErrorMessage: `OCR 구조 검증 실패: ${verificationAudit.issues.join(', ')}`,
                                 aiInsights: auditedRecord.aiInsights || `OCR 구조 검증 실패: ${verificationAudit.issues.join(', ')}`,
+                            };
+                        }
+
+                        const changedFormCoverage = evaluateChangedPsiFormCoverage(auditedRecord);
+
+                        if (!changedFormCoverage.isAcceptable) {
+                            return {
+                                ...auditedRecord,
+                                ocrErrorType: 'UNKNOWN',
+                                ocrFailureCode: 'PARSE',
+                                ocrErrorMessage: changedFormCoverage.message,
+                                aiInsights: auditedRecord.aiInsights || changedFormCoverage.message,
+                                scoreReasoning: [
+                                    ...auditedRecord.scoreReasoning,
+                                    changedFormCoverage.message,
+                                ],
+                                auditTrail: [
+                                    ...(auditedRecord.auditTrail || []),
+                                    {
+                                        stage: 'ocr',
+                                        timestamp: new Date().toISOString(),
+                                        actor: 'ai-engine',
+                                        note: changedFormCoverage.message,
+                                    },
+                                ],
+                            };
+                        }
+
+                        if (changedFormCoverage.looksLikeChangedPsiForm) {
+                            return {
+                                ...auditedRecord,
+                                scoreReasoning: changedFormCoverage.isComplete
+                                    ? auditedRecord.scoreReasoning
+                                    : [
+                                        ...auditedRecord.scoreReasoning,
+                                        changedFormCoverage.message,
+                                    ],
+                                auditTrail: [
+                                    ...(auditedRecord.auditTrail || []),
+                                    {
+                                        stage: 'ocr',
+                                        timestamp: new Date().toISOString(),
+                                        actor: 'ai-engine',
+                                        note: changedFormCoverage.message,
+                                    },
+                                ],
                             };
                         }
 
@@ -1853,11 +1965,12 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
 }
 
 export async function analyzeWorkerRiskAssessment(documentSource: string, mimeType: string, filenameHint?: string): Promise<WorkerRecord[]> {
+    const isPaidApiMode = getIsPaidApiMode();
     const { ocrEngine } = getAiEngineSettings();
     if (ocrEngine === 'openai-precise') {
         throw new Error('ChatGPT Plus 구독은 OpenAI API 호출 권한이 아닙니다. OpenAI API 키 연결 후 사용할 수 있습니다.');
     }
-    const modelChain = resolveGeminiOcrModelChain(ocrEngine);
+    const modelChain = resolveGeminiOcrModelChain(ocrEngine, { isPaidApiMode });
     return await callGeminiWithRetry(
         documentSource,
         mimeType,

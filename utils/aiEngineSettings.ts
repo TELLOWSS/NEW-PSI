@@ -42,7 +42,16 @@ export const setAiEngineSettings = (settings: AiEngineSettings): void => {
     window.dispatchEvent(new Event(AI_ENGINE_SETTINGS_CHANGED_EVENT));
 };
 
-export const resolveGeminiOcrModelChain = (engine: OcrEngineMode): string[] => {
+export const resolveGeminiOcrModelChain = (
+    engine: OcrEngineMode,
+    options?: { isPaidApiMode?: boolean },
+): string[] => {
+    const isPaidApiMode = options?.isPaidApiMode === true;
+
+    if (!isPaidApiMode) {
+        return ['gemini-2.5-flash'];
+    }
+
     if (engine === 'gemini-fast') {
         return ['gemini-3.0-flash', 'gemini-2.5-flash'];
     }
