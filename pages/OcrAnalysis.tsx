@@ -5306,6 +5306,244 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         alert('검증용 비식별 요약 JSON을 저장했습니다. 이 파일은 원본 이미지와 전체 수기문장을 포함하지 않습니다.');
     };
 
+    const handleExportOcrVerificationPackage = () => {
+        const targetRecords = recordListRecords.length > 0 ? recordListRecords : ocrAnalyzedRecords;
+
+        if (targetRecords.length === 0) {
+            setExportFeedback({
+                tone: 'warning',
+                message: 'OCR 검증 패키지로 저장할 기록이 없습니다.',
+                detail: 'OCR 분석 결과가 있는 월 또는 필터를 먼저 선택한 뒤 다시 실행하세요.',
+            });
+            return;
+        }
+
+        const maskWorkerName = (name?: string) => {
+            const text = String(name || '').trim();
+            if (!text) return '미상';
+            if (text.length <= 1) return `${text}*`;
+            return `${text.slice(0, 1)}${'*'.repeat(Math.min(2, text.length - 1))}`;
+        };
+
+        const truncateText = (value: unknown, maxLength = 160) => {
+            const text = String(value || '').replace(/\s+/g, ' ').trim();
+            if (text.length <= maxLength) return text;
+            return `${text.slice(0, maxLength)}...`;
+        };
+
+        const resolveOcrResultBucket = (record: WorkerRecord): string => {
+            if (!isFailedRecord(record)) {
+                return typeof record.ocrConfidence === 'number' && record.ocrConfidence < 0.7
+                    ? '정상 분석(저신뢰)'
+                    : '정상 분석';
+            }
+
+            const code = resolveFailureCodeFromRecord(record);
+            if (code === 'QUOTA') return 'API 한도';
+            if (code === 'PARSE') return '양식 판독';
+            if (code === 'KEY') return '키/권한';
+            if (code === 'NETWORK') return '네트워크/서버';
+            if (code === 'FORMAT' || code === 'PAYLOAD') return '파일/이미지';
+            return '기타 확인';
+        };
+
+        const getQuestionCoverage = (record: WorkerRecord) => {
+            const answers = Array.isArray(record.handwrittenAnswers) ? record.handwrittenAnswers : [];
+            const searchableText = [
+                record.filename,
+                record.fullText,
+                record.koreanTranslation,
+                ...answers.flatMap((answer) => [answer.questionNumber, answer.answerText, answer.koreanTranslation, answer.nativeTranslation]),
+            ].filter(Boolean).join(' ').toLowerCase();
+
+            const looksLikeChangedPsiForm =
+                searchableText.includes('new-psi') ||
+                searchableText.includes('psi-ra-01') ||
+                /\bq[1-5]\b/i.test(searchableText) ||
+                answers.length >= 3;
+            const present = new Set<number>();
+            answers.forEach((answer, index) => {
+                const questionNumberText = String(answer.questionNumber || '').match(/\d+/)?.[0];
+                const questionNumber = Number(questionNumberText || (index < 5 ? index + 1 : NaN));
+                const answerText = [answer.answerText, answer.koreanTranslation, answer.nativeTranslation].filter(Boolean).join(' ').trim();
+                if (Number.isInteger(questionNumber) && questionNumber >= 1 && questionNumber <= 5 && answerText.length >= 2) {
+                    present.add(questionNumber);
+                }
+            });
+
+            const presentQuestions = [1, 2, 3, 4, 5].filter((questionNumber) => present.has(questionNumber));
+            const missingQuestions = [1, 2, 3, 4, 5].filter((questionNumber) => !present.has(questionNumber));
+
+            return {
+                looksLikeChangedPsiForm,
+                presentQuestions,
+                missingQuestions,
+                presentCount: presentQuestions.length,
+                status: !looksLikeChangedPsiForm
+                    ? '기존/미확정 양식'
+                    : missingQuestions.length === 0
+                        ? 'Q1~Q5 추출 완료'
+                        : presentQuestions.length >= 4
+                            ? '일부 문항 확인 필요'
+                            : '양식 판독 재확인 필요',
+            };
+        };
+
+        const records = targetRecords.map((record, index) => {
+            const failureCode = isFailedRecord(record) ? resolveFailureCodeFromRecord(record) : undefined;
+            const coverage = getQuestionCoverage(record);
+            const trace = record.ocrTrace;
+
+            return {
+                no: index + 1,
+                recordId: record.id,
+                workerLabel: maskWorkerName(record.name),
+                filename: record.filename || '',
+                date: record.date || '',
+                nationality: record.nationality || '',
+                jobField: record.jobField || '',
+                teamLeader: record.teamLeader || '',
+                resultBucket: resolveOcrResultBucket(record),
+                failed: isFailedRecord(record),
+                failureCode: failureCode || null,
+                failureLabel: failureCode ? getRecordFailureDisplayLabel(record) : null,
+                failureHeadline: isFailedRecord(record) ? getRecordFailureHeadline(record) : null,
+                ocrErrorType: isFailedRecord(record) ? getOcrErrorTypeFromRecord(record) : null,
+                ocrUnknownSubCategory: record.ocrUnknownSubCategory || null,
+                ocrErrorMessage: truncateText(record.ocrErrorMessage, 240),
+                ocrConfidence: typeof record.ocrConfidence === 'number' ? Number(record.ocrConfidence.toFixed(3)) : null,
+                safetyScore: Number.isFinite(Number(record.safetyScore)) ? Number(record.safetyScore) : null,
+                safetyLevel: record.safetyLevel || '',
+                questionCoverage: coverage,
+                handwrittenAnswerCount: Array.isArray(record.handwrittenAnswers) ? record.handwrittenAnswers.length : 0,
+                handwrittenAnswersPreview: (record.handwrittenAnswers || []).slice(0, 5).map((answer) => ({
+                    questionNumber: answer.questionNumber,
+                    answerTextPreview: truncateText(answer.answerText, 100),
+                    koreanTranslationPreview: truncateText(answer.koreanTranslation, 100),
+                    nativeTranslationPreview: truncateText(answer.nativeTranslation, 100),
+                })),
+                textEvidence: {
+                    hasFullText: String(record.fullText || '').trim().length > 0,
+                    hasKoreanTranslation: String(record.koreanTranslation || '').trim().length > 0,
+                    fullTextPreview: truncateText(record.fullText, 220),
+                    koreanTranslationPreview: truncateText(record.koreanTranslation, 220),
+                    aiInsightsPreview: truncateText(record.aiInsights, 220),
+                    nativeGuidancePreview: truncateText(record.aiInsights_native || record.improvement_native, 180),
+                },
+                imageEvidence: {
+                    hasOriginalImage: hasRetryableOriginalImage(record.originalImage),
+                    hasProfileImage: hasRetryableOriginalImage(record.profileImage),
+                    originalImageLength: typeof record.originalImage === 'string' ? record.originalImage.length : 0,
+                    profileImageLength: typeof record.profileImage === 'string' ? record.profileImage.length : 0,
+                },
+                trace: trace
+                    ? {
+                        providerUsed: trace.providerUsed,
+                        attempts: trace.attempts,
+                        fallbackDepth: trace.fallbackDepth,
+                        finalCode: trace.finalCode || null,
+                        latencyMs: trace.latencyMs,
+                        recordedAt: trace.recordedAt,
+                    }
+                    : null,
+                reviewState: getReviewTrustState(record),
+                secondPassStatus: record.secondPassStatus || null,
+                latestAuditNotes: (record.auditTrail || []).slice(-3).map((entry) => ({
+                    stage: entry.stage,
+                    timestamp: entry.timestamp,
+                    actor: entry.actor,
+                    note: truncateText(entry.note, 180),
+                })),
+            };
+        });
+
+        const countBy = (items: typeof records, key: keyof typeof records[number]) => (
+            items.reduce<Record<string, number>>((acc, item) => {
+                const raw = item[key];
+                const label = String(raw || '없음');
+                acc[label] = (acc[label] || 0) + 1;
+                return acc;
+            }, {})
+        );
+        const changedFormRecords = records.filter((record) => record.questionCoverage.looksLikeChangedPsiForm);
+        const questionCoverageCounts = changedFormRecords.reduce<Record<string, number>>((acc, record) => {
+            acc[record.questionCoverage.status] = (acc[record.questionCoverage.status] || 0) + 1;
+            return acc;
+        }, {});
+        const lowConfidenceRecords = records.filter((record) => typeof record.ocrConfidence === 'number' && record.ocrConfidence < 0.7);
+
+        const payload = {
+            snapshotType: 'NEW-PSI OCR verification package',
+            generatedAt: new Date().toISOString(),
+            privacyNotice: '원본 이미지, 서명 원본, 전체 수기 원문은 제외했습니다. 근로자 이름은 마스킹했고 문항별 짧은 미리보기만 포함합니다.',
+            purpose: 'OCR 1차 결과를 정상 분석, API 한도, 양식 판독, 키/권한, 네트워크/서버, 파일/이미지 문제로 분류해 Codex 검증과 상품화 발표 근거로 사용합니다.',
+            appContext: {
+                ocrEngine,
+                ocrEngineLabel: getOcrEngineLabel(ocrEngine),
+                apiMode: ocrExecutionKeyStatus.modeApiLabel,
+                keyReady: ocrExecutionKeyStatus.ready,
+                keySource: ocrExecutionKeyStatus.source,
+                keySourceLabel: ocrExecutionKeyStatus.sourceLabel,
+                operationalMode,
+            },
+            exportScope: {
+                basis: recordListRecords.length > 0 ? '현재 화면 상세 기록 목록' : 'OCR 분석 기록 전체',
+                currentScopeFilter: recordScopeFilter,
+                selectedMonth: selectedMonthLabel,
+                recordMonthFilter,
+                searchApplied: searchTerm.trim().length > 0,
+                filters: {
+                    safetyLevel: filterLevel,
+                    workType: filterField,
+                    teamLeader: filterLeader,
+                    trustState: filterTrust,
+                    reason: filterReason,
+                    ocrStatus: filterStatus,
+                    secondPassStatus: secondPassStatusFilter,
+                    secondPassEditedOnly,
+                    secondPassExcludedOnly,
+                    secondPassReason: secondPassReasonFilter,
+                    focusedWorker: Boolean(focusedWorkerGroup),
+                },
+                totalSavedRecords: existingRecords.length,
+                totalOcrAnalyzedRecords: ocrAnalyzedRecords.length,
+                filteredRecords: filteredRecords.length,
+                exportedRecords: records.length,
+            },
+            summary: {
+                exportedRecords: records.length,
+                normalCount: records.filter((record) => record.resultBucket.startsWith('정상 분석')).length,
+                failedCount: records.filter((record) => record.failed).length,
+                lowConfidenceCount: lowConfidenceRecords.length,
+                resultBuckets: countBy(records, 'resultBucket'),
+                failureCodes: countBy(records.filter((record) => record.failed), 'failureCode'),
+                changedFormRecords: changedFormRecords.length,
+                questionCoverage: questionCoverageCounts,
+                recordsWithOriginalImage: records.filter((record) => record.imageEvidence.hasOriginalImage).length,
+                serverGeminiSuccessCount: records.filter((record) => record.trace?.providerUsed === 'server_gemini' && !record.failed).length,
+            },
+            recommendedReadingOrder: [
+                'summary.resultBuckets에서 정상/API 한도/양식 판독 비율을 먼저 확인',
+                'summary.questionCoverage에서 변경 양식 Q1~Q5 추출 상태 확인',
+                'records[].failureHeadline과 records[].ocrErrorMessage로 실제 반려 사유 확인',
+                'records[].trace로 서버 재분석/폴백/최종코드 확인',
+                '필요 시 전체 백업 JSON으로 원본 이미지 포함 정밀 재검증',
+            ],
+            records,
+        };
+
+        const fileName = `NEW-PSI_OCR_검증패키지_${new Date().toISOString().slice(0, 10)}_${records.length}건.json`;
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+        triggerBrowserDownload(blob, fileName);
+        setExportFeedback({
+            tone: 'success',
+            message: 'OCR 검증 패키지 저장 요청이 완료되었습니다.',
+            detail: `${records.length}건 기준으로 정상/API 한도/양식 판독 분류와 Q1~Q5 추출 상태를 저장했습니다. 원본 이미지는 포함하지 않았습니다.`,
+            fileName,
+        });
+        alert(`OCR 검증 패키지를 저장했습니다.\n\n파일명: ${fileName}\n대상: ${records.length}건\n\n이 파일을 reports 폴더에 넣어주면 제가 71건 결과를 같이 검증할 수 있습니다.`);
+    };
+
     const handleExportReanalysisSummary = () => {
         const blob = new Blob([reanalysisSummaryText], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
@@ -5963,6 +6201,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <button onClick={() => importInputRef.current?.click()} className="w-full px-5 py-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-black text-sm transition-all">백업 파일 불러오기(JSON)</button>
                                 <button onClick={() => { void handleCopyReanalysisSummary(); }} className="w-full px-5 py-3 bg-slate-700 hover:bg-slate-800 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 복사</button>
                                 <button onClick={handleExportReanalysisSummary} className="w-full px-5 py-3 bg-cyan-600 hover:bg-cyan-700 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 내보내기</button>
+                                <button onClick={handleExportOcrVerificationPackage} className="w-full px-5 py-3 bg-emerald-600 hover:bg-emerald-700 rounded-2xl font-black text-sm shadow-xl transition-all">OCR 검증 패키지 저장</button>
                                 <button onClick={() => { void handleExport(); }} className="w-full px-5 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-2xl font-black text-sm shadow-xl transition-all">전체 백업 내보내기</button>
                                 {exportFeedback && (
                                     <div className={`rounded-2xl border px-3 py-2 text-[11px] font-bold leading-relaxed ${getExportFeedbackClassName(exportFeedback.tone)}`}>
@@ -6625,6 +6864,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-700 hover:bg-emerald-100"
                                 >
                                     검증용 비식별 요약 저장
+                                </button>
+                            )}
+                            {ocrAnalyzedRecords.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={handleExportOcrVerificationPackage}
+                                    className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-cyan-700 hover:bg-cyan-100"
+                                >
+                                    OCR 검증 패키지 저장
                                 </button>
                             )}
                             <button
