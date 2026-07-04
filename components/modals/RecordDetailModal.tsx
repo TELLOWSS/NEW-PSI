@@ -60,8 +60,9 @@ import {
     normalizeHarnessTransitionReason,
 } from '../../utils/harnessTransitionNarratives';
 import { getHarnessVersionDescriptors } from '../../utils/harnessVersionCatalog';
-import { deriveCompetencyProfile, enforceSafetyLevel, getApprovalBlockers } from '../../utils/evidenceUtils';
+import { deriveCompetencyProfile, getApprovalBlockers } from '../../utils/evidenceUtils';
 import { getSafetyLevelThresholds, getSafetyLevelFromScore } from '../../utils/safetyLevelUtils';
+import { synchronizeManagerReviewedRecord } from '../../utils/managerReviewSync';
 
 const QUESTION_LABELS: Record<string, { title: string; subtitle: string }> = {
     '1': { title: '1. 가장 큰 위험요소', subtitle: '오늘 작업에서 가장 위험하다고 생각되는 위험 요소를 파악합니다.' },
@@ -449,11 +450,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const profileInputRef = useRef<HTMLInputElement>(null); // For Profile Photo
 
     const getConsistentRecord = (baseRecord: WorkerRecord): WorkerRecord => {
-        const withCompetency = {
-            ...baseRecord,
-            competencyProfile: deriveCompetencyProfile(baseRecord),
-        };
-        return enforceSafetyLevel(withCompetency);
+        return synchronizeManagerReviewedRecord(baseRecord).record;
     };
 
     useEffect(() => { 
@@ -1094,7 +1091,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         try {
             const updatedAnalysis = await updateAnalysisBasedOnEdits(baseRecord);
             if (updatedAnalysis) {
-                return {
+                const reassessedRecord: WorkerRecord = {
                     ...baseRecord,
                     ...updatedAnalysis,
                     auditTrail: [
@@ -1107,6 +1104,10 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                         }
                     ]
                 };
+                return synchronizeManagerReviewedRecord(reassessedRecord, {
+                    appendAuditTrail: true,
+                    actor: 'manager',
+                }).record;
             }
 
             return {

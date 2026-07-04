@@ -41,6 +41,7 @@ import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLan
 import { useJudgmentTaggingQuality } from '../hooks/useJudgmentTaggingQuality';
 import { analyzeWorkerEvidenceReadiness, getWorkerIdentityKey, getWorkerTrackingCandidateIdentityKey } from '../utils/workerIdentity';
 import { normalizeOcrRecordMetadata } from '../utils/ocrRecordNormalization';
+import { synchronizeManagerReviewedRecord } from '../utils/managerReviewSync';
 import {
     analyzeBackupImport,
     BACKUP_HARD_FILE_LIMIT_BYTES,
@@ -4670,7 +4671,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     ocrFailureCode: undefined,
                                     ocrUnknownSubCategory: undefined,
                                 };
-                            onUpdateRecord(mergedRecord);
+                            onUpdateRecord(synchronizeManagerReviewedRecord(mergedRecord, {
+                                appendAuditTrail: true,
+                                actor: 'manager',
+                            }).record);
                             successCount++;
                         } else {
                             onUpdateRecord(withHarnessState(record, {
