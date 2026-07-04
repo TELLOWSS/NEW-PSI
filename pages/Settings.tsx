@@ -6,6 +6,7 @@ import { PSI_APP_VERSION, PSI_SYSTEM_NAME } from '../lib/appInfo';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
+import { ActionButton } from '../components/shared/ActionButton';
 import { extractMessage } from '../utils/errorUtils';
 import { BRAND_TONE } from '../utils/brandToneTokens';
 import {
@@ -19,6 +20,14 @@ import type { UIViewMetricRecord } from '../utils/uiViewModeMetrics';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
 import { resolveOcrExecutionKeyStatus } from '../utils/ocrExecutionKeyStatus';
 import { resetUiCompositionConfig } from '../utils/uiCompositionConfig';
+import {
+    AI_ENGINE_SETTINGS_CHANGED_EVENT,
+    getAiEngineSettings,
+    getOcrEngineLabel,
+    setAiEngineSettings,
+    type AiEngineSettings,
+    type OcrEngineMode,
+} from '../utils/aiEngineSettings';
 
 const TRAINING_LANGUAGE_OPTIONS = [
     { code: 'ko-KR', label: '한국어 (ko-KR)' },
@@ -209,6 +218,13 @@ type HarnessHealthState = {
     message?: string;
 };
 
+type DirectControlState = {
+    status: 'idle' | 'loading' | 'success' | 'warning' | 'error';
+    title: string;
+    detail: string;
+    checkedAt?: string;
+};
+
 const formatCentralStorageMessage = (message?: string | null): string => {
     const raw = String(message || '').trim();
     if (!raw) return '';
@@ -379,6 +395,12 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     const [harnessProbeResults, setHarnessProbeResults] = useState<Record<string, HarnessProbeResult>>({});
     const [isHarnessProbeLoading, setIsHarnessProbeLoading] = useState(false);
     const [harnessHealthState, setHarnessHealthState] = useState<HarnessHealthState>({ status: 'idle' });
+    const [aiEngineSettings, setAiEngineSettingsState] = useState<AiEngineSettings>(() => getAiEngineSettings());
+    const [directControlState, setDirectControlState] = useState<DirectControlState>({
+        status: 'idle',
+        title: '직접 제어 대기',
+        detail: '상단 버튼으로 현재 상태 확인, 기준 체크, 운영 모드 변경을 바로 실행할 수 있습니다.',
+    });
     const [themeMode, setThemeMode] = useState<ThemeMode>(() => getStoredTheme());
     const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() => getResolvedTheme(getStoredTheme()));
     const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1280));
@@ -467,6 +489,31 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         }));
     };
 
+    const normalizeSettingsForStorage = (source: AppSettings): AppSettings => {
+        const fields = jobFieldInput.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+
+        return {
+            ...source,
+            jobFields: fields,
+            trainingLanguagePreset: normalizeTrainingLanguagePreset(source.trainingLanguagePreset),
+            safetyLevelThresholds: {
+                advancedMin: Math.min(100, Math.max(0, Math.round(source.safetyLevelThresholds?.advancedMin ?? 80))),
+                intermediateMin: Math.min(
+                    Math.min(100, Math.max(0, Math.round(source.safetyLevelThresholds?.advancedMin ?? 80))),
+                    Math.min(100, Math.max(0, Math.round(source.safetyLevelThresholds?.intermediateMin ?? 60)))
+                ),
+            },
+            batchSplitSize: Math.min(500, Math.max(10, Math.round(source.batchSplitSize ?? 50))),
+        };
+    };
+
+    const persistSettingsImmediately = (nextSettings: AppSettings): AppSettings => {
+        const normalized = normalizeSettingsForStorage(nextSettings);
+        localStorage.setItem('psi_app_settings', JSON.stringify(normalized));
+        setSettings(normalized);
+        return normalized;
+    };
+
     useEffect(() => {
         const savedSettings = localStorage.getItem('psi_app_settings');
         setIsPaidApiModeState(getIsPaidApiMode());
@@ -553,6 +600,12 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     }, []);
 
     useEffect(() => {
+        const syncAiEngineSettings = () => setAiEngineSettingsState(getAiEngineSettings());
+        window.addEventListener(AI_ENGINE_SETTINGS_CHANGED_EVENT, syncAiEngineSettings);
+        return () => window.removeEventListener(AI_ENGINE_SETTINGS_CHANGED_EVENT, syncAiEngineSettings);
+    }, []);
+
+    useEffect(() => {
         const syncTheme = () => {
             const mode = getStoredTheme();
             setThemeMode(mode);
@@ -631,7 +684,6 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     }, []);
 
     const handleSave = () => {
-        const fields = jobFieldInput.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
         const prevRaw = localStorage.getItem('psi_app_settings');
         const prevSettings = prevRaw ? (JSON.parse(prevRaw) as AppSettings) : null;
         const previousVersion = prevSettings?.competencyWeights?.version || '';
@@ -642,19 +694,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             if (!proceed) return;
         }
 
-        const newSettings = {
-            ...settings,
-            jobFields: fields,
-            trainingLanguagePreset: normalizeTrainingLanguagePreset(settings.trainingLanguagePreset),
-            safetyLevelThresholds: {
-                advancedMin: Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.advancedMin ?? 80))),
-                intermediateMin: Math.min(
-                    Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.advancedMin ?? 80))),
-                    Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.intermediateMin ?? 60)))
-                ),
-            },
-            batchSplitSize: Math.min(500, Math.max(10, Math.round(settings.batchSplitSize ?? 50))),
-        };
+        const newSettings = normalizeSettingsForStorage(settings);
 
         if (previousVersion !== nextVersion) {
             const historyRaw = localStorage.getItem('psi_competency_weight_history');
@@ -675,8 +715,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             }>);
         }
 
-        localStorage.setItem('psi_app_settings', JSON.stringify(newSettings));
-        setSettings(newSettings);
+        persistSettingsImmediately(newSettings);
 
         alert('설정이 저장되었습니다. 시스템에 즉시 반영됩니다.');
         window.location.reload();
@@ -1361,6 +1400,165 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         );
     };
 
+    const updateDirectControlState = (state: DirectControlState) => {
+        setDirectControlState({
+            ...state,
+            checkedAt: new Date().toISOString(),
+        });
+    };
+
+    const handleDirectStatusCheck = () => {
+        trackQuickAction('direct_status_check');
+        loadUIViewMetrics();
+        updateDirectControlState({
+            status: activeApiKeyStatus.hasKey ? 'success' : 'warning',
+            title: activeApiKeyStatus.hasKey ? '현재 운영 상태를 확인했습니다.' : '분석 연결키 확인이 필요합니다.',
+            detail: [
+                `분석 방식 ${isPaidApiMode ? '유료' : '무료'}`,
+                `실행 키 ${activeApiKeyStatus.hasKey ? '준비됨' : '미설정'}(${activeApiKeyStatus.sourceLabel})`,
+                `OCR 엔진 ${getOcrEngineLabel(aiEngineSettings.ocrEngine)}`,
+                `승인 기준 ${settings.approvalPolicy?.strictRoleGate ? '엄격' : '유연'}`,
+                `배치 ${settings.batchSplitSize ?? 50}건`,
+                `저장 상태 ${harnessHealthState.status === 'success' ? '정상 확인' : harnessHealthState.status === 'error' ? '오류' : '미점검'}`,
+            ].join(' · '),
+        });
+    };
+
+    const handleDirectPolicyCheck = () => {
+        trackQuickAction('direct_policy_check');
+        const issues: string[] = [];
+        if (!activeApiKeyStatus.hasKey) issues.push('현재 분석 모드의 연결키가 비어 있습니다.');
+        if (weightSum < 0.95 || weightSum > 1.05) issues.push(`개인 안전역량 가중치 합계가 ${weightSum.toFixed(2)}입니다.`);
+        if (normalizedIntermediateThreshold >= normalizedAdvancedThreshold) issues.push('중급 기준점수가 고급 기준점수와 같거나 높습니다.');
+        if ((settings.batchSplitSize ?? 50) > 150 && !isPaidApiMode) issues.push('무료 분석 모드에서 배치 처리 건수가 큽니다.');
+        if (normalizeTrainingLanguagePreset(settings.trainingLanguagePreset).length < CURRENT_SITE_LANGUAGE_SET.length) issues.push('현장 기본 언어 세트보다 선택 언어가 적습니다.');
+        if (harnessSummary.immediateAttention > 0) issues.push(`즉시 보호 대상 ${harnessSummary.immediateAttention}명이 남아 있습니다.`);
+        if (harnessSummary.fallback + harnessSummary.pending > 0) issues.push(`저장 보완·대기 ${harnessSummary.fallback + harnessSummary.pending}명이 있습니다.`);
+
+        updateDirectControlState({
+            status: issues.length > 0 ? 'warning' : 'success',
+            title: issues.length > 0 ? '운영 기준 체크 결과 보강이 필요합니다.' : '운영 기준 체크를 통과했습니다.',
+            detail: issues.length > 0
+                ? issues.slice(0, 5).join(' / ')
+                : '분석키, 가중치, 등급 기준, 배치 단위, 언어 세트가 현재 운영 기준 안에 있습니다.',
+        });
+    };
+
+    const handleDirectStorageCheck = () => {
+        trackQuickAction('direct_storage_check');
+        updateDirectControlState({
+            status: 'loading',
+            title: '중앙 저장소 상태 점검을 실행했습니다.',
+            detail: '아래 중앙 서버 연동 카드에서 연결값, 테이블 준비, 처리 기록 수를 함께 확인하세요.',
+        });
+        void handleRunHarnessHealthCheck();
+    };
+
+    const handleDirectOcrEngineChange = (ocrEngine: OcrEngineMode) => {
+        const next = {
+            ...aiEngineSettings,
+            ocrEngine,
+        };
+        setAiEngineSettings(next);
+        setAiEngineSettingsState(next);
+        trackQuickAction('direct_ocr_engine_change', { ocrEngine });
+        updateDirectControlState({
+            status: 'success',
+            title: `${getOcrEngineLabel(ocrEngine)}으로 변경했습니다.`,
+            detail: '이후 OCR 분석 실행 시 변경된 엔진 기준을 사용합니다.',
+        });
+    };
+
+    const handleDirectStrictApprovalChange = (strictRoleGate: boolean) => {
+        const next = persistSettingsImmediately({
+            ...settings,
+            approvalPolicy: {
+                ...(settings.approvalPolicy || { strictRoleGate: false }),
+                strictRoleGate,
+            },
+        });
+        trackQuickAction('direct_approval_policy_change', { strictRoleGate });
+        updateDirectControlState({
+            status: 'success',
+            title: strictRoleGate ? '엄격 승인 기준으로 변경했습니다.' : '유연 승인 기준으로 변경했습니다.',
+            detail: `현재 승인 정책은 ${next.approvalPolicy?.strictRoleGate ? '안전관리자 엄격 기준' : '현장 운영 유연 기준'}입니다.`,
+        });
+    };
+
+    const handleDirectBatchPreset = (batchSplitSize: number) => {
+        const next = persistSettingsImmediately({
+            ...settings,
+            batchSplitSize,
+        });
+        trackQuickAction('direct_batch_preset', { batchSplitSize });
+        updateDirectControlState({
+            status: batchSplitSize > 150 ? 'warning' : 'success',
+            title: `일괄 분석 처리 단위를 ${next.batchSplitSize ?? batchSplitSize}건으로 변경했습니다.`,
+            detail: batchSplitSize > 150
+                ? '대량 처리 속도는 빨라지지만 API 한도와 실패 격리 상태를 더 자주 확인해야 합니다.'
+                : '변경값은 저장됐고 다음 OCR 일괄 처리부터 적용됩니다.',
+        });
+    };
+
+    const handleDirectStableMode = () => {
+        const nextEngine = { ...aiEngineSettings, ocrEngine: 'auto' as OcrEngineMode };
+        setIsPaidApiModeState(false);
+        setIsPaidApiMode(false);
+        setAiEngineSettings(nextEngine);
+        setAiEngineSettingsState(nextEngine);
+        const next = persistSettingsImmediately({
+            ...settings,
+            batchSplitSize: 50,
+            safetyLevelThresholds: {
+                advancedMin: 80,
+                intermediateMin: 60,
+            },
+            approvalPolicy: {
+                ...(settings.approvalPolicy || { strictRoleGate: false }),
+                strictRoleGate: true,
+            },
+        });
+        trackQuickAction('direct_apply_stable_mode');
+        updateDirectControlState({
+            status: 'success',
+            title: '무료 안정 운영 세트로 변경했습니다.',
+            detail: `무료 분석 · OCR 자동 추천 · 배치 ${next.batchSplitSize ?? 50}건 · 엄격 승인 · 등급 기준 80/60으로 반영했습니다.`,
+        });
+    };
+
+    const handleDirectScaleMode = () => {
+        if (!paidApiKey.trim()) {
+            updateDirectControlState({
+                status: 'warning',
+                title: '유료 분석 연결키가 먼저 필요합니다.',
+                detail: '유료 대량 운영으로 변경하려면 유료 분석 연결키를 입력한 뒤 다시 실행하세요.',
+            });
+            return;
+        }
+        const confirmed = window.confirm(`${API_MODE_WARNING_MESSAGE}\n\n유료 대량 운영 세트로 전환하면 배치 100건, OCR 빠른 분석, 엄격 승인 기준이 적용됩니다.`);
+        if (!confirmed) return;
+
+        const nextEngine = { ...aiEngineSettings, ocrEngine: 'gemini-fast' as OcrEngineMode };
+        setIsPaidApiModeState(true);
+        setIsPaidApiMode(true);
+        setAiEngineSettings(nextEngine);
+        setAiEngineSettingsState(nextEngine);
+        const next = persistSettingsImmediately({
+            ...settings,
+            batchSplitSize: 100,
+            approvalPolicy: {
+                ...(settings.approvalPolicy || { strictRoleGate: false }),
+                strictRoleGate: true,
+            },
+        });
+        trackQuickAction('direct_apply_scale_mode');
+        updateDirectControlState({
+            status: 'success',
+            title: '유료 대량 운영 세트로 변경했습니다.',
+            detail: `유료 분석 · ${getOcrEngineLabel(nextEngine.ocrEngine)} · 배치 ${next.batchSplitSize ?? 100}건 · 엄격 승인 기준으로 반영했습니다.`,
+        });
+    };
+
     const mobileSettingsBadge =
         harnessHealthState.status === 'error'
             ? { label: '🔴 연결 오류', tone: 'bg-rose-500/20 text-rose-200 border border-rose-400/40' }
@@ -1432,6 +1630,90 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
                 cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
             />
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-100 dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">운영 직접 제어</p>
+                        <h3 className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">확인, 체크, 변경을 설정 화면에서 바로 실행</h3>
+                        <p className="mt-1 max-w-3xl text-xs font-semibold leading-5 text-slate-600 dark:text-slate-400">
+                            OCR 대량 처리 전 현재 연결 상태와 운영 기준을 확인하고, 무료 안정 운영 또는 유료 대량 운영 기준으로 즉시 전환합니다.
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black">
+                            <span className={`rounded-full border px-2.5 py-1 ${isPaidApiMode ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+                                분석 {isPaidApiMode ? '유료' : '무료'}
+                            </span>
+                            <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-indigo-700">
+                                OCR {getOcrEngineLabel(aiEngineSettings.ocrEngine)}
+                            </span>
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                승인 {settings.approvalPolicy?.strictRoleGate ? '엄격' : '유연'}
+                            </span>
+                            <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-sky-700">
+                                배치 {settings.batchSplitSize ?? 50}건
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className={`rounded-2xl border px-4 py-3 xl:w-[380px] ${
+                        directControlState.status === 'success'
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                            : directControlState.status === 'warning'
+                                ? 'border-amber-200 bg-amber-50 text-amber-800'
+                                : directControlState.status === 'error'
+                                    ? 'border-rose-200 bg-rose-50 text-rose-800'
+                                    : directControlState.status === 'loading'
+                                        ? 'border-indigo-200 bg-indigo-50 text-indigo-800'
+                                        : 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                    }`}>
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] opacity-75">실행 결과</p>
+                        <p className="mt-1 text-sm font-black leading-5">{directControlState.title}</p>
+                        <p className="mt-1 text-xs font-bold leading-5 opacity-90">{directControlState.detail}</p>
+                        {directControlState.checkedAt ? (
+                            <p className="mt-2 text-[11px] font-bold opacity-70">최근 실행: {new Date(directControlState.checkedAt).toLocaleString('ko-KR')}</p>
+                        ) : null}
+                    </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-5">
+                    <ActionButton variant="indigo" fullWidth className="min-h-[46px] justify-start" onClick={handleDirectStatusCheck}>
+                        현재 상태 확인
+                    </ActionButton>
+                    <ActionButton variant="amberSoft" fullWidth className="min-h-[46px] justify-start" onClick={handleDirectPolicyCheck}>
+                        운영 기준 체크
+                    </ActionButton>
+                    <ActionButton variant="emeraldSoft" fullWidth className="min-h-[46px] justify-start" onClick={handleDirectStorageCheck}>
+                        저장 상태 점검
+                    </ActionButton>
+                    <ActionButton variant="emeraldSolid" fullWidth className="min-h-[46px] justify-start" onClick={handleDirectStableMode}>
+                        무료 안정 운영
+                    </ActionButton>
+                    <ActionButton variant="indigoSolid" fullWidth className="min-h-[46px] justify-start" onClick={handleDirectScaleMode}>
+                        유료 대량 운영
+                    </ActionButton>
+                    <ActionButton variant={aiEngineSettings.ocrEngine === 'auto' ? 'slateSolid' : 'slate'} fullWidth className="min-h-[46px] justify-start" onClick={() => handleDirectOcrEngineChange('auto')}>
+                        OCR 자동
+                    </ActionButton>
+                    <ActionButton variant={aiEngineSettings.ocrEngine === 'gemini-fast' ? 'slateSolid' : 'slate'} fullWidth className="min-h-[46px] justify-start" onClick={() => handleDirectOcrEngineChange('gemini-fast')}>
+                        OCR 빠른 분석
+                    </ActionButton>
+                    <ActionButton variant={aiEngineSettings.ocrEngine === 'gemini-precise' ? 'slateSolid' : 'slate'} fullWidth className="min-h-[46px] justify-start" onClick={() => handleDirectOcrEngineChange('gemini-precise')}>
+                        OCR 정밀 분석
+                    </ActionButton>
+                    <ActionButton variant={settings.approvalPolicy?.strictRoleGate ? 'roseSoft' : 'slate'} fullWidth className="min-h-[46px] justify-start" onClick={() => handleDirectStrictApprovalChange(true)}>
+                        엄격 승인 기준
+                    </ActionButton>
+                    <ActionButton variant={!settings.approvalPolicy?.strictRoleGate ? 'emeraldSoft' : 'slate'} fullWidth className="min-h-[46px] justify-start" onClick={() => handleDirectStrictApprovalChange(false)}>
+                        유연 승인 기준
+                    </ActionButton>
+                    <ActionButton variant={(settings.batchSplitSize ?? 50) === 50 ? 'sky' : 'slate'} fullWidth className="min-h-[46px] justify-start" onClick={() => handleDirectBatchPreset(50)}>
+                        배치 50건
+                    </ActionButton>
+                    <ActionButton variant={(settings.batchSplitSize ?? 50) === 100 ? 'sky' : 'slate'} fullWidth className="min-h-[46px] justify-start" onClick={() => handleDirectBatchPreset(100)}>
+                        배치 100건
+                    </ActionButton>
+                </div>
+            </div>
 
             <div className="hidden lg:block rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-4">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">PC 운영 바로가기</p>
