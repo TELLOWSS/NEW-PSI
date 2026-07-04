@@ -41,7 +41,7 @@ import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLan
 import { useJudgmentTaggingQuality } from '../hooks/useJudgmentTaggingQuality';
 import { analyzeWorkerEvidenceReadiness, getWorkerIdentityKey, getWorkerTrackingCandidateIdentityKey } from '../utils/workerIdentity';
 import { normalizeOcrRecordMetadata } from '../utils/ocrRecordNormalization';
-import { synchronizeManagerReviewedRecord } from '../utils/managerReviewSync';
+import { getManagerReviewApprovalReadiness, synchronizeManagerReviewedRecord } from '../utils/managerReviewSync';
 import {
     analyzeBackupImport,
     BACKUP_HARD_FILE_LIMIT_BYTES,
@@ -2424,6 +2424,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const visibleRecordListRecords = useMemo(() => {
         return recordListRecords.slice(0, recordRenderLimit);
     }, [recordListRecords, recordRenderLimit]);
+
+    const managerReviewReadinessById = useMemo(() => {
+        const readinessById = new Map<string, ReturnType<typeof getManagerReviewApprovalReadiness>>();
+        visibleRecordListRecords.forEach((record) => {
+            readinessById.set(record.id, getManagerReviewApprovalReadiness(record));
+        });
+        return readinessById;
+    }, [visibleRecordListRecords]);
+
+    const getNativeReadinessForRecord = useCallback((record: WorkerRecord) => (
+        managerReviewReadinessById.get(record.id) || getManagerReviewApprovalReadiness(record)
+    ), [managerReviewReadinessById]);
 
     const hiddenRecordListCount = Math.max(0, recordListRecords.length - visibleRecordListRecords.length);
 
@@ -7678,6 +7690,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         const rowGuideMobile = rowErrorType ? getOcrErrorMobileLabel(rowErrorType) : '';
                         const preflightReason = failed ? getPreflightFailureReason(r) : null;
                         const reviewTrustState = getReviewTrustState(r);
+                        const nativeReadiness = getNativeReadinessForRecord(r);
+                        const nativeReadinessChipClass = nativeReadiness.badgeTone === 'blocked'
+                            ? 'bg-rose-100 text-rose-700'
+                            : nativeReadiness.badgeTone === 'warning'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-emerald-100 text-emerald-700';
                         const rowStatusSummary = failed
                             ? getRecordFailureHeadline(r)
                             : reviewTrustState === 'PENDING'
@@ -7738,6 +7756,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     {weakCorrectionReason && <span className="px-2 py-1 rounded bg-amber-100 text-amber-800 font-black" title={latestCorrectionReason || '수정 사유가 비어 있거나 너무 짧습니다.'}>수정사유 보강 필요</span>}
                                     {getReviewTrustState(r) === 'PENDING' && <span className="px-2 py-1 rounded bg-amber-100 text-amber-700 font-black">재검토 대기</span>}
                                     {getReviewTrustState(r) === 'FINALIZED' && <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-700 font-black">최종확정</span>}
+                                    <span className={`px-2 py-1 rounded font-black ${nativeReadinessChipClass}`} title={nativeReadiness.headline}>{nativeReadiness.badgeLabel}</span>
                                     {!secondPassEligibility.eligible && !failed && secondPassEligibility.reason && (
                                         <span className="px-2 py-1 rounded bg-violet-100 text-violet-700 font-black">2차 제외 · {secondPassEligibility.reason}</span>
                                     )}
@@ -7883,6 +7902,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const rowGuideSummary = rowErrorType ? getOcrErrorGuideSummary(rowErrorType) : '';
                                 const rowGuideMobile = rowErrorType ? getOcrErrorMobileLabel(rowErrorType) : '';
                                 const reviewTrustState = getReviewTrustState(r);
+                                const nativeReadiness = getNativeReadinessForRecord(r);
+                                const nativeReadinessChipClass = nativeReadiness.badgeTone === 'blocked'
+                                    ? 'bg-rose-100 text-rose-700 border-rose-200'
+                                    : nativeReadiness.badgeTone === 'warning'
+                                        ? 'bg-amber-100 text-amber-800 border-amber-200'
+                                        : 'bg-emerald-100 text-emerald-700 border-emerald-200';
                                 const rowStatusSummary = failed
                                     ? getRecordFailureHeadline(r)
                                     : reviewTrustState === 'PENDING'
@@ -7949,6 +7974,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                         수정사유 보강 필요
                                                     </span>
                                                 )}
+                                                <span className={`mt-1 inline-flex w-fit items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-black ${nativeReadinessChipClass}`} title={nativeReadiness.headline}>
+                                                    {nativeReadiness.badgeLabel}
+                                                </span>
                                                 {failed && <span className="text-[9px] text-rose-500 font-bold">⚠️ 추가 확인 안내</span>}
                                                 {failed && rowErrorType && (
                                                     <span className="mt-1 inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-100 text-rose-700 border border-rose-200">

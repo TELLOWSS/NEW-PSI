@@ -30,8 +30,17 @@ const inferNativeLangCode = (nationality: string, language?: string): NativeLang
     return 'unknown';
 };
 
-export const isKoreanNationality = (nationality: string): boolean => {
-    return resolveReportLanguageCode(nationality) === 'ko';
+export const isKoreanNationality = (nationality: string, language?: string): boolean => {
+    const nation = normalizeNation(nationality);
+    const lang = normalizeLanguage(language);
+    return (
+        nation.includes('대한민국') ||
+        nation.includes('한국') ||
+        nation.includes('korea') ||
+        lang.startsWith('ko') ||
+        lang.includes('korean') ||
+        resolveReportLanguageCode(nationality) === 'ko'
+    );
 };
 
 export const getNativeLanguageLabel = (nationality: string, language?: string): string => {
@@ -81,7 +90,7 @@ export const evaluateOcrVerificationCompleteness = (record: OcrVerificationLikeR
     const nativeTranslatedAnswerCount = handwrittenAnswers.filter((item) => String((item as { nativeTranslation?: string })?.nativeTranslation || '').trim().length > 0).length;
     const combinedText = `${fullText}\n${koreanTranslation}`;
     const hasQuestionnairePattern = /(?:^|\s)(?:1|2|3|4|5)[\.\)]|가장\s*큰\s*위험요소|위험등급|안전\s*조치|안전\s*행동|最危险|最大的危险因素|危险等级|安全措施|安全行为/u.test(combinedText);
-    const nativeLanguageLabel = getNativeLanguageLabel(record.nationality);
+    const nativeLanguageLabel = getNativeLanguageLabel(record.nationality, record.language);
     const issues: string[] = [];
 
     if (hasQuestionnairePattern && answerCount === 0) {
@@ -90,7 +99,7 @@ export const evaluateOcrVerificationCompleteness = (record: OcrVerificationLikeR
     if (hasQuestionnairePattern && translatedAnswerCount === 0) {
         issues.push('문항별 한국어 해석 누락');
     }
-    if (hasQuestionnairePattern && !isKoreanNationality(record.nationality) && nativeTranslatedAnswerCount === 0) {
+    if (hasQuestionnairePattern && !isKoreanNationality(record.nationality, record.language) && nativeTranslatedAnswerCount === 0) {
         issues.push(`${nativeLanguageLabel} 문항 해석 누락`);
     }
     if (!aiInsightsNative) {
@@ -110,7 +119,7 @@ export const evaluateOcrVerificationCompleteness = (record: OcrVerificationLikeR
 };
 
 export const evaluateOcrVerificationQuality = (record: OcrVerificationQualityRecord) => {
-    const nativeLanguageLabel = getNativeLanguageLabel(record.nationality);
+    const nativeLanguageLabel = getNativeLanguageLabel(record.nationality, record.language);
     const aiInsights = String(record.aiInsights || '').trim();
     const aiInsightsNative = String(record.aiInsights_native || '').trim();
     const jobField = String(record.jobField || '').trim();
@@ -121,7 +130,7 @@ export const evaluateOcrVerificationQuality = (record: OcrVerificationQualityRec
     const hasEnglishInNative = latinRegex.test(aiInsightsNative);
 
     const answerRows = handwrittenAnswers.filter((item) => String(item?.answerText || '').trim().length > 0);
-    const missingNativeAnswerTranslationCount = isKoreanNationality(record.nationality)
+    const missingNativeAnswerTranslationCount = isKoreanNationality(record.nationality, record.language)
         ? 0
         : answerRows.filter((item) => String((item as { nativeTranslation?: string })?.nativeTranslation || '').trim().length === 0).length;
 

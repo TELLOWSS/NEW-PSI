@@ -62,7 +62,11 @@ import {
 import { getHarnessVersionDescriptors } from '../../utils/harnessVersionCatalog';
 import { deriveCompetencyProfile, getApprovalBlockers } from '../../utils/evidenceUtils';
 import { getSafetyLevelThresholds, getSafetyLevelFromScore } from '../../utils/safetyLevelUtils';
-import { synchronizeManagerReviewedRecord } from '../../utils/managerReviewSync';
+import {
+    getManagerReviewApprovalBlockers,
+    getManagerReviewApprovalReadiness,
+    synchronizeManagerReviewedRecord,
+} from '../../utils/managerReviewSync';
 
 const QUESTION_LABELS: Record<string, { title: string; subtitle: string }> = {
     '1': { title: '1. 가장 큰 위험요소', subtitle: '오늘 작업에서 가장 위험하다고 생각되는 위험 요소를 파악합니다.' },
@@ -842,6 +846,40 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         return watchFields.some((field) => JSON.stringify(initialRecord[field]) !== JSON.stringify(record[field]));
     }, [initialRecord, record]);
 
+    const managerReviewApprovalReadiness = useMemo(() => getManagerReviewApprovalReadiness(record), [record]);
+
+    const managerReviewBadgeVariant = useMemo(() => {
+        if (managerReviewApprovalReadiness.badgeTone === 'blocked') return 'roseSoft';
+        if (managerReviewApprovalReadiness.badgeTone === 'warning') return 'amberSoft';
+        return 'emeraldSoft';
+    }, [managerReviewApprovalReadiness.badgeTone]);
+
+    const managerReviewCalloutVariant = useMemo(() => {
+        if (managerReviewApprovalReadiness.badgeTone === 'blocked') return 'rose';
+        if (managerReviewApprovalReadiness.badgeTone === 'warning') return 'amber';
+        return 'emerald';
+    }, [managerReviewApprovalReadiness.badgeTone]);
+
+    const managerReviewIssueItems = useMemo(() => {
+        const messages = [
+            ...managerReviewApprovalReadiness.blockers.map((message) => `승인 전 보강: ${message}`),
+            ...managerReviewApprovalReadiness.warnings.map((message) => `확인 권장: ${message}`),
+        ];
+        if (messages.length === 0) {
+            messages.push(`${managerReviewApprovalReadiness.nativeLanguageLabel} 안내와 개인 안전역량 지표가 동기화되어 있습니다.`);
+        }
+        return messages.slice(0, 4).map((content, index) => ({
+            key: `manager-review-sync-${index}`,
+            content,
+        }));
+    }, [managerReviewApprovalReadiness]);
+
+    const approvalActionDisabled = useMemo(() => (
+        isUpdatingAnalysis ||
+        !managerReviewApprovalReadiness.canApprove ||
+        (hasCriticalReviewEdits && approvalComment.trim().length === 0)
+    ), [approvalComment, hasCriticalReviewEdits, isUpdatingAnalysis, managerReviewApprovalReadiness.canApprove]);
+
     const approvalReasonGuide = useMemo(() => {
         if (hasCriticalReviewEdits) {
             return '예: 원문과 번역, 점수 근거를 대조 검토한 뒤 수정 내용을 반영하여 승인합니다.';
@@ -862,6 +900,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             harnessOverrides.length > 0
                 ? `예외 규칙 적용 기록 ${harnessOverrides.length}건이 있으므로 규칙 변경 사유와 현장 증빙 일치 여부를 반드시 다시 봅니다.`
                 : '현재 예외 규칙 기록이 없으므로 원문, 점수, 증빙 정합성 중심으로 확인하시면 됩니다.',
+            managerReviewApprovalReadiness.canApprove
+                ? `${managerReviewApprovalReadiness.nativeLanguageLabel} 안내와 개인 안전역량 지표가 같은 수정 기준으로 동기화되어 있습니다.`
+                : `${managerReviewApprovalReadiness.nativeLanguageLabel} 안내 보강이 남아 있어 최종 승인 전에 먼저 보완해야 합니다.`,
             hasCriticalReviewEdits
                 ? '핵심 수정이 있었으므로 승인 전 코멘트에 수정 범위와 반영 이유를 반드시 함께 남깁니다.'
                 : '핵심 수정이 없다면 승인 또는 보완 요청의 판단 사유를 짧고 명확하게 남기면 됩니다.',
@@ -869,7 +910,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             key: `approval-review-${index}`,
             content,
         }));
-    }, [harnessLatestApprovalDiff, harnessOverrides.length, hasCriticalReviewEdits, record]);
+    }, [harnessLatestApprovalDiff, harnessOverrides.length, hasCriticalReviewEdits, managerReviewApprovalReadiness, record]);
 
     const approvalDiffInterpretation = useMemo(() => {
         if (!harnessLatestApprovalDiff) {
@@ -1192,7 +1233,10 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         const effectiveApprover = strictRoleGate ? 'safety-manager' : approverRole;
 
         if (status === 'approved') {
-            const blockers = getApprovalBlockers(record, effectiveApprover);
+            const blockers = [
+                ...getApprovalBlockers(record, effectiveApprover),
+                ...getManagerReviewApprovalBlockers(record),
+            ];
             if (blockers.length > 0) {
                 const nextRecord: WorkerRecord = {
                     ...record,
@@ -2183,9 +2227,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             분석 상세 확인
                                         </ActionButton>
                                         <ActionButton
-                                            variant={hasChanges ? 'indigoSolid' : 'emeraldSoft'}
+                                            variant={hasChanges ? 'indigoSolid' : approvalActionDisabled ? 'slateSoft' : 'emeraldSoft'}
                                             onClick={hasChanges ? () => { void handleSave(); } : () => { void handleApprove('approved'); }}
-                                            disabled={!hasChanges && (isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0))}
+                                            disabled={!hasChanges && approvalActionDisabled}
                                             className="justify-center px-4 py-2 text-xs border-0"
                                         >
                                             {hasChanges ? '수정 먼저 저장' : '보호 판단 확정'}
@@ -2279,14 +2323,27 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             보완 요청
                                         </ActionButton>
                                         <ActionButton
-                                            variant={isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0) ? 'slateSoft' : 'emeraldSoft'}
+                                            variant={approvalActionDisabled ? 'slateSoft' : 'emeraldSoft'}
                                             onClick={() => { void handleApprove('approved'); }}
-                                            disabled={isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0)}
+                                            disabled={approvalActionDisabled}
                                             className="justify-center px-3 py-2 text-xs border-0"
                                         >
                                             보호 판단 확정
                                         </ActionButton>
                                     </div>
+                                    {managerReviewApprovalReadiness.badgeTone !== 'ready' && (
+                                        <NoticeCallout
+                                            variant={managerReviewCalloutVariant}
+                                            eyebrow="모국어 안내 동기화"
+                                            title={managerReviewApprovalReadiness.headline}
+                                            description={managerReviewApprovalReadiness.description}
+                                            className="mt-3 w-full rounded-2xl border px-3 py-3"
+                                            bodyClassName="block"
+                                            eyebrowClassName="text-[11px] font-black"
+                                            titleClassName="mt-1 text-xs font-black leading-relaxed"
+                                            descriptionClassName="mt-1 text-[11px] font-semibold leading-relaxed"
+                                        />
+                                    )}
                                 </SectionPanelCard>
                             )}
 
@@ -2300,9 +2357,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                     1차 저장
                                 </ActionButton>
                                 <ActionButton
-                                    variant={isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0) ? 'slateSoft' : 'emeraldSoft'}
+                                    variant={approvalActionDisabled ? 'slateSoft' : 'emeraldSoft'}
                                     onClick={() => { void handleApprove('approved'); }}
-                                    disabled={isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0)}
+                                    disabled={approvalActionDisabled}
                                     className="px-2 py-2 text-[11px] border-0"
                                 >
                                     보호 판단 확정
@@ -2573,6 +2630,29 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 descriptionClassName="mt-1 text-[11px] font-semibold leading-relaxed"
                                             />
                                             <div className="mb-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
+                                                <NoticeCallout
+                                                    variant={managerReviewCalloutVariant}
+                                                    eyebrow="모국어 안내 동기화"
+                                                    title={managerReviewApprovalReadiness.headline}
+                                                    description={managerReviewApprovalReadiness.description}
+                                                    action={<StatusBadge variant={managerReviewBadgeVariant}>{managerReviewApprovalReadiness.badgeLabel}</StatusBadge>}
+                                                    className="rounded-2xl border px-4 py-4"
+                                                    bodyClassName="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+                                                    eyebrowClassName="text-[11px] font-black"
+                                                    titleClassName="mt-1 text-xs font-black leading-relaxed"
+                                                    descriptionClassName="mt-1 text-[11px] font-semibold leading-relaxed"
+                                                />
+                                                <NextActionChecklist
+                                                    title="모국어 안내 확인"
+                                                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                                                    titleClassName="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500"
+                                                    listClassName="space-y-2 text-[11px] font-bold leading-relaxed text-slate-700"
+                                                    itemClassName="flex items-start gap-2"
+                                                    bulletClassName={managerReviewApprovalReadiness.canApprove ? 'mt-[2px] text-emerald-500' : 'mt-[2px] text-rose-500'}
+                                                    items={managerReviewIssueItems}
+                                                />
+                                            </div>
+                                            <div className="mb-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
                                                 <NextActionChecklist
                                                     title="최종 확인 전 점검 포인트"
                                                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
@@ -2602,6 +2682,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                             <StatusBadge variant={getHarnessWorkflowBadgeVariant(record.workflowState || inferHarnessWorkflowState(record))}>{getHarnessWorkflowStateLabel(record.workflowState || inferHarnessWorkflowState(record))}</StatusBadge>
                                                             <StatusBadge variant={getHarnessRiskBadgeVariant(record.riskDecision || inferHarnessRiskDecision(record))}>{getHarnessRiskDecisionLabel(record.riskDecision || inferHarnessRiskDecision(record))}</StatusBadge>
                                                             <StatusBadge variant={getHarnessApprovalBadgeVariant(record.approvalState || inferHarnessApprovalState(record, record.workflowState || inferHarnessWorkflowState(record)))}>{getHarnessApprovalStateLabel(record.approvalState || inferHarnessApprovalState(record, record.workflowState || inferHarnessWorkflowState(record)))}</StatusBadge>
+                                                            <StatusBadge variant={managerReviewBadgeVariant}>{managerReviewApprovalReadiness.badgeLabel}</StatusBadge>
                                                             {record.workflowRunId ? <StatusBadge variant="slateSoft">처리 번호 연결됨</StatusBadge> : <StatusBadge variant="amberSoft">처리 번호 대기</StatusBadge>}
                                                             {isHarnessPersisted === true && <StatusBadge variant="emeraldSoft">저장 확인</StatusBadge>}
                                                             {isHarnessPersisted === false && <StatusBadge variant="amberSoft">저장 연결 보완</StatusBadge>}
@@ -2744,9 +2825,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                     보완 요청(재촬영/재작성 안내)
                                                 </ActionButton>
                                                 <ActionButton
-                                                    variant={isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0) ? 'slateSoft' : 'emeraldSolid'}
+                                                    variant={approvalActionDisabled ? 'slateSoft' : 'emeraldSolid'}
                                                     onClick={() => { void handleApprove('approved'); }}
-                                                    disabled={isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0)}
+                                                    disabled={approvalActionDisabled}
                                                     className="w-full sm:w-auto px-4 py-2 text-sm border-0"
                                                 >
                                                     최종 승인(보호 판단 확정)
