@@ -1,5 +1,6 @@
 import type { WorkerRecord, AuditTrailEntry, CorrectionEntry, SafetyCompetencyProfile, AppSettings } from '../types';
 import { getSafetyLevelFromScore } from './safetyLevelUtils';
+import { DEFAULT_COMPETENCY_WEIGHTS, sanitizeCompetencyWeights } from './competencyWeights';
 
 const textEncoder = new TextEncoder();
 
@@ -89,37 +90,19 @@ const hasRepeatViolationEvidence = (record: WorkerRecord): boolean => {
     return scoreBreakdownPenalty > 0 && hasExplicitKeyword;
 };
 
-const defaultCompetencyWeights = {
-    psychological: 0.20,
-    jobUnderstanding: 0.22,
-    riskAssessmentUnderstanding: 0.22,
-    proficiency: 0.18,
-    improvementExecution: 0.18,
-    repeatViolationPenalty: 1,
-    version: 'v1.0.0',
-};
-
 const getConfiguredWeights = () => {
     try {
-        if (typeof localStorage === 'undefined') return defaultCompetencyWeights;
+        if (typeof localStorage === 'undefined') return DEFAULT_COMPETENCY_WEIGHTS;
         const raw = localStorage.getItem('psi_app_settings');
-        if (!raw) return defaultCompetencyWeights;
+        if (!raw) return DEFAULT_COMPETENCY_WEIGHTS;
 
         const parsed = JSON.parse(raw) as AppSettings;
         const configured = parsed.competencyWeights;
-        if (!configured) return defaultCompetencyWeights;
+        if (!configured) return DEFAULT_COMPETENCY_WEIGHTS;
 
-        return {
-            psychological: Number(configured.psychological) || defaultCompetencyWeights.psychological,
-            jobUnderstanding: Number(configured.jobUnderstanding) || defaultCompetencyWeights.jobUnderstanding,
-            riskAssessmentUnderstanding: Number(configured.riskAssessmentUnderstanding) || defaultCompetencyWeights.riskAssessmentUnderstanding,
-            proficiency: Number(configured.proficiency) || defaultCompetencyWeights.proficiency,
-            improvementExecution: Number(configured.improvementExecution) || defaultCompetencyWeights.improvementExecution,
-            repeatViolationPenalty: Number(configured.repeatViolationPenalty) || defaultCompetencyWeights.repeatViolationPenalty,
-            version: configured.version || defaultCompetencyWeights.version,
-        };
+        return sanitizeCompetencyWeights(configured);
     } catch {
-        return defaultCompetencyWeights;
+        return DEFAULT_COMPETENCY_WEIGHTS;
     }
 };
 

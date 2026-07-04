@@ -1,0 +1,6 @@
+sample,nationality,formVersion,recordId,workerName,jobField,managerEditField,beforeScore,afterScore,beforeNativeGuidanceStatus,afterNativeGuidanceStatus,beforeCompetencyWeightedScore,afterCompetencyWeightedScore,beforeApprovalReadiness,afterApprovalReadiness,evidenceFile,note
+1,인도네시아,NEW-PSI 2026-07,,,,보호 조치 해석,,,,,,,,,,관리자 한국어 보호 해석 수정 전후와 모국어 안내 반영 여부를 입력
+2,미얀마,NEW-PSI 2026-07,,,,위험요인 해석,,,,,,,,,,미얀마어 양식 또는 판독 오류가 있었던 건을 우선 입력
+3,캄보디아,NEW-PSI 2026-07,,,,점수 근거,,,,,,,,,,점수 근거 변경 후 개인 안전역량 변화 확인
+4,중국,NEW-PSI 2026-07,,,,Q2 사고 발생 이유,,,,,,,,,,위험요인 분류와 관리자 보정 전후 비교
+5,태국,NEW-PSI 2026-07,,,,Q5 실천 행동,,,,,,,,,,교육 환류로 이어질 행동 약속 변경 여부 확인

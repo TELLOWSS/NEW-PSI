@@ -1210,6 +1210,51 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
             </div>
 
             <div className="max-w-5xl mx-auto px-4 card-gravity-target">
+                <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-indigo-600">PSI Origin Story</p>
+                            <h2 className="mt-2 text-2xl font-black text-slate-900">종이 위험성평가 기록지를 현장 보호 데이터로 바꾼 이야기</h2>
+                            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">
+                                PSI는 현장을 더 감시하려고 시작한 프로그램이 아닙니다. 외국인 근로자가 각자의 언어로 적은 짧은 수기 기록 속에서 위험 신호를 놓치지 않고,
+                                관리자가 고친 판단이 모국어 안내와 다음 교육까지 이어지게 만들기 위해 시작했습니다.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => onNavigateToPage('ocr-analysis')}
+                            className="min-h-[44px] rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-black text-white transition-colors hover:bg-indigo-700"
+                        >
+                            실제 OCR 흐름 보기
+                        </button>
+                    </div>
+
+                    <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-5">
+                        {[
+                            ['1', '수기 기록', '사진·PDF로 받은 위험성평가 기록지를 원본 증빙으로 보존'],
+                            ['2', 'AI 구조화', 'Q1~Q5 답변, 위험요인, 점수 근거, 모국어 신호를 분리'],
+                            ['3', '관리자 검증', '한국어 보호 해석과 점수 근거를 현장 판단으로 수정'],
+                            ['4', '모국어 전달', '수정된 내용이 외국인 근로자 안내와 개인 지표에 동기화'],
+                            ['5', '추적 교육', '월별 리포트와 다음 TBM 교육자료로 다시 환류'],
+                        ].map(([step, title, desc]) => (
+                            <div key={step} className={`rounded-2xl border px-4 py-4 ${BRAND_TONE.slate}`}>
+                                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-sm font-black text-white">{step}</div>
+                                <p className="mt-3 text-sm font-black text-slate-900">{title}</p>
+                                <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">{desc}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className={`mt-5 rounded-2xl border px-4 py-4 ${BRAND_TONE.emeraldSoft80}`}>
+                        <p className="text-sm font-black text-emerald-900">상품 한 문장</p>
+                        <p className="mt-1 text-sm font-bold leading-6 text-emerald-800">
+                            PSI는 위험성평가 OCR 결과를 보여주는 데서 끝나지 않고, 관리자의 현장 판단이 근로자 모국어 안내와 개인 안전역량, 월별 교육 환류까지 같은 기준으로 이어지는지 검증하는 현장 안전 인텔리전스입니다.
+                        </p>
+                    </div>
+                </section>
+            </div>
+
+            <div className="max-w-5xl mx-auto px-4 card-gravity-target">
                 <div className={`rounded-3xl border p-6 shadow-sm ${BRAND_TONE.violetSoft80}`}>
                     <div className="flex items-center gap-3">
                         <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-violet-600 shadow-sm">🧩</span>

@@ -28,6 +28,13 @@ import {
     type AiEngineSettings,
     type OcrEngineMode,
 } from '../utils/aiEngineSettings';
+import {
+    COMPETENCY_WEIGHT_FIELDS,
+    COMPETENCY_WEIGHT_PRESETS,
+    DEFAULT_COMPETENCY_WEIGHTS,
+    getScoreWeightSum,
+    sanitizeCompetencyWeights,
+} from '../utils/competencyWeights';
 
 const TRAINING_LANGUAGE_OPTIONS = [
     { code: 'ko-KR', label: '한국어 (ko-KR)' },
@@ -357,15 +364,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         jobFields: ['시스템', '용역', '철근', '분석', '배체정리', '형틀', '타설', '미장', '견출', '설비', '전기'],
         apiKey: '',
         trainingLanguagePreset: [...CURRENT_SITE_LANGUAGE_SET],
-        competencyWeights: {
-            psychological: 0.20,
-            jobUnderstanding: 0.22,
-            riskAssessmentUnderstanding: 0.22,
-            proficiency: 0.18,
-            improvementExecution: 0.18,
-            repeatViolationPenalty: 1,
-            version: 'v1.0.0',
-        },
+        competencyWeights: DEFAULT_COMPETENCY_WEIGHTS,
         safetyLevelThresholds: {
             advancedMin: 80,
             intermediateMin: 60,
@@ -466,27 +465,28 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         return '초급';
     };
 
-    const weightSum =
-        (settings.competencyWeights?.psychological || 0) +
-        (settings.competencyWeights?.jobUnderstanding || 0) +
-        (settings.competencyWeights?.riskAssessmentUnderstanding || 0) +
-        (settings.competencyWeights?.proficiency || 0) +
-        (settings.competencyWeights?.improvementExecution || 0);
+    const resolvedCompetencyWeights = sanitizeCompetencyWeights(settings.competencyWeights);
+    const weightSum = getScoreWeightSum(resolvedCompetencyWeights);
+    const repeatViolationMultiplier = resolvedCompetencyWeights.repeatViolationPenalty;
 
     const updateWeights = (patch: Partial<NonNullable<AppSettings['competencyWeights']>>) => {
         setSettings((prev) => ({
             ...prev,
-            competencyWeights: {
-                psychological: prev.competencyWeights?.psychological ?? 0.2,
-                jobUnderstanding: prev.competencyWeights?.jobUnderstanding ?? 0.22,
-                riskAssessmentUnderstanding: prev.competencyWeights?.riskAssessmentUnderstanding ?? 0.22,
-                proficiency: prev.competencyWeights?.proficiency ?? 0.18,
-                improvementExecution: prev.competencyWeights?.improvementExecution ?? 0.18,
-                repeatViolationPenalty: prev.competencyWeights?.repeatViolationPenalty ?? 1,
-                version: prev.competencyWeights?.version ?? 'v1.0.0',
+            competencyWeights: sanitizeCompetencyWeights({
+                ...prev.competencyWeights,
                 ...patch,
-            },
+            }),
         }));
+    };
+
+    const applyWeightPreset = (presetId: string) => {
+        const preset = COMPETENCY_WEIGHT_PRESETS.find((item) => item.id === presetId);
+        if (!preset) return;
+        updateWeights({
+            ...preset.weights,
+            version: `preset-${preset.id}-${new Date().toISOString().slice(0, 10)}`,
+        });
+        trackQuickAction('apply_competency_weight_preset', { presetId });
     };
 
     const normalizeSettingsForStorage = (source: AppSettings): AppSettings => {
@@ -496,6 +496,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             ...source,
             jobFields: fields,
             trainingLanguagePreset: normalizeTrainingLanguagePreset(source.trainingLanguagePreset),
+            competencyWeights: sanitizeCompetencyWeights(source.competencyWeights),
             safetyLevelThresholds: {
                 advancedMin: Math.min(100, Math.max(0, Math.round(source.safetyLevelThresholds?.advancedMin ?? 80))),
                 intermediateMin: Math.min(
@@ -529,10 +530,10 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     ...prev,
                     ...parsed,
                     trainingLanguagePreset: normalizeTrainingLanguagePreset(parsed.trainingLanguagePreset),
-                    competencyWeights: {
+                    competencyWeights: sanitizeCompetencyWeights({
                         ...prev.competencyWeights,
                         ...(parsed.competencyWeights || {}),
-                    },
+                    }),
                     approvalPolicy: {
                         ...prev.approvalPolicy,
                         ...(parsed.approvalPolicy || {}),
@@ -690,7 +691,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         const nextVersion = settings.competencyWeights?.version || 'v1.0.0';
 
         if (weightSum < 0.95 || weightSum > 1.05) {
-            const proceed = confirm(`가중치 합계(w1~w5)가 ${weightSum.toFixed(2)} 입니다.\n권장 범위는 1.00±0.05 입니다.\n\n이 상태로 저장하시겠습니까?`);
+            const proceed = confirm(`가중치 합계(W1~W5)가 ${weightSum.toFixed(2)} 입니다.\n권장 범위는 1.00±0.05 입니다.\nW6은 반복지적 감점 배율이라 합계에 포함하지 않습니다.\n\n이 상태로 저장하시겠습니까?`);
             if (!proceed) return;
         }
 
@@ -755,15 +756,10 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
 
         setSettings((prev) => ({
             ...prev,
-            competencyWeights: {
-                psychological: entry.weights?.psychological ?? 0.2,
-                jobUnderstanding: entry.weights?.jobUnderstanding ?? 0.22,
-                riskAssessmentUnderstanding: entry.weights?.riskAssessmentUnderstanding ?? 0.22,
-                proficiency: entry.weights?.proficiency ?? 0.18,
-                improvementExecution: entry.weights?.improvementExecution ?? 0.18,
-                repeatViolationPenalty: entry.weights?.repeatViolationPenalty ?? 1,
-                version: entry.weights?.version || entry.nextVersion || 'v1.0.0',
-            },
+            competencyWeights: sanitizeCompetencyWeights({
+                ...entry.weights,
+                version: entry.weights?.version || entry.nextVersion || DEFAULT_COMPETENCY_WEIGHTS.version,
+            }),
         }));
     };
 
@@ -2190,27 +2186,75 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 </div>
 
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-violet-200 lg:col-span-2">
-                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5 sm:mb-6">개인 안전역량 가중치 설정</h3>
+                    <div className="mb-5 sm:mb-6 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-violet-600">Competency Weight</p>
+                            <h3 className="mt-1 text-lg sm:text-xl font-bold text-slate-900">개인 안전역량 가중치 설정</h3>
+                            <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                                W1~W5는 개인 안전역량 점수의 비중이고, W6은 반복지적 감점 배율입니다. 회사 규칙이나 현장 중점사항에 맞춰 조정할 수 있습니다.
+                            </p>
+                        </div>
+                        <div className={`rounded-2xl border px-4 py-3 text-xs font-black ${weightSum >= 0.95 && weightSum <= 1.05 ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                            W1~W5 합계 {weightSum.toFixed(2)} / W6 {repeatViolationMultiplier.toFixed(1)}배
+                        </div>
+                    </div>
                     <InterpretationCardGrid
                         items={policyInterpretationCards}
                         className="grid grid-cols-1 xl:grid-cols-3 gap-3 mb-5"
                         cardClassName="rounded-2xl border p-4"
                     />
+
+                    <div className="mb-5 grid grid-cols-1 gap-2 md:grid-cols-4">
+                        {COMPETENCY_WEIGHT_PRESETS.map((preset) => (
+                            <button
+                                key={preset.id}
+                                type="button"
+                                onClick={() => applyWeightPreset(preset.id)}
+                                className="min-h-[72px] rounded-2xl border border-violet-200 bg-violet-50/60 px-4 py-3 text-left transition-colors hover:bg-violet-100"
+                            >
+                                <p className="text-sm font-black text-violet-800">{preset.label}</p>
+                                <p className="mt-1 text-[11px] font-semibold leading-4 text-violet-700">{preset.description}</p>
+                            </button>
+                        ))}
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1">심리 지표(w1)</label><input type="number" step="0.01" value={settings.competencyWeights?.psychological ?? 0.2} onChange={(e) => updateWeights({ psychological: Number(e.target.value) })} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-sm" /></div>
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1">업무 이해도(w2)</label><input type="number" step="0.01" value={settings.competencyWeights?.jobUnderstanding ?? 0.22} onChange={(e) => updateWeights({ jobUnderstanding: Number(e.target.value) })} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-sm" /></div>
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1">위험성평가 이해도(w3)</label><input type="number" step="0.01" value={settings.competencyWeights?.riskAssessmentUnderstanding ?? 0.22} onChange={(e) => updateWeights({ riskAssessmentUnderstanding: Number(e.target.value) })} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-sm" /></div>
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1">숙련도(w4)</label><input type="number" step="0.01" value={settings.competencyWeights?.proficiency ?? 0.18} onChange={(e) => updateWeights({ proficiency: Number(e.target.value) })} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-sm" /></div>
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1">개선이행도(w5)</label><input type="number" step="0.01" value={settings.competencyWeights?.improvementExecution ?? 0.18} onChange={(e) => updateWeights({ improvementExecution: Number(e.target.value) })} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-sm" /></div>
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1">반복위반 패널티(w6)</label><input type="number" step="0.1" value={settings.competencyWeights?.repeatViolationPenalty ?? 1} onChange={(e) => updateWeights({ repeatViolationPenalty: Number(e.target.value) })} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-sm" /></div>
+                        {COMPETENCY_WEIGHT_FIELDS.map((field) => {
+                            const value = Number(resolvedCompetencyWeights[field.key] ?? field.defaultValue);
+                            const isPenalty = field.role === 'penalty-multiplier';
+                            return (
+                                <div key={field.key} className={`rounded-2xl border p-3 ${isPenalty ? 'border-rose-200 bg-rose-50/60' : 'border-slate-200 bg-slate-50'}`}>
+                                    <div className="mb-2 flex items-start justify-between gap-2">
+                                        <label className="block text-xs font-black text-slate-700">
+                                            <span className={`mr-1 rounded-md px-1.5 py-0.5 text-[10px] ${isPenalty ? 'bg-rose-100 text-rose-700' : 'bg-violet-100 text-violet-700'}`}>{field.code}</span>
+                                            {field.label}
+                                        </label>
+                                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${isPenalty ? 'bg-rose-100 text-rose-700' : 'bg-white text-slate-500 border border-slate-200'}`}>
+                                            {isPenalty ? '감점 배율' : '점수 비중'}
+                                        </span>
+                                    </div>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        max={isPenalty ? 3 : 1}
+                                        step={field.step}
+                                        value={value}
+                                        onChange={(e) => updateWeights({ [field.key]: Number(e.target.value) } as Partial<NonNullable<AppSettings['competencyWeights']>>)}
+                                        className="w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm font-bold"
+                                    />
+                                    <p className="mt-2 text-[11px] font-semibold leading-4 text-slate-500">{field.help}</p>
+                                </div>
+                            );
+                        })}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
                         <div>
                             <label className="block text-xs font-bold text-slate-500 mb-1">가중치 버전</label>
-                            <input type="text" value={settings.competencyWeights?.version ?? 'v1.0.0'} onChange={(e) => updateWeights({ version: e.target.value })} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-sm" />
+                            <input type="text" value={resolvedCompetencyWeights.version} onChange={(e) => updateWeights({ version: e.target.value })} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-sm" />
                         </div>
                         <div className={`text-xs font-bold rounded-lg p-3 border ${weightSum >= 0.95 && weightSum <= 1.05 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                            현재 w1~w5 합계: {weightSum.toFixed(2)} {weightSum >= 0.95 && weightSum <= 1.05 ? '(권장 범위)' : '(권장 범위 이탈)'}
+                            현재 W1~W5 합계: {weightSum.toFixed(2)} {weightSum >= 0.95 && weightSum <= 1.05 ? '(권장 범위)' : '(권장 범위 이탈)'}<br/>
+                            <span className="font-semibold text-slate-500">산식: W1~W5 가중합 - 반복지적감점 x W6</span>
                         </div>
                     </div>
                 </div>
@@ -2447,7 +2491,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                                         <button onClick={() => handleApplyWeightHistory(entry)} className="w-full sm:w-auto px-2.5 py-1.5 text-[11px] font-black rounded-md bg-indigo-600 text-white hover:bg-indigo-700">이 버전 복원</button>
                                     </div>
                                     <div className="text-slate-500 mt-1">{new Date(entry.timestamp).toLocaleString()}</div>
-                                    <div className="text-slate-600 mt-2">w1:{entry.weights?.psychological ?? '-'} / w2:{entry.weights?.jobUnderstanding ?? '-'} / w3:{entry.weights?.riskAssessmentUnderstanding ?? '-'} / w4:{entry.weights?.proficiency ?? '-'} / w5:{entry.weights?.improvementExecution ?? '-'} / w6:{entry.weights?.repeatViolationPenalty ?? '-'}</div>
+                                    <div className="text-slate-600 mt-2">W1:{entry.weights?.psychological ?? '-'} / W2:{entry.weights?.jobUnderstanding ?? '-'} / W3:{entry.weights?.riskAssessmentUnderstanding ?? '-'} / W4:{entry.weights?.proficiency ?? '-'} / W5:{entry.weights?.improvementExecution ?? '-'} / W6 감점배율:{entry.weights?.repeatViolationPenalty ?? '-'}</div>
                                 </div>
                             ))}
                         </div>

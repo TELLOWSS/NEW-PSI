@@ -36,6 +36,9 @@
     "check:ocr-operational-hardening": "node scripts/check-ocr-operational-hardening-contract.cjs",
     "check:manager-review-sync": "node scripts/check-manager-review-sync-contract.cjs",
     "check:settings-direct-controls": "node scripts/check-settings-direct-controls-contract.cjs",
+    "check:competency-weights": "node scripts/check-competency-weight-contract.cjs",
+    "check:field-validation-feedback": "node scripts/check-field-validation-feedback-contract.cjs",
+    "report:field-validation-feedback": "node scripts/generate-field-validation-feedback-report.cjs",
     "check:mobile-qa:evidence": "node scripts/check-mobile-qa-evidence.cjs",
     "check:mobile-qa:evidence:report": "node scripts/check-mobile-qa-evidence.cjs --write-report",
     "qa:mobile:capture": "node scripts/capture-mobile-qa-evidence.cjs",
@@ -74,7 +77,7 @@
     "check:types": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify:fast": "npm run check:context && npm run check:hotspot && npm run check:tdz && npm run check:page-tone && npm run check:ocr-contract && npm run check:mobile-field-mode && npm run check:ocr-record-view && npm run check:ocr-scale-view && npm run check:ocr-collapse-delete && npm run check:ocr-quota-form-gate && npm run check:ocr-verification-package && npm run check:ocr-operational-hardening && npm run check:manager-review-sync && npm run check:settings-direct-controls && npm run check:security-headers && npm run check:ui-language && npm run check:report-language && npm run check:core-metrics && npm run check:score-consistency:strict8 && npm run check:types",
+    "verify:fast": "npm run check:context && npm run check:hotspot && npm run check:tdz && npm run check:competency-weights && npm run check:field-validation-feedback && npm run check:page-tone && npm run check:ocr-contract && npm run check:mobile-field-mode && npm run check:ocr-record-view && npm run check:ocr-scale-view && npm run check:ocr-collapse-delete && npm run check:ocr-quota-form-gate && npm run check:ocr-verification-package && npm run check:ocr-operational-hardening && npm run check:manager-review-sync && npm run check:settings-direct-controls && npm run check:security-headers && npm run check:ui-language && npm run check:report-language && npm run check:core-metrics && npm run check:score-consistency:strict8 && npm run check:types",
     "verify:release": "npm run verify:fast && npm run check:score-consistency:report:strict8 && npm run build",
     "build": "vite build",
     "preview": "vite preview"
