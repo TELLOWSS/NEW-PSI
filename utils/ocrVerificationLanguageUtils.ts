@@ -1,5 +1,5 @@
 import type { WorkerRecord } from '../types';
-import { getReportLanguagePolicy, resolveReportLanguageCode } from './reportLanguagePolicy';
+import { getReportLanguagePolicy, resolveReportLanguageCode } from './reportLanguagePolicy.js';
 
 type OcrVerificationLikeRecord = Pick<WorkerRecord, 'nationality' | 'language' | 'jobField' | 'weakAreas' | 'aiInsights' | 'aiInsights_native' | 'fullText' | 'koreanTranslation' | 'handwrittenAnswers'>;
 
