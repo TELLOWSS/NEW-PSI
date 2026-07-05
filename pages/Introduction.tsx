@@ -665,6 +665,26 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         },
     ];
 
+    const productStorySteps = [
+        {
+            title: '현장 문제',
+            summary: '수기로 작성된 위험성평가 기록지는 현장에는 쌓이지만, 누가 어떤 위험을 이해하지 못했는지 바로 보이기 어렵습니다.',
+            points: ['외국인 근로자 모국어 전달 한계', '수기 이미지 판독 품질 편차', '교육·추적관리 연결 부족'],
+        },
+        {
+            title: 'PSI 전환',
+            summary: 'PSI는 종이 기록지를 OCR로 구조화하고, 관리자 검증을 거쳐 개인 리포트와 교육 안내로 다시 현장에 돌려보냅니다.',
+            points: ['OCR 분석과 관리자 보호 해석', '개인 안전역량 지표 자동 반영', '모국어 안내와 개선 이력 보존'],
+        },
+        {
+            title: '구매자가 확인하는 가치',
+            summary: '도입자는 단순 작성 여부가 아니라 근로자 이해 수준, 위험 신호, 개입 결과, 실증 증빙을 한 흐름으로 확인합니다.',
+            points: ['월별 추적관리 자료', '리포트·증빙 패키지', '현장별 교육 환류 데이터'],
+        },
+    ];
+
+    const proofChips = ['수기 OCR', '모국어 안내', '개인 리포트', '월별 추적관리', '교육 환류', '실증 증빙'];
+
     const getStepTone = (stepNoNum: number) => {
         if (stepNoNum === 2 || stepNoNum === 7 || stepNoNum === 8) {
             return {
@@ -780,10 +800,19 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                 <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${BRAND_TONE.indigo}`}>
                                     <BrandPhilosophyLogo className="h-8 w-8" />
                                 </div>
-                                <div>
-                                    <h1 className="text-[24px] sm:text-[26px] leading-tight font-black tracking-tight text-indigo-700">Human Risk Intelligence</h1>
-                                    <p className="mt-1 text-[11px] sm:text-[12px] font-semibold text-slate-600 break-keep">기록이 아닌 이해, 점검이 아닌 전달, 보고가 아닌 예측</p>
-                                    <p className="text-[11px] sm:text-[12px] font-semibold text-slate-600 break-keep">현장 상황을 연결하여 사고 전 전조를 탐지하고 개입을 추천하는 시스템입니다.</p>
+                                <div className="max-w-3xl">
+                                    <p className="text-[10px] font-black text-indigo-500">PSI 브랜드 스토리 / 상품 소개</p>
+                                    <h1 className="mt-1 text-[24px] sm:text-[28px] leading-tight font-black text-slate-900 break-keep">종이 위험성평가 기록지를 현장 보호 데이터로 바꾼 이야기</h1>
+                                    <p className="mt-2 text-[11px] sm:text-[12px] font-semibold leading-relaxed text-slate-600 break-keep">
+                                        PSI는 수기 기록지에 담긴 근로자의 위험 인식, 언어 장벽, 교육 필요 신호를 OCR 분석과 관리자 검증으로 구조화하고 개인 리포트와 추적 교육까지 연결하는 Human Risk Intelligence 플랫폼입니다.
+                                    </p>
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                        {proofChips.map((chip) => (
+                                            <span key={chip} className="rounded-full border border-indigo-100 bg-indigo-50 px-2 py-1 text-[9px] font-black text-indigo-700">
+                                                {chip}
+                                            </span>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -797,9 +826,31 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                         </div>
                     </div>
 
+                    <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
+                        {productStorySteps.map((step, index) => (
+                            <div key={step.title} className="rounded-2xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm">
+                                <div className="flex items-center gap-2">
+                                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-black text-white">{index + 1}</span>
+                                    <p className="text-[12px] font-black text-slate-900">{step.title}</p>
+                                </div>
+                                <p className="mt-2 text-[10px] sm:text-[11px] font-semibold leading-relaxed text-slate-600 break-keep">{step.summary}</p>
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                    {step.points.map((point) => (
+                                        <span key={point} className="rounded-full bg-slate-100 px-2 py-1 text-[8px] font-black text-slate-600">
+                                            {point}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
                     <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.14fr_1fr]">
                         <section className="rounded-3xl border border-indigo-200 bg-white p-3.5 shadow-sm">
-                            <div className="mb-2 inline-flex items-center rounded-full bg-indigo-600 px-3 py-1 text-[10px] font-black tracking-[0.12em] text-white">PC DASHBOARD</div>
+                            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                <div className="inline-flex items-center rounded-full bg-indigo-600 px-3 py-1 text-[10px] font-black text-white">실제 운영 화면</div>
+                                <p className="text-[10px] font-bold text-slate-500 break-keep">바이어에게 보여줄 원포인트 증명: 수기 기록 → 분석 → 교육/리포트 → 추적관리</p>
+                            </div>
                             <div className={`rounded-2xl border p-3.5 ${BRAND_TONE.slate}`}>
                                 <div className="grid grid-cols-[104px_1fr] gap-2.5">
                                     <div className="rounded-xl bg-indigo-950 px-2 py-3 text-indigo-100">
@@ -904,7 +955,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
 
                         <section className={`rounded-3xl border p-3.5 shadow-sm ${BRAND_TONE.indigoSoft70}`}>
                             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                                <div className="inline-flex items-center rounded-full bg-indigo-500 px-3 py-1 text-[10px] font-black tracking-[0.12em] text-white">MOBILE CORE 8</div>
+                                <div className="inline-flex items-center rounded-full bg-indigo-500 px-3 py-1 text-[10px] font-black text-white">모바일 현장 실행</div>
                                 <button
                                     type="button"
                                     onClick={() => setShowAllMobileFeatures((prev) => !prev)}
@@ -1062,11 +1113,6 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                         );
                                     })}
                                 </div>
-                                <div className={`pointer-events-none absolute -bottom-4 -right-1 hidden h-36 w-20 rounded-2xl border text-white shadow-xl sm:flex sm:flex-col sm:items-center sm:justify-center ${BRAND_TONE.slateDarkBorderLight}`}>
-                                    <BrandPhilosophyLogo className="h-7 w-7" />
-                                    <p className="mt-1 text-lg font-black">psi</p>
-                                    <p className="mt-1 text-[8px] font-bold text-slate-300">Human Risk Intelligence</p>
-                                </div>
                             </div>
                             <div className="mt-2.5 rounded-2xl border border-indigo-100 bg-white/90 p-2.5">
                                 {!showAllMobileFeatures ? (
@@ -1144,11 +1190,11 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
 
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
                         <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
-                            <p className="text-[10px] font-black tracking-[0.14em] text-indigo-600">BRAND STORY</p>
-                            <p className="mt-2 text-[10px] sm:text-[11px] font-semibold leading-relaxed text-slate-600 break-keep">PSI는 사고를 줄이기 위해 사람의 위험인지 신호를 해석하고 보호로 연결하는 Human Risk Intelligence 플랫폼입니다.</p>
+                            <p className="text-[10px] font-black text-indigo-600">WHY PSI</p>
+                            <p className="mt-2 text-[10px] sm:text-[11px] font-semibold leading-relaxed text-slate-600 break-keep">PSI는 작성된 종이를 보관하는 프로그램이 아니라, 근로자가 무엇을 위험으로 이해했고 어떤 보호 안내가 필요한지 증명하는 현장 안전 인텔리전스입니다.</p>
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
-                            <p className="text-[10px] font-black tracking-[0.14em] text-indigo-600">BRANDING MARK</p>
+                            <p className="text-[10px] font-black text-indigo-600">BRANDING MARK</p>
                             <div className="mt-2 flex items-center gap-2">
                                 <BrandPhilosophyLogo className="h-8 w-8" />
                                 <p className="text-xl font-black text-indigo-600">psi</p>
@@ -1156,7 +1202,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                             <p className="mt-2 text-[9px] sm:text-[10px] font-semibold leading-relaxed text-slate-500">높아지는 위험 전조를 먼저 읽고 개입하는 보호 흐름</p>
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
-                            <p className="text-[10px] font-black tracking-[0.14em] text-indigo-600">COLOR SYSTEM</p>
+                            <p className="text-[10px] font-black text-indigo-600">COLOR SYSTEM</p>
                             <div className="mt-2 space-y-1.5">
                                 {[
                                     { bg: 'bg-indigo-500', hex: '#6366F1', name: 'Primary' },
@@ -1174,14 +1220,14 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                             </div>
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
-                            <p className="text-[10px] font-black tracking-[0.14em] text-indigo-600">TYPOGRAPHY</p>
+                            <p className="text-[10px] font-black text-indigo-600">TYPOGRAPHY</p>
                             <p className="mt-1.5 text-xl font-black text-slate-800 leading-tight">Pretendard</p>
                             <p className="text-[10px] font-bold text-slate-500 mt-0.5">가나다 ABC 123</p>
                             <p className="text-[9px] font-semibold text-slate-400 leading-tight">안전·현장·보호 / Safety · Risk</p>
                             <p className="text-[9px] font-semibold text-slate-400 mt-0.5">运営 · 안전관리 · Sécurité</p>
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
-                            <p className="text-[10px] font-black tracking-[0.14em] text-indigo-600">ICONOGRAPHY</p>
+                            <p className="text-[10px] font-black text-indigo-600">ICONOGRAPHY</p>
                             <div className="mt-2 grid grid-cols-3 gap-1">
                                 {[
                                     { title: '사람', path: <><circle cx="10" cy="7" r="3" /><path d="M3 17c0-3.3 3.1-6 7-6s7 2.7 7 6" strokeLinecap="round" /></> },
