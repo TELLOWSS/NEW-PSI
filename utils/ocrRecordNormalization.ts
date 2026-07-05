@@ -1,5 +1,5 @@
 import type { AuditTrailEntry, WorkerRecord } from '../types';
-import { normalizeJobField } from './workerIdentity';
+import { normalizeJobField } from './workerIdentity.js';
 
 type PartialWorkerRecord = Partial<WorkerRecord> & {
     auditTrail?: AuditTrailEntry[];
