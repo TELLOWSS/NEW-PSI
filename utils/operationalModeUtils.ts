@@ -26,6 +26,7 @@ const IMMEDIATE_VISIBLE_PAGES = new Set<Page>([
     'safety-behavior-management',
     'predictive-analysis',
     'survey-intelligence',
+    'introduction',
 ]);
 
 const parseOperationalMode = (value: string | null): OperationalMode => {
