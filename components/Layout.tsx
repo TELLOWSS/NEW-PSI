@@ -509,11 +509,27 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
                                     </svg>
                                 </summary>
-                                <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                                <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
                                     <div className="px-3 py-2">
                                         <p className="text-xs font-black">현장 관리자</p>
                                         <p className="mt-1 text-[10px] font-semibold psi-copy-subtle">안전 운영 계정</p>
                                     </div>
+                                    {uiAudienceMode !== 'worker' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                operatorMenuRef.current?.removeAttribute('open');
+                                                handlePageChange('introduction');
+                                            }}
+                                            className="mt-1 flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-3 text-left text-xs font-bold text-blue-800 hover:bg-blue-50 dark:text-blue-200 dark:hover:bg-blue-500/10"
+                                        >
+                                            <span>
+                                                <span className="block">PSI 브랜드 스토리</span>
+                                                <span className="mt-0.5 block text-[10px] font-semibold text-slate-500 dark:text-slate-400">상품 소개</span>
+                                            </span>
+                                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-950 text-[10px] font-black text-white dark:bg-blue-500">PSI</span>
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={() => {
