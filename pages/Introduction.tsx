@@ -685,6 +685,32 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
 
     const proofChips = ['수기 OCR', '모국어 안내', '개인 리포트', '월별 추적관리', '교육 환류', '실증 증빙'];
 
+    const actualProgramScreens: Array<{ label: string; desc: string; stat: string; page: Page }> = [
+        { label: '현장 안전 관제센터', desc: '현장 작성물, 위험 신호, 개선 이행을 한 화면에서 확인', stat: `기록 ${previewMetrics.totalWorkers}건`, page: 'dashboard' },
+        { label: '위험성평가 분석', desc: '수기 이미지와 PDF를 OCR로 읽고 관리자 검증까지 연결', stat: `확인 ${previewMetrics.qaValidationTargets}건`, page: 'ocr-analysis' },
+        { label: '근로자 의견 분석', desc: '근로자 의견과 응답 경향을 위험 신호로 정리', stat: '의견 분석', page: 'survey-intelligence' },
+        { label: '안전성과 분석', desc: '개선 이행률과 성과 추이를 현장별로 확인', stat: `승인 ${previewMetrics.approvedRecords}건`, page: 'performance-analysis' },
+        { label: '월별 계도 리포트', desc: '월별 위험 항목을 익명화해 계도자료로 정리', stat: '월별 분류', page: 'monthly-guidance-report' },
+        { label: '다음 달 TBM 교육자료', desc: '분석 결과를 다음 교육자료 제작 흐름으로 연결', stat: '교육자료', page: 'a4-education-material' },
+        { label: '다국어 교육 / QR', desc: '외국인 근로자에게 모국어 교육과 확인 경로 제공', stat: '모국어', page: 'admin-training' },
+        { label: '근로자 리포트', desc: '개인별 안전역량과 관리자 보호 해석을 리포트화', stat: `대상 ${previewMetrics.totalWorkers}명`, page: 'reports' },
+        { label: '시스템 설정', desc: 'API, 가중치, 권한, 운영 기준을 현장에 맞게 조정', stat: '운영 설정', page: 'settings' },
+    ];
+
+    const actualMobileTabs: Array<{ label: string; desc: string; page: Page }> = [
+        { label: '홈', desc: '현장 안전 관제센터', page: 'dashboard' },
+        { label: '위험분석', desc: 'OCR 분석과 확인', page: 'ocr-analysis' },
+        { label: '계도', desc: '월별 리포트', page: 'monthly-guidance-report' },
+        { label: '교육/QR', desc: '다국어 교육 전달', page: 'admin-training' },
+        { label: '더보기', desc: '설정과 리포트', page: 'settings' },
+    ];
+
+    const actualMobileActions: Array<{ label: string; desc: string; page: Page }> = [
+        { label: 'OCR 분석', desc: '현장에서 촬영한 수기 기록지를 바로 분석', page: 'ocr-analysis' },
+        { label: '근로자 리포트', desc: '개인별 보호 해석과 교육 필요 신호 확인', page: 'reports' },
+        { label: '다국어 QR', desc: '모국어 교육 안내와 확인 경로 전달', page: 'admin-training' },
+    ];
+
     const getStepTone = (stepNoNum: number) => {
         if (stepNoNum === 2 || stepNoNum === 7 || stepNoNum === 8) {
             return {
@@ -847,279 +873,108 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
 
                     <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.14fr_1fr]">
                         <section className="rounded-3xl border border-indigo-200 bg-white p-3.5 shadow-sm">
-                            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                                <div className="inline-flex items-center rounded-full bg-indigo-600 px-3 py-1 text-[10px] font-black text-white">실제 운영 화면</div>
-                                <p className="text-[10px] font-bold text-slate-500 break-keep">바이어에게 보여줄 원포인트 증명: 수기 기록 → 분석 → 교육/리포트 → 추적관리</p>
-                            </div>
-                            <div className={`rounded-2xl border p-3.5 ${BRAND_TONE.slate}`}>
-                                <div className="grid grid-cols-[104px_1fr] gap-2.5">
-                                    <div className="rounded-xl bg-indigo-950 px-2 py-3 text-indigo-100">
-                                        <p className="text-sm font-black">psi</p>
-                                        <ul className="mt-2 space-y-1 text-[10px] font-bold">
-                                            <li className="rounded-md bg-white/10 px-2 py-1">대시보드</li>
-                                            <li className="rounded-md px-2 py-1">위험예측</li>
-                                            <li className="rounded-md px-2 py-1">리포트</li>
-                                            <li className="rounded-md px-2 py-1">데이터관리</li>
-                                        </ul>
-                                    </div>
-                                    <div className="space-y-2.5">
-                                        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-                                            {[
-                                                ['위험성 평균', `${previewMetrics.averageScore}`],
-                                                ['전조 신호', `${previewMetrics.alertSignals}`],
-                                                ['위험신호', `${previewMetrics.highRiskWorkers}`],
-                                                ['개입 완료율', `${previewMetrics.totalWorkers > 0 ? Math.round((previewMetrics.approvedRecords / previewMetrics.totalWorkers) * 100) : 0}%`],
-                                            ].map(([label, value]) => (
-                                                <div key={label} className="rounded-xl border border-slate-200 bg-white px-2 py-2.5">
-                                                    <p className="text-[10px] font-black text-slate-500">{label}</p>
-                                                    <p className="mt-1 text-[17px] font-black leading-none text-slate-900">{value}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                                            {/* 유형 분포 - 도넛 차트 */}
-                                            <div className="rounded-xl border border-slate-200 bg-white p-2">
-                                                <p className="text-[10px] font-black text-slate-500">유형 분포</p>
-                                                <div className="mt-1.5 flex items-center gap-2">
-                                                    <svg viewBox="0 0 44 44" className="h-11 w-11 shrink-0 -rotate-90" aria-hidden="true">
-                                                        <circle cx="22" cy="22" r="16" fill="none" stroke="#e0e7ff" strokeWidth="9" />
-                                                        <circle cx="22" cy="22" r="16" fill="none" stroke="#6366f1" strokeWidth="9"
-                                                            strokeDasharray={`${previewMetrics.totalWorkers > 0 ? Math.round((previewMetrics.highRiskWorkers / previewMetrics.totalWorkers) * 100) : 25} 100`}
-                                                            strokeDashoffset="0" />
-                                                        <circle cx="22" cy="22" r="16" fill="none" stroke="#f59e0b" strokeWidth="9"
-                                                            strokeDasharray={`${previewMetrics.totalWorkers > 0 ? Math.round((previewMetrics.alertSignals / previewMetrics.totalWorkers) * 100) : 15} 100`}
-                                                            strokeDashoffset={`-${previewMetrics.totalWorkers > 0 ? Math.round((previewMetrics.highRiskWorkers / previewMetrics.totalWorkers) * 100) : 25}`} />
-                                                    </svg>
-                                                    <div className="space-y-0.5 text-[9px] font-bold">
-                                                        <div className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-indigo-400 shrink-0"></span><span className="text-slate-600">보호우선</span></div>
-                                                        <div className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0"></span><span className="text-slate-600">전조경보</span></div>
-                                                        <div className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-indigo-100 shrink-0"></span><span className="text-slate-600">정상</span></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            {/* 전조 패턴 Top5 */}
-                                            <div className="rounded-xl border border-slate-200 bg-white p-2">
-                                                <p className="text-[10px] font-black text-slate-500">전조 패턴 Top5</p>
-                                                <div className="mt-1.5 space-y-1">
-                                                    {topSignalPatterns.map(({ label, pct, color }) => (
-                                                        <div key={label} className="flex items-center gap-1">
-                                                            <p className="w-11 shrink-0 text-[8px] font-bold text-slate-500 truncate leading-tight">{label}</p>
-                                                            <div className="flex-1 rounded bg-slate-100 h-1.5 overflow-hidden">
-                                                                <div className={`h-1.5 rounded ${color}`} style={{ width: `${pct}%` }}></div>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                            {/* 선행 위험신호 지도 */}
-                                            <div className="rounded-xl border border-slate-200 bg-white p-2">
-                                                <p className="text-[10px] font-black text-slate-500">선행 위험신호 지도</p>
-                                                <div className={`relative mt-1.5 h-14 rounded-lg border overflow-hidden ${BRAND_TONE.slateSoft}`}>
-                                                    <div className="absolute inset-0 grid grid-cols-5 grid-rows-3 gap-px p-1.5">
-                                                        {Array.from({ length: 15 }).map((_, i) => (
-                                                            <div key={i} className="rounded-sm bg-slate-200/50"></div>
-                                                        ))}
-                                                    </div>
-                                                    <div className="absolute" style={{ top: '22%', left: '18%' }}>
-                                                        <div className="h-4 w-4 rounded-full bg-rose-400/75 ring-2 ring-rose-200 animate-pulse"></div>
-                                                    </div>
-                                                    <div className="absolute" style={{ top: '50%', left: '55%' }}>
-                                                        <div className="h-3 w-3 rounded-full bg-amber-400/75 ring-2 ring-amber-100"></div>
-                                                    </div>
-                                                    <div className="absolute" style={{ top: '60%', left: '72%' }}>
-                                                        <div className="h-2 w-2 rounded-full bg-sky-400/60"></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
+                            <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                    <div className="inline-flex items-center rounded-full bg-indigo-600 px-3 py-1 text-[10px] font-black text-white">실제 프로그램 기능 연결</div>
+                                    <p className="mt-1.5 text-[10px] font-bold text-slate-500 break-keep">아래 카드는 이미지 목업이 아니라 현재 프로그램의 실제 메뉴와 직접 연결됩니다.</p>
                                 </div>
+                                <p className="text-[10px] font-bold text-slate-500 break-keep">수기 기록 → OCR 분석 → 리포트/교육 → 추적관리</p>
                             </div>
-                            <div className="mt-2.5 flex gap-2">
+                            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                                {actualProgramScreens.map((screen) => (
+                                    <button
+                                        key={screen.label}
+                                        type="button"
+                                        onClick={() => onNavigateToPage(screen.page)}
+                                        className={`rounded-2xl border bg-white px-3 py-3 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${BRAND_TONE.indigoWhite}`}
+                                    >
+                                        <div className="flex items-start justify-between gap-2">
+                                            <p className="text-[12px] font-black leading-tight text-slate-900 break-keep">{screen.label}</p>
+                                            <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-1 text-[8px] font-black text-indigo-700">{screen.stat}</span>
+                                        </div>
+                                        <p className="mt-1.5 text-[10px] font-semibold leading-relaxed text-slate-500 break-keep">{screen.desc}</p>
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
                                 <button
                                     type="button"
                                     onClick={() => onNavigateToPage('dashboard')}
                                     className="rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-black text-white transition duration-200 hover:bg-indigo-500"
                                 >
-                                    PC 대시보드 열기
+                                    현장 안전 관제센터 열기
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => onNavigateToPage('reports')}
+                                    onClick={() => onNavigateToPage('ocr-analysis')}
                                     className={`rounded-xl border px-3 py-2 text-[11px] font-black text-indigo-700 transition duration-200 hover:bg-indigo-50 ${BRAND_TONE.indigoWhite}`}
                                 >
-                                    분석 리포트 열기
+                                    위험성평가 분석 열기
                                 </button>
                             </div>
                         </section>
 
                         <section className={`rounded-3xl border p-3.5 shadow-sm ${BRAND_TONE.indigoSoft70}`}>
-                            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                                <div className="inline-flex items-center rounded-full bg-indigo-500 px-3 py-1 text-[10px] font-black text-white">모바일 현장 실행</div>
+                            <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                    <div className="inline-flex items-center rounded-full bg-indigo-500 px-3 py-1 text-[10px] font-black text-white">모바일 실제 메뉴 흐름</div>
+                                    <p className="mt-1.5 text-[10px] font-bold text-slate-500 break-keep">현재 모바일 하단 탭과 같은 이름으로 구성했습니다.</p>
+                                </div>
                                 <button
                                     type="button"
                                     onClick={() => setShowAllMobileFeatures((prev) => !prev)}
                                     className={`rounded-xl border px-2.5 py-1.5 text-[10px] font-black text-indigo-700 transition duration-200 hover:bg-indigo-50 ${BRAND_TONE.indigoWhite}`}
                                 >
-                                    {showAllMobileFeatures ? '12기능 접기' : '12기능 펼치기'}
+                                    {showAllMobileFeatures ? '기능 점검 접기' : '기능 연결 점검'}
                                 </button>
                             </div>
-                            <div className="relative rounded-2xl border border-indigo-100 bg-white/90 p-3.5">
-                                <div className="grid grid-cols-2 gap-1.5 sm:gap-2 sm:grid-cols-4">
-                                    {heroMobileCards.map(({ title, desc, page }) => {
-                                        const [stepNoRaw, ...restTitleParts] = String(title).split('. ');
-                                        const stepNo = stepNoRaw || '-';
-                                        const stepNoNum = Number(stepNoRaw);
-                                        const stepTitle = restTitleParts.join('. ') || String(title);
-                                        const tone = getStepTone(stepNoNum);
-                                        const status = getCore8CardStatus(stepNoNum);
-                                        const cta = getCore8CardCTA(stepNoNum);
-
-                                        return (
+                            <div className="rounded-2xl border border-indigo-100 bg-white/90 p-3.5">
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
+                                    {actualMobileTabs.map((tabItem, index) => (
+                                        <button
+                                            key={tabItem.label}
+                                            type="button"
+                                            onClick={() => onNavigateToPage(tabItem.page)}
+                                            className="rounded-2xl border border-slate-200 bg-white px-2 py-3 text-center transition duration-200 hover:border-indigo-200 hover:bg-indigo-50"
+                                        >
+                                            <span className="mx-auto flex h-6 w-6 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-black text-indigo-700">{index + 1}</span>
+                                            <p className="mt-1.5 text-[10px] font-black text-slate-800">{tabItem.label}</p>
+                                            <p className="mt-0.5 text-[8px] font-semibold leading-tight text-slate-500 break-keep">{tabItem.desc}</p>
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                    <p className="text-[10px] font-black text-slate-700">현장 핵심 실행 3단계</p>
+                                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                        {actualMobileActions.map((action) => (
                                             <button
-                                                key={`hero-mobile-${title}`}
+                                                key={action.label}
                                                 type="button"
-                                                onClick={() => {
-                                                    if (stepNoNum === 4 && typeof window !== 'undefined') {
-                                                        try {
-                                                            window.localStorage.setItem(DASHBOARD_RISKMAP_FOCUS_KEY, JSON.stringify({
-                                                                target: 'risk-map',
-                                                                requestedAt: new Date().toISOString(),
-                                                            }));
-                                                            window.dispatchEvent(new Event(DASHBOARD_RISKMAP_FOCUS_EVENT));
-                                                        } catch {
-                                                            // ignore localStorage write failures
-                                                        }
-                                                    }
-                                                    onNavigateToPage(page);
-                                                }}
-                                                className={`rounded-2xl border bg-white p-2 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-sm min-h-[86px] sm:min-h-[84px] ${tone.cardBorder}`}
+                                                onClick={() => onNavigateToPage(action.page)}
+                                                className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-left transition duration-200 hover:border-indigo-200 hover:bg-indigo-50"
                                             >
-                                                <p className="text-[10px] font-black text-slate-700 leading-tight">{stepNo}. {stepTitle}</p>
-                                                <div className={`mt-1.5 rounded-xl border border-slate-100 ${tone.panelBg} p-2`}>
-                                                    {stepNoNum === 1 && (
-                                                        <div className="flex gap-1">
-                                                            <div className="flex-1 rounded bg-indigo-100 px-1 py-1 text-center"><p className="text-[8px] font-black text-indigo-700">{previewMetrics.totalWorkers}</p><p className="text-[7px] text-slate-400">전체</p></div>
-                                                            <div className="flex-1 rounded bg-rose-50 px-1 py-1 text-center"><p className="text-[8px] font-black text-rose-600">{previewMetrics.highRiskWorkers}</p><p className="text-[7px] text-slate-400">보호우선</p></div>
-                                                        </div>
-                                                    )}
-                                                    {stepNoNum === 2 && (
-                                                        <div className="space-y-0.5">
-                                                            <div className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-rose-400"></span><p className="text-[8px] font-bold text-slate-600 truncate">긴급 경보 {previewMetrics.alertSignals}건</p></div>
-                                                            <div className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-amber-300"></span><p className="text-[8px] font-bold text-slate-500 truncate">전조 신호 감지</p></div>
-                                                        </div>
-                                                    )}
-                                                    {stepNoNum === 3 && (
-                                                        <div className="space-y-0.5">
-                                                            <div className="flex items-center justify-between"><p className="text-[8px] font-bold text-slate-500">위험도</p><div className="flex gap-0.5">{[1,2,3,4,5].map(i => <div key={i} className={`h-1.5 w-2 rounded-sm ${i <= 3 ? 'bg-amber-400' : 'bg-slate-200'}`}></div>)}</div></div>
-                                                            <div className="h-1 rounded bg-slate-200 overflow-hidden"><div className="h-1 rounded bg-indigo-400" style={{ width: '65%' }}></div></div>
-                                                        </div>
-                                                    )}
-                                                    {stepNoNum === 4 && (
-                                                        <div className="space-y-1">
-                                                            <div className={`relative h-6 rounded border overflow-hidden ${BRAND_TONE.slateSoft}`}>
-                                                                <div className="absolute inset-0 grid grid-cols-4 grid-rows-2 gap-px p-1">
-                                                                    {Array.from({ length: 8 }).map((_, i) => (
-                                                                        <div key={i} className="rounded-sm bg-slate-200/60"></div>
-                                                                    ))}
-                                                                </div>
-                                                                <div className="absolute left-[20%] top-[35%] h-2 w-2 rounded-full bg-rose-400/80"></div>
-                                                                <div className="absolute left-[58%] top-[50%] h-1.5 w-1.5 rounded-full bg-amber-400/80"></div>
-                                                            </div>
-                                                            <p className="text-[8px] font-bold text-rose-600">위험 지도 핫스팟</p>
-                                                        </div>
-                                                    )}
-                                                    {stepNoNum === 5 && (
-                                                        <div className="space-y-0.5">
-                                                            <div className="h-1.5 rounded bg-slate-200 w-full"></div>
-                                                            <div className="h-1.5 rounded bg-emerald-100 w-3/4"></div>
-                                                            <p className="text-[8px] font-black text-emerald-600">저장 대기</p>
-                                                        </div>
-                                                    )}
-                                                    {stepNoNum === 6 && (
-                                                        <div className="flex items-end gap-0.5 h-7">
-                                                            {[60,80,50,90,70].map((h, i) => (
-                                                                <div key={i} className="flex-1 rounded-sm bg-indigo-200" style={{ height: `${h}%` }}></div>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                    {stepNoNum === 7 && (
-                                                        <div className="flex items-center gap-2">
-                                                            <p className="text-base font-black text-amber-600">{previewMetrics.interventionTargets}</p>
-                                                            <div className="flex-1">
-                                                                <div className="h-1.5 rounded bg-amber-100 overflow-hidden"><div className="h-1.5 rounded bg-amber-400" style={{ width: `${previewMetrics.totalWorkers > 0 ? Math.round((previewMetrics.interventionTargets / previewMetrics.totalWorkers) * 100) : 30}%` }}></div></div>
-                                                                <p className="text-[8px] text-slate-400 mt-0.5">예측 대상</p>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                    {stepNoNum === 8 && (
-                                                        <div className="space-y-0.5">
-                                                            <div className="rounded bg-amber-400 px-1 py-0.5 text-center"><p className="text-[8px] font-black text-white">개입 시작</p></div>
-                                                            <p className={`text-[8px] font-black ${tone.descText}`}>{desc}</p>
-                                                        </div>
-                                                    )}
-                                                    {stepNoNum === 9 && (
-                                                        <div className="space-y-0.5">
-                                                            <div className="flex items-center justify-between">
-                                                                <p className="text-[8px] font-bold text-slate-500">사례 기록</p>
-                                                                <span className="text-[7px] font-black text-emerald-600">태깅</span>
-                                                            </div>
-                                                            <div className="h-1.5 rounded bg-slate-200"></div>
-                                                            <div className="h-1.5 rounded bg-emerald-100 w-4/5"></div>
-                                                        </div>
-                                                    )}
-                                                    {stepNoNum === 10 && (
-                                                        <div className="space-y-0.5">
-                                                            <div className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-violet-400"></span><p className="text-[8px] font-bold text-violet-700">AI 결과 검증</p></div>
-                                                            <div className="flex gap-0.5">
-                                                                <div className="flex-1 rounded bg-violet-100 px-1 py-0.5 text-center text-[7px] font-black text-violet-700">PASS</div>
-                                                                <div className="flex-1 rounded bg-rose-50 px-1 py-0.5 text-center text-[7px] font-black text-rose-500">이슈</div>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                    {stepNoNum === 11 && (
-                                                        <div className="space-y-0.5">
-                                                            <div className="flex items-end gap-0.5 h-5">
-                                                                {[45, 60, 52, 78].map((height, idx) => (
-                                                                    <div key={idx} className="flex-1 rounded-sm bg-indigo-200" style={{ height: `${height}%` }}></div>
-                                                                ))}
-                                                            </div>
-                                                            <p className="text-[8px] font-black text-indigo-700">주간 리포트</p>
-                                                        </div>
-                                                    )}
-                                                    {stepNoNum === 12 && (
-                                                        <div className="space-y-0.5">
-                                                            <div className="flex items-center justify-between text-[7px] font-bold text-slate-500">
-                                                                <span>테마</span><span>다국어</span><span>권한</span>
-                                                            </div>
-                                                            <div className="h-1.5 rounded bg-slate-200"></div>
-                                                            <div className="h-1.5 rounded bg-indigo-100 w-2/3"></div>
-                                                        </div>
-                                                    )}
-                                                    {(stepNoNum < 1 || stepNoNum > 12) && (
-                                                        <div className="space-y-1">
-                                                            <div className="h-1.5 rounded bg-slate-200"></div>
-                                                            <p className={`text-[9px] font-black ${tone.descText}`}>{desc}</p>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="mt-1.5 flex items-center justify-between gap-1.5">
-                                                    <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-black ${status.tone}`}>
-                                                        {status.label}
-                                                    </span>
-                                                    <span className="text-[8px] font-black text-slate-600">{cta}</span>
-                                                </div>
+                                                <p className="text-[10px] font-black text-indigo-700">{action.label}</p>
+                                                <p className="mt-0.5 text-[8px] font-semibold leading-tight text-slate-500 break-keep">{action.desc}</p>
                                             </button>
-                                        );
-                                    })}
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
-                            <div className="mt-2.5 rounded-2xl border border-indigo-100 bg-white/90 p-2.5">
-                                {!showAllMobileFeatures ? (
-                                    <div className={`rounded-xl border px-2.5 py-2 ${BRAND_TONE.slate}`}>
-                                        <p className="text-[10px] font-black text-slate-700">8코어 중심 미리보기 모드</p>
-                                        <p className="mt-0.5 text-[8px] font-semibold text-slate-500">상단 버튼으로 12기능 전체 QA/런로그를 펼쳐 확인할 수 있습니다.</p>
-                                        <div className="mt-1.5 flex items-center gap-1.5 text-[8px] font-black">
+                            {showAllMobileFeatures && (
+                                <div className="mt-2.5 rounded-2xl border border-indigo-100 bg-white/90 p-2.5">
+                                    {mobileFeatureValidation.hasWarnings ? (
+                                        <div className={`mb-2 rounded-xl border px-2.5 py-2 ${BRAND_TONE.amber}`}>
+                                            <p className="text-[9px] font-black text-amber-700">기능 점검 · 확인 필요 {mobileFeatureValidation.warnItems}건</p>
+                                            <p className="mt-0.5 text-[8px] font-semibold text-amber-700/90">현장 데이터 대기 항목이 있어 실제 운영 데이터가 쌓이면 자동으로 갱신됩니다.</p>
+                                        </div>
+                                    ) : (
+                                        <div className={`mb-2 rounded-xl border px-2.5 py-2 ${BRAND_TONE.emerald}`}>
+                                            <p className="text-[9px] font-black text-emerald-700">기능 점검 · 연결 상태 정상</p>
+                                        </div>
+                                    )}
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <p className="text-[10px] font-black text-indigo-700">기능 연결 상태</p>
+                                        <div className="flex items-center gap-1.5 text-[8px] font-black">
                                             <span className={`rounded-full px-1.5 py-0.5 ${mobileFeatureValidation.allConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                                                 연결 {mobileFeatureValidation.connected}/{mobileFeatureValidation.total}
                                             </span>
@@ -1128,63 +983,27 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                             </span>
                                         </div>
                                     </div>
-                                ) : (
-                                    <>
-                                        {mobileFeatureValidation.hasWarnings ? (
-                                            <div className={`mb-2 rounded-xl border px-2.5 py-2 ${BRAND_TONE.amber}`}>
-                                                <p className="text-[9px] font-black text-amber-700">QA 경보 모드 · 검증 필요 {mobileFeatureValidation.warnItems}건</p>
-                                                <p className="mt-0.5 text-[8px] font-semibold text-amber-700/90">현장 데이터 대기 또는 미연결 항목이 있어 런타임 점검이 필요합니다.</p>
-                                                <p className="mt-1 text-[8px] font-semibold text-amber-800/90">
-                                                    경고 항목 카드를 누르면 해당 기능 화면으로 바로 이동합니다.
-                                                </p>
-                                            </div>
-                                        ) : (
-                                            <div className={`mb-2 rounded-xl border px-2.5 py-2 ${BRAND_TONE.emerald}`}>
-                                                <p className="text-[9px] font-black text-emerald-700">QA 정상 모드 · 12개 구성 연결 및 데이터 확인 완료</p>
-                                            </div>
-                                        )}
-                                        <div className={`mb-2 flex flex-wrap items-center justify-between gap-1 rounded-lg border px-2 py-1.5 ${BRAND_TONE.slate}`}>
-                                            <p className="text-[8px] font-black text-slate-600">QA RUNLOG</p>
-                                            <p className="text-[8px] font-semibold text-slate-500">
-                                                최근 점검 {qaAlertRunlog.length}회
-                                                {qaAlertRunlog[0]
-                                                    ? ` · 최신 ${qaAlertRunlog[0].hasWarnings ? `경고 ${qaAlertRunlog[0].warnItems}건` : '정상'}`
-                                                    : ''}
-                                            </p>
-                                        </div>
-                                        <div className="flex flex-wrap items-center justify-between gap-2">
-                                            <p className="text-[10px] font-black tracking-[0.12em] text-indigo-700">12 SCREEN FEATURE CHECK</p>
-                                            <div className="flex items-center gap-1.5 text-[8px] font-black">
-                                                <span className={`rounded-full px-1.5 py-0.5 ${mobileFeatureValidation.allConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                                                    연결 {mobileFeatureValidation.connected}/{mobileFeatureValidation.total}
-                                                </span>
-                                                <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-indigo-700">
-                                                    데이터 {mobileFeatureValidation.dataReady}/{mobileFeatureValidation.total}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                                            {mobileFeatureChecklist.map((item) => (
-                                                <button
-                                                    key={item.title}
-                                                    type="button"
-                                                    onClick={() => onNavigateToPage(item.page)}
-                                                    className={`rounded-xl border px-2 py-1.5 ${item.state !== '연결됨' || item.dataState !== '데이터확인' ? BRAND_TONE.amberSoft70 : BRAND_TONE.slate}`}
-                                                >
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <p className="text-[9px] font-black text-slate-700 leading-tight">{item.title}</p>
-                                                        <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-black ${item.state === '연결됨' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{item.state}</span>
-                                                    </div>
-                                                    <div className="mt-0.5 flex items-center justify-between gap-2">
-                                                        <p className="text-[8px] font-semibold text-slate-500 leading-tight">{item.feature}</p>
-                                                        <span className={`rounded-full px-1.5 py-0.5 text-[7px] font-black ${item.dataState === '데이터확인' ? 'bg-sky-100 text-sky-700' : 'bg-slate-200 text-slate-600'}`}>{item.dataState}</span>
-                                                    </div>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </>
-                                )}
-                            </div>
+                                    <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                        {mobileFeatureChecklist.map((item) => (
+                                            <button
+                                                key={item.title}
+                                                type="button"
+                                                onClick={() => onNavigateToPage(item.page)}
+                                                className={`rounded-xl border px-2 py-1.5 text-left ${item.state !== '연결됨' || item.dataState !== '데이터확인' ? BRAND_TONE.amberSoft70 : BRAND_TONE.slate}`}
+                                            >
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <p className="text-[9px] font-black text-slate-700 leading-tight">{item.title}</p>
+                                                    <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-black ${item.state === '연결됨' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{item.state}</span>
+                                                </div>
+                                                <div className="mt-0.5 flex items-center justify-between gap-2">
+                                                    <p className="text-[8px] font-semibold text-slate-500 leading-tight">{item.feature}</p>
+                                                    <span className={`rounded-full px-1.5 py-0.5 text-[7px] font-black ${item.dataState === '데이터확인' ? 'bg-sky-100 text-sky-700' : 'bg-slate-200 text-slate-600'}`}>{item.dataState}</span>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </section>
                     </div>
 
