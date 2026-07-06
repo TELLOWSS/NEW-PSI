@@ -875,6 +875,144 @@ const parseJsonObjectFromText = (rawText: string): Record<string, unknown> | nul
     }
 };
 
+export const isGenericSlogan = (text: string): boolean => {
+    const clean = text.replace(/\s+/g, '');
+    if (clean.length === 0) return true;
+    if (clean.length <= 4) {
+        return /조심|주의|준수|확인|착용|체결|철저|안전|제일|열심히|잘하|대비|단속/.test(clean);
+    }
+    const sloganPatterns = [
+        /안전제일/,
+        /안전\s*수칙\s*준수/,
+        /안전\s*수칙/,
+        /조심하겠/,
+        /주의하겠/,
+        /열심히\s*하겠/,
+        /잘\s*하겠/,
+        /준수하겠/,
+        /확인하겠/
+    ];
+    return sloganPatterns.some(pattern => pattern.test(clean)) && clean.length <= 12;
+};
+
+export const calibrateScoreBreakdown = (
+    breakdown: NormalizedScoreBreakdown,
+    handwrittenAnswers: unknown[],
+): { breakdown: NormalizedScoreBreakdown; reasoning: string[] } => {
+    const calibrated = { ...breakdown };
+    const reasoning: string[] = [];
+
+    const answers = Array.isArray(handwrittenAnswers) ? handwrittenAnswers : [];
+    const getAnswerText = (qNum: string): string => {
+        const found = answers.find(a => a && typeof a === 'object' && String((a as any).questionNumber) === qNum);
+        return found ? String((found as any).koreanTranslation || (found as any).answerText || '').trim() : '';
+    };
+
+    const q1 = getAnswerText('1');
+    const q2 = getAnswerText('2');
+    const q3 = getAnswerText('3');
+    const q4 = getAnswerText('4');
+    const q5 = getAnswerText('5');
+
+    const totalLength = (q1 + q2 + q3 + q4 + q5).replace(/\s+/g, '').length;
+
+    // ① 응답 충실도 (psychological, max 10)
+    const answeredCount = [q1, q2, q3, q4, q5].filter(Boolean).length;
+    const sloganCount = [q1, q2, q3, q4, q5].filter(q => q && isGenericSlogan(q)).length;
+
+    if (totalLength === 0) {
+        calibrated.psychological = 0;
+        reasoning.push('응답이 작성되지 않아 응답 충실도 0점 처리');
+    } else if (totalLength <= 5) {
+        calibrated.psychological = Math.min(2, calibrated.psychological);
+        reasoning.push('응답 글자 수가 너무 짧아(5자 이하) 응답 충실도 감점 적용');
+    } else if (totalLength <= 15) {
+        calibrated.psychological = Math.min(5, calibrated.psychological);
+        reasoning.push('응답 글자 수가 짧아(15자 이하) 응답 충실도 감점 적용');
+    } else if (answeredCount > 0 && sloganCount >= 3) {
+        calibrated.psychological = Math.min(4, calibrated.psychological);
+        reasoning.push('대부분의 문항에 형식적인 상투어구가 기재되어 응답 충실도 감점 적용');
+    }
+
+    // ② 업무이해도 (jobUnderstanding, max 20)
+    if (!q1) {
+        calibrated.jobUnderstanding = 0;
+        reasoning.push('Q1(세부작업) 미작성으로 업무이해도 0점 처리');
+    } else if (isGenericSlogan(q1)) {
+        calibrated.jobUnderstanding = Math.min(5, calibrated.jobUnderstanding);
+        reasoning.push('Q1(세부작업)에 상투어 또는 추상적 구호가 사용되어 업무이해도 감점 적용');
+    }
+
+    // ③ 위험성평가 이해도 (riskAssessmentUnderstanding, max 20)
+    const q23Combined = q2 + q3;
+    if (!q2 && !q3) {
+        calibrated.riskAssessmentUnderstanding = 0;
+        reasoning.push('Q2(위험요인) 및 Q3(위험수준) 미작성으로 위험성평가 이해도 0점 처리');
+    } else if (q23Combined.replace(/\s+/g, '').length <= 4) {
+        calibrated.riskAssessmentUnderstanding = Math.min(5, calibrated.riskAssessmentUnderstanding);
+        reasoning.push('Q2, Q3 위험 분석이 부실하여 위험성평가 이해도 감점 적용');
+    } else if (isGenericSlogan(q2) || isGenericSlogan(q3)) {
+        calibrated.riskAssessmentUnderstanding = Math.min(8, calibrated.riskAssessmentUnderstanding);
+        reasoning.push('위험요인 분석에 상투어구가 사용되어 위험성평가 이해도 감점 적용');
+    }
+
+    // ④ 숙련도 (proficiency, max 30) - Q4 기반
+    if (!q4) {
+        calibrated.proficiency = 0;
+        reasoning.push('Q4(감소대책) 미작성으로 숙련도 0점 처리');
+    } else if (isGenericSlogan(q4)) {
+        calibrated.proficiency = Math.min(5, calibrated.proficiency);
+        reasoning.push('Q4(감소대책)에 형식적인 구호가 기재되어 숙련도 감점 적용');
+    } else {
+        const hasMeasurable = /[0-9]+(m|cm|kg|t|V|Volt|%|개|번|회|도|초|분|시간|인|명|대)/i.test(q4) || /줄걸이|고리|체결|안전고리|안전벨트/.test(q4);
+        const hasProcessSteps = /확인\s*후|작업\s*(시|전|후)|확인하고|배치하고/.test(q4);
+
+        if (hasMeasurable) {
+            calibrated.proficiency = Math.max(24, calibrated.proficiency);
+        } else if (hasProcessSteps) {
+            calibrated.proficiency = Math.max(16, Math.min(23, calibrated.proficiency));
+        } else {
+            calibrated.proficiency = Math.min(15, calibrated.proficiency);
+        }
+    }
+
+    // ⑤ 개선이행도 (improvementExecution, max 20) - Q5 기반
+    if (!q5) {
+        calibrated.improvementExecution = 0;
+        reasoning.push('Q5(실천행동) 미작성으로 개선이행도 0점 처리');
+    } else if (isGenericSlogan(q5)) {
+        calibrated.improvementExecution = Math.min(5, calibrated.improvementExecution);
+        reasoning.push('Q5(실천행동)에 형식적 구호가 기재되어 개선이행도 감점 적용');
+    } else {
+        const hasTimeAndWho = /전|후|시작|종료|내가|내가\s*직접|팀원|신호수|확인/.test(q5);
+        if (hasTimeAndWho) {
+            calibrated.improvementExecution = Math.max(14, calibrated.improvementExecution);
+        } else {
+            calibrated.improvementExecution = Math.min(13, calibrated.improvementExecution);
+        }
+    }
+
+    // ⑥ 반복위반 패널티 (repeatViolationPenalty, max 30) - 감점항목
+    let matchCount = 0;
+    const combinedText = (q1 + ' ' + q2 + ' ' + q3 + ' ' + q4 + ' ' + q5).replace(/\s+/g, '');
+    const fillerWords = [/조심하겠/g, /주의하겠/g, /안전제일/g, /준수하겠/g, /확인하겠/g, /열심히하겠/g, /안전수칙/g];
+
+    fillerWords.forEach(regex => {
+        const matches = combinedText.match(regex);
+        if (matches && matches.length >= 2) {
+            matchCount += (matches.length - 1);
+        }
+    });
+
+    const calculatedPenalty = Math.min(30, matchCount * 6);
+    if (calculatedPenalty > 0 && calculatedPenalty > calibrated.repeatViolationPenalty) {
+        calibrated.repeatViolationPenalty = calculatedPenalty;
+        reasoning.push(`상투적인 안전 표현의 반복 사용으로 인한 패널티 적용 (-${calculatedPenalty}점)`);
+    }
+
+    return { breakdown: calibrated, reasoning };
+};
+
 const clampScore = (value: unknown, fallback = 0): number => {
     const numeric = typeof value === 'number' ? value : Number(value);
     if (!Number.isFinite(numeric)) return Math.max(0, Math.min(100, Math.round(fallback)));
@@ -925,11 +1063,14 @@ const computeScoreFromBreakdown = (breakdown: NormalizedScoreBreakdown): number 
     return clampScore(total, 0);
 };
 
-const enforceBreakdownDrivenScore = (
+
+
+export const enforceBreakdownDrivenScore = (
     scoreInput: unknown,
     levelInput: unknown,
     reasoningInput: unknown,
     breakdownInput: unknown,
+    handwrittenAnswers: unknown,
     fallbackScore: number,
 ): { safetyScore: number; safetyLevel: WorkerRecord['safetyLevel']; scoreReasoning: string[]; scoreBreakdown?: NormalizedScoreBreakdown } => {
     const normalizedBreakdown = normalizeScoreBreakdown(breakdownInput);
@@ -942,11 +1083,15 @@ const enforceBreakdownDrivenScore = (
         };
     }
 
-    const breakdownScore = computeScoreFromBreakdown(normalizedBreakdown);
-    const reasons = [...firstPass.scoreReasoning];
+    const answersArray = Array.isArray(handwrittenAnswers) ? handwrittenAnswers : [];
+    const calibrationResult = calibrateScoreBreakdown(normalizedBreakdown, answersArray);
+    const calibratedBreakdown = calibrationResult.breakdown;
+
+    const breakdownScore = computeScoreFromBreakdown(calibratedBreakdown);
+    const reasons = [...firstPass.scoreReasoning, ...calibrationResult.reasoning];
     const scoreGap = Math.abs(firstPass.safetyScore - breakdownScore);
 
-    if (scoreGap >= 2) {
+    if (scoreGap >= 2 && calibrationResult.reasoning.length === 0) {
         reasons.push(`6대 지표 합산 정합성 검증에 따라 점수를 ${breakdownScore}점으로 보정함`);
     }
 
@@ -959,7 +1104,7 @@ const enforceBreakdownDrivenScore = (
 
     return {
         ...finalized,
-        scoreBreakdown: normalizedBreakdown,
+        scoreBreakdown: calibratedBreakdown,
     };
 };
 
@@ -1537,6 +1682,7 @@ async function callGeminiWithRetry(
                             r['safetyLevel'],
                             r['scoreReasoning'],
                             r['scoreBreakdown'],
+                            r['handwrittenAnswers'],
                             0
                         );
                         const safetyScore = normalizedScoreAndLevel.safetyScore;
@@ -1906,6 +2052,7 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
                         parsed['safetyLevel'],
                         parsed['scoreReasoning'],
                         parsed['scoreBreakdown'],
+                        record.handwrittenAnswers,
                         record.safetyScore
                     );
 
