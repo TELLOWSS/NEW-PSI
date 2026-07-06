@@ -131,6 +131,24 @@ const SAFETY_SIGNS: SafetySignData[] = [
     }
 ];
 
+const getMatchedRiskKeyword = (sign: SafetySignData, weakAreas: string[], jobField: string, nationality: string, language?: string): string => {
+    const code = getReportLanguagePolicy(nationality, language).code;
+    const isMyanmar = code === 'my';
+    const isKorean = code === 'ko';
+    
+    const fallbackLabels = {
+        fall: { ko: '고소 작업 / 추락 위험', my: 'အမြင့်လုပ်ငန်း / ပြုတ်ကျမှု', en: 'High Work / Fall Risk' },
+        electric: { ko: '전선 접촉 / 감전 위험', my: 'လျှပ်စစ်ကြိုး / ဓာတ်လိုက်မှု', en: 'Electric / Shock Risk' },
+        safety_belt: { ko: '안전대 체결 미흡', my: 'ခါးပတ်မပတ်ခြင်း', en: 'No Safety Belt' },
+        helmet: { ko: '안전모 미착용 위험', my: 'ဦးထုပ်မဆောင်းခြင်း', en: 'No Hard Hat' },
+        fire: { ko: '화기 사용 / 화재 위험', my: 'မီးအသုံးပြုမှု / မီးဘေး', en: 'Hot Work / Fire Risk' },
+        default_safety: { ko: '기본 안전 수칙 준수', my: 'အခြေခံစည်းကမ်းများ', en: 'General Safety Rule' }
+    };
+
+    const targetLabel = fallbackLabels[sign.id] || fallbackLabels.default_safety;
+    return isKorean ? targetLabel.ko : (isMyanmar ? targetLabel.my : targetLabel.en);
+};
+
 const getRelevantSigns = (weakAreas: string[], jobField: string): SafetySignData[] => {
     const safeWeak = Array.isArray(weakAreas) ? weakAreas.join(' ') : '';
     const safeJob = jobField || '';
@@ -398,6 +416,17 @@ const stageLabelMap: Record<string, string> = {
     reassessment: '재평가',
 };
 
+const isSystemLog = (text: string): boolean => {
+    const lower = text.toLowerCase();
+    const systemKeywords = [
+        'schema', 'cache', 'public.', 'table', 'error', 'exception', 'supabase', 
+        'database', 'sql', 'postgres', 'network', 'ocr 후처리', '날짜 형식', '표준화',
+        'harness', 'api', 'http', 'status', 'token', 'calibration', '보정', '이동', '이력',
+        'could not find', 'not found', 'null', 'undefined', 'uncaught', 'failed'
+    ];
+    return systemKeywords.some(k => lower.includes(k));
+};
+
 const hasAuditSpecialSignal = (note: string): boolean => {
     return /(특이|위반|미준수|반려|재작업|재교육|오류|불일치|경고|누락|불량|지연|사고|재해|감점|패널티|시정|조치 필요)/i.test(note);
 };
@@ -412,7 +441,11 @@ const getAuditSpecialRecommendations = (record: WorkerRecord): string[] => {
         .reverse();
 
     const specials = recentWithNote
-        .filter((entry) => entry.stage !== 'ocr' || hasAuditSpecialSignal(normalizeNarrativeText(entry.note)))
+        .filter((entry) => {
+            const note = normalizeNarrativeText(entry.note);
+            if (isSystemLog(note)) return false;
+            return entry.stage !== 'ocr' || hasAuditSpecialSignal(note);
+        })
         .slice(0, 2)
         .map((entry) => {
             const rawNote = normalizeNarrativeText(entry.note);
@@ -1384,7 +1417,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                             <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0"></span>
                                             {labels.pictogram}
                                         </h3>
-                                        <div className="grid h-full min-h-0 grid-cols-2 grid-rows-2 gap-1">
+                                        <div className="grid h-full min-h-0 grid-cols-2 gap-1.5">
                                             {safetySigns.map((sign, i) => (
                                                 <div key={i} className="border border-slate-200 rounded bg-slate-50 flex flex-col items-center justify-center p-1 text-center relative overflow-hidden min-h-0">
                                                     <div className="flex h-10 w-10 items-center justify-center mb-0.5 shrink-0">
@@ -1393,6 +1426,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                                         </svg>
                                                     </div>
                                                     <p className="text-[7px] font-black text-slate-900 leading-tight break-keep">{sign.labels.ko}</p>
+                                                    <p className="text-[5.5px] text-rose-500 font-bold mt-0.5 truncate leading-none">
+                                                        [연계위험] {getMatchedRiskKeyword(sign, record.weakAreas || [], record.jobField || '', record.nationality, record.language)}
+                                                    </p>
                                                     <div className={`absolute top-0 right-0 w-2 h-2 ${sign.type === 'warning' ? 'bg-yellow-400' : 'bg-blue-600'} rounded-bl`}></div>
                                                 </div>
                                             ))}
@@ -1495,7 +1531,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                             <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0"></span>
                                             {labels.pictogram}
                                         </h3>
-                                        <div className="grid flex-1 min-h-0 grid-cols-2 grid-rows-2 items-stretch gap-1.5">
+                                        <div className="grid flex-1 min-h-0 grid-cols-2 items-stretch gap-1.5">
                                             {safetySigns.map((sign, i) => (
                                                 <div key={i} className="border border-slate-200 rounded bg-slate-50 h-full min-h-0 flex flex-col items-center justify-center p-1 text-center relative overflow-hidden">
                                                     <div className="flex h-10 w-10 items-center justify-center mb-0.5 shrink-0">
@@ -1504,6 +1540,10 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                                         </svg>
                                                     </div>
                                                     <p className="text-[6.8px] font-black text-slate-900 leading-tight break-keep">{getSignLabel(sign, record.nationality, record.language)}</p>
+                                                    <p className="text-[5.5px] text-rose-500 font-bold mt-0.5 truncate leading-none">
+                                                        {getReportLanguagePolicy(record.nationality, record.language).code === 'my' ? '[ဆက်စပ်အန္တရာယ်] ' : '[Risk] '}
+                                                        {getMatchedRiskKeyword(sign, record.weakAreas || [], record.jobField || '', record.nationality, record.language)}
+                                                    </p>
                                                     <div className={`absolute top-0 right-0 w-2 h-2 ${sign.type === 'warning' ? 'bg-yellow-400' : 'bg-blue-600'} rounded-bl`}></div>
                                                 </div>
                                             ))}
@@ -1550,174 +1590,194 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         </div>
                     </div>
 
-                    {/* ── 메인 레이아웃: 상단 2열 + 하단 강점/개선 2열 ── */}
-                    <div className="flex-1 min-h-0 flex flex-col gap-2 overflow-hidden">
-                        <div className="grid min-h-0 flex-1 grid-cols-[1.6fr_1fr] gap-2 overflow-hidden">
-                            <div className="min-h-0 rounded-2xl border border-slate-200 bg-slate-50/55 p-2.5 shadow-sm overflow-hidden flex flex-col gap-1.5">
-                                <div className="flex items-center justify-between gap-2">
-                                    <h3 className="text-[9px] font-black tracking-[0.12em] text-slate-700 flex items-center gap-1">
+                    {/* ── 메인 레이아웃: 종적 3개 세션 (Row-based Flow) ── */}
+                    <div className="flex-1 min-h-0 flex flex-col gap-2.5 overflow-hidden">
+                        
+                        {/* [세션 1] AI 종합 안전 진단 (가로 전체) */}
+                        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm shrink-0">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 mb-2">
+                                <h3 className="text-[9.5px] font-black tracking-[0.12em] text-slate-800 flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 shrink-0"></span>
+                                    {labels.verdict}
+                                </h3>
+                                <span className="rounded-full border border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[7px] font-black text-indigo-700">양면 연쇄 상세 해설</span>
+                            </div>
+                            <div className="space-y-1.5">
+                                {!isKorean && verdictNativeParagraphs.length > 0 ? (
+                                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                                        <p className="text-[7.8px] font-bold leading-[1.6] text-slate-800 whitespace-pre-line">
+                                            <HighlightedText text={verdictNativeParagraphs[0]} />
+                                        </p>
+                                    </div>
+                                ) : null}
+                                {verdictKoParagraphs.length > 0 ? (
+                                    <div className={`rounded-xl border px-3 py-2 ${!isKorean && verdictNativeParagraphs.length > 0 ? 'border-slate-100 bg-slate-100/50' : 'border-slate-100 bg-slate-50'}`}>
+                                        {verdictKoParagraphs.slice(0, 2).map((para, i) => (
+                                            <p key={`verdict-detail-${i}`} className={`leading-[1.45] whitespace-pre-line break-words ${!isKorean && verdictNativeParagraphs.length > 0 ? 'text-[7.2px] text-slate-500 mt-1 first:mt-0' : 'text-[7.8px] text-slate-700'}`}>
+                                                {!isKorean && verdictNativeParagraphs.length > 0 ? <span className="font-black text-slate-400">[KO] </span> : null}
+                                                <HighlightedText text={para} />
+                                            </p>
+                                        ))}
+                                    </div>
+                                ) : null}
+                            </div>
+                        </div>
+
+                        {/* [세션 2] 상세 품질 및 6대 지표 (좌우 분할) */}
+                        <div className="grid grid-cols-[1.2fr_1fr] gap-2.5 min-h-0 h-[62mm] shrink-0">
+                            {/* 좌측: 6대 지표 상세 */}
+                            <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm flex flex-col justify-between overflow-hidden">
+                                <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 mb-2 shrink-0">
+                                    <h4 className="text-[9.5px] font-black tracking-[0.1em] text-slate-800">6대 지표 상세</h4>
+                                    <span className="text-[7px] font-bold text-slate-400">전면 레이더맵 대응 세부 점수</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-x-3 gap-y-2 flex-1 items-center">
+                                    {backSixMetricRows.map((metric) => {
+                                        const ratio = metric.max > 0 ? metric.value / metric.max : 0;
+                                        const barColor = metric.isPenalty ? 'bg-rose-400' : 'bg-indigo-500';
+                                        const scoreText = metric.isPenalty ? `-${metric.value}` : `${metric.value}`;
+                                        return (
+                                            <div key={metric.key} className="min-w-0">
+                                                <p className={`font-black text-slate-700 truncate block ${!isKorean ? 'text-[7.2px] leading-normal' : 'text-[7.5px] leading-tight'}`}>{isKorean ? metric.ko : metric.native}</p>
+                                                <p className="text-[6.3px] text-slate-400 leading-tight truncate block">{isKorean ? '' : `[KO] ${metric.ko}`}</p>
+                                                <div className="mt-1 flex items-center gap-1.5">
+                                                    <div className="h-2 flex-1 rounded-full bg-slate-200 overflow-hidden">
+                                                        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.max(0, Math.min(100, ratio * 100))}%` }} />
+                                                    </div>
+                                                    <span className={`text-[7px] font-black ${metric.isPenalty ? 'text-rose-600' : 'text-indigo-700'}`}>{scoreText}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* 우측: 상세 품질 판단 근거 */}
+                            <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm flex flex-col overflow-hidden">
+                                <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 mb-2 shrink-0">
+                                    <h3 className="text-[9.5px] font-black tracking-[0.12em] text-slate-800 flex items-center gap-1.5">
                                         <SectionSearchIcon />
                                         상세 품질 판단 근거
                                     </h3>
                                     <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[7px] font-black text-slate-500">검증용 상세 기술</span>
                                 </div>
-
-                                <div className="rounded-xl border border-slate-200 bg-white px-2 py-1.5 space-y-0.5">
-                                    {scoreReasonEntries.slice(0, 2).map((entry, i) => (
-                                        <div key={`score-reason-back-${i}`} className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-1">
+                                <div className="flex-1 overflow-y-auto space-y-1.5 custom-scrollbar pr-1">
+                                    {scoreReasonEntries.slice(0, 3).map((entry, i) => (
+                                        <div key={`score-reason-back-${i}`} className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-1.5">
                                             {!isKorean && entry.nativeText ? (
-                                                <p className="text-[7px] font-bold leading-[1.55] text-slate-700 break-words" style={createLineClampStyle(4)}>{entry.nativeText}</p>
+                                                <p className="text-[7.5px] font-bold leading-[1.55] text-slate-700 break-words">{entry.nativeText}</p>
                                             ) : null}
-                                            <p className={`leading-[1.32] break-words ${!isKorean && entry.nativeText ? 'text-[6.5px] text-slate-500 mt-0.5' : 'text-[7px] text-slate-700'}`} style={createLineClampStyle(4)}>
+                                            <p className={`leading-[1.4] break-words ${!isKorean && entry.nativeText ? 'text-[6.8px] text-slate-500 mt-1' : 'text-[7.5px] text-slate-700'}`}>
                                                 {!isKorean && entry.nativeText ? <span className="font-black text-slate-300">[KO] </span> : null}
                                                 <HighlightedText text={entry.text} />
                                             </p>
                                         </div>
                                     ))}
                                 </div>
-
-                                <div className="rounded-xl border border-indigo-100 bg-white px-2 py-1.5 space-y-1">
-                                    <div className="flex items-center justify-between">
-                                        <h4 className="text-[8px] font-black tracking-[0.1em] text-slate-700 uppercase">6대 지표 상세</h4>
-                                        <span className="text-[7px] font-bold text-slate-400">전면 레이더맵에 대응</span>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-x-2 gap-y-1">
-                                        {backSixMetricRows.map((metric) => {
-                                            const ratio = metric.max > 0 ? metric.value / metric.max : 0;
-                                            const barColor = metric.isPenalty ? 'bg-rose-400' : 'bg-indigo-500';
-                                            const scoreText = metric.isPenalty ? `-${metric.value}` : `${metric.value}`;
-                                            return (
-                                                <div key={metric.key} className="min-w-0">
-                                                    <p className={`font-black text-slate-700 truncate block ${!isKorean ? 'text-[6.5px] leading-normal' : 'text-[6.8px] leading-tight'}`}>{isKorean ? metric.ko : metric.native}</p>
-                                                    <p className="text-[6.1px] text-slate-400 leading-tight truncate block">{isKorean ? '' : `[KO] ${metric.ko}`}</p>
-                                                    <div className="mt-0.5 flex items-center gap-1">
-                                                        <div className="h-1.5 flex-1 rounded-full bg-slate-200 overflow-hidden">
-                                                            <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.max(0, Math.min(100, ratio * 100))}%` }} />
-                                                        </div>
-                                                        <span className={`text-[6.5px] font-black ${metric.isPenalty ? 'text-rose-600' : 'text-indigo-700'}`}>{scoreText}</span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-
-                                <div className="flex-1 min-h-0 rounded-xl border border-slate-200 bg-white px-2 py-1.5 overflow-hidden">
-                                    <div className="flex items-center justify-between">
-                                        <h4 className="text-[8px] font-black tracking-[0.1em] text-slate-700">종합 진단</h4>
-                                        <span className="text-[7px] font-bold text-slate-400">양면 연쇄 상세 해설</span>
-                                    </div>
-                                    <div className="mt-1 space-y-1 overflow-hidden">
-                                        {!isKorean && verdictNativeParagraphs.length > 0 ? (
-                                            <div className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-1">
-                                                <p className="text-[7px] font-bold leading-[1.55] text-slate-700 whitespace-pre-line" style={createLineClampStyle(4)}>
-                                                    <HighlightedText text={verdictNativeParagraphs[0]} />
-                                                </p>
-                                            </div>
-                                        ) : null}
-                                        {verdictKoParagraphs.length > 0 ? (
-                                            <div className={`rounded-lg border px-2 py-1 ${!isKorean && verdictNativeParagraphs.length > 0 ? 'border-slate-100 bg-slate-100/70' : 'border-slate-100 bg-slate-50'}`}>
-                                                {verdictKoParagraphs.slice(0, 2).map((para, i) => (
-                                                    <p key={`verdict-detail-${i}`} className={`leading-[1.35] whitespace-pre-line break-words ${!isKorean && verdictNativeParagraphs.length > 0 ? 'text-[6.5px] text-slate-500' : 'text-[7px] text-slate-700'}`} style={createLineClampStyle(2)}>
-                                                        {!isKorean && verdictNativeParagraphs.length > 0 ? <span className="font-black text-slate-300">[KO] </span> : null}
-                                                        <HighlightedText text={para} />
-                                                    </p>
-                                                ))}
-                                            </div>
-                                        ) : null}
-                                    </div>
-                                </div>
                             </div>
+                        </div>
 
-                            <div className="min-h-0 rounded-2xl border border-amber-300 bg-amber-50/65 p-2.5 shadow-sm overflow-hidden flex flex-col gap-1.5">
-                                <div className="flex items-center justify-between gap-2">
-                                    <h3 className="text-[9px] font-black tracking-[0.12em] text-amber-800 flex items-center gap-1">
+                        {/* [세션 3] 현장 지침 및 동적 역량 강점/개선 상세 (좌우 분할) */}
+                        <div className="grid grid-cols-[1fr_1.1fr] gap-2.5 min-h-0 flex-1 overflow-hidden">
+                            {/* 좌측: 실행 코칭 및 특별 권고사항 */}
+                            <div className="rounded-2xl border border-amber-300 bg-amber-50/45 p-3 shadow-sm flex flex-col justify-between overflow-hidden">
+                                <div className="flex items-center justify-between border-b border-amber-200 pb-1.5 mb-2 shrink-0">
+                                    <h3 className="text-[9.5px] font-black tracking-[0.12em] text-amber-800 flex items-center gap-1.5">
                                         <SectionCoachingIcon />
                                         실행 코칭
                                     </h3>
                                     <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[7px] font-black text-amber-700">현장 실행 우선</span>
                                 </div>
-
-                                <div className="space-y-1">
+                                <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                                     {(coachingNativeParagraphs.length > 0 ? coachingNativeParagraphs : coachingKoParagraphs).slice(0, 2).map((para, i) => (
-                                        <div key={`coaching-block-${i}`} className="rounded-xl border border-amber-300 bg-white/85 px-2 py-1">
-                                            <p className="text-[7px] font-bold leading-[1.55] text-amber-900 whitespace-pre-line" style={createLineClampStyle(4)}>
+                                        <div key={`coaching-block-${i}`} className="rounded-xl border border-amber-200 bg-white/95 px-2.5 py-1.5">
+                                            <p className="text-[7.5px] font-bold leading-[1.55] text-amber-900 whitespace-pre-line">
                                                 <HighlightedText text={para} />
                                             </p>
                                             {!isKorean && coachingNativeParagraphs.length > 0 && coachingKoParagraphs[i] ? (
-                                                <p className="mt-0.5 border-t border-amber-200 pt-0.5 text-[6.5px] text-amber-700" style={createLineClampStyle(4)}>
+                                                <p className="mt-1 border-t border-amber-100 pt-1 text-[7px] text-amber-700 leading-[1.4]">
                                                     [KO] <HighlightedText text={coachingKoParagraphs[i]} />
                                                 </p>
                                             ) : null}
                                         </div>
                                     ))}
+
+                                    {reassessmentTrail.length > 0 && (
+                                        <div className="rounded-xl border border-violet-200 bg-violet-50/90 px-2.5 py-1.5 space-y-1">
+                                            <p className="text-[8.5px] font-black tracking-[0.1em] text-violet-700">{reassessmentTitle}</p>
+                                            {reassessmentTrail.slice(0, 1).map((entry, i) => (
+                                                <div key={`reassessment-inline-${i}`}>
+                                                    <p className="text-[7.2px] font-black text-violet-600">{reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)}</p>
+                                                    <p className="text-[7.2px] leading-[1.4] text-violet-800">{sanitizeOperationalNote(entry.note || reassessmentFallback, record.nationality)}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
 
-                                {reassessmentTrail.length > 0 && (
-                                    <div className="rounded-xl border border-violet-200 bg-violet-50/90 px-2 py-1 space-y-0.5">
-                                        <p className="text-[8px] font-black tracking-[0.1em] text-violet-700">{reassessmentTitle}</p>
-                                        {reassessmentTrail.slice(0, 1).map((entry, i) => (
-                                            <div key={`reassessment-inline-${i}`}>
-                                                <p className="text-[7px] font-black text-violet-600">{reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)}</p>
-                                                <p className="text-[6.8px] leading-[1.35] text-violet-800" style={createLineClampStyle(3)}>{sanitizeOperationalNote(entry.note || reassessmentFallback, record.nationality)}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
-                                <div className="mt-auto rounded-2xl border border-slate-800 bg-slate-950 px-2.5 py-2 text-white">
-                                    <p className="text-[7.5px] font-black tracking-[0.1em] text-slate-100">진위 확인 메모</p>
-                                    <p className="mt-0.5 text-[7px] leading-[1.35] text-slate-200">본 부록은 첫 페이지 요약 문구의 맥락 해석을 보완하기 위한 정식 해설본입니다.</p>
-                                    <p className="mt-0.5 text-[6.5px] leading-[1.3] text-slate-300">현장 관리자 설명·면담 기록과 함께 보관할 수 있습니다.</p>
+                                <div className="mt-2 rounded-xl border border-slate-800 bg-slate-950 px-2.5 py-1.5 text-white shrink-0">
+                                    <p className="text-[8px] font-black tracking-[0.1em] text-slate-100">진위 확인 메모</p>
+                                    <p className="mt-0.5 text-[7px] leading-[1.4] text-slate-200">본 부록은 첫 페이지 요약 문구의 맥락 해석을 보완하기 위한 정식 해설본입니다. 현장 관리자 설명·면담 기록과 함께 보관할 수 있습니다.</p>
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="shrink-0 grid h-[75mm] grid-cols-2 gap-2 overflow-hidden">
-                            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/55 p-2.5 shadow-sm overflow-hidden flex flex-col">
-                                <div className="flex items-center justify-between gap-2 mb-1">
-                                    <h3 className="text-[9px] font-black tracking-[0.12em] text-emerald-800 flex items-center gap-1">
-                                        <CheckBulletIcon />
-                                        강점 상세
+                            {/* 우측: 역량 분석 및 현장 조치 상세 (강점/개선 결합 동적 카드) */}
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50/45 p-3 shadow-sm flex flex-col overflow-hidden">
+                                <div className="flex items-center justify-between border-b border-slate-200 pb-1.5 mb-2 shrink-0">
+                                    <h3 className="text-[9.5px] font-black tracking-[0.12em] text-slate-800 flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-800 shrink-0"></span>
+                                        역량 분석 및 현장 조치 상세
                                     </h3>
-                                    <span className="rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[7px] font-black text-emerald-700">강점 상세 표준</span>
+                                    <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[7px] font-black text-slate-500">실시간 피드백</span>
                                 </div>
-                                <ul className="space-y-1 overflow-hidden">
-                                    {strengthEntries.slice(0, 3).map((entry, i) => (
-                                        <li key={`strength-detail-${i}`} className="rounded-xl border border-emerald-200 bg-white/80 px-2 py-1">
-                                            {!isKorean && entry.nativeText ? (
-                                                <p className="text-[7px] font-bold leading-[1.55] text-emerald-900 break-words" style={createLineClampStyle(4)}>{entry.nativeText}</p>
-                                            ) : null}
-                                            <p className={`leading-[1.32] break-words ${!isKorean && entry.nativeText ? 'text-[6.5px] text-emerald-600 mt-0.5' : 'text-[7px] text-emerald-900'}`} style={createLineClampStyle(4)}>
-                                                {!isKorean && entry.nativeText ? <span className="font-black text-emerald-300">[KO] </span> : null}
-                                                <HighlightedText text={entry.text} />
-                                            </p>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
 
-                            <div className="rounded-2xl border border-rose-200 bg-rose-50/55 p-2.5 shadow-sm overflow-hidden flex flex-col">
-                                <div className="flex items-center justify-between gap-2 mb-1">
-                                    <h3 className="text-[9px] font-black tracking-[0.12em] text-rose-800 flex items-center gap-1">
-                                        <WarningBulletIcon />
-                                        개선 포인트 상세
-                                    </h3>
-                                    <span className="rounded-full border border-rose-300 bg-rose-100 px-2 py-0.5 text-[7px] font-black text-rose-700">중복 검증 후 정리</span>
+                                <div className="flex-1 flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-1">
+                                    {/* 강점 상세 파트 */}
+                                    {strengthEntries.length > 0 && (
+                                        <div className="flex-1 min-h-0 border border-emerald-200 rounded-xl bg-emerald-50/30 p-2 flex flex-col">
+                                            <h4 className="text-[8.5px] font-black text-emerald-800 fill-emerald-800 flex items-center gap-1 mb-1.5 shrink-0">
+                                                <CheckBulletIcon className="text-emerald-700 w-3 h-3" />
+                                                역량 강점
+                                            </h4>
+                                            <ul className="space-y-1.5 overflow-y-auto pr-0.5 flex-1 min-h-0 custom-scrollbar">
+                                                {strengthEntries.slice(0, 3).map((entry, i) => (
+                                                    <li key={`strength-detail-${i}`} className="rounded-lg border border-emerald-100 bg-white/90 px-2 py-1.5 shadow-sm">
+                                                        {!isKorean && entry.nativeText ? (
+                                                            <p className="text-[7.5px] font-bold leading-[1.5] text-emerald-950 break-words">{entry.nativeText}</p>
+                                                        ) : null}
+                                                        <p className={`leading-[1.4] break-words ${!isKorean && entry.nativeText ? 'text-[7px] text-emerald-700 mt-1' : 'text-[7.5px] text-emerald-900'}`}>
+                                                            {!isKorean && entry.nativeText ? <span className="font-black text-emerald-300">[KO] </span> : null}
+                                                            <HighlightedText text={entry.text} />
+                                                        </p>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+
+                                    {/* 개선 포인트 상세 파트 */}
+                                    {improvementEntries.length > 0 && (
+                                        <div className="flex-1 min-h-0 border border-rose-200 rounded-xl bg-rose-50/30 p-2 flex flex-col">
+                                            <h4 className="text-[8.5px] font-black text-rose-800 flex items-center gap-1 mb-1.5 shrink-0">
+                                                <WarningBulletIcon />
+                                                개선 권고 사항
+                                            </h4>
+                                            <ul className="space-y-1.5 overflow-y-auto pr-0.5 flex-1 min-h-0 custom-scrollbar">
+                                                {improvementEntries.slice(0, 3).map((entry, i) => (
+                                                    <li key={`improvement-detail-${i}`} className="rounded-lg border border-rose-100 bg-white/90 px-2 py-1.5 shadow-sm">
+                                                        {!isKorean && entry.nativeText ? (
+                                                            <p className="text-[7.5px] font-bold leading-[1.5] text-rose-950 break-words">{entry.nativeText}</p>
+                                                        ) : null}
+                                                        <p className={`leading-[1.4] break-words ${!isKorean && entry.nativeText ? 'text-[7px] text-rose-700 mt-1' : 'text-[7.5px] text-rose-900'}`}>
+                                                            {!isKorean && entry.nativeText ? <span className="font-black text-rose-300">[KO] </span> : null}
+                                                            <HighlightedText text={entry.text} />
+                                                        </p>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
                                 </div>
-                                <ul className="space-y-1 overflow-hidden">
-                                    {improvementEntries.slice(0, 3).map((entry, i) => (
-                                        <li key={`improvement-detail-${i}`} className="rounded-xl border border-rose-200 bg-white/80 px-2 py-1">
-                                            {!isKorean && entry.nativeText ? (
-                                                <p className="text-[7px] font-bold leading-[1.55] text-rose-900 break-words" style={createLineClampStyle(4)}>{entry.nativeText}</p>
-                                            ) : null}
-                                            <p className={`leading-[1.32] break-words ${!isKorean && entry.nativeText ? 'text-[6.5px] text-rose-600 mt-0.5' : 'text-[7px] text-rose-900'}`} style={createLineClampStyle(4)}>
-                                                {!isKorean && entry.nativeText ? <span className="font-black text-rose-300">[KO] </span> : null}
-                                                <HighlightedText text={entry.text} />
-                                            </p>
-                                        </li>
-                                    ))}
-                                </ul>
                             </div>
                         </div>
                     </div>
