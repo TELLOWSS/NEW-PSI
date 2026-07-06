@@ -123,7 +123,10 @@ interface ElementLayoutSize {
 }
 
 const getReportCaptureTargets = (element: HTMLElement): HTMLElement[] => {
-    const pageNodes = Array.from(element.querySelectorAll(':scope > [data-report-page="true"]')) as HTMLElement[];
+    if (element.getAttribute('data-report-page') === 'true') {
+        return [element];
+    }
+    const pageNodes = Array.from(element.querySelectorAll('[data-report-page="true"]')) as HTMLElement[];
     return pageNodes.length > 0 ? pageNodes : [element];
 };
 
