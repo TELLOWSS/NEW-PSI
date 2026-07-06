@@ -80,7 +80,8 @@ const ensureCloneStyle = (doc: Document) => {
             animation: none !important;
             transition: none !important;
             caret-color: transparent !important;
-            text-rendering: optimizeLegibility;
+            text-rendering: auto !important;
+            letter-spacing: normal !important;
         }
         [data-report-template-root="true"] img,
         [data-report-template-root="true"] canvas {
@@ -231,7 +232,8 @@ export const captureReportCanvases = async (
                         clonedRoot.style.margin = '0';
                         clonedRoot.style.transform = 'none';
                         clonedRoot.style.transformOrigin = 'top left';
-                        clonedRoot.style.textRendering = 'optimizeLegibility';
+                        clonedRoot.style.textRendering = 'auto';
+                        clonedRoot.style.letterSpacing = 'normal';
                     }
                 },
             });

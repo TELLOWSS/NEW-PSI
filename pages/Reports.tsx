@@ -1902,6 +1902,39 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         }
     };
 
+    const handleDownloadCurrentImage = async () => {
+        if (isIncompleteCustomDateRange) return alert('사용자 지정 기간은 시작일과 종료일을 모두 입력해야 합니다.');
+        if (isInvalidCustomDateRange) return alert('기간 필터가 올바르지 않습니다. 시작일과 종료일을 확인해주세요.');
+        if (!currentPreviewRecord) return alert('내보낼 데이터가 없습니다.');
+        if (!previewRef.current) return alert('미리보기 화면이 로드되지 않았습니다.');
+        
+        const html2canvas = await ensureHtml2Canvas().catch(() => null);
+        if (!html2canvas) return alert('html2canvas 라이브러리가 로드되지 않았습니다.');
+
+        const saveAs = await ensureFileSaver().catch(() => null);
+        if (!saveAs) return alert('FileSaver 라이브러리가 로드되지 않았습니다.');
+
+        if (!confirm(`'${currentPreviewRecord.name}' 근로자의 보고서를 이미지 파일(JPG)로 내보내시겠습니까?`)) return;
+
+        try {
+            const canvases = await captureReportCanvases(previewRef.current, html2canvas, { scale: 3 });
+            for (let idx = 0; idx < canvases.length; idx++) {
+                const canvas = canvases[idx];
+                const blob = await canvasToBlob(canvas, 'image/jpeg', 0.92);
+                if (blob) {
+                    const filename = buildPsiExportFileName({
+                        tokens: ['Report', currentPreviewRecord.name, currentPreviewRecord.jobField, `page${idx + 1}`],
+                        extension: 'jpg',
+                    });
+                    saveAs(blob, filename);
+                } 
+            }
+        } catch (e) {
+            console.error(e);
+            alert('이미지 생성 중 오류가 발생했습니다.');
+        }
+    };
+
     const handleGenerate = async () => {
         if (isIncompleteCustomDateRange) return alert('사용자 지정 기간은 시작일과 종료일을 모두 입력해야 합니다.');
         if (isInvalidCustomDateRange) return alert('기간 필터가 올바르지 않습니다. 시작일과 종료일을 확인해주세요.');
@@ -4814,7 +4847,15 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                     className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 shadow-lg transition-colors ${hasCustomDateRangeError ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-slate-800 text-white hover:bg-slate-900'}`}
                                 >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                    현재 보고서 내보내기
+                                    PDF 내보내기
+                                </button>
+                                <button 
+                                    onClick={handleDownloadCurrentImage}
+                                    disabled={hasCustomDateRangeError}
+                                    className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 shadow-lg transition-colors ${hasCustomDateRangeError ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-amber-600 text-white hover:bg-amber-700'}`}
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                    이미지 다운로드 (JPG)
                                 </button>
                             </div>
                             </div>
