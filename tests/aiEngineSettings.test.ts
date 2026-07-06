@@ -3,14 +3,14 @@ import { getOcrEngineLabel, resolveGeminiOcrModelChain } from '../utils/aiEngine
 
 describe('AI engine routing', () => {
     it('routes clear bulk documents to the fast Gemini chain', () => {
-        expect(resolveGeminiOcrModelChain('gemini-fast')).toEqual([
+        expect(resolveGeminiOcrModelChain('gemini-fast', { isPaidApiMode: true })).toEqual([
             'gemini-3.0-flash',
             'gemini-2.5-flash',
         ]);
     });
 
     it('routes difficult documents to the precise model first', () => {
-        expect(resolveGeminiOcrModelChain('gemini-precise')[0]).toBe('gemini-3.1-pro-preview');
+        expect(resolveGeminiOcrModelChain('gemini-precise', { isPaidApiMode: true })[0]).toBe('gemini-3.1-pro-preview');
     });
 
     it('labels the automatic mode for non-technical users', () => {

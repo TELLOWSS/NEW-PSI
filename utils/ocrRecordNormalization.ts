@@ -48,6 +48,12 @@ const toSearchText = (record: PartialWorkerRecord): string => [
     ]),
 ].filter(Boolean).join(' ').toLowerCase();
 
+const toJobFieldNormalizationContext = (record: PartialWorkerRecord): string => [
+    record.jobField,
+    record.fullText,
+    record.koreanTranslation,
+].filter(Boolean).join(' ').toLowerCase();
+
 const isFailureOnlyRecord = (record: PartialWorkerRecord): boolean => {
     const answers = Array.isArray(record.handwrittenAnswers) ? record.handwrittenAnswers : [];
     const text = `${record.fullText || ''} ${record.koreanTranslation || ''} ${record.aiInsights || ''}`;
@@ -152,6 +158,17 @@ const resolveOcrJobField = (rawJobField: string, contextText: string): { value: 
     const normalized = normalizeJobField(raw);
     const context = contextText.replace(/\s+/g, '');
 
+    const looksLikeQuestionAnswer =
+        rawCompact.length >= 7 &&
+        /작업|위험|사고|요인|대책|조심|확인|착용|체결|추락|낙하|감전|넘어짐|부딪힘|깔림|끼임|말림|화재|폭발|전도|충돌|미끄러짐/.test(rawCompact);
+
+    if (looksLikeQuestionAnswer) {
+        return {
+            value: '미분류',
+            reason: '문항 답변으로 보이는 공종값 격리',
+        };
+    }
+
     const fromContextRules: Array<[RegExp, string]> = [
         [/시스템비계|시스템동바리|동바리|시스템/, '비계'],
         [/콘크리트|타설|펌프카|레미콘/, '타설'],
@@ -165,18 +182,25 @@ const resolveOcrJobField = (rawJobField: string, contextText: string): { value: 
         [/보통인부|일반인부|용역|정리정돈|작업장이동|이동통로/, '용역'],
     ];
 
-    if (GENERIC_JOB_FIELDS.has(raw) || GENERIC_JOB_FIELDS.has(rawCompact) || normalized === raw) {
-        for (const [pattern, value] of fromContextRules) {
-            if (pattern.test(context)) {
-                return { value, reason: '본문 위험요인 기준 공종 보정' };
-            }
-        }
-    }
-
     if (rawCompact === '신호수/유도원' || rawCompact.includes('유도원')) return { value: '신호수', reason: '공종 표기 통합' };
     if (rawCompact === '보통인부' || rawCompact === '일반인부') return { value: '용역', reason: '공종 표기 통합' };
     if (rawCompact === '일반공종' || rawCompact === '일반') return { value: '기타', reason: '일반 공종 기본값 분리' };
     if (rawCompact === '직영' || rawCompact === '위강건설' || rawCompact === '외강건설') return { value: '기타', reason: '협력사/소속명 공종 제외' };
+
+    const hasExplicitJobFieldLabel =
+        /공종[:：]?(형틀|철근|비계|골조|배관|전기|미장|도장|용역|조적|타일|석공|방수|해체|신호수|유도원|굴착|타설|철골|안전시설|지붕)/.test(context);
+
+    if ((GENERIC_JOB_FIELDS.has(raw) || GENERIC_JOB_FIELDS.has(rawCompact) || normalized === raw) && hasExplicitJobFieldLabel) {
+        for (const [pattern, value] of fromContextRules) {
+            if (pattern.test(context)) {
+                return { value, reason: '공종 표기 영역 기준 보정' };
+            }
+        }
+    }
+
+    if (GENERIC_JOB_FIELDS.has(raw) || GENERIC_JOB_FIELDS.has(rawCompact)) {
+        return { value: '미분류', reason: '공종 칸 판독 불확실' };
+    }
 
     return { value: normalized || raw || '미분류', reason: normalized !== raw ? '공종 사전 표준화' : '공종 유지' };
 };
@@ -191,8 +215,9 @@ export const normalizeOcrRecordMetadata = <T extends PartialWorkerRecord>(
 
     const changes: OcrMetadataNormalizationChange[] = [];
     const contextText = toSearchText(record);
+    const jobFieldContextText = toJobFieldNormalizationContext(record);
     const dateResult = resolveOcrDate(toCompactText(record.date), contextText, options?.now);
-    const jobResult = resolveOcrJobField(toCompactText(record.jobField), contextText);
+    const jobResult = resolveOcrJobField(toCompactText(record.jobField), jobFieldContextText);
     const nextRecord: T = { ...record };
 
     if (dateResult.value && dateResult.value !== toCompactText(record.date)) {
