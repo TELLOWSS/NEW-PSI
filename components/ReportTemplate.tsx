@@ -1127,8 +1127,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </div>
                         </div>
                         <p className="text-[7px] font-black uppercase tracking-[0.18em] text-indigo-600">{labels.officialRecord} · {labels.documentId} {documentId}</p>
-                        <h1 className="mt-0.5 text-base font-black text-slate-900 leading-tight">{certificateTitleNative}</h1>
-                        <p className="text-[8px] font-bold text-slate-500 tracking-[0.03em] break-keep mt-0.5">{monthlyEduNativeTitle}</p>
+                        <h1 className={`font-black text-slate-900 ${!isKorean ? 'text-[15px] leading-snug mt-1' : 'text-base leading-tight mt-0.5'}`}>{certificateTitleNative}</h1>
+                        <p className="text-[8px] font-bold text-slate-500 tracking-[0.03em] break-keep mt-1.5">{monthlyEduNativeTitle}</p>
                     </div>
 
                     {isKorean ? (
@@ -1277,7 +1277,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                             <li key={`score-reason-${i}`} className="flex items-start gap-1 text-[8.5px] leading-[1.35] text-slate-700">
                                                 <span className="mt-[2px] text-slate-400">•</span>
                                                 <div className="min-w-0 flex-1">
-                                                    <p className="break-words" style={frontEntryLineClampStyle}>
+                                                    <p className={`break-words ${!isKorean ? 'leading-[1.5] text-[8px]' : 'leading-[1.3] text-[8.5px]'}`} style={frontEntryLineClampStyle}>
                                                         <HighlightedText text={entry.nativeText || entry.text} />
                                                     </p>
                                                 </div>
@@ -1303,7 +1303,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         <li key={`coaching-summary-${index}`} className="flex items-start gap-1">
                                             <span className="mt-[2px] text-amber-500">•</span>
                                             <div className="min-w-0 flex-1">
-                                                <p style={frontCoachingLineClampStyle}><HighlightedText text={paragraph} /></p>
+                                                <p className={!isKorean ? 'leading-[1.5]' : ''} style={frontCoachingLineClampStyle}><HighlightedText text={paragraph} /></p>
                                             </div>
                                         </li>
                                     ))}
@@ -1566,7 +1566,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     {scoreReasonEntries.slice(0, 2).map((entry, i) => (
                                         <div key={`score-reason-back-${i}`} className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-1">
                                             {!isKorean && entry.nativeText ? (
-                                                <p className="text-[7px] font-bold leading-[1.32] text-slate-700 break-words" style={createLineClampStyle(4)}>{entry.nativeText}</p>
+                                                <p className="text-[7px] font-bold leading-[1.55] text-slate-700 break-words" style={createLineClampStyle(4)}>{entry.nativeText}</p>
                                             ) : null}
                                             <p className={`leading-[1.32] break-words ${!isKorean && entry.nativeText ? 'text-[6.5px] text-slate-500 mt-0.5' : 'text-[7px] text-slate-700'}`} style={createLineClampStyle(4)}>
                                                 {!isKorean && entry.nativeText ? <span className="font-black text-slate-300">[KO] </span> : null}
@@ -1588,8 +1588,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                             const scoreText = metric.isPenalty ? `-${metric.value}` : `${metric.value}`;
                                             return (
                                                 <div key={metric.key} className="min-w-0">
-                                                    <p className="text-[6.8px] font-black text-slate-700 leading-tight" style={createLineClampStyle(1)}>{isKorean ? metric.ko : metric.native}</p>
-                                                    <p className="text-[6.1px] text-slate-400 leading-tight" style={createLineClampStyle(1)}>{isKorean ? '' : `[KO] ${metric.ko}`}</p>
+                                                    <p className={`font-black text-slate-700 truncate block ${!isKorean ? 'text-[6.5px] leading-normal' : 'text-[6.8px] leading-tight'}`}>{isKorean ? metric.ko : metric.native}</p>
+                                                    <p className="text-[6.1px] text-slate-400 leading-tight truncate block">{isKorean ? '' : `[KO] ${metric.ko}`}</p>
                                                     <div className="mt-0.5 flex items-center gap-1">
                                                         <div className="h-1.5 flex-1 rounded-full bg-slate-200 overflow-hidden">
                                                             <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.max(0, Math.min(100, ratio * 100))}%` }} />
@@ -1610,7 +1610,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     <div className="mt-1 space-y-1 overflow-hidden">
                                         {!isKorean && verdictNativeParagraphs.length > 0 ? (
                                             <div className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-1">
-                                                <p className="text-[7px] font-bold leading-[1.35] text-slate-700 whitespace-pre-line" style={createLineClampStyle(4)}>
+                                                <p className="text-[7px] font-bold leading-[1.55] text-slate-700 whitespace-pre-line" style={createLineClampStyle(4)}>
                                                     <HighlightedText text={verdictNativeParagraphs[0]} />
                                                 </p>
                                             </div>
@@ -1641,7 +1641,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 <div className="space-y-1">
                                     {(coachingNativeParagraphs.length > 0 ? coachingNativeParagraphs : coachingKoParagraphs).slice(0, 2).map((para, i) => (
                                         <div key={`coaching-block-${i}`} className="rounded-xl border border-amber-300 bg-white/85 px-2 py-1">
-                                            <p className="text-[7px] font-bold leading-[1.34] text-amber-900 whitespace-pre-line" style={createLineClampStyle(4)}>
+                                            <p className="text-[7px] font-bold leading-[1.55] text-amber-900 whitespace-pre-line" style={createLineClampStyle(4)}>
                                                 <HighlightedText text={para} />
                                             </p>
                                             {!isKorean && coachingNativeParagraphs.length > 0 && coachingKoParagraphs[i] ? (
@@ -1686,7 +1686,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     {strengthEntries.slice(0, 3).map((entry, i) => (
                                         <li key={`strength-detail-${i}`} className="rounded-xl border border-emerald-200 bg-white/80 px-2 py-1">
                                             {!isKorean && entry.nativeText ? (
-                                                <p className="text-[7px] font-bold leading-[1.32] text-emerald-900 break-words" style={createLineClampStyle(4)}>{entry.nativeText}</p>
+                                                <p className="text-[7px] font-bold leading-[1.55] text-emerald-900 break-words" style={createLineClampStyle(4)}>{entry.nativeText}</p>
                                             ) : null}
                                             <p className={`leading-[1.32] break-words ${!isKorean && entry.nativeText ? 'text-[6.5px] text-emerald-600 mt-0.5' : 'text-[7px] text-emerald-900'}`} style={createLineClampStyle(4)}>
                                                 {!isKorean && entry.nativeText ? <span className="font-black text-emerald-300">[KO] </span> : null}
@@ -1709,7 +1709,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     {improvementEntries.slice(0, 3).map((entry, i) => (
                                         <li key={`improvement-detail-${i}`} className="rounded-xl border border-rose-200 bg-white/80 px-2 py-1">
                                             {!isKorean && entry.nativeText ? (
-                                                <p className="text-[7px] font-bold leading-[1.32] text-rose-900 break-words" style={createLineClampStyle(4)}>{entry.nativeText}</p>
+                                                <p className="text-[7px] font-bold leading-[1.55] text-rose-900 break-words" style={createLineClampStyle(4)}>{entry.nativeText}</p>
                                             ) : null}
                                             <p className={`leading-[1.32] break-words ${!isKorean && entry.nativeText ? 'text-[6.5px] text-rose-600 mt-0.5' : 'text-[7px] text-rose-900'}`} style={createLineClampStyle(4)}>
                                                 {!isKorean && entry.nativeText ? <span className="font-black text-rose-300">[KO] </span> : null}
