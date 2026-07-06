@@ -56,7 +56,6 @@
         font-family: 'SF Pro Text', 'Inter', 'Pretendard', -apple-system, system-ui, sans-serif;
         letter-spacing: -0.01em;
         transition: background-color 0.2s ease, color 0.2s ease;
-        text-rendering: optimizeLegibility;
         -webkit-font-smoothing: antialiased;
     }
 
@@ -864,5 +863,14 @@
     html.dark .text-sky-900 {
         color: #7dd3fc !important;
     }
+}
+
+/* [Report Layout Overlap Fix] Reset letter-spacing and text-rendering for printable/PDF documents to avoid overlapping glyphs, especially in foreign/complex scripts */
+[data-report-page],
+[data-report-page] *,
+[data-report-template-root],
+[data-report-template-root] * {
+    letter-spacing: normal !important;
+    text-rendering: auto !important;
 }
 
