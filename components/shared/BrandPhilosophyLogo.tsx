@@ -11,8 +11,8 @@ export const BrandPhilosophyLogo: React.FC<BrandPhilosophyLogoProps> = ({ classN
         <svg className={className} viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-label="PSI 브랜드 철학 로고">
             <defs>
                 <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#4f46e5" />
-                    <stop offset="100%" stopColor="#4338ca" />
+                    <stop offset="0%" stopColor="#0066cc" />
+                    <stop offset="100%" stopColor="#004ea3" />
                 </linearGradient>
             </defs>
             <path d="M8 14 L40 6 V22 C40 34 33 42 24 44 C15 42 8 34 8 22 Z" fill={`url(#${gradientId})`} />

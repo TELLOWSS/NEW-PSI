@@ -5,56 +5,65 @@
 @layer base {
     :root {
         color-scheme: light;
-        --psi-canvas: #f6f8fc;
+        --psi-canvas: #f5f5f7;
         --psi-surface: #ffffff;
         --psi-surface-raised: #ffffff;
-        --psi-surface-muted: #eef3f8;
-        --psi-surface-inset: #e7edf5;
-        --psi-text: #0f172a;
-        --psi-text-muted: #334155;
-        --psi-text-subtle: #475569;
-        --psi-border: #d7e0eb;
-        --psi-border-strong: #b8c6d8;
-        --psi-focus: #2563eb;
-        --psi-brand: #174ea6;
-        --psi-brand-strong: #0b2f63;
-        --psi-accent: #f97316;
+        --psi-surface-muted: #fafafc;
+        --psi-surface-inset: #f5f5f7;
+        --psi-text: #1d1d1f;
+        --psi-text-muted: #333333;
+        --psi-text-subtle: #707070;
+        --psi-border: #f0f0f0;
+        --psi-border-strong: #e0e0e0;
+        --psi-focus: #0071e3;
+        --psi-brand: #0066cc;
+        --psi-brand-strong: #0066cc;
+        --psi-accent: #0066cc;
         --psi-success: #047857;
         --psi-radius: 18px;
-        --psi-radius-sm: 12px;
-        --psi-radius-lg: 22px;
-        --psi-shadow: 0 8px 24px rgba(15, 23, 42, 0.07);
-        --psi-shadow-raised: 0 16px 40px rgba(15, 23, 42, 0.11);
+        --psi-radius-sm: 8px;
+        --psi-radius-lg: 18px;
+        --psi-shadow: none;
+        --psi-shadow-raised: none;
+        --psi-product-shadow: rgba(0, 0, 0, 0.22) 3px 5px 30px;
     }
 
     html.dark {
         color-scheme: dark;
-        --psi-canvas: #080d18;
-        --psi-surface: #111827;
-        --psi-surface-raised: #172033;
-        --psi-surface-muted: #0d1524;
-        --psi-surface-inset: #202c40;
-        --psi-text: #f8fafc;
-        --psi-text-muted: #cbd5e1;
-        --psi-text-subtle: #94a3b8;
-        --psi-border: #1e293b;
-        --psi-border-strong: #334155;
-        --psi-focus: #60a5fa;
-        --psi-brand: #60a5fa;
-        --psi-brand-strong: #bfdbfe;
-        --psi-accent: #fb923c;
+        --psi-canvas: #1d1d1f;
+        --psi-surface: #272729;
+        --psi-surface-raised: #2a2a2c;
+        --psi-surface-muted: #252527;
+        --psi-surface-inset: #1c1c1e;
+        --psi-text: #ffffff;
+        --psi-text-muted: #cccccc;
+        --psi-text-subtle: #a1a1a6;
+        --psi-border: #333333;
+        --psi-border-strong: #444444;
+        --psi-focus: #2997ff;
+        --psi-brand: #2997ff;
+        --psi-brand-strong: #2997ff;
+        --psi-accent: #2997ff;
         --psi-success: #34d399;
-        --psi-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.02);
-        --psi-shadow-raised: 0 20px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.04);
+        --psi-shadow: none;
+        --psi-shadow-raised: none;
+        --psi-product-shadow: rgba(0, 0, 0, 0.4) 3px 5px 30px;
     }
 
     body {
         background: var(--psi-canvas);
         color: var(--psi-text);
-        font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+        font-family: 'SF Pro Text', 'Inter', 'Pretendard', -apple-system, system-ui, sans-serif;
+        letter-spacing: -0.01em;
         transition: background-color 0.2s ease, color 0.2s ease;
         text-rendering: optimizeLegibility;
         -webkit-font-smoothing: antialiased;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+        font-family: 'SF Pro Display', 'Inter', 'Pretendard', -apple-system, system-ui, sans-serif;
+        font-weight: 600;
+        letter-spacing: -0.02em;
     }
 
     button,
@@ -209,13 +218,16 @@
     }
 
     .psi-topbar {
-        border-color: color-mix(in srgb, var(--psi-border) 84%, transparent);
-        background: color-mix(in srgb, var(--psi-surface) 92%, transparent);
-        box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
+        border-color: var(--psi-border);
+        background: rgba(255, 255, 255, 0.8) !important;
+        backdrop-filter: saturate(180%) blur(20px);
+        -webkit-backdrop-filter: saturate(180%) blur(20px);
+        box-shadow: none;
     }
 
     html.dark .psi-topbar {
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.26);
+        background: rgba(27, 27, 29, 0.8) !important;
+        box-shadow: none;
     }
 
     .psi-page-header {
@@ -224,9 +236,9 @@
         border: 1px solid var(--psi-border);
         border-radius: var(--psi-radius);
         background: var(--psi-surface);
-        padding: 1rem 1.15rem;
+        padding: 1.25rem 1.5rem;
         color: var(--psi-text);
-        box-shadow: var(--psi-shadow);
+        box-shadow: none;
     }
 
     .psi-page-header::after {
@@ -237,7 +249,7 @@
         width: 150px;
         height: 150px;
         border-radius: 9999px;
-        background: color-mix(in srgb, var(--psi-focus) 7%, transparent);
+        background: color-mix(in srgb, var(--psi-focus) 5%, transparent);
         pointer-events: none;
     }
 
@@ -280,17 +292,19 @@
     }
 
     .psi-input {
-        border: 1px solid var(--psi-border);
-        border-radius: 14px;
-        background: var(--psi-surface-muted);
+        border: 1px solid var(--psi-border-strong);
+        border-radius: 9999px;
+        background: var(--psi-surface);
         color: var(--psi-text);
+        padding: 0.65rem 1.25rem;
+        font-size: 0.9rem;
         transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
     }
 
     .psi-input:focus {
         border-color: var(--psi-focus);
         background: var(--psi-surface);
-        box-shadow: 0 0 0 4px color-mix(in srgb, var(--psi-focus) 14%, transparent);
+        box-shadow: 0 0 0 2px var(--psi-focus);
         outline: none;
     }
 
@@ -300,38 +314,40 @@
         min-height: 44px;
         align-items: center;
         justify-content: center;
-        border-radius: 12px;
-        padding: 0.7rem 1rem;
-        font-size: 0.8rem;
-        font-weight: 900;
-        transition: transform 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
+        border-radius: 9999px;
+        padding: 0.7rem 1.4rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        transition: transform 0.12s cubic-bezier(0.25, 1, 0.5, 1), background-color 0.12s ease, border-color 0.12s ease;
     }
 
     .psi-button-primary {
-        border: 1px solid #1d4ed8;
-        background: linear-gradient(135deg, #1d4ed8, #0f5ca8);
+        border: none;
+        background: var(--psi-brand);
         color: white;
-        box-shadow: 0 10px 24px rgba(29, 78, 216, 0.2);
+        box-shadow: none;
     }
 
     .psi-button-primary:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 14px 28px rgba(29, 78, 216, 0.26);
+        transform: scale(0.98);
+        background-color: var(--psi-focus);
     }
 
     .psi-button-primary:active,
     .psi-button-secondary:active {
-        transform: translateY(0);
+        transform: scale(0.95);
     }
 
     .psi-button-secondary {
         border: 1px solid var(--psi-border-strong);
-        background: var(--psi-surface);
+        background: var(--psi-surface-muted);
         color: var(--psi-text);
+        box-shadow: none;
     }
 
     .psi-button-secondary:hover {
-        background: var(--psi-surface-muted);
+        background: var(--psi-surface-inset);
+        transform: scale(0.98);
     }
 
     .psi-status-badge {
