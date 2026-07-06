@@ -1454,7 +1454,7 @@ const AdminTraining: React.FC = () => {
 
                 <div className="mt-5 grid gap-3 md:grid-cols-3">
                     {[
-                        ['1', '한국어 원문 확인', 'TBM 스튜디오 원문을 불러오거나 직접 입력'],
+                        ['1', '한국어 원문 확인', '위험성평가 교육 스튜디오 원문을 불러오거나 직접 입력'],
                         ['2', '대상 언어 선택', '현장 국적에 필요한 언어만 선택'],
                         ['3', 'QR 배포', '세션 생성 후 음성·텍스트·참여 현황 관리'],
                     ].map(([step, title, description]) => (
@@ -1476,14 +1476,14 @@ const AdminTraining: React.FC = () => {
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-500/30 dark:bg-blue-500/10">
                     <div>
                         <p className="text-xs font-black text-blue-900 dark:text-blue-100">다음 달 위험성평가 5단계 원문</p>
-                        <p className="mt-1 text-[11px] font-bold text-blue-700 dark:text-blue-300">TBM 교육자료 스튜디오에서 확정한 영상·사례·상등급·중점관리·공지 내용을 한 번에 불러옵니다.</p>
+                        <p className="mt-1 text-[11px] font-bold text-blue-700 dark:text-blue-300">위험성평가 교육자료 스튜디오에서 확정한 영상·사례·상등급·중점관리·공지 내용을 한 번에 불러옵니다.</p>
                     </div>
                     <button
                         type="button"
                         onClick={() => {
                             const monthlyPackage = loadMonthlyPackage();
                             if (!monthlyPackage.sourceText) {
-                                setMessage('TBM 교육자료 스튜디오에서 먼저 5단계 교육 원문을 보내 주세요.');
+                                setMessage('위험성평가 교육자료 스튜디오에서 먼저 5단계 교육 원문을 보내 주세요.');
                                 return;
                             }
                             setSourceTextKo(monthlyPackage.sourceText);

@@ -40,7 +40,7 @@ const BOARD_STEPS: BoardStep[] = [
     { number: 1, title: '상세 분석 대시보드', subtitle: '현장 위험과 월별 지표를 상세 분석합니다.', page: 'dashboard', accent: 'blue' },
     { number: 2, title: '위험성평가 작성·분석', subtitle: '사진, PDF 또는 수기 내용으로 평가를 작성합니다.', page: 'ocr-analysis', accent: 'blue' },
     { number: 3, title: '월별 계도 리포트', subtitle: '지난달 작성 내용을 익명화하여 공유합니다.', page: 'monthly-guidance-report', accent: 'orange' },
-    { number: 4, title: '다음 달 TBM 교육자료', subtitle: '기록과 PDF·PPTX를 근거로 전파교육 한 장을 만듭니다.', page: 'a4-education-material', accent: 'orange' },
+    { number: 4, title: '다음 달 위험성평가 교육자료', subtitle: '기록과 PDF·PPTX를 근거로 전파교육 한 장을 만듭니다.', page: 'a4-education-material', accent: 'orange' },
     { number: 5, title: '다국어 교육·QR', subtitle: '언어별 교육을 배포하고 참여를 확인합니다.', page: 'admin-training', accent: 'green' },
     { number: 6, title: '월별 성과 확인', subtitle: '개선 이행과 반복 위험 변화를 확인합니다.', page: 'performance-analysis', accent: 'green' },
     { number: 7, title: '환경 설정', subtitle: '현장, 언어, 화면 구성을 관리합니다.', page: 'settings', accent: 'blue' },
@@ -267,7 +267,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
         } else if (imp < 60) {
             return `근로자 안전 이해도(${score}점)에 비해 개선 이행률(${imp}%)이 낮습니다. 지적 사항 보강 상태를 점검하세요.`;
         } else {
-            return `전체 지표가 우수하게 유지 중입니다. 다국어 근로자 TBM 전파율을 점검하며 현재의 흐름을 보존하십시오.`;
+            return `전체 지표가 우수하게 유지 중입니다. 다국어 근로자 위험성평가 교육 전파율을 점검하며 현재의 흐름을 보존하십시오.`;
         }
     }, [summary, priorityTrade]);
 
@@ -309,7 +309,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                         <p className="text-[11px] font-black uppercase tracking-[0.15em] text-blue-700 dark:text-blue-400">Control Hub</p>
                         <h1 className="mt-1 text-2xl font-black tracking-tight text-[#0c2348] dark:text-slate-100 font-sans">PSI 통합 안전 관리 센터</h1>
                         <p className="mt-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                            현장 기록 분석, AI 위험 도출, 다국어 TBM 교육 전파 및 개선율 추이를 단일 대시보드에서 제어합니다.
+                            현장 기록 분석, AI 위험 도출, 다국어 위험성평가 교육 전파 및 개선율 추이를 단일 대시보드에서 제어합니다.
                         </p>
                         <div className="mt-2.5 flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-500">
                             <span className="inline-flex h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
@@ -600,7 +600,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                     </div>
                 </div>
 
-                {/* [3열] 전파 교육 및 설정 (TBM 교육자료 및 다국어 QR 전파) */}
+                {/* [3열] 전파 교육 및 설정 (위험성평가 교육자료 및 다국어 QR 전파) */}
                 <div className="flex flex-col gap-4 text-left">
                     {/* 4번 + 5번 과업 통합: 전파 교육 & 다국어 QR 배포 스튜디오 */}
                     <div className="psi-interactive-card flex-1 p-4 bg-gradient-to-br from-white to-emerald-50/10 dark:from-slate-900 dark:to-emerald-950/20 hover:shadow-lg transition flex flex-col justify-between">
@@ -610,10 +610,10 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                                     <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-700 text-xs font-black text-white">04</span>
                                     <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-800 text-xs font-black text-white">05</span>
                                 </div>
-                                <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[9px] font-black text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-950/30 dark:text-emerald-300">TBM 배포</span>
+                                <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[9px] font-black text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-950/30 dark:text-emerald-300">교육 배포</span>
                             </div>
                             <div className="mt-3">
-                                <h3 className="text-sm font-black text-slate-900 dark:text-slate-150">TBM 교육자료 & 다국어 QR 배포</h3>
+                                <h3 className="text-sm font-black text-slate-900 dark:text-slate-150">위험성평가 교육자료 & 다국어 QR 배포</h3>
                                 <p className="mt-1 text-[11px] font-medium text-slate-400 leading-4">
                                     도출된 위해 정보와 원문 PDF를 기반으로 전파 교육 한 장을 인쇄 생성하고, 외국인 근로자를 위한 모바일 다국어 번역 및 QR 인증을 지원합니다.
                                 </p>
@@ -637,7 +637,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                                 onClick={() => openStep(BOARD_STEPS[3])}
                                 className="text-xs font-black text-slate-700 dark:text-slate-350 hover:text-blue-700 dark:hover:text-blue-400 flex items-center gap-1.5"
                             >
-                                📑 TBM 교육자료 스튜디오 열기 <span aria-hidden="true">→</span>
+                                📑 위험성평가 교육자료 스튜디오 열기 <span aria-hidden="true">→</span>
                             </button>
                             <button
                                 type="button"
@@ -687,7 +687,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                         <div>
                             <h2 className="text-xs font-black text-slate-900 dark:text-slate-200 flex items-center gap-1.5">📢 현장 안전 기록 데이터 없음</h2>
                             <p className="mt-0.5 text-[10px] font-bold text-slate-400">
-                                첫 점검 기록(사진, PDF, 수기)을 등록하면 실시간 지표 분석 및 TBM 전파 자료 생성이 시작됩니다.
+                                첫 점검 기록(사진, PDF, 수기)을 등록하면 실시간 지표 분석 및 위험성평가 교육자료 생성이 시작됩니다.
                             </p>
                         </div>
                         <button type="button" onClick={() => setCurrentPage('ocr-analysis')} className="min-h-[30px] rounded-lg bg-blue-700 hover:bg-blue-800 px-3 py-1 text-[11px] font-black text-white transition shrink-0 shadow-sm dark:bg-blue-600 dark:hover:bg-blue-700">

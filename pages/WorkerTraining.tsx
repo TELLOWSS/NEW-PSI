@@ -721,7 +721,7 @@ const isTrainingDemoEnabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE
 
 const MOCK_SESSION_DATA: SessionRow = {
     id: TRAINING_DEMO_SESSION_ID,
-    source_text_ko: `[오늘의 TBM 안전 지침]\n1. 고소 작업 시 생명줄 및 안전대 이중 체결 필수\n2. 이동식 사다리 작업 시 2인 1조 작업 및 아웃트리거 설치 확인\n3. 하부 통제구역 설정 및 신호수 배치 상태 점검`,
+    source_text_ko: `[오늘의 위험성평가 안전 지침]\n1. 고소 작업 시 생명줄 및 안전대 이중 체결 필수\n2. 이동식 사다리 작업 시 2인 1조 작업 및 아웃트리거 설치 확인\n3. 하부 통제구역 설정 및 신호수 배치 상태 점검`,
     audio_urls: {
         'ko-KR': 'mock-audio-ko',
         'en-US': 'mock-audio-en',
@@ -729,10 +729,10 @@ const MOCK_SESSION_DATA: SessionRow = {
         'zh-CN': 'mock-audio-zh'
     },
     translated_texts: {
-        'ko-KR': `[오늘의 TBM 안전 지침]\n1. 고소 작업 시 생명줄 및 안전대 이중 체결 필수\n2. 이동식 사다리 작업 시 2인 1조 작업 및 아웃트리거 설치 확인\n3. 하부 통제구역 설정 및 신호수 배치 상태 점검`,
-        'en-US': `[Today's TBM Safety Guidelines]\n1. Double fastening of lifeline and safety harness is mandatory during high-altitude work.\n2. Ensure 2-person team work and outrigger installation when working on mobile ladders.\n3. Establish lower control zones and inspect signalman deployment status.`,
-        'vi-VN': `[Hướng dẫn an toàn TBM hôm nay]\n1. Bắt buộc phải thắt dây an toàn kép và dây cứu sinh khi làm việc trên cao.\n2. Đảm bảo làm việc nhóm 2 người và lắp đặt chân đỡ khi làm việc trên thang di động.\n3. Thiết lập khu vực kiểm soát phía dưới và kiểm tra tình trạng bố trí của người báo hiệu.`,
-        'zh-CN': `[今日 TBM 安全指南]\n1. 高空作业时必须双重系挂生命线 and 안전대。\n2. 移动梯作业时，ensure/确保2人一组作业并确认支腿安装。\n3. 设置下方管制区域并检查信号工配备状态。`
+        'ko-KR': `[오늘의 위험성평가 안전 지침]\n1. 고소 작업 시 생명줄 및 안전대 이중 체결 필수\n2. 이동식 사다리 작업 시 2인 1조 작업 및 아웃트리거 설치 확인\n3. 하부 통제구역 설정 및 신호수 배치 상태 점검`,
+        'en-US': `[Today's Risk Assessment Safety Guidelines]\n1. Double fastening of lifeline and safety harness is mandatory during high-altitude work.\n2. Ensure 2-person team work and outrigger installation when working on mobile ladders.\n3. Establish lower control zones and inspect signalman deployment status.`,
+        'vi-VN': `[Hướng dẫn an toàn nguy cơ hôm nay]\n1. Bắt buộc phải thắt dây an toàn kép và dây cứu sinh khi làm việc trên cao.\n2. Đảm bảo làm việc nhóm 2 người và lắp đặt chân đỡ khi làm việc trên thang di động.\n3. Thiết lập khu vực kiểm soát phía dưới và kiểm tra tình trạng bố trí của người báo hiệu.`,
+        'zh-CN': `[今日 风险评估安全指南]\n1. 高空作业时必须双重系挂生命线 and 안전대。\n2. 移动梯作业时，ensure/确保2人一组作业并确认支腿安装。\n3. 设置下方管制区域并检查信号工配备状态。`
     }
 };
 

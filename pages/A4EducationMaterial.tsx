@@ -979,8 +979,8 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     return (
         <div className="psi-page space-y-5 pb-16">
             <section className="psi-enterprise-hero no-print">
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-100">Evidence-based TBM Studio</p>
-                <h2 className="mt-2 text-2xl font-black sm:text-3xl">다음 달 TBM 교육자료 스튜디오</h2>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-100">Evidence-based Risk Assessment Studio</p>
+                <h2 className="mt-2 text-2xl font-black sm:text-3xl">다음 달 위험성평가 교육자료 스튜디오</h2>
                 <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-blue-50">
                     현장 기록과 첨부자료를 근거로 5단계 전파교육 초안을 만들고, 선택한 AI의 정밀 분석 결과를 한 장 자료·다국어 교육으로 이어갑니다.
                 </p>
@@ -1500,7 +1500,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                     {/* 좌측: 한국어 요약 */}
                                     <div className="flex flex-col h-full border-r border-slate-200 pr-5">
                                         <header className="border-b-[3px] border-orange-500 pb-3">
-                                            <p className="text-[10px] font-black text-blue-700">TBM 위험성평가 전파교육 (요약)</p>
+                                            <p className="text-[10px] font-black text-blue-700">위험성평가 전파교육 (요약)</p>
                                             <h2 className="text-base font-black leading-tight mt-1 break-keep">{draft.title}</h2>
                                             <p className="text-[10px] font-bold text-slate-500 mt-1">대상: {draft.workType} · 월: {educationMonth}</p>
                                         </header>
