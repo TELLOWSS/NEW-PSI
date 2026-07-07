@@ -1,5 +1,6 @@
 
 import React, { Suspense, lazy, useState, useRef, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, HarnessApprovalState, HarnessRiskDecision, HarnessWorkflowState, Page } from '../types';
 import { extractMessage, toVercelFriendlyMessage } from '../utils/errorUtils';
 import { postAdminJson } from '../utils/adminApiClient';
@@ -321,6 +322,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     // 뷰 모드 및 미리보기 상태
     const [viewMode, setViewMode] = useState<ViewMode>('list');
     const [previewIndex, setPreviewIndex] = useState(0);
+    const [isPrintMode, setIsPrintMode] = useState(false);
     const previewRef = useRef<HTMLDivElement>(null); // For single capture in preview
     const [safetyCases, setSafetyCases] = useState<SafetyCaseRecord[]>([]);
     const [focusedSafetyCaseId, setFocusedSafetyCaseId] = useState('');
@@ -4857,6 +4859,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                                     이미지 다운로드 (JPG)
                                 </button>
+                                <button 
+                                    onClick={() => setIsPrintMode(true)}
+                                    disabled={hasCustomDateRangeError}
+                                    className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 shadow-lg transition-colors ${hasCustomDateRangeError ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-3a2 2 0 00-2-2H9a2 2 0 00-2 2v3a2 2 0 002 2zm5-14V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v3m6 0H9" /></svg>
+                                    인쇄하기 (브라우저)
+                                </button>
                             </div>
                             </div>
                         </div>
@@ -5049,6 +5059,50 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 </div>
                             )}
                         </div>
+                        
+                        {isPrintMode && currentPreviewRecord && createPortal(
+                            <div className="fixed inset-0 z-[9999] bg-white overflow-auto flex flex-col items-center p-8 print:p-0 print:bg-white text-slate-900" style={{ fontFamily: "'Pretendard', 'Noto Sans KR', 'Malgun Gothic', sans-serif" }}>
+                                {/* Print Control Panel */}
+                                <div className="no-print w-full max-w-[210mm] mb-6 bg-slate-100 dark:bg-slate-800 p-4 rounded-2xl flex justify-between items-center shadow-sm border border-slate-200 dark:border-slate-700">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-sm font-black text-slate-800 dark:text-slate-100">보고서 인쇄 모드</span>
+                                        <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">{currentPreviewRecord.name} (A4 규격)</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => { window.print(); }}
+                                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-sm transition-colors"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-3a2 2 0 00-2-2H9a2 2 0 00-2 2v3a2 2 0 002 2zm5-14V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v3m6 0H9" /></svg>
+                                            인쇄하기
+                                        </button>
+                                        <button
+                                            onClick={() => setIsPrintMode(false)}
+                                            className="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-lg transition-colors"
+                                        >
+                                            닫기
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                {/* Report templates */}
+                                <div className="flex flex-col items-center bg-white print:w-full print:h-auto">
+                                    <ReportTemplate 
+                                        record={currentPreviewRecord} 
+                                        history={currentPreviewHistory} 
+                                    />
+                                </div>
+                                
+                                <style>{`
+                                    @media print {
+                                        .no-print { display: none !important; }
+                                        body { background: white !important; margin: 0 !important; padding: 0 !important; }
+                                        #root { display: none !important; }
+                                    }
+                                `}</style>
+                            </div>,
+                            document.body
+                        )}
                     </div>
                 )}
             </div>
