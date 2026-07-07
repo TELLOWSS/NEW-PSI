@@ -1475,7 +1475,7 @@ const AdminTraining: React.FC = () => {
 
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-500/30 dark:bg-blue-500/10">
                     <div>
-                        <p className="text-xs font-black text-blue-900 dark:text-blue-100">다음 달 위험성평가 5단계 원문</p>
+                        <p className="text-xs font-black text-blue-900 dark:text-blue-100">위험성평가 5단계 원문</p>
                         <p className="mt-1 text-[11px] font-bold text-blue-700 dark:text-blue-300">위험성평가 교육자료 스튜디오에서 확정한 영상·사례·상등급·중점관리·공지 내용을 한 번에 불러옵니다.</p>
                     </div>
                     <button

@@ -339,7 +339,7 @@ export const buildMonthlyEducationPackageText = (draft: TbmEducationDraft): stri
         `- 현장 연관성: ${accident?.siteRelevance || '관리자 입력 필요'}`,
         `- 핵심 교훈: ${accident?.lesson || '관리자 입력 필요'}`,
         '',
-        '3. 다음 달 위험성평가 상등급 공유',
+        '3. 위험성평가 상등급 공유',
         ...risksToShare.map((risk) => `- ${risk.risk}: ${risk.action} / 담당 ${risk.owner} / ${risk.managerConfirmed ? '관리자 확인 완료' : '상등급 최종 확인 필요'}`),
         '',
         '4. 현장 중점관리 포인트',

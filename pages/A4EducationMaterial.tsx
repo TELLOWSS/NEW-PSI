@@ -233,7 +233,7 @@ const TBM_LOCALIZATIONS: Record<string, TbmLocalization> = {
         targetLabel: '교육 대상',
         videoTitle: '1. 교육 전 5분 핵심 동영상',
         accidentTitle: '2. 최근 재해사례와 현장 연관성',
-        risksTitle: '3. 다음 달 위험성평가 상등급 공유',
+        risksTitle: '3. 위험성평가 상등급 공유',
         focusTitle: '4. 현장 중점관리 포인트',
         noticeTitle: '5. 공지사항',
         pledgeBoxTitle: '이해 확인과 행동 약속',
@@ -890,7 +890,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             pptx.defineLayout({ name: 'PSI_A4', width: 8.27, height: 11.69 });
             pptx.layout = 'PSI_A4';
             pptx.author = 'PSI';
-            pptx.subject = '다음 달 위험성평가 전파교육';
+            pptx.subject = '위험성평가 전파교육';
             pptx.title = draft.title;
             const slide = pptx.addSlide();
             slide.background = { color: 'FFFFFF' };
@@ -980,7 +980,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         <div className="psi-page space-y-5 pb-16">
             <section className="psi-enterprise-hero no-print">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-100">Evidence-based Risk Assessment Studio</p>
-                <h2 className="mt-2 text-2xl font-black sm:text-3xl">다음 달 위험성평가 교육자료 스튜디오</h2>
+                <h2 className="mt-2 text-2xl font-black sm:text-3xl">위험성평가 교육자료 스튜디오</h2>
                 <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-blue-50">
                     현장 기록과 첨부자료를 근거로 5단계 전파교육 초안을 만들고, 선택한 AI의 정밀 분석 결과를 한 장 자료·다국어 교육으로 이어갑니다.
                 </p>
@@ -1129,7 +1129,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                     <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-500/30 dark:bg-blue-500/10">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                             <div>
-                                <h3 className="text-lg font-black text-blue-950 dark:text-blue-100">다음 달 위험성평가 5단계 교육 흐름</h3>
+                                <h3 className="text-lg font-black text-blue-950 dark:text-blue-100">위험성평가 5단계 교육 흐름</h3>
                                 <p className="mt-1 text-xs font-semibold leading-5 text-blue-700 dark:text-blue-300">공통 이해에서 현장 행동으로 이어지도록 영상 → 사례 → 상등급 → 중점관리 → 공지 순서로 진행하고, 마지막에 이해 확인과 작업중지 약속을 남깁니다.</p>
                             </div>
                             <span className={`rounded-full px-3 py-2 text-xs font-black ${videoDuration === 300 ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
@@ -1393,7 +1393,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                     <header className="border-b-[5px] border-orange-500 pb-5">
                                         <div className="flex items-start justify-between gap-4">
                                             <div>
-                                                <p className="text-sm font-black text-blue-700">PSI 다음 달 위험성평가 전파교육</p>
+                                                <p className="text-sm font-black text-blue-700">PSI 위험성평가 전파교육</p>
                                                 <h1
                                                     className="mt-2 font-black leading-tight break-keep"
                                                     style={{
@@ -1435,7 +1435,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                     </section>
 
                                     <section className="mt-4">
-                                        <h2 className="text-sm font-black text-rose-700">3. 다음 달 위험성평가 상등급 공유</h2>
+                                        <h2 className="text-sm font-black text-rose-700">3. 위험성평가 상등급 공유</h2>
                                         <div className="mt-2 grid grid-cols-3 gap-3">
                                             {draft.risks.map((item) => (
                                                 <article key={item.id} className="rounded-xl border border-rose-200 p-3">
@@ -1519,7 +1519,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                             </article>
 
                                             <article className="rounded-xl border border-rose-100 bg-rose-50/50 p-2.5">
-                                                <p className="text-[9px] font-black text-rose-700">3. 다음 달 위험성평가 상등급 공유</p>
+                                                <p className="text-[9px] font-black text-rose-700">3. 위험성평가 상등급 공유</p>
                                                 <div className="space-y-1.5 mt-1.5">
                                                     {draft.risks.map((item) => (
                                                         <div key={item.id} className="text-[9px] leading-normal">

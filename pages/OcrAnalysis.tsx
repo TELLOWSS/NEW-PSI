@@ -978,8 +978,56 @@ const isFailedRecord = (r: WorkerRecord): boolean => {
     return false;
 };
 
+const normalizeScoringSignalText = (value: unknown): string => (
+    String(value || '').replace(/\s+/g, ' ').trim()
+);
+
+const getScoringAnswerSignalText = (record: Partial<WorkerRecord>): string => (
+    (record.handwrittenAnswers || [])
+        .flatMap((answer) => [
+            answer?.answerText,
+            answer?.koreanTranslation,
+            answer?.nativeTranslation,
+        ])
+        .map(normalizeScoringSignalText)
+        .filter(Boolean)
+        .join(' ')
+);
+
+const getChangedFormAnsweredQuestionCount = (record: Partial<WorkerRecord>): number => {
+    const present = new Set<number>();
+    (record.handwrittenAnswers || []).forEach((answer, index) => {
+        const questionNumberText = String(answer?.questionNumber || '').match(/\d+/)?.[0];
+        const questionNumber = Number(questionNumberText || (index < 5 ? index + 1 : NaN));
+        const answerText = [
+            answer?.answerText,
+            answer?.koreanTranslation,
+            answer?.nativeTranslation,
+        ].map(normalizeScoringSignalText).filter(Boolean).join(' ');
+
+        if (Number.isInteger(questionNumber) && questionNumber >= 1 && questionNumber <= 5 && answerText.length >= 2) {
+            present.add(questionNumber);
+        }
+    });
+    return present.size;
+};
+
+const hasMeaningfulScoringInput = (record: Partial<WorkerRecord>): boolean => {
+    const answerSignal = getScoringAnswerSignalText(record);
+    const insightSignal = normalizeScoringSignalText(record.aiInsights);
+    return answerSignal.length >= 30 || getChangedFormAnsweredQuestionCount(record) >= 4 || insightSignal.length >= 80;
+};
+
+const isScoreRevalidationNeeded = (record: WorkerRecord): boolean => {
+    const score = Number(record.safetyScore);
+    if (!Number.isFinite(score) || score > 0) return false;
+    if (isFailedRecord(record)) return false;
+    return hasMeaningfulScoringInput(record);
+};
+
 const isOperationalScoreRecord = (record: WorkerRecord): boolean => {
-    return !isFailedRecord(record) && Number.isFinite(Number(record.safetyScore));
+    const score = Number(record.safetyScore);
+    return !isFailedRecord(record) && Number.isFinite(score) && score >= 0 && !isScoreRevalidationNeeded(record);
 };
 
 const getOperationalSafetyScore = (record: WorkerRecord): number | null => {
@@ -5396,6 +5444,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
         const resolveOcrResultBucket = (record: WorkerRecord): string => {
             if (!isFailedRecord(record)) {
+                if (isScoreRevalidationNeeded(record)) return '정상 분석(점수 재검증)';
                 return typeof record.ocrConfidence === 'number' && record.ocrConfidence < 0.7
                     ? '정상 분석(저신뢰)'
                     : '정상 분석';
@@ -5452,10 +5501,53 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             };
         };
 
+        const buildScoreDiagnostics = (record: WorkerRecord, coverage: ReturnType<typeof getQuestionCoverage>) => {
+            const scoreReasoning = Array.isArray(record.scoreReasoning) ? record.scoreReasoning : [];
+            const hasBreakdown = Boolean(record.scoreBreakdown && typeof record.scoreBreakdown === 'object');
+            const answerPreviews = (record.handwrittenAnswers || []).slice(0, 5).map((answer) => [
+                answer.answerText,
+                answer.koreanTranslation,
+                answer.nativeTranslation,
+            ].map(normalizeScoringSignalText).filter(Boolean).join(' '));
+            const hasEmptyQuestionPreviewDespiteCoverage =
+                coverage.presentCount >= 5 &&
+                answerPreviews.length >= 5 &&
+                answerPreviews.every((text) => text.length === 0);
+
+            const codes: string[] = [];
+            if (isScoreRevalidationNeeded(record)) codes.push('SCORE_ZERO_WITH_COMPLETE_ANSWERS');
+            if (!hasBreakdown) codes.push('SCORE_BREAKDOWN_MISSING');
+            if (scoreReasoning.length === 0) codes.push('SCORE_REASONING_MISSING');
+            if (hasEmptyQuestionPreviewDespiteCoverage) codes.push('QUESTION_PREVIEW_EMPTY_DESPITE_COVERAGE');
+            if (!isOperationalScoreRecord(record)) codes.push('OPERATIONAL_SCORE_EXCLUDED');
+
+            const severity = codes.includes('SCORE_ZERO_WITH_COMPLETE_ANSWERS')
+                ? 'critical'
+                : codes.length > 0
+                    ? 'warning'
+                    : 'ok';
+
+            return {
+                severity,
+                codes: codes.length > 0 ? codes : ['OK'],
+                operationalScoreIncluded: isOperationalScoreRecord(record),
+                scoreReasoningCount: scoreReasoning.length,
+                scoreBreakdownPresent: hasBreakdown,
+                completeQuestionCount: coverage.presentCount,
+                answerSignalChars: getScoringAnswerSignalText(record).length,
+                recommendedAction: severity === 'critical'
+                    ? '점수 0점이 답변 내용과 맞지 않습니다. 원문 다시 읽기 또는 관리자 점수 재검증이 필요합니다.'
+                    : severity === 'warning'
+                        ? '점수 근거와 6대 지표가 부족합니다. 발표/제출 전 근거 보강 여부를 확인하세요.'
+                        : '점수와 근거가 검증 가능한 상태입니다.',
+            };
+        };
+
         const records = targetRecords.map((record, index) => {
             const failureCode = isFailedRecord(record) ? resolveFailureCodeFromRecord(record) : undefined;
             const coverage = getQuestionCoverage(record);
             const trace = record.ocrTrace;
+            const scoreDiagnostics = buildScoreDiagnostics(record, coverage);
 
             return {
                 no: index + 1,
@@ -5478,6 +5570,21 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 safetyScore: Number.isFinite(Number(record.safetyScore)) ? Number(record.safetyScore) : null,
                 operationalSafetyScore: getOperationalSafetyScore(record),
                 safetyLevel: record.safetyLevel || '',
+                scoreDiagnostics,
+                scoreReasoningPreview: (record.scoreReasoning || []).slice(0, 6).map((reason) => truncateText(reason, 160)),
+                scoreBreakdown: record.scoreBreakdown || null,
+                competencyProfile: record.competencyProfile
+                    ? {
+                        psychologicalScore: record.competencyProfile.psychologicalScore,
+                        jobUnderstandingScore: record.competencyProfile.jobUnderstandingScore,
+                        riskAssessmentUnderstandingScore: record.competencyProfile.riskAssessmentUnderstandingScore,
+                        proficiencyScore: record.competencyProfile.proficiencyScore,
+                        improvementExecutionScore: record.competencyProfile.improvementExecutionScore,
+                        repeatViolationPenalty: record.competencyProfile.repeatViolationPenalty,
+                        weightedScore: record.competencyProfile.weightedScore,
+                        weightVersion: record.competencyProfile.weightVersion,
+                    }
+                    : null,
                 questionCoverage: coverage,
                 handwrittenAnswerCount: Array.isArray(record.handwrittenAnswers) ? record.handwrittenAnswers.length : 0,
                 handwrittenAnswersPreview: (record.handwrittenAnswers || []).slice(0, 5).map((answer) => ({
@@ -5535,6 +5642,19 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             return acc;
         }, {});
         const lowConfidenceRecords = records.filter((record) => typeof record.ocrConfidence === 'number' && record.ocrConfidence < 0.7);
+        const scoreDiagnosticCodeCounts = records.reduce<Record<string, number>>((acc, record) => {
+            record.scoreDiagnostics.codes.forEach((code) => {
+                acc[code] = (acc[code] || 0) + 1;
+            });
+            return acc;
+        }, {});
+        const scoreDiagnosticsSummary = {
+            revalidationNeeded: records.filter((record) => record.scoreDiagnostics.codes.includes('SCORE_ZERO_WITH_COMPLETE_ANSWERS')).length,
+            operationalScoreExcluded: records.filter((record) => !record.scoreDiagnostics.operationalScoreIncluded).length,
+            scoreBreakdownMissing: records.filter((record) => record.scoreDiagnostics.codes.includes('SCORE_BREAKDOWN_MISSING')).length,
+            scoreReasoningMissing: records.filter((record) => record.scoreDiagnostics.codes.includes('SCORE_REASONING_MISSING')).length,
+            codes: scoreDiagnosticCodeCounts,
+        };
 
         const payload = {
             snapshotType: 'NEW-PSI OCR verification package',
@@ -5583,10 +5703,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 failureCodes: countBy(records.filter((record) => record.failed), 'failureCode'),
                 changedFormRecords: changedFormRecords.length,
                 questionCoverage: questionCoverageCounts,
+                scoreDiagnostics: scoreDiagnosticsSummary,
                 recordsWithOriginalImage: records.filter((record) => record.imageEvidence.hasOriginalImage).length,
                 serverGeminiSuccessCount: records.filter((record) => record.trace?.providerUsed === 'server_gemini' && !record.failed).length,
             },
             recommendedReadingOrder: [
+                'summary.scoreDiagnostics와 records[].scoreDiagnostics에서 점수 재검증 대상을 먼저 확인',
                 'summary.resultBuckets에서 정상/API 한도/양식 판독 비율을 먼저 확인',
                 'summary.questionCoverage에서 변경 양식 Q1~Q5 추출 상태 확인',
                 'records[].failureHeadline과 records[].ocrErrorMessage로 실제 반려 사유 확인',

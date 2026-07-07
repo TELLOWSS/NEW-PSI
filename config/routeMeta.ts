@@ -225,9 +225,9 @@ export const routeMetaMap: Record<Page, RouteMeta> = {
         errorMessage: '리포트를 불러오지 못했습니다.',
     }),
     'a4-education-material': createMeta({
-        id: 'a4-education-material', productGroup: 'tbm', practitionerLabel: '다음 달 위험성평가 교육자료', workerLabel: '다음 달 위험교육', developerLabel: 'TBM Education Studio',
-        description: '위험성평가 기록과 교육 원문을 근거로 다음 달 전파교육용 한 장 자료를 만들고 PDF·PPTX로 저장합니다.', menuVisibleInPractitionerMode: true, menuVisibleInWorkerMode: false, menuVisibleInDeveloperMode: true,
-        fallbackTitle: '다음 달 위험성평가 교육자료', emptyStateMessage: '자료를 추가하거나 기본 보기글로 교육자료를 만들 수 있습니다.', errorMessage: '위험성평가 교육자료 스튜디오를 불러오지 못했습니다.',
+        id: 'a4-education-material', productGroup: 'tbm', practitionerLabel: '위험성평가 교육자료', workerLabel: '위험성평가 교육', developerLabel: 'TBM Education Studio',
+        description: '위험성평가 기록과 교육 원문을 근거로 전파교육용 한 장 자료를 만들고 PDF·PPTX로 저장합니다.', menuVisibleInPractitionerMode: true, menuVisibleInWorkerMode: false, menuVisibleInDeveloperMode: true,
+        fallbackTitle: '위험성평가 교육자료', emptyStateMessage: '자료를 추가하거나 기본 보기글로 교육자료를 만들 수 있습니다.', errorMessage: '위험성평가 교육자료 스튜디오를 불러오지 못했습니다.',
     }),
     'ppt-pdf-one-page-summary': createMeta({
         id: 'ppt-pdf-one-page-summary', productGroup: 'tbm', practitionerLabel: '교육자료 통합 경로', workerLabel: '교육 한장요약', developerLabel: 'Education Studio Legacy Route',

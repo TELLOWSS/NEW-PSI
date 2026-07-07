@@ -2462,7 +2462,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                             <span className="text-2xl">📢</span> TBM 전파 교육 제안
                         </h3>
                         <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                            <p className="text-xs font-bold opacity-80 mb-1">다음 달 위험성평가 기록지 작성 가이드:</p>
+                            <p className="text-xs font-bold opacity-80 mb-1">위험성평가 기록지 작성 가이드:</p>
                             <p className="text-sm font-black leading-relaxed">
                                 "{nextMonth}은 계절적 요인과 맞물려 <span className="underline decoration-white">추락 및 미끄러짐</span> 사고 위험이 높습니다. 
                                 작업 전 안전대 고리 체결 확인을 필수 항목으로 기재하도록 지도하십시오."

@@ -691,7 +691,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         { label: '근로자 의견 분석', desc: '근로자 의견과 응답 경향을 위험 신호로 정리', stat: '의견 분석', page: 'survey-intelligence' },
         { label: '안전성과 분석', desc: '개선 이행률과 성과 추이를 현장별로 확인', stat: `승인 ${previewMetrics.approvedRecords}건`, page: 'performance-analysis' },
         { label: '월별 계도 리포트', desc: '월별 위험 항목을 익명화해 계도자료로 정리', stat: '월별 분류', page: 'monthly-guidance-report' },
-        { label: '다음 달 위험성평가 교육자료', desc: '분석 결과를 다음 교육자료 제작 흐름으로 연결', stat: '교육자료', page: 'a4-education-material' },
+        { label: '위험성평가 교육자료', desc: '분석 결과를 교육자료 제작 흐름으로 연결', stat: '교육자료', page: 'a4-education-material' },
         { label: '다국어 교육 / QR', desc: '외국인 근로자에게 모국어 교육과 확인 경로 제공', stat: '모국어', page: 'admin-training' },
         { label: '근로자 리포트', desc: '개인별 안전역량과 관리자 보호 해석을 리포트화', stat: `대상 ${previewMetrics.totalWorkers}명`, page: 'reports' },
         { label: '시스템 설정', desc: 'API, 가중치, 권한, 운영 기준을 현장에 맞게 조정', stat: '운영 설정', page: 'settings' },

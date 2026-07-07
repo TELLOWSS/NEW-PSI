@@ -44,7 +44,7 @@ describe('TBM education studio', () => {
 
         expect(sourceText).toContain('1. 교육 전 5분 핵심 동영상');
         expect(sourceText).toContain('2. 최근 재해사례와 현장 연관성');
-        expect(sourceText).toContain('3. 다음 달 위험성평가 상등급 공유');
+        expect(sourceText).toContain('3. 위험성평가 상등급 공유');
         expect(sourceText).toContain('4. 현장 중점관리 포인트');
         expect(sourceText).toContain('5. 공지사항');
         expect(sourceText).toContain('상등급 최종 확인 필요');
