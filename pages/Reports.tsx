@@ -1,5 +1,6 @@
 
 import React, { Suspense, lazy, useState, useRef, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, HarnessApprovalState, HarnessRiskDecision, HarnessWorkflowState, Page } from '../types';
 import { extractMessage, toVercelFriendlyMessage } from '../utils/errorUtils';
 import { postAdminJson } from '../utils/adminApiClient';
@@ -321,6 +322,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     // 뷰 모드 및 미리보기 상태
     const [viewMode, setViewMode] = useState<ViewMode>('list');
     const [previewIndex, setPreviewIndex] = useState(0);
+    const [isPrintMode, setIsPrintMode] = useState(false);
     const previewRef = useRef<HTMLDivElement>(null); // For single capture in preview
     const [safetyCases, setSafetyCases] = useState<SafetyCaseRecord[]>([]);
     const [focusedSafetyCaseId, setFocusedSafetyCaseId] = useState('');
@@ -1900,6 +1902,24 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             console.error(e);
             alert('PDF 생성 중 오류가 발생했습니다.');
         }
+    };
+
+    useEffect(() => {
+        const handleAfterPrint = () => {
+            setIsPrintMode(false);
+        };
+        window.addEventListener('afterprint', handleAfterPrint);
+        return () => {
+            window.removeEventListener('afterprint', handleAfterPrint);
+        };
+    }, []);
+
+    const handleBrowserPrint = () => {
+        if (!currentPreviewRecord) return alert('출력할 데이터가 없습니다.');
+        setIsPrintMode(true);
+        setTimeout(() => {
+            window.print();
+        }, 300);
     };
 
     const handleDownloadCurrentImage = async () => {
@@ -4857,6 +4877,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                                     이미지 다운로드 (JPG)
                                 </button>
+                                <button 
+                                    onClick={handleBrowserPrint}
+                                    disabled={hasCustomDateRangeError}
+                                    className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 shadow-lg transition-colors ${hasCustomDateRangeError ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-3a2 2 0 00-2-2H9a2 2 0 00-2 2v3a2 2 0 002 2zm5-14V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v3m6 0H9" /></svg>
+                                    인쇄 / PDF 저장
+                                </button>
                             </div>
                             </div>
                         </div>
@@ -5049,6 +5077,16 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 </div>
                             )}
                         </div>
+                        
+                        {isPrintMode && currentPreviewRecord && createPortal(
+                            <div className="report-print-container" style={{ fontFamily: "'Pretendard', 'Noto Sans KR', 'Malgun Gothic', sans-serif" }}>
+                                <ReportTemplate 
+                                    record={currentPreviewRecord} 
+                                    history={currentPreviewHistory} 
+                                />
+                            </div>,
+                            document.body
+                        )}
                     </div>
                 )}
             </div>
