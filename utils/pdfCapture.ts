@@ -230,7 +230,7 @@ export const captureReportCanvases = async (
                 windowWidth: width,
                 windowHeight: height,
                 scrollX: 0,
-                scrollY: -window.scrollY,
+                scrollY: 0,
                 onclone: (clonedDocument: Document) => {
                     ensureCloneStyle(clonedDocument);
                     const clonedRoot = clonedDocument.querySelector('[data-report-template-root="true"]') as HTMLElement | null;
