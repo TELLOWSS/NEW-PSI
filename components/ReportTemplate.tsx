@@ -1048,11 +1048,11 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         [improvementEntries, frontEntryLimit, frontKoCharLimit, frontNativeCharLimit],
     );
     const frontCoachingText = useMemo(
-        () => wrapNarrativeText(limitNarrativeText(actionableCoachingText, frontKoCharLimit + 30), frontKoCharLimit > 60 ? 34 : 30),
+        () => limitNarrativeText(actionableCoachingText, frontKoCharLimit + 30),
         [actionableCoachingText, frontKoCharLimit],
     );
     const frontCoachingNativeText = useMemo(
-        () => coachingNativeParagraphs.length > 0 ? wrapNarrativeText(limitNarrativeText(coachingNativeParagraphs[0], frontNativeCharLimit + 30), frontNativeCharLimit > 52 ? 34 : 30) : '',
+        () => coachingNativeParagraphs.length > 0 ? limitNarrativeText(coachingNativeParagraphs[0], frontNativeCharLimit + 30) : '',
         [coachingNativeParagraphs, frontNativeCharLimit],
     );
     const frontCoachingSummaryParagraphs = useMemo(
@@ -1060,12 +1060,12 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         [frontCoachingNativeText, frontCoachingText, frontParagraphLimit],
     );
     const frontVerdictNativeText = useMemo(
-        () => wrapNarrativeText(limitNarrativeText(verdictNativeSourceText, frontNativeCharLimit + 15), narrativeWrapWidth.verdictNative),
-        [verdictNativeSourceText, frontNativeCharLimit, narrativeWrapWidth.verdictNative],
+        () => limitNarrativeText(verdictNativeSourceText, frontNativeCharLimit + 15),
+        [verdictNativeSourceText, frontNativeCharLimit],
     );
     const frontVerdictKoText = useMemo(
-        () => wrapNarrativeText(limitNarrativeText(record.aiInsights, frontKoCharLimit + 20), narrativeWrapWidth.verdictKo),
-        [record.aiInsights, frontKoCharLimit, narrativeWrapWidth.verdictKo],
+        () => limitNarrativeText(record.aiInsights, frontKoCharLimit + 20),
+        [record.aiInsights, frontKoCharLimit],
     );
     const frontVerdictPrimaryText = useMemo(
         () => (isKorean ? frontVerdictKoText : (frontVerdictNativeText || frontVerdictKoText)),
