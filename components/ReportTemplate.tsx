@@ -1272,7 +1272,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         {frontScoreReasonEntries.map((entry, i) => (
                                             <li key={`score-reason-ko-${i}`} className="flex items-start gap-1">
                                                 <span className="mt-[2px] text-slate-400">•</span>
-                                                <span className="break-words" style={createLineClampStyle(3)}><HighlightedText text={entry.text} /></span>
+                                                <span className="break-words"><HighlightedText text={entry.text} /></span>
                                             </li>
                                         ))}
                                     </ul>
@@ -1292,7 +1292,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     {frontCoachingSummaryParagraphs.map((paragraph, index) => (
                                         <li key={`coaching-summary-ko-${index}`} className="flex items-start gap-1">
                                             <span className="mt-[2px] text-amber-500">•</span>
-                                            <span style={createLineClampStyle(3)}><HighlightedText text={paragraph} /></span>
+                                            <span><HighlightedText text={paragraph} /></span>
                                         </li>
                                     ))}
                                 </ul>
@@ -1310,7 +1310,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                             <li key={`score-reason-${i}`} className="flex items-start gap-1 text-[8.5px] leading-[1.35] text-slate-700">
                                                 <span className="mt-[2px] text-slate-400">•</span>
                                                 <div className="min-w-0 flex-1">
-                                                    <p className={`break-words ${!isKorean ? 'leading-[1.5] text-[8px]' : 'leading-[1.3] text-[8.5px]'}`} style={frontEntryLineClampStyle}>
+                                                    <p className={`break-words ${!isKorean ? 'leading-[1.5] text-[8px]' : 'leading-[1.3] text-[8.5px]'}`}>
                                                         <HighlightedText text={entry.nativeText || entry.text} />
                                                     </p>
                                                 </div>
@@ -1336,7 +1336,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         <li key={`coaching-summary-${index}`} className="flex items-start gap-1">
                                             <span className="mt-[2px] text-amber-500">•</span>
                                             <div className="min-w-0 flex-1">
-                                                <p className={!isKorean ? 'leading-[1.5]' : ''} style={frontCoachingLineClampStyle}><HighlightedText text={paragraph} /></p>
+                                                <p className={!isKorean ? 'leading-[1.5]' : ''}><HighlightedText text={paragraph} /></p>
                                             </div>
                                         </li>
                                     ))}
@@ -1357,7 +1357,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         {frontStrengthEntries.map((entry, i) => (
                                             <li key={`strength-ko-${i}`} className="text-[9px] leading-[1.35] text-slate-800 flex items-start gap-1 min-w-0">
                                                 <CheckBulletIcon />
-                                                <span className="min-w-0 break-words leading-[1.35]" style={frontEntryLineClampStyle}><HighlightedText text={entry.text} /></span>
+                                                <span className="min-w-0 break-words leading-[1.35]" ><HighlightedText text={entry.text} /></span>
                                             </li>
                                         ))}
                                     </ul>
@@ -1372,7 +1372,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         {frontImprovementEntries.map((entry, i) => (
                                             <li key={`improvement-ko-${i}`} className="text-[9px] leading-[1.35] text-rose-900 flex items-start gap-1 min-w-0">
                                                 <WarningBulletIcon />
-                                                <span className="min-w-0 break-words leading-[1.35]" style={frontEntryLineClampStyle}><HighlightedText text={entry.text} /></span>
+                                                <span className="min-w-0 break-words leading-[1.35]" ><HighlightedText text={entry.text} /></span>
                                             </li>
                                         ))}
                                     </ul>
@@ -1383,14 +1383,14 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         <span className="w-1.5 h-1.5 rounded-full bg-slate-800 shrink-0"></span>
                                         {labels.verdict}
                                     </h3>
-                                    <p className="text-[8.5px] leading-relaxed text-slate-800 overflow-hidden whitespace-pre-line" style={frontVerdictLineClampStyle}>
+                                    <p className="text-[8.5px] leading-relaxed text-slate-800 overflow-hidden whitespace-pre-line">
                                         <HighlightedText text={frontVerdictPrimaryText} />
                                     </p>
                                     <NextActionChecklist
                                         title="현장 실천 체크"
                                         items={frontImprovementEntries.slice(0, 2).map((entry, i) => ({
                                             key: `action-ko-${i}`,
-                                            content: <span style={frontEntryLineClampStyle}><HighlightedText text={entry.text} /></span>,
+                                            content: <span ><HighlightedText text={entry.text} /></span>,
                                         }))}
                                     />
                                     {reassessmentTrail.length > 0 && (
@@ -1462,7 +1462,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                                 <div className="text-[8.5px] leading-[1.35] text-slate-800 flex items-start gap-1 min-w-0">
                                                     <CheckBulletIcon className="text-emerald-600" />
                                                     <div className="min-w-0 flex-1">
-                                                        <p className="break-words font-bold leading-[1.35]" style={frontEntryLineClampStyle}>
+                                                        <p className="break-words font-bold leading-[1.35]" >
                                                             <HighlightedText text={entry.nativeText || entry.text} />
                                                         </p>
                                                     </div>
@@ -1483,7 +1483,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                                 <div className="text-[8.5px] leading-[1.35] text-rose-900 flex items-start gap-1 min-w-0">
                                                     <WarningBulletIcon />
                                                     <div className="min-w-0 flex-1">
-                                                        <p className="break-words font-bold leading-[1.35]" style={frontEntryLineClampStyle}>
+                                                        <p className="break-words font-bold leading-[1.35]" >
                                                             <HighlightedText text={entry.nativeText || entry.text} />
                                                         </p>
                                                     </div>
@@ -1498,14 +1498,14 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         <span className="w-1.5 h-1.5 rounded-full bg-slate-800 shrink-0"></span>
                                         {labels.verdict}
                                     </h3>
-                                    <p className="text-[8.5px] leading-relaxed text-slate-800 overflow-hidden whitespace-pre-line" style={frontVerdictLineClampStyle}>
+                                    <p className="text-[8.5px] leading-relaxed text-slate-800 overflow-hidden whitespace-pre-line">
                                         <HighlightedText text={frontVerdictPrimaryText} />
                                     </p>
                                     <NextActionChecklist
                                         title={labels.actionChecklist}
                                         items={frontImprovementEntries.slice(0, 2).map((entry, i) => ({
                                             key: `action-${i}`,
-                                            content: <span style={frontEntryLineClampStyle}><HighlightedText text={entry.nativeText || entry.text} /></span>,
+                                            content: <span ><HighlightedText text={entry.nativeText || entry.text} /></span>,
                                         }))}
                                     />
                                     {reassessmentTrail.length > 0 && (
