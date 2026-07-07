@@ -82,6 +82,10 @@ const ensureCloneStyle = (doc: Document) => {
             caret-color: transparent !important;
             text-rendering: auto !important;
             letter-spacing: normal !important;
+            font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', 'Inter', 'Noto Sans Myanmar', 'Noto Sans Thai', 'Noto Sans Khmer', sans-serif !important;
+        }
+        [data-report-template-root="true"] .font-black {
+            font-weight: 700 !important;
         }
         [data-report-template-root="true"] img,
         [data-report-template-root="true"] canvas {

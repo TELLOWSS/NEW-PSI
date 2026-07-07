@@ -1624,7 +1624,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         </div>
 
                         {/* [세션 2] 상세 품질 및 6대 지표 (좌우 분할) */}
-                        <div className="grid grid-cols-[1.2fr_1fr] gap-2.5 min-h-0 h-[62mm] shrink-0">
+                        <div className="grid grid-cols-[1.1fr_1fr] gap-2.5 min-h-0 h-[62mm] shrink-0">
                             {/* 좌측: 6대 지표 상세 */}
                             <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm flex flex-col justify-between overflow-hidden">
                                 <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 mb-2 shrink-0">
@@ -1678,7 +1678,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         </div>
 
                         {/* [세션 3] 현장 지침 및 동적 역량 강점/개선 상세 (좌우 분할) */}
-                        <div className="grid grid-cols-[1fr_1.1fr] gap-2.5 min-h-0 flex-1 overflow-hidden">
+                        <div className="grid grid-cols-[1.1fr_1fr] gap-2.5 min-h-0 flex-1 overflow-hidden">
                             {/* 좌측: 실행 코칭 및 특별 권고사항 */}
                             <div className="rounded-2xl border border-amber-300 bg-amber-50/45 p-3 shadow-sm flex flex-col justify-between overflow-hidden">
                                 <div className="flex items-center justify-between border-b border-amber-200 pb-1.5 mb-2 shrink-0">
