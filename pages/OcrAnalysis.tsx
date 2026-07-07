@@ -1088,6 +1088,16 @@ const CORRECTION_FIELD_LABELS: Record<string, string> = {
     suggestions: '권장사항',
 };
 
+const getPrimaryRiskTaskFromRecord = (record: WorkerRecord): string => {
+    const answers = Array.isArray(record.handwrittenAnswers) ? record.handwrittenAnswers : [];
+    const q1 = answers.find((answer) => {
+        const questionNumber = String(answer?.questionNumber || '').replace(/\s+/g, '').toUpperCase();
+        return questionNumber === '1' || questionNumber === 'Q1';
+    });
+
+    return String(q1?.koreanTranslation || q1?.answerText || '').replace(/\s+/g, ' ').trim();
+};
+
 const getLatestCorrectionPreview = (record: WorkerRecord): string | null => {
     const latest = Array.isArray(record.correctionHistory)
         ? record.correctionHistory[record.correctionHistory.length - 1]
@@ -7685,6 +7695,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         const weakCorrectionReason = hasWeakCorrectionReason(r);
                         const latestCorrectionReason = getLatestCorrectionReason(r);
                         const hasImage = hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage);
+                        const primaryRiskTask = getPrimaryRiskTaskFromRecord(r);
                         const rowErrorType = failed ? getOcrErrorTypeFromRecord(r) : null;
                         const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
                         const rowGuideMobile = rowErrorType ? getOcrErrorMobileLabel(rowErrorType) : '';
@@ -7727,7 +7738,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             {getLeaderIcon(r)}
                                         </p>
                                         <p className="mt-0.5 text-[11px] text-slate-500 font-bold">{r.nationality} · {r.date}</p>
-                                        <p className="mt-0.5 text-[11px] text-slate-500 font-bold">{r.jobField} · 팀장 {r.teamLeader || '미지정'}</p>
+                                        <p className="mt-0.5 text-[11px] text-slate-500 font-bold">공종 {r.jobField || '미분류'} · 팀장 {r.teamLeader || '미지정'}</p>
+                                        <p className="mt-1 rounded-lg border border-indigo-100 bg-indigo-50 px-2 py-1 text-[10px] font-black leading-snug text-indigo-700">
+                                            Q1 실제 위험작업: {primaryRiskTask || '미확인'}
+                                        </p>
                                         {latestCorrectionPreview && (
                                             <p className="mt-1 text-[10px] text-violet-700 font-black leading-snug" title={latestCorrectionReason || latestCorrectionPreview}>최근 수정: {latestCorrectionPreview}</p>
                                         )}
@@ -7874,7 +7888,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
                                 <th className="px-2 py-4 text-center w-12">선택</th>
                                 <th className="px-4 sm:px-8 py-4">근로자 정보</th>
-                                <th className="px-4 sm:px-8 py-4">공종/직군</th>
+                                <th className="px-4 sm:px-8 py-4">공종 / Q1 실제 위험작업</th>
                                 <th className="px-4 sm:px-8 py-4">팀장 (Leader)</th>
                                 <th className="px-4 sm:px-8 py-4 text-center">응답품질</th>
                                 <th className="px-4 sm:px-8 py-4 text-center">이미지 상태</th>
@@ -7897,6 +7911,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const recentlyCorrected = isRecentlyCorrected(r);
                                 const weakCorrectionReason = hasWeakCorrectionReason(r);
                                 const latestCorrectionReason = getLatestCorrectionReason(r);
+                                const primaryRiskTask = getPrimaryRiskTaskFromRecord(r);
                                 const rowErrorType = failed ? getOcrErrorTypeFromRecord(r) : null;
                                 const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
                                 const rowGuideSummary = rowErrorType ? getOcrErrorGuideSummary(rowErrorType) : '';
@@ -8035,7 +8050,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="px-4 sm:px-8 py-5 text-slate-500 font-bold">{r.jobField}</td>
+                                        <td className="px-4 sm:px-8 py-5">
+                                            <div className="max-w-[220px]">
+                                                <p className="text-sm font-black text-slate-700">{r.jobField || '미분류'}</p>
+                                                <p className="mt-1 rounded-lg border border-indigo-100 bg-indigo-50 px-2 py-1 text-[10px] font-black leading-snug text-indigo-700" title={primaryRiskTask || 'Q1 실제 위험작업 미확인'}>
+                                                    Q1 실제 위험작업: {primaryRiskTask || '미확인'}
+                                                </p>
+                                            </div>
+                                        </td>
                                         <td className="px-4 sm:px-8 py-5 text-slate-600 font-bold text-sm">
                                             {r.teamLeader && r.teamLeader !== '미지정' ? (
                                                 <span className={`bg-slate-100 px-2 py-1 rounded border border-slate-200 ${getLeaderIcon(r) ? 'text-indigo-600 font-black border-indigo-200 bg-indigo-50' : 'text-slate-600'}`}>

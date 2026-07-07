@@ -834,7 +834,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                     </p>
                                     <div className="mt-2 flex flex-wrap gap-1.5">
                                         {proofChips.map((chip) => (
-                                            <span key={chip} className="rounded-full border border-indigo-100 bg-indigo-50 px-2 py-1 text-[9px] font-black text-indigo-700">
+                                            <span key={chip} className={`rounded-full border px-2 py-1 text-[9px] font-black text-indigo-700 ${BRAND_TONE.indigoSoft}`}>
                                                 {chip}
                                             </span>
                                         ))}
@@ -854,7 +854,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
 
                     <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
                         {productStorySteps.map((step, index) => (
-                            <div key={step.title} className="rounded-2xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm">
+                            <div key={step.title} className={`rounded-2xl border px-3.5 py-3 shadow-sm ${BRAND_TONE.slateWhite}`}>
                                 <div className="flex items-center gap-2">
                                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-black text-white">{index + 1}</span>
                                     <p className="text-[12px] font-black text-slate-900">{step.title}</p>
@@ -935,7 +935,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                             key={tabItem.label}
                                             type="button"
                                             onClick={() => onNavigateToPage(tabItem.page)}
-                                            className="rounded-2xl border border-slate-200 bg-white px-2 py-3 text-center transition duration-200 hover:border-indigo-200 hover:bg-indigo-50"
+                                            className={`rounded-2xl border px-2 py-3 text-center transition duration-200 ${BRAND_TONE.slateWhiteHoverIndigo}`}
                                         >
                                             <span className="mx-auto flex h-6 w-6 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-black text-indigo-700">{index + 1}</span>
                                             <p className="mt-1.5 text-[10px] font-black text-slate-800">{tabItem.label}</p>
@@ -943,7 +943,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                         </button>
                                     ))}
                                 </div>
-                                <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                <div className={`mt-3 rounded-2xl border p-3 ${BRAND_TONE.slate}`}>
                                     <p className="text-[10px] font-black text-slate-700">현장 핵심 실행 3단계</p>
                                     <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
                                         {actualMobileActions.map((action) => (
@@ -951,7 +951,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                                 key={action.label}
                                                 type="button"
                                                 onClick={() => onNavigateToPage(action.page)}
-                                                className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-left transition duration-200 hover:border-indigo-200 hover:bg-indigo-50"
+                                                className={`rounded-xl border px-2.5 py-2 text-left transition duration-200 ${BRAND_TONE.slateWhiteHoverIndigo}`}
                                             >
                                                 <p className="text-[10px] font-black text-indigo-700">{action.label}</p>
                                                 <p className="mt-0.5 text-[8px] font-semibold leading-tight text-slate-500 break-keep">{action.desc}</p>

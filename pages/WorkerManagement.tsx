@@ -4265,19 +4265,19 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             value={manualWorkerForm.name}
                             onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, name: e.target.value }))}
                             placeholder="이름*"
-                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100"
+                            className={`w-full rounded-xl border px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100 ${BRAND_TONE.slateWhiteDarkPanel}`}
                         />
                         <input
                             type="text"
                             value={manualWorkerForm.nationality}
                             onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, nationality: e.target.value }))}
                             placeholder="국적*"
-                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100"
+                            className={`w-full rounded-xl border px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100 ${BRAND_TONE.slateWhiteDarkPanel}`}
                         />
                         <select
                             value={manualWorkerForm.job_field}
                             onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, job_field: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100"
+                            className={`w-full rounded-xl border px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100 ${BRAND_TONE.slateWhiteDarkPanel}`}
                         >
                             {ALLOWED_JOB_FIELDS.map((field) => (
                                 <option key={field} value={field} className="dark:bg-slate-950 dark:text-slate-100">{field}</option>
@@ -4287,7 +4287,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             type="text"
                             onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, team_name: e.target.value }))}
                             placeholder="팀명*"
-                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100"
+                            className={`w-full rounded-xl border px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100 ${BRAND_TONE.slateWhiteDarkPanel}`}
                         />
                     </div>
                     <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -4298,7 +4298,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             inputMode="numeric"
                             maxLength={11}
                             placeholder="핸드폰번호 숫자만 입력 (선택)"
-                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100"
+                            className={`w-full rounded-xl border px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100 ${BRAND_TONE.slateWhiteDarkPanel}`}
                         />
                         <input
                             type="text"
@@ -4307,14 +4307,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             inputMode="numeric"
                             maxLength={8}
                             placeholder="생년월일 6/8자리 (선택)"
-                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100"
+                            className={`w-full rounded-xl border px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100 ${BRAND_TONE.slateWhiteDarkPanel}`}
                         />
                         <input
                             type="text"
                             value={manualWorkerForm.passport_number}
                             onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, passport_number: e.target.value }))}
                             placeholder="여권번호 (선택)"
-                            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100"
+                            className={`w-full rounded-xl border px-3 py-2 text-sm font-bold text-slate-900 dark:text-slate-100 ${BRAND_TONE.slateWhiteDarkPanel}`}
                         />
                     </div>
                     <button
@@ -4443,7 +4443,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 )}
                 {missingPhotoQueue.length > 0 && (
                     <SectionPanelCard
-                        className="w-full rounded-[28px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-4 shadow-sm"
+                        className={`w-full rounded-[28px] border px-4 py-4 shadow-sm ${BRAND_TONE.slateWhiteDarkPanel}`}
                         title="사진 미등록자 빠른 등록 큐"
                         description={`실제 등록자는 아래 순서대로 열어서 사진만 연속 업로드하면 된다. 현재 화면 기준 상위 ${missingPhotoQueue.length}명만 우선 노출된다.`}
                         headerAction={(
@@ -4794,14 +4794,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             value={registeredWorkerSearchTerm}
                             onChange={(event) => setRegisteredWorkerSearchTerm(event.target.value)}
                             placeholder="이름/전화/생년월일/여권번호 검색"
-                            className="w-full text-sm font-bold text-slate-800 dark:text-slate-100 bg-transparent focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg px-0 py-0 border-0 outline-none"
+                            className="w-full text-sm font-bold text-slate-800 dark:text-slate-100 bg-transparent focus:bg-white dark:focus:bg-[rgb(30,41,59)] focus:border-indigo-500 rounded-lg px-0 py-0 border-0 outline-none"
                         />
                     </ControlPanelCard>
                     <ControlPanelCard className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate} dark:bg-slate-950 dark:border-slate-800`} contentClassName="">
                         <select
                             value={registeredWorkerJobFilter}
                             onChange={(event) => setRegisteredWorkerJobFilter(event.target.value)}
-                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 dark:text-slate-100 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-800 border-0 px-0 py-0"
+                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 dark:text-slate-100 focus:border-indigo-500 focus:bg-white dark:focus:bg-[rgb(30,41,59)] border-0 px-0 py-0"
                         >
                             {registeredWorkerJobOptions.map((option) => (
                                 <option key={option} value={option} className="dark:bg-slate-950 dark:text-slate-100">{`공종: ${option}`}</option>
@@ -4812,7 +4812,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         <select
                             value={registeredWorkerTeamFilter}
                             onChange={(event) => setRegisteredWorkerTeamFilter(event.target.value)}
-                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 dark:text-slate-100 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-800 border-0 px-0 py-0"
+                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 dark:text-slate-100 focus:border-indigo-500 focus:bg-white dark:focus:bg-[rgb(30,41,59)] border-0 px-0 py-0"
                         >
                             {registeredWorkerTeamOptions.map((option) => (
                                 <option key={option} value={option} className="dark:bg-slate-950 dark:text-slate-100">{`팀명: ${option}`}</option>
@@ -4823,7 +4823,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         <select
                             value={registeredWorkerMissingFilter}
                             onChange={(event) => setRegisteredWorkerMissingFilter(event.target.value as 'all' | 'missing-any' | 'missing-phone' | 'missing-birth' | 'missing-passport')}
-                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 dark:text-slate-100 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-800 border-0 px-0 py-0"
+                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 dark:text-slate-100 focus:border-indigo-500 focus:bg-white dark:focus:bg-[rgb(30,41,59)] border-0 px-0 py-0"
                         >
                             <option value="all" className="dark:bg-slate-950 dark:text-slate-100">누락 필터: 전체</option>
                             <option value="missing-any" className="dark:bg-slate-950 dark:text-slate-100">누락 필터: 하나라도 누락</option>
@@ -4836,7 +4836,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         <select
                             value={registeredWorkerDuplicateFilter}
                             onChange={(event) => setRegisteredWorkerDuplicateFilter(event.target.value as RegisteredWorkerDuplicateFilter)}
-                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 dark:text-slate-100 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-800 border-0 px-0 py-0"
+                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 dark:text-slate-100 focus:border-indigo-500 focus:bg-white dark:focus:bg-[rgb(30,41,59)] border-0 px-0 py-0"
                         >
                             <option value="all" className="dark:bg-slate-950 dark:text-slate-100">중복 필터: 전체</option>
                             <option value="duplicates" className="dark:bg-slate-950 dark:text-slate-100">중복 필터: 중복 후보만</option>
@@ -4857,7 +4857,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="rounded-full border border-rose-200 bg-white px-3 py-1 text-[11px] font-black text-rose-700">중복 그룹 {registeredWorkerDuplicateSummary.duplicateGroupCount}개</span>
-                            <span className="rounded-full border border-amber-200 bg-white px-3 py-1 text-[11px] font-black text-amber-700">삭제 권장 {registeredWorkerDuplicateSummary.autoDeleteIds.length}명</span>
+                            <span className={`rounded-full border px-3 py-1 text-[11px] font-black text-amber-700 ${BRAND_TONE.amberWhite}`}>삭제 권장 {registeredWorkerDuplicateSummary.autoDeleteIds.length}명</span>
                             <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-700">완전 동일 중복 {registeredWorkerExactDuplicateSummary.exactDuplicateIds.length}명</span>
                             <button
                                 type="button"
@@ -4900,7 +4900,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         eyebrow="DUPLICATE PREVIEW"
                         title="중복 그룹 미리보기"
                         description="각 그룹의 보존 후보와 삭제 권장 대상을 바로 확인할 수 있습니다."
-                        headerAction={<span className="rounded-full border border-amber-200 dark:border-amber-900/40 bg-white dark:bg-slate-950 px-3 py-1 text-[11px] font-black text-amber-700 dark:text-amber-400">표시 {Math.min(registeredWorkerDuplicateGroupPreview.length, 8)} / 전체 {registeredWorkerDuplicateGroupPreview.length}그룹</span>}
+                        headerAction={<span className={`rounded-full border px-3 py-1 text-[11px] font-black text-amber-700 dark:text-amber-400 ${BRAND_TONE.amberWhite}`}>표시 {Math.min(registeredWorkerDuplicateGroupPreview.length, 8)} / 전체 {registeredWorkerDuplicateGroupPreview.length}그룹</span>}
                         headerClassName="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
                         eyebrowClassName="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-450"
                         titleClassName="mt-1 text-sm font-black text-slate-900 dark:text-slate-100"
@@ -5552,7 +5552,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         <select
                                             value={messageHistoryRangeFilter}
                                             onChange={(event) => applyMessageOpsRangeFilter(event.target.value as MessageHistoryRangeFilter)}
-                                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white border-0 px-0 py-0"
+                                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 focus:bg-white focus:border-indigo-500 border-0 px-0 py-0"
                                         >
                                             <option value="7d">최근 7일</option>
                                             <option value="30d">최근 30일</option>
@@ -5564,7 +5564,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         <select
                                             value={messageHistoryStatusFilter}
                                             onChange={(event) => setMessageHistoryStatusFilter(event.target.value as MessageHistoryStatusFilter)}
-                                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white border-0 px-0 py-0"
+                                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 focus:bg-white focus:border-indigo-500 border-0 px-0 py-0"
                                         >
                                             <option value="all">상태: 전체</option>
                                             <option value="success">상태: 성공만</option>
@@ -5665,7 +5665,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     </ResponsiveContainer>
                                                 </div>
                                             ) : (
-                                                <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-xs font-bold text-slate-500">
+                                                <div className={`mt-4 rounded-xl border border-dashed px-4 py-8 text-center text-xs font-bold text-slate-500 ${BRAND_TONE.slateWhite}`}>
                                                     아직 팀 비교가 가능한 캐시 데이터가 부족합니다.
                                                 </div>
                                             )}
@@ -5688,7 +5688,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     </ResponsiveContainer>
                                                 </div>
                                             ) : (
-                                                <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-xs font-bold text-slate-500">
+                                                <div className={`mt-4 rounded-xl border border-dashed px-4 py-8 text-center text-xs font-bold text-slate-500 ${BRAND_TONE.slateWhite}`}>
                                                     현재 필터에서는 {BRAND_STATUS_LABELS.attentionHold} 로그가 없어 사유 분류가 비어 있습니다.
                                                 </div>
                                             )}
@@ -5708,7 +5708,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             {failurePriorityActions.map((item) => (
                                                 <OperationalPreviewCard
                                                     key={item.reason}
-                                                    className="rounded-2xl border border-amber-200 bg-white px-4 py-4 shadow-sm"
+                                                    className={`rounded-2xl border px-4 py-4 shadow-sm ${BRAND_TONE.amberWhite}`}
                                                     title={item.reason}
                                                     badge={(
                                                         <div className="flex items-center gap-2">
@@ -5883,8 +5883,8 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <p className="mt-1 text-sm font-black text-slate-900 dark:text-slate-100">선택 근로자 리포트 일괄 문자 발송</p>
                             </div>
                             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black">
-                                <span className="rounded-full border border-sky-200 dark:border-sky-900 bg-white dark:bg-slate-950 px-3 py-1 text-sky-700 dark:text-sky-400">선택 {selectedBulkMessageWorkerIds.length}명</span>
-                                <span className="rounded-full border border-emerald-200 dark:border-emerald-900 bg-white dark:bg-slate-950 px-3 py-1 text-emerald-700 dark:text-emerald-400">발송 가능 {selectedBulkMessageWorkers.filter((worker) => normalizePhone(worker.phone_number).length >= 10 && findLatestRecordForRegisteredWorker(worker)).length}명</span>
+                                <span className={`rounded-full border px-3 py-1 text-sky-700 dark:text-sky-400 ${BRAND_TONE.skyWhite}`}>선택 {selectedBulkMessageWorkerIds.length}명</span>
+                                <span className={`rounded-full border px-3 py-1 text-emerald-700 dark:text-emerald-400 ${BRAND_TONE.emeraldWhite}`}>발송 가능 {selectedBulkMessageWorkers.filter((worker) => normalizePhone(worker.phone_number).length >= 10 && findLatestRecordForRegisteredWorker(worker)).length}명</span>
                             </div>
                         </div>
                     )}
@@ -5898,7 +5898,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             value={bulkMessageNote}
                             onChange={(event) => setBulkMessageNote(event.target.value.slice(0, 180))}
                             rows={3}
-                            className="w-full resize-none rounded-2xl border border-sky-200 dark:border-sky-900/50 bg-white dark:bg-slate-950 px-4 py-3 text-sm font-bold text-slate-700 dark:text-slate-100 focus:border-sky-450"
+                            className={`w-full resize-none rounded-2xl border px-4 py-3 text-sm font-bold text-slate-700 dark:text-slate-100 focus:border-sky-450 ${BRAND_TONE.skyWhite}`}
                             placeholder="선택 근로자 일괄 발송 메모"
                         />
                         <div className="flex flex-col gap-2 xl:w-[220px]">
@@ -6064,7 +6064,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             type="checkbox"
                                             checked={selectedBulkMessageWorkerIds.includes(worker.id)}
                                             onChange={() => toggleBulkMessageWorkerSelection(worker.id)}
-                                            className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sky-600 focus:ring-sky-500"
+                                            className={`h-4 w-4 rounded text-sky-600 focus:ring-sky-500 ${BRAND_TONE.slateWhiteDarkPanel}`}
                                         />
                                     </td>
                                     <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap align-top">
@@ -6073,7 +6073,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 type="text"
                                                 value={editingWorkerDraft?.name || ''}
                                                 onChange={(event) => setEditingWorkerDraft((prev) => prev ? ({ ...prev, name: event.target.value }) : prev)}
-                                                className="w-32 rounded-lg border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-950 px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100"
+                                                className={`w-32 rounded-lg border px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100 ${BRAND_TONE.slateWhiteDarkPanel}`}
                                             />
                                         ) : (
                                             <div className="min-w-[180px]">
@@ -6107,7 +6107,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             <select
                                                 value={editingWorkerDraft?.job_field || ''}
                                                 onChange={(event) => setEditingWorkerDraft((prev) => prev ? ({ ...prev, job_field: event.target.value }) : prev)}
-                                                className="w-36 rounded-lg border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-950 px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100"
+                                                className={`w-36 rounded-lg border px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100 ${BRAND_TONE.slateWhiteDarkPanel}`}
                                             >
                                                 {ALLOWED_JOB_FIELDS.map((field) => (
                                                     <option key={field} value={field} className="dark:bg-slate-950 dark:text-slate-100">{field}</option>
@@ -6121,7 +6121,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 type="text"
                                                 value={editingWorkerDraft?.team_name || ''}
                                                 onChange={(event) => setEditingWorkerDraft((prev) => prev ? ({ ...prev, team_name: event.target.value }) : prev)}
-                                                className="w-28 rounded-lg border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-950 px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100"
+                                                className={`w-28 rounded-lg border px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100 ${BRAND_TONE.slateWhiteDarkPanel}`}
                                             />
                                         ) : (worker.team_name || '-')}
                                     </td>
@@ -6133,7 +6133,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 onChange={(event) => setEditingWorkerDraft((prev) => prev ? ({ ...prev, birth_date: normalizeBirthDate(event.target.value).slice(0, 8) }) : prev)}
                                                 inputMode="numeric"
                                                 maxLength={8}
-                                                className="w-24 rounded-lg border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-950 px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100"
+                                                className={`w-24 rounded-lg border px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100 ${BRAND_TONE.slateWhiteDarkPanel}`}
                                             />
                                         ) : (formatBirthDateForDisplay(worker.birth_date) || '-')}
                                     </td>
@@ -6145,7 +6145,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 onChange={(event) => setEditingWorkerDraft((prev) => prev ? ({ ...prev, phone_number: normalizePhone(event.target.value).slice(0, 11) }) : prev)}
                                                 inputMode="numeric"
                                                 maxLength={11}
-                                                className="w-28 rounded-lg border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-950 px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100"
+                                                className={`w-28 rounded-lg border px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100 ${BRAND_TONE.slateWhiteDarkPanel}`}
                                             />
                                         ) : (formatPhoneForDisplay(worker.phone_number) || '-')}
                                     </td>

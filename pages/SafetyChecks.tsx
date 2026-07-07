@@ -389,7 +389,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                         </div>
                         <div>
                             <label htmlFor="date" className="block text-sm font-medium text-slate-700 dark:text-slate-300">점검일</label>
-                            <input type="date" id="date" value={date} onChange={e => setDate(e.target.value)} className="mt-1 block w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" />
+                            <input type="date" id="date" value={date} onChange={e => setDate(e.target.value)} className={`mt-1 block w-full border text-slate-800 dark:text-slate-100 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${BRAND_TONE.slateWhiteDarkPanel}`} />
                         </div>
                     </div>
                     <div>
@@ -401,11 +401,11 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                     </div>
                      <div>
                         <label htmlFor="riskType" className="block text-sm font-medium text-slate-700 dark:text-slate-300">위험 요인</label>
-                        <input type="text" id="riskType" value={riskType} onChange={e => setRiskType(e.target.value)} placeholder="예: 고소작업" className="mt-1 block w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" />
+                        <input type="text" id="riskType" value={riskType} onChange={e => setRiskType(e.target.value)} placeholder="예: 고소작업" className={`mt-1 block w-full border text-slate-800 dark:text-slate-100 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${BRAND_TONE.slateWhiteDarkPanel}`} />
                     </div>
                     <div>
                         <label htmlFor="details" className="block text-sm font-medium text-slate-700 dark:text-slate-300">상세 내용</label>
-                        <textarea id="details" value={details} onChange={e => setDetails(e.target.value)} placeholder={`예: 안전고리 착용 ${BRAND_STATUS_LABELS.supplementaryReview}`} rows={3} className="mt-1 block w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" />
+                        <textarea id="details" value={details} onChange={e => setDetails(e.target.value)} placeholder={`예: 안전고리 착용 ${BRAND_STATUS_LABELS.supplementaryReview}`} rows={3} className={`mt-1 block w-full border text-slate-800 dark:text-slate-100 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${BRAND_TONE.slateWhiteDarkPanel}`} />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">사진 첨부</label>

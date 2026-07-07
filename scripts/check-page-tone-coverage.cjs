@@ -16,11 +16,15 @@ const allowPatterns = [
 
 const collectMatches = (text) => {
   const found = [];
-  for (const match of text.matchAll(tonePairRegex)) {
-    const value = match[0];
-    const allowed = allowPatterns.some((pattern) => pattern.test(value));
-    if (!allowed) {
-      found.push(value);
+  const lines = text.split(/\r?\n/);
+  for (const line of lines) {
+    if (line.includes('BRAND_TONE.')) continue;
+    for (const match of line.matchAll(tonePairRegex)) {
+      const value = match[0];
+      const allowed = allowPatterns.some((pattern) => pattern.test(value));
+      if (!allowed) {
+        found.push(value);
+      }
     }
   }
   return found;

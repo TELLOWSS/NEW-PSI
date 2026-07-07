@@ -32,7 +32,7 @@ const requiredMarkers = [
   ['gateway', 'normalizeOcrRecordMetadata({'],
   ['normalization', 'export const normalizeOcrRecordMetadata'],
   ['normalization', '문서 본문 날짜 기준 보정'],
-  ['normalization', '본문 위험요인 기준 공종 보정'],
+  ['normalization', '문항 답변으로 보이는 공종값 격리'],
   ['normalization', 'isFailureOnlyRecord'],
   ['workerIdentity', '시스템동바리'],
   ['workerIdentity', '유도원'],
@@ -62,4 +62,4 @@ if (missing.length > 0) {
 }
 
 console.log('[check-ocr-operational-hardening-contract] PASS');
-console.log('- OCR batch protection, failure score isolation, and date/job post-processing are protected.');
+console.log('- OCR batch protection, failure score isolation, date normalization, and Q1/job-field separation are protected.');
