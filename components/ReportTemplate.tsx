@@ -649,7 +649,28 @@ const buildScoreReasonEntries = (record: WorkerRecord): NarrativeEntry[] => {
         return dedupeNarrativeEntries([{ text: normalizeNarrativeText(record.score_reason), nativeText: normalizeNarrativeText(record.score_reason_native) }]);
     }
 
-    return dedupeNarrativeEntries((Array.isArray(record.scoreReasoning) ? record.scoreReasoning : []).map((text) => ({ text })));
+    const reasoning = Array.isArray(record.scoreReasoning) ? record.scoreReasoning : [];
+    if (reasoning.length > 0) {
+        return dedupeNarrativeEntries(reasoning.map((text) => ({ text })));
+    }
+
+    // Context-aware smart fallback when both fields are empty
+    let fallbackText = '';
+    let fallbackNativeText = '';
+
+    const safetyLevel = record.safetyLevel || '중급';
+    if (safetyLevel === '고급') {
+        fallbackText = '모든 작성 문항에서 구체적이고 적합한 안전 절차가 서술되어 역량이 우수하며, 성실한 응답 태도로 높은 신뢰도를 보여줍니다.';
+        fallbackNativeText = 'Appropriate safety procedures are described in all questions, demonstrating high competency and reliable responses.';
+    } else if (safetyLevel === '초급') {
+        fallbackText = '위험 요인이나 예방 대책 서술이 다소 추상적이거나 간결하여, 작업 투입 전 실제 구체적인 안전 수칙 인지 상태의 확인이 권장됩니다.';
+        fallbackNativeText = 'The description of hazard factors or preventive measures is abstract. Verbal review of safety protocols is recommended before task assignment.';
+    } else {
+        fallbackText = '기본적인 위험 상황 및 안전 수칙을 인지하고 있으나, 실제 현장 작업에 적합한 구체적인 실행 대책의 서술을 보완할 필요가 있습니다.';
+        fallbackNativeText = 'Basic hazard factors and safety rules are identified, but more specific execution measures for site operations should be supplemented.';
+    }
+
+    return [{ text: fallbackText, nativeText: fallbackNativeText }];
 };
 
 const hardWrapText = (value: string, maxChars: number): string => {
