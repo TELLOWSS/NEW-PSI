@@ -1934,17 +1934,17 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         const saveAs = await ensureFileSaver().catch(() => null);
         if (!saveAs) return alert('FileSaver 라이브러리가 로드되지 않았습니다.');
 
-        if (!confirm(`'${currentPreviewRecord.name}' 근로자의 보고서를 이미지 파일(JPG)로 내보내시겠습니까?`)) return;
+        if (!confirm(`'${currentPreviewRecord.name}' 근로자의 보고서를 이미지 파일(PNG)로 내보내시겠습니까?`)) return;
 
         try {
             const canvases = await captureReportCanvases(previewRef.current, html2canvas, { scale: 3 });
             for (let idx = 0; idx < canvases.length; idx++) {
                 const canvas = canvases[idx];
-                const blob = await canvasToBlob(canvas, 'image/jpeg', 0.92);
+                const blob = await canvasToBlob(canvas, 'image/png');
                 if (blob) {
                     const filename = buildPsiExportFileName({
                         tokens: ['Report', currentPreviewRecord.name, currentPreviewRecord.jobField, `page${idx + 1}`],
-                        extension: 'jpg',
+                        extension: 'png',
                     });
                     saveAs(blob, filename);
                 } 
@@ -4862,22 +4862,6 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                     </div>
                                 )}
                                 <button 
-                                    onClick={handleDownloadCurrent}
-                                    disabled={hasCustomDateRangeError}
-                                    className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 shadow-lg transition-colors ${hasCustomDateRangeError ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-slate-800 text-white hover:bg-slate-900'}`}
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                    PDF 내보내기
-                                </button>
-                                <button 
-                                    onClick={handleDownloadCurrentImage}
-                                    disabled={hasCustomDateRangeError}
-                                    className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 shadow-lg transition-colors ${hasCustomDateRangeError ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-amber-600 text-white hover:bg-amber-700'}`}
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                    이미지 다운로드 (JPG)
-                                </button>
-                                <button 
                                     onClick={handleBrowserPrint}
                                     disabled={hasCustomDateRangeError}
                                     className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 shadow-lg transition-colors ${hasCustomDateRangeError ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
@@ -4885,6 +4869,18 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-3a2 2 0 00-2-2H9a2 2 0 00-2 2v3a2 2 0 002 2zm5-14V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v3m6 0H9" /></svg>
                                     인쇄 / PDF 저장
                                 </button>
+                                <button 
+                                    onClick={handleDownloadCurrentImage}
+                                    disabled={hasCustomDateRangeError}
+                                    className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 shadow-lg transition-colors ${hasCustomDateRangeError ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-amber-600 text-white hover:bg-amber-700'}`}
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                    이미지 저장
+                                </button>
+                                <div className="w-full mt-2 flex flex-col gap-1 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                                    <p>• PDF 저장은 인쇄 미리보기에서 <strong>"PDF로 저장"</strong>을 선택하세요.</p>
+                                    <p>• 이미지 저장은 현재 보고서 화면을 <strong>PNG 파일</strong>로 저장합니다.</p>
+                                </div>
                             </div>
                             </div>
                         </div>
