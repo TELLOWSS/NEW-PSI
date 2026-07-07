@@ -707,27 +707,7 @@ const wrapNarrativeText = (value?: string, maxChars: number = 44): string => {
 
 const limitNarrativeText = (value?: string, maxChars: number = 80): string => {
     const normalized = normalizeNarrativeText(value).replace(/\s+/g, ' ').trim();
-    if (!normalized) return '';
-    if (normalized.length <= maxChars) return normalized;
-
-    const sentenceChunks = normalized.split(/(?<=[.!?。！？])\s+/u).filter(Boolean);
-    if (sentenceChunks.length > 1) {
-        let combined = '';
-        for (const chunk of sentenceChunks) {
-            const next = combined ? `${combined} ${chunk}` : chunk;
-            if (next.length > maxChars) break;
-            combined = next;
-        }
-
-        if (combined) {
-            return combined.length < normalized.length ? `${combined}…` : combined;
-        }
-    }
-
-    const short = normalized.slice(0, maxChars);
-    const breakIndex = short.lastIndexOf(' ');
-    const safeIndex = breakIndex >= Math.floor(maxChars * 0.6) ? breakIndex : maxChars;
-    return `${normalized.slice(0, safeIndex).trim()}…`;
+    return normalized;
 };
 
 const limitNarrativeEntry = (entry: NarrativeEntry, textMax: number, nativeMax: number): NarrativeEntry => ({
