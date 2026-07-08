@@ -711,6 +711,43 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         { label: '다국어 QR', desc: '모국어 교육 안내와 확인 경로 전달', page: 'admin-training' },
     ];
 
+    const onePointProofSteps: Array<{ marker: string; title: string; desc: string; page: Page; tone: string }> = [
+        {
+            marker: 'stage-scan',
+            title: '1. 기록지 1장 촬영',
+            desc: '모바일이나 PC에서 수기 위험성평가 기록지를 넣고 OCR 분석을 시작합니다.',
+            page: 'ocr-analysis',
+            tone: BRAND_TONE.indigoWhite,
+        },
+        {
+            marker: 'stage-q1-separation',
+            title: '2. 공종과 Q1 분리',
+            desc: '공종은 근로자의 기본 작업이고, Q1은 그 작업 안에서 오늘 가장 위험하다고 느낀 세부작업으로 따로 봅니다.',
+            page: 'ocr-analysis',
+            tone: BRAND_TONE.amberWhite,
+        },
+        {
+            marker: 'stage-manager-review',
+            title: '3. 관리자 검증',
+            desc: 'AI 판단을 그대로 확정하지 않고 한국어 보호 해석, 점수 근거, 수정 이력을 관리자가 확인합니다.',
+            page: 'ocr-analysis',
+            tone: BRAND_TONE.slateWhite,
+        },
+        {
+            marker: 'stage-native-feedback',
+            title: '4. 모국어·리포트·추적',
+            desc: '수정된 판단은 모국어 안내, 개인 안전역량, 월별 추적자료로 다시 연결됩니다.',
+            page: 'reports',
+            tone: BRAND_TONE.emeraldWhite,
+        },
+    ];
+
+    const onePointProofMetrics = [
+        { marker: 'metric-two-minute', label: '시연 시간', value: '2분', desc: '촬영부터 교육 환류까지 한 장면으로 설명' },
+        { marker: 'metric-one-record', label: '시작 단위', value: '1장', desc: '수기 기록지 한 장이 분석 데이터로 전환' },
+        { marker: 'metric-closed-loop', label: '닫힌 흐름', value: '4단계', desc: 'OCR, 검증, 전달, 추적이 끊기지 않음' },
+    ];
+
     const getStepTone = (stepNoNum: number) => {
         if (stepNoNum === 2 || stepNoNum === 7 || stepNoNum === 8) {
             return {
@@ -1006,6 +1043,54 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                             )}
                         </section>
                     </div>
+
+                    <section data-one-point-proof="panel" className={`rounded-3xl border p-4 shadow-sm ${BRAND_TONE.slateWhite}`}>
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="max-w-3xl">
+                                <div className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-[10px] font-black text-white">2분 원포인트 증명 모드</div>
+                                <h2 className="mt-2 text-[20px] font-black leading-tight text-slate-900 sm:text-[24px]">기록지 1장이 근로자 보호·교육·추적자료로 바뀌는 장면</h2>
+                                <p className="mt-2 text-[11px] font-semibold leading-relaxed text-slate-600 sm:text-[12px] break-keep">
+                                    공모전, 바이어 미팅, 내부 보고에서는 기능을 길게 설명하기보다 한 장의 수기 기록지가 OCR 분석, 관리자 검증, 모국어 전달, 월별 추적관리로 이어지는 흐름을 바로 보여주는 것이 핵심입니다.
+                                </p>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                                {onePointProofMetrics.map((metric) => (
+                                    <div key={metric.marker} data-one-point-proof={metric.marker} className={`min-w-[86px] rounded-2xl border px-2.5 py-2 ${BRAND_TONE.indigoSoft70}`}>
+                                        <p className="text-[9px] font-black text-indigo-500">{metric.label}</p>
+                                        <p className="mt-1 text-[18px] font-black text-slate-900">{metric.value}</p>
+                                        <p className="mt-0.5 text-[8px] font-semibold leading-tight text-slate-500 break-keep">{metric.desc}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-1 gap-2 lg:grid-cols-4">
+                            {onePointProofSteps.map((step) => (
+                                <button
+                                    key={step.marker}
+                                    type="button"
+                                    data-one-point-proof={step.marker}
+                                    onClick={() => onNavigateToPage(step.page)}
+                                    className={`min-h-[118px] rounded-2xl border px-3 py-3 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${step.tone}`}
+                                >
+                                    <p className="text-[12px] font-black text-slate-900 break-keep">{step.title}</p>
+                                    <p className="mt-2 text-[10px] font-semibold leading-relaxed text-slate-600 break-keep">{step.desc}</p>
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className={`mt-4 flex flex-col gap-2 rounded-2xl border px-3 py-3 sm:flex-row sm:items-center sm:justify-between ${BRAND_TONE.indigoSoft50}`}>
+                            <p className="text-[11px] font-bold leading-relaxed text-slate-700 break-keep">
+                                발표 문장: “PSI는 OCR 결과를 보여주는 데서 끝나지 않고, 공종과 Q1 실제 위험작업을 분리해 관리자 검증 후 모국어 안내와 개인 안전역량, 월별 추적관리까지 이어줍니다.”
+                            </p>
+                            <div className="grid grid-cols-2 gap-1.5 text-[10px] font-black sm:min-w-[330px]">
+                                <button type="button" data-one-point-proof="action-ocr" onClick={() => onNavigateToPage('ocr-analysis')} className="rounded-xl bg-indigo-600 px-2.5 py-2 text-white hover:bg-indigo-500">OCR 시연</button>
+                                <button type="button" data-one-point-proof="action-report" onClick={() => onNavigateToPage('reports')} className={`rounded-xl border px-2.5 py-2 text-indigo-700 hover:bg-indigo-50 ${BRAND_TONE.indigoWhite}`}>리포트</button>
+                                <button type="button" data-one-point-proof="action-native-guidance" onClick={() => onNavigateToPage('admin-training')} className={`rounded-xl border px-2.5 py-2 text-emerald-700 hover:bg-emerald-50 ${BRAND_TONE.emeraldWhite}`}>모국어 안내</button>
+                                <button type="button" data-one-point-proof="action-tracking" onClick={() => onNavigateToPage('monthly-guidance-report')} className={`rounded-xl border px-2.5 py-2 text-slate-700 hover:bg-slate-50 ${BRAND_TONE.slateWhite}`}>월별 추적</button>
+                            </div>
+                        </div>
+                    </section>
 
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
                         <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">

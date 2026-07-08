@@ -196,6 +196,7 @@ create table if not exists public.ai_guardrail_overrides (
     workflow_run_id         uuid not null,
     event_id                uuid,
     rule_code               text not null,
+    rule_version            text,
     severity                text not null check (
         severity in ('info', 'warning', 'high', 'critical')
     ),
@@ -212,6 +213,9 @@ comment on table public.ai_guardrail_overrides is
 
 create index if not exists ai_guardrail_overrides_run_idx
     on public.ai_guardrail_overrides (workflow_run_id, created_at desc);
+
+alter table public.ai_guardrail_overrides
+    add column if not exists rule_version text;
 
 create index if not exists ai_guardrail_overrides_rule_code_idx
     on public.ai_guardrail_overrides (rule_code);

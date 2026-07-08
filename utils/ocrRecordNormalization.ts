@@ -99,8 +99,16 @@ const collectDateCandidates = (text: string): string[] => {
         push(normalizeDateParts(Number(match[2]), Number(match[3]), Number(match[4])));
     }
 
+    for (const match of normalized.matchAll(/(^|[^\d])(\d{1,2})\s*[./,\-\s]\s*(\d{1,2})\s*[./,\-\s]\s*((?:19|20)\d{2})(?!\d)/g)) {
+        push(normalizeDateParts(Number(match[4]), Number(match[3]), Number(match[2])));
+    }
+
     for (const match of normalized.matchAll(/(^|[^\d])(\d{2})\s*[./,\-\s]\s*(\d{1,2})\s*[./,\-\s]\s*(\d{1,2})(?!\d)/g)) {
-        push(normalizeDateParts(Number(match[2]), Number(match[3]), Number(match[4])));
+        const yyMmDd = normalizeDateParts(Number(match[2]), Number(match[3]), Number(match[4]));
+        push(yyMmDd);
+        if (!yyMmDd && Number(match[3]) > 12 && Number(match[4]) <= 12) {
+            push(normalizeDateParts(Number(match[2]), Number(match[4]), Number(match[3])));
+        }
     }
 
     for (const match of normalized.matchAll(/(^|[^\d])(20\d)\s*[./,\-\s]\s*(\d{1,2})\s*[./,\-\s]\s*(\d{1,2})(?!\d)/g)) {

@@ -65,4 +65,26 @@ describe('OCR record metadata normalization', () => {
 
         expect(result.record.jobField).toBe('기타');
     });
+
+    it('normalizes OCR date strings written as YY/DD/MM or DD.MM.YYYY', () => {
+        const yyDayMonth = normalizeOcrRecordMetadata({
+            name: 'date-test',
+            jobField: '철근',
+            date: '26/29/06',
+            fullText: '',
+            koreanTranslation: '',
+            handwrittenAnswers: [],
+        });
+        const dayMonthYear = normalizeOcrRecordMetadata({
+            name: 'date-test',
+            jobField: '형틀',
+            date: '29.1.2026',
+            fullText: '',
+            koreanTranslation: '',
+            handwrittenAnswers: [],
+        });
+
+        expect(yyDayMonth.record.date).toBe('2026-06-29');
+        expect(dayMonthYear.record.date).toBe('2026-01-29');
+    });
 });

@@ -903,9 +903,22 @@ export const calibrateScoreBreakdown = (
     const reasoning: string[] = [];
 
     const answers = Array.isArray(handwrittenAnswers) ? handwrittenAnswers : [];
+    const normalizeQuestionNumber = (value: unknown): string => {
+        const matched = String(value || '').match(/[1-5]/);
+        return matched ? matched[0] : String(value || '').trim();
+    };
     const getAnswerText = (qNum: string): string => {
-        const found = answers.find(a => a && typeof a === 'object' && String((a as any).questionNumber) === qNum);
-        return found ? String((found as any).koreanTranslation || (found as any).answerText || '').trim() : '';
+        const questionIndex = Number(qNum) - 1;
+        const found = answers.find((a, index) => {
+            if (!a || typeof a !== 'object') return false;
+            const rawQuestionNumber = (a as any).questionNumber;
+            const normalizedQuestionNumber = normalizeQuestionNumber(rawQuestionNumber);
+            if (normalizedQuestionNumber === qNum) return true;
+            return !String(rawQuestionNumber || '').trim() && index === questionIndex;
+        });
+        return found
+            ? String((found as any).koreanTranslation || (found as any).answerText || (found as any).nativeTranslation || '').trim()
+            : '';
     };
 
     const q1 = getAnswerText('1');

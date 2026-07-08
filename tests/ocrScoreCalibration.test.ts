@@ -70,6 +70,25 @@ describe('OCR Score Calibration - calibrateScoreBreakdown', () => {
         expect(breakdown.repeatViolationPenalty).toBe(0);
         expect(reasoning.length).toBe(0); // No penalties
     });
+
+    it('should recognize Q-prefixed question numbers from OCR answers', () => {
+        const handwrittenAnswers = [
+            { questionNumber: 'Q1', answerText: '不整下述过程中', koreanTranslation: '정리, 미장, 보수 작업 중 불규칙한 과정' },
+            { questionNumber: 'Q2', answerText: '踩踏不坚, 容易滑倒', koreanTranslation: '불안정한 곳을 밟아 미끄러져 넘어지기 쉬움' },
+            { questionNumber: 'Q3', answerText: '凳子离地面不足一米高, 危险程度比较低', koreanTranslation: '의자가 지면에서 1미터 미만으로 높지 않아 위험 정도가 비교적 낮음' },
+            { questionNumber: 'Q4', answerText: '作业前确认凳子是否放置牢固', koreanTranslation: '작업 전 의자가 단단히 놓여 있는지 확인' },
+            { questionNumber: 'Q5', answerText: '要确认脚踏板站稳, 结实', koreanTranslation: '발판이 안정적이고 튼튼한지 확인해야 함' },
+        ];
+
+        const { breakdown, reasoning } = calibrateScoreBreakdown(baselineBreakdown, handwrittenAnswers);
+
+        expect(breakdown.psychological).toBeGreaterThan(0);
+        expect(breakdown.jobUnderstanding).toBeGreaterThan(0);
+        expect(breakdown.riskAssessmentUnderstanding).toBeGreaterThan(0);
+        expect(breakdown.proficiency).toBeGreaterThan(0);
+        expect(breakdown.improvementExecution).toBeGreaterThan(0);
+        expect(reasoning.some((item) => item.includes('미작성'))).toBe(false);
+    });
 });
 
 describe('OCR Score Calibration - enforceBreakdownDrivenScore integration', () => {
