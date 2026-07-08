@@ -157,6 +157,7 @@ const getStoredUpgradePlanItems = (): UpgradePlanItem[] => {
 const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateToPage }) => {
     const [isGravityOff, setIsGravityOff] = useState(false);
     const [showAllMobileFeatures, setShowAllMobileFeatures] = useState(false);
+    const [showProductDepth, setShowProductDepth] = useState(false);
     const [qaAlertRunlog, setQaAlertRunlog] = useState<QaAlertRunlogEntry[]>([]);
     const [upgradePlanItems, setUpgradePlanItems] = useState<UpgradePlanItem[]>(() => getStoredUpgradePlanItems());
     const [showOpenItemsOnly, setShowOpenItemsOnly] = useState(false);
@@ -713,6 +714,40 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
 
     const proofChips = ['수기 OCR', '모국어 안내', '개인 리포트', '월별 추적관리', '교육 환류', '실증 증빙'];
 
+    const productSimpleSteps: Array<{ title: string; subtitle: string; desc: string; stat: string; page: Page; tone: string }> = [
+        {
+            title: '1. 기록지 넣기',
+            subtitle: '사진·PDF 한 장',
+            desc: '현장에서 작성한 위험성평가 기록지를 그대로 넣어 원본 증거와 분석 대상을 함께 보존합니다.',
+            stat: `운영 기록 ${previewMetrics.totalWorkers}건`,
+            page: 'ocr-analysis',
+            tone: BRAND_TONE.indigoWhite,
+        },
+        {
+            title: '2. 분석·검증',
+            subtitle: 'AI 구조화 + 관리자 확인',
+            desc: '공종, Q1 세부위험작업, Q2~Q5 답변, 위험수준, 점수 근거를 분리하고 관리자가 바로 고칩니다.',
+            stat: `확인 필요 ${previewMetrics.qaValidationTargets}건`,
+            page: 'ocr-analysis',
+            tone: BRAND_TONE.amberWhite,
+        },
+        {
+            title: '3. 리포트·추적',
+            subtitle: '모국어 안내와 교육 환류',
+            desc: '수정된 보호 해석이 개인 안전역량, 근로자 리포트, 월별 계도자료로 이어지는지 확인합니다.',
+            stat: `리포트 대상 ${previewMetrics.totalWorkers}명`,
+            page: 'reports',
+            tone: BRAND_TONE.emeraldWhite,
+        },
+    ];
+
+    const productEvidenceCards = [
+        { label: '원본 보존', value: `${previewMetrics.totalWorkers}건`, desc: '수기 이미지와 분석 결과를 같은 흐름에서 확인' },
+        { label: '관리자 검증', value: `${previewMetrics.qaValidationTargets}건`, desc: 'AI 판단을 현장 보호 해석으로 수정 가능' },
+        { label: '전조 신호', value: `${previewMetrics.alertSignals}건`, desc: '위험 신호와 추가 확인 대상을 바로 분리' },
+        { label: '추적 환류', value: `${previewMetrics.approvedRecords}건`, desc: '승인 이력을 다음 교육·월별 자료로 연결' },
+    ];
+
     const actualProgramScreens: Array<{ label: string; desc: string; stat: string; page: Page }> = [
         { label: '현장 안전 관제센터', desc: '현장 작성물, 위험 신호, 개선 이행을 한 화면에서 확인', stat: `기록 ${previewMetrics.totalWorkers}건`, page: 'dashboard' },
         { label: '위험성평가 분석', desc: '수기 이미지와 PDF를 OCR로 읽고 관리자 검증까지 연결', stat: `확인 ${previewMetrics.qaValidationTargets}건`, page: 'ocr-analysis' },
@@ -955,7 +990,58 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                         ))}
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.14fr_1fr]">
+                    <section data-product-simple="hero" className={`rounded-3xl border p-4 shadow-sm ${BRAND_TONE.whiteSoft}`}>
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="max-w-3xl">
+                                <div className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-[10px] font-black text-white">상품화 설명 화면</div>
+                                <h2 className="mt-2 text-[20px] font-black leading-tight text-slate-900 sm:text-[24px]">바이어에게 보여줄 한 장짜리 흐름</h2>
+                                <p className="mt-2 text-[11px] font-semibold leading-relaxed text-slate-600 sm:text-[12px] break-keep">
+                                    PSI는 기능을 많이 나열하기보다 기록지 한 장이 원본 증거, AI 분석, 관리자 검증, 모국어 안내, 월별 추적자료로 바뀌는 장면을 먼저 보여줍니다.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                data-product-simple="detail-toggle"
+                                onClick={() => setShowProductDepth((prev) => !prev)}
+                                className={`min-h-[42px] rounded-2xl border px-4 py-2 text-[12px] font-black text-indigo-700 transition duration-200 hover:bg-indigo-50 ${BRAND_TONE.indigoWhite}`}
+                            >
+                                {showProductDepth ? '상세 증거 접기' : '상세 증거 펼치기'}
+                            </button>
+                        </div>
+
+                        <div data-product-simple="three-step-flow" className="mt-4 grid grid-cols-1 gap-2 lg:grid-cols-3">
+                            {productSimpleSteps.map((step) => (
+                                <button
+                                    key={step.title}
+                                    type="button"
+                                    onClick={() => onNavigateToPage(step.page)}
+                                    className={`min-h-[148px] rounded-2xl border px-3.5 py-3 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${step.tone}`}
+                                >
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div>
+                                            <p className="text-[13px] font-black text-slate-900 break-keep">{step.title}</p>
+                                            <p className="mt-1 text-[10px] font-black text-indigo-600 break-keep">{step.subtitle}</p>
+                                        </div>
+                                        <span className="shrink-0 rounded-full bg-white/80 px-2 py-1 text-[8px] font-black text-slate-600">{step.stat}</span>
+                                    </div>
+                                    <p className="mt-3 text-[11px] font-semibold leading-relaxed text-slate-600 break-keep">{step.desc}</p>
+                                </button>
+                            ))}
+                        </div>
+
+                        <div data-product-simple="evidence-cards" className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+                            {productEvidenceCards.map((card) => (
+                                <div key={card.label} className={`rounded-2xl border px-3 py-3 ${BRAND_TONE.slate}`}>
+                                    <p className="text-[10px] font-black text-slate-500">{card.label}</p>
+                                    <p className="mt-1 text-[18px] font-black text-slate-900">{card.value}</p>
+                                    <p className="mt-1 text-[9px] font-semibold leading-tight text-slate-500 break-keep">{card.desc}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
+                    {showProductDepth && (
+                    <div data-product-simple="developer-detail" className="grid grid-cols-1 gap-3 xl:grid-cols-[1.14fr_1fr]">
                         <section className="rounded-3xl border border-indigo-200 bg-white p-3.5 shadow-sm">
                             <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
                                 <div>
@@ -1090,6 +1176,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                             )}
                         </section>
                     </div>
+                    )}
 
                     <section data-one-point-proof="panel" className={`rounded-3xl border p-4 shadow-sm ${BRAND_TONE.slateWhite}`}>
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1289,6 +1376,8 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                 </section>
             </div>
 
+            {showProductDepth && (
+                <div data-product-simple="developer-detail-board" className="space-y-6">
             <div className="max-w-5xl mx-auto px-4 card-gravity-target">
                 <div className={`rounded-3xl border p-6 shadow-sm ${BRAND_TONE.violetSoft80}`}>
                     <div className="flex items-center gap-3">
@@ -1411,6 +1500,8 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                     </div>
                 </div>
             </div>
+                </div>
+            )}
 
             {/* System Trust & Patent Status */}
             <div className="max-w-5xl mx-auto px-4 card-gravity-target">
