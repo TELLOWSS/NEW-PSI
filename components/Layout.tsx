@@ -19,6 +19,15 @@ import { getStoredTheme, getResolvedTheme, toggleTheme, applyTheme, watchSystemT
 import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { getOperationalModeLabel, isPageVisibleByOperationalMode } from '../utils/operationalModeUtils';
+import {
+    clearOnePointProofSession,
+    getNextOnePointProofStage,
+    getOnePointProofStage,
+    markOnePointProofReturned,
+    ONE_POINT_PROOF_SESSION_EVENT,
+    readOnePointProofSession,
+    type OnePointProofSession,
+} from '../utils/onePointProofSession';
 import { cycleUserRolePreset, getUserRolePreset, getUserRolePresetLabel, USER_ROLE_PRESET_CHANGED_EVENT, type UserRolePreset } from '../utils/userRolePresetUtils';
 import {
     loadUiCompositionConfig,
@@ -94,6 +103,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const [devDiagnosticsHiddenToggleEnabled, setDevDiagnosticsHiddenToggleEnabled] = useState<boolean>(() => isDevDiagnosticsHiddenToggleEnabled());
     const [uiCompositionConfig, setUiCompositionConfig] = useState<UiCompositionConfig>(() => loadUiCompositionConfig());
     const [isCompositionEditMode, setIsCompositionEditMode] = useState(false);
+    const [onePointProofSession, setOnePointProofSession] = useState<OnePointProofSession | null>(() => readOnePointProofSession());
 
     const handleScrollToTop = useCallback(() => {
         mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -195,6 +205,20 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const handlePageChange = (page: Page) => {
         setCurrentPage(page);
         setIsMobileMenuOpen(false); // Close mobile menu on navigation
+    };
+
+    const activeOnePointProofStage = getOnePointProofStage(onePointProofSession?.currentStageId);
+    const nextOnePointProofStage = getNextOnePointProofStage(onePointProofSession?.completedStageIds || []);
+    const showOnePointProofReturn = Boolean(onePointProofSession?.active && currentPage !== 'introduction');
+
+    const handleReturnToOnePointProof = () => {
+        setOnePointProofSession(markOnePointProofReturned());
+        handlePageChange('introduction');
+    };
+
+    const handleEndOnePointProof = () => {
+        clearOnePointProofSession();
+        setOnePointProofSession(null);
     };
 
     const handleGoToMobileHub = () => {
@@ -306,6 +330,17 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         return () => {
             window.removeEventListener('storage', syncApiMode);
             window.removeEventListener(API_MODE_CHANGED_EVENT, syncApiMode);
+        };
+    }, []);
+
+    useEffect(() => {
+        const syncOnePointProofSession = () => setOnePointProofSession(readOnePointProofSession());
+        syncOnePointProofSession();
+        window.addEventListener(ONE_POINT_PROOF_SESSION_EVENT, syncOnePointProofSession);
+        window.addEventListener('storage', syncOnePointProofSession);
+        return () => {
+            window.removeEventListener(ONE_POINT_PROOF_SESSION_EVENT, syncOnePointProofSession);
+            window.removeEventListener('storage', syncOnePointProofSession);
         };
     }, []);
 
@@ -561,6 +596,41 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                 <main ref={mainRef} className={`relative flex-1 overflow-y-auto p-3 ${currentPage === 'dashboard' ? 'pb-2 sm:p-4 md:p-4 lg:px-6 lg:py-3.5' : 'pb-24 sm:p-4 md:p-6 lg:p-8 lg:pb-10'}`}>
                     <ShellBackground isDark={isDark} />
                     <div key={currentPage} className="mx-auto w-full max-w-[1440px] animate-fade-in-up">
+                        {showOnePointProofReturn && (
+                            <section data-one-point-proof-return="banner" className="mb-3 rounded-2xl border border-indigo-200 bg-white px-3 py-3 shadow-sm dark:border-indigo-400/20 dark:bg-slate-900/95">
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                            <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-black text-white dark:bg-indigo-500">2분 증명모드</span>
+                                            <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-black text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-200">
+                                                현재 확인: {activeOnePointProofStage?.shortTitle || '기능 화면'}
+                                            </span>
+                                        </div>
+                                        <p className="mt-1 text-xs font-bold leading-relaxed text-slate-700 dark:text-slate-200 break-keep">
+                                            이 화면을 확인한 뒤 원포인트 증명 화면으로 돌아가면 {nextOnePointProofStage ? `${nextOnePointProofStage.title} 단계가 다음 순서로 표시됩니다.` : '전체 시연 완료 상태가 표시됩니다.'}
+                                        </p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-1.5 text-[11px] font-black sm:min-w-[240px]">
+                                        <button
+                                            type="button"
+                                            data-one-point-proof-return="action-return"
+                                            onClick={handleReturnToOnePointProof}
+                                            className="rounded-xl bg-indigo-600 px-3 py-2 text-white transition-colors hover:bg-indigo-700"
+                                        >
+                                            증명모드로 돌아가기
+                                        </button>
+                                        <button
+                                            type="button"
+                                            data-one-point-proof-return="action-end"
+                                            onClick={handleEndOnePointProof}
+                                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                        >
+                                            시연 종료
+                                        </button>
+                                    </div>
+                                </div>
+                            </section>
+                        )}
                         <div className="mb-3 flex gap-2 overflow-x-auto no-scrollbar lg:hidden">
                             {mobileQuickLinks.map((item) => {
                                 const isActive = currentPage === item.page;

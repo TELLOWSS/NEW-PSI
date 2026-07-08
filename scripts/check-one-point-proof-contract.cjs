@@ -2,48 +2,51 @@ const fs = require('fs');
 const path = require('path');
 
 const root = process.cwd();
-const introPath = path.join(root, 'pages', 'Introduction.tsx');
-const planPath = path.join(root, 'docs', 'PSI_단순화_정확성_상품검증_실행계획_2026-07-07.md');
-const packagePath = path.join(root, 'package.json');
+const paths = {
+  intro: path.join(root, 'pages', 'Introduction.tsx'),
+  layout: path.join(root, 'components', 'Layout.tsx'),
+  session: path.join(root, 'utils', 'onePointProofSession.ts'),
+  package: path.join(root, 'package.json'),
+};
 
-const intro = fs.readFileSync(introPath, 'utf8');
-const plan = fs.existsSync(planPath) ? fs.readFileSync(planPath, 'utf8') : '';
-const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+const read = (filePath) => fs.readFileSync(filePath, 'utf8');
+const intro = read(paths.intro);
+const layout = read(paths.layout);
+const session = read(paths.session);
+const packageJson = JSON.parse(read(paths.package));
 
-const requiredIntroMarkers = [
-  'data-one-point-proof="panel"',
-  'onePointProofSteps',
-  'onePointProofMetrics',
-  "marker: 'stage-scan'",
-  "marker: 'stage-q1-separation'",
-  "marker: 'stage-manager-review'",
-  "marker: 'stage-native-feedback'",
-  "marker: 'metric-two-minute'",
-  "marker: 'metric-one-record'",
-  "marker: 'metric-closed-loop'",
-  'data-one-point-proof="action-ocr"',
-  'data-one-point-proof="action-report"',
-  'data-one-point-proof="action-native-guidance"',
-  'data-one-point-proof="action-tracking"',
-  '공종과 Q1 실제 위험작업',
-  '관리자 검증 후 모국어 안내와 개인 안전역량, 월별 추적관리',
-];
-
-const requiredPlanMarkers = [
-  'P2. 발표용 원포인트 증명 모드',
-  '2분 안에 PSI의 가치를 증명',
-  '공종과 Q1 실제 위험작업 분리 표시',
-  '월별 추적관리 화면으로 연결',
+const required = [
+  ['pages/Introduction.tsx', intro, 'data-one-point-proof="panel"'],
+  ['pages/Introduction.tsx', intro, 'onePointProofSteps'],
+  ['pages/Introduction.tsx', intro, 'onePointProofMetrics'],
+  ['pages/Introduction.tsx', intro, "marker: 'stage-scan'"],
+  ['pages/Introduction.tsx', intro, "marker: 'stage-q1-separation'"],
+  ['pages/Introduction.tsx', intro, "marker: 'stage-manager-review'"],
+  ['pages/Introduction.tsx', intro, "marker: 'stage-native-feedback'"],
+  ['pages/Introduction.tsx', intro, 'data-one-point-proof="progress-state"'],
+  ['pages/Introduction.tsx', intro, 'data-one-point-proof="next-stage"'],
+  ['pages/Introduction.tsx', intro, 'handleOpenOnePointProofStage'],
+  ['pages/Introduction.tsx', intro, 'startOnePointProofStage'],
+  ['pages/Introduction.tsx', intro, '공종과 Q1 실제 위험작업'],
+  ['pages/Introduction.tsx', intro, '관리자 검증 후 모국어 안내와 개인 안전역량, 월별 추적관리'],
+  ['components/Layout.tsx', layout, 'data-one-point-proof-return="banner"'],
+  ['components/Layout.tsx', layout, 'data-one-point-proof-return="action-return"'],
+  ['components/Layout.tsx', layout, 'data-one-point-proof-return="action-end"'],
+  ['components/Layout.tsx', layout, 'handleReturnToOnePointProof'],
+  ['components/Layout.tsx', layout, 'markOnePointProofReturned'],
+  ['utils/onePointProofSession.ts', session, 'ONE_POINT_PROOF_STORAGE_KEY'],
+  ['utils/onePointProofSession.ts', session, 'ONE_POINT_PROOF_SESSION_EVENT'],
+  ['utils/onePointProofSession.ts', session, 'ONE_POINT_PROOF_STAGES'],
+  ['utils/onePointProofSession.ts', session, 'readOnePointProofSession'],
+  ['utils/onePointProofSession.ts', session, 'clearOnePointProofSession'],
 ];
 
 const missing = [];
 
-for (const marker of requiredIntroMarkers) {
-  if (!intro.includes(marker)) missing.push(`Introduction.tsx: ${marker}`);
-}
-
-for (const marker of requiredPlanMarkers) {
-  if (!plan.includes(marker)) missing.push(`상품검증 실행계획: ${marker}`);
+for (const [file, content, marker] of required) {
+  if (!content.includes(marker)) {
+    missing.push(`${file}: ${marker}`);
+  }
 }
 
 const checkScript = packageJson.scripts?.['check:one-point-proof'] || '';
@@ -64,4 +67,4 @@ if (missing.length > 0) {
 }
 
 console.log('[check-one-point-proof-contract] PASS');
-console.log('- 2-minute proof panel, Q1/job separation message, native guidance, report, and monthly tracking links are present.');
+console.log('- Proof panel, stage progress, return banner, return action, and shared proof session are present.');

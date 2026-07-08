@@ -5,6 +5,15 @@ import { BrandPhilosophyLogo } from '../components/shared/BrandPhilosophyLogo';
 import { PSI_APP_VERSION, PSI_CURRENT_RELEASE, PSI_SYSTEM_NAME } from '../lib/appInfo';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { BRAND_TONE } from '../utils/brandToneTokens';
+import {
+    clearOnePointProofSession,
+    getNextOnePointProofStage,
+    ONE_POINT_PROOF_SESSION_EVENT,
+    readOnePointProofSession,
+    startOnePointProofStage,
+    type OnePointProofSession,
+    type OnePointProofStageId,
+} from '../utils/onePointProofSession';
 
 interface IntroductionProps {
     workerRecords: WorkerRecord[];
@@ -153,6 +162,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
     const [showOpenItemsOnly, setShowOpenItemsOnly] = useState(false);
     const [dashboardLiveSyncSnapshot, setDashboardLiveSyncSnapshot] = useState<DashboardLiveSyncSnapshot | null>(null);
     const [reportsDeliverySnapshot, setReportsDeliverySnapshot] = useState<ReportsDeliverySnapshot | null>(null);
+    const [onePointProofSession, setOnePointProofSession] = useState<OnePointProofSession | null>(() => readOnePointProofSession());
 
     useEffect(() => {
         if (isGravityOff) {
@@ -168,6 +178,24 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
     const toggleGravity = () => {
         setIsGravityOff(!isGravityOff);
     };
+
+    useEffect(() => {
+        const syncSession = () => setOnePointProofSession(readOnePointProofSession());
+        syncSession();
+        window.addEventListener(ONE_POINT_PROOF_SESSION_EVENT, syncSession);
+        window.addEventListener('storage', syncSession);
+        return () => {
+            window.removeEventListener(ONE_POINT_PROOF_SESSION_EVENT, syncSession);
+            window.removeEventListener('storage', syncSession);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!onePointProofSession?.returnedAt) return;
+        window.setTimeout(() => {
+            document.querySelector('[data-one-point-proof="panel"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 80);
+    }, [onePointProofSession?.returnedAt]);
 
     const latestUpgradeColumns = [
         PSI_CURRENT_RELEASE.highlights.slice(0, 3),
@@ -711,7 +739,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         { label: '다국어 QR', desc: '모국어 교육 안내와 확인 경로 전달', page: 'admin-training' },
     ];
 
-    const onePointProofSteps: Array<{ marker: string; title: string; desc: string; page: Page; tone: string }> = [
+    const onePointProofSteps: Array<{ marker: OnePointProofStageId; title: string; desc: string; page: Page; tone: string }> = [
         {
             marker: 'stage-scan',
             title: '1. 기록지 1장 촬영',
@@ -747,6 +775,25 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         { marker: 'metric-one-record', label: '시작 단위', value: '1장', desc: '수기 기록지 한 장이 분석 데이터로 전환' },
         { marker: 'metric-closed-loop', label: '닫힌 흐름', value: '4단계', desc: 'OCR, 검증, 전달, 추적이 끊기지 않음' },
     ];
+
+    const completedOnePointProofStages = onePointProofSession?.completedStageIds || [];
+    const completedOnePointProofStageSet = new Set<OnePointProofStageId>(completedOnePointProofStages);
+    const nextOnePointProofStage = getNextOnePointProofStage(completedOnePointProofStages);
+    const onePointProofProgressLabel = completedOnePointProofStages.length >= onePointProofSteps.length
+        ? '4단계 시연 흐름을 모두 확인했습니다.'
+        : nextOnePointProofStage
+            ? `다음 확인: ${nextOnePointProofStage.title}`
+            : '다음 확인 대기';
+
+    const handleOpenOnePointProofStage = (stageId: OnePointProofStageId, page: Page) => {
+        setOnePointProofSession(startOnePointProofStage(stageId));
+        onNavigateToPage(page);
+    };
+
+    const handleClearOnePointProof = () => {
+        clearOnePointProofSession();
+        setOnePointProofSession(null);
+    };
 
     const getStepTone = (stepNoNum: number) => {
         if (stepNoNum === 2 || stepNoNum === 7 || stepNoNum === 8) {
@@ -1064,19 +1111,57 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                             </div>
                         </div>
 
+                        {onePointProofSession?.active && (
+                            <div data-one-point-proof="progress-state" className={`mt-4 flex flex-col gap-2 rounded-2xl border px-3 py-3 sm:flex-row sm:items-center sm:justify-between ${BRAND_TONE.emeraldSoft80}`}>
+                                <div>
+                                    <p className="text-[10px] font-black text-emerald-700">시연 진행 중 · 완료 {completedOnePointProofStages.length}/{onePointProofSteps.length}</p>
+                                    <p data-one-point-proof="next-stage" className="mt-1 text-[12px] font-black text-slate-900 break-keep">{onePointProofProgressLabel}</p>
+                                    <p className="mt-1 text-[10px] font-semibold leading-relaxed text-slate-600 break-keep">기능 화면에서 확인 후 돌아오면 이 자리에서 다음 단계를 이어서 보여줍니다.</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-1.5 text-[10px] font-black sm:min-w-[180px]">
+                                    <button
+                                        type="button"
+                                        data-one-point-proof="action-restart"
+                                        onClick={handleClearOnePointProof}
+                                        className={`rounded-xl border px-2.5 py-2 text-slate-700 hover:bg-slate-50 ${BRAND_TONE.slateWhite}`}
+                                    >
+                                        처음부터
+                                    </button>
+                                    <button
+                                        type="button"
+                                        data-one-point-proof="action-end-session"
+                                        onClick={handleClearOnePointProof}
+                                        className={`rounded-xl border px-2.5 py-2 text-emerald-700 hover:bg-emerald-50 ${BRAND_TONE.emeraldWhite}`}
+                                    >
+                                        시연 종료
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="mt-4 grid grid-cols-1 gap-2 lg:grid-cols-4">
-                            {onePointProofSteps.map((step) => (
-                                <button
-                                    key={step.marker}
-                                    type="button"
-                                    data-one-point-proof={step.marker}
-                                    onClick={() => onNavigateToPage(step.page)}
-                                    className={`min-h-[118px] rounded-2xl border px-3 py-3 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${step.tone}`}
-                                >
-                                    <p className="text-[12px] font-black text-slate-900 break-keep">{step.title}</p>
-                                    <p className="mt-2 text-[10px] font-semibold leading-relaxed text-slate-600 break-keep">{step.desc}</p>
-                                </button>
-                            ))}
+                            {onePointProofSteps.map((step) => {
+                                const isCompleted = completedOnePointProofStageSet.has(step.marker);
+                                const isNext = nextOnePointProofStage?.id === step.marker;
+                                const cardTone = isCompleted ? BRAND_TONE.emeraldWhite : step.tone;
+                                return (
+                                    <button
+                                        key={step.marker}
+                                        type="button"
+                                        data-one-point-proof={step.marker}
+                                        onClick={() => handleOpenOnePointProofStage(step.marker, step.page)}
+                                        className={`min-h-[118px] rounded-2xl border px-3 py-3 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${cardTone} ${isNext ? 'ring-2 ring-indigo-400 ring-offset-2' : ''}`}
+                                    >
+                                        <div className="flex items-start justify-between gap-2">
+                                            <p className="text-[12px] font-black text-slate-900 break-keep">{step.title}</p>
+                                            <span data-one-point-proof={`state-${step.marker}`} className={`shrink-0 rounded-full px-2 py-0.5 text-[8px] font-black ${isCompleted ? 'bg-emerald-100 text-emerald-700' : isNext ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
+                                                {isCompleted ? '완료' : isNext ? '다음' : '대기'}
+                                            </span>
+                                        </div>
+                                        <p className="mt-2 text-[10px] font-semibold leading-relaxed text-slate-600 break-keep">{step.desc}</p>
+                                    </button>
+                                );
+                            })}
                         </div>
 
                         <div className={`mt-4 flex flex-col gap-2 rounded-2xl border px-3 py-3 sm:flex-row sm:items-center sm:justify-between ${BRAND_TONE.indigoSoft50}`}>
@@ -1084,10 +1169,10 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                 발표 문장: “PSI는 OCR 결과를 보여주는 데서 끝나지 않고, 공종과 Q1 실제 위험작업을 분리해 관리자 검증 후 모국어 안내와 개인 안전역량, 월별 추적관리까지 이어줍니다.”
                             </p>
                             <div className="grid grid-cols-2 gap-1.5 text-[10px] font-black sm:min-w-[330px]">
-                                <button type="button" data-one-point-proof="action-ocr" onClick={() => onNavigateToPage('ocr-analysis')} className="rounded-xl bg-indigo-600 px-2.5 py-2 text-white hover:bg-indigo-500">OCR 시연</button>
-                                <button type="button" data-one-point-proof="action-report" onClick={() => onNavigateToPage('reports')} className={`rounded-xl border px-2.5 py-2 text-indigo-700 hover:bg-indigo-50 ${BRAND_TONE.indigoWhite}`}>리포트</button>
-                                <button type="button" data-one-point-proof="action-native-guidance" onClick={() => onNavigateToPage('admin-training')} className={`rounded-xl border px-2.5 py-2 text-emerald-700 hover:bg-emerald-50 ${BRAND_TONE.emeraldWhite}`}>모국어 안내</button>
-                                <button type="button" data-one-point-proof="action-tracking" onClick={() => onNavigateToPage('monthly-guidance-report')} className={`rounded-xl border px-2.5 py-2 text-slate-700 hover:bg-slate-50 ${BRAND_TONE.slateWhite}`}>월별 추적</button>
+                                <button type="button" data-one-point-proof="action-ocr" onClick={() => handleOpenOnePointProofStage('stage-scan', 'ocr-analysis')} className="rounded-xl bg-indigo-600 px-2.5 py-2 text-white hover:bg-indigo-500">OCR 시연</button>
+                                <button type="button" data-one-point-proof="action-report" onClick={() => handleOpenOnePointProofStage('stage-native-feedback', 'reports')} className={`rounded-xl border px-2.5 py-2 text-indigo-700 hover:bg-indigo-50 ${BRAND_TONE.indigoWhite}`}>리포트</button>
+                                <button type="button" data-one-point-proof="action-native-guidance" onClick={() => handleOpenOnePointProofStage('stage-native-feedback', 'admin-training')} className={`rounded-xl border px-2.5 py-2 text-emerald-700 hover:bg-emerald-50 ${BRAND_TONE.emeraldWhite}`}>모국어 안내</button>
+                                <button type="button" data-one-point-proof="action-tracking" onClick={() => handleOpenOnePointProofStage('stage-native-feedback', 'monthly-guidance-report')} className={`rounded-xl border px-2.5 py-2 text-slate-700 hover:bg-slate-50 ${BRAND_TONE.slateWhite}`}>월별 추적</button>
                             </div>
                         </div>
                     </section>
