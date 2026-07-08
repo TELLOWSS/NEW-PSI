@@ -389,9 +389,9 @@ const SCORE_REASON_OPTIONS: Array<{ code: ScoreAdjustmentReasonCode; label: stri
 type ReviewViewMode = 'simple' | 'detail' | 'pro';
 
 const REVIEW_VIEW_MODE_OPTIONS: Array<{ mode: ReviewViewMode; label: string; helper: string }> = [
-    { mode: 'simple', label: '간단 보기', helper: '실무 판단' },
-    { mode: 'detail', label: '상세 보기', helper: '분석 비교' },
-    { mode: 'pro', label: '프로 검증', helper: '감사 근거' },
+    { mode: 'simple', label: '보호 판단', helper: '현장 기본' },
+    { mode: 'detail', label: '원문 대조', helper: '관리자 확인' },
+    { mode: 'pro', label: '개발자 검증', helper: '감사 근거' },
 ];
 
 interface RecordDetailModalProps {
@@ -2005,25 +2005,25 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const activeReviewModeCopy = useMemo(() => {
         if (isProfessionalReviewView) {
             return {
-                eyebrow: '전문가 판단 보기',
-                title: '판단 근거와 변경 이력을 끝까지 확인합니다.',
-                description: '실무 판단 뒤에 남는 근거, 확인 이력, 기준 변경 영향을 한 번에 점검하는 관리자 고급 화면입니다.',
-                comparisonTitle: '원문, AI 해석, 관리자 판단과 세부 근거를 함께 비교합니다.',
+                eyebrow: '개발자 검증 보기',
+                title: '판독 품질과 변경 이력을 끝까지 확인합니다.',
+                description: '현장 판단 뒤에 남는 OCR 품질, 증빙 고유값, 정책 버전, 변경 이력을 한 번에 점검하는 내부 검증 화면입니다.',
+                comparisonTitle: '원문, AI 해석, 관리자 판단과 개발자 검증 근거를 함께 비교합니다.',
             };
         }
         if (!isCompactViewActive) {
             return {
-                eyebrow: '상세 분석 보기',
-                title: '원문과 해석을 나란히 비교해 판단합니다.',
-                description: '점수, 원문, AI 해석, 관리자 수정, 보완 조치를 함께 보며 기록 품질을 높입니다.',
+                eyebrow: '관리자 원문 대조',
+                title: '원본과 해석을 나란히 확인합니다.',
+                description: '근로자가 쓴 원문, AI 해석, 관리자 수정, 보완 조치를 함께 보며 보호 판단을 확정합니다.',
                 comparisonTitle: '원문, AI 해석, 관리자 판단을 나란히 비교합니다.',
             };
         }
         return {
-            eyebrow: '실무 핵심 보기',
-            title: '지금 필요한 판단만 먼저 봅니다.',
-            description: '점수, 판정, 원문 인식 상태, 관리자 메모와 다음 행동만 남겨 현장에서 빠르게 처리합니다.',
-            comparisonTitle: '관리자 판단 메모를 우선 확인합니다.',
+            eyebrow: '근로자 보호 판단',
+            title: '이 근로자에게 지금 필요한 교육과 조치를 먼저 봅니다.',
+            description: '근로자가 적은 위험, 관리자 확인 여부, 오늘 전달할 교육 문장과 다음 행동만 남겨 현장에서 빠르게 처리합니다.',
+            comparisonTitle: '관리자 판단 메모와 교육 안내를 우선 확인합니다.',
         };
     }, [isCompactViewActive, isProfessionalReviewView]);
     const visibleReviewDecisionCards = useMemo(() => {
@@ -2033,7 +2033,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     }, [isCompactViewActive, reviewDecisionCards]);
     const visibleDecisionQuickMetrics = useMemo(() => {
         return isCompactViewActive
-            ? decisionQuickMetrics.filter((metric) => ['score', 'confidence', 'audit'].includes(metric.key))
+            ? decisionQuickMetrics.filter((metric) => ['score', 'audit'].includes(metric.key))
             : decisionQuickMetrics;
     }, [decisionQuickMetrics, isCompactViewActive]);
     
@@ -2049,7 +2049,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                         <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
                         <div className="min-w-0">
-                            <h2 className="text-base sm:text-xl font-black text-slate-800 truncate">{record.name || '기록 상세 검증'} 상세 판단</h2>
+                            <h2 className="text-base sm:text-xl font-black text-slate-800 truncate">{record.name || '기록 확인'} 근로자 보호 판단</h2>
                             <p className="hidden sm:block text-[10px] text-indigo-500 font-bold tracking-widest uppercase">
                                 {record.jobField || '공종 미확인'} · {record.nationality || '국적 미확인'} · 현장 판단 검증
                             </p>
@@ -2106,7 +2106,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                     <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-slate-900">{Number(record.safetyScore || 0).toFixed(0)}점</span>
                                     <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-black text-white">{finalAuditVerdict.label}</span>
                                     <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-black text-white">
-                                        원문 인식 {typeof record.ocrConfidence === 'number' ? `${(record.ocrConfidence * 100).toFixed(0)}%` : '확인 필요'}
+                                        {isCompactViewActive
+                                            ? (hasOriginalImage ? '원본 있음' : '원본 확인 필요')
+                                            : `원문 인식 ${typeof record.ocrConfidence === 'number' ? `${(record.ocrConfidence * 100).toFixed(0)}%` : '확인 필요'}`}
                                     </span>
                                 </div>
                             </div>
@@ -2156,7 +2158,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             </p>
                                             <div className="mt-3 flex flex-wrap gap-2">
                                                 <StatusBadge variant={decisionBoardTone.badge} className="px-3 py-1 text-[11px]">
-                                                    {isProfessionalReviewView ? '프로 검증 모드' : isCompactViewActive ? '간단 판단 모드' : '상세 분석 모드'}
+                                                    {isProfessionalReviewView ? '개발자 검증 모드' : isCompactViewActive ? '현장 보호 판단 모드' : '관리자 원문 대조 모드'}
                                                 </StatusBadge>
                                                 <StatusBadge variant="slateSoft" className="px-3 py-1 text-[11px]">
                                                     {record.nationality || '국적 미확인'}
@@ -2369,7 +2371,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                     onClick={handleOpenReportClick}
                                     className="px-2 py-2 text-[11px] border-0"
                                 >
-                                    보호 리포트
+                                    교육 리포트
                                 </ActionButton>
                             </div>
 
@@ -2435,8 +2437,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         <SectionPanelCard
                                             variant="whiteSoft"
                                             eyebrow="현재 판단 수준"
-                                            title="현재 보호 판단 수준을 수치와 근거로 함께 확인합니다."
-                                            description="점수 조정이 실제 등급, 원문 인식 상태, 무결성 판단에 어떤 영향을 주는지 바로 볼 수 있습니다."
+                                            title="현재 보호 판단 수준을 확인합니다."
+                                            description={isProfessionalReviewView ? '개발자 검증 모드에서는 원문 인식 상태, 무결성, 증빙 고유값까지 함께 확인합니다.' : '관리자 원문 대조에서는 점수, 등급, 보완 여부를 중심으로 확인합니다.'}
                                             className="rounded-3xl border border-slate-200 bg-white px-10 py-10 shadow-sm"
                                             titleClassName="mt-1 text-sm font-black text-slate-900"
                                             descriptionClassName="mt-2 text-xs font-bold text-slate-500"
@@ -2451,21 +2453,29 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                     className="text-8xl font-black text-slate-900 w-48 focus:outline-none bg-transparent"
                                                 />
                                                 <p className="text-sm text-slate-700 font-black mt-2">안전 수준: {record.safetyLevel}</p>
-                                                <p className="text-xs text-slate-500 font-bold mt-2">
-                                                    원문 인식 상태: {typeof record.ocrConfidence === 'number' ? `${(record.ocrConfidence * 100).toFixed(0)}%` : '미기록'}
-                                                </p>
-                                                <p className="text-xs text-slate-500 font-bold mt-1">
-                                                    무결성 점수: {typeof record.integrityScore === 'number' ? `${record.integrityScore}점` : '미기록'}
-                                                </p>
-                                                <p className="text-xs text-slate-500 font-bold mt-1 break-all">
-                                                    증빙 고유값: {record.evidenceHash || '미기록'}
-                                                </p>
-                                                <p className="text-xs text-indigo-600 font-bold mt-2">
-                                                    종합역량 점수(P): {competencyProfile.weightedScore}점 ({competencyProfile.weightVersion})
-                                                </p>
-                                                <p className="text-xs text-emerald-700 font-bold mt-2">
-                                                    등급 기준: 고급 ≥ {safetyLevelThresholds.advancedMin}, 중급 ≥ {safetyLevelThresholds.intermediateMin}, 초급 &lt; {safetyLevelThresholds.intermediateMin} (예: 69점 = {gradeExampleFor69})
-                                                </p>
+                                                {isProfessionalReviewView ? (
+                                                    <>
+                                                        <p className="text-xs text-slate-500 font-bold mt-2">
+                                                            원문 인식 상태: {typeof record.ocrConfidence === 'number' ? `${(record.ocrConfidence * 100).toFixed(0)}%` : '미기록'}
+                                                        </p>
+                                                        <p className="text-xs text-slate-500 font-bold mt-1">
+                                                            무결성 점수: {typeof record.integrityScore === 'number' ? `${record.integrityScore}점` : '미기록'}
+                                                        </p>
+                                                        <p className="text-xs text-slate-500 font-bold mt-1 break-all">
+                                                            증빙 고유값: {record.evidenceHash || '미기록'}
+                                                        </p>
+                                                        <p className="text-xs text-indigo-600 font-bold mt-2">
+                                                            종합역량 점수(P): {competencyProfile.weightedScore}점 ({competencyProfile.weightVersion})
+                                                        </p>
+                                                        <p className="text-xs text-emerald-700 font-bold mt-2">
+                                                            등급 기준: 고급 ≥ {safetyLevelThresholds.advancedMin}, 중급 ≥ {safetyLevelThresholds.intermediateMin}, 초급 &lt; {safetyLevelThresholds.intermediateMin} (예: 69점 = {gradeExampleFor69})
+                                                        </p>
+                                                    </>
+                                                ) : (
+                                                    <p className="text-xs text-slate-500 font-bold mt-2">
+                                                        관리자 확인 후 근로자 안내와 개인 안전교육 리포트에 반영됩니다.
+                                                    </p>
+                                                )}
                                             </div>
                                             <CircularProgress score={record.safetyScore} level={record.safetyLevel} />
                                         </div>
@@ -3566,7 +3576,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             { key: 'step-2', content: '상단 1차 저장으로 수정본을 고정합니다.' },
                                             { key: 'step-3', content: '하단 승인영역에 검토 근거를 남깁니다.' },
                                             { key: 'step-4', content: '최종 승인으로 2차 가공을 실행합니다.' },
-                                            { key: 'step-5', content: '보호 리포트로 연결해 현장 공유를 이어갑니다.' },
+                                            { key: 'step-5', content: '교육 리포트로 연결해 현장 공유를 이어갑니다.' },
                                         ]}
                                     />
                                 </SectionPanelCard>
