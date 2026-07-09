@@ -599,38 +599,50 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                     </div>
                 </div>
 
-                {/* [3열] 교육자료 및 보조 전달 설정 */}
+                {/* [3열] 교육 환류 및 보조 전달 설정 */}
                 <div className="flex flex-col gap-4 text-left">
-                    {/* 4번 + 5번 과업 통합: 원페이지 교육자료 & QR/음성 파일럿 */}
+                    {/* 교육 환류 센터: 원페이지 교육자료, 개인 보호 리포트, 월별 추적자료를 한 화면으로 연결 */}
                     <div className="psi-interactive-card flex-1 p-4 bg-gradient-to-br from-white to-emerald-50/10 dark:from-slate-900 dark:to-emerald-950/20 hover:shadow-lg transition flex flex-col justify-between">
                         <div>
                             <div className="flex items-center justify-between">
                                 <div className="flex gap-1.5">
-                                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-700 text-xs font-black text-white">04</span>
-                                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-800 text-xs font-black text-white">05</span>
+                                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-700 text-xs font-black text-white">01</span>
+                                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-700 text-xs font-black text-white">02</span>
+                                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-700 text-xs font-black text-white">03</span>
                                 </div>
-                                <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[9px] font-black text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-950/30 dark:text-emerald-300">교육 배포</span>
+                                <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[9px] font-black text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-950/30 dark:text-emerald-300">교육 환류</span>
                             </div>
                             <div className="mt-3">
-                                <h3 className="text-sm font-black text-slate-900 dark:text-slate-150">위험성평가 교육자료 & QR/음성 파일럿</h3>
+                                <h3 className="text-sm font-black text-slate-900 dark:text-slate-150">교육 환류 센터</h3>
                                 <p className="mt-1 text-[11px] font-medium text-slate-400 leading-4">
-                                    도출된 위해 정보와 원문 PDF를 기반으로 원페이지 교육자료를 만들고, 필요 시 모바일 QR·음성 전달을 파일럿으로 지원합니다.
+                                    검증된 기록을 원페이지 교육자료, 개인 보호 리포트, 월별 계도·추적자료로 바로 연결합니다.
                                 </p>
                             </div>
 
-                            <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+                            <div className="mt-3 grid grid-cols-1 gap-2 text-center sm:grid-cols-3">
                                 <div onClick={() => openStep(BOARD_STEPS[3])} className="cursor-pointer rounded-lg bg-amber-50/50 p-2 border border-amber-100/40 hover:bg-amber-100/30 transition dark:bg-amber-950/10 dark:border-amber-900/20">
-                                    <b className="text-base text-amber-700 dark:text-amber-400 font-bold">📄 A4</b>
-                                    <p className="mt-1 text-[9px] font-black text-amber-800 dark:text-amber-300">교육 자료 인쇄</p>
+                                    <b className="text-base text-amber-700 dark:text-amber-400 font-bold">A4</b>
+                                    <p className="mt-1 text-[9px] font-black text-amber-800 dark:text-amber-300">원페이지 자료</p>
                                 </div>
-                                <div onClick={() => openStep(BOARD_STEPS[4])} className="cursor-pointer rounded-lg bg-emerald-50/50 p-2 border border-emerald-100/40 hover:bg-emerald-100/30 transition dark:bg-emerald-950/10 dark:border-emerald-900/20">
-                                    <b className="text-base text-emerald-700 dark:text-emerald-400 font-bold">📱 QR</b>
-                                    <p className="mt-1 text-[9px] font-black text-emerald-800 dark:text-emerald-300">파일럿 전달</p>
+                                <div onClick={() => setCurrentPage('reports')} className="cursor-pointer rounded-lg bg-violet-50/50 p-2 border border-violet-100/50 hover:bg-violet-100/40 transition dark:bg-violet-950/10 dark:border-violet-900/20">
+                                    <b className="text-base text-violet-700 dark:text-violet-300 font-bold">보호</b>
+                                    <p className="mt-1 text-[9px] font-black text-violet-800 dark:text-violet-300">보호 리포트</p>
+                                </div>
+                                <div onClick={() => openStep(BOARD_STEPS[2])} className="cursor-pointer rounded-lg bg-emerald-50/50 p-2 border border-emerald-100/40 hover:bg-emerald-100/30 transition dark:bg-emerald-950/10 dark:border-emerald-900/20">
+                                    <b className="text-base text-emerald-700 dark:text-emerald-400 font-bold">월별</b>
+                                    <p className="mt-1 text-[9px] font-black text-emerald-800 dark:text-emerald-300">월별 추적</p>
                                 </div>
                             </div>
                         </div>
 
                         <div className="mt-4 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-1.5">
+                            <button
+                                type="button"
+                                onClick={() => setCurrentPage('education-return')}
+                                className="text-xs font-black text-blue-700 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200 flex items-center gap-1.5"
+                            >
+                                교육 환류 센터 열기 <span aria-hidden="true">→</span>
+                            </button>
                             <button
                                 type="button"
                                 onClick={() => openStep(BOARD_STEPS[3])}
@@ -643,7 +655,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                                 onClick={() => openStep(BOARD_STEPS[4])}
                                 className="text-xs font-black text-slate-700 dark:text-slate-350 hover:text-blue-700 dark:hover:text-blue-400 flex items-center gap-1.5"
                             >
-                                🌐 QR/음성 파일럿 확인 열기 <span aria-hidden="true">→</span>
+                                QR/음성 파일럿 확인 <span aria-hidden="true">→</span>
                             </button>
                         </div>
                     </div>

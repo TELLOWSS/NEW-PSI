@@ -13,6 +13,7 @@ const DEFAULT_SIDEBAR_ORDER: Page[] = [
     'site-issue-management',
     'worker-management',
     'survey-intelligence',
+    'education-return',
     'predictive-analysis',
     'safety-behavior-management',
     'performance-analysis',

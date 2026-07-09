@@ -96,6 +96,7 @@ const lazyWithRecovery = <T extends { default: React.ComponentType<any> }>(
 
 const Dashboard = lazyWithRecovery('Dashboard', () => import('./pages/Dashboard'));
 const OcrAnalysis = lazyWithRecovery('OcrAnalysis', () => import('./pages/OcrAnalysis'));
+const EducationReturn = lazyWithRecovery('EducationReturn', () => import('./pages/EducationReturn'));
 const MonthlyGuidanceReport = lazyWithRecovery('MonthlyGuidanceReport', () => import('./pages/MonthlyGuidanceReport'));
 const A4EducationMaterial = lazyWithRecovery('A4EducationMaterial', () => import('./pages/A4EducationMaterial'));
 const PptPdfOnePageSummary = lazyWithRecovery('PptPdfOnePageSummary', () => import('./pages/PptPdfOnePageSummary'));
@@ -1280,6 +1281,7 @@ const App: React.FC = () => {
                 <Layout currentPage={currentPage} setCurrentPage={navigateToPage} onAdminLogout={handleAdminLogout}>
                     <Suspense fallback={<div className="min-h-[240px] flex items-center justify-center"><Spinner /></div>}>
                         {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={navigateToPage} />}
+                        {currentPage === 'education-return' && <EducationReturn workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'ocr-analysis' && (
                             <OcrAnalysis 
                                 onAnalysisComplete={addWorkerRecords} 

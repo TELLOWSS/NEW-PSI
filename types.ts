@@ -1,6 +1,7 @@
 export type Page =
     'dashboard' | 
     'ocr-analysis' | 
+    'education-return' |
     'monthly-guidance-report' |
     'a4-education-material' |
     'ppt-pdf-one-page-summary' |

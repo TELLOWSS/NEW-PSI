@@ -11,6 +11,7 @@ const IMMEDIATE_VISIBLE_PAGES = new Set<Page>([
     'worker-management',
     'safety-checks',
     'site-issue-management',
+    'education-return',
     'reports',
     'monthly-guidance-report',
     'a4-education-material',

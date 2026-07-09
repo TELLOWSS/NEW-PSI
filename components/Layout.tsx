@@ -135,8 +135,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         home: ['dashboard'],
         alerts: ['ocr-analysis'],
         profile: ['monthly-guidance-report'],
-        predictive: ['admin-training'],
-        more: ['performance-analysis', 'a4-education-material', 'reports', 'settings'],
+        predictive: ['education-return', 'a4-education-material', 'reports', 'monthly-guidance-report', 'admin-training'],
+        more: ['performance-analysis', 'settings'],
     };
 
     const isMobilePageVisible = (page: Page) =>
@@ -192,8 +192,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                 ? [{ page: 'ocr-analysis', label: getRouteLabel('ocr-analysis', uiAudienceMode) }]
                 : activeMobileTab === 'profile'
                     ? [{ page: 'monthly-guidance-report', label: getRouteLabel('monthly-guidance-report', uiAudienceMode) }]
-                    : activeMobileTab === 'predictive'
-                        ? [{ page: 'admin-training', label: getRouteLabel('admin-training', uiAudienceMode) }]
+                : activeMobileTab === 'predictive'
+                    ? [
+                        { page: 'education-return', label: getRouteLabel('education-return', uiAudienceMode) },
+                        { page: 'a4-education-material', label: '원페이지 교육자료' },
+                        { page: 'reports', label: '개인 보호 리포트' },
+                        { page: 'monthly-guidance-report', label: '월별 추적자료' },
+                    ]
                         : [
                             { page: 'performance-analysis', label: getRouteLabel('performance-analysis', uiAudienceMode) },
                             { page: 'a4-education-material', label: getRouteLabel('a4-education-material', uiAudienceMode) },
