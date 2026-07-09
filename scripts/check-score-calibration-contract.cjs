@@ -20,6 +20,10 @@ for (const marker of [
   'const hasTimeMarker',
   'const actionKeywordCount',
   '안전장비 단일 조치 중심',
+  'buildFallbackScoreBreakdownFromAnswers',
+  '6대 지표 세부점수가 누락',
+  'Q4 감소대책과 Q5 실천행동이 유사',
+  'calcNgramSimilarity',
 ]) {
   if (!source.includes(marker)) failures.push(`Missing calibration marker: ${marker}`);
 }

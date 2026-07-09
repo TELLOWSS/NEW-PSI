@@ -895,6 +895,154 @@ export const isGenericSlogan = (text: string): boolean => {
     return sloganPatterns.some(pattern => pattern.test(clean)) && clean.length <= 12;
 };
 
+const normalizeScoreQuestionNumber = (value: unknown): string => {
+    const matched = String(value || '').match(/[1-5]/);
+    return matched ? matched[0] : String(value || '').trim();
+};
+
+const getScoreAnswerText = (handwrittenAnswers: unknown[], qNum: string): string => {
+    const questionIndex = Number(qNum) - 1;
+    const found = handwrittenAnswers.find((a, index) => {
+        if (!a || typeof a !== 'object') return false;
+        const rawQuestionNumber = (a as any).questionNumber;
+        const normalizedQuestionNumber = normalizeScoreQuestionNumber(rawQuestionNumber);
+        if (normalizedQuestionNumber === qNum) return true;
+        return !String(rawQuestionNumber || '').trim() && index === questionIndex;
+    });
+    return found
+        ? String((found as any).koreanTranslation || (found as any).answerText || (found as any).nativeTranslation || '').trim()
+        : '';
+};
+
+const countUniqueMatches = (text: string, pattern: RegExp): number => {
+    return new Set(text.match(pattern) || []).size;
+};
+
+const normalizeCalibrationText = (value: unknown): string => {
+    return String(value || '')
+        .toLowerCase()
+        .replace(/[\s\u3000]+/g, '')
+        .replace(/[^\p{L}\p{N}]/gu, '')
+        .trim();
+};
+
+const calcNgramSimilarity = (left: string, right: string): number => {
+    const makeSet = (value: string): Set<string> => {
+        const clean = normalizeCalibrationText(value);
+        const size = clean.length >= 4 ? 2 : 1;
+        const items = new Set<string>();
+        for (let index = 0; index <= clean.length - size; index += 1) {
+            items.add(clean.slice(index, index + size));
+        }
+        return items;
+    };
+    const leftSet = makeSet(left);
+    const rightSet = makeSet(right);
+    if (leftSet.size === 0 || rightSet.size === 0) return 0;
+    const intersection = [...leftSet].filter(item => rightSet.has(item)).length;
+    return intersection / Math.max(leftSet.size, rightSet.size);
+};
+
+const adjustBreakdownToTarget = (
+    breakdown: NormalizedScoreBreakdown,
+    targetScore: number,
+): NormalizedScoreBreakdown => {
+    const adjusted = { ...breakdown };
+    let currentScore = computeScoreFromBreakdown(adjusted);
+    let delta = clampScore(targetScore, currentScore) - currentScore;
+
+    const subtractOrder: Array<keyof Omit<NormalizedScoreBreakdown, 'repeatViolationPenalty'>> = [
+        'improvementExecution',
+        'proficiency',
+        'riskAssessmentUnderstanding',
+        'jobUnderstanding',
+        'psychological',
+    ];
+    const addOrder: Array<keyof Omit<NormalizedScoreBreakdown, 'repeatViolationPenalty'>> = [
+        'riskAssessmentUnderstanding',
+        'proficiency',
+        'jobUnderstanding',
+        'improvementExecution',
+        'psychological',
+    ];
+    const maxByMetric: Record<keyof Omit<NormalizedScoreBreakdown, 'repeatViolationPenalty'>, number> = {
+        psychological: 10,
+        jobUnderstanding: 20,
+        riskAssessmentUnderstanding: 20,
+        proficiency: 30,
+        improvementExecution: 20,
+    };
+
+    if (delta < 0) {
+        for (const metric of subtractOrder) {
+            if (delta === 0) break;
+            const reducible = Math.min(adjusted[metric], Math.abs(delta));
+            adjusted[metric] -= reducible;
+            delta += reducible;
+        }
+    } else if (delta > 0) {
+        for (const metric of addOrder) {
+            if (delta === 0) break;
+            const room = Math.min(maxByMetric[metric] - adjusted[metric], delta);
+            adjusted[metric] += room;
+            delta -= room;
+        }
+    }
+
+    currentScore = computeScoreFromBreakdown(adjusted);
+    return currentScore === targetScore ? adjusted : { ...adjusted };
+};
+
+const buildFallbackScoreBreakdownFromAnswers = (
+    handwrittenAnswers: unknown[],
+    scoreInput: number,
+): { breakdown: NormalizedScoreBreakdown; reasoning: string[] } | undefined => {
+    const answers = Array.isArray(handwrittenAnswers) ? handwrittenAnswers : [];
+    const q1 = getScoreAnswerText(answers, '1');
+    const q2 = getScoreAnswerText(answers, '2');
+    const q3 = getScoreAnswerText(answers, '3');
+    const q4 = getScoreAnswerText(answers, '4');
+    const q5 = getScoreAnswerText(answers, '5');
+    const allAnswers = [q1, q2, q3, q4, q5];
+    const answeredCount = allAnswers.filter(Boolean).length;
+    const totalLength = allAnswers.join('').replace(/\s+/g, '').length;
+
+    if (answeredCount === 0 || totalLength === 0) return undefined;
+
+    const riskText = q2 + q3;
+    const hasConcreteRisk = /추락|낙하|감전|미끄러|넘어|베임|찔림|붕괴|충돌|끼임|깔림|분진|먼지|화재|폭발|협착|전도/.test(riskText);
+    const hasRiskLevel = /상|중|하|높|낮|위험|매우|보통|낮음|중간/.test(q3);
+    const hasCause = /때문|경우|하면|으로|해서|않|미착용|미설치|불안정|부족|없/.test(riskText);
+
+    const q4ControlCount = countUniqueMatches(q4, /줄걸이|안전고리|고리|체결|안전벨트|안전모|난간|발판|사다리|장비|보호구|고정|설치|배치|결속|묶음/g);
+    const q4HasProcess = /확인\s*후|작업\s*(시|전|후|중)|작업전|작업중|작업후|사전|먼저|확인하고|배치하고|설치하고/.test(q4);
+    const q4HasDetail = /정상\s*작동|거리|높이|하중|각도|상태|튼튼|단단|고정|체결|걸고|설치|점검|기준|범위|결속|묶/.test(q4);
+    const q4HasNumeric = /[0-9]+(m|cm|kg|t|V|Volt|%|개|번|회|도|초|분|시간|인|명|대)/i.test(q4);
+
+    const q5ActionCount = countUniqueMatches(q5, /줄걸이|안전벨트|안전고리|고리|안전모|난간|발판|사다리|장비|보호구|체결|착용|사용|점검|확인|설치|고정|결속|묶음|신호수|통제선|유도/g);
+    const q5HasTimeOrActor = /작업\s*(전|중|후)|작업전|작업중|작업후|시작\s*전|개시\s*전|착수\s*전|종료\s*후|사전|먼저|내가|팀원|신호수|관리자|작업자/.test(q5);
+
+    const heuristicBreakdown: NormalizedScoreBreakdown = {
+        psychological: totalLength >= 80 && answeredCount === 5 ? 8 : totalLength >= 40 ? 7 : answeredCount >= 4 ? 6 : 4,
+        jobUnderstanding: !q1 ? 0 : isGenericSlogan(q1) ? 5 : q1.replace(/\s+/g, '').length >= 12 ? 18 : 12,
+        riskAssessmentUnderstanding: !q2 && !q3 ? 0 : isGenericSlogan(q2) || isGenericSlogan(q3) ? 8 : hasConcreteRisk && hasRiskLevel && hasCause ? 18 : hasConcreteRisk && hasRiskLevel ? 15 : hasConcreteRisk ? 12 : 8,
+        proficiency: !q4 ? 0 : isGenericSlogan(q4) ? 5 : q4HasNumeric || (q4ControlCount >= 2 && q4HasProcess && q4HasDetail) ? 24 : q4HasProcess && (q4HasDetail || q4ControlCount >= 1) ? 18 : q4ControlCount >= 1 || q4HasDetail ? 12 : 8,
+        improvementExecution: !q5 ? 0 : isGenericSlogan(q5) ? 5 : q5HasTimeOrActor && q5ActionCount >= 2 ? 16 : q5ActionCount >= 2 ? 13 : q5HasTimeOrActor || q5ActionCount >= 1 ? 10 : 6,
+        repeatViolationPenalty: 0,
+    };
+
+    const heuristicScore = computeScoreFromBreakdown(heuristicBreakdown);
+    const targetScore = Number.isFinite(scoreInput)
+        ? Math.min(clampScore(scoreInput, heuristicScore), Math.min(100, heuristicScore + 8))
+        : heuristicScore;
+    const breakdown = adjustBreakdownToTarget(heuristicBreakdown, targetScore);
+
+    return {
+        breakdown,
+        reasoning: ['AI 응답에 6대 지표 세부점수가 누락되어 Q1~Q5 답변 근거로 보수적 지표를 복원함'],
+    };
+};
+
 export const calibrateScoreBreakdown = (
     breakdown: NormalizedScoreBreakdown,
     handwrittenAnswers: unknown[],
@@ -903,22 +1051,8 @@ export const calibrateScoreBreakdown = (
     const reasoning: string[] = [];
 
     const answers = Array.isArray(handwrittenAnswers) ? handwrittenAnswers : [];
-    const normalizeQuestionNumber = (value: unknown): string => {
-        const matched = String(value || '').match(/[1-5]/);
-        return matched ? matched[0] : String(value || '').trim();
-    };
     const getAnswerText = (qNum: string): string => {
-        const questionIndex = Number(qNum) - 1;
-        const found = answers.find((a, index) => {
-            if (!a || typeof a !== 'object') return false;
-            const rawQuestionNumber = (a as any).questionNumber;
-            const normalizedQuestionNumber = normalizeQuestionNumber(rawQuestionNumber);
-            if (normalizedQuestionNumber === qNum) return true;
-            return !String(rawQuestionNumber || '').trim() && index === questionIndex;
-        });
-        return found
-            ? String((found as any).koreanTranslation || (found as any).answerText || (found as any).nativeTranslation || '').trim()
-            : '';
+        return getScoreAnswerText(answers, qNum);
     };
 
     const q1 = getAnswerText('1');
@@ -1002,9 +1136,9 @@ export const calibrateScoreBreakdown = (
         calibrated.improvementExecution = Math.min(5, calibrated.improvementExecution);
         reasoning.push('Q5(실천행동)에 형식적 구호가 기재되어 개선이행도 감점 적용');
     } else {
-        const hasTimeMarker = /작업\s*(전|중|후)|작업전|작업중|작업후|시작\s*전|종료\s*후|사전|먼저/.test(q5);
+        const hasTimeMarker = /작업\s*(전|중|후)|작업전|작업중|작업후|시작\s*전|개시\s*전|착수\s*전|종료\s*후|사전|먼저/.test(q5);
         const hasActorMarker = /내가|내가\s*직접|팀원|신호수|관리자|작업자/.test(q5);
-        const actionKeywordCount = new Set(q5.match(/안전벨트|안전고리|안전모|난간|발판|사다리|장비|보호구|체결|착용|사용|점검|확인|설치|고정/g) || []).size;
+        const actionKeywordCount = new Set(q5.match(/줄걸이|안전벨트|안전고리|고리|안전모|난간|발판|사다리|장비|보호구|체결|착용|사용|점검|확인|설치|고정|결속|묶음|신호수|통제선|유도/g) || []).size;
         if ((hasTimeMarker || hasActorMarker) && actionKeywordCount >= 2) {
             calibrated.improvementExecution = Math.max(14, calibrated.improvementExecution);
         } else {
@@ -1028,6 +1162,15 @@ export const calibrateScoreBreakdown = (
     if (calculatedPenalty > 0 && calculatedPenalty > calibrated.repeatViolationPenalty) {
         calibrated.repeatViolationPenalty = calculatedPenalty;
         reasoning.push(`상투적인 안전 표현의 반복 사용으로 인한 패널티 적용 (-${calculatedPenalty}점)`);
+    }
+
+    const q4q5Similarity = calcNgramSimilarity(q4, q5);
+    const q4q5RepeatedPenalty = q4 && q5 && q4q5Similarity >= 0.72
+        ? (q4q5Similarity >= 0.88 ? 12 : 6)
+        : 0;
+    if (q4q5RepeatedPenalty > calibrated.repeatViolationPenalty) {
+        calibrated.repeatViolationPenalty = q4q5RepeatedPenalty;
+        reasoning.push(`Q4 감소대책과 Q5 실천행동이 유사하여 반복 답변 패널티 적용 (-${q4q5RepeatedPenalty}점)`);
     }
 
     return { breakdown: calibrated, reasoning };
@@ -1062,6 +1205,15 @@ const normalizeScoreMetric = (value: unknown, min: number, max: number): number 
 const normalizeScoreBreakdown = (value: unknown): NormalizedScoreBreakdown | undefined => {
     if (!value || typeof value !== 'object') return undefined;
     const source = value as Record<string, unknown>;
+    const requiredMetricKeys = [
+        'psychological',
+        'jobUnderstanding',
+        'riskAssessmentUnderstanding',
+        'proficiency',
+        'improvementExecution',
+    ];
+    const hasRequiredMetrics = requiredMetricKeys.every(key => Number.isFinite(Number(source[key])));
+    if (!hasRequiredMetrics) return undefined;
     return {
         psychological: normalizeScoreMetric(source['psychological'], 0, 10),
         jobUnderstanding: normalizeScoreMetric(source['jobUnderstanding'], 0, 20),
@@ -1095,15 +1247,29 @@ export const enforceBreakdownDrivenScore = (
 ): { safetyScore: number; safetyLevel: WorkerRecord['safetyLevel']; scoreReasoning: string[]; scoreBreakdown?: NormalizedScoreBreakdown } => {
     const normalizedBreakdown = normalizeScoreBreakdown(breakdownInput);
     const firstPass = enforceScoreGradeConsistency(scoreInput, levelInput, reasoningInput, fallbackScore);
+    const answersArray = Array.isArray(handwrittenAnswers) ? handwrittenAnswers : [];
 
     if (!normalizedBreakdown) {
+        const fallbackBreakdown = buildFallbackScoreBreakdownFromAnswers(answersArray, firstPass.safetyScore);
+        if (fallbackBreakdown) {
+            const fallbackScore = computeScoreFromBreakdown(fallbackBreakdown.breakdown);
+            const finalized = enforceScoreGradeConsistency(
+                fallbackScore,
+                firstPass.safetyLevel,
+                [...firstPass.scoreReasoning, ...fallbackBreakdown.reasoning, `6대 지표 누락 복원 결과에 따라 점수를 ${fallbackScore}점으로 보정함`],
+                fallbackScore,
+            );
+            return {
+                ...finalized,
+                scoreBreakdown: fallbackBreakdown.breakdown,
+            };
+        }
         return {
             ...firstPass,
             scoreBreakdown: undefined,
         };
     }
 
-    const answersArray = Array.isArray(handwrittenAnswers) ? handwrittenAnswers : [];
     const calibrationResult = calibrateScoreBreakdown(normalizedBreakdown, answersArray);
     const calibratedBreakdown = calibrationResult.breakdown;
 
