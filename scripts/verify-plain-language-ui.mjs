@@ -25,7 +25,6 @@ await page.addInitScript(() => {
             'dashboard',
             'site-issue-management',
             'worker-management',
-            'safety-compliance-hub',
             'survey-intelligence',
             'predictive-analysis',
             'safety-behavior-management',

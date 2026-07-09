@@ -479,9 +479,6 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
     // 기본/고급 모드 토글 (첫 로딩 및 리셋 시에는 항상 'basic' 통합 보드 노출)
     const [dashboardUIMode, setDashboardUIMode] = useState<'basic' | 'advanced'>(() => {
-        if (typeof window !== 'undefined') {
-            if (window.location.hash === '#mobile-sync-hub') return 'advanced';
-        }
         return 'basic';
     });
     const [isDashboardUIModeLocked, setIsDashboardUIModeLocked] = useState<boolean>(() => {
@@ -626,31 +623,6 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             window.localStorage.removeItem(DASHBOARD_UI_MODE_STORAGE_KEY);
         } catch {}
 
-        if (typeof window !== 'undefined' && window.location.hash === '#mobile-sync-hub') {
-            setIsDashboardUIModeLocked(false);
-            setDashboardUIMode('advanced');
-            window.setTimeout(() => {
-                const element = document.getElementById('mobile-sync-hub');
-                const mainElement = document.querySelector('main');
-                if (mainElement && element) {
-                    const offsetTop = element.offsetTop;
-                    mainElement.scrollTo({
-                        top: offsetTop - 24,
-                        behavior: 'smooth'
-                    });
-                } else if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-
-                try {
-                    if (window.history.pushState) {
-                        window.history.pushState('', document.title, window.location.pathname + window.location.search);
-                    } else {
-                        window.location.hash = '';
-                    }
-                } catch {}
-            }, 450);
-        }
     }, []);
 
     const handleDashboardViewModeChange = (mode: DashboardViewMode) => {
@@ -2734,21 +2706,21 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             </div>
                         </section>
 
-                        <section id="mobile-sync-hub" className="rounded-3xl border border-white/10 bg-slate-950/45 p-4 sm:p-5 backdrop-blur-md shadow-2xl transition-all duration-300 hover:border-white/15">
+                        <section id="field-mobile-flow" className="rounded-3xl border border-white/10 bg-slate-950/45 p-4 sm:p-5 backdrop-blur-md shadow-2xl transition-all duration-300 hover:border-white/15">
                             <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-3">
                                 <div>
                                     <div className="flex items-center gap-1.5">
                                         <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
-                                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-300">FIELD MOBILE SYNC</p>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-300">MOBILE FIELD FLOW</p>
                                     </div>
-                                    <h3 className="mt-1 text-lg sm:text-xl font-black text-white">실시간 현장 모바일 연동 허브 (12채널)</h3>
+                                    <h3 className="mt-1 text-lg sm:text-xl font-black text-white">현장 모바일 실행 흐름</h3>
                                     <p className="mt-1 text-xs font-medium text-slate-400 leading-relaxed">
-                                        현장 근로자용 모바일 앱의 12개 채널 실시간 상태를 모니터링하고 원클릭으로 관제 화면으로 즉시 전환합니다.
+                                        OCR 분석, 보호 판단, 교육 리포트, 추적관리를 한 화면 흐름으로 연결합니다.
                                     </p>
                                 </div>
                                 <div className="hidden sm:block shrink-0 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-right">
                                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-300">ACTIVE</p>
-                                    <p className="mt-0.5 text-xs font-black text-white">12 Channels</p>
+                                    <p className="mt-0.5 text-xs font-black text-white">핵심 흐름</p>
                                 </div>
                             </div>
 
@@ -2858,7 +2830,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         className="relative group rounded-2xl border border-white/5 bg-slate-900/40 p-3 text-left transition-all duration-300 hover:border-indigo-500/50 hover:bg-slate-900/90 hover:shadow-[0_0_20px_rgba(99,102,241,0.2)] hover:-translate-y-0.5"
                                     >
                                         <div className="flex items-center justify-between gap-1 mb-1.5">
-                                            <span className="text-[9px] font-black tracking-widest text-indigo-400">CH {channel.step}</span>
+                                            <span className="text-[9px] font-black tracking-widest text-indigo-400">STEP {channel.step}</span>
                                             {channel.isWarning && (
                                                 <span className="flex h-2 w-2 relative">
                                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>

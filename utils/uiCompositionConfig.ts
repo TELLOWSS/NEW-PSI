@@ -12,7 +12,6 @@ const DEFAULT_SIDEBAR_ORDER: Page[] = [
     'dashboard',
     'site-issue-management',
     'worker-management',
-    'safety-compliance-hub',
     'survey-intelligence',
     'predictive-analysis',
     'safety-behavior-management',
@@ -30,7 +29,6 @@ const ALL_PAGES = new Set<Page>(DEFAULT_SIDEBAR_ORDER);
 const DEFAULT_HIDDEN_SIDEBAR_PAGES: Page[] = [
     'site-issue-management',
     'worker-management',
-    'safety-compliance-hub',
     'predictive-analysis',
     'safety-behavior-management',
 ];

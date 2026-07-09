@@ -221,28 +221,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         setOnePointProofSession(null);
     };
 
-    const handleGoToMobileHub = () => {
-        if (typeof window !== 'undefined') {
-            window.location.hash = 'mobile-sync-hub';
-        }
-        handlePageChange('dashboard');
-        if (typeof window !== 'undefined') {
-            window.setTimeout(() => {
-                const mainElement = mainRef.current;
-                const element = document.getElementById('mobile-sync-hub');
-                if (mainElement && element) {
-                    const offsetTop = element.offsetTop;
-                    mainElement.scrollTo({
-                        top: offsetTop - 24,
-                        behavior: 'smooth'
-                    });
-                } else if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            }, 450);
-        }
-    };
-
     const handleGoToDashboard = () => {
         if (typeof window !== 'undefined') {
             try {
@@ -488,7 +466,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                     themeMode={themeMode}
                     onToggleTheme={handleToggleTheme}
                     onGoToDashboard={currentPage !== 'dashboard' ? handleGoToDashboard : undefined}
-                    onGoToMobileHub={currentPage !== 'dashboard' ? handleGoToMobileHub : undefined}
                     controls={
                         <div className="flex items-center gap-1">
                             {isSettingsPage && (

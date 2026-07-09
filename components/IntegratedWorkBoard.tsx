@@ -49,7 +49,6 @@ const BOARD_STEPS: BoardStep[] = [
 const OPTIONAL_FEATURES: Page[] = [
     'site-issue-management',
     'worker-management',
-    'safety-compliance-hub',
     'survey-intelligence',
     'predictive-analysis',
     'safety-behavior-management',
@@ -306,7 +305,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
             <section className="psi-industrial-panel px-4 py-4 sm:px-6">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                     <div>
-                        <p className="text-[11px] font-black uppercase tracking-[0.15em] text-blue-700 dark:text-blue-400">Control Hub</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.15em] text-blue-700 dark:text-blue-400">Core Flow</p>
                         <h1 className="mt-1 text-2xl font-black tracking-tight text-[#0c2348] dark:text-slate-100 font-sans">PSI 통합 안전 관리 센터</h1>
                         <p className="mt-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
                             현장 기록 분석, AI 위험 도출, 다국어 위험성평가 교육 전파 및 개선율 추이를 단일 대시보드에서 제어합니다.

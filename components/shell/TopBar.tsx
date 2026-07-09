@@ -16,7 +16,6 @@ interface TopBarProps {
     controls?: React.ReactNode;
     statusLabel?: string;
     onGoToDashboard?: () => void;
-    onGoToMobileHub?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -33,7 +32,6 @@ export const TopBar: React.FC<TopBarProps> = ({
     controls,
     statusLabel = '정상 운영',
     onGoToDashboard,
-    onGoToMobileHub,
 }) => {
     const themeLabel =
         themeMode === 'system'
@@ -69,20 +67,6 @@ export const TopBar: React.FC<TopBarProps> = ({
                                 <svg className="h-4.5 w-4.5 transition-transform duration-200 group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                                 </svg>
-                            </button>
-                        )}
-                        {onGoToMobileHub && (
-                            <button
-                                type="button"
-                                onClick={onGoToMobileHub}
-                                className="flex items-center gap-1.5 h-9 px-3 rounded-xl border border-indigo-200/50 bg-indigo-50/50 text-xs font-black text-indigo-700 transition-all duration-200 hover:border-indigo-400 hover:bg-indigo-100 dark:border-indigo-500/30 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-900/30 shadow-sm"
-                                title="12채널 모바일 연동 허브로 바로 이동"
-                            >
-                                <span className="relative flex h-1.5 w-1.5">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span>
-                                </span>
-                                12채널 허브
                             </button>
                         )}
                         <div className="min-w-0">
