@@ -977,13 +977,18 @@ export const calibrateScoreBreakdown = (
         calibrated.proficiency = Math.min(5, calibrated.proficiency);
         reasoning.push('Q4(감소대책)에 형식적인 구호가 기재되어 숙련도 감점 적용');
     } else {
-        const hasMeasurable = /[0-9]+(m|cm|kg|t|V|Volt|%|개|번|회|도|초|분|시간|인|명|대)/i.test(q4) || /줄걸이|고리|체결|안전고리|안전벨트/.test(q4);
-        const hasProcessSteps = /확인\s*후|작업\s*(시|전|후)|확인하고|배치하고/.test(q4);
+        const hasNumericCriterion = /[0-9]+(m|cm|kg|t|V|Volt|%|개|번|회|도|초|분|시간|인|명|대)/i.test(q4);
+        const controlKeywordCount = new Set(q4.match(/줄걸이|안전고리|고리|체결|안전벨트|안전모|난간|발판|사다리|장비|보호구|고정|설치|배치/g) || []).size;
+        const hasProcessSteps = /확인\s*후|작업\s*(시|전|후|중)|작업전|작업중|작업후|사전|먼저|확인하고|배치하고|설치하고/.test(q4);
+        const hasVerificationDetail = /정상\s*작동|거리|높이|하중|각도|상태|튼튼|단단|고정|체결|걸고|설치|점검|기준|범위/.test(q4);
 
-        if (hasMeasurable) {
+        if (hasNumericCriterion || (controlKeywordCount >= 2 && hasProcessSteps && hasVerificationDetail)) {
             calibrated.proficiency = Math.max(24, calibrated.proficiency);
-        } else if (hasProcessSteps) {
+        } else if (hasProcessSteps && hasVerificationDetail) {
             calibrated.proficiency = Math.max(16, Math.min(23, calibrated.proficiency));
+        } else if (controlKeywordCount >= 1) {
+            calibrated.proficiency = Math.min(15, calibrated.proficiency);
+            reasoning.push('Q4(감소대책)가 안전장비 단일 조치 중심이라 검증기준 없는 단일조치 구간으로 보정');
         } else {
             calibrated.proficiency = Math.min(15, calibrated.proficiency);
         }
@@ -997,8 +1002,10 @@ export const calibrateScoreBreakdown = (
         calibrated.improvementExecution = Math.min(5, calibrated.improvementExecution);
         reasoning.push('Q5(실천행동)에 형식적 구호가 기재되어 개선이행도 감점 적용');
     } else {
-        const hasTimeAndWho = /전|후|시작|종료|내가|내가\s*직접|팀원|신호수|확인/.test(q5);
-        if (hasTimeAndWho) {
+        const hasTimeMarker = /작업\s*(전|중|후)|작업전|작업중|작업후|시작\s*전|종료\s*후|사전|먼저/.test(q5);
+        const hasActorMarker = /내가|내가\s*직접|팀원|신호수|관리자|작업자/.test(q5);
+        const actionKeywordCount = new Set(q5.match(/안전벨트|안전고리|안전모|난간|발판|사다리|장비|보호구|체결|착용|사용|점검|확인|설치|고정/g) || []).size;
+        if ((hasTimeMarker || hasActorMarker) && actionKeywordCount >= 2) {
             calibrated.improvementExecution = Math.max(14, calibrated.improvementExecution);
         } else {
             calibrated.improvementExecution = Math.min(13, calibrated.improvementExecution);

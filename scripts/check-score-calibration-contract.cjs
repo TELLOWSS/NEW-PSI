@@ -1,0 +1,33 @@
+const fs = require('fs');
+const path = require('path');
+
+const sourcePath = path.resolve(__dirname, '..', 'services', 'geminiService.ts');
+const source = fs.readFileSync(sourcePath, 'utf8');
+
+const failures = [];
+
+if (source.includes('|| /줄걸이|고리|체결|안전고리|안전벨트/.test(q4)')) {
+  failures.push('Q4 single safety-equipment keyword still forces highest proficiency band.');
+}
+
+if (source.includes('const hasTimeAndWho = /전|후|시작|종료|내가|내가\\s*직접|팀원|신호수|확인/.test(q5);')) {
+  failures.push('Q5 single 확인 keyword still forces improvementExecution >=14.');
+}
+
+for (const marker of [
+  'const controlKeywordCount',
+  'const hasVerificationDetail',
+  'const hasTimeMarker',
+  'const actionKeywordCount',
+  '안전장비 단일 조치 중심',
+]) {
+  if (!source.includes(marker)) failures.push(`Missing calibration marker: ${marker}`);
+}
+
+if (failures.length > 0) {
+  console.error('[check-score-calibration-contract] FAIL');
+  for (const failure of failures) console.error(`- ${failure}`);
+  process.exit(1);
+}
+
+console.log('[check-score-calibration-contract] PASS');

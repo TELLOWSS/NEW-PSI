@@ -25,6 +25,7 @@
     "check:score-consistency": "node scripts/check-score-consistency-gate.cjs",
     "check:score-consistency:strict": "node scripts/check-score-consistency-gate.cjs --strict",
     "check:score-consistency:strict8": "node scripts/check-score-consistency-gate.cjs --strict --max-gap 8",
+    "check:score-calibration": "node scripts/check-score-calibration-contract.cjs",
     "check:score-consistency:report": "node scripts/check-score-consistency-gate.cjs --report-json reports/score-consistency.json --report-md reports/score-consistency.md",
     "check:score-consistency:report:strict8": "node scripts/check-score-consistency-gate.cjs --strict --max-gap 8 --report-json reports/score-consistency-strict8.json --report-md reports/score-consistency-strict8.md",
     "check:mobile-field-mode": "node scripts/check-mobile-field-mode-contract.cjs",
@@ -83,7 +84,7 @@
     "check:types": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify:fast": "npm run check:context && npm run check:hotspot && npm run check:tdz && npm run check:competency-weights && npm run check:field-validation-feedback && npm run check:one-point-proof && npm run check:product-simple && npm run check:product-ui-surgery && npm run check:care-language && npm run check:no-12-channel-hub && npm run check:server-esm-imports && npm run check:page-tone && npm run check:ocr-contract && npm run check:mobile-field-mode && npm run check:ocr-record-view && npm run check:ocr-scale-view && npm run check:ocr-collapse-delete && npm run check:ocr-quota-form-gate && npm run check:ocr-verification-package && npm run check:ocr-operational-hardening && npm run check:manager-review-sync && npm run check:settings-direct-controls && npm run check:security-headers && npm run check:ui-language && npm run check:report-language && npm run check:core-metrics && npm run check:score-consistency:strict8 && npm run check:types",
+    "verify:fast": "npm run check:context && npm run check:hotspot && npm run check:tdz && npm run check:competency-weights && npm run check:field-validation-feedback && npm run check:one-point-proof && npm run check:product-simple && npm run check:product-ui-surgery && npm run check:care-language && npm run check:no-12-channel-hub && npm run check:server-esm-imports && npm run check:page-tone && npm run check:ocr-contract && npm run check:mobile-field-mode && npm run check:ocr-record-view && npm run check:ocr-scale-view && npm run check:ocr-collapse-delete && npm run check:ocr-quota-form-gate && npm run check:ocr-verification-package && npm run check:ocr-operational-hardening && npm run check:manager-review-sync && npm run check:settings-direct-controls && npm run check:security-headers && npm run check:ui-language && npm run check:report-language && npm run check:core-metrics && npm run check:score-consistency:strict8 && npm run check:score-calibration && npm run check:types",
     "verify:release": "npm run verify:fast && npm run check:score-consistency:report:strict8 && npm run build",
     "build": "vite build",
     "preview": "vite preview"
