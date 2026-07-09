@@ -1563,16 +1563,16 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const comparisonSummaryLines = useMemo(() => {
         const scope = selectedTradeForComparison
             ? comparedTeamRows.length > 0
-                ? `${teamComparisonHeadline} 기준으로 같은 축에서 응답품질, 보호신호, 미처리, 추세를 함께 비교하고 있습니다.`
+                ? `${teamComparisonHeadline} 기준으로 같은 축에서 위험인식 신호, 보호신호, 미처리, 추세를 함께 비교하고 있습니다.`
                 : `${selectedTradeForComparison} 공종에서 비교할 팀 2~3개를 먼저 선택하면 메인 비교가 시작됩니다.`
             : '비교할 공종을 먼저 선택한 뒤 팀 2~3개를 고르면 같은 기준으로 바로 비교할 수 있습니다.';
 
         const priority = priorityTeamForAction
-            ? `우선 조치 팀은 ${priorityTeamForAction.team}이며, 추가 확인 ${priorityTeamForAction.riskCount}명과 응답품질 ${priorityTeamForAction.avgScore.toFixed(1)}점 기준으로 즉시 점검 대상입니다.`
+            ? `우선 조치 팀은 ${priorityTeamForAction.team}이며, 추가 확인 ${priorityTeamForAction.riskCount}명과 위험인식 신호 ${priorityTeamForAction.avgScore.toFixed(1)}점 기준으로 즉시 점검 대상입니다.`
             : '우선 조치 팀 판단을 위해 비교할 팀을 2개 이상 선택해 주세요.';
 
         const benchmark = benchmarkTeamForAction
-            ? `벤치마크 팀은 ${benchmarkTeamForAction.team}이며, 응답품질 ${benchmarkTeamForAction.avgScore.toFixed(1)}점 기준으로 현장 코칭 기준점으로 활용할 수 있습니다.`
+            ? `벤치마크 팀은 ${benchmarkTeamForAction.team}이며, 위험인식 신호 ${benchmarkTeamForAction.avgScore.toFixed(1)}점 기준으로 현장 코칭 기준점으로 활용할 수 있습니다.`
             : '벤치마크 팀 판단은 비교 데이터가 확보되면 자동으로 제안됩니다.';
 
         return { scope, priority, benchmark };
@@ -2226,7 +2226,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     eyebrow: '다음 행동',
                     title: weakestTeam ? `${weakestTeam.team} 등 보호가 더 필요한 팀부터 확인하세요.` : '먼저 취약 공종 또는 팀을 선택하세요.',
                     description: weakestTeam
-                        ? `응답품질 ${weakestTeam.avgScore.toFixed(1)}점과 추가 확인 ${weakestTeam.riskCount}명을 기준으로 어떤 작업조에 코칭이 먼저 필요한지 이어서 확인할 수 있습니다.`
+                        ? `위험인식 신호 ${weakestTeam.avgScore.toFixed(1)}점과 추가 확인 ${weakestTeam.riskCount}명을 기준으로 어떤 작업조에 코칭이 먼저 필요한지 이어서 확인할 수 있습니다.`
                         : '차트에서 작업조를 고르면 역량 분포도와 개인별 평가 기록으로 바로 이어져 보완 순서를 구체화할 수 있습니다.',
                     tone: weakestTeam ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
                 },
@@ -2256,7 +2256,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     eyebrow: '의사결정 포인트',
                     title: weakestTeam ? `${weakestTeam.team} 등 취약 팀부터 자원 배분 우선순위를 잡으세요.` : '먼저 취약 공종 또는 팀을 선택하세요.',
                     description: weakestTeam
-                        ? `가장 취약한 팀의 응답품질 ${weakestTeam.avgScore.toFixed(1)}점과 추가 확인 ${weakestTeam.riskCount}명을 기준으로 교육·점검·보고 자원 배분 순서를 정할 수 있습니다.`
+                        ? `가장 취약한 팀의 위험인식 신호 ${weakestTeam.avgScore.toFixed(1)}점과 추가 확인 ${weakestTeam.riskCount}명을 기준으로 교육·점검·보고 자원 배분 순서를 정할 수 있습니다.`
                         : '차트에서 작업조를 고르면 역량 분포도와 개인별 평가 기록이 이어져 다음 보호 행동을 구체화할 수 있습니다.',
                     tone: weakestTeam ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
                 },
@@ -2285,7 +2285,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 eyebrow: '다음 행동',
                 title: weakestTeam ? `${weakestTeam.team} 등 취약 팀부터 보완 우선순위를 잡으세요.` : '먼저 취약 공종 또는 팀을 선택하세요.',
                 description: weakestTeam
-                    ? `가장 취약한 팀의 응답품질 ${weakestTeam.avgScore.toFixed(1)}점과 추가 확인 ${weakestTeam.riskCount}명을 기준으로 코칭·점검·보고 흐름을 연결할 수 있습니다.`
+                    ? `가장 취약한 팀의 위험인식 신호 ${weakestTeam.avgScore.toFixed(1)}점과 추가 확인 ${weakestTeam.riskCount}명을 기준으로 코칭·점검·보고 흐름을 연결할 수 있습니다.`
                     : '차트에서 작업조를 고르면 역량 분포도와 개인별 평가 기록이 이어져 다음 보호 행동을 구체화할 수 있습니다.',
                 tone: weakestTeam ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
             },
@@ -2591,7 +2591,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 <div className="mt-3 grid grid-cols-4 gap-1.5">
                     {[
                         { label: '근로자', value: stats.totalWorkers, tone: 'text-slate-200' },
-                        { label: '응답품질', value: stats.averageScore.toFixed(1), tone: 'text-indigo-300' },
+                        { label: '위험인식 신호', value: stats.averageScore.toFixed(1), tone: 'text-indigo-300' },
                         { label: '보호우선', value: stats.highRiskWorkers, tone: stats.highRiskWorkers > 0 ? 'text-rose-300' : 'text-slate-300' },
                         { label: '검토 대기', value: harnessDashboardSummary.approvalBacklog, tone: harnessDashboardSummary.approvalBacklog > 0 ? 'text-amber-300' : 'text-slate-300' },
                     ].map((chip) => (
@@ -2682,7 +2682,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
                                 {[
                                     { label: '총 근로자', value: stats.totalWorkers },
-                                    { label: '응답품질', value: stats.averageScore.toFixed(1) },
+                                    { label: '위험인식 신호', value: stats.averageScore.toFixed(1) },
                                     { label: '보호우선', value: stats.highRiskWorkers },
                                     { label: '승인 대기', value: harnessDashboardSummary.approvalBacklog },
                                 ].map((item) => (
@@ -2731,7 +2731,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         label: '홈 대시보드',
                                         page: 'dashboard' as Page,
                                         desc: '현장 위험현황 요약',
-                                        status: `응답품질 ${stats.averageScore.toFixed(1)}점`,
+                                        status: `위험인식 신호 ${stats.averageScore.toFixed(1)}점`,
                                         isWarning: false,
                                     },
                                     {

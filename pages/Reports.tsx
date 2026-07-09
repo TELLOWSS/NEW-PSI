@@ -41,7 +41,7 @@ import {
 } from '../utils/harnessTransitionNarratives';
 import { getHarnessVersionDescriptor, getHarnessVersionDescriptors, type HarnessVersionDetailsBundle } from '../utils/harnessVersionCatalog';
 import { buildHarnessRuleImpactSummary } from '../utils/harnessRuleImpactSummary';
-import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
+import { getSafetyLevelDisplayLabel, getSafetyLevelFromScore, SAFETY_SIGNAL_COPY } from '../utils/safetyLevelUtils';
 import { buildPdfBlobFromCanvases, canvasToBlob, captureReportCanvases, getCanvasImageData, getCanvasPlacementOnA4, saveCanvasesAsA4Pdf } from '../utils/pdfCapture';
 import { fetchHarnessWorkflowStatus } from '../services/harnessService';
 import { logOpsAlertClick, verifyOpsAlertClickLogsAccess } from '../services/opsAlertClickLogsService';
@@ -3740,7 +3740,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 <p className="mt-2 text-xs font-semibold text-slate-500">
                     {activeTab === 'team-report'
                         ? '팀과 공종별 위험 현황을 회의·관리용으로 요약합니다.'
-                        : '같은 근로자의 월별 기록을 한 줄로 묶어 평가기간·기록 수·점수 변화를 확인합니다.'}
+                        : '같은 근로자의 월별 기록을 한 줄로 묶어 평가기간·기록 수·위험인식 신호 변화를 확인합니다.'}
                 </p>
             </div>
 
@@ -3775,12 +3775,12 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     </div>
                 )}
                 <div>
-                    <label className="text-xs font-bold text-slate-500 mb-1 block">등급 필터</label>
+                    <label className="text-xs font-bold text-slate-500 mb-1 block">{SAFETY_SIGNAL_COPY.level} 필터</label>
                     <select value={filterLevel} onChange={e => setFilterLevel(e.target.value)} className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[120px]">
-                        <option value="전체">전체 등급</option>
-                        <option value="초급">초급 (추가 확인)</option>
-                        <option value="중급">중급 (주의)</option>
-                        <option value="고급">고급 (우수)</option>
+                        <option value="전체">전체 {SAFETY_SIGNAL_COPY.level}</option>
+                        <option value="초급">{getSafetyLevelDisplayLabel('초급')} (먼저 확인)</option>
+                        <option value="중급">{getSafetyLevelDisplayLabel('중급')} (추가 확인)</option>
+                        <option value="고급">{getSafetyLevelDisplayLabel('고급')} (유지)</option>
                     </select>
                 </div>
                 <div>
@@ -4703,8 +4703,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                         <th className="px-6 py-3">이름</th>
                                         <th className="px-6 py-3">{activeTab === 'worker-report' ? '최근 평가' : '공종'}</th>
                                         {activeTab === 'worker-report' && <th className="px-6 py-3">평가기간·기록</th>}
-                                        <th className="px-6 py-3">{activeTab === 'worker-report' ? '최근 점수' : '응답품질'}</th>
-                                        <th className="px-6 py-3">{activeTab === 'worker-report' ? '점수 변화' : '확인단계'}</th>
+                                        <th className="px-6 py-3">{activeTab === 'worker-report' ? `최근 ${SAFETY_SIGNAL_COPY.score}` : SAFETY_SIGNAL_COPY.score}</th>
+                                        <th className="px-6 py-3">{activeTab === 'worker-report' ? '신호 변화' : SAFETY_SIGNAL_COPY.level}</th>
                                         {activeTab === 'worker-report' && <th className="px-6 py-3">모국어 리포트</th>}
                                         {activeTab === 'worker-report' && <th className="px-6 py-3">보호사건</th>}
                                         {isDevMode && <th className="px-6 py-3">안전 기록 상태</th>}
@@ -4750,9 +4750,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                                 </td>
                                             )}
                                             <td className="px-6 py-3">
-                                                <p className="font-black text-indigo-600">{r.safetyScore}점</p>
+                                                <p className="font-black text-indigo-600" title={SAFETY_SIGNAL_COPY.explanation}>{r.safetyScore}</p>
                                                 {activeTab === 'worker-report' && (
-                                                    <p className="mt-0.5 text-[10px] font-bold text-slate-400">{getSafetyLevelFromScore(Number(r.safetyScore))}</p>
+                                                    <p className="mt-0.5 text-[10px] font-bold text-slate-400">{getSafetyLevelDisplayLabel(getSafetyLevelFromScore(Number(r.safetyScore)))}</p>
                                                 )}
                                             </td>
                                             <td className="px-6 py-3">
@@ -4760,9 +4760,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                                     reportTarget?.deltaScore !== null && reportTarget?.deltaScore !== undefined ? (
                                                         <>
                                                             <p className={`text-sm font-black ${reportTarget.deltaScore > 0 ? 'text-emerald-600' : reportTarget.deltaScore < 0 ? 'text-rose-600' : 'text-slate-600'}`}>
-                                                                {reportTarget.deltaScore > 0 ? '+' : ''}{reportTarget.deltaScore}점
+                                                                {reportTarget.deltaScore > 0 ? '+' : ''}{reportTarget.deltaScore}
                                                             </p>
-                                                            <p className="mt-0.5 text-[10px] font-semibold text-slate-400">첫 평가 대비</p>
+                                                            <p className="mt-0.5 text-[10px] font-semibold text-slate-400">첫 신호 대비</p>
                                                         </>
                                                     ) : (
                                                         <p className="text-[11px] font-semibold text-slate-400">비교 기록 없음</p>
@@ -4774,7 +4774,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                                             safetyLevel === '고급' ? 'bg-green-100 text-green-700' :
                                                             safetyLevel === '중급' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
                                                         }`}>
-                                                            {safetyLevel}
+                                                            {getSafetyLevelDisplayLabel(safetyLevel)}
                                                         </span>
                                                     );
                                                 })()}
@@ -4868,6 +4868,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-3a2 2 0 00-2-2H9a2 2 0 00-2 2v3a2 2 0 002 2zm5-14V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v3m6 0H9" /></svg>
                                     인쇄 / PDF 저장
+                                </button>
+                                <button
+                                    onClick={handleDownloadCurrent}
+                                    disabled={hasCustomDateRangeError}
+                                    className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 shadow-lg transition-colors ${hasCustomDateRangeError ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-black'}`}
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m-7 7h8a2 2 0 002-2V8.5a2 2 0 00-.586-1.414l-3.5-3.5A2 2 0 0012.5 3H8a2 2 0 00-2 2v13a2 2 0 002 2z" /></svg>
+                                    현재 보고서 내보내기
                                 </button>
                                 <button 
                                     onClick={handleDownloadCurrentImage}

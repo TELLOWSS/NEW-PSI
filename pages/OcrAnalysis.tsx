@@ -6,7 +6,7 @@ import { analyzeWorkerRiskAssessment, updateAnalysisBasedOnEdits, getQuotaState,
 import { extractMessage } from '../utils/errorUtils';
 import type { WorkerRecord, OcrErrorType, OcrFailureCode, AppSettings, HarnessApprovalState, HarnessRiskDecision, HarnessWorkflowState, OcrUnknownSubCategory } from '../types';
 import { fileToBase64 } from '../utils/fileUtils';
-import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
+import { getSafetyLevelDisplayLabel, getSafetyLevelFromScore, SAFETY_SIGNAL_COPY } from '../utils/safetyLevelUtils';
 import { getApiCallState, incrementApiCallCount, resetApiCallCount, type DailyCounterState } from '../utils/apiCounterUtils';
 import { BRAND_ACTION_LABELS, BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { BRAND_TONE } from '../utils/brandToneTokens';
@@ -169,7 +169,10 @@ const buildReassessmentAuditNote = (before: WorkerRecord, updated: Partial<Worke
     const afterReasons = Array.isArray(updated.scoreReasoning) ? updated.scoreReasoning : beforeReasons;
     const addedReasons = afterReasons.filter(reason => !beforeReasons.includes(reason)).slice(0, 2);
 
-    const parts = [`점수 ${beforeScore}→${afterScore}`, `등급 ${beforeLevel}→${afterLevel}`];
+    const parts = [
+        `${SAFETY_SIGNAL_COPY.scoreCompact} ${beforeScore}→${afterScore}`,
+        `${SAFETY_SIGNAL_COPY.level} ${getSafetyLevelDisplayLabel(beforeLevel)}→${getSafetyLevelDisplayLabel(afterLevel)}`,
+    ];
 
     if (beforeErrorType) {
         parts.push(`이전 오류: ${beforeErrorType}`);
@@ -1128,8 +1131,8 @@ const CORRECTION_FIELD_LABELS: Record<string, string> = {
     strengths: '강점',
     weakAreas: '약점',
     aiInsights: 'AI 인사이트',
-    safetyScore: '응답품질',
-    safetyLevel: '확인단계',
+    safetyScore: SAFETY_SIGNAL_COPY.score,
+    safetyLevel: SAFETY_SIGNAL_COPY.level,
     scoreReasoning: '품질 근거',
     actionable_coaching: '개선 코칭',
     improvement: '개선사항',
@@ -1311,8 +1314,8 @@ const formatLongComparisonText = (value: unknown, maxLength = 220): string => {
 
 const parseReassessmentAuditNote = (note?: string) => {
     const text = String(note || '');
-    const scoreMatch = text.match(/점수\s*(\d+)→(\d+)/);
-    const levelMatch = text.match(/등급\s*([^|]+?)→([^|]+?)(?:\s*\||$)/);
+    const scoreMatch = text.match(/(?:점수|인식신호|위험인식 신호)\s*(\d+)\s*→\s*(\d+)/);
+    const levelMatch = text.match(/(?:등급|지원단계)\s*([^|]+?)→([^|]+?)(?:\s*\||$)/);
 
     if (!scoreMatch) return null;
 
@@ -1326,6 +1329,14 @@ const parseReassessmentAuditNote = (note?: string) => {
         previousLevel: String(levelMatch?.[1] || '').trim(),
         nextLevel: String(levelMatch?.[2] || '').trim(),
     };
+};
+
+const formatReassessmentLevelLabel = (level: string): string => {
+    const value = level.trim();
+    if (value === '초급' || value === '중급' || value === '고급') {
+        return getSafetyLevelDisplayLabel(value);
+    }
+    return value || '-';
 };
 
 const isRecentlyCorrected = (record: WorkerRecord): boolean => {
@@ -1384,26 +1395,13 @@ type WorkerAccumulationGroup = {
 const getRecordSortModeLabel = (mode: RecordSortMode): string => {
     switch (mode) {
         case 'score-desc':
-            return '응답품질 높은순';
+            return `${SAFETY_SIGNAL_COPY.score} 높은순`;
         case 'failed-first':
             return `우선 ${BRAND_STATUS_LABELS.attention}순`;
         case 'error-type':
             return `${BRAND_STATUS_LABELS.attention} 유형순`;
         default:
             return '최근 수정순';
-    }
-};
-
-const getSafetyLevelDisplayLabel = (level: WorkerRecord['safetyLevel']): string => {
-    switch (level) {
-        case '고급':
-            return '고급 · 안정적';
-        case '중급':
-            return '중급 · 관찰 필요';
-        case '초급':
-            return '초급 · 집중 케어';
-        default:
-            return level;
     }
 };
 
@@ -2573,7 +2571,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         if (filterField !== 'all') items.push(`공종: ${filterField}`);
         if (filterLeader !== 'all') items.push(`팀장: ${filterLeader}`);
         if (filterTrust !== 'all') items.push(`신뢰: ${filterTrust === 'pending' ? '재검토 대기' : '최종확정'}`);
-        if (filterLevel !== 'all') items.push(`등급: ${filterLevel}`);
+        if (filterLevel !== 'all') items.push(`${SAFETY_SIGNAL_COPY.level}: ${getSafetyLevelDisplayLabel(filterLevel as WorkerRecord['safetyLevel'])}`);
         if (filterStatus !== 'all') items.push(`OCR 결과: ${filterStatus === 'failed' ? BRAND_STATUS_LABELS.attentionPending : '성공'}`);
         if (secondPassStatusFilter !== 'all') items.push(`2차 상태: ${secondPassStatusFilter === 'done' ? '완료(DONE)만' : '미완료만'}`);
         if (filterReason !== 'all') {
@@ -3329,7 +3327,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             .filter(e => e.total >= 3)
             .sort((a, b) => b.failRate - a.failRate)
             .slice(0, 3);
-        // 교육-행동 연동 신호 (P2.3): 낮은 응답품질 + 약점 존재 + 코칭 이력 없음
+        // 교육-행동 연동 신호 (P2.3): 낮은 위험인식 신호 + 약점 존재 + 코칭 이력 없음
         const coachingGapCount = recent30d.filter(r =>
             r.safetyScore < 60 &&
             Array.isArray(r.weakAreas) && r.weakAreas.length > 0 &&
@@ -3613,15 +3611,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             `- 처리 확인 필요: ${retryDiagnostics?.processingFail || 0}건`,
             `- 라우트 확인 필요: ${retryDiagnostics?.serverRouteFail || 0}건`,
             '',
-            '[재분석 점수 변화]',
+            '[재분석 신호 변화]',
             `- 상승: ${recentReassessmentDeltaSummary.up}건`,
             `- 하락: ${recentReassessmentDeltaSummary.down}건`,
             `- 유지: ${recentReassessmentDeltaSummary.same}건`,
             ...(recentReassessmentImpact.length > 0
                 ? [
                     '',
-                    '[최근 점수 변화 상세]',
-                    ...recentReassessmentImpact.map((item) => `- ${item.name} (${item.jobField}) : ${item.previousScore}→${item.nextScore}, ${item.previousLevel || '-'}→${item.nextLevel || '-'}${item.note ? ` | ${item.note}` : ''}`),
+                    '[최근 신호 변화 상세]',
+                    ...recentReassessmentImpact.map((item) => `- ${item.name} (${item.jobField}) : ${item.previousScore}→${item.nextScore}, ${formatReassessmentLevelLabel(item.previousLevel)}→${formatReassessmentLevelLabel(item.nextLevel)}${item.note ? ` | ${item.note}` : ''}`),
                 ]
                 : []),
             '',
@@ -4679,7 +4677,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             `- 정렬 기준 ${getRecordSortModeLabel(recordSortMode)}\n\n` +
             `[상위 대상 미리보기]\n${previewSummary}\n\n` +
             `- 1차 OCR 원문 재추출이 아닌 수정 반영 재평가\n` +
-            `- 응답품질, 확인단계, 강점/약점, AI 인사이트 갱신`
+            `- ${SAFETY_SIGNAL_COPY.score}, ${SAFETY_SIGNAL_COPY.level}, 강점/약점, AI 인사이트 갱신`
         )) return;
 
         setIsAnalyzing(true);
@@ -5028,7 +5026,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         const proceed = confirm(
             `${BRAND_STATUS_LABELS.attentionPending} ${failedRecords.length}건을 관리자 권한으로 일괄 정상분류하시겠습니까?\n\n` +
             `- OCR ${BRAND_STATUS_LABELS.attention} 플래그 제거\n` +
-            `- 점수/등급 최소 보정\n` +
+            `- ${SAFETY_SIGNAL_COPY.score}/${SAFETY_SIGNAL_COPY.level} 최소 보정\n` +
             `- 감사이력 기록`
         );
         if (!proceed) return;
@@ -5049,7 +5047,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         const proceed = confirm(
             `${label} ${records.length}건을 관리자 권한으로 정상분류하시겠습니까?\n\n` +
             `- OCR 실패 플래그 제거\n` +
-            `- 점수/등급 최소 보정\n` +
+            `- ${SAFETY_SIGNAL_COPY.score}/${SAFETY_SIGNAL_COPY.level} 최소 보정\n` +
             `- 감사이력 기록`
         );
         if (!proceed) return;
@@ -5065,7 +5063,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         const proceed = confirm(
             `관리자 수동 정상분류를 진행하시겠습니까?\n\n` +
             `- OCR 실패 플래그를 제거하고\n` +
-            `- 최소 응답품질/확인단계를 보정하여\n` +
+            `- 최소 ${SAFETY_SIGNAL_COPY.score}/${SAFETY_SIGNAL_COPY.level}를 보정하여\n` +
             `- 정상 기록으로 분류합니다.`
         );
         if (!proceed) return;
@@ -7270,7 +7268,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         <p className={`mt-1 text-sm ${activeMonthStats.failedCount > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{activeMonthStats.failedCount}건</p>
                     </div>
                     <div>
-                        <p className="text-slate-400">평균 점수</p>
+                        <p className="text-slate-400">평균 {SAFETY_SIGNAL_COPY.score}</p>
                         <p className="mt-1 text-sm text-slate-900">{activeMonthStats.averageScore === null ? '-' : `${activeMonthStats.averageScore}점`}</p>
                     </div>
                     <div>
@@ -7656,7 +7654,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 <span className="rounded-full bg-rose-50 px-2 py-1 text-rose-700">확인 필요 {group.failedCount}건</span>
                                             )}
                                             {group.scoredCount < group.records.length && (
-                                                <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-600">점수 집계 제외 {group.records.length - group.scoredCount}건</span>
+                                                <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-600">신호 집계 제외 {group.records.length - group.scoredCount}건</span>
                                             )}
                                             {group.finalizedCount > 0 && (
                                                 <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">확정 {group.finalizedCount}건</span>
@@ -7888,7 +7886,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 </div>
 
                                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
-                                    <span className={`px-2.5 py-1 rounded-full font-black ${getSafetyLevelClass(r.safetyLevel)}`}>{r.safetyScore}점 {getSafetyLevelDisplayLabel(r.safetyLevel)}</span>
+                                    <span
+                                        className={`px-2.5 py-1 rounded-full font-black ${getSafetyLevelClass(r.safetyLevel)}`}
+                                        title={SAFETY_SIGNAL_COPY.explanation}
+                                    >
+                                        {SAFETY_SIGNAL_COPY.scoreCompact} {r.safetyScore} · {getSafetyLevelDisplayLabel(r.safetyLevel)}
+                                    </span>
                                     <span className={`px-2 py-1 rounded font-black ${hasImage ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{hasImage ? '이미지 OK' : '이미지 누락'}</span>
                                     {recentlyCorrected && <span className="px-2 py-1 rounded bg-violet-600 text-white font-black">최근 24h 수정</span>}
                                     {weakCorrectionReason && <span className="px-2 py-1 rounded bg-amber-100 text-amber-800 font-black" title={latestCorrectionReason || '수정 사유가 비어 있거나 너무 짧습니다.'}>수정사유 보강 필요</span>}
@@ -8016,7 +8019,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <th className="px-4 sm:px-8 py-4">근로자 정보</th>
                                 <th className="px-4 sm:px-8 py-4">공종 / Q1 실제 위험작업</th>
                                 <th className="px-4 sm:px-8 py-4">팀장 (Leader)</th>
-                                <th className="px-4 sm:px-8 py-4 text-center">응답품질</th>
+                                <th className="px-4 sm:px-8 py-4 text-center">{SAFETY_SIGNAL_COPY.score}</th>
                                 <th className="px-4 sm:px-8 py-4 text-center">이미지 상태</th>
                                 <th className="px-4 sm:px-8 py-4 text-right">관리</th>
                             </tr>
@@ -8197,10 +8200,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         </td>
                                         <td className="px-4 sm:px-8 py-5 text-center">
                                             <div className="flex flex-col items-center gap-1">
-                                                <span className={`px-3 py-1 rounded-full text-xs font-black shadow-sm ${getSafetyLevelClass(r.safetyLevel)}`}>{r.safetyScore}</span>
-                                                <span className="text-[10px] font-black text-slate-500">{r.safetyLevel}</span>
+                                                <span
+                                                    className={`px-3 py-1 rounded-full text-xs font-black shadow-sm ${getSafetyLevelClass(r.safetyLevel)}`}
+                                                    title={SAFETY_SIGNAL_COPY.explanation}
+                                                >
+                                                    {r.safetyScore}
+                                                </span>
+                                                <span className="text-[10px] font-black text-slate-500">{getSafetyLevelDisplayLabel(r.safetyLevel)}</span>
                                                 {needsGradeRevalidation(r) && (
-                                                    <span className="text-[9px] font-black text-rose-600 bg-rose-100 px-2 py-0.5 rounded">등급 재검증 필요</span>
+                                                    <span className="text-[9px] font-black text-rose-600 bg-rose-100 px-2 py-0.5 rounded">{SAFETY_SIGNAL_COPY.level} 재확인</span>
                                                 )}
                                                 {getReviewTrustState(r) === 'PENDING' && (
                                                     <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded">재검토 대기</span>
@@ -8547,7 +8555,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <div className="mt-3 p-2.5 rounded-lg bg-amber-50 border border-amber-200">
                                 <p className="text-[9px] font-black uppercase tracking-widest text-amber-700 mb-1.5">⚠ 교육-행동 갭 감지</p>
                                 <p className="text-[10px] font-bold text-amber-700">
-                                    응답품질 신호가 낮고 코칭 이력이 없는 근로자 <span className="font-black text-amber-900">{riskIntelligence.coachingGapCount}명</span> — 현장 교육 실행 후 갱신하세요.
+                                    {SAFETY_SIGNAL_COPY.score}가 낮고 코칭 이력이 없는 근로자 <span className="font-black text-amber-900">{riskIntelligence.coachingGapCount}명</span> — 현장 교육 실행 후 갱신하세요.
                                 </p>
                             </div>
                         )}
@@ -8779,7 +8787,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 )}
 
                 <CollapsibleSection
-                    title="고급 필터 · 정렬 · 2차 재분석 설정"
+                    title="상세 필터 · 정렬 · 2차 재분석 설정"
                     isOpen={showAdvancedOcrControls}
                     onToggle={() => setShowAdvancedOcrControls((prev) => !prev)}
                     summary={<span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-black text-violet-700">필터 {filterField !== 'all' || filterLeader !== 'all' || filterTrust !== 'all' || filterLevel !== 'all' || filterStatus !== 'all' || filterReason !== 'all' || secondPassStatusFilter !== 'all' ? '적용 중' : '기본값'} · 재분석 {secondPassTargets.length}건</span>}
@@ -8810,12 +8818,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     <option value="finalized">최종확정</option>
                                 </select>
                             </ControlPanelCard>
-                            <ControlPanelCard label="등급">
+                            <ControlPanelCard label={SAFETY_SIGNAL_COPY.level}>
                                 <select value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)} className="w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
                                     <option value="all">전체</option>
-                                    <option value="고급">고급</option>
-                                    <option value="중급">중급</option>
-                                    <option value="초급">초급</option>
+                                    <option value="고급">{getSafetyLevelDisplayLabel('고급')}</option>
+                                    <option value="중급">{getSafetyLevelDisplayLabel('중급')}</option>
+                                    <option value="초급">{getSafetyLevelDisplayLabel('초급')}</option>
                                 </select>
                             </ControlPanelCard>
                             <ControlPanelCard label="OCR 결과">
@@ -8863,7 +8871,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 w-full sm:w-auto">
                                     <button type="button" onClick={() => setRecordSortMode('recent-correction')} className={`px-3 py-2.5 min-h-[42px] rounded-xl text-[12px] sm:text-xs font-black border transition-all ${recordSortMode === 'recent-correction' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>최근 수정순</button>
-                                    <button type="button" onClick={() => setRecordSortMode('score-desc')} className={`px-3 py-2.5 min-h-[42px] rounded-xl text-[12px] sm:text-xs font-black border transition-all ${recordSortMode === 'score-desc' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>응답품질 높은순</button>
+                                    <button type="button" onClick={() => setRecordSortMode('score-desc')} className={`px-3 py-2.5 min-h-[42px] rounded-xl text-[12px] sm:text-xs font-black border transition-all ${recordSortMode === 'score-desc' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>{SAFETY_SIGNAL_COPY.scoreCompact} 높은순</button>
                                     <button type="button" onClick={() => setRecordSortMode('failed-first')} className={`px-3 py-2.5 min-h-[42px] rounded-xl text-[12px] sm:text-xs font-black border transition-all ${recordSortMode === 'failed-first' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>우선 {BRAND_STATUS_LABELS.attention}</button>
                                     <button type="button" onClick={() => setRecordSortMode('error-type')} className={`px-3 py-2.5 min-h-[42px] rounded-xl text-[12px] sm:text-xs font-black border transition-all ${recordSortMode === 'error-type' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>{BRAND_STATUS_LABELS.attention} 유형순</button>
                                 </div>
@@ -8876,7 +8884,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         className="rounded-3xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-4 shadow-sm sm:p-5"
                         eyebrow="2차 AI 재분석"
                         title="관리자 수정본 기준 재평가"
-                        description="현재 필터 기준으로 OCR 성공 기록만 선별해 응답품질, 확인단계, 강점/약점, AI 인사이트를 다시 계산합니다."
+                        description={`현재 필터 기준으로 OCR 성공 기록만 선별해 ${SAFETY_SIGNAL_COPY.score}, ${SAFETY_SIGNAL_COPY.level}, 강점/약점, AI 인사이트를 다시 계산합니다.`}
                         eyebrowClassName="text-[11px] font-black uppercase tracking-[0.2em] text-violet-500"
                         titleClassName="mt-2 text-lg font-black text-slate-900"
                         descriptionClassName="mt-2 text-sm font-semibold leading-relaxed text-slate-600"
@@ -9105,7 +9113,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     title="재분석 상세 비교"
                                     isOpen={showRetryDetailPanel}
                                     onToggle={() => setShowRetryDetailPanel((prev) => !prev)}
-                                    summary={<span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-black text-emerald-700">점수변화 {recentReassessmentImpact.length} · 인사이트 {recentInsightComparisons.length} · 텍스트 {recentTextComparisons.length}</span>}
+                                    summary={<span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-black text-emerald-700">신호변화 {recentReassessmentImpact.length} · 인사이트 {recentInsightComparisons.length} · 텍스트 {recentTextComparisons.length}</span>}
                                 >
                                     <SectionPanelCard
                                         variant="whiteSoft"
@@ -9142,7 +9150,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         <SectionPanelCard
                                             variant="indigoSoft"
                                             className="mt-3"
-                                            title="재분석 점수 변화"
+                                            title="재분석 신호 변화"
                                             description={`최근 ${recentReassessmentImpact.length}건`}
                                             titleClassName="text-[11px] font-black text-indigo-700 uppercase tracking-wider"
                                             descriptionClassName="text-[10px] font-black text-indigo-700"
@@ -9161,8 +9169,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                         </span>
                                                     </div>
                                                     <div className="mt-2 grid grid-cols-1 gap-2 lg:grid-cols-2 text-[11px] font-semibold">
-                                                        <div className="rounded-lg bg-slate-50 px-3 py-2 text-slate-600">점수: <span className="text-slate-900">{item.previousScore} → {item.nextScore}</span></div>
-                                                        <div className="rounded-lg bg-slate-50 px-3 py-2 text-slate-600">등급: <span className="text-slate-900">{item.previousLevel || '-'} → {item.nextLevel || '-'}</span></div>
+                                                        <div className="rounded-lg bg-slate-50 px-3 py-2 text-slate-600">{SAFETY_SIGNAL_COPY.scoreCompact}: <span className="text-slate-900">{item.previousScore} → {item.nextScore}</span></div>
+                                                        <div className="rounded-lg bg-slate-50 px-3 py-2 text-slate-600">{SAFETY_SIGNAL_COPY.level}: <span className="text-slate-900">{formatReassessmentLevelLabel(item.previousLevel)} → {formatReassessmentLevelLabel(item.nextLevel)}</span></div>
                                                     </div>
                                                     {item.note && (
                                                         <div className="mt-2 rounded-lg bg-indigo-50 px-3 py-2 text-[11px] font-semibold text-indigo-700 leading-snug whitespace-pre-wrap break-words">

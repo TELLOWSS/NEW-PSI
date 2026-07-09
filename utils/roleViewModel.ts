@@ -1,6 +1,7 @@
 import type { Page } from '../types';
 import type { InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { BRAND_TONE } from './brandToneTokens';
+import { getSafetyLevelDisplayLabel } from './safetyLevelUtils';
 
 export type DashboardAudience = 'worker' | 'manager' | 'executive';
 export type DashboardInsightTab = 'chart' | 'team' | 'worker';
@@ -96,7 +97,7 @@ export const buildOverviewStatCards = (audience: DashboardAudience, stats: Dashb
             },
             {
                 key: 'avg-score',
-                title: '실무 응답품질 신호',
+                title: '실무 위험인식 신호',
                 value: `${stats.averageScore.toFixed(1)}점`,
                 iconType: 'chart',
                 page: 'performance-analysis',
@@ -136,7 +137,7 @@ export const buildOverviewStatCards = (audience: DashboardAudience, stats: Dashb
             },
             {
                 key: 'avg-score',
-                title: '현장 응답품질',
+                title: '현장 위험인식 신호',
                 value: `${stats.averageScore.toFixed(1)}점`,
                 iconType: 'chart',
                 page: 'performance-analysis',
@@ -169,7 +170,7 @@ export const buildOverviewStatCards = (audience: DashboardAudience, stats: Dashb
             },
             {
                 key: 'avg-score',
-                title: '실무 응답품질 신호',
+                title: '실무 위험인식 신호',
                 value: `${stats.averageScore.toFixed(1)}점`,
                 iconType: 'chart',
                 page: 'performance-analysis',
@@ -194,7 +195,7 @@ export const buildOverviewStatCards = (audience: DashboardAudience, stats: Dashb
         },
         {
             key: 'avg-score',
-            title: '실무 응답품질 신호',
+            title: '실무 위험인식 신호',
             value: `${stats.averageScore.toFixed(1)}점`,
             iconType: 'chart',
             page: 'performance-analysis',
@@ -240,7 +241,7 @@ export const buildDashboardSummaryCards = (options: {
                 key: 'dashboard-evidence',
                 eyebrow: '무엇을 보면 되나',
                 title: `평균 ${stats.averageScore.toFixed(1)}점 · 보호 필요 ${stats.highRiskWorkers}명`,
-                description: '응답품질과 보호 우선 인원은 누가 추가 확인이 필요한지 알려주는 신호입니다. 공종·팀 비교까지 함께 보면 내 작업조의 위치를 더 쉽게 이해할 수 있습니다.',
+                description: '위험인식 신호와 보호 우선 인원은 누가 추가 확인이 필요한지 알려주는 신호입니다. 공종·팀 비교까지 함께 보면 내 작업조의 위치를 더 쉽게 이해할 수 있습니다.',
                 tone: BRAND_TONE.whiteSoft,
             },
             {
@@ -269,8 +270,8 @@ export const buildDashboardSummaryCards = (options: {
             {
                 key: 'dashboard-evidence',
                 eyebrow: '핵심 지표',
-                title: `응답품질 ${stats.averageScore.toFixed(1)}점 · 추가 확인 ${stats.highRiskWorkers}명 · 점검 ${stats.totalChecks}건`,
-                description: '응답품질, 추가 확인 인원, 점검 건수는 현재 현장의 리스크 수준과 이행 상태를 보여주는 운영 지표입니다.',
+                title: `위험인식 신호 ${stats.averageScore.toFixed(1)}점 · 추가 확인 ${stats.highRiskWorkers}명 · 점검 ${stats.totalChecks}건`,
+                description: '위험인식 신호, 추가 확인 인원, 점검 건수는 현재 현장의 리스크 수준과 이행 상태를 보여주는 운영 지표입니다.',
                 tone: BRAND_TONE.whiteSoft,
             },
             {
@@ -299,8 +300,8 @@ export const buildDashboardSummaryCards = (options: {
             {
                 key: 'dashboard-evidence',
                 eyebrow: '우선순위 근거',
-                title: `추가 확인 ${stats.highRiskWorkers}명 · 응답품질 ${stats.averageScore.toFixed(1)}점 · 점검 ${stats.totalChecks}건`,
-                description: '즉시 조치 인원, 응답품질, 점검 이행 건수를 묶어서 보면 오늘 어떤 팀을 먼저 붙잡아야 하는지 빠르게 결정할 수 있습니다.',
+                title: `추가 확인 ${stats.highRiskWorkers}명 · 위험인식 신호 ${stats.averageScore.toFixed(1)}점 · 점검 ${stats.totalChecks}건`,
+                description: '즉시 조치 인원, 위험인식 신호, 점검 이행 건수를 묶어서 보면 오늘 어떤 팀을 먼저 붙잡아야 하는지 빠르게 결정할 수 있습니다.',
                 tone: BRAND_TONE.whiteSoft,
             },
             {
@@ -337,8 +338,8 @@ export const buildDashboardSummaryCards = (options: {
         {
             key: 'dashboard-evidence',
             eyebrow: '판단 근거',
-            title: `응답품질 ${stats.averageScore.toFixed(1)}점 · 추가 확인 ${stats.highRiskWorkers}명 · 점검 ${stats.totalChecks}건`,
-            description: '응답품질, 추가 확인 인원, 점검 건수, 공종·국적·팀 비교가 함께 있어 어느 구간에서 보완이 필요한지 빠르게 읽을 수 있습니다.',
+            title: `위험인식 신호 ${stats.averageScore.toFixed(1)}점 · 추가 확인 ${stats.highRiskWorkers}명 · 점검 ${stats.totalChecks}건`,
+            description: '위험인식 신호, 추가 확인 인원, 점검 건수, 공종·국적·팀 비교가 함께 있어 어느 구간에서 보완이 필요한지 빠르게 읽을 수 있습니다.',
             tone: BRAND_TONE.whiteSoft,
         },
         {
@@ -665,6 +666,10 @@ export const buildReportsSummaryCards = (options: {
         harnessSummary,
     } = options;
 
+    const supportStageFilterLabel = filterLevel === '전체'
+        ? '전체 지원단계'
+        : `${getSafetyLevelDisplayLabel(filterLevel as '초급' | '중급' | '고급')} 지원단계`;
+
     return [
         {
             key: 'report-status',
@@ -678,8 +683,8 @@ export const buildReportsSummaryCards = (options: {
         {
             key: 'report-evidence',
             eyebrow: '판단 근거',
-            title: '공종, 등급, 기간 필터가 현재 보고 범위를 만듭니다.',
-            description: `현재 ${dateFilterLabel} 기준이며${filterLevel !== '전체' ? ` ${filterLevel} 등급만` : ' 전체 등급을'} 보고 있습니다. 필터 조건은 목록, 미리보기, ZIP/PDF 출력에 동일하게 반영됩니다.`,
+            title: '공종, 지원단계, 기간 필터가 현재 보고 범위를 만듭니다.',
+            description: `현재 ${dateFilterLabel} 기준이며 ${supportStageFilterLabel}을 보고 있습니다. 필터 조건은 목록, 미리보기, ZIP/PDF 출력에 동일하게 반영됩니다.`,
             tone: BRAND_TONE.whiteSoft,
         },
         {
@@ -688,7 +693,7 @@ export const buildReportsSummaryCards = (options: {
             title: viewMode === 'preview' ? '현재 미리보기 보고서를 먼저 확인하세요.' : '대상 목록에서 먼저 우선순위를 읽으세요.',
             description: viewMode === 'preview'
                 ? '미리보기에서 내용이 맞는지 확인한 뒤 현재 보고서 내보내기 또는 일괄 생성으로 이어가면 됩니다.'
-                : '약점, 응답품질, 확인단계를 함께 비교해 어떤 근로자군부터 설명과 보호 조치를 연결할지 먼저 정리할 수 있습니다.',
+                : '약점, 위험인식 신호, 지원단계를 함께 비교해 어떤 근로자군부터 설명과 보호 조치를 연결할지 먼저 정리할 수 있습니다.',
             tone: viewMode === 'preview' ? BRAND_TONE.emeraldSoft80 : BRAND_TONE.amberSoft80,
         },
         {
@@ -717,14 +722,14 @@ export const buildReportsViewCards = (options: {
             eyebrow: '지금 상태',
             title: viewMode === 'list' ? '생성 대상 목록을 비교 중입니다.' : `${currentPreviewName || '선택된 근로자'} 보고서를 미리보고 있습니다.`,
             description: viewMode === 'list'
-                ? '이름, 공종, 응답품질, 확인단계, 취약점을 같은 행에서 확인해 설명이 더 필요한 대상을 빠르게 찾을 수 있습니다.'
+                ? '이름, 공종, 위험인식 신호, 지원단계, 취약점을 같은 행에서 확인해 설명이 더 필요한 대상을 빠르게 찾을 수 있습니다.'
                 : `${previewIndex + 1}/${filteredRecordsLength} 순서이며 현재 보고서 내용을 실제 출력 전 단계에서 검토할 수 있습니다.`,
             tone: BRAND_TONE.slate,
         },
         {
             key: 'view-evidence',
             eyebrow: '판단 근거',
-            title: viewMode === 'list' ? '응답품질과 약점 조합이 우선 해설 대상을 보여줍니다.' : '미리보기 템플릿이 실제 PDF/이미지 출력 기준입니다.',
+            title: viewMode === 'list' ? '위험인식 신호와 약점 조합이 우선 해설 대상을 보여줍니다.' : '미리보기 템플릿이 실제 PDF/이미지 출력 기준입니다.',
             description: viewMode === 'list'
                 ? '단순 수치보다 주요 취약점을 함께 읽어 어떤 설명과 코칭이 필요한지 보호 중심으로 판단할 수 있습니다.'
                 : '현재 보이는 템플릿이 그대로 캡처되어 PDF 또는 이미지로 저장됩니다.',

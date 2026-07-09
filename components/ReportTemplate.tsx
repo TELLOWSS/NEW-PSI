@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import type { SixMetricBreakdown, WorkerRecord } from '../types';
 import { IndividualRadarChart } from './charts/IndividualRadarChart';
 import { deriveCompetencyProfile } from '../utils/evidenceUtils';
-import { getSafetyLevelThresholds } from '../utils/safetyLevelUtils';
+import { getSafetyLevelDisplayLabel, getSafetyLevelThresholds } from '../utils/safetyLevelUtils';
 import { BrandPhilosophyLogo } from './shared/BrandPhilosophyLogo';
 import { NextActionChecklist } from './shared/NextActionChecklist';
 import { StatusBadge } from './shared/StatusBadge';
@@ -814,7 +814,7 @@ const TrendMiniChart: React.FC<{ history: WorkerRecord[]; record: WorkerRecord }
     const yTicks = [0, 20, 40, 60, 80, 100];
 
     return (
-        <svg viewBox={`0 0 ${width} ${height}`} className="block h-full w-full" role="img" aria-label="6개월 응답품질 신호 추이">
+        <svg viewBox={`0 0 ${width} ${height}`} className="block h-full w-full" role="img" aria-label="6개월 위험인식 신호 추이">
             <defs>
                 <linearGradient id="trend-fill-gradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="rgba(100,116,139,0.24)" />
@@ -1198,7 +1198,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     </span>
                                 </div>
                                 <span className={`px-2 py-0.5 rounded-full text-[8px] font-black ${record.safetyLevel === '고급' ? 'bg-emerald-100 text-emerald-800' : record.safetyLevel === '중급' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
-                                    {record.safetyLevel}
+                                    {getSafetyLevelDisplayLabel(record.safetyLevel)}
                                 </span>
                             </div>
 
@@ -1266,7 +1266,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <div className="grid h-[46mm] grid-cols-[1fr_1fr] gap-2.5 overflow-hidden">
                             <div className="flex h-[46mm] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
                                 <p className="text-[10px] font-black leading-none text-slate-700 mb-1.5 flex items-center gap-1">
-                                    <SectionSearchIcon /> 핵심 응답품질 요약
+                                    <SectionSearchIcon /> 핵심 위험인식 신호 요약
                                 </p>
                                 {frontScoreReasonEntries.length > 0 ? (
                                     <ul className="space-y-1 overflow-hidden text-[9px] leading-[1.35] text-slate-700">

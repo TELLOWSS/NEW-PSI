@@ -1,4 +1,5 @@
 import React from 'react';
+import { getSafetyLevelDisplayLabel } from '../../utils/safetyLevelUtils';
 
 interface CircularProgressProps {
     score: number;
@@ -16,6 +17,7 @@ const getSafetyLevelClass = (level: '초급' | '중급' | '고급') => {
 
 export const CircularProgress: React.FC<CircularProgressProps> = ({ score, level }) => {
     const levelClass = getSafetyLevelClass(level);
+    const levelLabel = getSafetyLevelDisplayLabel(level);
     const safeScore = Number.isFinite(score) ? Math.max(0, Math.min(100, Math.round(score))) : 0;
     const radius = 34;
     const circumference = 2 * Math.PI * radius;
@@ -46,7 +48,7 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({ score, level
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-3xl font-black text-slate-800 dark:text-slate-100 tracking-tighter leading-none">{safeScore}</span>
-                <span className={`text-[11px] font-black mt-1.5 px-2 py-0.5 rounded-full bg-slate-50 dark:bg-slate-800 ${levelClass.text}`}>{level}</span>
+                <span className={`text-[11px] font-black mt-1.5 px-2 py-0.5 rounded-full bg-slate-50 dark:bg-slate-800 ${levelClass.text}`}>{levelLabel}</span>
             </div>
         </div>
     );

@@ -1430,7 +1430,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                             </div>
                             <div className="mt-0.5 text-[10px] font-semibold text-slate-500">
                                 {dashboardLiveSyncSnapshot
-                                    ? `대시보드 동기화 ${isDashboardSyncFresh ? '정상' : '점검 필요'} · 근로자 ${dashboardLiveSyncSnapshot.totalWorkers} · 응답품질 ${dashboardLiveSyncSnapshot.averageScore.toFixed(1)} · 추가 확인 ${dashboardLiveSyncSnapshot.highRiskWorkers}`
+                                    ? `대시보드 동기화 ${isDashboardSyncFresh ? '정상' : '점검 필요'} · 근로자 ${dashboardLiveSyncSnapshot.totalWorkers} · 위험인식 신호 ${dashboardLiveSyncSnapshot.averageScore.toFixed(1)} · 추가 확인 ${dashboardLiveSyncSnapshot.highRiskWorkers}`
                                     : '대시보드 동기화 스냅샷 없음 · 대시보드 화면을 열어 최신 상태를 반영하세요.'}
                             </div>
                             <div className="mt-0.5 text-[10px] font-semibold text-slate-500">

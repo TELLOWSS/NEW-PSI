@@ -22,7 +22,7 @@ import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { TableStateRow } from '../components/shared/TableStateRow';
 import { canvasToBlob, captureReportCanvases } from '../utils/pdfCapture';
 import { getWindowProp } from '../utils/windowUtils';
-import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
+import { getSafetyLevelDisplayLabel, getSafetyLevelFromScore, SAFETY_SIGNAL_COPY } from '../utils/safetyLevelUtils';
 import { BRAND_TONE } from '../utils/brandToneTokens';
 import { buildWorkerMessageDashboardCards, buildWorkerRegisteredCards } from '../utils/roleViewModel';
 import { useMobileBackGuard } from '../hooks/useMobileBackGuard';
@@ -548,7 +548,7 @@ const verifyIssuanceReliability = (worker: WorkerRecord): IssuanceReliabilityRes
     const hasRequiredProfile = Boolean(toDisplayString(worker.jobField)) && Boolean(toDisplayString(worker.date));
 
     if (!hasRequiredIdentity) reasons.push('신원 필드 누락(ID/이름)');
-    if (!hasRequiredSafety) reasons.push('안전평가 필드 누락(점수/등급)');
+    if (!hasRequiredSafety) reasons.push(`안전평가 필드 누락(${SAFETY_SIGNAL_COPY.score}/${SAFETY_SIGNAL_COPY.level})`);
     if (!hasRequiredProfile) reasons.push('기본 프로필 누락(공종/일자)');
 
     const hasOriginalImage = typeof worker.originalImage === 'string' && worker.originalImage.length > 200;
@@ -615,6 +615,7 @@ const PremiumSticker: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker 
     const roles = getRoleBadge(worker);
     const mainRole = roles.length > 0 ? roles[0] : worker.jobField;
     const profileImageSrc = getSafeImageSrc(worker.profileImage);
+    const supportStageLabel = getSafetyLevelDisplayLabel(worker.safetyLevel);
     // [IMPROVED] 약점이 있고 점수가 낮을 때만 주의 표시 (고점수는 주의사항 생략)
     const shouldShowWarning = worker.safetyScore < 80 && worker.weakAreas && Array.isArray(worker.weakAreas) && worker.weakAreas.length > 0;
     const safeWeakArea = shouldShowWarning
@@ -628,13 +629,13 @@ const PremiumSticker: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker 
             {/* 좌측: 등급 섹션 */}
             <div className={`w-[22mm] h-full ${s.bg} flex flex-col items-center justify-center text-white shrink-0 print-color-exact gap-2`}>
                 <div className="text-center">
-                    <span className="block text-[8px] font-bold opacity-80 mb-0.5">LEVEL</span>
-                    <span className="block text-2xl font-black leading-none">{worker.safetyLevel === '초급' ? 'C' : worker.safetyLevel === '중급' ? 'B' : 'A'}</span>
+                    <span className="block text-[8px] font-bold opacity-80 mb-0.5">{SAFETY_SIGNAL_COPY.level}</span>
+                    <span className="block text-xl font-black leading-none">{supportStageLabel}</span>
                 </div>
                 <div className="w-8 h-px bg-white/30"></div>
                 <div className="text-center">
                     <span className="block text-lg font-black">{worker.safetyScore}</span>
-                    <span className="block text-[7px] font-bold opacity-80">SIGNAL</span>
+                    <span className="block text-[7px] font-bold opacity-80">{SAFETY_SIGNAL_COPY.signal}</span>
                 </div>
             </div>
 
@@ -698,6 +699,7 @@ const PremiumIDCard: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker }
     const s = getGradeStyle(worker.safetyLevel);
     const roles = getRoleBadge(worker);
     const profileImageSrc = getSafeImageSrc(worker.profileImage);
+    const supportStageLabel = getSafetyLevelDisplayLabel(worker.safetyLevel);
 
     return (
         <div className="w-[54mm] h-[86mm] bg-white rounded-[4mm] border border-slate-300 overflow-hidden flex flex-col relative break-inside-avoid box-border shadow-sm print:shadow-none">
@@ -724,7 +726,7 @@ const PremiumIDCard: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker }
                         </div>
                     )}
                     <div className={`absolute bottom-0 w-full py-0.5 text-center text-[7px] font-black text-white ${s.bg} print-color-exact`}>
-                        {worker.safetyLevel} LEVEL
+                        {supportStageLabel} {SAFETY_SIGNAL_COPY.level}
                     </div>
                 </div>
 
@@ -3441,14 +3443,15 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         };
 
                         const cardsHtml = targetWorkers.map((worker) => {
-                                const level = escapeHtml(worker.safetyLevel || getSafetyLevelFromScore(Number(worker.safetyScore || 0)));
+                                const rawLevel = worker.safetyLevel || getSafetyLevelFromScore(Number(worker.safetyScore || 0));
+                                const supportStage = escapeHtml(getSafetyLevelDisplayLabel(rawLevel));
                                 const score = Number.isFinite(Number(worker.safetyScore)) ? Number(worker.safetyScore) : 0;
                                 const name = escapeHtml(worker.name || '식별 대기');
                                 const job = escapeHtml(worker.jobField || '미분류');
                                 const team = escapeHtml(worker.teamLeader || '미지정');
                                 const nation = escapeHtml(worker.nationality || '미상');
                                 const idTail = escapeHtml(getSafeIdTail(worker.id, 6));
-                                const palette = paletteByLevel(level);
+                                const palette = paletteByLevel(rawLevel);
                                 const warn = scoreToWarning(score);
                                 const photoSrc = typeof worker.profileImage === 'string' && worker.profileImage.trim().length > 0
                                         ? (worker.profileImage.trim().startsWith('data:')
@@ -3465,9 +3468,9 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         return `
 <article class="card sticker" style="border-color:${palette.primary};">
     <div class="left" style="background:${palette.primary};">
-        <div class="level-label">LEVEL</div>
-        <div class="level">${level}</div>
-        <div class="score-label">SIGNAL</div>
+        <div class="level-label">${escapeHtml(SAFETY_SIGNAL_COPY.level)}</div>
+        <div class="level">${supportStage}</div>
+        <div class="score-label">${escapeHtml(SAFETY_SIGNAL_COPY.signal)}</div>
         <div class="score">${score}</div>
     </div>
     <div class="body">
@@ -3504,12 +3507,12 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     <div class="id-body">
         <div class="photo-wrap">
             ${photoSrc ? `<img class="photo" src="${photoSrc}" alt="Profile" />` : `<div class="photo-empty">👷</div>`}
-            <div class="grade" style="background:${palette.primary};">${level} LEVEL</div>
+            <div class="grade" style="background:${palette.primary};">${supportStage} ${escapeHtml(SAFETY_SIGNAL_COPY.level)}</div>
         </div>
         <h3>${name}</h3>
         <p class="sub">${job} · ${team}</p>
         <p>${nation}</p>
-        <p class="score-text">응답품질 ${score}</p>
+        <p class="score-text">${escapeHtml(SAFETY_SIGNAL_COPY.score)} ${score}</p>
         <div class="id-footer" style="background:${palette.soft};color:${palette.text};border-color:${palette.accent};">ID ${idTail}</div>
     </div>
 </article>`;
@@ -4034,7 +4037,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <div className="text-center">
                                     <h3 className="text-xl font-bold text-white mb-1">안전모 부착용 스마트 스티커</h3>
                                     <p className="text-slate-500 text-sm font-medium">90mm x 60mm | 방수 라벨 최적화</p>
-                                    <p className="text-indigo-400 text-xs font-bold mt-2">사진 확인 • QR 연동 • 등급 시각화</p>
+                                    <p className="text-indigo-400 text-xs font-bold mt-2">사진 확인 • QR 연동 • {SAFETY_SIGNAL_COPY.level} 시각화</p>
                                 </div>
                             </div>
 
@@ -4374,10 +4377,10 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     </div>
                     <div className="min-w-0">
                         <select value={filterLevel} onChange={e => setFilterLevel(e.target.value)} className={`w-full border text-slate-900 dark:text-slate-100 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[120px] ${BRAND_TONE.slate} dark:bg-slate-950 dark:border-slate-800`}>
-                            <option value="전체" className="dark:bg-slate-950 dark:text-slate-100">전체 등급</option>
-                            <option value="초급" className="dark:bg-slate-950 dark:text-slate-100">초급</option>
-                            <option value="중급" className="dark:bg-slate-950 dark:text-slate-100">중급</option>
-                            <option value="고급" className="dark:bg-slate-950 dark:text-slate-100">고급</option>
+                            <option value="전체" className="dark:bg-slate-950 dark:text-slate-100">전체 {SAFETY_SIGNAL_COPY.level}</option>
+                            <option value="초급" className="dark:bg-slate-950 dark:text-slate-100">{getSafetyLevelDisplayLabel('초급')}</option>
+                            <option value="중급" className="dark:bg-slate-950 dark:text-slate-100">{getSafetyLevelDisplayLabel('중급')}</option>
+                            <option value="고급" className="dark:bg-slate-950 dark:text-slate-100">{getSafetyLevelDisplayLabel('고급')}</option>
                         </select>
                     </div>
                     <div className="min-w-0">
@@ -4546,6 +4549,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {filteredRecords.map(worker => {
                     const s = getGradeStyle(worker.safetyLevel);
+                    const supportStageLabel = getSafetyLevelDisplayLabel(worker.safetyLevel);
                     const profileImageSrc = getSafeImageSrc(worker.profileImage);
                     const reliability = verifyIssuanceReliability(worker);
                     const canIssue = reliability.trusted;
@@ -4603,8 +4607,8 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             </div>
                             
                             <div className="pt-3 border-t border-slate-50 flex justify-between items-center relative z-10">
-                                <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black ${s.lightBg} ${s.text} border ${s.border} border-opacity-20`}>{worker.safetyLevel} LEVEL</span>
-                                <span className="text-xl font-black text-slate-900 tracking-tighter">{worker.safetyScore}<span className="text-[9px] text-slate-300 ml-0.5 font-bold">SIGNAL</span></span>
+                                <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black ${s.lightBg} ${s.text} border ${s.border} border-opacity-20`}>{supportStageLabel} {SAFETY_SIGNAL_COPY.level}</span>
+                                <span className="text-xl font-black text-slate-900 tracking-tighter" title={SAFETY_SIGNAL_COPY.explanation}>{worker.safetyScore}<span className="text-[9px] text-slate-300 ml-0.5 font-bold">{SAFETY_SIGNAL_COPY.signal}</span></span>
                             </div>
 
                             <div className="relative z-10 min-h-[42px] flex items-center">

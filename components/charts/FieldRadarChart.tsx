@@ -84,7 +84,7 @@ export const FieldRadarChart: React.FC<ChartProps> = ({ records, mode = 'field' 
                         labels: labels.length > 0 ? labels : ['데이터 없음'],
                         datasets: [
                             {
-                                label: '평균 응답품질 신호',
+                                label: '평균 위험인식 신호',
                                 data: scoreData.length > 0 ? scoreData : [0],
                                 fill: true,
                                 backgroundColor: brandBg,

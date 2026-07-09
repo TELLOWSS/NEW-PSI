@@ -61,7 +61,7 @@ import {
 } from '../../utils/harnessTransitionNarratives';
 import { getHarnessVersionDescriptors } from '../../utils/harnessVersionCatalog';
 import { deriveCompetencyProfile, getApprovalBlockers } from '../../utils/evidenceUtils';
-import { getSafetyLevelThresholds, getSafetyLevelFromScore } from '../../utils/safetyLevelUtils';
+import { getSafetyLevelDisplayLabel, getSafetyLevelThresholds, getSafetyLevelFromScore, SAFETY_SIGNAL_COPY } from '../../utils/safetyLevelUtils';
 import {
     getManagerReviewApprovalBlockers,
     getManagerReviewApprovalReadiness,
@@ -213,7 +213,7 @@ const buildReassessmentAuditNote = (before: WorkerRecord, updated: Partial<Worke
     const afterReasons = Array.isArray(updated.scoreReasoning) ? updated.scoreReasoning : beforeReasons;
     const addedReasons = afterReasons.filter(reason => !beforeReasons.includes(reason)).slice(0, 2);
 
-    const parts = [`점수 ${beforeScore}→${afterScore}`, `등급 ${beforeLevel}→${afterLevel}`];
+    const parts = [`${SAFETY_SIGNAL_COPY.scoreCompact} ${beforeScore}→${afterScore}`, `${SAFETY_SIGNAL_COPY.level} ${getSafetyLevelDisplayLabel(beforeLevel)}→${getSafetyLevelDisplayLabel(afterLevel)}`];
 
     if (addedReasons.length > 0) {
         parts.push(`근거추가: ${addedReasons.join(' / ')}`);
@@ -882,7 +882,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
     const approvalReasonGuide = useMemo(() => {
         if (hasCriticalReviewEdits) {
-            return '예: 원문과 번역, 점수 근거를 대조 검토한 뒤 수정 내용을 반영하여 승인합니다.';
+            return `예: 원문과 번역, ${SAFETY_SIGNAL_COPY.score} 근거를 대조 검토한 뒤 수정 내용을 반영하여 승인합니다.`;
         }
         return '예: 현장 확인 결과 기록 내용과 증빙이 일치하여 승인합니다. 반려 시에는 재촬영/재작성 필요 사유를 구체적으로 남겨주세요.';
     }, [hasCriticalReviewEdits]);
@@ -899,7 +899,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 : '직전 확인 변화 기록이 없으면 이번 판단 코멘트에 변경 이유를 더 명확히 남겨야 합니다.',
             harnessOverrides.length > 0
                 ? `예외 규칙 적용 기록 ${harnessOverrides.length}건이 있으므로 규칙 변경 사유와 현장 증빙 일치 여부를 반드시 다시 봅니다.`
-                : '현재 예외 규칙 기록이 없으므로 원문, 점수, 증빙 정합성 중심으로 확인하시면 됩니다.',
+                : `현재 예외 규칙 기록이 없으므로 원문, ${SAFETY_SIGNAL_COPY.score}, 증빙 정합성 중심으로 확인하시면 됩니다.`,
             managerReviewApprovalReadiness.canApprove
                 ? `${managerReviewApprovalReadiness.nativeLanguageLabel} 안내와 개인 안전역량 지표가 같은 수정 기준으로 동기화되어 있습니다.`
                 : `${managerReviewApprovalReadiness.nativeLanguageLabel} 안내 보강이 남아 있어 최종 승인 전에 먼저 보완해야 합니다.`,
@@ -938,7 +938,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
     const harnessTimelineStageGuide = useMemo(() => {
         return [
-            { stage: 'validation', meaning: '원문, 인식 결과, 점수, 증빙 정합성을 다시 맞춘 단계입니다.' },
+            { stage: 'validation', meaning: `원문, 인식 결과, ${SAFETY_SIGNAL_COPY.score}, 증빙 정합성을 다시 맞춘 단계입니다.` },
             { stage: 'approval', meaning: '관리자 최종 확인 또는 보완 요청 판단이 기록된 단계입니다.' },
             { stage: 'reassessment', meaning: '수정 후 재분석 또는 재검토 흐름으로 되돌린 단계입니다.' },
         ];
@@ -946,6 +946,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
     const safetyLevelThresholds = useMemo(() => getSafetyLevelThresholds(), []);
     const gradeExampleFor69 = useMemo(() => getSafetyLevelFromScore(69), []);
+    const supportStageLabel = useMemo(() => getSafetyLevelDisplayLabel(record.safetyLevel), [record.safetyLevel]);
 
     const competencyMetrics = useMemo(() => {
         const profile = deriveCompetencyProfile(record);
@@ -1001,11 +1002,11 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         const nextScore = typeof record.safetyScore === 'number' ? record.safetyScore : 0;
 
         if (!scoreReasonCode) {
-            alert('점수 하향 사유 코드를 선택해주세요.');
+            alert(`${SAFETY_SIGNAL_COPY.score} 하향 사유 코드를 선택해주세요.`);
             return null;
         }
         if (scoreReasonDetail.trim().length < 3) {
-            alert('점수 하향 상세 사유를 3자 이상 입력해주세요.');
+            alert(`${SAFETY_SIGNAL_COPY.score} 하향 상세 사유를 3자 이상 입력해주세요.`);
             return null;
         }
         if (scoreEvidenceSummary.trim().length < 3) {
@@ -1095,7 +1096,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                         stage: 'validation',
                         timestamp: new Date().toISOString(),
                         actor: 'manager',
-                        note: `점수 하향 무결성 검증: ${scoreAdjustmentEntry.reasonCode} | ${scoreAdjustmentEntry.reasonDetail} | 증빙: ${scoreAdjustmentEntry.evidenceSummary}`,
+                        note: `${SAFETY_SIGNAL_COPY.score} 하향 무결성 검증: ${scoreAdjustmentEntry.reasonCode} | ${scoreAdjustmentEntry.reasonDetail} | 증빙: ${scoreAdjustmentEntry.evidenceSummary}`,
                     }
                 ],
             }
@@ -1378,7 +1379,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                         stage: 'validation',
                         timestamp: new Date().toISOString(),
                         actor: 'manager',
-                        note: `점수 하향 무결성 검증: ${scoreAdjustmentEntry.reasonCode} | ${scoreAdjustmentEntry.reasonDetail} | 증빙: ${scoreAdjustmentEntry.evidenceSummary}`,
+                        note: `${SAFETY_SIGNAL_COPY.score} 하향 무결성 검증: ${scoreAdjustmentEntry.reasonCode} | ${scoreAdjustmentEntry.reasonDetail} | 증빙: ${scoreAdjustmentEntry.evidenceSummary}`,
                     }
                 ],
             }
@@ -1770,7 +1771,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             record.ocrErrorType ? ocrErrorGuide[record.ocrErrorType] : '자동 판독 경고는 없지만 원문-번역 일치를 확인해야 합니다.',
         ];
         if (latestScoreAdjustment) {
-            evidenceParts.push(`최근 점수 조정: ${latestScoreAdjustment.previousScore}→${latestScoreAdjustment.nextScore}`);
+            evidenceParts.push(`최근 ${SAFETY_SIGNAL_COPY.score} 조정: ${latestScoreAdjustment.previousScore}→${latestScoreAdjustment.nextScore}`);
         }
 
         let nextActionTitle = '승인 준비 진행';
@@ -1878,7 +1879,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
         return {
             label: '합격',
-            reason: '검증 상태/영어 혼입/모국어 문항 번역/점수 과대 의심 모두 정상',
+            reason: `검증 상태/영어 혼입/모국어 문항 번역/${SAFETY_SIGNAL_COPY.score} 과대 의심 모두 정상`,
             tone: BRAND_TONE.emerald,
             labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500',
             valueClassName: 'mt-1 text-xs font-black text-emerald-700',
@@ -1890,7 +1891,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             `검증=${verificationAudit.isComplete ? '정상' : '미달'}`,
             `영어혼입=${qualityAudit.hasEnglishInKorean || qualityAudit.hasEnglishInNative ? '있음' : '없음'}`,
             `문항모국어누락=${qualityAudit.missingNativeAnswerTranslationCount}건`,
-            `점수과대의심=${qualityAudit.scoreOverestimateRisk ? '예' : '아니오'}`,
+            `${SAFETY_SIGNAL_COPY.scoreCompact}과대의심=${qualityAudit.scoreOverestimateRisk ? '예' : '아니오'}`,
             `최종판정=${finalAuditVerdict.label}`,
         ].join(' | ');
     }, [finalAuditVerdict.label, qualityAudit, record.nationality, verificationAudit.isComplete]);
@@ -1905,7 +1906,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             `- 근로자: ${record.name || '미상'}`,
             `- 국가/언어: ${record.nationality} / ${nativeLanguageLabel}`,
             `- 공종: ${record.jobField || '미상'}`,
-            `- 점수: ${Number(record.safetyScore || 0).toFixed(1)}점`,
+            `- ${SAFETY_SIGNAL_COPY.score}: ${Number(record.safetyScore || 0).toFixed(1)}`,
             `- 최종 판정: ${finalAuditVerdict.label}`,
             `- 구조 검증: ${verificationAudit.isComplete ? '정상' : verificationAudit.issues.join(', ')}`,
             `- 품질 점검: ${qualityAudit.isHealthy ? '정상' : qualityAudit.issues.join(', ')}`,
@@ -1963,9 +1964,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         return [
             {
                 key: 'score',
-                label: '보호 점수',
-                value: `${Number(record.safetyScore || 0).toFixed(0)}점`,
-                helper: record.safetyLevel || '등급 확인 필요',
+                label: SAFETY_SIGNAL_COPY.score,
+                value: `${Number(record.safetyScore || 0).toFixed(0)}`,
+                helper: `${SAFETY_SIGNAL_COPY.level} ${supportStageLabel}`,
                 tone: 'border-slate-200 bg-white',
                 labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
                 valueClassName: 'mt-1 text-2xl font-black text-slate-900',
@@ -2001,7 +2002,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 valueClassName: 'mt-1 text-2xl font-black text-slate-900',
             },
         ];
-    }, [answerComparisonSummary.originalReady, answerComparisonSummary.translated, finalAuditVerdict, hasOriginalImage, record.ocrConfidence, record.safetyLevel, record.safetyScore, verificationAudit.isComplete, verificationAudit.nativeTranslatedAnswerCount]);
+    }, [answerComparisonSummary.originalReady, answerComparisonSummary.translated, finalAuditVerdict, hasOriginalImage, record.ocrConfidence, record.safetyScore, supportStageLabel, verificationAudit.isComplete, verificationAudit.nativeTranslatedAnswerCount]);
     const activeReviewModeCopy = useMemo(() => {
         if (isProfessionalReviewView) {
             return {
@@ -2393,8 +2394,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             badge={
                                                 <StatusBadge variant="slateSoft" className="px-3 py-1.5 text-[11px] font-black">
                                                     {latestScoreAdjustment
-                                                        ? `최근 점수 조정 ${latestScoreAdjustment.previousScore} → ${latestScoreAdjustment.nextScore}`
-                                                        : '최근 점수 조정 이력 없음'}
+                                                        ? `최근 ${SAFETY_SIGNAL_COPY.score} 조정 ${latestScoreAdjustment.previousScore} → ${latestScoreAdjustment.nextScore}`
+                                                        : `최근 ${SAFETY_SIGNAL_COPY.score} 조정 이력 없음`}
                                                 </StatusBadge>
                                             }
                                             entries={[
@@ -2412,7 +2413,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                     content: (
                                                         <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
                                                             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500">해석 확인</p>
-                                                            <p className="mt-2 text-sm font-semibold text-indigo-700 leading-relaxed">AI 해석과 점수 근거가 과도하게 단정적이지 않은지, 보완 방향이 충분히 설명되는지 봅니다.</p>
+                                                            <p className="mt-2 text-sm font-semibold text-indigo-700 leading-relaxed">AI 해석과 {SAFETY_SIGNAL_COPY.score} 근거가 과도하게 단정적이지 않은지, 보완 방향이 충분히 설명되는지 봅니다.</p>
                                                         </div>
                                                     ),
                                                 },
@@ -2438,7 +2439,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             variant="whiteSoft"
                                             eyebrow="현재 판단 수준"
                                             title="현재 보호 판단 수준을 확인합니다."
-                                            description={isProfessionalReviewView ? '개발자 검증 모드에서는 원문 인식 상태, 무결성, 증빙 고유값까지 함께 확인합니다.' : '관리자 원문 대조에서는 점수, 등급, 보완 여부를 중심으로 확인합니다.'}
+                                            description={isProfessionalReviewView ? '개발자 검증 모드에서는 원문 인식 상태, 무결성, 증빙 고유값까지 함께 확인합니다.' : `${SAFETY_SIGNAL_COPY.score}, ${SAFETY_SIGNAL_COPY.level}, 보완 여부를 중심으로 확인합니다.`}
                                             className="rounded-3xl border border-slate-200 bg-white px-10 py-10 shadow-sm"
                                             titleClassName="mt-1 text-sm font-black text-slate-900"
                                             descriptionClassName="mt-2 text-xs font-bold text-slate-500"
@@ -2452,7 +2453,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                     onChange={(e) => handleChange('safetyScore', parseInt(e.target.value) || 0)}
                                                     className="text-8xl font-black text-slate-900 w-48 focus:outline-none bg-transparent"
                                                 />
-                                                <p className="text-sm text-slate-700 font-black mt-2">안전 수준: {record.safetyLevel}</p>
+                                                <p className="text-sm text-slate-700 font-black mt-2">{SAFETY_SIGNAL_COPY.level}: {supportStageLabel}</p>
                                                 {isProfessionalReviewView ? (
                                                     <>
                                                         <p className="text-xs text-slate-500 font-bold mt-2">
@@ -2468,7 +2469,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                             종합역량 점수(P): {competencyProfile.weightedScore}점 ({competencyProfile.weightVersion})
                                                         </p>
                                                         <p className="text-xs text-emerald-700 font-bold mt-2">
-                                                            등급 기준: 고급 ≥ {safetyLevelThresholds.advancedMin}, 중급 ≥ {safetyLevelThresholds.intermediateMin}, 초급 &lt; {safetyLevelThresholds.intermediateMin} (예: 69점 = {gradeExampleFor69})
+                                                            내부 기준: 고급 ≥ {safetyLevelThresholds.advancedMin}, 중급 ≥ {safetyLevelThresholds.intermediateMin}, 초급 &lt; {safetyLevelThresholds.intermediateMin} (예: 69점 = {gradeExampleFor69})
                                                         </p>
                                                     </>
                                                 ) : (
@@ -2519,8 +2520,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             <SectionPanelCard
                                                 variant="whiteSoft"
                                                 eyebrow="무결성 검증"
-                                                title="점수 하향 무결성 검증 (필수)"
-                                                description={`점수 하향: ${initialRecord.safetyScore} → ${record.safetyScore} (총 ${scoreDropAmount}점 하향)`}
+                                                title={`${SAFETY_SIGNAL_COPY.score} 하향 무결성 검증 (필수)`}
+                                                description={`${SAFETY_SIGNAL_COPY.score} 하향: ${initialRecord.safetyScore} → ${record.safetyScore} (총 ${scoreDropAmount} 하향)`}
                                                 className="rounded-3xl border border-rose-200 bg-white px-5 py-5 shadow-sm sm:px-6 sm:py-6"
                                                 eyebrowClassName="text-[10px] font-black uppercase tracking-[0.18em] text-rose-500"
                                                 titleClassName="mt-1 text-sm font-black text-rose-700"
@@ -3301,7 +3302,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 },
                                                 {
                                                     key: 'score-overrisk',
-                                                    label: '점수 과대 의심',
+                                                    label: `${SAFETY_SIGNAL_COPY.score} 과대 의심`,
                                                     value: qualityAudit.scoreOverestimateRisk ? '의심' : '정상',
                                                     tone: qualityAudit.scoreOverestimateRisk ? BRAND_TONE.amber : BRAND_TONE.emerald,
                                                     labelClassName: qualityAudit.scoreOverestimateRisk ? 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-500' : 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500',

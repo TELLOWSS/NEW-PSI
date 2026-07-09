@@ -35,6 +35,7 @@ import {
     getScoreWeightSum,
     sanitizeCompetencyWeights,
 } from '../utils/competencyWeights';
+import { getSafetyLevelDisplayLabel } from '../utils/safetyLevelUtils';
 
 const TRAINING_LANGUAGE_OPTIONS = [
     { code: 'ko-KR', label: '한국어 (ko-KR)' },
@@ -786,7 +787,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         {
             key: 'settings-evidence',
             eyebrow: '판단 근거',
-            title: '분석 연결, 현장 정보, 평가 비중, 등급 기준점수, 한 번에 처리할 건수, 교육 언어가 운영 기준입니다.',
+            title: '분석 연결, 현장 정보, 평가 비중, 지원단계 기준, 한 번에 처리할 건수, 교육 언어가 운영 기준입니다.',
             description: '설정 화면은 단순 입력 폼이 아니라 현장 판단 기준을 고정하는 곳이므로, 저장 전 현재 기준이 어떤 운영 흐름을 만드는지 함께 읽을 수 있게 구성했습니다.',
             tone: BRAND_TONE.whiteSoft,
         },
@@ -830,21 +831,21 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             key: 'policy-status',
             eyebrow: '지금 상태',
             title: `현재 승인 정책은 ${settings.approvalPolicy?.strictRoleGate ? '엄격 기준' : '유연 기준'}입니다.`,
-            description: `확인단계 기준은 고급 ${normalizedAdvancedThreshold}점 이상, 중급 ${normalizedIntermediateThreshold}점 이상으로 설정되어 있습니다.`,
+            description: `지원단계 기준은 안정 ${normalizedAdvancedThreshold} 이상, 확인 ${normalizedIntermediateThreshold} 이상으로 설정되어 있습니다.`,
             tone: settings.approvalPolicy?.strictRoleGate ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
         },
         {
             key: 'policy-evidence',
             eyebrow: '판단 근거',
-            title: '평가항목 비중과 등급 기준점수가 해석 기준을 만듭니다.',
-            description: `현재 평가항목 비중 합계는 ${weightSum.toFixed(2)}이며, 한 번에 처리할 건수는 ${settings.batchSplitSize ?? 50}건입니다. 이 값들이 점수 해석과 대량 처리 속도에 직접 영향을 줍니다.`,
+            title: '평가항목 비중과 지원단계 기준이 해석 기준을 만듭니다.',
+            description: `현재 평가항목 비중 합계는 ${weightSum.toFixed(2)}이며, 한 번에 처리할 건수는 ${settings.batchSplitSize ?? 50}건입니다. 이 값들이 신호 해석과 대량 처리 속도에 직접 영향을 줍니다.`,
             tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'policy-action',
             eyebrow: '다음 행동',
             title: '현장 운영 언어와 평가 기준이 맞는지 마지막으로 확인하세요.',
-            description: '엄격 차단, 등급 기준점수, 문서 분석 처리 건수는 실제 현장 보호 흐름을 바꾸므로 저장 전 관리자와 현장 상황에 맞는지 확인하세요.',
+            description: '엄격 차단, 지원단계 기준, 문서 분석 처리 건수는 실제 현장 보호 흐름을 바꾸므로 저장 전 관리자와 현장 상황에 맞는지 확인하세요.',
             tone: BRAND_TONE.indigoSoft70,
         },
     ], [normalizedAdvancedThreshold, normalizedIntermediateThreshold, settings.approvalPolicy?.strictRoleGate, settings.batchSplitSize, weightSum]);
@@ -1425,7 +1426,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         const issues: string[] = [];
         if (!activeApiKeyStatus.hasKey) issues.push('현재 분석 모드의 연결키가 비어 있습니다.');
         if (weightSum < 0.95 || weightSum > 1.05) issues.push(`개인 안전역량 가중치 합계가 ${weightSum.toFixed(2)}입니다.`);
-        if (normalizedIntermediateThreshold >= normalizedAdvancedThreshold) issues.push('중급 기준점수가 고급 기준점수와 같거나 높습니다.');
+        if (normalizedIntermediateThreshold >= normalizedAdvancedThreshold) issues.push('확인 단계 기준이 안정 단계 기준과 같거나 높습니다.');
         if ((settings.batchSplitSize ?? 50) > 150 && !isPaidApiMode) issues.push('무료 분석 모드에서 배치 처리 건수가 큽니다.');
         if (normalizeTrainingLanguagePreset(settings.trainingLanguagePreset).length < CURRENT_SITE_LANGUAGE_SET.length) issues.push('현장 기본 언어 세트보다 선택 언어가 적습니다.');
         if (harnessSummary.immediateAttention > 0) issues.push(`즉시 보호 대상 ${harnessSummary.immediateAttention}명이 남아 있습니다.`);
@@ -2269,7 +2270,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
 
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-emerald-200 lg:col-span-2">
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">확인단계 등급 기준점수</h3>
+                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">지원단계 기준</h3>
                         <button
                             type="button"
                             onClick={() => setSettings((prev) => ({
@@ -2286,7 +2287,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">고급 최소 응답품질 (고급: score ≥ advancedMin)</label>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">안정 최소 위험인식 신호 (내부 advancedMin)</label>
                             <input
                                 type="number"
                                 min={0}
@@ -2303,7 +2304,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">중급 최소 응답품질 (중급: score ≥ intermediateMin)</label>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">확인 최소 위험인식 신호 (내부 intermediateMin)</label>
                             <input
                                 type="number"
                                 min={0}
@@ -2321,16 +2322,16 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                         </div>
                     </div>
                     <p className="mt-3 text-xs text-slate-500 leading-relaxed">
-                        저장 시 자동 보정 규칙: 0~100 범위로 정규화되며, 중급 최소 점수는 고급 최소 점수를 초과할 수 없습니다.
+                        저장 시 자동 보정 규칙: 0~100 범위로 정규화되며, 확인 단계 기준은 안정 단계 기준을 초과할 수 없습니다.
                     </p>
                     <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-3">
-                        <p className="text-[11px] font-black text-slate-600 mb-2">실시간 등급 예시</p>
+                        <p className="text-[11px] font-black text-slate-600 mb-2">실시간 지원단계 예시</p>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs font-bold">
-                            <div className="bg-white border border-slate-200 rounded-lg px-3 py-2">68점 → {getPreviewSafetyLevel(68)}</div>
-                            <div className="bg-white border border-slate-200 rounded-lg px-3 py-2">69점 → {getPreviewSafetyLevel(69)}</div>
-                            <div className="bg-white border border-slate-200 rounded-lg px-3 py-2">92점 → {getPreviewSafetyLevel(92)}</div>
+                            <div className="bg-white border border-slate-200 rounded-lg px-3 py-2">68 → {getSafetyLevelDisplayLabel(getPreviewSafetyLevel(68))}</div>
+                            <div className="bg-white border border-slate-200 rounded-lg px-3 py-2">69 → {getSafetyLevelDisplayLabel(getPreviewSafetyLevel(69))}</div>
+                            <div className="bg-white border border-slate-200 rounded-lg px-3 py-2">92 → {getSafetyLevelDisplayLabel(getPreviewSafetyLevel(92))}</div>
                         </div>
-                        <p className="mt-2 text-[11px] text-slate-500">현재 기준: 고급 ≥ {normalizedAdvancedThreshold}, 중급 ≥ {normalizedIntermediateThreshold}, 그 미만 초급</p>
+                        <p className="mt-2 text-[11px] text-slate-500">현재 기준: 안정 ≥ {normalizedAdvancedThreshold}, 확인 ≥ {normalizedIntermediateThreshold}, 그 미만 우선지원</p>
                     </div>
                 </div>
 

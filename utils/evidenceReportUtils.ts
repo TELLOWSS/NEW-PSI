@@ -1,5 +1,6 @@
 import type { WorkerRecord } from '../types';
 import { ensureJsPdfConstructor } from './externalScripts';
+import { getSafetyLevelDisplayLabel, SAFETY_SIGNAL_COPY } from './safetyLevelUtils';
 import { getWindowProp } from './windowUtils';
 
 const A4_CANVAS_WIDTH = 1240;
@@ -96,7 +97,7 @@ const buildEvidenceLines = (record: WorkerRecord): EvidenceLine[] => {
 
     lines.push({ text: 'PSI 사건 체인 증빙 패키지', kind: 'title' });
     lines.push({ text: `근로자: ${record.name}  |  관리 식별: ${record.employeeId || '-'}  |  공종: ${record.jobField}`, kind: 'body' });
-    lines.push({ text: `등급: ${record.safetyLevel} (${record.safetyScore}점)  |  OCR 신뢰도: ${typeof record.ocrConfidence === 'number' ? (record.ocrConfidence * 100).toFixed(0) + '%' : '-'}`, kind: 'body' });
+    lines.push({ text: `${SAFETY_SIGNAL_COPY.level}: ${getSafetyLevelDisplayLabel(record.safetyLevel)}  |  ${SAFETY_SIGNAL_COPY.score}: ${record.safetyScore}  |  OCR 신뢰도: ${typeof record.ocrConfidence === 'number' ? (record.ocrConfidence * 100).toFixed(0) + '%' : '-'}`, kind: 'body' });
     lines.push({ text: `무결성: ${typeof record.integrityScore === 'number' ? record.integrityScore : '-'}  |  증빙해시: ${record.evidenceHash || '-'}`, kind: 'body' });
 
     lines.push({ text: '1) OCR 결과 요약', kind: 'section' });

@@ -1,4 +1,5 @@
 export type SafetyLevel = '초급' | '중급' | '고급';
+export type SafetyLevelDisplayAudience = 'manager' | 'public' | 'worker' | 'developer';
 
 type SafetyLevelThresholds = {
     advancedMin: number;
@@ -53,4 +54,56 @@ export const getSafetyLevelFromScore = (score: number): SafetyLevel => {
     if (normalizedScore >= thresholds.advancedMin) return '고급';
     if (normalizedScore >= thresholds.intermediateMin) return '중급';
     return '초급';
+};
+
+export const SAFETY_SIGNAL_COPY = {
+    score: '위험인식 신호',
+    scoreCompact: '인식신호',
+    level: '지원단계',
+    signal: '보호신호',
+    stable: '안정',
+    review: '확인',
+    priority: '우선지원',
+    explanation: '근로자를 평가하는 점수가 아니라, 수기 기록에서 드러난 위험 인식과 교육 환류 필요성을 정리한 보호 신호입니다.',
+} as const;
+
+const MANAGER_LEVEL_LABELS: Record<SafetyLevel, string> = {
+    고급: SAFETY_SIGNAL_COPY.stable,
+    중급: SAFETY_SIGNAL_COPY.review,
+    초급: SAFETY_SIGNAL_COPY.priority,
+};
+
+const PUBLIC_LEVEL_LABELS: Record<SafetyLevel, string> = {
+    고급: `${SAFETY_SIGNAL_COPY.stable}군`,
+    중급: `${SAFETY_SIGNAL_COPY.review}군`,
+    초급: `${SAFETY_SIGNAL_COPY.priority}군`,
+};
+
+const WORKER_LEVEL_LABELS: Record<SafetyLevel, string> = {
+    고급: '오늘 내용 유지',
+    중급: '다시 확인',
+    초급: '먼저 설명',
+};
+
+export const getSafetyLevelDisplayLabel = (
+    level: SafetyLevel,
+    audience: SafetyLevelDisplayAudience = 'manager',
+): string => {
+    if (audience === 'developer') return level;
+    if (audience === 'public') return PUBLIC_LEVEL_LABELS[level] ?? level;
+    if (audience === 'worker') return WORKER_LEVEL_LABELS[level] ?? level;
+    return MANAGER_LEVEL_LABELS[level] ?? level;
+};
+
+export const getSafetyLevelDisplayInitial = (level: SafetyLevel): string => {
+    switch (level) {
+        case '고급':
+            return '안';
+        case '중급':
+            return '확';
+        case '초급':
+            return '우';
+        default:
+            return '-';
+    }
 };

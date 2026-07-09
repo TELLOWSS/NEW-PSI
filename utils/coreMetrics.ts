@@ -10,14 +10,14 @@ export const CORE_METRIC_CATALOG = {
         rule: '현재 범위에서 동일 근로자를 한 명으로 집계',
     },
     averageScore: {
-        label: '평균 응답품질',
+        label: '평균 위험인식 신호',
         unit: '점',
         rule: '근로자별 최신 유효 점수 1건의 산술평균',
     },
     protectionPriorityCount: {
         label: '보호 우선',
         unit: '명',
-        rule: '근로자별 최신 점수가 현재 중급 임계값 미만인 인원',
+        rule: '근로자별 최신 위험인식 신호가 현재 확인 단계 임계값 미만인 인원',
     },
     analyzedWorkerCount: {
         label: '세부 분석 완료',

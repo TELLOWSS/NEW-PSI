@@ -61,7 +61,7 @@ export const SafetyGradeTrendChart: React.FC<ChartProps> = ({ records }) => {
                         labels,
                         datasets: [
                             {
-                                label: '고급 (우수)',
+                                label: '안정',
                                 data: dataHigh,
                                 backgroundColor: isDark ? 'rgba(16, 185, 129, 0.7)' : 'rgba(16, 185, 129, 0.8)',
                                 borderColor: '#10b981',
@@ -69,7 +69,7 @@ export const SafetyGradeTrendChart: React.FC<ChartProps> = ({ records }) => {
                                 borderRadius: 4,
                             },
                             {
-                                label: '중급 (보통)',
+                                label: '확인',
                                 data: dataMid,
                                 backgroundColor: isDark ? 'rgba(245, 158, 11, 0.7)' : 'rgba(245, 158, 11, 0.8)',
                                 borderColor: '#f59e0b',
@@ -77,7 +77,7 @@ export const SafetyGradeTrendChart: React.FC<ChartProps> = ({ records }) => {
                                 borderRadius: 4,
                             },
                             {
-                                label: '초급 (관리필요)',
+                                label: '우선지원',
                                 data: dataLow,
                                 backgroundColor: isDark ? 'rgba(239, 68, 68, 0.7)' : 'rgba(239, 68, 68, 0.8)',
                                 borderColor: '#ef4444',

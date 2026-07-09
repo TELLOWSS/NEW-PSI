@@ -18,6 +18,7 @@ import {
     getCoreMetricWorkerKey,
     selectLatestCoreMetricRecords,
 } from '../utils/coreMetrics';
+import { SAFETY_SIGNAL_COPY } from '../utils/safetyLevelUtils';
 
 interface PerformanceAnalysisProps {
     workerRecords: WorkerRecord[];
@@ -396,7 +397,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
             key: 'performance-evidence',
             eyebrow: '판단 근거',
             title: `평균 ${kpiData?.currentAvg.toFixed(1) || '-'}점 · 변동성 ${kpiData?.volatility.toFixed(1) || '-'} · 최우수 ${kpiData?.topField.field || '-'}`,
-            description: '평균 점수, 일관성, 공종별 편차, 등급 분포, 위험 키워드를 함께 봐야 단순 점수보다 실제 현장 안정도를 더 정확히 읽을 수 있습니다.',
+            description: `${SAFETY_SIGNAL_COPY.score}, 일관성, 공종별 편차, ${SAFETY_SIGNAL_COPY.level} 분포, 위험 키워드를 함께 봐야 단순 수치보다 실제 현장 안정도를 더 정확히 읽을 수 있습니다.`,
             tone: BRAND_TONE.whiteSoft,
         },
         {
@@ -412,7 +413,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
         {
             key: 'chart-status',
             eyebrow: '지금 상태',
-            title: '시계열, 역량 분포도, 히트맵, 등급 분포를 함께 읽는 구조입니다.',
+            title: `시계열, 역량 분포도, 히트맵, ${SAFETY_SIGNAL_COPY.level} 분포를 함께 읽는 구조입니다.`,
             description: '한 차트만 보면 놓치는 흔들림을 여러 관점에서 동시에 확인하도록 배치했습니다.',
             tone: BRAND_TONE.slate,
         },
@@ -588,7 +589,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
             {uiAudienceMode !== 'worker' && (
                 <section className="rounded-2xl border border-blue-200 bg-blue-50/70 p-5 shadow-sm">
                     <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-black text-blue-700">MonthlyTrendDashboard</p><h3 className="mt-1 text-lg font-black text-slate-900">월별 개선 추적 요약</h3></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700">{latestMonthlyTrend?.month || '분석 대기'}</span></div>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">월 평균 점수</p><p className="mt-1 text-2xl font-black">{latestMonthlyTrend?.averageScore ?? 0}</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">개선이행률</p><p className="mt-1 text-2xl font-black text-emerald-700">{latestMonthlyTrend?.improvementExecutionRate ?? 0}%</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">반복지적 건수</p><p className="mt-1 text-2xl font-black text-orange-700">{latestMonthlyTrend?.repeatedIssueCount ?? 0}건</p></div></div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">월 평균 위험인식 신호</p><p className="mt-1 text-2xl font-black">{latestMonthlyTrend?.averageScore ?? 0}</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">개선이행률</p><p className="mt-1 text-2xl font-black text-emerald-700">{latestMonthlyTrend?.improvementExecutionRate ?? 0}%</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">반복지적 건수</p><p className="mt-1 text-2xl font-black text-orange-700">{latestMonthlyTrend?.repeatedIssueCount ?? 0}건</p></div></div>
                     <p className="mt-3 text-sm font-bold text-slate-600">다음 교육 반영: {latestMonthlyTrend?.nextEducationFocus.join(' · ') || '월별 분석 데이터가 쌓이면 자동 제안됩니다.'}</p>
                 </section>
             )}
@@ -605,7 +606,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                         )}
                     </div>
                     <div>
-                        <p className="text-sm font-medium text-slate-500 dark:text-slate-300">종합 응답품질 신호</p>
+                        <p className="text-sm font-medium text-slate-500 dark:text-slate-300">종합 위험인식 신호</p>
                         <h3 className="text-3xl font-black text-slate-800 dark:text-slate-100 mt-1">{kpiData?.currentAvg.toFixed(1) || '-'}</h3>
                     </div>
                 </div>
@@ -667,8 +668,8 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                     <div className="bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
                         <div className="flex items-center justify-between mb-6">
                             <div>
-                                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 확인단계 분포 변화 ({timeRange})</h3>
-                                <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">월별 근로자 확인단계 구성 비율의 변화를 추적합니다.</p>
+                                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 지원단계 분포 변화 ({timeRange})</h3>
+                                <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">월별 근로자 지원단계 구성 비율의 변화를 추적합니다.</p>
                             </div>
                         </div>
                         <div className="h-80 w-full">
@@ -741,8 +742,8 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                         <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
                             <h4 className="text-xs font-bold text-slate-500 dark:text-slate-300 uppercase mb-2">지표 설명</h4>
                             <ul className="space-y-1 text-xs text-slate-500 dark:text-slate-300">
-                                <li className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-500"></div> 평균 점수: 높을수록 안전 역량 우수</li>
-                                <li className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-teal-500"></div> 일관성: 점수 편차가 적을수록 우수</li>
+                                <li className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-500"></div> 평균 위험인식 신호: 높을수록 작성 내용이 안정적</li>
+                                <li className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-teal-500"></div> 일관성: 신호 편차가 적을수록 안정적</li>
                             </ul>
                         </div>
                     </div>
@@ -819,13 +820,13 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                 <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
                     <div className="mb-6 flex justify-between items-center">
                         <div>
-                            <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 확인단계 분포 변화 ({timeRange})</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">월별 근로자 확인단계 구성 비율의 변화를 추적합니다. 추가 확인 구간 감소가 목표입니다.</p>
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 지원단계 분포 변화 ({timeRange})</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">월별 근로자 지원단계 구성 비율의 변화를 추적합니다. 추가 확인 구간 감소가 목표입니다.</p>
                         </div>
                         <div className="flex gap-3 text-xs font-bold">
-                            <span className="flex items-center gap-1"><div className="w-3 h-3 bg-emerald-500 rounded-sm"></div>고급</span>
-                            <span className="flex items-center gap-1"><div className="w-3 h-3 bg-amber-500 rounded-sm"></div>중급</span>
-                            <span className="flex items-center gap-1"><div className="w-3 h-3 bg-red-500 rounded-sm"></div>초급</span>
+                            <span className="flex items-center gap-1"><div className="w-3 h-3 bg-emerald-500 rounded-sm"></div>안정</span>
+                            <span className="flex items-center gap-1"><div className="w-3 h-3 bg-amber-500 rounded-sm"></div>확인</span>
+                            <span className="flex items-center gap-1"><div className="w-3 h-3 bg-red-500 rounded-sm"></div>우선지원</span>
                         </div>
                     </div>
                     <div className="h-64 w-full">

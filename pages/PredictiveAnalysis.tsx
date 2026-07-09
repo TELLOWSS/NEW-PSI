@@ -1378,7 +1378,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
         {
             key: 'predictive-evidence',
             eyebrow: '판단 근거',
-            title: '응답품질 추세, 반복 취약, 현재 신호, 자가 위험수준이 함께 반영됩니다.',
+            title: '위험인식 신호 추세, 반복 취약, 현재 신호, 자가 위험수준이 함께 반영됩니다.',
             description: '예측 위험신호는 단일 수치 대신 최근 변화와 반복 신호를 함께 읽어 누가 먼저 보호 개입이 필요한지 설명 중심으로 정리합니다.',
             tone: BRAND_TONE.whiteSoft,
         },

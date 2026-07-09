@@ -26,7 +26,7 @@ const requiredMarkers = [
   ['ocrPage', 'isScoreRevalidationNeeded'],
   ['ocrPage', 'getOperationalSafetyScore'],
   ['ocrPage', 'SCORE_ZERO_WITH_COMPLETE_ANSWERS'],
-  ['ocrPage', '점수 집계 제외'],
+  ['ocrPage', '신호 집계 제외'],
   ['ocrPage', 'handleNormalizeCurrentOcrMetadata'],
   ['ocrPage', '날짜·공종 표준화'],
   ['ocrPage', 'operationalSafetyScore'],

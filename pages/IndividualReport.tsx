@@ -13,6 +13,7 @@ import { useMobileBackGuard } from '../hooks/useMobileBackGuard';
 import { sanitizeOperationalNote } from '../utils/ocrVerificationLanguageUtils';
 import { toVercelFriendlyMessage } from '../utils/errorUtils';
 import { buildAdminWorkerInsightReport } from '../utils/reportBuilders';
+import { getSafetyLevelDisplayLabel, SAFETY_SIGNAL_COPY } from '../utils/safetyLevelUtils';
 
 const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
 
@@ -130,6 +131,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
     };
     const shareDiagnostics = useMemo(() => getReportShareDiagnostics(record), [record]);
+    const supportStageLabel = record.safetyLevel ? getSafetyLevelDisplayLabel(record.safetyLevel) : '-';
     const generationInterpretationCards: InterpretationCardItem[] = useMemo(() => [
         {
             key: 'individual-status',
@@ -143,7 +145,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         {
             key: 'individual-evidence',
             eyebrow: '판단 근거',
-            title: `응답품질 ${record.safetyScore || '-'}점 · 확인단계 ${record.safetyLevel || '-'}`,
+            title: `${SAFETY_SIGNAL_COPY.score} ${record.safetyScore || '-'} · ${SAFETY_SIGNAL_COPY.level} ${supportStageLabel}`,
             description: `${record.jobField || '미분류'}${record.teamLeader ? ` · ${record.teamLeader}` : ''} 기준 기록과 이력 데이터를 현재 리포트 템플릿에 함께 반영합니다.`,
             tone: BRAND_TONE.whiteSoft,
         },
@@ -173,7 +175,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                     ? 'border-amber-200 bg-amber-50/80'
                     : 'border-indigo-200 bg-indigo-50/70',
         },
-    ], [generationProgress.action, generationProgress.phaseLabel, isGenerating, isQrScanMode, record.jobField, record.name, record.safetyLevel, record.safetyScore, record.teamLeader, shareDiagnostics.qrRisk, shareDiagnostics.urlLength, shareDiagnostics.warning]);
+    ], [generationProgress.action, generationProgress.phaseLabel, isGenerating, isQrScanMode, record.jobField, record.name, record.safetyScore, record.teamLeader, shareDiagnostics.qrRisk, shareDiagnostics.urlLength, shareDiagnostics.warning, supportStageLabel]);
 
     const messageInterpretationCards: InterpretationCardItem[] = useMemo(() => [
         {
@@ -208,7 +210,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             key: 'qr-status',
             eyebrow: '지금 상태',
             title: 'QR 현장 조회용 핵심 정보가 열려 있습니다.',
-            description: '성명, 공종, 관리자 식별, 응답품질, 무결성, OCR 신뢰도를 작은 화면에서도 빠르게 읽을 수 있도록 묶었습니다.',
+            description: `성명, 공종, 관리자 식별, ${SAFETY_SIGNAL_COPY.score}, 무결성, OCR 신뢰도를 작은 화면에서도 빠르게 읽을 수 있도록 묶었습니다.`,
             tone: BRAND_TONE.indigoSoft70,
         },
         {
@@ -217,7 +219,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             title: '재평가 이력과 품질 판단 근거가 즉시 확인 기준이 됩니다.',
             description: reassessmentTrail.length > 0
                 ? `최근 재평가 이력 ${reassessmentTrail.length}건이 있어 현장 설명 시 이전 보완 흐름까지 함께 볼 수 있습니다.`
-                : '재평가 이력이 없더라도 현재 응답품질과 AI 판단 근거를 기준으로 간단한 설명을 바로 이어갈 수 있습니다.',
+                : `재평가 이력이 없더라도 현재 ${SAFETY_SIGNAL_COPY.score}와 AI 판단 근거를 기준으로 간단한 설명을 바로 이어갈 수 있습니다.`,
             tone: BRAND_TONE.whiteSoft,
         },
         {
@@ -762,7 +764,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                 <section className="max-w-xl rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-xl">
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-indigo-600">관리자용 분석 자료</p>
                     <h2 className="mt-3 text-2xl font-black text-slate-900">개인별 분석 결과는 교육 현장에 직접 공개하지 않습니다.</h2>
-                    <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">근로자 교육에는 지난달 작성사항을 익명화·종합한 월별 계도 리포트만 공유합니다. 개인 점수·순위·감점·반복지적 상세는 관리자 개선 추적에만 사용됩니다.</p>
+                    <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">근로자 교육에는 지난달 작성사항을 익명화·종합한 월별 계도 리포트만 공유합니다. 개인별 수치·순위·감점·반복지적 상세는 관리자 개선 추적에만 사용됩니다.</p>
                     <button type="button" onClick={onBack} className="mt-6 rounded-xl bg-slate-900 px-5 py-3 text-sm font-black text-white">이전 화면으로</button>
                 </section>
             </div>
@@ -796,7 +798,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             </div>
 
             <div className="w-full max-w-[210mm] rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-bold leading-6 text-indigo-950">
-                <strong>관리자용 분석 자료:</strong> 개인별 작성 경향과 월별 개선이행 확인에만 사용합니다. 교육 현장에는 실명·개인 점수·순위·감점 내역을 공개하지 않으며, 익명화된 월별 계도 리포트를 별도로 공유합니다.
+                <strong>관리자용 분석 자료:</strong> 개인별 작성 경향과 월별 개선이행 확인에만 사용합니다. 교육 현장에는 실명·개인별 수치·순위·감점 내역을 공개하지 않으며, 익명화된 월별 계도 리포트를 별도로 공유합니다.
             </div>
             <section className="w-full max-w-[210mm] rounded-2xl border border-slate-200 bg-white p-5 font-sans shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -962,7 +964,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">성명</span><div className="font-black text-slate-800 truncate">{record.name || '-'}</div></div>
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">공종</span><div className="font-black text-slate-800 truncate">{record.jobField || '-'}</div></div>
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">관리자 식별</span><div className="font-black text-slate-800 truncate">{record.employeeId || record.qrId || '-'}</div></div>
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">확인단계/응답품질</span><div className="font-black text-slate-800">{record.safetyLevel} / {record.safetyScore}점</div></div>
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">{SAFETY_SIGNAL_COPY.level}/{SAFETY_SIGNAL_COPY.scoreCompact}</span><div className="font-black text-slate-800">{supportStageLabel} / {record.safetyScore}</div></div>
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">무결성</span><div className="font-black text-slate-800">{typeof record.integrityScore === 'number' ? `${record.integrityScore}점` : '-'}</div></div>
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">OCR 신뢰도</span><div className="font-black text-slate-800">{typeof record.ocrConfidence === 'number' ? `${Math.round(record.ocrConfidence * 100)}%` : '-'}</div></div>
                     </div>

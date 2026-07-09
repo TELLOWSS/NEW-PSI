@@ -9,6 +9,7 @@ import { StatusBadge, type StatusBadgeVariant } from '../shared/StatusBadge';
 import { SummaryMetricGrid } from '../shared/SummaryMetricGrid';
 import { BRAND_TONE } from '../../utils/brandToneTokens';
 import { isSameWorkerTimeline } from '../../utils/workerIdentity';
+import { getSafetyLevelDisplayLabel, SAFETY_SIGNAL_COPY } from '../../utils/safetyLevelUtils';
 
 const isSameWorkerHistory = (base: WorkerRecord, candidate: WorkerRecord): boolean => {
     return isSameWorkerTimeline(base, candidate);
@@ -147,8 +148,8 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
                                     }
                                     title={record.date}
                                     subtitle={record.jobField}
-                                    badge={<StatusBadge variant={getSafetyLevelClass(record.safetyLevel).badgeVariant}>{record.safetyLevel}</StatusBadge>}
-                                    body={<div className={`text-lg font-bold ${getSafetyLevelClass(record.safetyLevel).text}`}>{record.safetyScore}점</div>}
+                                    badge={<StatusBadge variant={getSafetyLevelClass(record.safetyLevel).badgeVariant}>{getSafetyLevelDisplayLabel(record.safetyLevel)}</StatusBadge>}
+                                    body={<div className={`text-lg font-bold ${getSafetyLevelClass(record.safetyLevel).text}`}>{SAFETY_SIGNAL_COPY.scoreCompact} {record.safetyScore}</div>}
                                     className={record.id === selectedRecord.id ? 'border-blue-300 bg-blue-50' : ''}
                                     titleClassName={`text-sm font-semibold ${record.id === selectedRecord.id ? 'text-blue-700' : 'text-slate-700'}`}
                                     subtitleClassName="mt-1 text-xs font-medium text-slate-500"
@@ -171,11 +172,11 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
                             descriptionClassName="text-sm text-slate-500"
                             headerAction={
                                 <div className="text-left sm:text-right">
-                                    <p className={`text-3xl sm:text-4xl font-bold ${selectedSafetyTone.text}`}>{selectedRecord.safetyScore}점</p>
+                                    <p className={`text-3xl sm:text-4xl font-bold ${selectedSafetyTone.text}`}>{selectedRecord.safetyScore}</p>
                                     {scoreDifference !== null && (
                                         <div className="mt-2">
                                             <StatusBadge variant={scoreDifference >= 0 ? 'emeraldSoft' : 'roseSoft'} className="text-[11px]">
-                                                {scoreDifference >= 0 ? '▲' : '▼'} {Math.abs(scoreDifference).toFixed(1)} · 이전 {previousScore}점
+                                                {scoreDifference >= 0 ? '▲' : '▼'} {Math.abs(scoreDifference).toFixed(1)} · 이전 {previousScore}
                                             </StatusBadge>
                                         </div>
                                     )}
@@ -184,7 +185,7 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
                             bodyClassName="mt-4"
                         >
                             <div className="flex flex-wrap items-center gap-2">
-                                <StatusBadge variant={selectedSafetyTone.badgeVariant}>{selectedRecord.safetyLevel}</StatusBadge>
+                                <StatusBadge variant={selectedSafetyTone.badgeVariant}>{getSafetyLevelDisplayLabel(selectedRecord.safetyLevel)}</StatusBadge>
                                 <StatusBadge variant={getRoleBadgeVariant(editableRecord.role)}>{getRoleLabel(editableRecord.role)}</StatusBadge>
                                 {editableRecord.isTranslator && <StatusBadge variant="sky">통역</StatusBadge>}
                                 {editableRecord.isSignalman && <StatusBadge variant="emeraldSoft">신호수</StatusBadge>}
@@ -195,9 +196,9 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
                                 items={[
                                     {
                                         key: 'safety',
-                                        label: '현재 수준',
-                                        value: selectedRecord.safetyLevel,
-                                        helper: `${selectedRecord.safetyScore}점`,
+                                        label: SAFETY_SIGNAL_COPY.level,
+                                        value: getSafetyLevelDisplayLabel(selectedRecord.safetyLevel),
+                                        helper: `${SAFETY_SIGNAL_COPY.scoreCompact} ${selectedRecord.safetyScore}`,
                                         tone: BRAND_TONE.slate,
                                         valueClassName: `mt-1 text-lg font-black ${selectedSafetyTone.text}`,
                                     },
@@ -291,7 +292,7 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
                                 variant="whiteSoft"
                                 eyebrow="AI 분석 결과"
                                 title="AI 분석 결과 (수정 가능)"
-                                description="응답품질과 확인단계를 조정합니다."
+                                description={`${SAFETY_SIGNAL_COPY.score}와 ${SAFETY_SIGNAL_COPY.level}를 조정합니다.`}
                                 className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm"
                                 titleClassName="mt-1 text-sm font-semibold text-slate-700"
                                 descriptionClassName="mt-1 text-[11px] font-medium text-slate-500"
@@ -299,15 +300,15 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
                             >
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                                     <div>
-                                        <label className="font-medium text-slate-500">응답품질</label>
+                                        <label className="font-medium text-slate-500">{SAFETY_SIGNAL_COPY.score}</label>
                                         <input type="number" value={editableRecord.safetyScore} onChange={e => handleFieldChange('safetyScore', parseInt(e.target.value))} className="mt-1 w-full border-slate-300 rounded-md shadow-sm text-sm" />
                                     </div>
                                     <div>
-                                         <label className="font-medium text-slate-500">확인단계</label>
+                                         <label className="font-medium text-slate-500">{SAFETY_SIGNAL_COPY.level}</label>
                                          <select value={editableRecord.safetyLevel} onChange={e => handleFieldChange('safetyLevel', e.target.value)} className="mt-1 w-full border-slate-300 rounded-md shadow-sm text-sm">
-                                            <option>초급</option>
-                                            <option>중급</option>
-                                            <option>고급</option>
+                                            <option value="초급">{getSafetyLevelDisplayLabel('초급')}</option>
+                                            <option value="중급">{getSafetyLevelDisplayLabel('중급')}</option>
+                                            <option value="고급">{getSafetyLevelDisplayLabel('고급')}</option>
                                          </select>
                                     </div>
                                 </div>

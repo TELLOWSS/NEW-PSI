@@ -75,7 +75,7 @@ const createReport = (records: WorkerRecord[], previous: WorkerRecord[], assessm
         siteName: 'PSI 적용 현장', educationMonth, basedOnAssessmentMonth: assessmentMonth,
         totalWorkers: new Set(records.map((r) => r.worker_uuid || r.workerUuid || r.employeeId || r.name)).size,
         analyzedRecords: records.length,
-        overallSummary: `${monthLabel(assessmentMonth)} 작성자료 ${records.length}건을 익명화해 분석했습니다. 개인 점수 공개가 아니라 현장 전체의 작성 경향과 다음 교육의 중점 행동을 확인하는 계도자료입니다.`,
+        overallSummary: `${monthLabel(assessmentMonth)} 작성자료 ${records.length}건을 익명화해 분석했습니다. 개인별 수치 공개가 아니라 현장 전체의 작성 경향과 다음 교육의 중점 행동을 확인하는 계도자료입니다.`,
         topRiskFactors,
         goodWritingExamples: [...answers].sort((a, b) => b.answer.length - a.answer.length).slice(0, 2).map((item) => ({ ...item, example: item.answer, whyGood: '위험 상황과 행동이 구체적으로 연결되어 작업 전 확인에 활용할 수 있습니다.' })),
         poorWritingExamples: [...answers].sort((a, b) => a.answer.length - b.answer.length).slice(0, 2).map((item) => ({ question: item.question, example: item.answer, improvedExample: `${fallbackRisk}이 발생하는 위치와 작업 순서를 확인하고, 작업 전 차단조치와 보호구 상태를 확인한다.`, coachingPoint: '단어만 적기보다 언제·어디서·무엇을 확인할지 한 문장으로 작성합니다.' })),

@@ -262,7 +262,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
         if (score === 0) return '현장 데이터 수집이 시작되었습니다. 축적 데이터에 따라 실시간 AI 관제 소견이 활성화됩니다.';
         
         if (score < 75 && imp < 60) {
-            return `평균 응답품질(${score}점)과 개선율(${imp}%)이 정체 중입니다. ${priorityTrade.name} 공종을 중심으로 밀착 지도가 필요합니다.`;
+            return `평균 위험인식 신호(${score}점)과 개선율(${imp}%)이 정체 중입니다. ${priorityTrade.name} 공종을 중심으로 밀착 지도가 필요합니다.`;
         } else if (imp < 60) {
             return `근로자 안전 이해도(${score}점)에 비해 개선 이행률(${imp}%)이 낮습니다. 지적 사항 보강 상태를 점검하세요.`;
         } else {
@@ -374,7 +374,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
             <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
                 {[
                     { label: '현장 작성물', value: `${workerRecords.length}건`, helper: '이 브라우저', icon: '📝', color: 'blue' },
-                    { label: 'AI 분석 완료', value: `${summary.analyzed}건`, helper: `응답품질 ${summary.averageScore}점`, icon: '🤖', color: 'indigo' },
+                    { label: 'AI 분석 완료', value: `${summary.analyzed}건`, helper: `위험인식 신호 ${summary.averageScore}점`, icon: '🤖', color: 'indigo' },
                     { label: '보호 우선 집중', value: `${summary.highRisk}건`, helper: '교육 우선 대상', icon: '🚨', color: 'rose' },
                     { label: '개선 이행', value: `${summary.improvement}%`, helper: `${summary.workTypes}개 공종`, icon: '✅', color: 'emerald' },
                     { label: '교육 세션', value: trainingSummary ? `${trainingSummary.trainingSessions}건` : '-', helper: '서버 전체', icon: '🏫', color: 'violet' },
@@ -427,7 +427,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                                             : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
                                     }`}
                                 >
-                                    응답품질
+                                    위험인식 신호
                                 </button>
                                 <button
                                     type="button"
@@ -445,14 +445,14 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
 
                         <div className="mt-3">
                             <h3 className="text-sm font-black text-slate-900 dark:text-slate-150">현장 안전 트렌드 & 지표 분석</h3>
-                            <p className="mt-1 text-[11px] font-medium text-slate-400 leading-4">최근 월별 응답품질 신호와 공종별 개선 이행 추이를 그래프로 분석합니다.</p>
+                            <p className="mt-1 text-[11px] font-medium text-slate-400 leading-4">최근 월별 위험인식 신호와 공종별 개선 이행 추이를 그래프로 분석합니다.</p>
                         </div>
 
                         {/* 메트릭 정보 요약 */}
                         <div className="mt-3.5 grid grid-cols-3 gap-2 text-center">
                             <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
                                 <b className="text-base font-black text-blue-700 dark:text-blue-400">{summary.averageScore}점</b>
-                                <span className="block text-[9px] font-bold text-slate-400 mt-0.5">평균 응답품질</span>
+                                <span className="block text-[9px] font-bold text-slate-400 mt-0.5">평균 위험인식 신호</span>
                             </div>
                             <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
                                 <b className="text-base font-black text-emerald-700 dark:text-emerald-400">{summary.improvement}%</b>
@@ -468,8 +468,8 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                         <div className="mt-3.5 rounded-xl bg-slate-50/50 p-2 dark:bg-slate-800/30">
                             {activeChartTab === 'score' ? (
                                 <>
-                                    <p className="text-[10px] font-black text-slate-500">최근 평균 응답품질 추세</p>
-                                    <TrendChart values={monthlyTrends.scoreValues} label="최근 평균 응답품질 추세" />
+                                    <p className="text-[10px] font-black text-slate-500">최근 평균 위험인식 신호 추세</p>
+                                    <TrendChart values={monthlyTrends.scoreValues} label="최근 평균 위험인식 신호 추세" />
                                 </>
                             ) : (
                                 <>
@@ -506,7 +506,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                                 <div className="rounded-xl border border-slate-100 bg-white p-2 dark:border-slate-800 dark:bg-slate-900/40">
                                     <span className="text-[9px] font-black text-slate-400 block uppercase tracking-wider">전월 대비 추세</span>
                                     <div className="mt-1 flex items-center justify-between">
-                                        <b className="text-xs font-black text-slate-700 dark:text-slate-300">평균 응답품질</b>
+                                        <b className="text-xs font-black text-slate-700 dark:text-slate-300">평균 위험인식 신호</b>
                                         <span className={`text-[10px] font-black flex items-center gap-0.5 ${trendDelta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                                             {trendDelta >= 0 ? '▲' : '▼'} {Math.abs(trendDelta).toFixed(1)}점
                                         </span>
@@ -540,7 +540,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                             <div className="mt-3">
                                 <h3 className="text-sm font-black text-[#0c2348] dark:text-slate-150">위험성평가 AI 스튜디오</h3>
                                 <p className="mt-1 text-[11px] font-semibold text-slate-550 dark:text-slate-400 font-sans">
-                                    현장 사진, PDF 보고서 또는 수기 텍스트를 기계 학습 기반 엔진으로 분석하여 응답품질 신호와 상등급 위험 조치를 도출합니다.
+                                    현장 사진, PDF 보고서 또는 수기 텍스트를 기계 학습 기반 엔진으로 분석하여 위험인식 신호와 상등급 위험 조치를 도출합니다.
                                 </p>
                             </div>
                             <div className="mt-3 rounded-xl border border-dashed border-blue-200/60 bg-blue-50/40 p-2.5 text-center dark:border-blue-500/20 dark:bg-blue-950/20">
