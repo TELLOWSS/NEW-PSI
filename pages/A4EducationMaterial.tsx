@@ -809,7 +809,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         localStorage.setItem(TBM_MONTHLY_PACKAGE_STORAGE_KEY, JSON.stringify(payload));
         setNotice(
             translationsMatchCurrentDraft || Object.keys(translatedTexts).length === 0
-                ? '5단계 교육 원문을 다국어 교육에 전달했습니다.'
+                ? '5단계 교육 원문을 QR/음성 파일럿 화면에 전달했습니다.'
                 : '한국어 초안이 수정되어 기존 AI 번역은 제외했습니다. 배포 단계에서 현재 원문 기준으로 번역합니다.',
         );
         onOpenTraining?.();
@@ -982,7 +982,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-100">Evidence-based Risk Assessment Studio</p>
                 <h2 className="mt-2 text-2xl font-black sm:text-3xl">위험성평가 교육자료 스튜디오</h2>
                 <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-blue-50">
-                    현장 기록과 첨부자료를 근거로 5단계 전파교육 초안을 만들고, 선택한 AI의 정밀 분석 결과를 한 장 자료·다국어 교육으로 이어갑니다.
+                    현장 기록과 첨부자료를 근거로 5단계 전파교육 초안을 만들고, 선택한 AI의 정밀 분석 결과를 한 장짜리 위험성평가 교육자료와 필요 언어별 번역본으로 정리합니다.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
                     <span className="rounded-full bg-white/15 px-3 py-2">ChatGPT · Claude · Gemini</span>
@@ -1258,7 +1258,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                         <textarea value={draft.closingCommitment} onChange={(event) => setDraft({ ...draft, closingCommitment: event.target.value })} rows={2} aria-label="교육 마무리 행동 약속" className="mt-3 w-full rounded-xl border p-3 text-sm font-bold" />
                         <div className="mt-4 grid gap-2 sm:grid-cols-2">
                             <button type="button" onClick={() => setActiveTab('editor')} className="min-h-12 rounded-xl bg-blue-700 px-5 py-3 text-sm font-black text-white">한 장 자료 편집</button>
-                            <button type="button" onClick={sendToTraining} className="min-h-12 rounded-xl bg-violet-700 px-5 py-3 text-sm font-black text-white">다국어 교육 원문으로 보내기</button>
+                            <button type="button" onClick={sendToTraining} className="min-h-12 rounded-xl bg-violet-700 px-5 py-3 text-sm font-black text-white">QR/음성 파일럿으로 보내기</button>
                         </div>
                     </section>
                 </div>

@@ -142,8 +142,8 @@ const UI_TEXT: Record<UiLocale, {
     statErrorPrefix: string;
 }> = {
     ko: {
-        title: '관리자 다국어 음성 안내 생성',
-        subtitle: '한국어 핵심 위험성평가 문구를 입력하면 다국어 TTS와 근로자 QR 링크를 생성합니다.',
+        title: 'QR·음성 안내 파일럿',
+        subtitle: '확정된 원페이지 위험성평가 교육자료의 한국어 원문을 보조 전달 채널로 시험 운영합니다.',
         sourcePlaceholder: '예: 이달 핵심 위험은 추락, 협착, 전도입니다.',
         selectLanguages: '생성 언어 선택 (최소 1개)',
         applyPreset: '설정 기본값 적용',
@@ -161,7 +161,7 @@ const UI_TEXT: Record<UiLocale, {
         audioUploading: '음성 업로드 중...',
         audioUploadDoneMessage: '국적별 음성 업로드를 저장했습니다.',
         audioUploadMissing: '업로드할 음성을 하나 이상 선택해 주세요.',
-        shareHeader: '[PSI 다국어 안전교육 링크]',
+        shareHeader: '[PSI QR·음성 파일럿 링크]',
         shareFailedPrefix: '음성 미생성 언어(텍스트 대체)',
         shareAllAudioLine: '모든 선택 언어의 음성 안내가 생성되었습니다.',
         copyFailed: '클립보드 복사에 추가 확인이 필요합니다. 텍스트를 직접 복사해 주세요.',
@@ -677,7 +677,7 @@ const AdminTraining: React.FC = () => {
                     : '최근 세션에서는 음성 누락 신호가 크지 않습니다.',
                 description: sessionsWithMissingAudio > 0
                     ? '음성 누락 세션은 텍스트 대체로 운영은 가능하지만, 현장 전달 품질을 위해 재확인 우선순위를 두는 편이 안전합니다.'
-                    : '최근 생성 세션은 다국어 안내 연결 상태가 비교적 안정적이어서 현장 재사용 부담이 낮습니다.',
+                    : '최근 생성 세션은 QR·음성 파일럿 연결 상태가 비교적 안정적이어서 현장 재사용 부담이 낮습니다.',
             },
             {
                 eyebrow: '다음 행동',
@@ -1286,7 +1286,7 @@ const AdminTraining: React.FC = () => {
                         caseRecord,
                         'training',
                         '교육 관리자',
-                        '다국어 안전교육 세션을 생성하고 근로자에게 연결했습니다.',
+                        'QR·음성 파일럿 세션을 생성하고 근로자에게 연결했습니다.',
                         { evidenceId: String(data.sessionId) },
                     );
                     upsertSafetyCase(nextCase);
@@ -1456,7 +1456,7 @@ const AdminTraining: React.FC = () => {
                     {[
                         ['1', '한국어 원문 확인', '위험성평가 교육 스튜디오 원문을 불러오거나 직접 입력'],
                         ['2', '대상 언어 선택', '현장 국적에 필요한 언어만 선택'],
-                        ['3', 'QR 배포', '세션 생성 후 음성·텍스트·참여 현황 관리'],
+                        ['3', '파일럿 배포', '세션 생성 후 음성·텍스트·참여 현황 관리'],
                     ].map(([step, title, description]) => (
                         <article key={step} className="psi-step-card">
                             <span>{step}</span>
@@ -1476,7 +1476,7 @@ const AdminTraining: React.FC = () => {
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-500/30 dark:bg-blue-500/10">
                     <div>
                         <p className="text-xs font-black text-blue-900 dark:text-blue-100">위험성평가 5단계 원문</p>
-                        <p className="mt-1 text-[11px] font-bold text-blue-700 dark:text-blue-300">위험성평가 교육자료 스튜디오에서 확정한 영상·사례·상등급·중점관리·공지 내용을 한 번에 불러옵니다.</p>
+                        <p className="mt-1 text-[11px] font-bold text-blue-700 dark:text-blue-300">위험성평가 교육자료 스튜디오에서 확정한 원페이지 교육자료 원문과 중점관리 내용을 한 번에 불러옵니다.</p>
                     </div>
                     <button
                         type="button"
@@ -1693,7 +1693,7 @@ const AdminTraining: React.FC = () => {
                         ))}
                     </div>
                     <p className="mt-2 text-[11px] font-bold text-slate-500 dark:text-slate-300">
-                        체크한 언어만 외부 팟캐스트 음성 업로드 대상입니다. 기본값은 설정 페이지의 "다국어 교육 기본 언어 세트"를 따릅니다.
+                        체크한 언어만 외부 팟캐스트 음성 업로드 대상입니다. 기본값은 설정 페이지의 "QR/음성 파일럿 기본 언어 세트"를 따릅니다.
                     </p>
                 </div>
 

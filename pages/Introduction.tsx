@@ -698,12 +698,12 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         {
             title: '현장 문제',
             summary: '수기로 작성된 위험성평가 기록지는 현장에는 쌓이지만, 누가 어떤 위험을 이해하지 못했는지 바로 보이기 어렵습니다.',
-            points: ['외국인 근로자 모국어 전달 한계', '수기 이미지 판독 품질 편차', '교육·추적관리 연결 부족'],
+            points: ['수기 응답의 위험 인식 데이터화 한계', '수기 이미지 판독 품질 편차', '교육·추적관리 연결 부족'],
         },
         {
             title: 'PSI 전환',
-            summary: 'PSI는 종이 기록지를 OCR로 구조화하고, 관리자 검증을 거쳐 개인 리포트와 교육 안내로 다시 현장에 돌려보냅니다.',
-            points: ['OCR 분석과 관리자 보호 해석', '개인 안전역량 지표 자동 반영', '모국어 안내와 개선 이력 보존'],
+            summary: 'PSI는 종이 기록지를 OCR로 구조화하고, 관리자 검증을 거쳐 공식 리포트와 다음 달 교육자료로 다시 현장에 돌려보냅니다.',
+            points: ['OCR 분석과 관리자 보호 해석', '5문항·6지표 구조화', '공식 리포트와 추적 이력 보존'],
         },
         {
             title: '구매자가 확인하는 가치',
@@ -712,7 +712,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         },
     ];
 
-    const proofChips = ['수기 OCR', '모국어 안내', '개인 리포트', '월별 추적관리', '교육 환류', '실증 증빙'];
+    const proofChips = ['수기 OCR', '5문항·6지표', '관리자 검증', '공식 리포트', '원페이지 교육자료', '월별 추적'];
 
     const productSimpleSteps: Array<{ title: string; subtitle: string; desc: string; stat: string; page: Page; tone: string }> = [
         {
@@ -733,8 +733,8 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         },
         {
             title: '3. 리포트·추적',
-            subtitle: '모국어 안내와 교육 환류',
-            desc: '수정된 보호 해석이 개인 안전역량, 근로자 리포트, 월별 계도자료로 이어지는지 확인합니다.',
+            subtitle: '공식 리포트와 추적 환류',
+            desc: '관리자 검증 결과가 공식 리포트, 다음 달 원페이지 교육자료, 월별 추적자료로 이어지는지 확인합니다.',
             stat: `리포트 대상 ${previewMetrics.totalWorkers}명`,
             page: 'reports',
             tone: BRAND_TONE.emeraldWhite,
@@ -745,7 +745,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         { label: '원본 보존', value: `${previewMetrics.totalWorkers}건`, desc: '수기 이미지와 분석 결과를 같은 흐름에서 확인' },
         { label: '관리자 검증', value: `${previewMetrics.qaValidationTargets}건`, desc: 'AI 판단을 현장 보호 해석으로 수정 가능' },
         { label: '전조 신호', value: `${previewMetrics.alertSignals}건`, desc: '위험 신호와 추가 확인 대상을 바로 분리' },
-        { label: '추적 환류', value: `${previewMetrics.approvedRecords}건`, desc: '승인 이력을 다음 교육·월별 자료로 연결' },
+        { label: '추적 환류', value: `${previewMetrics.approvedRecords}건`, desc: '승인 이력을 다음 달 교육자료·월별 자료로 연결' },
     ];
 
     const actualProgramScreens: Array<{ label: string; desc: string; stat: string; page: Page }> = [
@@ -754,8 +754,8 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         { label: '근로자 의견 분석', desc: '근로자 의견과 응답 경향을 위험 신호로 정리', stat: '의견 분석', page: 'survey-intelligence' },
         { label: '안전성과 분석', desc: '개선 이행률과 성과 추이를 현장별로 확인', stat: `승인 ${previewMetrics.approvedRecords}건`, page: 'performance-analysis' },
         { label: '월별 계도 리포트', desc: '월별 위험 항목을 익명화해 계도자료로 정리', stat: '월별 분류', page: 'monthly-guidance-report' },
-        { label: '위험성평가 교육자료', desc: '분석 결과를 교육자료 제작 흐름으로 연결', stat: '교육자료', page: 'a4-education-material' },
-        { label: '다국어 교육 / QR', desc: '외국인 근로자에게 모국어 교육과 확인 경로 제공', stat: '모국어', page: 'admin-training' },
+        { label: '위험성평가 교육자료', desc: '월별 분석 결과를 원페이지 위험성평가 교육자료로 정리', stat: '교육자료', page: 'a4-education-material' },
+        { label: '파일럿 QR/음성 안내', desc: '확정된 원페이지 교육자료를 보조 채널로 전달하는 시험 기능', stat: '파일럿', page: 'admin-training' },
         { label: '근로자 리포트', desc: '개인별 안전역량과 관리자 보호 해석을 리포트화', stat: `대상 ${previewMetrics.totalWorkers}명`, page: 'reports' },
         { label: '시스템 설정', desc: 'API, 가중치, 권한, 운영 기준을 현장에 맞게 조정', stat: '운영 설정', page: 'settings' },
     ];
@@ -764,14 +764,14 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         { label: '홈', desc: '현장 안전 관제센터', page: 'dashboard' },
         { label: '위험분석', desc: 'OCR 분석과 확인', page: 'ocr-analysis' },
         { label: '계도', desc: '월별 리포트', page: 'monthly-guidance-report' },
-        { label: '교육/QR', desc: '다국어 교육 전달', page: 'admin-training' },
+        { label: '교육자료', desc: '원페이지 환류', page: 'a4-education-material' },
         { label: '더보기', desc: '설정과 리포트', page: 'settings' },
     ];
 
     const actualMobileActions: Array<{ label: string; desc: string; page: Page }> = [
         { label: 'OCR 분석', desc: '현장에서 촬영한 수기 기록지를 바로 분석', page: 'ocr-analysis' },
         { label: '근로자 리포트', desc: '개인별 보호 해석과 교육 필요 신호 확인', page: 'reports' },
-        { label: '다국어 QR', desc: '모국어 교육 안내와 확인 경로 전달', page: 'admin-training' },
+        { label: '교육자료', desc: '검증 결과를 원페이지 교육자료로 정리', page: 'a4-education-material' },
     ];
 
     const onePointProofSteps: Array<{ marker: OnePointProofStageId; title: string; desc: string; page: Page; tone: string }> = [
@@ -798,17 +798,17 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         },
         {
             marker: 'stage-native-feedback',
-            title: '4. 모국어·리포트·추적',
-            desc: '수정된 판단은 모국어 안내, 개인 안전역량, 월별 추적자료로 다시 연결됩니다.',
+            title: '4. 리포트·교육자료·추적',
+            desc: '수정된 판단은 공식 리포트, 다음 달 원페이지 교육자료, 월별 추적자료로 다시 연결됩니다.',
             page: 'reports',
             tone: BRAND_TONE.emeraldWhite,
         },
     ];
 
     const onePointProofMetrics = [
-        { marker: 'metric-two-minute', label: '시연 시간', value: '2분', desc: '촬영부터 교육 환류까지 한 장면으로 설명' },
+        { marker: 'metric-two-minute', label: '시연 시간', value: '2분', desc: '촬영부터 리포트·추적까지 한 장면으로 설명' },
         { marker: 'metric-one-record', label: '시작 단위', value: '1장', desc: '수기 기록지 한 장이 분석 데이터로 전환' },
-        { marker: 'metric-closed-loop', label: '닫힌 흐름', value: '4단계', desc: 'OCR, 검증, 전달, 추적이 끊기지 않음' },
+        { marker: 'metric-closed-loop', label: '닫힌 흐름', value: '4단계', desc: 'OCR, 검증, 리포트, 추적이 끊기지 않음' },
     ];
 
     const completedOnePointProofStages = onePointProofSession?.completedStageIds || [];
@@ -996,7 +996,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                 <div className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-[10px] font-black text-white">상품화 설명 화면</div>
                                 <h2 className="mt-2 text-[20px] font-black leading-tight text-slate-900 sm:text-[24px]">바이어에게 보여줄 한 장짜리 흐름</h2>
                                 <p className="mt-2 text-[11px] font-semibold leading-relaxed text-slate-600 sm:text-[12px] break-keep">
-                                    PSI는 기능을 많이 나열하기보다 기록지 한 장이 원본 증거, AI 분석, 관리자 검증, 모국어 안내, 월별 추적자료로 바뀌는 장면을 먼저 보여줍니다.
+                                    PSI는 기능을 많이 나열하기보다 기록지 한 장이 원본 증거, AI 분석, 관리자 검증, 공식 리포트, 다음 달 교육자료, 월별 추적자료로 바뀌는 장면을 먼저 보여줍니다.
                                 </p>
                             </div>
                             <button
@@ -1048,7 +1048,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                     <div className="inline-flex items-center rounded-full bg-indigo-600 px-3 py-1 text-[10px] font-black text-white">실제 프로그램 기능 연결</div>
                                     <p className="mt-1.5 text-[10px] font-bold text-slate-500 break-keep">아래 카드는 이미지 목업이 아니라 현재 프로그램의 실제 메뉴와 직접 연결됩니다.</p>
                                 </div>
-                                <p className="text-[10px] font-bold text-slate-500 break-keep">수기 기록 → OCR 분석 → 리포트/교육 → 추적관리</p>
+                                <p className="text-[10px] font-bold text-slate-500 break-keep">수기 기록 → OCR 분석 → 공식 리포트 → 교육자료 → 추적관리</p>
                             </div>
                             <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
                                 {actualProgramScreens.map((screen) => (
@@ -1184,7 +1184,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                 <div className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-[10px] font-black text-white">2분 원포인트 증명 모드</div>
                                 <h2 className="mt-2 text-[20px] font-black leading-tight text-slate-900 sm:text-[24px]">기록지 1장이 근로자 보호·교육·추적자료로 바뀌는 장면</h2>
                                 <p className="mt-2 text-[11px] font-semibold leading-relaxed text-slate-600 sm:text-[12px] break-keep">
-                                    공모전, 바이어 미팅, 내부 보고에서는 기능을 길게 설명하기보다 한 장의 수기 기록지가 OCR 분석, 관리자 검증, 모국어 전달, 월별 추적관리로 이어지는 흐름을 바로 보여주는 것이 핵심입니다.
+                                    공모전, 바이어 미팅, 내부 보고에서는 기능을 길게 설명하기보다 한 장의 수기 기록지가 OCR 분석, 관리자 검증, 공식 리포트, 다음 달 원페이지 교육자료, 월별 추적관리로 이어지는 흐름을 바로 보여주는 것이 핵심입니다.
                                 </p>
                             </div>
                             <div className="grid grid-cols-3 gap-2 text-center">
@@ -1253,12 +1253,12 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
 
                         <div className={`mt-4 flex flex-col gap-2 rounded-2xl border px-3 py-3 sm:flex-row sm:items-center sm:justify-between ${BRAND_TONE.indigoSoft50}`}>
                             <p className="text-[11px] font-bold leading-relaxed text-slate-700 break-keep">
-                                발표 문장: “PSI는 OCR 결과를 보여주는 데서 끝나지 않고, 공종과 Q1 실제 위험작업을 분리해 관리자 검증 후 모국어 안내와 개인 안전역량, 월별 추적관리까지 이어줍니다.”
+                                발표 문장: “PSI는 OCR 결과를 보여주는 데서 끝나지 않고, 공종과 Q1 실제 위험작업을 분리해 관리자 검증 후 공식 리포트, 다음 달 원페이지 교육자료, 월별 추적관리까지 이어줍니다.”
                             </p>
                             <div className="grid grid-cols-2 gap-1.5 text-[10px] font-black sm:min-w-[330px]">
                                 <button type="button" data-one-point-proof="action-ocr" onClick={() => handleOpenOnePointProofStage('stage-scan', 'ocr-analysis')} className="rounded-xl bg-indigo-600 px-2.5 py-2 text-white hover:bg-indigo-500">OCR 시연</button>
                                 <button type="button" data-one-point-proof="action-report" onClick={() => handleOpenOnePointProofStage('stage-native-feedback', 'reports')} className={`rounded-xl border px-2.5 py-2 text-indigo-700 hover:bg-indigo-50 ${BRAND_TONE.indigoWhite}`}>리포트</button>
-                                <button type="button" data-one-point-proof="action-native-guidance" onClick={() => handleOpenOnePointProofStage('stage-native-feedback', 'admin-training')} className={`rounded-xl border px-2.5 py-2 text-emerald-700 hover:bg-emerald-50 ${BRAND_TONE.emeraldWhite}`}>모국어 안내</button>
+                                <button type="button" data-one-point-proof="action-education-material" onClick={() => handleOpenOnePointProofStage('stage-native-feedback', 'a4-education-material')} className={`rounded-xl border px-2.5 py-2 text-emerald-700 hover:bg-emerald-50 ${BRAND_TONE.emeraldWhite}`}>원페이지 교육자료</button>
                                 <button type="button" data-one-point-proof="action-tracking" onClick={() => handleOpenOnePointProofStage('stage-native-feedback', 'monthly-guidance-report')} className={`rounded-xl border px-2.5 py-2 text-slate-700 hover:bg-slate-50 ${BRAND_TONE.slateWhite}`}>월별 추적</button>
                             </div>
                         </div>
@@ -1338,8 +1338,8 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-indigo-600">PSI Origin Story</p>
                             <h2 className="mt-2 text-2xl font-black text-slate-900">종이 위험성평가 기록지를 현장 보호 데이터로 바꾼 이야기</h2>
                             <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">
-                                PSI는 현장을 더 감시하려고 시작한 프로그램이 아닙니다. 외국인 근로자가 각자의 언어로 적은 짧은 수기 기록 속에서 위험 신호를 놓치지 않고,
-                                관리자가 고친 판단이 모국어 안내와 다음 교육까지 이어지게 만들기 위해 시작했습니다.
+                                PSI는 현장을 더 감시하려고 시작한 프로그램이 아닙니다. 근로자가 직접 쓴 짧은 수기 기록 속에서 위험 이해 신호를 놓치지 않고,
+                                관리자가 검증한 판단이 공식 리포트와 다음 달 교육자료까지 이어지게 만들기 위해 시작했습니다.
                             </p>
                         </div>
                         <button
@@ -1354,10 +1354,10 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                     <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-5">
                         {[
                             ['1', '수기 기록', '사진·PDF로 받은 위험성평가 기록지를 원본 증빙으로 보존'],
-                            ['2', 'AI 구조화', 'Q1~Q5 답변, 위험요인, 점수 근거, 모국어 신호를 분리'],
+                            ['2', 'AI 구조화', 'Q1~Q5 답변, 위험요인, 점수 근거, 6대 지표를 분리'],
                             ['3', '관리자 검증', '한국어 보호 해석과 점수 근거를 현장 판단으로 수정'],
-                            ['4', '모국어 전달', '수정된 내용이 외국인 근로자 안내와 개인 지표에 동기화'],
-                            ['5', '추적 교육', '월별 리포트와 다음 위험성평가 교육자료로 다시 환류'],
+                            ['4', '공식 리포트', '검증된 내용을 공유 가능한 기록과 보호 안내로 정리'],
+                            ['5', '추적 교육', '다음 달 원페이지 교육자료와 월별 추적관리로 환류'],
                         ].map(([step, title, desc]) => (
                             <div key={step} className={`rounded-2xl border px-4 py-4 ${BRAND_TONE.slate}`}>
                                 <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-sm font-black text-white">{step}</div>
@@ -1370,7 +1370,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                     <div className={`mt-5 rounded-2xl border px-4 py-4 ${BRAND_TONE.emeraldSoft80}`}>
                         <p className="text-sm font-black text-emerald-900">상품 한 문장</p>
                         <p className="mt-1 text-sm font-bold leading-6 text-emerald-800">
-                            PSI는 위험성평가 OCR 결과를 보여주는 데서 끝나지 않고, 관리자의 현장 판단이 근로자 모국어 안내와 개인 안전역량, 월별 교육 환류까지 같은 기준으로 이어지는지 검증하는 현장 안전 인텔리전스입니다.
+                            PSI는 수기 위험성평가 기록지를 OCR·AI로 5문항·6지표 구조화하고, 관리자 검증 리포트와 다음 달 원페이지 교육자료, 월별 추적관리로 환류하는 위험성평가 운영 솔루션입니다.
                         </p>
                     </div>
                 </section>

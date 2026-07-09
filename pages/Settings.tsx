@@ -2447,7 +2447,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
 
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-cyan-200 lg:col-span-2">
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">다국어 교육 기본 언어 세트</h3>
+                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">QR/음성 파일럿 기본 언어 세트</h3>
                         <button
                             type="button"
                             onClick={() => setSettings((prev) => ({ ...prev, trainingLanguagePreset: [...CURRENT_SITE_LANGUAGE_SET] }))}
@@ -2472,7 +2472,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                         })}
                     </div>
                     <p className="mt-3 text-xs text-slate-500 leading-relaxed">
-                        여기서 저장한 기본 언어 세트는 관리자 다국어 안내 생성 화면의 초기 선택값으로 자동 반영됩니다.
+                        여기서 저장한 기본 언어 세트는 QR/음성 파일럿 화면의 초기 선택값으로 자동 반영됩니다.
                     </p>
                 </div>
 
