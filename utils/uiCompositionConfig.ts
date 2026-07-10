@@ -3,35 +3,41 @@ import type { Page } from '../types';
 export const UI_COMPOSITION_STORAGE_KEY = 'psi_ui_composition_v1';
 export const UI_COMPOSITION_SYNC_EVENT = 'psi-ui-composition-sync';
 export const UI_COMPOSITION_DEBUG_STORAGE_KEY = 'psi_sidebar_visibility_debug_v1';
-const UI_COMPOSITION_VERSION = 3;
+const UI_COMPOSITION_VERSION = 4;
 const PREVIOUS_UI_COMPOSITION_VERSION = 2;
 const OCR_ENTRY_PAGE: Page = 'ocr-analysis';
 const MANAGER_RISK_ENTRY_PAGE: Page = 'survey-intelligence';
 
 const DEFAULT_SIDEBAR_ORDER: Page[] = [
     'dashboard',
+    'ocr-analysis',
+    'education-return',
+    'monthly-guidance-report',
+    'settings',
+    'a4-education-material',
+    'reports',
+    'admin-training',
     'site-issue-management',
     'worker-management',
     'survey-intelligence',
-    'education-return',
     'predictive-analysis',
     'safety-behavior-management',
     'performance-analysis',
-    'monthly-guidance-report',
-    'a4-education-material',
     'ppt-pdf-one-page-summary',
-    'admin-training',
-    'reports',
-    'ocr-analysis',
-    'settings',
 ];
 
 const ALL_PAGES = new Set<Page>(DEFAULT_SIDEBAR_ORDER);
 const DEFAULT_HIDDEN_SIDEBAR_PAGES: Page[] = [
+    'a4-education-material',
+    'reports',
+    'admin-training',
     'site-issue-management',
     'worker-management',
+    'survey-intelligence',
     'predictive-analysis',
     'safety-behavior-management',
+    'performance-analysis',
+    'ppt-pdf-one-page-summary',
 ];
 
 type Direction = 'up' | 'down';

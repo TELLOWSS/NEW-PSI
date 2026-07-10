@@ -175,7 +175,7 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                         <p className="text-xs font-black text-slate-500">교육 환류</p>
                         <h2 className="mt-1 text-3xl font-black leading-tight text-slate-950 sm:text-4xl">PSI 교육 환류 센터</h2>
                         <p className="mt-3 text-sm font-semibold leading-6 text-slate-600 sm:text-base">
-                            검증된 기록은 세 가지 결과물로 돌아갑니다. 현장 공통교육, 개인 보호 리포트, 월별 계도·추적자료입니다.
+                            관리자가 확인한 기록은 개인 보호 리포트, 다음 달 원페이지 교육자료, 월별 추적자료로 환류됩니다.
                         </p>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-3 2xl:min-w-[620px]">
@@ -189,9 +189,9 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                     <div className="grid gap-5 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-center">
                         <StepItem number="1" title="찍는다" desc="수기 기록지 사진/PDF 업로드" tone="blue" icon={<CameraIcon />} />
                         <ArrowIcon />
-                        <StepItem number="2" title="확인한다" desc="OCR·AI 분석 결과 관리자 검증" tone="purple" icon={<VerifyIcon />} />
+                        <StepItem number="2" title="검증한다" desc="OCR·AI 분석 결과 관리자 확인" tone="purple" icon={<VerifyIcon />} />
                         <ArrowIcon />
-                        <StepItem number="3" title="교육한다" desc="세 가지 교육 출력물 생성" tone="green" icon={<EducationIcon />} />
+                        <StepItem number="3" title="환류한다" desc="보호 리포트·교육자료·월별 추적" tone="green" icon={<EducationIcon />} />
                     </div>
                 </div>
             </section>
@@ -234,7 +234,7 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                     status={summary.reportStatus === '확인 필요' ? `확인 필요 ${summary.reviewRequiredRecords}명` : summary.reportStatus}
                     statusTone={summary.reviewRequiredRecords > 0 ? 'orange' : 'purple'}
                     icon={<ReportIcon />}
-                    primaryLabel="리포트 확인"
+                    primaryLabel="보호 리포트 확인"
                     onPrimary={() => onNavigateToPage('reports')}
                 >
                     <div className="overflow-hidden rounded-2xl border border-slate-200">
@@ -260,7 +260,7 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                     status={summary.monthlyStatus}
                     statusTone="green"
                     icon={<TrackingIcon />}
-                    primaryLabel="월별 자료 보기"
+                    primaryLabel="월별 추적 보기"
                     onPrimary={() => onNavigateToPage('monthly-guidance-report')}
                 >
                     <div className="overflow-hidden rounded-2xl border border-slate-200">

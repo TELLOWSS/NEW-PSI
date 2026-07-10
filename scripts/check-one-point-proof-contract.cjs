@@ -28,7 +28,8 @@ const required = [
   ['pages/Introduction.tsx', intro, 'handleOpenOnePointProofStage'],
   ['pages/Introduction.tsx', intro, 'startOnePointProofStage'],
   ['pages/Introduction.tsx', intro, '공종과 Q1 실제 위험작업'],
-  ['pages/Introduction.tsx', intro, '관리자 검증 후 공식 리포트, 다음 달 원페이지 교육자료, 월별 추적관리'],
+  ['pages/Introduction.tsx', intro, '4. 검증 결과 환류'],
+  ['pages/Introduction.tsx', intro, '관리자 검증 후 보호 리포트, 다음 달 원페이지 교육자료, 월별 추적관리로 환류합니다'],
   ['pages/Introduction.tsx', intro, 'data-one-point-proof="action-education-material"'],
   ['components/Layout.tsx', layout, 'data-one-point-proof-return="banner"'],
   ['components/Layout.tsx', layout, 'data-one-point-proof-return="action-return"'],
@@ -38,6 +39,7 @@ const required = [
   ['utils/onePointProofSession.ts', session, 'ONE_POINT_PROOF_STORAGE_KEY'],
   ['utils/onePointProofSession.ts', session, 'ONE_POINT_PROOF_SESSION_EVENT'],
   ['utils/onePointProofSession.ts', session, 'ONE_POINT_PROOF_STAGES'],
+  ['utils/onePointProofSession.ts', session, "page: 'education-return'"],
   ['utils/onePointProofSession.ts', session, 'readOnePointProofSession'],
   ['utils/onePointProofSession.ts', session, 'clearOnePointProofSession'],
 ];

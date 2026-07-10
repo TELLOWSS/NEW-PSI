@@ -798,17 +798,17 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         },
         {
             marker: 'stage-native-feedback',
-            title: '4. 리포트·교육자료·추적',
-            desc: '수정된 판단은 공식 리포트, 다음 달 원페이지 교육자료, 월별 추적자료로 다시 연결됩니다.',
-            page: 'reports',
+            title: '4. 검증 결과 환류',
+            desc: '관리자 검증완료 기록은 보호 리포트, 다음 달 원페이지 교육자료, 월별 추적자료로 이어집니다.',
+            page: 'education-return',
             tone: BRAND_TONE.emeraldWhite,
         },
     ];
 
     const onePointProofMetrics = [
-        { marker: 'metric-two-minute', label: '시연 시간', value: '2분', desc: '촬영부터 리포트·추적까지 한 장면으로 설명' },
+        { marker: 'metric-two-minute', label: '시연 시간', value: '2분', desc: '촬영부터 교육 환류까지 한 장면으로 설명' },
         { marker: 'metric-one-record', label: '시작 단위', value: '1장', desc: '수기 기록지 한 장이 분석 데이터로 전환' },
-        { marker: 'metric-closed-loop', label: '닫힌 흐름', value: '4단계', desc: 'OCR, 검증, 리포트, 추적이 끊기지 않음' },
+        { marker: 'metric-closed-loop', label: '닫힌 흐름', value: '4단계', desc: 'OCR, 검증, 환류, 추적이 끊기지 않음' },
     ];
 
     const completedOnePointProofStages = onePointProofSession?.completedStageIds || [];
@@ -1184,7 +1184,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                 <div className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-[10px] font-black text-white">2분 원포인트 증명 모드</div>
                                 <h2 className="mt-2 text-[20px] font-black leading-tight text-slate-900 sm:text-[24px]">기록지 1장이 근로자 보호·교육·추적자료로 바뀌는 장면</h2>
                                 <p className="mt-2 text-[11px] font-semibold leading-relaxed text-slate-600 sm:text-[12px] break-keep">
-                                    공모전, 바이어 미팅, 내부 보고에서는 기능을 길게 설명하기보다 한 장의 수기 기록지가 OCR 분석, 관리자 검증, 공식 리포트, 다음 달 원페이지 교육자료, 월별 추적관리로 이어지는 흐름을 바로 보여주는 것이 핵심입니다.
+                                    공모전, 바이어 미팅, 내부 보고에서는 기능을 길게 설명하기보다 한 장의 수기 기록지가 OCR 분석, 관리자 검증, 보호 리포트, 다음 달 원페이지 교육자료, 월별 추적관리로 환류되는 흐름을 바로 보여주는 것이 핵심입니다.
                                 </p>
                             </div>
                             <div className="grid grid-cols-3 gap-2 text-center">
@@ -1253,11 +1253,11 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
 
                         <div className={`mt-4 flex flex-col gap-2 rounded-2xl border px-3 py-3 sm:flex-row sm:items-center sm:justify-between ${BRAND_TONE.indigoSoft50}`}>
                             <p className="text-[11px] font-bold leading-relaxed text-slate-700 break-keep">
-                                발표 문장: “PSI는 OCR 결과를 보여주는 데서 끝나지 않고, 공종과 Q1 실제 위험작업을 분리해 관리자 검증 후 공식 리포트, 다음 달 원페이지 교육자료, 월별 추적관리까지 이어줍니다.”
+                                발표 문장: “PSI는 OCR 결과를 보여주는 데서 끝나지 않고, 공종과 Q1 실제 위험작업을 분리해 관리자 검증 후 보호 리포트, 다음 달 원페이지 교육자료, 월별 추적관리로 환류합니다.”
                             </p>
                             <div className="grid grid-cols-2 gap-1.5 text-[10px] font-black sm:min-w-[330px]">
                                 <button type="button" data-one-point-proof="action-ocr" onClick={() => handleOpenOnePointProofStage('stage-scan', 'ocr-analysis')} className="rounded-xl bg-indigo-600 px-2.5 py-2 text-white hover:bg-indigo-500">OCR 시연</button>
-                                <button type="button" data-one-point-proof="action-report" onClick={() => handleOpenOnePointProofStage('stage-native-feedback', 'reports')} className={`rounded-xl border px-2.5 py-2 text-indigo-700 hover:bg-indigo-50 ${BRAND_TONE.indigoWhite}`}>리포트</button>
+                                <button type="button" data-one-point-proof="action-report" onClick={() => handleOpenOnePointProofStage('stage-native-feedback', 'education-return')} className={`rounded-xl border px-2.5 py-2 text-indigo-700 hover:bg-indigo-50 ${BRAND_TONE.indigoWhite}`}>검증 결과 환류</button>
                                 <button type="button" data-one-point-proof="action-education-material" onClick={() => handleOpenOnePointProofStage('stage-native-feedback', 'a4-education-material')} className={`rounded-xl border px-2.5 py-2 text-emerald-700 hover:bg-emerald-50 ${BRAND_TONE.emeraldWhite}`}>원페이지 교육자료</button>
                                 <button type="button" data-one-point-proof="action-tracking" onClick={() => handleOpenOnePointProofStage('stage-native-feedback', 'monthly-guidance-report')} className={`rounded-xl border px-2.5 py-2 text-slate-700 hover:bg-slate-50 ${BRAND_TONE.slateWhite}`}>월별 추적</button>
                             </div>

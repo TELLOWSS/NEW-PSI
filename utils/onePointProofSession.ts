@@ -28,7 +28,7 @@ export const ONE_POINT_PROOF_STAGES: OnePointProofStage[] = [
     { id: 'stage-scan', title: '1. 기록지 1장 촬영', shortTitle: '기록지 촬영', page: 'ocr-analysis' },
     { id: 'stage-q1-separation', title: '2. 공종과 Q1 분리', shortTitle: '공종/Q1 분리', page: 'ocr-analysis' },
     { id: 'stage-manager-review', title: '3. 관리자 검증', shortTitle: '관리자 검증', page: 'ocr-analysis' },
-    { id: 'stage-native-feedback', title: '4. 모국어·리포트·추적', shortTitle: '환류 확인', page: 'reports' },
+    { id: 'stage-native-feedback', title: '4. 검증 결과 환류', shortTitle: '환류 확인', page: 'education-return' },
 ];
 
 const stageIdSet = new Set<OnePointProofStageId>(ONE_POINT_PROOF_STAGES.map((stage) => stage.id));
