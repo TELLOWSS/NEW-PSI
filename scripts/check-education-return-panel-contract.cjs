@@ -12,6 +12,7 @@ const files = {
   layout: read('components/Layout.tsx'),
   workBoard: read('components/IntegratedWorkBoard.tsx'),
   page: read('pages/EducationReturn.tsx'),
+  monthlyGuidance: read('pages/MonthlyGuidanceReport.tsx'),
   summary: read('utils/educationReturnSummary.ts'),
   operationalMode: read('utils/operationalModeUtils.ts'),
   uiComposition: read('utils/uiCompositionConfig.ts'),
@@ -37,10 +38,17 @@ const required = [
   ['pages/EducationReturn.tsx', files.page, '원페이지 교육자료'],
   ['pages/EducationReturn.tsx', files.page, '개인 보호 리포트'],
   ['pages/EducationReturn.tsx', files.page, '월별 계도·추적자료'],
+  ['pages/EducationReturn.tsx', files.page, 'data-education-return="tracking-preview"'],
   ['pages/EducationReturn.tsx', files.page, 'QR/음성 파일럿'],
   ['pages/EducationReturn.tsx', files.page, "onNavigateToPage('a4-education-material')"],
   ['pages/EducationReturn.tsx', files.page, "onNavigateToPage('reports')"],
   ['pages/EducationReturn.tsx', files.page, "onNavigateToPage('monthly-guidance-report')"],
+  ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, 'data-monthly-guidance="tracking-analysis"'],
+  ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, 'data-monthly-guidance="trend-chart"'],
+  ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, 'data-monthly-guidance="risk-bars"'],
+  ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, 'data-monthly-guidance="metric-bars"'],
+  ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, 'buildMonthlyCoreMetricSeries'],
+  ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, '실명·개인별 수치 제거 완료'],
   ['utils/educationReturnSummary.ts', files.summary, 'buildEducationReturnSummary'],
   ['utils/operationalModeUtils.ts', files.operationalMode, "'education-return'"],
   ['utils/uiCompositionConfig.ts', files.uiComposition, "'education-return'"],
@@ -83,4 +91,4 @@ if (failures.length > 0) {
 }
 
 console.log('[check-education-return-panel-contract] PASS');
-console.log('- Education return center keeps the simple scan-review-educate flow and three output cards.');
+console.log('- Education return center keeps the simple scan-review-educate flow, three output cards, and monthly tracking chart analysis.');

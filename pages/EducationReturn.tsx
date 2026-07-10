@@ -263,7 +263,7 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                     primaryLabel="월별 추적 보기"
                     onPrimary={() => onNavigateToPage('monthly-guidance-report')}
                 >
-                    <div className="overflow-hidden rounded-2xl border border-slate-200">
+                    <div data-education-return="tracking-preview" className="overflow-hidden rounded-2xl border border-slate-200">
                         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-3 py-3">
                             <p className="text-sm font-black text-slate-900">전월 대비</p>
                             <div className="text-right">
@@ -281,6 +281,26 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                         <div className="flex items-center justify-between gap-3 px-3 py-3">
                             <p className="text-sm font-black text-slate-900">개선 이행률</p>
                             <p className="text-xl font-black text-blue-700">{summary.improvementRate}%</p>
+                        </div>
+                    </div>
+                    <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3">
+                        <div className="flex items-center justify-between gap-3">
+                            <p className="text-xs font-black text-emerald-900">차트 분석 미리보기</p>
+                            <p className="text-[11px] font-black text-emerald-700">월별·반복·지표</p>
+                        </div>
+                        <div className="mt-2 grid grid-cols-3 gap-2">
+                            {[
+                                ['월별 흐름', Math.min(100, Math.abs(summary.monthlyTrendPct) * 4), summary.monthlyTrendPct >= 0 ? 'bg-emerald-500' : 'bg-rose-500'],
+                                ['반복 위험', Math.min(100, summary.repeatedRiskKeywords.length * 18), 'bg-amber-500'],
+                                ['개선 이행', summary.improvementRate, 'bg-blue-600'],
+                            ].map(([label, width, color]) => (
+                                <div key={String(label)}>
+                                    <div className="h-1.5 overflow-hidden rounded-full bg-white">
+                                        <div className={`h-full rounded-full ${color}`} style={{ width: `${Number(width)}%` }} />
+                                    </div>
+                                    <p className="mt-1 text-[10px] font-bold text-slate-600">{label}</p>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </OutputCard>

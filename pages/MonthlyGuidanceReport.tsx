@@ -1,10 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import type { MonthlyGuidanceReport as GuidanceData, SixMetricBreakdown, WorkerRecord } from '../types';
+import { buildMonthlyCoreMetricSeries } from '../utils/coreMetrics';
 
 interface Props { workerRecords: WorkerRecord[]; }
 
 type MetricKey = keyof SixMetricBreakdown;
+type ChartPoint = { month: string; value: number; label: string };
+
 const metrics: Array<{ key: MetricKey; label: string; max: number; description: string }> = [
     { key: 'psychological', label: '응답 충실도', max: 10, description: '위험을 구체적으로 기록하는 경향' },
     { key: 'jobUnderstanding', label: '공종이해', max: 20, description: '본인 작업·도구·자재를 구체적으로 연결하는 수준' },
@@ -26,6 +29,12 @@ const shiftMonth = (month: string, amount: number) => {
 const monthLabel = (month: string) => {
     const [year, number] = month.split('-');
     return `${year}년 ${Number(number)}월`;
+};
+const monthDistance = (fromMonth: string, toMonth: string) => {
+    const [fromYear, fromNumber] = fromMonth.split('-').map(Number);
+    const [toYear, toNumber] = toMonth.split('-').map(Number);
+    if (![fromYear, fromNumber, toYear, toNumber].every(Number.isFinite)) return Number.POSITIVE_INFINITY;
+    return (toYear - fromYear) * 12 + (toNumber - fromNumber);
 };
 const defaultMonth = (records: WorkerRecord[]) => {
     const months = records.map((record) => monthKey(record.date)).filter(Boolean).sort();
@@ -50,6 +59,146 @@ const riskMap = (records: WorkerRecord[]) => {
 const average = (records: WorkerRecord[], key: MetricKey) => {
     const values = records.map((record) => record.scoreBreakdown?.[key]).filter((value): value is number => typeof value === 'number');
     return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length * 10) / 10 : 0;
+};
+const clampPercent = (value: number) => Math.max(0, Math.min(100, value));
+
+const SparkLine: React.FC<{ points: ChartPoint[] }> = ({ points }) => {
+    const width = 360;
+    const height = 150;
+    const padding = 22;
+    const safePoints = points.length > 0 ? points : [{ month: '', value: 0, label: '자료 대기' }];
+    const max = Math.max(100, ...safePoints.map((point) => point.value));
+    const min = Math.min(0, ...safePoints.map((point) => point.value));
+    const range = max - min || 1;
+    const xStep = safePoints.length > 1 ? (width - padding * 2) / (safePoints.length - 1) : 0;
+    const coords = safePoints.map((point, index) => {
+        const x = padding + index * xStep;
+        const y = height - padding - ((point.value - min) / range) * (height - padding * 2);
+        return { ...point, x, y };
+    });
+    const line = coords.map((point) => `${point.x},${point.y}`).join(' ');
+    const area = coords.length > 1
+        ? `M ${coords[0].x},${height - padding} L ${line} L ${coords[coords.length - 1].x},${height - padding} Z`
+        : '';
+
+    return (
+        <svg viewBox={`0 0 ${width} ${height}`} className="h-40 w-full" role="img" aria-label="월별 위험인식 신호 변화 차트">
+            <defs>
+                <linearGradient id="monthlyTrackingGradient" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#2563eb" stopOpacity="0.22" />
+                    <stop offset="100%" stopColor="#2563eb" stopOpacity="0.02" />
+                </linearGradient>
+            </defs>
+            {[0, 25, 50, 75, 100].map((tick) => {
+                const y = height - padding - ((tick - min) / range) * (height - padding * 2);
+                return (
+                    <g key={tick}>
+                        <line x1={padding} x2={width - padding} y1={y} y2={y} stroke="#e2e8f0" strokeDasharray="4 5" />
+                        <text x={4} y={y + 4} className="fill-slate-400 text-[10px] font-bold">{tick}</text>
+                    </g>
+                );
+            })}
+            {area && <path d={area} fill="url(#monthlyTrackingGradient)" />}
+            <polyline points={line} fill="none" stroke="#2563eb" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+            {coords.map((point) => (
+                <g key={`${point.month}-${point.value}`}>
+                    <circle cx={point.x} cy={point.y} r="5" fill="#ffffff" stroke="#2563eb" strokeWidth="3" />
+                    <text x={point.x} y={height - 4} textAnchor="middle" className="fill-slate-500 text-[10px] font-black">{point.label}</text>
+                </g>
+            ))}
+        </svg>
+    );
+};
+
+const TrackingAnalysisPanel: React.FC<{
+    report: GuidanceData;
+    monthlyPoints: ChartPoint[];
+    delta: number;
+}> = ({ report, monthlyPoints, delta }) => {
+    const currentAverage = monthlyPoints[monthlyPoints.length - 1]?.value ?? 0;
+    const maxRiskCount = Math.max(1, ...report.topRiskFactors.map((risk) => risk.count));
+    const weakestMetrics = metrics
+        .map((metric) => {
+            const value = report.sixMetricTrends[`${metric.key}Avg` as keyof GuidanceData['sixMetricTrends']];
+            return { ...metric, value, percent: metric.max > 0 ? (Math.abs(value) / metric.max) * 100 : 0 };
+        })
+        .sort((a, b) => a.percent - b.percent)
+        .slice(0, 3);
+    const worsenedCount = report.repeatedIssues.filter((issue) => issue.trend === 'worsened' || issue.trend === 'same').length;
+    const trendTone = delta > 0 ? 'text-emerald-700' : delta < 0 ? 'text-rose-700' : 'text-slate-700';
+    const trendLabel = delta > 0 ? '개선 흐름' : delta < 0 ? '추가 확인' : '유지';
+
+    return (
+        <section data-monthly-guidance="tracking-analysis" className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+            <article data-monthly-guidance="trend-chart" className="rounded-2xl border border-blue-100 bg-white p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <p className="text-xs font-black text-blue-700">월별 변화 차트</p>
+                        <h3 className="mt-1 text-lg font-black text-slate-950">위험인식 신호 흐름</h3>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-xs font-bold text-slate-500">최근 월 평균</p>
+                        <p className="text-2xl font-black text-blue-700">{currentAverage}</p>
+                    </div>
+                </div>
+                <div className="mt-3 rounded-2xl bg-slate-50 px-2 py-3">
+                    <SparkLine points={monthlyPoints} />
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    {[
+                        ['월간 판정', trendLabel, trendTone],
+                        ['전월 차이', `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}`, trendTone],
+                        ['분석 표본', `${report.analyzedRecords}건`, 'text-slate-800'],
+                    ].map(([label, value, color]) => (
+                        <div key={label} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                            <p className="text-[11px] font-bold text-slate-500">{label}</p>
+                            <p className={`mt-1 text-base font-black ${color}`}>{value}</p>
+                        </div>
+                    ))}
+                </div>
+            </article>
+
+            <article className="grid gap-4">
+                <div data-monthly-guidance="risk-bars" className="rounded-2xl border border-rose-100 bg-white p-5">
+                    <div className="flex items-center justify-between gap-3">
+                        <h3 className="text-lg font-black text-slate-950">반복 위험 막대 분석</h3>
+                        <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-black text-rose-700">{worsenedCount}개 유지·증가</span>
+                    </div>
+                    <div className="mt-4 space-y-3">
+                        {report.topRiskFactors.length ? report.topRiskFactors.slice(0, 5).map((risk) => (
+                            <div key={risk.riskName}>
+                                <div className="flex justify-between gap-3 text-xs font-black">
+                                    <span className="truncate text-slate-700">{risk.riskName}</span>
+                                    <span className="text-rose-700">{risk.count}건</span>
+                                </div>
+                                <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-slate-100">
+                                    <div className="h-full rounded-full bg-rose-500" style={{ width: `${clampPercent((risk.count / maxRiskCount) * 100)}%` }} />
+                                </div>
+                            </div>
+                        )) : <Empty />}
+                    </div>
+                </div>
+
+                <div data-monthly-guidance="metric-bars" className="rounded-2xl border border-amber-100 bg-white p-5">
+                    <h3 className="text-lg font-black text-slate-950">보강 우선 지표 TOP3</h3>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">낮은 지표부터 다음 교육 문구와 예시를 보강합니다.</p>
+                    <div className="mt-4 space-y-3">
+                        {weakestMetrics.map((metric) => (
+                            <div key={metric.key} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+                                <div className="flex justify-between gap-3 text-xs font-black">
+                                    <span className="text-slate-800">{metric.label}</span>
+                                    <span className="text-amber-700">{metric.value} / {metric.max}</span>
+                                </div>
+                                <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white">
+                                    <div className="h-full rounded-full bg-amber-500" style={{ width: `${clampPercent(metric.percent)}%` }} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </article>
+        </section>
+    );
 };
 
 const createReport = (records: WorkerRecord[], previous: WorkerRecord[], assessmentMonth: string, educationMonth: string): GuidanceData => {
@@ -104,6 +253,24 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords }) => {
     const records = useMemo(() => workerRecords.filter((r) => monthKey(r.date) === assessmentMonth), [workerRecords, assessmentMonth]);
     const previous = useMemo(() => workerRecords.filter((r) => monthKey(r.date) === shiftMonth(assessmentMonth, -1)), [workerRecords, assessmentMonth]);
     const report = useMemo(() => createReport(records, previous, assessmentMonth, educationMonth), [records, previous, assessmentMonth, educationMonth]);
+    const monthlySeries = useMemo(() => buildMonthlyCoreMetricSeries(workerRecords), [workerRecords]);
+    const selectedMonthIndex = monthlySeries.findIndex((point) => point.month === assessmentMonth);
+    const monthlyChartPoints = useMemo<ChartPoint[]>(() => (
+        monthlySeries
+            .filter((point) => {
+                const distance = monthDistance(point.month, assessmentMonth);
+                return distance >= 0 && distance < 6;
+            })
+            .slice(-6)
+            .map((point) => ({
+            month: point.month,
+            value: point.averageScore,
+            label: point.month.slice(2).replace('-', '.'),
+        }))
+    ), [monthlySeries, assessmentMonth]);
+    const selectedMonthPoint = selectedMonthIndex >= 0 ? monthlySeries[selectedMonthIndex] : monthlySeries[monthlySeries.length - 1];
+    const previousMonthPoint = monthlySeries.find((point) => point.month === shiftMonth(assessmentMonth, -1));
+    const monthlyDelta = Number(((selectedMonthPoint?.averageScore || 0) - (previousMonthPoint?.averageScore || 0)).toFixed(1));
     const weakest = metrics.map((metric) => ({ ...metric, value: report.sixMetricTrends[`${metric.key}Avg` as keyof GuidanceData['sixMetricTrends']] })).sort((a, b) => a.value / a.max - b.value / b.max)[0];
     const downloadOutline = () => {
         const text = [`[PSI 월별 계도 브리핑] ${monthLabel(educationMonth)}`, `기준자료: ${monthLabel(assessmentMonth)}`, '', report.overallSummary, '', '위험요소 TOP5', ...report.topRiskFactors.map((r, i) => `${i + 1}. ${r.riskName} (${r.count}건) - ${r.guidanceMessage}`), '', '이번 달 실천행동', ...report.nextMonthEducationFocus.map((v) => `- ${v}`), '', '※ 개인 실명·점수·순위는 교육자료에 포함하지 않습니다.'].join('\n');
@@ -131,8 +298,9 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords }) => {
         </section>
 
         <main className="guidance-print space-y-5 rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm sm:p-6">
-            <header className="border-b border-slate-200 pb-5"><p className="text-xs font-black text-indigo-600">{monthLabel(assessmentMonth)} 작성자료 기반</p><div className="mt-1 flex flex-wrap items-center justify-between gap-3"><h2 className="text-2xl font-black text-slate-950">{monthLabel(educationMonth)} 월별 계도 리포트</h2><span className="rounded-full bg-emerald-100 px-4 py-2 text-xs font-black text-emerald-800">실명·개인점수 제거 완료</span></div><p className="mt-2 text-sm font-semibold text-slate-600">{report.overallSummary}</p></header>
+            <header className="border-b border-slate-200 pb-5"><p className="text-xs font-black text-indigo-600">{monthLabel(assessmentMonth)} 작성자료 기반</p><div className="mt-1 flex flex-wrap items-center justify-between gap-3"><h2 className="text-2xl font-black text-slate-950">{monthLabel(educationMonth)} 월별 계도 리포트</h2><span className="rounded-full bg-emerald-100 px-4 py-2 text-xs font-black text-emerald-800">실명·개인별 수치 제거 완료</span></div><p className="mt-2 text-sm font-semibold text-slate-600">{report.overallSummary}</p></header>
             <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[['분석 건수', `${report.analyzedRecords}건`], ['참여 인원', `${report.totalWorkers}명`], ['가장 많이 나온 위험', report.topRiskFactors[0]?.riskName || '분석자료 없음'], ['가장 약한 지표', weakest?.label || '분석자료 없음']].map(([k, v]) => <div key={k} className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-bold text-slate-500">{k}</p><p className="mt-2 text-lg font-black text-slate-900">{v}</p></div>)}</section>
+            <TrackingAnalysisPanel report={report} monthlyPoints={monthlyChartPoints} delta={monthlyDelta} />
             <section className="grid gap-5 lg:grid-cols-2">
                 <ReportBox title="많이 나온 위험요소 TOP5">{report.topRiskFactors.length ? report.topRiskFactors.map((risk, i) => <div key={risk.riskName} className="rounded-xl bg-slate-50 p-3"><div className="flex justify-between gap-3"><p className="font-black">{i + 1}. {risk.riskName}</p><b className="text-rose-700">{risk.count}건</b></div><p className="mt-1 text-xs font-bold text-slate-500">{risk.relatedWorkTypes.join(' · ')}</p><p className="mt-2 text-sm font-semibold text-slate-700">{risk.guidanceMessage}</p></div>) : <Empty />}</ReportBox>
                 <ReportBox title="반복지적 개선관리">{report.repeatedIssues.length ? report.repeatedIssues.map((issue) => <div key={issue.issueName} className="rounded-xl border border-slate-100 p-3"><div className="flex justify-between gap-3"><b>{issue.issueName}</b><span className="text-xs font-black text-amber-700">{issue.previousCount || 0} → {issue.currentCount || 0}</span></div><p className="mt-1 text-xs font-semibold text-slate-600">{issue.guidanceMessage}</p></div>) : <Empty />}</ReportBox>
