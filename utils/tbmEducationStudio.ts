@@ -303,16 +303,16 @@ export const normalizeTbmEducationDraft = (draft: TbmEducationDraft): TbmEducati
     return {
         ...fallback,
         ...draft,
-        risks: (draft.risks || fallback.risks).map((risk, index) => ({
+        risks: (Array.isArray(draft.risks) ? draft.risks : fallback.risks).map((risk, index) => ({
             ...fallback.risks[index % fallback.risks.length],
             ...risk,
             owner: risk.owner || '담당자 지정 필요',
             managerConfirmed: Boolean(risk.managerConfirmed),
         })),
-        videoScenes: draft.videoScenes?.length ? draft.videoScenes : fallback.videoScenes,
-        accidentCases: draft.accidentCases?.length ? draft.accidentCases : fallback.accidentCases,
-        focusPoints: draft.focusPoints?.length ? draft.focusPoints : fallback.focusPoints,
-        notices: draft.notices?.length ? draft.notices : fallback.notices,
+        videoScenes: Array.isArray(draft.videoScenes) ? draft.videoScenes : fallback.videoScenes,
+        accidentCases: Array.isArray(draft.accidentCases) ? draft.accidentCases : fallback.accidentCases,
+        focusPoints: Array.isArray(draft.focusPoints) ? draft.focusPoints : fallback.focusPoints,
+        notices: Array.isArray(draft.notices) ? draft.notices : fallback.notices,
         closingCommitment: draft.closingCommitment || fallback.closingCommitment,
     };
 };
@@ -331,22 +331,34 @@ export const buildMonthlyEducationPackageText = (draft: TbmEducationDraft): stri
         draft.opening,
         '',
         '1. 교육 전 5분 핵심 동영상',
-        ...draft.videoScenes.map((scene) => `- ${scene.title} (${scene.seconds}초): ${scene.narration}`),
+        ...(draft.videoScenes.length
+            ? draft.videoScenes.map((scene) => `- ${scene.title} (${scene.seconds}초): ${scene.narration}`)
+            : ['- 관리자 검수에서 동영상 장면표를 제외했습니다. 원페이지 교육자료 중심으로 진행합니다.']),
         '',
         '2. 최근 재해사례와 현장 연관성',
-        `- ${accident?.title || '사례 입력 필요'} (${accidentMeta})`,
-        `- 사례 요약: ${accident?.summary || '관리자 입력 필요'}`,
-        `- 현장 연관성: ${accident?.siteRelevance || '관리자 입력 필요'}`,
-        `- 핵심 교훈: ${accident?.lesson || '관리자 입력 필요'}`,
+        ...(accident
+            ? [
+                `- ${accident.title || '사례 입력 필요'} (${accidentMeta})`,
+                `- 사례 요약: ${accident.summary || '관리자 입력 필요'}`,
+                `- 현장 연관성: ${accident.siteRelevance || '관리자 입력 필요'}`,
+                `- 핵심 교훈: ${accident.lesson || '관리자 입력 필요'}`,
+            ]
+            : ['- 관리자 검수에서 부적합한 재해사례를 제외했습니다. 현장 기록 기반 위험공유로 대체합니다.']),
         '',
         '3. 위험성평가 상등급 공유',
-        ...risksToShare.map((risk) => `- ${risk.risk}: ${risk.action} / 담당 ${risk.owner} / ${risk.managerConfirmed ? '관리자 확인 완료' : '상등급 최종 확인 필요'}`),
+        ...(risksToShare.length
+            ? risksToShare.map((risk) => `- ${risk.risk}: ${risk.action} / 담당 ${risk.owner} / ${risk.managerConfirmed ? '관리자 확인 완료' : '상등급 최종 확인 필요'}`)
+            : ['- 관리자 검수에서 공유 위험 항목을 제외했습니다. 작업 전 현장 조건과 작업중지 기준을 확인합니다.']),
         '',
         '4. 현장 중점관리 포인트',
-        ...draft.focusPoints.map((point) => `- ${point}`),
+        ...(draft.focusPoints.length
+            ? draft.focusPoints.map((point) => `- ${point}`)
+            : ['- 작업구역, 일정, 인원, 장비 조건이 바뀌면 작업 전 다시 확인합니다.']),
         '',
         '5. 공지사항',
-        ...draft.notices.map((notice) => `- ${notice}`),
+        ...(draft.notices.length
+            ? draft.notices.map((notice) => `- ${notice}`)
+            : ['- 별도 공지 없음. 현장 변경사항은 교육 전 최종 확인합니다.']),
         '',
         '[이해 확인 및 행동 약속]',
         ...draft.confirmationQuestions.slice(0, 2).map((question, index) => `Q${index + 1}. ${question}`),

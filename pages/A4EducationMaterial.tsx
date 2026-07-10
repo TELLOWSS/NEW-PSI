@@ -182,6 +182,9 @@ const createFreshStudioState = (
 const updateAt = (items: string[], index: number, value: string): string[] =>
     items.map((item, itemIndex) => itemIndex === index ? value : item);
 
+const removeAt = <T,>(items: T[], index: number): T[] =>
+    items.filter((_, itemIndex) => itemIndex !== index);
+
 interface TbmLocalization {
     headerTitle: string;
     targetLabel: string;
@@ -881,6 +884,14 @@ const buildA4KoreanPrintContent = (draft: TbmEducationDraft, fitMode: A4FitMode)
         managerConfirmed: risk.managerConfirmed,
         priorityPct: Math.max(26, Math.min(100, Math.round(((Number(risk.score) || 1) / maxScore) * 100))),
     }));
+    const printRisks = risks.length ? risks : [{
+        id: 'risk-safe-fallback',
+        risk: '작업 전 재확인',
+        action: compactText('공유 위험 항목은 검수에서 제외되었습니다. 작업 시작 전 현장 조건과 작업중지 기준을 함께 확인합니다.', limits.riskAction),
+        owner: '관리자',
+        managerConfirmed: false,
+        priorityPct: 100,
+    }];
     const hiddenCount = Math.max(0, draft.risks.length - risks.length)
         + Math.max(0, draft.focusPoints.length - 3)
         + Math.max(0, draft.notices.length - 2);
@@ -889,18 +900,28 @@ const buildA4KoreanPrintContent = (draft: TbmEducationDraft, fitMode: A4FitMode)
         accident?.lesson && `교훈: ${accident.lesson}`,
     ].filter(Boolean).join(' ');
     const accidentMeta = [accident?.source, accident?.occurredAt || '발생일 확인 필요'].filter(Boolean).join(' · ');
+    const focusSource = draft.focusPoints.length
+        ? draft.focusPoints
+        : [
+            '작업구역, 일정, 인원, 장비 조건이 바뀌면 작업 전 다시 확인합니다.',
+            '위험요인이 보이면 제거, 차단, 보호구 순서로 조치하고 불가능하면 멈춥니다.',
+            '동료가 놓친 위험도 함께 확인하고 관리자에게 즉시 공유합니다.',
+        ];
+    const noticeSource = draft.notices.length
+        ? draft.notices
+        : ['별도 공지 없음. 현장 변경사항은 교육 전 최종 확인합니다.'];
 
     return {
         title: compactText(draft.title, limits.title),
         opening: compactText(draft.opening, limits.opening),
         coreMessage: compactText(draft.coreMessage, limits.coreMessage),
-        videoSummary: compactText(draft.videoScenes.map((scene) => scene.title).join(' → '), limits.videoSummary),
-        accidentTitle: compactText(accident?.title || '최근 재해사례 입력 필요', limits.accidentTitle),
-        accidentBody: compactText(accidentBodySource || accident?.summary || '현장 유사 사례를 확인해 교육 전에 입력합니다.', limits.accidentBody),
-        accidentMeta,
-        risks,
-        focusPoints: compactLines(draft.focusPoints, 3, limits.focus),
-        notices: compactLines(draft.notices, 2, limits.notice),
+        videoSummary: compactText(draft.videoScenes.map((scene) => scene.title).join(' → ') || '원페이지 자료 중심으로 핵심 위험과 작업중지 기준을 공유합니다.', limits.videoSummary),
+        accidentTitle: compactText(accident?.title || '현장 기록 기반 위험공유', limits.accidentTitle),
+        accidentBody: compactText(accidentBodySource || accident?.summary || '부적합한 사례는 제외하고, 이번 기록에서 확인된 위험 신호와 실천 조치만 전달합니다.', limits.accidentBody),
+        accidentMeta: accident ? accidentMeta : '관리자 검수 반영',
+        risks: printRisks,
+        focusPoints: compactLines(focusSource, 3, limits.focus),
+        notices: compactLines(noticeSource, 2, limits.notice),
         questions: compactLines(draft.confirmationQuestions, 2, limits.question),
         closingCommitment: compactText(draft.closingCommitment, limits.commitment),
         hiddenCount,
@@ -1145,6 +1166,50 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                 ? `AI 초안과 다국어 결과 ${translationCount}개를 반영했습니다. 5단계 내용을 검수해 주세요.`
                 : 'AI 초안을 반영했습니다. 5단계 내용을 검수해 주세요.',
         );
+    };
+
+    const markPackageDraftChanged = (
+        nextDraft: TbmEducationDraft | ((currentDraft: TbmEducationDraft) => TbmEducationDraft),
+        message: string,
+    ) => {
+        setDraft((currentDraft) => (
+            typeof nextDraft === 'function' ? nextDraft(currentDraft) : nextDraft
+        ));
+        setTranslatedTexts({});
+        setTranslationSourceText('');
+        setNotice(`${message} 기존 다국어 번역은 현재 초안과 달라질 수 있어 비웠습니다.`);
+    };
+
+    const buildCurrentFallbackDraft = () => buildTbmEducationDraft({
+        workerRecords,
+        sources,
+        month: educationMonth,
+        workType,
+        coreMessage: draft.coreMessage,
+    });
+
+    const restoreVideoScenes = () => {
+        const fallback = buildCurrentFallbackDraft();
+        markPackageDraftChanged((currentDraft) => ({ ...currentDraft, videoScenes: fallback.videoScenes }), '기본 5분 동영상 장면표를 다시 채웠습니다.');
+    };
+
+    const restoreAccidentCase = () => {
+        const fallback = buildCurrentFallbackDraft();
+        markPackageDraftChanged((currentDraft) => ({ ...currentDraft, accidentCases: fallback.accidentCases }), '최근 재해사례 입력칸을 다시 열었습니다.');
+    };
+
+    const addFocusPoint = () => {
+        markPackageDraftChanged((currentDraft) => ({
+            ...currentDraft,
+            focusPoints: [...currentDraft.focusPoints, '작업 전 현장 조건과 안전조치 확인사항을 입력하세요.'],
+        }), '현장 중점관리 포인트를 추가했습니다.');
+    };
+
+    const addNotice = () => {
+        markPackageDraftChanged((currentDraft) => ({
+            ...currentDraft,
+            notices: [...currentDraft.notices, '교육 전 근로자에게 공유할 현장 공지사항을 입력하세요.'],
+        }), '공지사항을 추가했습니다.');
     };
 
     const captureSheet = async () => {
@@ -1455,11 +1520,33 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                     </section>
 
                     <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-                        <h3 className="text-lg font-black">1. 교육 전 5분 핵심 동영상 구성</h3>
-                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">무료 운영을 위해 MP4 자동 생성 대신 촬영·편집에 바로 쓰는 장면표와 내레이션을 만듭니다.</p>
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <h3 className="text-lg font-black">1. 교육 전 5분 핵심 동영상 구성</h3>
+                                <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">맞지 않는 AI 장면은 제외하세요. 출력지는 남은 핵심 장면 또는 원페이지 교육 중심으로 자동 재배치됩니다.</p>
+                            </div>
+                            {draft.videoScenes.length === 0 && (
+                                <button type="button" onClick={restoreVideoScenes} className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-800 hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
+                                    기본 장면 다시 채우기
+                                </button>
+                            )}
+                        </div>
                         <div className="mt-4 space-y-3">
                             {draft.videoScenes.map((scene, index) => (
                                 <article key={scene.id} className="grid gap-3 rounded-xl bg-slate-50 p-4 dark:bg-slate-800 md:grid-cols-[90px_1fr_1fr]">
+                                    <div className="flex items-center justify-between gap-3 md:col-span-3">
+                                        <span className="rounded-full bg-blue-100 px-3 py-1 text-[11px] font-black text-blue-800 dark:bg-blue-500/20 dark:text-blue-200">장면 {index + 1}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => markPackageDraftChanged((currentDraft) => ({
+                                                ...currentDraft,
+                                                videoScenes: currentDraft.videoScenes.filter((item) => item.id !== scene.id),
+                                            }), '선택한 동영상 장면을 교육자료에서 제외했습니다.')}
+                                            className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-black text-rose-600 hover:bg-rose-50 dark:border-rose-500/30 dark:bg-slate-900 dark:text-rose-300"
+                                        >
+                                            이 장면 제외
+                                        </button>
+                                    </div>
                                     <label className="text-xs font-black">장면 {index + 1} 시간
                                         <input type="number" min={5} value={scene.seconds} onChange={(event) => setDraft({ ...draft, videoScenes: draft.videoScenes.map((item) => item.id === scene.id ? { ...item, seconds: Number(event.target.value) } : item) })} className="mt-2 w-full rounded-lg border px-2 py-2" />
                                     </label>
@@ -1472,12 +1559,35 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                     </label>
                                 </article>
                             ))}
+                            {draft.videoScenes.length === 0 && (
+                                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm font-bold text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                    동영상 장면표가 제외되었습니다. A4 자료에는 원페이지 교육 중심 문구로 자동 대체됩니다.
+                                </div>
+                            )}
                         </div>
                     </section>
 
                     <section className="grid gap-4 lg:grid-cols-2">
                         <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-                            <h3 className="text-lg font-black">2. 최근 재해사례와 현장 연관성</h3>
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                    <h3 className="text-lg font-black">2. 최근 재해사례와 현장 연관성</h3>
+                                    <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">출처가 불명확하거나 현장과 맞지 않는 사례는 제외하고 현장 기록 기반 교육으로 대체합니다.</p>
+                                </div>
+                                {draft.accidentCases.length === 0 ? (
+                                    <button type="button" onClick={restoreAccidentCase} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800 hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                                        사례 다시 추가
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => markPackageDraftChanged((currentDraft) => ({ ...currentDraft, accidentCases: [] }), '최근 재해사례를 교육자료에서 제외했습니다.')}
+                                        className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-black text-rose-600 hover:bg-rose-50 dark:border-rose-500/30 dark:bg-slate-900 dark:text-rose-300"
+                                    >
+                                        이 사례 제외
+                                    </button>
+                                )}
+                            </div>
                             {draft.accidentCases.slice(0, 1).map((item) => (
                                 <div key={item.id} className="mt-4 grid gap-3">
                                     <input value={item.title} onChange={(event) => setDraft({ ...draft, accidentCases: [{ ...item, title: event.target.value }] })} aria-label="최근 재해사례 제목" placeholder="사례 제목" className="rounded-xl border px-3 py-3 font-bold" />
@@ -1491,6 +1601,11 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                     {(!item.occurredAt || !item.source || item.source === '관리자 확인 필요') && <p className="text-xs font-black text-amber-700 dark:text-amber-300">발생일과 공식 출처를 확인하기 전에는 실제 사례로 확정 표시하지 않습니다.</p>}
                                 </div>
                             ))}
+                            {draft.accidentCases.length === 0 && (
+                                <div className="mt-4 rounded-xl border border-dashed border-amber-300 bg-amber-50 p-5 text-sm font-bold leading-6 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                                    재해사례가 제외되었습니다. A4 자료에는 부정확한 사례 대신 “현장 기록 기반 위험공유” 카드가 표시됩니다.
+                                </div>
+                            )}
                         </div>
 
                         <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
@@ -1513,7 +1628,10 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                 </label>
                                                 <button
                                                     type="button"
-                                                    onClick={() => setDraft({ ...draft, risks: draft.risks.filter((risk) => risk.id !== item.id) })}
+                                                    onClick={() => markPackageDraftChanged((currentDraft) => ({
+                                                        ...currentDraft,
+                                                        risks: currentDraft.risks.filter((risk) => risk.id !== item.id),
+                                                    }), `${item.risk || '위험요인'} 항목을 교육자료에서 제외했습니다.`)}
                                                     className="text-xs font-bold text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300"
                                                 >
                                                     제외
@@ -1548,7 +1666,10 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                             owner: '담당자 지정 필요',
                                             managerConfirmed: true,
                                         };
-                                        setDraft({ ...draft, risks: [...draft.risks, newRisk] });
+                                        markPackageDraftChanged((currentDraft) => ({
+                                            ...currentDraft,
+                                            risks: [...currentDraft.risks, newRisk],
+                                        }), '새 위험요인을 추가했습니다.');
                                     }}
                                     className="min-h-10 w-full rounded-xl border border-dashed border-slate-300 hover:border-slate-400 text-xs font-black text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
                                 >
@@ -1560,12 +1681,64 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
 
                     <section className="grid gap-4 lg:grid-cols-2">
                         <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-                            <h3 className="text-lg font-black">4. 현장 중점관리 포인트</h3>
-                            <div className="mt-3 space-y-2">{draft.focusPoints.map((item, index) => <textarea key={index} value={item} onChange={(event) => setDraft({ ...draft, focusPoints: updateAt(draft.focusPoints, index, event.target.value) })} rows={2} aria-label={`현장 중점관리 포인트 ${index + 1}`} className="w-full rounded-xl border p-3 text-sm" />)}</div>
+                            <div className="flex items-center justify-between gap-3">
+                                <h3 className="text-lg font-black">4. 현장 중점관리 포인트</h3>
+                                <button type="button" onClick={addFocusPoint} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+                                    포인트 추가
+                                </button>
+                            </div>
+                            <div className="mt-3 space-y-2">
+                                {draft.focusPoints.map((item, index) => (
+                                    <div key={index} className="grid gap-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-800 sm:grid-cols-[1fr_auto]">
+                                        <textarea value={item} onChange={(event) => setDraft({ ...draft, focusPoints: updateAt(draft.focusPoints, index, event.target.value) })} rows={2} aria-label={`현장 중점관리 포인트 ${index + 1}`} className="w-full rounded-xl border p-3 text-sm" />
+                                        <button
+                                            type="button"
+                                            onClick={() => markPackageDraftChanged((currentDraft) => ({
+                                                ...currentDraft,
+                                                focusPoints: removeAt(currentDraft.focusPoints, index),
+                                            }), `현장 중점관리 포인트 ${index + 1}번을 제외했습니다.`)}
+                                            className="min-h-10 rounded-xl border border-rose-200 bg-white px-3 text-xs font-black text-rose-600 hover:bg-rose-50 dark:border-rose-500/30 dark:bg-slate-900 dark:text-rose-300"
+                                        >
+                                            제외
+                                        </button>
+                                    </div>
+                                ))}
+                                {draft.focusPoints.length === 0 && (
+                                    <p className="rounded-xl border border-dashed border-emerald-300 bg-emerald-50 p-4 text-sm font-bold leading-6 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100">
+                                        중점관리 포인트가 제외되었습니다. A4 자료에는 작업 전 변경사항 확인 등 공통 안전 포인트가 자동 배치됩니다.
+                                    </p>
+                                )}
+                            </div>
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-                            <h3 className="text-lg font-black">5. 공지사항</h3>
-                            <div className="mt-3 space-y-2">{draft.notices.map((item, index) => <textarea key={index} value={item} onChange={(event) => setDraft({ ...draft, notices: updateAt(draft.notices, index, event.target.value) })} rows={2} aria-label={`공지사항 ${index + 1}`} className="w-full rounded-xl border p-3 text-sm" />)}</div>
+                            <div className="flex items-center justify-between gap-3">
+                                <h3 className="text-lg font-black">5. 공지사항</h3>
+                                <button type="button" onClick={addNotice} className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-black text-violet-800 hover:bg-violet-100 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-200">
+                                    공지 추가
+                                </button>
+                            </div>
+                            <div className="mt-3 space-y-2">
+                                {draft.notices.map((item, index) => (
+                                    <div key={index} className="grid gap-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-800 sm:grid-cols-[1fr_auto]">
+                                        <textarea value={item} onChange={(event) => setDraft({ ...draft, notices: updateAt(draft.notices, index, event.target.value) })} rows={2} aria-label={`공지사항 ${index + 1}`} className="w-full rounded-xl border p-3 text-sm" />
+                                        <button
+                                            type="button"
+                                            onClick={() => markPackageDraftChanged((currentDraft) => ({
+                                                ...currentDraft,
+                                                notices: removeAt(currentDraft.notices, index),
+                                            }), `공지사항 ${index + 1}번을 제외했습니다.`)}
+                                            className="min-h-10 rounded-xl border border-rose-200 bg-white px-3 text-xs font-black text-rose-600 hover:bg-rose-50 dark:border-rose-500/30 dark:bg-slate-900 dark:text-rose-300"
+                                        >
+                                            제외
+                                        </button>
+                                    </div>
+                                ))}
+                                {draft.notices.length === 0 && (
+                                    <p className="rounded-xl border border-dashed border-violet-300 bg-violet-50 p-4 text-sm font-bold leading-6 text-violet-900 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-100">
+                                        공지사항이 제외되었습니다. A4 자료에는 “별도 공지 없음, 현장 변경사항 최종 확인” 문구가 간결하게 표시됩니다.
+                                    </p>
+                                )}
+                            </div>
                         </div>
                     </section>
 
