@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import type { MonthlyGuidanceReport as GuidanceData, SixMetricBreakdown, WorkerRecord } from '../types';
+import { FieldRadarChart } from '../components/charts/FieldRadarChart';
 import { buildMonthlyCoreMetricSeries } from '../utils/coreMetrics';
 
 interface Props { workerRecords: WorkerRecord[]; }
@@ -249,6 +250,7 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords }) => {
     const months = useMemo(() => [...new Set([...workerRecords.map((r) => monthKey(r.date)).filter(Boolean), defaultMonth(workerRecords)])].sort().reverse(), [workerRecords]);
     const [assessmentMonth, setAssessmentMonth] = useState(() => defaultMonth(workerRecords));
     const [educationMonth, setEducationMonth] = useState(() => shiftMonth(defaultMonth(workerRecords), 1));
+    const [radarMode, setRadarMode] = useState<'field' | 'team'>('field');
     const [showQr, setShowQr] = useState(false);
     const records = useMemo(() => workerRecords.filter((r) => monthKey(r.date) === assessmentMonth), [workerRecords, assessmentMonth]);
     const previous = useMemo(() => workerRecords.filter((r) => monthKey(r.date) === shiftMonth(assessmentMonth, -1)), [workerRecords, assessmentMonth]);
@@ -301,6 +303,56 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords }) => {
             <header className="border-b border-slate-200 pb-5"><p className="text-xs font-black text-indigo-600">{monthLabel(assessmentMonth)} 작성자료 기반</p><div className="mt-1 flex flex-wrap items-center justify-between gap-3"><h2 className="text-2xl font-black text-slate-950">{monthLabel(educationMonth)} 월별 계도 리포트</h2><span className="rounded-full bg-emerald-100 px-4 py-2 text-xs font-black text-emerald-800">실명·개인별 수치 제거 완료</span></div><p className="mt-2 text-sm font-semibold text-slate-600">{report.overallSummary}</p></header>
             <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[['분석 건수', `${report.analyzedRecords}건`], ['참여 인원', `${report.totalWorkers}명`], ['가장 많이 나온 위험', report.topRiskFactors[0]?.riskName || '분석자료 없음'], ['가장 약한 지표', weakest?.label || '분석자료 없음']].map(([k, v]) => <div key={k} className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-bold text-slate-500">{k}</p><p className="mt-2 text-lg font-black text-slate-900">{v}</p></div>)}</section>
             <TrackingAnalysisPanel report={report} monthlyPoints={monthlyChartPoints} delta={monthlyDelta} />
+            <section data-monthly-guidance="group-radar" className="rounded-2xl border border-indigo-100 bg-white p-5">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <p className="text-xs font-black text-indigo-700">공종·팀 레이더 분석</p>
+                        <h3 className="mt-1 text-lg font-black text-slate-950">위험인식 신호와 응답 일관성 비교</h3>
+                        <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">
+                            메뉴 리뉴얼 전 제공되던 레이더차트를 월별 추적자료에 다시 연결했습니다. 공종별 흐름과 팀별 편차를 같은 화면에서 전환해 확인합니다.
+                        </p>
+                    </div>
+                    <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1">
+                        {[
+                            ['field', '공종별'],
+                            ['team', '팀별'],
+                        ].map(([mode, label]) => (
+                            <button
+                                key={mode}
+                                type="button"
+                                onClick={() => setRadarMode(mode as 'field' | 'team')}
+                                className={`min-h-10 rounded-xl px-4 text-sm font-black transition ${
+                                    radarMode === mode
+                                        ? 'bg-slate-950 text-white shadow-sm'
+                                        : 'text-slate-600 hover:bg-white'
+                                }`}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <div className="mt-4 grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
+                    <div className="h-[320px] rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                        <FieldRadarChart records={records} mode={radarMode} />
+                    </div>
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                        <p className="text-xs font-black text-slate-700">해석 기준</p>
+                        <div className="mt-3 space-y-3">
+                            {[
+                                ['평균 위험인식 신호', '작성된 위험성평가 기록의 평균 흐름입니다. 낮은 축은 다음 교육의 우선 보강 대상입니다.'],
+                                ['응답 일관성 지수', '같은 공종·팀 안에서 응답 편차가 큰지 확인합니다. 편차가 크면 교육 전달 방식이나 작업 이해도 차이를 점검합니다.'],
+                                [radarMode === 'team' ? '팀별 비교' : '공종별 비교', radarMode === 'team' ? '팀장 기준으로 묶어 팀별 편차를 봅니다. 팀명이 없으면 분석에서 제외됩니다.' : '공종 기준으로 묶어 어떤 작업군에 교육 보강이 필요한지 봅니다.'],
+                            ].map(([title, body]) => (
+                                <div key={title} className="rounded-xl bg-white px-3 py-3">
+                                    <p className="text-sm font-black text-slate-900">{title}</p>
+                                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{body}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </section>
             <section className="grid gap-5 lg:grid-cols-2">
                 <ReportBox title="많이 나온 위험요소 TOP5">{report.topRiskFactors.length ? report.topRiskFactors.map((risk, i) => <div key={risk.riskName} className="rounded-xl bg-slate-50 p-3"><div className="flex justify-between gap-3"><p className="font-black">{i + 1}. {risk.riskName}</p><b className="text-rose-700">{risk.count}건</b></div><p className="mt-1 text-xs font-bold text-slate-500">{risk.relatedWorkTypes.join(' · ')}</p><p className="mt-2 text-sm font-semibold text-slate-700">{risk.guidanceMessage}</p></div>) : <Empty />}</ReportBox>
                 <ReportBox title="반복지적 개선관리">{report.repeatedIssues.length ? report.repeatedIssues.map((issue) => <div key={issue.issueName} className="rounded-xl border border-slate-100 p-3"><div className="flex justify-between gap-3"><b>{issue.issueName}</b><span className="text-xs font-black text-amber-700">{issue.previousCount || 0} → {issue.currentCount || 0}</span></div><p className="mt-1 text-xs font-semibold text-slate-600">{issue.guidanceMessage}</p></div>) : <Empty />}</ReportBox>

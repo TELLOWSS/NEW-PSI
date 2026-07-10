@@ -47,6 +47,11 @@ const required = [
   ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, 'data-monthly-guidance="trend-chart"'],
   ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, 'data-monthly-guidance="risk-bars"'],
   ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, 'data-monthly-guidance="metric-bars"'],
+  ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, 'data-monthly-guidance="group-radar"'],
+  ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, 'FieldRadarChart'],
+  ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, '공종·팀 레이더 분석'],
+  ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, '팀별'],
+  ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, '공종별'],
   ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, 'buildMonthlyCoreMetricSeries'],
   ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, '실명·개인별 수치 제거 완료'],
   ['utils/educationReturnSummary.ts', files.summary, 'buildEducationReturnSummary'],
@@ -91,4 +96,4 @@ if (failures.length > 0) {
 }
 
 console.log('[check-education-return-panel-contract] PASS');
-console.log('- Education return center keeps the simple scan-review-educate flow, three output cards, and monthly tracking chart analysis.');
+console.log('- Education return center keeps the simple scan-review-educate flow, three output cards, monthly tracking chart analysis, and group radar analysis.');
