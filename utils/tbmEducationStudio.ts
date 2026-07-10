@@ -72,6 +72,7 @@ export interface TbmMonthlyPackagePayload {
     draft: TbmEducationDraft;
     sourceText: string;
     translatedTexts: Record<string, string>;
+    translationNeedsRefresh?: boolean;
     savedAt: string;
     month: string;
     workType: string;

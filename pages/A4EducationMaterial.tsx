@@ -795,6 +795,34 @@ const normalizePrintText = (value: unknown): string =>
         .replace(/^[•\-–—·*]\s*/, '')
         .trim();
 
+const trimToReadableBoundary = (text: string, maxLength: number): string => {
+    if (text.length <= maxLength) return text;
+    const slice = text.slice(0, Math.max(1, maxLength)).trim();
+    const boundaryCandidates = ['. ', '? ', '! ', '。', '？', '！', ', ', ' · ', ' / ', ' 및 ', ' 또는 ', ' 그리고 ', '하며 ', '하고 '];
+    let cutIndex = -1;
+    for (const boundary of boundaryCandidates) {
+        const found = slice.lastIndexOf(boundary);
+        if (found > Math.floor(maxLength * 0.45)) {
+            cutIndex = Math.max(cutIndex, found + boundary.trimEnd().length);
+        }
+    }
+    if (cutIndex < 0) {
+        const lastSpace = slice.lastIndexOf(' ');
+        if (lastSpace > Math.floor(maxLength * 0.45)) cutIndex = lastSpace;
+    }
+    return (cutIndex > 0 ? slice.slice(0, cutIndex) : slice).replace(/[,.，、;；:：·/\-–—]+$/, '').trim();
+};
+
+const finishCompactSentence = (text: string, maxLength: number): string => {
+    const cleaned = text.replace(/[,.，、;；:：·/\-–—]+$/, '').trim();
+    if (!cleaned) return '';
+    if (/[.!?。！？]$/.test(cleaned)) return cleaned.length <= maxLength ? cleaned : trimToReadableBoundary(cleaned, maxLength);
+    const suffix = '.';
+    if (cleaned.length + suffix.length <= maxLength) return `${cleaned}${suffix}`;
+    const trimmed = trimToReadableBoundary(cleaned, Math.max(1, maxLength - suffix.length));
+    return trimmed ? `${trimmed.replace(/[,.，、;；:：·/\-–—]+$/, '').trim()}${suffix}` : cleaned.slice(0, maxLength);
+};
+
 const compactText = (value: unknown, maxLength: number): string => {
     const text = normalizePrintText(value);
     if (text.length <= maxLength) return text;
@@ -808,8 +836,8 @@ const compactText = (value: unknown, maxLength: number): string => {
         if (next.length > maxLength) break;
         output = next;
     }
-    if (!output) output = text.slice(0, Math.max(0, maxLength - 3)).trim();
-    return output.length < text.length ? `${output.replace(/[,.，、;；:：]$/, '')}...` : output;
+    if (!output) output = trimToReadableBoundary(text, Math.max(1, maxLength - 1));
+    return output.length < text.length ? finishCompactSentence(output, maxLength) : output;
 };
 
 const compactLines = (items: unknown[], maxItems: number, maxLength: number): string[] =>
@@ -817,6 +845,24 @@ const compactLines = (items: unknown[], maxItems: number, maxLength: number): st
         .map((item) => compactText(item, maxLength))
         .filter(Boolean)
         .slice(0, maxItems);
+
+const completeA4Items = (
+    items: unknown[],
+    fallbacks: string[],
+    maxItems: number,
+    maxLength: number,
+): string[] => {
+    const seen = new Set<string>();
+    const completed: string[] = [];
+    for (const item of [...items, ...fallbacks]) {
+        const line = compactText(item, maxLength);
+        if (!line || seen.has(line)) continue;
+        seen.add(line);
+        completed.push(line);
+        if (completed.length >= maxItems) break;
+    }
+    return completed;
+};
 
 const getTranslationLines = (text: string, maxItems: number, maxLength: number): string[] =>
     compactLines(
@@ -884,14 +930,40 @@ const buildA4KoreanPrintContent = (draft: TbmEducationDraft, fitMode: A4FitMode)
         managerConfirmed: risk.managerConfirmed,
         priorityPct: Math.max(26, Math.min(100, Math.round(((Number(risk.score) || 1) / maxScore) * 100))),
     }));
-    const printRisks = risks.length ? risks : [{
+    const supplementalRisks = [
+        {
+            id: 'risk-safe-fallback-conditions',
+            risk: '작업 전 조건 확인',
+            action: compactText('작업 장소, 장비, 인원, 동선이 교육 내용과 맞는지 시작 전에 함께 확인합니다.', limits.riskAction),
+            owner: '작업팀',
+            managerConfirmed: false,
+            priorityPct: 72,
+        },
+        {
+            id: 'risk-safe-fallback-stop',
+            risk: '위험 발견 시 정지',
+            action: compactText('예정과 다른 위험이 보이면 작업을 멈추고 관리자 확인 후 다시 시작합니다.', limits.riskAction),
+            owner: '관리자',
+            managerConfirmed: false,
+            priorityPct: 64,
+        },
+        {
+            id: 'risk-safe-fallback-ppe',
+            risk: '보호구 재확인',
+            action: compactText('안전모, 안전화, 안전대 등 필수 보호구 착용 상태를 서로 확인합니다.', limits.riskAction),
+            owner: '전 근로자',
+            managerConfirmed: false,
+            priorityPct: 58,
+        },
+    ];
+    const printRisks = risks.length ? [...risks, ...supplementalRisks].slice(0, 3) : [{
         id: 'risk-safe-fallback',
         risk: '작업 전 재확인',
         action: compactText('공유 위험 항목은 검수에서 제외되었습니다. 작업 시작 전 현장 조건과 작업중지 기준을 함께 확인합니다.', limits.riskAction),
         owner: '관리자',
         managerConfirmed: false,
         priorityPct: 100,
-    }];
+    }, ...supplementalRisks].slice(0, 3);
     const hiddenCount = Math.max(0, draft.risks.length - risks.length)
         + Math.max(0, draft.focusPoints.length - 3)
         + Math.max(0, draft.notices.length - 2);
@@ -900,16 +972,19 @@ const buildA4KoreanPrintContent = (draft: TbmEducationDraft, fitMode: A4FitMode)
         accident?.lesson && `교훈: ${accident.lesson}`,
     ].filter(Boolean).join(' ');
     const accidentMeta = [accident?.source, accident?.occurredAt || '발생일 확인 필요'].filter(Boolean).join(' · ');
-    const focusSource = draft.focusPoints.length
-        ? draft.focusPoints
-        : [
-            '작업구역, 일정, 인원, 장비 조건이 바뀌면 작업 전 다시 확인합니다.',
-            '위험요인이 보이면 제거, 차단, 보호구 순서로 조치하고 불가능하면 멈춥니다.',
-            '동료가 놓친 위험도 함께 확인하고 관리자에게 즉시 공유합니다.',
-        ];
-    const noticeSource = draft.notices.length
-        ? draft.notices
-        : ['별도 공지 없음. 현장 변경사항은 교육 전 최종 확인합니다.'];
+    const focusFallbacks = [
+        '작업구역, 일정, 인원, 장비 조건이 바뀌면 작업 전 다시 확인합니다.',
+        '위험요인이 보이면 제거, 차단, 보호구 순서로 조치하고 불가능하면 멈춥니다.',
+        '동료가 놓친 위험도 함께 확인하고 관리자에게 즉시 공유합니다.',
+    ];
+    const noticeFallbacks = [
+        '별도 공지 없음. 현장 변경사항은 교육 전 최종 확인합니다.',
+        '교육 후 실제 작업조건이 다르면 관리자 확인 전까지 임의 작업을 금지합니다.',
+    ];
+    const questionFallbacks = [
+        '오늘 작업에서 즉시 멈춰야 할 위험 신호는 무엇입니까?',
+        '위험을 발견하면 누구에게 바로 알리고 확인받아야 합니까?',
+    ];
 
     return {
         title: compactText(draft.title, limits.title),
@@ -920,10 +995,10 @@ const buildA4KoreanPrintContent = (draft: TbmEducationDraft, fitMode: A4FitMode)
         accidentBody: compactText(accidentBodySource || accident?.summary || '부적합한 사례는 제외하고, 이번 기록에서 확인된 위험 신호와 실천 조치만 전달합니다.', limits.accidentBody),
         accidentMeta: accident ? accidentMeta : '관리자 검수 반영',
         risks: printRisks,
-        focusPoints: compactLines(focusSource, 3, limits.focus),
-        notices: compactLines(noticeSource, 2, limits.notice),
-        questions: compactLines(draft.confirmationQuestions, 2, limits.question),
-        closingCommitment: compactText(draft.closingCommitment, limits.commitment),
+        focusPoints: completeA4Items(draft.focusPoints, focusFallbacks, 3, limits.focus),
+        notices: completeA4Items(draft.notices, noticeFallbacks, 2, limits.notice),
+        questions: completeA4Items(draft.confirmationQuestions, questionFallbacks, 2, limits.question),
+        closingCommitment: compactText(draft.closingCommitment || '교육 내용을 지키고 위험을 발견하면 즉시 멈추겠습니다.', limits.commitment),
         hiddenCount,
     };
 };
@@ -1014,6 +1089,18 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         () => buildA4KoreanPrintContent(draft, a4FitMode),
         [draft, a4FitMode],
     );
+    const currentTranslationSourceText = useMemo(
+        () => buildMonthlyEducationPackageText(draft),
+        [draft],
+    );
+    const translationLanguageCodes = useMemo(
+        () => Object.entries(translatedTexts)
+            .filter(([code, text]) => code !== '__quality__' && Boolean(text))
+            .map(([code]) => code),
+        [translatedTexts],
+    );
+    const translationNeedsRefresh = translationLanguageCodes.length > 0
+        && translationSourceText !== currentTranslationSourceText;
 
     const applyStudioState = (nextState: StoredStudioState) => {
         setEducationMonth(nextState.educationMonth);
@@ -1131,12 +1218,13 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     };
 
     const sendToTraining = () => {
-        const sourceText = buildMonthlyEducationPackageText(draft);
-        const translationsMatchCurrentDraft = translationSourceText === sourceText;
+        const sourceText = currentTranslationSourceText;
+        const translationsMatchCurrentDraft = !translationNeedsRefresh;
         const payload: TbmMonthlyPackagePayload = {
             draft,
             sourceText,
             translatedTexts: translationsMatchCurrentDraft ? translatedTexts : {},
+            translationNeedsRefresh,
             savedAt: new Date().toISOString(),
             month: draft.month,
             workType: draft.workType,
@@ -1145,9 +1233,9 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         };
         localStorage.setItem(TBM_MONTHLY_PACKAGE_STORAGE_KEY, JSON.stringify(payload));
         setNotice(
-            translationsMatchCurrentDraft || Object.keys(translatedTexts).length === 0
+            translationsMatchCurrentDraft || translationLanguageCodes.length === 0
                 ? '5단계 교육 원문을 QR/음성 파일럿 화면에 전달했습니다.'
-                : '한국어 초안이 수정되어 기존 AI 번역은 제외했습니다. 배포 단계에서 현재 원문 기준으로 번역합니다.',
+                : '한국어 초안이 수정되어 기존 AI 번역은 배포용에서 제외했습니다. QR/음성 생성 단계에서 현재 원문 기준으로 다시 번역합니다.',
         );
         onOpenTraining?.();
     };
@@ -1175,9 +1263,8 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         setDraft((currentDraft) => (
             typeof nextDraft === 'function' ? nextDraft(currentDraft) : nextDraft
         ));
-        setTranslatedTexts({});
         setTranslationSourceText('');
-        setNotice(`${message} 기존 다국어 번역은 현재 초안과 달라질 수 있어 비웠습니다.`);
+        setNotice(`${message} 기존 다국어 탭은 대조용으로 유지했습니다. 외국인 근로자 배포 전 현재 1장 기준으로 번역을 다시 생성해 주세요.`);
     };
 
     const buildCurrentFallbackDraft = () => buildTbmEducationDraft({
@@ -1847,6 +1934,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                     >
                                         <CountryFlag code={code} />
                                         {TRAINING_LANGUAGE_LABELS[code as keyof typeof TRAINING_LANGUAGE_LABELS] || code}
+                                        {translationNeedsRefresh && <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] text-amber-800">갱신</span>}
                                     </button>
                                 );
                             })}
@@ -1881,6 +1969,19 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                         )}
                     </div>
 
+                    {translationNeedsRefresh && (
+                        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-950 no-print dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                            <span>5단계 검수로 한국어 원문이 바뀌었습니다. 외국인 근로자 배포 전 현재 한 장 기준으로 다국어 번역을 다시 생성하세요.</span>
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('ai')}
+                                className="rounded-xl bg-amber-600 px-4 py-2 text-xs font-black text-white hover:bg-amber-700"
+                            >
+                                다국어 재생성 단계로 이동
+                            </button>
+                        </div>
+                    )}
+
                     <article ref={sheetRef} data-report-template-root="true" className="mx-auto w-[210mm] max-w-full bg-white text-slate-900 shadow-2xl">
                         <div
                             data-report-page="true"
@@ -1913,7 +2014,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                 <p className="mt-1 text-sm font-black">{draft.workType}</p>
                                             </div>
                                         </div>
-                                        <p className="mt-2 line-clamp-2 text-[12px] font-semibold leading-5 text-slate-600">{a4KoreanPrint.opening}</p>
+                                        <p className="mt-2 text-[12px] font-semibold leading-5 text-slate-600">{a4KoreanPrint.opening}</p>
                                     </header>
 
                                     <section className={`mt-3 shrink-0 rounded-2xl bg-blue-950 text-white ${a4FitMode === 'dense' ? 'p-3' : 'p-4'}`}>
@@ -1922,7 +2023,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                             <span className="rounded-full bg-white/15 px-2.5 py-1 text-[9px] font-black">{a4FitInfo.label}</span>
                                         </div>
                                         <p
-                                            className="mt-1.5 line-clamp-2 font-black"
+                                            className="mt-1.5 font-black"
                                             style={{
                                                 fontSize: a4FitMode === 'dense' ? '16px' : a4FitMode === 'compact' ? '18px' : '20px',
                                                 lineHeight: a4FitMode === 'dense' ? '23px' : '28px',
@@ -1936,13 +2037,13 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                         <article className={`rounded-2xl border border-blue-200 bg-blue-50 ${a4FitMode === 'dense' ? 'p-3' : 'p-4'}`}>
                                             <p className="text-[10px] font-black text-blue-700">1. 교육 전 5분 핵심 동영상</p>
                                             <h2 className="mt-1 text-base font-black">총 {Math.floor(videoDuration / 60)}분 {videoDuration % 60}초 · {draft.videoScenes.length}장면</h2>
-                                            <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-700">{a4KoreanPrint.videoSummary}</p>
+                                            <p className="mt-2 text-xs font-semibold leading-5 text-slate-700">{a4KoreanPrint.videoSummary}</p>
                                         </article>
                                         <article className={`rounded-2xl border border-amber-200 bg-amber-50 ${a4FitMode === 'dense' ? 'p-3' : 'p-4'}`}>
                                             <p className="text-[10px] font-black text-amber-700">2. 최근 재해사례와 현장 연관성</p>
-                                            <h2 className="mt-1 line-clamp-1 text-base font-black">{a4KoreanPrint.accidentTitle}</h2>
-                                            <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-700">{a4KoreanPrint.accidentBody}</p>
-                                            <p className="mt-1 truncate text-[10px] font-bold text-amber-800">출처: {a4KoreanPrint.accidentMeta}</p>
+                                            <h2 className="mt-1 text-base font-black">{a4KoreanPrint.accidentTitle}</h2>
+                                            <p className="mt-2 text-xs font-semibold leading-5 text-slate-700">{a4KoreanPrint.accidentBody}</p>
+                                            <p className="mt-1 text-[10px] font-bold text-amber-800">출처: {a4KoreanPrint.accidentMeta}</p>
                                         </article>
                                     </section>
 
@@ -1955,14 +2056,14 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                             {a4KoreanPrint.risks.map((item, index) => (
                                                 <article key={item.id} className={`rounded-xl border border-rose-200 bg-white ${a4FitMode === 'dense' ? 'p-2.5' : 'p-3'}`}>
                                                     <div className="flex items-center justify-between gap-2">
-                                                        <h3 className="truncate text-sm font-black"><span className="mr-1 text-rose-600">TOP{index + 1}</span>{item.risk}</h3>
+                                                        <h3 className="text-sm font-black leading-tight"><span className="mr-1 text-rose-600">TOP{index + 1}</span>{item.risk}</h3>
                                                         <span className={`rounded px-2 py-1 text-[9px] font-black ${item.managerConfirmed ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-600'}`}>{item.managerConfirmed ? '상등급 확인' : '확인 필요'}</span>
                                                     </div>
                                                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-rose-100">
                                                         <div className="h-full rounded-full bg-rose-500" style={{ width: `${item.priorityPct}%` }} />
                                                     </div>
-                                                    <p className="mt-2 line-clamp-3 text-[10px] font-semibold leading-4 text-slate-600">{item.action}</p>
-                                                    <p className="mt-2 truncate text-[9px] font-bold text-slate-500">담당: {item.owner}</p>
+                                                    <p className="mt-2 text-[10px] font-semibold leading-4 text-slate-600">{item.action}</p>
+                                                    <p className="mt-2 text-[9px] font-bold text-slate-500">담당: {item.owner}</p>
                                                 </article>
                                             ))}
                                         </div>
@@ -1997,7 +2098,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                             </div>
                                             <div>
                                                 <h2 className="text-xs font-black text-orange-900">행동 약속</h2>
-                                                <p className="mt-1 line-clamp-2 text-[10px] font-bold leading-4 text-orange-900">{a4KoreanPrint.closingCommitment}</p>
+                                                <p className="mt-1 text-[10px] font-bold leading-4 text-orange-900">{a4KoreanPrint.closingCommitment}</p>
                                             </div>
                                         </div>
                                     </section>
@@ -2022,7 +2123,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                     <div className="flex flex-col h-full border-r border-slate-200 pr-5">
                                         <header className="border-b-[3px] border-orange-500 pb-3">
                                             <p className="text-[10px] font-black text-blue-700">위험성평가 전파교육 (요약)</p>
-                                            <h2 className="mt-1 line-clamp-2 text-base font-black leading-tight break-keep">{a4KoreanPrint.title}</h2>
+                                            <h2 className="mt-1 text-base font-black leading-tight break-keep">{a4KoreanPrint.title}</h2>
                                             <p className="text-[10px] font-bold text-slate-500 mt-1">대상: {draft.workType} · 월: {educationMonth}</p>
                                         </header>
                                         
@@ -2030,13 +2131,13 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                             <article className="rounded-xl border border-blue-100 bg-blue-50/50 p-2.5">
                                                 <p className="text-[9px] font-black text-blue-700">1. 교육 전 5분 핵심 동영상</p>
                                                 <p className="text-[10px] font-bold mt-1">총 {Math.floor(videoDuration / 60)}분 {videoDuration % 60}초</p>
-                                                <p className="mt-1 truncate text-[9px] leading-normal text-slate-600">{a4KoreanPrint.videoSummary}</p>
+                                                <p className="mt-1 text-[9px] leading-normal text-slate-600">{a4KoreanPrint.videoSummary}</p>
                                             </article>
 
                                             <article className="rounded-xl border border-amber-100 bg-amber-50/50 p-2.5">
                                                 <p className="text-[9px] font-black text-amber-700">2. 최근 재해사례와 현장 연관성</p>
-                                                <p className="mt-1 truncate text-[10px] font-bold">{a4KoreanPrint.accidentTitle}</p>
-                                                <p className="mt-1 line-clamp-2 text-[9px] leading-normal text-slate-600">{a4KoreanPrint.accidentBody}</p>
+                                                <p className="mt-1 text-[10px] font-bold">{a4KoreanPrint.accidentTitle}</p>
+                                                <p className="mt-1 text-[9px] leading-normal text-slate-600">{a4KoreanPrint.accidentBody}</p>
                                             </article>
 
                                             <article className="rounded-xl border border-rose-100 bg-rose-50/50 p-2.5">
@@ -2044,7 +2145,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                 <div className="space-y-1.5 mt-1.5">
                                                     {a4KoreanPrint.risks.map((item) => (
                                                         <div key={item.id} className="text-[9px] leading-normal">
-                                                            <b className="text-slate-800">• {item.risk}</b>: <span className="line-clamp-1 inline">{item.action}</span> <span className="text-slate-400">({item.owner})</span>
+                                                            <b className="text-slate-800">• {item.risk}</b>: <span>{item.action}</span> <span className="text-slate-400">({item.owner})</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -2054,17 +2155,17 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                 <p className="text-[9px] font-black text-emerald-700">4. 현장 중점관리 및 공지사항</p>
                                                 <div className="space-y-1 mt-1 text-[9px] leading-normal text-slate-700">
                                                     {a4KoreanPrint.focusPoints.slice(0, 2).map((item, idx) => (
-                                                        <div key={idx} className="truncate">- {item}</div>
+                                                        <div key={idx}>- {item}</div>
                                                     ))}
                                                     {a4KoreanPrint.notices.slice(0, 1).map((item, idx) => (
-                                                        <div key={idx} className="truncate">- {item}</div>
+                                                        <div key={idx}>- {item}</div>
                                                     ))}
                                                 </div>
                                             </article>
 
                                             <article className="rounded-xl border border-orange-200 bg-orange-50/50 p-2.5">
                                                 <p className="text-[9px] font-black text-orange-800">5. 이해 확인과 행동 약속</p>
-                                                <p className="mt-1 line-clamp-2 text-[9px] font-bold leading-relaxed text-slate-800">{a4KoreanPrint.closingCommitment}</p>
+                                                <p className="mt-1 text-[9px] font-bold leading-relaxed text-slate-800">{a4KoreanPrint.closingCommitment}</p>
                                             </article>
                                         </div>
                                         
@@ -2093,7 +2194,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                                 <CountryFlag code={previewLanguage} />
                                                                 {loc.headerTitle} ({nativeName})
                                                             </p>
-                                                            <h2 className="mt-1 line-clamp-2 text-xs font-black leading-tight text-slate-500 break-keep">{compact.title}</h2>
+                                                            <h2 className="mt-1 text-xs font-black leading-tight text-slate-500 break-keep">{compact.title}</h2>
                                                         </div>
                                                     </header>
                                                     
@@ -2102,7 +2203,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                             <p className="text-[9px] font-black text-blue-700">{loc.videoTitle}</p>
                                                             <div className="space-y-0.5 mt-1">
                                                                 {compact.videoLines.map((line, idx) => (
-                                                                    <p key={idx} className="text-[9.5px] leading-relaxed text-slate-700 truncate">• {line}</p>
+                                                                    <p key={idx} className="text-[9.5px] leading-relaxed text-slate-700">• {line}</p>
                                                                 ))}
                                                             </div>
                                                         </article>
@@ -2111,7 +2212,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                             <p className="text-[9px] font-black text-amber-700">{loc.accidentTitle}</p>
                                                             <div className="space-y-0.5 mt-1">
                                                                 {compact.accidentLines.map((line, idx) => (
-                                                                    <p key={idx} className="line-clamp-2 text-[9.5px] leading-relaxed text-slate-700">• {line}</p>
+                                                                    <p key={idx} className="text-[9.5px] leading-relaxed text-slate-700">• {line}</p>
                                                                 ))}
                                                             </div>
                                                         </article>
@@ -2120,7 +2221,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                             <p className="text-[9px] font-black text-rose-700">{loc.risksTitle}</p>
                                                             <div className="space-y-1 mt-1">
                                                                 {compact.riskLines.map((line, idx) => (
-                                                                    <div key={idx} className="text-[9.5px] leading-normal text-slate-700 line-clamp-2">
+                                                                    <div key={idx} className="text-[9.5px] leading-normal text-slate-700">
                                                                         • {line}
                                                                     </div>
                                                                 ))}
@@ -2131,10 +2232,10 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                             <p className="text-[9px] font-black text-emerald-700">{loc.focusTitle} & {loc.noticeTitle}</p>
                                                             <div className="space-y-1 mt-1 text-[9.5px] leading-normal text-slate-700">
                                                                 {compact.focusLines.map((item, idx) => (
-                                                                    <div key={idx} className="truncate">- {item}</div>
+                                                                    <div key={idx}>- {item}</div>
                                                                 ))}
                                                                 {compact.noticeLines.map((item, idx) => (
-                                                                    <div key={idx} className="truncate">- {item}</div>
+                                                                    <div key={idx}>- {item}</div>
                                                                 ))}
                                                             </div>
                                                         </article>
@@ -2143,7 +2244,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                             <p className="text-[9px] font-black text-orange-800">{loc.pledgeBoxTitle}</p>
                                                             <div className="space-y-0.5 mt-1 text-[9.5px] leading-relaxed text-slate-800 font-semibold">
                                                                 {compact.pledgeLines.slice(-2).map((line, idx) => (
-                                                                    <p key={idx} className="line-clamp-2">{line}</p>
+                                                                    <p key={idx}>{line}</p>
                                                                 ))}
                                                             </div>
                                                         </article>
@@ -2199,7 +2300,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                             <p className="mt-0.5 text-xs font-black">{draft.workType}</p>
                                                         </div>
                                                     </div>
-                                                    <p className="mt-2 line-clamp-2 text-xs font-semibold leading-relaxed text-slate-600">{compact.opening}</p>
+                                                    <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-600">{compact.opening}</p>
                                                 </header>
 
                                                 <section className="mt-3 grid shrink-0 grid-cols-2 gap-3">
@@ -2208,7 +2309,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                         <h2 className="mt-0.5 text-sm font-black text-slate-800">{loc.videoTitle}</h2>
                                                         <div className="mt-2 space-y-1">
                                                             {compact.videoLines.map((line, idx) => (
-                                                                <p key={idx} className="line-clamp-2 text-[10.5px] font-semibold leading-relaxed text-slate-700">• {line}</p>
+                                                                <p key={idx} className="text-[10.5px] font-semibold leading-relaxed text-slate-700">• {line}</p>
                                                             ))}
                                                             {compact.videoLines.length === 0 && <p className="text-[10.5px] text-slate-400">{loc.noVideoScenes}</p>}
                                                         </div>
@@ -2218,7 +2319,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                         <h2 className="mt-0.5 text-sm font-black text-slate-800">{loc.accidentTitle}</h2>
                                                         <div className="mt-2 space-y-1">
                                                             {compact.accidentLines.map((line, idx) => (
-                                                                <p key={idx} className="line-clamp-2 text-[10.5px] font-semibold leading-relaxed text-slate-700">• {line}</p>
+                                                                <p key={idx} className="text-[10.5px] font-semibold leading-relaxed text-slate-700">• {line}</p>
                                                             ))}
                                                             {compact.accidentLines.length === 0 && <p className="text-[10.5px] text-slate-400">{loc.noAccidents}</p>}
                                                         </div>
@@ -2230,7 +2331,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                     <div className="mt-1.5 grid grid-cols-3 gap-3">
                                                         {compact.riskLines.map((line, idx) => (
                                                             <article key={idx} className="rounded-xl border border-rose-200 p-2.5 bg-rose-50/30 flex flex-col justify-between">
-                                                                <p className="line-clamp-4 text-[10px] font-semibold leading-relaxed text-slate-700">{line}</p>
+                                                                <p className="text-[10px] font-semibold leading-relaxed text-slate-700">{line}</p>
                                                             </article>
                                                         ))}
                                                         {compact.riskLines.length === 0 && (
@@ -2246,7 +2347,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                             {compact.focusLines.map((item, index) => (
                                                                 <li key={index} className="flex gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[10px] font-bold leading-relaxed">
                                                                     <b className="text-emerald-700">{index + 1}</b>
-                                                                    <span className="line-clamp-2 text-slate-700">{item}</span>
+                                                                    <span className="text-slate-700">{item}</span>
                                                                 </li>
                                                             ))}
                                                             {compact.focusLines.length === 0 && <li className="text-[10.5px] text-slate-400">{loc.noFocus}</li>}
@@ -2256,7 +2357,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                         <h2 className="text-xs font-black text-violet-700">{loc.noticeTitle}</h2>
                                                         <ul className="mt-1.5 space-y-1">
                                                             {compact.noticeLines.map((notice, index) => (
-                                                                <li key={index} className="line-clamp-2 rounded-lg bg-violet-50 px-2.5 py-1.5 text-[10px] font-bold leading-relaxed text-slate-700">{notice}</li>
+                                                                <li key={index} className="rounded-lg bg-violet-50 px-2.5 py-1.5 text-[10px] font-bold leading-relaxed text-slate-700">{notice}</li>
                                                             ))}
                                                             {compact.noticeLines.length === 0 && <li className="text-[10.5px] text-slate-400">{loc.noNotices}</li>}
                                                         </ul>
@@ -2277,7 +2378,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                         <div>
                                                             <h2 className="text-[10.5px] font-black text-orange-900">{loc.pledgeLabel}</h2>
                                                             {commitmentLines.map((line, index) => (
-                                                                <p key={index} className="mt-0.5 line-clamp-2 text-[10px] font-bold leading-relaxed text-orange-900">{line}</p>
+                                                                <p key={index} className="mt-0.5 text-[10px] font-bold leading-relaxed text-orange-900">{line}</p>
                                                             ))}
                                                             {commitmentLines.length === 0 && (
                                                                 <p className="mt-0.5 text-[10px] font-bold leading-relaxed text-orange-900">{loc.pledgePlaceholder}</p>

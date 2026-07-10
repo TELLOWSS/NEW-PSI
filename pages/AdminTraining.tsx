@@ -31,6 +31,7 @@ type SafetyCaseTrainingHandoff = {
 type LoadedMonthlyPackage = {
     sourceText: string;
     translatedTexts: Record<string, string>;
+    translationNeedsRefresh: boolean;
     month: string;
     workType: string;
     title: string;
@@ -49,13 +50,14 @@ const loadMonthlyPackage = (): LoadedMonthlyPackage => {
         return {
             sourceText: typeof parsed?.sourceText === 'string' ? parsed.sourceText : '',
             translatedTexts,
+            translationNeedsRefresh: Boolean(parsed?.translationNeedsRefresh),
             month: typeof parsed?.month === 'string' ? parsed.month : '',
             workType: typeof parsed?.workType === 'string' ? parsed.workType : '',
             title: typeof parsed?.title === 'string' ? parsed.title : '',
             savedAt: typeof parsed?.savedAt === 'string' ? parsed.savedAt : '',
         };
     } catch {
-        return { sourceText: '', translatedTexts: {}, month: '', workType: '', title: '', savedAt: '' };
+        return { sourceText: '', translatedTexts: {}, translationNeedsRefresh: false, month: '', workType: '', title: '', savedAt: '' };
     }
 };
 
@@ -1487,7 +1489,7 @@ const AdminTraining: React.FC = () => {
                                 return;
                             }
                             setSourceTextKo(monthlyPackage.sourceText);
-                            setPretranslatedTexts(monthlyPackage.translatedTexts);
+                            setPretranslatedTexts(monthlyPackage.translationNeedsRefresh ? {} : monthlyPackage.translatedTexts);
                             if (monthlyPackage.title) {
                                 setTrainingTitle((current) => current.trim() ? current : monthlyPackage.title);
                             }
@@ -1497,7 +1499,9 @@ const AdminTraining: React.FC = () => {
                                 setSelectedLanguages((current) => Array.from(new Set([...current, ...availableCodes])));
                             }
                             setMessage(
-                                availableCodes.length > 0
+                                monthlyPackage.translationNeedsRefresh
+                                    ? `5단계 원문(${packageLabel})을 불러왔습니다. 검수 후 원문이 바뀌어 기존 번역은 재사용하지 않고, 선택 언어 ${availableCodes.length}개는 세션 생성 시 현재 원문 기준으로 다시 번역합니다.`
+                                    : availableCodes.length > 0
                                     ? `5단계 원문(${packageLabel})과 AI 번역 ${availableCodes.length}개를 불러왔습니다. 기존 번역은 다시 생성하지 않아 사용량을 줄입니다.`
                                     : `5단계 월간 교육 원문(${packageLabel})을 불러왔습니다. 내용을 확인한 뒤 세션을 생성해 주세요.`,
                             );
