@@ -182,8 +182,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <BrandPhilosophyLogo className="w-7 h-7" />
                     </div>
                     <div>
-                        <p className="text-2xl font-black tracking-tight leading-none">psi</p>
-                        <p className="mt-1 text-[11px] font-semibold psi-copy-subtle">건설현장 안전관리</p>
+                        <p className="text-2xl font-extrabold leading-none">psi</p>
+                        <p className="psi-small-note mt-1">건설현장 안전관리</p>
                     </div>
                 </div>
             </div>
@@ -191,8 +191,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <nav className="flex-1 px-3 py-4 overflow-y-auto custom-scrollbar">
                 {compositionEditMode && onCompositionConfigChange && (
                     <section className="mb-4 rounded-xl border border-slate-200 bg-white/80 p-3 dark:border-slate-700/80 dark:bg-slate-900/70">
-                        <h3 className="text-xs font-black tracking-[0.08em] text-slate-700 dark:text-slate-200">메뉴 구성 편집</h3>
-                        <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">표시 여부와 순서를 저장합니다. 문서 분석 관리는 보호 규칙으로 항상 유지됩니다.</p>
+                        <h3 className="psi-meta-label text-slate-700 dark:text-slate-200">메뉴 구성 편집</h3>
+                        <p className="psi-small-note mt-1 dark:text-slate-400">표시 여부와 순서를 저장합니다. 문서 분석 관리는 보호 규칙으로 항상 유지됩니다.</p>
                         <div className="mt-3 space-y-2">
                             {editRows.map((item, index) => {
                                 const isHidden = hiddenSet.has(item.id);
@@ -241,7 +241,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
                 {groupedMenuItems.map((group) => (
                     <section key={group.id} className="mb-3 last:mb-0">
-                        <h3 className="px-3 pb-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                        <h3 className="psi-meta-label px-3 pb-1.5 dark:text-slate-400">
                             {group.label}
                         </h3>
                         <div className="space-y-1">
@@ -275,8 +275,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A11.955 11.955 0 0112 16c2.5 0 4.824.76 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     </div>
                     <div>
-                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100">현장 관리자</p>
-                        <p className="text-xs psi-copy-subtle">안전 운영 계정</p>
+                        <p className="psi-item-title text-slate-800 dark:text-slate-100">현장 관리자</p>
+                        <p className="psi-small-note">안전 운영 계정</p>
                     </div>
                 </div>
             </div>

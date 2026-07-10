@@ -70,8 +70,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                             </button>
                         )}
                         <div className="min-w-0">
-                            <p className="truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-300">{siteName}</p>
-                            <h2 className="truncate text-sm font-extrabold sm:text-base">{currentPageTitle}</h2>
+                            <p className="psi-meta-label truncate dark:text-slate-300">{siteName}</p>
+                            <h2 className="psi-card-title truncate">{currentPageTitle}</h2>
                         </div>
                     </div>
 
@@ -104,7 +104,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
                             </svg>
                         )}
-                        <span className="hidden text-[11px] font-black md:inline">{themeLabel}</span>
+                        <span className="hidden text-[11px] font-bold md:inline">{themeLabel}</span>
                     </button>
 
                     {controls}

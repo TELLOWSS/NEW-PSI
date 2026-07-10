@@ -89,11 +89,11 @@ const StepItem: React.FC<{ number: string; title: string; desc: string; icon: Re
     const classes = toneClass[tone];
     return (
         <div className="flex min-w-0 flex-1 items-center gap-3">
-            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-black ${classes.badge}`}>{number}</span>
+            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold ${classes.badge}`}>{number}</span>
             <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${classes.icon}`}>{icon}</span>
             <div className="min-w-0">
-                <p className="text-lg font-black text-slate-950">{title}</p>
-                <p className="mt-1 text-sm font-semibold text-slate-500">{desc}</p>
+                <p className="psi-section-title">{title}</p>
+                <p className="psi-body-compact mt-1">{desc}</p>
             </div>
         </div>
     );
@@ -105,8 +105,8 @@ const MetricCard: React.FC<{ label: string; value: string; icon: React.ReactNode
         <div className="flex min-h-[76px] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
             <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${classes.icon}`}>{icon}</span>
             <div>
-                <p className="text-xs font-black text-slate-500">{label}</p>
-                <p className="mt-1 text-2xl font-black text-slate-950">{value}</p>
+                <p className="psi-meta-label">{label}</p>
+                <p className="psi-data-value mt-1">{value}</p>
             </div>
         </div>
     );
@@ -128,17 +128,17 @@ const OutputCard: React.FC<{
         <article data-education-return="output-card" className="flex min-h-[300px] flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
-                    <span className={`flex h-8 w-8 items-center justify-center rounded-xl text-sm font-black ${statusClasses.badge}`}>{number}</span>
+                    <span className={`flex h-8 w-8 items-center justify-center rounded-xl text-sm font-bold ${statusClasses.badge}`}>{number}</span>
                     <span className={`flex h-16 w-16 items-center justify-center rounded-2xl ${statusClasses.icon}`}>{icon}</span>
                 </div>
-                <span className={`rounded-full border px-3 py-1 text-xs font-black ${statusClasses.soft}`}>{status}</span>
+                <span className={`rounded-full border px-3 py-1 text-xs font-bold ${statusClasses.soft}`}>{status}</span>
             </div>
-            <h3 className="mt-4 text-2xl font-black leading-tight text-slate-950">{title}</h3>
+            <h3 className="psi-page-title mt-4">{title}</h3>
             <div className="mt-4 flex-1">{children}</div>
             <button
                 type="button"
                 onClick={onPrimary}
-                className={`mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black transition ${toneClass.blue.button}`}
+                className={`psi-action-label mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 transition ${toneClass.blue.button}`}
             >
                 {primaryLabel}
                 <ArrowIcon />
@@ -150,7 +150,7 @@ const OutputCard: React.FC<{
                             key={item.label}
                             type="button"
                             onClick={item.onClick}
-                            className="min-h-11 rounded-2xl border border-blue-200 bg-white px-3 py-2 text-sm font-black text-blue-700 transition hover:bg-blue-50"
+                            className="psi-action-label min-h-11 rounded-2xl border border-blue-200 bg-white px-3 py-2 text-blue-700 transition hover:bg-blue-50"
                         >
                             {item.label}
                         </button>
@@ -172,9 +172,9 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
             <section data-education-return="hero" className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
                 <div className="flex flex-col gap-5 2xl:flex-row 2xl:items-start 2xl:justify-between">
                     <div className="max-w-4xl">
-                        <p className="text-xs font-black text-slate-500">교육 환류</p>
-                        <h2 className="mt-1 text-3xl font-black leading-tight text-slate-950 sm:text-4xl">PSI 교육 환류 센터</h2>
-                        <p className="mt-3 text-sm font-semibold leading-6 text-slate-600 sm:text-base">
+                        <p className="psi-eyebrow">교육 환류</p>
+                        <h2 className="psi-display-title mt-1">PSI 교육 환류 센터</h2>
+                        <p className="psi-body-copy mt-3 max-w-3xl">
                             관리자가 확인한 기록은 개인 보호 리포트, 다음 달 원페이지 교육자료, 월별 추적자료로 환류됩니다.
                         </p>
                     </div>
@@ -188,9 +188,9 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                 <div data-education-return="three-step-flow" className="mt-6 rounded-3xl border border-blue-200 bg-blue-50/40 px-4 py-5">
                     <div className="grid gap-5 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-center">
                         <StepItem number="1" title="찍는다" desc="수기 기록지 사진/PDF 업로드" tone="blue" icon={<CameraIcon />} />
-                        <ArrowIcon />
+                        <span className="hidden text-slate-400 lg:block"><ArrowIcon /></span>
                         <StepItem number="2" title="검증한다" desc="OCR·AI 분석 결과 관리자 확인" tone="purple" icon={<VerifyIcon />} />
-                        <ArrowIcon />
+                        <span className="hidden text-slate-400 lg:block"><ArrowIcon /></span>
                         <StepItem number="3" title="환류한다" desc="보호 리포트·교육자료·월별 추적" tone="green" icon={<EducationIcon />} />
                     </div>
                 </div>
@@ -213,17 +213,17 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                     <div className="space-y-3">
                         <div className="grid gap-2 sm:grid-cols-2">
                             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                <p className="text-xs font-black text-slate-500">기준월</p>
-                                <p className="mt-1 text-lg font-black text-blue-800">{summary.targetMonth}</p>
+                                <p className="psi-meta-label">기준월</p>
+                                <p className="mt-1 text-lg font-bold text-blue-800">{summary.targetMonth}</p>
                             </div>
                             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                <p className="text-xs font-black text-slate-500">공종</p>
-                                <p className="mt-1 truncate text-lg font-black text-slate-900">{summary.workScopeLabel}</p>
+                                <p className="psi-meta-label">공종</p>
+                                <p className="mt-1 truncate text-lg font-bold text-slate-900">{summary.workScopeLabel}</p>
                             </div>
                         </div>
                         <div className="rounded-2xl bg-slate-100 px-4 py-3">
-                            <p className="text-xs font-black text-slate-500">중점 위험 TOP3</p>
-                            <p className="mt-1 text-base font-black text-slate-950">{riskText}</p>
+                            <p className="psi-meta-label">중점 위험 TOP3</p>
+                            <p className="psi-card-title mt-1">{riskText}</p>
                         </div>
                     </div>
                 </OutputCard>
@@ -245,8 +245,8 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                         ].map(([label, desc]) => (
                             <div key={label} className="flex items-center justify-between gap-3 border-b border-slate-200 px-3 py-3 last:border-b-0">
                                 <div>
-                                    <p className="text-sm font-black text-slate-900">{label}</p>
-                                    <p className="mt-0.5 text-xs font-semibold text-slate-500">{desc}</p>
+                                    <p className="psi-item-title">{label}</p>
+                                    <p className="psi-small-note mt-0.5">{desc}</p>
                                 </div>
                                 <ArrowIcon />
                             </div>
@@ -265,28 +265,28 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                 >
                     <div data-education-return="tracking-preview" className="overflow-hidden rounded-2xl border border-slate-200">
                         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-3 py-3">
-                            <p className="text-sm font-black text-slate-900">전월 대비</p>
+                            <p className="psi-item-title">전월 대비</p>
                             <div className="text-right">
-                                <p className="text-xl font-black text-emerald-700">{trendPrefix}{summary.monthlyTrendPct}%</p>
-                                <p className="text-xs font-semibold text-slate-500">위험 신호 변화</p>
+                                <p className="text-xl font-extrabold text-emerald-700">{trendPrefix}{summary.monthlyTrendPct}%</p>
+                                <p className="psi-small-note">위험 신호 변화</p>
                             </div>
                         </div>
                         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-3 py-3">
-                            <p className="text-sm font-black text-slate-900">반복 위험 키워드</p>
+                            <p className="psi-item-title">반복 위험 키워드</p>
                             <div className="text-right">
-                                <p className="text-lg font-black text-slate-950">{summary.repeatedRiskKeywords.length}개</p>
-                                <p className="max-w-[180px] truncate text-xs font-semibold text-slate-500">{repeatedRiskText}</p>
+                                <p className="text-lg font-extrabold text-slate-950">{summary.repeatedRiskKeywords.length}개</p>
+                                <p className="psi-small-note max-w-[180px] truncate">{repeatedRiskText}</p>
                             </div>
                         </div>
                         <div className="flex items-center justify-between gap-3 px-3 py-3">
-                            <p className="text-sm font-black text-slate-900">개선 이행률</p>
-                            <p className="text-xl font-black text-blue-700">{summary.improvementRate}%</p>
+                            <p className="psi-item-title">개선 이행률</p>
+                            <p className="text-xl font-extrabold text-blue-700">{summary.improvementRate}%</p>
                         </div>
                     </div>
                     <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3">
                         <div className="flex items-center justify-between gap-3">
-                            <p className="text-xs font-black text-emerald-900">차트 분석 미리보기</p>
-                            <p className="text-[11px] font-black text-emerald-700">월별·반복·지표</p>
+                            <p className="psi-meta-label text-emerald-900">차트 분석 미리보기</p>
+                            <p className="psi-small-note text-emerald-700">월별·반복·지표</p>
                         </div>
                         <div className="mt-2 grid grid-cols-3 gap-2">
                             {[
@@ -298,7 +298,7 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                                     <div className="h-1.5 overflow-hidden rounded-full bg-white">
                                         <div className={`h-full rounded-full ${color}`} style={{ width: `${Number(width)}%` }} />
                                     </div>
-                                    <p className="mt-1 text-[10px] font-bold text-slate-600">{label}</p>
+                                    <p className="psi-small-note mt-1 text-slate-600">{label}</p>
                                 </div>
                             ))}
                         </div>
@@ -308,10 +308,10 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
 
             <section data-education-return="proof-message" className="rounded-3xl border border-blue-200 bg-blue-50 px-5 py-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-sm font-black leading-6 text-slate-800">
+                    <p className="psi-card-title">
                         익숙한 수기 작성 흐름을 유지한 채, 버려지던 종이를 예측 가능한 데이터로 구조화합니다.
                     </p>
-                    <div className="flex items-center gap-2 text-sm font-black text-blue-700">
+                    <div className="psi-action-label flex items-center gap-2 text-blue-700">
                         <span>찍는다</span>
                         <ArrowIcon />
                         <span>확인한다</span>

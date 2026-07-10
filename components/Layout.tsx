@@ -477,7 +477,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                 <button
                                     type="button"
                                     onClick={() => setIsCompositionEditMode((prev) => !prev)}
-                                    className={`hidden min-h-10 rounded-xl border px-3 text-[11px] font-black transition-colors md:inline-flex md:items-center ${
+                                    className={`hidden min-h-10 rounded-xl border px-3 text-[11px] font-bold transition-colors md:inline-flex md:items-center ${
                                         isCompositionEditMode
                                             ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-700'
                                             : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
@@ -492,7 +492,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                 <button
                                     type="button"
                                     onClick={cycleOperationalMode}
-                                    className="ml-1 min-h-11 rounded-lg border border-indigo-400/40 bg-indigo-500/15 px-2 text-[10px] font-black text-indigo-200 transition-colors hover:bg-indigo-500/25"
+                                    className="ml-1 min-h-11 rounded-lg border border-indigo-400/40 bg-indigo-500/15 px-2 text-[10px] font-bold text-indigo-200 transition-colors hover:bg-indigo-500/25"
                                     title="운영 모드 순환: 실무 즉시 → 표준 운영 → 개발 확장"
                                     aria-label="운영 모드 변경"
                                 >
@@ -504,7 +504,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                 <button
                                     type="button"
                                     onClick={toggleDevMode}
-                                    className={`ml-1 flex min-h-11 items-center justify-center rounded-lg border px-2 text-[10px] font-black tracking-wider transition-colors ${
+                                    className={`ml-1 flex min-h-11 items-center justify-center rounded-lg border px-2 text-[10px] font-bold transition-colors ${
                                         isDevMode
                                             ? 'border-violet-400 bg-violet-600 text-white hover:bg-violet-500'
                                             : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
@@ -517,10 +517,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                             )}
                             <details ref={operatorMenuRef} className="psi-operator-menu relative">
                                 <summary aria-label="운영자 메뉴 열기" className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-xl border border-slate-300 bg-white px-2.5 text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-blue-500/60 dark:hover:bg-blue-500/10">
-                                    <span className="grid h-7 w-7 place-items-center rounded-lg bg-blue-950 text-[10px] font-black text-white dark:bg-blue-500">PSI</span>
+                                    <span className="grid h-7 w-7 place-items-center rounded-lg bg-blue-950 text-[10px] font-bold text-white dark:bg-blue-500">PSI</span>
                                     <span className="hidden text-left md:block">
                                         <b className="block text-[11px] leading-none">{getUserRolePresetLabel(userRolePreset)}</b>
-                                        <small className="mt-1 block text-[9px] font-semibold leading-none psi-copy-subtle">운영자 메뉴</small>
+                                        <small className="psi-small-note mt-1 block leading-none">운영자 메뉴</small>
                                     </span>
                                     <svg className="hidden h-3.5 w-3.5 md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
@@ -528,8 +528,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                 </summary>
                                 <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
                                     <div className="px-3 py-2">
-                                        <p className="text-xs font-black">현장 관리자</p>
-                                        <p className="mt-1 text-[10px] font-semibold psi-copy-subtle">안전 운영 계정</p>
+                                        <p className="psi-item-title">현장 관리자</p>
+                                        <p className="psi-small-note mt-1">안전 운영 계정</p>
                                     </div>
                                     {uiAudienceMode !== 'worker' && (
                                         <button
@@ -544,7 +544,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                                 <span className="block">PSI 브랜드 스토리</span>
                                                 <span className="mt-0.5 block text-[10px] font-semibold text-slate-500 dark:text-slate-400">상품 소개</span>
                                             </span>
-                                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-950 text-[10px] font-black text-white dark:bg-blue-500">PSI</span>
+                                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-950 text-[10px] font-bold text-white dark:bg-blue-500">PSI</span>
                                         </button>
                                     )}
                                     <button
@@ -583,16 +583,16 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                     <div className="min-w-0">
                                         <div className="flex flex-wrap items-center gap-1.5">
-                                            <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-black text-white dark:bg-indigo-500">2분 증명모드</span>
-                                            <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-black text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-200">
+                                            <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-bold text-white dark:bg-indigo-500">2분 증명모드</span>
+                                            <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-bold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-200">
                                                 현재 확인: {activeOnePointProofStage?.shortTitle || '기능 화면'}
                                             </span>
                                         </div>
-                                        <p className="mt-1 text-xs font-bold leading-relaxed text-slate-700 dark:text-slate-200 break-keep">
+                                        <p className="psi-body-compact mt-1 break-keep dark:text-slate-200">
                                             이 화면을 확인한 뒤 원포인트 증명 화면으로 돌아가면 {nextOnePointProofStage ? `${nextOnePointProofStage.title} 단계가 다음 순서로 표시됩니다.` : '전체 시연 완료 상태가 표시됩니다.'}
                                         </p>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-1.5 text-[11px] font-black sm:min-w-[240px]">
+                                    <div className="grid grid-cols-2 gap-1.5 text-[11px] font-bold sm:min-w-[240px]">
                                         <button
                                             type="button"
                                             data-one-point-proof-return="action-return"

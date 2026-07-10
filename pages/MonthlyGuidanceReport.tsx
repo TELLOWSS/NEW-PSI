@@ -104,7 +104,7 @@ const SparkLine: React.FC<{ points: ChartPoint[] }> = ({ points }) => {
             {coords.map((point) => (
                 <g key={`${point.month}-${point.value}`}>
                     <circle cx={point.x} cy={point.y} r="5" fill="#ffffff" stroke="#2563eb" strokeWidth="3" />
-                    <text x={point.x} y={height - 4} textAnchor="middle" className="fill-slate-500 text-[10px] font-black">{point.label}</text>
+                    <text x={point.x} y={height - 4} textAnchor="middle" className="fill-slate-500 text-[10px] font-bold">{point.label}</text>
                 </g>
             ))}
         </svg>
@@ -134,12 +134,12 @@ const TrackingAnalysisPanel: React.FC<{
             <article data-monthly-guidance="trend-chart" className="rounded-2xl border border-blue-100 bg-white p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                        <p className="text-xs font-black text-blue-700">월별 변화 차트</p>
-                        <h3 className="mt-1 text-lg font-black text-slate-950">위험인식 신호 흐름</h3>
+                        <p className="psi-eyebrow text-blue-700">월별 변화 차트</p>
+                        <h3 className="psi-section-title mt-1">위험인식 신호 흐름</h3>
                     </div>
                     <div className="text-right">
-                        <p className="text-xs font-bold text-slate-500">최근 월 평균</p>
-                        <p className="text-2xl font-black text-blue-700">{currentAverage}</p>
+                        <p className="psi-meta-label">최근 월 평균</p>
+                        <p className="psi-data-value mt-1 text-blue-700">{currentAverage}</p>
                     </div>
                 </div>
                 <div className="mt-3 rounded-2xl bg-slate-50 px-2 py-3">
@@ -152,8 +152,8 @@ const TrackingAnalysisPanel: React.FC<{
                         ['분석 표본', `${report.analyzedRecords}건`, 'text-slate-800'],
                     ].map(([label, value, color]) => (
                         <div key={label} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
-                            <p className="text-[11px] font-bold text-slate-500">{label}</p>
-                            <p className={`mt-1 text-base font-black ${color}`}>{value}</p>
+                            <p className="psi-meta-label">{label}</p>
+                            <p className={`mt-1 text-base font-extrabold ${color}`}>{value}</p>
                         </div>
                     ))}
                 </div>
@@ -162,13 +162,13 @@ const TrackingAnalysisPanel: React.FC<{
             <article className="grid gap-4">
                 <div data-monthly-guidance="risk-bars" className="rounded-2xl border border-rose-100 bg-white p-5">
                     <div className="flex items-center justify-between gap-3">
-                        <h3 className="text-lg font-black text-slate-950">반복 위험 막대 분석</h3>
-                        <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-black text-rose-700">{worsenedCount}개 유지·증가</span>
+                        <h3 className="psi-section-title">반복 위험 막대 분석</h3>
+                        <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700">{worsenedCount}개 유지·증가</span>
                     </div>
                     <div className="mt-4 space-y-3">
                         {report.topRiskFactors.length ? report.topRiskFactors.slice(0, 5).map((risk) => (
                             <div key={risk.riskName}>
-                                <div className="flex justify-between gap-3 text-xs font-black">
+                                <div className="flex justify-between gap-3 text-xs font-bold">
                                     <span className="truncate text-slate-700">{risk.riskName}</span>
                                     <span className="text-rose-700">{risk.count}건</span>
                                 </div>
@@ -181,12 +181,12 @@ const TrackingAnalysisPanel: React.FC<{
                 </div>
 
                 <div data-monthly-guidance="metric-bars" className="rounded-2xl border border-amber-100 bg-white p-5">
-                    <h3 className="text-lg font-black text-slate-950">보강 우선 지표 TOP3</h3>
-                    <p className="mt-1 text-xs font-semibold text-slate-500">낮은 지표부터 다음 교육 문구와 예시를 보강합니다.</p>
+                    <h3 className="psi-section-title">보강 우선 지표 TOP3</h3>
+                    <p className="psi-small-note mt-1">낮은 지표부터 다음 교육 문구와 예시를 보강합니다.</p>
                     <div className="mt-4 space-y-3">
                         {weakestMetrics.map((metric) => (
                             <div key={metric.key} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
-                                <div className="flex justify-between gap-3 text-xs font-black">
+                                <div className="flex justify-between gap-3 text-xs font-bold">
                                     <span className="text-slate-800">{metric.label}</span>
                                     <span className="text-amber-700">{metric.value} / {metric.max}</span>
                                 </div>
@@ -288,27 +288,27 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords }) => {
     return <div className="space-y-5 pb-16">
         <style>{`@media print { .guidance-no-print { display:none !important; } .guidance-print { box-shadow:none !important; border:0 !important; } }`}</style>
         <section className="guidance-no-print rounded-3xl border border-sky-800 bg-gradient-to-br from-sky-950 via-slate-900 to-indigo-950 p-5 text-white shadow-xl">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-300">PSI Monthly Education Cycle</p>
-            <h2 className="mt-2 text-2xl font-black">지난달 작성사항 기반 교육 종료 전 계도자료</h2>
-            <p className="mt-2 max-w-4xl text-sm font-semibold leading-6 text-slate-300">개인별 분석은 관리자 추적에만 사용하고, 교육 현장에는 익명화된 작성 경향·반복지적·개선 행동만 공유합니다.</p>
-            <div className="mt-4 grid gap-2 sm:grid-cols-4">{['기록 수집·OCR 분석', '6대 지표·반복지적 추출', '익명 계도자료 공유', '다음 달 작업 기준 기록'].map((v, i) => <div key={v} className="rounded-2xl border border-white/10 bg-white/10 p-3 text-xs font-bold"><span className="mr-2 text-sky-300">{i + 1}</span>{v}</div>)}</div>
+            <p className="psi-eyebrow text-sky-300">PSI 월별 교육 환류</p>
+            <h2 className="psi-page-title mt-2 text-white">지난달 작성사항 기반 교육 종료 전 계도자료</h2>
+            <p className="mt-2 max-w-4xl text-sm font-medium leading-7 text-slate-300">개인별 분석은 관리자 추적에만 사용하고, 교육 현장에는 익명화된 작성 경향·반복지적·개선 행동만 공유합니다.</p>
+            <div className="mt-4 grid gap-2 sm:grid-cols-4">{['기록 수집·OCR 분석', '6대 지표·반복지적 추출', '익명 계도자료 공유', '다음 달 작업 기준 기록'].map((v, i) => <div key={v} className="rounded-2xl border border-white/10 bg-white/10 p-3 text-xs font-semibold"><span className="mr-2 font-bold text-sky-300">{i + 1}</span>{v}</div>)}</div>
         </section>
 
         <section className="guidance-no-print grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-2">
-            <label className="text-sm font-black text-slate-700">기준월 선택<select value={assessmentMonth} onChange={(e) => { setAssessmentMonth(e.target.value); setEducationMonth(shiftMonth(e.target.value, 1)); }} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-bold">{months.map((m) => <option key={m} value={m}>{monthLabel(m)} 작성자료 기반</option>)}</select></label>
-            <label className="text-sm font-black text-slate-700">이번 교육월 선택<input type="month" value={educationMonth} onChange={(e) => setEducationMonth(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-bold" /></label>
+            <label className="psi-item-title text-slate-700">기준월 선택<select value={assessmentMonth} onChange={(e) => { setAssessmentMonth(e.target.value); setEducationMonth(shiftMonth(e.target.value, 1)); }} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold">{months.map((m) => <option key={m} value={m}>{monthLabel(m)} 작성자료 기반</option>)}</select></label>
+            <label className="psi-item-title text-slate-700">이번 교육월 선택<input type="month" value={educationMonth} onChange={(e) => setEducationMonth(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold" /></label>
         </section>
 
         <main className="guidance-print space-y-5 rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm sm:p-6">
-            <header className="border-b border-slate-200 pb-5"><p className="text-xs font-black text-indigo-600">{monthLabel(assessmentMonth)} 작성자료 기반</p><div className="mt-1 flex flex-wrap items-center justify-between gap-3"><h2 className="text-2xl font-black text-slate-950">{monthLabel(educationMonth)} 월별 계도 리포트</h2><span className="rounded-full bg-emerald-100 px-4 py-2 text-xs font-black text-emerald-800">실명·개인별 수치 제거 완료</span></div><p className="mt-2 text-sm font-semibold text-slate-600">{report.overallSummary}</p></header>
-            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[['분석 건수', `${report.analyzedRecords}건`], ['참여 인원', `${report.totalWorkers}명`], ['가장 많이 나온 위험', report.topRiskFactors[0]?.riskName || '분석자료 없음'], ['가장 약한 지표', weakest?.label || '분석자료 없음']].map(([k, v]) => <div key={k} className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-bold text-slate-500">{k}</p><p className="mt-2 text-lg font-black text-slate-900">{v}</p></div>)}</section>
+            <header className="border-b border-slate-200 pb-5"><p className="psi-eyebrow text-indigo-600">{monthLabel(assessmentMonth)} 작성자료 기반</p><div className="mt-1 flex flex-wrap items-center justify-between gap-3"><h2 className="psi-page-title">{monthLabel(educationMonth)} 월별 계도 리포트</h2><span className="rounded-full bg-emerald-100 px-4 py-2 text-xs font-bold text-emerald-800">실명·개인별 수치 제거 완료</span></div><p className="psi-body-compact mt-2">{report.overallSummary}</p></header>
+            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[['분석 건수', `${report.analyzedRecords}건`], ['참여 인원', `${report.totalWorkers}명`], ['가장 많이 나온 위험', report.topRiskFactors[0]?.riskName || '분석자료 없음'], ['가장 약한 지표', weakest?.label || '분석자료 없음']].map(([k, v]) => <div key={k} className="rounded-2xl border border-slate-200 bg-white p-4"><p className="psi-meta-label">{k}</p><p className="psi-card-title mt-2">{v}</p></div>)}</section>
             <TrackingAnalysisPanel report={report} monthlyPoints={monthlyChartPoints} delta={monthlyDelta} />
             <section data-monthly-guidance="group-radar" className="rounded-2xl border border-indigo-100 bg-white p-5">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div>
-                        <p className="text-xs font-black text-indigo-700">공종·팀 레이더 분석</p>
-                        <h3 className="mt-1 text-lg font-black text-slate-950">위험인식 신호와 응답 일관성 비교</h3>
-                        <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">
+                        <p className="psi-eyebrow text-indigo-700">공종·팀 레이더 분석</p>
+                        <h3 className="psi-section-title mt-1">위험인식 신호와 응답 일관성 비교</h3>
+                        <p className="psi-body-compact mt-1">
                             메뉴 리뉴얼 전 제공되던 레이더차트를 월별 추적자료에 다시 연결했습니다. 공종별 흐름과 팀별 편차를 같은 화면에서 전환해 확인합니다.
                         </p>
                     </div>
@@ -321,7 +321,7 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords }) => {
                                 key={mode}
                                 type="button"
                                 onClick={() => setRadarMode(mode as 'field' | 'team')}
-                                className={`min-h-10 rounded-xl px-4 text-sm font-black transition ${
+                                className={`min-h-10 rounded-xl px-4 text-sm font-bold transition ${
                                     radarMode === mode
                                         ? 'bg-slate-950 text-white shadow-sm'
                                         : 'text-slate-600 hover:bg-white'
@@ -337,7 +337,7 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords }) => {
                         <FieldRadarChart records={records} mode={radarMode} />
                     </div>
                     <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                        <p className="text-xs font-black text-slate-700">해석 기준</p>
+                        <p className="psi-meta-label text-slate-700">해석 기준</p>
                         <div className="mt-3 space-y-3">
                             {[
                                 ['평균 위험인식 신호', '작성된 위험성평가 기록의 평균 흐름입니다. 낮은 축은 다음 교육의 우선 보강 대상입니다.'],
@@ -345,8 +345,8 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords }) => {
                                 [radarMode === 'team' ? '팀별 비교' : '공종별 비교', radarMode === 'team' ? '팀장 기준으로 묶어 팀별 편차를 봅니다. 팀명이 없으면 분석에서 제외됩니다.' : '공종 기준으로 묶어 어떤 작업군에 교육 보강이 필요한지 봅니다.'],
                             ].map(([title, body]) => (
                                 <div key={title} className="rounded-xl bg-white px-3 py-3">
-                                    <p className="text-sm font-black text-slate-900">{title}</p>
-                                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{body}</p>
+                                    <p className="psi-item-title">{title}</p>
+                                    <p className="psi-small-note mt-1">{body}</p>
                                 </div>
                             ))}
                         </div>
@@ -354,27 +354,27 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords }) => {
                 </div>
             </section>
             <section className="grid gap-5 lg:grid-cols-2">
-                <ReportBox title="많이 나온 위험요소 TOP5">{report.topRiskFactors.length ? report.topRiskFactors.map((risk, i) => <div key={risk.riskName} className="rounded-xl bg-slate-50 p-3"><div className="flex justify-between gap-3"><p className="font-black">{i + 1}. {risk.riskName}</p><b className="text-rose-700">{risk.count}건</b></div><p className="mt-1 text-xs font-bold text-slate-500">{risk.relatedWorkTypes.join(' · ')}</p><p className="mt-2 text-sm font-semibold text-slate-700">{risk.guidanceMessage}</p></div>) : <Empty />}</ReportBox>
-                <ReportBox title="반복지적 개선관리">{report.repeatedIssues.length ? report.repeatedIssues.map((issue) => <div key={issue.issueName} className="rounded-xl border border-slate-100 p-3"><div className="flex justify-between gap-3"><b>{issue.issueName}</b><span className="text-xs font-black text-amber-700">{issue.previousCount || 0} → {issue.currentCount || 0}</span></div><p className="mt-1 text-xs font-semibold text-slate-600">{issue.guidanceMessage}</p></div>) : <Empty />}</ReportBox>
+                <ReportBox title="많이 나온 위험요소 TOP5">{report.topRiskFactors.length ? report.topRiskFactors.map((risk, i) => <div key={risk.riskName} className="rounded-xl bg-slate-50 p-3"><div className="flex justify-between gap-3"><p className="psi-item-title">{i + 1}. {risk.riskName}</p><b className="text-rose-700">{risk.count}건</b></div><p className="psi-small-note mt-1">{risk.relatedWorkTypes.join(' · ')}</p><p className="mt-2 text-sm font-medium leading-6 text-slate-700">{risk.guidanceMessage}</p></div>) : <Empty />}</ReportBox>
+                <ReportBox title="반복지적 개선관리">{report.repeatedIssues.length ? report.repeatedIssues.map((issue) => <div key={issue.issueName} className="rounded-xl border border-slate-100 p-3"><div className="flex justify-between gap-3"><b className="psi-item-title">{issue.issueName}</b><span className="text-xs font-bold text-amber-700">{issue.previousCount || 0} → {issue.currentCount || 0}</span></div><p className="psi-small-note mt-1 text-slate-600">{issue.guidanceMessage}</p></div>) : <Empty />}</ReportBox>
             </section>
             <ReportBox title="좋은 작성 예시 vs 미흡 작성 예시" subtitle="개인정보는 제거하고 공종과 작성 방식만 공유합니다."><div className="grid gap-4 lg:grid-cols-2"><Examples title="좋은 작성 예시" color="emerald" items={report.goodWritingExamples.map((v) => ({ head: v.question, body: `“${v.example}”`, foot: v.whyGood }))} /><Examples title="미흡 작성 예시와 개선안" color="amber" items={report.poorWritingExamples.map((v) => ({ head: v.question, body: `미흡: “${v.example}”\n개선: “${v.improvedExample}”`, foot: v.coachingPoint }))} /></div></ReportBox>
-            <ReportBox title="6대 지표 월별 변화"><p className="rounded-xl bg-indigo-50 p-3 text-sm font-bold leading-6 text-indigo-900">6대 지표는 근로자를 징계하거나 순위를 매기기 위한 점수가 아니라, 매월 작성되는 위험성평가 기록을 통해 현장 전체의 위험 인식 수준과 개선 흐름을 정량적으로 확인하기 위한 교육·계도 지표입니다.</p><div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{metrics.map((m) => { const value = report.sixMetricTrends[`${m.key}Avg` as keyof GuidanceData['sixMetricTrends']]; return <div key={m.key} className="rounded-xl border border-slate-200 p-4"><div className="flex justify-between text-sm font-black"><span>{m.label}</span><span>{value} / {m.max}</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-indigo-500" style={{ width: `${Math.min(100, Math.round(Math.abs(value) / m.max * 100))}%` }} /></div><p className="mt-2 text-xs font-semibold leading-5 text-slate-500">{m.description}</p></div>; })}</div></ReportBox>
-            <section className="rounded-2xl bg-slate-900 p-5 text-white"><h3 className="text-lg font-black">이번 달 개선해야 할 실천행동</h3><ul className="mt-3 space-y-2 text-sm font-semibold text-slate-200">{report.nextMonthEducationFocus.length ? report.nextMonthEducationFocus.map((v) => <li key={v}>• {v}</li>) : <li>• 분석자료 수집 후 교육 중점 행동을 생성합니다.</li>}</ul></section>
+            <ReportBox title="6대 지표 월별 변화"><p className="rounded-xl bg-indigo-50 p-3 text-sm font-semibold leading-7 text-indigo-900">6대 지표는 근로자를 징계하거나 순위를 매기기 위한 점수가 아니라, 매월 작성되는 위험성평가 기록을 통해 현장 전체의 위험 인식 수준과 개선 흐름을 정량적으로 확인하기 위한 교육·계도 지표입니다.</p><div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{metrics.map((m) => { const value = report.sixMetricTrends[`${m.key}Avg` as keyof GuidanceData['sixMetricTrends']]; return <div key={m.key} className="rounded-xl border border-slate-200 p-4"><div className="flex justify-between text-sm font-bold"><span>{m.label}</span><span>{value} / {m.max}</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-indigo-500" style={{ width: `${Math.min(100, Math.round(Math.abs(value) / m.max * 100))}%` }} /></div><p className="psi-small-note mt-2">{m.description}</p></div>; })}</div></ReportBox>
+            <section className="rounded-2xl bg-slate-900 p-5 text-white"><h3 className="psi-section-title text-white">이번 달 개선해야 할 실천행동</h3><ul className="mt-3 space-y-2 text-sm font-medium leading-7 text-slate-200">{report.nextMonthEducationFocus.length ? report.nextMonthEducationFocus.map((v) => <li key={v}>• {v}</li>) : <li>• 분석자료 수집 후 교육 중점 행동을 생성합니다.</li>}</ul></section>
         </main>
 
-        <section className="guidance-no-print rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="text-lg font-black">교육용 공유자료 생성</h3><p className="mt-1 text-sm font-semibold text-slate-500">개인 식별정보 없이 현장 전체 계도용 자료만 생성합니다.</p><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Action label="A4 요약 인쇄" onClick={() => window.print()} color="bg-slate-900" /><Action label="PPT 브리핑 개요" onClick={downloadOutline} color="bg-indigo-600" /><Action label="다국어 요약 복사" onClick={() => void copyLanguages()} color="bg-emerald-600" /><Action label="QR 보기" onClick={() => setShowQr((v) => !v)} color="bg-sky-600" /></div>{showQr && <div className="mt-4 flex flex-col items-center rounded-2xl border border-sky-200 bg-sky-50 p-5"><QRCodeCanvas value={qrValue} size={180} includeMargin /><p className="mt-3 text-xs font-bold text-sky-800">{monthLabel(assessmentMonth)} 익명 계도자료</p></div>}</section>
-        <section className="guidance-no-print grid gap-4 md:grid-cols-3">{[['A4 교육자료 자동생성', '위험성평가 작성 전 도움자료'], ['PPT/PDF 한장요약', '기존 현장 교육자료를 A4 한 장으로 요약'], ['월별 계도 리포트', '지난달 작성사항을 익명 분석해 교육 종료 전 전체 공유']].map(([t, d]) => <div key={t} className="rounded-2xl border border-slate-200 bg-white p-4"><b>{t}</b><p className="mt-2 text-sm font-semibold text-slate-600">{d}</p></div>)}</section>
+        <section className="guidance-no-print rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="psi-section-title">교육용 공유자료 생성</h3><p className="psi-body-compact mt-1">개인 식별정보 없이 현장 전체 계도용 자료만 생성합니다.</p><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Action label="A4 요약 인쇄" onClick={() => window.print()} color="bg-slate-900" /><Action label="PPT 브리핑 개요" onClick={downloadOutline} color="bg-indigo-600" /><Action label="다국어 요약 복사" onClick={() => void copyLanguages()} color="bg-emerald-600" /><Action label="QR 보기" onClick={() => setShowQr((v) => !v)} color="bg-sky-600" /></div>{showQr && <div className="mt-4 flex flex-col items-center rounded-2xl border border-sky-200 bg-sky-50 p-5"><QRCodeCanvas value={qrValue} size={180} includeMargin /><p className="psi-small-note mt-3 text-sky-800">{monthLabel(assessmentMonth)} 익명 계도자료</p></div>}</section>
+        <section className="guidance-no-print grid gap-4 md:grid-cols-3">{[['A4 교육자료 자동생성', '위험성평가 작성 전 도움자료'], ['PPT/PDF 한장요약', '기존 현장 교육자료를 A4 한 장으로 요약'], ['월별 계도 리포트', '지난달 작성사항을 익명 분석해 교육 종료 전 전체 공유']].map(([t, d]) => <div key={t} className="rounded-2xl border border-slate-200 bg-white p-4"><b className="psi-card-title block">{t}</b><p className="psi-body-compact mt-2">{d}</p></div>)}</section>
     </div>;
 };
 
-const ReportBox: React.FC<{ title: string; subtitle?: string; children: React.ReactNode }> = ({ title, subtitle, children }) => <section className="rounded-2xl border border-slate-200 bg-white p-5"><h3 className="text-lg font-black">{title}</h3>{subtitle && <p className="mt-1 text-sm font-semibold text-slate-500">{subtitle}</p>}<div className="mt-4 space-y-3">{children}</div></section>;
-const Empty = () => <p className="text-sm font-bold text-slate-500">선택한 기준월의 분석자료가 없습니다.</p>;
+const ReportBox: React.FC<{ title: string; subtitle?: string; children: React.ReactNode }> = ({ title, subtitle, children }) => <section className="rounded-2xl border border-slate-200 bg-white p-5"><h3 className="psi-section-title">{title}</h3>{subtitle && <p className="psi-body-compact mt-1">{subtitle}</p>}<div className="mt-4 space-y-3">{children}</div></section>;
+const Empty = () => <p className="psi-body-compact">선택한 기준월의 분석자료가 없습니다.</p>;
 const Examples: React.FC<{ title: string; color: 'emerald' | 'amber'; items: Array<{ head: string; body: string; foot: string }> }> = ({ title, color, items }) => {
     const titleClass = color === 'emerald' ? 'text-emerald-700' : 'text-amber-700';
     const cardClass = color === 'emerald'
         ? 'border-emerald-200 bg-emerald-50'
         : 'border-amber-200 bg-amber-50';
-    return <div className="space-y-3"><p className={`text-sm font-black ${titleClass}`}>{title}</p>{items.length ? items.map((v, i) => <article key={`${v.head}-${i}`} className={`whitespace-pre-line rounded-2xl border p-4 ${cardClass}`}><p className={`text-xs font-black ${titleClass}`}>{v.head}</p><p className="mt-2 font-bold text-slate-900">{v.body}</p><p className="mt-2 text-xs font-semibold text-slate-600">{v.foot}</p></article>) : <Empty />}</div>;
-};const Action: React.FC<{ label: string; onClick: () => void; color: string }> = ({ label, onClick, color }) => <button type="button" onClick={onClick} className={`${color} rounded-xl px-4 py-3 text-sm font-black text-white`}>{label}</button>;
+    return <div className="space-y-3"><p className={`psi-item-title ${titleClass}`}>{title}</p>{items.length ? items.map((v, i) => <article key={`${v.head}-${i}`} className={`whitespace-pre-line rounded-2xl border p-4 ${cardClass}`}><p className={`psi-small-note ${titleClass}`}>{v.head}</p><p className="mt-2 font-semibold leading-7 text-slate-900">{v.body}</p><p className="psi-small-note mt-2 text-slate-600">{v.foot}</p></article>) : <Empty />}</div>;
+};const Action: React.FC<{ label: string; onClick: () => void; color: string }> = ({ label, onClick, color }) => <button type="button" onClick={onClick} className={`psi-action-label ${color} rounded-xl px-4 py-3 text-white`}>{label}</button>;
 
 export default MonthlyGuidanceReport;

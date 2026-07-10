@@ -26,10 +26,10 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
                                 {groupLabel}
                             </span>
                         ) : null}
-                        <h1 className="text-lg font-black tracking-tight sm:text-xl">{title}</h1>
+                        <h1 className="psi-page-title">{title}</h1>
                     </div>
                     {description ? (
-                        <p className="mt-1.5 max-w-4xl text-xs font-semibold leading-5 psi-copy-muted sm:text-sm">{description}</p>
+                        <p className="psi-body-compact mt-1.5 max-w-4xl">{description}</p>
                     ) : null}
                 </div>
             </div>

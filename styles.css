@@ -53,16 +53,21 @@
     body {
         background: var(--psi-canvas);
         color: var(--psi-text);
-        font-family: 'SF Pro Text', 'Inter', 'Pretendard', -apple-system, system-ui, sans-serif;
-        letter-spacing: -0.01em;
+        font-family: 'Pretendard', 'Noto Sans KR', 'Noto Sans', 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+        letter-spacing: 0;
+        line-height: 1.55;
         transition: background-color 0.2s ease, color 0.2s ease;
         -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        font-kerning: normal;
+        text-rendering: optimizeLegibility;
     }
 
     h1, h2, h3, h4, h5, h6 {
-        font-family: 'SF Pro Display', 'Inter', 'Pretendard', -apple-system, system-ui, sans-serif;
-        font-weight: 600;
-        letter-spacing: -0.02em;
+        font-family: 'Pretendard', 'Noto Sans KR', 'Noto Sans', 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+        font-weight: 700;
+        letter-spacing: 0;
+        text-wrap: balance;
     }
 
     button,
@@ -71,6 +76,8 @@
     input,
     textarea,
     select {
+        font: inherit;
+        letter-spacing: 0;
         touch-action: manipulation;
     }
 
@@ -219,6 +226,109 @@
         color: var(--psi-text);
     }
 
+    .psi-font-korean {
+        font-family: 'Pretendard', 'Noto Sans KR', 'Noto Sans', 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+        letter-spacing: 0;
+    }
+
+    .psi-display-title {
+        color: var(--psi-text);
+        font-size: 2rem;
+        font-weight: 800;
+        line-height: 1.18;
+        letter-spacing: 0;
+    }
+
+    .psi-page-title {
+        color: var(--psi-text);
+        font-size: 1.45rem;
+        font-weight: 800;
+        line-height: 1.25;
+        letter-spacing: 0;
+    }
+
+    .psi-section-title {
+        color: var(--psi-text);
+        font-size: 1.18rem;
+        font-weight: 700;
+        line-height: 1.32;
+        letter-spacing: 0;
+    }
+
+    .psi-card-title {
+        color: var(--psi-text);
+        font-size: 1rem;
+        font-weight: 700;
+        line-height: 1.38;
+        letter-spacing: 0;
+    }
+
+    .psi-item-title {
+        color: var(--psi-text);
+        font-size: 0.92rem;
+        font-weight: 700;
+        line-height: 1.4;
+        letter-spacing: 0;
+    }
+
+    .psi-body-copy {
+        color: var(--psi-text-muted);
+        font-size: 0.95rem;
+        font-weight: 500;
+        line-height: 1.72;
+        letter-spacing: 0;
+    }
+
+    .psi-body-compact {
+        color: var(--psi-text-muted);
+        font-size: 0.82rem;
+        font-weight: 500;
+        line-height: 1.58;
+        letter-spacing: 0;
+    }
+
+    .psi-meta-label {
+        color: var(--psi-text-subtle);
+        font-size: 0.72rem;
+        font-weight: 600;
+        line-height: 1.35;
+        letter-spacing: 0;
+    }
+
+    .psi-data-value {
+        color: var(--psi-text);
+        font-size: 1.45rem;
+        font-weight: 800;
+        line-height: 1.12;
+        letter-spacing: 0;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .psi-small-note {
+        color: var(--psi-text-subtle);
+        font-size: 0.72rem;
+        font-weight: 600;
+        line-height: 1.5;
+        letter-spacing: 0;
+    }
+
+    .psi-action-label {
+        font-size: 0.9rem;
+        font-weight: 700;
+        line-height: 1.25;
+        letter-spacing: 0;
+    }
+
+    @media (min-width: 640px) {
+        .psi-display-title {
+            font-size: 2.35rem;
+        }
+
+        .psi-page-title {
+            font-size: 1.65rem;
+        }
+    }
+
     .psi-topbar {
         border-color: var(--psi-border);
         background: rgba(255, 255, 255, 0.8) !important;
@@ -288,9 +398,9 @@
     .psi-eyebrow {
         color: var(--psi-brand);
         font-size: 0.7rem;
-        font-weight: 900;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
+        font-weight: 700;
+        letter-spacing: 0;
+        text-transform: none;
     }
 
     .psi-input {
@@ -362,7 +472,8 @@
         padding: 0.25rem 0.7rem;
         color: var(--psi-brand);
         font-size: 0.68rem;
-        font-weight: 900;
+        font-weight: 700;
+        letter-spacing: 0;
     }
 
     .psi-step-card {
