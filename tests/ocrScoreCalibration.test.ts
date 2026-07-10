@@ -39,13 +39,13 @@ describe('OCR Score Calibration - calibrateScoreBreakdown', () => {
 
         const { breakdown, reasoning } = calibrateScoreBreakdown(baselineBreakdown, handwrittenAnswers);
 
-        // All should be capped to <= 5, and repetition penalty applied
+        // All should be capped to <= 5. Same-record slogan repetition is writing-quality feedback, not a next-month repeat-violation penalty.
         expect(breakdown.psychological).toBeLessThanOrEqual(5);
         expect(breakdown.jobUnderstanding).toBeLessThanOrEqual(5);
         expect(breakdown.riskAssessmentUnderstanding).toBeLessThanOrEqual(8);
         expect(breakdown.proficiency).toBeLessThanOrEqual(5);
         expect(breakdown.improvementExecution).toBeLessThanOrEqual(5);
-        expect(breakdown.repeatViolationPenalty).toBeGreaterThan(0);
+        expect(breakdown.repeatViolationPenalty).toBe(0);
         
         // Confirm reasoning documents the penalties
         expect(reasoning.some(r => r.includes('감점') || r.includes('패널티'))).toBe(true);

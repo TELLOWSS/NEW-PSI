@@ -211,7 +211,7 @@ export interface SixMetricBreakdown {
     proficiency: number;
     /** ⑤ 개선이행도 (20점): 구체적으로 작성하려는 노력 */
     improvementExecution: number;
-    /** ⑥ 반복위반 패널티 (감점): 껍데기 단어 반복 시 최대 -30점 */
+    /** ⑥ 반복위반 패널티 (감점): 다음 달 추적에서 동일 위험 재발/약속 행동 미이행 확인 시 최대 -30점 */
     repeatViolationPenalty: number;
 }
 

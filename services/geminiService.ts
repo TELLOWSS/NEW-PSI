@@ -434,7 +434,7 @@ const workerRecordSchema = {
                     riskAssessmentUnderstanding: { type: Type.NUMBER, description: "③위험성평가 이해도 0~20점: 핵심 위험요인을 본인 작업과 연결" },
                     proficiency: { type: Type.NUMBER, description: "④숙련도 0~30점: 0~5 일반론/형식문구, 6~15 단일조치·검증부재, 16~23 순서·조건 포함 2개 이상 실무조치, 24~30 수치·거리·체결·통제범위 등 검증가능 행동 포함" },
                     improvementExecution: { type: Type.NUMBER, description: "⑤개선이행도 0~20점: 0~5 실행계획 없음, 6~13 조치 2개 이상이나 담당/시점 불명확, 14~17 조치 3개 이상 + 작업전·중·후 실행흐름 명확, 18~20 담당·시점·확인방법까지 명시" },
-                    repeatViolationPenalty: { type: Type.NUMBER, description: "⑥반복위반 패널티 0~30점 (감점): 껍데기 단어 반복 시 강력 감점" },
+                    repeatViolationPenalty: { type: Type.NUMBER, description: "⑥반복위반 패널티 0~30점 (감점): 이전 기록의 약속 행동·관리자 지적·동일 위험 재발이 확인된 경우에만 적용. 현재 기록지 안의 상투어 반복은 응답 충실도/개선이행도에서 감점" },
                 }
             },
             selfAssessedRiskLevel: { type: Type.STRING, enum: ['상', '중', '하'] },
@@ -1146,7 +1146,7 @@ export const calibrateScoreBreakdown = (
         }
     }
 
-    // ⑥ 반복위반 패널티 (repeatViolationPenalty, max 30) - 감점항목
+    // 현재 기록지 안의 상투어 반복은 반복위반이 아니라 작성 품질/실천계획 감점으로 처리한다.
     let matchCount = 0;
     const combinedText = (q1 + ' ' + q2 + ' ' + q3 + ' ' + q4 + ' ' + q5).replace(/\s+/g, '');
     const fillerWords = [/조심하겠/g, /주의하겠/g, /안전제일/g, /준수하겠/g, /확인하겠/g, /열심히하겠/g, /안전수칙/g];
@@ -1158,19 +1158,21 @@ export const calibrateScoreBreakdown = (
         }
     });
 
-    const calculatedPenalty = Math.min(30, matchCount * 6);
-    if (calculatedPenalty > 0 && calculatedPenalty > calibrated.repeatViolationPenalty) {
-        calibrated.repeatViolationPenalty = calculatedPenalty;
-        reasoning.push(`상투적인 안전 표현의 반복 사용으로 인한 패널티 적용 (-${calculatedPenalty}점)`);
+    if (matchCount > 0) {
+        calibrated.psychological = Math.min(calibrated.psychological, 4);
+        calibrated.improvementExecution = Math.min(calibrated.improvementExecution, 5);
+        reasoning.push('상투적인 안전 표현이 반복되어 응답 충실도와 개선이행도 감점 적용');
     }
 
     const q4q5Similarity = calcNgramSimilarity(q4, q5);
-    const q4q5RepeatedPenalty = q4 && q5 && q4q5Similarity >= 0.72
-        ? (q4q5Similarity >= 0.88 ? 12 : 6)
-        : 0;
-    if (q4q5RepeatedPenalty > calibrated.repeatViolationPenalty) {
-        calibrated.repeatViolationPenalty = q4q5RepeatedPenalty;
-        reasoning.push(`Q4 감소대책과 Q5 실천행동이 유사하여 반복 답변 패널티 적용 (-${q4q5RepeatedPenalty}점)`);
+    if (q4 && q5 && q4q5Similarity >= 0.72) {
+        calibrated.improvementExecution = Math.min(calibrated.improvementExecution, q4q5Similarity >= 0.88 ? 10 : 13);
+        reasoning.push('Q4 감소대책과 Q5 실천행동이 유사하여 개선이행도 감점 적용');
+    }
+
+    if (calibrated.repeatViolationPenalty > 0) {
+        calibrated.repeatViolationPenalty = 0;
+        reasoning.push('현재 단일 기록지에서는 다음 달 이행 여부를 확정할 수 없어 반복위반 패널티를 추적관리 단계로 보류');
     }
 
     return { breakdown: calibrated, reasoning };
@@ -1496,9 +1498,10 @@ const STRICT_SCORE_POLICY = `
     - 담당자·시점·확인방법(체크포인트)까지 명시되면: 18~20점.
 
 ⑥ 반복위반 패널티 (0~-30점, 감점)
-  - "안전제일", "안전수칙 준수" 같은 껍데기 단어만 반복되면 즉시 -30점 강력 감점(과락 처리).
-  - 부분적으로 상투어가 포함되었으면 -10~-20점 감점.
-  - 없으면 0점.
+  - 이번 한 장의 기록지만 보고 적용하지 않는다.
+  - 이전 달에 근로자가 적은 실천행동, 관리자 지적, 교육 후 약속사항이 다음 달 기록·현장 확인에서 반복 불이행/동일 위험 재발로 확인될 때만 적용한다.
+  - 현재 기록지 안의 "안전제일", "안전수칙 준수", Q4·Q5 중복 문장 등은 반복위반이 아니라 ①응답 충실도, ④숙련도, ⑤개선이행도에서 감점한다.
+  - 추적 근거가 없으면 반드시 0점.
 
 ---
 ** safetyScore = ①+②+③+④+⑤ - ⑥ (clamp 0~100) **
@@ -1513,7 +1516,7 @@ const STRICT_SCORE_POLICY = `
   - safetyScore와 safetyLevel이 불일치하면 점수 기준으로 safetyLevel을 보정.
 
 [score_reason 작성 규칙 - 필수]
-  - "업무이해도는 골조 공종 자재를 명시해 15점이지만, 숙련도는 '안전벨트 착용' 수준으로 형식적이어서 8점 책정 및 반복위반 패널티 -30점이 적용됩니다." 형식.
+  - "업무이해도는 골조 공종 자재를 명시해 15점이지만, 숙련도는 '안전벨트 착용' 수준으로 형식적이고 Q4·Q5 내용이 유사하여 개선이행도가 10점으로 감점됩니다. 반복위반 패널티는 다음 달 이행 여부 확인 전이므로 0점입니다." 형식.
   - 팩트 기반으로 감점/가점 근거를 2~4문장으로 서술.
 
 [actionable_coaching 작성 규칙 - 필수]

@@ -31,7 +31,7 @@ describe('5문항·6대 지표 보정 로직', () => {
         expect(result.scoreReasoning.join(' ')).toMatch(/6대 지표.*누락|복원/);
     });
 
-    it('Q4 감소대책과 Q5 실천행동이 거의 같으면 반복 패널티를 반영한다', () => {
+    it('Q4 감소대책과 Q5 실천행동이 거의 같으면 현재 기록의 개선이행도에서 감점한다', () => {
         const result = enforceBreakdownDrivenScore(
             82,
             '고급',
@@ -54,8 +54,9 @@ describe('5문항·6대 지표 보정 로직', () => {
             82,
         );
 
-        expect(result.scoreBreakdown?.repeatViolationPenalty).toBeGreaterThan(0);
+        expect(result.scoreBreakdown?.repeatViolationPenalty).toBe(0);
+        expect(result.scoreBreakdown?.improvementExecution).toBeLessThan(16);
         expect(result.safetyScore).toBeLessThan(84);
-        expect(result.scoreReasoning.join(' ')).toMatch(/Q4.*Q5.*반복/);
+        expect(result.scoreReasoning.join(' ')).toMatch(/Q4.*Q5.*개선이행도/);
     });
 });

@@ -14,6 +14,14 @@ if (source.includes('const hasTimeAndWho = /전|후|시작|종료|내가|내가\
   failures.push('Q5 single 확인 keyword still forces improvementExecution >=14.');
 }
 
+if (source.includes('Q4 감소대책과 Q5 실천행동이 유사하여 반복 답변 패널티')) {
+  failures.push('Same-record Q4/Q5 repetition must not be scored as repeatViolationPenalty.');
+}
+
+if (source.includes('껍데기 단어만 반복되면 즉시 -30점')) {
+  failures.push('Single-record filler wording must not be described as repeatViolationPenalty.');
+}
+
 for (const marker of [
   'const controlKeywordCount',
   'const hasVerificationDetail',
@@ -22,7 +30,8 @@ for (const marker of [
   '안전장비 단일 조치 중심',
   'buildFallbackScoreBreakdownFromAnswers',
   '6대 지표 세부점수가 누락',
-  'Q4 감소대책과 Q5 실천행동이 유사',
+  'Q4 감소대책과 Q5 실천행동이 유사하여 개선이행도 감점',
+  '현재 단일 기록지에서는 다음 달 이행 여부를 확정할 수 없어 반복위반 패널티를 추적관리 단계로 보류',
   'calcNgramSimilarity',
 ]) {
   if (!source.includes(marker)) failures.push(`Missing calibration marker: ${marker}`);

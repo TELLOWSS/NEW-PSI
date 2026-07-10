@@ -41,18 +41,6 @@ export function deriveIntegrityScore(record: WorkerRecord): number {
 
 const clampScore = (value: number): number => Math.max(0, Math.min(100, Math.round(value)));
 
-const REPEAT_VIOLATION_FILLER_PATTERNS = [
-    /안전제일/g,
-    /안전\s*수칙\s*준수/g,
-    /안전\s*수칙/g,
-    /조심하겠습니다/g,
-    /주의하겠습니다/g,
-    /열심히\s*하겠습니다/g,
-    /잘\s*하겠습니다/g,
-    /준수하겠습니다/g,
-    /확인하겠습니다/g,
-];
-
 const getRepeatViolationEvidenceText = (record: WorkerRecord): string => {
     const handwrittenText = Array.isArray(record.handwrittenAnswers)
         ? record.handwrittenAnswers.map((item) => JSON.stringify(item)).join(' ')
@@ -79,14 +67,9 @@ const hasRepeatViolationEvidence = (record: WorkerRecord): boolean => {
     });
 
     const sourceText = getRepeatViolationEvidenceText(record);
-    const hasExplicitKeyword = /반복\s*위반|반복위반|재발|동일\s*표현\s*반복|상투어\s*반복/.test(sourceText);
-    const hasRepeatedFillerPhrase = REPEAT_VIOLATION_FILLER_PATTERNS.some((pattern) => {
-        const matches = sourceText.match(pattern);
-        return Array.isArray(matches) && matches.length >= 2;
-    });
+    const hasExplicitKeyword = /반복\s*위반|반복위반|재발|동일\s*위험\s*재발|동일\s*위험행동|약속\s*미이행|개선\s*미이행|다음\s*달\s*미이행|추적\s*관리\s*반복/.test(sourceText);
 
     if (adjustmentEvidence) return true;
-    if (hasRepeatedFillerPhrase) return true;
     return scoreBreakdownPenalty > 0 && hasExplicitKeyword;
 };
 
