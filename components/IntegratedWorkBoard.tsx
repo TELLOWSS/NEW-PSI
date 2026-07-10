@@ -415,7 +415,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                 <div className="psi-interactive-card flex flex-col justify-between p-4 bg-gradient-to-br from-white to-slate-50/20 dark:from-slate-900 dark:to-slate-800/20 text-left">
                     <div>
                         <div className="flex items-start justify-between">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-900 text-xs font-black text-white dark:bg-blue-600">01</span>
+                            <span className="flex h-8 min-w-12 items-center justify-center rounded-lg bg-blue-900 px-2 text-[10px] font-black text-white dark:bg-blue-600">분석</span>
                             {/* 차트 전환 탭 */}
                             <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800">
                                 <button
@@ -534,7 +534,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                     <div className="psi-interactive-card flex-1 p-4 border-2 border-dashed border-blue-355 bg-blue-50/15 dark:border-blue-550/40 dark:bg-blue-950/5 hover:border-blue-400 hover:shadow-lg hover:shadow-blue-500/5 transition-all duration-300 flex flex-col justify-between">
                         <div onClick={() => openStep(BOARD_STEPS[1])} className="cursor-pointer">
                             <div className="flex items-center justify-between">
-                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-700 text-xs font-black text-white shadow-sm">02</span>
+                                <span className="flex h-8 min-w-12 items-center justify-center rounded-lg bg-blue-700 px-2 text-[10px] font-black text-white shadow-sm">OCR</span>
                                 <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-black text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">AI 권장 스튜디오</span>
                             </div>
                             <div className="mt-3">
@@ -564,7 +564,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                     <div className="psi-interactive-card p-4 flex flex-col justify-between">
                         <div>
                             <div className="flex items-center justify-between">
-                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-600 text-xs font-black text-white">03</span>
+                                <span className="flex h-8 min-w-12 items-center justify-center rounded-lg bg-amber-600 px-2 text-[10px] font-black text-white">계도</span>
                                 <span className="rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[9px] font-black text-amber-700 dark:border-amber-500/20 dark:bg-amber-950/30 dark:text-amber-300">익명 전파</span>
                             </div>
                             <div className="mt-3">
@@ -605,33 +605,29 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                     <div className="psi-interactive-card flex-1 p-4 bg-gradient-to-br from-white to-emerald-50/10 dark:from-slate-900 dark:to-emerald-950/20 hover:shadow-lg transition flex flex-col justify-between">
                         <div>
                             <div className="flex items-center justify-between">
-                                <div className="flex gap-1.5">
-                                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-700 text-xs font-black text-white">01</span>
-                                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-700 text-xs font-black text-white">02</span>
-                                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-700 text-xs font-black text-white">03</span>
-                                </div>
+                                <span className="flex h-8 min-w-16 items-center justify-center rounded-lg bg-emerald-700 px-2 text-[10px] font-black text-white">환류</span>
                                 <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[9px] font-black text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-950/30 dark:text-emerald-300">교육 환류</span>
                             </div>
                             <div className="mt-3">
                                 <h3 className="text-sm font-black text-slate-900 dark:text-slate-150">교육 환류 센터</h3>
                                 <p className="mt-1 text-[11px] font-medium text-slate-400 leading-4">
-                                    검증된 기록을 원페이지 교육자료, 개인 보호 리포트, 월별 계도·추적자료로 바로 연결합니다.
+                                    관리자 검증완료 기록을 원페이지 교육자료, 근로자 개인별 보호 리포트, 월별 계도·추적자료로 바로 연결합니다.
                                 </p>
                             </div>
 
                             <div className="mt-3 grid grid-cols-1 gap-2 text-center sm:grid-cols-3">
-                                <div onClick={() => openStep(BOARD_STEPS[3])} className="cursor-pointer rounded-lg bg-amber-50/50 p-2 border border-amber-100/40 hover:bg-amber-100/30 transition dark:bg-amber-950/10 dark:border-amber-900/20">
+                                <button type="button" onClick={() => openStep(BOARD_STEPS[3])} className="cursor-pointer rounded-lg bg-amber-50/50 p-2 border border-amber-100/40 hover:bg-amber-100/30 transition dark:bg-amber-950/10 dark:border-amber-900/20">
                                     <b className="text-base text-amber-700 dark:text-amber-400 font-bold">A4</b>
                                     <p className="mt-1 text-[9px] font-black text-amber-800 dark:text-amber-300">원페이지 자료</p>
-                                </div>
-                                <div onClick={() => setCurrentPage('reports')} className="cursor-pointer rounded-lg bg-violet-50/50 p-2 border border-violet-100/50 hover:bg-violet-100/40 transition dark:bg-violet-950/10 dark:border-violet-900/20">
-                                    <b className="text-base text-violet-700 dark:text-violet-300 font-bold">보호</b>
-                                    <p className="mt-1 text-[9px] font-black text-violet-800 dark:text-violet-300">보호 리포트</p>
-                                </div>
-                                <div onClick={() => openStep(BOARD_STEPS[2])} className="cursor-pointer rounded-lg bg-emerald-50/50 p-2 border border-emerald-100/40 hover:bg-emerald-100/30 transition dark:bg-emerald-950/10 dark:border-emerald-900/20">
+                                </button>
+                                <button type="button" onClick={() => setCurrentPage('reports')} className="cursor-pointer rounded-lg bg-violet-50/50 p-2 border border-violet-100/50 hover:bg-violet-100/40 transition dark:bg-violet-950/10 dark:border-violet-900/20">
+                                    <b className="text-base text-violet-700 dark:text-violet-300 font-bold">개인별</b>
+                                    <p className="mt-1 text-[9px] font-black text-violet-800 dark:text-violet-300">근로자 리포트</p>
+                                </button>
+                                <button type="button" onClick={() => openStep(BOARD_STEPS[2])} className="cursor-pointer rounded-lg bg-emerald-50/50 p-2 border border-emerald-100/40 hover:bg-emerald-100/30 transition dark:bg-emerald-950/10 dark:border-emerald-900/20">
                                     <b className="text-base text-emerald-700 dark:text-emerald-400 font-bold">월별</b>
                                     <p className="mt-1 text-[9px] font-black text-emerald-800 dark:text-emerald-300">월별 추적</p>
-                                </div>
+                                </button>
                             </div>
                         </div>
 
@@ -642,6 +638,13 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                                 className="text-xs font-black text-blue-700 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200 flex items-center gap-1.5"
                             >
                                 교육 환류 센터 열기 <span aria-hidden="true">→</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setCurrentPage('reports')}
+                                className="text-xs font-black text-violet-700 dark:text-violet-300 hover:text-violet-800 dark:hover:text-violet-200 flex items-center gap-1.5"
+                            >
+                                👤 근로자 개인별 리포트 보기 <span aria-hidden="true">→</span>
                             </button>
                             <button
                                 type="button"
@@ -664,7 +667,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                     <div className="psi-interactive-card p-4 flex flex-col justify-between bg-slate-50/35 dark:bg-slate-900/35">
                         <div>
                             <div className="flex items-center justify-between">
-                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-700 text-xs font-black text-slate-200">06</span>
+                                <span className="flex h-8 min-w-12 items-center justify-center rounded-lg bg-slate-700 px-2 text-[10px] font-black text-slate-200">설정</span>
                                 <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[9px] font-black text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">시스템</span>
                             </div>
                             <div className="mt-3">
