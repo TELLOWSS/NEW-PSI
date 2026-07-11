@@ -6,6 +6,8 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'u
 
 const files = {
   page: read('pages/A4EducationMaterial.tsx'),
+  handoffPanel: read('components/tbm/ExternalAiHandoffPanel.tsx'),
+  handoffPrompt: read('utils/externalAiHandoff.ts'),
   training: read('pages/AdminTraining.tsx'),
   studio: read('utils/tbmEducationStudio.ts'),
   packageJson: JSON.parse(read('package.json')),
@@ -19,8 +21,20 @@ const required = [
   ['pages/A4EducationMaterial.tsx', files.page, 'completeA4Items'],
   ['pages/A4EducationMaterial.tsx', files.page, 'supplementalRisks'],
   ['pages/A4EducationMaterial.tsx', files.page, 'translationNeedsRefresh'],
+  ['pages/A4EducationMaterial.tsx', files.page, 'currentPreviewIsStaleTranslation'],
   ['pages/A4EducationMaterial.tsx', files.page, '기존 다국어 탭은 대조용으로 유지했습니다'],
   ['pages/A4EducationMaterial.tsx', files.page, '다국어 재생성 단계로 이동'],
+  ['pages/A4EducationMaterial.tsx', files.page, '검수용 좌우대조'],
+  ['pages/A4EducationMaterial.tsx', files.page, '언어별 출력본'],
+  ['pages/A4EducationMaterial.tsx', files.page, "mode === 'translation' ? draft : nextDraft"],
+  ['pages/A4EducationMaterial.tsx', files.page, "setViewMode('single')"],
+  ['components/tbm/ExternalAiHandoffPanel.tsx', files.handoffPanel, '수정본 그대로 다국어만 갱신'],
+  ['components/tbm/ExternalAiHandoffPanel.tsx', files.handoffPanel, "if (translationNeedsRefresh) setAiMode('translation')"],
+  ['components/tbm/ExternalAiHandoffPanel.tsx', files.handoffPanel, '수정본 번역 요청문 복사'],
+  ['utils/externalAiHandoff.ts', files.handoffPrompt, '[현재 검수 완료 한국어 원문]'],
+  ['utils/externalAiHandoff.ts', files.handoffPrompt, '새 초안을 만드는 단계가 아닙니다'],
+  ['utils/tbmEducationStudio.ts', files.studio, '[오늘 반드시 전달할 한 문장]'],
+  ['utils/tbmEducationStudio.ts', files.studio, 'draft.coreMessage'],
   ['pages/AdminTraining.tsx', files.training, 'translationNeedsRefresh'],
   ['pages/AdminTraining.tsx', files.training, '기존 번역은 재사용하지 않고'],
   ['utils/tbmEducationStudio.ts', files.studio, 'translationNeedsRefresh?: boolean'],
@@ -57,6 +71,18 @@ if (!previewBlock) {
     if (previewBlock[0].includes(forbidden)) {
       failures.push(`pages/A4EducationMaterial.tsx: A4 preview block should not visually cut final text with ${forbidden}`);
     }
+  }
+}
+
+const estimateLoadBody = files.page.match(/const estimateA4Load =[\s\S]*?const getA4FitMode =/);
+if (!estimateLoadBody) {
+  failures.push('pages/A4EducationMaterial.tsx: estimateA4Load block not found');
+} else {
+  if (!estimateLoadBody[0].includes("if (previewLanguage === 'ko-KR') return draftLoad + countPenalty")) {
+    failures.push('pages/A4EducationMaterial.tsx: Korean and translated page load calculations must be separated');
+  }
+  if (!estimateLoadBody[0].includes("viewMode === 'single'")) {
+    failures.push('pages/A4EducationMaterial.tsx: translated single-page fit mode must not be driven by Korean draft length');
   }
 }
 

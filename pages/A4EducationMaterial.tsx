@@ -710,19 +710,19 @@ interface A4TranslationPrintContent {
 
 const A4_FIT_LIMITS: Record<A4FitMode, A4FitLimits> = {
     balanced: {
-        title: 58,
-        opening: 112,
-        coreMessage: 96,
-        videoSummary: 88,
-        accidentTitle: 42,
-        accidentBody: 104,
-        riskName: 22,
-        riskAction: 88,
-        focus: 74,
-        notice: 72,
-        question: 72,
-        commitment: 104,
-        translationLine: 88,
+        title: 72,
+        opening: 176,
+        coreMessage: 148,
+        videoSummary: 164,
+        accidentTitle: 64,
+        accidentBody: 184,
+        riskName: 34,
+        riskAction: 138,
+        focus: 118,
+        notice: 112,
+        question: 96,
+        commitment: 154,
+        translationLine: 128,
         videoLines: 3,
         accidentLines: 2,
         riskLines: 3,
@@ -731,40 +731,40 @@ const A4_FIT_LIMITS: Record<A4FitMode, A4FitLimits> = {
         pledgeLines: 2,
     },
     compact: {
-        title: 48,
-        opening: 84,
-        coreMessage: 76,
-        videoSummary: 68,
-        accidentTitle: 34,
-        accidentBody: 78,
-        riskName: 18,
-        riskAction: 66,
-        focus: 58,
-        notice: 56,
-        question: 56,
-        commitment: 78,
-        translationLine: 68,
+        title: 62,
+        opening: 136,
+        coreMessage: 112,
+        videoSummary: 124,
+        accidentTitle: 50,
+        accidentBody: 136,
+        riskName: 28,
+        riskAction: 104,
+        focus: 90,
+        notice: 84,
+        question: 78,
+        commitment: 116,
+        translationLine: 94,
         videoLines: 2,
-        accidentLines: 1,
+        accidentLines: 2,
         riskLines: 3,
         focusLines: 2,
         noticeLines: 1,
         pledgeLines: 1,
     },
     dense: {
-        title: 40,
-        opening: 62,
-        coreMessage: 58,
-        videoSummary: 52,
-        accidentTitle: 28,
-        accidentBody: 58,
-        riskName: 16,
-        riskAction: 48,
-        focus: 44,
-        notice: 42,
-        question: 42,
-        commitment: 56,
-        translationLine: 52,
+        title: 50,
+        opening: 96,
+        coreMessage: 82,
+        videoSummary: 88,
+        accidentTitle: 38,
+        accidentBody: 96,
+        riskName: 22,
+        riskAction: 74,
+        focus: 64,
+        notice: 62,
+        question: 60,
+        commitment: 86,
+        translationLine: 72,
         videoLines: 2,
         accidentLines: 1,
         riskLines: 3,
@@ -776,16 +776,16 @@ const A4_FIT_LIMITS: Record<A4FitMode, A4FitLimits> = {
 
 const A4_FIT_LABELS: Record<A4FitMode, { label: string; detail: string }> = {
     balanced: {
-        label: 'A4 1장 맞춤',
-        detail: '문장 압축 없이 핵심 항목만 정리합니다.',
+        label: '원문 보존 1장',
+        detail: '먼저 현장 문장을 최대한 살리고, 실제로 넘칠 때만 자동 압축합니다.',
     },
     compact: {
-        label: 'A4 자동 압축',
-        detail: '긴 문장을 행동 중심 bullet로 줄여 한 장에 맞춥니다.',
+        label: 'A4 균형 압축',
+        detail: '핵심 문장은 유지하고 반복 설명만 줄여 한 장에 맞춥니다.',
     },
     dense: {
-        label: '고밀도 1장 압축',
-        detail: '초과 내용은 보관자료로 돌리고 근로자 전달 핵심만 남깁니다.',
+        label: '최종 1장 압축',
+        detail: '넘치는 내용은 보관자료로 돌리고 근로자 전달 핵심만 남깁니다.',
     },
 };
 
@@ -899,11 +899,14 @@ const estimateA4Load = (
     const countPenalty = Math.max(0, draft.risks.length - 3) * 80
         + Math.max(0, draft.focusPoints.length - 3) * 45
         + Math.max(0, draft.notices.length - 2) * 45;
-    const translationLoad = previewLanguage === 'ko-KR'
-        ? 0
-        : normalizePrintText(translatedText).length * (viewMode === 'split' ? 0.36 : 0.58);
+    if (previewLanguage === 'ko-KR') return draftLoad + countPenalty;
 
-    return draftLoad + countPenalty + translationLoad;
+    const translationLength = normalizePrintText(translatedText).length;
+    if (viewMode === 'single') {
+        return translationLength * 0.82 + Math.max(0, translationLength - 2400) * 0.2;
+    }
+
+    return (draftLoad + countPenalty) * 0.55 + translationLength * 0.42;
 };
 
 const getA4FitMode = (
@@ -913,8 +916,8 @@ const getA4FitMode = (
     translatedText: string,
 ): A4FitMode => {
     const load = estimateA4Load(draft, previewLanguage, viewMode, translatedText);
-    if (load > 1780) return 'dense';
-    if (load > 1180) return 'compact';
+    if (load > 2700) return 'dense';
+    if (load > 1900) return 'compact';
     return 'balanced';
 };
 
@@ -1056,7 +1059,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         initialState?.draft || createFreshStudioState(workerRecords, initialEducationMonth, initialWorkType).draft,
     );
     const [previewLanguage, setPreviewLanguage] = useState<string>('ko-KR');
-    const [viewMode, setViewMode] = useState<'split' | 'single'>('split');
+    const [viewMode, setViewMode] = useState<'split' | 'single'>('single');
     const [isOverflowing, setIsOverflowing] = useState(false);
     const [forcedTightFit, setForcedTightFit] = useState(false);
     const sheetRef = useRef<HTMLElement>(null);
@@ -1101,6 +1104,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     );
     const translationNeedsRefresh = translationLanguageCodes.length > 0
         && translationSourceText !== currentTranslationSourceText;
+    const currentPreviewIsStaleTranslation = translationNeedsRefresh && previewLanguage !== 'ko-KR';
 
     const applyStudioState = (nextState: StoredStudioState) => {
         setEducationMonth(nextState.educationMonth);
@@ -1243,14 +1247,18 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const importExternalAiDraft = (
         nextDraft: TbmEducationDraft,
         nextTranslations: Record<string, string>,
+        mode: 'generation' | 'translation' = 'generation',
     ) => {
-        setDraft(nextDraft);
+        const draftToStore = mode === 'translation' ? draft : nextDraft;
+        setDraft(draftToStore);
         setTranslatedTexts(nextTranslations);
-        setTranslationSourceText(buildMonthlyEducationPackageText(nextDraft));
-        setActiveTab('package');
+        setTranslationSourceText(buildMonthlyEducationPackageText(draftToStore));
         const translationCount = Object.keys(nextTranslations).length;
+        setActiveTab(mode === 'translation' && translationCount > 0 ? 'preview' : 'package');
         setNotice(
-            translationCount > 0
+            mode === 'translation' && translationCount > 0
+                ? `수정본 기준 다국어 번역 ${translationCount}개를 갱신했습니다. 출력 확인에서 언어를 선택해 저장하세요.`
+                : translationCount > 0
                 ? `AI 초안과 다국어 결과 ${translationCount}개를 반영했습니다. 5단계 내용을 검수해 주세요.`
                 : 'AI 초안을 반영했습니다. 5단계 내용을 검수해 주세요.',
         );
@@ -1305,7 +1313,19 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         return captureReportCanvas(sheetRef.current, html2canvas, { scale: 3 });
     };
 
+    const blockStaleTranslationExport = (): boolean => {
+        if (translationNeedsRefresh && previewLanguage !== 'ko-KR') {
+            setNotice('현재 외국어 탭은 이전 번역 대조용입니다. “수정본 그대로 다국어만 갱신”을 완료한 뒤 저장하세요.');
+            return true;
+        }
+        if (translationNeedsRefresh && previewLanguage === 'ko-KR') {
+            setNotice('한국어 원문은 저장할 수 있습니다. 외국어 출력물은 다국어 갱신을 먼저 완료해야 합니다.');
+        }
+        return false;
+    };
+
     const exportImage = async () => {
+        if (blockStaleTranslationExport()) return;
         setIsExporting(true);
         try {
             const canvas = await captureSheet();
@@ -1329,6 +1349,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     };
 
     const exportPdf = async () => {
+        if (blockStaleTranslationExport()) return;
         setIsExporting(true);
         try {
             const [canvas, JsPDF] = await Promise.all([captureSheet(), ensureJsPdfConstructor()]);
@@ -1350,6 +1371,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     };
 
     const exportPptx = async () => {
+        if (blockStaleTranslationExport()) return;
         setIsExporting(true);
         try {
             const canvas = await captureSheet();
@@ -1383,13 +1405,19 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     };
 
     const exportAllImages = async () => {
+        if (translationNeedsRefresh) {
+            setNotice('수정된 한국어 원문 기준으로 다국어를 먼저 갱신해야 일괄 저장할 수 있습니다.');
+            return;
+        }
         setIsExporting(true);
         const originalLang = previewLanguage;
+        const originalViewMode = viewMode;
         const targetLanguages = ['ko-KR', ...Object.keys(translatedTexts).filter(code => code !== '__quality__' && translatedTexts[code])];
         
         try {
             for (const lang of targetLanguages) {
                 setPreviewLanguage(lang);
+                setViewMode('single');
                 await new Promise((resolve) => setTimeout(resolve, 400));
                 
                 const canvas = await captureSheet();
@@ -1409,13 +1437,19 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             setNotice(error instanceof Error ? error.message : '일괄 PNG 이미지 저장 중 오류가 발생했습니다.');
         } finally {
             setPreviewLanguage(originalLang);
+            setViewMode(originalViewMode);
             setIsExporting(false);
         }
     };
 
     const exportAllPdfs = async () => {
+        if (translationNeedsRefresh) {
+            setNotice('수정된 한국어 원문 기준으로 다국어를 먼저 갱신해야 일괄 저장할 수 있습니다.');
+            return;
+        }
         setIsExporting(true);
         const originalLang = previewLanguage;
+        const originalViewMode = viewMode;
         const targetLanguages = ['ko-KR', ...Object.keys(translatedTexts).filter(code => code !== '__quality__' && translatedTexts[code])];
         
         try {
@@ -1424,6 +1458,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             
             for (const lang of targetLanguages) {
                 setPreviewLanguage(lang);
+                setViewMode('single');
                 await new Promise((resolve) => setTimeout(resolve, 400));
                 
                 const canvas = await captureSheet();
@@ -1440,6 +1475,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             setNotice(error instanceof Error ? error.message : '일괄 PDF 저장 중 오류가 발생했습니다.');
         } finally {
             setPreviewLanguage(originalLang);
+            setViewMode(originalViewMode);
             setIsExporting(false);
         }
     };
@@ -1586,6 +1622,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                     month={educationMonth}
                     workType={workType}
                     draft={draft}
+                    translationNeedsRefresh={translationNeedsRefresh}
                     onImport={importExternalAiDraft}
                     onUseLocalDraft={generateDraft}
                     onNotice={setNotice}
@@ -1934,7 +1971,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                     >
                                         <CountryFlag code={code} />
                                         {TRAINING_LANGUAGE_LABELS[code as keyof typeof TRAINING_LANGUAGE_LABELS] || code}
-                                        {translationNeedsRefresh && <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] text-amber-800">갱신</span>}
+                                        {translationNeedsRefresh && <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] text-amber-800">이전 번역</span>}
                                     </button>
                                 );
                             })}
@@ -1952,7 +1989,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                             : 'text-slate-500 hover:text-slate-800'
                                     }`}
                                 >
-                                    좌우 대조
+                                    검수용 좌우대조
                                 </button>
                                 <button
                                     type="button"
@@ -1963,7 +2000,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                             : 'text-slate-500 hover:text-slate-800'
                                     }`}
                                 >
-                                    번역본 단독
+                                    언어별 출력본
                                 </button>
                             </div>
                         )}
@@ -1971,7 +2008,12 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
 
                     {translationNeedsRefresh && (
                         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-950 no-print dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
-                            <span>5단계 검수로 한국어 원문이 바뀌었습니다. 외국인 근로자 배포 전 현재 한 장 기준으로 다국어 번역을 다시 생성하세요.</span>
+                            <div className="max-w-4xl">
+                                <p>5단계 검수 또는 한 장 편집으로 한국어 원문이 바뀌었습니다.</p>
+                                <p className="mt-1 text-xs leading-5 opacity-90">
+                                    다음 순서로 진행하세요: 수정본 그대로 다국어만 갱신 선택 → 요청문 복사 → 외부 AI 답변 붙여넣기 → 교육자료 초안에 반영 → 출력 확인에서 언어별 저장.
+                                </p>
+                            </div>
                             <button
                                 type="button"
                                 onClick={() => setActiveTab('ai')}
@@ -2409,15 +2451,20 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                     </article>
 
                     <div className="mt-4 grid gap-2 sm:grid-cols-4 no-print">
-                        <button type="button" disabled={isExporting} onClick={() => void exportImage()} className="min-h-12 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-black text-blue-800 disabled:opacity-50 dark:border-blue-500/40 dark:bg-slate-900 dark:text-blue-200">PNG 이미지</button>
-                        <button type="button" disabled={isExporting} onClick={() => void exportPdf()} className="min-h-12 rounded-xl bg-blue-700 px-4 py-3 text-sm font-black text-white disabled:opacity-50">PDF 저장</button>
-                        <button type="button" disabled={isExporting} onClick={() => void exportPptx()} className="min-h-12 rounded-xl bg-orange-500 px-4 py-3 text-sm font-black text-white disabled:opacity-50">PPTX 저장</button>
-                        <button type="button" onClick={() => window.print()} className="min-h-12 rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white dark:bg-slate-100 dark:text-slate-900">A4 요약 인쇄</button>
+                        <button type="button" disabled={isExporting || currentPreviewIsStaleTranslation} onClick={() => void exportImage()} className="min-h-12 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-black text-blue-800 disabled:opacity-50 dark:border-blue-500/40 dark:bg-slate-900 dark:text-blue-200">PNG 이미지</button>
+                        <button type="button" disabled={isExporting || currentPreviewIsStaleTranslation} onClick={() => void exportPdf()} className="min-h-12 rounded-xl bg-blue-700 px-4 py-3 text-sm font-black text-white disabled:opacity-50">PDF 저장</button>
+                        <button type="button" disabled={isExporting || currentPreviewIsStaleTranslation} onClick={() => void exportPptx()} className="min-h-12 rounded-xl bg-orange-500 px-4 py-3 text-sm font-black text-white disabled:opacity-50">PPTX 저장</button>
+                        <button type="button" disabled={currentPreviewIsStaleTranslation} onClick={() => { if (!blockStaleTranslationExport()) window.print(); }} className="min-h-12 rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900">A4 요약 인쇄</button>
                     </div>
+                    {currentPreviewIsStaleTranslation && (
+                        <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-900 no-print dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                            이 외국어 화면은 이전 번역 대조용입니다. 현재 수정본으로 다국어를 갱신한 뒤 저장할 수 있습니다.
+                        </p>
+                    )}
                     {Object.keys(translatedTexts).filter(code => code !== '__quality__' && translatedTexts[code]).length > 0 && (
                         <div className="mt-2 grid gap-2 sm:grid-cols-2 no-print border-t border-slate-200 dark:border-slate-800 pt-3">
-                            <button type="button" disabled={isExporting} onClick={() => void exportAllImages()} className="min-h-12 rounded-xl border-2 border-dashed border-blue-300 bg-blue-50/50 px-4 py-3 text-sm font-black text-blue-900 hover:bg-blue-50 disabled:opacity-50">전체 다국어 PNG 이미지 일괄 저장</button>
-                            <button type="button" disabled={isExporting} onClick={() => void exportAllPdfs()} className="min-h-12 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50/50 px-4 py-3 text-sm font-black text-indigo-900 hover:bg-indigo-50 disabled:opacity-50">전체 다국어 PDF 일괄 저장</button>
+                            <button type="button" disabled={isExporting || translationNeedsRefresh} onClick={() => void exportAllImages()} className="min-h-12 rounded-xl border-2 border-dashed border-blue-300 bg-blue-50/50 px-4 py-3 text-sm font-black text-blue-900 hover:bg-blue-50 disabled:opacity-50">전체 다국어 PNG 이미지 일괄 저장</button>
+                            <button type="button" disabled={isExporting || translationNeedsRefresh} onClick={() => void exportAllPdfs()} className="min-h-12 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50/50 px-4 py-3 text-sm font-black text-indigo-900 hover:bg-indigo-50 disabled:opacity-50">전체 다국어 PDF 일괄 저장</button>
                         </div>
                     )}
                 </section>

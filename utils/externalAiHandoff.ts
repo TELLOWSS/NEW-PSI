@@ -92,7 +92,7 @@ export const buildExternalAiPrompt = (options: {
     const lines = [
         '당신은 한국 건설현장의 위험성평가와 TBM 교육자료를 만드는 안전교육 편집자입니다.',
         mode === 'translation' && options.draft
-            ? '아래 제공된 [현재 작성된 한국어 초안]을 그대로 요청된 다국어로 정확하게 번역하세요.'
+            ? '아래 제공된 [현재 검수 완료 한국어 원문]을 그대로 요청된 다국어로 정확하게 번역하세요.'
             : '아래 근거 자료를 정밀 분석하여 다음 달 교육용 5단계 한 장 완성형 초안(한국어)을 작성하고 지정된 다국어 번역을 동시에 반환하세요.',
         '',
         '[대상]',
@@ -104,11 +104,16 @@ export const buildExternalAiPrompt = (options: {
 
     if (mode === 'translation' && options.draft) {
         lines.push(
+            '[현재 작업 목적]',
+            '지금은 새 초안을 만드는 단계가 아닙니다.',
+            '관리자가 5단계 검수와 한 장 편집에서 수정한 최신 한국어 원문을 외국인 근로자용 다국어 자료로 다시 맞추는 단계입니다.',
+            '따라서 아래 [현재 검수 완료 한국어 원문]의 문장, 순서, 위험 항목, 공지, 질문, 행동 약속을 바꾸지 말고 번역만 수행하십시오.',
+            '',
             '[가장 중요한 번역 지침]',
-            '1. 제공된 [현재 작성된 한국어 초안]이 최우선 기준입니다. 각 다국어 번역본(translations)은 이 한국어 초안의 문장과 내용을 단어 하나, 수치 하나 왜곡하지 않고 그대로 번역해야 합니다.',
-            '2. 근거 자료를 참조하여 AI가 새로운 내용이나 재해사례를 마음대로 상상해서 번역본에 채워넣거나, 기존 초안 내용을 임의로 변경/생략하지 마십시오. 오직 아래 [현재 작성된 한국어 초안]의 문장 그대로만 지정된 언어별로 충실하게 1:1 번역해야 합니다.',
+            '1. 제공된 [현재 검수 완료 한국어 원문]이 최우선 기준입니다. 각 다국어 번역본(translations)은 이 한국어 원문의 문장과 내용을 단어 하나, 수치 하나 왜곡하지 않고 그대로 번역해야 합니다.',
+            '2. 근거 자료를 참조하여 AI가 새로운 내용이나 재해사례를 마음대로 상상해서 번역본에 채워넣거나, 기존 원문 내용을 임의로 변경/생략하지 마십시오. 오직 아래 [현재 검수 완료 한국어 원문]의 문장 그대로만 지정된 언어별로 충실하게 1:1 번역해야 합니다.',
             '3. 번역본의 구조 또한 한국어 초안의 1~5단계 구분(1., 2., 3., 4., 5.), 질문 번호(Q1., Q2. 등) 및 행동 약속까지 정확히 1:1 대응하여 각 섹션이 포함되도록 완성해야 합니다. 번역 텍스트 내에 "Confirmation & Pledge", "Pledge", "Checks" 등의 영문 시스템 식별자나 라벨을 절대로 그대로 출력하지 마십시오.',
-            '4. 반환하는 JSON의 `draft` 객체는 아래 [현재 작성된 한국어 초안]의 값(title, opening, coreMessage, videoScenes, accidentCases, risks, focusPoints, notices, confirmationQuestions, closingCommitment 등)을 한국어 그대로 모두 보존하여 반환해 주십시오.',
+            '4. 반환하는 JSON의 `draft` 객체는 아래 [현재 검수 완료 한국어 원문]의 값(title, opening, coreMessage, videoScenes, accidentCases, risks, focusPoints, notices, confirmationQuestions, closingCommitment 등)을 한국어 그대로 모두 보존하여 반환해 주십시오.',
             '5. 번역본(translations)의 최종 텍스트 결과물 안에는 한국어나 영어 단어(예: "TBM", "seconds", "narration", "visualGuide", "accidentCases", "risks", "focusPoints", "notices", "Q1", "Q2" 등)가 결코 섞여 나와서는 안 됩니다. 100% 해당 번역 대상 국가의 공식 모국어 문자와 자연스러운 현지 표현으로 완전히 번역해 주십시오. 영문 약어(TBM)는 현지어로 풀어서 번역하고, "Q1", "Q2" 등의 번호도 "질문 1", "질문 2" 등 100% 모국어 텍스트로 치환하십시오.',
             '6. 각 단계의 머리말 레이블(예: "1. 교육 전 5분 핵심 동영상", "2. 최근 재해사례와 현장 연관성", "[이해 확인 및 행동 약속]" 등)과 질문 기호(Q1., Q2. 등) 또한 해당 모국어의 숫자 기호나 정제된 표현으로 완벽하게 번역해야 합니다.',
             ''
@@ -180,7 +185,7 @@ export const buildExternalAiPrompt = (options: {
 
     if (options.draft) {
         lines.push(
-            '[현재 작성된 참고용 초안]',
+            mode === 'translation' ? '[현재 검수 완료 한국어 원문]' : '[현재 작성된 참고용 초안]',
             currentDraftText,
             ''
         );

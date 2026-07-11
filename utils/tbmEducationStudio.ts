@@ -331,6 +331,9 @@ export const buildMonthlyEducationPackageText = (draft: TbmEducationDraft): stri
         `[${draft.title}]`,
         draft.opening,
         '',
+        '[오늘 반드시 전달할 한 문장]',
+        draft.coreMessage,
+        '',
         '1. 교육 전 5분 핵심 동영상',
         ...(draft.videoScenes.length
             ? draft.videoScenes.map((scene) => `- ${scene.title} (${scene.seconds}초): ${scene.narration}`)

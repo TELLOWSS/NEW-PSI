@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     DEFAULT_EXTERNAL_AI_LANGUAGES,
     EXTERNAL_AI_PROVIDERS,
@@ -18,7 +18,8 @@ interface ExternalAiHandoffPanelProps {
     month: string;
     workType: string;
     draft: TbmEducationDraft;
-    onImport: (draft: TbmEducationDraft, translations: Record<string, string>) => void;
+    translationNeedsRefresh?: boolean;
+    onImport: (draft: TbmEducationDraft, translations: Record<string, string>, mode: 'generation' | 'translation') => void;
     onUseLocalDraft: () => void;
     onNotice: (message: string) => void;
 }
@@ -31,6 +32,7 @@ export function ExternalAiHandoffPanel({
     month,
     workType,
     draft,
+    translationNeedsRefresh = false,
     onImport,
     onUseLocalDraft,
     onNotice,
@@ -38,11 +40,18 @@ export function ExternalAiHandoffPanel({
     const [languageCodes, setLanguageCodes] = useState<TrainingLanguageCode[]>(DEFAULT_EXTERNAL_AI_LANGUAGES);
     const [privacyConfirmed, setPrivacyConfirmed] = useState(false);
     const [rawResult, setRawResult] = useState('');
-    const [aiMode, setAiMode] = useState<'generation' | 'translation'>('generation');
+    const [aiMode, setAiMode] = useState<'generation' | 'translation'>(() => translationNeedsRefresh ? 'translation' : 'generation');
     const prompt = useMemo(
         () => buildExternalAiPrompt({ sources, month, workType, languageCodes, draft, mode: aiMode }),
         [languageCodes, month, sources, workType, draft, aiMode],
     );
+    const selectedModeDescription = aiMode === 'translation'
+        ? '5단계 검수와 한 장 편집에서 수정한 현재 한국어 원문은 바꾸지 않고, 선택 언어 번역만 다시 생성합니다.'
+        : '근거 자료를 다시 분석해 한국어 5단계 초안까지 새로 만듭니다. 기존 검수 수정 내용이 바뀔 수 있습니다.';
+
+    useEffect(() => {
+        if (translationNeedsRefresh) setAiMode('translation');
+    }, [translationNeedsRefresh]);
 
     const toggleLanguage = (code: TrainingLanguageCode) => {
         setLanguageCodes((current) =>
@@ -65,9 +74,9 @@ export function ExternalAiHandoffPanel({
 
         try {
             await navigator.clipboard.writeText(prompt);
-            onNotice(`${EXTERNAL_AI_PROVIDERS[provider].label}를 열고 요청문을 복사했습니다. 새 창에서 붙여넣어 실행해 주세요.`);
+            onNotice(`${EXTERNAL_AI_PROVIDERS[provider].label}를 열고 ${aiMode === 'translation' ? '수정본 다국어 갱신 요청문' : '교육자료 작성 요청문'}을 복사했습니다. 새 창에서 붙여넣어 실행해 주세요.`);
         } catch {
-            onNotice(`${EXTERNAL_AI_PROVIDERS[provider].label}를 열었습니다. 오른쪽 요청문을 직접 복사해 붙여넣어 주세요.`);
+            onNotice(`${EXTERNAL_AI_PROVIDERS[provider].label}를 열었습니다. 오른쪽 ${aiMode === 'translation' ? '수정본 번역 요청문' : '요청문'}을 직접 복사해 붙여넣어 주세요.`);
         }
     };
 
@@ -78,7 +87,7 @@ export function ExternalAiHandoffPanel({
         }
         try {
             const result = parseExternalAiResult(rawResult, draft);
-            onImport(result.draft, result.translations);
+            onImport(result.draft, result.translations, aiMode);
         } catch (error) {
             onNotice(error instanceof Error ? error.message : 'AI 결과를 읽지 못했습니다.');
         }
@@ -94,16 +103,22 @@ export function ExternalAiHandoffPanel({
                         <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 psi-copy-muted">
                             사용 중인 ChatGPT, Claude, Gemini 웹 계정을 활용할 수 있습니다. 개인정보를 확인한 뒤 바로가기를 누르면 교육자료 작성 요청문이 복사됩니다.
                         </p>
+                        {translationNeedsRefresh && (
+                            <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                                현재는 수정본 다국어 갱신 단계입니다. 아래 모드는 자동으로 “수정본 그대로 다국어만 갱신”으로 맞춰졌습니다.
+                            </div>
+                        )}
                     </div>
                     <button type="button" onClick={onUseLocalDraft} className="psi-button-secondary">
                         AI 없이 기본 초안 만들기
                     </button>
                 </div>
-                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                <div className="mt-5 grid gap-3 md:grid-cols-4">
                     {[
                         ['1', '언어 선택', '필요한 번역 언어를 고릅니다.'],
-                        ['2', 'AI에서 작성', '바로가기를 열고 복사된 요청문을 붙여넣습니다.'],
-                        ['3', '결과 반영', 'AI 답변을 붙여넣어 교육자료에 반영합니다.'],
+                        ['2', '요청문 복사', aiMode === 'translation' ? '현재 수정본이 포함된 번역 요청문을 복사합니다.' : '근거 자료 분석 요청문을 복사합니다.'],
+                        ['3', 'AI 답변 붙여넣기', 'AI 답변 전체를 아래 입력칸에 붙여넣습니다.'],
+                        ['4', '출력 확인', aiMode === 'translation' ? '반영 후 출력 확인으로 돌아가 언어별 PDF를 저장합니다.' : '반영 후 5단계 검수에서 내용을 확인합니다.'],
                     ].map(([step, title, description]) => (
                         <article key={step} className="psi-step-card">
                             <span>{step}</span>
@@ -116,30 +131,43 @@ export function ExternalAiHandoffPanel({
             <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
                 <div className="psi-enterprise-panel p-5">
                     <h3 className="text-base font-black">AI 분석 및 번역 모드</h3>
-                    <p className="mt-1 text-xs font-semibold psi-copy-muted">AI에 요청할 작업의 목적을 선택하세요.</p>
-                    <div className="mt-3 grid grid-cols-2 gap-2 mb-4">
+                    <p className="mt-1 text-xs font-semibold psi-copy-muted">수정한 내용을 유지할지, 근거 자료부터 다시 분석할지 먼저 선택합니다.</p>
+                    <div className="mt-3 grid gap-2 mb-4">
                         <button
                             type="button"
                             onClick={() => setAiMode('generation')}
-                            className={`min-h-11 rounded-xl px-3 py-2 text-xs font-black transition-colors ${
+                            className={`min-h-20 rounded-xl px-3 py-2 text-left text-xs font-black transition-colors ${
                                 aiMode === 'generation'
                                     ? 'bg-blue-700 text-white shadow-md'
                                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
                             }`}
                         >
-                            신규 초안 분석 및 번역
+                            <span className="block text-sm">새 초안 다시 만들기</span>
+                            <span className={`mt-1 block text-[11px] leading-4 ${aiMode === 'generation' ? 'text-blue-100' : 'text-slate-500 dark:text-slate-400'}`}>
+                                자료를 다시 분석해 한국어 초안까지 새로 작성합니다. 기존 수정 내용이 바뀔 수 있습니다.
+                            </span>
                         </button>
                         <button
                             type="button"
                             onClick={() => setAiMode('translation')}
-                            className={`min-h-11 rounded-xl px-3 py-2 text-xs font-black transition-colors ${
+                            className={`min-h-20 rounded-xl px-3 py-2 text-left text-xs font-black transition-colors ${
                                 aiMode === 'translation'
                                     ? 'bg-blue-700 text-white shadow-md'
                                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
                             }`}
                         >
-                            기존 초안 유지 및 번역
+                            <span className="block text-sm">수정본 그대로 다국어만 갱신</span>
+                            <span className={`mt-1 block text-[11px] leading-4 ${aiMode === 'translation' ? 'text-blue-100' : 'text-slate-500 dark:text-slate-400'}`}>
+                                5단계 검수와 한 장 편집의 현재 문장을 그대로 보내 번역만 다시 받습니다. 수정 후 추천입니다.
+                            </span>
                         </button>
+                    </div>
+                    <div className={`mb-4 rounded-2xl border px-4 py-3 text-xs font-bold leading-5 ${
+                        aiMode === 'translation'
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100'
+                            : 'border-blue-200 bg-blue-50 text-blue-950 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100'
+                    }`}>
+                        현재 선택: {selectedModeDescription}
                     </div>
 
                     <h3 className="text-base font-black">다국어 결과 선택</h3>
@@ -193,12 +221,12 @@ export function ExternalAiHandoffPanel({
                         <button
                             type="button"
                             onClick={() => void navigator.clipboard.writeText(prompt).then(
-                                () => onNotice('AI 요청문을 복사했습니다.'),
+                                () => onNotice(aiMode === 'translation' ? '수정본 다국어 갱신 요청문을 복사했습니다.' : 'AI 요청문을 복사했습니다.'),
                                 () => onNotice('클립보드 복사가 차단되었습니다. 아래 내용을 직접 복사해 주세요.'),
                             )}
                             className="psi-button-secondary"
                         >
-                            요청문 복사
+                            {aiMode === 'translation' ? '수정본 번역 요청문 복사' : '요청문 복사'}
                         </button>
                     </div>
                     <textarea readOnly value={prompt} rows={18} className="psi-input mt-4 w-full resize-y p-4 text-xs leading-5" aria-label="외부 AI 요청문" />
