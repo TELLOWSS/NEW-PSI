@@ -41,32 +41,25 @@
   ],
   "functions": {
     "api/admin/auth.ts": {
-      "maxDuration": 10,
-      "memory": 128
+      "maxDuration": 10
     },
     "api/admin/safety-management.ts": {
-      "maxDuration": 10,
-      "memory": 256
+      "maxDuration": 10
     },
     "api/admin/send-report-message.ts": {
-      "maxDuration": 10,
-      "memory": 256
+      "maxDuration": 10
     },
     "api/admin/training.ts": {
-      "maxDuration": 10,
-      "memory": 512
+      "maxDuration": 10
     },
     "api/admin/predictive-plan-status.ts": {
-      "maxDuration": 10,
-      "memory": 256
+      "maxDuration": 10
     },
     "api/admin/update-training-targets.ts": {
-      "maxDuration": 10,
-      "memory": 256
+      "maxDuration": 10
     },
     "api/gateway.ts": {
-      "maxDuration": 10,
-      "memory": 256
+      "maxDuration": 10
     }
   }
 }
