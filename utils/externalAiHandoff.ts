@@ -1,9 +1,11 @@
 import { TRAINING_LANGUAGE_LABELS, type TrainingLanguageCode } from './constructionTrainingTranslation';
 import {
+    getHighGradeRiskShareItems,
     normalizeTbmEducationDraft,
     buildMonthlyEducationPackageText,
     type TbmEducationDraft,
     type TbmEvidenceSource,
+    type TbmRiskItem,
 } from './tbmEducationStudio';
 
 export type ExternalAiProvider = 'chatgpt' | 'claude' | 'gemini';
@@ -123,7 +125,7 @@ export const buildExternalAiPrompt = (options: {
             '[가장 중요한 초안 생성 지침]',
             '1. 제공된 [근거 자료]만을 기반으로 사실적이고 실행 가능한 위험성평가 전파교육 내용(한국어 초안 `draft`)을 직접 구성하십시오. 확인되지 않은 사실이나 재해사례는 상상해서 채워넣지 마시고 누락된 사항은 "관리자 확인 필요"로 남겨두십시오.',
             '2. 구성된 한국어 초안(`draft`)을 지정된 다국어 결과(translations)로 각각 정확하게 번역하여 함께 반환하십시오. 번역본은 한국어 초안의 구조와 100% 매칭되어야 합니다.',
-            '3. 제공된 [현재 작성된 참고용 초안]은 기본 틀(템플릿) 역할만 합니다. 여기에 적힌 내용에 얽매이지 말고, 만약 새로운 [근거 자료]의 내용(위험 요소, 안전조치 등)이 있다면 이를 분석하여 더 정확하고 구체적인 초안을 만들어주십시오.',
+            '3. 제공된 [현재 작성된 참고용 초안]은 기본 틀(템플릿) 역할만 합니다. 다만 draft.risks(다음 달 상등급 위험 공유)는 현재 초안의 risks 중 evidenceLabels에 상등급 근거가 있는 항목 또는 근거 자료에 "Q3 상", "위험수준 상", "상등급 기록"으로 명시된 항목만 사용하십시오. 일반 위험 추천, 기본 안전수칙, 추정 위험은 risks에 넣지 말고 focusPoints나 notices로만 정리하십시오. 확인된 상등급이 없으면 risks는 빈 배열([])로 반환하십시오.',
             '4. 번역본(translations)의 최종 결과물 안에는 한국어 단어나 영어 기호가 결코 섞여 나와서는 안 됩니다. 100% 해당 국가의 공식 모국어로 완벽히 번역해 주십시오. 영문 약어(TBM)나 번호(Q1, Q2) 등도 현지어로 정제하십시오.',
             '5. 교육자료의 제목(title)을 생성할 때 "초안", "임시", "가이드라인", "참고" 등의 단어를 절대 포함하지 마십시오. 즉시 인쇄하여 현장에 배포 가능한 완성형 제목(예: "7월 철골 설치 작업 안전 교육자료")으로 명확히 작성하십시오.',
             ''
@@ -140,7 +142,8 @@ export const buildExternalAiPrompt = (options: {
         '6. 안전조치는 짧고 실행 가능한 명령형 문장으로 작성하고, 위험 시 즉시 작업중지와 관리자 보고가 드러나게 하세요.',
         '7. evidenceLabels에는 아래 출처 제목만 사용하세요.',
         '8. 번역은 한국 건설현장 용어의 의무 강도를 유지하고 1~5단계 구조를 보존하되, 한국어나 영어가 번역본 텍스트에 단 한 단어도 섞이지 않고 지정된 순수 모국어로만 출력되게 하십시오.',
-        '9. 제목(title)에는 "초안", "참고" 같은 표현을 빼고 완성형으로 기재하십시오.',
+        '9. 다음 달 상등급 위험(draft.risks)은 evidenceLabels 또는 근거 자료에서 확인된 상등급 항목만 담으세요. 상등급 근거가 없는 추천 위험을 만들거나 기본 3개 위험으로 채우지 마세요.',
+        '10. 제목(title)에는 "초안", "참고" 같은 표현을 빼고 완성형으로 기재하십시오.',
         '',
         '[응답 형식]',
         '설명, 마크다운, 코드블록 없이 아래 구조의 JSON 객체 하나만 반환하세요.',
@@ -205,6 +208,19 @@ const asStringArray = (value: unknown): string[] =>
 const stripCodeFence = (value: string): string =>
     value.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
 
+const normalizeRiskTopic = (value: unknown): string =>
+    normalizeText(value).replace(/[^\p{L}\p{N}]+/gu, '').toLowerCase();
+
+const findMatchingHighGradeRisk = (incoming: Record<string, unknown>, allowedRisks: TbmRiskItem[]): TbmRiskItem | null => {
+    const incomingTopic = normalizeRiskTopic(incoming.risk);
+    if (!incomingTopic) return null;
+    return allowedRisks.find((risk) => {
+        const allowedTopic = normalizeRiskTopic(risk.risk);
+        return allowedTopic
+            && (incomingTopic.includes(allowedTopic) || allowedTopic.includes(incomingTopic));
+    }) || null;
+};
+
 export const parseExternalAiResult = (
     raw: string,
     currentDraft: TbmEducationDraft,
@@ -224,15 +240,20 @@ export const parseExternalAiResult = (
             ? value.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
             : [];
 
-    const risks = normalizeItems(incoming.risks).slice(0, 5).map((item, index) => ({
-        id: `ai-risk-${index + 1}`,
-        risk: normalizeText(item.risk) || '관리자 확인 필요',
-        action: normalizeText(item.action) || '관리자 확인 필요',
-        evidenceLabels: asStringArray(item.evidenceLabels).slice(0, 3),
-        score: 0,
-        owner: normalizeText(item.owner) || '관리자 확인 필요',
-        managerConfirmed: false,
-    }));
+    const allowedHighGradeRisks = getHighGradeRiskShareItems(currentDraft.risks);
+    const risks = normalizeItems(incoming.risks).slice(0, 5).reduce<TbmRiskItem[]>((items, item) => {
+        const matched = findMatchingHighGradeRisk(item, allowedHighGradeRisks);
+        if (!matched) return items;
+        items.push({
+            ...matched,
+            action: normalizeText(item.action) || matched.action,
+            owner: normalizeText(item.owner) || matched.owner,
+            evidenceLabels: matched.evidenceLabels,
+            score: matched.score,
+            managerConfirmed: matched.managerConfirmed,
+        });
+        return items;
+    }, []);
     const videoScenes = normalizeItems(incoming.videoScenes).slice(0, 8).map((item, index) => ({
         id: `ai-video-${index + 1}`,
         seconds: Math.max(0, Math.round(Number(item.seconds) || 0)),
@@ -255,7 +276,7 @@ export const parseExternalAiResult = (
         title: normalizeText(incoming.title) || currentDraft.title,
         opening: normalizeText(incoming.opening) || currentDraft.opening,
         coreMessage: normalizeText(incoming.coreMessage) || currentDraft.coreMessage,
-        risks: risks.length ? risks : currentDraft.risks,
+        risks: risks.length ? risks : allowedHighGradeRisks,
         videoScenes: videoScenes.length ? videoScenes : currentDraft.videoScenes,
         accidentCases: accidentCases.length ? accidentCases : currentDraft.accidentCases,
         focusPoints: asStringArray(incoming.focusPoints).length ? asStringArray(incoming.focusPoints) : currentDraft.focusPoints,

@@ -19,7 +19,8 @@ const required = [
   ['pages/A4EducationMaterial.tsx', files.page, 'finishCompactSentence'],
   ['pages/A4EducationMaterial.tsx', files.page, 'trimToReadableBoundary'],
   ['pages/A4EducationMaterial.tsx', files.page, 'completeA4Items'],
-  ['pages/A4EducationMaterial.tsx', files.page, 'supplementalRisks'],
+  ['pages/A4EducationMaterial.tsx', files.page, 'getHighGradeRiskShareItems'],
+  ['pages/A4EducationMaterial.tsx', files.page, '일반 추천 위험은 이 영역에 표시하지 않습니다'],
   ['pages/A4EducationMaterial.tsx', files.page, 'translationNeedsRefresh'],
   ['pages/A4EducationMaterial.tsx', files.page, 'currentPreviewIsStaleTranslation'],
   ['pages/A4EducationMaterial.tsx', files.page, '기존 다국어 탭은 대조용으로 유지했습니다'],
@@ -32,8 +33,14 @@ const required = [
   ['components/tbm/ExternalAiHandoffPanel.tsx', files.handoffPanel, "if (translationNeedsRefresh) setAiMode('translation')"],
   ['components/tbm/ExternalAiHandoffPanel.tsx', files.handoffPanel, '수정본 번역 요청문 복사'],
   ['utils/externalAiHandoff.ts', files.handoffPrompt, '[현재 검수 완료 한국어 원문]'],
+  ['utils/externalAiHandoff.ts', files.handoffPrompt, '확인된 상등급이 없으면 risks는 빈 배열([])로 반환하십시오'],
+  ['utils/externalAiHandoff.ts', files.handoffPrompt, 'findMatchingHighGradeRisk'],
   ['utils/externalAiHandoff.ts', files.handoffPrompt, '새 초안을 만드는 단계가 아닙니다'],
   ['utils/tbmEducationStudio.ts', files.studio, '[오늘 반드시 전달할 한 문장]'],
+  ['utils/tbmEducationStudio.ts', files.studio, '[상등급 공유 후보]'],
+  ['utils/tbmEducationStudio.ts', files.studio, 'isHighGradeRiskRecord'],
+  ['utils/tbmEducationStudio.ts', files.studio, 'getHighGradeRiskShareItems'],
+  ['utils/tbmEducationStudio.ts', files.studio, 'extractHighGradeRiskCandidatesFromText'],
   ['utils/tbmEducationStudio.ts', files.studio, 'draft.coreMessage'],
   ['pages/AdminTraining.tsx', files.training, 'translationNeedsRefresh'],
   ['pages/AdminTraining.tsx', files.training, '기존 번역은 재사용하지 않고'],
@@ -42,6 +49,14 @@ const required = [
 
 for (const [file, content, marker] of required) {
   if (!content.includes(marker)) failures.push(`${file}: missing "${marker}"`);
+}
+
+if (files.page.includes('supplementalRisks') || files.studio.includes('기본 안전교육 보기글')) {
+  failures.push('A4 high-grade risk sharing must not auto-fill supplemental/default risks');
+}
+
+if (files.studio.includes('if (risk.managerConfirmed) return true')) {
+  failures.push('A4 high-grade risk sharing must require high-grade evidence, not managerConfirmed alone');
 }
 
 const compactTextBody = files.page.match(/const compactText =[\s\S]*?const compactLines =/);

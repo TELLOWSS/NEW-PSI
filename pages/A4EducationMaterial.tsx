@@ -12,6 +12,7 @@ import {
     buildTbmEducationDraft,
     estimateEducationTokens,
     getFiveMinuteVideoDuration,
+    getHighGradeRiskShareItems,
     getTbmEducationScopeKey,
     normalizeTbmEducationDraft,
     TBM_MONTHLY_PACKAGE_STORAGE_KEY,
@@ -924,8 +925,9 @@ const getA4FitMode = (
 const buildA4KoreanPrintContent = (draft: TbmEducationDraft, fitMode: A4FitMode): A4KoreanPrintContent => {
     const limits = A4_FIT_LIMITS[fitMode];
     const accident = draft.accidentCases[0];
-    const maxScore = Math.max(1, ...draft.risks.map((risk) => Number(risk.score) || 0));
-    const risks = draft.risks.slice(0, 3).map((risk) => ({
+    const highGradeRisks = getHighGradeRiskShareItems(draft.risks);
+    const maxScore = Math.max(1, ...highGradeRisks.map((risk) => Number(risk.score) || 0));
+    const printRisks = highGradeRisks.slice(0, 3).map((risk) => ({
         id: risk.id,
         risk: compactText(risk.risk, limits.riskName),
         action: compactText(risk.action, limits.riskAction),
@@ -933,41 +935,7 @@ const buildA4KoreanPrintContent = (draft: TbmEducationDraft, fitMode: A4FitMode)
         managerConfirmed: risk.managerConfirmed,
         priorityPct: Math.max(26, Math.min(100, Math.round(((Number(risk.score) || 1) / maxScore) * 100))),
     }));
-    const supplementalRisks = [
-        {
-            id: 'risk-safe-fallback-conditions',
-            risk: '작업 전 조건 확인',
-            action: compactText('작업 장소, 장비, 인원, 동선이 교육 내용과 맞는지 시작 전에 함께 확인합니다.', limits.riskAction),
-            owner: '작업팀',
-            managerConfirmed: false,
-            priorityPct: 72,
-        },
-        {
-            id: 'risk-safe-fallback-stop',
-            risk: '위험 발견 시 정지',
-            action: compactText('예정과 다른 위험이 보이면 작업을 멈추고 관리자 확인 후 다시 시작합니다.', limits.riskAction),
-            owner: '관리자',
-            managerConfirmed: false,
-            priorityPct: 64,
-        },
-        {
-            id: 'risk-safe-fallback-ppe',
-            risk: '보호구 재확인',
-            action: compactText('안전모, 안전화, 안전대 등 필수 보호구 착용 상태를 서로 확인합니다.', limits.riskAction),
-            owner: '전 근로자',
-            managerConfirmed: false,
-            priorityPct: 58,
-        },
-    ];
-    const printRisks = risks.length ? [...risks, ...supplementalRisks].slice(0, 3) : [{
-        id: 'risk-safe-fallback',
-        risk: '작업 전 재확인',
-        action: compactText('공유 위험 항목은 검수에서 제외되었습니다. 작업 시작 전 현장 조건과 작업중지 기준을 함께 확인합니다.', limits.riskAction),
-        owner: '관리자',
-        managerConfirmed: false,
-        priorityPct: 100,
-    }, ...supplementalRisks].slice(0, 3);
-    const hiddenCount = Math.max(0, draft.risks.length - risks.length)
+    const hiddenCount = Math.max(0, highGradeRisks.length - printRisks.length)
         + Math.max(0, draft.focusPoints.length - 3)
         + Math.max(0, draft.notices.length - 2);
     const accidentBodySource = [
@@ -1092,6 +1060,11 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         () => buildA4KoreanPrintContent(draft, a4FitMode),
         [draft, a4FitMode],
     );
+    const highGradeDraftRisks = useMemo(
+        () => getHighGradeRiskShareItems(draft.risks),
+        [draft.risks],
+    );
+    const hiddenNonHighGradeRiskCount = Math.max(0, draft.risks.length - highGradeDraftRisks.length);
     const currentTranslationSourceText = useMemo(
         () => buildMonthlyEducationPackageText(draft),
         [draft],
@@ -1734,9 +1707,9 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
 
                         <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
                             <h3 className="text-lg font-black">3. 다음 달 상등급 위험 공유</h3>
-                            <p className="mt-1 text-xs font-semibold text-slate-500">자동 추천 후 관리자가 등급과 담당자를 최종 확인하고 편집할 수 있습니다.</p>
+                            <p className="mt-1 text-xs font-semibold text-slate-500">Q3 위험수준이 상등급으로 확인된 기록만 표시합니다. 일반 추천 위험은 중점관리 포인트로만 다룹니다.</p>
                             <div className="mt-4 space-y-3">
-                                {draft.risks.map((item) => (
+                                {highGradeDraftRisks.map((item) => (
                                     <article key={item.id} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
                                         <div className="flex items-center justify-between gap-2">
                                             <input
@@ -1783,9 +1756,9 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                     onClick={() => {
                                         const newRisk = {
                                             id: `custom-risk-${Date.now()}`,
-                                            risk: '새로운 위험 요인',
-                                            action: '작업 전 핵심 안전조치 사항을 여기에 작성하십시오.',
-                                            evidenceLabels: ['수동 추가'],
+                                            risk: '상등급 위험 요인',
+                                            action: '상등급으로 확인된 위험의 작업 전 핵심 안전조치를 작성하십시오.',
+                                            evidenceLabels: ['관리자 상등급 수동 확인'],
                                             score: 0,
                                             owner: '담당자 지정 필요',
                                             managerConfirmed: true,
@@ -1797,8 +1770,18 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                     }}
                                     className="min-h-10 w-full rounded-xl border border-dashed border-slate-300 hover:border-slate-400 text-xs font-black text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
                                 >
-                                    + 새로운 위험요인 수동 추가
+                                    + 상등급 위험 수동 추가
                                 </button>
+                                {highGradeDraftRisks.length === 0 && (
+                                    <div className="rounded-xl border border-dashed border-rose-200 bg-rose-50 p-4 text-center text-xs font-bold leading-5 text-rose-700">
+                                        현재 Q3 상등급으로 확인된 위험공유 항목이 없습니다. 임의 추천은 자동으로 넣지 않습니다.
+                                    </div>
+                                )}
+                                {hiddenNonHighGradeRiskCount > 0 && (
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-bold leading-5 text-slate-600">
+                                        상등급 근거가 없는 기존 추천 위험 {hiddenNonHighGradeRiskCount}건은 출력과 다국어 원문에서 자동 제외했습니다.
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </section>
@@ -2094,21 +2077,27 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                             <h2 className="text-sm font-black text-rose-700">3. 위험성평가 상등급 공유</h2>
                                             <span className="text-[9px] font-black text-slate-400">우선순위 막대는 입력 근거 강도를 시각화합니다.</span>
                                         </div>
-                                        <div className="mt-2 grid grid-cols-3 gap-3">
-                                            {a4KoreanPrint.risks.map((item, index) => (
-                                                <article key={item.id} className={`rounded-xl border border-rose-200 bg-white ${a4FitMode === 'dense' ? 'p-2.5' : 'p-3'}`}>
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <h3 className="text-sm font-black leading-tight"><span className="mr-1 text-rose-600">TOP{index + 1}</span>{item.risk}</h3>
-                                                        <span className={`rounded px-2 py-1 text-[9px] font-black ${item.managerConfirmed ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-600'}`}>{item.managerConfirmed ? '상등급 확인' : '확인 필요'}</span>
-                                                    </div>
-                                                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-rose-100">
-                                                        <div className="h-full rounded-full bg-rose-500" style={{ width: `${item.priorityPct}%` }} />
-                                                    </div>
-                                                    <p className="mt-2 text-[10px] font-semibold leading-4 text-slate-600">{item.action}</p>
-                                                    <p className="mt-2 text-[9px] font-bold text-slate-500">담당: {item.owner}</p>
-                                                </article>
-                                            ))}
-                                        </div>
+                                        {a4KoreanPrint.risks.length > 0 ? (
+                                            <div className="mt-2 grid grid-cols-3 gap-3">
+                                                {a4KoreanPrint.risks.map((item, index) => (
+                                                    <article key={item.id} className={`rounded-xl border border-rose-200 bg-white ${a4FitMode === 'dense' ? 'p-2.5' : 'p-3'}`}>
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <h3 className="text-sm font-black leading-tight"><span className="mr-1 text-rose-600">TOP{index + 1}</span>{item.risk}</h3>
+                                                            <span className={`rounded px-2 py-1 text-[9px] font-black ${item.managerConfirmed ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-600'}`}>{item.managerConfirmed ? '상등급 확인' : '확인 필요'}</span>
+                                                        </div>
+                                                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-rose-100">
+                                                            <div className="h-full rounded-full bg-rose-500" style={{ width: `${item.priorityPct}%` }} />
+                                                        </div>
+                                                        <p className="mt-2 text-[10px] font-semibold leading-4 text-slate-600">{item.action}</p>
+                                                        <p className="mt-2 text-[9px] font-bold text-slate-500">담당: {item.owner}</p>
+                                                    </article>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="mt-2 rounded-xl border border-dashed border-rose-200 bg-rose-50 px-4 py-3 text-center text-[10px] font-bold leading-4 text-rose-700">
+                                                Q3 위험수준이 상등급으로 확인된 공유 항목이 없습니다. 일반 추천 위험은 이 영역에 표시하지 않습니다.
+                                            </div>
+                                        )}
                                     </section>
 
                                     <section className="mt-3 grid shrink-0 grid-cols-2 gap-4">
@@ -2185,11 +2174,13 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                             <article className="rounded-xl border border-rose-100 bg-rose-50/50 p-2.5">
                                                 <p className="text-[9px] font-black text-rose-700">3. 위험성평가 상등급 공유</p>
                                                 <div className="space-y-1.5 mt-1.5">
-                                                    {a4KoreanPrint.risks.map((item) => (
+                                                    {a4KoreanPrint.risks.length > 0 ? a4KoreanPrint.risks.map((item) => (
                                                         <div key={item.id} className="text-[9px] leading-normal">
                                                             <b className="text-slate-800">• {item.risk}</b>: <span>{item.action}</span> <span className="text-slate-400">({item.owner})</span>
                                                         </div>
-                                                    ))}
+                                                    )) : (
+                                                        <p className="text-[9px] font-bold leading-normal text-rose-700">상등급으로 확인된 공유 항목이 없습니다.</p>
+                                                    )}
                                                 </div>
                                             </article>
 

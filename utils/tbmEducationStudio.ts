@@ -80,8 +80,6 @@ export interface TbmMonthlyPackagePayload {
     scopeKey: string;
 }
 
-const DEFAULT_RISKS = ['추락', '끼임', '충돌'];
-
 const ACTION_RULES: Array<{ risk: string; keywords: string[]; action: string }> = [
     { risk: '추락', keywords: ['추락', '고소', '사다리', '개구부'], action: '작업발판, 안전난간, 개구부 덮개와 안전대 체결 상태를 작업 전에 확인한다.' },
     { risk: '끼임', keywords: ['끼임', '협착', '회전체'], action: '가동부 방호장치와 비상정지 장치를 확인하고 정비 전 전원을 차단한다.' },
@@ -94,6 +92,55 @@ const ACTION_RULES: Array<{ risk: string; keywords: string[]; action: string }> 
 
 const normalize = (value: unknown): string => String(value ?? '').replace(/\s+/g, ' ').trim();
 
+const normalizeQuestionNumber = (value: unknown): string => {
+    const matched = String(value || '').match(/[1-5]/);
+    return matched ? matched[0] : '';
+};
+
+const getAnswerTextByQuestion = (record: WorkerRecord, questionNumber: string): string => {
+    const normalized = normalizeQuestionNumber(questionNumber);
+    const answer = (record.handwrittenAnswers || []).find((item, index) => {
+        const answerNumber = normalizeQuestionNumber(item.questionNumber);
+        return answerNumber ? answerNumber === normalized : index === Number(normalized) - 1;
+    });
+    return normalize([answer?.answerText, answer?.koreanTranslation, answer?.nativeTranslation].filter(Boolean).join(' '));
+};
+
+const parseSelfAssessedRiskLevel = (value: unknown): WorkerRecord['selfAssessedRiskLevel'] | null => {
+    const normalized = normalize(value);
+    if (!normalized) return null;
+    if (/high|높음|고위험|매우\s*위험/i.test(normalized)) return '상';
+    if (/medium|middle|보통|중위험/i.test(normalized)) return '중';
+    if (/low|낮음|저위험/i.test(normalized)) return '하';
+
+    const compact = normalized.replace(/\s+/g, '');
+    if (/^(상|상등급|위험등급상)$/.test(compact)) return '상';
+    if (/^(중|중등급|위험등급중)$/.test(compact)) return '중';
+    if (/^(하|하등급|위험등급하)$/.test(compact)) return '하';
+
+    const isolated = normalized.match(/(?:^|[\s()[\]{}:：,./-])(상|중|하)(?:$|[\s()[\]{}:：,./-])/);
+    return isolated?.[1] as WorkerRecord['selfAssessedRiskLevel'] | undefined || null;
+};
+
+export const getRecordSelfAssessedRiskLevel = (record: WorkerRecord): WorkerRecord['selfAssessedRiskLevel'] | null => (
+    parseSelfAssessedRiskLevel(record.selfAssessedRiskLevel) || parseSelfAssessedRiskLevel(getAnswerTextByQuestion(record, '3'))
+);
+
+export const isHighGradeRiskRecord = (record: WorkerRecord): boolean => (
+    getRecordSelfAssessedRiskLevel(record) === '상'
+);
+
+const HIGH_GRADE_EVIDENCE_PATTERN = /(상등급|위험수준\s*상|자가\s*위험수준\s*상|Q3\s*상|High\s*Risk|high\s*priority)/i;
+
+export const isHighGradeRiskShareItem = (risk: TbmRiskItem): boolean => {
+    const evidenceText = [risk.risk, ...(risk.evidenceLabels || [])].map(normalize).join(' ');
+    return HIGH_GRADE_EVIDENCE_PATTERN.test(evidenceText);
+};
+
+export const getHighGradeRiskShareItems = (risks: TbmRiskItem[] | undefined): TbmRiskItem[] => (
+    Array.isArray(risks) ? risks.filter(isHighGradeRiskShareItem) : []
+);
+
 const getActionForRisk = (risk: string): string => {
     const normalized = normalize(risk);
     const matched = ACTION_RULES.find((rule) => rule.risk === normalized || rule.keywords.some((keyword) => normalized.includes(keyword)));
@@ -103,6 +150,34 @@ const getActionForRisk = (risk: string): string => {
 const canonicalizeRisk = (value: string): string => {
     const normalized = normalize(value);
     return ACTION_RULES.find((rule) => rule.keywords.some((keyword) => normalized.includes(keyword)))?.risk || normalized;
+};
+
+const extractHighGradeRiskCandidatesFromText = (text: string): string[] => {
+    const candidates = new Set<string>();
+    const segments = String(text || '')
+        .split(/[\r\n。.!?]+/)
+        .map(normalize)
+        .filter((segment) => segment && HIGH_GRADE_EVIDENCE_PATTERN.test(segment));
+
+    segments.forEach((segment) => {
+        ACTION_RULES.forEach((rule) => {
+            const terms = [rule.risk, ...rule.keywords].map(normalize).filter(Boolean);
+            if (terms.some((term) => segment.includes(term))) {
+                candidates.add(rule.risk);
+            }
+        });
+
+        const riskField = segment.match(/위험요인\s*[:：]\s*([^|]+)/);
+        if (riskField?.[1]) {
+            riskField[1]
+                .split(/[,，、/·]+/)
+                .map(canonicalizeRisk)
+                .filter(Boolean)
+                .forEach((risk) => candidates.add(risk));
+        }
+    });
+
+    return [...candidates];
 };
 
 const getNextMonth = (): string => {
@@ -120,12 +195,31 @@ export const buildFieldRecordSource = (
         : workerRecords.filter((record) => record.jobField === workType);
     if (!targetRecords.length) return null;
 
-    const lines = targetRecords.flatMap((record) => [
-        ...(record.weakAreas || []),
+    const highGradeRecords = targetRecords.filter(isHighGradeRiskRecord);
+    const highGradeLines = highGradeRecords.map((record) => {
+        const q2 = getAnswerTextByQuestion(record, '2');
+        const q3 = getAnswerTextByQuestion(record, '3');
+        const q4 = getAnswerTextByQuestion(record, '4');
+        const risks = (record.weakAreas || []).map(normalize).filter(Boolean).join(', ') || q2 || '위험요인 확인 필요';
+        return [
+            `상등급 기록 ${record.date || '일자 미확인'} / ${record.jobField || '공종 미확인'}`,
+            `위험요인: ${risks}`,
+            q3 ? `Q3 위험수준 근거: ${q3}` : '',
+            q4 ? `안전조치: ${q4}` : '',
+        ].filter(Boolean).join(' | ');
+    });
+    const focusLines = targetRecords.flatMap((record) => [
         ...(record.suggestions || []),
         record.improvement,
         record.actionable_coaching,
     ]).map(normalize).filter(Boolean);
+    const lines = [
+        '[상등급 공유 후보]',
+        ...(highGradeLines.length ? highGradeLines : ['Q3 위험수준이 상등급으로 확인된 기록이 없습니다. draft.risks는 빈 배열로 유지하세요.']),
+        '',
+        '[중점관리 참고 - 상등급 공유란에 직접 넣지 말 것]',
+        ...focusLines,
+    ];
 
     return {
         id: `field-${workType}`,
@@ -150,21 +244,42 @@ export const buildTbmEducationDraft = (options: {
         : options.workerRecords.filter((record) => record.jobField === workType);
     const sourceTexts = options.sources.map((source) => ({
         source,
+        rawText: source.text,
         text: normalize(source.text).toLowerCase(),
     }));
     const riskMap = new Map<string, { score: number; evidence: Set<string> }>();
 
-    targetRecords.forEach((record) => {
+    const highGradeRecords = targetRecords.filter(isHighGradeRiskRecord);
+
+    highGradeRecords.forEach((record) => {
         (record.weakAreas || []).map(normalize).filter(Boolean).forEach((rawRisk) => {
             const risk = canonicalizeRisk(rawRisk);
             const current = riskMap.get(risk) || { score: 0, evidence: new Set<string>() };
-            current.score += 4;
-            current.evidence.add(`현장기록 ${record.date}`);
+            current.score += 6;
+            current.evidence.add(`상등급 기록 ${record.date || '일자 미확인'}`);
+            riskMap.set(risk, current);
+        });
+        if (!(record.weakAreas || []).length) {
+            const fallbackRisk = canonicalizeRisk(getAnswerTextByQuestion(record, '2'));
+            if (fallbackRisk) {
+                const current = riskMap.get(fallbackRisk) || { score: 0, evidence: new Set<string>() };
+                current.score += 4;
+                current.evidence.add(`상등급 기록 ${record.date || '일자 미확인'}`);
+                riskMap.set(fallbackRisk, current);
+            }
+        }
+    });
+
+    sourceTexts.forEach(({ source, rawText }) => {
+        extractHighGradeRiskCandidatesFromText(rawText).forEach((risk) => {
+            const current = riskMap.get(risk) || { score: 0, evidence: new Set<string>() };
+            current.score += 3;
+            current.evidence.add(`상등급 근거 ${source.title}`);
             riskMap.set(risk, current);
         });
     });
 
-    const candidates = new Set<string>([...riskMap.keys(), ...DEFAULT_RISKS, ...ACTION_RULES.map((rule) => rule.risk)]);
+    const candidates = new Set<string>(riskMap.keys());
 
     candidates.forEach((risk) => {
         sourceTexts.forEach(({ source, text }) => {
@@ -186,13 +301,7 @@ export const buildTbmEducationDraft = (options: {
         .filter(([, value]) => value.score > 0)
         .sort((left, right) => right[1].score - left[1].score)
         .slice(0, 3);
-    const selected: Array<[string, { score: number; evidence: Set<string> }]> = ranked.length
-        ? [...ranked]
-        : DEFAULT_RISKS.map((risk) => [risk, { score: 1, evidence: new Set(['기본 안전교육 보기글']) }]);
-    DEFAULT_RISKS.forEach((risk) => {
-        if (selected.length >= 3 || selected.some(([selectedRisk]) => selectedRisk === risk)) return;
-        selected.push([risk, { score: 1, evidence: new Set(['기본 안전교육 보기글']) }]);
-    });
+    const selected: Array<[string, { score: number; evidence: Set<string> }]> = [...ranked];
 
     const risks = selected.map(([risk, value], index) => ({
         id: `risk-${index + 1}`,
@@ -201,11 +310,13 @@ export const buildTbmEducationDraft = (options: {
         evidenceLabels: [...value.evidence].slice(0, 3),
         score: value.score,
         owner: '담당자 지정 필요',
-        managerConfirmed: false,
+        managerConfirmed: true,
     }));
-    const firstRisk = risks[0]?.risk || '주요 위험';
+    const firstRisk = risks[0]?.risk || '확인된 상등급 위험 없음';
     const coreMessage = normalize(options.coreMessage)
-        || `${workType} 작업자는 작업 시작 전 ${firstRisk} 위험과 안전조치를 함께 확인하고, 조건이 달라지면 즉시 작업을 멈춘다.`;
+        || (risks.length
+            ? `${workType} 작업자는 작업 시작 전 ${firstRisk} 위험과 안전조치를 함께 확인하고, 조건이 달라지면 즉시 작업을 멈춘다.`
+            : `${workType} 작업자는 이번 자료에서 상등급으로 확인된 공유 위험이 없더라도 작업 전 현장 조건과 작업중지 기준을 함께 확인한다.`);
     const focusPoints = risks.map((item) => `${item.risk}: ${item.action}`);
     const accidentCases: TbmAccidentCase[] = [{
         id: 'accident-1',
@@ -213,7 +324,9 @@ export const buildTbmEducationDraft = (options: {
         occurredAt: '',
         source: '관리자 확인 필요',
         summary: '현장과 작업이 유사한 최근 재해사례를 입력해 주세요. 확인되지 않은 사례는 교육에 사용하지 않습니다.',
-        siteRelevance: `${workType} 작업의 ${firstRisk} 위험과 연결해 설명합니다.`,
+        siteRelevance: risks.length
+            ? `${workType} 작업의 ${firstRisk} 위험과 연결해 설명합니다.`
+            : `${workType} 작업의 현장 조건과 작업중지 기준을 중심으로 설명합니다.`,
         lesson: risks[0]?.action || '작업 전 위험요인과 안전조치를 확인합니다.',
     }];
     const notices = [
@@ -239,8 +352,10 @@ export const buildTbmEducationDraft = (options: {
             id: 'video-high-risk',
             seconds: 80,
             title: '다음 달 상등급 위험 공유',
-            narration: risks.map((item) => `${item.risk} 위험의 핵심 조치는 ${item.action}`).join(' '),
-            visualGuide: '상등급 공유 대상 3건과 선정 근거, 담당자를 순서대로 표시',
+            narration: risks.length
+                ? risks.map((item) => `${item.risk} 위험의 핵심 조치는 ${item.action}`).join(' ')
+                : '이번 자료에는 Q3 상등급으로 확인된 공유 위험이 없습니다. 일반 추천 위험은 넣지 않고 작업 전 조건 확인과 작업중지 기준만 안내합니다.',
+            visualGuide: 'Q3 상등급으로 확인된 공유 대상만 표시하고, 없으면 “상등급 확인 항목 없음”으로 표시',
         },
         {
             id: 'video-focus',
@@ -323,8 +438,7 @@ export const getFiveMinuteVideoDuration = (draft: TbmEducationDraft): number =>
 
 export const buildMonthlyEducationPackageText = (draft: TbmEducationDraft): string => {
     const accident = draft.accidentCases[0];
-    const confirmedRisks = draft.risks.filter((risk) => risk.managerConfirmed);
-    const risksToShare = confirmedRisks.length ? confirmedRisks : draft.risks;
+    const risksToShare = getHighGradeRiskShareItems(draft.risks);
     const accidentMeta = [accident?.occurredAt, accident?.source].filter(Boolean).join(' · ') || '출처와 발생일 확인 필요';
 
     return [
@@ -352,7 +466,7 @@ export const buildMonthlyEducationPackageText = (draft: TbmEducationDraft): stri
         '3. 위험성평가 상등급 공유',
         ...(risksToShare.length
             ? risksToShare.map((risk) => `- ${risk.risk}: ${risk.action} / 담당 ${risk.owner} / ${risk.managerConfirmed ? '관리자 확인 완료' : '상등급 최종 확인 필요'}`)
-            : ['- 관리자 검수에서 공유 위험 항목을 제외했습니다. 작업 전 현장 조건과 작업중지 기준을 확인합니다.']),
+            : ['- Q3 위험수준이 상등급으로 확인된 공유 항목이 없습니다. 일반 추천 위험은 이 영역에 넣지 않습니다.']),
         '',
         '4. 현장 중점관리 포인트',
         ...(draft.focusPoints.length
