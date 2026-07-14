@@ -402,7 +402,7 @@ const workerRecordSchema = {
                         questionNumber: { type: Type.STRING },
                         answerText: { type: Type.STRING },
                         koreanTranslation: { type: Type.STRING, description: '관리자 검토용 한국어 해석 — 항상 한국어로 작성' },
-                        nativeTranslation: { type: Type.STRING, description: '작업자 전달용 모국어 해석 — 외국인은 LANGUAGE_POLICY 기준 해당 국적 모국어로 전문 번역, 한국인은 빈 문자열' },
+                        nativeTranslation: { type: Type.STRING, description: '작업자 전달용 모국어 해석 — 외국인은 LANGUAGE_POLICY 기준 해당 국적 모국어로 자연스럽게 번역. 한국인은 빈 문자열. Q1 같은 시스템 표기는 현지어 질문 번호로 풀어 쓴다.' },
                     }
                 }
             },
@@ -422,9 +422,9 @@ const workerRecordSchema = {
             aiInsights_native: { type: Type.STRING },
             scoreReasoning: { type: Type.ARRAY, items: { type: Type.STRING } },
             score_reason: { type: Type.STRING, description: "팩트 기반 상세 채점 근거: 어떤 항목에서 왜 감점/가점이 발생했는지 2~4문장으로 서술 (항상 한국어로 작성)" },
-            score_reason_native: { type: Type.STRING, description: "score_reason을 근로자 모국어로 번역 (한국인이면 빈 문자열 반환, 외국인이면 LANGUAGE_POLICY 기준 모국어로 전문 번역)" },
+            score_reason_native: { type: Type.STRING, description: "score_reason을 근로자 모국어로 번역하되, 근로자가 직접 읽는 안내문처럼 짧고 자연스럽게 작성. 한국인이면 빈 문자열." },
             actionable_coaching: { type: Type.STRING, description: "다음 달 정기교육 작성 시 구체적으로 개선할 행동 가이드 (💡 이모지 포함, 한 문단, 항상 한국어로 작성)" },
-            actionable_coaching_native: { type: Type.STRING, description: "actionable_coaching을 근로자 모국어로 번역 (한국인이면 빈 문자열, 외국인이면 LANGUAGE_POLICY 기준 모국어로 번역 — 근로자가 현장에서 직접 읽고 실천할 수 있는 언어로 작성)" },
+            actionable_coaching_native: { type: Type.STRING, description: "actionable_coaching을 근로자 모국어로 번역. 근로자가 현장에서 직접 읽고 바로 실천할 수 있게 2~4개의 짧은 문장으로 작성. 한국인이면 빈 문자열." },
             scoreBreakdown: {
                 type: Type.OBJECT,
                 description: "6대 핵심 평가 지표별 개별 점수 (월간 안전보건정기교육 전용)",
@@ -1457,6 +1457,13 @@ const LANGUAGE_POLICY = `
 **번역 지침**:
 단순 직역이 아닌, 건설 현장에서 통용되는 '안전 전문 용어'로 의역하라.
 (예: '추락' → 베트남어: 'té ngã từ trên cao', 중국어: '高处坠落', 태국어: 'การตกจากที่สูง')
+
+3. **근로자 직접 전달 문체 — 모국어 리포트 자연스러움 규칙**:
+   - _native 계열 문장은 근로자가 직접 읽는 안내문이다. 관리자 평가서처럼 "이 근로자는", "해당 근로자는", "the worker", "员工", "Pekerja", "កម្មករ", "အလုပ်သမား", "Ажилтан" 등 3인칭 주어로 시작하지 마라.
+   - 이름, 점수, 등급, 내부 필드명(score_reason, actionable_coaching, safetyScore 등), Q1/Q2 같은 시스템 표기를 근로자용 문장에 그대로 넣지 마라.
+   - 문장은 짧게 쓴다. 한 문장에는 하나의 행동만 담고, 전체는 2~4문장으로 작성한다.
+   - 어조는 질책이 아니라 현장 지시형 보호 안내로 쓴다. 예: "작업 전 안전대를 먼저 체결하고, 작업 중 발판 상태가 바뀌면 즉시 멈추세요."를 해당 모국어의 자연스러운 표현으로 작성한다.
+   - score_reason_native도 단순 직역하지 말고 "왜 이 안내가 필요한지"를 근로자가 이해할 수 있는 쉬운 말로 바꾼다.
 `;
 
 const STRICT_SCORE_POLICY = `
@@ -1532,6 +1539,8 @@ const STRICT_SCORE_POLICY = `
     * score_reason_native 필드에 score_reason의 내용을 LANGUAGE_POLICY에 명시된 해당 국적 모국어로 완전 번역하여 반드시 채울 것.
     * actionable_coaching_native 필드에 actionable_coaching의 내용을 모국어로 완전 번역하여 반드시 채울 것 — 근로자가 현장에서 직접 읽고 즉시 실천할 수 있는 수준.
     * 단순 직역 금지 — 건설 현장 안전 전문 용어를 해당 언어 현장 표준으로 의역.
+    * worker-facing 문체 준수 — 근로자 이름, "이 근로자/worker/员工/Pekerja" 같은 3인칭 평가 문체, 내부 필드명, Q1/Q2 표기를 넣지 말 것.
+    * 문장 수 2~4개, 한 문장 하나의 행동 기준. 길고 딱딱한 번역투 금지.
     * 두 _native 필드 모두 빈 문자열로 반환하는 것은 규칙 위반. 반드시 번역된 내용을 반환할 것.
   - 한국인(대한민국 또는 한국)인 경우: score_reason_native = "", actionable_coaching_native = "" (빈 문자열만 허용).
 `;
@@ -1814,6 +1823,7 @@ async function callGeminiWithRetry(
             - aiInsights는 반드시 한국어로만 작성. 영어 단어 혼용 절대 금지.
             - aiInsights_native는 반드시 작업자 국적 모국어로만 작성. 빈 문자열 반환 절대 금지. 한국 근로자도 한국어 안내로 반드시 채울 것.
             - _native 계열 모든 필드에 영어·한국어 혼입 금지. 해당 국적 언어로만 완성.
+            - _native 계열 모든 필드는 근로자가 직접 읽는 현장 안내문이다. 3인칭 평가 문체, 이름, 점수/등급, 내부 필드명, Q1/Q2 표기 금지. 2~4개의 짧은 문장으로 작성.
             반드시 scoreReasoning 배열을 포함하고, 점수-등급 일치(80/60 기준)를 확인한 후 반환하십시오.
             문항형 위험성평가표(1~5번 질문)가 보이면 handwrittenAnswers 배열에 각 문항을 순서대로 채우십시오.
             - answerText: 작업자가 실제로 쓴 원문
@@ -2200,6 +2210,7 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
     [우수사례 반영 규칙]
     - 위 사례의 작업 단계(작업전/중/후), 수치/범위, 검증 포인트를 코칭 문장에 반영한다.
     - 외국인 근로자는 actionable_coaching_native에 현장 실무형 번역으로 반드시 제공한다.
+    - _native 필드는 근로자에게 직접 말하는 쉬운 문장으로 작성한다. "이 근로자", "worker", "员工", "Pekerja", "အလုပ်သမား" 같은 3인칭 평가 문체와 이름 언급을 금지한다.
 
     [응답 규칙]
     - scoreReasoning은 최소 1개 이상 작성.

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { WorkerRecord } from '../types';
 import {
     getNativeJobFieldLabel,
+    getNativeReportReadabilityIssues,
     getReportLanguagePolicy,
     hasHangul,
     REPORT_LANGUAGE_POLICIES,
@@ -96,6 +97,19 @@ describe('worker report language policy', () => {
             ].join('\n');
             expect(hasHangul(output), `${code} fallback contains Hangul`).toBe(false);
         });
+    });
+
+    it('flags worker-facing native report text that is hard to read or not native-language clean', () => {
+        const idPolicy = getReportLanguagePolicy('인도네시아', 'id');
+        expect(getNativeReportReadabilityIssues('작업 전에는 안전대를 먼저 확인하세요.', idPolicy).some((issue) => issue.code === 'hangul-mixed')).toBe(true);
+        expect(getNativeReportReadabilityIssues('Pekerja memahami risiko, tetapi score_reason perlu dicek.', idPolicy).map((issue) => issue.code)).toEqual(expect.arrayContaining(['manager-evaluation-tone', 'system-term']));
+
+        const cleanId = 'Sebelum mulai kerja, periksa sabuk pengaman dan kondisi pijakan. Jika kondisi berubah, hentikan pekerjaan dan laporkan kepada mandor.';
+        expect(getNativeReportReadabilityIssues(cleanId, idPolicy).filter((issue) => issue.severity === 'error')).toHaveLength(0);
+
+        const zhPolicy = getReportLanguagePolicy('중국', 'zh');
+        expect(getNativeReportReadabilityIssues('作业前先检查安全带和脚踏板。条件变化时立即停止作业，并向班长报告。', zhPolicy)).toHaveLength(0);
+        expect(getNativeReportReadabilityIssues('该工人需要 check safetyScore before work.', zhPolicy).map((issue) => issue.code)).toEqual(expect.arrayContaining(['manager-evaluation-tone', 'unexpected-latin', 'system-term']));
     });
 
     it('keeps Korean verification copy out of the worker-facing certificate page', () => {

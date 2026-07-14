@@ -76,6 +76,7 @@
     "audit:ui-language": "node scripts/audit-ui-language.mjs",
     "check:ui-language": "node scripts/audit-ui-language.mjs --strict",
     "audit:report-language": "node scripts/audit-report-language.mjs",
+    "audit:native-report-readability": "node scripts/audit-native-report-readability.mjs",
     "check:report-language": "node scripts/audit-report-language.mjs --strict",
     "log:story": "node scripts/append-upgrade-story-log.cjs",
     "log:story:auto": "node scripts/append-upgrade-story-log.cjs --auto-from-reports",

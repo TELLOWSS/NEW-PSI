@@ -24,6 +24,10 @@ const mustContain = [
   ['utils/reportLanguagePolicy.ts', "totalScore: '위험인식 신호'"],
   ['utils/reportLanguagePolicy.ts', "beginner: '우선지원'"],
   ['utils/reportLanguagePolicy.ts', "beginner: 'Priority support'"],
+  ['utils/reportLanguagePolicy.ts', 'getNativeReportReadabilityIssues'],
+  ['utils/ocrVerificationLanguageUtils.ts', 'nativeReadabilityWarningCount'],
+  ['services/geminiService.ts', '근로자 직접 전달 문체'],
+  ['package.json', 'audit:native-report-readability'],
 ];
 
 for (const [file, needle] of mustContain) {

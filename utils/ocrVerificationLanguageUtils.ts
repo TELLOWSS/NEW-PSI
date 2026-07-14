@@ -1,9 +1,24 @@
 import type { WorkerRecord } from '../types';
-import { getReportLanguagePolicy, resolveReportLanguageCode } from './reportLanguagePolicy.js';
+import { getNativeReportReadabilityIssues, getReportLanguagePolicy, resolveReportLanguageCode } from './reportLanguagePolicy.js';
 
 type OcrVerificationLikeRecord = Pick<WorkerRecord, 'nationality' | 'language' | 'jobField' | 'weakAreas' | 'aiInsights' | 'aiInsights_native' | 'fullText' | 'koreanTranslation' | 'handwrittenAnswers'>;
 
-type OcrVerificationQualityRecord = Pick<WorkerRecord, 'nationality' | 'language' | 'jobField' | 'aiInsights' | 'aiInsights_native' | 'handwrittenAnswers' | 'safetyScore'>;
+type OcrVerificationQualityRecord = Pick<
+    WorkerRecord,
+    | 'nationality'
+    | 'language'
+    | 'jobField'
+    | 'aiInsights'
+    | 'aiInsights_native'
+    | 'handwrittenAnswers'
+    | 'safetyScore'
+    | 'strengths_native'
+    | 'weakAreas_native'
+    | 'improvement_native'
+    | 'suggestions_native'
+    | 'score_reason_native'
+    | 'actionable_coaching_native'
+>;
 
 const normalizeNation = (nationality: string): string => String(nationality || '').trim().toLowerCase();
 const normalizeLanguage = (language?: string): string => String(language || '').trim().toLowerCase();
@@ -120,6 +135,7 @@ export const evaluateOcrVerificationCompleteness = (record: OcrVerificationLikeR
 
 export const evaluateOcrVerificationQuality = (record: OcrVerificationQualityRecord) => {
     const nativeLanguageLabel = getNativeLanguageLabel(record.nationality, record.language);
+    const policy = getReportLanguagePolicy(record.nationality, record.language);
     const aiInsights = String(record.aiInsights || '').trim();
     const aiInsightsNative = String(record.aiInsights_native || '').trim();
     const jobField = String(record.jobField || '').trim();
@@ -137,11 +153,28 @@ export const evaluateOcrVerificationQuality = (record: OcrVerificationQualityRec
     const hasJobContextInInsights = jobField.length > 0 && (aiInsights.includes(jobField) || aiInsightsNative.includes(jobField));
     const hasConcreteActionSignal = /(작업\s*전|작업\s*중|작업\s*후|체결|점검|통제|확인|\d+\s*(?:m|미터|cm|개|회|분)|ก่อน|前|后|检查|确认|kiểm tra|trước|sau|провер|контрол)/u.test(`${aiInsights}\n${aiInsightsNative}`);
     const scoreOverestimateRisk = Number(record.safetyScore || 0) >= 80 && (!hasJobContextInInsights || !hasConcreteActionSignal);
+    const nativeTextChunks = isKoreanNationality(record.nationality, record.language)
+        ? []
+        : [
+            aiInsightsNative,
+            record.score_reason_native,
+            record.actionable_coaching_native,
+            record.improvement_native,
+            ...(Array.isArray(record.strengths_native) ? record.strengths_native : []),
+            ...(Array.isArray(record.weakAreas_native) ? record.weakAreas_native : []),
+            ...(Array.isArray(record.suggestions_native) ? record.suggestions_native : []),
+            ...handwrittenAnswers.map((item) => (item as { nativeTranslation?: string })?.nativeTranslation),
+        ].map((value) => String(value || '').trim()).filter(Boolean);
+    const nativeReadabilityIssues = nativeTextChunks.flatMap((value) => getNativeReportReadabilityIssues(value, policy));
+    const nativeReadabilityErrorCount = nativeReadabilityIssues.filter((issue) => issue.severity === 'error').length;
+    const nativeReadabilityWarningCount = nativeReadabilityIssues.filter((issue) => issue.severity === 'warning').length;
 
     const issues: string[] = [];
     if (hasEnglishInKorean) issues.push('한국어 분석문에 영어 혼입');
     if (hasEnglishInNative) issues.push(`${nativeLanguageLabel} 분석문에 영어 혼입`);
     if (missingNativeAnswerTranslationCount > 0) issues.push(`${nativeLanguageLabel} 문항 번역 누락 ${missingNativeAnswerTranslationCount}건`);
+    if (nativeReadabilityErrorCount > 0) issues.push(`${nativeLanguageLabel} 모국어 안내 오류 ${nativeReadabilityErrorCount}건`);
+    if (nativeReadabilityWarningCount > 0) issues.push(`${nativeLanguageLabel} 전달 문체 확인 ${nativeReadabilityWarningCount}건`);
     if (scoreOverestimateRisk) issues.push('점수 과대 의심(공종 맥락/행동근거 부족)');
 
     return {
@@ -149,6 +182,8 @@ export const evaluateOcrVerificationQuality = (record: OcrVerificationQualityRec
         hasEnglishInKorean,
         hasEnglishInNative,
         missingNativeAnswerTranslationCount,
+        nativeReadabilityErrorCount,
+        nativeReadabilityWarningCount,
         scoreOverestimateRisk,
         issues,
         isHealthy: issues.length === 0,

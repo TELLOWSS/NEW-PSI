@@ -816,9 +816,109 @@ export const getNativeSafetyLevelLabel = (
 
 export const hasHangul = (value: string): boolean => /[가-힣]/u.test(String(value || ''));
 
+export type NativeReportReadabilitySeverity = 'error' | 'warning';
+
+export interface NativeReportReadabilityIssue {
+    severity: NativeReportReadabilitySeverity;
+    code: string;
+    message: string;
+}
+
+const expectedScriptPattern: Partial<Record<ReportLanguageCode, RegExp>> = {
+    ko: /[가-힣]/u,
+    zh: /[\u3400-\u9FFF]/u,
+    th: /[\u0E00-\u0E7F]/u,
+    my: /[\u1000-\u109F]/u,
+    km: /[\u1780-\u17FF]/u,
+    mn: /[\u0400-\u04FF]/u,
+    ru: /[\u0400-\u04FF]/u,
+    kk: /[\u0400-\u04FF]/u,
+    ne: /[\u0900-\u097F]/u,
+};
+
+const directWorkerToneMarkers: Partial<Record<ReportLanguageCode, RegExp>> = {
+    ko: /^(?:이\s*근로자|해당\s*근로자|근로자는|작업자는)/u,
+    vi: /^(?:người\s+lao\s+động|công\s+nhân|anh\s+[\p{L}\s-]{2,}|chị\s+[\p{L}\s-]{2,})/iu,
+    zh: /^(?:该工人|该员工|员工|工人)/u,
+    th: /^(?:ผู้ปฏิบัติงาน|คนงาน|พนักงาน)/u,
+    my: /^(?:ဤ)?\s*(?:အလုပ်သမား|လုပ်သား)/u,
+    uz: /^(?:ishchi|xodim)/iu,
+    km: /^(?:កម្មករ|និយោជិត|បុគ្គលិក)/u,
+    id: /^(?:pekerja|karyawan)/iu,
+    ms: /^(?:pekerja|kakitangan)/iu,
+    mn: /^(?:ажилтан|ажилчин)/iu,
+    ru: /^(?:работник|сотрудник|данный\s+работник)/iu,
+    kk: /^(?:жұмысшы|қызметкер|осы\s+жұмысшы)/iu,
+    ne: /^(?:कामदार|कर्मचारी)/u,
+    en: /^(?:the\s+worker|worker|employee)/iu,
+};
+
+const latinScriptLanguages = new Set<ReportLanguageCode>(['vi', 'uz', 'id', 'ms', 'en']);
+
+const removeAllowedLatinTokens = (text: string): string =>
+    text.replace(/\b(?:PSI|QR|A4|D[-\s]?ring|ID|PPE|APD)\b/gi, ' ');
+
+const hasUnexpectedLatin = (text: string, policy: ReportLanguagePolicy): boolean => {
+    if (latinScriptLanguages.has(policy.code)) return false;
+    return /[A-Za-z]{3,}/u.test(removeAllowedLatinTokens(text));
+};
+
+const hasSystemTerm = (text: string): boolean =>
+    /\b(?:score_reason|actionable_coaching|safetyScore|safetyLevel|scoreBreakdown|JSON|OCR|AI|TBM|Q[1-5]|worker|employee)\b/iu.test(text);
+
+const getLongestSentenceLength = (text: string): number =>
+    String(text || '')
+        .split(/[.!?。！？။។\n]+/u)
+        .map((item) => item.trim().length)
+        .reduce((max, length) => Math.max(max, length), 0);
+
+export const getNativeReportReadabilityIssues = (
+    value: string,
+    policy: ReportLanguagePolicy,
+): NativeReportReadabilityIssue[] => {
+    const text = String(value || '').trim();
+    const issues: NativeReportReadabilityIssue[] = [];
+    if (!text) {
+        issues.push({ severity: 'error', code: 'missing-native-text', message: '모국어 안내 문구가 비어 있습니다.' });
+        return issues;
+    }
+
+    if (policy.code !== 'ko' && hasHangul(text)) {
+        issues.push({ severity: 'error', code: 'hangul-mixed', message: '외국어 안내 문구에 한글이 섞여 있습니다.' });
+    }
+
+    if (hasUnexpectedLatin(text, policy)) {
+        issues.push({ severity: 'error', code: 'unexpected-latin', message: '해당 언어가 아닌 영문 단어가 섞여 있습니다.' });
+    }
+
+    const expectedScript = expectedScriptPattern[policy.code];
+    if (expectedScript && !expectedScript.test(text)) {
+        issues.push({ severity: 'error', code: 'wrong-script', message: `${policy.languageNameKo} 문자권으로 작성되지 않았습니다.` });
+    }
+
+    if (hasSystemTerm(text)) {
+        issues.push({ severity: 'error', code: 'system-term', message: '근로자에게 보이면 안 되는 시스템 용어가 섞여 있습니다.' });
+    }
+
+    if (directWorkerToneMarkers[policy.code]?.test(text)) {
+        issues.push({ severity: 'warning', code: 'manager-evaluation-tone', message: '근로자에게 직접 말하는 안내문보다 관리자 평가 문체에 가깝습니다.' });
+    }
+
+    if (text.length > 900) {
+        issues.push({ severity: 'warning', code: 'too-long', message: '모국어 안내가 길어 현장 근로자가 빠르게 읽기 어렵습니다.' });
+    }
+
+    if (getLongestSentenceLength(text) > 280) {
+        issues.push({ severity: 'warning', code: 'long-sentence', message: '한 문장이 길어 모바일·출력물에서 읽기 어렵습니다.' });
+    }
+
+    return issues;
+};
+
 export const isNativeReportTextClean = (value: string, policy: ReportLanguagePolicy): boolean => {
     const text = String(value || '').trim();
     if (!text) return false;
     if (policy.code !== 'ko' && hasHangul(text)) return false;
+    if (getNativeReportReadabilityIssues(text, policy).some((issue) => issue.severity === 'error')) return false;
     return true;
 };
