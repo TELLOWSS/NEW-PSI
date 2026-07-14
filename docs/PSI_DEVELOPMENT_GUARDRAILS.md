@@ -102,7 +102,7 @@ API, SDK, endpoint, migration, schema
 
 ```
 오늘의 위험
-TBM 현황
+전파교육 현황
 미조치 사항
 안전조치 현황
 리포트 생성 상태

@@ -255,7 +255,7 @@ const TBM_LOCALIZATIONS: Record<string, TbmLocalization> = {
         pledgePlaceholder: '안전 수칙을 준수하고 작업하겠습니다.'
     },
     'en-US': {
-        headerTitle: 'PSI TBM Safety Guide',
+        headerTitle: 'PSI Risk Assessment Safety Guide',
         targetLabel: 'TARGET',
         videoTitle: '1. Video Guidance',
         accidentTitle: '2. Recent Accident Case',
@@ -278,7 +278,7 @@ const TBM_LOCALIZATIONS: Record<string, TbmLocalization> = {
         pledgePlaceholder: 'I pledge to follow the safety guidelines and work safely.'
     },
     'vi-VN': {
-        headerTitle: 'Hướng dẫn An toàn PSI TBM',
+        headerTitle: 'Hướng dẫn An toàn Đánh giá Rủi ro PSI',
         targetLabel: 'ĐỐI TƯỢNG',
         videoTitle: '1. Hướng dẫn Video',
         accidentTitle: '2. Trường hợp Tai nạn Gần đây',
@@ -301,7 +301,7 @@ const TBM_LOCALIZATIONS: Record<string, TbmLocalization> = {
         pledgePlaceholder: 'Tôi cam kết tuân thủ các hướng dẫn an toàn và làm việc an toàn.'
     },
     'cmn-CN': {
-        headerTitle: 'PSI TBM 安全指南',
+        headerTitle: 'PSI 风险评估安全指南',
         targetLabel: '培训对象',
         videoTitle: '1. 视频指导',
         accidentTitle: '2. 最近事故案例',
@@ -324,7 +324,7 @@ const TBM_LOCALIZATIONS: Record<string, TbmLocalization> = {
         pledgePlaceholder: '我承诺遵守安全守则，安全作业。'
     },
     'th-TH': {
-        headerTitle: 'คู่มือความปลอดภัย PSI TBM',
+        headerTitle: 'คู่มือความปลอดภัยการประเมินความเสี่ยง PSI',
         targetLabel: 'กลุ่มเป้าหมาย',
         videoTitle: '1. คำแนะนำผ่านวิดีโอ',
         accidentTitle: '2. กรณีอุบัติเหตุล่าสุด',
@@ -347,7 +347,7 @@ const TBM_LOCALIZATIONS: Record<string, TbmLocalization> = {
         pledgePlaceholder: 'ข้าพเจ้าขอปฏิญาณว่าจะปฏิบัติตามหลักความปลอดภัยและทำงานอย่างปลอดภัย'
     },
     'km-KH': {
-        headerTitle: 'PSI TBM សៀវភៅណែនាំសុវត្ថិភាព',
+        headerTitle: 'សៀវភៅណែនាំសុវត្ថិភាពសម្រាប់ការវាយតម្លៃហានិភ័យ PSI',
         targetLabel: 'គោលដៅ',
         videoTitle: '1. ការណែនាំវីដេអូ',
         accidentTitle: '2. ករណីគ្រោះថ្នាក់ថ្មីៗ',
@@ -370,7 +370,7 @@ const TBM_LOCALIZATIONS: Record<string, TbmLocalization> = {
         pledgePlaceholder: 'ខ្ញុំប្តេជ្ញាអនុវត្តតាមគោលការណ៍ណែនាំសុវត្ថិភាព និងធ្វើការដោយសុវត្ថិភាព។'
     },
     'uz-UZ': {
-        headerTitle: 'PSI TBM Xavfsizlik Qo\'llanmasi',
+        headerTitle: 'PSI Xavfni Baholash Bo\'yicha Xavfsizlik Qo\'llanmasi',
         targetLabel: 'KIM UCHUN',
         videoTitle: '1. Video Yo\'riqnoma',
         accidentTitle: '2. Yaqindagi Baxtsiz Hodisa',
@@ -393,7 +393,7 @@ const TBM_LOCALIZATIONS: Record<string, TbmLocalization> = {
         pledgePlaceholder: 'Men xavfsizlik qoidalariga rioya qilishga va xavfsiz ishlashga va\'da beraman.'
     },
     'my-MM': {
-        headerTitle: 'PSI TBM ဘေးကင်းရေးလမ်းညွှန်',
+        headerTitle: 'PSI အန္တရာယ်အကဲဖြတ် ဘေးကင်းရေးလမ်းညွှန်',
         targetLabel: 'ပစ်မှတ်',
         videoTitle: '၁။ ဗီဒီယိုလမ်းညွှန်',
         accidentTitle: '၂။ လတ်တလော မတော်တဆမှုများ',
@@ -416,7 +416,7 @@ const TBM_LOCALIZATIONS: Record<string, TbmLocalization> = {
         pledgePlaceholder: 'ဘေးကင်းရေးလမ်းညွှန်ချက်များကို လိုက်နာပြီး ဘေးကင်းစွာ လုပ်ဆောင်ရန် ကတိပြုပါသည်။'
     },
     'mn-MN': {
-        headerTitle: 'PSI TBM Хөдөлмөр хамгааллын зааварчилгаа',
+        headerTitle: 'PSI Эрсдэлийн үнэлгээний аюулгүй ажиллагааны зааварчилгаа',
         targetLabel: 'ЗОРИЛТОТ',
         videoTitle: '1. Видео зааварчилгаа',
         accidentTitle: '2. Сүүлийн үеийн осол, гэмтэл',
@@ -439,7 +439,7 @@ const TBM_LOCALIZATIONS: Record<string, TbmLocalization> = {
         pledgePlaceholder: 'Аюулгүй ажиллагааны зааварчилгааг дагаж мөрдөн, аюулгүй ажиллахаа амлаж байна.'
     },
     'ru-RU': {
-        headerTitle: 'Инструкция по технике безопасности PSI TBM',
+        headerTitle: 'Инструкция PSI по безопасности при оценке рисков',
         targetLabel: 'ЦЕЛЬ',
         videoTitle: '1. Видео-руководство',
         accidentTitle: '2. Последний несчастный случай',
@@ -462,7 +462,7 @@ const TBM_LOCALIZATIONS: Record<string, TbmLocalization> = {
         pledgePlaceholder: 'Я обещаю соблювать правила техники безопасности и работать безопасно.'
     },
     'id-ID': {
-        headerTitle: 'Panduan Keselamatan PSI TBM',
+        headerTitle: 'Panduan Keselamatan Penilaian Risiko PSI',
         targetLabel: 'SASARAN',
         videoTitle: '1. Panduan Video',
         accidentTitle: '2. Kasus Kecelakaan Terbaru',
@@ -485,7 +485,7 @@ const TBM_LOCALIZATIONS: Record<string, TbmLocalization> = {
         pledgePlaceholder: 'Saya berjanji untuk mematuhi panduan keselamatan dan bekerja dengan aman.'
     },
     'ne-NP': {
-        headerTitle: 'PSI TBM सुरक्षा निर्देशिका',
+        headerTitle: 'PSI जोखिम मूल्याङ्कन सुरक्षा निर्देशिका',
         targetLabel: 'लक्ष्य',
         videoTitle: '१. भिडियो निर्देशन',
         accidentTitle: '२. भर्खरको दुर्घटना मामला',
@@ -508,7 +508,7 @@ const TBM_LOCALIZATIONS: Record<string, TbmLocalization> = {
         pledgePlaceholder: 'म सुरक्षा दिशानिर्देशहरू पालना गर्न र सुरक्षित रूपमा काम गर्न प्रतिज्ञा गर्दछु।'
     },
     'fil-PH': {
-        headerTitle: 'PSI TBM Gabay sa Kaligtasan',
+        headerTitle: 'Gabay sa Kaligtasan sa Pagtatasa ng Panganib ng PSI',
         targetLabel: 'TARGET',
         videoTitle: '1. Gabay sa Video',
         accidentTitle: '2. Kamakailang Kaso ng Aksidente',
@@ -636,7 +636,7 @@ const parseTbmTranslation = (text: string): ParsedTbmTranslation => {
     }
 
     return {
-        title: title || 'TBM Safety Guide',
+        title: title || 'Risk Assessment Safety Guide',
         opening: opening || 'Please review the safety guidelines carefully before beginning work.',
         videoText: videoLines.join('\n'),
         accidentText: accidentLines.join('\n'),

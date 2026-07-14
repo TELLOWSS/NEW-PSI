@@ -879,7 +879,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-5">
                         <div className="rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800/40 p-4">
                             <p className="text-[11px] font-black text-rose-600 dark:text-rose-300">① 관리자 기준점수</p>
-                            <p className="mt-1 text-sm font-black text-slate-900 dark:text-slate-100">작업계획·TBM 기준 위험등급</p>
+                            <p className="mt-1 text-sm font-black text-slate-900 dark:text-slate-100">작업계획·현장 안전공유 기준 위험등급</p>
                             <p className="mt-2 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">공종·월별로 관리자가 별도 등록합니다. 상=100점, 중=50점, 하=0점입니다.</p>
                         </div>
                         <div className="rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/40 p-4">
@@ -987,7 +987,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                                     </div>
 
                                     <p className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] font-semibold leading-5 text-slate-500 dark:bg-slate-900/50 dark:text-slate-400">
-                                        빠른 판정은 근로자 응답을 계산에 사용하지 않습니다. 관리자가 작업계획·TBM·현장 방호상태를 3문항으로 확인하면 권고 등급만 제시하며 최종 선택은 관리자가 확정합니다.
+                                        빠른 판정은 근로자 응답을 계산에 사용하지 않습니다. 관리자가 작업계획·현장 안전공유·현장 방호상태를 3문항으로 확인하면 권고 등급만 제시하며 최종 선택은 관리자가 확정합니다.
                                     </p>
 
                                     {wizardTrade && (

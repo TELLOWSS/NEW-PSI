@@ -347,7 +347,7 @@ const getActionByRisk = (riskLabel: string) => {
     if (riskLabel === '추락 위험') return '안전대 체결 확인 및 고소작업 전 점검';
     if (riskLabel === '화재 위험') return '화기작업 허가서 재점검 및 소화기 배치';
     if (riskLabel === '감전 위험') return '전선 피복·누전차단기 점검';
-    if (riskLabel === '보호구 미흡') return 'TBM 보호구 상호점검 및 착용 인증';
+    if (riskLabel === '보호구 미흡') return '작업 전 보호구 상호점검 및 착용 확인';
     if (riskLabel === '협착 위험') return '신호수 배치 및 협착구간 접근 통제';
     return '표준 작업절차 재교육 및 현장 확인';
 };
@@ -913,7 +913,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                 if (riskLabel === '추락 위험') actionLabel = '안전대 체결 확인';
                 if (riskLabel === '화재 위험') actionLabel = '소화기 비치/감시자';
                 if (riskLabel === '감전 위험') actionLabel = '전선 피복/접지 확인';
-                if (riskLabel === '보호구 미흡') actionLabel = 'TBM 보호구 상호점검';
+                if (riskLabel === '보호구 미흡') actionLabel = '보호구 상호점검';
                 if (riskLabel === '협착 위험') actionLabel = '신호수 배치 필수';
                 
                 if (actionLabel) {
@@ -943,7 +943,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
         return topRisks.map(([risk], idx) => ({
             rank: idx + 1,
             title: `${nextMonth} ${risk} 집중 관리 기간`,
-            desc: `보호 우선군에서 ${risk} 비중이 ${(riskCounts[risk]/Math.max(1, riskInsights.length) * 100).toFixed(0)}%입니다. TBM 전파 항목으로 우선 지정하십시오.`
+            desc: `보호 우선군에서 ${risk} 비중이 ${(riskCounts[risk]/Math.max(1, riskInsights.length) * 100).toFixed(0)}%입니다. 다음 달 위험성평가 전파교육 항목으로 우선 지정하십시오.`
         }));
     }, [riskInsights, nextMonth]);
 
@@ -974,7 +974,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                     : `${nextMonth} 3주차`;
 
             const checkItems = [
-                'TBM 시작 전 5분 브리핑 시행',
+                '작업 시작 전 5분 위험성평가 공유 시행',
                 `${actionTitle} 현장 사진 1건 이상 업로드`,
                 '조치 완료 후 팀장 확인 서명',
             ];
@@ -1385,7 +1385,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
         {
             key: 'predictive-action',
             eyebrow: '다음 행동',
-            title: summary.highRiskCount > 0 ? '보호 우선군부터 실행 계획과 TBM 안건으로 연결하세요.' : '반복 위험테마를 다음 달 예방 안건으로 정리하세요.',
+            title: summary.highRiskCount > 0 ? '보호 우선군부터 실행 계획과 다음 달 교육 안건으로 연결하세요.' : '반복 위험테마를 다음 달 예방 안건으로 정리하세요.',
             description: '우선 개입 대상, 온톨로지 맵, 실행 계획, 공종별 조치율을 같은 흐름으로 연결해 감시가 아니라 선제 보호 동선이 되도록 구성했습니다.',
             tone: summary.highRiskCount > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
         },
@@ -1474,7 +1474,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
             key: 'jobrate-action',
             eyebrow: '다음 행동',
             title: jobActionRateSummary.focusLabels.length > 0 ? '우선 확인 공종부터 팀장과 후속 일정을 맞추세요.' : '실행 계획이 쌓이면 공종별 조치율도 함께 살아납니다.',
-            description: '낮은 조치율 공종을 그대로 두지 말고 TBM 안건, 현장 지적, 추가 코칭 흐름과 연결해 실제 현장 보완으로 이어가야 합니다.',
+            description: '낮은 조치율 공종을 그대로 두지 말고 전파교육 안건, 현장 지적, 추가 코칭 흐름과 연결해 실제 현장 보완으로 이어가야 합니다.',
             tone: BRAND_TONE.indigoSoft70,
         },
     ], [jobActionRateSummary]);
@@ -2459,7 +2459,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                     <div className="bg-gradient-to-br from-amber-400 to-orange-500 p-4 sm:p-6 rounded-2xl sm:rounded-[30px] shadow-lg shadow-orange-200 text-white relative overflow-hidden">
                         <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white opacity-20 rounded-full blur-xl"></div>
                         <h3 className="text-lg font-black mb-2 flex items-center gap-2">
-                            <span className="text-2xl">📢</span> TBM 전파 교육 제안
+                            <span className="text-2xl">📢</span> 위험성평가 전파교육 제안
                         </h3>
                         <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
                             <p className="text-xs font-bold opacity-80 mb-1">위험성평가 기록지 작성 가이드:</p>

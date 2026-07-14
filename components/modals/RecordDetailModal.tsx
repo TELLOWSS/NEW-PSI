@@ -2543,7 +2543,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                         type="text"
                                                         value={scoreEvidenceSummary}
                                                         onChange={(e) => setScoreEvidenceSummary(e.target.value)}
-                                                        placeholder="증빙 요약 (예: 현장 지적 2건, 작업전 TBM 미이행)"
+                                                        placeholder="증빙 요약 (예: 현장 지적 2건, 작업 전 안전공유 미이행)"
                                                         className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium"
                                                     />
                                                 </div>

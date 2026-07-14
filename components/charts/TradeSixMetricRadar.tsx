@@ -169,7 +169,7 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
                 {/* 취약 지표 요약 */}
                 <div className="space-y-3">
                     <p className="text-xs font-bold text-[var(--psi-text-muted)] uppercase tracking-wide">
-                        ⚡ 취약 지표 TOP 3 (TBM 교육 타겟)
+                        ⚡ 취약 지표 TOP 3 (전파교육 타겟)
                     </p>
                     {weakMetrics.map((m, i) => (
                         <div key={m.label} className="flex items-center gap-3">

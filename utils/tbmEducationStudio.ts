@@ -271,7 +271,7 @@ export const buildTbmEducationDraft = (options: {
         title: (() => {
             const parts = month.split('-');
             const displayMonth = parts.length === 2 ? `${parts[0]}년 ${parseInt(parts[1], 10)}월` : month;
-            return `${displayMonth} ${workType} TBM 안전교육 자료`;
+            return `${displayMonth} ${workType} 위험성평가 교육자료`;
         })(),
         coreMessage,
         opening: '이번 교육은 다음 달 예정 작업의 위험요인과 안전조치를 작업 전에 함께 확인하기 위한 자료입니다.',

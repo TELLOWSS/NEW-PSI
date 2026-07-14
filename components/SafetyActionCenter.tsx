@@ -21,7 +21,7 @@ export const SafetyActionCenter: React.FC<SafetyActionCenterProps> = ({ workerRe
         const topWeakness = topEntry ? topEntry[0] : '일반 안전';
 
         const newTasks: ActionItem[] = [
-            { id: 't1', text: `TBM: '${topWeakness}' 집중 교육`, type: 'routine', completed: false },
+            { id: 't1', text: `전파교육: '${topWeakness}' 집중 공유`, type: 'routine', completed: false },
             { id: 't2', text: `추가 확인 대상 ${lowScoreCount}명 보호 조치`, type: 'critical', completed: false },
             { id: 't3', text: '현장 순회 점검', type: 'routine', completed: false }
         ];

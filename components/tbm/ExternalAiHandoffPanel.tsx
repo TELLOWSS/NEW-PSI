@@ -171,7 +171,7 @@ export function ExternalAiHandoffPanel({
                     </div>
 
                     <h3 className="text-base font-black">다국어 결과 선택</h3>
-                    <p className="mt-1 text-xs font-semibold psi-copy-muted">다음 달 TBM 교육자료에 필요한 언어만 선택하세요.</p>
+                    <p className="mt-1 text-xs font-semibold psi-copy-muted">다음 달 위험성평가 교육자료에 필요한 언어만 선택하세요.</p>
                     <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
                         {LANGUAGE_OPTIONS.map((code) => (
                             <label key={code} className={`psi-choice-chip ${languageCodes.includes(code) ? 'is-selected' : ''}`}>

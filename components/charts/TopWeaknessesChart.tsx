@@ -9,7 +9,7 @@ interface TopWeaknessesChartProps {
 const weaknessDetails: { [key: string]: string[] } = {
     '구체적인 안전 계획 부족': [
         '위험성 평가 및 대응책에 대한 이해 부족.',
-        '작업 전 안전 점검(TBM) 내용의 형식화.',
+        '작업 전 안전 점검 내용의 형식화.',
         '돌발 상황에 대한 비상 대응 계획 미흡.',
     ],
     '기타': [

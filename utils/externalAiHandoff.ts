@@ -90,7 +90,7 @@ export const buildExternalAiPrompt = (options: {
     const currentDraftText = options.draft ? buildMonthlyEducationPackageText(options.draft) : '';
 
     const lines = [
-        '당신은 한국 건설현장의 위험성평가와 TBM 교육자료를 만드는 안전교육 편집자입니다.',
+        '당신은 한국 건설현장의 위험성평가 교육자료를 만드는 안전교육 편집자입니다.',
         mode === 'translation' && options.draft
             ? '아래 제공된 [현재 검수 완료 한국어 원문]을 그대로 요청된 다국어로 정확하게 번역하세요.'
             : '아래 근거 자료를 정밀 분석하여 다음 달 교육용 5단계 한 장 완성형 초안(한국어)을 작성하고 지정된 다국어 번역을 동시에 반환하세요.',
