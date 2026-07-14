@@ -6100,7 +6100,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             </section>
             {/* Control Panel */}
             <div className="bg-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl text-white relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -mr-48 -mt-48"></div>
+                <div data-mobile-overflow-allow="true" className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -mr-48 -mt-48"></div>
                 <div className="relative z-10 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1.15fr)_360px] gap-6 xl:gap-8 items-start">
                     <div className="min-w-0">
                         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 sm:gap-4">

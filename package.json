@@ -52,6 +52,7 @@
     "check:mobile-qa:evidence": "node scripts/check-mobile-qa-evidence.cjs",
     "check:mobile-qa:evidence:report": "node scripts/check-mobile-qa-evidence.cjs --write-report",
     "qa:mobile:capture": "node scripts/capture-mobile-qa-evidence.cjs",
+    "audit:mobile-overflow": "node scripts/audit-mobile-overflow.mjs",
     "qa:mobile:autoflow": "npm run build && npm run qa:mobile:capture && npm run check:mobile-qa:evidence:report && npm run qa:mobile:finalize",
     "qa:mobile:ready": "npm run build && npm run qa:mobile:capture && npm run check:mobile-qa:evidence",
     "qa:survey-baseline": "node scripts/verify-survey-baseline-ui.mjs",

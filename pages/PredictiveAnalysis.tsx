@@ -1795,7 +1795,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
             </div>
             {/* Header: Meeting Context */}
             <div className="bg-gradient-to-r from-slate-900 to-indigo-900 rounded-2xl sm:rounded-[30px] p-4 sm:p-6 text-white shadow-2xl border border-slate-700 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl -mr-32 -mt-32"></div>
+                <div data-mobile-overflow-allow="true" className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl -mr-32 -mt-32"></div>
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4">
                     <div>
                         <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">

@@ -3964,15 +3964,15 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     return (
         <div className="space-y-10 animate-fade-in-up">
             {/* Header Section */}
-            <div className="bg-slate-900 p-12 rounded-[40px] shadow-2xl text-white relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/20 rounded-full blur-[100px] -mr-32 -mt-32 pointer-events-none"></div>
-                <div className="relative z-10 flex flex-col lg:flex-row justify-between items-center gap-12">
+            <div className="bg-slate-900 p-6 sm:p-8 lg:p-12 rounded-[28px] sm:rounded-[40px] shadow-2xl text-white relative overflow-hidden group">
+                <div data-mobile-overflow-allow="true" className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/20 rounded-full blur-[100px] -mr-32 -mt-32 pointer-events-none"></div>
+                <div className="relative z-10 flex flex-col lg:flex-row justify-between items-center gap-8 lg:gap-12">
                     <div className="flex-1 text-center lg:text-left">
                         <div className="flex items-center justify-center lg:justify-start gap-3 mb-4">
                             <span className="bg-indigo-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-900/50">PSI Issuance System</span>
                         </div>
-                        <h3 className="text-4xl lg:text-5xl font-black mb-4 tracking-tight leading-tight">근로자 보안 패스<br/>통합 발급 센터</h3>
-                        <p className="text-slate-400 font-medium text-lg leading-relaxed max-w-xl">
+                        <h3 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4 tracking-tight leading-tight">근로자 보안 패스<br/>통합 발급 센터</h3>
+                        <p className="text-slate-400 font-medium text-base sm:text-lg leading-relaxed max-w-xl">
                             현장의 안전 수준과 본인 확인 신뢰를 함께 보여주는 <span className="text-indigo-300 font-bold">사진형 스마트 스티커</span>와 <span className="text-indigo-300 font-bold">사진형 ID 카드</span>를 발급합니다.<br/>
                             <span className="text-indigo-400 font-bold text-sm bg-indigo-900/50 px-2 py-1 rounded">* 대량 출력 시 자동 분할 렌더링이 적용됩니다.</span>
                         </p>
@@ -3985,22 +3985,22 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             </button>
                         </div>
                     </div>
-                    <div className="flex gap-5 shrink-0">
-                        <button onClick={() => startProcessing('sticker', filteredRecords)} className="group relative w-40 h-48 bg-white/5 border border-white/10 rounded-[30px] hover:bg-white/10 transition-all flex flex-col items-center justify-center gap-4 hover:-translate-y-2 duration-300">
-                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                                <span className="text-3xl">⛑</span>
+                    <div className="grid w-full grid-cols-2 gap-2 sm:gap-4 lg:flex lg:w-auto lg:shrink-0 lg:gap-5">
+                        <button onClick={() => startProcessing('sticker', filteredRecords)} className="group relative h-40 w-full bg-white/5 border border-white/10 rounded-[24px] sm:h-44 lg:h-48 lg:w-40 lg:rounded-[30px] hover:bg-white/10 transition-all flex flex-col items-center justify-center gap-3 sm:gap-4 hover:-translate-y-2 duration-300">
+                            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                <span className="text-2xl sm:text-3xl">⛑</span>
                             </div>
                             <div className="text-center">
-                                <span className="block text-lg font-black">안전모<br/>스티커</span>
+                                <span className="block text-base sm:text-lg font-black">안전모<br/>스티커</span>
                                 <span className="text-[10px] text-slate-400 mt-1 block font-bold group-hover:text-white transition-colors">A4 라벨지 최적화</span>
                             </div>
                         </button>
-                        <button onClick={() => startProcessing('idcard', filteredRecords)} className={`group relative w-40 h-48 rounded-[30px] shadow-2xl shadow-indigo-900/50 hover:bg-indigo-500 transition-all flex flex-col items-center justify-center gap-4 hover:-translate-y-2 duration-300 border ${BRAND_TONE.indigoCta}`}>
-                            <div className="w-16 h-16 rounded-2xl bg-white text-indigo-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                                <span className="text-3xl">💳</span>
+                        <button onClick={() => startProcessing('idcard', filteredRecords)} className={`group relative h-40 w-full rounded-[24px] sm:h-44 lg:h-48 lg:w-40 lg:rounded-[30px] shadow-2xl shadow-indigo-900/50 hover:bg-indigo-500 transition-all flex flex-col items-center justify-center gap-3 sm:gap-4 hover:-translate-y-2 duration-300 border ${BRAND_TONE.indigoCta}`}>
+                            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-white text-indigo-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                <span className="text-2xl sm:text-3xl">💳</span>
                             </div>
                              <div className="text-center">
-                                <span className="block text-lg font-black">스마트<br/>사원증</span>
+                                <span className="block text-base sm:text-lg font-black">스마트<br/>사원증</span>
                                 <span className="text-[10px] text-indigo-200 mt-1 block font-bold group-hover:text-white transition-colors">NFC 스타일 디자인</span>
                             </div>
                         </button>
@@ -4400,24 +4400,24 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 w-full">
                     <div className={`px-4 py-3 rounded-2xl text-indigo-700 font-bold text-sm border flex items-center gap-2 min-w-0 ${BRAND_TONE.indigoSoft}`}>
-                        <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                        <span className="truncate">발급 대기: {filteredRecords.length}명</span>
+                        <span className="w-2 h-2 shrink-0 rounded-full bg-indigo-500 animate-pulse"></span>
+                        <span className="min-w-0 break-keep leading-snug">발급 대기: {filteredRecords.length}명</span>
                     </div>
                     <div className={`px-4 py-3 rounded-2xl text-emerald-700 font-bold text-sm border flex items-center gap-2 min-w-0 ${BRAND_TONE.emeraldSoft}`}>
-                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                        <span className="truncate">검증통과: {filteredReliabilitySummary.trustedCount}명</span>
+                        <span className="w-2 h-2 shrink-0 rounded-full bg-emerald-500"></span>
+                        <span className="min-w-0 break-keep leading-snug">검증통과: {filteredReliabilitySummary.trustedCount}명</span>
                     </div>
                     <div className={`px-4 py-3 rounded-2xl text-rose-700 font-bold text-sm border flex items-center gap-2 min-w-0 ${BRAND_TONE.roseSoft}`}>
-                        <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                        <span className="truncate">검증필요: {filteredReliabilitySummary.untrustedCount}명</span>
+                        <span className="w-2 h-2 shrink-0 rounded-full bg-rose-500"></span>
+                        <span className="min-w-0 break-keep leading-snug">검증필요: {filteredReliabilitySummary.untrustedCount}명</span>
                     </div>
                     <div className={`px-4 py-3 rounded-2xl text-amber-700 font-bold text-sm border flex items-center gap-2 min-w-0 ${BRAND_TONE.amberSoft}`}>
-                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                        <span className="truncate">사진등록: {filteredPhotoSummary.registeredCount}명 / 미등록 {filteredPhotoSummary.missingCount}명</span>
+                        <span className="w-2 h-2 shrink-0 rounded-full bg-amber-500"></span>
+                        <span className="min-w-0 break-keep leading-snug">사진등록: {filteredPhotoSummary.registeredCount}명 / 미등록 {filteredPhotoSummary.missingCount}명</span>
                     </div>
                     <div className={`px-4 py-3 rounded-2xl text-sky-700 font-bold text-sm border flex items-center gap-2 min-w-0 ${BRAND_TONE.skySoft}`}>
-                        <span className="w-2 h-2 rounded-full bg-sky-500"></span>
-                        <span className="truncate">공통 프로필 연계: {filteredPhotoSummary.linkedCount}명 / 수동사진 {filteredPhotoSummary.manualCount}명</span>
+                        <span className="w-2 h-2 shrink-0 rounded-full bg-sky-500"></span>
+                        <span className="min-w-0 break-keep leading-snug">공통 프로필 연계: {filteredPhotoSummary.linkedCount}명 / 수동사진 {filteredPhotoSummary.manualCount}명</span>
                     </div>
                 </div>
                 {filteredRecords.length > 0 && filteredReliabilitySummary.trustedCount === 0 && (

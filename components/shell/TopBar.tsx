@@ -39,14 +39,24 @@ export const TopBar: React.FC<TopBarProps> = ({
             : themeMode === 'dark'
                 ? '다크'
                 : '라이트';
+    const mobileTitleMap: Record<string, string> = {
+        'PSI 브랜드 스토리 / 상품 소개': 'PSI 소개',
+        '근로자 리포트 (관리자 분석)': '리포트',
+        '위험성평가 교육자료': '교육자료',
+        '근로자 안전 프로파일': '근로자 프로파일',
+        '선행 위험신호 분석': '위험신호 분석',
+        '현장 위험 이슈 관리': '현장 이슈',
+        '월별 계도 리포트': '월별 계도',
+    };
+    const mobilePageTitle = mobileTitleMap[currentPageTitle] || currentPageTitle;
 
     return (
         <header className="psi-topbar z-10 shrink-0 border-b text-slate-900 backdrop-blur transition-colors dark:text-slate-100 no-print">
-            <div className="mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex min-h-16 items-center gap-2 py-2">
+            <div className="mx-auto px-3 sm:px-6 lg:px-8">
+                <div className="flex min-h-16 items-center gap-1.5 py-2 sm:gap-2">
                     <button
                         onClick={onOpenMobileMenu}
-                        className="mr-2 flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white lg:hidden"
+                        className="mr-1 flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white sm:mr-2 lg:hidden"
                         aria-label="메뉴 열기"
                         aria-expanded={isMobileMenuOpen}
                     >
@@ -55,7 +65,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                         </svg>
                     </button>
 
-                    <div className="min-w-0 flex-1 flex items-center gap-3">
+                    <div className="min-w-0 flex-1 flex items-center gap-2 sm:gap-3">
                         {onGoToDashboard && (
                             <button
                                 type="button"
@@ -70,8 +80,11 @@ export const TopBar: React.FC<TopBarProps> = ({
                             </button>
                         )}
                         <div className="min-w-0">
-                            <p className="psi-meta-label truncate dark:text-slate-300">{siteName}</p>
-                            <h2 className="psi-card-title truncate">{currentPageTitle}</h2>
+                            <p className="psi-meta-label hidden truncate dark:text-slate-300 sm:block">{siteName}</p>
+                            <h2 className="psi-card-title whitespace-normal break-keep text-[0.92rem] leading-tight sm:truncate sm:text-base sm:leading-[1.38]">
+                                <span className="sm:hidden">{mobilePageTitle}</span>
+                                <span className="hidden sm:inline">{currentPageTitle}</span>
+                            </h2>
                         </div>
                     </div>
 
@@ -90,7 +103,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                     <button
                         type="button"
                         onClick={onToggleTheme}
-                        className="ml-1 flex min-h-10 min-w-10 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-blue-500/60 dark:hover:bg-blue-500/10"
+                        className="ml-1 flex min-h-11 w-11 min-w-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-0 text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-blue-500/60 dark:hover:bg-blue-500/10 sm:min-h-10 sm:w-auto sm:min-w-10 sm:px-3"
                         aria-label={`테마 전환 (현재: ${themeLabel})`}
                         title={`테마: ${themeLabel} (클릭: 라이트→다크→시스템 순환)`}
                     >
