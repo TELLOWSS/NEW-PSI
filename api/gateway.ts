@@ -10,6 +10,7 @@ import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLan
 import { resolveGeminiOcrModelChain, type OcrEngineMode } from '../utils/aiEngineSettings.js';
 import { normalizeNationality as importedNormalizeNationality } from '../utils/workerIdentity.js';
 import { normalizeOcrRecordMetadata } from '../utils/ocrRecordNormalization.js';
+import { PSI_FORM_MASTER_PROMPT_BLOCK } from '../config/psiFormMaster.js';
 import {
     buildWorkerAuthenticationProof,
     verifyTrainingLinkToken,
@@ -1222,6 +1223,7 @@ async function analyzeSingleRecord(
                                             '- koreanTranslation: 해당 답변의 한국어 해석 (항상 한국어만)',
                                             '- nativeTranslation: 외국인 근로자는 해당 모국어로 완전 번역하여 반드시 채울 것. 한국인은 빈 문자열.',
                                             '[NEW-PSI 고정 양식 판독 규칙]',
+                                            PSI_FORM_MASTER_PROMPT_BLOCK,
                                             '- jobField는 페이지 하단 왼쪽의 "공종" 칸에 실제로 적힌 값만 사용하세요.',
                                             '- name은 페이지 하단 가운데의 "현장 등록 한글이름" 칸에 실제로 적힌 값만 사용하세요.',
                                             '- Q1 답변은 근로자가 실제로 하는 작업 중 가장 위험한 세부작업/위험작업입니다. 위험분석, 점수, 위험성평가 교육자료 환류의 핵심 근거로 사용하세요.',

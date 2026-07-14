@@ -4742,6 +4742,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             onUpdateRecord(synchronizeManagerReviewedRecord(mergedRecord, {
                                 appendAuditTrail: true,
                                 actor: 'manager',
+                                previousRecord: record,
                             }).record);
                             successCount++;
                         } else {

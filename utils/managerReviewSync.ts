@@ -6,15 +6,21 @@ import {
     getNativeLanguageLabel,
     isKoreanNationality,
 } from './ocrVerificationLanguageUtils';
+import {
+    evaluateNativeGuidanceRevisionSync,
+    evaluatePsiFormIntegrity,
+} from './psiFormIntegrity';
 
 export const MANAGER_REVIEW_SYNC_RULE_VERSION = 'psi-manager-review-sync-2026-07-04-v1';
 
 export type ManagerReviewSyncIssue = {
     code:
         | 'NATIVE_GUIDANCE_MISSING'
+        | 'NATIVE_GUIDANCE_REFRESH_REQUIRED'
         | 'NATIVE_TRANSLATION_QUALITY'
         | 'SCORE_BREAKDOWN_MISSING'
-        | 'COMPETENCY_PROFILE_REFRESHED';
+        | 'COMPETENCY_PROFILE_REFRESHED'
+        | 'FORM_INTEGRITY_WARNING';
     message: string;
     severity: 'info' | 'warning' | 'error';
 };
@@ -74,6 +80,7 @@ export const synchronizeManagerReviewedRecord = <T extends WorkerRecord>(
     options?: {
         appendAuditTrail?: boolean;
         actor?: string;
+        previousRecord?: WorkerRecord;
     },
 ): ManagerReviewSyncResult<T> => {
     const previousProfileJson = toComparableJson(record.competencyProfile);
@@ -89,6 +96,8 @@ export const synchronizeManagerReviewedRecord = <T extends WorkerRecord>(
 
     const completeness = evaluateOcrVerificationCompleteness(withFreshProfile);
     const quality = evaluateOcrVerificationQuality(withFreshProfile);
+    const formIntegrity = evaluatePsiFormIntegrity(withFreshProfile);
+    const nativeRevisionSync = evaluateNativeGuidanceRevisionSync(withFreshProfile, options?.previousRecord);
     const nativeLabel = getNativeLanguageLabel(withFreshProfile.nationality, withFreshProfile.language);
     const issues: ManagerReviewSyncIssue[] = [];
 
@@ -110,6 +119,26 @@ export const synchronizeManagerReviewedRecord = <T extends WorkerRecord>(
                 code: 'NATIVE_TRANSLATION_QUALITY',
                 message,
                 severity: 'warning',
+            });
+        });
+    }
+
+    if (nativeRevisionSync.needsRefresh) {
+        nativeRevisionSync.issues.forEach((message) => {
+            issues.push({
+                code: 'NATIVE_GUIDANCE_REFRESH_REQUIRED',
+                message,
+                severity: isKoreanNationality(withFreshProfile.nationality, withFreshProfile.language) ? 'warning' : 'error',
+            });
+        });
+    }
+
+    if (formIntegrity.issues.length > 0) {
+        formIntegrity.issues.forEach((issue) => {
+            issues.push({
+                code: 'FORM_INTEGRITY_WARNING',
+                message: issue.message,
+                severity: issue.severity,
             });
         });
     }
@@ -149,6 +178,7 @@ export const synchronizeManagerReviewedRecord = <T extends WorkerRecord>(
         issues: dedupedIssues,
         nativeGuidanceReady: !dedupedIssues.some((issue) => (
             issue.code === 'NATIVE_GUIDANCE_MISSING' ||
+            issue.code === 'NATIVE_GUIDANCE_REFRESH_REQUIRED' ||
             (issue.code === 'NATIVE_TRANSLATION_QUALITY' && issue.message.includes(nativeLabel))
         )),
         competencyProfileRefreshed,
@@ -158,25 +188,31 @@ export const synchronizeManagerReviewedRecord = <T extends WorkerRecord>(
 
 const isNativeGuidanceBlockingIssue = (issue: ManagerReviewSyncIssue): boolean => {
     if (issue.code === 'NATIVE_GUIDANCE_MISSING') return issue.severity === 'error';
+    if (issue.code === 'NATIVE_GUIDANCE_REFRESH_REQUIRED') return issue.severity === 'error';
     return issue.code === 'NATIVE_TRANSLATION_QUALITY' && issue.severity === 'error';
 };
 
 export const getManagerReviewApprovalReadiness = (
     record: WorkerRecord,
+    previousRecord?: WorkerRecord,
 ): ManagerReviewApprovalReadiness => {
-    const syncResult = synchronizeManagerReviewedRecord(record);
+    const syncResult = synchronizeManagerReviewedRecord(record, { previousRecord });
     const nativeLanguageLabel = getNativeLanguageLabel(record.nationality, record.language);
     const isKoreanWorker = isKoreanNationality(record.nationality, record.language);
     const nativeIssues = syncResult.issues.filter((issue) => (
         (issue.code === 'NATIVE_GUIDANCE_MISSING' && !isKoreanWorker) ||
+        (issue.code === 'NATIVE_GUIDANCE_REFRESH_REQUIRED' && !isKoreanWorker) ||
         issue.code === 'NATIVE_TRANSLATION_QUALITY'
     ));
+    const formIssues = syncResult.issues.filter((issue) => issue.code === 'FORM_INTEGRITY_WARNING');
     const blockers = nativeIssues
         .filter(isNativeGuidanceBlockingIssue)
-        .map((issue) => issue.message);
+        .map((issue) => issue.message)
+        .concat(formIssues.filter((issue) => issue.severity === 'error').map((issue) => issue.message));
     const warnings = nativeIssues
         .filter((issue) => !isNativeGuidanceBlockingIssue(issue))
-        .map((issue) => issue.message);
+        .map((issue) => issue.message)
+        .concat(formIssues.filter((issue) => issue.severity !== 'error').map((issue) => issue.message));
     const canApprove = blockers.length === 0;
 
     if (!canApprove) {

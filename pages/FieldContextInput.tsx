@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { PSI_RISK_TYPE_CATALOG, PSI_STANDARD_JOB_FIELDS } from '../config/psiFormMaster';
 
 interface FieldContext {
   fieldName: string;
+  priorityRisk: string;
   weather: 'clear' | 'cloudy' | 'rainy' | 'snowy';
   personnel: number;
   timeOfDay: 'morning' | 'lunch' | 'evening' | 'night';
@@ -17,6 +19,7 @@ export const FieldContextInput: React.FC = () => {
         const parsed = JSON.parse(saved);
         return {
           fieldName: typeof parsed.fieldName === 'string' ? parsed.fieldName : '',
+          priorityRisk: typeof parsed.priorityRisk === 'string' ? parsed.priorityRisk : '',
           weather: ['clear', 'cloudy', 'rainy', 'snowy'].includes(parsed.weather) ? parsed.weather : 'clear',
           personnel: typeof parsed.personnel === 'number' && Number.isFinite(parsed.personnel) ? parsed.personnel : 1,
           timeOfDay: ['morning', 'lunch', 'evening', 'night'].includes(parsed.timeOfDay) ? parsed.timeOfDay : 'morning',
@@ -29,6 +32,7 @@ export const FieldContextInput: React.FC = () => {
     }
     return {
       fieldName: '',
+      priorityRisk: '',
       weather: 'clear',
       personnel: 1,
       timeOfDay: 'morning',
@@ -131,11 +135,13 @@ export const FieldContextInput: React.FC = () => {
             <div className={`px-2 py-1.5 rounded border ${context.fieldName.trim() ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
               공정명 {context.fieldName.trim() ? '✓' : '필수'}
             </div>
+            <div className={`px-2 py-1.5 rounded border ${context.priorityRisk ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+              위험유형 {context.priorityRisk ? '✓' : '권장'}
+            </div>
             <div className={`px-2 py-1.5 rounded border ${context.personnel >= 1 ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
               인원 {context.personnel >= 1 ? '✓' : '입력'}
             </div>
             <div className="px-2 py-1.5 rounded border border-slate-200 bg-slate-50 text-slate-700">날씨 {context.weather ? '✓' : '-'}</div>
-            <div className="px-2 py-1.5 rounded border border-slate-200 bg-slate-50 text-slate-700">시간대 {context.timeOfDay ? '✓' : '-'}</div>
           </div>
         </div>
         
@@ -149,7 +155,47 @@ export const FieldContextInput: React.FC = () => {
               onChange={(e) => setContext({ ...context, fieldName: e.target.value })}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-medium focus:border-indigo-500 focus:ring-1 focus:ring-indigo-400 outline-none"
               placeholder="예: 철골공사, 콘크리트 타설"
+              list="psi-standard-job-fields"
             />
+            <datalist id="psi-standard-job-fields">
+              {PSI_STANDARD_JOB_FIELDS.map((field) => <option key={field} value={field} />)}
+            </datalist>
+            <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1" data-mobile-overflow-allow="true">
+              {PSI_STANDARD_JOB_FIELDS.filter((field) => field !== '미분류').map((field) => (
+                <button
+                  key={field}
+                  type="button"
+                  onClick={() => setContext({ ...context, fieldName: field })}
+                  className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-black ${
+                    context.fieldName === field
+                      ? 'border-indigo-500 bg-indigo-600 text-white'
+                      : 'border-slate-200 bg-white text-slate-600'
+                  }`}
+                >
+                  {field}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-black text-slate-700 mb-2">오늘 중점 위험유형</label>
+            <div className="grid grid-cols-2 gap-2">
+              {PSI_RISK_TYPE_CATALOG.slice(0, 10).map((risk) => (
+                <button
+                  key={risk.id}
+                  type="button"
+                  onClick={() => setContext({ ...context, priorityRisk: risk.label })}
+                  className={`min-h-10 rounded-lg border px-2 py-2 text-xs font-black transition ${
+                    context.priorityRisk === risk.label
+                      ? 'border-emerald-500 bg-emerald-600 text-white'
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {risk.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* 날씨 */}

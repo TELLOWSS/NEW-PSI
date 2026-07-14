@@ -62,24 +62,12 @@ import {
 import { getHarnessVersionDescriptors } from '../../utils/harnessVersionCatalog';
 import { deriveCompetencyProfile, getApprovalBlockers } from '../../utils/evidenceUtils';
 import { getSafetyLevelDisplayLabel, getSafetyLevelThresholds, getSafetyLevelFromScore, SAFETY_SIGNAL_COPY } from '../../utils/safetyLevelUtils';
+import { getPsiQuestionLabel } from '../../config/psiFormMaster';
 import {
     getManagerReviewApprovalBlockers,
     getManagerReviewApprovalReadiness,
     synchronizeManagerReviewedRecord,
 } from '../../utils/managerReviewSync';
-
-const QUESTION_LABELS: Record<string, { title: string; subtitle: string }> = {
-    '1': { title: '1. 실제 위험작업(Q1)', subtitle: '근로자가 자기 공종 안에서 이번 작업 중 가장 위험하다고 쓴 세부작업입니다. 하단 공종을 대체하지 않습니다.' },
-    'Q1': { title: '1. 실제 위험작업(Q1)', subtitle: '근로자가 자기 공종 안에서 이번 작업 중 가장 위험하다고 쓴 세부작업입니다. 하단 공종을 대체하지 않습니다.' },
-    '2': { title: '2. 위험 발생 상황 및 원인', subtitle: '사고가 발생할 수 있는 구체적인 원인과 예측 상황을 기재합니다.' },
-    'Q2': { title: '2. 위험 발생 상황 및 원인', subtitle: '사고가 발생할 수 있는 구체적인 원인과 예측 상황을 기재합니다.' },
-    '3': { title: '3. 위험도 등급 평가', subtitle: '근로자가 작업 전 주관적으로 진단한 자가 위험성 수준(상/중/하)입니다.' },
-    'Q3': { title: '3. 위험도 등급 평가', subtitle: '근로자가 작업 전 주관적으로 진단한 자가 위험성 수준(상/중/하)입니다.' },
-    '4': { title: '4. 현장 안전대책', subtitle: '해당 위험 요소를 실질적으로 통제하기 위한 예방 조치와 대책을 수립합니다.' },
-    'Q4': { title: '4. 현장 안전대책', subtitle: '해당 위험 요소를 실질적으로 통제하기 위한 예방 조치와 대책을 수립합니다.' },
-    '5': { title: '5. 작업 전 다짐 및 점검', subtitle: '작업 시작 전 안전대책의 완벽한 이행을 약속하며 안전 준수를 다짐합니다.' },
-    'Q5': { title: '5. 작업 전 다짐 및 점검', subtitle: '작업 시작 전 안전대책의 완벽한 이행을 약속하며 안전 준수를 다짐합니다.' },
-};
 
 const getNationalityFlag = (nationality: string): string => {
     const nat = (nationality || '').trim();
@@ -453,8 +441,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const docInputRef = useRef<HTMLInputElement>(null); // For Document Image
     const profileInputRef = useRef<HTMLInputElement>(null); // For Profile Photo
 
-    const getConsistentRecord = (baseRecord: WorkerRecord): WorkerRecord => {
-        return synchronizeManagerReviewedRecord(baseRecord).record;
+    const getConsistentRecord = (baseRecord: WorkerRecord, previousRecord?: WorkerRecord): WorkerRecord => {
+        return synchronizeManagerReviewedRecord(baseRecord, { previousRecord }).record;
     };
 
     useEffect(() => { 
@@ -804,7 +792,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     }, [record.workflowRunId, refreshHarnessStatus]);
 
     const handleChange = <K extends keyof WorkerRecord>(field: K, value: WorkerRecord[K]) => {
-        setRecord(prev => getConsistentRecord({ ...prev, [field]: value } as WorkerRecord));
+        setRecord(prev => getConsistentRecord({ ...prev, [field]: value } as WorkerRecord, initialRecord));
         setHasChanges(true);
     };
 
@@ -846,7 +834,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         return watchFields.some((field) => JSON.stringify(initialRecord[field]) !== JSON.stringify(record[field]));
     }, [initialRecord, record]);
 
-    const managerReviewApprovalReadiness = useMemo(() => getManagerReviewApprovalReadiness(record), [record]);
+    const managerReviewApprovalReadiness = useMemo(() => getManagerReviewApprovalReadiness(record, initialRecord), [initialRecord, record]);
 
     const managerReviewBadgeVariant = useMemo(() => {
         if (managerReviewApprovalReadiness.badgeTone === 'blocked') return 'roseSoft';
@@ -1026,7 +1014,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     };
 
     const persistRecordSilently = async (nextRecord: WorkerRecord) => {
-        const consistentRecord = getConsistentRecord(nextRecord);
+        const consistentRecord = getConsistentRecord(nextRecord, initialRecord);
         await onUpdateRecord(consistentRecord);
         setRecord(consistentRecord);
         setHasChanges(false);
@@ -1149,6 +1137,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 return synchronizeManagerReviewedRecord(reassessedRecord, {
                     appendAuditTrail: true,
                     actor: 'manager',
+                    previousRecord: baseRecord,
                 }).record;
             }
 
@@ -3439,10 +3428,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             const isKorean = isKoreanNationality(record.nationality);
                                             const flag = getNationalityFlag(record.nationality);
                                             const nativeLanguage = getNativeLanguageLabel(record.nationality);
-                                            const qInfo = QUESTION_LABELS[ans.questionNumber] || {
-                                                title: `문항 ${ans.questionNumber}`,
-                                                subtitle: '위험성 평가 수기 답변 항목입니다.'
-                                            };
+                                            const qInfo = getPsiQuestionLabel(ans.questionNumber);
 
                                             return (
                                                 <OperationalPreviewCard

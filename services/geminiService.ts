@@ -12,6 +12,7 @@ import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLan
 import { supabase } from '../lib/supabaseClient';
 import { getAiEngineSettings, resolveGeminiOcrModelChain } from '../utils/aiEngineSettings';
 import { normalizeOcrRecordMetadata } from '../utils/ocrRecordNormalization';
+import { PSI_FORM_MASTER_PROMPT_BLOCK } from '../config/psiFormMaster';
 
 /**
  * [API Rate Limiting State Management]
@@ -1816,6 +1817,7 @@ async function callGeminiWithRetry(
              *   - 점수가 낮은 근로자에게는 질책 대신 "같은 국적의 동료는 이렇게 훌륭하게 위험을 찾아냈습니다: [${bestPeerExample}의 핵심 내용 요약]. 다음에는 이처럼 명확한 대책을 확인하세요."라는 형태로, 동급 우수 사례를 인용한 긍정적이고 구체적인 행동 지침을 제공.
              */
             ${SIX_METRIC_ANCHOR_RUBRIC}
+            ${PSI_FORM_MASTER_PROMPT_BLOCK}
             `;
 
             const prompt = `위험성 평가 문서를 분석하십시오. 파일명: ${filenameHint || 'unknown'}.
@@ -1830,6 +1832,7 @@ async function callGeminiWithRetry(
             - koreanTranslation: 각 답변의 관리자 검토용 한국어 해석 (항상 한국어)
             - nativeTranslation: 각 답변을 작업자 모국어로 번역한 내용 — 외국인 근로자는 LANGUAGE_POLICY 기준 해당 국적 모국어로 번역하여 반드시 채울 것. 한국인은 빈 문자열.
             [NEW-PSI 고정 양식 판독 규칙]
+            ${PSI_FORM_MASTER_PROMPT_BLOCK}
             - jobField는 페이지 하단 왼쪽의 "공종" 칸에 실제로 적힌 값만 사용하십시오.
             - name은 페이지 하단 가운데의 "현장 등록 한글이름" 칸에 실제로 적힌 값만 사용하십시오.
             - Q1 답변은 근로자가 실제로 하는 작업 중 가장 위험한 세부작업/위험작업입니다. 위험분석, 점수, 위험성평가 교육자료 환류의 핵심 근거로 사용하십시오.
@@ -2183,6 +2186,7 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
     ${LANGUAGE_POLICY}
     ${STRICT_SCORE_POLICY}
     ${SIX_METRIC_ANCHOR_RUBRIC}
+    ${PSI_FORM_MASTER_PROMPT_BLOCK}
 
     **2차 분석 편차 규칙 (강제)**:
     1. 중대 페널티: 관리자 최종본에 원본에 없던 '치명적 위험(High)' 또는 '핵심 안전 대책'이 새로 추가되면,
