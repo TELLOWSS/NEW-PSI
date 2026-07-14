@@ -9,7 +9,7 @@ import {
     getTbmEducationScopeKey,
 } from '../utils/tbmEducationStudio';
 
-const highGradeWorker = (overrides: Partial<WorkerRecord> = {}): WorkerRecord => ({
+const workerRecord = (overrides: Partial<WorkerRecord> = {}): WorkerRecord => ({
     id: 'record-1',
     name: '테스트 근로자',
     jobField: '철골',
@@ -31,9 +31,9 @@ const highGradeWorker = (overrides: Partial<WorkerRecord> = {}): WorkerRecord =>
     strengths_native: [],
     weakAreas: ['추락'],
     weakAreas_native: [],
-    improvement: '',
+    improvement: '개구부 덮개 확인을 반복 교육',
     improvement_native: '',
-    suggestions: [],
+    suggestions: ['작업 전 안전대 체결 확인'],
     suggestions_native: [],
     aiInsights: '',
     aiInsights_native: '',
@@ -42,13 +42,53 @@ const highGradeWorker = (overrides: Partial<WorkerRecord> = {}): WorkerRecord =>
 });
 
 describe('TBM education studio', () => {
-    it('does not auto-fill next-month high-grade risks without high-grade evidence', () => {
+    it('does not treat worker Q3 high-risk answers as next-month high-grade sharing items', () => {
+        const draft = buildTbmEducationDraft({
+            workerRecords: [workerRecord()],
+            sources: [],
+            month: '2026-07',
+            workType: '철골',
+        });
+
+        expect(draft.risks).toHaveLength(0);
+        expect(getHighGradeRiskShareItems(draft.risks)).toHaveLength(0);
+        expect(draft.focusPoints.join(' ')).toContain('추락');
+        expect(buildMonthlyEducationPackageText(draft)).toContain('회의자료');
+        expect(buildMonthlyEducationPackageText(draft)).toContain('일반 추천 위험은 이 영역에 넣지 않습니다.');
+    });
+
+    it('shares only high-grade items explicitly marked in next-month risk assessment meeting documents', () => {
+        const draft = buildTbmEducationDraft({
+            workerRecords: [workerRecord({ weakAreas: ['감전'] })],
+            sources: [{
+                id: 'meeting-pdf-1',
+                kind: 'document',
+                title: '7월 위험성평가 회의자료.pdf',
+                text: '다음달 위험성평가 회의 결과 | 위험요인: 장비 충돌 | 위험등급: 상 | 관리대책: 장비 동선 분리',
+                createdAt: '2026-06-10T00:00:00.000Z',
+            }],
+            month: '2026-07',
+            workType: '철골',
+        });
+
+        expect(draft.risks).toHaveLength(1);
+        expect(draft.risks[0]).toMatchObject({
+            risk: '충돌',
+            managerConfirmed: true,
+        });
+        expect(draft.risks[0].evidenceLabels.join(' ')).toContain('회의자료 상등급');
+        expect(buildMonthlyEducationPackageText(draft)).toContain('충돌');
+        expect(draft.risks.some((risk) => risk.risk === '감전')).toBe(false);
+        expect(draft.focusPoints.join(' ')).toContain('감전');
+    });
+
+    it('keeps ordinary uploaded or pasted recommendations in focus points instead of high-grade sharing', () => {
         const draft = buildTbmEducationDraft({
             workerRecords: [],
             sources: [{
                 id: 'source-1',
-                kind: 'manual',
-                title: '일반 안전교육 참고자료',
+                kind: 'document',
+                title: '일반 작업계획.pdf',
                 text: '고소작업에서는 추락 방지를 확인한다. 장비 이동 시 충돌 위험을 확인한다.',
                 createdAt: '2026-06-10T00:00:00.000Z',
             }],
@@ -57,60 +97,20 @@ describe('TBM education studio', () => {
         });
 
         expect(draft.risks).toHaveLength(0);
-        expect(getHighGradeRiskShareItems(draft.risks)).toHaveLength(0);
-        expect(buildMonthlyEducationPackageText(draft)).toContain('일반 추천 위험은 이 영역에 넣지 않습니다.');
-    });
-
-    it('shares only Q3 high-grade risk records in the monthly education package', () => {
-        const draft = buildTbmEducationDraft({
-            workerRecords: [
-                highGradeWorker(),
-                highGradeWorker({
-                    id: 'record-2',
-                    selfAssessedRiskLevel: '중',
-                    handwrittenAnswers: [
-                        { questionNumber: '3', answerText: '중', koreanTranslation: '', nativeTranslation: '' },
-                    ],
-                    weakAreas: ['충돌'],
-                }),
-            ],
-            sources: [],
-            month: '2026-07',
-            workType: '철골',
-        });
-
-        expect(draft.risks).toHaveLength(1);
-        expect(draft.risks[0]).toMatchObject({
-            risk: '추락',
-            managerConfirmed: true,
-        });
-        expect(draft.risks[0].evidenceLabels.join(' ')).toContain('상등급 기록');
-        expect(buildMonthlyEducationPackageText(draft)).toContain('추락');
-        expect(buildMonthlyEducationPackageText(draft)).not.toContain('충돌');
-    });
-
-    it('accepts explicit high-grade risk evidence from uploaded sources only when marked as high-grade', () => {
-        const draft = buildTbmEducationDraft({
-            workerRecords: [],
-            sources: [{
-                id: 'source-1',
-                kind: 'manual',
-                title: '관리자 상등급 공유 자료',
-                text: '상등급 기록 2026-06-30 / 철골 | 위험요인: 장비 충돌 | Q3 위험수준 근거: 상',
-                createdAt: '2026-06-10T00:00:00.000Z',
-            }],
-            month: '2026-07',
-            workType: '철골',
-        });
-
-        expect(draft.risks.map((risk) => risk.risk)).toContain('충돌');
-        expect(draft.risks[0].evidenceLabels.join(' ')).toContain('상등급 근거');
+        expect(draft.focusPoints.join(' ')).toContain('추락');
+        expect(draft.focusPoints.join(' ')).toContain('충돌');
     });
 
     it('builds a consistent five-stage source for multilingual training', () => {
         const draft = buildTbmEducationDraft({
-            workerRecords: [highGradeWorker()],
-            sources: [],
+            workerRecords: [workerRecord()],
+            sources: [{
+                id: 'meeting-pdf-1',
+                kind: 'document',
+                title: '7월 위험성평가 회의자료.pdf',
+                text: '위험요인: 개구부 추락 | 위험수준 상 | 작업발판과 안전난간을 확인한다.',
+                createdAt: '2026-06-10T00:00:00.000Z',
+            }],
             month: '2026-07',
             workType: '철골',
         });

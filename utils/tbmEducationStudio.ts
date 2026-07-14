@@ -92,49 +92,12 @@ const ACTION_RULES: Array<{ risk: string; keywords: string[]; action: string }> 
 
 const normalize = (value: unknown): string => String(value ?? '').replace(/\s+/g, ' ').trim();
 
-const normalizeQuestionNumber = (value: unknown): string => {
-    const matched = String(value || '').match(/[1-5]/);
-    return matched ? matched[0] : '';
-};
-
-const getAnswerTextByQuestion = (record: WorkerRecord, questionNumber: string): string => {
-    const normalized = normalizeQuestionNumber(questionNumber);
-    const answer = (record.handwrittenAnswers || []).find((item, index) => {
-        const answerNumber = normalizeQuestionNumber(item.questionNumber);
-        return answerNumber ? answerNumber === normalized : index === Number(normalized) - 1;
-    });
-    return normalize([answer?.answerText, answer?.koreanTranslation, answer?.nativeTranslation].filter(Boolean).join(' '));
-};
-
-const parseSelfAssessedRiskLevel = (value: unknown): WorkerRecord['selfAssessedRiskLevel'] | null => {
-    const normalized = normalize(value);
-    if (!normalized) return null;
-    if (/high|높음|고위험|매우\s*위험/i.test(normalized)) return '상';
-    if (/medium|middle|보통|중위험/i.test(normalized)) return '중';
-    if (/low|낮음|저위험/i.test(normalized)) return '하';
-
-    const compact = normalized.replace(/\s+/g, '');
-    if (/^(상|상등급|위험등급상)$/.test(compact)) return '상';
-    if (/^(중|중등급|위험등급중)$/.test(compact)) return '중';
-    if (/^(하|하등급|위험등급하)$/.test(compact)) return '하';
-
-    const isolated = normalized.match(/(?:^|[\s()[\]{}:：,./-])(상|중|하)(?:$|[\s()[\]{}:：,./-])/);
-    return isolated?.[1] as WorkerRecord['selfAssessedRiskLevel'] | undefined || null;
-};
-
-export const getRecordSelfAssessedRiskLevel = (record: WorkerRecord): WorkerRecord['selfAssessedRiskLevel'] | null => (
-    parseSelfAssessedRiskLevel(record.selfAssessedRiskLevel) || parseSelfAssessedRiskLevel(getAnswerTextByQuestion(record, '3'))
-);
-
-export const isHighGradeRiskRecord = (record: WorkerRecord): boolean => (
-    getRecordSelfAssessedRiskLevel(record) === '상'
-);
-
-const HIGH_GRADE_EVIDENCE_PATTERN = /(상등급|위험수준\s*상|자가\s*위험수준\s*상|Q3\s*상|High\s*Risk|high\s*priority)/i;
+const HIGH_GRADE_SOURCE_PATTERN = /(상등급|위험\s*등급\s*상|위험수준\s*상|등급\s*[:：]?\s*상|High\s*Risk|high\s*priority)/i;
+const HIGH_GRADE_SHARE_EVIDENCE_PATTERN = /(회의자료\s*상등급|문서\s*상등급|업로드\s*상등급|PPT\s*상등급|PDF\s*상등급|관리자\s*상등급\s*수동\s*확인)/i;
 
 export const isHighGradeRiskShareItem = (risk: TbmRiskItem): boolean => {
-    const evidenceText = [risk.risk, ...(risk.evidenceLabels || [])].map(normalize).join(' ');
-    return HIGH_GRADE_EVIDENCE_PATTERN.test(evidenceText);
+    const evidenceText = (risk.evidenceLabels || []).map(normalize).join(' ');
+    return HIGH_GRADE_SHARE_EVIDENCE_PATTERN.test(evidenceText);
 };
 
 export const getHighGradeRiskShareItems = (risks: TbmRiskItem[] | undefined): TbmRiskItem[] => (
@@ -157,7 +120,7 @@ const extractHighGradeRiskCandidatesFromText = (text: string): string[] => {
     const segments = String(text || '')
         .split(/[\r\n。.!?]+/)
         .map(normalize)
-        .filter((segment) => segment && HIGH_GRADE_EVIDENCE_PATTERN.test(segment));
+        .filter((segment) => segment && HIGH_GRADE_SOURCE_PATTERN.test(segment));
 
     segments.forEach((segment) => {
         ACTION_RULES.forEach((rule) => {
@@ -180,6 +143,39 @@ const extractHighGradeRiskCandidatesFromText = (text: string): string[] => {
     return [...candidates];
 };
 
+const isMeetingRiskSource = (source: TbmEvidenceSource): boolean => source.kind !== 'field-record';
+
+const collectFieldRecordFocusPoints = (records: WorkerRecord[]): string[] => {
+    const focus = new Set<string>();
+    records.forEach((record) => {
+        (record.weakAreas || []).map(normalize).filter(Boolean).forEach((rawRisk) => {
+            const risk = canonicalizeRisk(rawRisk);
+            if (risk) focus.add(`${risk}: ${getActionForRisk(risk)}`);
+        });
+        [
+            ...(record.suggestions || []),
+            record.improvement,
+            record.actionable_coaching,
+        ].map(normalize).filter(Boolean).forEach((point) => focus.add(point));
+    });
+    return [...focus];
+};
+
+const collectSourceFocusPoints = (
+    sourceTexts: Array<{ source: TbmEvidenceSource; rawText: string; text: string }>,
+    highGradeRiskNames: Set<string>,
+): string[] => {
+    const focus = new Set<string>();
+    sourceTexts.forEach(({ text }) => {
+        ACTION_RULES.forEach((rule) => {
+            if (highGradeRiskNames.has(rule.risk)) return;
+            const hasKeyword = [rule.risk, ...rule.keywords].some((keyword) => text.includes(keyword.toLowerCase()));
+            if (hasKeyword) focus.add(`${rule.risk}: ${rule.action}`);
+        });
+    });
+    return [...focus];
+};
+
 const getNextMonth = (): string => {
     const date = new Date();
     date.setMonth(date.getMonth() + 1);
@@ -195,30 +191,12 @@ export const buildFieldRecordSource = (
         : workerRecords.filter((record) => record.jobField === workType);
     if (!targetRecords.length) return null;
 
-    const highGradeRecords = targetRecords.filter(isHighGradeRiskRecord);
-    const highGradeLines = highGradeRecords.map((record) => {
-        const q2 = getAnswerTextByQuestion(record, '2');
-        const q3 = getAnswerTextByQuestion(record, '3');
-        const q4 = getAnswerTextByQuestion(record, '4');
-        const risks = (record.weakAreas || []).map(normalize).filter(Boolean).join(', ') || q2 || '위험요인 확인 필요';
-        return [
-            `상등급 기록 ${record.date || '일자 미확인'} / ${record.jobField || '공종 미확인'}`,
-            `위험요인: ${risks}`,
-            q3 ? `Q3 위험수준 근거: ${q3}` : '',
-            q4 ? `안전조치: ${q4}` : '',
-        ].filter(Boolean).join(' | ');
-    });
-    const focusLines = targetRecords.flatMap((record) => [
-        ...(record.suggestions || []),
-        record.improvement,
-        record.actionable_coaching,
-    ]).map(normalize).filter(Boolean);
+    const focusLines = collectFieldRecordFocusPoints(targetRecords);
     const lines = [
-        '[상등급 공유 후보]',
-        ...(highGradeLines.length ? highGradeLines : ['Q3 위험수준이 상등급으로 확인된 기록이 없습니다. draft.risks는 빈 배열로 유지하세요.']),
-        '',
-        '[중점관리 참고 - 상등급 공유란에 직접 넣지 말 것]',
-        ...focusLines,
+        '[현장중점관리 참고]',
+        '근로자 위험성평가 기록은 다음 달 교육의 중점관리 포인트로만 사용합니다.',
+        '상등급 공유 항목은 다음달 위험성평가 회의자료(PPT/PDF/문서)에 명시된 상등급에서만 추출합니다.',
+        ...(focusLines.length ? focusLines : ['반복 위험 또는 개선 요청이 확인되면 여기에 중점관리 포인트로 정리합니다.']),
     ];
 
     return {
@@ -249,32 +227,12 @@ export const buildTbmEducationDraft = (options: {
     }));
     const riskMap = new Map<string, { score: number; evidence: Set<string> }>();
 
-    const highGradeRecords = targetRecords.filter(isHighGradeRiskRecord);
-
-    highGradeRecords.forEach((record) => {
-        (record.weakAreas || []).map(normalize).filter(Boolean).forEach((rawRisk) => {
-            const risk = canonicalizeRisk(rawRisk);
-            const current = riskMap.get(risk) || { score: 0, evidence: new Set<string>() };
-            current.score += 6;
-            current.evidence.add(`상등급 기록 ${record.date || '일자 미확인'}`);
-            riskMap.set(risk, current);
-        });
-        if (!(record.weakAreas || []).length) {
-            const fallbackRisk = canonicalizeRisk(getAnswerTextByQuestion(record, '2'));
-            if (fallbackRisk) {
-                const current = riskMap.get(fallbackRisk) || { score: 0, evidence: new Set<string>() };
-                current.score += 4;
-                current.evidence.add(`상등급 기록 ${record.date || '일자 미확인'}`);
-                riskMap.set(fallbackRisk, current);
-            }
-        }
-    });
-
     sourceTexts.forEach(({ source, rawText }) => {
+        if (!isMeetingRiskSource(source)) return;
         extractHighGradeRiskCandidatesFromText(rawText).forEach((risk) => {
             const current = riskMap.get(risk) || { score: 0, evidence: new Set<string>() };
-            current.score += 3;
-            current.evidence.add(`상등급 근거 ${source.title}`);
+            current.score += source.kind === 'document' ? 5 : 3;
+            current.evidence.add(`회의자료 상등급 ${source.title}`);
             riskMap.set(risk, current);
         });
     });
@@ -283,6 +241,7 @@ export const buildTbmEducationDraft = (options: {
 
     candidates.forEach((risk) => {
         sourceTexts.forEach(({ source, text }) => {
+            if (!isMeetingRiskSource(source)) return;
             const rule = ACTION_RULES.find((item) => item.risk === risk);
             const keywords = rule?.keywords || [risk];
             const occurrences = keywords.reduce(
@@ -292,7 +251,7 @@ export const buildTbmEducationDraft = (options: {
             if (!occurrences) return;
             const current = riskMap.get(risk) || { score: 0, evidence: new Set<string>() };
             current.score += Math.min(6, occurrences * 2) + (source.kind === 'manual' ? 1 : 0);
-            current.evidence.add(source.title);
+            current.evidence.add(`회의자료 상등급 ${source.title}`);
             riskMap.set(risk, current);
         });
     });
@@ -312,12 +271,16 @@ export const buildTbmEducationDraft = (options: {
         owner: '담당자 지정 필요',
         managerConfirmed: true,
     }));
-    const firstRisk = risks[0]?.risk || '확인된 상등급 위험 없음';
+    const firstRisk = risks[0]?.risk || '회의자료 상등급 위험 없음';
     const coreMessage = normalize(options.coreMessage)
         || (risks.length
             ? `${workType} 작업자는 작업 시작 전 ${firstRisk} 위험과 안전조치를 함께 확인하고, 조건이 달라지면 즉시 작업을 멈춘다.`
-            : `${workType} 작업자는 이번 자료에서 상등급으로 확인된 공유 위험이 없더라도 작업 전 현장 조건과 작업중지 기준을 함께 확인한다.`);
-    const focusPoints = risks.map((item) => `${item.risk}: ${item.action}`);
+            : `${workType} 작업자는 이번 자료에서 회의자료로 확정된 상등급 공유 위험이 없더라도 근로자 기록과 현장 조건을 바탕으로 작업중지 기준을 함께 확인한다.`);
+    const highGradeRiskNames = new Set(risks.map((item) => item.risk));
+    const focusPoints = [
+        ...collectFieldRecordFocusPoints(targetRecords),
+        ...collectSourceFocusPoints(sourceTexts, highGradeRiskNames),
+    ].filter((point, index, array) => point && array.indexOf(point) === index).slice(0, 6);
     const accidentCases: TbmAccidentCase[] = [{
         id: 'accident-1',
         title: '최근 유사 재해사례 입력 필요',
@@ -354,8 +317,8 @@ export const buildTbmEducationDraft = (options: {
             title: '다음 달 상등급 위험 공유',
             narration: risks.length
                 ? risks.map((item) => `${item.risk} 위험의 핵심 조치는 ${item.action}`).join(' ')
-                : '이번 자료에는 Q3 상등급으로 확인된 공유 위험이 없습니다. 일반 추천 위험은 넣지 않고 작업 전 조건 확인과 작업중지 기준만 안내합니다.',
-            visualGuide: 'Q3 상등급으로 확인된 공유 대상만 표시하고, 없으면 “상등급 확인 항목 없음”으로 표시',
+                : '이번 자료에는 다음달 위험성평가 회의자료에서 상등급으로 지정된 공유 위험이 없습니다. 일반 추천 위험은 넣지 않고 현장 중점관리 포인트에서 다룹니다.',
+            visualGuide: '회의자료 PPT/PDF에서 상등급으로 지정된 공유 대상만 표시하고, 없으면 “회의자료 상등급 항목 없음”으로 표시',
         },
         {
             id: 'video-focus',
@@ -466,7 +429,7 @@ export const buildMonthlyEducationPackageText = (draft: TbmEducationDraft): stri
         '3. 위험성평가 상등급 공유',
         ...(risksToShare.length
             ? risksToShare.map((risk) => `- ${risk.risk}: ${risk.action} / 담당 ${risk.owner} / ${risk.managerConfirmed ? '관리자 확인 완료' : '상등급 최종 확인 필요'}`)
-            : ['- Q3 위험수준이 상등급으로 확인된 공유 항목이 없습니다. 일반 추천 위험은 이 영역에 넣지 않습니다.']),
+            : ['- 다음달 위험성평가 회의자료(PPT/PDF/문서)에서 상등급으로 지정된 공유 항목이 없습니다. 일반 추천 위험은 이 영역에 넣지 않습니다.']),
         '',
         '4. 현장 중점관리 포인트',
         ...(draft.focusPoints.length

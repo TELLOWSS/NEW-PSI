@@ -1707,7 +1707,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
 
                         <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
                             <h3 className="text-lg font-black">3. 다음 달 상등급 위험 공유</h3>
-                            <p className="mt-1 text-xs font-semibold text-slate-500">Q3 위험수준이 상등급으로 확인된 기록만 표시합니다. 일반 추천 위험은 중점관리 포인트로만 다룹니다.</p>
+                            <p className="mt-1 text-xs font-semibold text-slate-500">다음달 위험성평가 회의자료(PPT/PDF/문서)에서 상등급으로 지정된 항목만 표시합니다. 나머지 위험은 현장 중점관리 포인트에서 다룹니다.</p>
                             <div className="mt-4 space-y-3">
                                 {highGradeDraftRisks.map((item) => (
                                     <article key={item.id} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
@@ -1774,7 +1774,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                 </button>
                                 {highGradeDraftRisks.length === 0 && (
                                     <div className="rounded-xl border border-dashed border-rose-200 bg-rose-50 p-4 text-center text-xs font-bold leading-5 text-rose-700">
-                                        현재 Q3 상등급으로 확인된 위험공유 항목이 없습니다. 임의 추천은 자동으로 넣지 않습니다.
+                                        현재 회의자료에서 상등급으로 지정된 위험공유 항목이 없습니다. 임의 추천은 자동으로 넣지 않습니다.
                                     </div>
                                 )}
                                 {hiddenNonHighGradeRiskCount > 0 && (
@@ -2095,7 +2095,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                             </div>
                                         ) : (
                                             <div className="mt-2 rounded-xl border border-dashed border-rose-200 bg-rose-50 px-4 py-3 text-center text-[10px] font-bold leading-4 text-rose-700">
-                                                Q3 위험수준이 상등급으로 확인된 공유 항목이 없습니다. 일반 추천 위험은 이 영역에 표시하지 않습니다.
+                                                회의자료에서 상등급으로 지정된 공유 항목이 없습니다. 일반 추천 위험은 이 영역에 표시하지 않습니다.
                                             </div>
                                         )}
                                     </section>
