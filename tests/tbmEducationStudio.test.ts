@@ -101,6 +101,60 @@ describe('TBM education studio', () => {
         expect(draft.focusPoints.join(' ')).toContain('충돌');
     });
 
+    it('keeps a high-grade section active across pages until the field-focus boundary', () => {
+        const draft = buildTbmEducationDraft({
+            workerRecords: [],
+            sources: [{
+                id: 'meeting-ppt-1',
+                kind: 'document',
+                title: '7월 위험성평가 회의자료.pptx',
+                text: [
+                    '1. 회의 개요',
+                    '3. 위험성평가 상등급 공유',
+                    '--- slide 2 ---',
+                    'TOP1 복합기 온열질환',
+                    '관리대책: 폭염 시간대 휴식과 음수 공급',
+                    '2. 위험요인: 장비 충돌 / 담당: 관리자',
+                    '4. 현장 중점관리 포인트',
+                    '- 감전 위험은 일반 중점관리로 안내',
+                ].join('\n'),
+                createdAt: '2026-06-10T00:00:00.000Z',
+            }],
+            month: '2026-07',
+            workType: '전체 공종',
+        });
+
+        const riskNames = draft.risks.map((risk) => risk.risk);
+        expect(riskNames).toContain('복합기 온열질환');
+        expect(riskNames).toContain('충돌');
+        expect(riskNames).not.toContain('감전');
+        expect(getHighGradeRiskShareItems(draft.risks)).toHaveLength(2);
+    });
+
+    it('does not turn field-focus risks into high-grade risks after an empty high-grade section', () => {
+        const draft = buildTbmEducationDraft({
+            workerRecords: [],
+            sources: [{
+                id: 'meeting-pdf-empty',
+                kind: 'document',
+                title: '7월 위험성평가 회의자료.pdf',
+                text: [
+                    '3. 위험성평가 상등급 공유',
+                    '상등급 항목 없음',
+                    '4. 현장 중점관리 포인트',
+                    '- 추락 방지 난간과 개구부 덮개 확인',
+                ].join('\n'),
+                createdAt: '2026-06-10T00:00:00.000Z',
+            }],
+            month: '2026-07',
+            workType: '전체 공종',
+        });
+
+        expect(draft.risks).toHaveLength(0);
+        expect(getHighGradeRiskShareItems(draft.risks)).toHaveLength(0);
+        expect(draft.focusPoints.join(' ')).toContain('추락');
+    });
+
     it('builds a consistent five-stage source for multilingual training', () => {
         const draft = buildTbmEducationDraft({
             workerRecords: [workerRecord()],

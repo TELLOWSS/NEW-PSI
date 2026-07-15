@@ -10,6 +10,7 @@ const files = {
   handoffPrompt: read('utils/externalAiHandoff.ts'),
   training: read('pages/AdminTraining.tsx'),
   studio: read('utils/tbmEducationStudio.ts'),
+  sourceExtraction: read('utils/tbmSourceExtraction.ts'),
   packageJson: JSON.parse(read('package.json')),
 };
 
@@ -23,6 +24,8 @@ const required = [
   ['pages/A4EducationMaterial.tsx', files.page, '회의자료에서 상등급으로 지정된 공유 항목이 없습니다'],
   ['pages/A4EducationMaterial.tsx', files.page, 'translationNeedsRefresh'],
   ['pages/A4EducationMaterial.tsx', files.page, 'currentPreviewIsStaleTranslation'],
+  ['pages/A4EducationMaterial.tsx', files.page, 'openAiDraftStepWithCurrentSources'],
+  ['pages/A4EducationMaterial.tsx', files.page, '상등급 검증 목록을 먼저 갱신했습니다'],
   ['pages/A4EducationMaterial.tsx', files.page, '기존 다국어 탭은 대조용으로 유지했습니다'],
   ['pages/A4EducationMaterial.tsx', files.page, '다국어 재생성 단계로 이동'],
   ['pages/A4EducationMaterial.tsx', files.page, '검수용 좌우대조'],
@@ -36,11 +39,17 @@ const required = [
   ['utils/externalAiHandoff.ts', files.handoffPrompt, '위험성평가 회의자료(PPT/PDF/문서)'],
   ['utils/externalAiHandoff.ts', files.handoffPrompt, '근로자 Q3 응답'],
   ['utils/externalAiHandoff.ts', files.handoffPrompt, 'findMatchingHighGradeRisk'],
+  ['utils/externalAiHandoff.ts', files.handoffPrompt, '다음 페이지/다음 슬라이드에 이어지는 항목도 상등급 섹션'],
   ['utils/externalAiHandoff.ts', files.handoffPrompt, '새 초안을 만드는 단계가 아닙니다'],
   ['utils/tbmEducationStudio.ts', files.studio, '[오늘 반드시 전달할 한 문장]'],
   ['utils/tbmEducationStudio.ts', files.studio, '[현장중점관리 참고]'],
   ['utils/tbmEducationStudio.ts', files.studio, 'isMeetingRiskSource'],
   ['utils/tbmEducationStudio.ts', files.studio, 'HIGH_GRADE_SHARE_EVIDENCE_PATTERN'],
+  ['utils/tbmEducationStudio.ts', files.studio, 'HIGH_GRADE_SECTION_START_PATTERN'],
+  ['utils/tbmEducationStudio.ts', files.studio, 'HIGH_GRADE_SECTION_END_PATTERN'],
+  ['utils/tbmEducationStudio.ts', files.studio, 'createSourceSegments'],
+  ['utils/tbmEducationStudio.ts', files.studio, 'collectRiskCandidatesFromSegment'],
+  ['utils/tbmEducationStudio.ts', files.studio, 'NON_HIGH_GRADE_ROW_PATTERN'],
   ['utils/tbmEducationStudio.ts', files.studio, 'collectFieldRecordFocusPoints'],
   ['utils/tbmEducationStudio.ts', files.studio, 'getHighGradeRiskShareItems'],
   ['utils/tbmEducationStudio.ts', files.studio, 'extractHighGradeRiskCandidatesFromText'],
@@ -49,6 +58,8 @@ const required = [
   ['pages/AdminTraining.tsx', files.training, 'translationNeedsRefresh'],
   ['pages/AdminTraining.tsx', files.training, '기존 번역은 재사용하지 않고'],
   ['utils/tbmEducationStudio.ts', files.studio, 'translationNeedsRefresh?: boolean'],
+  ['utils/tbmSourceExtraction.ts', files.sourceExtraction, '--- page ${pageNumber} ---'],
+  ['utils/tbmSourceExtraction.ts', files.sourceExtraction, '--- slide ${slides.length + 1} ---'],
 ];
 
 for (const [file, content, marker] of required) {

@@ -94,6 +94,12 @@ const normalize = (value: unknown): string => String(value ?? '').replace(/\s+/g
 
 const HIGH_GRADE_SOURCE_PATTERN = /(상등급|위험\s*등급\s*상|위험수준\s*상|등급\s*[:：]?\s*상|High\s*Risk|high\s*priority)/i;
 const HIGH_GRADE_SHARE_EVIDENCE_PATTERN = /(회의자료\s*상등급|문서\s*상등급|업로드\s*상등급|PPT\s*상등급|PDF\s*상등급|관리자\s*상등급\s*수동\s*확인)/i;
+const HIGH_GRADE_SECTION_START_PATTERN = /(위험성평가\s*)?(상등급|상\s*등급)\s*(위험|공유|사항|항목|리스트)?|위험\s*등급\s*[:：]?\s*상|위험수준\s*[:：]?\s*상|High\s*Risk|high\s*priority/i;
+const HIGH_GRADE_SECTION_END_PATTERN = /(현장\s*중점\s*관리|중점\s*관리\s*포인트|중점관리\s*포인트|공지\s*사항|이해\s*확인|행동\s*약속|교육\s*확인|작업\s*중지\s*약속|^4[.)]\s*|^5[.)]\s*)/i;
+const HIGH_GRADE_EMPTY_PATTERN = /(상등급|위험\s*등급\s*상|위험수준\s*상).{0,24}(없음|없습니다|해당\s*없음|미해당|없다)/i;
+const GENERIC_HIGH_GRADE_HEADING_PATTERN = /^(?:\d+[.)]\s*)?(?:위험성평가\s*)?(?:상등급|상\s*등급)\s*(?:위험|공유|사항|항목|리스트)?$/i;
+const RISK_ROW_PATTERN = /^([\-•·*▶▷▪■□○●※]|\d+[.)]|TOP\s*\d+|위험\s*요인|위험요인|위험\s*항목|위험명|유해\s*위험\s*요인|유해위험요인)/i;
+const NON_HIGH_GRADE_ROW_PATTERN = /(위험\s*등급|위험수준|등급)\s*[:：]?\s*(중등급|하등급|중|하|보통|낮음|Low|Medium)(?:\s|$|[),，、|/])/i;
 
 export const isHighGradeRiskShareItem = (risk: TbmRiskItem): boolean => {
     const evidenceText = (risk.evidenceLabels || []).map(normalize).join(' ');
@@ -115,28 +121,102 @@ const canonicalizeRisk = (value: string): string => {
     return ACTION_RULES.find((rule) => rule.keywords.some((keyword) => normalized.includes(keyword)))?.risk || normalized;
 };
 
+const createSourceSegments = (text: string): string[] => {
+    const headerAwareText = String(text || '')
+        .replace(/\r/g, '\n')
+        .replace(/\u000c/g, '\n')
+        .replace(/(위험성평가\s*상등급|상등급\s*(?:위험|공유|사항|항목|리스트)|현장\s*중점\s*관리|중점\s*관리\s*포인트|중점관리\s*포인트|공지\s*사항)/g, '\n$1\n')
+        .replace(/(\b[1-9][0-9]?[.)]\s*)/g, '\n$1')
+        .replace(/(\bTOP\s*\d+\b)/gi, '\n$1');
+
+    return headerAwareText
+        .split(/[\n]+|[；;]+/)
+        .map(normalize)
+        .filter(Boolean);
+};
+
+const cleanRiskCandidate = (value: string): string => {
+    const cleaned = normalize(value)
+        .replace(/^[\-•·*▶▷▪■□○●※\s]+/, '')
+        .replace(/^(?:TOP\s*)?\d+[.)]?\s*/i, '')
+        .replace(/^(?:위험\s*요인|위험요인|위험\s*항목|위험명|유해\s*위험\s*요인|유해위험요인|상등급\s*항목|상등급\s*위험)\s*[:：]?\s*/i, '')
+        .replace(/\s*(?:관리\s*대책|감소\s*대책|대책|조치|담당|비고|확인)\s*[:：].*$/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    if (!cleaned || cleaned.length < 2) return '';
+    if (/^(?:-+\s*)?(page|slide)\s*\d+\s*-*$/i.test(cleaned) || /^\d+\s*-+$/i.test(cleaned)) return '';
+    if (GENERIC_HIGH_GRADE_HEADING_PATTERN.test(cleaned)) return '';
+    if (/^(위험성평가|상등급|위험등급|위험수준|회의자료|다음달|다음 달)$/i.test(cleaned)) return '';
+    if (HIGH_GRADE_EMPTY_PATTERN.test(cleaned)) return '';
+    return cleaned.length > 42 ? cleaned.slice(0, 42).trim() : cleaned;
+};
+
+const collectRiskCandidatesFromSegment = (segment: string, allowSectionLine: boolean): string[] => {
+    const candidates = new Set<string>();
+    const normalizedSegment = normalize(segment);
+    if (NON_HIGH_GRADE_ROW_PATTERN.test(normalizedSegment)) return [];
+
+    ACTION_RULES.forEach((rule) => {
+        const terms = [rule.risk, ...rule.keywords].map(normalize).filter(Boolean);
+        if (terms.some((term) => normalizedSegment.includes(term))) {
+            candidates.add(rule.risk);
+        }
+    });
+
+    const fieldPatterns = [
+        /(?:위험\s*요인|위험요인|위험\s*항목|위험명|유해\s*위험\s*요인|유해위험요인|상등급\s*항목|상등급\s*위험)\s*[:：]\s*([^|;\n]+)/gi,
+        /(?:TOP\s*\d+)\s*[:：]?\s*([^|;\n]+)/gi,
+    ];
+
+    fieldPatterns.forEach((pattern) => {
+        let match: RegExpExecArray | null;
+        while ((match = pattern.exec(normalizedSegment)) !== null) {
+            const candidate = cleanRiskCandidate(match[1] || '');
+            if (candidate) candidates.add(canonicalizeRisk(candidate));
+        }
+    });
+
+    if (allowSectionLine && candidates.size === 0) {
+        const candidate = cleanRiskCandidate(normalizedSegment);
+        if (candidate && RISK_ROW_PATTERN.test(normalizedSegment) && !HIGH_GRADE_SECTION_START_PATTERN.test(candidate) && !HIGH_GRADE_SECTION_END_PATTERN.test(candidate)) {
+            candidates.add(canonicalizeRisk(candidate));
+        }
+    }
+
+    return [...candidates];
+};
+
 const extractHighGradeRiskCandidatesFromText = (text: string): string[] => {
     const candidates = new Set<string>();
-    const segments = String(text || '')
-        .split(/[\r\n。.!?]+/)
-        .map(normalize)
-        .filter((segment) => segment && HIGH_GRADE_SOURCE_PATTERN.test(segment));
+    const segments = createSourceSegments(text);
+    let inHighGradeSection = false;
 
     segments.forEach((segment) => {
-        ACTION_RULES.forEach((rule) => {
-            const terms = [rule.risk, ...rule.keywords].map(normalize).filter(Boolean);
-            if (terms.some((term) => segment.includes(term))) {
-                candidates.add(rule.risk);
-            }
-        });
+        if (inHighGradeSection && HIGH_GRADE_SECTION_END_PATTERN.test(segment)) {
+            inHighGradeSection = false;
+            return;
+        }
 
-        const riskField = segment.match(/위험요인\s*[:：]\s*([^|]+)/);
-        if (riskField?.[1]) {
-            riskField[1]
-                .split(/[,，、/·]+/)
-                .map(canonicalizeRisk)
-                .filter(Boolean)
-                .forEach((risk) => candidates.add(risk));
+        if (HIGH_GRADE_EMPTY_PATTERN.test(segment)) {
+            inHighGradeSection = false;
+            return;
+        }
+
+        const hasHighGradeMarker = HIGH_GRADE_SOURCE_PATTERN.test(segment);
+        const isHighGradeStart = HIGH_GRADE_SECTION_START_PATTERN.test(segment);
+
+        if (hasHighGradeMarker) {
+            collectRiskCandidatesFromSegment(segment, false).forEach((risk) => candidates.add(risk));
+        }
+
+        if (isHighGradeStart) {
+            inHighGradeSection = true;
+            return;
+        }
+
+        if (inHighGradeSection) {
+            collectRiskCandidatesFromSegment(segment, true).forEach((risk) => candidates.add(risk));
         }
     });
 

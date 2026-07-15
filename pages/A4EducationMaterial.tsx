@@ -1256,6 +1256,14 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         coreMessage: draft.coreMessage,
     });
 
+    const openAiDraftStepWithCurrentSources = () => {
+        const nextDraft = buildCurrentFallbackDraft();
+        setDraft(nextDraft);
+        setTranslationSourceText('');
+        setActiveTab('ai');
+        setNotice('업로드 자료와 직접 입력 내용을 기준으로 상등급 검증 목록을 먼저 갱신했습니다. AI 정밀 초안은 이 목록을 기준으로 반영됩니다.');
+    };
+
     const restoreVideoScenes = () => {
         const fallback = buildCurrentFallbackDraft();
         markPackageDraftChanged((currentDraft) => ({ ...currentDraft, videoScenes: fallback.videoScenes }), '기본 5분 동영상 장면표를 다시 채웠습니다.');
@@ -1555,7 +1563,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                 <button type="button" onClick={generateDraft} className="psi-button-secondary">
                                     AI 없이 기본 초안
                                 </button>
-                                <button type="button" onClick={() => setActiveTab('ai')} className="psi-button-primary">
+                                <button type="button" onClick={openAiDraftStepWithCurrentSources} className="psi-button-primary">
                                     AI 정밀 초안 만들기
                                 </button>
                             </div>

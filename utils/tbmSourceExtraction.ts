@@ -27,7 +27,8 @@ const extractPdfText = async (file: File): Promise<string> => {
     for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber += 1) {
         const page = await document.getPage(pageNumber);
         const content = await page.getTextContent();
-        pages.push(content.items.map((item) => ('str' in item ? item.str : '')).join(' '));
+        const pageText = content.items.map((item) => ('str' in item ? item.str : '')).join(' ').trim();
+        if (pageText) pages.push(`--- page ${pageNumber} ---\n${pageText}`);
     }
     return pages.join('\n\n');
 };
@@ -45,7 +46,7 @@ const extractPptxText = async (file: File): Promise<string> => {
         if (!xml) continue;
         const document = new DOMParser().parseFromString(xml, 'application/xml');
         const text = [...document.getElementsByTagName('a:t')].map((node) => node.textContent || '').join(' ');
-        if (text.trim()) slides.push(text);
+        if (text.trim()) slides.push(`--- slide ${slides.length + 1} ---\n${text.trim()}`);
     }
     return slides.join('\n\n');
 };
@@ -67,4 +68,3 @@ export const extractTbmSourceFromFile = async (file: File): Promise<TbmEvidenceS
     }
     throw new Error('PDF, PPTX, TXT, MD 파일만 사용할 수 있습니다.');
 };
-
