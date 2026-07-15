@@ -80,12 +80,8 @@ const ensureCloneStyle = (doc: Document) => {
             animation: none !important;
             transition: none !important;
             caret-color: transparent !important;
-            text-rendering: auto !important;
-            letter-spacing: normal !important;
-            font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', 'Inter', 'Noto Sans Myanmar', 'Noto Sans Thai', 'Noto Sans Khmer', sans-serif !important;
-        }
-        [data-report-template-root="true"] .font-black {
-            font-weight: 700 !important;
+            -webkit-font-smoothing: antialiased !important;
+            text-rendering: geometricPrecision !important;
         }
         [data-report-template-root="true"] img,
         [data-report-template-root="true"] canvas {
@@ -173,6 +169,85 @@ const getElementLayoutSize = (target: HTMLElement): ElementLayoutSize => {
     return { width, height };
 };
 
+const copyCanvasPixels = (sourceRoot: HTMLElement, cloneRoot: HTMLElement): void => {
+    const sourceCanvases = Array.from(sourceRoot.querySelectorAll('canvas')) as HTMLCanvasElement[];
+    const cloneCanvases = Array.from(cloneRoot.querySelectorAll('canvas')) as HTMLCanvasElement[];
+
+    sourceCanvases.forEach((sourceCanvas, index) => {
+        const cloneCanvas = cloneCanvases[index];
+        if (!cloneCanvas || sourceCanvas.width <= 0 || sourceCanvas.height <= 0) return;
+
+        cloneCanvas.width = sourceCanvas.width;
+        cloneCanvas.height = sourceCanvas.height;
+        cloneCanvas.style.width = sourceCanvas.style.width || `${sourceCanvas.clientWidth || sourceCanvas.width}px`;
+        cloneCanvas.style.height = sourceCanvas.style.height || `${sourceCanvas.clientHeight || sourceCanvas.height}px`;
+
+        const context = cloneCanvas.getContext('2d');
+        if (context) {
+            context.drawImage(sourceCanvas, 0, 0);
+        }
+    });
+};
+
+const applyCaptureSurfaceStyles = (target: HTMLElement): void => {
+    target.style.width = '210mm';
+    target.style.minWidth = '210mm';
+    target.style.maxWidth = '210mm';
+    target.style.margin = '0';
+    target.style.transform = 'none';
+    target.style.transformOrigin = 'top left';
+    target.style.boxShadow = 'none';
+    target.style.background = '#ffffff';
+    target.style.overflow = target.getAttribute('data-report-page') === 'true' ? 'hidden' : 'visible';
+
+    if (target.getAttribute('data-report-page') === 'true') {
+        target.style.height = '297mm';
+        target.style.minHeight = '297mm';
+        target.style.maxHeight = '297mm';
+    }
+
+    target.querySelectorAll<HTMLElement>('[data-report-page="true"]').forEach((page) => {
+        page.style.width = '210mm';
+        page.style.minWidth = '210mm';
+        page.style.maxWidth = '210mm';
+        page.style.height = '297mm';
+        page.style.minHeight = '297mm';
+        page.style.maxHeight = '297mm';
+        page.style.margin = '0';
+        page.style.transform = 'none';
+        page.style.boxShadow = 'none';
+        page.style.background = '#ffffff';
+        page.style.overflow = 'hidden';
+    });
+};
+
+const createIsolatedCaptureTarget = async (source: HTMLElement): Promise<{ target: HTMLElement; cleanup: () => void }> => {
+    const host = document.createElement('div');
+    host.setAttribute('data-psi-export-host', 'true');
+    host.style.position = 'fixed';
+    host.style.left = '-10000px';
+    host.style.top = '0';
+    host.style.width = '210mm';
+    host.style.minWidth = '210mm';
+    host.style.background = '#ffffff';
+    host.style.pointerEvents = 'none';
+    host.style.opacity = '1';
+    host.style.zIndex = '-1';
+    host.style.overflow = 'visible';
+
+    const clone = source.cloneNode(true) as HTMLElement;
+    applyCaptureSurfaceStyles(clone);
+    host.appendChild(clone);
+    document.body.appendChild(host);
+    copyCanvasPixels(source, clone);
+    await waitForStableLayout(clone);
+
+    return {
+        target: clone,
+        cleanup: () => host.remove(),
+    };
+};
+
 export const captureReportCanvas = async (
     element: HTMLElement,
     html2canvas: Html2Canvas,
@@ -191,12 +266,15 @@ export const captureReportCanvases = async (
     const scale = options.scale ?? Math.max(2, Math.min(4, window.devicePixelRatio || 1));
 
     const captureSingleCanvas = async (target: HTMLElement): Promise<HTMLCanvasElement> => {
-        const { width, height } = getElementLayoutSize(target);
+        const isolated = await createIsolatedCaptureTarget(target);
+        const captureTarget = isolated.target;
+        try {
+        const { width, height } = getElementLayoutSize(captureTarget);
 
         if (canInlineCurrentStylesheets()) {
             try {
                 const { toCanvas } = await loadHtmlToImage();
-                return await toCanvas(target, {
+                return await toCanvas(captureTarget, {
                     cacheBust: true,
                     pixelRatio: scale,
                     backgroundColor: '#ffffff',
@@ -205,11 +283,14 @@ export const captureReportCanvases = async (
                     canvasWidth: Math.round(width * scale),
                     canvasHeight: Math.round(height * scale),
                     style: {
+                        width: '210mm',
+                        maxWidth: 'none',
                         margin: '0',
                         transform: 'none',
                         transformOrigin: 'top left',
                         boxShadow: 'none',
                         background: '#ffffff',
+                        overflow: captureTarget.getAttribute('data-report-page') === 'true' ? 'hidden' : 'visible',
                     },
                 });
             } catch {
@@ -218,7 +299,7 @@ export const captureReportCanvases = async (
         }
 
         try {
-            return await html2canvas(target, {
+            return await html2canvas(captureTarget, {
                 scale,
                 useCORS: true,
                 backgroundColor: '#ffffff',
@@ -233,19 +314,26 @@ export const captureReportCanvases = async (
                 scrollY: 0,
                 onclone: (clonedDocument: Document) => {
                     ensureCloneStyle(clonedDocument);
+                    const clonedCaptureTarget = clonedDocument.querySelector('[data-psi-export-host="true"] > *') as HTMLElement | null;
+                    if (clonedCaptureTarget) {
+                        applyCaptureSurfaceStyles(clonedCaptureTarget);
+                        clonedCaptureTarget.style.maxWidth = 'none';
+                    }
                     const clonedRoot = clonedDocument.querySelector('[data-report-template-root="true"]') as HTMLElement | null;
                     if (clonedRoot) {
                         clonedRoot.style.boxShadow = 'none';
                         clonedRoot.style.margin = '0';
                         clonedRoot.style.transform = 'none';
                         clonedRoot.style.transformOrigin = 'top left';
-                        clonedRoot.style.textRendering = 'auto';
-                        clonedRoot.style.letterSpacing = 'normal';
+                        clonedRoot.style.maxWidth = 'none';
                     }
                 },
             });
         } catch (error) {
             throw error instanceof Error ? error : new Error('리포트 캡처에 실패했습니다.');
+        }
+        } finally {
+            isolated.cleanup();
         }
     };
 
