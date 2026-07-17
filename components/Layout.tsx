@@ -118,9 +118,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const uiAudienceMode: UiAudienceMode =
         diagnosticsAvailable && operationalMode === 'developer'
             ? 'developer'
-            : userRolePreset === 'field-worker'
-                ? 'worker'
-                : 'practitioner';
+            : 'practitioner';
     const showDiagnosticsControls = diagnosticsAvailable && currentPage === 'settings';
     const isSettingsPage = currentPage === 'settings';
     const currentRouteMeta = getRouteMeta(currentPage);
@@ -185,28 +183,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     ];
     const activeMobileTab = (Object.entries(filteredMobilePageGroups).find(([, pages]) => pages.includes(currentPage))?.[0] as MobileTabId | undefined) ?? 'home';
 
-    const mobileQuickLinksRaw: Array<{ page: Page; label: string }> =
-        activeMobileTab === 'home'
-            ? [{ page: 'dashboard', label: getRouteLabel('dashboard', uiAudienceMode) }]
-            : activeMobileTab === 'alerts'
-                ? [{ page: 'ocr-analysis', label: getRouteLabel('ocr-analysis', uiAudienceMode) }]
-                : activeMobileTab === 'profile'
-                    ? [{ page: 'monthly-guidance-report', label: getRouteLabel('monthly-guidance-report', uiAudienceMode) }]
-                : activeMobileTab === 'predictive'
-                    ? [
-                        { page: 'education-return', label: getRouteLabel('education-return', uiAudienceMode) },
-                        { page: 'a4-education-material', label: '원페이지 교육자료' },
-                        { page: 'reports', label: '개인 보호 리포트' },
-                        { page: 'monthly-guidance-report', label: '월별 추적자료' },
-                    ]
-                        : [
-                            { page: 'performance-analysis', label: getRouteLabel('performance-analysis', uiAudienceMode) },
-                            { page: 'a4-education-material', label: getRouteLabel('a4-education-material', uiAudienceMode) },
-                            { page: 'reports', label: getRouteLabel('reports', uiAudienceMode) },
-                            { page: 'settings', label: getRouteLabel('settings', uiAudienceMode) },
-                        ];
-
-    const mobileQuickLinks = mobileQuickLinksRaw.filter((item) => isMobilePageVisible(item.page));
     const handlePageChange = (page: Page) => {
         setCurrentPage(page);
         setIsMobileMenuOpen(false); // Close mobile menu on navigation
@@ -531,8 +507,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                         <p className="psi-item-title">현장 관리자</p>
                                         <p className="psi-small-note mt-1">안전 운영 계정</p>
                                     </div>
-                                    {uiAudienceMode !== 'worker' && (
-                                        <button
+                                    <button
                                             type="button"
                                             onClick={() => {
                                                 operatorMenuRef.current?.removeAttribute('open');
@@ -545,8 +520,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                                 <span className="mt-0.5 block text-[10px] font-semibold text-slate-500 dark:text-slate-400">상품 소개</span>
                                             </span>
                                             <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-950 text-[10px] font-bold text-white dark:bg-blue-500">PSI</span>
-                                        </button>
-                                    )}
+                                    </button>
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -613,25 +587,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                 </div>
                             </section>
                         )}
-                        <div className="mb-3 flex gap-2 overflow-x-auto no-scrollbar lg:hidden">
-                            {mobileQuickLinks.map((item) => {
-                                const isActive = currentPage === item.page;
-                                return (
-                                    <button
-                                        key={item.page}
-                                        type="button"
-                                        onClick={() => handlePageChange(item.page)}
-                                        className={`min-h-11 shrink-0 rounded-full border px-3 py-2 text-xs font-bold transition-colors ${
-                                            isActive
-                                                ? 'border-blue-600 bg-blue-700 text-white shadow-sm'
-                                                : 'border-slate-300 bg-white text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200'
-                                        }`}
-                                    >
-                                        {item.label}
-                                    </button>
-                                );
-                            })}
-                        </div>
                         <PageHeader
                             show={showCommonPageHeader}
                             groupLabel={currentProductGroupLabel}

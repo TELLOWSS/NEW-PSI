@@ -27,6 +27,10 @@ import { BRAND_TONE } from '../utils/brandToneTokens';
 import { buildWorkerMessageDashboardCards, buildWorkerRegisteredCards } from '../utils/roleViewModel';
 import { useMobileBackGuard } from '../hooks/useMobileBackGuard';
 import {
+    PSI_WORKER_JOB_FIELDS as ALLOWED_JOB_FIELDS,
+    PSI_WORKER_JOB_FIELD_ALIASES as JOB_FIELD_ALIASES,
+} from '../config/psiFormMaster';
+import {
     ResponsiveContainer,
     BarChart,
     Bar,
@@ -1014,40 +1018,6 @@ type RetryQueueFilter = 'all' | 'actionable' | 'blocked';
 
 const MESSAGE_HISTORY_CACHE_TTL_MS = 5 * 60 * 1000;
 const MAX_REPORT_MESSAGE_IMAGE_BYTES = 190 * 1024;
-
-const ALLOWED_JOB_FIELDS = [
-    '형틀',
-    '철근',
-    '갱폼',
-    '알폼',
-    '시스템',
-    '관리',
-    '바닥미장',
-    '할석미장견출',
-    '해체정리',
-    '직영',
-    '용역',
-    '콘크리트비계',
-] as const;
-
-const JOB_FIELD_ALIASES: Record<string, string> = {
-    '형틀': '형틀',
-    '철근': '철근',
-    '갱폼': '갱폼',
-    '알폼': '알폼',
-    '시스템': '시스템',
-    '관리': '관리',
-    '관리도': '관리',
-    '바닥미장': '바닥미장',
-    '바닥 미장': '바닥미장',
-    '할석미장견출': '할석미장견출',
-    '해체정리': '해체정리',
-    '직영(용역포함)': '직영',
-    '직영용역포함': '직영',
-    '직영': '직영',
-    '용역': '용역',
-    '콘크리트비계': '콘크리트비계',
-};
 
 const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onViewDetails, onOpenPhotoRegistration, onUpdateRecord }) => {
     // --- Main View States ---
@@ -4560,7 +4530,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <button
                                     type="button"
                                     onClick={() => onViewDetails(worker)}
-                                    className="col-span-2 min-h-[44px] rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200"
+                                    className={`col-span-2 min-h-[44px] rounded-xl border px-3 py-2 text-xs font-black text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200 ${BRAND_TONE.slate}`}
                                 >
                                     기록 상세 보기
                                 </button>
@@ -4568,7 +4538,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     type="button"
                                     onClick={() => startProcessing('sticker', [worker])}
                                     title={canIssue ? '스티커 인쇄' : `검증필요 항목: ${reliability.reasons.join(', ')}`}
-                                    className={`min-h-[44px] px-2 py-2 font-black rounded-xl transition-colors flex items-center justify-center gap-1 text-xs focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200 ${canIssue ? 'border border-slate-200 bg-white text-slate-900 hover:bg-slate-100' : 'bg-amber-200 text-slate-900 hover:bg-amber-300'}`}
+                                    className={`min-h-[44px] px-2 py-2 font-black rounded-xl border transition-colors flex items-center justify-center gap-1 text-xs focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200 ${canIssue ? `${BRAND_TONE.slateWhite} text-slate-900 hover:bg-slate-100` : 'border-amber-200 bg-amber-200 text-slate-900 hover:bg-amber-300'}`}
                                 >
                                     <span aria-hidden="true">⛑</span> 스티커
                                 </button>

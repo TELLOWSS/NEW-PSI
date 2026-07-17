@@ -1,4 +1,5 @@
 import React from 'react';
+import { Badge } from './Badge';
 
 type WorkTypeBadgeEmphasis = 'default' | 'strong';
 
@@ -21,13 +22,13 @@ export const WorkTypeBadge: React.FC<WorkTypeBadgeProps> = ({
     className = '',
 }) => {
     return (
-        <span
-            className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-bold ${emphasisClassMap[emphasis]} ${className}`}
-            aria-label={`공종: ${workType}`}
+        <Badge
+            className={`min-h-8 gap-1.5 px-3 text-xs font-bold ${emphasisClassMap[emphasis]} ${className}`}
+            ariaLabel={`공종: ${workType}`}
             title={`공종: ${workType}`}
         >
             {icon ? <span className="shrink-0">{icon}</span> : null}
             <span className="truncate">{workType}</span>
-        </span>
+        </Badge>
     );
 };

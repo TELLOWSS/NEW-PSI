@@ -226,11 +226,6 @@
         color: var(--psi-text);
     }
 
-    .psi-font-korean {
-        font-family: 'Pretendard', 'Noto Sans KR', 'Noto Sans', 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-        letter-spacing: 0;
-    }
-
     .psi-display-title {
         color: var(--psi-text);
         font-size: 2rem;
@@ -572,26 +567,6 @@
         font-size: 0.7rem;
     }
 
-    .psi-panel {
-        background: var(--psi-surface);
-        border-color: var(--psi-border);
-        color: var(--psi-text);
-        box-shadow: var(--psi-shadow);
-    }
-
-    .psi-panel-raised {
-        background: var(--psi-surface-raised);
-        border-color: var(--psi-border);
-        color: var(--psi-text);
-        box-shadow: var(--psi-shadow-raised);
-    }
-
-    .psi-panel-muted {
-        background: var(--psi-surface-muted);
-        border-color: var(--psi-border);
-        color: var(--psi-text);
-    }
-
     .psi-sidebar-surface {
         border-color: var(--psi-border);
         background:
@@ -649,13 +624,6 @@
         box-shadow: none;
     }
 
-    .psi-data-notice {
-        border: 1px solid color-mix(in srgb, var(--psi-focus) 24%, var(--psi-border));
-        border-radius: var(--psi-radius-sm);
-        background: color-mix(in srgb, var(--psi-focus) 5%, var(--psi-surface));
-        color: var(--psi-text-muted);
-    }
-
     .psi-interactive-card {
         border: 1px solid var(--psi-border);
         border-radius: var(--psi-radius);
@@ -673,10 +641,6 @@
 
     .psi-copy-muted {
         color: var(--psi-text-muted);
-    }
-
-    .psi-copy-subtle {
-        color: var(--psi-text-subtle);
     }
 
     .psi-sidebar .text-slate-100,

@@ -1,115 +1,26 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# PSI 현장 안전 운영 플랫폼
 
-# Run and deploy your AI Studio app
+PSI는 위험성평가 기록을 분석하고, 관리자 검증·안전조치·근로자 교육 환류까지 연결하는 현장 안전 운영 프로그램입니다.
 
-## 문서 관리 정보
-- 발명 및 개발 총괄: 박성훈
-- 검토 완료일: 2026-03-02
-- 시스템 적용 버전: PSI v2.1.0
-- 상태: ✅ 현장 검증 및 프로덕션 배포 완료
+## 로컬 실행
 
-This contains everything you need to run your app locally.
+1. Node.js를 설치합니다.
+2. `npm install`을 실행합니다.
+3. `.env.local`에 필요한 환경변수를 설정합니다.
+4. `npm run dev`로 실행합니다.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1ioxD3tiy2bhXBa8HuFJGKMxyplW-R8OM
+배포 전에는 `npm run verify:release`로 형식 검사, 자동 테스트, 제품 기준 검사와 빌드를 확인합니다.
 
-## Run Locally
+## 현재 기준 문서
 
-**Prerequisites:**  Node.js
+- 운영: [ADMIN_OPERATION_GUIDE.md](ADMIN_OPERATION_GUIDE.md)
+- 배포 환경: [DEPLOYMENT_ENV_CHECKLIST.md](DEPLOYMENT_ENV_CHECKLIST.md)
+- 검증: [VERIFICATION.md](VERIFICATION.md)
+- OCR 운영 확인: [OCR_ANALYSIS_VERIFICATION.md](OCR_ANALYSIS_VERIFICATION.md)
+- 문자·MMS 설정: [SMS_MMS_SETUP.md](SMS_MMS_SETUP.md)
+- 브랜드 문구: [PSI_BRAND_VOICE_GUIDE.md](PSI_BRAND_VOICE_GUIDE.md)
+- 역할별 UX 문구: [PSI_ROLE_BASED_UX_COPY_GUIDE.md](PSI_ROLE_BASED_UX_COPY_GUIDE.md)
+- 제품화 현재 계획: [docs/PSI_보강사항_검증_실행계획_2026-07-14.md](docs/PSI_보강사항_검증_실행계획_2026-07-14.md)
+- 개발 원칙: [docs/PSI_DEVELOPMENT_GUARDRAILS.md](docs/PSI_DEVELOPMENT_GUARDRAILS.md)
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
-
-Quick troubleshooting:
-
-- If `npm` is not found on Windows PowerShell, install Node.js (which includes npm) from https://nodejs.org and restart your terminal.
-- If you see TypeScript errors about `@types/node`, run `npm i -D @types/node`.
-- To build for production: `npm run build` then `npm run preview` to serve the build locally.
-
-## Vercel 배포 점검 (빈 화면 이슈)
-
-- 이 저장소는 `vercel.json`으로 `npm run build` + `dist` 출력 배포를 고정합니다.
-- Vercel Project Settings에서 Root Directory가 이 저장소 루트인지 확인하세요.
-- 배포 후 빈 화면이면 브라우저 콘솔에서 `index.tsx` 404 또는 모듈 파싱 오류 여부를 먼저 확인하세요.
-- 기존 사용자 데이터가 손상된 경우를 대비해 앱 초기 `localStorage` 파싱은 안전 처리되어 화면 중단을 방지합니다.
-- 관리자 문자 발송 이력은 선택 근로자 단건 조회 + 5분 캐시 방식으로 구성되어 Vercel 무료 플랜에서 API 호출 낭비를 줄입니다.
-- 관리자 문자/MMS 관련 함수는 [vercel.json](vercel.json)에 `maxDuration`이 명시되어 있습니다.
-
-## 문자/MMS 운영 참고
-
-- 자동문자 설정과 환경변수, 로그 마이그레이션은 [SMS_MMS_SETUP.md](SMS_MMS_SETUP.md) 참고
-- 관리자 > 근로자 관리 화면에서 근로자별 `문자 발송 이력` 탭 사용 가능
-
-What I changed during automated verification:
-
-- Hardened global window access via `utils/windowUtils.ts` to avoid runtime errors when libraries are loaded on window.
-- Reduced unsafe `as any` casts across chart components, modals, and `services/geminiService.ts`.
-- Guarded debug logging in `services/geminiService.ts` so it only logs in dev.
-- Adjusted `tsconfig.json` to avoid requiring `node` types in this environment.
-
-Next steps I recommend:
-
-- Run `npm install` locally and then `npm run dev` to smoke-test pages (Dashboard, OCR 분석, Worker Management, Reports).
-- If you want, I can generate a step-by-step smoke-test checklist and `VERIFICATION.md` (I will add it now).
-
-## Gemini 협업 시작 가이드 (2026-03-09 기준)
-
-아래 순서대로 보면 현재 상태를 가장 빠르게 이해하고, Gemini와 논의를 바로 시작할 수 있습니다.
-
-### 공식 문서 인덱스 (유지 문서)
-
-- 전체 현황/결정 포인트: [GEMINI_COLLAB_MASTER_BRIEF_2026-03-09.md](GEMINI_COLLAB_MASTER_BRIEF_2026-03-09.md)
-- 기능 구현 상세: [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md)
-- 과거 작업 맥락: [TASK_COMPLETION_SUMMARY.md](TASK_COMPLETION_SUMMARY.md)
-- 보완 이슈/개선 내역: [IMPROVEMENTS_SUMMARY.md](IMPROVEMENTS_SUMMARY.md)
-
-아카이브 문서는 [archive/](archive/) 폴더에서 확인할 수 있습니다.
-아카이브 목록/사유는 [archive/INDEX.md](archive/INDEX.md)에서 관리합니다.
-
-### Gemini에 바로 전달할 기준 문구
-
-협업용 표준 컨텍스트는 [GEMINI_COLLAB_MASTER_BRIEF_2026-03-09.md](GEMINI_COLLAB_MASTER_BRIEF_2026-03-09.md)의 **12) Gemini에 바로 붙여넣는 협업 컨텍스트 (복붙용)** 섹션을 그대로 사용합니다.
-
-### 현재 우선 논의 주제 (P0)
-
-- 피드백 다중 채널 확장(웹훅 이후 Slack/Email)과 인증/재시도 정책
-- 보고서 실패 재시도 UX(전체 재시도 vs 선택 재시도)
-- OCR 오류 분류(휴리스틱 유지 vs 모델 기반 전환)
-- 발급 신뢰성 게이트 임계치/예외 승인 절차
-- 다국어 번역 API 정식 연동 및 품질/캐시 전략
-- Supabase RLS/Storage 최소권한 정책
-
-### 협업 운영 리듬 (권장)
-
-- 일일: 장애/긴급 항목 우선 triage
-- 주간: P0 설계안 비교 및 채택
-- 월간: Gemini 리뷰 회의록을 [GEMINI_COLLAB_MASTER_BRIEF_2026-03-09.md](GEMINI_COLLAB_MASTER_BRIEF_2026-03-09.md)에 반영
-
-### 실행 체크
-
-- 앱 실행 확인: `npm install` → `npm run dev`
-- 문서 최신화 기준일: 2026-03-09
-- 협업 시작점: [GEMINI_COLLAB_MASTER_BRIEF_2026-03-09.md](GEMINI_COLLAB_MASTER_BRIEF_2026-03-09.md)
-
-## 2026-03-24 현재 기준 업데이트
-
-### 핵심 기능 업데이트
-- 관리자 교육 QR **풀스크린 표시** 지원 (PPT/대형화면 대응)
-- 관리자 교육 음성첨부 언어에 **말레이시아어(ms-MY)** 추가
-- AI 위험성평가 채점 체계를 **6대 지표(총 100점)**로 전면 개편
-- 근로자 상세 리포트에서 외국인 대상 **모국어 우선 + 한국어 병기([KO])** 구조 적용
-- 코칭/개선권고 문구에서 "없음" 계열 응답 제거, **실행 유도형 코칭** 강화
-- 감사이력 특이사항을 개선권고에 자동 반영
-
-### UI/UX/디자인 업데이트 포인트
-- 리포트 레이아웃을 상단(프로필/총점)·중단(채점근거/코칭)·하단(강점/개선/진단)으로 재배치
-- 외국인 리포트는 모국어 가독성 확보를 위해 본문 우선 노출 및 관리자 확인용 한국어 보조 표기
-- 외국인 리포트에서 하단 수기원본 블록을 비노출 처리해 핵심 안내 영역 가독성 확보
-
-### 운영 참고
-- 과거 저장 데이터에서 `_native` 필드가 비어 있는 경우, 재분석 시 모국어 필드가 자동 생성됩니다.
+과거 계획, 완료 보고, 회차별 인계 문서는 [docs/archive/root-history](docs/archive/root-history)에 보존합니다. 특허, 감사, 마이그레이션, 운영 보고 자료는 기존 전용 폴더에서 관리합니다.

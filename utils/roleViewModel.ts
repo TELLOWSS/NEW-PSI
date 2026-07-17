@@ -56,8 +56,8 @@ export type DashboardAudienceQuickGuideItem = {
 
 export const DASHBOARD_AUDIENCE_META: Record<DashboardAudience, { label: string; description: string }> = {
     worker: {
-        label: '근로자 관점',
-        description: '누가 위험한지 보고 바로 행동합니다.',
+        label: '현장 실무 관점',
+        description: '현장 보호 우선순위와 바로 할 조치를 확인합니다.',
     },
     manager: {
         label: '관리자 관점',

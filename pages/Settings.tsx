@@ -36,43 +36,15 @@ import {
     sanitizeCompetencyWeights,
 } from '../utils/competencyWeights';
 import { getSafetyLevelDisplayLabel } from '../utils/safetyLevelUtils';
+import {
+    CURRENT_SITE_TRAINING_LANGUAGE_CODES as CURRENT_SITE_LANGUAGE_SET,
+    TRAINING_LANGUAGE_OPTIONS as SHARED_TRAINING_LANGUAGE_OPTIONS,
+} from '../utils/constructionTrainingTranslation';
 
-const TRAINING_LANGUAGE_OPTIONS = [
-    { code: 'ko-KR', label: '한국어 (ko-KR)' },
-    { code: 'en-US', label: '영어 (en-US)' },
-    { code: 'vi-VN', label: '베트남어 (vi-VN)' },
-    { code: 'cmn-CN', label: '중국어 (cmn-CN)' },
-    { code: 'th-TH', label: '태국어 (th-TH)' },
-    { code: 'id-ID', label: '인도네시아어 (id-ID)' },
-    { code: 'ms-MY', label: '말레이시아어 (ms-MY)' },
-    { code: 'uz-UZ', label: '우즈베크어 (uz-UZ)' },
-    { code: 'mn-MN', label: '몽골어 (mn-MN)' },
-    { code: 'km-KH', label: '크메르어 (km-KH)' },
-    { code: 'ru-RU', label: '러시아어 (ru-RU)' },
-    { code: 'kk-KZ', label: '카자흐어 (kk-KZ)' },
-    { code: 'ne-NP', label: '네팔어 (ne-NP)' },
-    { code: 'my-MM', label: '미얀마어 (my-MM)' },
-    { code: 'fil-PH', label: '필리핀어 (fil-PH)' },
-    { code: 'hi-IN', label: '힌디어 (hi-IN)' },
-    { code: 'bn-BD', label: '벵골어 (bn-BD)' },
-    { code: 'ur-PK', label: '우르두어 (ur-PK)' },
-    { code: 'si-LK', label: '싱할라어 (si-LK)' },
-] as const;
-
-const CURRENT_SITE_LANGUAGE_SET = [
-    'ko-KR',
-    'vi-VN',
-    'cmn-CN',
-    'mn-MN',
-    'id-ID',
-    'ms-MY',
-    'ru-RU',
-    'kk-KZ',
-    'uz-UZ',
-    'th-TH',
-    'km-KH',
-    'my-MM',
-] as const;
+const TRAINING_LANGUAGE_OPTIONS = SHARED_TRAINING_LANGUAGE_OPTIONS.map(({ code, label }) => ({
+    code,
+    label: `${label.ko} (${code})`,
+}));
 
 const VALID_TRAINING_LANGUAGE_CODES = new Set(TRAINING_LANGUAGE_OPTIONS.map((item) => item.code));
 const isValidTrainingLanguageCode = (code: string): code is (typeof TRAINING_LANGUAGE_OPTIONS)[number]['code'] => VALID_TRAINING_LANGUAGE_CODES.has(code as (typeof TRAINING_LANGUAGE_OPTIONS)[number]['code']);

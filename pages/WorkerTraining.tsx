@@ -1354,8 +1354,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
 
         if (!workerName.trim()) {
             setNameWarning(true);
+            setMessage(t.missingNameAlert);
             nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            alert(t.missingNameAlert);
             return;
         }
 
@@ -1363,8 +1363,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
 
         if (!isComprehensionReady) {
             setComprehensionWarning(true);
+            setMessage(t.submitBlockedAlert);
             comprehensionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            alert(t.submitBlockedAlert);
             return;
         }
 
@@ -1372,8 +1372,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
 
         if (!sigRef.current || sigRef.current.isEmpty()) {
             setSignatureWarning(true);
+            setMessage(t.missingSignatureAlert);
             signatureWrapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            alert(t.missingSignatureAlert);
             return;
         }
 

@@ -1588,32 +1588,8 @@ const SIX_METRIC_ANCHOR_RUBRIC = `
  * LANGUAGE_POLICY 준수: AI 분석 결과의 국적 필드를 표준화된 형식으로 변환
  * Normalizes nationality to standard format per LANGUAGE_POLICY
  */
-function normalizeNationality(rawNationality: string): string { return importedNormalizeNationality(rawNationality); } function _old_normalizeNationality_unused(rawNationality: string): string {
-    if (!rawNationality) return '미상';
-    
-    const nation = (rawNationality || '').trim().toLowerCase();
-    
-    // 한국인 정규화: 대한민국으로 통일
-    if (nation.includes('한국') || nation.includes('korea') || nation.includes('ROK') || nation.includes('south korea')) {
-        return '대한민국';
-    }
-    
-    // 다른 국가들: 공식 한글 표기로 통일
-    if (nation.includes('베트남') || nation.includes('vietnam')) return '베트남';
-    if (nation.includes('중국') || nation.includes('china')) return '중국';
-    if (nation.includes('태국') || nation.includes('thailand')) return '태국';
-    if (nation.includes('우즈벡') || nation.includes('uzbekistan')) return '우즈베키스탄';
-    if (nation.includes('인도네시아') || nation.includes('indonesia')) return '인도네시아';
-    if (nation.includes('캄보디아') || nation.includes('cambodia')) return '캄보디아';
-    if (nation.includes('몽골') || nation.includes('mongolia')) return '몽골';
-    if (nation.includes('필리핀') || nation.includes('philippines')) return '필리핀';
-    if (nation.includes('카자흐') || nation.includes('kazakhstan')) return '카자흐스탄';
-    if (nation.includes('러시아') || nation.includes('russia')) return '러시아';
-    if (nation.includes('네팔') || nation.includes('nepal')) return '네팔';
-    if (nation.includes('미얀마') || nation.includes('myanmar') || nation.includes('burma')) return '미얀마';
-    
-    // 원본 반환 (미분류)
-    return rawNationality;
+function normalizeNationality(rawNationality: string): string {
+    return importedNormalizeNationality(rawNationality);
 }
 
 /**

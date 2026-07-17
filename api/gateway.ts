@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'crypto';
-import { createClient } from '@supabase/supabase-js';
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../lib/server/adminAuthGuard.js';
+import { createSupabaseServerClient } from '../lib/server/supabaseServer.js';
 import handleHarnessAnalyze from '../lib/server/harness/handlers/analyze.js';
 import handleHarnessApprove from '../lib/server/harness/handlers/approve.js';
 import handleHarnessPersistenceHealth from '../lib/server/harness/handlers/persistenceHealth.js';
@@ -233,34 +233,7 @@ type UpsertRequestBody = {
 };
 
 function getSupabaseClient() {
-    const supabaseUrl =
-        process.env.VITE_SUPABASE_URL ||
-        process.env.NEXT_PUBLIC_SUPABASE_URL ||
-        '';
-    const serviceRoleKey =
-        process.env.SUPABASE_SERVICE_ROLE_KEY ||
-        process.env.SUPABASE_SERVICE_KEY ||
-        process.env.SERVICE_ROLE_KEY ||
-        '';
-    const anonKey =
-        process.env.VITE_SUPABASE_ANON_KEY ||
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-        '';
-    const psiAdminSecret =
-        process.env.VITE_PSI_ADMIN_SECRET ||
-        process.env.PSI_ADMIN_SECRET ||
-        '';
-
-    const keyToUse = serviceRoleKey || anonKey;
-    if (!supabaseUrl || !keyToUse) {
-        throw new Error('Supabase 환경변수 누락');
-    }
-
-    return createClient(supabaseUrl, keyToUse, {
-        global: {
-            headers: psiAdminSecret ? { 'x-psi-admin-secret': psiAdminSecret } : {},
-        },
-    });
+    return createSupabaseServerClient({ errorMessage: 'Supabase 환경변수 누락' });
 }
 
 const resolveGeminiApiKey = () => {
@@ -452,6 +425,82 @@ async function handleTrainingCheckAccess(req: any, res: any) {
             mode: 'verified-read-only',
         },
     });
+}
+
+type TrainingSignatureCommitInput = {
+    sessionId: string;
+    caseId: string;
+    workerId?: string | null;
+    workerName: string;
+    nationality: string;
+    signatureDataUrl: string;
+    pathPrefix?: string;
+    selectedAudioUrl?: string;
+    selectedLanguageCode?: string;
+    isManagerProxy: boolean;
+    signatureMethod: 'worker_self' | 'manager_proxy' | 'manager_group_proxy';
+    reviewedGuidance: boolean;
+    checklist: Record<string, unknown>;
+    comprehensionComplete: boolean;
+    errorContext?: string;
+};
+
+async function persistTrainingSignature(supabase: any, input: TrainingSignatureCommitInput) {
+    const match = input.signatureDataUrl.match(/^data:image\/png;base64,(.+)$/);
+    if (!match?.[1]) {
+        throw new Error(`서명 데이터 형식 오류${input.errorContext ? `: ${input.errorContext}` : ''}`);
+    }
+
+    const binary = Buffer.from(match[1], 'base64');
+    const path = buildSignatureStoragePath(input.sessionId, { prefix: input.pathPrefix });
+    const signatureEvidenceHash = createHash('sha256').update(binary).digest('hex');
+    const upload = await supabase.storage.from('signatures').upload(path, binary, {
+        contentType: 'image/png',
+        upsert: false,
+    });
+
+    if (upload.error) {
+        throw new Error(`서명 업로드 실패${input.errorContext ? `(${input.errorContext})` : ''}: ${upload.error.message}`);
+    }
+
+    const commit = await supabase.rpc('psi_commit_training_signature', {
+        p_session_id: input.sessionId,
+        p_case_id: input.caseId || '',
+        p_worker_id: input.workerId || null,
+        p_worker_name: input.workerName,
+        p_nationality: input.nationality,
+        p_signature_path: path,
+        p_signature_evidence_hash: signatureEvidenceHash,
+        p_audio_url: input.selectedAudioUrl || '',
+        p_selected_language_code: input.selectedLanguageCode || '',
+        p_is_manager_proxy: input.isManagerProxy,
+        p_signature_method: input.signatureMethod,
+        p_reviewed_guidance: input.reviewedGuidance,
+        p_checklist: input.checklist,
+        p_comprehension_complete: input.comprehensionComplete,
+        p_submitted_at: new Date().toISOString(),
+    });
+
+    if (commit.error) {
+        await supabase.storage.from('signatures').remove([path]);
+        if (String(commit.error.code || '') === '23505') {
+            throw new DuplicateSubmissionError('이미 해당 세션에 서명을 제출했습니다. 관리자에게 확인해 주세요.');
+        }
+        const missingMigration = String(commit.error.message || '').includes('psi_commit_training_signature')
+            || String(commit.error.code || '').toUpperCase() === 'PGRST202';
+        throw createGatewayHttpError(
+            missingMigration
+                ? '서명 무결성 마이그레이션이 적용되지 않았습니다.'
+                : `교육 서명 기록 저장 실패${input.errorContext ? `(${input.errorContext})` : ''}: ${commit.error.message}`,
+            503,
+            'TRAINING_SIGNATURE_COMMIT_FAILED',
+        );
+    }
+
+    return {
+        signatureEvidenceHash,
+        signatureReference: `private://signatures/${path}`,
+    };
 }
 
 function sendWorkerAuthenticationSuccess(res: any, matched: any, sessionId: string) {
@@ -651,11 +700,6 @@ async function handleSingleSignature(
         throw new Error('근로자 국적 정보가 필요합니다.');
     }
 
-    const match = String(signatureDataUrl).match(/^data:image\/png;base64,(.+)$/);
-    if (!match?.[1]) {
-        throw new Error('서명 데이터 형식 오류');
-    }
-
     const hasEngagementProof = Boolean(reviewedGuidance) || Boolean(audioPlayed) || Boolean(scrolledToEnd);
     if (!hasEngagementProof) {
         throw new Error('오디오 재생 또는 대본 끝까지 읽기 기록이 필요합니다.');
@@ -699,53 +743,21 @@ async function handleSingleSignature(
         throw new DuplicateSubmissionError('이미 해당 세션에 서명을 제출했습니다. 관리자에게 확인해 주세요.');
     }
 
-    const fileBuffer = Buffer.from(match[1], 'base64');
-    const path = buildSignatureStoragePath(sessionId);
-    const signatureEvidenceHash = createHash('sha256').update(fileBuffer).digest('hex');
-    const submittedAt = new Date().toISOString();
-
-    const { error: uploadError } = await supabase.storage.from('signatures').upload(path, fileBuffer, {
-        contentType: 'image/png',
-        upsert: false,
+    const { signatureReference, signatureEvidenceHash } = await persistTrainingSignature(supabase, {
+        sessionId,
+        caseId,
+        workerId: authorizedWorkerId,
+        workerName: normalizedWorkerName,
+        nationality: normalizedNationality,
+        signatureDataUrl: String(signatureDataUrl),
+        selectedAudioUrl,
+        selectedLanguageCode,
+        isManagerProxy: effectiveIsManagerProxy,
+        signatureMethod: effectiveIsManagerProxy ? 'manager_proxy' : 'worker_self',
+        reviewedGuidance: Boolean(reviewedGuidance),
+        checklist: checklistPayload,
+        comprehensionComplete,
     });
-
-    if (uploadError) throw new Error(`서명 업로드 실패: ${uploadError.message}`);
-
-    const commit = await supabase.rpc('psi_commit_training_signature', {
-        p_session_id: sessionId,
-        p_case_id: caseId || '',
-        p_worker_id: authorizedWorkerId || null,
-        p_worker_name: normalizedWorkerName,
-        p_nationality: normalizedNationality,
-        p_signature_path: path,
-        p_signature_evidence_hash: signatureEvidenceHash,
-        p_audio_url: selectedAudioUrl || '',
-        p_selected_language_code: selectedLanguageCode || '',
-        p_is_manager_proxy: effectiveIsManagerProxy,
-        p_signature_method: effectiveIsManagerProxy ? 'manager_proxy' : 'worker_self',
-        p_reviewed_guidance: Boolean(reviewedGuidance),
-        p_checklist: checklistPayload,
-        p_comprehension_complete: comprehensionComplete,
-        p_submitted_at: submittedAt,
-    });
-
-    if (commit.error) {
-        await supabase.storage.from('signatures').remove([path]);
-        if (String(commit.error.code || '') === '23505') {
-            throw new DuplicateSubmissionError('이미 해당 세션에 서명을 제출했습니다. 관리자에게 확인해 주세요.');
-        }
-        const missingMigration = String(commit.error.message || '').includes('psi_commit_training_signature')
-            || String(commit.error.code || '').toUpperCase() === 'PGRST202';
-        throw createGatewayHttpError(
-            missingMigration
-                ? '서명 무결성 마이그레이션이 적용되지 않았습니다.'
-                : `교육 서명 기록 저장 실패: ${commit.error.message}`,
-            503,
-            'TRAINING_SIGNATURE_COMMIT_FAILED',
-        );
-    }
-
-    const signatureReference = `private://signatures/${path}`;
 
     if (comprehensionComplete) {
         await completeSafetyCaseAcknowledgement(supabase, {
@@ -848,55 +860,30 @@ async function handleGroupSignatures(payload: any): Promise<any> {
             continue;
         }
 
-        const match = item.signatureDataUrl.match(/^data:image\/png;base64,(.+)$/);
-        if (!match?.[1]) {
-            throw new Error(`서명 데이터 형식 오류: worker_id=${worker.id}`);
-        }
-
-        const binary = Buffer.from(match[1], 'base64');
-        const path = buildSignatureStoragePath(sessionId, {
-            prefix: `group_proxy/${worker.id}`,
-        });
-
-        const { error: uploadErr } = await supabase.storage.from('signatures').upload(path, binary, {
-            contentType: 'image/png',
-            upsert: false,
-        });
-
-        if (uploadErr) {
-            throw new Error(`서명 업로드 실패(${worker.id}): ${uploadErr.message}`);
-        }
-
-        const signatureEvidenceHash = createHash('sha256').update(binary).digest('hex');
-        const commit = await supabase.rpc('psi_commit_training_signature', {
-            p_session_id: sessionId,
-            p_case_id: caseId || '',
-            p_worker_id: worker.id,
-            p_worker_name: worker.name,
-            p_nationality: worker.nationality || '',
-            p_signature_path: path,
-            p_signature_evidence_hash: signatureEvidenceHash,
-            p_audio_url: selectedAudioUrl || '',
-            p_selected_language_code: selectedLanguageCode || '',
-            p_is_manager_proxy: true,
-            p_signature_method: 'manager_group_proxy',
-            p_reviewed_guidance: groupAcknowledgement.reviewedGuidance,
-            p_checklist: groupAcknowledgement.checklist,
-            p_comprehension_complete: false,
-            p_submitted_at: new Date().toISOString(),
-        });
-
-        if (commit.error) {
-            await supabase.storage.from('signatures').remove([path]);
-            if (String(commit.error.code || '') === '23505') {
+        try {
+            await persistTrainingSignature(supabase, {
+                sessionId,
+                caseId,
+                workerId: worker.id,
+                workerName: worker.name,
+                nationality: worker.nationality || '',
+                signatureDataUrl: item.signatureDataUrl,
+                pathPrefix: `group_proxy/${worker.id}`,
+                selectedAudioUrl,
+                selectedLanguageCode,
+                isManagerProxy: true,
+                signatureMethod: 'manager_group_proxy',
+                reviewedGuidance: groupAcknowledgement.reviewedGuidance,
+                checklist: groupAcknowledgement.checklist,
+                comprehensionComplete: false,
+                errorContext: worker.id,
+            });
+        } catch (error) {
+            if (error instanceof DuplicateSubmissionError) {
                 skippedDuplicateWorkerIds.push(worker.id);
                 continue;
             }
-            throw createGatewayHttpError(
-                `집체교육 서명 기록 저장 실패(${worker.id}): ${commit.error.message}`,
-                503,
-                'TRAINING_SIGNATURE_COMMIT_FAILED',
-            );
+            throw error;
         }
 
         insertedWorkerIds.push(worker.id);
@@ -940,25 +927,7 @@ async function handleTrainingSubmit(req: any, res: any) {
     return res.status(200).json({ ok: true, type, data });
 }
 
-const normalizeNationality = (rawNationality: string): string => { return importedNormalizeNationality(rawNationality); }; const _old_normalizeNationality_unused = (rawNationality: string): string => {
-    if (!rawNationality) return '미상';
-
-    const nation = rawNationality.trim().toLowerCase();
-    if (nation.includes('한국') || nation.includes('korea') || nation.includes('rok') || nation.includes('south korea')) return '대한민국';
-    if (nation.includes('베트남') || nation.includes('vietnam')) return '베트남';
-    if (nation.includes('중국') || nation.includes('china')) return '중국';
-    if (nation.includes('태국') || nation.includes('thailand')) return '태국';
-    if (nation.includes('우즈벡') || nation.includes('uzbekistan') || nation.includes('ўзбек') || nation.includes('узбек')) return '우즈베키스탄';
-    if (nation.includes('인도네시아') || nation.includes('indonesia')) return '인도네시아';
-    if (nation.includes('캄보디아') || nation.includes('cambodia')) return '캄보디아';
-    if (nation.includes('몽골') || nation.includes('mongolia') || nation.includes('монгол')) return '몽골';
-    if (nation.includes('카자흐') || nation.includes('kazakhstan') || nation.includes('қазақ') || nation.includes('казахст')) return '카자흐스탄';
-    if (nation.includes('러시아') || nation.includes('russia') || nation.includes('россия') || nation.includes('рф') || nation.includes('российск')) return '러시아';
-    if (nation.includes('네팔') || nation.includes('nepal')) return '네팔';
-    if (nation.includes('미얀마') || nation.includes('myanmar') || nation.includes('burma')) return '미얀마';
-
-    return rawNationality.trim();
-};
+const normalizeNationality = (rawNationality: string): string => importedNormalizeNationality(rawNationality);
 
 const normalizeHandwrittenAnswers = (raw: unknown): Array<{ questionNumber: string; answerText: string; koreanTranslation: string; nativeTranslation?: string }> => {
     if (!Array.isArray(raw)) return [];

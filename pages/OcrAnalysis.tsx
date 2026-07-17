@@ -6713,7 +6713,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </div>
                 )}
                 {files.length > 0 && !isAnalyzing && (
-                    <div className="mt-8 flex justify-center">
+                    <div className="mt-8 hidden justify-center sm:flex">
                         <button
                             onClick={handleAnalyze}
                             disabled={
@@ -9556,9 +9556,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     <button
                         type="button"
                         onClick={handleAnalyze}
-                        className="w-full min-h-[48px] rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-black text-white shadow-2xl transition-colors hover:bg-indigo-500 active:scale-[0.99]"
+                        disabled={
+                            uploadPreflightReports.length !== files.length
+                            || uploadPreflightReports.some((report) => report.status === 'blocked')
+                        }
+                        className="w-full min-h-[48px] rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-black text-white shadow-2xl transition-colors hover:bg-indigo-500 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-400"
                     >
-                        분석 시작
+                        {uploadPreflightReports.some((report) => report.status === 'blocked')
+                            ? '재촬영 필요 파일 확인'
+                            : uploadGateMessage.includes('완료하지 못한') ? '남은 파일 다시 분석' : '신규 분석 시작'}
                     </button>
                 </div>
             )}

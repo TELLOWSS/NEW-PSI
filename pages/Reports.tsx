@@ -52,6 +52,7 @@ import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
 import { useJudgmentTaggingQuality } from '../hooks/useJudgmentTaggingQuality';
 import { EmptyState, SectionCard, MetricCard, StatusPill } from '../components/common';
+import { ReportActionBar } from '../components/common/ReportActionBar';
 import { evaluateOcrVerificationCompleteness, getNativeLanguageLabel } from '../utils/ocrVerificationLanguageUtils';
 import { isSameWorkerTimeline } from '../utils/workerIdentity';
 import { buildWorkerReportTargets } from '../utils/workerReportTargets';
@@ -3362,10 +3363,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
                     <div className="mt-4 flex flex-wrap gap-2">
                         <button type="button" onClick={handleNavigateToIntervention} className="rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-black text-white transition duration-200 hover:-translate-y-0.5 hover:bg-indigo-500">
-                            8번 개입 화면
+                            개입 계획 보기
                         </button>
                         <button type="button" onClick={handleNavigateToTaggingValidation} className="rounded-2xl border border-violet-200 bg-white dark:border-violet-800 dark:bg-slate-900 px-4 py-3 text-sm font-black text-violet-700 dark:text-violet-300 transition duration-200 hover:-translate-y-0.5 hover:bg-violet-50 dark:hover:bg-slate-800">
-                            10번 태깅 검증
+                            OCR 검증 보기
                         </button>
                         <button type="button" onClick={() => onNavigateToPage?.('dashboard')} className="rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 px-4 py-3 text-sm font-black text-slate-700 dark:text-slate-300 transition duration-200 hover:-translate-y-0.5 hover:bg-slate-50 dark:hover:bg-slate-800">
                             대시보드로 이동
@@ -3373,72 +3374,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     </div>
                 </SectionCard>
 
-                <section className="rounded-3xl border border-violet-200 dark:border-violet-900/30 bg-violet-50 dark:bg-violet-950/20 px-4 py-4 shadow-sm">
-                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">MOBILE ACTION FLOW</p>
-                    <div className="mt-2 flex items-center justify-between gap-2">
-                        <div>
-                            <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">리포트에서 바로 조치</h3>
-                            <p className="mt-1 text-sm font-semibold text-slate-650 dark:text-slate-350">모바일은 읽는 것보다 움직이는 동선을 먼저 보여줍니다.</p>
-                        </div>
-                        <span className="rounded-full bg-violet-100 dark:bg-violet-950 px-3 py-1 text-[10px] font-black text-violet-700 dark:text-violet-300">최신 기준</span>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                        {[
-                            { step: '8', label: '개입 추천', action: '개입 보기' },
-                            { step: '10', label: '태깅 검증', action: '검증 보기' },
-                            { step: '11', label: '리포트 결과', action: '생성 보기' },
-                            { step: '12', label: '메뉴/설정', action: '설정 보기' },
-                        ].map((item) => (
-                            <button
-                                key={item.step}
-                                type="button"
-                                onClick={() => onNavigateToPage?.(item.step === '8' ? 'intervention-coaching' : item.step === '10' ? 'ocr-analysis' : item.step === '11' ? 'reports' : 'settings')}
-                                className="rounded-2xl border border-white dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-3 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md dark:shadow-none"
-                            >
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-500 dark:text-violet-400">STEP {item.step}</p>
-                                <p className="mt-1 text-sm font-black text-slate-900 dark:text-slate-100">{item.label}</p>
-                                <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">{item.action}</p>
-                            </button>
-                        ))}
-                    </div>
-                </section>
             </div>
-
-            <SectionCard
-                title="11) 리포트 생성 상태"
-                subtitle="현재 필터 기준으로 생성 진행 상태를 확인합니다."
-                className="border-indigo-200 dark:border-indigo-900/30 bg-indigo-50 dark:bg-indigo-950/20 no-print"
-                compact
-                action={<StatusPill variant={generationStatusVariant} label={generationStatusLabel} />}
-            >
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    <MetricCard
-                        title="보고서 대상"
-                        value={`${filteredRecords.length}`}
-                        unit={activeTab === 'worker-report' ? '명' : '건'}
-                        tone="neutral"
-                        className="min-h-[104px]"
-                    />
-                    <MetricCard
-                        title="생성 진행률"
-                        value={`${bulkProgressPercent}`}
-                        unit="%"
-                        tone={isGenerating || isPackagingEvidence ? 'warn' : 'safe'}
-                        className="min-h-[104px]"
-                    />
-                    <MetricCard
-                        title="최근 검증"
-                        value={latestVerification ? (latestVerification.isValid ? '성공' : '확인 필요') : '이력 없음'}
-                        tone={latestVerification ? (latestVerification.isValid ? 'safe' : 'warn') : 'neutral'}
-                        className="min-h-[104px]"
-                    />
-                </div>
-                <p className="mt-2 text-[11px] font-bold text-indigo-700">
-                    기간: {resolvedDateRange.startLabel} ~ {resolvedDateRange.endLabel}
-                    {hasCustomDateRangeError ? ' · 날짜 범위를 먼저 수정하세요.' : ' · 필터 결과 기준으로 생성/검증을 실행합니다.'}
-                </p>
-            </SectionCard>
 
             {isDevMode && <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-4 no-print">
                 <div className="flex items-center justify-between gap-2">
@@ -3716,13 +3652,13 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             <div className="hidden lg:block rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-4 no-print">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">PC 운영 바로가기</p>
                 <p className="mt-1 text-[11px] font-semibold text-indigo-700">생성/내보내기/검토를 한 구간에서 실행해 보고 사이클을 단축합니다.</p>
-                <div className="mt-2 grid grid-cols-1 gap-2 xl:grid-cols-5">
+                <ReportActionBar ariaLabel="리포트 빠른 작업" className="mt-2 grid grid-cols-1 gap-2 xl:grid-cols-5">
                     <button type="button" onClick={() => { trackQuickAction('bulk_generate_start', { filteredCount: filteredRecords.length }); handleGenerate(); }} disabled={filteredRecords.length === 0 || hasCustomDateRangeError || isGenerating || isPackagingEvidence} className={`min-h-[44px] rounded-xl border border-indigo-200 bg-white px-3 py-2 text-left text-xs font-black text-indigo-700 ${filteredRecords.length === 0 || hasCustomDateRangeError || isGenerating || isPackagingEvidence ? 'opacity-50 cursor-not-allowed' : 'hover:bg-indigo-50'}`}>일괄 생성 시작</button>
                     <button type="button" onClick={() => { trackQuickAction('export_evidence_zip', { filteredCount: filteredRecords.length }); handleExportEvidenceZip(); }} disabled={filteredRecords.length === 0 || hasCustomDateRangeError || isPackagingEvidence} className={`min-h-[44px] rounded-xl border border-violet-200 bg-white px-3 py-2 text-left text-xs font-black text-violet-700 ${filteredRecords.length === 0 || hasCustomDateRangeError || isPackagingEvidence ? 'opacity-50 cursor-not-allowed' : 'hover:bg-violet-50'}`}>증빙 ZIP 내보내기</button>
                     <button type="button" onClick={() => { trackQuickAction('export_csv', { filteredCount: filteredRecords.length }); handleExportCsv(); }} disabled={filteredRecords.length === 0 || hasCustomDateRangeError || isPackagingEvidence} className={`min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-xs font-black text-slate-700 ${filteredRecords.length === 0 || hasCustomDateRangeError || isPackagingEvidence ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50'}`}>CSV 내보내기</button>
                     <button type="button" onClick={() => { trackQuickAction('open_worker_preview', { filteredCount: filteredRecords.length, uiVariant: 'v2-lowfreq-tuning-1' }); setActiveTab('worker-report'); setViewMode('preview'); setPreviewIndex(0); }} disabled={filteredRecords.length === 0} className={`min-h-[44px] rounded-xl border border-amber-200 bg-white px-3 py-2 text-left text-xs font-black text-amber-700 ${filteredRecords.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-50'}`}>근로자 1건 미리보기</button>
                     <button type="button" onClick={() => { trackQuickAction('print_meeting_report'); window.print(); }} className="min-h-[44px] rounded-xl border border-sky-200 bg-white px-3 py-2 text-left text-xs font-black text-sky-700 hover:bg-sky-50">회의 리포트 인쇄</button>
-                </div>
+                </ReportActionBar>
             </div>
             )}
 

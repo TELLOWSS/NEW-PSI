@@ -1,40 +1,14 @@
-import { createClient } from '@supabase/supabase-js';
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
+import { createSupabaseServerClient } from '../../lib/server/supabaseServer.js';
+import { markSchemaCompatibilityFallback } from '../../lib/server/schemaCompatibility.js';
 
 type PlanStatus = 'not-started' | 'in-progress' | 'completed';
 
 const ALLOWED_STATUS = new Set<PlanStatus>(['not-started', 'in-progress', 'completed']);
 
 function getSupabaseClient() {
-    const supabaseUrl =
-        process.env.VITE_SUPABASE_URL ||
-        process.env.NEXT_PUBLIC_SUPABASE_URL ||
-        '';
-    const supabaseServiceRoleKey =
-        process.env.SUPABASE_SERVICE_ROLE_KEY ||
-        process.env.SUPABASE_SERVICE_KEY ||
-        process.env.SERVICE_ROLE_KEY ||
-        '';
-    const supabaseAnonKey =
-        process.env.VITE_SUPABASE_ANON_KEY ||
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-        '';
-    const psiAdminSecret =
-        process.env.VITE_PSI_ADMIN_SECRET ||
-        process.env.PSI_ADMIN_SECRET ||
-        '';
-
-    const keyToUse = supabaseServiceRoleKey || supabaseAnonKey;
-    if (!supabaseUrl || !keyToUse) {
-        throw new Error('Supabase 환경변수가 누락되었습니다. SUPABASE_SERVICE_ROLE_KEY 또는 VITE_SUPABASE_ANON_KEY를 확인해 주세요.');
-    }
-
-    return createClient(supabaseUrl, keyToUse, {
-        global: {
-            headers: psiAdminSecret
-                ? { 'x-psi-admin-secret': psiAdminSecret }
-                : {},
-        },
+    return createSupabaseServerClient({
+        errorMessage: 'Supabase 환경변수가 누락되었습니다. SUPABASE_SERVICE_ROLE_KEY 또는 VITE_SUPABASE_ANON_KEY를 확인해 주세요.',
     });
 }
 
@@ -99,6 +73,7 @@ async function handleList(supabase: any, payload: any, res: any) {
     const result = await query;
     if (result.error) {
         if (isMissingTableError(result.error)) {
+            markSchemaCompatibilityFallback(res, { area: 'predictive-plan-status:list', reason: 'missing-table' });
             return res.status(200).json({
                 ok: true,
                 action: 'list',
@@ -178,6 +153,7 @@ async function handleUpsert(supabase: any, payload: any, res: any) {
 
     if (result.error) {
         if (isMissingTableError(result.error)) {
+            markSchemaCompatibilityFallback(res, { area: 'predictive-plan-status:upsert', reason: 'missing-table' });
             return res.status(200).json({
                 ok: true,
                 action: 'upsert',
@@ -254,6 +230,7 @@ async function handleHistory(supabase: any, payload: any, res: any) {
 
     if (result.error) {
         if (isMissingTableError(result.error)) {
+            markSchemaCompatibilityFallback(res, { area: 'predictive-plan-status:history', reason: 'missing-table' });
             return res.status(200).json({
                 ok: true,
                 action: 'history',

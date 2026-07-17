@@ -5,4 +5,3 @@ export { WorkTypeBadge } from './WorkTypeBadge';
 export { EmptyState } from './EmptyState';
 export { LoadingSkeleton } from './LoadingSkeleton';
 export { SectionCard } from './SectionCard';
-export { InsightCard } from './InsightCard';

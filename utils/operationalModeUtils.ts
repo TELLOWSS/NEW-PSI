@@ -8,6 +8,7 @@ export const OPERATIONAL_MODE_CHANGED_EVENT = 'psi:operationalModeChanged';
 const IMMEDIATE_VISIBLE_PAGES = new Set<Page>([
     'dashboard',
     'ocr-analysis',
+    'safety-compliance-hub',
     'worker-management',
     'safety-checks',
     'site-issue-management',
@@ -15,7 +16,6 @@ const IMMEDIATE_VISIBLE_PAGES = new Set<Page>([
     'reports',
     'monthly-guidance-report',
     'a4-education-material',
-    'ppt-pdf-one-page-summary',
     'admin-training',
     'performance-analysis',
     'settings',

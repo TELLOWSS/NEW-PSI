@@ -4,7 +4,7 @@ import type {
     OcrFieldConfidences,
     WorkerRecord,
 } from '../types';
-import { getSafetyLevelFromScore } from './safetyLevelUtils';
+import { getSafetyLevelFromScore } from './safetyLevelUtils.js';
 
 const DOCUMENT_TYPES = new Set<OcrDocumentType>([
     'psi-risk-assessment',

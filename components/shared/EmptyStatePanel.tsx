@@ -1,4 +1,5 @@
 import React from 'react';
+import { EmptyState } from '../common/EmptyState';
 import { EMPTY_STATE_TONE_STYLES, type EmptyStateToneVariant } from './toneVariants';
 
 interface EmptyStatePanelProps {
@@ -21,9 +22,13 @@ export const EmptyStatePanel: React.FC<EmptyStatePanelProps> = ({
     const styles = EMPTY_STATE_TONE_STYLES[variant];
 
     return (
-        <div className={className ?? `${styles.container} px-4 py-8`}>
-            <p className={titleClassName ?? styles.title}>{title}</p>
-            {description ? <p className={descriptionClassName ?? styles.description}>{description}</p> : null}
-        </div>
+        <EmptyState
+            title={title}
+            description={description}
+            className={className ?? `${styles.container} px-4 py-8`}
+            titleClassName={titleClassName ?? styles.title}
+            descriptionClassName={descriptionClassName ?? styles.description}
+            unstyled
+        />
     );
 };

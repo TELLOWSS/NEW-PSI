@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
+import { markSchemaCompatibilityFallback } from '../../lib/server/schemaCompatibility.js';
 
 const ALLOWED_STATUSES = new Set([
     'open',
@@ -95,6 +96,7 @@ async function handleSave(supabase: any, payload: any, res: any) {
 
     if (result.error) {
         if (isSchemaMissing(result.error)) {
+            markSchemaCompatibilityFallback(res, { area: 'safety-cases:save', reason: 'missing-schema' });
             return res.status(200).json({ ok: true, schemaReady: false, mode: 'fallback-local', caseId: record.case_id });
         }
         throw new Error(result.error.message || '보호사건 저장 실패');
@@ -124,6 +126,7 @@ async function handleList(supabase: any, payload: any, res: any) {
     const result = await query;
     if (result.error) {
         if (isSchemaMissing(result.error)) {
+            markSchemaCompatibilityFallback(res, { area: 'safety-cases:list', reason: 'missing-schema' });
             return res.status(200).json({ ok: true, schemaReady: false, mode: 'fallback-local', items: [] });
         }
         throw new Error(result.error.message || '보호사건 조회 실패');

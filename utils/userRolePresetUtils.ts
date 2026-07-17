@@ -1,12 +1,13 @@
 import type { DashboardAudience } from './roleViewModel';
 
-export type UserRolePreset = 'field-worker' | 'manager' | 'site-chief';
+export type UserRolePreset = 'field-practitioner' | 'manager' | 'site-chief';
 
 const USER_ROLE_PRESET_KEY = 'psi_user_role_preset_v1';
 export const USER_ROLE_PRESET_CHANGED_EVENT = 'psi:userRolePresetChanged';
 
 const parseUserRolePreset = (value: string | null): UserRolePreset => {
-    if (value === 'field-worker' || value === 'manager' || value === 'site-chief') {
+    if (value === 'field-worker') return 'field-practitioner';
+    if (value === 'field-practitioner' || value === 'manager' || value === 'site-chief') {
         return value;
     }
     return 'manager';
@@ -31,23 +32,23 @@ export const setUserRolePreset = (preset: UserRolePreset): void => {
 
 export const cycleUserRolePreset = (): UserRolePreset => {
     const current = getUserRolePreset();
-    const next: UserRolePreset = current === 'field-worker'
+    const next: UserRolePreset = current === 'field-practitioner'
         ? 'manager'
         : current === 'manager'
             ? 'site-chief'
-            : 'field-worker';
+            : 'field-practitioner';
     setUserRolePreset(next);
     return next;
 };
 
 export const getUserRolePresetLabel = (preset: UserRolePreset): string => {
-    if (preset === 'field-worker') return '실무자';
+    if (preset === 'field-practitioner') return '현장 실무 관리자';
     if (preset === 'site-chief') return '소장';
     return '관리자';
 };
 
 export const mapUserRolePresetToDashboardAudience = (preset: UserRolePreset): DashboardAudience => {
-    if (preset === 'field-worker') return 'worker';
+    if (preset === 'field-practitioner') return 'worker';
     if (preset === 'site-chief') return 'executive';
     return 'manager';
 };

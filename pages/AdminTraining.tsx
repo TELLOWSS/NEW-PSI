@@ -5,7 +5,11 @@ import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { fetchWithTimeout, postAdminJson } from '../utils/adminApiClient';
 import { TBM_MONTHLY_PACKAGE_STORAGE_KEY, type TbmMonthlyPackagePayload } from '../utils/tbmEducationStudio';
-import type { TranslationQualityReport } from '../utils/constructionTrainingTranslation';
+import {
+    CURRENT_SITE_TRAINING_LANGUAGE_CODES as CURRENT_SITE_LANGUAGE_SET,
+    TRAINING_LANGUAGE_OPTIONS as LANGUAGE_OPTIONS,
+    type TranslationQualityReport,
+} from '../utils/constructionTrainingTranslation';
 import {
     completeSafetyCaseStage,
     readSafetyCases,
@@ -476,41 +480,6 @@ const UI_TEXT: Record<UiLocale, {
 const resolveAdminLocale = (): UiLocale => {
     return 'ko';
 };
-
-const LANGUAGE_OPTIONS = [
-    { code: 'ko-KR', label: { ko: '한국어', en: 'Korean', vi: 'Tiếng Hàn', zh: '韩语' } },
-    { code: 'en-US', label: { ko: '영어', en: 'English', vi: 'Tiếng Anh', zh: '英语' } },
-    { code: 'vi-VN', label: { ko: '베트남어', en: 'Vietnamese', vi: 'Tiếng Việt', zh: '越南语' } },
-    { code: 'cmn-CN', label: { ko: '중국어', en: 'Chinese', vi: 'Tiếng Trung', zh: '中文' } },
-    { code: 'th-TH', label: { ko: '태국어', en: 'Thai', vi: 'Tiếng Thái', zh: '泰语' } },
-    { code: 'id-ID', label: { ko: '인도네시아어', en: 'Indonesian', vi: 'Tiếng Indonesia', zh: '印尼语' } },
-    { code: 'uz-UZ', label: { ko: '우즈베크어', en: 'Uzbek', vi: 'Tiếng Uzbek', zh: '乌兹别克语' } },
-    { code: 'mn-MN', label: { ko: '몽골어', en: 'Mongolian', vi: 'Tiếng Mông Cổ', zh: '蒙古语' } },
-    { code: 'km-KH', label: { ko: '크메르어', en: 'Khmer', vi: 'Tiếng Khmer', zh: '高棉语' } },
-    { code: 'ru-RU', label: { ko: '러시아어', en: 'Russian', vi: 'Tiếng Nga', zh: '俄语' } },
-    { code: 'kk-KZ', label: { ko: '카자흐어', en: 'Kazakh', vi: 'Tiếng Kazakh', zh: '哈萨克语' } },
-    { code: 'ne-NP', label: { ko: '네팔어', en: 'Nepali', vi: 'Tiếng Nepal', zh: '尼泊尔语' } },
-    { code: 'my-MM', label: { ko: '미얀마어', en: 'Burmese', vi: 'Tiếng Myanmar', zh: '缅甸语' } },
-    { code: 'fil-PH', label: { ko: '필리핀어', en: 'Filipino', vi: 'Tiếng Philippines', zh: '菲律宾语' } },
-    { code: 'hi-IN', label: { ko: '힌디어', en: 'Hindi', vi: 'Tiếng Hindi', zh: '印地语' } },
-    { code: 'bn-BD', label: { ko: '벵골어', en: 'Bengali', vi: 'Tiếng Bengal', zh: '孟加拉语' } },
-    { code: 'ur-PK', label: { ko: '우르두어', en: 'Urdu', vi: 'Tiếng Urdu', zh: '乌尔都语' } },
-    { code: 'si-LK', label: { ko: '싱할라어', en: 'Sinhala', vi: 'Tiếng Sinhala', zh: '僧伽罗语' } },
-] as const;
-
-const CURRENT_SITE_LANGUAGE_SET = [
-    'ko-KR',
-    'vi-VN',
-    'cmn-CN',
-    'mn-MN',
-    'id-ID',
-    'ru-RU',
-    'kk-KZ',
-    'uz-UZ',
-    'th-TH',
-    'km-KH',
-    'my-MM',
-] as const;
 
 const VALID_LANGUAGE_CODES = new Set(LANGUAGE_OPTIONS.map((item) => item.code));
 const isValidLanguageCode = (code: string): code is (typeof LANGUAGE_OPTIONS)[number]['code'] => VALID_LANGUAGE_CODES.has(code as (typeof LANGUAGE_OPTIONS)[number]['code']);

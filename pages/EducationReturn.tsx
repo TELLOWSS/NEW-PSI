@@ -206,8 +206,7 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                     primaryLabel="교육자료 만들기"
                     onPrimary={() => onNavigateToPage('a4-education-material')}
                     secondary={[
-                        { label: '필요 언어본 보기', onClick: () => onNavigateToPage('a4-education-material') },
-                        { label: 'QR/음성 파일럿', onClick: () => onNavigateToPage('admin-training') },
+                        { label: '다음 단계: QR·음성 배포', onClick: () => onNavigateToPage('admin-training') },
                     ]}
                 >
                     <div className="space-y-3">

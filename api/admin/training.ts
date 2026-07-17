@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { buildSignedTrainingMobileUrl, resolveLinkTtlMinutes } from '../../lib/server/trainingLinkToken.js';
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
+import { markSchemaCompatibilityFallback } from '../../lib/server/schemaCompatibility.js';
 import {
     assessConstructionTranslation,
     buildConstructionTranslationPrompt,
@@ -29,6 +30,7 @@ type UploadItem = {
 
 type TrainingAction =
     | 'create'
+    | 'update-targets'
     | 'reissue-link'
     | 'list-sessions'
     | 'list-target-workers'
@@ -119,6 +121,7 @@ async function handleListSessions(res: any) {
         .limit(10);
 
     if (result.error) {
+        markSchemaCompatibilityFallback(res, { area: 'training:list-sessions', reason: 'legacy-column-set' });
         result = await supabase
             .from('training_sessions')
             .select('id, source_text_ko, audio_urls, created_at')
@@ -143,6 +146,7 @@ async function handleListTargetWorkers(res: any) {
         .limit(5000);
 
     if (result.error) {
+        markSchemaCompatibilityFallback(res, { area: 'training:list-target-workers', reason: 'legacy-worker-columns' });
         result = await supabase
             .from('workers')
             .select('id, name, job_field, team_name')
@@ -151,6 +155,7 @@ async function handleListTargetWorkers(res: any) {
     }
 
     if (result.error) {
+        markSchemaCompatibilityFallback(res, { area: 'training:list-target-workers', reason: 'minimal-worker-schema' });
         result = await supabase
             .from('workers')
             .select('id, name')
@@ -729,6 +734,7 @@ async function handleAwarenessStats(res: any, body: Record<string, unknown>) {
         .single();
 
     if (sessionResult.error) {
+        markSchemaCompatibilityFallback(res, { area: 'training:awareness-stats', reason: 'legacy-training-session-columns' });
         const fallbackSessionResult = await supabase
             .from('training_sessions')
             .select('id')
@@ -784,6 +790,36 @@ async function handleAwarenessStats(res: any, body: Record<string, unknown>) {
         sessionId,
         ...stats,
     });
+}
+
+async function handleUpdateTargets(res: any, body: Record<string, unknown>) {
+    const sessionId = String(body.sessionId || '').trim();
+    if (!sessionId) {
+        return sendJsonError(res, 400, 'sessionId가 필요합니다.');
+    }
+
+    const trainingTitle = String(body.trainingTitle || '').trim();
+    const trainingCategory = body.trainingCategory === 'special_safety' ? 'special_safety' : 'monthly_risk';
+    const targetMode = body.targetMode === 'attendance_only' ? 'attendance_only' : 'submitted_only';
+    const targetWorkerNames = normalizeTrainingTargets(body.targetWorkerIds, body.targetWorkerNames);
+    const supabase = getSupabaseClient();
+    const result = await supabase
+        .from('training_sessions')
+        .update({
+            training_title: trainingTitle || null,
+            training_category: trainingCategory,
+            target_mode: targetMode,
+            target_worker_names: targetWorkerNames,
+        })
+        .eq('id', sessionId)
+        .select('id, training_title, training_category, target_mode, target_worker_names')
+        .single();
+
+    if (result.error) {
+        return sendJsonError(res, 500, formatSupabaseError(result.error));
+    }
+
+    return res.status(200).json({ ok: true, data: result.data });
 }
 
 async function handleUploadAudio(req: any, res: any, body: Record<string, unknown>) {
@@ -970,6 +1006,8 @@ export default async function handler(req: any, res: any) {
         switch (action) {
             case 'create':
                 return await handleCreate(req, res, body);
+            case 'update-targets':
+                return await handleUpdateTargets(res, body);
             case 'reissue-link':
                 return await handleReissue(req, res, body);
             case 'list-sessions':

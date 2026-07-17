@@ -75,7 +75,6 @@
     "audit:productization": "node scripts/audit-productization.mjs",
     "audit:existing-records": "node scripts/audit-existing-psi-records.cjs",
     "audit:worker-linkage": "node scripts/analyze-worker-identity-linkage.cjs",
-    "audit:core-metrics": "node scripts/audit-core-metrics.mjs",
     "check:core-metrics": "node scripts/audit-core-metrics.mjs",
     "audit:ui-language": "node scripts/audit-ui-language.mjs",
     "check:ui-language": "node scripts/audit-ui-language.mjs --strict",

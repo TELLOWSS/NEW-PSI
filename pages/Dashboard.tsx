@@ -2933,7 +2933,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             </p>
                             <p className="mt-1 text-[11px] font-semibold text-indigo-200/90">
                                 {isDashboardUIModeLocked
-                                    ? '목업 기본 보드 고정이 켜져 있어 고급 모드 진입이 잠겨 있습니다.'
+                                    ? '기본 보드 고정 설정이 켜져 있어 고급 모드 진입이 잠겨 있습니다.'
                                     : '기본 보드 고정이 해제되어 필요 시 고급 모드로 전환할 수 있습니다.'}
                             </p>
                         </div>
