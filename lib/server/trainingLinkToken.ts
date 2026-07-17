@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 const DEFAULT_LINK_TTL_MINUTES = 12 * 60;
-export const WORKER_AUTH_TTL_MINUTES = 10;
+export const WORKER_AUTH_TTL_MINUTES = 30;
 
 const resolveTokenSecret = () => {
     const secret = String(process.env.TRAINING_LINK_SECRET || '').trim();
@@ -12,7 +12,9 @@ const resolveTokenSecret = () => {
 };
 
 const buildPayload = (sessionId: string, expiresAt: number) => `${sessionId}.${expiresAt}`;
-const buildWorkerAuthPayload = (workerId: string, expiresAt: number) => `worker-auth.${workerId}.${expiresAt}`;
+const buildWorkerAuthPayload = (sessionId: string, workerId: string, expiresAt: number) => (
+    `worker-auth.${sessionId}.${workerId}.${expiresAt}`
+);
 
 const signPayload = (payload: string) => {
     const secret = resolveTokenSecret();
@@ -62,24 +64,31 @@ export const verifyTrainingLinkToken = (sessionId: string, expiresAtRaw: unknown
         : { ok: false as const, reason: 'invalid' as const };
 };
 
-export const generateWorkerAuthenticationToken = (workerId: string, expiresAt: number) => {
+export const generateWorkerAuthenticationToken = (
+    sessionId: string,
+    workerId: string,
+    expiresAt: number,
+) => {
+    const normalizedSessionId = String(sessionId || '').trim();
     const normalizedWorkerId = String(workerId || '').trim();
-    if (!normalizedWorkerId || !Number.isFinite(expiresAt)) {
+    if (!normalizedSessionId || !normalizedWorkerId || !Number.isFinite(expiresAt)) {
         throw new Error('근로자 인증 토큰 입력값이 올바르지 않습니다.');
     }
-    return signPayload(buildWorkerAuthPayload(normalizedWorkerId, expiresAt));
+    return signPayload(buildWorkerAuthPayload(normalizedSessionId, normalizedWorkerId, expiresAt));
 };
 
 export const verifyWorkerAuthenticationToken = (
+    sessionId: string,
     workerId: string,
     expiresAtRaw: unknown,
     tokenRaw: unknown,
 ) => {
+    const normalizedSessionId = String(sessionId || '').trim();
     const normalizedWorkerId = String(workerId || '').trim();
     const expiresAt = Number(expiresAtRaw);
     const token = typeof tokenRaw === 'string' ? tokenRaw.trim() : '';
 
-    if (!normalizedWorkerId || !Number.isFinite(expiresAt) || !token) {
+    if (!normalizedSessionId || !normalizedWorkerId || !Number.isFinite(expiresAt) || !token) {
         return { ok: false as const, reason: 'missing' as const };
     }
 
@@ -87,18 +96,19 @@ export const verifyWorkerAuthenticationToken = (
         return { ok: false as const, reason: 'expired' as const };
     }
 
-    return verifySignedPayload(buildWorkerAuthPayload(normalizedWorkerId, expiresAt), token)
+    return verifySignedPayload(buildWorkerAuthPayload(normalizedSessionId, normalizedWorkerId, expiresAt), token)
         ? { ok: true as const }
         : { ok: false as const, reason: 'invalid' as const };
 };
 
 export const buildWorkerAuthenticationProof = (
+    sessionId: string,
     workerId: string,
     ttlMinutes = WORKER_AUTH_TTL_MINUTES,
 ) => {
     const expiresAt = Date.now() + ttlMinutes * 60 * 1000;
     return {
-        workerAuthToken: generateWorkerAuthenticationToken(workerId, expiresAt),
+        workerAuthToken: generateWorkerAuthenticationToken(sessionId, workerId, expiresAt),
         workerAuthExpiresAt: expiresAt,
     };
 };

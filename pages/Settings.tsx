@@ -1628,6 +1628,30 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
             />
 
+            <nav className="sticky top-2 z-30 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/95" aria-label="설정 항목 빠른 이동">
+                <div className="flex min-w-max items-center gap-2">
+                    {[
+                        { id: 'settings-display', label: '화면' },
+                        { id: 'settings-core', label: '분석·현장' },
+                        { id: 'settings-policy', label: '승인·점수' },
+                        { id: 'settings-operations', label: '배치·연동' },
+                        { id: 'settings-languages', label: '교육 언어' },
+                    ].map((item) => (
+                        <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => document.getElementById(item.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                            className="min-h-[40px] rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-700 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        >
+                            {item.label}
+                        </button>
+                    ))}
+                    <button type="button" onClick={handleSave} className="min-h-[40px] rounded-xl bg-indigo-600 px-4 py-2 text-xs font-black text-white hover:bg-indigo-700">
+                        저장·적용
+                    </button>
+                </div>
+            </nav>
+
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-100 dark:border-slate-800 dark:bg-slate-900 sm:p-5">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0">
@@ -1726,7 +1750,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 </div>
             </div>
 
-            <div className="psi-industrial-panel p-5 sm:p-7">
+            <div id="settings-display" className="psi-industrial-panel scroll-mt-24 p-5 sm:p-7">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <h3 className="text-lg sm:text-xl font-bold text-slate-900">테마/다크모드 운영 설정</h3>
@@ -2106,7 +2130,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
 
             {showGuide && <SettingsGuide onClose={() => setShowGuide(false)} />}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-8">
+            <div id="settings-core" className="grid scroll-mt-24 grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-8">
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-100">
                     <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5 sm:mb-6">1단계: Google Gemini 분석 서비스 연결</h3>
                     <InterpretationCardGrid
@@ -2260,7 +2284,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     </div>
                 </div>
 
-                <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-amber-200 lg:col-span-2">
+                <div id="settings-policy" className="scroll-mt-24 bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-amber-200 lg:col-span-2">
                     <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-4">승인 정책</h3>
                     <label className="inline-flex items-center gap-3 cursor-pointer select-none">
                         <input type="checkbox" checked={!!settings.approvalPolicy?.strictRoleGate} onChange={(e) => setSettings({ ...settings, approvalPolicy: { ...(settings.approvalPolicy || { strictRoleGate: false }), strictRoleGate: e.target.checked } })} className="w-5 h-5 rounded border-slate-300 text-amber-600" />
@@ -2336,7 +2360,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 </div>
 
                 {/* OCR 배치 분할 단위 설정 */}
-                <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-violet-200 lg:col-span-2">
+                <div id="settings-operations" className="scroll-mt-24 bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-violet-200 lg:col-span-2">
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                         <div>
                             <h3 className="text-lg sm:text-xl font-bold text-slate-900">문서 일괄 분석 처리 건수</h3>
@@ -2445,7 +2469,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     </p>
                 </div>
 
-                <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-cyan-200 lg:col-span-2">
+                <div id="settings-languages" className="scroll-mt-24 bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-cyan-200 lg:col-span-2">
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                         <h3 className="text-lg sm:text-xl font-bold text-slate-900">QR/음성 파일럿 기본 언어 세트</h3>
                         <button

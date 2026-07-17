@@ -7,10 +7,15 @@ export type AuthenticatedWorker = {
     workerId: string;
     name: string;
     nationality: string;
+    workerAuthToken: string;
+    workerAuthExpiresAt: number;
 };
 
 interface AuthGatewayProps {
     onAuthenticated: (worker: AuthenticatedWorker) => void;
+    sessionId: string;
+    linkToken: string;
+    linkExpiresAt: number;
     title?: string;
     subtitle?: string;
 }
@@ -47,6 +52,9 @@ const normalizePassport = (value: string) => value.replace(/[^A-Za-z0-9]/g, '').
 
 export const AuthGateway: React.FC<AuthGatewayProps> = ({
     onAuthenticated,
+    sessionId,
+    linkToken,
+    linkExpiresAt,
     title = '근로자 본인 확인',
     subtitle = '등록된 근로자 명부 키(핸드폰/생년월일/여권번호) 중 하나로 인증해 주세요.',
 }) => {
@@ -84,6 +92,9 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
                 body: JSON.stringify({
                     keyType,
                     keyValue: normalizedValue,
+                    sessionId,
+                    linkToken,
+                    linkExpiresAt,
                 }),
             });
 
@@ -96,6 +107,8 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
                 workerId: String(result.worker.worker_id || '').trim(),
                 name: String(result.worker.name || '').trim(),
                 nationality: String(result.worker.nationality || '').trim(),
+                workerAuthToken: String(result.workerAuthToken || '').trim(),
+                workerAuthExpiresAt: Number(result.workerAuthExpiresAt || 0),
             });
         } catch (error: any) {
             setErrorMessage(error?.message || failMessage);

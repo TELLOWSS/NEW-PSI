@@ -648,6 +648,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                         {mobileBottomTabs.map((tab) => {
                             const isActive = tab.id === activeMobileTab;
                             const handleClick = () => {
+                                if (tab.id === 'more') {
+                                    setIsMobileMenuOpen(true);
+                                    return;
+                                }
                                 if (tab.page) {
                                     handlePageChange(tab.page);
                                 }
@@ -664,6 +668,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                             : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
                                     }`}
                                     aria-current={isActive ? 'page' : undefined}
+                                    aria-haspopup={tab.id === 'more' ? 'dialog' : undefined}
+                                    aria-expanded={tab.id === 'more' ? isMobileMenuOpen : undefined}
                                 >
                                     <span>{tab.icon}</span>
                                     <span className="mt-1">{tab.label}</span>

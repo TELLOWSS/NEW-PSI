@@ -147,6 +147,23 @@ export interface OcrTraceInfo {
     /** 추적 기록 타임스탬프 */
     recordedAt: string;
 }
+
+export type OcrDocumentType = 'psi-risk-assessment' | 'other-safety-document' | 'unknown';
+
+export interface OcrDocumentValidation {
+    documentType: OcrDocumentType;
+    isPsiForm: boolean;
+    reason: string;
+    detectedMarkers: string[];
+}
+
+export interface OcrFieldConfidences {
+    name?: number;
+    jobField?: number;
+    date?: number;
+    nationality?: number;
+    handwrittenAnswers?: number;
+}
 export interface HandwrittenAnswer {
     questionNumber: string;
     answerText: string;
@@ -336,6 +353,8 @@ export interface WorkerRecord {
     koreanTranslation: string;
     safetyScore: number;
     ocrConfidence?: number; // 0-1
+    ocrDocumentValidation?: OcrDocumentValidation;
+    ocrFieldConfidences?: OcrFieldConfidences;
     ocrErrorType?: OcrErrorType;
     ocrFailureCode?: OcrFailureCode;
     ocrStatus?: OcrProcessingStatus;

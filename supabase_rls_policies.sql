@@ -306,4 +306,30 @@ using (
     or public.psi_is_admin_request()
 );
 
+-- Hardened production boundary: signature and acknowledgement writes now pass
+-- through the authenticated server gateway and its atomic service-role RPC.
+-- Keep the earlier drops/creates for migration compatibility, then finish with
+-- the secure effective state even when this legacy bundle is reapplied later.
+do $$
+begin
+    if to_regclass('public.signatures') is not null then
+        execute 'drop policy if exists signatures_insert_anon_or_auth on public.signatures';
+        execute 'drop policy if exists signatures_select_admin_only on public.signatures';
+        execute 'drop policy if exists signatures_update_admin_only on public.signatures';
+        execute 'drop policy if exists signatures_delete_admin_only on public.signatures';
+    end if;
+end $$;
+
+drop policy if exists storage_signatures_insert_anon_or_auth on storage.objects;
+drop policy if exists storage_signatures_select_admin_only on storage.objects;
+drop policy if exists storage_signatures_update_admin_only on storage.objects;
+drop policy if exists storage_signatures_delete_admin_only on storage.objects;
+
+drop policy if exists training_ack_insert_anon_or_auth on public.training_acknowledgements;
+drop policy if exists training_ack_select_admin_only on public.training_acknowledgements;
+drop policy if exists training_ack_update_admin_only on public.training_acknowledgements;
+drop policy if exists training_ack_delete_admin_only on public.training_acknowledgements;
+
+update storage.buckets set public = false where id = 'signatures';
+
 commit;

@@ -4555,44 +4555,46 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     const canIssue = reliability.trusted;
                     const profileLinkState = getProfileLinkState(worker);
                     return (
-                        <div key={worker.id} className="bg-white p-5 rounded-[24px] border border-slate-100 hover:border-indigo-300 hover:shadow-2xl transition-all cursor-pointer group relative overflow-hidden flex flex-col gap-3" onClick={() => onViewDetails(worker)}>
-                            {/* Glassmorphism Overlay Menu on Hover */}
-                            <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-6">
-                                <p className="text-white font-black mb-1">{worker.name}</p>
+                        <div key={worker.id} className="bg-white p-5 rounded-[24px] border border-slate-100 hover:border-indigo-300 hover:shadow-xl transition-all relative overflow-hidden flex flex-col gap-3">
+                            <div className="order-last relative z-20 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
                                 <button
-                                    onClick={(e) => { e.stopPropagation(); startProcessing('sticker', [worker]); }}
-                                    title={canIssue ? '스티커 인쇄' : `검증필요 항목: ${reliability.reasons.join(', ')}`}
-                                    className={`w-full py-3 font-black rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 text-xs ${canIssue ? 'bg-white text-slate-900 hover:bg-slate-200' : 'bg-amber-200 text-slate-900 hover:bg-amber-300'}`}
+                                    type="button"
+                                    onClick={() => onViewDetails(worker)}
+                                    className="col-span-2 min-h-[44px] rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200"
                                 >
-                                    <span className="text-base">⛑</span> 스티커 인쇄
+                                    기록 상세 보기
                                 </button>
                                 <button
-                                    onClick={(e) => { e.stopPropagation(); startProcessing('idcard', [worker]); }}
-                                    title={canIssue ? '사원증 인쇄' : `검증필요 항목: ${reliability.reasons.join(', ')}`}
-                                    className={`w-full py-3 font-black rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 text-xs ${canIssue ? 'bg-indigo-600 text-white hover:bg-indigo-500' : 'bg-amber-500 text-white hover:bg-amber-400'}`}
+                                    type="button"
+                                    onClick={() => startProcessing('sticker', [worker])}
+                                    title={canIssue ? '스티커 인쇄' : `검증필요 항목: ${reliability.reasons.join(', ')}`}
+                                    className={`min-h-[44px] px-2 py-2 font-black rounded-xl transition-colors flex items-center justify-center gap-1 text-xs focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200 ${canIssue ? 'border border-slate-200 bg-white text-slate-900 hover:bg-slate-100' : 'bg-amber-200 text-slate-900 hover:bg-amber-300'}`}
                                 >
-                                    <span className="text-base">💳</span> 사원증 인쇄
+                                    <span aria-hidden="true">⛑</span> 스티커
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => startProcessing('idcard', [worker])}
+                                    title={canIssue ? '사원증 인쇄' : `검증필요 항목: ${reliability.reasons.join(', ')}`}
+                                    className={`min-h-[44px] px-2 py-2 font-black rounded-xl transition-colors flex items-center justify-center gap-1 text-xs focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200 ${canIssue ? 'bg-indigo-600 text-white hover:bg-indigo-500' : 'bg-amber-500 text-white hover:bg-amber-400'}`}
+                                >
+                                    <span aria-hidden="true">💳</span> 사원증
                                 </button>
                                 {!canIssue && (
-                                    <>
-                                        <p className="text-[10px] text-amber-200 font-bold text-center mt-1">검증 필요 데이터는 예외 출력 모드로 발급됩니다.</p>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                openOverrideModal(worker);
-                                            }}
-                                            className="w-full py-2 font-black rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 text-xs bg-rose-600 text-white hover:bg-rose-500"
-                                            title="관리자 예외 승인 후 강제 발급"
-                                        >
-                                            🔑 예외 발급
-                                        </button>
-                                    </>
+                                    <button
+                                        type="button"
+                                        onClick={() => openOverrideModal(worker)}
+                                        className="col-span-2 min-h-[44px] rounded-xl bg-rose-600 px-3 py-2 text-xs font-black text-white hover:bg-rose-500 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-200"
+                                        title="관리자 예외 승인 후 강제 발급"
+                                    >
+                                        🔑 예외 발급
+                                    </button>
                                 )}
                             </div>
 
                             <div className="flex items-center gap-4 relative z-10">
                                 <div className={`w-16 h-16 rounded-2xl overflow-hidden border shrink-0 shadow-inner relative ${BRAND_TONE.slatePanel}`}>
-                                    {profileImageSrc ? <img src={profileImageSrc} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-2xl opacity-20">👷</div>}
+                                    {profileImageSrc ? <img src={profileImageSrc} alt={`${worker.name} 프로필`} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-2xl opacity-20" aria-hidden="true">👷</div>}
                                     <div className={`absolute bottom-0 w-full h-1.5 ${s.bg}`}></div>
                                 </div>
                                 <div className="min-w-0 flex-1">
@@ -4646,20 +4648,6 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         </span>
                                     )}
                                 </div>
-                                {!canIssue && (
-                                    <div className="flex items-center justify-between gap-2 ml-auto">
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                openOverrideModal(worker);
-                                            }}
-                                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black text-white border hover:bg-rose-500 shrink-0 ${BRAND_TONE.roseStrong}`}
-                                            title="관리자 예외 승인 후 강제 발급"
-                                        >
-                                            🔑 예외 발급
-                                        </button>
-                                    </div>
-                                )}
                             </div>
                         </div>
                     );

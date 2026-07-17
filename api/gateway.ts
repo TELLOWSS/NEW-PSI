@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../lib/server/adminAuthGuard.js';
 import handleHarnessAnalyze from '../lib/server/harness/handlers/analyze.js';
@@ -11,11 +11,17 @@ import { resolveGeminiOcrModelChain, type OcrEngineMode } from '../utils/aiEngin
 import { normalizeNationality as importedNormalizeNationality } from '../utils/workerIdentity.js';
 import { normalizeOcrRecordMetadata } from '../utils/ocrRecordNormalization.js';
 import { PSI_FORM_MASTER_PROMPT_BLOCK } from '../config/psiFormMaster.js';
+import { normalizeOcrDocumentMetadata } from '../utils/ocrDocumentValidation.js';
 import {
     buildWorkerAuthenticationProof,
     verifyTrainingLinkToken,
     verifyWorkerAuthenticationToken,
 } from '../lib/server/trainingLinkToken.js';
+import {
+    consumeApiQuota,
+    recordApiUsageEvent,
+    resolveRequestFingerprint,
+} from '../lib/server/apiSecurity.js';
 
 type GatewayAction =
     | 'training.check-access'
@@ -29,7 +35,6 @@ type GatewayAction =
     | 'harness.reanalyze'
     | 'harness.workflow-status';
 
-const TRAINING_ACCESS_BLOCK_THRESHOLD = 2;
 const EMBEDDING_MODEL = 'text-embedding-004';
 const OCR_RETRY_TIMEOUT_MS = 25_000;
 const OCR_RETRY_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -59,6 +64,20 @@ const OCR_RETRY_RESPONSE_SCHEMA = {
     items: {
         type: 'object',
         properties: {
+            documentType: { type: 'string', enum: ['psi-risk-assessment', 'other-safety-document', 'unknown'] },
+            isPsiForm: { type: 'boolean' },
+            documentValidationReason: { type: 'string' },
+            documentMarkers: { type: 'array', items: { type: 'string' } },
+            fieldConfidences: {
+                type: 'object',
+                properties: {
+                    name: { type: 'number' },
+                    jobField: { type: 'number' },
+                    date: { type: 'number' },
+                    nationality: { type: 'number' },
+                    handwrittenAnswers: { type: 'number' },
+                },
+            },
             name: { type: 'string' },
             jobField: { type: 'string' },
             teamLeader: { type: 'string' },
@@ -105,7 +124,6 @@ type GatewayHttpError = Error & {
 type AuthKeyType = 'phone' | 'birthDate' | 'passport';
 export type TrainingSubmissionAuthorization =
     | { mode: 'admin'; workerId: string | null }
-    | { mode: 'training-link'; workerId: null }
     | { mode: 'worker-auth'; workerId: string };
 
 class DuplicateSubmissionError extends Error {
@@ -148,23 +166,17 @@ export const resolveTrainingSubmissionAuthorization = (
         return { mode: 'admin', workerId: normalizedWorkerId || null };
     }
 
-    const hasLinkProof = Boolean(
-        String(payload?.linkToken || '').trim()
-        || String(payload?.linkExpiresAt || '').trim(),
+    const normalizedSessionId = String(payload?.sessionId || '').trim();
+    const linkVerification = verifyTrainingLinkToken(
+        normalizedSessionId,
+        payload?.linkExpiresAt,
+        payload?.linkToken,
     );
-    if (hasLinkProof) {
-        const linkVerification = verifyTrainingLinkToken(
-            String(payload?.sessionId || '').trim(),
-            payload?.linkExpiresAt,
-            payload?.linkToken,
-        );
-        if (!linkVerification.ok) {
-            const message = linkVerification.reason === 'expired'
-                ? '교육 링크가 만료되었습니다. 관리자에게 재발급을 요청해 주세요.'
-                : '서버에서 검증되지 않은 교육 링크입니다.';
-            throw createGatewayHttpError(message, 403, 'INVALID_TRAINING_LINK');
-        }
-        return { mode: 'training-link', workerId: null };
+    if (!linkVerification.ok) {
+        const message = linkVerification.reason === 'expired'
+            ? '교육 링크가 만료되었습니다. 관리자에게 재발급을 요청해 주세요.'
+            : '서버에서 검증되지 않은 교육 링크입니다.';
+        throw createGatewayHttpError(message, 403, 'INVALID_TRAINING_LINK');
     }
 
     const hasWorkerAuthProof = Boolean(
@@ -174,6 +186,7 @@ export const resolveTrainingSubmissionAuthorization = (
     );
     if (hasWorkerAuthProof) {
         const workerVerification = verifyWorkerAuthenticationToken(
+            normalizedSessionId,
             normalizedWorkerId,
             payload?.workerAuthExpiresAt,
             payload?.workerAuthToken,
@@ -198,7 +211,6 @@ export const resolveAuthorizedWorkerId = (
     authorization: TrainingSubmissionAuthorization,
     payload: Record<string, unknown>,
 ) => {
-    if (authorization.mode === 'training-link') return null;
     if (authorization.mode === 'worker-auth') return authorization.workerId;
     return authorization.workerId || String(payload?.workerId || '').trim() || null;
 };
@@ -268,16 +280,6 @@ const normalizePassport = (raw: string) => raw.replace(/[^A-Za-z0-9]/g, '').toUp
 
 const AUTH_FAIL_MESSAGE = '근로자 명부에 등록되지 않은 정보입니다. 관리자에게 문의하세요.';
 
-const isMissingTableError = (error: any): boolean => {
-    const code = String(error?.code || '');
-    const message = String(error?.message || '').toLowerCase();
-    return (
-        code === '42P01' ||
-        message.includes('training_access_attempts') ||
-        message.includes('relation')
-    );
-};
-
 function buildSignatureStoragePath(sessionId: string, options?: { prefix?: string }) {
     const normalizedSessionId = String(sessionId || '').trim();
     const timestamp = Date.now();
@@ -290,48 +292,6 @@ function buildSignatureStoragePath(sessionId: string, options?: { prefix?: strin
         : `${normalizedSessionId}/${fileName}`;
 }
 
-async function insertTrainingLogWithSchemaFallback(supabase: any, row: Record<string, unknown>) {
-    const { audio_url, ...safeRow } = row;
-
-    let { data: insertedRows, error: insertError } = await supabase
-        .from('training_logs')
-        .insert(safeRow)
-        .select('id')
-        .limit(1);
-
-    if (insertError && 'case_id' in safeRow && String(insertError.message || '').toLowerCase().includes('case_id')) {
-        const { case_id: _caseId, ...legacyRow } = safeRow;
-        const fallback = await supabase
-            .from('training_logs')
-            .insert(legacyRow)
-            .select('id')
-            .limit(1);
-        insertedRows = fallback.data;
-        insertError = fallback.error;
-    }
-
-    if (insertError) {
-        if (String((insertError as any)?.code || '') === '23505') {
-            throw new DuplicateSubmissionError('이미 해당 세션에 서명을 제출했습니다. 관리자에게 확인해 주세요.');
-        }
-        throw new Error(insertError.message || 'training_logs 저장 실패');
-    }
-
-    if (audio_url && insertedRows && insertedRows.length > 0) {
-        const insertedId = (insertedRows[0] as any)?.id;
-        if (insertedId) {
-            try {
-                await supabase
-                    .from('training_logs')
-                    .update({ audio_url })
-                    .eq('id', insertedId);
-            } catch {
-                // noop
-            }
-        }
-    }
-}
-
 async function loadTrainingCaseId(supabase: any, sessionId: string): Promise<string | null> {
     const result = await supabase
         .from('training_sessions')
@@ -340,19 +300,6 @@ async function loadTrainingCaseId(supabase: any, sessionId: string): Promise<str
         .maybeSingle();
     if (result.error) return null;
     return String(result.data?.case_id || '').trim() || null;
-}
-
-async function upsertTrainingAcknowledgementWithCaseFallback(supabase: any, row: Record<string, unknown>) {
-    let result = await supabase.from('training_acknowledgements').upsert(row, {
-        onConflict: 'session_id,worker_name',
-    });
-    if (result.error && 'case_id' in row && String(result.error.message || '').toLowerCase().includes('case_id')) {
-        const { case_id: _caseId, ...legacyRow } = row;
-        result = await supabase.from('training_acknowledgements').upsert(legacyRow, {
-            onConflict: 'session_id,worker_name',
-        });
-    }
-    return result;
 }
 
 async function completeSafetyCaseAcknowledgement(
@@ -449,81 +396,67 @@ async function hasExistingTrainingLog(
 }
 
 async function handleTrainingCheckAccess(req: any, res: any) {
-    const { sessionId, workerId, workerName } = req.body || {};
+    const {
+        sessionId,
+        workerId,
+        linkExpiresAt,
+        linkToken,
+        workerAuthExpiresAt,
+        workerAuthToken,
+    } = req.body || {};
     const normalizedSessionId = String(sessionId || '').trim();
     const normalizedWorkerId = String(workerId || '').trim();
-    const normalizedWorkerName = String(workerName || '').trim();
 
     if (!normalizedSessionId || !normalizedWorkerId) {
-        return res.status(400).json({ ok: false, message: 'sessionId/workerId 필수' });
+        return res.status(400).json({ ok: false, message: 'sessionId와 workerId가 필요합니다.' });
+    }
+
+    const linkVerification = verifyTrainingLinkToken(normalizedSessionId, linkExpiresAt, linkToken);
+    if (!linkVerification.ok) {
+        return res.status(403).json({
+            ok: false,
+            code: 'INVALID_TRAINING_LINK',
+            message: linkVerification.reason === 'expired'
+                ? '교육 링크가 만료되었습니다.'
+                : '검증되지 않은 교육 링크입니다.',
+        });
+    }
+
+    const workerVerification = verifyWorkerAuthenticationToken(
+        normalizedSessionId,
+        normalizedWorkerId,
+        workerAuthExpiresAt,
+        workerAuthToken,
+    );
+    if (!workerVerification.ok) {
+        return res.status(403).json({
+            ok: false,
+            code: 'INVALID_WORKER_AUTH',
+            message: workerVerification.reason === 'expired'
+                ? '근로자 인증이 만료되었습니다.'
+                : '검증되지 않은 근로자 인증입니다.',
+        });
     }
 
     const supabase = getSupabaseClient();
-    const nowIso = new Date().toISOString();
-
-    const { error: insertError } = await supabase
-        .from('training_access_attempts')
-        .insert({
-            session_id: normalizedSessionId,
-            worker_id: normalizedWorkerId,
-            worker_name: normalizedWorkerName || null,
-            accessed_at: nowIso,
-        });
-
-    if (insertError) {
-        if (isMissingTableError(insertError)) {
-            return res.status(200).json({
-                ok: true,
-                data: {
-                    blocked: false,
-                    totalAccessCount: 0,
-                    threshold: TRAINING_ACCESS_BLOCK_THRESHOLD,
-                    mode: 'fallback-local',
-                },
-            });
-        }
-        throw new Error(insertError.message || '접속 시도 기록 저장 실패');
-    }
-
-    const { count, error: countError } = await supabase
-        .from('training_access_attempts')
-        .select('id', { count: 'exact', head: true })
-        .eq('session_id', normalizedSessionId)
-        .eq('worker_id', normalizedWorkerId);
-
-    if (countError) {
-        if (isMissingTableError(countError)) {
-            return res.status(200).json({
-                ok: true,
-                data: {
-                    blocked: false,
-                    totalAccessCount: 0,
-                    threshold: TRAINING_ACCESS_BLOCK_THRESHOLD,
-                    mode: 'fallback-local',
-                },
-            });
-        }
-        throw new Error(countError.message || '접속 시도 횟수 조회 실패');
-    }
-
-    const totalAccessCount = Number(count || 0);
-    const blocked = totalAccessCount >= TRAINING_ACCESS_BLOCK_THRESHOLD;
+    const blocked = await hasExistingTrainingLog(supabase, {
+        sessionId: normalizedSessionId,
+        workerId: normalizedWorkerId,
+    });
 
     return res.status(200).json({
         ok: true,
         data: {
             blocked,
-            totalAccessCount,
-            threshold: TRAINING_ACCESS_BLOCK_THRESHOLD,
-            accessedAt: nowIso,
-            mode: 'server-db',
+            reason: blocked ? 'already-submitted' : null,
+            mode: 'verified-read-only',
         },
     });
 }
 
-function sendWorkerAuthenticationSuccess(res: any, matched: any) {
+function sendWorkerAuthenticationSuccess(res: any, matched: any, sessionId: string) {
     const workerId = String(matched?.id || '').trim();
-    const proof = buildWorkerAuthenticationProof(workerId);
+    const proof = buildWorkerAuthenticationProof(sessionId, workerId);
 
     return res.status(200).json({
         ok: true,
@@ -537,66 +470,119 @@ function sendWorkerAuthenticationSuccess(res: any, matched: any) {
 }
 
 async function handleWorkerAuthenticate(req: any, res: any) {
-    const { keyType, keyValue } = req.body || {};
+    const { keyType, keyValue, sessionId, linkExpiresAt, linkToken } = req.body || {};
     const normalizedType = String(keyType || '').trim() as AuthKeyType;
     const rawValue = String(keyValue || '').trim();
+    const normalizedSessionId = String(sessionId || '').trim();
 
-    if (!normalizedType || !rawValue) {
+    if (!normalizedType || !rawValue || !normalizedSessionId) {
         return res.status(400).json({ ok: false, message: '본인 확인 정보가 필요합니다.' });
     }
 
+    const linkVerification = verifyTrainingLinkToken(normalizedSessionId, linkExpiresAt, linkToken);
+    if (!linkVerification.ok) {
+        return res.status(403).json({
+            ok: false,
+            code: 'INVALID_TRAINING_LINK',
+            message: linkVerification.reason === 'expired'
+                ? '교육 링크가 만료되었습니다. 관리자에게 재발급을 요청해 주세요.'
+                : '검증되지 않은 교육 링크입니다.',
+        });
+    }
+
     const supabase = getSupabaseClient();
+    const fingerprint = resolveRequestFingerprint(req);
+    const quota = await consumeApiQuota(supabase, {
+        scope: 'worker.authenticate',
+        clientKeyHash: `${fingerprint}:${normalizedSessionId}`,
+        maxRequests: Number(process.env.WORKER_AUTH_MAX_ATTEMPTS || 5),
+        windowSeconds: Number(process.env.WORKER_AUTH_WINDOW_SECONDS || 15 * 60),
+        metadata: { sessionId: normalizedSessionId, keyType: normalizedType },
+    });
+    if (!quota.allowed) {
+        if (typeof res.setHeader === 'function') {
+            res.setHeader('Retry-After', String(quota.retryAfterSeconds || 60));
+        }
+        await recordApiUsageEvent(supabase, {
+            scope: 'worker.authenticate',
+            clientKeyHash: fingerprint,
+            outcome: 'blocked',
+            resourceId: normalizedSessionId,
+            metadata: { keyType: normalizedType, reason: 'rate-limit' },
+        });
+        return res.status(429).json({
+            ok: false,
+            code: 'AUTH_RATE_LIMITED',
+            message: '본인 확인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.',
+        });
+    }
 
-    const workerRowsRes = await supabase
-        .from('workers')
-        .select('id, name, nationality, phone_number, birth_date, passport_number')
-        .limit(5000);
-
-    if (workerRowsRes.error) throw new Error(workerRowsRes.error.message);
-    const workerRows = workerRowsRes.data || [];
+    let normalizedValue = '';
 
     if (normalizedType === 'phone') {
-        const value = normalizePhone(rawValue);
-        if (!value) {
+        normalizedValue = normalizePhone(rawValue);
+        if (normalizedValue.length < 9) {
             return res.status(400).json({ ok: false, message: '핸드폰 번호를 확인해 주세요.' });
         }
-        const matched = workerRows.find((row: any) => normalizePhone(String(row?.phone_number || '')) === value);
-        if (!matched) {
-            return res.status(403).json({ ok: false, message: AUTH_FAIL_MESSAGE });
-        }
-
-        return sendWorkerAuthenticationSuccess(res, matched);
-    }
-
-    if (normalizedType === 'birthDate') {
-        const value = normalizeBirthDate(rawValue);
-        if (!(value.length === 6 || value.length === 8)) {
+    } else if (normalizedType === 'birthDate') {
+        normalizedValue = normalizeBirthDate(rawValue);
+        if (!(normalizedValue.length === 6 || normalizedValue.length === 8)) {
             return res.status(400).json({ ok: false, message: '생년월일은 6자리 또는 8자리로 입력해 주세요.' });
         }
-
-        const matched = workerRows.find((row: any) => normalizeBirthDate(String(row?.birth_date || '')) === value);
-        if (!matched) {
-            return res.status(403).json({ ok: false, message: AUTH_FAIL_MESSAGE });
-        }
-
-        return sendWorkerAuthenticationSuccess(res, matched);
-    }
-
-    if (normalizedType === 'passport') {
-        const value = normalizePassport(rawValue);
-        if (!value) {
+    } else if (normalizedType === 'passport') {
+        normalizedValue = normalizePassport(rawValue);
+        if (normalizedValue.length < 5) {
             return res.status(400).json({ ok: false, message: '여권번호를 확인해 주세요.' });
         }
-
-        const matched = workerRows.find((row: any) => normalizePassport(String(row?.passport_number || '')) === value);
-        if (!matched) {
-            return res.status(403).json({ ok: false, message: AUTH_FAIL_MESSAGE });
-        }
-
-        return sendWorkerAuthenticationSuccess(res, matched);
+    } else {
+        return res.status(400).json({ ok: false, message: '지원하지 않는 본인 확인 방식입니다.' });
     }
 
-    return res.status(400).json({ ok: false, message: '지원하지 않는 본인 확인 방식입니다.' });
+    const lookup = await supabase.rpc('psi_lookup_worker_auth', {
+        p_key_type: normalizedType,
+        p_key_value: normalizedValue,
+    });
+    if (lookup.error) {
+        const error = createGatewayHttpError(
+            String(lookup.error.message || '').includes('psi_lookup_worker_auth')
+                ? '근로자 보안 조회 마이그레이션이 적용되지 않았습니다.'
+                : `근로자 본인 확인 조회 실패: ${lookup.error.message}`,
+            503,
+            'WORKER_AUTH_LOOKUP_UNAVAILABLE',
+        );
+        throw error;
+    }
+
+    const matches = Array.isArray(lookup.data) ? lookup.data : [];
+    if (matches.length !== 1) {
+        await recordApiUsageEvent(supabase, {
+            scope: 'worker.authenticate',
+            clientKeyHash: fingerprint,
+            outcome: 'failure',
+            resourceId: normalizedSessionId,
+            metadata: {
+                keyType: normalizedType,
+                reason: matches.length > 1 ? 'ambiguous' : 'not-found',
+            },
+        });
+        if (matches.length > 1) {
+            return res.status(409).json({
+                ok: false,
+                code: 'AMBIGUOUS_WORKER_IDENTITY',
+                message: '같은 정보의 근로자가 여러 명입니다. 핸드폰 또는 여권번호로 확인하거나 관리자에게 문의해 주세요.',
+            });
+        }
+        return res.status(403).json({ ok: false, message: AUTH_FAIL_MESSAGE });
+    }
+
+    await recordApiUsageEvent(supabase, {
+        scope: 'worker.authenticate',
+        clientKeyHash: fingerprint,
+        outcome: 'success',
+        resourceId: normalizedSessionId,
+        metadata: { keyType: normalizedType, workerId: String(matches[0]?.id || '') },
+    });
+    return sendWorkerAuthenticationSuccess(res, matches[0], normalizedSessionId);
 }
 
 async function loadCanonicalWorker(supabase: any, workerId: string) {
@@ -649,7 +635,7 @@ async function handleSingleSignature(
     let normalizedWorkerName = String(workerName || '').trim();
     let normalizedNationality = String(nationality || '').trim();
 
-    if (authorization.mode !== 'training-link') {
+    if (authorization.mode === 'worker-auth' || authorizedWorkerId) {
         if (!authorizedWorkerId) {
             throw createGatewayHttpError('인증된 workerId가 필요합니다.', 403, 'WORKER_AUTH_REQUIRED');
         }
@@ -679,43 +665,7 @@ async function handleSingleSignature(
         throw new Error('위험성평가 숙지 체크가 필요합니다.');
     }
 
-    const isDuplicate = await hasExistingTrainingLog(supabase, {
-        sessionId,
-        workerId: authorizedWorkerId || undefined,
-        workerName: normalizedWorkerName,
-    });
-    if (isDuplicate) {
-        throw new DuplicateSubmissionError('이미 해당 세션에 서명을 제출했습니다. 관리자에게 확인해 주세요.');
-    }
-
-    const fileBuffer = Buffer.from(match[1], 'base64');
-    const path = buildSignatureStoragePath(sessionId);
-
-    const { error: uploadError } = await supabase.storage.from('signatures').upload(path, fileBuffer, {
-        contentType: 'image/png',
-        upsert: false,
-    });
-
-    if (uploadError) throw new Error(`서명 업로드 실패: ${uploadError.message}`);
-
-    const pub = supabase.storage.from('signatures').getPublicUrl(path);
-    const signatureUrl = pub.data.publicUrl;
     const effectiveIsManagerProxy = authorization.mode === 'admin' && Boolean(isManagerProxy);
-
-    await insertTrainingLogWithSchemaFallback(supabase, {
-        session_id: sessionId,
-        case_id: caseId,
-        worker_id: authorizedWorkerId,
-        worker_name: normalizedWorkerName,
-        nationality: normalizedNationality,
-        signature_url: signatureUrl,
-        audio_url: selectedAudioUrl || null,
-        selected_language_code: selectedLanguageCode || null,
-        is_manager_proxy: effectiveIsManagerProxy,
-        signature_method: effectiveIsManagerProxy ? 'manager_proxy' : 'worker_self',
-        submitted_at: new Date().toISOString(),
-    });
-
     const checklistPayload = (checklist && typeof checklist === 'object')
         ? {
             riskReview: Boolean((checklist as any).riskReview),
@@ -740,31 +690,73 @@ async function handleSingleSignature(
         && checklistPayload.ppeConfirm
         && checklistPayload.emergencyConfirm;
 
-    const { error: ackError } = await upsertTrainingAcknowledgementWithCaseFallback(supabase, {
-        session_id: sessionId,
-        case_id: caseId,
-        worker_name: normalizedWorkerName,
-        selected_language_code: selectedLanguageCode || null,
-        reviewed_guidance: Boolean(reviewedGuidance),
-        checklist: checklistPayload,
-        comprehension_complete: comprehensionComplete,
-        submitted_at: new Date().toISOString(),
+    const isDuplicate = await hasExistingTrainingLog(supabase, {
+        sessionId,
+        workerId: authorizedWorkerId || undefined,
+        workerName: normalizedWorkerName,
+    });
+    if (isDuplicate) {
+        throw new DuplicateSubmissionError('이미 해당 세션에 서명을 제출했습니다. 관리자에게 확인해 주세요.');
+    }
+
+    const fileBuffer = Buffer.from(match[1], 'base64');
+    const path = buildSignatureStoragePath(sessionId);
+    const signatureEvidenceHash = createHash('sha256').update(fileBuffer).digest('hex');
+    const submittedAt = new Date().toISOString();
+
+    const { error: uploadError } = await supabase.storage.from('signatures').upload(path, fileBuffer, {
+        contentType: 'image/png',
+        upsert: false,
     });
 
-    if (ackError) {
-        console.warn('[submit-training] training_acknowledgements insert skipped:', ackError.message);
+    if (uploadError) throw new Error(`서명 업로드 실패: ${uploadError.message}`);
+
+    const commit = await supabase.rpc('psi_commit_training_signature', {
+        p_session_id: sessionId,
+        p_case_id: caseId || '',
+        p_worker_id: authorizedWorkerId || null,
+        p_worker_name: normalizedWorkerName,
+        p_nationality: normalizedNationality,
+        p_signature_path: path,
+        p_signature_evidence_hash: signatureEvidenceHash,
+        p_audio_url: selectedAudioUrl || '',
+        p_selected_language_code: selectedLanguageCode || '',
+        p_is_manager_proxy: effectiveIsManagerProxy,
+        p_signature_method: effectiveIsManagerProxy ? 'manager_proxy' : 'worker_self',
+        p_reviewed_guidance: Boolean(reviewedGuidance),
+        p_checklist: checklistPayload,
+        p_comprehension_complete: comprehensionComplete,
+        p_submitted_at: submittedAt,
+    });
+
+    if (commit.error) {
+        await supabase.storage.from('signatures').remove([path]);
+        if (String(commit.error.code || '') === '23505') {
+            throw new DuplicateSubmissionError('이미 해당 세션에 서명을 제출했습니다. 관리자에게 확인해 주세요.');
+        }
+        const missingMigration = String(commit.error.message || '').includes('psi_commit_training_signature')
+            || String(commit.error.code || '').toUpperCase() === 'PGRST202';
+        throw createGatewayHttpError(
+            missingMigration
+                ? '서명 무결성 마이그레이션이 적용되지 않았습니다.'
+                : `교육 서명 기록 저장 실패: ${commit.error.message}`,
+            503,
+            'TRAINING_SIGNATURE_COMMIT_FAILED',
+        );
     }
+
+    const signatureReference = `private://signatures/${path}`;
 
     if (comprehensionComplete) {
         await completeSafetyCaseAcknowledgement(supabase, {
             caseId,
             sessionId,
             workerName: normalizedWorkerName,
-            evidenceId: signatureUrl,
+            evidenceId: signatureReference,
         });
     }
 
-    return { signatureUrl, comprehensionComplete };
+    return { signatureUrl: signatureReference, signatureEvidenceHash, comprehensionComplete };
 }
 
 export const buildGroupProxyAcknowledgement = (payload: Record<string, unknown>) => {
@@ -875,35 +867,36 @@ async function handleGroupSignatures(payload: any): Promise<any> {
             throw new Error(`서명 업로드 실패(${worker.id}): ${uploadErr.message}`);
         }
 
-        const publicUrl = supabase.storage.from('signatures').getPublicUrl(path).data.publicUrl;
-
-        await insertTrainingLogWithSchemaFallback(supabase, {
-            session_id: sessionId,
-            case_id: caseId,
-            worker_id: worker.id,
-            worker_name: worker.name,
-            nationality: worker.nationality || null,
-            signature_url: publicUrl,
-            audio_url: selectedAudioUrl || null,
-            selected_language_code: selectedLanguageCode || null,
-            is_manager_proxy: true,
-            signature_method: 'manager_group_proxy',
-            submitted_at: new Date().toISOString(),
+        const signatureEvidenceHash = createHash('sha256').update(binary).digest('hex');
+        const commit = await supabase.rpc('psi_commit_training_signature', {
+            p_session_id: sessionId,
+            p_case_id: caseId || '',
+            p_worker_id: worker.id,
+            p_worker_name: worker.name,
+            p_nationality: worker.nationality || '',
+            p_signature_path: path,
+            p_signature_evidence_hash: signatureEvidenceHash,
+            p_audio_url: selectedAudioUrl || '',
+            p_selected_language_code: selectedLanguageCode || '',
+            p_is_manager_proxy: true,
+            p_signature_method: 'manager_group_proxy',
+            p_reviewed_guidance: groupAcknowledgement.reviewedGuidance,
+            p_checklist: groupAcknowledgement.checklist,
+            p_comprehension_complete: false,
+            p_submitted_at: new Date().toISOString(),
         });
 
-        const { error: ackErr } = await upsertTrainingAcknowledgementWithCaseFallback(supabase, {
-            session_id: sessionId,
-            case_id: caseId,
-            worker_name: worker.name,
-            selected_language_code: selectedLanguageCode || null,
-            reviewed_guidance: groupAcknowledgement.reviewedGuidance,
-            checklist: groupAcknowledgement.checklist,
-            comprehension_complete: groupAcknowledgement.comprehensionComplete,
-            submitted_at: new Date().toISOString(),
-        });
-
-        if (ackErr) {
-            console.warn('[submit-training] acknowledgement upsert skipped:', ackErr.message);
+        if (commit.error) {
+            await supabase.storage.from('signatures').remove([path]);
+            if (String(commit.error.code || '') === '23505') {
+                skippedDuplicateWorkerIds.push(worker.id);
+                continue;
+            }
+            throw createGatewayHttpError(
+                `집체교육 서명 기록 저장 실패(${worker.id}): ${commit.error.message}`,
+                503,
+                'TRAINING_SIGNATURE_COMMIT_FAILED',
+            );
         }
 
         insertedWorkerIds.push(worker.id);
@@ -1216,7 +1209,12 @@ async function analyzeSingleRecord(
                                         text: [
                                             '건설현장 위험성평가표 이미지를 분석해 JSON 배열 1개만 반환하세요.',
                                             '마크다운 없이 JSON만 반환하세요.',
-                                            '필수 키: name, jobField, teamLeader, date, nationality, language, safetyScore, safetyLevel, strengths, strengths_native, weakAreas, weakAreas_native, improvement, improvement_native, suggestions, suggestions_native, aiInsights, aiInsights_native, fullText, koreanTranslation, scoreReasoning, ocrConfidence, handwrittenAnswers',
+                                            '필수 키: documentType, isPsiForm, documentValidationReason, documentMarkers, fieldConfidences, name, jobField, teamLeader, date, nationality, language, safetyScore, safetyLevel, strengths, strengths_native, weakAreas, weakAreas_native, improvement, improvement_native, suggestions, suggestions_native, aiInsights, aiInsights_native, fullText, koreanTranslation, scoreReasoning, ocrConfidence, handwrittenAnswers',
+                                            '[문서 유형 선확인 - 가장 먼저 수행]',
+                                            '- PSI, NEW-PSI 또는 PSI-RA-01 위험성평가 기록지의 제목, 하단 공종·이름 칸, Q1~Q5 문항 구조가 실제로 보이는지 먼저 확인하세요.',
+                                            '- 해당 양식이 아니거나 확실하지 않으면 isPsiForm=false, documentType="other-safety-document" 또는 "unknown"으로 반환하세요.',
+                                            '- isPsiForm=false이면 보이지 않는 값을 추정하지 말고 safetyScore=0으로 반환하세요.',
+                                            '- fieldConfidences의 각 필드는 0~1로 기록하고 흐리거나 비어 있으면 0.8 미만으로 기록하세요.',
                                             'handwrittenAnswers는 이미지에 보이는 문항 답변을 번호 순서대로 추출하세요.',
                                             '- questionNumber: 문항 번호',
                                             '- answerText: 작업자가 실제로 쓴 원문',
@@ -1306,6 +1304,15 @@ async function analyzeSingleRecord(
         throw (lastError || createGatewayHttpError('서버 OCR 응답을 해석하지 못했습니다.', 502, 'OCR_UPSTREAM_FAILURE'));
     }
 
+    const documentMetadata = normalizeOcrDocumentMetadata(parsed);
+    if (!documentMetadata.validation.isPsiForm) {
+        throw createGatewayHttpError(
+            `PSI 위험성평가 기록지가 아닌 문서로 판정되었습니다: ${documentMetadata.validation.reason || '필수 표식 또는 문항 구조 불일치'}`,
+            422,
+            'OCR_WRONG_DOCUMENT',
+        );
+    }
+
     const normalizedNationality = normalizeNationality(String(parsed.nationality || '미상'));
     const normalizedHandwrittenAnswers = normalizeHandwrittenAnswers(parsed.handwrittenAnswers);
     const nativeInsights = String(parsed.aiInsights_native || '').trim();
@@ -1381,6 +1388,8 @@ async function analyzeSingleRecord(
         koreanTranslation: String(parsed.koreanTranslation || '').trim(),
         scoreReasoning: coverageAwareScoreReasoning,
         ocrConfidence: Number.isFinite(Number(parsed.ocrConfidence)) ? Number(parsed.ocrConfidence) : 0.9,
+        ocrDocumentValidation: documentMetadata.validation,
+        ocrFieldConfidences: documentMetadata.fieldConfidences,
         handwrittenAnswers: normalizedHandwrittenAnswers,
     }, { appendAuditTrail: false }).record;
 
@@ -1392,6 +1401,10 @@ async function analyzeSingleRecord(
 }
 
 async function handleOcrRetry(req: any, res: any) {
+    if (!isValidAdminAuthRequest(req)) {
+        return sendUnauthorizedAdminResponse(res);
+    }
+
     const body = (req.body || {}) as RetryRequestBody;
     const recordId = String(body.recordId || '').trim();
     const imageSource = String(body.imageSource || '').trim();
@@ -1409,14 +1422,87 @@ async function handleOcrRetry(req: any, res: any) {
         return res.status(400).json({ ok: false, message: 'imageSource가 필요합니다.' });
     }
 
+    const supabase = getSupabaseClient();
+    const fingerprint = resolveRequestFingerprint(req);
+    const perMinuteQuota = await consumeApiQuota(supabase, {
+        scope: 'ocr.retry.minute',
+        clientKeyHash: fingerprint,
+        maxRequests: Number(process.env.OCR_RETRY_MAX_PER_MINUTE || 6),
+        windowSeconds: 60,
+        metadata: { recordId },
+    });
+    const dailyQuota = perMinuteQuota.allowed
+        ? await consumeApiQuota(supabase, {
+            scope: 'ocr.retry.daily',
+            clientKeyHash: 'global',
+            maxRequests: Number(process.env.OCR_RETRY_DAILY_BUDGET || 100),
+            windowSeconds: 24 * 60 * 60,
+            metadata: { recordId, requestedBy: fingerprint },
+        })
+        : perMinuteQuota;
+
+    if (!perMinuteQuota.allowed || !dailyQuota.allowed) {
+        const retryAfterSeconds = Math.max(
+            perMinuteQuota.retryAfterSeconds || 0,
+            dailyQuota.retryAfterSeconds || 0,
+            60,
+        );
+        if (typeof res.setHeader === 'function') {
+            res.setHeader('Retry-After', String(retryAfterSeconds));
+        }
+        await recordApiUsageEvent(supabase, {
+            scope: 'ocr.retry',
+            clientKeyHash: fingerprint,
+            outcome: 'blocked',
+            resourceId: recordId,
+            metadata: {
+                reason: perMinuteQuota.allowed ? 'daily-budget' : 'minute-rate-limit',
+            },
+        });
+        return res.status(429).json({
+            ok: false,
+            code: perMinuteQuota.allowed ? 'OCR_DAILY_BUDGET_EXCEEDED' : 'OCR_RATE_LIMITED',
+            message: perMinuteQuota.allowed
+                ? '오늘의 서버 OCR 재분석 한도에 도달했습니다. 관리자에게 한도 조정을 요청해 주세요.'
+                : 'OCR 재분석 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.',
+        });
+    }
+
     const traceStartMs = Date.now();
     const requestedEngine = String(req.body?.ocrEngine || 'auto') as OcrEngineMode;
     const engine: OcrEngineMode = ['auto', 'gemini-fast', 'gemini-precise', 'openai-precise'].includes(requestedEngine)
         ? requestedEngine
         : 'auto';
     const isPaidApiMode = req.body?.isPaidApiMode === true;
-    const result = await analyzeSingleRecord(imageSource, filenameHint || recordId, engine, isPaidApiMode);
+    let result;
+    try {
+        result = await analyzeSingleRecord(imageSource, filenameHint || recordId, engine, isPaidApiMode);
+    } catch (error) {
+        await recordApiUsageEvent(supabase, {
+            scope: 'ocr.retry',
+            clientKeyHash: fingerprint,
+            outcome: 'failure',
+            resourceId: recordId,
+            latencyMs: Date.now() - traceStartMs,
+            metadata: { engine },
+        });
+        throw error;
+    }
     const traceLatencyMs = Date.now() - traceStartMs;
+
+    await recordApiUsageEvent(supabase, {
+        scope: 'ocr.retry',
+        clientKeyHash: fingerprint,
+        outcome: 'success',
+        resourceId: recordId,
+        latencyMs: traceLatencyMs,
+        metadata: {
+            engine,
+            provider: 'server_gemini',
+            attempts: result.attempts,
+            fallbackDepth: result.fallbackDepth,
+        },
+    });
 
     return res.status(200).json({
         ok: true,

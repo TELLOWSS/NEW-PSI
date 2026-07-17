@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabaseClient';
 import { getAiEngineSettings, resolveGeminiOcrModelChain } from '../utils/aiEngineSettings';
 import { normalizeOcrRecordMetadata } from '../utils/ocrRecordNormalization';
 import { PSI_FORM_MASTER_PROMPT_BLOCK } from '../config/psiFormMaster';
+import { applyOcrDocumentGate, normalizeOcrDocumentMetadata } from '../utils/ocrDocumentValidation';
 
 /**
  * [API Rate Limiting State Management]
@@ -378,6 +379,24 @@ const workerRecordSchema = {
     items: {
         type: Type.OBJECT,
         properties: {
+            documentType: {
+                type: Type.STRING,
+                enum: ['psi-risk-assessment', 'other-safety-document', 'unknown'],
+                description: '문서 유형. PSI 또는 PSI-RA-01 위험성평가 기록지만 psi-risk-assessment',
+            },
+            isPsiForm: { type: Type.BOOLEAN, description: 'PSI 위험성평가 기록지 여부. 확실하지 않으면 false' },
+            documentValidationReason: { type: Type.STRING, description: '문서 유형 판정 근거' },
+            documentMarkers: { type: Type.ARRAY, items: { type: Type.STRING }, description: '실제로 보이는 PSI 표식 또는 문항 구조' },
+            fieldConfidences: {
+                type: Type.OBJECT,
+                properties: {
+                    name: { type: Type.NUMBER },
+                    jobField: { type: Type.NUMBER },
+                    date: { type: Type.NUMBER },
+                    nationality: { type: Type.NUMBER },
+                    handwrittenAnswers: { type: Type.NUMBER },
+                },
+            },
             name: { type: Type.STRING },
             employeeId: { type: Type.STRING, description: "관리자가 쓰는 근로자 식별번호(선택)" },
             qrId: { type: Type.STRING, description: "QR/NFC 식별자" },
@@ -448,6 +467,10 @@ const workerRecordSchema = {
             },
         },
         required: [
+            "documentType",
+            "isPsiForm",
+            "documentValidationReason",
+            "fieldConfidences",
             "name",
             "jobField",
             "date",
@@ -1821,6 +1844,12 @@ async function callGeminiWithRetry(
             `;
 
             const prompt = `위험성 평가 문서를 분석하십시오. 파일명: ${filenameHint || 'unknown'}.
+            [문서 유형 선확인 - 가장 먼저 수행]
+            - PSI, NEW-PSI 또는 PSI-RA-01 위험성평가 기록지의 제목, 하단 공종·이름 칸, Q1~Q5 문항 구조가 실제로 보이는지 먼저 확인하십시오.
+            - 해당 양식이 아니거나 확실하지 않으면 isPsiForm=false, documentType="other-safety-document" 또는 "unknown"으로 반환하십시오.
+            - isPsiForm=false이면 보이지 않는 이름·공종·답변·점수를 추정하거나 만들어내지 말고 safetyScore=0으로 반환하십시오.
+            - documentMarkers에는 이미지에서 실제로 확인한 표식만 기록하십시오.
+            - fieldConfidences의 name/jobField/date/nationality/handwrittenAnswers를 각각 0~1로 기록하십시오. 흐리거나 비어 있으면 0.8 미만으로 기록하십시오.
             [언어 규칙 — 절대 준수]
             - aiInsights는 반드시 한국어로만 작성. 영어 단어 혼용 절대 금지.
             - aiInsights_native는 반드시 작업자 국적 모국어로만 작성. 빈 문자열 반환 절대 금지. 한국 근로자도 한국어 안내로 반드시 채울 것.
@@ -1865,6 +1894,7 @@ async function callGeminiWithRetry(
                     const parsed = parseWorkerRecordArrayFromText(response.text);
                     if (!parsed || parsed.length === 0) throw new Error('AI response parsing failed: no valid records');
                     return parsed.map((r: Record<string, unknown>) => {
+                        const documentMetadata = normalizeOcrDocumentMetadata(r);
                         const id = (r['id'] as string) || `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
                         const name = (r['name'] as string) || "식별 대기";
                         const employeeId = (r['employeeId'] as string) || undefined;
@@ -1898,6 +1928,8 @@ async function callGeminiWithRetry(
                             jobField,
                             teamLeader,
                             ocrConfidence,
+                            ocrDocumentValidation: documentMetadata.validation,
+                            ocrFieldConfidences: documentMetadata.fieldConfidences,
                             signatureMatchScore,
                             matchMethod: employeeId ? 'employeeId' : qrId ? 'qr' : (typeof signatureMatchScore === 'number' ? 'signature' : role ? 'role' : 'name'),
                             role,
@@ -1979,7 +2011,7 @@ async function callGeminiWithRetry(
                             scoreReasoning: verified.scoreReasoning,
                         }).record;
 
-                        const auditedRecord: WorkerRecord = metadataNormalizedRecord;
+                        const auditedRecord: WorkerRecord = applyOcrDocumentGate(metadataNormalizedRecord);
 
                         const verificationAudit = evaluateOcrVerificationCompleteness(auditedRecord);
 

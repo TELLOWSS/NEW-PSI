@@ -36,4 +36,10 @@ describe('user-facing language quality', () => {
         expect(settings).toContain('무료 분석 연결키(API 키)');
         expect(settings).toContain('유료 분석 연결키(API 키)');
     });
+
+    it('keeps Korean worker training controls in Korean while unsupported locales use English fallback', () => {
+        const workerTraining = read('pages/WorkerTraining.tsx');
+        expect(workerTraining).toContain("if (code === 'ko-KR') return 'ko';");
+        expect(workerTraining).toContain("return 'en';");
+    });
 });

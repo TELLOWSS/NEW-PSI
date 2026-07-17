@@ -47,7 +47,7 @@ describe('training submission authorization', () => {
         }, res);
 
         expect(statusCode).toBe(403);
-        expect(responseBody.code).toBe('INVALID_WORKER_AUTH');
+        expect(responseBody.code).toBe('INVALID_TRAINING_LINK');
     });
 
     it('blocks a public arbitrary workerId without a verified proof', () => {
@@ -58,10 +58,10 @@ describe('training submission authorization', () => {
                 sessionId: 'session-1',
                 workerId: 'victim-worker-id',
             },
-        )).toThrow('검증되지 않은 근로자 인증');
+        )).toThrow('검증되지 않은 교육 링크');
     });
 
-    it('does not persist a caller supplied workerId for a valid public training link', () => {
+    it('does not accept a public training link without verified worker identity', () => {
         process.env.TRAINING_LINK_SECRET = 'test-only-training-secret';
         const expiresAt = Date.now() + 60_000;
         const payload = {
@@ -71,14 +71,11 @@ describe('training submission authorization', () => {
             linkToken: generateTrainingLinkToken('session-1', expiresAt),
         };
 
-        const authorization = resolveTrainingSubmissionAuthorization(
+        expect(() => resolveTrainingSubmissionAuthorization(
             { headers: {} },
             'single',
             payload,
-        );
-
-        expect(authorization.mode).toBe('training-link');
-        expect(resolveAuthorizedWorkerId(authorization, payload)).toBeNull();
+        )).toThrow('검증되지 않은 근로자 인증');
     });
 
     it('accepts a server-signed worker authentication proof only for its worker id', () => {
@@ -88,7 +85,9 @@ describe('training submission authorization', () => {
             sessionId: 'session-1',
             workerId: 'worker-1',
             workerAuthExpiresAt: expiresAt,
-            workerAuthToken: generateWorkerAuthenticationToken('worker-1', expiresAt),
+            linkExpiresAt: expiresAt,
+            linkToken: generateTrainingLinkToken('session-1', expiresAt),
+            workerAuthToken: generateWorkerAuthenticationToken('session-1', 'worker-1', expiresAt),
         };
 
         const authorization = resolveTrainingSubmissionAuthorization(
@@ -117,6 +116,7 @@ describe('training submission compatibility and proxy semantics', () => {
             workerName: '홍길동',
             nationality: '대한민국',
             reviewedGuidance: true,
+            audioPlayed: true,
             checklist: {
                 riskReview: true,
                 ppeConfirm: true,
@@ -126,6 +126,7 @@ describe('training submission compatibility and proxy semantics', () => {
 
         expect(payload.scrolledToEnd).toBe(true);
         expect(payload.acknowledgedRiskAssessment).toBe(true);
+        expect(payload.audioPlayed).toBe(true);
         expect(payload.isManagerProxy).toBe(false);
     });
 
