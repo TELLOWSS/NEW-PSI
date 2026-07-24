@@ -5,7 +5,11 @@ import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { fetchWithTimeout, postAdminJson } from '../utils/adminApiClient';
 import { TBM_MONTHLY_PACKAGE_STORAGE_KEY, type TbmMonthlyPackagePayload } from '../utils/tbmEducationStudio';
-import type { TranslationQualityReport } from '../utils/constructionTrainingTranslation';
+import {
+    CURRENT_SITE_TRAINING_LANGUAGE_CODES as CURRENT_SITE_LANGUAGE_SET,
+    TRAINING_LANGUAGE_OPTIONS as LANGUAGE_OPTIONS,
+    type TranslationQualityReport,
+} from '../utils/constructionTrainingTranslation';
 import {
     completeSafetyCaseStage,
     readSafetyCases,
@@ -477,41 +481,6 @@ const resolveAdminLocale = (): UiLocale => {
     return 'ko';
 };
 
-const LANGUAGE_OPTIONS = [
-    { code: 'ko-KR', label: { ko: '한국어', en: 'Korean', vi: 'Tiếng Hàn', zh: '韩语' } },
-    { code: 'en-US', label: { ko: '영어', en: 'English', vi: 'Tiếng Anh', zh: '英语' } },
-    { code: 'vi-VN', label: { ko: '베트남어', en: 'Vietnamese', vi: 'Tiếng Việt', zh: '越南语' } },
-    { code: 'cmn-CN', label: { ko: '중국어', en: 'Chinese', vi: 'Tiếng Trung', zh: '中文' } },
-    { code: 'th-TH', label: { ko: '태국어', en: 'Thai', vi: 'Tiếng Thái', zh: '泰语' } },
-    { code: 'id-ID', label: { ko: '인도네시아어', en: 'Indonesian', vi: 'Tiếng Indonesia', zh: '印尼语' } },
-    { code: 'uz-UZ', label: { ko: '우즈베크어', en: 'Uzbek', vi: 'Tiếng Uzbek', zh: '乌兹别克语' } },
-    { code: 'mn-MN', label: { ko: '몽골어', en: 'Mongolian', vi: 'Tiếng Mông Cổ', zh: '蒙古语' } },
-    { code: 'km-KH', label: { ko: '크메르어', en: 'Khmer', vi: 'Tiếng Khmer', zh: '高棉语' } },
-    { code: 'ru-RU', label: { ko: '러시아어', en: 'Russian', vi: 'Tiếng Nga', zh: '俄语' } },
-    { code: 'kk-KZ', label: { ko: '카자흐어', en: 'Kazakh', vi: 'Tiếng Kazakh', zh: '哈萨克语' } },
-    { code: 'ne-NP', label: { ko: '네팔어', en: 'Nepali', vi: 'Tiếng Nepal', zh: '尼泊尔语' } },
-    { code: 'my-MM', label: { ko: '미얀마어', en: 'Burmese', vi: 'Tiếng Myanmar', zh: '缅甸语' } },
-    { code: 'fil-PH', label: { ko: '필리핀어', en: 'Filipino', vi: 'Tiếng Philippines', zh: '菲律宾语' } },
-    { code: 'hi-IN', label: { ko: '힌디어', en: 'Hindi', vi: 'Tiếng Hindi', zh: '印地语' } },
-    { code: 'bn-BD', label: { ko: '벵골어', en: 'Bengali', vi: 'Tiếng Bengal', zh: '孟加拉语' } },
-    { code: 'ur-PK', label: { ko: '우르두어', en: 'Urdu', vi: 'Tiếng Urdu', zh: '乌尔都语' } },
-    { code: 'si-LK', label: { ko: '싱할라어', en: 'Sinhala', vi: 'Tiếng Sinhala', zh: '僧伽罗语' } },
-] as const;
-
-const CURRENT_SITE_LANGUAGE_SET = [
-    'ko-KR',
-    'vi-VN',
-    'cmn-CN',
-    'mn-MN',
-    'id-ID',
-    'ru-RU',
-    'kk-KZ',
-    'uz-UZ',
-    'th-TH',
-    'km-KH',
-    'my-MM',
-] as const;
-
 const VALID_LANGUAGE_CODES = new Set(LANGUAGE_OPTIONS.map((item) => item.code));
 const isValidLanguageCode = (code: string): code is (typeof LANGUAGE_OPTIONS)[number]['code'] => VALID_LANGUAGE_CODES.has(code as (typeof LANGUAGE_OPTIONS)[number]['code']);
 
@@ -591,6 +560,12 @@ type ActiveQrState = {
     failedLanguageAttempts: Record<string, string[]>;
 };
 
+type ReleaseBlocker = {
+    languageCode: string;
+    kind: 'translation' | 'quality' | 'audio';
+    message: string;
+};
+
 const AdminTraining: React.FC = () => {
     const [sourceTextKo, setSourceTextKo] = useState('');
     const [loading, setLoading] = useState(false);
@@ -615,6 +590,8 @@ const AdminTraining: React.FC = () => {
     const [translatedTexts, setTranslatedTexts] = useState<Record<string, string>>({});
     const [pretranslatedTexts, setPretranslatedTexts] = useState<Record<string, string>>({});
     const [translationReports, setTranslationReports] = useState<Record<string, TranslationQualityReport>>({});
+    const [releaseBlockers, setReleaseBlockers] = useState<ReleaseBlocker[]>([]);
+    const [approvedReviewLanguages, setApprovedReviewLanguages] = useState<string[]>([]);
     const [trainingTitle, setTrainingTitle] = useState('');
     const [trainingCategory, setTrainingCategory] = useState<'monthly_risk' | 'special_safety'>('monthly_risk');
     const [targetMode, setTargetMode] = useState<'submitted_only' | 'attendance_only'>('submitted_only');
@@ -1147,6 +1124,7 @@ const AdminTraining: React.FC = () => {
                     sessionId: currentSessionId,
                     originalScript: sourceTextKo,
                     files: filesPayload,
+                    approvedReviewLanguages,
                 }),
             }, 30_000);
 
@@ -1169,9 +1147,23 @@ const AdminTraining: React.FC = () => {
             const nextAudioUrls = data?.audioUrls && typeof data.audioUrls === 'object' ? data.audioUrls : {};
             setSessionAudioUrls(nextAudioUrls);
             setFailedLanguages(Array.isArray(data?.missingLanguages) ? data.missingLanguages : []);
+            setReleaseBlockers(Array.isArray(data?.releaseBlockers) ? data.releaseBlockers : []);
+            if (data?.releaseReady && data?.mobileUrl) {
+                setMobileUrl(String(data.mobileUrl));
+                setLinkExpiresAt(Number(data.linkExpiresAt || 0) || null);
+                appendLinkHistory({
+                    sessionId: currentSessionId,
+                    mobileUrl: String(data.mobileUrl),
+                    linkExpiresAt: Number(data.linkExpiresAt || 0),
+                    action: 'create',
+                    createdAt: new Date().toISOString(),
+                });
+            }
             setAudioUploadFiles({});
             void fetchRecentSessions();
-            setMessage(t.audioUploadDoneMessage);
+            setMessage(data?.releaseReady
+                ? '번역 검수와 음성 확인이 끝나 공유 링크를 발급했습니다.'
+                : '음성을 저장했습니다. 남은 번역 검수 또는 음성을 완료하면 링크가 발급됩니다.');
         } catch (error: any) {
             setMessage(`${t.errorPrefix}: ${error?.message || t.createFail}`);
         } finally {
@@ -1222,6 +1214,8 @@ const AdminTraining: React.FC = () => {
         setFailedLanguageAttempts({});
         setTranslatedTexts({});
         setTranslationReports({});
+        setReleaseBlockers([]);
+        setApprovedReviewLanguages([]);
 
         try {
             const response = await fetchWithTimeout('/api/admin/training', {
@@ -1271,6 +1265,7 @@ const AdminTraining: React.FC = () => {
             setSessionAudioUrls(data?.audioUrls && typeof data.audioUrls === 'object' ? data.audioUrls : {});
             setTranslatedTexts(data?.translatedTexts && typeof data.translatedTexts === 'object' ? data.translatedTexts : {});
             setTranslationReports(data?.translationReports && typeof data.translationReports === 'object' ? data.translationReports : {});
+            setReleaseBlockers(Array.isArray(data?.releaseBlockers) ? data.releaseBlockers : []);
             setAudioUploadFiles({});
             if (data.sessionId && data.mobileUrl && data.linkExpiresAt) {
                 appendLinkHistory({
@@ -1303,7 +1298,9 @@ const AdminTraining: React.FC = () => {
             setFailedLanguages(failed);
             setFailedLanguageAttempts(data?.failedLanguageAttempts && typeof data.failedLanguageAttempts === 'object' ? data.failedLanguageAttempts : {});
             void fetchRecentSessions();
-            if (failed.length > 0) {
+            if (!data.releaseReady) {
+                setMessage('세션을 준비 중으로 저장했습니다. 선택 언어의 번역 검수와 음성을 모두 갖추면 공유 링크가 발급됩니다.');
+            } else if (failed.length > 0) {
                 setMessage(t.partialSuccess);
             } else {
                 setMessage(t.success);
@@ -1745,6 +1742,19 @@ const AdminTraining: React.FC = () => {
                                                     {report.warnings.length > 0 && <p className="mt-1 text-amber-700 dark:text-amber-300">확인: {report.warnings.join(' · ')}</p>}
                                                 </div>
                                             )}
+                                            {report?.status === 'review' && (
+                                                <label className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold text-amber-900">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="mt-0.5"
+                                                        checked={approvedReviewLanguages.includes(code)}
+                                                        onChange={(event) => setApprovedReviewLanguages((previous) => event.target.checked
+                                                            ? Array.from(new Set([...previous, code]))
+                                                            : previous.filter((item) => item !== code))}
+                                                    />
+                                                    <span>현장 통역자 또는 관리자가 원문과 대조했으며 이 번역을 배포해도 됨을 확인했습니다.</span>
+                                                </label>
+                                            )}
                                         </details>
                                     );
                                 })}
@@ -1924,21 +1934,23 @@ const AdminTraining: React.FC = () => {
                 )}
             </div>
 
-            {mobileUrl && (
+            {currentSessionId && (
                 <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 sm:p-8 shadow-sm">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                             <h3 className="text-xl font-black text-slate-900 dark:text-slate-100">{t.qrTitle}</h3>
                             <p className="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-300">{t.qrExpandHint}</p>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => setIsQrExpanded(true)}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white hover:bg-slate-800"
-                        >
-                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" /></svg>
-                            {t.qrExpand}
-                        </button>
+                        {mobileUrl && (
+                            <button
+                                type="button"
+                                onClick={() => setIsQrExpanded(true)}
+                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white hover:bg-slate-800"
+                            >
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" /></svg>
+                                {t.qrExpand}
+                            </button>
+                        )}
                     </div>
                     <InterpretationCardGrid
                         items={qrInterpretationCards}
@@ -1961,13 +1973,29 @@ const AdminTraining: React.FC = () => {
                             )}
                         </div>
                     )}
-                    <p className="text-xs font-bold text-slate-500 dark:text-slate-300 mt-2 break-all">{mobileUrl}</p>
-                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
-                        <p className="text-[11px] font-black text-amber-800">{t.directAccessHint}</p>
-                    </div>
-                    <div className="mt-4 flex justify-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4">
-                        <QRCodeCanvas value={mobileUrl} size={220} />
-                    </div>
+                    {mobileUrl ? (
+                        <>
+                            <p className="text-xs font-bold text-slate-500 dark:text-slate-300 mt-2 break-all">{mobileUrl}</p>
+                            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+                                <p className="text-[11px] font-black text-amber-800">{t.directAccessHint}</p>
+                            </div>
+                            <div className="mt-4 flex justify-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4">
+                                <QRCodeCanvas value={mobileUrl} size={220} />
+                            </div>
+                        </>
+                    ) : (
+                        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                            <p className="text-sm font-black text-amber-900">아직 공유할 수 없는 준비 중 세션입니다.</p>
+                            <p className="mt-1 text-[11px] font-bold text-amber-800">아래 선택 언어의 번역 검수와 음성을 모두 완료하면 QR 링크가 자동 발급됩니다.</p>
+                            {releaseBlockers.length > 0 && (
+                                <ul className="mt-3 space-y-1 text-[11px] font-bold text-amber-800">
+                                    {releaseBlockers.slice(0, 12).map((blocker) => (
+                                        <li key={`${blocker.languageCode}-${blocker.kind}`}>• {blocker.message}</li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    )}
                     <div className="mt-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4">
                         <h4 className="text-sm font-black text-slate-900 dark:text-slate-100">{t.audioUploadTitle}</h4>
                         <p className="mt-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">{t.audioUploadSubtitle}</p>

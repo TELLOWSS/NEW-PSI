@@ -41,10 +41,14 @@ describe('training link token secret boundary', () => {
     it('binds worker authentication proof to the verified worker id', () => {
         process.env.TRAINING_LINK_SECRET = 'test-only-training-secret';
         const expiresAt = Date.now() + 60_000;
-        const token = generateWorkerAuthenticationToken('worker-1', expiresAt);
+        const token = generateWorkerAuthenticationToken('session-1', 'worker-1', expiresAt);
 
-        expect(verifyWorkerAuthenticationToken('worker-1', expiresAt, token)).toEqual({ ok: true });
-        expect(verifyWorkerAuthenticationToken('worker-2', expiresAt, token)).toEqual({
+        expect(verifyWorkerAuthenticationToken('session-1', 'worker-1', expiresAt, token)).toEqual({ ok: true });
+        expect(verifyWorkerAuthenticationToken('session-1', 'worker-2', expiresAt, token)).toEqual({
+            ok: false,
+            reason: 'invalid',
+        });
+        expect(verifyWorkerAuthenticationToken('session-2', 'worker-1', expiresAt, token)).toEqual({
             ok: false,
             reason: 'invalid',
         });

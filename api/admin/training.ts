@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { buildSignedTrainingMobileUrl, resolveLinkTtlMinutes } from '../../lib/server/trainingLinkToken.js';
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
+import { markSchemaCompatibilityFallback } from '../../lib/server/schemaCompatibility.js';
 import {
     assessConstructionTranslation,
     buildConstructionTranslationPrompt,
@@ -8,6 +9,14 @@ import {
     type TrainingLanguageCode,
     type TranslationQualityReport,
 } from '../../utils/constructionTrainingTranslation.js';
+import {
+    assessTrainingReleaseReadiness,
+    embedTrainingReleaseMetadata,
+    parseTrainingReleaseMetadata,
+    parseTrainingTranslationReports,
+    normalizeTrainingStringMap,
+    TRAINING_TRANSLATION_QUALITY_KEY,
+} from '../../utils/trainingReleaseReadiness.js';
 
 const TRAINING_AUDIO_LANGUAGE_CODES = Object.keys(TRAINING_LANGUAGE_LABELS) as TrainingLanguageCode[];
 
@@ -21,6 +30,7 @@ type UploadItem = {
 
 type TrainingAction =
     | 'create'
+    | 'update-targets'
     | 'reissue-link'
     | 'list-sessions'
     | 'list-target-workers'
@@ -111,6 +121,7 @@ async function handleListSessions(res: any) {
         .limit(10);
 
     if (result.error) {
+        markSchemaCompatibilityFallback(res, { area: 'training:list-sessions', reason: 'legacy-column-set' });
         result = await supabase
             .from('training_sessions')
             .select('id, source_text_ko, audio_urls, created_at')
@@ -135,6 +146,7 @@ async function handleListTargetWorkers(res: any) {
         .limit(5000);
 
     if (result.error) {
+        markSchemaCompatibilityFallback(res, { area: 'training:list-target-workers', reason: 'legacy-worker-columns' });
         result = await supabase
             .from('workers')
             .select('id, name, job_field, team_name')
@@ -143,6 +155,7 @@ async function handleListTargetWorkers(res: any) {
     }
 
     if (result.error) {
+        markSchemaCompatibilityFallback(res, { area: 'training:list-target-workers', reason: 'minimal-worker-schema' });
         result = await supabase
             .from('workers')
             .select('id, name')
@@ -501,6 +514,13 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
     const normalizedTargetMode = targetMode === 'attendance_only' ? 'attendance_only' : 'submitted_only';
     const normalizedTargets = normalizeTrainingTargets(targetWorkerIds, targetWorkerNames);
 
+    if (!normalizedTrainingTitle) {
+        return sendJsonError(res, 400, '교육명이 필요합니다.');
+    }
+    if (!normalizedSourceText) {
+        return sendJsonError(res, 400, '교육 원문이 필요합니다.');
+    }
+
     const providedTranslations = pretranslatedTexts && typeof pretranslatedTexts === 'object'
         ? Object.fromEntries(
             Object.entries(pretranslatedTexts as Record<string, unknown>)
@@ -514,7 +534,16 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
         )
         : {};
     let translatedTexts: Record<string, string> = { ...providedTranslations };
-    let translationReports: Record<string, TranslationQualityReport> = {};
+    let translationReports: Record<string, TranslationQualityReport> = Object.fromEntries(
+        Object.entries(providedTranslations).map(([code, translated]) => [
+            code,
+            assessConstructionTranslation(
+                normalizedSourceText,
+                translated,
+                '사전 생성 번역본의 단계 구조와 길이를 자동 대조했습니다.',
+            ),
+        ]),
+    );
     const shouldSkipTranslation = !normalizedSourceText || !env.geminiApiKey;
     const requestedLanguages = Array.isArray(selectedLanguages)
         ? (selectedLanguages as string[]).filter(
@@ -527,14 +556,22 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
     if (!shouldSkipTranslation && missingLanguages.length > 0) {
         const translationResult = await translateParallelSafe(normalizedSourceText, env.geminiApiKey, missingLanguages);
         translatedTexts = { ...translatedTexts, ...translationResult.texts };
-        translationReports = translationResult.reports;
+        translationReports = { ...translationReports, ...translationResult.reports };
     }
     translatedTexts['ko-KR'] = normalizedSourceText;
-    translatedTexts.__quality__ = JSON.stringify(translationReports);
+    translatedTexts[TRAINING_TRANSLATION_QUALITY_KEY] = JSON.stringify(translationReports);
     const requestedLanguageCodes = Array.isArray(selectedLanguages)
         ? (selectedLanguages as string[]).filter((code) => TRAINING_AUDIO_LANGUAGE_SET.has(code))
         : [];
     const failedLanguages = requestedLanguageCodes.filter((code) => code !== 'ko-KR' && !translatedTexts[code]);
+    const releaseReadiness = assessTrainingReleaseReadiness({
+        selectedLanguages: requestedLanguageCodes,
+        sourceTextKo: normalizedSourceText,
+        translatedTexts,
+        audioUrls: {},
+        translationReports,
+    });
+    translatedTexts = embedTrainingReleaseMetadata(translatedTexts, releaseReadiness);
 
     const generatedId = createUuidV4();
     const insertCandidates: Array<Record<string, unknown>> = [
@@ -602,12 +639,14 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
     let linkExpiresAt = 0;
     let ttlMinutes = 0;
 
-    try {
-        const linkResult = buildSignedTrainingMobileUrl(baseUrl, insertedSessionId, resolveLinkTtlMinutes());
-        mobileUrl = linkResult.mobileUrl;
-        linkExpiresAt = linkResult.linkExpiresAt;
-        ttlMinutes = linkResult.ttlMinutes;
-    } catch {
+    if (releaseReadiness.ready) {
+        try {
+            const linkResult = buildSignedTrainingMobileUrl(baseUrl, insertedSessionId, resolveLinkTtlMinutes());
+            mobileUrl = linkResult.mobileUrl;
+            linkExpiresAt = linkResult.linkExpiresAt;
+            ttlMinutes = linkResult.ttlMinutes;
+        } catch {
+        }
     }
 
     return res.status(200).json({
@@ -620,6 +659,8 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
         translatedTexts,
         translationReports,
         failedLanguages,
+        releaseReady: releaseReadiness.ready,
+        releaseBlockers: releaseReadiness.blockers,
         translationSkipped: shouldSkipTranslation,
         trainingTitle: normalizedTrainingTitle,
         trainingCategory: normalizedTrainingCategory,
@@ -638,12 +679,32 @@ async function handleReissue(req: any, res: any, body: Record<string, unknown>) 
     const supabase = getSupabaseClient();
     const sessionQuery = await supabase
         .from('training_sessions')
-        .select('id')
+        .select('id, source_text_ko, audio_urls, translated_texts')
         .eq('id', sessionId)
         .single();
 
     if (sessionQuery.error || !sessionQuery.data?.id) {
         return sendJsonError(res, 404, '세션을 찾을 수 없습니다.');
+    }
+
+    const translatedTexts = normalizeTrainingStringMap((sessionQuery.data as any).translated_texts);
+    const releaseMetadata = parseTrainingReleaseMetadata(translatedTexts);
+    const selectedLanguages = releaseMetadata?.selectedLanguages
+        || Object.keys(translatedTexts).filter((code) => TRAINING_AUDIO_LANGUAGE_SET.has(code));
+    const releaseReadiness = assessTrainingReleaseReadiness({
+        selectedLanguages,
+        sourceTextKo: (sessionQuery.data as any).source_text_ko,
+        translatedTexts,
+        audioUrls: (sessionQuery.data as any).audio_urls,
+        approvedReviewLanguages: releaseMetadata?.approvedReviewLanguages,
+    });
+    if (!releaseReadiness.ready) {
+        return res.status(422).json({
+            ok: false,
+            error: 'TRAINING_RELEASE_NOT_READY',
+            message: '번역 검수와 선택 언어 음성을 모두 준비한 뒤 링크를 발급해 주세요.',
+            releaseBlockers: releaseReadiness.blockers,
+        });
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || req.headers.origin || 'http://localhost:5173';
@@ -673,6 +734,7 @@ async function handleAwarenessStats(res: any, body: Record<string, unknown>) {
         .single();
 
     if (sessionResult.error) {
+        markSchemaCompatibilityFallback(res, { area: 'training:awareness-stats', reason: 'legacy-training-session-columns' });
         const fallbackSessionResult = await supabase
             .from('training_sessions')
             .select('id')
@@ -730,7 +792,37 @@ async function handleAwarenessStats(res: any, body: Record<string, unknown>) {
     });
 }
 
-async function handleUploadAudio(res: any, body: Record<string, unknown>) {
+async function handleUpdateTargets(res: any, body: Record<string, unknown>) {
+    const sessionId = String(body.sessionId || '').trim();
+    if (!sessionId) {
+        return sendJsonError(res, 400, 'sessionId가 필요합니다.');
+    }
+
+    const trainingTitle = String(body.trainingTitle || '').trim();
+    const trainingCategory = body.trainingCategory === 'special_safety' ? 'special_safety' : 'monthly_risk';
+    const targetMode = body.targetMode === 'attendance_only' ? 'attendance_only' : 'submitted_only';
+    const targetWorkerNames = normalizeTrainingTargets(body.targetWorkerIds, body.targetWorkerNames);
+    const supabase = getSupabaseClient();
+    const result = await supabase
+        .from('training_sessions')
+        .update({
+            training_title: trainingTitle || null,
+            training_category: trainingCategory,
+            target_mode: targetMode,
+            target_worker_names: targetWorkerNames,
+        })
+        .eq('id', sessionId)
+        .select('id, training_title, training_category, target_mode, target_worker_names')
+        .single();
+
+    if (result.error) {
+        return sendJsonError(res, 500, formatSupabaseError(result.error));
+    }
+
+    return res.status(200).json({ ok: true, data: result.data });
+}
+
+async function handleUploadAudio(req: any, res: any, body: Record<string, unknown>) {
     const sessionId = String(body.sessionId || '');
     if (!sessionId) {
         return sendJsonError(res, 400, 'sessionId가 필요합니다.');
@@ -741,9 +833,15 @@ async function handleUploadAudio(res: any, body: Record<string, unknown>) {
     const fileEntries = (files && typeof files === 'object') ? Object.entries(files as Record<string, UploadItem>) : [];
 
     const supabase = getSupabaseClient();
-    const audioUrls = Object.fromEntries(
-        TRAINING_AUDIO_LANGUAGE_CODES.map((code) => [code, null])
-    ) as Record<TrainingLanguageCode, string | null>;
+    const sessionResult = await supabase
+        .from('training_sessions')
+        .select('id, source_text_ko, audio_urls, translated_texts')
+        .eq('id', sessionId)
+        .single();
+    if (sessionResult.error || !sessionResult.data?.id) {
+        return sendJsonError(res, 404, '교육 세션을 찾을 수 없습니다.');
+    }
+    const audioUrls = normalizeTrainingStringMap((sessionResult.data as any).audio_urls) as Record<TrainingLanguageCode, string>;
 
     for (const [code, item] of fileEntries) {
         if (!TRAINING_AUDIO_LANGUAGE_SET.has(code)) continue;
@@ -786,11 +884,32 @@ async function handleUploadAudio(res: any, body: Record<string, unknown>) {
         audioUrls[code as TrainingLanguageCode] = `${publicUrl}?v=${Date.now()}`;
     }
 
+    const translatedTexts = normalizeTrainingStringMap((sessionResult.data as any).translated_texts);
+    const releaseMetadata = parseTrainingReleaseMetadata(translatedTexts);
+    const selectedLanguages = releaseMetadata?.selectedLanguages
+        || Object.keys(translatedTexts).filter((code) => TRAINING_AUDIO_LANGUAGE_SET.has(code));
+    const approvedReviewLanguages = Array.from(new Set([
+        ...(releaseMetadata?.approvedReviewLanguages || []),
+        ...(Array.isArray(body.approvedReviewLanguages)
+            ? body.approvedReviewLanguages.map((code) => String(code || '').trim()).filter(Boolean)
+            : []),
+    ]));
+    const releaseReadiness = assessTrainingReleaseReadiness({
+        selectedLanguages,
+        sourceTextKo: (sessionResult.data as any).source_text_ko,
+        translatedTexts,
+        audioUrls,
+        translationReports: parseTrainingTranslationReports(translatedTexts[TRAINING_TRANSLATION_QUALITY_KEY]),
+        approvedReviewLanguages,
+    });
+    const releaseTexts = embedTrainingReleaseMetadata(translatedTexts, releaseReadiness);
+
     const updateRes = await supabase
         .from('training_sessions')
         .update({
             audio_urls: audioUrls,
             original_script: typeof originalScript === 'string' ? originalScript : '',
+            translated_texts: releaseTexts,
         })
         .eq('id', sessionId);
 
@@ -798,8 +917,28 @@ async function handleUploadAudio(res: any, body: Record<string, unknown>) {
         throw new Error(updateRes.error.message);
     }
 
-    const missingLanguages = TRAINING_AUDIO_LANGUAGE_CODES.filter((code) => !audioUrls[code]);
-    return res.status(200).json({ ok: true, sessionId, audioUrls, missingLanguages });
+    const missingLanguages = selectedLanguages.filter((code) => !audioUrls[code]);
+    let mobileUrl = '';
+    let linkExpiresAt = 0;
+    let ttlMinutes = 0;
+    if (releaseReadiness.ready) {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || req.headers.origin || 'http://localhost:5173';
+        const linkResult = buildSignedTrainingMobileUrl(baseUrl, sessionId, resolveLinkTtlMinutes());
+        mobileUrl = linkResult.mobileUrl;
+        linkExpiresAt = linkResult.linkExpiresAt;
+        ttlMinutes = linkResult.ttlMinutes;
+    }
+    return res.status(200).json({
+        ok: true,
+        sessionId,
+        audioUrls,
+        missingLanguages,
+        releaseReady: releaseReadiness.ready,
+        releaseBlockers: releaseReadiness.blockers,
+        mobileUrl,
+        linkExpiresAt,
+        ttlMinutes,
+    });
 }
 
 async function handleDeleteSession(res: any, body: Record<string, unknown>) {
@@ -867,6 +1006,8 @@ export default async function handler(req: any, res: any) {
         switch (action) {
             case 'create':
                 return await handleCreate(req, res, body);
+            case 'update-targets':
+                return await handleUpdateTargets(res, body);
             case 'reissue-link':
                 return await handleReissue(req, res, body);
             case 'list-sessions':
@@ -878,7 +1019,7 @@ export default async function handler(req: any, res: any) {
             case 'awareness-stats':
                 return await handleAwarenessStats(res, body);
             case 'upload-audio':
-                return await handleUploadAudio(res, body);
+                return await handleUploadAudio(req, res, body);
             case 'delete-session':
                 return await handleDeleteSession(res, body);
             default:

@@ -17,21 +17,18 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
 
     return (
         <section className="psi-page-header mb-5">
-            <div className="flex min-w-0 items-start gap-3">
-                <span aria-hidden="true" className="mt-1 h-10 w-1 shrink-0 rounded-full bg-gradient-to-b from-blue-500 to-cyan-400" />
-                <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                        {groupLabel ? (
-                            <span className="psi-status-badge">
-                                {groupLabel}
-                            </span>
-                        ) : null}
-                        <h1 className="psi-page-title">{title}</h1>
-                    </div>
-                    {description ? (
-                        <p className="psi-body-compact mt-1.5 max-w-4xl">{description}</p>
+            <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                    {groupLabel ? (
+                        <span className="psi-status-badge">
+                            {groupLabel}
+                        </span>
                     ) : null}
+                    <h1 className="psi-page-title">{title}</h1>
                 </div>
+                {description ? (
+                    <p className="psi-body-compact mt-1.5 max-w-4xl">{description}</p>
+                ) : null}
             </div>
         </section>
     );

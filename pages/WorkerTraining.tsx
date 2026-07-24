@@ -4,10 +4,18 @@ import { isSupabasePermissionError, supabase } from '../lib/supabaseClient';
 import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import type { TranslationQualityReport } from '../utils/constructionTrainingTranslation';
+import { AuthGateway, type AuthenticatedWorker } from '../components/AuthGateway';
+import { parseTrainingReleaseMetadata } from '../utils/trainingReleaseReadiness';
+import {
+    enqueueTrainingSubmission,
+    flushQueuedTrainingSubmissions,
+    type QueuedTrainingSubmission,
+} from '../utils/trainingSubmissionQueue';
 
 interface WorkerTrainingProps {
     sessionId: string;
     simplifiedMode?: boolean;
+    isKioskMode?: boolean;
 }
 
 type SessionRow = {
@@ -656,11 +664,26 @@ const normalizeMapObject = (input: unknown): Record<string, string | null> => {
 };
 
 const resolveUiLocaleByLangCode = (code: string): UiLocale => {
+    if (code === 'ko-KR') return 'ko';
     if (code === 'vi-VN') return 'vi';
     if (code === 'cmn-CN' || code === 'zh-CN') return 'zh';
     if (code === 'en-US') return 'en';
-    return 'ko';
+    return 'en';
 };
+
+const postTrainingSubmission = async (payload: Record<string, unknown>) => {
+    const response = await fetch('/api/training/submit-signature', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({ ok: false, message: '서버 응답을 확인할 수 없습니다.' }));
+    return { response, data };
+};
+
+const isOfflineSubmissionError = (error: unknown): boolean => (
+    typeof navigator !== 'undefined' && !navigator.onLine
+) || error instanceof TypeError;
 
 const resolveLanguageCandidates = (code: string): string[] => {
     const normalized = String(code || '').trim() || 'en-US';
@@ -668,8 +691,6 @@ const resolveLanguageCandidates = (code: string): string[] => {
     return Array.from(new Set([
         normalized,
         alias,
-        'en-US',
-        'ko-KR',
     ].filter((item): item is string => Boolean(item))));
 };
 
@@ -736,7 +757,11 @@ const MOCK_SESSION_DATA: SessionRow = {
     }
 };
 
-const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMode = false }) => {
+const WorkerTraining: React.FC<WorkerTrainingProps> = ({
+    sessionId,
+    simplifiedMode = false,
+    isKioskMode = false,
+}) => {
     const localActiveSessionId = useMemo(() => {
         try {
             const raw = localStorage.getItem('psi_training_active_qr_state');
@@ -762,10 +787,13 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
 
     const [workerName, setWorkerName] = useState('');
     const [nationality, setNationality] = useState('대한민국');
+    const [authenticatedWorker, setAuthenticatedWorker] = useState<AuthenticatedWorker | null>(null);
     const [selectedLanguageCode, setSelectedLanguageCode] = useState('ko-KR');
     const [message, setMessage] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [queuedSubmissionId, setQueuedSubmissionId] = useState('');
     const [isPlaying, setIsPlaying] = useState(false);
+    const [hasPlayedAudio, setHasPlayedAudio] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [submittedSnapshot, setSubmittedSnapshot] = useState<{ workerName: string; languageCode: string; submittedAt: number } | null>(null);
     const [hasSignature, setHasSignature] = useState(false);
@@ -810,6 +838,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     const linkExpiresAt = Number(linkExpiresAtRaw || 0);
     const isLinkExpired = Number.isFinite(linkExpiresAt) ? Date.now() > linkExpiresAt : false;
     const isLinkMetaMissing = !linkToken || !Number.isFinite(linkExpiresAt) || linkExpiresAt <= 0;
+    const isDemoSession = activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoEnabled;
+    const requiresWorkerAuthentication = isKioskMode && !isDemoSession;
 
     const normalizedAudioMap = useMemo(() => normalizeMapObject(sessionData?.audio_urls), [sessionData]);
     const normalizedTextMap = useMemo(() => normalizeMapObject(sessionData?.translated_texts), [sessionData]);
@@ -820,22 +850,30 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
             return {};
         }
     }, [normalizedTextMap]);
+    const releaseMetadata = useMemo(
+        () => parseTrainingReleaseMetadata(sessionData?.translated_texts),
+        [sessionData?.translated_texts],
+    );
 
     const availableLanguageCodes = useMemo(() => {
-        const fromAudio = Object.keys(normalizedAudioMap).filter((code) => {
-            const value = normalizedAudioMap[code];
-            return typeof value === 'string' && value.trim() && Boolean(LANGUAGE_LABELS[code]);
+        const candidateCodes: string[] = releaseMetadata?.selectedLanguages.length
+            ? releaseMetadata.selectedLanguages
+            : Object.keys(normalizedTextMap);
+        const approvedReviewSet = new Set(releaseMetadata?.approvedReviewLanguages || []);
+        return Array.from(new Set<string>(candidateCodes)).filter((code) => {
+            if (!LANGUAGE_LABELS[code]) return false;
+            const hasText = code === 'ko-KR'
+                ? Boolean(normalizedTextMap[code] || sessionData?.source_text_ko)
+                : Boolean(normalizedTextMap[code]);
+            const hasAudio = Boolean(normalizedAudioMap[code]);
+            const report = translationQualityMap[code];
+            const qualityReady = code === 'ko-KR'
+                || !releaseMetadata
+                || report?.status === 'ready'
+                || approvedReviewSet.has(code);
+            return hasText && hasAudio && qualityReady;
         });
-
-        const fromText = Object.keys(normalizedTextMap).filter((code) => {
-            const value = normalizedTextMap[code];
-            return typeof value === 'string' && value.trim() && Boolean(LANGUAGE_LABELS[code]);
-        });
-
-        const merged = Array.from(new Set([...fromAudio, ...fromText]));
-        if (merged.length > 0) return merged;
-        return ['ko-KR', 'vi-VN', 'en-US', 'cmn-CN', 'km-KH'];
-    }, [normalizedAudioMap, normalizedTextMap]);
+    }, [normalizedAudioMap, normalizedTextMap, releaseMetadata, sessionData?.source_text_ko, translationQualityMap]);
 
     const selectedAudioUrl = useMemo(() => {
         const candidates = resolveLanguageCandidates(effectiveLangKey);
@@ -854,19 +892,12 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
             const value = normalizedTextMap[code];
             if (typeof value === 'string' && value.trim()) return value;
         }
-        return sessionData.source_text_ko || '';
+        return effectiveLangKey === 'ko-KR' ? (sessionData.source_text_ko || '') : '';
     }, [sessionData, normalizedTextMap, effectiveLangKey]);
 
     const isChecklistComplete = checklist.riskReview && checklist.ppeConfirm && checklist.emergencyConfirm;
     const isComprehensionReady = hasReviewedGuidance && isChecklistComplete;
     const completedChecklistCount = Number(checklist.riskReview) + Number(checklist.ppeConfirm) + Number(checklist.emergencyConfirm);
-    const submitReady = isComprehensionReady && hasSignature;
-    const remainingSteps = [
-        !workerName.trim() ? t.nameLabel : null,
-        !hasReviewedGuidance ? statusText.reading : null,
-        !isChecklistComplete ? `${statusText.checklist} ${completedChecklistCount}/3` : null,
-        !hasSignature ? statusText.signature : null,
-    ].filter((item): item is string => Boolean(item));
     const submittedAtLabel = useMemo(() => {
         if (!submittedSnapshot?.submittedAt) return '';
         return new Intl.DateTimeFormat(uiLocale, {
@@ -883,9 +914,28 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     }, [normalizedAudioMap, effectiveLangKey]);
     const textMatchesSelectedLanguage = useMemo(() => {
         const current = normalizedTextMap[effectiveLangKey];
-        return typeof current === 'string' && current.trim().length > 0;
-    }, [normalizedTextMap, effectiveLangKey]);
+        if (typeof current === 'string' && current.trim().length > 0) return true;
+        return effectiveLangKey === 'ko-KR' && Boolean(sessionData?.source_text_ko?.trim());
+    }, [normalizedTextMap, effectiveLangKey, sessionData?.source_text_ko]);
     const selectedTranslationQuality = translationQualityMap[effectiveLangKey];
+    const selectedQualityApproved = effectiveLangKey === 'ko-KR'
+        || !releaseMetadata
+        || selectedTranslationQuality?.status === 'ready'
+        || releaseMetadata.approvedReviewLanguages.includes(effectiveLangKey);
+    const releaseReady = !releaseMetadata || releaseMetadata.status === 'ready';
+    const selectedContentReady = releaseReady
+        && audioMatchesSelectedLanguage
+        && textMatchesSelectedLanguage
+        && selectedQualityApproved;
+    const usesFallbackUiLocale = !['ko-KR', 'en-US', 'vi-VN', 'cmn-CN', 'zh-CN'].includes(effectiveLangKey);
+    const submitReady = isComprehensionReady && hasSignature && selectedContentReady;
+    const remainingSteps = [
+        !workerName.trim() ? t.nameLabel : null,
+        !selectedContentReady ? (uiLocale === 'ko' ? '검수된 모국어 교육자료' : 'Verified native-language training content') : null,
+        !hasReviewedGuidance ? statusText.reading : null,
+        !isChecklistComplete ? `${statusText.checklist} ${completedChecklistCount}/3` : null,
+        !hasSignature ? statusText.signature : null,
+    ].filter((item): item is string => Boolean(item));
     const nativeSummaryLabel = uiLocale === 'vi'
         ? 'Bản tóm tắt một trang bằng tiếng mẹ đẻ'
         : uiLocale === 'zh'
@@ -1118,6 +1168,9 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
 
         const candidateChain = [
             normalizedQueryLang,
+            authenticatedWorker?.nationality
+                ? resolveLanguageCodeByNationality(authenticatedWorker.nationality)
+                : '',
             queryNationalityLang,
             availableLanguageCodes.includes('ko-KR') ? 'ko-KR' : '',
             availableLanguageCodes.includes('en-US') ? 'en-US' : '',
@@ -1127,9 +1180,11 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
 
         const preferred = candidateChain.find((code) => availableLanguageCodes.includes(code)) || candidateChain[0] || 'en-US';
         setSelectedLanguageCode(preferred);
-        setNationality(queryNationality || resolveNationalityByLanguageCode(preferred));
+        if (!authenticatedWorker) {
+            setNationality(queryNationality || resolveNationalityByLanguageCode(preferred));
+        }
         languageInitDoneRef.current = true;
-    }, [sessionData, availableLanguageCodes, searchParams]);
+    }, [authenticatedWorker, sessionData, availableLanguageCodes, searchParams]);
 
     useEffect(() => {
         setHasSessionLoaded(false);
@@ -1254,6 +1309,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
             if (audio.paused) {
                 await audio.play();
                 setIsPlaying(true);
+                setHasPlayedAudio(true);
             } else {
                 audio.pause();
                 setIsPlaying(false);
@@ -1288,10 +1344,18 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
             return;
         }
 
+        if (!isMock && !selectedContentReady) {
+            setMessage(uiLocale === 'ko'
+                ? '선택한 언어의 검수된 번역문과 음성이 준비되지 않아 제출할 수 없습니다.'
+                : 'Verified text and audio are required for the selected language before submission.');
+            languageSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+
         if (!workerName.trim()) {
             setNameWarning(true);
+            setMessage(t.missingNameAlert);
             nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            alert(t.missingNameAlert);
             return;
         }
 
@@ -1299,8 +1363,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
 
         if (!isComprehensionReady) {
             setComprehensionWarning(true);
+            setMessage(t.submitBlockedAlert);
             comprehensionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            alert(t.submitBlockedAlert);
             return;
         }
 
@@ -1308,8 +1372,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
 
         if (!sigRef.current || sigRef.current.isEmpty()) {
             setSignatureWarning(true);
+            setMessage(t.missingSignatureAlert);
             signatureWrapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            alert(t.missingSignatureAlert);
             return;
         }
 
@@ -1345,26 +1409,28 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
             return;
         }
 
-        try {
-            const response = await fetch('/api/training/submit-signature', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sessionId: activeSessionId,
-                    workerName,
-                    nationality,
-                    selectedLanguageCode: effectiveLangKey,
-                    reviewedGuidance: hasReviewedGuidance,
-                    checklist,
-                    selectedAudioUrl: selectedAudioUrl || null,
-                    signatureDataUrl,
-                    linkExpiresAt,
-                    linkToken,
-                }),
-            });
+        const submissionPayload: Record<string, unknown> = {
+            sessionId: activeSessionId,
+            workerId: authenticatedWorker?.workerId,
+            workerName,
+            nationality,
+            selectedLanguageCode: effectiveLangKey,
+            reviewedGuidance: hasReviewedGuidance,
+            audioPlayed: hasPlayedAudio,
+            scrolledToEnd: hasReviewedGuidance,
+            acknowledgedRiskAssessment: isChecklistComplete,
+            checklist,
+            selectedAudioUrl: selectedAudioUrl || null,
+            signatureDataUrl,
+            linkExpiresAt,
+            linkToken,
+            workerAuthExpiresAt: authenticatedWorker?.workerAuthExpiresAt,
+            workerAuthToken: authenticatedWorker?.workerAuthToken,
+        };
 
-            const data = await response.json();
-            if (!response.ok || !data.ok) {
+        try {
+            const { response, data } = await postTrainingSubmission(submissionPayload);
+            if ((!response.ok || !data.ok) && response.status !== 409) {
                 throw new Error(data.message || t.submitFail);
             }
 
@@ -1385,11 +1451,121 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
             setSignatureWarning(false);
             setSubmitted(true);
         } catch (error: any) {
-            setMessage(`${t.errorPrefix}: ${error?.message || t.submitFail}`);
+            if (isOfflineSubmissionError(error)) {
+                try {
+                    const queued = await enqueueTrainingSubmission(submissionPayload);
+                    setQueuedSubmissionId(queued.id);
+                    sigRef.current?.clear();
+                    setHasSignature(false);
+                    setSignatureWarning(false);
+                    setMessage(uiLocale === 'ko'
+                        ? '통신이 끊겨 기기에 안전하게 임시 저장했습니다. 25분 안에 연결되면 자동으로 다시 전송합니다. 이 화면을 유지해 주세요.'
+                        : 'Connection lost. The submission is stored on this device and will retry automatically for 25 minutes. Keep this page open.');
+                } catch (queueError) {
+                    setMessage(`${t.errorPrefix}: ${queueError instanceof Error ? queueError.message : t.submitFail}`);
+                }
+            } else {
+                setMessage(`${t.errorPrefix}: ${error?.message || t.submitFail}`);
+            }
         } finally {
             setSubmitting(false);
         }
     };
+
+    useEffect(() => {
+        let cancelled = false;
+        const retryQueuedSubmissions = async () => {
+            if (!navigator.onLine) return;
+            const summary = await flushQueuedTrainingSubmissions(async (queued: QueuedTrainingSubmission) => {
+                try {
+                    const { response, data } = await postTrainingSubmission(queued.payload);
+                    if (response.ok && data?.ok) return 'accepted';
+                    if (response.status === 409) return 'duplicate';
+                    if ([400, 401, 403, 410, 422].includes(response.status)) return 'expired';
+                    return 'retry';
+                } catch {
+                    return 'retry';
+                }
+            });
+            if (cancelled) return;
+
+            const acceptedCurrent = summary.acceptedItems.find((item) => item.id === queuedSubmissionId);
+            const currentWasResolved = Boolean(queuedSubmissionId)
+                && (Boolean(acceptedCurrent) || (summary.duplicate > 0 && summary.remaining === 0));
+            if (currentWasResolved) {
+                const payload = acceptedCurrent?.payload || {};
+                setQueuedSubmissionId('');
+                setSubmittedSnapshot({
+                    workerName: String(payload.workerName || workerName).trim(),
+                    languageCode: String(payload.selectedLanguageCode || effectiveLangKey),
+                    submittedAt: Date.now(),
+                });
+                setSubmitted(true);
+                setMessage(uiLocale === 'ko'
+                    ? '연결이 복구되어 임시 저장한 교육 확인을 서버에 전송했습니다.'
+                    : 'Connection restored. The saved submission was sent successfully.');
+            } else if (queuedSubmissionId && summary.expired > 0 && summary.remaining === 0) {
+                setQueuedSubmissionId('');
+                setMessage(uiLocale === 'ko'
+                    ? '재전송 가능 시간이 지나 임시 저장이 삭제되었습니다. 새 교육 링크로 본인 확인 후 다시 제출해 주세요.'
+                    : 'The retry window expired. Please verify again with a new training link and resubmit.');
+            }
+        };
+
+        void retryQueuedSubmissions();
+        const intervalId = window.setInterval(() => void retryQueuedSubmissions(), 15_000);
+        window.addEventListener('online', retryQueuedSubmissions);
+        return () => {
+            cancelled = true;
+            window.clearInterval(intervalId);
+            window.removeEventListener('online', retryQueuedSubmissions);
+        };
+    }, [effectiveLangKey, queuedSubmissionId, uiLocale, workerName]);
+
+    const renderLinkRecovery = (recoveryMessage: string) => (
+        <div role="alert" className="max-w-2xl rounded-2xl border border-rose-200 bg-white p-6 text-rose-800 shadow-sm">
+            <h2 className="text-lg font-black">교육 링크를 다시 확인해 주세요</h2>
+            <p className="mt-2 text-sm font-bold">{recoveryMessage}</p>
+            <p className="mt-2 text-xs font-semibold text-slate-600">현장 관리자에게 새 QR 링크를 요청한 뒤 다시 열거나, 통신이 불안정했다면 현재 링크를 다시 불러오세요.</p>
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <button type="button" onClick={() => window.location.reload()} className="min-h-[44px] rounded-xl bg-indigo-600 px-4 py-3 text-sm font-black text-white hover:bg-indigo-700">
+                    다시 불러오기
+                </button>
+                <button type="button" onClick={() => window.location.assign('/')} className="min-h-[44px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-100">
+                    시작 화면으로
+                </button>
+            </div>
+        </div>
+    );
+
+    if (requiresWorkerAuthentication && isLinkMetaMissing) {
+        return renderLinkRecovery(t.linkInvalid);
+    }
+
+    if (requiresWorkerAuthentication && isLinkExpired) {
+        return renderLinkRecovery(t.linkExpired);
+    }
+
+    if (requiresWorkerAuthentication && !authenticatedWorker) {
+        return (
+            <div className="max-w-2xl">
+                <AuthGateway
+                    sessionId={activeSessionId}
+                    linkToken={linkToken}
+                    linkExpiresAt={linkExpiresAt}
+                    onAuthenticated={(worker) => {
+                        setAuthenticatedWorker(worker);
+                        setWorkerName(worker.name);
+                        setNationality(worker.nationality || '대한민국');
+                        setSelectedLanguageCode(resolveLanguageCodeByNationality(worker.nationality));
+                        setLoadRequestId((previous) => previous + 1);
+                    }}
+                    title="교육 대상자 본인 확인"
+                    subtitle="교육 기록을 정확한 근로자와 연결하기 위해 등록된 정보로 본인을 확인해 주세요."
+                />
+            </div>
+        );
+    }
 
     if (!hasSessionLoaded) {
         return (
@@ -1422,15 +1598,24 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                 : '未找到培训资料，请联系管理员确认培训链接。';
 
     if (!sessionData) {
-        return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{noTrainingDataMessage}</div>;
+        return renderLinkRecovery(noTrainingDataMessage);
     }
 
     if (!(activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoEnabled) && isLinkMetaMissing) {
-        return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{t.linkInvalid}</div>;
+        return renderLinkRecovery(t.linkInvalid);
     }
 
     if (!(activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoEnabled) && isLinkExpired) {
-        return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{t.linkExpired}</div>;
+        return renderLinkRecovery(t.linkExpired);
+    }
+
+    if (!(activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoEnabled) && releaseMetadata?.status === 'draft') {
+        return (
+            <div role="alert" className="bg-white p-6 rounded-2xl border border-amber-200 text-amber-900 font-bold max-w-2xl">
+                <h2 className="text-lg font-black">교육자료 준비 중</h2>
+                <p className="mt-2 text-sm">번역 검수와 음성 확인이 아직 끝나지 않아 이 교육은 배포되지 않았습니다. 관리자에게 새 QR 링크를 요청해 주세요.</p>
+            </div>
+        );
     }
 
     const nextActionLabel = !hasReviewedGuidance
@@ -1502,8 +1687,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
 
     if (submitted) {
         return (
-            <div className="space-y-6 max-w-2xl pb-10">
-                <div className="bg-white p-6 rounded-2xl border border-emerald-200 shadow-sm">
+            <div lang={effectiveLangKey} className="psi-worker-training psi-worker-training--complete space-y-6 max-w-2xl pb-10">
+                <div className="psi-worker-training-card bg-white p-6 rounded-2xl border border-emerald-200 shadow-sm">
                     <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 shadow-sm">
                         <svg className="h-10 w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
@@ -1557,8 +1742,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     }
 
     return (
-        <div className="space-y-6 max-w-2xl pb-32">
-            <div className="sm:hidden rounded-2xl border border-slate-800 bg-slate-950 px-4 py-4 text-white">
+        <div lang={effectiveLangKey} className="psi-worker-training space-y-6 max-w-2xl pb-32">
+            <div className="psi-worker-training-progress sm:hidden rounded-2xl border border-slate-800 bg-slate-950 px-4 py-4 text-white">
                 <div className="flex items-center justify-between">
                     <div>
                         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-300">위험인지 진단</p>
@@ -1611,14 +1796,14 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                     <button
                         type="button"
                         onClick={() => void handleSubmit()}
-                        disabled={submitting || submitted || !submitReady}
+                        disabled={submitting || submitted || Boolean(queuedSubmissionId) || !submitReady}
                         className="flex-1 rounded-xl bg-slate-700 px-3 py-2 text-xs font-black text-slate-100 disabled:opacity-50"
                     >
                         {t.submit}
                     </button>
                 </div>
             </div>
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="psi-worker-training-card bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 {sessionData.case_id && (
                     <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3">
                         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-violet-700">보호사건 연결 교육</p>
@@ -1634,7 +1819,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                     </p>
                 )}
 
-                <div className="mt-4 md:hidden sticky top-2 z-20 rounded-2xl border border-indigo-200 bg-white/95 backdrop-blur px-3 py-3 shadow-sm">
+                <div className="psi-worker-training-secondary-progress mt-4 md:hidden sticky top-2 z-20 rounded-2xl border border-indigo-200 bg-white/95 backdrop-blur px-3 py-3 shadow-sm">
                     <div className="flex items-center justify-between gap-3">
                         <div>
                             <p className="text-[10px] font-black uppercase tracking-[0.12em] text-indigo-700">4) 위험인지 진단 진행</p>
@@ -1651,7 +1836,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                     </div>
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4">
+                <div className="psi-worker-training-progress-summary mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4">
                     <p className="text-[11px] font-black uppercase tracking-[0.14em] text-indigo-700">9) 수기 데이터 입력 진행</p>
                     <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
                         <div className="rounded-xl border border-white bg-white px-3 py-2">
@@ -1674,7 +1859,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                     <p className="mt-2 text-[11px] font-bold text-indigo-700">완료 단계 {inputProgressCount}/4 · 다음 동작: {nextActionButtonLabel}</p>
                 </div>
 
-                <div className="mt-4 md:hidden sticky top-2 z-20 rounded-2xl border border-indigo-200 bg-white/95 backdrop-blur px-4 py-3 shadow-sm">
+                <div className="psi-worker-training-secondary-progress mt-4 md:hidden sticky top-2 z-20 rounded-2xl border border-indigo-200 bg-white/95 backdrop-blur px-4 py-3 shadow-sm">
                     <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-700">4) 위험인지 진단 · 빠른 진행</p>
                     <p className="mt-1 text-sm font-black text-slate-900">완료 단계 {inputProgressCount}/4 · 체크 {completedChecklistCount}/3</p>
                     <p className="mt-1 text-[11px] font-bold text-slate-600">다음 동작: {nextActionLabel}</p>
@@ -1759,15 +1944,20 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                     <input
                         ref={nameInputRef}
                         value={workerName}
+                        readOnly={Boolean(authenticatedWorker)}
+                        aria-readonly={Boolean(authenticatedWorker)}
                         onChange={(e) => {
                             setWorkerName(e.target.value);
                             if (e.target.value.trim()) {
                                 setNameWarning(false);
                             }
                         }}
-                        className={`w-full p-4 rounded-2xl bg-slate-50 font-bold text-base transition-all ${nameWarning ? 'border-rose-300 ring-4 ring-rose-100' : 'border-slate-200'} border`}
+                        className={`w-full p-4 rounded-2xl bg-slate-50 font-bold text-base transition-all ${nameWarning ? 'border-rose-300 ring-4 ring-rose-100' : 'border-slate-200'} border ${authenticatedWorker ? 'cursor-not-allowed text-slate-700' : ''}`}
                         placeholder={t.namePlaceholder}
                     />
+                    {authenticatedWorker && (
+                        <p className="mt-2 text-[11px] font-black text-emerald-700">명부에서 확인된 근로자 정보입니다.</p>
+                    )}
                     {nameWarning && (
                         <p className="mt-2 text-[11px] font-black text-rose-600">{t.missingNameAlert}</p>
                     )}
@@ -1783,7 +1973,9 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                                     type="button"
                                     onClick={() => {
                                         setSelectedLanguageCode(code);
-                                        setNationality(resolveNationalityByLanguageCode(code));
+                                        if (!authenticatedWorker) {
+                                            setNationality(resolveNationalityByLanguageCode(code));
+                                        }
                                     }}
                                     className={`relative min-h-[92px] px-3 py-3 rounded-2xl text-left border transition-all shadow-sm ${effectiveLangKey === code ? 'bg-indigo-600 text-white border-indigo-600 scale-[1.02] ring-4 ring-indigo-100' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
                                 >
@@ -1801,12 +1993,13 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                     ) : (
                         <select
                             value={nationality}
+                            disabled={Boolean(authenticatedWorker)}
                             onChange={(e) => {
                                 const nextNationality = e.target.value;
                                 setNationality(nextNationality);
                                 setSelectedLanguageCode(resolveLanguageCodeByNationality(nextNationality));
                             }}
-                            className="w-full p-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold text-base"
+                            className="w-full p-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold text-base disabled:cursor-not-allowed disabled:text-slate-700"
                         >
                             {NATIONALITY_OPTIONS.map((option) => (
                                 <option key={option.value} value={option.value}>{option.labels[uiLocale]}</option>
@@ -1817,6 +2010,18 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                         {t.autoLangLabel}: <span className="text-slate-700">{LANGUAGE_LABELS[effectiveLangKey] || 'English'} ({effectiveLangKey})</span>
                     </p>
                     {!simplifiedMode && <p className="mt-1 text-[11px] font-bold text-slate-500">{t.nationalityHint}</p>}
+                    {usesFallbackUiLocale && (
+                        <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-3 text-[11px] font-bold text-blue-900">
+                            The buttons and screen guidance are shown in English. The verified training text and audio remain in {LANGUAGE_LABELS[effectiveLangKey] || effectiveLangKey}.
+                        </div>
+                    )}
+                    {!selectedContentReady && (
+                        <div role="alert" className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 text-[11px] font-bold text-rose-900">
+                            {uiLocale === 'ko'
+                                ? '선택한 언어의 검수된 번역문과 음성이 모두 준비되지 않아 교육 확인·서명을 진행할 수 없습니다. 관리자에게 해당 언어 자료 준비를 요청해 주세요.'
+                                : 'Verified text and audio are not both available for this language. Submission is blocked; please ask the supervisor to prepare the language package.'}
+                        </div>
+                    )}
 
                     <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                         <div className="flex items-center justify-between gap-2">
@@ -2078,7 +2283,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                 {message && <p className="mt-3 text-sm font-bold text-slate-700">{message}</p>}
             </div>
 
-            <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur-md shadow-[0_-8px_30px_rgba(15,23,42,0.12)]">
+            <div className="psi-worker-training-bottom-action fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur-md shadow-[0_-8px_30px_rgba(15,23,42,0.12)]">
                 <div className="max-w-2xl mx-auto px-4 py-3">
                     <div className="flex items-center justify-between gap-3 mb-2">
                         <div>
@@ -2094,10 +2299,14 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                     </div>
                     <button
                         onClick={handleSubmit}
-                        disabled={submitting || submitted}
+                        disabled={submitting || submitted || Boolean(queuedSubmissionId)}
                         className={`w-full py-4 rounded-2xl text-white font-black text-lg shadow-xl disabled:opacity-60 disabled:cursor-not-allowed transition-all ${submitReady ? 'bg-indigo-600 hover:bg-indigo-700 animate-pulse' : 'bg-amber-500 hover:bg-amber-600'}`}
                     >
-                        {submitted ? t.alreadySubmitted : (submitting ? t.submitting : `${t.submit} · ${submitReady ? ux.submitReadyCta : ux.submitBlockedCta}`)}
+                        {submitted
+                            ? t.alreadySubmitted
+                            : queuedSubmissionId
+                                ? (uiLocale === 'ko' ? '연결 복구 후 자동 재전송 대기 중' : 'Waiting to retry when online')
+                                : (submitting ? t.submitting : `${t.submit} · ${submitReady ? ux.submitReadyCta : ux.submitBlockedCta}`)}
                     </button>
                 </div>
             </div>

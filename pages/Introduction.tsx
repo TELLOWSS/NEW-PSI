@@ -73,7 +73,7 @@ const UPGRADE_PLAN_DEFAULT_ITEMS: UpgradePlanItem[] = [
     {
         id: 'intro-mockup-layout',
         phase: '검증',
-        title: '목업형 소개 레이아웃 정합성 확인',
+        title: '소개 화면 구성 확인',
         summary: '밝은 보드형 구성, 모듈 카드, 정보 계층이 실제 소개 화면에 반영되었는지 점검',
         page: 'introduction',
         status: 'done',
@@ -1046,7 +1046,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                             <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
                                 <div>
                                     <div className="inline-flex items-center rounded-full bg-indigo-600 px-3 py-1 text-[10px] font-black text-white">실제 프로그램 기능 연결</div>
-                                    <p className="mt-1.5 text-[10px] font-bold text-slate-500 break-keep">아래 카드는 이미지 목업이 아니라 현재 프로그램의 실제 메뉴와 직접 연결됩니다.</p>
+                                    <p className="mt-1.5 text-[10px] font-bold text-slate-500 break-keep">아래 카드는 현재 프로그램의 실제 메뉴와 직접 연결됩니다.</p>
                                 </div>
                                 <p className="text-[10px] font-bold text-slate-500 break-keep">수기 기록 → OCR 분석 → 공식 리포트 → 교육자료 → 추적관리</p>
                             </div>
@@ -1404,7 +1404,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                         <div>
                             <p className="text-[11px] font-black tracking-[0.16em] text-indigo-600">PROGRAM UPGRADE BOARD</p>
                             <h3 className="mt-1 text-lg font-black text-slate-900">완성 검증 기반 다음 구현 계획</h3>
-                            <p className="mt-1 text-sm font-semibold text-slate-600">목업 반영 상태를 확인하고, 다음 구현 항목을 체크하면서 클리어할 수 있습니다.</p>
+                            <p className="mt-1 text-sm font-semibold text-slate-600">주요 기능의 반영 상태와 다음 확인 항목을 한곳에서 점검할 수 있습니다.</p>
                         </div>
                         <div className="grid grid-cols-2 gap-1.5 text-[10px] font-black sm:grid-cols-4">
                             <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-700">완료 {upgradePlanSummary.done}</span>

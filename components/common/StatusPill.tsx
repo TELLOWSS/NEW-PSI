@@ -1,4 +1,5 @@
 import React from 'react';
+import { Badge } from './Badge';
 
 type StatusVariant = 'normal' | 'warning' | 'critical' | 'offline';
 type StatusSize = 'sm' | 'md';
@@ -38,13 +39,13 @@ export const StatusPill: React.FC<StatusPillProps> = ({
     const text = label || variantLabelMap[variant];
 
     return (
-        <span
-            className={`inline-flex items-center rounded-full border font-bold tracking-wide ${variantClassMap[variant]} ${sizeClassMap[size]} ${className}`}
-            aria-label={`운영 상태: ${text}`}
+        <Badge
+            className={`font-bold tracking-wide ${variantClassMap[variant]} ${sizeClassMap[size]} ${className}`}
+            ariaLabel={`운영 상태: ${text}`}
             title={`운영 상태: ${text}`}
+            showDot
         >
-            <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
             {text}
-        </span>
+        </Badge>
     );
 };

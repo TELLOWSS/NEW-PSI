@@ -11,6 +11,7 @@ const MANAGER_RISK_ENTRY_PAGE: Page = 'survey-intelligence';
 const DEFAULT_SIDEBAR_ORDER: Page[] = [
     'dashboard',
     'ocr-analysis',
+    'safety-compliance-hub',
     'education-return',
     'monthly-guidance-report',
     'settings',
@@ -23,7 +24,7 @@ const DEFAULT_SIDEBAR_ORDER: Page[] = [
     'predictive-analysis',
     'safety-behavior-management',
     'performance-analysis',
-    'ppt-pdf-one-page-summary',
+    'feedback',
 ];
 
 const ALL_PAGES = new Set<Page>(DEFAULT_SIDEBAR_ORDER);
@@ -37,7 +38,6 @@ const DEFAULT_HIDDEN_SIDEBAR_PAGES: Page[] = [
     'predictive-analysis',
     'safety-behavior-management',
     'performance-analysis',
-    'ppt-pdf-one-page-summary',
 ];
 
 type Direction = 'up' | 'down';

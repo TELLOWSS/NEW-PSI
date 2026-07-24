@@ -1,4 +1,5 @@
 import React from 'react';
+import { PanelFrame } from './PanelFrame';
 
 interface SectionCardProps {
     title: string;
@@ -18,18 +19,19 @@ export const SectionCard: React.FC<SectionCardProps> = ({
     className = '',
 }) => {
     return (
-        <section
+        <PanelFrame
+            as="section"
+            ariaLabel={title}
             className={`psi-industrial-panel ${compact ? 'p-4' : 'p-5 sm:p-6'} ${className}`}
-            aria-label={title}
-        >
-            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            header={<div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <h3 className="text-base font-extrabold tracking-tight text-slate-900 dark:text-slate-50 sm:text-lg">{title}</h3>
                     {subtitle ? <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">{subtitle}</p> : null}
                 </div>
                 {action ? <div className="shrink-0">{action}</div> : null}
-            </div>
-            <div>{children}</div>
-        </section>
+            </div>}
+        >
+            {children}
+        </PanelFrame>
     );
 };

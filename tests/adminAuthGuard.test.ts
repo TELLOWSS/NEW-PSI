@@ -39,14 +39,14 @@ describe('adminAuthGuard', () => {
         expect(isValidAdminAuthRequest({ headers: { cookie: `${cookie}tampered` } })).toBe(false);
     });
 
-    it('allows bypass when environment explicitly permits it', () => {
+    it('never allows bypass flags in production', () => {
         process.env.NODE_ENV = 'production';
         process.env.ALLOW_ADMIN_BYPASS = 'true';
-        expect(isBypassAllowed()).toBe(true);
+        expect(isBypassAllowed()).toBe(false);
 
         process.env.ALLOW_ADMIN_BYPASS = 'false';
         process.env.VITE_ALLOW_ADMIN_BYPASS = 'true';
-        expect(isBypassAllowed()).toBe(true);
+        expect(isBypassAllowed()).toBe(false);
     });
 
     it('allows bypass in development mode regardless of bypass env flags', () => {

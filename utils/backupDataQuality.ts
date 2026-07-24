@@ -3,7 +3,8 @@ import { analyzeWorkerEvidenceReadiness, getWorkerIdentityKey, getWorkerTracking
 
 export const PSI_BACKUP_SCHEMA_VERSION = 'psi-backup/v2';
 export const BACKUP_LARGE_FILE_WARNING_BYTES = 50 * 1024 * 1024;
-export const BACKUP_HARD_FILE_LIMIT_BYTES = 500 * 1024 * 1024;
+export const BACKUP_STREAMING_RECOVERY_THRESHOLD_BYTES = 300 * 1024 * 1024;
+export const BACKUP_HARD_FILE_LIMIT_BYTES = 1536 * 1024 * 1024;
 
 const REQUIRED_STRING_FIELDS = ['id', 'name', 'jobField', 'date', 'nationality', 'safetyLevel'] as const;
 const REQUIRED_ARRAY_FIELDS = ['strengths', 'weakAreas', 'suggestions'] as const;

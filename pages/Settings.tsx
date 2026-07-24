@@ -36,43 +36,16 @@ import {
     sanitizeCompetencyWeights,
 } from '../utils/competencyWeights';
 import { getSafetyLevelDisplayLabel } from '../utils/safetyLevelUtils';
+import {
+    CURRENT_SITE_TRAINING_LANGUAGE_CODES as CURRENT_SITE_LANGUAGE_SET,
+    TRAINING_LANGUAGE_OPTIONS as SHARED_TRAINING_LANGUAGE_OPTIONS,
+} from '../utils/constructionTrainingTranslation';
+import styles from './Settings.module.css';
 
-const TRAINING_LANGUAGE_OPTIONS = [
-    { code: 'ko-KR', label: '한국어 (ko-KR)' },
-    { code: 'en-US', label: '영어 (en-US)' },
-    { code: 'vi-VN', label: '베트남어 (vi-VN)' },
-    { code: 'cmn-CN', label: '중국어 (cmn-CN)' },
-    { code: 'th-TH', label: '태국어 (th-TH)' },
-    { code: 'id-ID', label: '인도네시아어 (id-ID)' },
-    { code: 'ms-MY', label: '말레이시아어 (ms-MY)' },
-    { code: 'uz-UZ', label: '우즈베크어 (uz-UZ)' },
-    { code: 'mn-MN', label: '몽골어 (mn-MN)' },
-    { code: 'km-KH', label: '크메르어 (km-KH)' },
-    { code: 'ru-RU', label: '러시아어 (ru-RU)' },
-    { code: 'kk-KZ', label: '카자흐어 (kk-KZ)' },
-    { code: 'ne-NP', label: '네팔어 (ne-NP)' },
-    { code: 'my-MM', label: '미얀마어 (my-MM)' },
-    { code: 'fil-PH', label: '필리핀어 (fil-PH)' },
-    { code: 'hi-IN', label: '힌디어 (hi-IN)' },
-    { code: 'bn-BD', label: '벵골어 (bn-BD)' },
-    { code: 'ur-PK', label: '우르두어 (ur-PK)' },
-    { code: 'si-LK', label: '싱할라어 (si-LK)' },
-] as const;
-
-const CURRENT_SITE_LANGUAGE_SET = [
-    'ko-KR',
-    'vi-VN',
-    'cmn-CN',
-    'mn-MN',
-    'id-ID',
-    'ms-MY',
-    'ru-RU',
-    'kk-KZ',
-    'uz-UZ',
-    'th-TH',
-    'km-KH',
-    'my-MM',
-] as const;
+const TRAINING_LANGUAGE_OPTIONS = SHARED_TRAINING_LANGUAGE_OPTIONS.map(({ code, label }) => ({
+    code,
+    label: `${label.ko} (${code})`,
+}));
 
 const VALID_TRAINING_LANGUAGE_CODES = new Set(TRAINING_LANGUAGE_OPTIONS.map((item) => item.code));
 const isValidTrainingLanguageCode = (code: string): code is (typeof TRAINING_LANGUAGE_OPTIONS)[number]['code'] => VALID_TRAINING_LANGUAGE_CODES.has(code as (typeof TRAINING_LANGUAGE_OPTIONS)[number]['code']);
@@ -97,6 +70,16 @@ const GUIDE_COPY_WINNER_LOCK_KEY = 'psi_settings_guide_copy_winner_v1';
 const GUIDE_COPY_OBSERVE_MS = 24 * 60 * 60 * 1000;
 const GUIDE_COPY_MIN_EVENTS = 8;
 const GUIDE_COPY_MIN_GAP = 2;
+const SETTINGS_SECTION_LINKS = [
+    { id: 'settings-display', label: '화면' },
+    { id: 'settings-core', label: '분석·현장' },
+    { id: 'settings-policy', label: '승인·점수' },
+    { id: 'settings-operations', label: '배치·연동' },
+    { id: 'settings-languages', label: '교육 언어' },
+] as const;
+const SETTINGS_NAV_SCROLL_OFFSET_PX = 148;
+
+type SettingsSectionId = (typeof SETTINGS_SECTION_LINKS)[number]['id'];
 
 type GuideCopyVariant = 'A' | 'B';
 type GuideCopyWinnerLock = {
@@ -263,97 +246,52 @@ interface SettingsProps {
     workerRecords?: WorkerRecord[];
 }
 
-// [Guide Component] CSS-based Infographics for Beginners
 const SettingsGuide: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     return (
-        <div className="bg-white rounded-[30px] p-8 md:p-10 shadow-2xl border border-indigo-100 mb-10 relative animate-fade-in-up overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400"></div>
-            <button onClick={onClose} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors">
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        <section className={`${styles.guide} animate-fade-in-up`} aria-labelledby="settings-guide-title">
+            <button type="button" onClick={onClose} className={styles.guideClose} aria-label="설정 가이드 닫기">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
             </button>
 
-            <div className="text-center mb-10">
-                <span className="bg-indigo-100 text-indigo-600 px-3 py-1 rounded-full text-xs font-black tracking-widest mb-3 inline-block">처음 설정하는 분을 위한 안내</span>
-                <h3 className="text-3xl font-black text-slate-900">3단계로 끝내는 시스템 설정</h3>
-                <p className="text-slate-500 mt-2 font-medium">복잡해 보이지만 아주 간단합니다. 아래 그림을 따라 순서대로 진행해보세요.</p>
+            <div className={styles.guideHeader}>
+                <p className={styles.sectionEyebrow}>처음 설정하는 분을 위한 안내</p>
+                <h3 id="settings-guide-title" className="mt-1 text-xl font-black text-slate-900 dark:text-slate-100">3단계로 끝내는 시스템 설정</h3>
+                <p className="mt-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-400">
+                    연결 정보, 현장 정보, 공종 순서로 입력한 뒤 마지막에 저장·적용하면 됩니다.
+                </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-                {/* Connecting Line (Desktop) */}
-                <div className="hidden md:block absolute top-12 left-[16%] right-[16%] h-1 bg-slate-100 -z-10"></div>
-
-                {/* Step 1: API Key */}
-                <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-lg hover:border-indigo-200 transition-all group text-center relative">
-                    <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center text-xl font-black mx-auto mb-4 shadow-lg shadow-indigo-200 group-hover:scale-110 transition-transform">1</div>
-                    <h4 className="text-lg font-bold text-slate-800 mb-2">AI 두뇌 연결하기</h4>
-                    <p className="text-xs text-slate-500 mb-6 leading-relaxed">
-                        Google의 AI(Gemini)를 사용하려면<br/>
-                        <span className="text-indigo-600 font-bold">'분석 서비스 연결키(API 키)'</span>가 필요합니다.
+            <div className={styles.guideSteps}>
+                <article className={styles.guideStep}>
+                    <span className={styles.guideStepNumber}>1</span>
+                    <h4 className="mt-4 text-base font-black text-slate-900 dark:text-slate-100">분석 서비스 연결</h4>
+                    <p className="mt-2 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-400">
+                        Google Gemini를 사용하려면 <strong className="text-slate-900 dark:text-slate-100">분석 서비스 연결키(API 키)</strong>가 필요합니다.
                     </p>
-                    
-                    {/* Visual: Key -> Cloud */}
-                    <div className="h-24 bg-slate-50 rounded-2xl flex items-center justify-center gap-4 border border-slate-100 mb-4 px-4">
-                        <div className="flex flex-col items-center">
-                            <div className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center text-white shadow-sm">🔑</div>
-                            <span className="text-[9px] font-bold text-slate-400 mt-1">연결키 발급</span>
-                        </div>
-                        <div className="flex-1 h-1 bg-slate-200 rounded-full relative overflow-hidden">
-                            <div className="absolute top-0 left-0 h-full w-1/2 bg-indigo-400 animate-[shimmer_1s_infinite]"></div>
-                        </div>
-                        <div className="flex flex-col items-center">
-                            <div className="w-10 h-10 bg-white border-2 border-indigo-100 rounded-full flex items-center justify-center text-xl shadow-sm">🧠</div>
-                            <span className="text-[9px] font-bold text-slate-400 mt-1">PSI 시스템</span>
-                        </div>
-                    </div>
-                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="block w-full py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-colors">
-                        Google에서 키 발급받기 →
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="mt-4 inline-flex min-h-[40px] items-center rounded-lg border border-sky-200 bg-white px-3 text-xs font-black text-sky-700 hover:bg-sky-50">
+                        Google에서 키 발급받기
                     </a>
-                </div>
+                </article>
 
-                {/* Step 2: Site Info */}
-                <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-lg hover:border-indigo-200 transition-all group text-center">
-                    <div className="w-12 h-12 bg-white border-2 border-slate-200 text-slate-400 rounded-2xl flex items-center justify-center text-xl font-black mx-auto mb-4 group-hover:border-indigo-400 group-hover:text-indigo-500 transition-colors">2</div>
-                    <h4 className="text-lg font-bold text-slate-800 mb-2">현장 명찰 만들기</h4>
-                    <p className="text-xs text-slate-500 mb-6 leading-relaxed">
-                        입력하신 현장명과 관리자 이름은<br/>
-                        <span className="text-indigo-600 font-bold">모든 리포트의 헤더와 인증서</span>에 인쇄됩니다.
+                <article className={styles.guideStep}>
+                    <span className={styles.guideStepNumber}>2</span>
+                    <h4 className="mt-4 text-base font-black text-slate-900 dark:text-slate-100">현장 정보 입력</h4>
+                    <p className="mt-2 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-400">
+                        현장명과 관리자 이름은 모든 리포트의 헤더와 인증서에 반영됩니다. 실제 표기와 같은지 확인하세요.
                     </p>
+                </article>
 
-                    {/* Visual: Input -> Report Header */}
-                    <div className="h-24 bg-slate-50 rounded-2xl flex flex-col items-center justify-center border border-slate-100 mb-4 p-3 relative overflow-hidden">
-                        <div className="w-full bg-white border border-slate-200 p-2 rounded-lg shadow-sm mb-2 scale-90 origin-bottom">
-                            <div className="h-2 w-1/3 bg-slate-200 rounded mb-1"></div>
-                            <div className="h-1 w-1/2 bg-slate-100 rounded"></div>
-                        </div>
-                        <div className="text-indigo-500">▼</div>
-                        <div className="w-full bg-white border border-slate-200 p-2 rounded-lg shadow-md scale-100 z-10 flex justify-between items-center">
-                            <div className="text-[8px] font-bold text-slate-800">OO건설 리포트</div>
-                            <div className="text-[6px] text-slate-400">Manager: 홍길동</div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Step 3: Job Fields */}
-                <div className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-lg hover:border-indigo-200 transition-all group text-center">
-                    <div className="w-12 h-12 bg-white border-2 border-slate-200 text-slate-400 rounded-2xl flex items-center justify-center text-xl font-black mx-auto mb-4 group-hover:border-indigo-400 group-hover:text-indigo-500 transition-colors">3</div>
-                    <h4 className="text-lg font-bold text-slate-800 mb-2">우리 팀 등록하기</h4>
-                    <p className="text-xs text-slate-500 mb-6 leading-relaxed">
-                        현장에 존재하는 공종들을 쉼표(,)로 구분해 적으면<br/>
-                        <span className="text-indigo-600 font-bold">선택 메뉴(Dropdown)</span>가 자동으로 생성됩니다.
+                <article className={styles.guideStep}>
+                    <span className={styles.guideStepNumber}>3</span>
+                    <h4 className="mt-4 text-base font-black text-slate-900 dark:text-slate-100">공종 및 팀 등록</h4>
+                    <p className="mt-2 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-400">
+                        현장의 공종을 쉼표로 구분해 입력하면 작업 화면의 선택 목록으로 자동 반영됩니다.
                     </p>
-
-                    {/* Visual: Text -> Dropdown */}
-                    <div className="h-24 bg-slate-50 rounded-2xl flex items-center justify-center gap-2 border border-slate-100 mb-4 px-2">
-                        <div className="bg-white px-2 py-1 rounded border border-slate-200 text-[8px] text-slate-400">철근, 타설, 전기</div>
-                        <div className="text-indigo-400">→</div>
-                        <div className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg shadow-md text-[10px] font-bold flex items-center gap-1">
-                            철근
-                            <svg className="w-2 h-2 text-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg>
-                        </div>
-                    </div>
-                </div>
+                </article>
             </div>
-        </div>
+        </section>
     );
 };
 
@@ -403,6 +341,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     });
     const [themeMode, setThemeMode] = useState<ThemeMode>(() => getStoredTheme());
     const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() => getResolvedTheme(getStoredTheme()));
+    const [activeSettingsSection, setActiveSettingsSection] = useState<SettingsSectionId>('settings-display');
     const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1280));
     const [isTouchPointer, setIsTouchPointer] = useState<boolean>(() => (typeof window !== 'undefined' ? window.matchMedia?.('(hover: none) and (pointer: coarse)').matches ?? false : false));
     const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(() => (typeof window !== 'undefined' ? window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false : false));
@@ -658,6 +597,69 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             } else {
                 pointerMedia.removeListener(pointerHandler);
                 motionMedia.removeListener(motionHandler);
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const sectionIds = SETTINGS_SECTION_LINKS.map((item) => item.id);
+        const mainContent = document.getElementById('psi-main-content');
+        let animationFrameId: number | null = null;
+
+        const updateActiveSectionFromScroll = () => {
+            animationFrameId = null;
+            let nextSection: SettingsSectionId = sectionIds[0];
+            const mainContentTop = mainContent?.getBoundingClientRect().top ?? 0;
+            const activationLine = mainContentTop + SETTINGS_NAV_SCROLL_OFFSET_PX + 1;
+
+            sectionIds.forEach((sectionId) => {
+                const section = document.getElementById(sectionId);
+                if (section && section.getBoundingClientRect().top <= activationLine) {
+                    nextSection = sectionId;
+                }
+            });
+
+            setActiveSettingsSection((current) => current === nextSection ? current : nextSection);
+        };
+
+        const scheduleScrollSync = () => {
+            if (animationFrameId !== null) return;
+            animationFrameId = window.requestAnimationFrame(updateActiveSectionFromScroll);
+        };
+
+        const syncFromHash = () => {
+            const hashSection = window.location.hash.slice(1);
+            if (!sectionIds.includes(hashSection as SettingsSectionId)) {
+                scheduleScrollSync();
+                return;
+            }
+
+            setActiveSettingsSection(hashSection as SettingsSectionId);
+            window.requestAnimationFrame(() => {
+                document.getElementById(hashSection)?.scrollIntoView({ block: 'start' });
+            });
+        };
+
+        window.addEventListener('scroll', scheduleScrollSync, { passive: true });
+        window.addEventListener('resize', scheduleScrollSync);
+        window.addEventListener('hashchange', syncFromHash);
+        mainContent?.addEventListener('scroll', scheduleScrollSync, { passive: true });
+
+        if (window.location.hash) {
+            syncFromHash();
+        } else {
+            scheduleScrollSync();
+        }
+
+        return () => {
+            window.removeEventListener('scroll', scheduleScrollSync);
+            window.removeEventListener('resize', scheduleScrollSync);
+            window.removeEventListener('hashchange', syncFromHash);
+            mainContent?.removeEventListener('scroll', scheduleScrollSync);
+            if (animationFrameId !== null) {
+                window.cancelAnimationFrame(animationFrameId);
             }
         };
     }, []);
@@ -1558,81 +1560,90 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
 
     const mobileSettingsBadge =
         harnessHealthState.status === 'error'
-            ? { label: '🔴 연결 오류', tone: 'bg-rose-500/20 text-rose-200 border border-rose-400/40' }
+            ? { label: '연결 오류', tone: 'bg-rose-500' }
             : harnessHealthState.status === 'loading'
-              ? { label: '🟡 점검중', tone: 'bg-amber-400/20 text-amber-100 border border-amber-300/40' }
-              : { label: '🟢 운영 가능', tone: 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40' };
+              ? { label: '점검 중', tone: 'bg-amber-400' }
+              : { label: '운영 가능', tone: 'bg-emerald-500' };
 
     return (
-        <div className="space-y-6 sm:space-y-8 animate-fade-in-up pb-10 sm:pb-12">
-            <div className="sm:hidden mb-2 rounded-2xl border border-slate-800 bg-slate-950 px-4 py-4 text-white">
-                <div className="flex items-center justify-between gap-3">
-                    <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-300">12) 시스템 설정</p>
-                        <h2 className="mt-1 text-lg font-black">운영 환경 관리</h2>
+        <div className={`${styles.page} space-y-6 animate-fade-in-up pb-10 sm:space-y-8 sm:pb-12`}>
+            <header className={styles.hero} aria-labelledby="settings-page-title">
+                <div className={styles.heroMain}>
+                    <div className={styles.heroHeading}>
+                        <p className={styles.heroEyebrow}>12 · 시스템 설정</p>
+                        <h2 id="settings-page-title" className={styles.heroTitle}>현장 운영 기준 관리</h2>
+                        <p className={styles.heroDescription}>
+                            현장 정보와 분석 방식, 승인 정책, 교육 언어를 한 곳에서 확인하고 변경합니다.
+                        </p>
                     </div>
-                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${mobileSettingsBadge.tone}`}>{mobileSettingsBadge.label}</span>
+                    <div className={styles.heroActions}>
+                        <span className={styles.heroStatus} role="status">
+                            <span className={`mr-2 h-2 w-2 rounded-full ${mobileSettingsBadge.tone}`} aria-hidden="true" />
+                            {mobileSettingsBadge.label}
+                        </span>
+                        <button type="button" onClick={() => setShowGuide((prev) => !prev)} className={styles.heroSecondary}>
+                            {showGuide ? '가이드 닫기' : '운영 가이드'}
+                        </button>
+                        <button type="button" onClick={handleRunHarnessHealthCheck} className={styles.heroPrimary}>
+                            저장 상태 점검
+                        </button>
+                    </div>
                 </div>
-                <div className="mt-3 grid grid-cols-4 gap-1.5">
+                <div className={styles.heroMetrics} aria-label="현재 설정 상태">
                     {[
-                        { label: '버전', value: PSI_APP_VERSION, tone: 'text-indigo-300' },
-                        { label: '분석 방식', value: isPaidApiMode ? '유료' : '무료', tone: isPaidApiMode ? 'text-rose-300' : 'text-emerald-300' },
-                        { label: '인원', value: `${workerRecords.length}`, tone: 'text-slate-300' },
-                        { label: '저장 상태', value: harnessHealthState.status === 'success' ? '정상' : harnessHealthState.status === 'error' ? '오류' : '점검', tone: harnessHealthState.status === 'error' ? 'text-rose-300' : harnessHealthState.status === 'success' ? 'text-emerald-300' : 'text-amber-300' },
-                    ].map((chip) => (
-                        <div key={chip.label} className="rounded-xl border border-slate-700 bg-slate-900/60 px-1.5 py-2 text-center">
-                            <p className="text-[9px] font-black text-slate-500">{chip.label}</p>
-                            <p className={`text-[11px] font-black ${chip.tone}`}>{chip.value}</p>
+                        { label: '버전', value: PSI_APP_VERSION },
+                        { label: '분석 방식', value: isPaidApiMode ? '유료 분석' : '무료 분석' },
+                        { label: '등록 인원', value: `${workerRecords.length}명` },
+                        { label: '저장 상태', value: harnessHealthState.status === 'success' ? '정상' : harnessHealthState.status === 'error' ? '오류' : '점검 전' },
+                    ].map((metric) => (
+                        <div key={metric.label} className={styles.heroMetric}>
+                            <p className={styles.heroMetricLabel}>{metric.label}</p>
+                            <p className={styles.heroMetricValue}>{metric.value}</p>
                         </div>
                     ))}
                 </div>
-                <div className="mt-3 flex gap-2">
-                    <button
-                        type="button"
-                        onClick={() => setShowGuide((prev) => !prev)}
-                        className="flex-1 min-h-[44px] rounded-xl bg-indigo-600 px-3 py-2 text-xs font-black text-white hover:bg-indigo-500 transition-colors"
-                    >
-                        {showGuide ? '가이드 닫기' : '가이드 열기'}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleRunHarnessHealthCheck}
-                        className="flex-1 min-h-[44px] rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-black text-slate-200 hover:bg-slate-700 transition-colors"
-                    >
-                        저장 상태 점검
-                    </button>
-                </div>
-            </div>
-            <div className="psi-industrial-panel hidden flex-col items-start justify-between gap-4 p-6 sm:flex md:flex-row md:items-center">
-                <div>
-                    <p className="psi-eyebrow">현장 운영 기준</p>
-                    <h2 className="mt-2 text-2xl font-black text-slate-900 dark:text-slate-100">현장 운영 설정</h2>
-                    <p className="mt-2 max-w-xl text-sm font-semibold psi-copy-muted">현장 정보, 분석 방식, 교육 언어와 화면 구성을 한 곳에서 관리합니다.</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                    <span className="psi-status-badge"><span className="mr-2 h-2 w-2 rounded-full bg-emerald-500" />버전 {PSI_APP_VERSION}</span>
-                    <button onClick={() => setShowGuide(!showGuide)} className="psi-button-secondary">
-                        {showGuide ? '가이드 닫기' : '운영 가이드'}
-                    </button>
-                </div>
-            </div>
+            </header>
 
-            <InterpretationCardGrid
-                items={settingsSummaryCards}
-                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
-            />
+            <section className={styles.overview} aria-labelledby="settings-overview-heading">
+                <h3 id="settings-overview-heading" className="sr-only">설정 운영 요약</h3>
+                <InterpretationCardGrid
+                    items={settingsSummaryCards}
+                    cardClassName="rounded-2xl border p-4"
+                />
+                <SummaryMetricGrid
+                    items={harnessSettingsMetrics}
+                    className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
+                    cardClassName="rounded-2xl border p-4"
+                />
+            </section>
 
-            <SummaryMetricGrid
-                items={harnessSettingsMetrics}
-                className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
-                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
-            />
+            <nav className={styles.sectionNav} aria-label="설정 항목 빠른 이동">
+                <div className={styles.sectionNavScroller}>
+                    {SETTINGS_SECTION_LINKS.map((item) => (
+                        <button
+                            key={item.id}
+                            type="button"
+                            aria-controls={item.id}
+                            aria-current={activeSettingsSection === item.id ? 'location' : undefined}
+                            onClick={() => {
+                                setActiveSettingsSection(item.id);
+                                window.history.replaceState(null, '', `#${item.id}`);
+                                document.getElementById(item.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }}
+                            className={styles.sectionNavButton}
+                        >
+                            {item.label}
+                        </button>
+                    ))}
+                </div>
+                <button type="button" onClick={handleSave} className={styles.sectionNavSave}>저장·적용</button>
+            </nav>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-100 dark:border-slate-800 dark:bg-slate-900 sm:p-5">
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <section className={styles.directControl} aria-labelledby="direct-control-heading">
+                <div className={styles.directControlHeader}>
                     <div className="min-w-0">
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">운영 직접 제어</p>
-                        <h3 className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">확인, 체크, 변경을 설정 화면에서 바로 실행</h3>
+                        <h3 id="direct-control-heading" className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">확인, 체크, 변경을 설정 화면에서 바로 실행</h3>
                         <p className="mt-1 max-w-3xl text-xs font-semibold leading-5 text-slate-600 dark:text-slate-400">
                             OCR 대량 처리 전 현재 연결 상태와 운영 기준을 확인하고, 무료 안정 운영 또는 유료 대량 운영 기준으로 즉시 전환합니다.
                         </p>
@@ -1672,50 +1683,51 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     </div>
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-5">
-                    <ActionButton variant="indigo" fullWidth className="min-h-[46px] justify-start" onClick={handleDirectStatusCheck}>
-                        현재 상태 확인
-                    </ActionButton>
-                    <ActionButton variant="amberSoft" fullWidth className="min-h-[46px] justify-start" onClick={handleDirectPolicyCheck}>
-                        운영 기준 체크
-                    </ActionButton>
-                    <ActionButton variant="emeraldSoft" fullWidth className="min-h-[46px] justify-start" onClick={handleDirectStorageCheck}>
-                        저장 상태 점검
-                    </ActionButton>
-                    <ActionButton variant="emeraldSolid" fullWidth className="min-h-[46px] justify-start" onClick={handleDirectStableMode}>
-                        무료 안정 운영
-                    </ActionButton>
-                    <ActionButton variant="indigoSolid" fullWidth className="min-h-[46px] justify-start" onClick={handleDirectScaleMode}>
-                        유료 대량 운영
-                    </ActionButton>
-                    <ActionButton variant={aiEngineSettings.ocrEngine === 'auto' ? 'slateSolid' : 'slate'} fullWidth className="min-h-[46px] justify-start" onClick={() => handleDirectOcrEngineChange('auto')}>
-                        OCR 자동
-                    </ActionButton>
-                    <ActionButton variant={aiEngineSettings.ocrEngine === 'gemini-fast' ? 'slateSolid' : 'slate'} fullWidth className="min-h-[46px] justify-start" onClick={() => handleDirectOcrEngineChange('gemini-fast')}>
-                        OCR 빠른 분석
-                    </ActionButton>
-                    <ActionButton variant={aiEngineSettings.ocrEngine === 'gemini-precise' ? 'slateSolid' : 'slate'} fullWidth className="min-h-[46px] justify-start" onClick={() => handleDirectOcrEngineChange('gemini-precise')}>
-                        OCR 정밀 분석
-                    </ActionButton>
-                    <ActionButton variant={settings.approvalPolicy?.strictRoleGate ? 'roseSoft' : 'slate'} fullWidth className="min-h-[46px] justify-start" onClick={() => handleDirectStrictApprovalChange(true)}>
-                        엄격 승인 기준
-                    </ActionButton>
-                    <ActionButton variant={!settings.approvalPolicy?.strictRoleGate ? 'emeraldSoft' : 'slate'} fullWidth className="min-h-[46px] justify-start" onClick={() => handleDirectStrictApprovalChange(false)}>
-                        유연 승인 기준
-                    </ActionButton>
-                    <ActionButton variant={(settings.batchSplitSize ?? 50) === 50 ? 'sky' : 'slate'} fullWidth className="min-h-[46px] justify-start" onClick={() => handleDirectBatchPreset(50)}>
-                        배치 50건
-                    </ActionButton>
-                    <ActionButton variant={(settings.batchSplitSize ?? 50) === 100 ? 'sky' : 'slate'} fullWidth className="min-h-[46px] justify-start" onClick={() => handleDirectBatchPreset(100)}>
-                        배치 100건
-                    </ActionButton>
+                <div className={styles.directControlGroups}>
+                    <fieldset className={`${styles.controlGroup} ${styles.controlGroupInspect}`}>
+                        <legend className={styles.controlGroupLegend}>점검</legend>
+                        <div className={styles.controlGroupGrid}>
+                            <ActionButton variant="indigo" fullWidth onClick={handleDirectStatusCheck}>현재 상태 확인</ActionButton>
+                            <ActionButton variant="amberSoft" fullWidth onClick={handleDirectPolicyCheck}>운영 기준 체크</ActionButton>
+                            <ActionButton variant="emeraldSoft" fullWidth onClick={handleDirectStorageCheck}>저장 상태 점검</ActionButton>
+                        </div>
+                    </fieldset>
+                    <fieldset className={`${styles.controlGroup} ${styles.controlGroupMode}`}>
+                        <legend className={styles.controlGroupLegend}>운영 모드</legend>
+                        <div className={styles.controlGroupGrid}>
+                            <ActionButton variant="emeraldSolid" fullWidth onClick={handleDirectStableMode}>무료 안정 운영</ActionButton>
+                            <ActionButton variant="indigoSolid" fullWidth onClick={handleDirectScaleMode}>유료 대량 운영</ActionButton>
+                        </div>
+                    </fieldset>
+                    <fieldset className={`${styles.controlGroup} ${styles.controlGroupOcr}`}>
+                        <legend className={styles.controlGroupLegend}>OCR 엔진</legend>
+                        <div className={styles.controlGroupGrid}>
+                            <ActionButton variant={aiEngineSettings.ocrEngine === 'auto' ? 'slateSolid' : 'slate'} fullWidth onClick={() => handleDirectOcrEngineChange('auto')}>OCR 자동</ActionButton>
+                            <ActionButton variant={aiEngineSettings.ocrEngine === 'gemini-fast' ? 'slateSolid' : 'slate'} fullWidth onClick={() => handleDirectOcrEngineChange('gemini-fast')}>OCR 빠른 분석</ActionButton>
+                            <ActionButton variant={aiEngineSettings.ocrEngine === 'gemini-precise' ? 'slateSolid' : 'slate'} fullWidth onClick={() => handleDirectOcrEngineChange('gemini-precise')}>OCR 정밀 분석</ActionButton>
+                        </div>
+                    </fieldset>
+                    <fieldset className={`${styles.controlGroup} ${styles.controlGroupApproval}`}>
+                        <legend className={styles.controlGroupLegend}>승인 기준</legend>
+                        <div className={styles.controlGroupGrid}>
+                            <ActionButton variant={settings.approvalPolicy?.strictRoleGate ? 'roseSoft' : 'slate'} fullWidth onClick={() => handleDirectStrictApprovalChange(true)}>엄격 승인 기준</ActionButton>
+                            <ActionButton variant={!settings.approvalPolicy?.strictRoleGate ? 'emeraldSoft' : 'slate'} fullWidth onClick={() => handleDirectStrictApprovalChange(false)}>유연 승인 기준</ActionButton>
+                        </div>
+                    </fieldset>
+                    <fieldset className={`${styles.controlGroup} ${styles.controlGroupBatch}`}>
+                        <legend className={styles.controlGroupLegend}>처리 건수</legend>
+                        <div className={styles.controlGroupGrid}>
+                            <ActionButton variant={(settings.batchSplitSize ?? 50) === 50 ? 'sky' : 'slate'} fullWidth onClick={() => handleDirectBatchPreset(50)}>배치 50건</ActionButton>
+                            <ActionButton variant={(settings.batchSplitSize ?? 50) === 100 ? 'sky' : 'slate'} fullWidth onClick={() => handleDirectBatchPreset(100)}>배치 100건</ActionButton>
+                        </div>
+                    </fieldset>
                 </div>
-            </div>
+            </section>
 
-            <div className="hidden lg:block rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-4">
+            <aside className={`${styles.quickActions} hidden lg:block`} aria-labelledby="settings-quick-actions-heading">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">PC 운영 바로가기</p>
-                <p className="mt-1 text-[11px] font-semibold text-indigo-700">설정/진단/저장을 상단에서 즉시 실행해 운영 점검 반복 시간을 줄입니다.</p>
-                <div className="mt-2 grid grid-cols-1 gap-2 xl:grid-cols-7">
+                <p id="settings-quick-actions-heading" className="mt-1 text-[11px] font-semibold text-indigo-700">설정/진단/저장을 상단에서 즉시 실행해 운영 점검 반복 시간을 줄입니다.</p>
+                <div className={styles.quickActionGrid}>
                     <button type="button" onClick={() => { trackQuickAction('open_beginner_guide', { uiVariant: 'v3-targeted-tuning-1', copyVariant: guideCopyVariant, copyLabel: guideCopyLabel }); setShowGuide(true); }} className="min-h-[44px] rounded-xl border border-indigo-200 bg-white px-3 py-2 text-left text-xs font-black text-indigo-700 hover:bg-indigo-50">{guideCopyLabel}</button>
                     <button type="button" onClick={() => { trackQuickAction('set_theme_system_mode', { currentThemeMode: themeMode }); handleThemeModeChange('system'); }} className="min-h-[44px] rounded-xl border border-indigo-200 bg-white px-3 py-2 text-left text-xs font-black text-indigo-700 hover:bg-indigo-50">테마 자동 모드</button>
                     <button type="button" onClick={() => { trackQuickAction('refresh_ui_metrics'); loadUIViewMetrics(); }} className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-xs font-black text-slate-700 hover:bg-slate-50">UI 지표 새로고침</button>
@@ -1724,12 +1736,12 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     <button type="button" onClick={handleResetMenuComposition} className="min-h-[44px] rounded-xl border border-amber-200 bg-white px-3 py-2 text-left text-xs font-black text-amber-700 hover:bg-amber-50">메뉴 구성 기본값 복원</button>
                     <button type="button" onClick={() => { trackQuickAction('save_settings'); handleSave(); }} className="min-h-[44px] rounded-xl border border-sky-200 bg-white px-3 py-2 text-left text-xs font-black text-sky-700 hover:bg-sky-50">설정 저장/적용</button>
                 </div>
-            </div>
+            </aside>
 
-            <div className="psi-industrial-panel p-5 sm:p-7">
+            <section id="settings-display" className={`${styles.sectionBlock} psi-industrial-panel p-5 sm:p-7`} aria-labelledby="settings-display-heading">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">테마/다크모드 운영 설정</h3>
+                        <h3 id="settings-display-heading" className="text-lg sm:text-xl font-bold text-slate-900">테마/다크모드 운영 설정</h3>
                         <p className="mt-1 text-xs sm:text-sm text-slate-500 leading-relaxed">
                             평가자 관점(검증 가능성)과 실무자 관점(야간/장시간 사용 피로도)을 함께 반영해 테마를 선택합니다.
                         </p>
@@ -1739,10 +1751,11 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     </div>
                 </div>
 
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3" role="group" aria-label="화면 테마 선택">
                     <button
                         type="button"
                         onClick={() => handleThemeModeChange('light')}
+                        aria-pressed={themeMode === 'light'}
                         className={`rounded-xl border px-4 py-3 text-sm font-black transition-colors ${themeMode === 'light' ? 'border-indigo-300 bg-indigo-50 text-indigo-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                     >
                         라이트 고정
@@ -1750,6 +1763,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     <button
                         type="button"
                         onClick={() => handleThemeModeChange('dark')}
+                        aria-pressed={themeMode === 'dark'}
                         className={`rounded-xl border px-4 py-3 text-sm font-black transition-colors ${themeMode === 'dark' ? 'border-indigo-300 bg-indigo-50 text-indigo-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                     >
                         다크 고정
@@ -1757,6 +1771,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     <button
                         type="button"
                         onClick={() => handleThemeModeChange('system')}
+                        aria-pressed={themeMode === 'system'}
                         className={`rounded-xl border px-4 py-3 text-sm font-black transition-colors ${themeMode === 'system' ? 'border-indigo-300 bg-indigo-50 text-indigo-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                     >
                         시스템 자동
@@ -1785,12 +1800,12 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     descriptionClassName="mt-1 text-xs font-semibold"
                     bodyClassName="block"
                 />
-            </div>
+            </section>
 
-            <div className="bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-100 dark:border-indigo-950/40">
+            <section className={`${styles.diagnosticsBlock} bg-white p-5 dark:bg-slate-900 sm:p-8 rounded-3xl border border-indigo-100 dark:border-indigo-950/40`} aria-labelledby="settings-ui-metrics-heading">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                        <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100">UI 모드 실험 KPI 요약</h3>
+                        <h3 id="settings-ui-metrics-heading" className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100">UI 모드 실험 KPI 요약</h3>
                         <p className="mt-1 text-xs sm:text-sm text-slate-500 leading-relaxed">
                             Dashboard/PerformanceAnalysis의 모드 전환, 핵심 클릭, 체류시간 로그를 로컬 기준으로 빠르게 확인합니다.
                         </p>
@@ -1898,7 +1913,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                         </div>
                     )}
                 </div>
-            </div>
+            </section>
 
             {(harnessSummary.immediateAttention > 0 || harnessSummary.approvalBacklog > 0 || harnessSummary.fallback > 0) && (
                 <NoticeCallout
@@ -2106,7 +2121,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
 
             {showGuide && <SettingsGuide onClose={() => setShowGuide(false)} />}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-8">
+            <div id="settings-core" className="grid scroll-mt-24 grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-8">
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-100">
                     <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5 sm:mb-6">1단계: Google Gemini 분석 서비스 연결</h3>
                     <InterpretationCardGrid
@@ -2260,7 +2275,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     </div>
                 </div>
 
-                <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-amber-200 lg:col-span-2">
+                <div id="settings-policy" className="scroll-mt-24 bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-amber-200 lg:col-span-2">
                     <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-4">승인 정책</h3>
                     <label className="inline-flex items-center gap-3 cursor-pointer select-none">
                         <input type="checkbox" checked={!!settings.approvalPolicy?.strictRoleGate} onChange={(e) => setSettings({ ...settings, approvalPolicy: { ...(settings.approvalPolicy || { strictRoleGate: false }), strictRoleGate: e.target.checked } })} className="w-5 h-5 rounded border-slate-300 text-amber-600" />
@@ -2336,7 +2351,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 </div>
 
                 {/* OCR 배치 분할 단위 설정 */}
-                <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-violet-200 lg:col-span-2">
+                <div id="settings-operations" className="scroll-mt-24 bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-violet-200 lg:col-span-2">
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                         <div>
                             <h3 className="text-lg sm:text-xl font-bold text-slate-900">문서 일괄 분석 처리 건수</h3>
@@ -2445,7 +2460,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     </p>
                 </div>
 
-                <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-cyan-200 lg:col-span-2">
+                <div id="settings-languages" className="scroll-mt-24 bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-cyan-200 lg:col-span-2">
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                         <h3 className="text-lg sm:text-xl font-bold text-slate-900">QR/음성 파일럿 기본 언어 세트</h3>
                         <button

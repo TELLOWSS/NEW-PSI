@@ -1,4 +1,5 @@
 import React from 'react';
+import { InsightGrid } from '../common/InsightGrid';
 
 export interface StatusEvidenceActionItem {
     key: string;
@@ -26,15 +27,13 @@ export const StatusEvidenceActionPanel: React.FC<StatusEvidenceActionPanelProps>
     descriptionClassName = 'mt-2 text-xs font-semibold leading-relaxed text-slate-600',
 }) => {
     return (
-        <div className={className}>
-            {items.map((item) => (
-                <div key={item.key} className={`${cardClassName} ${item.tone}`}>
-                    <p className={item.eyebrowClassName || 'text-[10px] font-black uppercase tracking-[0.22em] text-slate-500'}>{item.eyebrow}</p>
-                    <p className={titleClassName}>{item.title}</p>
-                    {item.description ? <p className={descriptionClassName}>{item.description}</p> : null}
-                    {item.content}
-                </div>
-            ))}
-        </div>
+        <InsightGrid
+            items={items}
+            className={className}
+            cardClassName={cardClassName}
+            eyebrowClassName="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500"
+            titleClassName={titleClassName}
+            descriptionClassName={descriptionClassName}
+        />
     );
 };

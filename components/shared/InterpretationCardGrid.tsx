@@ -1,4 +1,5 @@
 import React from 'react';
+import { InsightGrid } from '../common/InsightGrid';
 import { MOBILE_CARD_GRID_ITEM_CLASS } from './cardTokens';
 
 export interface InterpretationCardItem {
@@ -27,14 +28,13 @@ export const InterpretationCardGrid: React.FC<InterpretationCardGridProps> = ({
     descriptionClassName = 'mt-2 text-[12px] font-semibold text-slate-600 leading-relaxed',
 }) => {
     return (
-        <div className={className}>
-            {items.map((card) => (
-                <div key={card.key || `${card.eyebrow}:${card.title}`} className={`${cardClassName} ${card.tone || ''}`}>
-                    <p className={eyebrowClassName}>{card.eyebrow}</p>
-                    <h5 className={titleClassName}>{card.title}</h5>
-                    <p className={descriptionClassName}>{card.description}</p>
-                </div>
-            ))}
-        </div>
+        <InsightGrid
+            items={items.map((card) => ({ ...card, key: card.key || `${card.eyebrow}:${card.title}` }))}
+            className={className}
+            cardClassName={cardClassName}
+            eyebrowClassName={eyebrowClassName}
+            titleClassName={titleClassName}
+            descriptionClassName={descriptionClassName}
+        />
     );
 };

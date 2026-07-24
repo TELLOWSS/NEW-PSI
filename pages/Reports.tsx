@@ -52,6 +52,7 @@ import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
 import { useJudgmentTaggingQuality } from '../hooks/useJudgmentTaggingQuality';
 import { EmptyState, SectionCard, MetricCard, StatusPill } from '../components/common';
+import { ReportActionBar } from '../components/common/ReportActionBar';
 import { evaluateOcrVerificationCompleteness, getNativeLanguageLabel } from '../utils/ocrVerificationLanguageUtils';
 import { isSameWorkerTimeline } from '../utils/workerIdentity';
 import { buildWorkerReportTargets } from '../utils/workerReportTargets';
@@ -1956,6 +1957,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     };
 
     const handleGenerate = async () => {
+        if (isGenerating || isPackagingEvidence) return;
         if (isIncompleteCustomDateRange) return alert('사용자 지정 기간은 시작일과 종료일을 모두 입력해야 합니다.');
         if (isInvalidCustomDateRange) return alert('기간 필터가 올바르지 않습니다. 시작일과 종료일을 확인해주세요.');
         if (filteredRecords.length === 0) return alert('출력할 대상이 없습니다.');
@@ -2173,7 +2175,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     };
 
     const cancelGeneration = () => {
-        if(confirm("작업을 중단하시겠습니까?")) {
+        if (!isGenerating && !isPackagingEvidence) return;
+        const taskLabel = isPackagingEvidence ? '증빙 패키지 생성' : '보고서 생성';
+        if(confirm(`${taskLabel} 작업을 중단하시겠습니까?\n완성되지 않은 파일은 저장되지 않습니다.`)) {
             abortRef.current = true;
         }
     };
@@ -2189,6 +2193,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     };
 
     const handleExportEvidenceZip = async () => {
+        if (isGenerating || isPackagingEvidence) return;
         if (isIncompleteCustomDateRange) {
             alert('사용자 지정 기간은 시작일과 종료일을 모두 입력해야 합니다.');
             return;
@@ -2214,6 +2219,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         if (!confirm(`필터된 ${filteredRecords.length}명에 대한 증빙 패키지 ZIP(PDF+JSON+CSV)을 생성하시겠습니까?`)) return;
 
         setIsPackagingEvidence(true);
+        abortRef.current = false;
         setBulkProgress({ current: 0, total: filteredRecords.length });
 
         try {
@@ -2277,6 +2283,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             };
 
             for (let i = 0; i < filteredRecords.length; i++) {
+                if (abortRef.current) break;
+
                 const record = filteredRecords[i];
                 setBulkProgress({ current: i + 1, total: filteredRecords.length });
 
@@ -2288,6 +2296,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 let harnessAuditSnapshot: Awaited<ReturnType<typeof fetchHarnessWorkflowStatus>> | null = null;
 
                 const pdfBlob = await createEvidencePackagePdfBlob(record);
+                if (abortRef.current) break;
                 if (pdfBlob) {
                     pdfFolder.file(pdfFileName, pdfBlob);
                     pdfGenerated = true;
@@ -2300,6 +2309,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         harnessAuditSnapshot = null;
                     }
                 }
+                if (abortRef.current) break;
 
                 const harnessRuleVersions = Array.from(new Set((harnessAuditSnapshot?.overrides || []).map((override) => override.ruleVersion).filter(Boolean)));
 
@@ -2339,6 +2349,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 };
                 const jsonContent = JSON.stringify(jsonPayload, null, 2);
                 const jsonSha256 = await sha256Hex(jsonContent);
+                if (abortRef.current) break;
                 jsonFolder.file(jsonFileName, jsonContent);
 
                 manifestEntries.push({
@@ -2412,6 +2423,11 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 csvRows.push(row.map(escapeCsv).join(','));
             }
 
+            if (abortRef.current) {
+                alert('증빙 패키지 생성이 중단되었습니다. 완성되지 않은 파일은 저장하지 않았습니다.');
+                return;
+            }
+
             const jsonHashIndexSource = manifestEntries
                 .map((entry) => `${entry.jsonFile}:${entry.jsonSha256}`)
                 .join('\n');
@@ -2479,6 +2495,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             root.file('manifest.json', JSON.stringify(manifest, null, 2));
 
             const blob = await zip.generateAsync({ type: 'blob' });
+            if (abortRef.current) {
+                alert('증빙 패키지 생성이 중단되었습니다. 완성되지 않은 파일은 저장하지 않았습니다.');
+                return;
+            }
             saveAs(blob, `${folderName}.zip`);
             alert(`증빙 패키지 ZIP 생성 완료 (${filteredRecords.length}건)`);
         } catch (e: unknown) {
@@ -3262,73 +3282,78 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         onNavigateToPage?.(page);
     };
 
-    const mobileReportBadge =
-        harnessSummary.highRisk > 0
-            ? { label: '🔴 보호 우선', tone: 'bg-rose-500/20 text-rose-200 border border-rose-400/40' }
-            : harnessSummary.approvalPending > 0
-              ? { label: '🟡 승인 대기', tone: 'bg-amber-400/20 text-amber-100 border border-amber-300/40' }
-              : { label: '🟢 정상', tone: 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40' };
+    const handleBulkGenerateAction = () => {
+        trackQuickAction('bulk_generate_start', { filteredCount: filteredRecords.length });
+        void handleGenerate();
+    };
+
+    const handleEvidenceZipAction = () => {
+        trackQuickAction('export_evidence_zip', { filteredCount: filteredRecords.length });
+        void handleExportEvidenceZip();
+    };
+
+    const handleCsvExportAction = () => {
+        trackQuickAction('export_csv', { filteredCount: filteredRecords.length });
+        handleExportCsv();
+    };
+
+    const handleReportTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+        let nextTab: ReportType | null = null;
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+            nextTab = activeTab === 'worker-report' ? 'team-report' : 'worker-report';
+        } else if (event.key === 'Home') {
+            nextTab = 'worker-report';
+        } else if (event.key === 'End') {
+            nextTab = 'team-report';
+        }
+
+        if (!nextTab) return;
+        event.preventDefault();
+        setActiveTab(nextTab);
+        const nextTabId = nextTab === 'worker-report' ? 'reports-worker-tab' : 'reports-team-tab';
+        window.requestAnimationFrame(() => {
+            document.getElementById(nextTabId)?.focus();
+        });
+    };
 
     return (
-        <div className="space-y-6 pb-10 h-full flex flex-col font-sans">
-            <div className="sm:hidden mb-2 rounded-2xl border border-slate-800 bg-slate-950 px-4 py-4 text-white">
-                <div className="flex items-center justify-between gap-3">
-                    <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-300">11) 분석 리포트</p>
-                        <h2 className="mt-1 text-lg font-black">안전 리포트 센터</h2>
+        <section aria-labelledby="reports-page-title" className="flex h-full flex-col gap-5 pb-10 font-sans">
+            <header className="no-print shrink-0 rounded-xl border border-slate-200 bg-white px-4 py-4 dark:border-slate-700 dark:bg-slate-900 sm:px-5 sm:py-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Analysis reports · 11</p>
+                        <h2 id="reports-page-title" className="mt-1 text-xl font-black tracking-[-0.02em] text-slate-900 dark:text-slate-50 sm:text-2xl">안전 리포트 센터</h2>
+                        <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-500 dark:text-slate-400">검토 대상을 선별하고, 생성·증빙·전달까지 같은 흐름에서 처리합니다.</p>
                     </div>
-                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${mobileReportBadge.tone}`}>{mobileReportBadge.label}</span>
+                    <div className="flex items-center justify-between gap-2 sm:justify-end">
+                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">운영 상태</span>
+                        <StatusPill
+                            variant={summaryStatusVariant}
+                            label={summaryStatusLabel}
+                            size="md"
+                        />
+                    </div>
                 </div>
-                <div className="mt-3 grid grid-cols-4 gap-1.5">
+                <div className="mt-4 grid grid-cols-4 gap-1.5 sm:hidden" aria-label="리포트 핵심 현황">
                     {[
-                        { label: '대상', value: filteredRecords.length, tone: 'text-slate-300' },
-                        { label: '완료', value: harnessSummary.completed, tone: harnessSummary.completed > 0 ? 'text-indigo-300' : 'text-slate-400' },
-                        { label: '승인대기', value: harnessSummary.approvalPending, tone: harnessSummary.approvalPending > 0 ? 'text-amber-300' : 'text-slate-400' },
-                        { label: '보호우선', value: harnessSummary.highRisk, tone: harnessSummary.highRisk > 0 ? 'text-rose-300' : 'text-slate-400' },
+                        { label: '대상', value: filteredRecords.length, tone: 'text-slate-800 dark:text-slate-100' },
+                        { label: '완료', value: harnessSummary.completed, tone: harnessSummary.completed > 0 ? 'text-sky-700 dark:text-sky-300' : 'text-slate-500' },
+                        { label: '승인대기', value: harnessSummary.approvalPending, tone: harnessSummary.approvalPending > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-slate-500' },
+                        { label: '보호우선', value: harnessSummary.highRisk, tone: harnessSummary.highRisk > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-slate-500' },
                     ].map((chip) => (
-                        <div key={chip.label} className="rounded-xl border border-slate-700 bg-slate-900/60 px-1.5 py-2 text-center">
-                            <p className="text-[9px] font-black text-slate-500">{chip.label}</p>
+                        <div key={chip.label} className="rounded-lg border border-slate-200 bg-slate-50 px-1.5 py-2 text-center dark:border-slate-700 dark:bg-slate-800">
+                            <p className="text-[9px] font-black text-slate-500 dark:text-slate-400">{chip.label}</p>
                             <p className={`text-sm font-black ${chip.tone}`}>{chip.value}</p>
                         </div>
                     ))}
                 </div>
-                <div className="mt-3 flex gap-2">
-                    <button
-                        type="button"
-                        onClick={() => handleNavigateToTaggingValidation()}
-                        className="flex-1 min-h-[44px] rounded-xl bg-indigo-600 px-3 py-2 text-xs font-black text-white hover:bg-indigo-500 transition-colors"
-                    >
-                        태깅 검증 이동
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => handleNavigateToIntervention()}
-                        className="flex-1 min-h-[44px] rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-black text-slate-200 hover:bg-slate-700 transition-colors"
-                    >
-                        개입 추천 이동
-                    </button>
-                </div>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 no-print">
-                <div>
-                    <h2 className="text-2xl font-black text-slate-900">안전 리포트 센터</h2>
-                    <p className="mt-1 text-sm font-semibold text-slate-500">팀·공종 현황을 요약하거나 개인별 안전보고서를 생성합니다.</p>
-                </div>
-                <div className="flex items-center space-x-3 bg-white rounded-lg p-1 shadow-sm border border-slate-200">
-                    <span className="text-xs font-bold text-slate-500 pl-3 pr-1">운영 상태</span>
-                    <StatusPill
-                        variant={summaryStatusVariant}
-                        label={summaryStatusLabel}
-                        size="md"
-                    />
-                </div>
-            </div>
+            </header>
 
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.15fr_0.85fr] no-print">
+            <div className="no-print grid grid-cols-1 gap-3">
                 <SectionCard
                     title="리포트 운영 요약"
-                    subtitle="생성 상태와 최근 검증 결과를 한눈에 확인하고 바로 조치 화면으로 이동합니다."
-                    className="rounded-3xl border-indigo-200 dark:border-indigo-900/30 bg-gradient-to-br from-indigo-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-900/60 dark:to-slate-950"
+                    subtitle="대상·생성·검증·보호 우선순위를 확인한 뒤 필요한 조치로 이동합니다."
+                    className="rounded-xl border-slate-200 bg-white shadow-none dark:border-slate-700 dark:bg-slate-900"
                     action={
                         <StatusPill
                             variant={summaryStatusVariant}
@@ -3337,7 +3362,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         />
                     }
                 >
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
                         <MetricCard
                             title="보고서 대상"
                             value={`${filteredRecords.length}`}
@@ -3358,87 +3383,29 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             tone={latestVerification ? (latestVerification.isValid ? 'safe' : 'warn') : 'neutral'}
                             className="min-h-[108px]"
                         />
+                        <MetricCard
+                            title="보호 우선"
+                            value={`${harnessSummary.highRisk}`}
+                            unit="건"
+                            tone={harnessSummary.highRisk > 0 ? 'risk' : 'safe'}
+                            className="min-h-[108px]"
+                        />
                     </div>
 
-                    <div className="mt-4 flex flex-wrap gap-2">
-                        <button type="button" onClick={handleNavigateToIntervention} className="rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-black text-white transition duration-200 hover:-translate-y-0.5 hover:bg-indigo-500">
-                            8번 개입 화면
+                    <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        <button type="button" onClick={handleNavigateToIntervention} className="min-h-12 rounded-lg bg-slate-900 px-4 py-3 text-sm font-black text-white transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 dark:bg-sky-600 dark:hover:bg-sky-500">
+                            개입 계획 보기
                         </button>
-                        <button type="button" onClick={handleNavigateToTaggingValidation} className="rounded-2xl border border-violet-200 bg-white dark:border-violet-800 dark:bg-slate-900 px-4 py-3 text-sm font-black text-violet-700 dark:text-violet-300 transition duration-200 hover:-translate-y-0.5 hover:bg-violet-50 dark:hover:bg-slate-800">
-                            10번 태깅 검증
+                        <button type="button" onClick={handleNavigateToTaggingValidation} className="min-h-12 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-black text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
+                            OCR 검증 보기
                         </button>
-                        <button type="button" onClick={() => onNavigateToPage?.('dashboard')} className="rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 px-4 py-3 text-sm font-black text-slate-700 dark:text-slate-300 transition duration-200 hover:-translate-y-0.5 hover:bg-slate-50 dark:hover:bg-slate-800">
+                        <button type="button" onClick={() => onNavigateToPage?.('dashboard')} className="min-h-12 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-black text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
                             대시보드로 이동
                         </button>
                     </div>
                 </SectionCard>
 
-                <section className="rounded-3xl border border-violet-200 dark:border-violet-900/30 bg-violet-50 dark:bg-violet-950/20 px-4 py-4 shadow-sm">
-                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">MOBILE ACTION FLOW</p>
-                    <div className="mt-2 flex items-center justify-between gap-2">
-                        <div>
-                            <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">리포트에서 바로 조치</h3>
-                            <p className="mt-1 text-sm font-semibold text-slate-650 dark:text-slate-350">모바일은 읽는 것보다 움직이는 동선을 먼저 보여줍니다.</p>
-                        </div>
-                        <span className="rounded-full bg-violet-100 dark:bg-violet-950 px-3 py-1 text-[10px] font-black text-violet-700 dark:text-violet-300">최신 기준</span>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                        {[
-                            { step: '8', label: '개입 추천', action: '개입 보기' },
-                            { step: '10', label: '태깅 검증', action: '검증 보기' },
-                            { step: '11', label: '리포트 결과', action: '생성 보기' },
-                            { step: '12', label: '메뉴/설정', action: '설정 보기' },
-                        ].map((item) => (
-                            <button
-                                key={item.step}
-                                type="button"
-                                onClick={() => onNavigateToPage?.(item.step === '8' ? 'intervention-coaching' : item.step === '10' ? 'ocr-analysis' : item.step === '11' ? 'reports' : 'settings')}
-                                className="rounded-2xl border border-white dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-3 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md dark:shadow-none"
-                            >
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-500 dark:text-violet-400">STEP {item.step}</p>
-                                <p className="mt-1 text-sm font-black text-slate-900 dark:text-slate-100">{item.label}</p>
-                                <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">{item.action}</p>
-                            </button>
-                        ))}
-                    </div>
-                </section>
             </div>
-
-            <SectionCard
-                title="11) 리포트 생성 상태"
-                subtitle="현재 필터 기준으로 생성 진행 상태를 확인합니다."
-                className="border-indigo-200 dark:border-indigo-900/30 bg-indigo-50 dark:bg-indigo-950/20 no-print"
-                compact
-                action={<StatusPill variant={generationStatusVariant} label={generationStatusLabel} />}
-            >
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    <MetricCard
-                        title="보고서 대상"
-                        value={`${filteredRecords.length}`}
-                        unit={activeTab === 'worker-report' ? '명' : '건'}
-                        tone="neutral"
-                        className="min-h-[104px]"
-                    />
-                    <MetricCard
-                        title="생성 진행률"
-                        value={`${bulkProgressPercent}`}
-                        unit="%"
-                        tone={isGenerating || isPackagingEvidence ? 'warn' : 'safe'}
-                        className="min-h-[104px]"
-                    />
-                    <MetricCard
-                        title="최근 검증"
-                        value={latestVerification ? (latestVerification.isValid ? '성공' : '확인 필요') : '이력 없음'}
-                        tone={latestVerification ? (latestVerification.isValid ? 'safe' : 'warn') : 'neutral'}
-                        className="min-h-[104px]"
-                    />
-                </div>
-                <p className="mt-2 text-[11px] font-bold text-indigo-700">
-                    기간: {resolvedDateRange.startLabel} ~ {resolvedDateRange.endLabel}
-                    {hasCustomDateRangeError ? ' · 날짜 범위를 먼저 수정하세요.' : ' · 필터 결과 기준으로 생성/검증을 실행합니다.'}
-                </p>
-            </SectionCard>
 
             {isDevMode && <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-4 no-print">
                 <div className="flex items-center justify-between gap-2">
@@ -3713,42 +3680,65 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             )}
 
             {!isImmediateOperationalMode && (
-            <div className="hidden lg:block rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-4 no-print">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">PC 운영 바로가기</p>
-                <p className="mt-1 text-[11px] font-semibold text-indigo-700">생성/내보내기/검토를 한 구간에서 실행해 보고 사이클을 단축합니다.</p>
-                <div className="mt-2 grid grid-cols-1 gap-2 xl:grid-cols-5">
-                    <button type="button" onClick={() => { trackQuickAction('bulk_generate_start', { filteredCount: filteredRecords.length }); handleGenerate(); }} disabled={filteredRecords.length === 0 || hasCustomDateRangeError || isGenerating || isPackagingEvidence} className={`min-h-[44px] rounded-xl border border-indigo-200 bg-white px-3 py-2 text-left text-xs font-black text-indigo-700 ${filteredRecords.length === 0 || hasCustomDateRangeError || isGenerating || isPackagingEvidence ? 'opacity-50 cursor-not-allowed' : 'hover:bg-indigo-50'}`}>일괄 생성 시작</button>
-                    <button type="button" onClick={() => { trackQuickAction('export_evidence_zip', { filteredCount: filteredRecords.length }); handleExportEvidenceZip(); }} disabled={filteredRecords.length === 0 || hasCustomDateRangeError || isPackagingEvidence} className={`min-h-[44px] rounded-xl border border-violet-200 bg-white px-3 py-2 text-left text-xs font-black text-violet-700 ${filteredRecords.length === 0 || hasCustomDateRangeError || isPackagingEvidence ? 'opacity-50 cursor-not-allowed' : 'hover:bg-violet-50'}`}>증빙 ZIP 내보내기</button>
-                    <button type="button" onClick={() => { trackQuickAction('export_csv', { filteredCount: filteredRecords.length }); handleExportCsv(); }} disabled={filteredRecords.length === 0 || hasCustomDateRangeError || isPackagingEvidence} className={`min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-xs font-black text-slate-700 ${filteredRecords.length === 0 || hasCustomDateRangeError || isPackagingEvidence ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50'}`}>CSV 내보내기</button>
-                    <button type="button" onClick={() => { trackQuickAction('open_worker_preview', { filteredCount: filteredRecords.length, uiVariant: 'v2-lowfreq-tuning-1' }); setActiveTab('worker-report'); setViewMode('preview'); setPreviewIndex(0); }} disabled={filteredRecords.length === 0} className={`min-h-[44px] rounded-xl border border-amber-200 bg-white px-3 py-2 text-left text-xs font-black text-amber-700 ${filteredRecords.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-50'}`}>근로자 1건 미리보기</button>
-                    <button type="button" onClick={() => { trackQuickAction('print_meeting_report'); window.print(); }} className="min-h-[44px] rounded-xl border border-sky-200 bg-white px-3 py-2 text-left text-xs font-black text-sky-700 hover:bg-sky-50">회의 리포트 인쇄</button>
-                </div>
-            </div>
+            <section aria-labelledby="reports-quick-actions-title" className="no-print hidden rounded-xl border border-slate-200 bg-white px-4 py-4 dark:border-slate-700 dark:bg-slate-900 lg:block">
+                <p id="reports-quick-actions-title" className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-700 dark:text-sky-300">검토·회의 도구</p>
+                <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">생성과 내보내기는 아래 대상·출력 조건 영역에서 한 번만 실행합니다.</p>
+                <ReportActionBar ariaLabel="리포트 검토와 회의 작업" className="mt-2 grid grid-cols-1 gap-2 xl:grid-cols-2">
+                    <button type="button" onClick={() => { trackQuickAction('open_worker_preview', { filteredCount: filteredRecords.length, uiVariant: 'v2-lowfreq-tuning-1' }); setActiveTab('worker-report'); setViewMode('preview'); setPreviewIndex(0); }} disabled={filteredRecords.length === 0} className={`min-h-[44px] rounded-lg border px-3 py-2 text-left text-xs font-black transition-colors ${filteredRecords.length === 0 ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'}`}>근로자 1건 미리보기</button>
+                    <button type="button" onClick={() => { trackQuickAction('print_meeting_report'); window.print(); }} className="min-h-[44px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-xs font-black text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">회의 리포트 인쇄</button>
+                </ReportActionBar>
+            </section>
             )}
 
-            <div className="overflow-x-auto pb-2 -mb-2 shrink-0 no-print">
-                <div className="flex space-x-6 border-b border-slate-200 min-w-max">
-                    <button onClick={() => setActiveTab('worker-report')} className={`pb-4 text-sm font-bold transition-colors relative ${activeTab === 'worker-report' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}>
+            <nav aria-label="리포트 유형" className="no-print shrink-0 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-900">
+                <div role="tablist" aria-label="리포트 유형 선택" className="grid min-w-[300px] grid-cols-2 gap-1">
+                    <button
+                        type="button"
+                        id="reports-worker-tab"
+                        role="tab"
+                        aria-selected={activeTab === 'worker-report'}
+                        aria-controls="reports-workspace-panel"
+                        tabIndex={activeTab === 'worker-report' ? 0 : -1}
+                        onKeyDown={handleReportTabKeyDown}
+                        onClick={() => setActiveTab('worker-report')}
+                        className={`min-h-[44px] rounded-lg px-4 py-2 text-sm font-black transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 ${activeTab === 'worker-report' ? 'bg-slate-900 text-white dark:bg-sky-600' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}
+                    >
                         개인별 안전보고서
-                        {activeTab === 'worker-report' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600"></div>}
                     </button>
-                    <button onClick={() => setActiveTab('team-report')} className={`pb-4 text-sm font-bold transition-colors relative ${activeTab === 'team-report' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}>
+                    <button
+                        type="button"
+                        id="reports-team-tab"
+                        role="tab"
+                        aria-selected={activeTab === 'team-report'}
+                        aria-controls="reports-workspace-panel"
+                        tabIndex={activeTab === 'team-report' ? 0 : -1}
+                        onKeyDown={handleReportTabKeyDown}
+                        onClick={() => setActiveTab('team-report')}
+                        className={`min-h-[44px] rounded-lg px-4 py-2 text-sm font-black transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 ${activeTab === 'team-report' ? 'bg-slate-900 text-white dark:bg-sky-600' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}
+                    >
                         팀·공종 요약
-                        {activeTab === 'team-report' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600"></div>}
                     </button>
                 </div>
-                <p className="mt-2 text-xs font-semibold text-slate-500">
-                    {activeTab === 'team-report'
-                        ? '팀과 공종별 위험 현황을 회의·관리용으로 요약합니다.'
-                        : '같은 근로자의 월별 기록을 한 줄로 묶어 평가기간·기록 수·위험인식 신호 변화를 확인합니다.'}
-                </p>
-            </div>
+            </nav>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70 flex flex-wrap gap-4 items-end no-print">
+            <section
+                id="reports-workspace-panel"
+                role="tabpanel"
+                aria-labelledby={activeTab === 'worker-report' ? 'reports-worker-tab' : 'reports-team-tab'}
+                className="no-print flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-none dark:border-slate-700 dark:bg-slate-900 sm:p-5 lg:flex-row lg:flex-wrap lg:items-end"
+            >
                 <div className="w-full">
+                    <div className="mb-3">
+                        <h3 className="text-sm font-black text-slate-900 dark:text-slate-100">대상과 출력 조건</h3>
+                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                            {activeTab === 'team-report'
+                                ? '팀과 공종별 위험 현황을 회의·관리용으로 요약합니다.'
+                                : '같은 근로자의 월별 기록을 묶어 평가기간, 기록 수, 위험 신호 변화를 확인합니다.'}
+                        </p>
+                    </div>
                     <InterpretationCardGrid
                         items={filterInterpretationCards}
-                        cardClassName="rounded-2xl border p-4"
+                        cardClassName="rounded-xl border p-4"
                     />
                 </div>
                 {activeTab === 'worker-report' && (
@@ -3767,25 +3757,25 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 )}
                 {/* Filters */}
                 {activeTab === 'team-report' && (
-                    <div>
-                        <label className="text-xs font-bold text-slate-500 mb-1 block">대상 공종 (팀)</label>
-                        <select value={selectedTeam} onChange={e => setSelectedTeam(e.target.value)} className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[140px]">
+                    <div className="w-full sm:w-auto">
+                        <label htmlFor="reports-team-filter" className="mb-1 block text-xs font-bold text-slate-500">대상 공종 (팀)</label>
+                        <select id="reports-team-filter" value={selectedTeam} onChange={e => setSelectedTeam(e.target.value)} className="block min-h-[44px] w-full rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-sm font-bold text-slate-900 focus:border-sky-600 focus:ring-sky-600 sm:min-w-[160px]">
                             {teams.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                     </div>
                 )}
-                <div>
-                    <label className="text-xs font-bold text-slate-500 mb-1 block">{SAFETY_SIGNAL_COPY.level} 필터</label>
-                    <select value={filterLevel} onChange={e => setFilterLevel(e.target.value)} className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[120px]">
+                <div className="w-full sm:w-auto">
+                    <label htmlFor="reports-level-filter" className="mb-1 block text-xs font-bold text-slate-500">{SAFETY_SIGNAL_COPY.level} 필터</label>
+                    <select id="reports-level-filter" value={filterLevel} onChange={e => setFilterLevel(e.target.value)} className="block min-h-[44px] w-full rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-sm font-bold text-slate-900 focus:border-sky-600 focus:ring-sky-600 sm:min-w-[150px]">
                         <option value="전체">전체 {SAFETY_SIGNAL_COPY.level}</option>
                         <option value="초급">{getSafetyLevelDisplayLabel('초급')} (먼저 확인)</option>
                         <option value="중급">{getSafetyLevelDisplayLabel('중급')} (추가 확인)</option>
                         <option value="고급">{getSafetyLevelDisplayLabel('고급')} (유지)</option>
                     </select>
                 </div>
-                <div>
-                    <label className="text-xs font-bold text-slate-500 mb-1 block">기간 필터</label>
-                    <select value={datePreset} onChange={e => setDatePreset(e.target.value as DatePreset)} className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[140px]">
+                <div className="w-full sm:w-auto">
+                    <label htmlFor="reports-date-filter" className="mb-1 block text-xs font-bold text-slate-500">기간 필터</label>
+                    <select id="reports-date-filter" value={datePreset} onChange={e => setDatePreset(e.target.value as DatePreset)} className="block min-h-[44px] w-full rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-sm font-bold text-slate-900 focus:border-sky-600 focus:ring-sky-600 sm:min-w-[160px]">
                         <option value="all">전체 기간</option>
                         <option value="last30">최근 30일</option>
                         <option value="thisMonth">당월</option>
@@ -3794,39 +3784,41 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 </div>
                 {datePreset === 'custom' && (
                     <>
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 mb-1 block">시작일</label>
+                        <div className="w-full sm:w-auto">
+                            <label htmlFor="reports-start-date" className="mb-1 block text-xs font-bold text-slate-500">시작일</label>
                             <input
+                                id="reports-start-date"
                                 type="date"
                                 value={customStartDate}
                                 onChange={e => setCustomStartDate(e.target.value)}
-                                className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[140px]"
+                                className="block min-h-[44px] w-full rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-sm font-bold text-slate-900 focus:border-sky-600 focus:ring-sky-600 sm:min-w-[160px]"
                             />
                         </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 mb-1 block">종료일</label>
+                        <div className="w-full sm:w-auto">
+                            <label htmlFor="reports-end-date" className="mb-1 block text-xs font-bold text-slate-500">종료일</label>
                             <input
+                                id="reports-end-date"
                                 type="date"
                                 value={customEndDate}
                                 onChange={e => setCustomEndDate(e.target.value)}
-                                className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[140px]"
+                                className="block min-h-[44px] w-full rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-sm font-bold text-slate-900 focus:border-sky-600 focus:ring-sky-600 sm:min-w-[160px]"
                             />
                         </div>
                         {isIncompleteCustomDateRange && (
-                            <div className="self-end pb-1">
+                            <div className="w-full self-end pb-1" role="alert">
                                 <p className="text-xs font-bold text-amber-600">사용자 지정 기간은 시작일과 종료일을 모두 입력해야 합니다.</p>
                             </div>
                         )}
                         {isInvalidCustomDateRange && (
-                            <div className="self-end pb-1">
+                            <div className="w-full self-end pb-1" role="alert">
                                 <p className="text-xs font-bold text-red-600">시작일이 종료일보다 늦습니다. 기간을 다시 설정해주세요.</p>
                             </div>
                         )}
                     </>
                 )}
-                <div>
-                    <label className="text-xs font-bold text-slate-500 mb-1 block">일괄 출력 형태</label>
-                    <select value={genMode} onChange={e => setGenMode(e.target.value as GenMode)} className="bg-indigo-50 border border-indigo-200 text-indigo-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-black min-w-[200px]">
+                <div className="w-full sm:w-auto">
+                    <label htmlFor="reports-generation-mode" className="mb-1 block text-xs font-bold text-slate-500">일괄 출력 형태</label>
+                    <select id="reports-generation-mode" value={genMode} onChange={e => setGenMode(e.target.value as GenMode)} className="block min-h-[44px] w-full rounded-lg border border-sky-200 bg-sky-50 p-2.5 text-sm font-black text-slate-900 focus:border-sky-600 focus:ring-sky-600 sm:min-w-[210px]">
                         <option value="individual-pdf">개인별 PDF 묶음</option>
                         <option value="individual-img">개인별 이미지 묶음</option>
                         <option value="combined-pdf">전체 통합 PDF</option>
@@ -3834,37 +3826,41 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 </div>
                 
                 {/* View Mode Toggle */}
-                <div className="flex bg-slate-100 p-1 rounded-xl self-end">
+                <div role="group" aria-label="리포트 보기 방식" className="grid w-full grid-cols-2 self-end rounded-lg bg-slate-100 p-1 sm:w-auto">
                     <button 
+                        type="button"
+                        aria-pressed={viewMode === 'list'}
                         onClick={() => setViewMode('list')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${viewMode === 'list' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`flex min-h-[44px] items-center justify-center gap-1 rounded-md px-3 py-2 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 ${viewMode === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                     >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                        <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
                         목록 보기
                     </button>
                     <button 
+                        type="button"
+                        aria-pressed={viewMode === 'preview'}
                         onClick={() => setViewMode('preview')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${viewMode === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`flex min-h-[44px] items-center justify-center gap-1 rounded-md px-3 py-2 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 ${viewMode === 'preview' ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                     >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                         상세 미리보기
                     </button>
                 </div>
 
-                <div className="flex-1"></div>
+                <div className="hidden flex-1 xl:block"></div>
 
                 {/* Actions */}
-                <div className="flex gap-3 items-center">
-                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 h-[42px]">
+                <div className="flex w-full flex-col gap-2 border-t border-slate-200 pt-4 sm:flex-row sm:flex-wrap sm:items-center xl:justify-end dark:border-slate-700" aria-label="현재 대상 내보내기 작업">
+                    <div className="flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 sm:justify-start dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300" aria-live="polite">
                         <span>대상: {filteredRecords.length}{activeTab === 'worker-report' ? '명' : '건'}</span>
                     </div>
                     
                     {isPackagingEvidence ? (
-                        <div className="flex items-center gap-2 animate-fade-in">
-                            <div className="bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100 shadow-sm min-w-[280px]">
+                        <div className="flex w-full animate-fade-in flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                            <div className="w-full rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 sm:min-w-[280px]">
                                 <div className="text-xs font-black text-indigo-700 h-[20px] flex items-center justify-between">
                                     <span className="flex items-center">
-                                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                        <svg aria-hidden="true" className="animate-spin -ml-1 mr-2 h-4 w-4 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                         증빙 패키지 생성 중
                                     </span>
                                     <span>{bulkProgressPercent}%</span>
@@ -3879,41 +3875,44 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                     {bulkProgress.current}/{bulkProgress.total} 처리 완료
                                 </div>
                             </div>
-                            <button onClick={cancelGeneration} className="px-4 py-2.5 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-300 h-[42px]" disabled={isPackagingEvidence}>
+                            <button type="button" onClick={cancelGeneration} className="min-h-[48px] w-full rounded-lg bg-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-300 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 sm:w-auto">
                                 중단
                             </button>
                         </div>
                     ) : (
                         <>
                             <button
-                                onClick={handleExportEvidenceZip}
-                                disabled={filteredRecords.length === 0 || hasCustomDateRangeError}
-                                className={`px-4 py-2.5 font-black rounded-xl shadow-sm transition-all flex items-center gap-2 text-xs h-[42px] border
-                                    ${filteredRecords.length === 0 || hasCustomDateRangeError ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 cursor-pointer'}`}
+                                type="button"
+                                onClick={handleEvidenceZipAction}
+                                disabled={filteredRecords.length === 0 || hasCustomDateRangeError || isGenerating || isPackagingEvidence}
+                                className={`flex min-h-[48px] w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-xs font-black transition-colors sm:w-auto
+                                    ${filteredRecords.length === 0 || hasCustomDateRangeError || isGenerating || isPackagingEvidence ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 cursor-pointer'}`}
                             >
                                 증빙 패키지 ZIP
                             </button>
                             <button
-                                onClick={handleExportCsv}
-                                disabled={filteredRecords.length === 0 || hasCustomDateRangeError}
-                                className={`px-4 py-2.5 font-black rounded-xl shadow-sm transition-all flex items-center gap-2 text-xs h-[42px] border
-                                    ${filteredRecords.length === 0 || hasCustomDateRangeError ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 cursor-pointer'}`}
+                                type="button"
+                                onClick={handleCsvExportAction}
+                                disabled={filteredRecords.length === 0 || hasCustomDateRangeError || isGenerating || isPackagingEvidence}
+                                className={`flex min-h-[48px] w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-xs font-black transition-colors sm:w-auto
+                                    ${filteredRecords.length === 0 || hasCustomDateRangeError || isGenerating || isPackagingEvidence ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 cursor-pointer'}`}
                             >
                                 CSV 내보내기
                             </button>
                             <button 
-                                onClick={handleGenerate} 
-                                disabled={filteredRecords.length === 0 || hasCustomDateRangeError || isGenerating}
-                                className={`px-6 py-2.5 text-white font-black rounded-xl shadow-lg transition-all flex items-center gap-2 text-sm h-[42px]
-                                    ${filteredRecords.length === 0 || hasCustomDateRangeError || isGenerating ? 'bg-slate-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5 cursor-pointer'}`}
+                                type="button"
+                                onClick={handleBulkGenerateAction}
+                                disabled={filteredRecords.length === 0 || hasCustomDateRangeError || isGenerating || isPackagingEvidence}
+                                className={`order-first flex min-h-[52px] w-full items-center justify-center gap-2 rounded-lg px-6 py-2.5 text-sm font-black text-white transition-colors sm:order-none sm:min-h-[48px] sm:w-auto
+                                    ${filteredRecords.length === 0 || hasCustomDateRangeError || isGenerating || isPackagingEvidence ? 'bg-slate-300 cursor-not-allowed' : 'cursor-pointer bg-slate-900 hover:bg-slate-800 dark:bg-sky-600 dark:hover:bg-sky-500'}`}
                             >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> 
+                                <svg aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                                 일괄 생성 시작
                             </button>
                         </>
                     )}
                 </div>
-            </div>
+            </section>
 
             {reportGenerationUi.status !== 'idle' && (
                 <div className="no-print space-y-3">
@@ -4645,7 +4644,19 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             )}
 
             {/* Hidden Rendering Area for Bulk Generation */}
-            <div style={{ position: 'fixed', top: 0, left: 0, zIndex: -50, width: '210mm', minHeight: '297mm', pointerEvents: 'none', visibility: isGenerating ? 'visible' : 'hidden' }}>
+            <div
+                aria-hidden="true"
+                style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: '-10000px',
+                    zIndex: -50,
+                    width: '210mm',
+                    minHeight: '297mm',
+                    pointerEvents: 'none',
+                    visibility: isGenerating ? 'visible' : 'hidden',
+                }}
+            >
                 {isGenerating && generatingRecord && (
                     <Suspense fallback={<ReportTemplateFallback compact />}>
                         <ReportTemplate record={generatingRecord} history={generatingHistory} ref={bulkReportRef} />
@@ -4697,7 +4708,42 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             )}
                         </div>
                         <div className="overflow-y-auto flex-1 p-0 custom-scrollbar">
-                            <table className="w-full text-left text-sm">
+                            <div className="grid gap-3 p-3 md:hidden">
+                                {filteredRecords.map((record, index) => {
+                                    const reportTarget = workerReportTargetByRecordId.get(record.id);
+                                    const level = getSafetyLevelFromScore(Number(record.safetyScore));
+                                    return (
+                                        <article key={record.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <h4 className="truncate text-base font-black text-slate-900 dark:text-slate-100">{record.name}</h4>
+                                                    <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">{record.jobField} · {record.date}</p>
+                                                </div>
+                                                <div className="shrink-0 text-right">
+                                                    <p className="text-xl font-black text-indigo-600" title={SAFETY_SIGNAL_COPY.explanation}>{record.safetyScore}</p>
+                                                    <p className="text-[10px] font-black text-slate-500">{getSafetyLevelDisplayLabel(level)}</p>
+                                                </div>
+                                            </div>
+                                            {activeTab === 'worker-report' && (
+                                                <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+                                                    평가기간 {reportTarget?.periodLabel || record.date} · {reportTarget?.monthCount || 1}개월 · {reportTarget?.recordCount || 1}건
+                                                </div>
+                                            )}
+                                            <p className="mt-3 line-clamp-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                                주요 취약점: {record.weakAreas.join(', ') || '등록 없음'}
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={() => { setViewMode('preview'); setPreviewIndex(index); }}
+                                                className="mt-4 min-h-[44px] w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-black text-white hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200"
+                                            >
+                                                {activeTab === 'worker-report' ? '통합 리포트 보기' : '기록 미리보기'}
+                                            </button>
+                                        </article>
+                                    );
+                                })}
+                            </div>
+                            <table className="hidden min-w-[980px] w-full text-left text-sm md:table">
                                 <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-300 font-bold uppercase text-xs sticky top-0 z-10 shadow-sm">
                                     <tr>
                                         <th className="px-6 py-3">이름</th>
@@ -5094,7 +5140,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     </div>
                 )}
             </div>
-        </div>
+        </section>
     );
 };
 

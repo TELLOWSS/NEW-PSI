@@ -13,6 +13,7 @@ const files = {
   workBoard: read('components/IntegratedWorkBoard.tsx'),
   dashboard: read('pages/Dashboard.tsx'),
   routeMeta: read('config/routeMeta.ts'),
+  operationalMode: read('utils/operationalModeUtils.ts'),
   plainLanguageQa: read('scripts/verify-plain-language-ui.mjs'),
   packageJson: JSON.parse(read('package.json')),
 };
@@ -32,8 +33,9 @@ assertAbsent('TopBar', files.topBar, '12채널 허브');
 assertAbsent('TopBar', files.topBar, '12채널 모바일 연동 허브');
 assertAbsent('Layout', files.layout, 'handleGoToMobileHub');
 assertAbsent('Layout', files.layout, 'mobile-sync-hub');
-assertAbsent('Sidebar', files.sidebar, "id: 'safety-compliance-hub'");
-assertAbsent('uiCompositionConfig', files.composition, "'safety-compliance-hub'");
+assertPresent('Sidebar', files.sidebar, "id: 'safety-compliance-hub'");
+assertPresent('uiCompositionConfig', files.composition, "'safety-compliance-hub'");
+assertPresent('operationalModeUtils', files.operationalMode, "'safety-compliance-hub'");
 assertAbsent('IntegratedWorkBoard', files.workBoard, "'safety-compliance-hub'");
 assertAbsent('IntegratedWorkBoard', files.workBoard, 'Control Hub');
 assertAbsent('Dashboard', files.dashboard, '12채널');
@@ -51,9 +53,9 @@ if (!routeMetaBlock) {
   failures.push('routeMeta: safety-compliance-hub route meta block missing');
 } else {
   const block = routeMetaBlock[0];
-  assertPresent('routeMeta safety-compliance-hub', block, 'menuVisibleInPractitionerMode: false');
+  assertPresent('routeMeta safety-compliance-hub', block, 'menuVisibleInPractitionerMode: true');
   assertPresent('routeMeta safety-compliance-hub', block, 'menuVisibleInWorkerMode: false');
-  assertPresent('routeMeta safety-compliance-hub', block, 'menuVisibleInDeveloperMode: false');
+  assertPresent('routeMeta safety-compliance-hub', block, 'menuVisibleInDeveloperMode: true');
 }
 
 const checkScript = files.packageJson.scripts?.['check:no-12-channel-hub'] || '';
@@ -74,4 +76,4 @@ if (failures.length > 0) {
 }
 
 console.log('[check-no-12-channel-hub-contract] PASS');
-console.log('- 12-channel hub entry points are removed from product navigation while the dashboard keeps a simplified mobile field flow.');
+console.log('- Legacy 12-channel entry points remain removed while the approved safety compliance hub is available to practitioners and developers.');

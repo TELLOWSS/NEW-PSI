@@ -1,38 +1,64 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { isSupportedOcrFile, OCR_FILE_ACCEPT, OCR_MAX_FILE_SIZE_BYTES } from '../utils/ocrFilePolicy';
+import {
+    assessOcrUploadBatch,
+    getOcrFileKey,
+    mergeUniqueOcrFiles,
+    type OcrUploadPreflight,
+} from '../utils/ocrUploadQuality';
 
 interface FileUploadProps {
     onFilesChange: (files: File[]) => void;
     onAnalyze: () => void;
     isAnalyzing: boolean;
     fileCount: number;
+    files: File[];
+    onPreflightChange?: (reports: OcrUploadPreflight[]) => void;
 }
 
-export const FileUpload: React.FC<FileUploadProps> = ({ onFilesChange, onAnalyze, isAnalyzing, fileCount }) => {
+export const FileUpload: React.FC<FileUploadProps> = ({
+    onFilesChange,
+    onAnalyze,
+    isAnalyzing,
+    fileCount,
+    files,
+    onPreflightChange,
+}) => {
     const [isDragging, setIsDragging] = useState<boolean>(false);
     const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
+    const [selectionMessage, setSelectionMessage] = useState('');
+    const [preflightReports, setPreflightReports] = useState<OcrUploadPreflight[]>([]);
+    const [isCheckingQuality, setIsCheckingQuality] = useState(false);
+    const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
     const fileInputRef = useRef<HTMLInputElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
 
-    const handleFileSelect = useCallback((files: FileList | null) => {
-        if (files && files.length > 0) {
-            const fileArray = Array.from(files);
+    const handleFileSelect = useCallback((selectedFiles: FileList | null) => {
+        if (selectedFiles && selectedFiles.length > 0) {
+            const fileArray = Array.from(selectedFiles);
             const supportedFiles = fileArray.filter(isSupportedOcrFile);
             const uploadableFiles = supportedFiles.filter((file) => file.size <= OCR_MAX_FILE_SIZE_BYTES);
-            if (supportedFiles.length !== fileArray.length) {
-                alert('JPG, PNG, WebP, HEIC 또는 PDF 파일만 업로드할 수 있습니다.');
-            }
-            if (uploadableFiles.length !== supportedFiles.length) {
-                alert('파일당 최대 용량은 20MB입니다. PDF가 큰 경우 필요한 페이지만 분리해 주세요.');
-            }
-            onFilesChange(uploadableFiles);
-        } else {
-            onFilesChange([]);
+            const merged = mergeUniqueOcrFiles(files, uploadableFiles);
+            onFilesChange(merged.files);
+            const messages = [
+                supportedFiles.length !== fileArray.length
+                    ? `지원하지 않는 형식 ${fileArray.length - supportedFiles.length}개 제외`
+                    : '',
+                uploadableFiles.length !== supportedFiles.length
+                    ? `20MB 초과 파일 ${supportedFiles.length - uploadableFiles.length}개 제외`
+                    : '',
+                merged.duplicateCount > 0
+                    ? `이미 선택된 중복 파일 ${merged.duplicateCount}개 제외`
+                    : '',
+            ].filter(Boolean);
+            setSelectionMessage(messages.length > 0
+                ? messages.join(' · ')
+                : `${merged.addedCount}개 파일을 목록에 추가했습니다.`);
         }
-    }, [onFilesChange]);
+    }, [files, onFilesChange]);
 
     const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -111,7 +137,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFilesChange, onAnalyze
                 canvas.toBlob((blob) => {
                     if (blob) {
                         const file = new File([blob], `camera_capture_${Date.now()}.jpg`, { type: 'image/jpeg' });
-                        onFilesChange([file]);
+                        const merged = mergeUniqueOcrFiles(files, [file]);
+                        onFilesChange(merged.files);
+                        setSelectionMessage('촬영 이미지를 목록에 추가했습니다. 아래 품질 점검 결과를 확인해 주세요.');
                         stopCamera();
                     }
                 }, 'image/jpeg', 0.95);
@@ -128,6 +156,41 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFilesChange, onAnalyze
     useEffect(() => {
         return () => stopCamera();
     }, []);
+
+    useEffect(() => {
+        const urls: Record<string, string> = {};
+        files.forEach((file) => {
+            if (file.type.startsWith('image/')) {
+                urls[getOcrFileKey(file)] = URL.createObjectURL(file);
+            }
+        });
+        setPreviewUrls(urls);
+        return () => Object.values(urls).forEach((url) => URL.revokeObjectURL(url));
+    }, [files]);
+
+    useEffect(() => {
+        let active = true;
+        if (files.length === 0) {
+            setPreflightReports([]);
+            setIsCheckingQuality(false);
+            onPreflightChange?.([]);
+            return () => { active = false; };
+        }
+
+        setIsCheckingQuality(true);
+        void assessOcrUploadBatch(files).then((reports) => {
+            if (!active) return;
+            setPreflightReports(reports);
+            onPreflightChange?.(reports);
+            setIsCheckingQuality(false);
+        });
+        return () => { active = false; };
+    }, [files, onPreflightChange]);
+
+    const removeFile = (targetKey: string) => {
+        onFilesChange(files.filter((file) => getOcrFileKey(file) !== targetKey));
+        setSelectionMessage('선택한 파일을 목록에서 제거했습니다.');
+    };
 
     if (isCameraActive) {
         return (
@@ -180,7 +243,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFilesChange, onAnalyze
                 className="hidden"
                 accept={OCR_FILE_ACCEPT}
                 multiple
-                onChange={(e) => handleFileSelect(e.target.files)}
+                onChange={(e) => {
+                    handleFileSelect(e.target.files);
+                    e.currentTarget.value = '';
+                }}
             />
              <div className="flex flex-col items-center text-slate-500">
                 <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6">
@@ -215,7 +281,88 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFilesChange, onAnalyze
                         <span>카메라 촬영</span>
                     </button>
                 </div>
+                {selectionMessage && (
+                    <p role="status" className="mt-4 text-sm font-bold text-slate-600">{selectionMessage}</p>
+                )}
             </div>
+
+            {files.length > 0 && (
+                <div className="mt-8 border-t border-slate-200 pt-6 text-left">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <h3 className="text-base font-black text-slate-900">분석 전 사진 품질 점검</h3>
+                            <p className="mt-1 text-xs font-bold text-slate-500">차단 항목은 다시 촬영하고, 주의 항목은 원본과 분석 결과를 대조해 주세요.</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => onFilesChange([])}
+                            disabled={isAnalyzing}
+                            className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 disabled:opacity-50"
+                        >
+                            전체 비우기
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        {files.map((file) => {
+                            const key = getOcrFileKey(file);
+                            const report = preflightReports.find((item) => item.key === key);
+                            const tone = !report || isCheckingQuality
+                                ? 'border-slate-200 bg-slate-50'
+                                : report.status === 'blocked'
+                                    ? 'border-rose-300 bg-rose-50'
+                                    : report.status === 'warning'
+                                        ? 'border-amber-300 bg-amber-50'
+                                        : 'border-emerald-300 bg-emerald-50';
+                            const statusLabel = !report || isCheckingQuality
+                                ? '점검 중'
+                                : report.status === 'blocked' ? '다시 촬영 필요' : report.status === 'warning' ? '원본 확인 필요' : '분석 가능';
+
+                            return (
+                                <div key={key} className={`overflow-hidden rounded-2xl border ${tone}`}>
+                                    <div className="flex gap-3 p-3">
+                                        <div className="h-24 w-20 shrink-0 overflow-hidden rounded-xl border border-white/80 bg-white">
+                                            {previewUrls[key] ? (
+                                                <img src={previewUrls[key]} alt={`${file.name} 미리보기`} className="h-full w-full object-cover" />
+                                            ) : (
+                                                <div className="flex h-full items-center justify-center text-xs font-black text-slate-500">PDF</div>
+                                            )}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="min-w-0">
+                                                    <p className="truncate text-sm font-black text-slate-900" title={file.name}>{file.name}</p>
+                                                    <p className="mt-1 text-[11px] font-bold text-slate-500">
+                                                        {(file.size / 1024 / 1024).toFixed(1)}MB
+                                                        {report?.width && report?.height ? ` · ${report.width}×${report.height}px` : ''}
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeFile(key)}
+                                                    disabled={isAnalyzing}
+                                                    aria-label={`${file.name} 제거`}
+                                                    className="min-h-11 min-w-11 rounded-xl border border-slate-200 bg-white text-sm font-black text-slate-600 disabled:opacity-50"
+                                                >
+                                                    제거
+                                                </button>
+                                            </div>
+                                            <p className="mt-2 text-xs font-black text-slate-700">{statusLabel}</p>
+                                        </div>
+                                    </div>
+                                    {report && report.issues.length > 0 && (
+                                        <ul className="space-y-1 border-t border-black/5 px-3 py-2 text-xs font-bold text-slate-700">
+                                            {report.issues.map((issue) => (
+                                                <li key={`${key}-${issue.code}`}>• {issue.message}</li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

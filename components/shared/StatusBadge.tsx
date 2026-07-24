@@ -1,4 +1,5 @@
 import React from 'react';
+import { Badge } from '../common/Badge';
 
 export type StatusBadgeVariant =
     | 'slate'
@@ -41,8 +42,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
     children,
 }) => {
     return (
-        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${STATUS_BADGE_TONE_STYLES[variant]}${className ? ` ${className}` : ''}`}>
+        <Badge className={`px-2 py-0.5 text-[10px] font-black ${STATUS_BADGE_TONE_STYLES[variant]}${className ? ` ${className}` : ''}`}>
             {children}
-        </span>
+        </Badge>
     );
 };

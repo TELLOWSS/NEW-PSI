@@ -363,7 +363,6 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords }) => {
         </main>
 
         <section className="guidance-no-print rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="psi-section-title">교육용 공유자료 생성</h3><p className="psi-body-compact mt-1">개인 식별정보 없이 현장 전체 계도용 자료만 생성합니다.</p><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Action label="A4 요약 인쇄" onClick={() => window.print()} color="bg-slate-900" /><Action label="PPT 브리핑 개요" onClick={downloadOutline} color="bg-indigo-600" /><Action label="다국어 요약 복사" onClick={() => void copyLanguages()} color="bg-emerald-600" /><Action label="QR 보기" onClick={() => setShowQr((v) => !v)} color="bg-sky-600" /></div>{showQr && <div className="mt-4 flex flex-col items-center rounded-2xl border border-sky-200 bg-sky-50 p-5"><QRCodeCanvas value={qrValue} size={180} includeMargin /><p className="psi-small-note mt-3 text-sky-800">{monthLabel(assessmentMonth)} 익명 계도자료</p></div>}</section>
-        <section className="guidance-no-print grid gap-4 md:grid-cols-3">{[['A4 교육자료 자동생성', '위험성평가 작성 전 도움자료'], ['PPT/PDF 한장요약', '기존 현장 교육자료를 A4 한 장으로 요약'], ['월별 계도 리포트', '지난달 작성사항을 익명 분석해 교육 종료 전 전체 공유']].map(([t, d]) => <div key={t} className="rounded-2xl border border-slate-200 bg-white p-4"><b className="psi-card-title block">{t}</b><p className="psi-body-compact mt-2">{d}</p></div>)}</section>
     </div>;
 };
 

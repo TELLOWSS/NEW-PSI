@@ -71,6 +71,48 @@ export const PSI_STANDARD_JOB_FIELDS = [
     '미분류',
 ] as const;
 
+export const PSI_WORKER_JOB_FIELDS = [
+    '형틀',
+    '철근',
+    '갱폼',
+    '알폼',
+    '시스템',
+    '관리',
+    '바닥미장',
+    '할석미장견출',
+    '해체정리',
+    '직영',
+    '용역',
+    '콘크리트비계',
+] as const;
+
+export const PSI_WORKER_JOB_FIELD_ALIASES: Record<string, string> = {
+    '형틀': '형틀',
+    '철근': '철근',
+    '갱폼': '갱폼',
+    '알폼': '알폼',
+    '시스템': '시스템',
+    '관리': '관리',
+    '관리도': '관리',
+    '바닥미장': '바닥미장',
+    '바닥 미장': '바닥미장',
+    '할석미장견출': '할석미장견출',
+    '해체정리': '해체정리',
+    '직영(용역포함)': '직영',
+    '직영용역포함': '직영',
+    '직영': '직영',
+    '용역': '용역',
+    '콘크리트비계': '콘크리트비계',
+};
+
+export const normalizePsiWorkerJobField = (raw: unknown, fallback = '직영'): string => {
+    const base = String(raw || '').trim();
+    if (!base) return fallback;
+    const compact = base.replace(/\s+/g, '');
+    const resolved = PSI_WORKER_JOB_FIELD_ALIASES[compact] || PSI_WORKER_JOB_FIELD_ALIASES[base] || base;
+    return (PSI_WORKER_JOB_FIELDS as readonly string[]).includes(resolved) ? resolved : fallback;
+};
+
 export const PSI_RISK_TYPE_CATALOG = [
     { id: 'fall', label: '추락', keywords: ['추락', '고소', '개구부', '단부', '발판', '사다리'], controlKeywords: ['안전대', '고리', '생명줄', '난간', '발판', '덮개', '개구부', '체결'] },
     { id: 'falling-object', label: '낙하·비래', keywords: ['낙하', '비래', '떨어짐', '자재 낙하', '공구 낙하'], controlKeywords: ['결속', '낙하방지', '상하동시', '통제', '공구', '망', '자재'] },

@@ -44,14 +44,8 @@ export function calculateIntegrityScore(
         };
     }
 
-    if (!pastViolationHistory || pastViolationHistory.length === 0) {
-        return {
-            score: 100,
-            warning: null,
-            inconsistencies: [],
-            confidence: 1.0
-        };
-    }
+    const violationHistory = Array.isArray(pastViolationHistory) ? pastViolationHistory : [];
+    if (violationHistory.length === 0) confidence = 1.0;
 
     const text = handwritingText.toLowerCase();
     
@@ -64,7 +58,7 @@ export function calculateIntegrityScore(
     };
 
     // Check for inconsistencies
-    pastViolationHistory.forEach(violation => {
+    violationHistory.forEach(violation => {
         const violationType = violation.type;
         const keywords = safetyKeywords[violationType] || [];
         
@@ -84,7 +78,7 @@ export function calculateIntegrityScore(
     });
 
     // Special case: Multiple fall-related violations but wrote about "안전고리"
-    const fallViolations = pastViolationHistory.filter(v => v.type === 'fall');
+    const fallViolations = violationHistory.filter(v => v.type === 'fall');
     const mentionsFallSafety = safetyKeywords.fall.some(keyword => text.includes(keyword));
     
     if (fallViolations.length >= 2 && mentionsFallSafety) {
@@ -107,7 +101,7 @@ export function calculateIntegrityScore(
 
     const warning = score < 70 
         ? '⚠️ 낮은 무결성 점수 - 거짓 기재 또는 형식적 작성 가능성' 
-        : score < 85 
+        : score <= 85
         ? '⚡ 주의 필요 - 일부 불일치 감지됨' 
         : null;
 

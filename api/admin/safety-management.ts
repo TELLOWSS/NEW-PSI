@@ -15,6 +15,10 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
+import {
+    PSI_WORKER_JOB_FIELDS as ALLOWED_JOB_FIELDS,
+    PSI_WORKER_JOB_FIELD_ALIASES as JOB_FIELD_ALIASES,
+} from '../../config/psiFormMaster.js';
 
 const supabase = createClient(
     process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -45,40 +49,6 @@ export const UNSAFE_BEHAVIOR_PRESETS = [
 export const COACHING_ACTION_PRESETS = [
     '재교육', '현장코칭', '작업중지', '보호구개선', '안전조회 특별교육', '서면경고', '기타',
 ] as const;
-
-const ALLOWED_JOB_FIELDS = [
-    '형틀',
-    '철근',
-    '갱폼',
-    '알폼',
-    '시스템',
-    '관리',
-    '바닥미장',
-    '할석미장견출',
-    '해체정리',
-    '직영',
-    '용역',
-    '콘크리트비계',
-] as const;
-
-const JOB_FIELD_ALIASES: Record<string, string> = {
-    '형틀': '형틀',
-    '철근': '철근',
-    '갱폼': '갱폼',
-    '알폼': '알폼',
-    '시스템': '시스템',
-    '관리': '관리',
-    '관리도': '관리',
-    '바닥미장': '바닥미장',
-    '바닥 미장': '바닥미장',
-    '할석미장견출': '할석미장견출',
-    '해체정리': '해체정리',
-    '직영(용역포함)': '직영',
-    '직영용역포함': '직영',
-    '직영': '직영',
-    '용역': '용역',
-    '콘크리트비계': '콘크리트비계',
-};
 
 const SAFETY_INTEGRITY_REQUIRED_TABLES = new Set([
     'safety_behavior_observations',

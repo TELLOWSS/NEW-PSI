@@ -15,7 +15,6 @@ import type { UiAudienceMode } from '../config/routeMeta';
 import {
     buildMonthlyCoreMetricSeries,
     calculateCoreMetricSnapshot,
-    getCoreMetricWorkerKey,
     selectLatestCoreMetricRecords,
 } from '../utils/coreMetrics';
 import { SAFETY_SIGNAL_COPY } from '../utils/safetyLevelUtils';
@@ -346,23 +345,26 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
         };
     }, [filteredBaseRecords]);
 
-    const safetyHabitRanking = useMemo(() => {
+    const safetyTeamSignals = useMemo(() => {
         const grouped = filteredBaseRecords.reduce((map, record) => {
-            const key = getCoreMetricWorkerKey(record);
+            const key = String(record.teamLeader || record.jobField || '미분류 팀').trim();
             const bucket = map.get(key) || [];
             bucket.push(record);
             map.set(key, bucket);
             return map;
         }, new Map<string, WorkerRecord[]>());
         return (Array.from(grouped.values()) as WorkerRecord[][]).map(records => {
-            const name = records[0]?.name || '이름 미확인';
+            const teamLabel = records[0]?.teamLeader
+                ? `${records[0].teamLeader} 팀`
+                : `${records[0]?.jobField || '미분류'} 공종`;
             const scores = records.map(r => r.safetyScore);
             const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
             const stdDev = calculateStandardDeviation(scores);
             const safetyHabitIndex = avg / (1 + stdDev);
-            return { name, jobField: records[0].jobField, avg, stdDev, count: records.length, safetyHabitIndex };
+            const workerCount = new Set(records.map(getWorkerIdentityKey)).size;
+            return { teamLabel, avg, stdDev, recordCount: records.length, workerCount, safetyHabitIndex };
         })
-        .filter(w => w.count >= 2)
+        .filter(team => team.workerCount >= 3 && team.recordCount >= 3)
         .sort((a, b) => b.safetyHabitIndex - a.safetyHabitIndex)
         .slice(0, 5);
     }, [filteredBaseRecords]);
@@ -421,19 +423,19 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
             key: 'chart-evidence',
             eyebrow: '판단 근거',
             title: riskKeywords.length > 0 ? `${riskKeywords[0][0]} 등 주요 위험 키워드가 반복됩니다.` : '아직 위험 키워드 데이터가 충분하지 않습니다.',
-            description: safetyHabitRanking.length > 0
-                ? `상위 안전 습관 근로자 ${safetyHabitRanking.length}명과 반복 키워드를 함께 보면 좋은 사례와 보완 대상이 동시에 보입니다.`
-                : '기복 없는 실천 사례가 충분히 쌓이면 상위 안전 습관자와 반복 위험 키워드를 함께 비교할 수 있습니다.',
+            description: safetyTeamSignals.length > 0
+                ? `3명 이상으로 익명 집계된 팀 ${safetyTeamSignals.length}곳과 반복 키워드를 함께 보면 좋은 사례와 보완 대상을 동시에 확인할 수 있습니다.`
+                : '팀별 익명 집계를 만들 수 있을 만큼 기록이 쌓이면 반복 위험 키워드와 함께 비교할 수 있습니다.',
             tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'chart-action',
             eyebrow: '다음 행동',
             title: '좋은 습관은 확산하고 반복 위험은 선제 보완하세요.',
-            description: '최우수 성과 공종과 상위 안전 실무자의 패턴을 교육·코칭 메시지로 전환하면 보호 중심 운영이 더 쉬워집니다.',
+            description: '개인을 공개하지 않고 팀 단위의 좋은 패턴을 교육·코칭 메시지로 전환하세요.',
             tone: BRAND_TONE.amberSoft80,
         },
-    ], [riskKeywords, safetyHabitRanking.length]);
+    ], [riskKeywords, safetyTeamSignals.length]);
 
     const harnessSummaryMetrics = useMemo(() => {
         const isDev = uiAudienceMode === 'developer';
@@ -588,7 +590,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
 
             {uiAudienceMode !== 'worker' && (
                 <section className="rounded-2xl border border-blue-200 bg-blue-50/70 p-5 shadow-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-black text-blue-700">MonthlyTrendDashboard</p><h3 className="mt-1 text-lg font-black text-slate-900">월별 개선 추적 요약</h3></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700">{latestMonthlyTrend?.month || '분석 대기'}</span></div>
+                    <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-black text-blue-700">월별 개선 추적</p><h3 className="mt-1 text-lg font-black text-slate-900">월별 개선 추적 요약</h3></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700">{latestMonthlyTrend?.month || '분석 대기'}</span></div>
                     <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">월 평균 위험인식 신호</p><p className="mt-1 text-2xl font-black">{latestMonthlyTrend?.averageScore ?? 0}</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">개선이행률</p><p className="mt-1 text-2xl font-black text-emerald-700">{latestMonthlyTrend?.improvementExecutionRate ?? 0}%</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">반복지적 건수</p><p className="mt-1 text-2xl font-black text-orange-700">{latestMonthlyTrend?.repeatedIssueCount ?? 0}건</p></div></div>
                     <p className="mt-3 text-sm font-bold text-slate-600">다음 교육 반영: {latestMonthlyTrend?.nextEducationFocus.join(' · ') || '월별 분석 데이터가 쌓이면 자동 제안됩니다.'}</p>
                 </section>
@@ -785,24 +787,24 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                 </div>
 
                 <div className="xl:col-span-1 bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
-                    <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-6">최우수 안전 실무자</h3>
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-6">팀별 안전 실천 신호</h3>
                     <p className="text-xs text-slate-500 dark:text-slate-300 mb-4">
-                        기복 없는 안전 실천 능력을 보여준 상위 근로자입니다. (관리 직군 제외)
+                        개인 순위는 표시하지 않고, 3명 이상이 포함된 팀만 익명 집계합니다.
                     </p>
                     <div className="space-y-4">
-                        {safetyHabitRanking.length > 0 ? safetyHabitRanking.map((worker, idx) => (
-                            <div key={worker.name} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-700 transition-colors">
+                        {safetyTeamSignals.length > 0 ? safetyTeamSignals.map((team) => (
+                            <div key={team.teamLabel} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-700 transition-colors">
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${idx === 0 ? 'bg-yellow-400 shadow-md' : 'bg-slate-300'}`}>
-                                        {idx + 1}
+                                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white bg-indigo-500">
+                                        팀
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{worker.name}</p>
-                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{worker.jobField} | 평균 {worker.avg.toFixed(0)}점</p>
+                                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{team.teamLabel}</p>
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{team.workerCount}명 익명 집계 | 평균 {team.avg.toFixed(0)}점</p>
                                     </div>
                                 </div>
                                 <div className="text-right shrink-0">
-                                    <p className="text-xs font-bold text-indigo-600">{worker.safetyHabitIndex.toFixed(2)}</p>
+                                    <p className="text-xs font-bold text-indigo-600">{team.safetyHabitIndex.toFixed(2)}</p>
                                     <p className="text-[10px] text-slate-400 dark:text-slate-500">습관 지수</p>
                                 </div>
                             </div>

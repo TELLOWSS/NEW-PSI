@@ -25,6 +25,7 @@ import { StatusBadge } from '../shared/StatusBadge';
 import { SummaryMetricGrid } from '../shared/SummaryMetricGrid';
 import { WhyThisResultPanel } from '../shared/WhyThisResultPanel';
 import { CollapsibleSection } from '../shared/CollapsibleSection';
+import { getLowConfidenceOcrFields } from '../../utils/ocrDocumentValidation';
 import { updateAnalysisBasedOnEdits } from '../../services/geminiService';
 import {
     approveHarnessRecord,
@@ -437,9 +438,57 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const [isMobileDetailExpanded, setIsMobileDetailExpanded] = useState(false);
     const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const mobileDetailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const dialogRef = useRef<HTMLDivElement>(null);
+    const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+    const requestCloseRef = useRef<() => void>(() => undefined);
     
     const docInputRef = useRef<HTMLInputElement>(null); // For Document Image
     const profileInputRef = useRef<HTMLInputElement>(null); // For Profile Photo
+
+    const handleRequestClose = useCallback(() => {
+        if (hasChanges && !window.confirm('저장하지 않은 수정사항이 있습니다. 닫고 변경을 취소하시겠습니까?')) return;
+        onClose();
+    }, [hasChanges, onClose]);
+
+    useEffect(() => {
+        requestCloseRef.current = handleRequestClose;
+    }, [handleRequestClose]);
+
+    useEffect(() => {
+        previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        const focusTimer = window.setTimeout(() => dialogRef.current?.focus(), 0);
+        const handleDialogKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                requestCloseRef.current();
+                return;
+            }
+            if (event.key !== 'Tab' || !dialogRef.current) return;
+            const focusable = (Array.from(dialogRef.current.querySelectorAll(
+                'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+            )) as HTMLElement[]).filter((element) => !element.hasAttribute('hidden'));
+            if (focusable.length === 0) {
+                event.preventDefault();
+                dialogRef.current.focus();
+                return;
+            }
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        };
+        document.addEventListener('keydown', handleDialogKeyDown);
+        return () => {
+            window.clearTimeout(focusTimer);
+            document.removeEventListener('keydown', handleDialogKeyDown);
+            previouslyFocusedRef.current?.focus();
+        };
+    }, []);
 
     const getConsistentRecord = (baseRecord: WorkerRecord, previousRecord?: WorkerRecord): WorkerRecord => {
         return synchronizeManagerReviewedRecord(baseRecord, { previousRecord }).record;
@@ -864,9 +913,10 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
     const approvalActionDisabled = useMemo(() => (
         isUpdatingAnalysis ||
+        record.ocrDocumentValidation?.isPsiForm === false ||
         !managerReviewApprovalReadiness.canApprove ||
-        (hasCriticalReviewEdits && approvalComment.trim().length === 0)
-    ), [approvalComment, hasCriticalReviewEdits, isUpdatingAnalysis, managerReviewApprovalReadiness.canApprove]);
+        hasWeakApprovalReason
+    ), [hasWeakApprovalReason, isUpdatingAnalysis, managerReviewApprovalReadiness.canApprove, record.ocrDocumentValidation?.isPsiForm]);
 
     const approvalReasonGuide = useMemo(() => {
         if (hasCriticalReviewEdits) {
@@ -1034,13 +1084,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         if (scoreDropNeedsIntegrityReason && !scoreAdjustmentEntry) return false;
 
         if (hasCriticalReviewEdits && hasWeakSaveReason) {
-            const proceed = confirm(
-                '핵심 수정사항이 있는데 저장 사유 코멘트가 비어 있거나 너무 짧습니다.\n\n' +
-                '- 하단 승인영역 코멘트에 왜 수정했는지 남기면 추적성이 좋아집니다.\n' +
-                '- 그대로 저장하면 분석 화면에서 "수정사유 보강 필요"로 표시됩니다.\n\n' +
-                '그래도 1차 저장을 진행하시겠습니까?'
-            );
-            if (!proceed) return false;
+            alert('핵심 수정사항의 저장 사유가 필요합니다. 변경한 항목, 원본 확인 근거, 변경 이유를 12자 이상으로 남겨주세요.');
+            return false;
         }
 
         const nextRecordBase: WorkerRecord = shouldResetApproval
@@ -1174,13 +1219,10 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
     const showReviewCommentField = true;
 
-    const handleOpenReportClick = () => {
+    const handleOpenReportClick = async () => {
         if (hasChanges) {
-            const shouldSaveFirst = confirm('저장되지 않은 변경사항이 있습니다.\n1차 저장 후 안전 리포트로 이동하시겠습니까?');
-            if (shouldSaveFirst) {
-                onUpdateRecord(record);
-                setHasChanges(false);
-            }
+            const saved = await handleSave();
+            if (!saved) return;
         }
         onOpenReport(record);
     };
@@ -1249,26 +1291,18 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         }
 
         const trimmedComment = approvalComment.trim();
-        const commentRequired = status === 'rejected' || hasCriticalReviewEdits;
-        if (commentRequired && trimmedComment.length === 0) {
+        if (trimmedComment.length === 0) {
             setPendingApprovalAction(null);
             alert(status === 'rejected'
                 ? '반려 사유(Comment)는 필수입니다.'
-                : '수정 사항이 있으므로 승인 사유(Comment)는 필수입니다.');
+                : '승인 근거(Comment)는 필수입니다. 원본 확인 범위와 판단 근거를 남겨주세요.');
             return;
         }
 
-        if ((status === 'rejected' || trimmedComment.length > 0 || hasCriticalReviewEdits) && hasWeakApprovalReason) {
-            const proceed = confirm(
-                '승인/반려 사유가 비어 있거나 너무 짧습니다.\n\n' +
-                '- 검토 근거, 확인 범위, 반영 내용을 포함하면 추적성이 좋아집니다.\n' +
-                '- 현재 상태로 진행하면 분석 화면에서 사유 보강 대상으로 보일 수 있습니다.\n\n' +
-                '그래도 계속 진행하시겠습니까?'
-            );
-            if (!proceed) {
-                setPendingApprovalAction(null);
-                return;
-            }
+        if (hasWeakApprovalReason) {
+            setPendingApprovalAction(null);
+            alert('승인/반려 근거가 너무 짧거나 구체적이지 않습니다. 확인한 원본 범위, 판단 근거, 필요한 조치를 16자 이상으로 남겨주세요.');
+            return;
         }
 
         const scoreAdjustmentEntry = buildScoreAdjustmentEntry();
@@ -2026,20 +2060,32 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             ? decisionQuickMetrics.filter((metric) => ['score', 'audit'].includes(metric.key))
             : decisionQuickMetrics;
     }, [decisionQuickMetrics, isCompactViewActive]);
+    const lowConfidenceOcrFields = useMemo(
+        () => getLowConfidenceOcrFields(record.ocrFieldConfidences),
+        [record.ocrFieldConfidences],
+    );
     
     // Icon Display
     const isLeader = (record.role === 'leader') || (record.name === record.teamLeader);
     const isSubLeader = record.role === 'sub_leader';
 
     return (
-        <div className="fixed inset-0 bg-black/90 z-50 flex justify-center items-end sm:items-center p-0 sm:p-4 backdrop-blur-md" onClick={onClose}>
-            <div className="bg-white rounded-t-2xl sm:rounded-3xl shadow-2xl w-full max-w-7xl h-[100vh] sm:h-[95vh] flex flex-col overflow-hidden animate-fade-in-up" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/90 z-50 flex justify-center items-end sm:items-center p-0 sm:p-4 backdrop-blur-md" onClick={handleRequestClose}>
+            <div
+                ref={dialogRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="record-detail-dialog-title"
+                tabIndex={-1}
+                className="bg-white rounded-t-2xl sm:rounded-3xl shadow-2xl w-full max-w-7xl h-[100vh] sm:h-[95vh] flex flex-col overflow-hidden animate-fade-in-up focus:outline-none"
+                onClick={e => e.stopPropagation()}
+            >
                 {/* Header */}
                 <header className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-slate-100 bg-white z-20 shrink-0 gap-2">
                     <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                         <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
                         <div className="min-w-0">
-                            <h2 className="text-base sm:text-xl font-black text-slate-800 truncate">{record.name || '기록 확인'} 근로자 보호 판단</h2>
+                            <h2 id="record-detail-dialog-title" className="text-base sm:text-xl font-black text-slate-800 truncate">{record.name || '기록 확인'} 근로자 보호 판단</h2>
                             <p className="hidden sm:block text-[10px] text-indigo-500 font-bold tracking-widest uppercase">
                                 {record.jobField || '공종 미확인'} · {record.nationality || '국적 미확인'} · 현장 판단 검증
                             </p>
@@ -2057,7 +2103,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                         {hasChanges && (
                             <button onClick={() => { void handleSave(); }} className="px-3 sm:px-6 py-2 bg-indigo-600 text-white rounded-xl text-[11px] sm:text-sm font-black shadow-lg shadow-indigo-200 animate-pulse whitespace-nowrap">1차 저장</button>
                         )}
-                        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                        <button type="button" aria-label="상세창 닫기" onClick={handleRequestClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                     </div>
                 </header>
 
@@ -2196,6 +2242,28 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         cardClassName="rounded-2xl border px-3 py-3"
                                         items={visibleDecisionQuickMetrics}
                                     />
+
+                                    {(record.ocrDocumentValidation?.isPsiForm === false || lowConfidenceOcrFields.length > 0) && (
+                                        <div className={`mt-4 rounded-2xl border px-4 py-4 ${record.ocrDocumentValidation?.isPsiForm === false ? 'border-rose-300 bg-rose-50' : 'border-amber-300 bg-amber-50'}`}>
+                                            <p className={`text-xs font-black ${record.ocrDocumentValidation?.isPsiForm === false ? 'text-rose-800' : 'text-amber-900'}`}>
+                                                {record.ocrDocumentValidation?.isPsiForm === false
+                                                    ? '잘못된 문서 가능성으로 자동 승인이 차단되었습니다.'
+                                                    : '신뢰도가 낮은 항목을 원본에서 먼저 확인해 주세요.'}
+                                            </p>
+                                            {record.ocrDocumentValidation?.reason && (
+                                                <p className="mt-2 text-xs font-bold text-slate-700">문서 판정 근거: {record.ocrDocumentValidation.reason}</p>
+                                            )}
+                                            {lowConfidenceOcrFields.length > 0 && (
+                                                <div className="mt-3 flex flex-wrap gap-2">
+                                                    {lowConfidenceOcrFields.map((item) => (
+                                                        <span key={item.field} className="rounded-full border border-amber-300 bg-white px-3 py-1.5 text-[11px] font-black text-amber-900">
+                                                            {item.label} {Math.round(item.confidence * 100)}%
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
 
                                     <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                                         <ActionButton

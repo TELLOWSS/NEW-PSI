@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
+import { markSchemaCompatibilityFallback } from '../../lib/server/schemaCompatibility.js';
 
 type SurveyRiskLevel = '상' | '중' | '하';
 type BaselineSeverity = 'minor' | 'serious' | 'fatal';
@@ -98,6 +99,7 @@ function isHistoryFallbackError(error: any): boolean {
 }
 
 function fallbackResponse(res: any, action: string) {
+    markSchemaCompatibilityFallback(res, { area: `survey-risk-baselines:${action}`, reason: 'missing-or-inaccessible-schema' });
     return res.status(200).json({
         ok: true,
         action,

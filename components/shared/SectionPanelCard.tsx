@@ -1,4 +1,5 @@
 import React from 'react';
+import { PanelFrame } from '../common/PanelFrame';
 import { SECTION_PANEL_TONE_STYLES, SectionPanelToneVariant } from './toneVariants';
 
 interface SectionPanelCardProps {
@@ -35,8 +36,10 @@ export const SectionPanelCard: React.FC<SectionPanelCardProps> = ({
     const toneStyles = SECTION_PANEL_TONE_STYLES[variant] || SECTION_PANEL_TONE_STYLES.slate;
 
     return (
-        <div className={`${toneStyles.container}${className ? ` ${className}` : ''}`}>
-            {(eyebrow || title || description || headerAction) ? (
+        <PanelFrame
+            className={`${toneStyles.container}${className ? ` ${className}` : ''}`}
+            bodyClassName={bodyClassName}
+            header={(eyebrow || title || description || headerAction) ? (
                 <div className={headerClassName}>
                     <div className={headerContentClassName}>
                         {eyebrow ? <div className={eyebrowClassName}>{eyebrow}</div> : null}
@@ -46,7 +49,8 @@ export const SectionPanelCard: React.FC<SectionPanelCardProps> = ({
                     {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
                 </div>
             ) : null}
-            <div className={bodyClassName}>{children}</div>
-        </div>
+        >
+            {children}
+        </PanelFrame>
     );
 };

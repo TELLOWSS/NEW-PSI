@@ -53,10 +53,11 @@ export const isAdminAuthConfigured = (): boolean => {
 };
 
 export const isBypassAllowed = (): boolean => {
-    const allowBypass = String(process.env.ALLOW_ADMIN_BYPASS || '').trim().toLowerCase() === 'true';
-    const allowViteBypass = String(process.env.VITE_ALLOW_ADMIN_BYPASS || '').trim().toLowerCase() === 'true';
     const isDev = process.env.NODE_ENV === 'development';
-    return allowBypass || allowViteBypass || isDev;
+    // A deployment must never be unlockable by an environment flag. The bypass is
+    // intentionally limited to a real development runtime so a copied production
+    // configuration cannot accidentally expose the administrator surface.
+    return isDev;
 };
 
 export const verifyAdminLoginPassword = (providedPassword: unknown): boolean => {

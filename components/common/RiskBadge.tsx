@@ -1,4 +1,5 @@
 import React from 'react';
+import { Badge } from './Badge';
 
 type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 type RiskBadgeSize = 'sm' | 'md';
@@ -38,13 +39,13 @@ export const RiskBadge: React.FC<RiskBadgeProps> = ({
     const label = labelOverride || levelLabelMap[level];
 
     return (
-        <span
-            className={`inline-flex items-center rounded-full border font-bold tracking-wide ${levelClassMap[level]} ${sizeClassMap[size]} ${className}`}
-            aria-label={`위험도: ${label}`}
+        <Badge
+            className={`font-bold tracking-wide ${levelClassMap[level]} ${sizeClassMap[size]} ${className}`}
+            ariaLabel={`위험도: ${label}`}
             title={`위험도: ${label}`}
+            showDot
         >
-            <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
             {label}
-        </span>
+        </Badge>
     );
 };

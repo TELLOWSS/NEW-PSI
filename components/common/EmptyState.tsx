@@ -3,13 +3,16 @@ import React from 'react';
 type EmptyStateTone = 'neutral' | 'info' | 'warning';
 
 interface EmptyStateProps {
-    title: string;
-    description?: string;
+    title: React.ReactNode;
+    description?: React.ReactNode;
     actionLabel?: string;
     onAction?: () => void;
     tone?: EmptyStateTone;
     icon?: React.ReactNode;
     className?: string;
+    titleClassName?: string;
+    descriptionClassName?: string;
+    unstyled?: boolean;
 }
 
 const toneClassMap: Record<EmptyStateTone, string> = {
@@ -26,13 +29,19 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     tone = 'neutral',
     icon,
     className = '',
+    titleClassName = 'text-base font-extrabold tracking-tight sm:text-lg',
+    descriptionClassName = 'mx-auto mt-2 max-w-xl text-sm font-medium text-slate-500 dark:text-slate-300',
+    unstyled = false,
 }) => {
     const showAction = Boolean(actionLabel && onAction);
+    const containerClassName = unstyled
+        ? className
+        : `rounded-2xl border px-5 py-6 text-center shadow-sm dark:shadow-slate-950/20 sm:px-6 ${toneClassMap[tone]} ${className}`;
 
     return (
         <section
-            className={`rounded-2xl border px-5 py-6 text-center shadow-sm dark:shadow-slate-950/20 sm:px-6 ${toneClassMap[tone]} ${className}`}
-            aria-label={title}
+            className={containerClassName}
+            aria-label={typeof title === 'string' ? title : undefined}
         >
             {icon ? (
                 <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-650 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
@@ -40,8 +49,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                 </div>
             ) : null}
 
-            <h3 className="text-base font-extrabold tracking-tight sm:text-lg">{title}</h3>
-            {description ? <p className="mx-auto mt-2 max-w-xl text-sm font-medium text-slate-500 dark:text-slate-300">{description}</p> : null}
+            <h3 className={titleClassName}>{title}</h3>
+            {description ? <p className={descriptionClassName}>{description}</p> : null}
 
             {showAction ? (
                 <button

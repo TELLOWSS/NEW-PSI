@@ -6,6 +6,11 @@ import { analyzeWorkerRiskAssessment, updateAnalysisBasedOnEdits, getQuotaState,
 import { extractMessage } from '../utils/errorUtils';
 import type { WorkerRecord, OcrErrorType, OcrFailureCode, AppSettings, HarnessApprovalState, HarnessRiskDecision, HarnessWorkflowState, OcrUnknownSubCategory } from '../types';
 import { fileToBase64 } from '../utils/fileUtils';
+import {
+    assessOcrUploadBatch,
+    getOcrFileKey,
+    type OcrUploadPreflight,
+} from '../utils/ocrUploadQuality';
 import { getSafetyLevelDisplayLabel, getSafetyLevelFromScore, SAFETY_SIGNAL_COPY } from '../utils/safetyLevelUtils';
 import { getApiCallState, incrementApiCallCount, resetApiCallCount, type DailyCounterState } from '../utils/apiCounterUtils';
 import { BRAND_ACTION_LABELS, BRAND_STATUS_LABELS } from '../utils/brandLabels';
@@ -46,9 +51,11 @@ import {
     analyzeBackupImport,
     BACKUP_HARD_FILE_LIMIT_BYTES,
     BACKUP_LARGE_FILE_WARNING_BYTES,
+    BACKUP_STREAMING_RECOVERY_THRESHOLD_BYTES,
     createBackupEnvelope,
     resolveBackupPayload,
 } from '../utils/backupDataQuality';
+import { recoverBackupRecordsWithoutImages } from '../utils/streamingBackupRecovery';
 
 const OCR_STATUS_COPY = {
     secondPassEmpty: {
@@ -1547,6 +1554,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const isImmediateOperationalMode = operationalMode === 'immediate';
     const storedViewState = getStoredOcrViewState();
     const [files, setFiles] = useState<File[]>([]);
+    const [uploadPreflightReports, setUploadPreflightReports] = useState<OcrUploadPreflight[]>([]);
+    const [uploadGateMessage, setUploadGateMessage] = useState('');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [progress, setProgress] = useState('');
     const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
@@ -5088,13 +5097,26 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         // but typically file upload relies on user adding files first.
         // For mass file upload, we should also implement throttling if > 10 files.
         if (files.length === 0) return;
+
+        const freshPreflight = await assessOcrUploadBatch(files);
+        setUploadPreflightReports(freshPreflight);
+        const blockedFiles = freshPreflight.filter((report) => report.status === 'blocked');
+        if (blockedFiles.length > 0) {
+            setUploadGateMessage(
+                `${blockedFiles.length}개 파일은 해상도·초점·문서 잘림 문제로 분석을 시작할 수 없습니다. 해당 파일을 제거하거나 다시 촬영해 주세요.`,
+            );
+            return;
+        }
+        setUploadGateMessage('');
         
         setIsAnalyzing(true);
         setBatchProgress({ current: 0, total: files.length });
         stopRef.current = false;
         
         const results: WorkerRecord[] = [];
+        const failedFiles: File[] = [];
         let stopped = false;
+        let shouldStopForQuota = false;
         
         try {
             for (let i = 0; i < files.length; i++) {
@@ -5131,9 +5153,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             setQuotaExhausted(60);
                             const failMessage = `⛔ API 할당량이 가득 차 ${BRAND_STATUS_LABELS.attention} 안내가 필요합니다. 잠시 후 다시 확인해 주세요.`;
                             results.push(createFileAnalysisErrorRecord(files[i], failMessage, 'UNKNOWN'));
+                            failedFiles.push(files[i]);
                             const next = incrementApiCallCount('fail');
                             setDailyCounter(next);
                             analyzed = true;
+                            shouldStopForQuota = true;
                             break; // 이 파일 건너뛰기
                         }
                         
@@ -5144,12 +5168,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             console.error(`Failed after ${MAX_FILE_RETRIES} retries:`, e);
                             const failMessage = `⛔ 파일 분석 실패: ${extractMessage(e) || '알 수 없는 오류'}`;
                             results.push(createFileAnalysisErrorRecord(files[i], failMessage, 'UNKNOWN'));
+                            failedFiles.push(files[i]);
                             const next = incrementApiCallCount('fail');
                             setDailyCounter(next);
                             analyzed = true;
                             alert(`파일 분석 실패: ${files[i].name}`);
                         }
                     }
+                }
+
+                if (shouldStopForQuota) {
+                    failedFiles.push(...files.slice(i + 1));
+                    break;
                 }
                 
                 // 파일 분석 간 지연
@@ -5164,7 +5194,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             }
         } finally {
             setIsAnalyzing(false);
-            setFiles([]);
+            setFiles(failedFiles);
+            setUploadGateMessage(failedFiles.length > 0
+                ? `완료하지 못한 파일 ${failedFiles.length}개를 목록에 남겼습니다. 원인을 확인한 뒤 다시 분석할 수 있습니다.`
+                : '');
             setProgress('');
             setCooldownTime(0);
             setBatchProgress({ current: 0, total: 0 });
@@ -5840,9 +5873,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         }
     }, []);
 
-    const handleImportFile = (file: File) => {
+    const handleImportFile = async (file: File) => {
         if (file.size >= BACKUP_HARD_FILE_LIMIT_BYTES) {
-            alert(`백업 파일이 ${(file.size / (1024 * 1024)).toFixed(1)}MB로 브라우저 안전 한도 500MB를 초과했습니다.\n대용량 원본은 월별로 분리하거나 전용 마이그레이션 절차로 복원해 주세요.`);
+            alert(`백업 파일이 ${(file.size / (1024 * 1024)).toFixed(1)}MB로 안전 복구 한도 ${(BACKUP_HARD_FILE_LIMIT_BYTES / (1024 * 1024)).toFixed(0)}MB를 초과했습니다.\n파일을 월별로 분리한 뒤 순서대로 복원해 주세요.`);
             if (importInputRef.current) importInputRef.current.value = '';
             return;
         }
@@ -5854,47 +5887,65 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             return;
         }
 
-        const reader = new FileReader();
-        reader.onload = async (re) => {
-            try {
-                const data = JSON.parse(re.target?.result as string);
-                const resolved = resolveBackupPayload(data);
-                if (resolved.records.length === 0) {
-                    alert('복구 가능한 근로자 기록을 찾지 못했습니다. (배열 또는 records/workerRecords 키 필요)');
-                    return;
-                }
+        try {
+            let records: unknown[] = [];
+            let schemaVersion = 'unknown';
+            let largeRecoveryNote = '';
 
-                const validation = analyzeBackupImport(resolved.records, existingRecords, {
-                    fileName: file.name,
-                    fileSize: file.size,
-                    schemaVersion: resolved.schemaVersion,
+            if (file.size >= BACKUP_STREAMING_RECOVERY_THRESHOLD_BYTES) {
+                const confirmed = confirm(
+                    `대용량 백업 ${(file.size / (1024 * 1024)).toFixed(1)}MB를 스트리밍 방식으로 복구합니다.\n\n브라우저 중단을 막기 위해 원본 이미지와 프로필 이미지는 제외하고 평가·수기·검수 데이터만 복구합니다. 계속하시겠습니까?`,
+                );
+                if (!confirmed) return;
+                setImportValidationSummary('대용량 백업을 순차 판독하고 있습니다. 창을 닫지 마세요.');
+                const recovered = await recoverBackupRecordsWithoutImages(file, {
+                    onProgress: ({ bytesRead, totalBytes, recoveredRecords }) => {
+                        const percent = totalBytes > 0 ? Math.min(100, Math.round((bytesRead / totalBytes) * 100)) : 0;
+                        setImportValidationSummary(`대용량 스트리밍 복구 ${percent}% · ${recoveredRecords}건 판독`);
+                    },
                 });
-                setImportValidationSummary(validation.summary);
-                setImportValidationDetails(validation.details);
-
-                if (validation.blocked) {
-                    alert(`백업을 안전하게 복원할 수 없습니다.\n\n${validation.warnings.join('\n') || '검증 통과 기록이 없습니다.'}\n\n화면의 사전검증 결과를 확인해 주세요.`);
-                    return;
-                }
-                if (!confirm(validation.confirmationText)) return;
-
-                const importedRecords = await Promise.resolve(onImport(validation.validRecords));
-                const reviewRecord = Array.isArray(importedRecords) && importedRecords.length > 0
-                    ? importedRecords[0]
-                    : validation.validRecords[0];
-                resetWorkerSearchFiltersForImport();
-                alert(`백업 복구 완료\n- 원본: ${validation.rawRecordCount}건\n- 검증 통과: ${validation.validRecords.length}건\n- 제외: ${validation.problematicRecordCount + validation.invalidObjectCount}건\n- 신규 ID: ${validation.newRecordCount}건\n- 같은 ID 갱신: ${validation.existingIdCollisionCount}건\n- 예상 총계: ${validation.projectedTotalRecords}건\n\n근로자 정보검색 필터를 전체 보기로 전환했습니다. 불러온 근로자는 아래 '근로자별 누적 보기'와 기록 목록에서 확인할 수 있습니다.\n\n첫 번째 복구 기록을 근로자 보호 판단 화면으로 열어 확인·수정할 수 있게 했습니다. 나머지는 OCR 분석 목록의 '보호 판단'에서 이어서 확인하세요.`);
-                if (reviewRecord) {
-                    onViewDetails(reviewRecord);
-                }
-            } catch (err) {
-                const message = extractMessage(err);
-                alert(`백업 파일 불러오기 중 확인이 필요합니다.\n${message || '파일 형식 또는 저장 연결 상태를 확인해 주세요.'}`);
-            } finally {
-                if (importInputRef.current) importInputRef.current.value = '';
+                records = recovered.records;
+                schemaVersion = 'psi-backup/v2-streaming-metadata-recovery';
+                largeRecoveryNote = `원본·프로필 이미지 문자 약 ${formatExportFileSize(recovered.removedImageCharacters)}를 제외하고 핵심 기록을 복구했습니다.`;
+            } else {
+                const data = JSON.parse(await file.text());
+                const resolved = resolveBackupPayload(data);
+                records = resolved.records;
+                schemaVersion = resolved.schemaVersion;
             }
-        };
-        reader.readAsText(file);
+
+            if (records.length === 0) {
+                alert('복구 가능한 근로자 기록을 찾지 못했습니다. (배열 또는 records/workerRecords 키 필요)');
+                return;
+            }
+
+            const validation = analyzeBackupImport(records, existingRecords, {
+                fileName: file.name,
+                fileSize: file.size,
+                schemaVersion,
+            });
+            setImportValidationSummary(validation.summary);
+            setImportValidationDetails([validation.details, largeRecoveryNote].filter(Boolean).join('\n\n'));
+
+            if (validation.blocked) {
+                alert(`백업을 안전하게 복원할 수 없습니다.\n\n${validation.warnings.join('\n') || '검증 통과 기록이 없습니다.'}\n\n화면의 사전검증 결과를 확인해 주세요.`);
+                return;
+            }
+            if (!confirm(`${validation.confirmationText}${largeRecoveryNote ? `\n\n${largeRecoveryNote}` : ''}`)) return;
+
+            const importedRecords = await Promise.resolve(onImport(validation.validRecords));
+            const reviewRecord = Array.isArray(importedRecords) && importedRecords.length > 0
+                ? importedRecords[0]
+                : validation.validRecords[0];
+            resetWorkerSearchFiltersForImport();
+            alert(`백업 복구 완료\n- 원본: ${validation.rawRecordCount}건\n- 검증 통과: ${validation.validRecords.length}건\n- 제외: ${validation.problematicRecordCount + validation.invalidObjectCount}건\n- 신규 ID: ${validation.newRecordCount}건\n- 같은 ID 갱신: ${validation.existingIdCollisionCount}건\n- 예상 총계: ${validation.projectedTotalRecords}건${largeRecoveryNote ? `\n- ${largeRecoveryNote}` : ''}\n\n근로자 정보검색 필터를 전체 보기로 전환했습니다.`);
+            if (reviewRecord) onViewDetails(reviewRecord);
+        } catch (err) {
+            const message = extractMessage(err);
+            alert(`백업 파일 불러오기 중 확인이 필요합니다.\n${message || '파일 형식 또는 저장 연결 상태를 확인해 주세요.'}`);
+        } finally {
+            if (importInputRef.current) importInputRef.current.value = '';
+        }
     };
 
     const mobilePriorityReportRecord = useMemo(() => {
@@ -5984,7 +6035,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const isCompactMobile = viewportWidth < 640;
 
     return (
-        <div className="space-y-6 sm:space-y-8 animate-fade-in-up">
+        <div className="psi-field-screen psi-ocr-precision space-y-6 sm:space-y-8 animate-fade-in-up">
             <input
                 type="file"
                 ref={importInputRef}
@@ -5992,7 +6043,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 accept=".json"
                 onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) handleImportFile(file);
+                    if (file) void handleImportFile(file);
                 }}
             />
             {isStartChecklistIncomplete && (
@@ -6003,7 +6054,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             )}
             <section
                 data-mobile-proof="field-mode"
-                className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl sm:rounded-3xl"
+                className="psi-ocr-field-hero overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl sm:rounded-3xl"
                 aria-label="모바일 현장 원터치 모드"
             >
                 <div className="bg-slate-950 px-4 py-5 text-white sm:px-6 sm:py-6">
@@ -6643,10 +6694,38 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         })}
                     </div>
                 </section>
-                <FileUpload onFilesChange={setFiles} onAnalyze={() => {}} isAnalyzing={isAnalyzing} fileCount={files.length} />
+                <FileUpload
+                    files={files}
+                    onFilesChange={(nextFiles) => {
+                        setFiles(nextFiles);
+                        setUploadGateMessage('');
+                        const nextKeys = new Set(nextFiles.map(getOcrFileKey));
+                        setUploadPreflightReports((current) => current.filter((report) => nextKeys.has(report.key)));
+                    }}
+                    onPreflightChange={setUploadPreflightReports}
+                    onAnalyze={() => {}}
+                    isAnalyzing={isAnalyzing}
+                    fileCount={files.length}
+                />
+                {uploadGateMessage && (
+                    <div role="alert" className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-black text-amber-900">
+                        {uploadGateMessage}
+                    </div>
+                )}
                 {files.length > 0 && !isAnalyzing && (
-                    <div className="mt-8 flex justify-center">
-                        <button onClick={handleAnalyze} className="w-full max-w-md py-4 sm:py-5 bg-indigo-600 text-white text-xl sm:text-2xl font-black rounded-2xl shadow-2xl hover:bg-indigo-700 transition-all animate-pulse-gold">신규 분석 시작</button>
+                    <div className="mt-8 hidden justify-center sm:flex">
+                        <button
+                            onClick={handleAnalyze}
+                            disabled={
+                                uploadPreflightReports.length !== files.length
+                                || uploadPreflightReports.some((report) => report.status === 'blocked')
+                            }
+                            className="w-full max-w-md py-4 sm:py-5 bg-indigo-600 text-white text-xl sm:text-2xl font-black rounded-2xl shadow-2xl hover:bg-indigo-700 transition-all animate-pulse-gold disabled:cursor-not-allowed disabled:bg-slate-400 disabled:animate-none"
+                        >
+                            {uploadPreflightReports.some((report) => report.status === 'blocked')
+                                ? '재촬영 필요 파일 확인'
+                                : uploadGateMessage.includes('완료하지 못한') ? '남은 파일 다시 분석' : '신규 분석 시작'}
+                        </button>
                     </div>
                 )}
                     </>
@@ -9477,9 +9556,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     <button
                         type="button"
                         onClick={handleAnalyze}
-                        className="w-full min-h-[48px] rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-black text-white shadow-2xl transition-colors hover:bg-indigo-500 active:scale-[0.99]"
+                        disabled={
+                            uploadPreflightReports.length !== files.length
+                            || uploadPreflightReports.some((report) => report.status === 'blocked')
+                        }
+                        className="w-full min-h-[48px] rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-black text-white shadow-2xl transition-colors hover:bg-indigo-500 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-400"
                     >
-                        분석 시작
+                        {uploadPreflightReports.some((report) => report.status === 'blocked')
+                            ? '재촬영 필요 파일 확인'
+                            : uploadGateMessage.includes('완료하지 못한') ? '남은 파일 다시 분석' : '신규 분석 시작'}
                     </button>
                 </div>
             )}

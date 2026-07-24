@@ -63,6 +63,10 @@ const sidebarMenuItems: SidebarMenuItem[] = [
         icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7" /></svg>,
     },
     {
+        id: 'safety-compliance-hub',
+        icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5-4.5A11.9 11.9 0 0112 3 11.9 11.9 0 014 5.5V11c0 5 3.4 8.2 8 10 4.6-1.8 8-5 8-10V5.5z" /></svg>,
+    },
+    {
         id: 'performance-analysis',
         icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5" /></svg>,
     },
@@ -79,10 +83,6 @@ const sidebarMenuItems: SidebarMenuItem[] = [
         icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6M7 3h7l4 4v14H7z" /></svg>,
     },
     {
-        id: 'ppt-pdf-one-page-summary',
-        icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5h16v14H4zM8 9h8m-8 4h5" /></svg>,
-    },
-    {
         id: 'admin-training',
         icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5s3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253" /></svg>,
     },
@@ -93,6 +93,10 @@ const sidebarMenuItems: SidebarMenuItem[] = [
     {
         id: 'settings',
         icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+    },
+    {
+        id: 'feedback',
+        icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h8M8 14h5m7-2a8 8 0 11-16 0 8 8 0 0116 0z" /></svg>,
     },
 ];
 
@@ -175,14 +179,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }, [visibleMenuItems]);
 
     return (
-        <div className="psi-sidebar psi-sidebar-surface flex h-full w-72 shrink-0 flex-col border-r text-slate-800 transition-colors dark:text-slate-100">
-            <div className="border-b border-slate-200 px-5 pb-5 pt-6 dark:border-slate-800/80">
+        <div className="psi-sidebar psi-sidebar-surface flex h-full w-[248px] shrink-0 flex-col border-r text-slate-800 transition-colors dark:text-slate-100">
+            <div className="border-b border-slate-200 px-5 pb-4 pt-5 dark:border-slate-800/80">
                 <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 p-1.5 dark:border-white/10 dark:bg-white/10">
-                        <BrandPhilosophyLogo className="w-7 h-7" />
+                    <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-slate-900 bg-[#102a43] p-1.5 text-white dark:border-sky-300/20 dark:bg-sky-400/15">
+                        <BrandPhilosophyLogo className="h-7 w-7" />
                     </div>
                     <div>
-                        <p className="text-2xl font-extrabold leading-none">psi</p>
+                        <p className="text-xl font-extrabold leading-none tracking-tight">psi</p>
                         <p className="psi-small-note mt-1">건설현장 안전관리</p>
                     </div>
                 </div>
@@ -252,10 +256,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                         key={item.id}
                                         type="button"
                                         onClick={() => setCurrentPage(item.id)}
-                                        className={`psi-sidebar-item w-full flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors ${
+                                        className={`psi-sidebar-item w-full flex min-h-[44px] items-center gap-3 rounded-lg border px-3 py-2.5 text-[13px] font-semibold transition-colors ${
                                             isActive
-                                                ? 'is-active bg-blue-700 text-white shadow-sm'
-                                                : 'text-slate-700 hover:bg-slate-200/80 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800/90 dark:hover:text-white'
+                                                ? 'is-active border-blue-200 bg-blue-50 text-[#102a43] dark:border-sky-400/25 dark:bg-sky-400/10 dark:text-sky-100'
+                                                : 'border-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-950 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-800/70 dark:hover:text-white'
                                         }`}
                                         aria-current={isActive ? 'page' : undefined}
                                     >
@@ -270,7 +274,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </nav>
 
             <div className="border-t border-slate-200 p-4 dark:border-slate-800/80">
-                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white/90 px-3 py-3 dark:border-slate-700 dark:bg-slate-900/80">
+                <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-700 dark:bg-slate-900/80">
                     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A11.955 11.955 0 0112 16c2.5 0 4.824.76 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     </div>

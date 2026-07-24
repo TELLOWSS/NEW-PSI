@@ -23,6 +23,7 @@ import { useOperationalMode } from './contexts/OperationalModeContext';
 import { isPageVisibleByOperationalMode } from './utils/operationalModeUtils';
 import { isRouteVisibleInMode } from './config/routeMeta';
 import { useUiAudienceMode } from './hooks/useUiAudienceMode';
+import { normalizePsiWorkerJobField } from './config/psiFormMaster';
 import {
     applyWorkerUuidPolicy,
     getWorkerMatchScore as getSharedWorkerMatchScore,
@@ -99,7 +100,6 @@ const OcrAnalysis = lazyWithRecovery('OcrAnalysis', () => import('./pages/OcrAna
 const EducationReturn = lazyWithRecovery('EducationReturn', () => import('./pages/EducationReturn'));
 const MonthlyGuidanceReport = lazyWithRecovery('MonthlyGuidanceReport', () => import('./pages/MonthlyGuidanceReport'));
 const A4EducationMaterial = lazyWithRecovery('A4EducationMaterial', () => import('./pages/A4EducationMaterial'));
-const PptPdfOnePageSummary = lazyWithRecovery('PptPdfOnePageSummary', () => import('./pages/PptPdfOnePageSummary'));
 const WorkerManagement = lazyWithRecovery('WorkerManagement', () => import('./pages/WorkerManagement'));
 const PredictiveAnalysis = lazyWithRecovery('PredictiveAnalysis', () => import('./pages/PredictiveAnalysis'));
 const SafetyChecks = lazyWithRecovery('SafetyChecks', () => import('./pages/SafetyChecks'));
@@ -394,22 +394,6 @@ const registerWorkersToServer = async (records: WorkerRecord[]) => {
     try {
         const registrationRecords = mergeWorkerRegistrationRecords(records);
 
-        const ALLOWED_JOB_FIELDS_CLIENT = [
-            '형틀', '철근', '갱폼', '알폼', '시스템', '관리', '바닥미장', '할석미장견출', '해체정리', '직영', '용역', '콘크리트비계'
-        ];
-        const JOB_FIELD_ALIASES_CLIENT: Record<string, string> = {
-            '형틀': '형틀', '철근': '철근', '갱폼': '갱폼', '알폼': '알폼', '시스템': '시스템', '관리': '관리', '관리도': '관리',
-            '바닥미장': '바닥미장', '바닥 미장': '바닥미장', '할석미장견출': '할석미장견출', '해체정리': '해체정리',
-            '직영(용역포함)': '직영', '직영용역포함': '직영', '직영': '직영', '용역': '용역', '콘크리트비계': '콘크리트비계'
-        };
-        const clientNormalizeJobField = (raw: string): string => {
-            const base = String(raw || '').trim();
-            if (!base) return '직영';
-            const compact = base.replace(/\s+/g, '');
-            const resolved = JOB_FIELD_ALIASES_CLIENT[compact] || JOB_FIELD_ALIASES_CLIENT[base] || base;
-            return ALLOWED_JOB_FIELDS_CLIENT.includes(resolved) ? resolved : '직영';
-        };
-
         const workersToRegister = registrationRecords
             .filter((w) => String(w.name || '').trim() && String(w.jobField || w.job_field || '').trim())
             .map(w => {
@@ -422,7 +406,7 @@ const registerWorkersToServer = async (records: WorkerRecord[]) => {
                 return {
                     name: w.name,
                     nationality: w.nationality || '미상',
-                    job_field: clientNormalizeJobField(String(w.jobField || w.job_field || '')),
+                    job_field: normalizePsiWorkerJobField(w.jobField || w.job_field),
                     team_name: w.teamLeader || w.team_name || '미지정',
                     phone_number: phone || null,
                     birth_date: finalBirth || null,
@@ -839,7 +823,10 @@ const App: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        if (currentPage === 'ppt-pdf-one-page-summary') return;
+        if (currentPage === 'ppt-pdf-one-page-summary') {
+            setCurrentPage('a4-education-material');
+            return;
+        }
         const isKioskTrainingFlow = currentPage === 'worker-training' && isWorkerKioskMode;
         if (isKioskTrainingFlow) return;
         // 운영 모드 기반 가드
@@ -855,17 +842,20 @@ const App: React.FC = () => {
     }, [currentPage, operationalMode, uiAudienceMode, isWorkerKioskMode]);
 
     const navigateToPage = useCallback((page: Page) => {
+        const resolvedPage: Page = page === 'ppt-pdf-one-page-summary'
+            ? 'a4-education-material'
+            : page;
         // 운영 모드 기반 방어
-        if (!isPageVisibleByOperationalMode(page, operationalMode)) {
+        if (!isPageVisibleByOperationalMode(resolvedPage, operationalMode)) {
             setCurrentPage('dashboard');
             return;
         }
         // 역할(UiAudienceMode) 기반 방어 — 사이드바 표시 조건과 동일하게 맞춤
-        if (!isRouteVisibleInMode(page, uiAudienceMode)) {
+        if (!isRouteVisibleInMode(resolvedPage, uiAudienceMode)) {
             setCurrentPage('dashboard');
             return;
         }
-        setCurrentPage(page);
+        setCurrentPage(resolvedPage);
     }, [operationalMode, uiAudienceMode]);
 
     const handleAdminUnlock = useCallback(async (password: string, bypass = false) => {
@@ -1298,7 +1288,6 @@ const App: React.FC = () => {
                         )}
                         {currentPage === 'monthly-guidance-report' && <MonthlyGuidanceReport workerRecords={workerRecords} />}
                         {currentPage === 'a4-education-material' && <A4EducationMaterial workerRecords={workerRecords} onOpenTraining={() => navigateToPage('admin-training')} />}
-                        {currentPage === 'ppt-pdf-one-page-summary' && <PptPdfOnePageSummary workerRecords={workerRecords} onOpenTraining={() => navigateToPage('admin-training')} />}
                         {currentPage === 'worker-management' && <WorkerManagement workerRecords={workerRecords} onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} onOpenPhotoRegistration={(r, queueRecordIds) => setModalState({type:'recordDetail', record:r, source:'worker-management-photo-queue', queueRecordIds})} onUpdateRecord={handleUpdateRecord} />}
                         {currentPage === 'individual-report' && recordForReport && (
                             <IndividualReport 
