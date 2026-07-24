@@ -81,8 +81,12 @@ export const buildExternalAiPrompt = (options: {
     languageCodes?: TrainingLanguageCode[];
     draft?: TbmEducationDraft;
     mode?: 'generation' | 'translation';
+    targetCycleLabel?: string;
+    targetPeriodLabel?: string;
 }): string => {
     const mode = options.mode || 'generation';
+    const targetCycleLabel = normalizeText(options.targetCycleLabel) || '다음 달';
+    const targetPeriodLabel = normalizeText(options.targetPeriodLabel) || options.month || '관리자 확인 필요';
     const { text: sourceText, truncated } = buildSourceBlock(options.sources);
     const languageCodes = (options.languageCodes || []).filter((code) => code !== 'ko-KR');
     const languageRequest = languageCodes.length
@@ -95,10 +99,11 @@ export const buildExternalAiPrompt = (options: {
         '당신은 한국 건설현장의 위험성평가 교육자료를 만드는 안전교육 편집자입니다.',
         mode === 'translation' && options.draft
             ? '아래 제공된 [현재 검수 완료 한국어 원문]을 그대로 요청된 다국어로 정확하게 번역하세요.'
-            : '아래 근거 자료를 정밀 분석하여 다음 달 교육용 5단계 한 장 완성형 초안(한국어)을 작성하고 지정된 다국어 번역을 동시에 반환하세요.',
+            : `아래 근거 자료를 정밀 분석하여 ${targetCycleLabel} 교육용 5단계 한 장 완성형 초안(한국어)을 작성하고 지정된 다국어 번역을 동시에 반환하세요.`,
         '',
         '[대상]',
-        `- 교육 월: ${options.month || '관리자 확인 필요'}`,
+        `- 교육 적용 구간: ${targetPeriodLabel}`,
+        `- 자료 보관 월: ${options.month || '관리자 확인 필요'}`,
         `- 공종: ${options.workType || '전체 공종'}`,
         `- 다국어 결과: ${languageRequest}`,
         '',
@@ -125,7 +130,7 @@ export const buildExternalAiPrompt = (options: {
             '[가장 중요한 초안 생성 지침]',
             '1. 제공된 [근거 자료]만을 기반으로 사실적이고 실행 가능한 위험성평가 전파교육 내용(한국어 초안 `draft`)을 직접 구성하십시오. 확인되지 않은 사실이나 재해사례는 상상해서 채워넣지 마시고 누락된 사항은 "관리자 확인 필요"로 남겨두십시오.',
             '2. 구성된 한국어 초안(`draft`)을 지정된 다국어 결과(translations)로 각각 정확하게 번역하여 함께 반환하십시오. 번역본은 한국어 초안의 구조와 100% 매칭되어야 합니다.',
-            '3. 제공된 [현재 작성된 참고용 초안]은 기본 틀(템플릿) 역할만 합니다. 다만 draft.risks(다음 달 상등급 위험 공유)는 다음달 위험성평가 회의자료(PPT/PDF/문서)에서 "상등급", "위험등급 상", "위험수준 상"으로 지정된 항목만 사용하십시오. 근로자 기록지 Q3, 일반 위험 추천, 기본 안전수칙, 추정 위험은 risks에 넣지 말고 focusPoints나 notices로만 정리하십시오. 회의자료에서 확인된 상등급이 없으면 risks는 빈 배열([])로 반환하십시오.',
+            `3. 제공된 [현재 작성된 참고용 초안]은 기본 틀(템플릿) 역할만 합니다. 다만 draft.risks(${targetCycleLabel} 상등급 위험 공유)는 ${targetCycleLabel} 위험성평가 회의자료(PPT/PDF/문서)에서 "상등급", "위험등급 상", "위험수준 상"으로 지정된 항목만 사용하십시오. 근로자 기록지 Q3, 일반 위험 추천, 기본 안전수칙, 추정 위험은 risks에 넣지 말고 focusPoints나 notices로만 정리하십시오. 회의자료에서 확인된 상등급이 없으면 risks는 빈 배열([])로 반환하십시오.`,
             '4. 회의자료에서 "위험성평가 상등급", "상등급 위험", "위험등급 상" 같은 제목이 나오면 그 뒤 다음 페이지/다음 슬라이드에 이어지는 항목도 상등급 섹션으로 보십시오. 단, "현장 중점관리 포인트", "중점관리", "공지사항", 다음 번호 섹션이 나오면 그 이후 항목은 risks가 아니라 focusPoints 또는 notices로만 정리하십시오.',
             '5. 번역본(translations)의 최종 결과물 안에는 한국어 단어나 영어 기호가 결코 섞여 나와서는 안 됩니다. 100% 해당 국가의 공식 모국어로 완벽히 번역해 주십시오. 영문 약어(TBM)나 번호(Q1, Q2) 등도 현지어로 정제하십시오.',
             '6. 교육자료의 제목(title)을 생성할 때 "초안", "임시", "가이드라인", "참고" 등의 단어를 절대 포함하지 마십시오. 즉시 인쇄하여 현장에 배포 가능한 완성형 제목(예: "7월 철골 설치 작업 안전 교육자료")으로 명확히 작성하십시오.',
@@ -138,12 +143,12 @@ export const buildExternalAiPrompt = (options: {
         '1. 근거 자료에 없는 사고 일자, 기관, 수치, 담당자, 안전조치를 만들어내지 마세요.',
         '2. 확인할 수 없는 값은 "관리자 확인 필요"로 표시하세요.',
         '3. 이름, 연락처, 주민번호 등 개인정보를 결과에 포함하지 마세요.',
-        '4. 교육 흐름은 5분 핵심 동영상, 최근 재해사례, 다음 달 상등급 위험, 현장 중점관리, 공지사항 순서로 구성하세요.',
+        `4. 교육 흐름은 5분 핵심 동영상, 최근 재해사례, ${targetCycleLabel} 상등급 위험, 현장 중점관리, 공지사항 순서로 구성하세요.`,
         '5. 영상 장면의 seconds 합계는 정확히 300초로 맞추세요.',
         '6. 안전조치는 짧고 실행 가능한 명령형 문장으로 작성하고, 위험 시 즉시 작업중지와 관리자 보고가 드러나게 하세요.',
         '7. evidenceLabels에는 아래 출처 제목만 사용하세요.',
         '8. 번역은 한국 건설현장 용어의 의무 강도를 유지하고 1~5단계 구조를 보존하되, 한국어나 영어가 번역본 텍스트에 단 한 단어도 섞이지 않고 지정된 순수 모국어로만 출력되게 하십시오.',
-        '9. 다음 달 상등급 위험(draft.risks)은 위험성평가 회의자료(PPT/PDF/문서)에서 확인된 상등급 항목만 담으세요. 근로자 Q3 응답이나 상등급 근거가 없는 추천 위험을 만들거나 기본 3개 위험으로 채우지 마세요.',
+        `9. ${targetCycleLabel} 상등급 위험(draft.risks)은 위험성평가 회의자료(PPT/PDF/문서)에서 확인된 상등급 항목만 담으세요. 근로자 Q3 응답이나 상등급 근거가 없는 추천 위험을 만들거나 기본 3개 위험으로 채우지 마세요.`,
         '10. 제목(title)에는 "초안", "참고" 같은 표현을 빼고 완성형으로 기재하십시오.',
         '',
         '[응답 형식]',

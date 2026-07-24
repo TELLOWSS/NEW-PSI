@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { UiAudienceMode } from '../config/routeMeta';
 import { USER_ROLE_PRESET_CHANGED_EVENT } from '../utils/userRolePresetUtils';
 import { getOperationalMode, OPERATIONAL_MODE_CHANGED_EVENT } from '../utils/operationalModeUtils';
-import { DEV_MODE_CHANGED_EVENT } from '../utils/devModeUtils';
+import { DEV_MODE_CHANGED_EVENT, getIsDevMode } from '../utils/devModeUtils';
 import {
     canUseDevDiagnostics,
     hasExplicitDevDiagnosticsPermission,
@@ -22,7 +22,7 @@ export const useUiAudienceMode = (): UiAudienceMode => {
             isLocalDevelopment: isLocalDevelopmentEnvironment(),
         });
         
-        return diagnosticsAvailable && operationalMode === 'developer'
+        return diagnosticsAvailable && getIsDevMode() && operationalMode === 'developer'
             ? 'developer'
             : 'practitioner';
     };

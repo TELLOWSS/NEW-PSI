@@ -1551,6 +1551,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 }) => {
     const { isDevMode } = useDevMode();
     const { mode: operationalMode } = useOperationalMode();
+    const isDeveloperExperience = isDevMode && operationalMode === 'developer';
     const isImmediateOperationalMode = operationalMode === 'immediate';
     const storedViewState = getStoredOcrViewState();
     const [files, setFiles] = useState<File[]>([]);
@@ -6249,7 +6250,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             </div>
                         )}
 
-                        {(!isImmediateOperationalMode && (!isCompactMobile || isDevMode || mobileMode === 'detailed')) && (
+                        {(!isImmediateOperationalMode && (!isCompactMobile || isDeveloperExperience || mobileMode === 'detailed')) && (
                         <div className="mt-2">
                             <button
                                 type="button"
@@ -6261,7 +6262,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </div>
                         )}
 
-                        {(!isImmediateOperationalMode && (!isCompactMobile || isDevMode || mobileMode === 'detailed')) && showExtendedOverviewMetrics && (
+                        {(!isImmediateOperationalMode && (!isCompactMobile || isDeveloperExperience || mobileMode === 'detailed')) && showExtendedOverviewMetrics && (
                             <SummaryMetricGrid
                                 className="mt-2 sm:mt-3 grid grid-cols-2 gap-2 sm:gap-3"
                                 cardClassName="rounded-2xl border px-3 py-2.5 sm:px-4 sm:py-4"
@@ -6295,7 +6296,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             />
                         )}
 
-                        {(!isImmediateOperationalMode && (!isCompactMobile || isDevMode || mobileMode === 'detailed')) && failedFailureCodeSummary.length > 0 && (
+                        {(!isImmediateOperationalMode && (!isCompactMobile || isDeveloperExperience || mobileMode === 'detailed')) && failedFailureCodeSummary.length > 0 && (
                             <>
                                 <SummaryMetricGrid
                                     className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-5"
@@ -6551,7 +6552,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </div>
                 )}
 
-                {isDevMode && retryDiagnostics && (
+                {isDeveloperExperience && retryDiagnostics && (
                     <div className="mt-6 pt-5 border-t border-white/10 animate-fade-in">
                         <SummaryMetricGrid
                             className="grid grid-cols-2 gap-3 lg:grid-cols-5"
@@ -6669,7 +6670,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             ['gemini-fast', 'Gemini 빠른 분석', '선명한 사진과 대량 처리에 적합'],
                             ['gemini-precise', 'Gemini 정밀 분석', '흐린 글씨, 복잡한 표, 외국어 혼합 문서에 적합'],
                             ['openai-precise', 'OpenAI 정밀 분석', 'ChatGPT Plus와 별도인 개발자용 분석 연결 필요'],
-                        ] as Array<[OcrEngineMode, string, string]>).map(([value, label, description]) => {
+                        ] as Array<[OcrEngineMode, string, string]>)
+                            .filter(([value]) => isDeveloperExperience || value !== 'openai-precise')
+                            .map(([value, label, description]) => {
                             const unavailable = value === 'openai-precise';
                             const selected = ocrEngine === value;
                             return (
@@ -6852,9 +6855,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         items={[
                             {
                                 key: 'failed-harness-status',
-                                eyebrow: isDevMode ? '이행 검증 상태' : 'OCR 처리 상태',
+                                eyebrow: isDeveloperExperience ? '이행 검증 상태' : 'OCR 처리 상태',
                                 title: `${failedHarnessSummary.pendingApprovalCount}건이 관리자 판단 또는 승인 대기입니다`,
-                                description: isDevMode
+                                description: isDeveloperExperience
                                     ? `실패 건 중 ${failedHarnessSummary.manualReviewCount}건은 수동 검토 흐름으로 묶여 있으며, ${failedHarnessSummary.immediateAttentionCount}건은 즉시 확인 우선 대상입니다. 저장 연결 ${failedHarnessSummary.connectedCount}건 · 저장 보완 ${failedHarnessSummary.fallbackCount}건 · 대기 ${failedHarnessSummary.pendingPersistenceCount}건입니다.`
                                     : `실패 건 중 ${failedHarnessSummary.manualReviewCount}건은 수동 확인이 필요하며, ${failedHarnessSummary.immediateAttentionCount}건은 즉시 조치가 우선입니다.`,
                                 tone: BRAND_TONE.slateWhite,
@@ -6997,7 +7000,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </SectionPanelCard>
                     )}
 
-                    {isDevMode && failedFailureCodeSummary.length > 0 && (
+                    {isDeveloperExperience && failedFailureCodeSummary.length > 0 && (
                         <SectionPanelCard
                             className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3"
                             title="실패코드별 우선 조치"
@@ -7048,10 +7051,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     badge={(
                                         <div className="flex flex-wrap items-center gap-1.5">
                                             <StatusBadge variant="rose" className="shrink-0 px-2 py-1">{getOcrErrorTypeKoreanLabel(errorType)}</StatusBadge>
-                                            {isDevMode && <StatusBadge variant={getHarnessWorkflowBadgeVariant(workflowState)} className="shrink-0 px-2 py-1">{getHarnessWorkflowStateLabel(workflowState)}</StatusBadge>}
+                                            {isDeveloperExperience && <StatusBadge variant={getHarnessWorkflowBadgeVariant(workflowState)} className="shrink-0 px-2 py-1">{getHarnessWorkflowStateLabel(workflowState)}</StatusBadge>}
                                             <StatusBadge variant={getHarnessRiskBadgeVariant(riskDecision)} className="shrink-0 px-2 py-1">{getHarnessRiskDecisionLabel(riskDecision)}</StatusBadge>
-                                            {isDevMode && <StatusBadge variant={getHarnessApprovalBadgeVariant(approvalState)} className="shrink-0 px-2 py-1">{getHarnessApprovalStateLabel(approvalState)}</StatusBadge>}
-                                            {isDevMode && <StatusBadge variant={getHarnessPersistenceBadgeVariant(persistenceState)} className="shrink-0 px-2 py-1">{getHarnessPersistenceLabel(persistenceState)}</StatusBadge>}
+                                            {isDeveloperExperience && <StatusBadge variant={getHarnessApprovalBadgeVariant(approvalState)} className="shrink-0 px-2 py-1">{getHarnessApprovalStateLabel(approvalState)}</StatusBadge>}
+                                            {isDeveloperExperience && <StatusBadge variant={getHarnessPersistenceBadgeVariant(persistenceState)} className="shrink-0 px-2 py-1">{getHarnessPersistenceLabel(persistenceState)}</StatusBadge>}
                                         </div>
                                     )}
                                     body={(
@@ -7075,10 +7078,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                     title: preflightReason ? `사전검증: ${preflightReason}` : '사전검증 경고는 없지만 원문/배치/필기 품질을 다시 확인할 필요가 있습니다.',
                                                     tone: BRAND_TONE.amberSoft,
                                                     eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-600',
-                                                    description: isDevMode
+                                                    description: isDeveloperExperience
                                                         ? `${getHarnessWorkflowStateLabel(workflowState)} · ${getHarnessApprovalStateLabel(approvalState)} · ${getHarnessPersistenceLabel(persistenceState)}`
                                                         : '관리자 확인이 필요한 상태로 분류되어 있습니다.',
-                                                    content: isDevMode ? (
+                                                    content: isDeveloperExperience ? (
                                                         <div className="mt-2 space-y-2">
                                                             <div className="flex flex-wrap gap-1.5">
                                                                 <StatusBadge variant={getHarnessWorkflowBadgeVariant(workflowState)}>{getHarnessWorkflowStateLabel(workflowState)}</StatusBadge>
@@ -7149,7 +7152,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 </div>
             )}
 
-            {existingRecords.length >= 0 && (
+            {isDeveloperExperience && existingRecords.length >= 0 && (
                 <div id="psi-evidence-readiness-summary" ref={evidenceReadinessSectionRef}>
                 <SectionPanelCard
                     variant="indigoGradientSoft"
@@ -7917,7 +7920,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         const rowEvidenceSummary = preflightReason
                             || latestCorrectionReason
                             || (typeof r.ocrConfidence === 'number'
-                                ? (isDevMode ? `OCR 신뢰도 ${(r.ocrConfidence * 100).toFixed(0)}% 기준으로 확인 중입니다.` : '원본 판독 상태와 관리자 수정 이력을 함께 확인하세요.')
+                                ? (isDeveloperExperience ? `OCR 신뢰도 ${(r.ocrConfidence * 100).toFixed(0)}% 기준으로 확인 중입니다.` : '원본 판독 상태와 관리자 수정 이력을 함께 확인하세요.')
                                 : '최근 수정 및 원본 판독 근거를 함께 확인할 수 있습니다.');
                         const rowNextAction = failed
                             ? hasImage
@@ -8142,7 +8145,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const rowEvidenceSummary = preflightReason
                                     || latestCorrectionReason
                                     || (typeof r.ocrConfidence === 'number'
-                                        ? (isDevMode ? `OCR 신뢰도 ${(r.ocrConfidence * 100).toFixed(0)}% 기준으로 확인 중입니다.` : '원본 판독 상태와 관리자 수정 이력을 함께 확인하세요.')
+                                        ? (isDeveloperExperience ? `OCR 신뢰도 ${(r.ocrConfidence * 100).toFixed(0)}% 기준으로 확인 중입니다.` : '원본 판독 상태와 관리자 수정 이력을 함께 확인하세요.')
                                         : '최근 수정 및 원본 판독 근거를 함께 확인할 수 있습니다.');
                                 const rowNextAction = failed
                                     ? hasImage
@@ -8172,7 +8175,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                     {getLeaderIcon(r)}
                                                 </span>
                                                 <span className="text-[10px] text-slate-400 font-bold tracking-wider">{r.nationality} | {r.date}</span>
-                                                {isDevMode && typeof r.ocrConfidence === 'number' && (
+                                                {isDevMode && typeof r.ocrConfidence === 'number' && operationalMode === 'developer' && (
                                                     <span className="text-[9px] text-slate-500 font-bold">OCR 신뢰도: {(r.ocrConfidence * 100).toFixed(0)}%</span>
                                                 )}
                                                 {latestCorrectionPreview && (
@@ -8406,7 +8409,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     <div className="min-w-0">
                         <h4 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100">운영 탐색 및 우선순위 정리</h4>
                         <p className="mt-1 text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-300">검색·필터·정렬을 통해 지금 봐야 할 보호 신호와 재평가 대상을 한 번에 정리합니다.</p>
-                        {isDevMode && (
+                        {isDeveloperExperience && (
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                             <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black ${fallbackRecoveryBadge.className}`}>
                                 {fallbackRecoveryBadge.text}
@@ -8453,7 +8456,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <p className="mt-1 text-[12px] font-semibold text-slate-600">실패 큐, 재분석, 관리자 점검 패널을 즉시 열어 대량 처리 흐름을 유지합니다.</p>
                             </div>
                         </div>
-                        <div className="mt-3 grid grid-cols-1 gap-2 xl:grid-cols-5">
+                        <div className={`mt-3 grid grid-cols-1 gap-2 ${isDeveloperExperience ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`}>
                             <button type="button" onClick={() => setRecordSortMode('failed-first')} className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-xs font-black text-slate-700 hover:bg-slate-100">
                                 실패 우선 정렬
                             </button>
@@ -8463,9 +8466,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <button type="button" onClick={() => setShowFailedQuickActions((prev) => !prev)} className="min-h-[44px] rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-left text-xs font-black text-rose-700 hover:bg-rose-100">
                                 실패 큐 빠른조치
                             </button>
-                            <button type="button" onClick={() => setShowReasonQaDetailPanel(true)} className="min-h-[44px] rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-left text-xs font-black text-violet-700 hover:bg-violet-100">
-                                사유 QA 패널
-                            </button>
+                            {isDeveloperExperience && (
+                                <button type="button" onClick={() => setShowReasonQaDetailPanel(true)} className="min-h-[44px] rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-left text-xs font-black text-violet-700 hover:bg-violet-100">
+                                    사유 QA 패널
+                                </button>
+                            )}
                             <button type="button" onClick={() => setShowAdminActivityPanel(true)} className="min-h-[44px] rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-left text-xs font-black text-sky-700 hover:bg-sky-100">
                                 관리자 활동 패널
                             </button>
@@ -8698,13 +8703,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         descriptionClassName="mt-1 text-[12px] font-semibold leading-relaxed text-slate-600"
                         bodyClassName="mt-4"
                     >
-                        <InterpretationCardGrid items={reasonQaInsightCards} className="mb-4 grid grid-cols-1 gap-3 xl:grid-cols-3" />
+                        {isDeveloperExperience && (
+                            <InterpretationCardGrid items={reasonQaInsightCards} className="mb-4 grid grid-cols-1 gap-3 xl:grid-cols-3" />
+                        )}
                         {reasonInputPrompt && (
                             <SectionPanelCard
                                 variant="whiteSoft"
                                 eyebrow="사유 입력 가이드"
                                 title={`${reasonInputPrompt.name} · ${reasonInputPrompt.focus}`}
-                                description="짧은 문구 대신 검토 근거, 확인 범위, 반영 내용을 포함해 남기면 추적성과 QA 품질이 좋아집니다."
+                                description={isDeveloperExperience
+                                    ? '짧은 문구 대신 검토 근거, 확인 범위, 반영 내용을 포함해 남기면 추적성과 QA 품질이 좋아집니다.'
+                                    : '짧은 문구 대신 검토 근거, 확인 범위, 반영 내용을 포함해 남기면 기록의 추적성과 품질이 좋아집니다.'}
                                 headerAction={(
                                     <div className="flex flex-wrap gap-2">
                                         <button
@@ -8740,7 +8749,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </CollapsibleSection>
                 )}
 
-                {reasonQaPreviewRecords.length > 0 && (
+                {isDeveloperExperience && reasonQaPreviewRecords.length > 0 && (
                     <CollapsibleSection
                         title="사유 품질 QA 상세"
                         isOpen={showReasonQaDetailPanel}
@@ -9085,7 +9094,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 />
                             )}
                         </SectionPanelCard>
-                        {isDevMode && retryDiagnostics && (
+                        {isDeveloperExperience && retryDiagnostics && (
                             <SectionPanelCard
                                 variant="emerald"
                                 className="mt-4"
@@ -9430,6 +9439,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 </div>
             </CollapsibleSection>
 
+            {isDeveloperExperience && (
             <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl p-5 sm:p-6">
                 <CollapsibleSection
                     title="개발자 및 QA 기술 검증 패널 (태깅/오류/조치 지표)"
@@ -9510,6 +9520,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </div>
                 </CollapsibleSection>
             </div>
+            )}
 
             {!isAnalyzing && files.length === 0 && !showPostAnalysisCta && !mobileBackGuideMessage && (
                 <div

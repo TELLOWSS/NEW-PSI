@@ -16,8 +16,10 @@ const required = [
   ['pages/Introduction.tsx', 'data-product-simple="detail-toggle"'],
   ['pages/Introduction.tsx', 'data-product-simple="developer-detail"'],
   ['pages/Introduction.tsx', 'data-product-simple="developer-detail-board"'],
-  ['pages/Introduction.tsx', '상품화 설명 화면'],
-  ['pages/Introduction.tsx', '바이어에게 보여줄 한 장짜리 흐름'],
+  ['pages/Introduction.tsx', 'PSI 운영 가치'],
+  ['pages/Introduction.tsx', '기록에서 조치와 교육까지 이어지는 한 흐름'],
+  ['pages/Introduction.tsx', '운영 흐름 빠른 체험'],
+  ['pages/Introduction.tsx', 'isDeveloperExperience && showProductDepth'],
   ['pages/Introduction.tsx', '1. 기록지 넣기'],
   ['pages/Introduction.tsx', '2. 분석·검증'],
   ['pages/Introduction.tsx', '3. 리포트·추적'],
@@ -61,4 +63,4 @@ if (missing.length > 0) {
 }
 
 console.log('[check-product-simple-contract] PASS');
-console.log('- Product intro defaults to a simple buyer-facing flow, with detailed proof and internal boards gated by the detail toggle.');
+console.log('- Product intro defaults to a concise field-value flow; buyer, QA, and internal boards remain developer-only.');

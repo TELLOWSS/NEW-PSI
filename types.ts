@@ -33,12 +33,31 @@ export type ModalState = {
     queueRecordIds?: string[];
 };
 
+export type AssessmentCadence = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom';
+
+export interface AssessmentCyclePolicySnapshot {
+    cadence: AssessmentCadence;
+    weeklyDueDay: number;
+    monthlyDueDay: number;
+    customIntervalDays: number;
+    anchorDate: string;
+    policyVersion: string;
+    effectiveFrom: string;
+    timeZone: string;
+}
+
+export interface AssessmentCycleSettings extends AssessmentCyclePolicySnapshot {
+    recordLabel: string;
+    policyHistory?: AssessmentCyclePolicySnapshot[];
+}
+
 export interface AppSettings {
     siteName: string;
     siteManager: string;
     safetyManager: string;
     jobFields: string[];
     apiKey: string;
+    assessmentCycle?: AssessmentCycleSettings;
     trainingLanguagePreset?: string[];
     competencyWeights?: {
         psychological: number;
@@ -214,7 +233,7 @@ export interface SafetyCompetencyProfile {
 }
 
 /**
- * [6대 핵심 평가 지표 - 월간 안전보건정기교육 전용]
+ * [6대 핵심 평가 지표 - 현장별 위험성평가 운영 주기 공통]
  * 총 100점 + 감점(repeatViolationPenalty)
  */
 export interface SixMetricBreakdown {
@@ -228,7 +247,7 @@ export interface SixMetricBreakdown {
     proficiency: number;
     /** ⑤ 개선이행도 (20점): 구체적으로 작성하려는 노력 */
     improvementExecution: number;
-    /** ⑥ 반복위반 패널티 (감점): 다음 달 추적에서 동일 위험 재발/약속 행동 미이행 확인 시 최대 -30점 */
+    /** ⑥ 반복위반 패널티 (감점): 다음 운영 주기 추적에서 동일 위험 재발/약속 행동 미이행 확인 시 최대 -30점 */
     repeatViolationPenalty: number;
 }
 
@@ -376,13 +395,13 @@ export interface WorkerRecord {
     aiInsights: string;
     aiInsights_native: string;
     scoreReasoning?: string[];
-    /** [6대 지표] 항목별 점수 (월간 안전보건정기교육 전용) */
+    /** [6대 지표] 항목별 점수 (현장별 위험성평가 운영 주기 공통) */
     scoreBreakdown?: SixMetricBreakdown;
     /** 상세 채점 근거: 팩트 기반 감점/가점 사유 서술 (한국어) */
     score_reason?: string;
     /** 상세 채점 근거: 모국어 번역 (관리자 확인용 한국어와 병기) */
     score_reason_native?: string;
-    /** 안전 코칭: 다음 달 구체적 개선 행동 가이드 (한국어) */
+    /** 안전 코칭: 다음 운영 주기의 구체적 개선 행동 가이드 (한국어) */
     actionable_coaching?: string;
     /** 안전 코칭: 모국어 번역 (외국인 근로자 직접 확인용) */
     actionable_coaching_native?: string;

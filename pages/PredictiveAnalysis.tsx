@@ -12,6 +12,8 @@ import { MOBILE_CARD_GRID_COMPACT_CLASS, MOBILE_CARD_GRID_ITEM_CLASS, MOBILE_CAR
 import { BRAND_TONE } from '../utils/brandToneTokens';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
 import { useUiAudienceMode } from '../hooks/useUiAudienceMode';
+import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
+import { resolveAssessmentPeriod } from '../utils/assessmentCycle';
 import {
     buildSafetyCaseId,
     completeSafetyCaseStage,
@@ -629,7 +631,14 @@ interface PredictiveAnalysisProps {
 
 const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, onNavigateToPage }) => {
     const uiAudienceMode = useUiAudienceMode();
+    const { cycle, copy: cycleCopy } = useAssessmentCycle();
     const isDevMode = uiAudienceMode === 'developer';
+    const currentCyclePeriod = useMemo(() => resolveAssessmentPeriod(new Date(), cycle), [cycle]);
+    const targetCyclePeriod = useMemo(() => {
+        const nextDate = new Date(`${currentCyclePeriod.endDate}T00:00:00.000Z`);
+        nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+        return resolveAssessmentPeriod(nextDate, cycle);
+    }, [currentCyclePeriod.endDate, cycle]);
     // 1. 순수 근로자 필터링
     const sourceRecords = useMemo(() => 
         workerRecords.filter(r => !isManagementRole(r.jobField))
@@ -637,7 +646,6 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
     const harnessSummary = useMemo(() => summarizeHarnessRecords(sourceRecords), [sourceRecords]);
 
     const [todayDate, setTodayDate] = useState('');
-    const [nextMonth, setNextMonth] = useState('');
     const boardScope = useMemo(() => getCurrentBoardScope(), []);
     const currentAdminActor = useMemo(() => getCurrentAdminActorName(), []);
     const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
@@ -698,8 +706,6 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
     useEffect(() => {
         const d = new Date();
         setTodayDate(`${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`);
-        d.setMonth(d.getMonth() + 1);
-        setNextMonth(`${d.getMonth() + 1}월`);
     }, []);
 
     useEffect(() => {
@@ -852,7 +858,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
             key: 'predictive-harness-attention',
             label: '즉시 개입',
             value: `${harnessSummary.immediateAttention}명`,
-            helper: '다음 달 계획보다 먼저 보호 조치 우선',
+            helper: `${cycleCopy.nextCycleLabel} 계획보다 먼저 보호 조치 우선`,
             tone: harnessSummary.immediateAttention > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-indigo-200 bg-indigo-50/70',
             labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.immediateAttention > 0 ? 'text-rose-700' : 'text-indigo-700'}`,
             helperClassName: `mt-1 text-xs font-bold ${harnessSummary.immediateAttention > 0 ? 'text-rose-700' : 'text-indigo-700'}`,
@@ -866,7 +872,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
             labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.fallback > 0 ? 'text-amber-700' : 'text-slate-500'}`,
             helperClassName: `mt-1 text-xs font-bold ${harnessSummary.fallback > 0 ? 'text-amber-700' : 'text-slate-600'}`,
         },
-    ]), [harnessSummary]);
+    ]), [cycleCopy.nextCycleLabel, harnessSummary]);
 
     // 2. 온톨로지 데이터 구성 (Nodes & Links)
     const graphData = useMemo(() => {
@@ -908,7 +914,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                 // Link: Worker -> Risk (점수가 낮을수록 강한 연결)
                 links.push({ source: w.id, target: riskId, value: insight.riskScore >= 70 ? 5 : 2 });
                 
-                // Ontology Inference: Risk -> Action (Next Month Plan)
+                // Ontology inference: risk -> action for the next configured cycle.
                 let actionLabel = '';
                 if (riskLabel === '추락 위험') actionLabel = '안전대 체결 확인';
                 if (riskLabel === '화재 위험') actionLabel = '소화기 비치/감시자';
@@ -942,10 +948,10 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
         
         return topRisks.map(([risk], idx) => ({
             rank: idx + 1,
-            title: `${nextMonth} ${risk} 집중 관리 기간`,
-            desc: `보호 우선군에서 ${risk} 비중이 ${(riskCounts[risk]/Math.max(1, riskInsights.length) * 100).toFixed(0)}%입니다. 다음 달 위험성평가 전파교육 항목으로 우선 지정하십시오.`
+            title: `${targetCyclePeriod.label} ${risk} 집중 관리`,
+            desc: `보호 우선군에서 ${risk} 비중이 ${(riskCounts[risk]/Math.max(1, riskInsights.length) * 100).toFixed(0)}%입니다. ${cycleCopy.nextCycleLabel} 위험성평가 전파교육 항목으로 우선 지정하십시오.`
         }));
-    }, [riskInsights, nextMonth]);
+    }, [cycleCopy.nextCycleLabel, riskInsights, targetCyclePeriod.label]);
 
     const visibleRiskInsights = useMemo(() => {
         const topInsights = riskInsights.slice(0, 5);
@@ -967,11 +973,17 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                     ? '고'
                     : '중';
 
-            const dueLabel = index < 2
-                ? `${nextMonth} 1주차`
-                : index < 4
-                    ? `${nextMonth} 2주차`
-                    : `${nextMonth} 3주차`;
+            const targetStartDate = new Date(`${targetCyclePeriod.startDate}T00:00:00.000Z`);
+            const targetEndDate = new Date(`${targetCyclePeriod.endDate}T00:00:00.000Z`);
+            const periodDays = Math.max(
+                1,
+                Math.round((targetEndDate.getTime() - targetStartDate.getTime()) / (24 * 60 * 60 * 1000)) + 1,
+            );
+            const milestone = index < 2 ? 0.34 : index < 4 ? 0.67 : 1;
+            const dueDate = new Date(targetStartDate);
+            dueDate.setUTCDate(dueDate.getUTCDate() + Math.min(periodDays - 1, Math.floor((periodDays - 1) * milestone)));
+            const dueDateLabel = dueDate.toISOString().slice(0, 10);
+            const dueLabel = `${cycleCopy.nextCycleLabel} · ${dueDateLabel}`;
 
             const checkItems = [
                 '작업 시작 전 5분 위험성평가 공유 시행',
@@ -1001,7 +1013,12 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                 checkItems,
             };
         });
-    }, [nextMonth, riskInsights]);
+    }, [
+        cycleCopy.nextCycleLabel,
+        riskInsights,
+        targetCyclePeriod.endDate,
+        targetCyclePeriod.startDate,
+    ]);
 
     const executionPlanMap = useMemo(() => {
         const map = new Map<string, ActionExecutionPlan>();
@@ -1385,11 +1402,20 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
         {
             key: 'predictive-action',
             eyebrow: '다음 행동',
-            title: summary.highRiskCount > 0 ? '보호 우선군부터 실행 계획과 다음 달 교육 안건으로 연결하세요.' : '반복 위험테마를 다음 달 예방 안건으로 정리하세요.',
+            title: summary.highRiskCount > 0
+                ? `보호 우선군부터 실행 계획과 ${cycleCopy.nextCycleLabel} 교육 안건으로 연결하세요.`
+                : `반복 위험테마를 ${cycleCopy.nextCycleLabel} 예방 안건으로 정리하세요.`,
             description: '우선 개입 대상, 온톨로지 맵, 실행 계획, 공종별 조치율을 같은 흐름으로 연결해 감시가 아니라 선제 보호 동선이 되도록 구성했습니다.',
             tone: summary.highRiskCount > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
         },
-    ], [executionPlans.length, riskInsights.length, summary.highRiskCount, summary.rapidDropCount, summary.topRiskLabel]);
+    ], [
+        cycleCopy.nextCycleLabel,
+        executionPlans.length,
+        riskInsights.length,
+        summary.highRiskCount,
+        summary.rapidDropCount,
+        summary.topRiskLabel,
+    ]);
 
     const ontologyInterpretationCards: InterpretationCardItem[] = useMemo(() => [
         {
@@ -1419,7 +1445,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
 
     const ontologyMobileSummary = useMemo(() => {
         const topWorkers = riskInsights.slice(0, 3).map((item) => `${item.name}(${item.jobField})`).join(', ') || '대상 집계 대기';
-        const firstAgenda = meetingAgenda[0]?.title || '다음 달 중점 안건 정리 대기';
+        const firstAgenda = meetingAgenda[0]?.title || `${cycleCopy.nextCycleLabel} 중점 안건 정리 대기`;
         const firstFocusJob = jobActionRateSummary.focusLabels[0] || '공종 재집계 필요';
 
         return [
@@ -1429,7 +1455,14 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
             `우선 확인 공종/팀: ${firstFocusJob}`,
             `다음 안건 연결: ${firstAgenda}`,
         ];
-    }, [jobActionRateSummary.focusLabels, meetingAgenda, riskInsights, summary.highRiskCount, summary.topRiskLabel]);
+    }, [
+        cycleCopy.nextCycleLabel,
+        jobActionRateSummary.focusLabels,
+        meetingAgenda,
+        riskInsights,
+        summary.highRiskCount,
+        summary.topRiskLabel,
+    ]);
 
     const executionInterpretationCards: InterpretationCardItem[] = useMemo(() => [
         {
@@ -1799,13 +1832,13 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4">
                     <div>
                         <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
-                            <span className="bg-indigo-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg">Monthly Meeting</span>
+                            <span className="bg-indigo-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg">{cycleCopy.shortLabel} 안전회의</span>
                             <span className="text-indigo-300 text-xs font-bold">{todayDate} 기준 분석</span>
                             <span className="sm:hidden inline-flex items-center rounded-full border border-cyan-300/60 bg-cyan-400/20 px-2.5 py-1 text-[10px] font-black text-cyan-100 shadow-sm">모바일 검증 2026-06-19</span>
                         </div>
                         <h2 className="text-2xl sm:text-3xl font-black mb-2">AI 리스크 분석 · 우선 개입 대시보드</h2>
                         <p className="text-slate-300 max-w-2xl text-xs sm:text-sm font-medium leading-relaxed">
-                            1) 현재 위험군 식별 → 2) 다음 달 악화 가능성 예측 → 3) 개입 우선순위 제시 순서로 구성했습니다.
+                            1) 현재 위험군 식별 → 2) {cycleCopy.nextCycleLabel} 악화 가능성 예측 → 3) 개입 우선순위 제시 순서로 구성했습니다.
                         </p>
                     </div>
                     <div className="hidden sm:flex items-center gap-2">
@@ -1921,7 +1954,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                         ? `예측 계획보다 앞서 즉시 관찰 보호 대상 ${harnessSummary.immediateAttention}명을 먼저 조치해야 합니다.`
                         : harnessSummary.fallback > 0
                             ? `저장 연동 확인이 필요한 대상 ${harnessSummary.fallback}명이 있습니다.`
-                            : `검토 대기 항목이 ${harnessSummary.approvalBacklog}명 남아 있어 다음 달 계획 전에 현재 승인 대기 건을 먼저 정리해야 합니다.`}
+                            : `검토 대기 항목이 ${harnessSummary.approvalBacklog}명 남아 있어 ${cycleCopy.nextCycleLabel} 계획 전에 현재 승인 대기 건을 먼저 정리해야 합니다.`}
                     description={harnessSummary.immediateAttention > 0
                         ? '예측 대시보드는 미래 개입 우선순위를 정하는 곳이지만, 이미 위험이 확정된 인원은 소장 결재 및 보완 조치 흐름으로 먼저 연결해야 보호 공백을 줄일 수 있습니다.'
                         : '저장 연동 및 승인 상태를 함께 확인해 실제 보호 조치가 끊긴 지점을 먼저 보완합니다.'}
@@ -2132,7 +2165,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                     </div>
                 </div>}
 
-                {/* Right: Next Month Agenda & Action Items */}
+                {/* Right: Next operating-cycle agenda and action items */}
                 <div className="space-y-6">
                     {/* Agenda Card */}
                     <div key={`predictive-plan-panel-${predictiveRefreshTick}`} className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[30px] shadow-lg border border-slate-100">
@@ -2140,7 +2173,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                             <div>
                                 <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
                                     <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
-                                    {nextMonth} 중점 관리 안건
+                                    {targetCyclePeriod.label} 중점 관리 안건
                                 </h3>
                                 <p className="mt-1 text-[11px] font-bold text-slate-500">핵심 안건 2건만 먼저 보여주고 필요 시 펼쳐보도록 구성했습니다.</p>
                             </div>
@@ -2464,7 +2497,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                         <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
                             <p className="text-xs font-bold opacity-80 mb-1">위험성평가 기록지 작성 가이드:</p>
                             <p className="text-sm font-black leading-relaxed">
-                                "{nextMonth}은 계절적 요인과 맞물려 <span className="underline decoration-white">추락 및 미끄러짐</span> 사고 위험이 높습니다. 
+                                "{targetCyclePeriod.label}은 현재 기록 추세와 맞물려 <span className="underline decoration-white">추락 및 미끄러짐</span> 사고 위험을 우선 확인해야 합니다.
                                 작업 전 안전대 고리 체결 확인을 필수 항목으로 기재하도록 지도하십시오."
                             </p>
                         </div>

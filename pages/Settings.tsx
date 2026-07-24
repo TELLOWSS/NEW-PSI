@@ -40,6 +40,18 @@ import {
     CURRENT_SITE_TRAINING_LANGUAGE_CODES as CURRENT_SITE_LANGUAGE_SET,
     TRAINING_LANGUAGE_OPTIONS as SHARED_TRAINING_LANGUAGE_OPTIONS,
 } from '../utils/constructionTrainingTranslation';
+import { useDevMode } from '../contexts/DevModeContext';
+import { useOperationalMode } from '../contexts/OperationalModeContext';
+import {
+    ASSESSMENT_CADENCE_OPTIONS,
+    activateAssessmentCyclePolicy,
+    DEFAULT_ASSESSMENT_CYCLE,
+    getAssessmentCycleCopy,
+    hasAssessmentCyclePolicyChanged,
+    normalizeAssessmentCycle,
+    notifyAssessmentCycleChanged,
+    PSI_APP_SETTINGS_STORAGE_KEY,
+} from '../utils/assessmentCycle';
 import styles from './Settings.module.css';
 
 const TRAINING_LANGUAGE_OPTIONS = SHARED_TRAINING_LANGUAGE_OPTIONS.map(({ code, label }) => ({
@@ -246,7 +258,7 @@ interface SettingsProps {
     workerRecords?: WorkerRecord[];
 }
 
-const SettingsGuide: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+const SettingsGuide: React.FC<{ onClose: () => void; isDeveloperExperience: boolean }> = ({ onClose, isDeveloperExperience }) => {
     return (
         <section className={`${styles.guide} animate-fade-in-up`} aria-labelledby="settings-guide-title">
             <button type="button" onClick={onClose} className={styles.guideClose} aria-label="설정 가이드 닫기">
@@ -259,27 +271,39 @@ const SettingsGuide: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 <p className={styles.sectionEyebrow}>처음 설정하는 분을 위한 안내</p>
                 <h3 id="settings-guide-title" className="mt-1 text-xl font-black text-slate-900 dark:text-slate-100">3단계로 끝내는 시스템 설정</h3>
                 <p className="mt-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-400">
-                    연결 정보, 현장 정보, 공종 순서로 입력한 뒤 마지막에 저장·적용하면 됩니다.
+                    {isDeveloperExperience
+                        ? '연결 정보, 현장 정보, 공종 순서로 입력한 뒤 마지막에 저장·적용하면 됩니다.'
+                        : '현장 정보, 위험성평가 운영 주기, 공종 순서로 입력한 뒤 마지막에 저장·적용하면 됩니다.'}
                 </p>
             </div>
 
             <div className={styles.guideSteps}>
                 <article className={styles.guideStep}>
                     <span className={styles.guideStepNumber}>1</span>
-                    <h4 className="mt-4 text-base font-black text-slate-900 dark:text-slate-100">분석 서비스 연결</h4>
+                    <h4 className="mt-4 text-base font-black text-slate-900 dark:text-slate-100">
+                        {isDeveloperExperience ? '분석 서비스 연결' : '현장 정보 입력'}
+                    </h4>
                     <p className="mt-2 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-400">
-                        Google Gemini를 사용하려면 <strong className="text-slate-900 dark:text-slate-100">분석 서비스 연결키(API 키)</strong>가 필요합니다.
+                        {isDeveloperExperience
+                            ? <>Google Gemini를 사용하려면 <strong className="text-slate-900 dark:text-slate-100">분석 서비스 연결키(API 키)</strong>가 필요합니다.</>
+                            : '현장명과 관리자 이름은 모든 리포트의 헤더와 인증서에 반영됩니다. 실제 표기와 같은지 확인하세요.'}
                     </p>
+                    {isDeveloperExperience && (
                     <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="mt-4 inline-flex min-h-[40px] items-center rounded-lg border border-sky-200 bg-white px-3 text-xs font-black text-sky-700 hover:bg-sky-50">
                         Google에서 키 발급받기
                     </a>
+                    )}
                 </article>
 
                 <article className={styles.guideStep}>
                     <span className={styles.guideStepNumber}>2</span>
-                    <h4 className="mt-4 text-base font-black text-slate-900 dark:text-slate-100">현장 정보 입력</h4>
+                    <h4 className="mt-4 text-base font-black text-slate-900 dark:text-slate-100">
+                        {isDeveloperExperience ? '현장 정보 입력' : '운영 주기 선택'}
+                    </h4>
                     <p className="mt-2 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-400">
-                        현장명과 관리자 이름은 모든 리포트의 헤더와 인증서에 반영됩니다. 실제 표기와 같은지 확인하세요.
+                        {isDeveloperExperience
+                            ? '현장명과 관리자 이름은 모든 리포트의 헤더와 인증서에 반영됩니다. 실제 표기와 같은지 확인하세요.'
+                            : '일일·주간·격주·월간·맞춤 중 현장의 실제 기록지 작성 방식과 같은 주기를 선택하세요.'}
                     </p>
                 </article>
 
@@ -296,12 +320,16 @@ const SettingsGuide: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 };
 
 const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
+    const { isDevMode } = useDevMode();
+    const { mode: operationalMode } = useOperationalMode();
+    const isDeveloperExperience = isDevMode && operationalMode === 'developer';
     const [settings, setSettings] = useState<AppSettings>({
         siteName: '용인 푸르지오 원클러스터 2,3단지',
         siteManager: '정 용 현',
         safetyManager: '박 성 훈',
         jobFields: ['시스템', '용역', '철근', '분석', '배체정리', '형틀', '타설', '미장', '견출', '설비', '전기'],
         apiKey: '',
+        assessmentCycle: DEFAULT_ASSESSMENT_CYCLE,
         trainingLanguagePreset: [...CURRENT_SITE_LANGUAGE_SET],
         competencyWeights: DEFAULT_COMPETENCY_WEIGHTS,
         safetyLevelThresholds: {
@@ -408,6 +436,8 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     const resolvedCompetencyWeights = sanitizeCompetencyWeights(settings.competencyWeights);
     const weightSum = getScoreWeightSum(resolvedCompetencyWeights);
     const repeatViolationMultiplier = resolvedCompetencyWeights.repeatViolationPenalty;
+    const assessmentCycle = normalizeAssessmentCycle(settings.assessmentCycle);
+    const assessmentCycleCopy = getAssessmentCycleCopy(assessmentCycle);
 
     const updateWeights = (patch: Partial<NonNullable<AppSettings['competencyWeights']>>) => {
         setSettings((prev) => ({
@@ -435,6 +465,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         return {
             ...source,
             jobFields: fields,
+            assessmentCycle: normalizeAssessmentCycle(source.assessmentCycle),
             trainingLanguagePreset: normalizeTrainingLanguagePreset(source.trainingLanguagePreset),
             competencyWeights: sanitizeCompetencyWeights(source.competencyWeights),
             safetyLevelThresholds: {
@@ -450,13 +481,14 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
 
     const persistSettingsImmediately = (nextSettings: AppSettings): AppSettings => {
         const normalized = normalizeSettingsForStorage(nextSettings);
-        localStorage.setItem('psi_app_settings', JSON.stringify(normalized));
+        localStorage.setItem(PSI_APP_SETTINGS_STORAGE_KEY, JSON.stringify(normalized));
         setSettings(normalized);
+        notifyAssessmentCycleChanged();
         return normalized;
     };
 
     useEffect(() => {
-        const savedSettings = localStorage.getItem('psi_app_settings');
+        const savedSettings = localStorage.getItem(PSI_APP_SETTINGS_STORAGE_KEY);
         setIsPaidApiModeState(getIsPaidApiMode());
 
         const savedFreeKey = localStorage.getItem('freeApiKey') || '';
@@ -469,6 +501,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 setSettings((prev) => ({
                     ...prev,
                     ...parsed,
+                    assessmentCycle: normalizeAssessmentCycle(parsed.assessmentCycle),
                     trainingLanguagePreset: normalizeTrainingLanguagePreset(parsed.trainingLanguagePreset),
                     competencyWeights: sanitizeCompetencyWeights({
                         ...prev.competencyWeights,
@@ -688,7 +721,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     }, []);
 
     const handleSave = () => {
-        const prevRaw = localStorage.getItem('psi_app_settings');
+        const prevRaw = localStorage.getItem(PSI_APP_SETTINGS_STORAGE_KEY);
         const prevSettings = prevRaw ? (JSON.parse(prevRaw) as AppSettings) : null;
         const previousVersion = prevSettings?.competencyWeights?.version || '';
         const nextVersion = settings.competencyWeights?.version || 'v1.0.0';
@@ -698,7 +731,19 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             if (!proceed) return;
         }
 
-        const newSettings = normalizeSettingsForStorage(settings);
+        const nextAssessmentCycle = hasAssessmentCyclePolicyChanged(
+            prevSettings?.assessmentCycle,
+            settings.assessmentCycle,
+        )
+            ? activateAssessmentCyclePolicy(
+                settings.assessmentCycle,
+                prevSettings?.assessmentCycle,
+            )
+            : normalizeAssessmentCycle(settings.assessmentCycle);
+        const newSettings = normalizeSettingsForStorage({
+            ...settings,
+            assessmentCycle: nextAssessmentCycle,
+        });
 
         if (previousVersion !== nextVersion) {
             const historyRaw = localStorage.getItem('psi_competency_weight_history');
@@ -783,14 +828,18 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             key: 'settings-status',
             eyebrow: '지금 상태',
             title: `${settings.siteName || '현장명 미입력'} 기준 시스템 구성을 조정 중입니다.`,
-            description: `현재 ${isPaidApiMode ? '유료 분석 모드' : '무료 분석 모드'}이며 공종 ${jobFieldInput.split(',').filter((s) => s.trim()).length}개, 기본 교육 언어 ${normalizeTrainingLanguagePreset(settings.trainingLanguagePreset).length}개가 설정되어 있습니다.`,
+            description: isDeveloperExperience
+                ? `현재 ${isPaidApiMode ? '유료 분석 모드' : '무료 분석 모드'}이며 공종 ${jobFieldInput.split(',').filter((s) => s.trim()).length}개, 기본 교육 언어 ${normalizeTrainingLanguagePreset(settings.trainingLanguagePreset).length}개가 설정되어 있습니다.`
+                : `${assessmentCycleCopy.cadenceLabel} · ${assessmentCycleCopy.frequencyLabel} 기준이며 공종 ${jobFieldInput.split(',').filter((s) => s.trim()).length}개, 기본 교육 언어 ${normalizeTrainingLanguagePreset(settings.trainingLanguagePreset).length}개가 설정되어 있습니다.`,
             tone: BRAND_TONE.indigoSoft70,
         },
         {
             key: 'settings-evidence',
             eyebrow: '판단 근거',
-            title: '분석 연결, 현장 정보, 평가 비중, 지원단계 기준, 한 번에 처리할 건수, 교육 언어가 운영 기준입니다.',
-            description: '설정 화면은 단순 입력 폼이 아니라 현장 판단 기준을 고정하는 곳이므로, 저장 전 현재 기준이 어떤 운영 흐름을 만드는지 함께 읽을 수 있게 구성했습니다.',
+            title: isDeveloperExperience
+                ? '분석 연결, 현장 정보, 평가 비중, 지원단계 기준, 한 번에 처리할 건수, 교육 언어가 운영 기준입니다.'
+                : `${assessmentCycleCopy.recordLabel} 작성 주기와 6대 지표 해석, 승인 기준, 교육 언어가 현장 운영 기준입니다.`,
+            description: `${assessmentCycleCopy.scheduleDescription} 저장 전 이 기준이 실제 현장 운영 방식과 맞는지 확인해 주세요.`,
             tone: BRAND_TONE.whiteSoft,
         },
         {
@@ -800,7 +849,18 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             description: '설정 저장 시 즉시 시스템 전반에 반영되므로, 현장 정보와 평가 기준이 실제 운영 언어와 맞는지 마지막으로 점검하는 것이 중요합니다.',
             tone: weightSum >= 0.95 && weightSum <= 1.05 ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80',
         },
-    ], [isPaidApiMode, jobFieldInput, settings.siteName, settings.trainingLanguagePreset, weightSum]);
+    ], [
+        assessmentCycleCopy.cadenceLabel,
+        assessmentCycleCopy.frequencyLabel,
+        assessmentCycleCopy.recordLabel,
+        assessmentCycleCopy.scheduleDescription,
+        isDeveloperExperience,
+        isPaidApiMode,
+        jobFieldInput,
+        settings.siteName,
+        settings.trainingLanguagePreset,
+        weightSum,
+    ]);
 
     const apiInterpretationCards: InterpretationCardItem[] = useMemo(() => [
         {
@@ -1564,6 +1624,9 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             : harnessHealthState.status === 'loading'
               ? { label: '점검 중', tone: 'bg-amber-400' }
               : { label: '운영 가능', tone: 'bg-emerald-500' };
+    const visibleSettingsSectionLinks = isDeveloperExperience
+        ? SETTINGS_SECTION_LINKS
+        : SETTINGS_SECTION_LINKS.filter((item) => item.id !== 'settings-operations');
 
     return (
         <div className={`${styles.page} space-y-6 animate-fade-in-up pb-10 sm:space-y-8 sm:pb-12`}>
@@ -1573,7 +1636,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                         <p className={styles.heroEyebrow}>12 · 시스템 설정</p>
                         <h2 id="settings-page-title" className={styles.heroTitle}>현장 운영 기준 관리</h2>
                         <p className={styles.heroDescription}>
-                            현장 정보와 분석 방식, 승인 정책, 교육 언어를 한 곳에서 확인하고 변경합니다.
+                            현장 정보, 위험성평가 운영 주기, 6대 지표 기준과 교육 언어를 한 곳에서 확인하고 변경합니다.
                         </p>
                     </div>
                     <div className={styles.heroActions}>
@@ -1584,17 +1647,29 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                         <button type="button" onClick={() => setShowGuide((prev) => !prev)} className={styles.heroSecondary}>
                             {showGuide ? '가이드 닫기' : '운영 가이드'}
                         </button>
-                        <button type="button" onClick={handleRunHarnessHealthCheck} className={styles.heroPrimary}>
-                            저장 상태 점검
-                        </button>
+                        {isDeveloperExperience ? (
+                            <button type="button" onClick={handleRunHarnessHealthCheck} className={styles.heroPrimary}>
+                                저장 상태 점검
+                            </button>
+                        ) : (
+                            <button type="button" onClick={handleSave} className={styles.heroPrimary}>
+                                저장·적용
+                            </button>
+                        )}
                     </div>
                 </div>
                 <div className={styles.heroMetrics} aria-label="현재 설정 상태">
                     {[
                         { label: '버전', value: PSI_APP_VERSION },
-                        { label: '분석 방식', value: isPaidApiMode ? '유료 분석' : '무료 분석' },
-                        { label: '등록 인원', value: `${workerRecords.length}명` },
-                        { label: '저장 상태', value: harnessHealthState.status === 'success' ? '정상' : harnessHealthState.status === 'error' ? '오류' : '점검 전' },
+                        isDeveloperExperience
+                            ? { label: '분석 방식', value: isPaidApiMode ? '유료 분석' : '무료 분석' }
+                            : { label: '운영 주기', value: assessmentCycleCopy.shortLabel },
+                        isDeveloperExperience
+                            ? { label: '등록 인원', value: `${workerRecords.length}명` }
+                            : { label: '작성 기준', value: assessmentCycleCopy.frequencyLabel },
+                        isDeveloperExperience
+                            ? { label: '저장 상태', value: harnessHealthState.status === 'success' ? '정상' : harnessHealthState.status === 'error' ? '오류' : '점검 전' }
+                            : { label: '환류 기준', value: assessmentCycleCopy.nextCycleLabel },
                     ].map((metric) => (
                         <div key={metric.label} className={styles.heroMetric}>
                             <p className={styles.heroMetricLabel}>{metric.label}</p>
@@ -1610,16 +1685,18 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     items={settingsSummaryCards}
                     cardClassName="rounded-2xl border p-4"
                 />
-                <SummaryMetricGrid
-                    items={harnessSettingsMetrics}
-                    className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
-                    cardClassName="rounded-2xl border p-4"
-                />
+                {isDeveloperExperience && (
+                    <SummaryMetricGrid
+                        items={harnessSettingsMetrics}
+                        className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
+                        cardClassName="rounded-2xl border p-4"
+                    />
+                )}
             </section>
 
             <nav className={styles.sectionNav} aria-label="설정 항목 빠른 이동">
                 <div className={styles.sectionNavScroller}>
-                    {SETTINGS_SECTION_LINKS.map((item) => (
+                    {visibleSettingsSectionLinks.map((item) => (
                         <button
                             key={item.id}
                             type="button"
@@ -1639,6 +1716,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 <button type="button" onClick={handleSave} className={styles.sectionNavSave}>저장·적용</button>
             </nav>
 
+            {isDeveloperExperience && (
             <section className={styles.directControl} aria-labelledby="direct-control-heading">
                 <div className={styles.directControlHeader}>
                     <div className="min-w-0">
@@ -1723,7 +1801,9 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     </fieldset>
                 </div>
             </section>
+            )}
 
+            {isDeveloperExperience && (
             <aside className={`${styles.quickActions} hidden lg:block`} aria-labelledby="settings-quick-actions-heading">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">PC 운영 바로가기</p>
                 <p id="settings-quick-actions-heading" className="mt-1 text-[11px] font-semibold text-indigo-700">설정/진단/저장을 상단에서 즉시 실행해 운영 점검 반복 시간을 줄입니다.</p>
@@ -1737,6 +1817,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     <button type="button" onClick={() => { trackQuickAction('save_settings'); handleSave(); }} className="min-h-[44px] rounded-xl border border-sky-200 bg-white px-3 py-2 text-left text-xs font-black text-sky-700 hover:bg-sky-50">설정 저장/적용</button>
                 </div>
             </aside>
+            )}
 
             <section id="settings-display" className={`${styles.sectionBlock} psi-industrial-panel p-5 sm:p-7`} aria-labelledby="settings-display-heading">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1802,6 +1883,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 />
             </section>
 
+            {isDeveloperExperience && (
             <section className={`${styles.diagnosticsBlock} bg-white p-5 dark:bg-slate-900 sm:p-8 rounded-3xl border border-indigo-100 dark:border-indigo-950/40`} aria-labelledby="settings-ui-metrics-heading">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
@@ -1814,7 +1896,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                         <button
                             type="button"
                             onClick={loadUIViewMetrics}
-                            className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-xs font-black text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850"
+                            className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-xs font-black text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                         >
                             지표 새로고침
                         </button>
@@ -1914,8 +1996,9 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     )}
                 </div>
             </section>
+            )}
 
-            {(harnessSummary.immediateAttention > 0 || harnessSummary.approvalBacklog > 0 || harnessSummary.fallback > 0) && (
+            {isDeveloperExperience && (harnessSummary.immediateAttention > 0 || harnessSummary.approvalBacklog > 0 || harnessSummary.fallback > 0) && (
                 <NoticeCallout
                     variant={harnessSummary.immediateAttention > 0 ? 'rose' : harnessSummary.fallback > 0 ? 'amber' : 'indigo'}
                     eyebrow="Harness priority"
@@ -1932,6 +2015,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 />
             )}
 
+            {isDeveloperExperience && (
             <div className="bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-100 dark:border-indigo-950/40">
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 px-4 py-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1956,7 +2040,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600 dark:text-slate-400">연결값</p>
                             <p className="mt-1 text-xl font-black text-slate-900 dark:text-slate-100">{harnessHealthState.data?.envConfigured ? '준비됨' : '연결값 필요'}</p>
                         </div>
-                        <div className={`rounded-2xl border px-4 py-3 ${harnessHealthState.data?.keyMode === 'service_role' ? 'border-indigo-200 bg-indigo-50/70 dark:border-indigo-950/50 dark:bg-indigo-950/20' : harnessHealthState.data?.keyMode === 'anon' ? 'border-amber-200 bg-amber-50/80 dark:border-amber-950/50 dark:bg-amber-950/20' : 'border-slate-200 bg-slate-50 dark:border-slate-850 dark:bg-slate-900/40'}`}>
+                        <div className={`rounded-2xl border px-4 py-3 ${harnessHealthState.data?.keyMode === 'service_role' ? 'border-indigo-200 bg-indigo-50/70 dark:border-indigo-950/50 dark:bg-indigo-950/20' : harnessHealthState.data?.keyMode === 'anon' ? 'border-amber-200 bg-amber-50/80 dark:border-amber-950/50 dark:bg-amber-950/20' : 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40'}`}>
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600 dark:text-slate-400">운영 키</p>
                             <p className="mt-1 text-xl font-black text-slate-900 dark:text-slate-100">{harnessHealthState.data?.keyMode === 'service_role' ? '서버 운영키' : harnessHealthState.data?.keyMode === 'anon' ? '제한 운영키' : '-'}</p>
                         </div>
@@ -1975,10 +2059,10 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     </div>
 
                     {harnessHealthState.status === 'error' ? (
-                        <p className="mt-3 text-xs font-bold text-rose-700 dark:text-rose-450">{formatCentralStorageMessage(harnessHealthState.message)}</p>
+                        <p className="mt-3 text-xs font-bold text-rose-700 dark:text-rose-400">{formatCentralStorageMessage(harnessHealthState.message)}</p>
                     ) : null}
                     {harnessHealthState.data?.warning ? (
-                        <p className="mt-3 text-xs font-bold text-amber-700 dark:text-amber-550">{formatCentralStorageMessage(harnessHealthState.data.warning)}</p>
+                        <p className="mt-3 text-xs font-bold text-amber-700 dark:text-amber-400">{formatCentralStorageMessage(harnessHealthState.data.warning)}</p>
                     ) : null}
                     {harnessHealthState.data?.checkedAt ? (
                         <p className="mt-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">마지막 점검: {new Date(harnessHealthState.data.checkedAt).toLocaleString('ko-KR')}</p>
@@ -2118,10 +2202,12 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     </div>
                 )}
             </div>
+            )}
 
-            {showGuide && <SettingsGuide onClose={() => setShowGuide(false)} />}
+            {showGuide && <SettingsGuide onClose={() => setShowGuide(false)} isDeveloperExperience={isDeveloperExperience} />}
 
             <div id="settings-core" className="grid scroll-mt-24 grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-8">
+                {isDeveloperExperience && (
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-100">
                     <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5 sm:mb-6">1단계: Google Gemini 분석 서비스 연결</h3>
                     <InterpretationCardGrid
@@ -2174,9 +2260,10 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                         현재 분석 연결 상태: {activeApiKeyStatus.hasKey ? '준비됨' : '미설정'} · 연결 정보 위치: {activeApiKeyStatus.sourceLabel}
                     </div>
                 </div>
+                )}
 
-                <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-200">
-                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5 sm:mb-6">2단계: 현장 정보 설정</h3>
+                <div className={`bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-200 ${isDeveloperExperience ? '' : 'lg:col-span-2'}`}>
+                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5 sm:mb-6">{isDeveloperExperience ? '2단계' : '1단계'}: 현장 정보 설정</h3>
                     <div className="space-y-4">
                         <div>
                             <label className="block text-sm font-bold text-slate-600 mb-2">현장명</label>
@@ -2195,8 +2282,174 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     </div>
                 </div>
 
+                <section className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-sky-200 lg:col-span-2" aria-labelledby="assessment-cycle-heading">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-700">Assessment Cycle</p>
+                            <h3 id="assessment-cycle-heading" className="mt-1 text-lg sm:text-xl font-bold text-slate-900">
+                                {isDeveloperExperience ? '3단계' : '2단계'}: 위험성평가 운영 주기
+                            </h3>
+                            <p className="mt-1 max-w-3xl text-xs font-semibold leading-5 text-slate-600">
+                                현장 운영 방식에 맞춰 기록지 작성 간격을 정하면 대시보드, 교육 환류, 계도 리포트의 문구가 같은 기준으로 바뀝니다.
+                            </p>
+                        </div>
+                        <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-right">
+                            <p className="text-[10px] font-black text-sky-700">현재 운영 기준</p>
+                            <p className="mt-1 text-sm font-black text-slate-900">{assessmentCycleCopy.cadenceLabel}</p>
+                            <p className="mt-0.5 text-[11px] font-bold text-sky-800">{assessmentCycleCopy.frequencyLabel}</p>
+                        </div>
+                    </div>
+
+                    <fieldset className="mt-5">
+                        <legend className="text-sm font-black text-slate-800">작성 주기 선택</legend>
+                        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                            {ASSESSMENT_CADENCE_OPTIONS.map((option) => {
+                                const isSelected = assessmentCycle.cadence === option.value;
+                                return (
+                                    <button
+                                        key={option.value}
+                                        type="button"
+                                        aria-pressed={isSelected}
+                                        onClick={() => setSettings((prev) => ({
+                                            ...prev,
+                                            assessmentCycle: normalizeAssessmentCycle({
+                                                ...prev.assessmentCycle,
+                                                cadence: option.value,
+                                            }),
+                                        }))}
+                                        className={`min-h-[96px] rounded-2xl border px-4 py-3 text-left transition-colors ${
+                                            isSelected
+                                                ? 'border-sky-500 bg-sky-50 ring-2 ring-sky-200'
+                                                : 'border-slate-200 bg-white hover:border-sky-300 hover:bg-sky-50/60'
+                                        }`}
+                                    >
+                                        <span className={`text-sm font-black ${isSelected ? 'text-sky-800' : 'text-slate-800'}`}>{option.label}</span>
+                                        <span className="mt-1 block text-[11px] font-semibold leading-4 text-slate-600">{option.description}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </fieldset>
+
+                    <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                        <label className="block text-sm font-bold text-slate-700">
+                            현장에서 사용하는 기록지 명칭
+                            <input
+                                type="text"
+                                maxLength={40}
+                                value={assessmentCycle.recordLabel}
+                                onChange={(event) => setSettings((prev) => ({
+                                    ...prev,
+                                    assessmentCycle: normalizeAssessmentCycle({
+                                        ...prev.assessmentCycle,
+                                        recordLabel: event.target.value,
+                                    }),
+                                }))}
+                                className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 p-3"
+                                placeholder="예: 위험성평가 기록지"
+                            />
+                        </label>
+
+                        {assessmentCycle.cadence === 'weekly' && (
+                            <label className="block text-sm font-bold text-slate-700">
+                                주간 작성·검토 기준 요일
+                                <select
+                                    value={assessmentCycle.weeklyDueDay}
+                                    onChange={(event) => setSettings((prev) => ({
+                                        ...prev,
+                                        assessmentCycle: normalizeAssessmentCycle({
+                                            ...prev.assessmentCycle,
+                                            weeklyDueDay: Number(event.target.value),
+                                        }),
+                                    }))}
+                                    className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 p-3"
+                                >
+                                    {['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'].map((label, index) => (
+                                        <option key={label} value={index}>{label}</option>
+                                    ))}
+                                </select>
+                            </label>
+                        )}
+
+                        {assessmentCycle.cadence === 'monthly' && (
+                            <label className="block text-sm font-bold text-slate-700">
+                                월간 작성·검토 기준일
+                                <select
+                                    value={assessmentCycle.monthlyDueDay}
+                                    onChange={(event) => setSettings((prev) => ({
+                                        ...prev,
+                                        assessmentCycle: normalizeAssessmentCycle({
+                                            ...prev.assessmentCycle,
+                                            monthlyDueDay: Number(event.target.value),
+                                        }),
+                                    }))}
+                                    className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 p-3"
+                                >
+                                    {Array.from({ length: 28 }, (_, index) => index + 1).map((day) => (
+                                        <option key={day} value={day}>매월 {day}일</option>
+                                    ))}
+                                </select>
+                            </label>
+                        )}
+
+                        {(assessmentCycle.cadence === 'biweekly' || assessmentCycle.cadence === 'custom') && (
+                            <label className="block text-sm font-bold text-slate-700">
+                                주기 계산 기준일
+                                <input
+                                    type="date"
+                                    value={assessmentCycle.anchorDate}
+                                    onChange={(event) => setSettings((prev) => ({
+                                        ...prev,
+                                        assessmentCycle: normalizeAssessmentCycle({
+                                            ...prev.assessmentCycle,
+                                            anchorDate: event.target.value,
+                                        }),
+                                    }))}
+                                    className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 p-3"
+                                />
+                            </label>
+                        )}
+
+                        {assessmentCycle.cadence === 'custom' && (
+                            <label className="block text-sm font-bold text-slate-700">
+                                맞춤 작성 간격
+                                <span className="mt-2 flex items-center gap-2">
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        max={365}
+                                        value={assessmentCycle.customIntervalDays}
+                                        onChange={(event) => setSettings((prev) => ({
+                                            ...prev,
+                                            assessmentCycle: normalizeAssessmentCycle({
+                                                ...prev.assessmentCycle,
+                                                customIntervalDays: Number(event.target.value),
+                                            }),
+                                        }))}
+                                        className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3"
+                                    />
+                                    <span className="shrink-0 text-sm font-black text-slate-600">일마다</span>
+                                </span>
+                            </label>
+                        )}
+                    </div>
+
+                    <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-4">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">화면 문구 미리보기</p>
+                        <p className="mt-2 text-sm font-black text-emerald-950">{assessmentCycleCopy.scheduleDescription}</p>
+                        <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-emerald-800">
+                            <span className="rounded-full bg-white px-3 py-1">{assessmentCycleCopy.reportLabel}</span>
+                            <span className="rounded-full bg-white px-3 py-1">{assessmentCycleCopy.trackingLabel}</span>
+                            <span className="rounded-full bg-white px-3 py-1">{assessmentCycleCopy.educationReturnLabel}</span>
+                        </div>
+                        <p className="mt-3 text-[11px] font-semibold leading-5 text-emerald-800">
+                            주기를 바꾸면 현장 시간 기준으로 저장한 날짜부터 새 기준을 적용합니다. 이전 기록은 당시 사용한 주기 이력으로 보존해 과거 추세가 다시 분류되지 않습니다.
+                        </p>
+                    </div>
+                </section>
+
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-200 lg:col-span-2">
-                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5 sm:mb-6">3단계: 공종 및 팀 구성</h3>
+                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5 sm:mb-6">{isDeveloperExperience ? '4단계' : '3단계'}: 공종 및 팀 구성</h3>
                     <textarea value={jobFieldInput} onChange={(e) => setJobFieldInput(e.target.value)} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl h-32" placeholder="시스템, 철근, 형틀, 전기..." />
                     <div className="text-xs text-slate-400 mt-2">감지된 공종: <span className="font-bold text-emerald-600">{jobFieldInput.split(',').filter((s) => s.trim()).length}개</span></div>
                 </div>
@@ -2302,7 +2555,9 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">안정 최소 위험인식 신호 (내부 advancedMin)</label>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">
+                                안정 단계 시작점{isDeveloperExperience ? ' (internal advancedMin)' : ''}
+                            </label>
                             <input
                                 type="number"
                                 min={0}
@@ -2319,7 +2574,9 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">확인 최소 위험인식 신호 (내부 intermediateMin)</label>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">
+                                확인 단계 시작점{isDeveloperExperience ? ' (internal intermediateMin)' : ''}
+                            </label>
                             <input
                                 type="number"
                                 min={0}
@@ -2351,6 +2608,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 </div>
 
                 {/* OCR 배치 분할 단위 설정 */}
+                {isDeveloperExperience && (
                 <div id="settings-operations" className="scroll-mt-24 bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-violet-200 lg:col-span-2">
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                         <div>
@@ -2398,7 +2656,9 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                         </div>
                     </div>
                 </div>
+                )}
 
+                {isDeveloperExperience && (
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-200 lg:col-span-2">
                     <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5">피드백 전송 연동 (Webhook)</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2459,10 +2719,13 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                         실패 시 미전송 보관함에 자동 보관됩니다.
                     </p>
                 </div>
+                )}
 
                 <div id="settings-languages" className="scroll-mt-24 bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-cyan-200 lg:col-span-2">
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">QR/음성 파일럿 기본 언어 세트</h3>
+                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">
+                            {isDeveloperExperience ? 'QR/음성 파일럿 기본 언어 세트' : '교육자료 기본 언어'}
+                        </h3>
                         <button
                             type="button"
                             onClick={() => setSettings((prev) => ({ ...prev, trainingLanguagePreset: [...CURRENT_SITE_LANGUAGE_SET] }))}
@@ -2487,10 +2750,11 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                         })}
                     </div>
                     <p className="mt-3 text-xs text-slate-500 leading-relaxed">
-                        여기서 저장한 기본 언어 세트는 QR/음성 파일럿 화면의 초기 선택값으로 자동 반영됩니다.
+                        여기서 저장한 기본 언어 세트는 교육자료와 근로자 안내의 초기 선택값으로 자동 반영됩니다.
                     </p>
                 </div>
 
+                {isDeveloperExperience && (
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-200 lg:col-span-2">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                         <h3 className="text-lg sm:text-xl font-bold text-slate-900">가중치 버전 변경 이력</h3>
@@ -2513,13 +2777,17 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                         </div>
                     )}
                 </div>
+                )}
             </div>
 
             <div className="flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-4 mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-slate-200">
-                <button onClick={handleResetData} className="w-full sm:w-auto px-6 py-3 text-red-600 font-bold bg-red-50 hover:bg-red-100 rounded-xl transition-colors">데이터 초기화 (Factory Reset)</button>
+                {isDeveloperExperience ? (
+                    <button onClick={handleResetData} className="w-full sm:w-auto px-6 py-3 text-red-600 font-bold bg-red-50 hover:bg-red-100 rounded-xl transition-colors">데이터 초기화 (Factory Reset)</button>
+                ) : <span />}
                 <button onClick={handleSave} className="w-full sm:w-auto px-10 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl hover:bg-indigo-700 transition-all">설정 저장 및 적용</button>
             </div>
 
+            {isDeveloperExperience && (
             <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-200">
                 <div className="flex items-center gap-2 mb-5">
                     <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -2549,6 +2817,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     <dd className="text-slate-800">대한민국 특허청 심사 대기 및 우선권 주장(선출원) 완료</dd>
                 </dl>
             </div>
+            )}
         </div>
     );
 };

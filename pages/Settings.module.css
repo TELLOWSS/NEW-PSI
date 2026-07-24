@@ -554,7 +554,7 @@
     --settings-canvas: var(--psi-canvas, #07111d);
     --settings-surface: var(--psi-surface, #0d1b2a);
     --settings-muted: var(--psi-surface-muted, #102337);
-    --settings-border: var(--psi-border, #29445e);
+    --settings-border: var(--psi-control-border, #4b6a86);
     --settings-text: var(--psi-text, #f3f7fb);
     --settings-copy: var(--psi-text-muted, #b4c6d5);
 }
@@ -569,4 +569,10 @@
 :global(.dark) .quickActions {
     border-color: #29445e;
     background: #102337;
+}
+
+:global(.dark) .guideClose:hover {
+    border-color: #67b7e3;
+    background: #153451;
+    color: #f3f7fb;
 }

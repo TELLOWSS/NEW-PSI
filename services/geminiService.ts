@@ -443,11 +443,11 @@ const workerRecordSchema = {
             scoreReasoning: { type: Type.ARRAY, items: { type: Type.STRING } },
             score_reason: { type: Type.STRING, description: "팩트 기반 상세 채점 근거: 어떤 항목에서 왜 감점/가점이 발생했는지 2~4문장으로 서술 (항상 한국어로 작성)" },
             score_reason_native: { type: Type.STRING, description: "score_reason을 근로자 모국어로 번역하되, 근로자가 직접 읽는 안내문처럼 짧고 자연스럽게 작성. 한국인이면 빈 문자열." },
-            actionable_coaching: { type: Type.STRING, description: "다음 달 정기교육 작성 시 구체적으로 개선할 행동 가이드 (💡 이모지 포함, 한 문단, 항상 한국어로 작성)" },
+            actionable_coaching: { type: Type.STRING, description: "다음 위험성평가 운영 주기 작성 시 구체적으로 개선할 행동 가이드 (💡 이모지 포함, 한 문단, 항상 한국어로 작성)" },
             actionable_coaching_native: { type: Type.STRING, description: "actionable_coaching을 근로자 모국어로 번역. 근로자가 현장에서 직접 읽고 바로 실천할 수 있게 2~4개의 짧은 문장으로 작성. 한국인이면 빈 문자열." },
             scoreBreakdown: {
                 type: Type.OBJECT,
-                description: "6대 핵심 평가 지표별 개별 점수 (월간 안전보건정기교육 전용)",
+                description: "6대 핵심 평가 지표별 개별 점수 (현장별 위험성평가 운영 주기 공통)",
                 properties: {
                     psychological: { type: Type.NUMBER, description: "①응답 충실도 0~10점: 구체적이고 현장 맥락이 담긴 작성 정도" },
                     jobUnderstanding: { type: Type.NUMBER, description: "②업무이해도 0~20점: 공종·자재·도구 명시 수준" },
@@ -1196,7 +1196,7 @@ export const calibrateScoreBreakdown = (
 
     if (calibrated.repeatViolationPenalty > 0) {
         calibrated.repeatViolationPenalty = 0;
-        reasoning.push('현재 단일 기록지에서는 다음 달 이행 여부를 확정할 수 없어 반복위반 패널티를 추적관리 단계로 보류');
+        reasoning.push('현재 단일 기록지에서는 다음 운영 주기 이행 여부를 확정할 수 없어 반복위반 패널티를 추적관리 단계로 보류');
     }
 
     return { breakdown: calibrated, reasoning };
@@ -1491,7 +1491,7 @@ const LANGUAGE_POLICY = `
 `;
 
 const STRICT_SCORE_POLICY = `
-**[월간 안전보건정기교육 6대 핵심 지표 채점 시스템 - 전면 적용]**
+**[현장별 위험성평가 운영 주기 6대 핵심 지표 채점 시스템 - 전면 적용]**
 
 당신은 건설 현장 20년 차 최고참 안전관리자이자 기술사입니다.
 단순 키워드 채점은 완전히 폐기합니다. 아래 6대 지표로 매우 깐깐하게 채점하십시오.
@@ -1530,7 +1530,7 @@ const STRICT_SCORE_POLICY = `
 
 ⑥ 반복위반 패널티 (0~-30점, 감점)
   - 이번 한 장의 기록지만 보고 적용하지 않는다.
-  - 이전 달에 근로자가 적은 실천행동, 관리자 지적, 교육 후 약속사항이 다음 달 기록·현장 확인에서 반복 불이행/동일 위험 재발로 확인될 때만 적용한다.
+  - 직전 완료 운영 주기에 근로자가 적은 실천행동, 관리자 지적, 교육 후 약속사항이 다음 운영 주기의 기록·현장 확인에서 반복 불이행/동일 위험 재발로 확인될 때만 적용한다.
   - 현재 기록지 안의 "안전제일", "안전수칙 준수", Q4·Q5 중복 문장 등은 반복위반이 아니라 ①응답 충실도, ④숙련도, ⑤개선이행도에서 감점한다.
   - 추적 근거가 없으면 반드시 0점.
 
@@ -1547,11 +1547,11 @@ const STRICT_SCORE_POLICY = `
   - safetyScore와 safetyLevel이 불일치하면 점수 기준으로 safetyLevel을 보정.
 
 [score_reason 작성 규칙 - 필수]
-  - "업무이해도는 골조 공종 자재를 명시해 15점이지만, 숙련도는 '안전벨트 착용' 수준으로 형식적이고 Q4·Q5 내용이 유사하여 개선이행도가 10점으로 감점됩니다. 반복위반 패널티는 다음 달 이행 여부 확인 전이므로 0점입니다." 형식.
+  - "업무이해도는 골조 공종 자재를 명시해 15점이지만, 숙련도는 '안전벨트 착용' 수준으로 형식적이고 Q4·Q5 내용이 유사하여 개선이행도가 10점으로 감점됩니다. 반복위반 패널티는 다음 운영 주기 이행 여부 확인 전이므로 0점입니다." 형식.
   - 팩트 기반으로 감점/가점 근거를 2~4문장으로 서술.
 
 [actionable_coaching 작성 규칙 - 필수]
-  - "💡 다음 달 정기교육 후 작성하실 때는 '안전모 착용' 대신 '단부 작업 전 구명줄 선 체결 및 D링 확인'처럼 본인이 직접 할 구체적 행동을 적어주세요." 형식.
+  - "💡 다음 위험성평가 운영 주기에 작성하실 때는 '안전모 착용' 대신 '단부 작업 전 구명줄 선 체결 및 D링 확인'처럼 본인이 직접 할 구체적 행동을 적어주세요." 형식.
   - 건설 안전 전문가 관점에서 명확한 개선 가이드를 한 문단으로 제시.
   - 반드시 💡 이모지로 시작.
     - 답변이 잘 작성된 경우에도 "없음", "해당 없음", "코칭 필요 없음"으로 쓰지 말고, 잘 작성한 내용을 바탕으로 현장에서 계속 실천해야 할 행동을 강화하는 문장으로 작성.
@@ -1804,7 +1804,7 @@ async function callGeminiWithRetry(
              * 2. 논리적 정합성(Alignment) 기반 절대 안전 채점
              *   - [위험 요인]의 등급(상/중/하)과 [안전 대책]의 논리적 연결성 평가. 위험이 '상'인데 대책이 추상적이면 감점.
              *
-             * 3. 월간 핵심 목표(Ground Truth) 가중치 반영
+             * 3. 운영 주기 핵심 목표(Ground Truth) 가중치 반영
              *   - 근로자 대책에 ${monthlyFocus}에 대한 방어 대책이 명확히 포함되어 있으면 가산점 부여.
              *
              * 4. 동급 비교(Apple-to-Apple) RAG 기반 목표 제시

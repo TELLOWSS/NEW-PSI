@@ -48,7 +48,8 @@ export const TopBar: React.FC<TopBarProps> = ({
         '현장 위험 이슈 관리': '현장 이슈',
         '월별 계도 리포트': '월별 계도',
     };
-    const mobilePageTitle = mobileTitleMap[currentPageTitle] || currentPageTitle;
+    const mobilePageTitle = mobileTitleMap[currentPageTitle]
+        || (currentPageTitle.endsWith('계도 리포트') ? currentPageTitle.replace(' 리포트', '') : currentPageTitle);
 
     return (
         <header className="psi-topbar z-10 shrink-0 border-b text-slate-900 backdrop-blur transition-colors dark:text-slate-100 no-print">

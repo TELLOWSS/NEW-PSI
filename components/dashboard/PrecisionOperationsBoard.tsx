@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import type { Page, SafetyCheckRecord, WorkerRecord } from '../../types';
 import { calculateCoreMetricSnapshot, isOperationalWorkerRecord } from '../../utils/coreMetrics';
+import { useAssessmentCycle } from '../../hooks/useAssessmentCycle';
+import { resolveAssessmentPeriod } from '../../utils/assessmentCycle';
 
 interface PrecisionOperationsBoardProps {
     workerRecords: WorkerRecord[];
@@ -10,7 +12,7 @@ interface PrecisionOperationsBoardProps {
 }
 
 type QueueTone = 'critical' | 'warning' | 'progress' | 'normal';
-type PeriodFilter = 'all' | '7' | '30';
+type PeriodFilter = 'all' | 'cycle' | '7' | '30';
 
 type QueueItem = {
     record: WorkerRecord;
@@ -184,6 +186,7 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
     setCurrentPage,
     onOpenAdvanced,
 }) => {
+    const { cycle, copy: cycleCopy } = useAssessmentCycle();
     const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
     const [tradeFilter, setTradeFilter] = useState('all');
 
@@ -202,17 +205,20 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
 
     const filteredRecords = useMemo(() => {
         const now = new Date();
-        const periodDays = periodFilter === 'all' ? null : Number(periodFilter);
-        const cutoff = periodDays ? new Date(now.getTime() - (periodDays - 1) * 24 * 60 * 60 * 1000) : null;
+        const periodDays = periodFilter === '7' || periodFilter === '30' ? Number(periodFilter) : null;
+        const currentCycle = periodFilter === 'cycle' ? resolveAssessmentPeriod(now, cycle) : null;
+        const cycleStart = currentCycle ? new Date(`${currentCycle.startDate}T00:00:00`) : null;
+        const cycleEnd = currentCycle ? new Date(`${currentCycle.endDate}T23:59:59`) : null;
+        const cutoff = periodDays ? new Date(now.getTime() - (periodDays - 1) * 24 * 60 * 60 * 1000) : cycleStart;
         cutoff?.setHours(0, 0, 0, 0);
 
         return operationalRecords.filter((record) => {
             if (tradeFilter !== 'all' && record.jobField !== tradeFilter) return false;
             if (!cutoff) return true;
             const recordDate = parseRecordDate(record.date);
-            return recordDate ? recordDate >= cutoff : false;
+            return recordDate ? recordDate >= cutoff && (!cycleEnd || recordDate <= cycleEnd) : false;
         });
-    }, [operationalRecords, periodFilter, tradeFilter]);
+    }, [cycle, operationalRecords, periodFilter, tradeFilter]);
 
     const summary = useMemo(
         () => calculateCoreMetricSnapshot(filteredRecords),
@@ -316,8 +322,8 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
         if (statusCounts.pending > 0) {
             return `관리자 검토가 필요한 기록 ${statusCounts.pending}건이 남아 있습니다. ${topRiskCount ? `${topRisk} 신호 ${topRiskCount}건을` : '최신 기록을'} 우선 확인해 주세요.`;
         }
-        return '현재 보호 우선 기록은 없습니다. 완료된 조치의 교육 환류와 월별 반복 여부를 이어서 확인해 주세요.';
-    }, [filteredRecords.length, priorityQueue, riskCounts, statusCounts.immediate, statusCounts.pending]);
+        return `현재 보호 우선 기록은 없습니다. 완료된 조치의 교육 환류와 ${cycleCopy.shortLabel} 반복 여부를 이어서 확인해 주세요.`;
+    }, [cycleCopy.shortLabel, filteredRecords.length, priorityQueue, riskCounts, statusCounts.immediate, statusCounts.pending]);
 
     const trendMax = Math.max(1, ...trendSeries.map((item) => item.value));
     const distributionTotal = Math.max(1, filteredRecords.length);
@@ -366,9 +372,9 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
         { page: 'ocr-analysis', title: '위험성평가 분석', description: '등록·판독·검토' },
         { page: 'safety-compliance-hub', title: '안전조치 통합 허브', description: '조치·코칭·이행' },
         { page: 'education-return', title: '교육 환류', description: '교육자료·개인 안내' },
-        { page: 'monthly-guidance-report', title: '월별 계도 리포트', description: '반복 위험·개선 추적' },
+        { page: 'monthly-guidance-report', title: cycleCopy.reportLabel, description: '반복 위험·개선 추적' },
         { page: 'reports', title: '근로자 리포트', description: '개인별 분석 근거' },
-        { page: 'performance-analysis', title: '안전성과 분석', description: '월별 성과와 변화' },
+        { page: 'performance-analysis', title: '안전성과 분석', description: `${cycleCopy.shortLabel} 성과와 변화` },
     ];
 
     return (
@@ -380,6 +386,8 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                         <span>{getSiteName()}</span>
                         <span className="psi-ops-context-divider" aria-hidden="true" />
                         <span>{formatToday()}</span>
+                        <span className="psi-ops-context-divider" aria-hidden="true" />
+                        <span>{cycleCopy.cadenceLabel} · {cycleCopy.frequencyLabel}</span>
                     </div>
                     <h1 id="operations-page-title" className="psi-ops-title">오늘의 안전 운영</h1>
                     <p className="psi-ops-subtitle">위험 신호를 먼저 확인하고, 검토·조치·교육까지 끊김 없이 이어갑니다.</p>
@@ -390,6 +398,7 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                         <span>기간</span>
                         <select value={periodFilter} onChange={(event) => setPeriodFilter(event.target.value as PeriodFilter)}>
                             <option value="all">전체 기간</option>
+                            <option value="cycle">{cycleCopy.currentCycleLabel} ({cycleCopy.shortLabel})</option>
                             <option value="7">최근 7일</option>
                             <option value="30">최근 30일</option>
                         </select>
@@ -407,7 +416,7 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                         className="psi-ops-primary-action"
                     >
                         <PlusIcon />
-                        <span>새 위험성평가 등록</span>
+                        <span>새 {cycleCopy.recordLabel} 등록</span>
                     </button>
                 </div>
             </section>

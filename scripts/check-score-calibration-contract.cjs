@@ -31,7 +31,7 @@ for (const marker of [
   'buildFallbackScoreBreakdownFromAnswers',
   '6대 지표 세부점수가 누락',
   'Q4 감소대책과 Q5 실천행동이 유사하여 개선이행도 감점',
-  '현재 단일 기록지에서는 다음 달 이행 여부를 확정할 수 없어 반복위반 패널티를 추적관리 단계로 보류',
+  '현재 단일 기록지에서는 다음 운영 주기 이행 여부를 확정할 수 없어 반복위반 패널티를 추적관리 단계로 보류',
   'calcNgramSimilarity',
 ]) {
   if (!source.includes(marker)) failures.push(`Missing calibration marker: ${marker}`);

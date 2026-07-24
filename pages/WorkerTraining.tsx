@@ -11,6 +11,8 @@ import {
     flushQueuedTrainingSubmissions,
     type QueuedTrainingSubmission,
 } from '../utils/trainingSubmissionQueue';
+import { useDevMode } from '../contexts/DevModeContext';
+import { useOperationalMode } from '../contexts/OperationalModeContext';
 
 interface WorkerTrainingProps {
     sessionId: string;
@@ -762,6 +764,9 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
     simplifiedMode = false,
     isKioskMode = false,
 }) => {
+    const { isDevMode } = useDevMode();
+    const { mode: operationalMode } = useOperationalMode();
+    const isTrainingDemoAvailable = isTrainingDemoEnabled && isDevMode && operationalMode === 'developer';
     const localActiveSessionId = useMemo(() => {
         try {
             const raw = localStorage.getItem('psi_training_active_qr_state');
@@ -838,7 +843,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
     const linkExpiresAt = Number(linkExpiresAtRaw || 0);
     const isLinkExpired = Number.isFinite(linkExpiresAt) ? Date.now() > linkExpiresAt : false;
     const isLinkMetaMissing = !linkToken || !Number.isFinite(linkExpiresAt) || linkExpiresAt <= 0;
-    const isDemoSession = activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoEnabled;
+    const isDemoSession = activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoAvailable;
     const requiresWorkerAuthentication = isKioskMode && !isDemoSession;
 
     const normalizedAudioMap = useMemo(() => normalizeMapObject(sessionData?.audio_urls), [sessionData]);
@@ -1202,7 +1207,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
             return;
         }
 
-        if (activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoEnabled) {
+        if (activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoAvailable) {
             setSessionData(MOCK_SESSION_DATA);
             setHasSessionLoaded(true);
             setLoading(false);
@@ -1256,7 +1261,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
         };
 
         void run();
-    }, [activeSessionId, loadRequestId]);
+    }, [activeSessionId, isTrainingDemoAvailable, loadRequestId]);
 
     if (!activeSessionId) {
         const handleLoadMockSession = () => {
@@ -1276,7 +1281,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
                 <p className="mt-2 text-sm font-bold text-slate-600">
                     {t.mobileOnlyDescription}
                 </p>
-                {isTrainingDemoEnabled && (
+                {isTrainingDemoAvailable && (
                     <div className="mt-6 border-t border-slate-100 pt-5">
                         <p className="text-xs font-bold text-slate-500 mb-3">개발자 화면 미리보기:</p>
                         <button
@@ -1332,7 +1337,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
             return;
         }
 
-        const isMock = activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoEnabled;
+        const isMock = activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoAvailable;
 
         if (!isMock && isLinkMetaMissing) {
             setMessage(t.linkInvalid);
@@ -1601,15 +1606,15 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
         return renderLinkRecovery(noTrainingDataMessage);
     }
 
-    if (!(activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoEnabled) && isLinkMetaMissing) {
+    if (!(activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoAvailable) && isLinkMetaMissing) {
         return renderLinkRecovery(t.linkInvalid);
     }
 
-    if (!(activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoEnabled) && isLinkExpired) {
+    if (!(activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoAvailable) && isLinkExpired) {
         return renderLinkRecovery(t.linkExpired);
     }
 
-    if (!(activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoEnabled) && releaseMetadata?.status === 'draft') {
+    if (!(activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoAvailable) && releaseMetadata?.status === 'draft') {
         return (
             <div role="alert" className="bg-white p-6 rounded-2xl border border-amber-200 text-amber-900 font-bold max-w-2xl">
                 <h2 className="text-lg font-black">교육자료 준비 중</h2>

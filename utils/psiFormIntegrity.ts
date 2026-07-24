@@ -116,7 +116,7 @@ const hasTrackingEvidenceForRepeatPenalty = (record: WorkerRecord): boolean => {
         ...(record.scoreAdjustmentHistory || []).flatMap((entry) => [entry.reasonDetail, entry.evidenceSummary]),
         ...(record.auditTrail || []).map((entry) => entry.note),
     ].map(normalizeText).join(' ');
-    return /다음\s*달|전월|지난\s*달|추적|현장\s*확인|약속\s*미이행|개선\s*미이행|동일\s*위험\s*재발|반복\s*위반|재발/.test(text);
+    return /다음\s*(?:달|주|작업일|운영\s*주기|회차)|직전\s*(?:작업일|주|2주|운영\s*주기|회차)|전월|지난\s*(?:달|주)|추적|현장\s*확인|약속\s*미이행|개선\s*미이행|동일\s*위험\s*재발|반복\s*위반|재발/.test(text);
 };
 
 export const evaluatePsiFormIntegrity = (record: WorkerRecord): PsiFormIntegrityResult => {
@@ -203,7 +203,7 @@ export const evaluatePsiFormIntegrity = (record: WorkerRecord): PsiFormIntegrity
         issues.push({
             code: 'REPEAT_PENALTY_NOT_TRACKED',
             severity: 'error',
-            message: '반복위반 패널티는 다음 달 현장 확인·동일 위험 재발·약속 미이행 증거가 있을 때만 적용할 수 있습니다.',
+            message: '반복위반 패널티는 다음 운영 주기의 현장 확인·동일 위험 재발·약속 미이행 증거가 있을 때만 적용할 수 있습니다.',
         });
     }
 
