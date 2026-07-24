@@ -1,0 +1,572 @@
+.page {
+    --settings-navy: #102a43;
+    --settings-blue: #1769aa;
+    --settings-canvas: var(--psi-canvas, #f2f5f8);
+    --settings-surface: var(--psi-surface, #ffffff);
+    --settings-muted: var(--psi-surface-muted, #f7f9fb);
+    --settings-border: var(--psi-border, #d7e0e8);
+    --settings-text: var(--psi-text, #102a43);
+    --settings-copy: var(--psi-text-muted, #50657a);
+    color: var(--settings-text);
+}
+
+.page :global(.shadow-xl),
+.page :global(.shadow-2xl),
+.page :global(.shadow-lg),
+.page :global(.shadow-md),
+.page :global(.shadow-sm) {
+    box-shadow: none;
+}
+
+.page :global(.rounded-\[30px\]),
+.page :global(.rounded-3xl) {
+    border-radius: 12px;
+}
+
+.page :global(.rounded-2xl) {
+    border-radius: 10px;
+}
+
+.page :global(.psi-industrial-panel) {
+    border-color: var(--settings-border);
+    background: var(--settings-surface);
+}
+
+.page input:not([type='checkbox']):not([type='radio']):not([type='range']),
+.page select,
+.page textarea {
+    border-color: var(--settings-border);
+    background: var(--settings-muted);
+    color: var(--settings-text);
+}
+
+.page input:not([type='checkbox']):not([type='radio']):not([type='range']):focus,
+.page select:focus,
+.page textarea:focus {
+    border-color: var(--settings-blue);
+    background: var(--settings-surface);
+    outline: 3px solid color-mix(in srgb, var(--settings-blue) 18%, transparent);
+    outline-offset: 1px;
+}
+
+.hero {
+    overflow: hidden;
+    border: 1px solid #1f405e;
+    border-radius: 12px;
+    background: var(--settings-navy);
+    color: #f8fbff;
+}
+
+.heroMain {
+    display: grid;
+    gap: 20px;
+    padding: 22px;
+}
+
+.heroHeading {
+    min-width: 0;
+}
+
+.heroEyebrow,
+.sectionEyebrow,
+.controlGroupLegend {
+    margin: 0;
+    font-size: 0.6875rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.heroEyebrow {
+    color: #9fc7e6;
+}
+
+.heroTitle {
+    margin: 5px 0 0;
+    font-size: clamp(1.25rem, 2.2vw, 1.75rem);
+    font-weight: 850;
+    letter-spacing: -0.025em;
+}
+
+.heroDescription {
+    max-width: 680px;
+    margin: 7px 0 0;
+    color: #c6d5e2;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.6;
+}
+
+.heroActions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.heroPrimary,
+.heroSecondary {
+    min-height: 44px;
+    border-radius: 8px;
+    padding: 0 16px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.heroPrimary {
+    border: 1px solid #3c8ac4;
+    background: #1c75b6;
+    color: #fff;
+}
+
+.heroPrimary:hover {
+    background: #2384c8;
+}
+
+.heroSecondary {
+    border: 1px solid #47657f;
+    background: #173954;
+    color: #e7f1f8;
+}
+
+.heroSecondary:hover {
+    background: #1d4768;
+}
+
+.heroStatus {
+    display: inline-flex;
+    min-height: 30px;
+    align-items: center;
+    border: 1px solid #47657f;
+    border-radius: 999px;
+    background: #173954;
+    padding: 0 10px;
+    color: #d7e7f2;
+    font-size: 0.6875rem;
+    font-weight: 800;
+}
+
+.heroMetrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-top: 1px solid #294a66;
+    background: #0d2235;
+}
+
+.heroMetric {
+    min-width: 0;
+    padding: 12px 16px;
+    border-right: 1px solid #294a66;
+}
+
+.heroMetric:last-child {
+    border-right: 0;
+}
+
+.heroMetricLabel {
+    margin: 0;
+    color: #8eabc1;
+    font-size: 0.625rem;
+    font-weight: 750;
+}
+
+.heroMetricValue {
+    overflow: hidden;
+    margin: 4px 0 0;
+    color: #f8fbff;
+    font-size: 0.8125rem;
+    font-weight: 850;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.overview {
+    display: grid;
+    gap: 12px;
+}
+
+.sectionNav {
+    position: sticky;
+    top: 8px;
+    z-index: 30;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    border: 1px solid var(--settings-border);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--settings-surface) 96%, transparent);
+    padding: 8px;
+    backdrop-filter: blur(12px);
+}
+
+.sectionNavScroller {
+    display: flex;
+    min-width: 0;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.sectionNavScroller::-webkit-scrollbar {
+    display: none;
+}
+
+.sectionNavButton,
+.sectionNavSave {
+    min-height: 40px;
+    border-radius: 7px;
+    padding: 0 14px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.sectionNavButton {
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--settings-copy);
+}
+
+.sectionNavButton:hover,
+.sectionNavButton[aria-current='location'] {
+    border-color: #bcd1e2;
+    background: #eaf2fb;
+    color: var(--settings-navy);
+}
+
+.sectionNavSave {
+    border: 1px solid #155d96;
+    background: var(--settings-blue);
+    color: #fff;
+}
+
+.sectionNavSave:hover {
+    background: #10598f;
+}
+
+.sectionBlock,
+.diagnosticsBlock {
+    scroll-margin-top: 148px;
+}
+
+.sectionEyebrow {
+    color: var(--settings-blue);
+}
+
+.page :global(#settings-display),
+.page :global(#settings-core),
+.page :global(#settings-policy),
+.page :global(#settings-operations),
+.page :global(#settings-languages) {
+    scroll-margin-top: 148px;
+}
+
+.directControl {
+    border: 1px solid var(--settings-border);
+    border-radius: 12px;
+    background: var(--settings-surface);
+    padding: 18px;
+}
+
+.directControlHeader {
+    display: grid;
+    gap: 16px;
+}
+
+.directControlGroups {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.controlGroup {
+    min-width: 0;
+    border: 1px solid var(--settings-border);
+    border-radius: 9px;
+    background: var(--settings-muted);
+    padding: 10px;
+}
+
+.controlGroupInspect {
+    grid-column: span 3;
+}
+
+.controlGroupMode {
+    grid-column: span 2;
+}
+
+.controlGroupOcr {
+    grid-column: span 3;
+}
+
+.controlGroupApproval,
+.controlGroupBatch {
+    grid-column: span 2;
+}
+
+.controlGroupLegend {
+    padding: 0 4px;
+    color: var(--settings-copy);
+}
+
+.controlGroupGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.controlGroupInspect .controlGroupGrid,
+.controlGroupOcr .controlGroupGrid {
+    grid-template-columns: 1fr;
+}
+
+.controlGroup :global(button) {
+    min-height: 44px;
+    border-radius: 7px;
+    padding-inline: 10px;
+}
+
+.quickActions {
+    border: 1px solid #c9d9e6;
+    border-radius: 10px;
+    background: #eef5fa;
+    padding: 14px;
+}
+
+.quickActionGrid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 7px;
+    margin-top: 10px;
+}
+
+.quickActionGrid button {
+    min-height: 44px;
+    border-radius: 7px;
+}
+
+.guide {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--settings-border);
+    border-radius: 12px;
+    background: var(--settings-surface);
+    padding: 24px;
+}
+
+.guideHeader {
+    max-width: 720px;
+    padding-right: 44px;
+}
+
+.guideClose {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    display: inline-flex;
+    width: 40px;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--settings-border);
+    border-radius: 8px;
+    background: var(--settings-surface);
+    color: var(--settings-copy);
+}
+
+.guideClose:hover {
+    border-color: #aac4d8;
+    color: var(--settings-navy);
+}
+
+.guideSteps {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.guideStep {
+    border: 1px solid var(--settings-border);
+    border-radius: 10px;
+    background: var(--settings-muted);
+    padding: 18px;
+}
+
+.guideStepNumber {
+    display: inline-flex;
+    width: 32px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: var(--settings-navy);
+    color: #fff;
+    font-size: 0.8125rem;
+    font-weight: 850;
+}
+
+@media (min-width: 900px) {
+    .heroMain {
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        padding: 24px 26px;
+    }
+
+    .directControlHeader {
+        grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+        align-items: start;
+    }
+}
+
+@media (max-width: 1199px) {
+    .directControlGroups {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+
+    .controlGroupInspect,
+    .controlGroupOcr {
+        grid-column: span 3;
+    }
+
+    .controlGroupMode,
+    .controlGroupApproval,
+    .controlGroupBatch {
+        grid-column: span 2;
+    }
+
+    .quickActionGrid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767px) {
+    .page {
+        padding-bottom: 12px;
+    }
+
+    .page input:not([type='checkbox']):not([type='radio']):not([type='range']),
+    .page select,
+    .page textarea,
+    .page button {
+        min-height: 48px;
+    }
+
+    .heroMain {
+        gap: 16px;
+        padding: 18px;
+    }
+
+    .heroActions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .heroStatus {
+        grid-column: 1 / -1;
+        justify-content: center;
+    }
+
+    .heroMetrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .heroMetric {
+        border-bottom: 1px solid #294a66;
+    }
+
+    .heroMetric:nth-child(2) {
+        border-right: 0;
+    }
+
+    .heroMetric:nth-last-child(-n + 2) {
+        border-bottom: 0;
+    }
+
+    .sectionNav {
+        top: 4px;
+        grid-template-columns: minmax(0, 1fr);
+        padding: 6px;
+    }
+
+    .sectionNavSave {
+        width: 100%;
+    }
+
+    .directControl {
+        padding: 14px;
+    }
+
+    .directControlGroups {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .controlGroupInspect,
+    .controlGroupMode,
+    .controlGroupOcr,
+    .controlGroupApproval,
+    .controlGroupBatch {
+        grid-column: span 2;
+    }
+
+    .controlGroupInspect .controlGroupGrid,
+    .controlGroupOcr .controlGroupGrid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .controlGroupInspect .controlGroupGrid > :first-child,
+    .controlGroupOcr .controlGroupGrid > :first-child {
+        grid-column: 1 / -1;
+    }
+
+    .quickActionGrid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .guide {
+        padding: 18px;
+    }
+
+    .guideSteps {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 390px) {
+    .heroActions,
+    .controlGroupInspect .controlGroupGrid,
+    .controlGroupOcr .controlGroupGrid,
+    .quickActionGrid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .controlGroupInspect .controlGroupGrid > :first-child,
+    .controlGroupOcr .controlGroupGrid > :first-child {
+        grid-column: auto;
+    }
+}
+
+:global(.dark) .page {
+    --settings-navy: #0a1b2a;
+    --settings-blue: #51a7dc;
+    --settings-canvas: var(--psi-canvas, #07111d);
+    --settings-surface: var(--psi-surface, #0d1b2a);
+    --settings-muted: var(--psi-surface-muted, #102337);
+    --settings-border: var(--psi-border, #29445e);
+    --settings-text: var(--psi-text, #f3f7fb);
+    --settings-copy: var(--psi-text-muted, #b4c6d5);
+}
+
+:global(.dark) .sectionNavButton:hover,
+:global(.dark) .sectionNavButton[aria-current='location'] {
+    border-color: #365e7d;
+    background: #153451;
+    color: #eaf4fb;
+}
+
+:global(.dark) .quickActions {
+    border-color: #29445e;
+    background: #102337;
+}

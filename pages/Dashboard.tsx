@@ -5,8 +5,8 @@ import { StatCard } from '../components/StatCard';
 import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { Tooltip } from '../components/shared/Tooltip';
-import { BrandPhilosophyLogo } from '../components/shared/BrandPhilosophyLogo';
 import { PrecisionOperationsBoard } from '../components/dashboard/PrecisionOperationsBoard';
+import { AdvancedOperationsOverview } from '../components/dashboard/AdvancedOperationsOverview';
 import { MOBILE_CARD_GRID_ITEM_CLASS, MOBILE_CARD_PANEL_CLASS, MOBILE_CARD_PANEL_COMPACT_CLASS } from '../components/shared/cardTokens';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { PSI_APP_VERSION } from '../lib/appInfo';
@@ -38,7 +38,7 @@ import { useOperationalMode } from '../contexts/OperationalModeContext';
 import type { UiAudienceMode } from '../config/routeMeta';
 import { getUserRolePreset, mapUserRolePresetToDashboardAudience, USER_ROLE_PRESET_CHANGED_EVENT } from '../utils/userRolePresetUtils';
 import { getPhrase } from '../utils/phraseUtils';
-import { EmptyState, LoadingSkeleton, MetricCard, RiskBadge, SectionCard, WorkTypeBadge } from '../components/common';
+import { EmptyState, LoadingSkeleton, MetricCard, SectionCard, WorkTypeBadge } from '../components/common';
 import {
     buildSurveyRiskGapRows,
     getRiskGapDirectionLabel,
@@ -447,6 +447,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const [selectedTeamsForComparison, setSelectedTeamsForComparison] = useState<string[]>([]);
     const [selectedTradesForComparison, setSelectedTradesForComparison] = useState<string[]>([]);
     const [isComparisonAdvancedOpen, setIsComparisonAdvancedOpen] = useState<boolean>(false);
+    const [isDetailedAnalysisRequested, setIsDetailedAnalysisRequested] = useState<boolean>(false);
     const [teamComparisonPresets, setTeamComparisonPresets] = useState<DashboardTeamComparisonPreset[]>(() => getStoredDashboardTeamComparisonPresets());
     const [tradeComparisonPresets, setTradeComparisonPresets] = useState<DashboardTradeComparisonPreset[]>(() => getStoredDashboardTradeComparisonPresets());
     const [presetNameDraft, setPresetNameDraft] = useState<string>('');
@@ -625,6 +626,14 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
     }, []);
 
+    useEffect(() => {
+        document.getElementById('psi-main-content')?.scrollTo({
+            top: 0,
+            left: 0,
+            behavior: 'auto',
+        });
+    }, [dashboardUIMode]);
+
     const handleDashboardViewModeChange = (mode: DashboardViewMode) => {
         setIsDashboardViewModeManual(true);
         setDashboardViewMode(mode);
@@ -696,6 +705,24 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             viewMode: dashboardViewMode,
             audienceView,
             hadSelectedTrade: Boolean(selectedTradeForComparison),
+        });
+    };
+
+    const handleNavigateToDetailedAnalysis = () => {
+        const nextViewMode: DashboardViewMode = viewportWidth >= 1024 ? 'full' : 'balanced';
+        setIsDetailedAnalysisRequested(true);
+        handleDashboardViewModeChange(nextViewMode);
+
+        window.setTimeout(() => {
+            document.getElementById('advanced-analysis')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 80);
+
+        trackUIViewMetric('cta_click', 'dashboard', viewMetricSessionRef.current, {
+            actionKey: 'jump_advanced_analysis',
+            previousViewMode: dashboardViewMode,
+            nextViewMode,
+            audienceView,
+            viewportWidth,
         });
     };
 
@@ -2445,7 +2472,10 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     
     // [SIMULATION DATE] 2026-02-17
     const today = "2026년 2월 17일 화요일";
-    const effectiveDashboardViewMode: DashboardViewMode = (viewportWidth < 640 || isImmediateOperationalMode) ? 'essential' : dashboardViewMode;
+    const effectiveDashboardViewMode: DashboardViewMode =
+        !isDetailedAnalysisRequested && (viewportWidth < 640 || isImmediateOperationalMode)
+            ? 'essential'
+            : dashboardViewMode;
     const isFullMode = effectiveDashboardViewMode === 'full';
     const isEssentialMode = effectiveDashboardViewMode === 'essential';
     const isEssentialMobile = isEssentialMode && viewportWidth < 640;
@@ -2554,13 +2584,6 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         };
     }, [managerRiskBaselines, workerOnlyRecords]);
 
-    const mobileDashboardBadge =
-        stats.highRiskWorkers > 0
-            ? { label: '🔴 보호 우선', tone: 'bg-rose-500/20 text-rose-200 border border-rose-400/40' }
-            : harnessDashboardSummary.approvalBacklog > 0
-              ? { label: '🟡 승인 대기', tone: 'bg-amber-400/20 text-amber-100 border border-amber-300/40' }
-              : { label: '🟢 정상', tone: 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40' };
-
     if (dashboardUIMode === 'basic') {
         return (
             <PrecisionOperationsBoard
@@ -2575,138 +2598,25 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         );
     }
     return (
-        <div className={`${isEssentialMobile ? 'space-y-3' : 'space-y-3 sm:space-y-4 lg:space-y-6'} animate-fade-in-up`}>
-            <div className="sm:hidden mb-2 rounded-2xl border border-slate-800 bg-slate-950 px-4 py-4 text-white">
-                <div className="flex items-center justify-between gap-3">
-                    <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-300">1) 홈 대시보드</p>
-                        <h2 className="mt-1 text-lg font-black">오늘 위험 현황</h2>
-                    </div>
-                    <RiskBadge
-                        level={mobileDashboardBadge.label.includes('보호 우선') ? 'critical' : mobileDashboardBadge.label.includes('승인 대기') ? 'medium' : 'low'}
-                        labelOverride={mobileDashboardBadge.label}
-                        size="sm"
-                    />
-                </div>
-                <div className="mt-3 grid grid-cols-4 gap-1.5">
-                    {[
-                        { label: '근로자', value: stats.totalWorkers, tone: 'text-slate-200' },
-                        { label: '위험인식 신호', value: stats.averageScore.toFixed(1), tone: 'text-indigo-300' },
-                        { label: '보호우선', value: stats.highRiskWorkers, tone: stats.highRiskWorkers > 0 ? 'text-rose-300' : 'text-slate-300' },
-                        { label: '검토 대기', value: harnessDashboardSummary.approvalBacklog, tone: harnessDashboardSummary.approvalBacklog > 0 ? 'text-amber-300' : 'text-slate-300' },
-                    ].map((chip) => (
-                        <div key={chip.label} className="rounded-xl border border-slate-700 bg-slate-900/60 px-1.5 py-2 text-center">
-                            <p className="text-[9px] font-black text-slate-400">{chip.label}</p>
-                            <p className={`text-sm font-black ${chip.tone}`}>{chip.value}</p>
-                        </div>
-                    ))}
-                </div>
-                <div className="mt-3 flex gap-2">
-                    <button
-                        type="button"
-                        onClick={() => setCurrentPage('reports')}
-                        className="flex-1 min-h-[44px] rounded-xl bg-indigo-600 px-3 py-2 text-xs font-black text-white hover:bg-indigo-500 transition-colors"
-                    >
-                        리포트 보기
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setCurrentPage('predictive-analysis')}
-                        className="flex-1 min-h-[44px] rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-black text-slate-200 hover:bg-slate-700 transition-colors"
-                    >
-                        위험신호 보기
-                    </button>
-                </div>
-            </div>
+        <div className={`${isEssentialMobile ? 'space-y-3' : 'space-y-3 sm:space-y-4 lg:space-y-5'} animate-fade-in-up`}>
+            {/* Precision Operations advanced command center */}
+            <div id="advanced-overview" className="scroll-mt-24">
+                <AdvancedOperationsOverview
+                    appVersion={PSI_APP_VERSION}
+                    dateLabel={today.split(' ')[0].replace('년', '/').replace('월', '/').replace('일', '')}
+                    totalWorkers={stats.totalWorkers}
+                    averageScore={stats.averageScore}
+                    protectionPriorityCount={stats.highRiskWorkers}
+                    approvalBacklogCount={harnessDashboardSummary.approvalBacklog}
+                    onBackToBoard={() => setDashboardUIMode('basic')}
+                    onOpenReports={() => setCurrentPage('reports')}
+                    onOpenDetailedAnalysis={handleNavigateToDetailedAnalysis}
+                    onOpenTeamComparison={handleNavigateToTeamComparison}
+                    onOpenPredictiveAnalysis={() => setCurrentPage('predictive-analysis')}
+                />
 
-            {/* AI-Powered Safety Command Center */}
-            <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 rounded-2xl sm:rounded-3xl p-4 sm:p-5 lg:p-6 text-white shadow-2xl relative overflow-hidden border border-white/10">
-                {/* Animated background elements */}
-                <div className="absolute top-0 right-0 w-64 h-64 sm:w-96 sm:h-96 bg-indigo-500 opacity-10 rounded-full blur-3xl -mr-32 -mt-32 animate-pulse"></div>
-                <div className="absolute bottom-0 left-0 w-48 h-48 sm:w-80 sm:h-80 bg-blue-500 opacity-10 rounded-full blur-3xl -ml-24 -mb-24 animate-pulse" style={{ animationDelay: '1s' }}></div>
-                
-                <div className="relative z-10">
-                    {/* System Status Header */}
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
-                        <div className="flex items-center gap-2 sm:gap-3">
-                            <div className="p-2 sm:p-2.5 bg-indigo-500/20 backdrop-blur-sm rounded-lg sm:rounded-xl border border-indigo-400/30">
-                                <BrandPhilosophyLogo className="w-5 h-5 sm:w-6 sm:h-6" />
-                            </div>
-                            <div>
-                                <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
-                                    <h2 className="text-lg sm:text-2xl md:text-3xl font-black tracking-tight">PSI Safety Intelligence</h2>
-                                    <span className="px-1.5 sm:px-2 py-0.5 bg-emerald-500/90 text-white text-[8px] sm:text-[10px] font-black rounded-md uppercase tracking-wide">{PSI_APP_VERSION}</span>
-                                </div>
-                                <p className="text-indigo-300 text-[10px] sm:text-xs font-bold flex items-center gap-1.5 sm:gap-2">
-                                    <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                    실시간 모니터링 · {today.split(' ')[0].replace('년', '/').replace('월', '/').replace('일', '')}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setDashboardUIMode('basic');
-                                }}
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-black rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white transition duration-200"
-                            >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                                </svg>
-                                통합 보드로 돌아가기
-                            </button>
-                            <div className="flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-white/5 backdrop-blur-md border border-white/10 rounded-lg sm:rounded-xl">
-                                <svg className="w-3 h-3 sm:w-4 sm:h-4 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 00-1.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                </svg>
-                                <span className="text-[10px] sm:text-xs font-bold text-emerald-300">자동 분석 정상</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="mb-4 grid grid-cols-1 gap-3 xl:grid-cols-[1.25fr_0.95fr]">
-                        <section className="rounded-3xl border border-white/10 bg-white/6 p-4 sm:p-5 backdrop-blur-sm shadow-lg shadow-slate-950/10">
-                            <div className="flex items-center justify-between gap-2">
-                                <div>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-200">PC DASHBOARD</p>
-                                    <h3 className="mt-1 text-lg sm:text-xl font-black text-white">운영 콘솔 중심 대시보드</h3>
-                                    <p className="mt-1 text-xs sm:text-sm font-medium text-slate-200">대량 검토, 팀 비교, 승인 처리 흐름을 한 번에 읽는 PC 전용 프리뷰입니다.</p>
-                                </div>
-                                <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/15 px-3 py-2 text-right">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">SYSTEM</p>
-                                    <p className="mt-0.5 text-sm font-black text-white">Ready</p>
-                                </div>
-                            </div>
-
-                            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                                {[
-                                    { label: '총 근로자', value: stats.totalWorkers },
-                                    { label: '위험인식 신호', value: stats.averageScore.toFixed(1) },
-                                    { label: '보호우선', value: stats.highRiskWorkers },
-                                    { label: '승인 대기', value: harnessDashboardSummary.approvalBacklog },
-                                ].map((item) => (
-                                    <div key={item.label} className="rounded-2xl border border-white/10 bg-white/8 px-3 py-3">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-200">{item.label}</p>
-                                        <p className="mt-1 text-xl font-black text-white">{item.value}</p>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                <button type="button" onClick={() => setCurrentPage('reports')} className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-900 transition duration-200 hover:-translate-y-0.5 hover:bg-slate-50">
-                                    리포트 바로 열기
-                                </button>
-                                <button type="button" onClick={handleNavigateToTeamComparison} className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-black text-white transition duration-200 hover:-translate-y-0.5 hover:bg-white/10">
-                                    팀 비교 보기
-                                </button>
-                                <button type="button" onClick={() => setCurrentPage('predictive-analysis')} className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-black text-white transition duration-200 hover:-translate-y-0.5 hover:bg-white/10">
-                                    위험신호 분석 열기
-                                </button>
-                            </div>
-                        </section>
-
-                        <section id="field-mobile-flow" className="rounded-3xl border border-white/10 bg-slate-950/45 p-4 sm:p-5 backdrop-blur-md shadow-2xl transition-all duration-300 hover:border-white/15">
+                <div className="mb-4 rounded-xl border border-slate-800 bg-slate-950 p-3 text-white sm:p-4 lg:p-5">
+                        <section id="field-mobile-flow" className="rounded-xl border border-slate-700 bg-slate-900 p-4 sm:p-5">
                             <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-3">
                                 <div>
                                     <div className="flex items-center gap-1.5">
@@ -2715,7 +2625,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                     </div>
                                     <h3 className="mt-1 text-lg sm:text-xl font-black text-white">현장 모바일 실행 흐름</h3>
                                     <p className="mt-1 text-xs font-medium text-slate-400 leading-relaxed">
-                                        OCR 분석, 보호 판단, 교육 리포트, 추적관리를 한 화면 흐름으로 연결합니다.
+                                        현장 입력부터 보호 판단, 교육, 리포트, 설정까지 필요한 기능을 단계별로 연결합니다.
                                     </p>
                                 </div>
                                 <div className="hidden sm:block shrink-0 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-right">
@@ -2724,7 +2634,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 </div>
                             </div>
 
-                            <div className="mt-4 grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
+                            <div className="mt-4 grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 xl:grid-cols-4">
                                 {[
                                     {
                                         step: '01',
@@ -2856,7 +2766,6 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 ))}
                             </div>
                         </section>
-                    </div>
 
                     {(selectedTarget || selectedTradeForComparison || selectedTeam !== 'ALL') && (
                         <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -3184,7 +3093,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             </div>
 
             {!isEssentialMode && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
+            <div id="advanced-analysis" className="scroll-mt-24 grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
                 <div className={`lg:col-span-2 ${audienceView === 'executive' ? 'lg:order-2' : 'lg:order-1'}`}>
                     <SectionCard
                         title="설문 기반 핵심지표 포지셔닝"
@@ -3633,7 +3542,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     공종 × 국적 교차 안전 숙련도 분석 섹션 (아래)
             ═══════════════════════════════════════════════════════ */}
             {isFullMode && dashboardUIMode === 'advanced' && (
-            <div ref={teamComparisonSectionRef} className={`space-y-4 sm:space-y-6 transition-all duration-300 ${isRiskMapFocusActive ? 'rounded-2xl ring-2 ring-rose-300 ring-offset-2 ring-offset-white' : ''}`}>
+            <div id="advanced-team-comparison" ref={teamComparisonSectionRef} className={`scroll-mt-24 space-y-4 sm:space-y-6 transition-all duration-300 ${isRiskMapFocusActive ? 'rounded-2xl ring-2 ring-rose-300 ring-offset-2 ring-offset-white' : ''}`}>
                 <InterpretationCardGrid
                     items={comparisonCards}
                     cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
