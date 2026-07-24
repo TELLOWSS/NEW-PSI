@@ -6,7 +6,7 @@ import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { Tooltip } from '../components/shared/Tooltip';
 import { BrandPhilosophyLogo } from '../components/shared/BrandPhilosophyLogo';
-import { IntegratedWorkBoard } from '../components/IntegratedWorkBoard';
+import { PrecisionOperationsBoard } from '../components/dashboard/PrecisionOperationsBoard';
 import { MOBILE_CARD_GRID_ITEM_CLASS, MOBILE_CARD_PANEL_CLASS, MOBILE_CARD_PANEL_COMPACT_CLASS } from '../components/shared/cardTokens';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { PSI_APP_VERSION } from '../lib/appInfo';
@@ -2563,7 +2563,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
     if (dashboardUIMode === 'basic') {
         return (
-            <IntegratedWorkBoard
+            <PrecisionOperationsBoard
                 workerRecords={workerRecords}
                 safetyCheckRecords={safetyCheckRecords}
                 setCurrentPage={setCurrentPage}

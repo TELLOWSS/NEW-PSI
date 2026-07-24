@@ -6035,7 +6035,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const isCompactMobile = viewportWidth < 640;
 
     return (
-        <div className="space-y-6 sm:space-y-8 animate-fade-in-up">
+        <div className="psi-field-screen psi-ocr-precision space-y-6 sm:space-y-8 animate-fade-in-up">
             <input
                 type="file"
                 ref={importInputRef}
@@ -6054,7 +6054,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             )}
             <section
                 data-mobile-proof="field-mode"
-                className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl sm:rounded-3xl"
+                className="psi-ocr-field-hero overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl sm:rounded-3xl"
                 aria-label="모바일 현장 원터치 모드"
             >
                 <div className="bg-slate-950 px-4 py-5 text-white sm:px-6 sm:py-6">

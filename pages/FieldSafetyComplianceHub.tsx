@@ -1753,8 +1753,8 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
             : 'risk-check';
 
     return (
-        <div className="mx-auto max-w-[1600px] space-y-5 p-4 sm:space-y-6 sm:p-6 xl:px-8 2xl:px-10">
-            <div className="sm:hidden rounded-2xl border border-slate-800 bg-slate-950 px-4 py-4 text-white">
+        <div className="psi-field-screen psi-compliance-precision mx-auto max-w-[1600px] space-y-5 p-4 sm:space-y-6 sm:p-6 xl:px-8 2xl:px-10">
+            <div className="psi-compliance-mobile-summary sm:hidden rounded-2xl border border-slate-800 bg-slate-950 px-4 py-4 text-white">
                 <div className="flex items-center justify-between gap-3">
                     <div>
                         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-300">5) 현장 컨텍스트 입력</p>
@@ -1800,10 +1800,19 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
                         종합판정 보기
                     </button>
                 </div>
+                <label className="mt-3 block rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left">
+                    <span className="text-[10px] font-bold text-slate-300">평가 월</span>
+                    <input
+                        type="month"
+                        value={assessmentMonth}
+                        onChange={event => setAssessmentMonth(event.target.value)}
+                        className="mt-1 min-h-11 w-full rounded-lg border border-slate-600 bg-slate-900 px-3 text-base font-bold text-white"
+                    />
+                </label>
             </div>
 
             {/* 헤더 */}
-            <div className="rounded-[28px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-indigo-50/70 p-4 sm:p-6 shadow-[0_18px_45px_-28px_rgba(15,23,42,0.35)]">
+            <div className="psi-compliance-header hidden rounded-[28px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-indigo-50/70 p-4 shadow-[0_18px_45px_-28px_rgba(15,23,42,0.35)] sm:block sm:p-6">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                     <div className="space-y-3">
                         <div>
@@ -1813,9 +1822,9 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
                             </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                            <span className="rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm">정돈된 타이포그래피</span>
-                            <span className="rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm">균형 잡힌 카드 그리드</span>
-                            <span className="rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm">PC/모바일 가독성 강화</span>
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600">위험성평가 이행</span>
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600">행동관찰·코칭</span>
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600">현장 지적·종합판정</span>
                         </div>
                     </div>
                     <div className="w-full max-w-xs rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm">
@@ -1887,9 +1896,16 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
             )}
 
             {/* 탭 네비게이션 */}
-            <div className="flex gap-2 overflow-x-auto rounded-2xl bg-slate-100/90 p-2 xl:grid xl:grid-cols-4 xl:overflow-visible">
+            <div className="psi-compliance-tabs flex gap-2 overflow-x-auto rounded-2xl bg-slate-100/90 p-2 xl:grid xl:grid-cols-4 xl:overflow-visible" role="tablist" aria-label="안전조치 업무 영역">
                 {tabs.map(tab => (
-                    <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                    <button
+                        key={tab.id}
+                        id={`hub-tab-${tab.id}`}
+                        type="button"
+                        role="tab"
+                        aria-selected={activeTab === tab.id}
+                        aria-controls={`hub-panel-${tab.id}`}
+                        onClick={() => setActiveTab(tab.id)}
                         className={`relative flex min-h-[64px] min-w-[148px] shrink-0 items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold transition-all xl:min-w-0
                             ${activeTab === tab.id ? 'bg-white text-indigo-800 shadow-sm shadow-slate-300/50' : 'text-slate-700 hover:bg-white/70 hover:text-slate-900'}`}>
                         <span>{tab.icon}</span>
@@ -1903,10 +1919,17 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
             </div>
 
             {/* 탭 콘텐츠 */}
-            {activeTab === 'risk-check'  && <RiskCheckTab workerRecords={workerRecords} />}
-            {activeTab === 'behavior'    && <BehaviorCoachingTab assessmentMonth={assessmentMonth} workers={workerOptions} />}
-            {activeTab === 'violations'  && <ViolationsTab workerRecords={workerRecords} />}
-            {activeTab === 'review'      && <ReviewTab assessmentMonth={assessmentMonth} workers={workerOptions} workerRecords={workerRecords} />}
+            <div
+                id={`hub-panel-${activeTab}`}
+                role="tabpanel"
+                aria-labelledby={`hub-tab-${activeTab}`}
+                tabIndex={0}
+            >
+                {activeTab === 'risk-check'  && <RiskCheckTab workerRecords={workerRecords} />}
+                {activeTab === 'behavior'    && <BehaviorCoachingTab assessmentMonth={assessmentMonth} workers={workerOptions} />}
+                {activeTab === 'violations'  && <ViolationsTab workerRecords={workerRecords} />}
+                {activeTab === 'review'      && <ReviewTab assessmentMonth={assessmentMonth} workers={workerOptions} workerRecords={workerRecords} />}
+            </div>
         </div>
     );
 };

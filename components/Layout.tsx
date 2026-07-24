@@ -381,6 +381,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     }, []);
 
     useEffect(() => {
+        const main = mainRef.current;
+        if (!main) return;
+        main.scrollTo({ top: 0 });
+        main.focus({ preventScroll: true });
+    }, [currentPage]);
+
+    useEffect(() => {
         const closeOperatorMenu = (event: PointerEvent | KeyboardEvent) => {
             const menu = operatorMenuRef.current;
             if (!menu?.open) return;
@@ -421,7 +428,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                             onClick={() => setIsMobileMenuOpen(false)}
                             aria-hidden="true"
                         />
-                        <div className="fixed inset-y-0 left-0 w-72 animate-fade-in">
+                        <div className="fixed inset-y-0 left-0 w-[248px] animate-fade-in">
                             <Sidebar
                                 currentPage={currentPage}
                                 setCurrentPage={handlePageChange}
@@ -549,9 +556,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                 />
             }
             content={
-                <main ref={mainRef} className={`relative flex-1 overflow-y-auto p-3 ${currentPage === 'dashboard' ? 'pb-2 sm:p-4 md:p-4 lg:px-6 lg:py-3.5' : 'pb-24 sm:p-4 md:p-6 lg:p-8 lg:pb-10'}`}>
+                <main
+                    id="psi-main-content"
+                    ref={mainRef}
+                    tabIndex={-1}
+                    className={`relative flex-1 overflow-y-auto p-3 outline-none ${currentPage === 'dashboard' ? 'pb-24 sm:p-4 sm:pb-24 md:p-4 lg:px-6 lg:py-4 lg:pb-12' : 'pb-24 sm:p-4 md:p-6 lg:p-8 lg:pb-12'}`}
+                >
                     <ShellBackground isDark={isDark} />
-                    <div key={currentPage} className="mx-auto w-full max-w-[1440px] animate-fade-in-up">
+                    <div key={currentPage} className="mx-auto w-full max-w-[1520px] animate-fade-in-up">
                         {showOnePointProofReturn && (
                             <section data-one-point-proof-return="banner" className="mb-3 rounded-2xl border border-indigo-200 bg-white px-3 py-3 shadow-sm dark:border-indigo-400/20 dark:bg-slate-900/95">
                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

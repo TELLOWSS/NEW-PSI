@@ -1687,8 +1687,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
 
     if (submitted) {
         return (
-            <div className="space-y-6 max-w-2xl pb-10">
-                <div className="bg-white p-6 rounded-2xl border border-emerald-200 shadow-sm">
+            <div lang={effectiveLangKey} className="psi-worker-training psi-worker-training--complete space-y-6 max-w-2xl pb-10">
+                <div className="psi-worker-training-card bg-white p-6 rounded-2xl border border-emerald-200 shadow-sm">
                     <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 shadow-sm">
                         <svg className="h-10 w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
@@ -1742,8 +1742,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
     }
 
     return (
-        <div className="space-y-6 max-w-2xl pb-32">
-            <div className="sm:hidden rounded-2xl border border-slate-800 bg-slate-950 px-4 py-4 text-white">
+        <div lang={effectiveLangKey} className="psi-worker-training space-y-6 max-w-2xl pb-32">
+            <div className="psi-worker-training-progress sm:hidden rounded-2xl border border-slate-800 bg-slate-950 px-4 py-4 text-white">
                 <div className="flex items-center justify-between">
                     <div>
                         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-300">위험인지 진단</p>
@@ -1803,7 +1803,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
                     </button>
                 </div>
             </div>
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="psi-worker-training-card bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 {sessionData.case_id && (
                     <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3">
                         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-violet-700">보호사건 연결 교육</p>
@@ -1819,7 +1819,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
                     </p>
                 )}
 
-                <div className="mt-4 md:hidden sticky top-2 z-20 rounded-2xl border border-indigo-200 bg-white/95 backdrop-blur px-3 py-3 shadow-sm">
+                <div className="psi-worker-training-secondary-progress mt-4 md:hidden sticky top-2 z-20 rounded-2xl border border-indigo-200 bg-white/95 backdrop-blur px-3 py-3 shadow-sm">
                     <div className="flex items-center justify-between gap-3">
                         <div>
                             <p className="text-[10px] font-black uppercase tracking-[0.12em] text-indigo-700">4) 위험인지 진단 진행</p>
@@ -1836,7 +1836,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
                     </div>
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4">
+                <div className="psi-worker-training-progress-summary mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4">
                     <p className="text-[11px] font-black uppercase tracking-[0.14em] text-indigo-700">9) 수기 데이터 입력 진행</p>
                     <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
                         <div className="rounded-xl border border-white bg-white px-3 py-2">
@@ -1859,7 +1859,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
                     <p className="mt-2 text-[11px] font-bold text-indigo-700">완료 단계 {inputProgressCount}/4 · 다음 동작: {nextActionButtonLabel}</p>
                 </div>
 
-                <div className="mt-4 md:hidden sticky top-2 z-20 rounded-2xl border border-indigo-200 bg-white/95 backdrop-blur px-4 py-3 shadow-sm">
+                <div className="psi-worker-training-secondary-progress mt-4 md:hidden sticky top-2 z-20 rounded-2xl border border-indigo-200 bg-white/95 backdrop-blur px-4 py-3 shadow-sm">
                     <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-700">4) 위험인지 진단 · 빠른 진행</p>
                     <p className="mt-1 text-sm font-black text-slate-900">완료 단계 {inputProgressCount}/4 · 체크 {completedChecklistCount}/3</p>
                     <p className="mt-1 text-[11px] font-bold text-slate-600">다음 동작: {nextActionLabel}</p>
@@ -2283,7 +2283,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
                 {message && <p className="mt-3 text-sm font-bold text-slate-700">{message}</p>}
             </div>
 
-            <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur-md shadow-[0_-8px_30px_rgba(15,23,42,0.12)]">
+            <div className="psi-worker-training-bottom-action fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur-md shadow-[0_-8px_30px_rgba(15,23,42,0.12)]">
                 <div className="max-w-2xl mx-auto px-4 py-3">
                     <div className="flex items-center justify-between gap-3 mb-2">
                         <div>

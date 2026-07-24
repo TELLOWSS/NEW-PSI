@@ -179,14 +179,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }, [visibleMenuItems]);
 
     return (
-        <div className="psi-sidebar psi-sidebar-surface flex h-full w-72 shrink-0 flex-col border-r text-slate-800 transition-colors dark:text-slate-100">
-            <div className="border-b border-slate-200 px-5 pb-5 pt-6 dark:border-slate-800/80">
+        <div className="psi-sidebar psi-sidebar-surface flex h-full w-[248px] shrink-0 flex-col border-r text-slate-800 transition-colors dark:text-slate-100">
+            <div className="border-b border-slate-200 px-5 pb-4 pt-5 dark:border-slate-800/80">
                 <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 p-1.5 dark:border-white/10 dark:bg-white/10">
-                        <BrandPhilosophyLogo className="w-7 h-7" />
+                    <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-slate-900 bg-[#102a43] p-1.5 text-white dark:border-sky-300/20 dark:bg-sky-400/15">
+                        <BrandPhilosophyLogo className="h-7 w-7" />
                     </div>
                     <div>
-                        <p className="text-2xl font-extrabold leading-none">psi</p>
+                        <p className="text-xl font-extrabold leading-none tracking-tight">psi</p>
                         <p className="psi-small-note mt-1">건설현장 안전관리</p>
                     </div>
                 </div>
@@ -256,10 +256,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                         key={item.id}
                                         type="button"
                                         onClick={() => setCurrentPage(item.id)}
-                                        className={`psi-sidebar-item w-full flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors ${
+                                        className={`psi-sidebar-item w-full flex min-h-[44px] items-center gap-3 rounded-lg border px-3 py-2.5 text-[13px] font-semibold transition-colors ${
                                             isActive
-                                                ? 'is-active bg-blue-700 text-white shadow-sm'
-                                                : 'text-slate-700 hover:bg-slate-200/80 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800/90 dark:hover:text-white'
+                                                ? 'is-active border-blue-200 bg-blue-50 text-[#102a43] dark:border-sky-400/25 dark:bg-sky-400/10 dark:text-sky-100'
+                                                : 'border-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-950 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-800/70 dark:hover:text-white'
                                         }`}
                                         aria-current={isActive ? 'page' : undefined}
                                     >
@@ -274,7 +274,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </nav>
 
             <div className="border-t border-slate-200 p-4 dark:border-slate-800/80">
-                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white/90 px-3 py-3 dark:border-slate-700 dark:bg-slate-900/80">
+                <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-700 dark:bg-slate-900/80">
                     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A11.955 11.955 0 0112 16c2.5 0 4.824.76 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     </div>
