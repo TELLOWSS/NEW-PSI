@@ -1,4 +1,5 @@
 import type { AppSettings } from '../types';
+import { getAssessmentCycleCopy, readAssessmentCycleFromStorage } from './assessmentCycle';
 
 export type CompetencyWeightKey =
     | 'psychological'
@@ -19,6 +20,8 @@ export const DEFAULT_COMPETENCY_WEIGHTS: CompetencyWeightSettings = {
     repeatViolationPenalty: 1,
     version: 'v1.0.0',
 };
+
+const assessmentCycleCopy = getAssessmentCycleCopy(readAssessmentCycleFromStorage());
 
 export const COMPETENCY_WEIGHT_FIELDS: Array<{
     key: CompetencyWeightKey;
@@ -81,7 +84,7 @@ export const COMPETENCY_WEIGHT_FIELDS: Array<{
         role: 'penalty-multiplier',
         defaultValue: DEFAULT_COMPETENCY_WEIGHTS.repeatViolationPenalty,
         step: 0.1,
-        help: '다음 달 추적에서 동일 위험 재발이나 약속 행동 미이행이 확인될 때 감점을 얼마나 강하게 적용할지 정합니다. W1~W5 합계에는 포함하지 않습니다.',
+        help: `${assessmentCycleCopy.nextCycleLabel} 추적에서 동일 위험 재발이나 약속 행동 미이행이 확인될 때 감점을 얼마나 강하게 적용할지 정합니다. W1~W5 합계에는 포함하지 않습니다.`,
     },
 ];
 

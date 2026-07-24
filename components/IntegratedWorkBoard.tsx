@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { Page, SafetyCheckRecord, WorkerRecord } from '../types';
-import { getRouteLabel } from '../config/routeMeta';
+import { getRouteLabel, isRouteVisibleInMode } from '../config/routeMeta';
+import { useDevMode } from '../contexts/DevModeContext';
+import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { postAdminJson } from '../utils/adminApiClient';
 import {
     getDefaultUiCompositionConfig,
@@ -15,6 +17,8 @@ import {
     calculateCoreMetricSnapshot,
     isOperationalWorkerRecord,
 } from '../utils/coreMetrics';
+import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
+import { groupRecordsByAssessmentPeriod } from '../utils/assessmentCycle';
 
 interface IntegratedWorkBoardProps {
     workerRecords: WorkerRecord[];
@@ -37,12 +41,12 @@ type TrainingSummary = {
 };
 
 const BOARD_STEPS: BoardStep[] = [
-    { number: 1, title: '상세 분석 대시보드', subtitle: '현장 위험과 월별 지표를 상세 분석합니다.', page: 'dashboard', accent: 'blue' },
+    { number: 1, title: '상세 분석 대시보드', subtitle: '현장 위험과 6대 지표를 상세 분석합니다.', page: 'dashboard', accent: 'blue' },
     { number: 2, title: '위험성평가 작성·분석', subtitle: '사진, PDF 또는 수기 내용으로 평가를 작성합니다.', page: 'ocr-analysis', accent: 'blue' },
-    { number: 3, title: '월별 계도 리포트', subtitle: '지난달 작성 내용을 익명화하여 공유합니다.', page: 'monthly-guidance-report', accent: 'orange' },
+    { number: 3, title: '계도 리포트', subtitle: '직전 운영 주기 작성 내용을 익명화하여 공유합니다.', page: 'monthly-guidance-report', accent: 'orange' },
     { number: 4, title: '위험성평가 교육자료', subtitle: '기록과 PDF·PPTX를 근거로 전파교육 한 장을 만듭니다.', page: 'a4-education-material', accent: 'orange' },
     { number: 5, title: 'QR·음성 파일럿', subtitle: '확정 교육자료의 보조 전달 채널을 시험합니다.', page: 'admin-training', accent: 'green' },
-    { number: 6, title: '월별 성과 확인', subtitle: '개선 이행과 반복 위험 변화를 확인합니다.', page: 'performance-analysis', accent: 'green' },
+    { number: 6, title: '주기별 성과 확인', subtitle: '개선 이행과 반복 위험 변화를 확인합니다.', page: 'performance-analysis', accent: 'green' },
     { number: 7, title: '환경 설정', subtitle: '현장, 언어, 화면 구성을 관리합니다.', page: 'settings', accent: 'blue' },
 ];
 
@@ -64,8 +68,6 @@ const CORE_MENU_PAGES = new Set<Page>([
     'performance-analysis',
     'settings',
 ]);
-
-const formatMonth = (date = new Date()) => `${date.getFullYear()}년 ${date.getMonth() + 1}월`;
 
 const getMonthKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
@@ -164,6 +166,10 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
     setCurrentPage,
     onOpenAdvanced,
 }) => {
+    const { cycle: assessmentCycle, copy: assessmentCycleCopy } = useAssessmentCycle();
+    const { isDevMode } = useDevMode();
+    const { mode: operationalMode } = useOperationalMode();
+    const isDeveloperExperience = isDevMode && operationalMode === 'developer';
     const [showFeatureLocker, setShowFeatureLocker] = useState(false);
     const [composition, setComposition] = useState<UiCompositionConfig>(() => loadUiCompositionConfig());
     const [trainingSummary, setTrainingSummary] = useState<TrainingSummary | null>(null);
@@ -204,24 +210,37 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
         };
     }, [workerRecords]);
 
-    const monthlyTrends = useMemo(() => {
-        const monthKeys = getRecentMonthKeys(6);
+    const cycleTrends = useMemo(() => {
+        const operationalRecords = workerRecords.filter(isOperationalWorkerRecord);
         const scoreValues: number[] = [];
         const improvementValues: number[] = [];
 
-        const monthlyMetrics = new Map(
-            buildMonthlyCoreMetricSeries(workerRecords.filter(isOperationalWorkerRecord))
-                .map((point) => [point.month, point]),
-        );
+        if (assessmentCycle.cadence === 'monthly' && assessmentCycle.monthlyDueDay === 1) {
+            const monthKeys = getRecentMonthKeys(6);
+            const monthlyMetrics = new Map(
+                buildMonthlyCoreMetricSeries(operationalRecords)
+                    .map((point) => [point.month, point]),
+            );
 
-        monthKeys.forEach((monthKey) => {
-            const point = monthlyMetrics.get(monthKey);
-            if (point?.validScoreRecordCount) scoreValues.push(point.averageScore);
-            if (point?.analyzedWorkerCount) improvementValues.push(point.improvementExecutionRate);
-        });
+            monthKeys.forEach((monthKey) => {
+                const point = monthlyMetrics.get(monthKey);
+                if (point?.validScoreRecordCount) scoreValues.push(point.averageScore);
+                if (point?.analyzedWorkerCount) improvementValues.push(point.improvementExecutionRate);
+            });
+            return { scoreValues, improvementValues };
+        }
+
+        Array.from(groupRecordsByAssessmentPeriod<WorkerRecord>(operationalRecords, assessmentCycle).values())
+            .sort((left, right) => left.period.startDate.localeCompare(right.period.startDate))
+            .slice(-6)
+            .forEach(({ records }) => {
+                const point = calculateCoreMetricSnapshot(records);
+                if (point.validScoreRecordCount) scoreValues.push(point.averageScore);
+                if (point.analyzedWorkerCount) improvementValues.push(point.improvementExecutionRate);
+            });
 
         return { scoreValues, improvementValues };
-    }, [workerRecords]);
+    }, [assessmentCycle, workerRecords]);
 
     const priorityTrade = useMemo(() => {
         const tradeScores = new Map<string, { sum: number; count: number }>();
@@ -248,13 +267,13 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
     }, [workerRecords]);
 
     const trendDelta = useMemo(() => {
-        if (monthlyTrends.scoreValues.length >= 2) {
-            const latest = monthlyTrends.scoreValues[monthlyTrends.scoreValues.length - 1];
-            const previous = monthlyTrends.scoreValues[monthlyTrends.scoreValues.length - 2];
+        if (cycleTrends.scoreValues.length >= 2) {
+            const latest = cycleTrends.scoreValues[cycleTrends.scoreValues.length - 1];
+            const previous = cycleTrends.scoreValues[cycleTrends.scoreValues.length - 2];
             return latest - previous;
         }
         return 0;
-    }, [monthlyTrends]);
+    }, [cycleTrends]);
 
     const aiInsightText = useMemo(() => {
         const score = summary.averageScore;
@@ -266,9 +285,9 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
         } else if (imp < 60) {
             return `근로자 안전 이해도(${score}점)에 비해 개선 이행률(${imp}%)이 낮습니다. 지적 사항 보강 상태를 점검하세요.`;
         } else {
-            return `전체 지표가 우수하게 유지 중입니다. 원페이지 교육자료와 월별 추적 흐름을 점검하며 현재의 흐름을 보존하십시오.`;
+            return `전체 지표가 우수하게 유지 중입니다. 원페이지 교육자료와 ${assessmentCycleCopy.trackingLabel} 흐름을 점검하며 현재의 흐름을 보존하십시오.`;
         }
-    }, [summary, priorityTrade]);
+    }, [assessmentCycleCopy.trackingLabel, priorityTrade, summary]);
 
     const topRisks = useMemo(() => {
         const counts = new Map<string, number>();
@@ -318,7 +337,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                     </div>
                     <div className="flex flex-wrap items-center gap-2 shrink-0">
                         <span className="rounded-xl border border-blue-100 bg-blue-50/50 px-3.5 py-1.5 text-xs font-black text-blue-700 dark:border-blue-500/20 dark:bg-blue-950/30 dark:text-blue-300">
-                            🗓️ {formatMonth()} 운영
+                            🗓️ {assessmentCycleCopy.cadenceLabel} · {assessmentCycleCopy.frequencyLabel}
                         </span>
                         <button
                             type="button"
@@ -356,7 +375,9 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                         </div>
                     </div>
                     <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                        {composition.sidebarOrder.map((page) => {
+                        {composition.sidebarOrder
+                            .filter((page) => isDeveloperExperience || isRouteVisibleInMode(page, 'practitioner'))
+                            .map((page) => {
                             const fixed = CORE_MENU_PAGES.has(page);
                             const visible = !composition.hiddenSidebarPages.includes(page);
                             return (
@@ -445,7 +466,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
 
                         <div className="mt-3">
                             <h3 className="text-sm font-black text-slate-900 dark:text-slate-150">현장 안전 트렌드 & 지표 분석</h3>
-                            <p className="mt-1 text-[11px] font-medium text-slate-400 leading-4">최근 월별 위험인식 신호와 공종별 개선 이행 추이를 그래프로 분석합니다.</p>
+                            <p className="mt-1 text-[11px] font-medium text-slate-400 leading-4">최근 {assessmentCycleCopy.shortLabel} 위험인식 신호와 공종별 개선 이행 추이를 그래프로 분석합니다.</p>
                         </div>
 
                         {/* 메트릭 정보 요약 */}
@@ -469,12 +490,12 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                             {activeChartTab === 'score' ? (
                                 <>
                                     <p className="text-[10px] font-black text-slate-500">최근 평균 위험인식 신호 추세</p>
-                                    <TrendChart values={monthlyTrends.scoreValues} label="최근 평균 위험인식 신호 추세" />
+                                    <TrendChart values={cycleTrends.scoreValues} label={`최근 ${assessmentCycleCopy.shortLabel} 평균 위험인식 신호 추세`} />
                                 </>
                             ) : (
                                 <>
                                     <p className="text-[10px] font-black text-slate-550 dark:text-slate-400">최근 개선 이행 추세</p>
-                                    <TrendChart values={monthlyTrends.improvementValues} color="#059669" label="최근 개선 이행 추세" />
+                                    <TrendChart values={cycleTrends.improvementValues} color="#059669" label={`최근 ${assessmentCycleCopy.shortLabel} 개선 이행 추세`} />
                                 </>
                             )}
                         </div>
@@ -504,7 +525,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                                     </div>
                                 </div>
                                 <div className="rounded-xl border border-slate-100 bg-white p-2 dark:border-slate-800 dark:bg-slate-900/40">
-                                    <span className="text-[9px] font-black text-slate-400 block uppercase tracking-wider">전월 대비 추세</span>
+                                    <span className="text-[9px] font-black text-slate-400 block uppercase tracking-wider">{assessmentCycleCopy.previousCycleLabel} 대비 추세</span>
                                     <div className="mt-1 flex items-center justify-between">
                                         <b className="text-xs font-black text-slate-700 dark:text-slate-300">평균 위험인식 신호</b>
                                         <span className={`text-[10px] font-black flex items-center gap-0.5 ${trendDelta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
@@ -560,7 +581,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                         </div>
                     </div>
 
-                    {/* 3번 과업: 월별 계도 리포트 공유 */}
+                    {/* 3번 과업: 운영 주기별 계도 리포트 공유 */}
                     <div className="psi-interactive-card p-4 flex flex-col justify-between">
                         <div>
                             <div className="flex items-center justify-between">
@@ -568,8 +589,8 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                                 <span className="rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[9px] font-black text-amber-700 dark:border-amber-500/20 dark:bg-amber-950/30 dark:text-amber-300">익명 전파</span>
                             </div>
                             <div className="mt-3">
-                                <h3 className="text-sm font-black text-slate-900 dark:text-slate-150">월별 계도 리포트</h3>
-                                <p className="mt-1 text-[11px] font-medium text-slate-400 leading-4">이 브라우저의 분석 결과를 취합하여 지난달 3대 핵심 위해 요소를 익명화하여 공유합니다.</p>
+                                <h3 className="text-sm font-black text-slate-900 dark:text-slate-150">{assessmentCycleCopy.reportLabel}</h3>
+                                <p className="mt-1 text-[11px] font-medium text-slate-400 leading-4">이 브라우저의 분석 결과를 취합하여 {assessmentCycleCopy.previousCycleLabel} 3대 핵심 위해 요소를 익명화하여 공유합니다.</p>
                             </div>
 
                             <div className="mt-2.5 space-y-1">
@@ -601,7 +622,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
 
                 {/* [3열] 교육 환류 및 보조 전달 설정 */}
                 <div className="flex flex-col gap-4 text-left">
-                    {/* 교육 환류 센터: 원페이지 교육자료, 개인 보호 리포트, 월별 추적자료를 한 화면으로 연결 */}
+                    {/* 교육 환류 센터: 원페이지 교육자료, 개인 보호 리포트, 운영 주기별 추적자료를 한 화면으로 연결 */}
                     <div className="psi-interactive-card flex-1 p-4 bg-gradient-to-br from-white to-emerald-50/10 dark:from-slate-900 dark:to-emerald-950/20 hover:shadow-lg transition flex flex-col justify-between">
                         <div>
                             <div className="flex items-center justify-between">
@@ -611,7 +632,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                             <div className="mt-3">
                                 <h3 className="text-sm font-black text-slate-900 dark:text-slate-150">교육 환류 센터</h3>
                                 <p className="mt-1 text-[11px] font-medium text-slate-400 leading-4">
-                                    관리자 검증완료 기록을 원페이지 교육자료, 근로자 개인별 보호 리포트, 월별 계도·추적자료로 바로 연결합니다.
+                                    관리자 검증완료 기록을 원페이지 교육자료, 근로자 개인별 보호 리포트, {assessmentCycleCopy.trackingLabel}로 바로 연결합니다.
                                 </p>
                             </div>
 
@@ -625,8 +646,8 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                                     <p className="mt-1 text-[9px] font-black text-violet-800 dark:text-violet-300">근로자 리포트</p>
                                 </button>
                                 <button type="button" onClick={() => openStep(BOARD_STEPS[2])} className="cursor-pointer rounded-lg bg-emerald-50/50 p-2 border border-emerald-100/40 hover:bg-emerald-100/30 transition dark:bg-emerald-950/10 dark:border-emerald-900/20">
-                                    <b className="text-base text-emerald-700 dark:text-emerald-400 font-bold">월별</b>
-                                    <p className="mt-1 text-[9px] font-black text-emerald-800 dark:text-emerald-300">월별 추적</p>
+                                    <b className="text-base text-emerald-700 dark:text-emerald-400 font-bold">{assessmentCycleCopy.shortLabel}</b>
+                                    <p className="mt-1 text-[9px] font-black text-emerald-800 dark:text-emerald-300">{assessmentCycleCopy.shortLabel} 추적</p>
                                 </button>
                             </div>
                         </div>
@@ -653,13 +674,15 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                             >
                                 📑 위험성평가 교육자료 스튜디오 열기 <span aria-hidden="true">→</span>
                             </button>
-                            <button
-                                type="button"
-                                onClick={() => openStep(BOARD_STEPS[4])}
-                                className="text-xs font-black text-slate-700 dark:text-slate-350 hover:text-blue-700 dark:hover:text-blue-400 flex items-center gap-1.5"
-                            >
-                                QR/음성 파일럿 확인 <span aria-hidden="true">→</span>
-                            </button>
+                            {isDeveloperExperience && (
+                                <button
+                                    type="button"
+                                    onClick={() => openStep(BOARD_STEPS[4])}
+                                    className="text-xs font-black text-slate-700 dark:text-slate-350 hover:text-blue-700 dark:hover:text-blue-400 flex items-center gap-1.5"
+                                >
+                                    QR/음성 파일럿 확인 <span aria-hidden="true">→</span>
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -672,10 +695,23 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                             </div>
                             <div className="mt-3">
                                 <h3 className="text-sm font-black text-slate-900 dark:text-slate-150">시스템 환경 설정</h3>
-                                <p className="mt-1 text-[11px] font-medium text-slate-400 leading-4">현장 정보, 파일럿 언어, AI API 분석 키 및 대시보드 화면 구성을 원격 관리합니다.</p>
+                                <p className="mt-1 text-[11px] font-medium text-slate-400 leading-4">
+                                    {isDeveloperExperience
+                                        ? '현장 정보, 파일럿 언어, AI API 분석 키 및 대시보드 화면 구성을 관리합니다.'
+                                        : '현장 정보, 운영 주기, 교육 언어 및 대시보드 화면 구성을 관리합니다.'}
+                                </p>
                                 <div className="mt-3 flex flex-wrap gap-1.5">
-                                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-350">⚙️ API 연동 설정</span>
-                                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-355">🌐 파일럿 언어</span>
+                                    {isDeveloperExperience ? (
+                                        <>
+                                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-350">⚙️ API 연동 설정</span>
+                                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-355">🌐 파일럿 언어</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-350">🗓️ 운영 주기</span>
+                                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-355">🌐 교육 언어</span>
+                                        </>
+                                    )}
                                     <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-350">🖥️ 사이드바 관리</span>
                                 </div>
                             </div>

@@ -1142,7 +1142,13 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     const getOriginalImage = () => (record.originalImage && record.originalImage.length > 50) ? (record.originalImage.startsWith('data:') ? record.originalImage : `data:image/jpeg;base64,${record.originalImage}`) : null;
 
     return (
-        <div ref={ref} data-report-template-root="true" className="w-[210mm] flex flex-col gap-0 text-slate-900 print:w-full" style={{ fontFamily: languagePolicy.fontFamily }}>
+        <div
+            ref={ref}
+            data-report-template-root="true"
+            data-theme-scope="light-document"
+            className="psi-report-light w-[210mm] flex flex-col gap-0 text-slate-900 print:w-full"
+            style={{ fontFamily: languagePolicy.fontFamily }}
+        >
             <div data-report-page="true" lang={languagePolicy.locale} className="bg-white w-[210mm] h-[297mm] relative shadow-2xl overflow-hidden text-slate-900 flex flex-col print:shadow-none print:m-0 print:w-full break-after-page">
                 <div className="absolute inset-0 z-0 pointer-events-none flex items-center justify-center opacity-[0.03] overflow-hidden">
                     <div className="w-[150%] h-[150%] -rotate-12 flex flex-wrap content-center justify-center gap-24 select-none">

@@ -69,6 +69,8 @@ import {
     getManagerReviewApprovalReadiness,
     synchronizeManagerReviewedRecord,
 } from '../../utils/managerReviewSync';
+import { useDevMode } from '../../contexts/DevModeContext';
+import { useOperationalMode } from '../../contexts/OperationalModeContext';
 
 const getNationalityFlag = (nationality: string): string => {
     const nat = (nationality || '').trim();
@@ -400,6 +402,9 @@ interface RecordDetailModalProps {
 }
 
 export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: initialRecord, onClose, onBack, onUpdateRecord, onOpenReport, onReanalyze, isReanalyzing, queueContext, onOpenNextRecord }) => {
+    const { isDevMode } = useDevMode();
+    const { mode: operationalMode } = useOperationalMode();
+    const isDeveloperExperience = isDevMode && operationalMode === 'developer';
     const [record, setRecord] = useState<WorkerRecord>(initialRecord);
     const [activeTab, setActiveTab] = useState<'info' | 'analysis' | 'qna'>('info');
     const [hasChanges, setHasChanges] = useState(false);
@@ -558,11 +563,21 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         };
     }, [isMobileDetailExpanded, isMobileViewport]);
 
-    const activeReviewViewMode: ReviewViewMode = isMobileViewport && !isMobileDetailExpanded ? 'simple' : reviewViewMode;
+    const availableReviewViewModeOptions = useMemo(
+        () => isDeveloperExperience
+            ? REVIEW_VIEW_MODE_OPTIONS
+            : REVIEW_VIEW_MODE_OPTIONS.filter((option) => option.mode !== 'pro'),
+        [isDeveloperExperience],
+    );
+    const requestedReviewViewMode: ReviewViewMode = isMobileViewport && !isMobileDetailExpanded ? 'simple' : reviewViewMode;
+    const activeReviewViewMode: ReviewViewMode = requestedReviewViewMode === 'pro' && !isDeveloperExperience
+        ? 'detail'
+        : requestedReviewViewMode;
     const isCompactViewActive = activeReviewViewMode === 'simple';
     const isProfessionalReviewView = activeReviewViewMode === 'pro';
 
     const handleReviewViewModeChange = useCallback((mode: ReviewViewMode) => {
+        if (mode === 'pro' && !isDeveloperExperience) return;
         setReviewViewMode(mode);
         if (isMobileViewport) {
             setIsMobileDetailExpanded(mode !== 'simple');
@@ -571,7 +586,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             setActiveTab('info');
             setShowHarnessTechnicalDetails(true);
         }
-    }, [isMobileViewport]);
+    }, [isDeveloperExperience, isMobileViewport]);
 
     useEffect(() => {
         try {
@@ -970,9 +985,11 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
         return {
             title: `직전 판단은 ${actionLabel} 처리됐지만 핵심 상태 변화는 제한적이었습니다.`,
-            description: '이번에는 코멘트와 증빙 체크리스트를 더 구체적으로 남겨 QA 재확인 비용을 줄이는 편이 좋습니다.',
+            description: isDeveloperExperience
+                ? '이번에는 코멘트와 증빙 체크리스트를 더 구체적으로 남겨 QA 재확인 비용을 줄이는 편이 좋습니다.'
+                : '이번에는 코멘트와 증빙 체크리스트를 더 구체적으로 남겨 판단 재확인 부담을 줄이는 편이 좋습니다.',
         };
-    }, [harnessLatestApprovalDiff]);
+    }, [harnessLatestApprovalDiff, isDeveloperExperience]);
 
     const harnessTimelineStageGuide = useMemo(() => {
         return [
@@ -2209,8 +2226,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="grid w-full shrink-0 grid-cols-3 gap-2 xl:w-auto">
-                                            {REVIEW_VIEW_MODE_OPTIONS.map((option) => {
+                                        <div className={`grid w-full shrink-0 gap-2 xl:w-auto ${isDeveloperExperience ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                                            {availableReviewViewModeOptions.map((option) => {
                                                 const selected = activeReviewViewMode === option.mode;
                                                 return (
                                                     <button
@@ -2875,7 +2892,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                     variant="rose"
                                                     eyebrow="강한 경고"
                                                     title="판단 근거가 짧거나 일반적입니다."
-                                                    description="검토 근거, 확인 범위, 반영 내용을 포함하지 않으면 QA 점검 대상으로 남습니다."
+                                                    description={isDeveloperExperience
+                                                        ? '검토 근거, 확인 범위, 반영 내용을 포함하지 않으면 QA 점검 대상으로 남습니다.'
+                                                        : '검토 근거, 확인 범위, 반영 내용을 포함하지 않으면 기록 보완 대상으로 남습니다.'}
                                                     className="mt-2 w-full rounded-xl border px-3 py-2"
                                                     bodyClassName="block"
                                                     eyebrowClassName="text-[11px] font-black text-rose-700"

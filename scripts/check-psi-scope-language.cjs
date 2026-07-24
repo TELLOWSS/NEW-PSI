@@ -132,5 +132,5 @@ if (failures.length > 0) {
 }
 
 console.log('[check-psi-scope-language] PASS');
-console.log('- PSI product language is scoped to self-written risk assessment, OCR/AI validation, one-page education material, and monthly feedback.');
+console.log('- PSI product language is scoped to self-written risk assessment, OCR/AI validation, one-page education material, and cadence-aware feedback.');
 console.log('- SMART TBM/TBM system wording is blocked from product-facing copy, except explicit boundary notes and internal compatibility keys.');

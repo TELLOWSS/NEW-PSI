@@ -51,6 +51,7 @@ import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
 import { useJudgmentTaggingQuality } from '../hooks/useJudgmentTaggingQuality';
+import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
 import { EmptyState, SectionCard, MetricCard, StatusPill } from '../components/common';
 import { ReportActionBar } from '../components/common/ReportActionBar';
 import { evaluateOcrVerificationCompleteness, getNativeLanguageLabel } from '../utils/ocrVerificationLanguageUtils';
@@ -289,6 +290,7 @@ interface ReportsProps {
 const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecords = [], briefingData, setBriefingData, forecastData, setForecastData, onNavigateToPage }) => {
     const { isDevMode } = useDevMode();
     const { mode: operationalMode } = useOperationalMode();
+    const { copy: assessmentCycleCopy } = useAssessmentCycle();
     const isImmediateOperationalMode = operationalMode === 'immediate';
     const [activeTab, setActiveTab] = useState<ReportType>('worker-report');
     const [isGenerating, setIsGenerating] = useState(false);
@@ -764,7 +766,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
     const dateFilterLabel = useMemo(() => {
         if (datePreset === 'last30') return '최근30일';
-        if (datePreset === 'thisMonth') return '당월';
+        if (datePreset === 'thisMonth') return '달력월-이번달';
         if (datePreset === 'custom' && customStartDate && customEndDate) return `${customStartDate}_${customEndDate}`;
         if (datePreset === 'custom') return '사용자지정';
         return '전체기간';
@@ -3733,7 +3735,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
                             {activeTab === 'team-report'
                                 ? '팀과 공종별 위험 현황을 회의·관리용으로 요약합니다.'
-                                : '같은 근로자의 월별 기록을 묶어 평가기간, 기록 수, 위험 신호 변화를 확인합니다.'}
+                                : `같은 근로자의 기록을 묶어 평가기간, 기록 수, ${assessmentCycleCopy.shortLabel} 위험 신호 변화를 확인합니다.`}
                         </p>
                     </div>
                     <InterpretationCardGrid
@@ -3778,7 +3780,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     <select id="reports-date-filter" value={datePreset} onChange={e => setDatePreset(e.target.value as DatePreset)} className="block min-h-[44px] w-full rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-sm font-bold text-slate-900 focus:border-sky-600 focus:ring-sky-600 sm:min-w-[160px]">
                         <option value="all">전체 기간</option>
                         <option value="last30">최근 30일</option>
-                        <option value="thisMonth">당월</option>
+                        <option value="thisMonth">이번 달(달력 월)</option>
                         <option value="custom">사용자 지정</option>
                     </select>
                 </div>
@@ -4726,7 +4728,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                             </div>
                                             {activeTab === 'worker-report' && (
                                                 <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-600 dark:bg-slate-900 dark:text-slate-300">
-                                                    평가기간 {reportTarget?.periodLabel || record.date} · {reportTarget?.monthCount || 1}개월 · {reportTarget?.recordCount || 1}건
+                                                    평가기간 {reportTarget?.periodLabel || record.date} · 달력 기준 {reportTarget?.monthCount || 1}개월 · {reportTarget?.recordCount || 1}건
                                                 </div>
                                             )}
                                             <p className="mt-3 line-clamp-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
@@ -4777,7 +4779,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                             {activeTab === 'worker-report' && (
                                                 <td className="px-6 py-3">
                                                     <p className="font-black text-slate-800 dark:text-slate-100">{reportTarget?.periodLabel || r.date}</p>
-                                                    <p className="mt-1 text-[11px] font-semibold text-slate-500">{reportTarget?.monthCount || 1}개월 · 총 {reportTarget?.recordCount || 1}건</p>
+                                                    <p className="mt-1 text-[11px] font-semibold text-slate-500">달력 기준 {reportTarget?.monthCount || 1}개월 · 총 {reportTarget?.recordCount || 1}건</p>
                                                 </td>
                                             )}
                                             {activeTab === 'worker-report' && (
@@ -4883,7 +4885,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                     <p className="text-sm font-black text-slate-800 dark:text-slate-100">{previewIndex + 1} / {filteredRecords.length}</p>
                                     <p className="text-xs text-slate-500 dark:text-slate-300 font-bold">{currentPreviewRecord?.name}</p>
                                     {activeTab === 'worker-report' && currentPreviewTarget && (
-                                        <p className="mt-0.5 text-[10px] font-black text-indigo-600">{currentPreviewTarget.monthCount}개월 · {currentPreviewTarget.recordCount}건 · {currentPreviewTarget.periodLabel}</p>
+                                        <p className="mt-0.5 text-[10px] font-black text-indigo-600">달력 기준 {currentPreviewTarget.monthCount}개월 · {currentPreviewTarget.recordCount}건 · {currentPreviewTarget.periodLabel}</p>
                                     )}
                                     {currentPreviewSafetyCase && (
                                         <p className="mt-0.5 text-[10px] font-black text-violet-600">{currentPreviewSafetyCase.caseId} · 보호사건 연결</p>

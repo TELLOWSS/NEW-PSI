@@ -1,6 +1,9 @@
 import React, { useMemo } from 'react';
 import type { Page, WorkerRecord } from '../types';
 import { buildEducationReturnSummary } from '../utils/educationReturnSummary';
+import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
+import { useDevMode } from '../contexts/DevModeContext';
+import { useOperationalMode } from '../contexts/OperationalModeContext';
 
 interface EducationReturnProps {
     workerRecords: WorkerRecord[];
@@ -162,8 +165,12 @@ const OutputCard: React.FC<{
 };
 
 const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavigateToPage }) => {
-    const summary = useMemo(() => buildEducationReturnSummary(workerRecords), [workerRecords]);
-    const trendPrefix = summary.monthlyTrendPct > 0 ? '+' : '';
+    const { cycle, copy: cycleCopy } = useAssessmentCycle();
+    const { isDevMode } = useDevMode();
+    const { mode: operationalMode } = useOperationalMode();
+    const isDeveloperExperience = isDevMode && operationalMode === 'developer';
+    const summary = useMemo(() => buildEducationReturnSummary(workerRecords, cycle), [cycle, workerRecords]);
+    const trendPrefix = summary.periodTrendPct > 0 ? '+' : '';
     const riskText = summary.topRisks.join(' · ');
     const repeatedRiskText = summary.repeatedRiskKeywords.slice(0, 3).join(' · ');
 
@@ -175,7 +182,7 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                         <p className="psi-eyebrow">교육 환류</p>
                         <h2 className="psi-display-title mt-1">PSI 교육 환류 센터</h2>
                         <p className="psi-body-copy mt-3 max-w-3xl">
-                            관리자가 확인한 기록은 개인 보호 리포트, 다음 달 원페이지 교육자료, 월별 추적자료로 환류됩니다.
+                            관리자가 확인한 {cycleCopy.recordLabel}는 개인 보호 리포트, {cycleCopy.nextCycleLabel} 원페이지 교육자료, {cycleCopy.trackingLabel}로 환류됩니다.
                         </p>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-3 2xl:min-w-[620px]">
@@ -191,7 +198,7 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                         <span className="hidden text-slate-400 lg:block"><ArrowIcon /></span>
                         <StepItem number="2" title="검증한다" desc="OCR·AI 분석 결과 관리자 확인" tone="purple" icon={<VerifyIcon />} />
                         <span className="hidden text-slate-400 lg:block"><ArrowIcon /></span>
-                        <StepItem number="3" title="환류한다" desc="보호 리포트·교육자료·월별 추적" tone="green" icon={<EducationIcon />} />
+                        <StepItem number="3" title="환류한다" desc={`보호 리포트·교육자료·${cycleCopy.shortLabel} 추적`} tone="green" icon={<EducationIcon />} />
                     </div>
                 </div>
             </section>
@@ -205,15 +212,17 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                     icon={<DocumentIcon />}
                     primaryLabel="교육자료 만들기"
                     onPrimary={() => onNavigateToPage('a4-education-material')}
-                    secondary={[
-                        { label: '다음 단계: QR·음성 배포', onClick: () => onNavigateToPage('admin-training') },
-                    ]}
+                    secondary={isDeveloperExperience
+                        ? [
+                            { label: '다음 단계: QR·음성 배포', onClick: () => onNavigateToPage('admin-training') },
+                        ]
+                        : undefined}
                 >
                     <div className="space-y-3">
                         <div className="grid gap-2 sm:grid-cols-2">
                             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                <p className="psi-meta-label">기준월</p>
-                                <p className="mt-1 text-lg font-bold text-blue-800">{summary.targetMonth}</p>
+                                <p className="psi-meta-label">{cycleCopy.basisLabel}</p>
+                                <p className="mt-1 text-lg font-bold text-blue-800">{summary.targetPeriod}</p>
                             </div>
                             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
                                 <p className="psi-meta-label">공종</p>
@@ -255,18 +264,18 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
 
                 <OutputCard
                     number="03"
-                    title="월별 계도·추적자료"
-                    status={summary.monthlyStatus}
+                    title={cycleCopy.trackingLabel}
+                    status={summary.trackingStatus}
                     statusTone="green"
                     icon={<TrackingIcon />}
-                    primaryLabel="월별 추적 보기"
+                    primaryLabel={`${cycleCopy.shortLabel} 추적 보기`}
                     onPrimary={() => onNavigateToPage('monthly-guidance-report')}
                 >
                     <div data-education-return="tracking-preview" className="overflow-hidden rounded-2xl border border-slate-200">
                         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-3 py-3">
-                            <p className="psi-item-title">전월 대비</p>
+                            <p className="psi-item-title">{cycleCopy.previousCycleLabel} 대비</p>
                             <div className="text-right">
-                                <p className="text-xl font-extrabold text-emerald-700">{trendPrefix}{summary.monthlyTrendPct}%</p>
+                                <p className="text-xl font-extrabold text-emerald-700">{trendPrefix}{summary.periodTrendPct}%</p>
                                 <p className="psi-small-note">위험 신호 변화</p>
                             </div>
                         </div>
@@ -285,11 +294,11 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                     <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3">
                         <div className="flex items-center justify-between gap-3">
                             <p className="psi-meta-label text-emerald-900">차트 분석 미리보기</p>
-                            <p className="psi-small-note text-emerald-700">월별·반복·지표</p>
+                            <p className="psi-small-note text-emerald-700">{cycleCopy.shortLabel}·반복·6대 지표</p>
                         </div>
                         <div className="mt-2 grid grid-cols-3 gap-2">
                             {[
-                                ['월별 흐름', Math.min(100, Math.abs(summary.monthlyTrendPct) * 4), summary.monthlyTrendPct >= 0 ? 'bg-emerald-500' : 'bg-rose-500'],
+                                [`${cycleCopy.shortLabel} 흐름`, Math.min(100, Math.abs(summary.periodTrendPct) * 4), summary.periodTrendPct >= 0 ? 'bg-emerald-500' : 'bg-rose-500'],
                                 ['반복 위험', Math.min(100, summary.repeatedRiskKeywords.length * 18), 'bg-amber-500'],
                                 ['개선 이행', summary.improvementRate, 'bg-blue-600'],
                             ].map(([label, width, color]) => (

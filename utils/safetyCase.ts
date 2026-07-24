@@ -102,6 +102,21 @@ export const buildSafetyCaseId = (input: Pick<SafetyCasePlanInput, 'planKey' | '
 };
 
 export const resolveSafetyCaseDueAt = (dueLabel: string): string | undefined => {
+    const explicitDateMatch = String(dueLabel || '').match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (explicitDateMatch) {
+        const year = Number(explicitDateMatch[1]);
+        const month = Number(explicitDateMatch[2]);
+        const day = Number(explicitDateMatch[3]);
+        const target = new Date(year, month - 1, day, 23, 59, 59, 999);
+        if (
+            target.getFullYear() === year
+            && target.getMonth() === month - 1
+            && target.getDate() === day
+        ) {
+            return target.toISOString();
+        }
+    }
+
     const match = String(dueLabel || '').match(/(\d{4})\D+(\d{1,2})\D+(\d)\s*주차/);
     if (!match) return undefined;
 

@@ -59,6 +59,26 @@ for (const [file, content, marker] of forbiddenInProductScreens) {
   if (content.includes(marker)) failures.push(`${file}: outdated core-positioning phrase remains "${marker}"`);
 }
 
+const adminTrainingMeta = files.routeMeta.match(/'admin-training':\s*createMeta\(\{[\s\S]*?\n\s*\}\),/u)?.[0] || '';
+if (
+  !adminTrainingMeta.includes('menuVisibleInPractitionerMode: false')
+  || !adminTrainingMeta.includes('menuVisibleInWorkerMode: false')
+  || !adminTrainingMeta.includes('menuVisibleInDeveloperMode: true')
+) {
+  failures.push('config/routeMeta.ts: QR/voice pilot route must be developer-only');
+}
+
+for (const [file, content, marker] of [
+  ['pages/A4EducationMaterial.tsx', files.education, 'QR/음성 파일럿으로 보내기'],
+  ['components/IntegratedWorkBoard.tsx', files.workBoard, 'QR/음성 파일럿 확인'],
+]) {
+  const markerIndex = content.indexOf(marker);
+  const gateIndex = content.lastIndexOf('isDeveloperExperience', markerIndex);
+  if (markerIndex < 0 || gateIndex < 0 || markerIndex - gateIndex > 900) {
+    failures.push(`${file}: QR/voice pilot action must remain behind isDeveloperExperience`);
+  }
+}
+
 const checkScript = files.packageJson.scripts?.['check:product-identity'] || '';
 const verifyFast = files.packageJson.scripts?.['verify:fast'] || '';
 
@@ -77,5 +97,5 @@ if (failures.length > 0) {
 }
 
 console.log('[check-product-identity-contract] PASS');
-console.log('- Product identity is centered on OCR/AI 5Q/6 indicators, manager-verified reports, one-page education material, and monthly tracking.');
-console.log('- QR/multilingual delivery is framed as a pilot support channel.');
+console.log('- Product identity is centered on OCR/AI 5Q/6 indicators, manager-verified reports, one-page education material, and cadence-aware tracking.');
+console.log('- QR/voice pilot delivery is restricted to the developer experience.');

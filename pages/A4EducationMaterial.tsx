@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalAiHandoffPanel } from '../components/tbm/ExternalAiHandoffPanel';
 import { CountryFlag } from '../components/shared/CountryFlag';
+import { useDevMode } from '../contexts/DevModeContext';
+import { useOperationalMode } from '../contexts/OperationalModeContext';
+import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
 import { TRAINING_LANGUAGE_LABELS } from '../utils/constructionTrainingTranslation';
 import type { WorkerRecord } from '../types';
 import { ensureHtml2Canvas, ensureJsPdfConstructor } from '../utils/externalScripts';
@@ -21,6 +24,10 @@ import {
     type TbmMonthlyPackagePayload,
 } from '../utils/tbmEducationStudio';
 import { extractTbmSourceFromFile } from '../utils/tbmSourceExtraction';
+import {
+    groupRecordsByAssessmentPeriod,
+    resolveAssessmentPeriod,
+} from '../utils/assessmentCycle';
 
 interface Props {
     workerRecords: WorkerRecord[];
@@ -51,6 +58,7 @@ const CHECKLIST_TEMPLATES = [
 const STUDIO_STORAGE_KEY = 'psi_tbm_education_studio_v2';
 const STUDIO_STORE_VERSION = 3;
 const DEFAULT_WORK_TYPE = '전체 공종';
+const EMPTY_WORKER_RECORDS: WorkerRecord[] = [];
 
 interface StoredStudioState {
     educationMonth: string;
@@ -166,6 +174,8 @@ const createFreshStudioState = (
     workerRecords: WorkerRecord[],
     educationMonth: string,
     workType: string,
+    targetCycleLabel = '다음 달',
+    targetPeriodLabel = '',
 ): StoredStudioState => ({
     educationMonth,
     workType,
@@ -175,6 +185,8 @@ const createFreshStudioState = (
         sources: [],
         month: educationMonth,
         workType,
+        targetCycleLabel,
+        targetPeriodLabel,
     }),
     translatedTexts: {},
     translationSourceText: '',
@@ -1006,6 +1018,26 @@ const buildA4TranslationPrintContent = (
 };
 
 const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining }) => {
+    const { isDevMode } = useDevMode();
+    const { mode: operationalMode } = useOperationalMode();
+    const { cycle, copy: cycleCopy } = useAssessmentCycle();
+    const isDeveloperExperience = isDevMode && operationalMode === 'developer';
+    const assessmentPeriodGroups = useMemo(
+        () => Array.from(groupRecordsByAssessmentPeriod<WorkerRecord>(workerRecords, cycle).values())
+            .sort((left, right) => right.period.endDate.localeCompare(left.period.endDate)),
+        [cycle, workerRecords],
+    );
+    const sourceRecords = assessmentPeriodGroups[0]?.records || EMPTY_WORKER_RECORDS;
+    const sourcePeriod = assessmentPeriodGroups[0]?.period || resolveAssessmentPeriod(new Date(), cycle);
+    const currentPeriod = resolveAssessmentPeriod(new Date(), cycle);
+    const targetPeriod = useMemo(() => {
+        const baselineEndDate = sourcePeriod.endDate > currentPeriod.endDate
+            ? sourcePeriod.endDate
+            : currentPeriod.endDate;
+        const nextDate = new Date(`${baselineEndDate}T00:00:00.000Z`);
+        nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+        return resolveAssessmentPeriod(nextDate, cycle);
+    }, [currentPeriod.endDate, cycle, sourcePeriod.endDate]);
     const [initialState] = useState<StoredStudioState | null>(() => loadStudioState());
     const initialEducationMonth = initialState?.educationMonth || getNextMonth();
     const initialWorkType = initialState?.workType || DEFAULT_WORK_TYPE;
@@ -1024,7 +1056,13 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         initialState?.translationSourceText || '',
     );
     const [draft, setDraft] = useState<TbmEducationDraft>(() =>
-        initialState?.draft || createFreshStudioState(workerRecords, initialEducationMonth, initialWorkType).draft,
+        initialState?.draft || createFreshStudioState(
+            sourceRecords,
+            initialEducationMonth,
+            initialWorkType,
+            cycleCopy.nextCycleLabel,
+            targetPeriod.label,
+        ).draft,
     );
     const [previewLanguage, setPreviewLanguage] = useState<string>('ko-KR');
     const [viewMode, setViewMode] = useState<'split' | 'single'>('single');
@@ -1033,12 +1071,12 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const sheetRef = useRef<HTMLElement>(null);
 
     const workTypes = useMemo(
-        () => [DEFAULT_WORK_TYPE, ...Array.from(new Set(workerRecords.map((item) => item.jobField).filter(Boolean))).sort()],
-        [workerRecords],
+        () => [DEFAULT_WORK_TYPE, ...Array.from(new Set(sourceRecords.map((item) => item.jobField).filter(Boolean))).sort()],
+        [sourceRecords],
     );
     const fieldSource = useMemo(
-        () => buildFieldRecordSource(workerRecords, workType),
-        [workerRecords, workType],
+        () => buildFieldRecordSource(sourceRecords, workType, cycleCopy.nextCycleLabel),
+        [cycleCopy.nextCycleLabel, sourceRecords, workType],
     );
     const allSources = useMemo(
         () => fieldSource ? [fieldSource, ...sources] : sources,
@@ -1094,12 +1132,18 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         const scopedState = loadStudioState({ educationMonth: nextMonth, workType: nextWorkType });
         if (scopedState) {
             applyStudioState(scopedState);
-            setNotice(`${nextMonth} · ${nextWorkType} 저장본을 불러왔습니다. 다른 월의 영상/공지/번역은 섞지 않습니다.`);
+            setNotice(`${nextMonth} · ${nextWorkType} 저장본을 불러왔습니다. 다른 운영 구간의 영상·공지·번역은 섞지 않습니다.`);
             return;
         }
 
-        applyStudioState(createFreshStudioState(workerRecords, nextMonth, nextWorkType));
-        setNotice(`${nextMonth} · ${nextWorkType} 새 교육자료를 시작했습니다. 지난달 영상·사고사례·공지사항은 자동 복사하지 않습니다.`);
+        applyStudioState(createFreshStudioState(
+            sourceRecords,
+            nextMonth,
+            nextWorkType,
+            cycleCopy.nextCycleLabel,
+            targetPeriod.label,
+        ));
+        setNotice(`${nextMonth} · ${nextWorkType} 새 교육자료를 시작했습니다. 직전 운영 구간의 영상·사고사례·공지사항은 자동 복사하지 않습니다.`);
     };
 
     useEffect(() => {
@@ -1140,29 +1184,37 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
 
     const generateDraft = () => {
         const nextDraft = buildTbmEducationDraft({
-            workerRecords,
+            workerRecords: sourceRecords,
             sources,
             month: educationMonth,
             workType,
             coreMessage: draft.coreMessage,
+            targetCycleLabel: cycleCopy.nextCycleLabel,
+            targetPeriodLabel: targetPeriod.label,
         });
         setDraft(nextDraft);
         setTranslatedTexts({});
         setTranslationSourceText('');
         setActiveTab('package');
-        setNotice('근거 자료를 기준으로 5단계 월간 교육 패키지를 다시 구성했습니다.');
+        setNotice(`근거 자료를 기준으로 ${cycleCopy.cadenceLabel} 5단계 교육 패키지를 다시 구성했습니다.`);
     };
 
     const resetStudio = () => {
         const month = getNextMonth();
-        applyStudioState(createFreshStudioState(workerRecords, month, DEFAULT_WORK_TYPE));
+        applyStudioState(createFreshStudioState(
+            sourceRecords,
+            month,
+            DEFAULT_WORK_TYPE,
+            cycleCopy.nextCycleLabel,
+            targetPeriod.label,
+        ));
         setNotice('교육자료 작업 내용을 초기화했습니다.');
     };
 
     const addManualSource = () => {
         const text = manualText.trim();
         if (!text) {
-            setNotice('붙여넣을 교육 내용이나 다음 달 작업계획을 입력해 주세요.');
+            setNotice(`붙여넣을 교육 내용이나 ${cycleCopy.nextCycleLabel} 작업계획을 입력해 주세요.`);
             return;
         }
         setSources((current) => [{
@@ -1249,11 +1301,13 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     };
 
     const buildCurrentFallbackDraft = () => buildTbmEducationDraft({
-        workerRecords,
+        workerRecords: sourceRecords,
         sources,
         month: educationMonth,
         workType,
         coreMessage: draft.coreMessage,
+        targetCycleLabel: cycleCopy.nextCycleLabel,
+        targetPeriodLabel: targetPeriod.label,
     });
 
     const openAiDraftStepWithCurrentSources = () => {
@@ -1477,11 +1531,16 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                 </div>
             </section>
 
-            {/* 공통 설정 영역 (교육 대상월 및 공종 선택) */}
+            {/* 공통 설정 영역 (교육자료 보관 월 및 공종 선택) */}
             <section className="psi-enterprise-panel grid gap-4 p-5 lg:grid-cols-3 no-print">
                 <label className="text-sm font-black text-slate-800 dark:text-slate-100">
-                    교육 대상월
+                    {cycle.cadence === 'monthly' ? '교육 대상월' : '교육자료 보관 월'}
                     <input type="month" value={educationMonth} onInput={(event) => switchStudioScope(event.currentTarget.value, workType)} className="mt-2 w-full rounded-xl border px-3 py-3 bg-white dark:bg-slate-900" />
+                    {cycle.cadence !== 'monthly' && (
+                        <span className="mt-2 block text-[11px] font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                            실제 교육 적용 구간: {targetPeriod.label} · {cycleCopy.frequencyLabel}
+                        </span>
+                    )}
                 </label>
                 <label className="text-sm font-black text-slate-800 dark:text-slate-100">
                     대상 공종
@@ -1535,7 +1594,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                         </label>
                         <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
                             <label className="text-sm font-black text-slate-800 dark:text-slate-100">
-                                다음 달 작업계획 · 교육 원문 직접 입력
+                                {cycleCopy.nextCycleLabel} 작업계획 · 교육 원문 직접 입력
                                 <textarea
                                     value={manualText}
                                     onChange={(event) => setManualText(event.target.value)}
@@ -1603,6 +1662,8 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                     month={educationMonth}
                     workType={workType}
                     draft={draft}
+                    targetCycleLabel={cycleCopy.nextCycleLabel}
+                    targetPeriodLabel={targetPeriod.label}
                     translationNeedsRefresh={translationNeedsRefresh}
                     onImport={importExternalAiDraft}
                     onUseLocalDraft={generateDraft}
@@ -1714,8 +1775,8 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                         </div>
 
                         <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-                            <h3 className="text-lg font-black">3. 다음 달 상등급 위험 공유</h3>
-                            <p className="mt-1 text-xs font-semibold text-slate-500">다음달 위험성평가 회의자료(PPT/PDF/문서)에서 상등급으로 지정된 항목만 표시합니다. 나머지 위험은 현장 중점관리 포인트에서 다룹니다.</p>
+                            <h3 className="text-lg font-black">3. {cycleCopy.nextCycleLabel} 상등급 위험 공유</h3>
+                            <p className="mt-1 text-xs font-semibold text-slate-500">{cycleCopy.nextCycleLabel} 위험성평가 회의자료(PPT/PDF/문서)에서 상등급으로 지정된 항목만 표시합니다. 나머지 위험은 현장 중점관리 포인트에서 다룹니다.</p>
                             <div className="mt-4 space-y-3">
                                 {highGradeDraftRisks.map((item) => (
                                     <article key={item.id} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
@@ -1860,9 +1921,11 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                     <section className="rounded-2xl border border-orange-200 bg-orange-50 p-5 dark:border-orange-500/30 dark:bg-orange-500/10">
                         <h3 className="text-lg font-black text-orange-950 dark:text-orange-100">교육 마무리: 이해 확인과 행동 약속</h3>
                         <textarea value={draft.closingCommitment} onChange={(event) => setDraft({ ...draft, closingCommitment: event.target.value })} rows={2} aria-label="교육 마무리 행동 약속" className="mt-3 w-full rounded-xl border p-3 text-sm font-bold" />
-                        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                        <div className={`mt-4 grid gap-2 ${isDeveloperExperience ? 'sm:grid-cols-2' : ''}`}>
                             <button type="button" onClick={() => setActiveTab('editor')} className="min-h-12 rounded-xl bg-blue-700 px-5 py-3 text-sm font-black text-white">한 장 자료 편집</button>
-                            <button type="button" onClick={sendToTraining} className="min-h-12 rounded-xl bg-violet-700 px-5 py-3 text-sm font-black text-white">QR/음성 파일럿으로 보내기</button>
+                            {isDeveloperExperience && (
+                                <button type="button" onClick={sendToTraining} className="min-h-12 rounded-xl bg-violet-700 px-5 py-3 text-sm font-black text-white">QR/음성 파일럿으로 보내기</button>
+                            )}
                         </div>
                     </section>
                 </div>
@@ -2163,7 +2226,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                         <header className="border-b-[3px] border-orange-500 pb-3">
                                             <p className="text-[10px] font-black text-blue-700">위험성평가 전파교육 (요약)</p>
                                             <h2 className="mt-1 text-base font-black leading-tight break-keep">{a4KoreanPrint.title}</h2>
-                                            <p className="text-[10px] font-bold text-slate-500 mt-1">대상: {draft.workType} · 월: {educationMonth}</p>
+                                            <p className="text-[10px] font-bold text-slate-500 mt-1">대상: {draft.workType} · 적용: {targetPeriod.label}</p>
                                         </header>
                                         
                                         <div className="space-y-2.5 mt-3 flex-1 overflow-hidden">

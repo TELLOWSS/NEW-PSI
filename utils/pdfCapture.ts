@@ -1,6 +1,61 @@
 const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
 
+const LIGHT_DOCUMENT_THEME: Readonly<Record<string, string>> = {
+    '--psi-canvas': '#f2f5f8',
+    '--psi-surface': '#ffffff',
+    '--psi-surface-raised': '#ffffff',
+    '--psi-surface-muted': '#f7f9fb',
+    '--psi-surface-inset': '#edf1f4',
+    '--psi-surface-selected': '#eaf2fb',
+    '--psi-slate-200': '#e2e8f0',
+    '--psi-text': '#102a43',
+    '--psi-text-muted': '#50657a',
+    '--psi-text-subtle': '#607386',
+    '--psi-border': '#d7e0e8',
+    '--psi-border-strong': '#c3ced8',
+    '--psi-surface-translucent': 'rgba(255, 255, 255, 0.92)',
+    '--psi-surface-muted-translucent': 'rgba(247, 249, 251, 0.86)',
+    '--psi-blue-soft': '#eff6ff',
+    '--psi-blue-border': '#bfdbfe',
+    '--psi-blue-text': '#1d4ed8',
+    '--psi-orange-soft': '#fff7ed',
+    '--psi-orange-border': '#fed7aa',
+    '--psi-orange-text': '#c2410c',
+    '--psi-emerald-soft-ui': '#ecfdf5',
+    '--psi-emerald-border': '#a7f3d0',
+    '--psi-emerald-text': '#047857',
+    '--psi-amber-soft-ui': '#fffbeb',
+    '--psi-amber-border': '#fde68a',
+    '--psi-amber-text': '#b45309',
+    '--psi-rose-soft-ui': '#fff1f2',
+    '--psi-rose-border': '#fecdd3',
+    '--psi-rose-text': '#be123c',
+    '--psi-sky-soft': '#f0f9ff',
+    '--psi-sky-border': '#bae6fd',
+    '--psi-sky-text': '#0369a1',
+    '--psi-indigo-soft': '#f5f7ff',
+    '--psi-indigo-border': '#c7d2fe',
+    '--psi-indigo-text': '#4338ca',
+    '--psi-violet-soft': '#f5f3ff',
+    '--psi-violet-border': '#ddd6fe',
+    '--psi-violet-text': '#6d28d9',
+    '--psi-cyan-soft': '#ecfeff',
+    '--psi-cyan-border': '#a5f3fc',
+    '--psi-cyan-text': '#0e7490',
+};
+
+const applyLightDocumentTheme = (target: HTMLElement): void => {
+    target.classList.add('psi-report-light');
+    target.dataset.themeScope = 'light-document';
+    target.style.setProperty('color-scheme', 'only light');
+    target.style.backgroundColor = '#ffffff';
+    target.style.color = '#0f172a';
+    Object.entries(LIGHT_DOCUMENT_THEME).forEach(([property, value]) => {
+        target.style.setProperty(property, value);
+    });
+};
+
 export interface CanvasPlacement {
     width: number;
     height: number;
@@ -61,12 +116,18 @@ const ensureCloneStyle = (doc: Document) => {
     style.id = 'psi-pdf-capture-style';
     style.textContent = `
         [data-report-template-root="true"] {
+            color-scheme: only light !important;
+            background: #ffffff !important;
+            color: #0f172a !important;
             box-shadow: none !important;
             margin: 0 !important;
             transform: none !important;
             overflow: visible !important;
         }
         [data-report-page="true"] {
+            color-scheme: only light !important;
+            background: #ffffff !important;
+            color: #0f172a !important;
             width: 210mm !important;
             min-height: 297mm !important;
             height: 297mm !important;
@@ -190,6 +251,7 @@ const copyCanvasPixels = (sourceRoot: HTMLElement, cloneRoot: HTMLElement): void
 };
 
 const applyCaptureSurfaceStyles = (target: HTMLElement): void => {
+    applyLightDocumentTheme(target);
     target.style.width = '210mm';
     target.style.minWidth = '210mm';
     target.style.maxWidth = '210mm';
@@ -207,6 +269,7 @@ const applyCaptureSurfaceStyles = (target: HTMLElement): void => {
     }
 
     target.querySelectorAll<HTMLElement>('[data-report-page="true"]').forEach((page) => {
+        applyLightDocumentTheme(page);
         page.style.width = '210mm';
         page.style.minWidth = '210mm';
         page.style.maxWidth = '210mm';
@@ -224,6 +287,8 @@ const applyCaptureSurfaceStyles = (target: HTMLElement): void => {
 const createIsolatedCaptureTarget = async (source: HTMLElement): Promise<{ target: HTMLElement; cleanup: () => void }> => {
     const host = document.createElement('div');
     host.setAttribute('data-psi-export-host', 'true');
+    host.classList.add('psi-report-light-host');
+    host.dataset.themeScope = 'light-document';
     host.style.position = 'fixed';
     host.style.left = '-10000px';
     host.style.top = '0';
@@ -313,6 +378,8 @@ export const captureReportCanvases = async (
                 scrollX: 0,
                 scrollY: 0,
                 onclone: (clonedDocument: Document) => {
+                    clonedDocument.documentElement.classList.remove('dark');
+                    clonedDocument.documentElement.dataset.themeResolved = 'light';
                     ensureCloneStyle(clonedDocument);
                     const clonedCaptureTarget = clonedDocument.querySelector('[data-psi-export-host="true"] > *') as HTMLElement | null;
                     if (clonedCaptureTarget) {

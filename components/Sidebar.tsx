@@ -26,6 +26,7 @@ interface SidebarProps {
     compositionConfig: UiCompositionConfig;
     compositionEditMode?: boolean;
     onCompositionConfigChange?: (next: UiCompositionConfig) => void;
+    getPageLabel?: (page: Page) => string;
 }
 
 type SidebarMenuItem = {
@@ -117,9 +118,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     compositionConfig,
     compositionEditMode = false,
     onCompositionConfigChange,
+    getPageLabel,
 }) => {
     const { mode } = useOperationalMode();
     const resolvedUiMode: UiAudienceMode = uiMode === 'worker' || uiMode === 'developer' ? uiMode : 'practitioner';
+    const resolvePageLabel = (page: Page) => getPageLabel?.(page) ?? getRouteLabel(page, resolvedUiMode);
 
     const modeVisibleMenuItems = useMemo(
         () =>
@@ -213,17 +216,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                                         setSidebarPageVisible(compositionConfig, item.id, event.target.checked),
                                                     )
                                                 }
-                                                className="h-3.5 w-3.5 rounded border-slate-350 dark:border-slate-500 bg-white dark:bg-slate-800 text-orange-500 focus:ring-orange-500"
+                                                className="h-3.5 w-3.5 rounded border-slate-400 dark:border-slate-500 bg-white dark:bg-slate-800 text-orange-500 focus:ring-orange-500"
                                             />
-                                            <span>{getRouteLabel(item.id, resolvedUiMode)}</span>
+                                            <span>{resolvePageLabel(item.id)}</span>
                                         </label>
                                         <div className="flex items-center gap-1">
                                             <button
                                                 type="button"
                                                 disabled={isFirst}
                                                 onClick={() => onCompositionConfigChange(reorderSidebarPage(compositionConfig, item.id, 'up'))}
-                                                className="rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-slate-650 dark:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
-                                                aria-label={`${getRouteLabel(item.id, resolvedUiMode)} 위로 이동`}
+                                                className="rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
+                                                aria-label={`${resolvePageLabel(item.id)} 위로 이동`}
                                             >
                                                 ▲
                                             </button>
@@ -231,8 +234,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                                 type="button"
                                                 disabled={isLast}
                                                 onClick={() => onCompositionConfigChange(reorderSidebarPage(compositionConfig, item.id, 'down'))}
-                                                className="rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-slate-650 dark:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
-                                                aria-label={`${getRouteLabel(item.id, resolvedUiMode)} 아래로 이동`}
+                                                className="rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
+                                                aria-label={`${resolvePageLabel(item.id)} 아래로 이동`}
                                             >
                                                 ▼
                                             </button>
@@ -264,7 +267,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                         aria-current={isActive ? 'page' : undefined}
                                     >
                                         <span className="shrink-0">{item.icon}</span>
-                                        <span className="truncate text-left">{getRouteLabel(item.id, resolvedUiMode)}</span>
+                                        <span className="truncate text-left">{resolvePageLabel(item.id)}</span>
                                     </button>
                                 );
                             })}

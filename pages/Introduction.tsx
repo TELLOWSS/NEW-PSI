@@ -14,6 +14,9 @@ import {
     type OnePointProofSession,
     type OnePointProofStageId,
 } from '../utils/onePointProofSession';
+import { useDevMode } from '../contexts/DevModeContext';
+import { useOperationalMode } from '../contexts/OperationalModeContext';
+import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
 
 interface IntroductionProps {
     workerRecords: WorkerRecord[];
@@ -155,6 +158,10 @@ const getStoredUpgradePlanItems = (): UpgradePlanItem[] => {
 };
 
 const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateToPage }) => {
+    const { isDevMode } = useDevMode();
+    const { mode: operationalMode } = useOperationalMode();
+    const { copy: cycleCopy } = useAssessmentCycle();
+    const isDeveloperExperience = isDevMode && operationalMode === 'developer';
     const [isGravityOff, setIsGravityOff] = useState(false);
     const [showAllMobileFeatures, setShowAllMobileFeatures] = useState(false);
     const [showProductDepth, setShowProductDepth] = useState(false);
@@ -702,17 +709,17 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         },
         {
             title: 'PSI 전환',
-            summary: 'PSI는 종이 기록지를 OCR로 구조화하고, 관리자 검증을 거쳐 공식 리포트와 다음 달 교육자료로 다시 현장에 돌려보냅니다.',
+            summary: `PSI는 ${cycleCopy.recordLabel}를 OCR로 구조화하고, 관리자 검증을 거쳐 공식 리포트와 ${cycleCopy.nextCycleLabel} 교육자료로 다시 현장에 돌려보냅니다.`,
             points: ['OCR 분석과 관리자 보호 해석', '5문항·6지표 구조화', '공식 리포트와 추적 이력 보존'],
         },
         {
-            title: '구매자가 확인하는 가치',
-            summary: '도입자는 단순 작성 여부가 아니라 근로자 이해 수준, 위험 신호, 개입 결과, 실증 증빙을 한 흐름으로 확인합니다.',
-            points: ['월별 추적관리 자료', '리포트·증빙 패키지', '현장별 교육 환류 데이터'],
+            title: '현장 운영 가치',
+            summary: '관리자는 단순 작성 여부가 아니라 근로자 이해 수준, 위험 신호, 조치 결과와 교육 환류를 한 흐름으로 확인합니다.',
+            points: [cycleCopy.trackingLabel, '리포트·증빙 패키지', '현장별 교육 환류 데이터'],
         },
     ];
 
-    const proofChips = ['수기 OCR', '5문항·6지표', '관리자 검증', '공식 리포트', '원페이지 교육자료', '월별 추적'];
+    const proofChips = ['수기 OCR', '5문항·6지표', '관리자 검증', '공식 리포트', '원페이지 교육자료', `${cycleCopy.shortLabel} 추적`];
 
     const productSimpleSteps: Array<{ title: string; subtitle: string; desc: string; stat: string; page: Page; tone: string }> = [
         {
@@ -734,7 +741,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         {
             title: '3. 리포트·추적',
             subtitle: '공식 리포트와 추적 환류',
-            desc: '관리자 검증 결과가 공식 리포트, 다음 달 원페이지 교육자료, 월별 추적자료로 이어지는지 확인합니다.',
+            desc: `관리자 검증 결과가 공식 리포트, ${cycleCopy.nextCycleLabel} 원페이지 교육자료, ${cycleCopy.trackingLabel}로 이어지는지 확인합니다.`,
             stat: `리포트 대상 ${previewMetrics.totalWorkers}명`,
             page: 'reports',
             tone: BRAND_TONE.emeraldWhite,
@@ -745,7 +752,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         { label: '원본 보존', value: `${previewMetrics.totalWorkers}건`, desc: '수기 이미지와 분석 결과를 같은 흐름에서 확인' },
         { label: '관리자 검증', value: `${previewMetrics.qaValidationTargets}건`, desc: 'AI 판단을 현장 보호 해석으로 수정 가능' },
         { label: '전조 신호', value: `${previewMetrics.alertSignals}건`, desc: '위험 신호와 추가 확인 대상을 바로 분리' },
-        { label: '추적 환류', value: `${previewMetrics.approvedRecords}건`, desc: '승인 이력을 다음 달 교육자료·월별 자료로 연결' },
+        { label: '추적 환류', value: `${previewMetrics.approvedRecords}건`, desc: `승인 이력을 ${cycleCopy.nextCycleLabel} 교육자료·${cycleCopy.shortLabel} 자료로 연결` },
     ];
 
     const actualProgramScreens: Array<{ label: string; desc: string; stat: string; page: Page }> = [
@@ -753,8 +760,8 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         { label: '위험성평가 분석', desc: '수기 이미지와 PDF를 OCR로 읽고 관리자 검증까지 연결', stat: `확인 ${previewMetrics.qaValidationTargets}건`, page: 'ocr-analysis' },
         { label: '근로자 의견 분석', desc: '근로자 의견과 응답 경향을 위험 신호로 정리', stat: '의견 분석', page: 'survey-intelligence' },
         { label: '안전성과 분석', desc: '개선 이행률과 성과 추이를 현장별로 확인', stat: `승인 ${previewMetrics.approvedRecords}건`, page: 'performance-analysis' },
-        { label: '월별 계도 리포트', desc: '월별 위험 항목을 익명화해 계도자료로 정리', stat: '월별 분류', page: 'monthly-guidance-report' },
-        { label: '위험성평가 교육자료', desc: '월별 분석 결과를 원페이지 위험성평가 교육자료로 정리', stat: '교육자료', page: 'a4-education-material' },
+        { label: cycleCopy.reportLabel, desc: `${cycleCopy.shortLabel} 위험 항목을 익명화해 계도자료로 정리`, stat: `${cycleCopy.shortLabel} 분류`, page: 'monthly-guidance-report' },
+        { label: '위험성평가 교육자료', desc: `${cycleCopy.shortLabel} 분석 결과를 원페이지 위험성평가 교육자료로 정리`, stat: '교육자료', page: 'a4-education-material' },
         { label: '파일럿 QR/음성 안내', desc: '확정된 원페이지 교육자료를 보조 채널로 전달하는 시험 기능', stat: '파일럿', page: 'admin-training' },
         { label: '근로자 리포트', desc: '개인별 안전역량과 관리자 보호 해석을 리포트화', stat: `대상 ${previewMetrics.totalWorkers}명`, page: 'reports' },
         { label: '시스템 설정', desc: 'API, 가중치, 권한, 운영 기준을 현장에 맞게 조정', stat: '운영 설정', page: 'settings' },
@@ -763,7 +770,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
     const actualMobileTabs: Array<{ label: string; desc: string; page: Page }> = [
         { label: '홈', desc: '현장 안전 관제센터', page: 'dashboard' },
         { label: '위험분석', desc: 'OCR 분석과 확인', page: 'ocr-analysis' },
-        { label: '계도', desc: '월별 리포트', page: 'monthly-guidance-report' },
+        { label: '계도', desc: cycleCopy.reportLabel, page: 'monthly-guidance-report' },
         { label: '교육자료', desc: '원페이지 환류', page: 'a4-education-material' },
         { label: '더보기', desc: '설정과 리포트', page: 'settings' },
     ];
@@ -799,7 +806,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         {
             marker: 'stage-native-feedback',
             title: '4. 검증 결과 환류',
-            desc: '관리자 검증완료 기록은 보호 리포트, 다음 달 원페이지 교육자료, 월별 추적자료로 이어집니다.',
+            desc: `관리자 검증완료 기록은 보호 리포트, ${cycleCopy.nextCycleLabel} 원페이지 교육자료, ${cycleCopy.trackingLabel}로 이어집니다.`,
             page: 'education-return',
             tone: BRAND_TONE.emeraldWhite,
         },
@@ -936,7 +943,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
     };
 
     return (
-        <div className="space-y-12 pb-12">
+        <div className="psi-product-story space-y-12 pb-12">
             <div className="relative overflow-hidden rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-slate-100 p-4 shadow-xl sm:p-5 lg:p-6 card-gravity-target">
                 <div className="relative z-10 space-y-3.5 sm:space-y-4">
                     <div className="rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 sm:px-4.5 sm:py-3.5">
@@ -946,10 +953,10 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                     <BrandPhilosophyLogo className="h-8 w-8" />
                                 </div>
                                 <div className="max-w-3xl">
-                                    <p className="text-[10px] font-black text-indigo-500">PSI 브랜드 스토리 / 상품 소개</p>
-                                    <h1 className="mt-1 text-[24px] sm:text-[28px] leading-tight font-black text-slate-900 break-keep">종이 위험성평가 기록지를 현장 보호 데이터로 바꾼 이야기</h1>
+                                    <p className="text-[10px] font-black text-indigo-500">PSI · 현장 안전 운영 시스템</p>
+                                    <h1 className="mt-1 text-[24px] sm:text-[28px] leading-tight font-black text-slate-900 break-keep">기록지 한 장을 6대 지표와 다음 안전조치로.</h1>
                                     <p className="mt-2 text-[11px] sm:text-[12px] font-semibold leading-relaxed text-slate-600 break-keep">
-                                        PSI는 수기 기록지에 담긴 근로자의 위험 인식, 언어 장벽, 교육 필요 신호를 OCR 분석과 관리자 검증으로 구조화하고 개인 리포트와 추적 교육까지 연결하는 Human Risk Intelligence 플랫폼입니다.
+                                        PSI는 현장별 {cycleCopy.cadenceLabel}에 맞춰 {cycleCopy.recordLabel}를 수집·분석하고, 6대 지표로 위험신호를 추적해 조치와 교육을 {cycleCopy.nextCycleLabel}에 환류합니다.
                                     </p>
                                     <div className="mt-2 flex flex-wrap gap-1.5">
                                         {proofChips.map((chip) => (
@@ -993,12 +1000,13 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                     <section data-product-simple="hero" className={`rounded-3xl border p-4 shadow-sm ${BRAND_TONE.whiteSoft}`}>
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                             <div className="max-w-3xl">
-                                <div className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-[10px] font-black text-white">상품화 설명 화면</div>
-                                <h2 className="mt-2 text-[20px] font-black leading-tight text-slate-900 sm:text-[24px]">바이어에게 보여줄 한 장짜리 흐름</h2>
+                                <div className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-[10px] font-black text-white">PSI 운영 가치</div>
+                                <h2 className="mt-2 text-[20px] font-black leading-tight text-slate-900 sm:text-[24px]">기록에서 조치와 교육까지 이어지는 한 흐름</h2>
                                 <p className="mt-2 text-[11px] font-semibold leading-relaxed text-slate-600 sm:text-[12px] break-keep">
-                                    PSI는 기능을 많이 나열하기보다 기록지 한 장이 원본 증거, AI 분석, 관리자 검증, 공식 리포트, 다음 달 교육자료, 월별 추적자료로 바뀌는 장면을 먼저 보여줍니다.
+                                    {cycleCopy.recordLabel} 한 장이 원본 증거, AI 분석, 관리자 검증, 공식 리포트, {cycleCopy.nextCycleLabel} 교육자료와 {cycleCopy.trackingLabel}로 이어집니다.
                                 </p>
                             </div>
+                            {isDeveloperExperience && (
                             <button
                                 type="button"
                                 data-product-simple="detail-toggle"
@@ -1007,6 +1015,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                             >
                                 {showProductDepth ? '상세 증거 접기' : '상세 증거 펼치기'}
                             </button>
+                            )}
                         </div>
 
                         <div data-product-simple="three-step-flow" className="mt-4 grid grid-cols-1 gap-2 lg:grid-cols-3">
@@ -1040,7 +1049,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                         </div>
                     </section>
 
-                    {showProductDepth && (
+                    {isDeveloperExperience && showProductDepth && (
                     <div data-product-simple="developer-detail" className="grid grid-cols-1 gap-3 xl:grid-cols-[1.14fr_1fr]">
                         <section className="rounded-3xl border border-indigo-200 bg-white p-3.5 shadow-sm">
                             <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
@@ -1181,10 +1190,14 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                     <section data-one-point-proof="panel" className={`rounded-3xl border p-4 shadow-sm ${BRAND_TONE.slateWhite}`}>
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                             <div className="max-w-3xl">
-                                <div className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-[10px] font-black text-white">2분 원포인트 증명 모드</div>
+                                <div className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-[10px] font-black text-white">
+                                    {isDeveloperExperience ? '2분 원포인트 증명 모드' : '운영 흐름 빠른 체험'}
+                                </div>
                                 <h2 className="mt-2 text-[20px] font-black leading-tight text-slate-900 sm:text-[24px]">기록지 1장이 근로자 보호·교육·추적자료로 바뀌는 장면</h2>
                                 <p className="mt-2 text-[11px] font-semibold leading-relaxed text-slate-600 sm:text-[12px] break-keep">
-                                    공모전, 바이어 미팅, 내부 보고에서는 기능을 길게 설명하기보다 한 장의 수기 기록지가 OCR 분석, 관리자 검증, 보호 리포트, 다음 달 원페이지 교육자료, 월별 추적관리로 환류되는 흐름을 바로 보여주는 것이 핵심입니다.
+                                    {isDeveloperExperience
+                                        ? `공모전, 바이어 미팅, 내부 보고에서 ${cycleCopy.recordLabel}가 OCR 분석, 관리자 검증, 보호 리포트, ${cycleCopy.nextCycleLabel} 원페이지 교육자료, ${cycleCopy.trackingLabel}로 환류되는 흐름을 시연합니다.`
+                                        : `${cycleCopy.recordLabel}를 분석하고 관리자가 검증한 뒤, 보호 리포트와 ${cycleCopy.nextCycleLabel} 교육·조치 기준으로 환류되는 실제 운영 흐름을 확인합니다.`}
                                 </p>
                             </div>
                             <div className="grid grid-cols-3 gap-2 text-center">
@@ -1253,13 +1266,15 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
 
                         <div className={`mt-4 flex flex-col gap-2 rounded-2xl border px-3 py-3 sm:flex-row sm:items-center sm:justify-between ${BRAND_TONE.indigoSoft50}`}>
                             <p className="text-[11px] font-bold leading-relaxed text-slate-700 break-keep">
-                                발표 문장: “PSI는 OCR 결과를 보여주는 데서 끝나지 않고, 공종과 Q1 실제 위험작업을 분리해 관리자 검증 후 보호 리포트, 다음 달 원페이지 교육자료, 월별 추적관리로 환류합니다.”
+                                {isDeveloperExperience
+                                    ? `발표 문장: “PSI는 OCR 결과를 보여주는 데서 끝나지 않고, 공종과 Q1 실제 위험작업을 분리해 관리자 검증 후 보호 리포트, ${cycleCopy.nextCycleLabel} 원페이지 교육자료, ${cycleCopy.trackingLabel}로 환류합니다.”`
+                                    : `운영 기준: ${cycleCopy.scheduleDescription}`}
                             </p>
                             <div className="grid grid-cols-2 gap-1.5 text-[10px] font-black sm:min-w-[330px]">
                                 <button type="button" data-one-point-proof="action-ocr" onClick={() => handleOpenOnePointProofStage('stage-scan', 'ocr-analysis')} className="rounded-xl bg-indigo-600 px-2.5 py-2 text-white hover:bg-indigo-500">OCR 시연</button>
                                 <button type="button" data-one-point-proof="action-report" onClick={() => handleOpenOnePointProofStage('stage-native-feedback', 'education-return')} className={`rounded-xl border px-2.5 py-2 text-indigo-700 hover:bg-indigo-50 ${BRAND_TONE.indigoWhite}`}>검증 결과 환류</button>
                                 <button type="button" data-one-point-proof="action-education-material" onClick={() => handleOpenOnePointProofStage('stage-native-feedback', 'a4-education-material')} className={`rounded-xl border px-2.5 py-2 text-emerald-700 hover:bg-emerald-50 ${BRAND_TONE.emeraldWhite}`}>원페이지 교육자료</button>
-                                <button type="button" data-one-point-proof="action-tracking" onClick={() => handleOpenOnePointProofStage('stage-native-feedback', 'monthly-guidance-report')} className={`rounded-xl border px-2.5 py-2 text-slate-700 hover:bg-slate-50 ${BRAND_TONE.slateWhite}`}>월별 추적</button>
+                                <button type="button" data-one-point-proof="action-tracking" onClick={() => handleOpenOnePointProofStage('stage-native-feedback', 'monthly-guidance-report')} className={`rounded-xl border px-2.5 py-2 text-slate-700 hover:bg-slate-50 ${BRAND_TONE.slateWhite}`}>{cycleCopy.shortLabel} 추적</button>
                             </div>
                         </div>
                     </section>
@@ -1337,9 +1352,9 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                         <div>
                             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-indigo-600">PSI Origin Story</p>
                             <h2 className="mt-2 text-2xl font-black text-slate-900">종이 위험성평가 기록지를 현장 보호 데이터로 바꾼 이야기</h2>
-                            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">
-                                PSI는 현장을 더 감시하려고 시작한 프로그램이 아닙니다. 근로자가 직접 쓴 짧은 수기 기록 속에서 위험 이해 신호를 놓치지 않고,
-                                관리자가 검증한 판단이 공식 리포트와 다음 달 교육자료까지 이어지게 만들기 위해 시작했습니다.
+                             <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">
+                                 PSI는 현장을 더 감시하려고 시작한 프로그램이 아닙니다. 근로자가 직접 쓴 짧은 수기 기록 속에서 위험 이해 신호를 놓치지 않고,
+                                 관리자가 검증한 판단이 공식 리포트와 {cycleCopy.nextCycleLabel} 교육·조치까지 이어지게 만들기 위해 시작했습니다.
                             </p>
                         </div>
                         <button
@@ -1357,7 +1372,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                             ['2', 'AI 구조화', 'Q1~Q5 답변, 위험요인, 점수 근거, 6대 지표를 분리'],
                             ['3', '관리자 검증', '한국어 보호 해석과 점수 근거를 현장 판단으로 수정'],
                             ['4', '공식 리포트', '검증된 내용을 공유 가능한 기록과 보호 안내로 정리'],
-                            ['5', '추적 교육', '다음 달 원페이지 교육자료와 월별 추적관리로 환류'],
+                            ['5', '추적 교육', `${cycleCopy.nextCycleLabel} 원페이지 교육자료와 ${cycleCopy.trackingLabel}로 환류`],
                         ].map(([step, title, desc]) => (
                             <div key={step} className={`rounded-2xl border px-4 py-4 ${BRAND_TONE.slate}`}>
                                 <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-sm font-black text-white">{step}</div>
@@ -1370,13 +1385,13 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                     <div className={`mt-5 rounded-2xl border px-4 py-4 ${BRAND_TONE.emeraldSoft80}`}>
                         <p className="text-sm font-black text-emerald-900">상품 한 문장</p>
                         <p className="mt-1 text-sm font-bold leading-6 text-emerald-800">
-                            PSI는 수기 위험성평가 기록지를 OCR·AI로 5문항·6지표 구조화하고, 관리자 검증 리포트와 다음 달 원페이지 교육자료, 월별 추적관리로 환류하는 위험성평가 운영 솔루션입니다.
+                            PSI는 현장별 {cycleCopy.cadenceLabel}에 맞춰 {cycleCopy.recordLabel}를 수집·분석하고, 6대 지표로 위험신호를 추적해 조치와 교육을 {cycleCopy.nextCycleLabel}에 환류하는 현장 안전 운영 시스템입니다.
                         </p>
                     </div>
                 </section>
             </div>
 
-            {showProductDepth && (
+            {isDeveloperExperience && showProductDepth && (
                 <div data-product-simple="developer-detail-board" className="space-y-6">
             <div className="max-w-5xl mx-auto px-4 card-gravity-target">
                 <div className={`rounded-3xl border p-6 shadow-sm ${BRAND_TONE.violetSoft80}`}>
@@ -1504,6 +1519,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
             )}
 
             {/* System Trust & Patent Status */}
+            {isDeveloperExperience && (
             <div className="max-w-5xl mx-auto px-4 card-gravity-target">
                 <div className="bg-white rounded-3xl shadow-xl border border-slate-200 p-6 sm:p-8">
                     <div className="flex flex-wrap items-center gap-3 mb-5">
@@ -1549,6 +1565,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                     </dl>
                 </div>
             </div>
+            )}
 
             <div className="max-w-5xl mx-auto px-4 card-gravity-target">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1571,6 +1588,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
             </div>
 
             {/* Timeline Section - History */}
+            {isDeveloperExperience && (
             <div className="max-w-5xl mx-auto px-4 card-gravity-target">
                 <div className="text-center mb-12">
                     <h2 className="text-3xl font-bold text-slate-900 mb-3">PSI 탄생 배경</h2>
@@ -1677,6 +1695,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                     </div>
                 </div>
             </div>
+            )}
 
             {/* Philosophy & Values */}
             <div className="bg-slate-50 rounded-3xl p-12 card-gravity-target">
@@ -1737,6 +1756,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
             </div>
 
             {/* Latest Upgrade Snapshot */}
+            {isDeveloperExperience && (
             <div className="max-w-5xl mx-auto px-4 card-gravity-target">
                 <div className="bg-white rounded-3xl shadow-xl border border-slate-200 p-6 sm:p-8">
                     <div className="flex items-center gap-3 mb-4">
@@ -1778,6 +1798,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                     </div>
                 </div>
             </div>
+            )}
 
             {/* Service Message */}
             <div className="mt-20 bg-white rounded-3xl p-12 text-center shadow-xl border border-slate-100 relative overflow-hidden card-gravity-target">

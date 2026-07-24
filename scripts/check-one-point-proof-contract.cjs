@@ -29,7 +29,7 @@ const required = [
   ['pages/Introduction.tsx', intro, 'startOnePointProofStage'],
   ['pages/Introduction.tsx', intro, '공종과 Q1 실제 위험작업'],
   ['pages/Introduction.tsx', intro, '4. 검증 결과 환류'],
-  ['pages/Introduction.tsx', intro, '관리자 검증 후 보호 리포트, 다음 달 원페이지 교육자료, 월별 추적관리로 환류합니다'],
+  ['pages/Introduction.tsx', intro, '관리자 검증 후 보호 리포트, ${cycleCopy.nextCycleLabel} 원페이지 교육자료, ${cycleCopy.trackingLabel}로 환류합니다'],
   ['pages/Introduction.tsx', intro, 'data-one-point-proof="action-education-material"'],
   ['components/Layout.tsx', layout, 'data-one-point-proof-return="banner"'],
   ['components/Layout.tsx', layout, 'data-one-point-proof-return="action-return"'],

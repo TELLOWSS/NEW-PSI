@@ -1,4 +1,10 @@
 import type { Page } from '../types';
+import {
+    getAssessmentCycleCopy,
+    getCycleAwareRouteDescription,
+    getCycleAwareRouteLabel,
+    readAssessmentCycleFromStorage,
+} from '../utils/assessmentCycle';
 
 export type ProductGroup =
     | 'dashboard'
@@ -90,7 +96,7 @@ export const routeMetaMap: Record<Page, RouteMeta> = {
         practitionerLabel: '교육 환류',
         workerLabel: '교육 환류',
         developerLabel: 'Education Return Center',
-        description: '검증된 기록을 원페이지 교육자료, 개인 보호 리포트, 월별 계도·추적자료로 연결합니다.',
+        description: '검증된 기록을 원페이지 교육자료, 개인 보호 리포트, 운영 주기별 계도·추적자료로 연결합니다.',
         menuVisibleInPractitionerMode: true,
         menuVisibleInWorkerMode: false,
         menuVisibleInDeveloperMode: true,
@@ -171,16 +177,16 @@ export const routeMetaMap: Record<Page, RouteMeta> = {
     'monthly-guidance-report': createMeta({
         id: 'monthly-guidance-report',
         productGroup: 'reports',
-        practitionerLabel: '월별 계도 리포트',
-        workerLabel: '지난달 작성사항 계도자료',
+        practitionerLabel: '주기별 계도 리포트',
+        workerLabel: '이전 운영주기 작성사항 계도자료',
         developerLabel: 'Monthly Guidance Report',
-        description: '지난달 위험성평가 작성사항을 익명화·종합하여 교육 종료 전 공유합니다.',
+        description: '이전 운영주기 위험성평가 작성사항을 익명화·종합하여 다음 교육과 조치에 반영합니다.',
         menuVisibleInPractitionerMode: true,
         menuVisibleInWorkerMode: false,
         menuVisibleInDeveloperMode: true,
-        fallbackTitle: '월별 계도 리포트',
-        emptyStateMessage: '선택한 기준월의 분석자료가 없습니다.',
-        errorMessage: '월별 계도자료를 불러오지 못했습니다.',
+        fallbackTitle: '주기별 계도 리포트',
+        emptyStateMessage: '선택한 기준기간의 분석자료가 없습니다.',
+        errorMessage: '주기별 계도자료를 불러오지 못했습니다.',
     }),
     'reports': createMeta({
         id: 'reports',
@@ -188,7 +194,7 @@ export const routeMetaMap: Record<Page, RouteMeta> = {
         practitionerLabel: '근로자 리포트 (관리자 분석)',
         workerLabel: '관리자 분석 리포트',
         developerLabel: 'Reports',
-        description: '개인별 분석 결과를 관리자 관점에서 확인하고 월별 변화·개선이행을 추적합니다.',
+        description: '개인별 분석 결과를 관리자 관점에서 확인하고 운영 주기별 변화·개선이행을 추적합니다.',
         menuVisibleInPractitionerMode: true,
         menuVisibleInWorkerMode: false,
         menuVisibleInDeveloperMode: true,
@@ -213,14 +219,14 @@ export const routeMetaMap: Record<Page, RouteMeta> = {
     'introduction': createMeta({
         id: 'introduction',
         productGroup: 'dashboard',
-        practitionerLabel: 'PSI 브랜드 스토리 / 상품 소개',
+        practitionerLabel: 'PSI 브랜드 스토리 · 운영 가치',
         workerLabel: 'PSI 소개',
         developerLabel: 'PSI Brand Story',
         description: 'PSI가 왜 만들어졌고 어떤 보호 가치를 제공하는지 소개합니다.',
         menuVisibleInPractitionerMode: true,
         menuVisibleInWorkerMode: false,
         menuVisibleInDeveloperMode: true,
-        fallbackTitle: 'PSI 브랜드 스토리 / 상품 소개',
+        fallbackTitle: 'PSI 브랜드 스토리 · 운영 가치',
         emptyStateMessage: '표시할 소개 내용이 없습니다.',
         errorMessage: '소개 정보를 불러오지 못했습니다.',
     }),
@@ -230,7 +236,7 @@ export const routeMetaMap: Record<Page, RouteMeta> = {
         practitionerLabel: '개인별 작성 경향 분석',
         workerLabel: '관리자용 개인 분석',
         developerLabel: 'Individual Report',
-        description: '관리자가 개인별 작성 경향과 월별 개선 흐름을 확인합니다. 교육 현장에는 직접 공개하지 않습니다.',
+        description: '관리자가 개인별 작성 경향과 운영 주기별 개선 흐름을 확인합니다. 교육 현장에는 직접 공개하지 않습니다.',
         menuVisibleInPractitionerMode: false,
         menuVisibleInWorkerMode: false,
         menuVisibleInDeveloperMode: true,
@@ -255,7 +261,7 @@ export const routeMetaMap: Record<Page, RouteMeta> = {
         workerLabel: '교육자료 확인',
         developerLabel: 'Admin Training',
         description: '확정된 원페이지 교육자료를 보조 전달 채널로 시험 운영합니다.',
-        menuVisibleInPractitionerMode: true,
+        menuVisibleInPractitionerMode: false,
         menuVisibleInWorkerMode: false,
         menuVisibleInDeveloperMode: true,
         fallbackTitle: '위험성평가 교육자료 관리',
@@ -376,7 +382,26 @@ export const routeMetaMap: Record<Page, RouteMeta> = {
     }),
 };
 
-export const getRouteMeta = (page: Page): RouteMeta => routeMetaMap[page];
+export const getRouteMeta = (page: Page): RouteMeta => {
+    const meta = routeMetaMap[page];
+    const copy = getAssessmentCycleCopy(readAssessmentCycleFromStorage());
+
+    return {
+        ...meta,
+        practitionerLabel: getCycleAwareRouteLabel(page, meta.practitionerLabel, copy),
+        workerLabel: page === 'monthly-guidance-report'
+            ? `${copy.previousCycleLabel} 작성사항 계도자료`
+            : meta.workerLabel,
+        description: getCycleAwareRouteDescription(page, meta.description, copy),
+        fallbackTitle: page === 'monthly-guidance-report' ? copy.reportLabel : meta.fallbackTitle,
+        emptyStateMessage: page === 'monthly-guidance-report'
+            ? `선택한 ${copy.basisLabel}의 분석자료가 없습니다.`
+            : meta.emptyStateMessage,
+        errorMessage: page === 'monthly-guidance-report'
+            ? `${copy.reportLabel}를 불러오지 못했습니다.`
+            : meta.errorMessage,
+    };
+};
 
 export const getRouteLabel = (page: Page, mode: UiAudienceMode): string => {
     const meta = getRouteMeta(page);

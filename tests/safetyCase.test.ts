@@ -28,6 +28,7 @@ describe('safety case closed loop', () => {
         expect(buildSafetyCaseId(plan)).toBe(buildSafetyCaseId({ ...plan }));
         expect(buildSafetyCaseId(plan)).toMatch(/^PSI-CASE-/);
         expect(resolveSafetyCaseDueAt(plan.dueLabel)).toContain('2026-07-14');
+        expect(resolveSafetyCaseDueAt('다음 주 · 2026-07-24')).toContain('2026-07-24');
     });
 
     it('advances in order from detection to reassessment', () => {

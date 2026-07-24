@@ -11,6 +11,7 @@ import { BRAND_TONE } from '../utils/brandToneTokens';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
 import { buildMonthlyTrendDashboards } from '../utils/reportBuilders';
 import { useUiAudienceMode } from '../hooks/useUiAudienceMode';
+import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
 import type { UiAudienceMode } from '../config/routeMeta';
 import {
     buildMonthlyCoreMetricSeries,
@@ -18,6 +19,7 @@ import {
     selectLatestCoreMetricRecords,
 } from '../utils/coreMetrics';
 import { SAFETY_SIGNAL_COPY } from '../utils/safetyLevelUtils';
+import { groupRecordsByAssessmentPeriod } from '../utils/assessmentCycle';
 
 interface PerformanceAnalysisProps {
     workerRecords: WorkerRecord[];
@@ -198,6 +200,7 @@ const calculateStandardDeviation = (scores: number[]) => {
 
 const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords }) => {
     const uiAudienceMode = useUiAudienceMode();
+    const { cycle: assessmentCycle, copy: assessmentCycleCopy } = useAssessmentCycle();
     const [timeRange, setTimeRange] = useState<PerformanceTimeRange>('최근 6개월');
     const [compareMode, setCompareMode] = useState<'field' | 'team'>('field'); // New state for Radar Chart
     const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
@@ -294,15 +297,55 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
         return filterPerformanceRecordsByTimeRange(nonManagementRecords, timeRange);
     }, [timeRange, workerRecords]);
     const harnessSummary = useMemo(() => summarizeHarnessRecords(filteredBaseRecords), [filteredBaseRecords]);
-    const monthlyTrendDashboards = useMemo(() => buildMonthlyTrendDashboards(filteredBaseRecords), [filteredBaseRecords]);
-    const monthlyMetricSeries = useMemo(() => buildMonthlyCoreMetricSeries(filteredBaseRecords), [filteredBaseRecords]);
-    const latestMonthlyTrend = monthlyTrendDashboards[monthlyTrendDashboards.length - 1];
+    const cycleTrendDashboards = useMemo(() => {
+        if (assessmentCycle.cadence === 'monthly' && assessmentCycle.monthlyDueDay === 1) {
+            return buildMonthlyTrendDashboards(filteredBaseRecords);
+        }
+
+        return Array.from(groupRecordsByAssessmentPeriod<WorkerRecord>(filteredBaseRecords, assessmentCycle).values())
+            .sort((left, right) => left.period.startDate.localeCompare(right.period.startDate))
+            .map(({ period, records }) => {
+                const metrics = calculateCoreMetricSnapshot(records);
+                const risks = new Map<string, number>();
+                records.forEach((record) => {
+                    (record.weakAreas || []).forEach((risk) => {
+                        risks.set(risk, (risks.get(risk) || 0) + 1);
+                    });
+                });
+
+                return {
+                    month: period.label,
+                    averageScore: metrics.averageScore,
+                    improvementExecutionRate: metrics.improvementExecutionRate,
+                    repeatedIssueCount: records.filter((record) => (
+                        Math.abs(Number(record.scoreBreakdown?.repeatViolationPenalty || 0)) > 0
+                    )).length,
+                    nextEducationFocus: Array.from(risks.entries())
+                        .sort((left, right) => right[1] - left[1])
+                        .slice(0, 3)
+                        .map(([risk]) => risk),
+                };
+            });
+    }, [assessmentCycle, filteredBaseRecords]);
+    const cycleMetricSeries = useMemo(() => {
+        if (assessmentCycle.cadence === 'monthly' && assessmentCycle.monthlyDueDay === 1) {
+            return buildMonthlyCoreMetricSeries(filteredBaseRecords);
+        }
+
+        return Array.from(groupRecordsByAssessmentPeriod<WorkerRecord>(filteredBaseRecords, assessmentCycle).values())
+            .sort((left, right) => left.period.startDate.localeCompare(right.period.startDate))
+            .map(({ period, records }) => ({
+                month: period.label,
+                ...calculateCoreMetricSnapshot(records),
+            }));
+    }, [assessmentCycle, filteredBaseRecords]);
+    const latestCycleTrend = cycleTrendDashboards[cycleTrendDashboards.length - 1];
 
     const kpiData = useMemo(() => {
         if (filteredBaseRecords.length === 0) return null;
         
-        const currentAvg = monthlyMetricSeries[monthlyMetricSeries.length - 1]?.averageScore || 0;
-        const prevAvg = monthlyMetricSeries[monthlyMetricSeries.length - 2]?.averageScore || 0;
+        const currentAvg = cycleMetricSeries[cycleMetricSeries.length - 1]?.averageScore || 0;
+        const prevAvg = cycleMetricSeries[cycleMetricSeries.length - 2]?.averageScore || 0;
         const trend = currentAvg - prevAvg;
 
         const allScores = selectLatestCoreMetricRecords(filteredBaseRecords)
@@ -322,7 +365,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
             .sort((a, b) => b.avg - a.avg)[0];
 
         return { currentAvg, trend, volatility, topField };
-    }, [filteredBaseRecords, monthlyMetricSeries]);
+    }, [cycleMetricSeries, filteredBaseRecords]);
 
     const matrixData = useMemo(() => {
         const fields = Array.from(new Set(filteredBaseRecords.map(r => r.jobField || '미분류'))).sort();
@@ -590,9 +633,9 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
 
             {uiAudienceMode !== 'worker' && (
                 <section className="rounded-2xl border border-blue-200 bg-blue-50/70 p-5 shadow-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-black text-blue-700">월별 개선 추적</p><h3 className="mt-1 text-lg font-black text-slate-900">월별 개선 추적 요약</h3></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700">{latestMonthlyTrend?.month || '분석 대기'}</span></div>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">월 평균 위험인식 신호</p><p className="mt-1 text-2xl font-black">{latestMonthlyTrend?.averageScore ?? 0}</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">개선이행률</p><p className="mt-1 text-2xl font-black text-emerald-700">{latestMonthlyTrend?.improvementExecutionRate ?? 0}%</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">반복지적 건수</p><p className="mt-1 text-2xl font-black text-orange-700">{latestMonthlyTrend?.repeatedIssueCount ?? 0}건</p></div></div>
-                    <p className="mt-3 text-sm font-bold text-slate-600">다음 교육 반영: {latestMonthlyTrend?.nextEducationFocus.join(' · ') || '월별 분석 데이터가 쌓이면 자동 제안됩니다.'}</p>
+                    <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-black text-blue-700">{assessmentCycleCopy.shortLabel} 개선 추적</p><h3 className="mt-1 text-lg font-black text-slate-900">{assessmentCycleCopy.shortLabel} 개선 추적 요약</h3></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700">{latestCycleTrend?.month || '분석 대기'}</span></div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">{assessmentCycleCopy.shortLabel} 평균 위험인식 신호</p><p className="mt-1 text-2xl font-black">{latestCycleTrend?.averageScore ?? 0}</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">개선이행률</p><p className="mt-1 text-2xl font-black text-emerald-700">{latestCycleTrend?.improvementExecutionRate ?? 0}%</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">반복지적 건수</p><p className="mt-1 text-2xl font-black text-orange-700">{latestCycleTrend?.repeatedIssueCount ?? 0}건</p></div></div>
+                    <p className="mt-3 text-sm font-bold text-slate-600">{assessmentCycleCopy.nextCycleLabel} 교육 반영: {latestCycleTrend?.nextEducationFocus.join(' · ') || `${assessmentCycleCopy.shortLabel} 분석 데이터가 쌓이면 자동 제안됩니다.`}</p>
                 </section>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -603,7 +646,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                         </div>
                         {kpiData && (
                             <span className={`px-2 py-1 text-xs font-bold rounded-full ${kpiData.trend >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                {kpiData.trend >= 0 ? '+' : ''}{kpiData.trend.toFixed(1)} vs 지난달
+                                {kpiData.trend >= 0 ? '+' : ''}{kpiData.trend.toFixed(1)} vs {assessmentCycleCopy.previousCycleLabel}
                             </span>
                         )}
                     </div>
@@ -671,7 +714,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                         <div className="flex items-center justify-between mb-6">
                             <div>
                                 <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 지원단계 분포 변화 ({timeRange})</h3>
-                                <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">월별 근로자 지원단계 구성 비율의 변화를 추적합니다.</p>
+                                <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">달력 월별 근로자 지원단계 구성 비율의 변화를 추적합니다.</p>
                             </div>
                         </div>
                         <div className="h-80 w-full">
@@ -762,7 +805,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                     <div className="overflow-x-auto">
                         <div className="min-w-[600px]">
                             <div className="grid grid-flow-col auto-cols-fr gap-2 mb-2">
-                                <div className="w-32 font-bold text-xs text-slate-400 uppercase tracking-wider text-left py-2">공종 \ 월</div>
+                                <div className="w-32 font-bold text-xs text-slate-400 uppercase tracking-wider text-left py-2">공종 \ 달력 월</div>
                                 {matrixData.months.map(m => (
                                     <div key={m} className="font-bold text-sm text-slate-600 dark:text-slate-200 text-center py-2 bg-slate-50 dark:bg-slate-900 rounded-lg">{m.substring(5)}월</div>
                                 ))}
@@ -823,7 +866,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                     <div className="mb-6 flex justify-between items-center">
                         <div>
                             <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 지원단계 분포 변화 ({timeRange})</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">월별 근로자 지원단계 구성 비율의 변화를 추적합니다. 추가 확인 구간 감소가 목표입니다.</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">달력 월별 근로자 지원단계 구성 비율의 변화를 추적합니다. 추가 확인 구간 감소가 목표입니다.</p>
                         </div>
                         <div className="flex gap-3 text-xs font-bold">
                             <span className="flex items-center gap-1"><div className="w-3 h-3 bg-emerald-500 rounded-sm"></div>안정</span>

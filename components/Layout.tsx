@@ -51,6 +51,8 @@ import {
     shouldShowPageHeader,
     type UiAudienceMode,
 } from '../config/routeMeta';
+import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
+import { getCycleAwareRouteDescription, getCycleAwareRouteLabel } from '../utils/assessmentCycle';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -99,6 +101,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const operatorMenuRef = useRef<HTMLDetailsElement>(null);
     const { isDevMode, toggle: toggleDevMode } = useDevMode();
     const { mode: operationalMode, cycleMode: cycleOperationalMode } = useOperationalMode();
+    const { copy: assessmentCycleCopy } = useAssessmentCycle();
     const [userRolePreset, setUserRolePreset] = useState<UserRolePreset>(() => getUserRolePreset());
     const [devDiagnosticsHiddenToggleEnabled, setDevDiagnosticsHiddenToggleEnabled] = useState<boolean>(() => isDevDiagnosticsHiddenToggleEnabled());
     const [uiCompositionConfig, setUiCompositionConfig] = useState<UiCompositionConfig>(() => loadUiCompositionConfig());
@@ -116,13 +119,23 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         isLocalDevelopment: isLocalDevelopmentEnvironment(),
     });
     const uiAudienceMode: UiAudienceMode =
-        diagnosticsAvailable && operationalMode === 'developer'
+        diagnosticsAvailable && isDevMode && operationalMode === 'developer'
             ? 'developer'
             : 'practitioner';
     const showDiagnosticsControls = diagnosticsAvailable && currentPage === 'settings';
     const isSettingsPage = currentPage === 'settings';
     const currentRouteMeta = getRouteMeta(currentPage);
-    const currentPageTitle = getRouteLabel(currentPage, uiAudienceMode);
+    const resolvePageLabel = (page: Page) => getCycleAwareRouteLabel(
+        page,
+        getRouteLabel(page, uiAudienceMode),
+        assessmentCycleCopy,
+    );
+    const currentPageTitle = resolvePageLabel(currentPage);
+    const currentPageDescription = getCycleAwareRouteDescription(
+        currentPage,
+        currentRouteMeta.description,
+        assessmentCycleCopy,
+    );
     const currentProductGroupLabel = getProductGroupLabel(currentRouteMeta.productGroup);
     const showCommonPageHeader = shouldShowPageHeader(currentPage);
     const siteTitle = resolveSiteTitle();
@@ -418,6 +431,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                     compositionConfig={uiCompositionConfig}
                     compositionEditMode={isCompositionEditMode}
                     onCompositionConfigChange={handleCompositionConfigChange}
+                    getPageLabel={resolvePageLabel}
                 />
             }
             mobileSidebarOverlay={
@@ -436,6 +450,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                 compositionConfig={uiCompositionConfig}
                                 compositionEditMode={isCompositionEditMode}
                                 onCompositionConfigChange={handleCompositionConfigChange}
+                                getPageLabel={resolvePageLabel}
                             />
                         </div>
                     </div>
@@ -524,7 +539,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                         >
                                             <span>
                                                 <span className="block">PSI 브랜드 스토리</span>
-                                                <span className="mt-0.5 block text-[10px] font-semibold text-slate-500 dark:text-slate-400">상품 소개</span>
+                                                <span className="mt-0.5 block text-[10px] font-semibold text-slate-500 dark:text-slate-400">가치와 운영 원리</span>
                                             </span>
                                             <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-950 text-[10px] font-bold text-white dark:bg-blue-500">PSI</span>
                                     </button>
@@ -603,7 +618,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                             show={showCommonPageHeader}
                             groupLabel={currentProductGroupLabel}
                             title={currentPageTitle}
-                            description={currentRouteMeta.description}
+                            description={currentPageDescription}
                         />
                         {children}
                     </div>

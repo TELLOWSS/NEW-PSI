@@ -55,7 +55,7 @@ export const PSI_FORM_QUESTIONS: PsiFormQuestionDefinition[] = [
         title: '5. 작업 전 다짐 및 점검',
         subtitle: '작업 시작 전 안전대책의 이행을 약속하며 안전 준수 행동을 적습니다.',
         workerIntent: '내가 실제로 지킬 행동을 작업 시작 전 기준으로 적는다.',
-        analysisRole: 'Q4 대책을 개인 행동으로 바꾸었는지 확인하고 다음 달 추적 기준으로 남긴다.',
+        analysisRole: 'Q4 대책을 개인 행동으로 바꾸었는지 확인하고 다음 운영 주기 추적 기준으로 남긴다.',
         scoringMetrics: ['improvementExecution'],
     },
 ];
@@ -152,5 +152,5 @@ export const PSI_FORM_MASTER_PROMPT_BLOCK = [
     `- 위험유형 표준분류: ${PSI_RISK_TYPE_CATALOG.map((risk) => risk.label).join(', ')}`,
     `- 감소대책 우선순서: ${PSI_CONTROL_ORDER.join(' → ')}`,
     '- Q4 대책은 Q2 위험요인과 연결되어야 하며, Q5는 Q4를 개인 실천행동으로 바꾼 문장이어야 한다.',
-    '- 반복위반 패널티는 이번 한 장의 기록지 문구 반복이 아니라 다음 달 추적에서 동일 위험 재발·약속 미이행이 확인될 때만 적용한다.',
+    '- 반복위반 패널티는 이번 한 장의 기록지 문구 반복이 아니라 다음 운영 주기 추적에서 동일 위험 재발·약속 미이행이 확인될 때만 적용한다.',
 ].join('\n');

@@ -172,12 +172,29 @@ describe('TBM education studio', () => {
 
         expect(sourceText).toContain('1. 교육 전 5분 핵심 동영상');
         expect(sourceText).toContain('2. 최근 재해사례와 현장 연관성');
-        expect(sourceText).toContain('3. 위험성평가 상등급 공유');
+        expect(sourceText).toContain('3. 다음 달 위험성평가 상등급 공유');
         expect(sourceText).toContain('4. 현장 중점관리 포인트');
         expect(sourceText).toContain('5. 공지사항');
         expect(sourceText).toContain('추락');
         expect(sourceText).toContain('이해 확인 및 행동 약속');
         expect(getFiveMinuteVideoDuration(draft)).toBe(300);
+    });
+
+    it('uses the configured operating-cycle label in education copy', () => {
+        const draft = buildTbmEducationDraft({
+            workerRecords: [workerRecord()],
+            sources: [],
+            month: '2026-07',
+            workType: '철골',
+            targetCycleLabel: '다음 주',
+            targetPeriodLabel: '7. 6.~7. 12.',
+        });
+        const sourceText = buildMonthlyEducationPackageText(draft);
+
+        expect(draft.title).toContain('7. 6.~7. 12.');
+        expect(draft.opening).toContain('다음 주 예정 작업');
+        expect(sourceText).toContain('3. 다음 주 위험성평가 상등급 공유');
+        expect(sourceText).not.toContain('다음달 위험성평가 회의자료');
     });
 
     it('estimates source tokens conservatively', () => {

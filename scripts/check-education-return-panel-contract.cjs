@@ -38,7 +38,8 @@ const required = [
   ['pages/EducationReturn.tsx', files.page, '교육한다'],
   ['pages/EducationReturn.tsx', files.page, '원페이지 교육자료'],
   ['pages/EducationReturn.tsx', files.page, '개인 보호 리포트'],
-  ['pages/EducationReturn.tsx', files.page, '월별 계도·추적자료'],
+  ['pages/EducationReturn.tsx', files.page, 'cycleCopy.trackingLabel'],
+  ['pages/EducationReturn.tsx', files.page, 'secondary={isDeveloperExperience'],
   ['pages/EducationReturn.tsx', files.page, 'data-education-return="tracking-preview"'],
   ['pages/EducationReturn.tsx', files.page, 'psi-display-title'],
   ['pages/EducationReturn.tsx', files.page, 'psi-data-value'],
@@ -59,7 +60,7 @@ const required = [
   ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, 'psi-body-compact'],
   ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, '팀별'],
   ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, '공종별'],
-  ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, 'buildMonthlyCoreMetricSeries'],
+  ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, 'groupRecordsByAssessmentPeriod(workerRecords, cycle)'],
   ['pages/MonthlyGuidanceReport.tsx', files.monthlyGuidance, '실명·개인별 수치 제거 완료'],
   ['utils/educationReturnSummary.ts', files.summary, 'buildEducationReturnSummary'],
   ['styles.css', files.styles, '.psi-display-title'],
@@ -89,6 +90,12 @@ for (const marker of forbiddenPageMarkers) {
   }
 }
 
+const developerSecondaryIndex = files.page.indexOf('secondary={isDeveloperExperience');
+const qrVoiceIndex = files.page.indexOf('다음 단계: QR·음성 배포');
+if (developerSecondaryIndex < 0 || qrVoiceIndex < developerSecondaryIndex) {
+  failures.push('pages/EducationReturn.tsx: QR/voice pilot action must remain behind the developer experience gate');
+}
+
 const checkScript = files.packageJson.scripts?.['check:education-return-panel'] || '';
 const verifyFast = files.packageJson.scripts?.['verify:fast'] || '';
 
@@ -107,4 +114,4 @@ if (failures.length > 0) {
 }
 
 console.log('[check-education-return-panel-contract] PASS');
-console.log('- Education return center keeps the simple scan-review-educate flow, three output cards, monthly tracking chart analysis, and group radar analysis.');
+console.log('- Education return center keeps the simple scan-review-educate flow and cadence-aware tracking; QR/voice pilot actions remain developer-only.');

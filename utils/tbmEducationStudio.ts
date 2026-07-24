@@ -265,6 +265,7 @@ const getNextMonth = (): string => {
 export const buildFieldRecordSource = (
     workerRecords: WorkerRecord[],
     workType: string,
+    targetCycleLabel = '다음 달',
 ): TbmEvidenceSource | null => {
     const targetRecords = workType === '전체 공종'
         ? workerRecords
@@ -274,8 +275,8 @@ export const buildFieldRecordSource = (
     const focusLines = collectFieldRecordFocusPoints(targetRecords);
     const lines = [
         '[현장중점관리 참고]',
-        '근로자 위험성평가 기록은 다음 달 교육의 중점관리 포인트로만 사용합니다.',
-        '상등급 공유 항목은 다음달 위험성평가 회의자료(PPT/PDF/문서)에 명시된 상등급에서만 추출합니다.',
+        `근로자 위험성평가 기록은 ${targetCycleLabel} 교육의 중점관리 포인트로만 사용합니다.`,
+        `상등급 공유 항목은 ${targetCycleLabel} 위험성평가 회의자료(PPT/PDF/문서)에 명시된 상등급에서만 추출합니다.`,
         ...(focusLines.length ? focusLines : ['반복 위험 또는 개선 요청이 확인되면 여기에 중점관리 포인트로 정리합니다.']),
     ];
 
@@ -294,9 +295,13 @@ export const buildTbmEducationDraft = (options: {
     month?: string;
     workType?: string;
     coreMessage?: string;
+    targetCycleLabel?: string;
+    targetPeriodLabel?: string;
 }): TbmEducationDraft => {
     const month = options.month || getNextMonth();
     const workType = options.workType || '전체 공종';
+    const targetCycleLabel = normalize(options.targetCycleLabel) || '다음 달';
+    const targetPeriodLabel = normalize(options.targetPeriodLabel);
     const targetRecords = workType === '전체 공종'
         ? options.workerRecords
         : options.workerRecords.filter((record) => record.jobField === workType);
@@ -373,7 +378,7 @@ export const buildTbmEducationDraft = (options: {
         lesson: risks[0]?.action || '작업 전 위험요인과 안전조치를 확인합니다.',
     }];
     const notices = [
-        '다음 달 작업 일정과 작업구역 변경사항을 교육 전에 최종 확인합니다.',
+        `${targetCycleLabel} 작업 일정과 작업구역 변경사항을 교육 전에 최종 확인합니다.`,
         '기상, 공정, 인원 또는 장비 조건이 바뀌면 작업을 멈추고 위험성평가를 다시 확인합니다.',
     ];
     const videoScenes: TbmVideoScene[] = [
@@ -381,7 +386,7 @@ export const buildTbmEducationDraft = (options: {
             id: 'video-opening',
             seconds: 30,
             title: '교육 목적과 핵심 한 문장',
-            narration: `다음 달 ${workType} 작업의 핵심 위험과 안전조치를 5분 안에 확인합니다. ${coreMessage}`,
+            narration: `${targetCycleLabel} ${workType} 작업의 핵심 위험과 안전조치를 5분 안에 확인합니다. ${coreMessage}`,
             visualGuide: '교육 제목, 대상 공종, 핵심 전달 문구를 큰 글자로 표시',
         },
         {
@@ -394,10 +399,10 @@ export const buildTbmEducationDraft = (options: {
         {
             id: 'video-high-risk',
             seconds: 80,
-            title: '다음 달 상등급 위험 공유',
+            title: `${targetCycleLabel} 상등급 위험 공유`,
             narration: risks.length
                 ? risks.map((item) => `${item.risk} 위험의 핵심 조치는 ${item.action}`).join(' ')
-                : '이번 자료에는 다음달 위험성평가 회의자료에서 상등급으로 지정된 공유 위험이 없습니다. 일반 추천 위험은 넣지 않고 현장 중점관리 포인트에서 다룹니다.',
+                : `이번 자료에는 ${targetCycleLabel} 위험성평가 회의자료에서 상등급으로 지정된 공유 위험이 없습니다. 일반 추천 위험은 넣지 않고 현장 중점관리 포인트에서 다룹니다.`,
             visualGuide: '회의자료 PPT/PDF에서 상등급으로 지정된 공유 대상만 표시하고, 없으면 “회의자료 상등급 항목 없음”으로 표시',
         },
         {
@@ -429,10 +434,10 @@ export const buildTbmEducationDraft = (options: {
         title: (() => {
             const parts = month.split('-');
             const displayMonth = parts.length === 2 ? `${parts[0]}년 ${parseInt(parts[1], 10)}월` : month;
-            return `${displayMonth} ${workType} 위험성평가 교육자료`;
+            return `${targetPeriodLabel || displayMonth} ${workType} 위험성평가 교육자료`;
         })(),
         coreMessage,
-        opening: '이번 교육은 다음 달 예정 작업의 위험요인과 안전조치를 작업 전에 함께 확인하기 위한 자료입니다.',
+        opening: `이번 교육은 ${targetCycleLabel} 예정 작업의 위험요인과 안전조치를 작업 전에 함께 확인하기 위한 자료입니다.`,
         risks,
         videoScenes,
         accidentCases,
@@ -483,6 +488,9 @@ export const buildMonthlyEducationPackageText = (draft: TbmEducationDraft): stri
     const accident = draft.accidentCases[0];
     const risksToShare = getHighGradeRiskShareItems(draft.risks);
     const accidentMeta = [accident?.occurredAt, accident?.source].filter(Boolean).join(' · ') || '출처와 발생일 확인 필요';
+    const highRiskStageTitle = draft.videoScenes.find((scene) => scene.id === 'video-high-risk')?.title
+        || '다음 달 상등급 위험 공유';
+    const targetCycleLabel = highRiskStageTitle.replace(/\s*상등급 위험 공유$/, '').trim() || '다음 달';
 
     return [
         `[${draft.title}]`,
@@ -506,10 +514,10 @@ export const buildMonthlyEducationPackageText = (draft: TbmEducationDraft): stri
             ]
             : ['- 관리자 검수에서 부적합한 재해사례를 제외했습니다. 현장 기록 기반 위험공유로 대체합니다.']),
         '',
-        '3. 위험성평가 상등급 공유',
+        `3. ${targetCycleLabel} 위험성평가 상등급 공유`,
         ...(risksToShare.length
             ? risksToShare.map((risk) => `- ${risk.risk}: ${risk.action} / 담당 ${risk.owner} / ${risk.managerConfirmed ? '관리자 확인 완료' : '상등급 최종 확인 필요'}`)
-            : ['- 다음달 위험성평가 회의자료(PPT/PDF/문서)에서 상등급으로 지정된 공유 항목이 없습니다. 일반 추천 위험은 이 영역에 넣지 않습니다.']),
+            : [`- ${targetCycleLabel} 위험성평가 회의자료(PPT/PDF/문서)에서 상등급으로 지정된 공유 항목이 없습니다. 일반 추천 위험은 이 영역에 넣지 않습니다.`]),
         '',
         '4. 현장 중점관리 포인트',
         ...(draft.focusPoints.length
