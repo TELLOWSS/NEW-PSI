@@ -1,10 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ExternalAiHandoffPanel } from '../components/tbm/ExternalAiHandoffPanel';
 import { CountryFlag } from '../components/shared/CountryFlag';
+import A4SafetyPoster from '../components/tbm/A4SafetyPoster';
 import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
+import { getA4LanguagePolicy } from '../utils/a4LanguagePolicy';
 import { TRAINING_LANGUAGE_LABELS } from '../utils/constructionTrainingTranslation';
+import {
+    normalizeEducationPosterTranslationMap,
+    type EducationPosterTranslation,
+    type EducationPosterTranslationMap,
+} from '../utils/educationPosterTranslation';
 import type { WorkerRecord } from '../types';
 import { ensureHtml2Canvas, ensureJsPdfConstructor } from '../utils/externalScripts';
 import { buildPsiExportFileName } from '../utils/exportFileNaming';
@@ -66,6 +74,7 @@ interface StoredStudioState {
     sources: TbmEvidenceSource[];
     draft: TbmEducationDraft;
     translatedTexts?: Record<string, string>;
+    structuredTranslations?: EducationPosterTranslationMap;
     translationSourceText?: string;
     savedAt?: string;
 }
@@ -98,6 +107,7 @@ const normalizeStoredStudioState = (value: unknown): StoredStudioState | null =>
             workType,
         },
         translatedTexts: isRecord(value.translatedTexts) ? value.translatedTexts as Record<string, string> : {},
+        structuredTranslations: normalizeEducationPosterTranslationMap(value.structuredTranslations),
         translationSourceText: typeof value.translationSourceText === 'string' ? value.translationSourceText : '',
         savedAt: typeof value.savedAt === 'string' ? value.savedAt : undefined,
     };
@@ -189,6 +199,7 @@ const createFreshStudioState = (
         targetPeriodLabel,
     }),
     translatedTexts: {},
+    structuredTranslations: {},
     translationSourceText: '',
 });
 
@@ -660,7 +671,85 @@ const parseTbmTranslation = (text: string): ParsedTbmTranslation => {
     };
 };
 
-type A4FitMode = 'balanced' | 'compact' | 'dense';
+const buildLegacyPosterTranslation = (text: string): EducationPosterTranslation | undefined => {
+    if (!text.trim()) return undefined;
+    const parsed = parseTbmTranslation(text);
+    const lines = (value: string) => value
+        .split('\n')
+        .map((line) => line.replace(/^[•\-–—·*]\s*/, '').trim())
+        .filter(Boolean);
+    const accidentLines = lines(parsed.accidentText);
+    const pledgeLines = lines(parsed.pledgeText);
+    const questions = pledgeLines.filter((line) => /[?？؟]$/.test(line) || /^q\d*/i.test(line));
+    const commitmentLines = pledgeLines.filter((line) => !questions.includes(line));
+
+    return {
+        workType: '',
+        title: parsed.title,
+        opening: parsed.opening,
+        coreMessage: '',
+        video: lines(parsed.videoText).map((narration) => ({ title: '', narration, visualGuide: '' })),
+        accident: accidentLines.length > 0 ? [{
+            title: accidentLines[0] || '',
+            occurredAt: '',
+            source: '',
+            summary: accidentLines.slice(1).join(' '),
+            siteRelevance: '',
+            lesson: '',
+        }] : [],
+        risks: lines(parsed.risksText).map((risk) => ({ risk, action: '', owner: '' })),
+        focus: lines(parsed.focusText),
+        notices: lines(parsed.noticesText),
+        questions,
+        closingCommitment: commitmentLines.join(' '),
+    };
+};
+
+const hasA4Overflow = (page: Element): boolean => {
+    const clippedTextCandidates = Array.from(page.querySelectorAll('*')).filter((candidate) => {
+        if (!(candidate instanceof HTMLElement)) return false;
+        return Boolean(candidate.style.webkitLineClamp)
+            || candidate.style.textOverflow === 'ellipsis';
+    });
+    const clippedTextSet = new Set(clippedTextCandidates);
+    const isUrduPage = (page.getAttribute('lang') || page.closest('[lang]')?.getAttribute('lang') || '')
+        .toLowerCase()
+        .startsWith('ur');
+    const candidates = [
+        page,
+        ...Array.from(page.querySelectorAll('[data-overflow-check="true"]')),
+        ...clippedTextCandidates,
+    ];
+    return candidates.some((candidate) => {
+        if (!(candidate instanceof HTMLElement)) return false;
+        // Webfont glyphs can extend a few pixels beyond their CSS line box
+        // without adding another rendered line. Keep page/card overflow
+        // strict, and allow only that ink overhang on clamped text.
+        const verticalTolerance = clippedTextSet.has(candidate)
+            ? (isUrduPage ? 9 : 6)
+            : 2;
+        return candidate.scrollHeight > candidate.clientHeight + verticalTolerance
+            || candidate.scrollWidth > candidate.clientWidth + 2;
+    });
+};
+
+const waitForA4Fonts = (timeoutMs = 4_000): Promise<void> => {
+    if (!document.fonts?.ready) return Promise.resolve();
+
+    return new Promise((resolve) => {
+        let settled = false;
+        const finish = () => {
+            if (settled) return;
+            settled = true;
+            window.clearTimeout(timer);
+            resolve();
+        };
+        const timer = window.setTimeout(finish, timeoutMs);
+        void document.fonts.ready.then(finish, finish);
+    });
+};
+
+type A4FitMode = 'spacious' | 'balanced' | 'compact' | 'dense';
 
 interface A4FitLimits {
     title: number;
@@ -722,6 +811,27 @@ interface A4TranslationPrintContent {
 }
 
 const A4_FIT_LIMITS: Record<A4FitMode, A4FitLimits> = {
+    spacious: {
+        title: 86,
+        opening: 210,
+        coreMessage: 170,
+        videoSummary: 190,
+        accidentTitle: 72,
+        accidentBody: 220,
+        riskName: 42,
+        riskAction: 160,
+        focus: 140,
+        notice: 130,
+        question: 110,
+        commitment: 170,
+        translationLine: 150,
+        videoLines: 3,
+        accidentLines: 3,
+        riskLines: 3,
+        focusLines: 3,
+        noticeLines: 2,
+        pledgeLines: 2,
+    },
     balanced: {
         title: 72,
         opening: 176,
@@ -788,17 +898,21 @@ const A4_FIT_LIMITS: Record<A4FitMode, A4FitLimits> = {
 };
 
 const A4_FIT_LABELS: Record<A4FitMode, { label: string; detail: string }> = {
+    spacious: {
+        label: '시각 중심 여유형',
+        detail: '내용이 짧을 때 핵심 카드와 아이콘을 키워 A4 화면을 안정적으로 채웁니다.',
+    },
     balanced: {
         label: '원문 보존 1장',
-        detail: '먼저 현장 문장을 최대한 살리고, 실제로 넘칠 때만 자동 압축합니다.',
+        detail: '현장 문장을 그대로 유지하면서 카드 크기와 간격을 균형 있게 배치합니다.',
     },
     compact: {
         label: 'A4 균형 압축',
-        detail: '핵심 문장은 유지하고 반복 설명만 줄여 한 장에 맞춥니다.',
+        detail: '문장은 숨기지 않고 글자 크기와 카드 간격을 줄여 한 장에 맞춥니다.',
     },
     dense: {
         label: '최종 1장 압축',
-        detail: '넘치는 내용은 보관자료로 돌리고 근로자 전달 핵심만 남깁니다.',
+        detail: '가장 조밀한 배치로 원문을 유지하며, 그래도 넘치면 저장을 차단합니다.',
     },
 };
 
@@ -931,6 +1045,7 @@ const getA4FitMode = (
     const load = estimateA4Load(draft, previewLanguage, viewMode, translatedText);
     if (load > 2700) return 'dense';
     if (load > 1900) return 'compact';
+    if (load < 1250) return 'spacious';
     return 'balanced';
 };
 
@@ -1052,6 +1167,9 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const [translatedTexts, setTranslatedTexts] = useState<Record<string, string>>(
         initialState?.translatedTexts || {},
     );
+    const [structuredTranslations, setStructuredTranslations] = useState<EducationPosterTranslationMap>(
+        initialState?.structuredTranslations || {},
+    );
     const [translationSourceText, setTranslationSourceText] = useState(
         initialState?.translationSourceText || '',
     );
@@ -1068,6 +1186,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const [viewMode, setViewMode] = useState<'split' | 'single'>('single');
     const [isOverflowing, setIsOverflowing] = useState(false);
     const [forcedTightFit, setForcedTightFit] = useState(false);
+    const [isPrintMode, setIsPrintMode] = useState(false);
     const sheetRef = useRef<HTMLElement>(null);
 
     const workTypes = useMemo(
@@ -1088,6 +1207,15 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const previewTranslationText = previewLanguage === 'ko-KR'
         ? ''
         : translatedTexts[previewLanguage] || translatedTexts[normalizedPreviewLanguage] || '';
+    const previewStructuredTranslation = previewLanguage === 'ko-KR'
+        ? undefined
+        : structuredTranslations[previewLanguage] || structuredTranslations[normalizedPreviewLanguage];
+    const resolvedPosterTranslation = useMemo(
+        () => previewStructuredTranslation || buildLegacyPosterTranslation(previewTranslationText),
+        [previewStructuredTranslation, previewTranslationText],
+    );
+    const previewLanguagePolicy = getA4LanguagePolicy(previewLanguage);
+    const usesVisualPoster = viewMode === 'single' || previewLanguage === 'ko-KR';
     const estimatedA4FitMode = useMemo(
         () => getA4FitMode(draft, previewLanguage, viewMode, previewTranslationText),
         [draft, previewLanguage, previewTranslationText, viewMode],
@@ -1108,10 +1236,13 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         [draft],
     );
     const translationLanguageCodes = useMemo(
-        () => Object.entries(translatedTexts)
-            .filter(([code, text]) => code !== '__quality__' && Boolean(text))
-            .map(([code]) => code),
-        [translatedTexts],
+        () => Array.from(new Set([
+            ...Object.entries(translatedTexts)
+                .filter(([code, text]) => code !== '__quality__' && Boolean(text))
+                .map(([code]) => code),
+            ...Object.keys(structuredTranslations),
+        ])),
+        [structuredTranslations, translatedTexts],
     );
     const translationNeedsRefresh = translationLanguageCodes.length > 0
         && translationSourceText !== currentTranslationSourceText;
@@ -1122,6 +1253,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         setWorkType(nextState.workType);
         setSources(nextState.sources);
         setTranslatedTexts(nextState.translatedTexts || {});
+        setStructuredTranslations(nextState.structuredTranslations || {});
         setTranslationSourceText(nextState.translationSourceText || '');
         setDraft(nextState.draft);
         setManualText('');
@@ -1148,28 +1280,44 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
 
     useEffect(() => {
         setForcedTightFit(false);
-    }, [draft, previewLanguage, translatedTexts, viewMode]);
+    }, [draft, previewLanguage, structuredTranslations, translatedTexts, viewMode]);
 
-    // 실시간 오버플로우 감지 후 출력용 레이아웃을 자동 고밀도 모드로 전환
+    // 글꼴 로드와 실제 하위 카드 높이를 반영해 출력용 레이아웃을 자동 고밀도 모드로 전환
     useEffect(() => {
         if (activeTab !== 'preview') {
             setIsOverflowing(false);
             return;
         }
+        let cancelled = false;
+        let timer = 0;
         const checkOverflow = () => {
             const pageEl = sheetRef.current?.querySelector('[data-report-page="true"]');
-            if (pageEl) {
-                const hasOverflow = pageEl.scrollHeight > pageEl.clientHeight + 2;
-                setIsOverflowing(hasOverflow);
-                if (hasOverflow && !forcedTightFit) {
+            if (pageEl && !cancelled) {
+                const overflowDetected = hasA4Overflow(pageEl);
+                setIsOverflowing(overflowDetected);
+                if (overflowDetected && !forcedTightFit) {
                     setForcedTightFit(true);
                 }
             }
         };
+        const scheduleCheck = () => {
+            window.clearTimeout(timer);
+            timer = window.setTimeout(checkOverflow, 80);
+        };
+        const resizeObserver = typeof ResizeObserver === 'undefined'
+            ? null
+            : new ResizeObserver(scheduleCheck);
+        const pageEl = sheetRef.current?.querySelector('[data-report-page="true"]');
+        if (pageEl) resizeObserver?.observe(pageEl);
+        void document.fonts?.ready.then(scheduleCheck);
+        scheduleCheck();
 
-        const timer = setTimeout(checkOverflow, 400);
-        return () => clearTimeout(timer);
-    }, [activeTab, a4FitMode, draft, forcedTightFit, previewLanguage, translatedTexts, viewMode]);
+        return () => {
+            cancelled = true;
+            window.clearTimeout(timer);
+            resizeObserver?.disconnect();
+        };
+    }, [activeTab, a4FitMode, draft, forcedTightFit, previewLanguage, structuredTranslations, translatedTexts, viewMode]);
 
     useEffect(() => {
         saveStudioState({
@@ -1178,9 +1326,30 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             sources,
             draft,
             translatedTexts,
+            structuredTranslations,
             translationSourceText,
         });
-    }, [draft, educationMonth, sources, translatedTexts, translationSourceText, workType]);
+    }, [draft, educationMonth, sources, structuredTranslations, translatedTexts, translationSourceText, workType]);
+
+    useEffect(() => {
+        if (!isPrintMode) return;
+        let cancelled = false;
+        const finishPrint = () => setIsPrintMode(false);
+        window.addEventListener('afterprint', finishPrint, { once: true });
+        const timer = window.setTimeout(() => {
+            void (async () => {
+                await waitForA4Fonts();
+                if (cancelled) return;
+                window.print();
+                finishPrint();
+            })();
+        }, 120);
+        return () => {
+            cancelled = true;
+            window.clearTimeout(timer);
+            window.removeEventListener('afterprint', finishPrint);
+        };
+    }, [isPrintMode]);
 
     const generateDraft = () => {
         const nextDraft = buildTbmEducationDraft({
@@ -1194,6 +1363,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         });
         setDraft(nextDraft);
         setTranslatedTexts({});
+        setStructuredTranslations({});
         setTranslationSourceText('');
         setActiveTab('package');
         setNotice(`근거 자료를 기준으로 ${cycleCopy.cadenceLabel} 5단계 교육 패키지를 다시 구성했습니다.`);
@@ -1253,6 +1423,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             draft,
             sourceText,
             translatedTexts: translationsMatchCurrentDraft ? translatedTexts : {},
+            structuredTranslations: translationsMatchCurrentDraft ? structuredTranslations : {},
             translationNeedsRefresh,
             savedAt: new Date().toISOString(),
             month: draft.month,
@@ -1273,10 +1444,12 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         nextDraft: TbmEducationDraft,
         nextTranslations: Record<string, string>,
         mode: 'generation' | 'translation' = 'generation',
+        nextStructuredTranslations: EducationPosterTranslationMap = {},
     ) => {
         const draftToStore = mode === 'translation' ? draft : nextDraft;
         setDraft(draftToStore);
         setTranslatedTexts(nextTranslations);
+        setStructuredTranslations(nextStructuredTranslations);
         setTranslationSourceText(buildMonthlyEducationPackageText(draftToStore));
         const translationCount = Object.keys(nextTranslations).length;
         setActiveTab(mode === 'translation' && translationCount > 0 ? 'preview' : 'package');
@@ -1344,11 +1517,21 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
 
     const captureSheet = async () => {
         if (!sheetRef.current) throw new Error('내보낼 한 장 자료를 찾지 못했습니다.');
+        await waitForA4Fonts();
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        const pageEl = sheetRef.current.querySelector('[data-report-page="true"]');
+        if (!pageEl || hasA4Overflow(pageEl)) {
+            throw new Error('일부 내용이 A4 영역을 벗어납니다. 문장을 줄이거나 번역을 갱신한 뒤 다시 저장해 주세요.');
+        }
         const html2canvas = await ensureHtml2Canvas();
         return captureReportCanvas(sheetRef.current, html2canvas, { scale: 3 });
     };
 
     const blockStaleTranslationExport = (): boolean => {
+        if (isOverflowing) {
+            setNotice('현재 언어의 일부 문장이 A4 영역을 벗어납니다. 문장을 줄이거나 번역을 갱신한 뒤 다시 저장해 주세요.');
+            return true;
+        }
         if (translationNeedsRefresh && previewLanguage !== 'ko-KR') {
             setNotice('현재 외국어 탭은 이전 번역 대조용입니다. “수정본 그대로 다국어만 갱신”을 완료한 뒤 저장하세요.');
             return true;
@@ -1357,6 +1540,12 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             setNotice('한국어 원문은 저장할 수 있습니다. 외국어 출력물은 다국어 갱신을 먼저 완료해야 합니다.');
         }
         return false;
+    };
+
+    const printA4 = () => {
+        if (blockStaleTranslationExport()) return;
+        setViewMode('single');
+        setIsPrintMode(true);
     };
 
     const exportImage = async () => {
@@ -1447,7 +1636,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         setIsExporting(true);
         const originalLang = previewLanguage;
         const originalViewMode = viewMode;
-        const targetLanguages = ['ko-KR', ...Object.keys(translatedTexts).filter(code => code !== '__quality__' && translatedTexts[code])];
+        const targetLanguages = ['ko-KR', ...translationLanguageCodes];
         
         try {
             for (const lang of targetLanguages) {
@@ -1485,7 +1674,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         setIsExporting(true);
         const originalLang = previewLanguage;
         const originalViewMode = viewMode;
-        const targetLanguages = ['ko-KR', ...Object.keys(translatedTexts).filter(code => code !== '__quality__' && translatedTexts[code])];
+        const targetLanguages = ['ko-KR', ...translationLanguageCodes];
         
         try {
             const JsPDF = await ensureJsPdfConstructor();
@@ -1991,7 +2180,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                         <span>{a4FitInfo.label}</span>
                         <span className="text-xs font-semibold opacity-80">{a4FitInfo.detail}</span>
                         <span className="rounded-full bg-white/70 px-3 py-1 text-[11px] font-black dark:bg-slate-950/40">
-                            {isOverflowing ? '고밀도 재배치 확인 중' : '출력 1장 고정'}
+                            {isOverflowing ? 'A4 넘침 · 저장 차단' : '출력 1장 확인'}
                         </span>
                     </div>
 
@@ -2010,8 +2199,8 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                 <CountryFlag code="ko-KR" />
                                 한국어 원문
                             </button>
-                            {Object.entries(translatedTexts).map(([code, text]) => {
-                                if (code === '__quality__' || !text) return null;
+                            {translationLanguageCodes.map((code) => {
+                                if (code === '__quality__') return null;
                                 return (
                                     <button
                                         key={code}
@@ -2081,144 +2270,38 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                     <article ref={sheetRef} data-report-template-root="true" className="mx-auto w-[210mm] max-w-full bg-white text-slate-900 shadow-2xl">
                         <div
                             data-report-page="true"
+                            data-preserve-page-padding={usesVisualPoster ? undefined : 'true'}
+                            data-self-contained-page={usesVisualPoster ? 'true' : undefined}
                             data-a4-fit-mode={a4FitMode}
+                            lang={previewLanguagePolicy.lang}
+                            dir={previewLanguagePolicy.dir}
+                            style={{
+                                fontFamily: previewLanguagePolicy.fontFamily,
+                                lineHeight: previewLanguagePolicy.lineHeight,
+                                wordBreak: previewLanguagePolicy.wordBreak,
+                            }}
                             className={`flex h-[297mm] w-[210mm] max-w-full flex-col overflow-hidden bg-white ${
-                                a4FitMode === 'dense' ? 'p-[8mm]' : a4FitMode === 'compact' ? 'p-[10mm]' : 'p-[11mm]'
+                                usesVisualPoster
+                                    ? 'p-0'
+                                    : a4FitMode === 'dense'
+                                        ? 'p-[8mm]'
+                                        : a4FitMode === 'compact'
+                                            ? 'p-[10mm]'
+                                            : a4FitMode === 'spacious'
+                                                ? 'p-[12mm]'
+                                                : 'p-[11mm]'
                             }`}
                         >
-                            {previewLanguage === 'ko-KR' ? (
-                                <>
-                                    <header className="shrink-0 border-b-[5px] border-orange-500 pb-3">
-                                        <div className="flex items-start justify-between gap-4">
-                                            <div>
-                                                <p className="text-[12px] font-black text-blue-700">PSI 위험성평가 전파교육</p>
-                                                <h1
-                                                    className="mt-1.5 font-black leading-tight break-keep"
-                                                    style={{
-                                                        fontSize: a4FitMode === 'dense'
-                                                            ? '18px'
-                                                            : a4FitMode === 'compact'
-                                                                ? '21px'
-                                                                : '25px',
-                                                    }}
-                                                >
-                                                    {a4KoreanPrint.title}
-                                                </h1>
-                                            </div>
-                                            <div className="shrink-0 rounded-xl bg-blue-950 px-4 py-3 text-center text-white">
-                                                <p className="text-[10px] font-bold text-blue-200">교육 대상</p>
-                                                <p className="mt-1 text-sm font-black">{draft.workType}</p>
-                                            </div>
-                                        </div>
-                                        <p className="mt-2 text-[12px] font-semibold leading-5 text-slate-600">{a4KoreanPrint.opening}</p>
-                                    </header>
-
-                                    <section className={`mt-3 shrink-0 rounded-2xl bg-blue-950 text-white ${a4FitMode === 'dense' ? 'p-3' : 'p-4'}`}>
-                                        <div className="flex items-center justify-between gap-3">
-                                            <p className="text-[11px] font-black text-blue-200">오늘 반드시 전달할 한 문장</p>
-                                            <span className="rounded-full bg-white/15 px-2.5 py-1 text-[9px] font-black">{a4FitInfo.label}</span>
-                                        </div>
-                                        <p
-                                            className="mt-1.5 font-black"
-                                            style={{
-                                                fontSize: a4FitMode === 'dense' ? '16px' : a4FitMode === 'compact' ? '18px' : '20px',
-                                                lineHeight: a4FitMode === 'dense' ? '23px' : '28px',
-                                            }}
-                                        >
-                                            {a4KoreanPrint.coreMessage}
-                                        </p>
-                                    </section>
-
-                                    <section className={`mt-3 grid shrink-0 grid-cols-2 gap-3 ${a4FitMode === 'dense' ? 'text-[10px]' : ''}`}>
-                                        <article className={`rounded-2xl border border-blue-200 bg-blue-50 ${a4FitMode === 'dense' ? 'p-3' : 'p-4'}`}>
-                                            <p className="text-[10px] font-black text-blue-700">1. 교육 전 5분 핵심 동영상</p>
-                                            <h2 className="mt-1 text-base font-black">총 {Math.floor(videoDuration / 60)}분 {videoDuration % 60}초 · {draft.videoScenes.length}장면</h2>
-                                            <p className="mt-2 text-xs font-semibold leading-5 text-slate-700">{a4KoreanPrint.videoSummary}</p>
-                                        </article>
-                                        <article className={`rounded-2xl border border-amber-200 bg-amber-50 ${a4FitMode === 'dense' ? 'p-3' : 'p-4'}`}>
-                                            <p className="text-[10px] font-black text-amber-700">2. 최근 재해사례와 현장 연관성</p>
-                                            <h2 className="mt-1 text-base font-black">{a4KoreanPrint.accidentTitle}</h2>
-                                            <p className="mt-2 text-xs font-semibold leading-5 text-slate-700">{a4KoreanPrint.accidentBody}</p>
-                                            <p className="mt-1 text-[10px] font-bold text-amber-800">출처: {a4KoreanPrint.accidentMeta}</p>
-                                        </article>
-                                    </section>
-
-                                    <section className="mt-3 shrink-0">
-                                        <div className="flex items-center justify-between">
-                                            <h2 className="text-sm font-black text-rose-700">3. 위험성평가 상등급 공유</h2>
-                                            <span className="text-[9px] font-black text-slate-400">우선순위 막대는 입력 근거 강도를 시각화합니다.</span>
-                                        </div>
-                                        {a4KoreanPrint.risks.length > 0 ? (
-                                            <div className="mt-2 grid grid-cols-3 gap-3">
-                                                {a4KoreanPrint.risks.map((item, index) => (
-                                                    <article key={item.id} className={`rounded-xl border border-rose-200 bg-white ${a4FitMode === 'dense' ? 'p-2.5' : 'p-3'}`}>
-                                                        <div className="flex items-center justify-between gap-2">
-                                                            <h3 className="text-sm font-black leading-tight"><span className="mr-1 text-rose-600">TOP{index + 1}</span>{item.risk}</h3>
-                                                            <span className={`rounded px-2 py-1 text-[9px] font-black ${item.managerConfirmed ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-600'}`}>{item.managerConfirmed ? '상등급 확인' : '확인 필요'}</span>
-                                                        </div>
-                                                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-rose-100">
-                                                            <div className="h-full rounded-full bg-rose-500" style={{ width: `${item.priorityPct}%` }} />
-                                                        </div>
-                                                        <p className="mt-2 text-[10px] font-semibold leading-4 text-slate-600">{item.action}</p>
-                                                        <p className="mt-2 text-[9px] font-bold text-slate-500">담당: {item.owner}</p>
-                                                    </article>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <div className="mt-2 rounded-xl border border-dashed border-rose-200 bg-rose-50 px-4 py-3 text-center text-[10px] font-bold leading-4 text-rose-700">
-                                                회의자료에서 상등급으로 지정된 공유 항목이 없습니다. 일반 추천 위험은 이 영역에 표시하지 않습니다.
-                                            </div>
-                                        )}
-                                    </section>
-
-                                    <section className="mt-3 grid shrink-0 grid-cols-2 gap-4">
-                                        <div className="min-h-0">
-                                            <h2 className="text-sm font-black text-emerald-700">4. 현장 중점관리 포인트</h2>
-                                            <ol className="mt-2 space-y-1.5">
-                                                {a4KoreanPrint.focusPoints.map((item, index) => (
-                                                    <li key={index} className="flex gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-[10px] font-bold leading-4">
-                                                        <b className="text-emerald-700">{index + 1}</b><span>{item}</span>
-                                                    </li>
-                                                ))}
-                                            </ol>
-                                        </div>
-                                        <div className="min-h-0">
-                                            <h2 className="text-sm font-black text-violet-700">5. 공지사항</h2>
-                                            <ul className="mt-2 space-y-1.5">
-                                                {a4KoreanPrint.notices.map((notice, index) => (
-                                                    <li key={index} className="rounded-lg bg-violet-50 px-3 py-2 text-[10px] font-bold leading-4">{notice}</li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    </section>
-
-                                    <section className={`mt-3 shrink-0 rounded-xl border-2 border-dashed border-orange-300 bg-orange-50 ${a4FitMode === 'dense' ? 'p-2.5' : 'p-3'}`}>
-                                        <div className="grid grid-cols-[1fr_1.2fr] gap-3">
-                                            <div>
-                                                <h2 className="text-xs font-black text-orange-900">이해 확인</h2>
-                                                {a4KoreanPrint.questions.map((question, index) => <p key={index} className="mt-1 text-[10px] font-bold leading-4 text-orange-900">Q{index + 1}. {question}</p>)}
-                                            </div>
-                                            <div>
-                                                <h2 className="text-xs font-black text-orange-900">행동 약속</h2>
-                                                <p className="mt-1 text-[10px] font-bold leading-4 text-orange-900">{a4KoreanPrint.closingCommitment}</p>
-                                            </div>
-                                        </div>
-                                    </section>
-
-                                    <footer className="mt-auto flex shrink-0 items-end justify-between border-t border-slate-200 pt-3 text-[10px] font-semibold text-slate-500">
-                                        <div>
-                                            <p>근거 자료 {draft.sourceCount}개 · 생성 {new Date(draft.generatedAt).toLocaleDateString('ko-KR')}</p>
-                                            <p className="mt-1">
-                                                관리자가 최종 확인한 후 교육에 사용합니다.
-                                                {a4KoreanPrint.hiddenCount > 0 && <span className="ml-2 font-black text-blue-700">추가 세부내용 {a4KoreanPrint.hiddenCount}건은 관리자 보관자료</span>}
-                                            </p>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-2 text-center">
-                                            <span className="w-20 border-b border-slate-400 pb-1">교육자</span>
-                                            <span className="w-20 border-b border-slate-400 pb-1">확인자</span>
-                                        </div>
-                                    </footer>
-                                </>
+                            {usesVisualPoster ? (
+                                <A4SafetyPoster
+                                    className="h-full min-h-0"
+                                    draft={draft}
+                                    languageCode={previewLanguage}
+                                    targetPeriodLabel={targetPeriod.label}
+                                    fitMode={a4FitMode}
+                                    videoDuration={videoDuration}
+                                    translation={resolvedPosterTranslation}
+                                />
                             ) : viewMode === 'split' ? (
                                 <div className="grid grid-cols-2 gap-6 h-full overflow-hidden text-slate-900">
                                     {/* 좌측: 한국어 요약 */}
@@ -2513,23 +2596,58 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                     </article>
 
                     <div className="mt-4 grid gap-2 sm:grid-cols-4 no-print">
-                        <button type="button" disabled={isExporting || currentPreviewIsStaleTranslation} onClick={() => void exportImage()} className="min-h-12 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-black text-blue-800 disabled:opacity-50 dark:border-blue-500/40 dark:bg-slate-900 dark:text-blue-200">PNG 이미지</button>
-                        <button type="button" disabled={isExporting || currentPreviewIsStaleTranslation} onClick={() => void exportPdf()} className="min-h-12 rounded-xl bg-blue-700 px-4 py-3 text-sm font-black text-white disabled:opacity-50">PDF 저장</button>
-                        <button type="button" disabled={isExporting || currentPreviewIsStaleTranslation} onClick={() => void exportPptx()} className="min-h-12 rounded-xl bg-orange-500 px-4 py-3 text-sm font-black text-white disabled:opacity-50">PPTX 저장</button>
-                        <button type="button" disabled={currentPreviewIsStaleTranslation} onClick={() => { if (!blockStaleTranslationExport()) window.print(); }} className="min-h-12 rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900">A4 요약 인쇄</button>
+                        <button type="button" disabled={isExporting || currentPreviewIsStaleTranslation || isOverflowing} onClick={() => void exportImage()} className="min-h-12 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-black text-blue-800 disabled:opacity-50 dark:border-blue-500/40 dark:bg-slate-900 dark:text-blue-200">PNG 이미지</button>
+                        <button type="button" disabled={isExporting || currentPreviewIsStaleTranslation || isOverflowing} onClick={() => void exportPdf()} className="min-h-12 rounded-xl bg-blue-700 px-4 py-3 text-sm font-black text-white disabled:opacity-50">PDF 저장</button>
+                        <button type="button" disabled={isExporting || currentPreviewIsStaleTranslation || isOverflowing} onClick={() => void exportPptx()} className="min-h-12 rounded-xl bg-orange-500 px-4 py-3 text-sm font-black text-white disabled:opacity-50">PPTX 저장</button>
+                        <button type="button" disabled={currentPreviewIsStaleTranslation || isOverflowing} onClick={printA4} className="min-h-12 rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900">A4 요약 인쇄</button>
                     </div>
+                    {isOverflowing && (
+                        <p className="mt-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-900 no-print dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100">
+                            고밀도 자동 배치 후에도 일부 내용이 A4 밖으로 나갑니다. 해당 문장이나 번역을 줄이기 전에는 저장·인쇄되지 않습니다.
+                        </p>
+                    )}
                     {currentPreviewIsStaleTranslation && (
                         <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-900 no-print dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
                             이 외국어 화면은 이전 번역 대조용입니다. 현재 수정본으로 다국어를 갱신한 뒤 저장할 수 있습니다.
                         </p>
                     )}
-                    {Object.keys(translatedTexts).filter(code => code !== '__quality__' && translatedTexts[code]).length > 0 && (
+                    {translationLanguageCodes.length > 0 && (
                         <div className="mt-2 grid gap-2 sm:grid-cols-2 no-print border-t border-slate-200 dark:border-slate-800 pt-3">
                             <button type="button" disabled={isExporting || translationNeedsRefresh} onClick={() => void exportAllImages()} className="min-h-12 rounded-xl border-2 border-dashed border-blue-300 bg-blue-50/50 px-4 py-3 text-sm font-black text-blue-900 hover:bg-blue-50 disabled:opacity-50">전체 다국어 PNG 이미지 일괄 저장</button>
                             <button type="button" disabled={isExporting || translationNeedsRefresh} onClick={() => void exportAllPdfs()} className="min-h-12 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50/50 px-4 py-3 text-sm font-black text-indigo-900 hover:bg-indigo-50 disabled:opacity-50">전체 다국어 PDF 일괄 저장</button>
                         </div>
                     )}
                 </section>
+            )}
+            {isPrintMode && createPortal(
+                <div className="report-print-container" aria-hidden="true">
+                    <article data-report-template-root="true">
+                        <div
+                            data-report-page="true"
+                            data-self-contained-page="true"
+                            data-a4-fit-mode={a4FitMode}
+                            lang={previewLanguagePolicy.lang}
+                            dir={previewLanguagePolicy.dir}
+                            style={{
+                                fontFamily: previewLanguagePolicy.fontFamily,
+                                lineHeight: previewLanguagePolicy.lineHeight,
+                                wordBreak: previewLanguagePolicy.wordBreak,
+                            }}
+                            className="h-[297mm] w-[210mm] overflow-hidden bg-white p-0"
+                        >
+                            <A4SafetyPoster
+                                className="h-full min-h-0"
+                                draft={draft}
+                                languageCode={previewLanguage}
+                                targetPeriodLabel={targetPeriod.label}
+                                fitMode={a4FitMode}
+                                videoDuration={videoDuration}
+                                translation={resolvedPosterTranslation}
+                            />
+                        </div>
+                    </article>
+                </div>,
+                document.body,
             )}
         </div>
     );

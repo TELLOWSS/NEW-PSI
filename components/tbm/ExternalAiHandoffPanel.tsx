@@ -4,6 +4,7 @@ import {
     EXTERNAL_AI_PROVIDERS,
     buildExternalAiPrompt,
     parseExternalAiResult,
+    type EducationPosterTranslationMap,
     type ExternalAiProvider,
 } from '../../utils/externalAiHandoff';
 import {
@@ -21,7 +22,12 @@ interface ExternalAiHandoffPanelProps {
     targetCycleLabel?: string;
     targetPeriodLabel?: string;
     translationNeedsRefresh?: boolean;
-    onImport: (draft: TbmEducationDraft, translations: Record<string, string>, mode: 'generation' | 'translation') => void;
+    onImport: (
+        draft: TbmEducationDraft,
+        translations: Record<string, string>,
+        mode: 'generation' | 'translation',
+        structuredTranslations: EducationPosterTranslationMap,
+    ) => void;
     onUseLocalDraft: () => void;
     onNotice: (message: string) => void;
 }
@@ -100,7 +106,7 @@ export function ExternalAiHandoffPanel({
         }
         try {
             const result = parseExternalAiResult(rawResult, draft);
-            onImport(result.draft, result.translations, aiMode);
+            onImport(result.draft, result.translations, aiMode, result.structuredTranslations);
         } catch (error) {
             onNotice(error instanceof Error ? error.message : 'AI 결과를 읽지 못했습니다.');
         }

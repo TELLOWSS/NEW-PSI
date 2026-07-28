@@ -2,6 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+.report-print-container {
+    display: none;
+}
+
+[data-report-page][data-preserve-page-padding='true'] {
+    --a4-print-page-padding: 11mm;
+}
+
+[data-report-page][data-preserve-page-padding='true'][data-a4-fit-mode='spacious'] {
+    --a4-print-page-padding: 12mm;
+}
+
+[data-report-page][data-preserve-page-padding='true'][data-a4-fit-mode='compact'] {
+    --a4-print-page-padding: 10mm;
+}
+
+[data-report-page][data-preserve-page-padding='true'][data-a4-fit-mode='dense'] {
+    --a4-print-page-padding: 8mm;
+}
+
 @layer base {
     :root {
         color-scheme: light;
@@ -320,6 +340,14 @@
             break-after: page !important;
             page-break-after: always !important;
             position: relative !important;
+        }
+
+        [data-report-page][data-preserve-page-padding='true'] {
+            padding: var(--a4-print-page-padding, 11mm) !important;
+        }
+
+        [data-report-page][data-self-contained-page='true'] {
+            padding: 0 !important;
         }
     }
 }
