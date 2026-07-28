@@ -722,10 +722,12 @@ const hasA4Overflow = (page: Element): boolean => {
     ];
     return candidates.some((candidate) => {
         if (!(candidate instanceof HTMLElement)) return false;
-        // Arabic-script glyphs can extend beyond the CSS line box without
-        // adding another rendered line. Keep page/card overflow strict while
-        // allowing that known ink overhang only on clamped Urdu text.
-        const verticalTolerance = isUrduPage && clippedTextSet.has(candidate) ? 9 : 2;
+        // Webfont glyphs can extend a few pixels beyond their CSS line box
+        // without adding another rendered line. Keep page/card overflow
+        // strict, and allow only that ink overhang on clamped text.
+        const verticalTolerance = clippedTextSet.has(candidate)
+            ? (isUrduPage ? 9 : 6)
+            : 2;
         return candidate.scrollHeight > candidate.clientHeight + verticalTolerance
             || candidate.scrollWidth > candidate.clientWidth + 2;
     });

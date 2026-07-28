@@ -283,7 +283,7 @@ const inspectOverflow = async () => screenPage().evaluate((element) => {
         if (!(candidate instanceof HTMLElement)) return [];
         const isClampedText = Boolean(candidate.style.webkitLineClamp)
             || candidate.style.textOverflow === 'ellipsis';
-        const verticalTolerance = isUrdu && isClampedText ? 9 : 2;
+        const verticalTolerance = isClampedText ? (isUrdu ? 9 : 6) : 2;
         const deltaHeight = candidate.scrollHeight - candidate.clientHeight;
         const deltaWidth = candidate.scrollWidth - candidate.clientWidth;
         if (deltaHeight <= verticalTolerance && deltaWidth <= 2) return [];
