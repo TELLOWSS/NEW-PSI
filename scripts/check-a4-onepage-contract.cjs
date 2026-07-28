@@ -6,11 +6,15 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'u
 
 const files = {
   page: read('pages/A4EducationMaterial.tsx'),
+  poster: read('components/tbm/A4SafetyPoster.tsx'),
   handoffPanel: read('components/tbm/ExternalAiHandoffPanel.tsx'),
   handoffPrompt: read('utils/externalAiHandoff.ts'),
   training: read('pages/AdminTraining.tsx'),
   studio: read('utils/tbmEducationStudio.ts'),
   sourceExtraction: read('utils/tbmSourceExtraction.ts'),
+  languagePolicy: read('utils/a4LanguagePolicy.ts'),
+  styles: read('styles.css'),
+  indexHtml: read('index.html'),
   packageJson: JSON.parse(read('package.json')),
 };
 
@@ -21,7 +25,12 @@ const required = [
   ['pages/A4EducationMaterial.tsx', files.page, 'trimToReadableBoundary'],
   ['pages/A4EducationMaterial.tsx', files.page, 'completeA4Items'],
   ['pages/A4EducationMaterial.tsx', files.page, 'getHighGradeRiskShareItems'],
-  ['pages/A4EducationMaterial.tsx', files.page, '회의자료에서 상등급으로 지정된 공유 항목이 없습니다'],
+  ['components/tbm/A4SafetyPoster.tsx', files.poster, '회의자료 상등급 항목 없음'],
+  ['components/tbm/A4SafetyPoster.tsx', files.poster, 'data-a4-safety-poster="true"'],
+  ['components/tbm/A4SafetyPoster.tsx', files.poster, 'data-overflow-check="true"'],
+  ['components/tbm/A4SafetyPoster.tsx', files.poster, '근거 강도'],
+  ['pages/A4EducationMaterial.tsx', files.page, "data-self-contained-page={usesVisualPoster ? 'true' : undefined}"],
+  ['pages/A4EducationMaterial.tsx', files.page, 'createPortal'],
   ['pages/A4EducationMaterial.tsx', files.page, 'translationNeedsRefresh'],
   ['pages/A4EducationMaterial.tsx', files.page, 'currentPreviewIsStaleTranslation'],
   ['pages/A4EducationMaterial.tsx', files.page, 'openAiDraftStepWithCurrentSources'],
@@ -60,6 +69,18 @@ const required = [
   ['utils/tbmEducationStudio.ts', files.studio, 'translationNeedsRefresh?: boolean'],
   ['utils/tbmSourceExtraction.ts', files.sourceExtraction, '--- page ${pageNumber} ---'],
   ['utils/tbmSourceExtraction.ts', files.sourceExtraction, '--- slide ${slides.length + 1} ---'],
+  ['utils/a4LanguagePolicy.ts', files.languagePolicy, 'satisfies Record<TrainingLanguageCode, A4LanguagePolicy>'],
+  ['utils/a4LanguagePolicy.ts', files.languagePolicy, "dir: 'rtl'"],
+  ['utils/a4LanguagePolicy.ts', files.languagePolicy, 'Noto Sans Arabic'],
+  ['utils/a4LanguagePolicy.ts', files.languagePolicy, 'Noto Sans Bengali'],
+  ['utils/a4LanguagePolicy.ts', files.languagePolicy, 'Noto Sans Sinhala'],
+  ['styles.css', files.styles, ".report-print-container {\n    display: none;"],
+  ['styles.css', files.styles, "[data-report-page][data-preserve-page-padding='true']"],
+  ['styles.css', files.styles, "[data-report-page][data-self-contained-page='true']"],
+  ['styles.css', files.styles, '--a4-print-page-padding'],
+  ['index.html', files.indexHtml, 'family=Noto+Sans+Arabic'],
+  ['index.html', files.indexHtml, 'family=Noto+Sans+Bengali'],
+  ['index.html', files.indexHtml, 'family=Noto+Sans+Sinhala'],
 ];
 
 for (const [file, content, marker] of required) {

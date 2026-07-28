@@ -66,6 +66,13 @@ describe('external AI handoff', () => {
         expect(prompt).toContain('우즈베크어(uz-UZ)');
         expect(prompt).toContain('위험성평가 회의자료(PPT/PDF/문서)');
         expect(prompt).toContain('근로자 Q3 응답');
+        expect(prompt).toContain('structuredTranslations');
+        expect(prompt).toContain('"workType"');
+        expect(prompt).toContain('번역한 대상 공종');
+        expect(prompt).toContain('"video"');
+        expect(prompt).toContain('"accident"');
+        expect(prompt).toContain('"questions"');
+        expect(prompt).toContain('질문에는 Q1, Q2 같은 번호를 붙이지 마십시오');
     });
 
     it('parses fenced JSON but keeps only risks matching meeting-material high-grade items', () => {
@@ -115,6 +122,110 @@ describe('external AI handoff', () => {
         expect(result.draft.risks[0].evidenceLabels.join(' ')).toContain('회의자료 상등급');
         expect(result.draft.videoScenes.reduce((sum, scene) => sum + scene.seconds, 0)).toBe(300);
         expect(result.translations['vi-VN']).toContain('Nội dung');
+        expect(result.structuredTranslations).toEqual({});
+    });
+
+    it('returns structured translations and derives the legacy flat text without parsing localized numbers', () => {
+        const current = buildTbmEducationDraft({
+            workerRecords: [q3HighWorker()],
+            sources: meetingSources,
+            month: '2026-07',
+            workType: '철골',
+        });
+        const raw = JSON.stringify({
+            draft: {
+                ...current,
+                risks: current.risks,
+            },
+            structuredTranslations: {
+                'vi-VN': {
+                    workType: 'Công việc kết cấu thép',
+                    title: 'Tài liệu an toàn công việc kết cấu thép tháng 7',
+                    opening: 'Hãy kiểm tra trước khi bắt đầu công việc.',
+                    coreMessage: 'Kiểm tra hai vị trí lỗ mở trước khi làm việc.',
+                    video: [{
+                        title: 'Kiểm tra trước công việc',
+                        narration: 'Kiểm tra nắp che và dây an toàn.',
+                        visualGuide: 'Hiển thị lỗ mở tại hiện trường.',
+                    }],
+                    accident: [{
+                        title: 'Cần người quản lý xác nhận',
+                        occurredAt: '',
+                        source: 'Cần người quản lý xác nhận',
+                        summary: 'Kiểm tra trường hợp tai nạn.',
+                        siteRelevance: 'Công việc gần lỗ mở.',
+                        lesson: 'Dừng công việc nếu điều kiện thay đổi.',
+                    }],
+                    risks: [{
+                        risk: 'Ngã cao',
+                        action: 'Kiểm tra nắp che lỗ mở và dây an toàn.',
+                        owner: 'Đội kết cấu thép',
+                    }],
+                    focus: ['Kiểm tra nắp che lỗ mở'],
+                    notices: ['Đánh giá lại khi khu vực làm việc thay đổi'],
+                    questions: ['Phải kiểm tra điều gì trước khi làm việc?'],
+                    closingCommitment: 'Tôi sẽ dừng công việc nếu điều kiện khác.',
+                },
+            },
+        });
+
+        const result = parseExternalAiResult(raw, current);
+
+        expect(result.structuredTranslations['vi-VN']).toMatchObject({
+            workType: 'Công việc kết cấu thép',
+            title: 'Tài liệu an toàn công việc kết cấu thép tháng 7',
+            coreMessage: 'Kiểm tra hai vị trí lỗ mở trước khi làm việc.',
+            focus: ['Kiểm tra nắp che lỗ mở'],
+            questions: ['Phải kiểm tra điều gì trước khi làm việc?'],
+        });
+        expect(result.structuredTranslations['vi-VN'].video[0]).toEqual({
+            title: 'Kiểm tra trước công việc',
+            narration: 'Kiểm tra nắp che và dây an toàn.',
+            visualGuide: 'Hiển thị lỗ mở tại hiện trường.',
+        });
+        expect(result.structuredTranslations['vi-VN'].risks[0]).toEqual({
+            risk: 'Ngã cao',
+            action: 'Kiểm tra nắp che lỗ mở và dây an toàn.',
+            owner: 'Đội kết cấu thép',
+        });
+        expect(result.translations['vi-VN']).toContain('[Tài liệu an toàn công việc kết cấu thép tháng 7]');
+        expect(result.translations['vi-VN']).toContain('\n1.\n');
+        expect(result.translations['vi-VN']).toContain('\n5.\n');
+        expect(result.translations['vi-VN']).toContain('Phải kiểm tra điều gì trước khi làm việc?');
+    });
+
+    it('also accepts a structured object in the legacy translations map', () => {
+        const current = buildTbmEducationDraft({
+            workerRecords: [],
+            sources: [],
+        });
+        const raw = JSON.stringify({
+            draft: current,
+            translations: {
+                'th-TH': {
+                    title: 'เอกสารความปลอดภัย',
+                    opening: 'ตรวจสอบก่อนเริ่มงาน',
+                    coreMessage: 'หยุดงานเมื่อสภาพเปลี่ยนแปลง',
+                    videoScenes: [{ narration: 'ตรวจสอบพื้นที่ทำงาน' }],
+                    accidentCases: [{ summary: 'ตรวจสอบกรณีอุบัติเหตุ' }],
+                    risks: [{ risk: 'ตกจากที่สูง', action: 'ตรวจสอบสายรัดนิรภัย' }],
+                    focusPoints: ['ตรวจสอบช่องเปิด'],
+                    notices: ['แจ้งผู้ควบคุมงาน'],
+                    confirmationQuestions: ['ต้องตรวจสอบอะไรก่อนทำงาน'],
+                    closingCommitment: 'ฉันจะปฏิบัติตามกฎความปลอดภัย',
+                },
+            },
+        });
+
+        const result = parseExternalAiResult(raw, current);
+
+        expect(result.structuredTranslations['th-TH']).toMatchObject({
+            title: 'เอกสารความปลอดภัย',
+            focus: ['ตรวจสอบช่องเปิด'],
+            questions: ['ต้องตรวจสอบอะไรก่อนทำงาน'],
+        });
+        expect(result.translations['th-TH']).toContain('เอกสารความปลอดภัย');
+        expect(result.translations['th-TH']).not.toContain('[object Object]');
     });
 
     it('drops AI-created risk items when only worker Q3 high-risk evidence exists', () => {

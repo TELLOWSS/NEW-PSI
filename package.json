@@ -60,6 +60,7 @@
     "qa:mobile:ready": "npm run build && npm run qa:mobile:capture && npm run check:mobile-qa:evidence",
     "qa:survey-baseline": "node scripts/verify-survey-baseline-ui.mjs",
     "qa:plain-language": "node scripts/verify-plain-language-ui.mjs",
+    "qa:a4-poster": "node scripts/verify-a4-poster-ui.mjs",
     "qa:worker-report": "node scripts/verify-worker-report-ui.mjs",
     "qa:safety-case": "node scripts/verify-safety-case-closed-loop-ui.mjs",
     "qa:core-metrics": "node scripts/verify-core-metrics-ui.mjs",

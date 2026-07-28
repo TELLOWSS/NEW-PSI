@@ -1,4 +1,5 @@
 import type { WorkerRecord } from '../types';
+import type { EducationPosterTranslationMap } from './educationPosterTranslation';
 
 export type TbmSourceKind = 'field-record' | 'document' | 'manual';
 
@@ -72,6 +73,7 @@ export interface TbmMonthlyPackagePayload {
     draft: TbmEducationDraft;
     sourceText: string;
     translatedTexts: Record<string, string>;
+    structuredTranslations?: EducationPosterTranslationMap;
     translationNeedsRefresh?: boolean;
     savedAt: string;
     month: string;
