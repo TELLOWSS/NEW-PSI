@@ -561,7 +561,7 @@ const verifyIssuanceReliability = (worker: WorkerRecord): IssuanceReliabilityRes
 
     if (!hasOriginalImage) reasons.push('OCR 원본 이미지 없음');
     if (!hasOcrAuditTrail) reasons.push('OCR 감사이력 없음');
-    if (!hasEvidenceHash) reasons.push('위변조 확인값 없음');
+    if (!hasEvidenceHash) reasons.push('내용 일치 확인값 없음');
 
     const trusted = reasons.length === 0;
     return {
@@ -815,7 +815,7 @@ interface WorkerManagementProps {
     workerRecords: WorkerRecord[];
     onViewDetails: (worker: WorkerRecord) => void;
     onOpenPhotoRegistration?: (worker: WorkerRecord, queueRecordIds: string[]) => void;
-    onUpdateRecord?: (worker: WorkerRecord) => Promise<void> | void;
+    onUpdateRecord?: (worker: WorkerRecord) => boolean | void | Promise<boolean | void>;
 }
 
 const isUnassignedWorkerRecord = (record: WorkerRecord): boolean => {
@@ -3118,7 +3118,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 .flatMap((item) => item.reliability.reasons)
                 .slice(0, 3)
                 .join(', ');
-            return alert(`발급 가능한 신뢰 데이터가 없습니다.\n\n확인 기준: 원본 이미지 + 문서 판독 이력 + 위변조 확인값\n참고 사유: ${sampleReasons || '데이터 누락'}`);
+            return alert(`발급 가능한 신뢰 데이터가 없습니다.\n\n확인 기준: 원본 이미지 + 문서 판독 이력 + 내용 일치 확인값\n참고 사유: ${sampleReasons || '데이터 누락'}`);
         }
 
         const nextPrintTrustMode: 'trusted' | 'fallback' = trustedPrintableWorkers.length === 0 ? 'fallback' : 'trusted';
@@ -3208,7 +3208,12 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         setIsOverrideSubmitting(true);
         try {
             await loginAdmin(overridePin);
-            await onUpdateRecord?.(updatedWorker);
+            const saved = await onUpdateRecord?.(updatedWorker);
+            if (saved === false) {
+                alert('예외 승인 내용을 저장하지 못했습니다. 발급은 시작하지 않았으며 기존 기록은 유지됩니다.');
+                setIsOverrideSubmitting(false);
+                return;
+            }
             closeOverrideModal();
             startProcessing('sticker', [updatedWorker]);
         } catch (error) {

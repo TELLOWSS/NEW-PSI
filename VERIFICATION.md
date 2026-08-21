@@ -2,9 +2,9 @@
 
 ## 문서 관리 정보
 - 발명 및 개발 총괄: 박성훈
-- 검토 완료일: 2026-03-02
-- 시스템 적용 버전: PSI v2.1.0
-- 상태: ✅ 현장 검증 및 프로덕션 배포 완료
+- 최근 개정일: 2026-08-21
+- 시스템 적용 범위: 현재 저장소
+- 상태: 자동 검증과 수동·현장 검증을 구분하여 기록
 
 Use this checklist to manually verify the main functionality after running the app locally (`npm install` + `npm run dev`).
 
@@ -25,6 +25,8 @@ Use this checklist to manually verify the main functionality after running the a
 - `npm run verify:release`
 - 포함 항목:
    - `verify:fast`
+   - `npm test` (Vitest 전체 회귀 테스트)
+   - `check:score-consistency:report:strict8` (점수 일관성 보고서)
    - `build` (Vite production build)
 
 운영 원칙:
@@ -46,8 +48,9 @@ Use this checklist to manually verify the main functionality after running the a
    - [ ] Uploading a document image shows preview and does not crash the UI.
    - [ ] Profile photo capture (camera) opens (if permissions granted) and captured image attaches to record.
 
-4. AI-related flows (with API key)
-   - [ ] `Gemini` API calls succeed when valid `GEMINI_API_KEY` is provided in settings or env.
+4. AI-related flows (server-side credential)
+   - [ ] 운영 환경의 서버 비밀 저장소에 유효한 분석 연결키가 있고, 브라우저 번들·localStorage·로그에 키가 노출되지 않는다.
+   - [ ] 브라우저 직접 Gemini 경로는 개발 전용으로만 표시되며 운영 모드에서는 사용할 수 없다.
    - [ ] Rate-limit handling: if API returns quota error, UI shows friendly `할당량 초과` message.
 
 5. Exports

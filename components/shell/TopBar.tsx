@@ -30,7 +30,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     onToggleTheme,
     patentBadge,
     controls,
-    statusLabel = '정상 운영',
+    statusLabel = '관리자 확인 기준',
     onGoToDashboard,
 }) => {
     const themeLabel =

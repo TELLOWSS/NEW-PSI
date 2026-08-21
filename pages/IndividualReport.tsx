@@ -35,7 +35,7 @@ interface IndividualReportProps {
     record: WorkerRecord;
     history?: WorkerRecord[];
     onBack: () => void;
-    onUpdateRecord?: (record: WorkerRecord) => void;
+    onUpdateRecord?: (record: WorkerRecord) => boolean | void | Promise<boolean | void>;
     isQrScanMode?: boolean;
 }
 
@@ -496,7 +496,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
 
     const stopCamera = () => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); setIsCameraOpen(false); };
 
-    const capturePhoto = () => {
+    const capturePhoto = async () => {
         if (!videoRef.current) return;
         const canvas = document.createElement('canvas');
         canvas.width = videoRef.current.videoWidth;
@@ -505,7 +505,11 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         if (ctx) {
             ctx.drawImage(videoRef.current, 0, 0);
             const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-            if (onUpdateRecord) onUpdateRecord({ ...record, profileImage: dataUrl });
+            const saved = onUpdateRecord ? await onUpdateRecord({ ...record, profileImage: dataUrl }) : true;
+            if (saved === false) {
+                alert('프로필 사진을 저장하지 못했습니다. 카메라 화면을 유지하니 저장 공간을 확인한 뒤 다시 촬영해 주세요.');
+                return;
+            }
             stopCamera();
         }
     };

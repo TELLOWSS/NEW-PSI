@@ -4,17 +4,23 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
     loadEnv(mode, '.', '');
+    const projectRoot = process.cwd();
     return {
-      root: __dirname,
+      root: projectRoot,
+      cacheDir: path.resolve(projectRoot, 'node_modules/.vite'),
       envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
       server: {
         port: 3000,
         host: '0.0.0.0',
       },
+      optimizeDeps: {
+        entries: ['index.html'],
+      },
       plugins: [react()],
       resolve: {
+        preserveSymlinks: true,
         alias: {
-          '@': path.resolve(__dirname, '.'),
+          '@': projectRoot,
         }
       },
       build: {

@@ -3,6 +3,16 @@ import type { Page, SafetyCheckRecord, WorkerRecord } from '../../types';
 import { calculateCoreMetricSnapshot, isOperationalWorkerRecord } from '../../utils/coreMetrics';
 import { useAssessmentCycle } from '../../hooks/useAssessmentCycle';
 import { resolveAssessmentPeriod } from '../../utils/assessmentCycle';
+import { getSafetyLevelThresholds } from '../../utils/safetyLevelUtils';
+import {
+    hasOperationsRiskSignal,
+    isOperationsRecordCompleted,
+    isOperationsRecordInProgress,
+    isPendingOperationsReviewRecord,
+    isProtectionPriorityRecord,
+    selectOperationsPriorityQueue,
+    type OperationsQueueTone,
+} from '../../utils/operationsBoard';
 
 interface PrecisionOperationsBoardProps {
     workerRecords: WorkerRecord[];
@@ -11,18 +21,9 @@ interface PrecisionOperationsBoardProps {
     onOpenAdvanced: () => void;
 }
 
-type QueueTone = 'critical' | 'warning' | 'progress' | 'normal';
 type PeriodFilter = 'all' | 'cycle' | '7' | '30';
 
-type QueueItem = {
-    record: WorkerRecord;
-    tone: QueueTone;
-    statusLabel: string;
-    riskLabel: string;
-};
-
-const RISK_SCORE_THRESHOLD = 70;
-const OPS_TONE_CLASSES: Record<QueueTone, {
+const OPS_TONE_CLASSES: Record<OperationsQueueTone, {
     kpi: string;
     mark: string;
     status: string;
@@ -85,75 +86,6 @@ const getSiteName = (): string => {
     }
 };
 
-const isImmediateRecord = (record: WorkerRecord): boolean =>
-    record.riskDecision === 'CRITICAL_STOP'
-    || record.riskDecision === 'IMMEDIATE_ATTENTION'
-    || (Number.isFinite(Number(record.safetyScore)) && Number(record.safetyScore) < RISK_SCORE_THRESHOLD);
-
-const isPendingReviewRecord = (record: WorkerRecord): boolean =>
-    record.reviewStatus === 'PENDING'
-    || record.approvalStatus === 'PENDING'
-    || record.approvalState === 'PENDING'
-    || record.workflowState === 'manual_review_required'
-    || record.workflowState === 'awaiting_manager_approval'
-    || record.secondPassStatus === 'NEEDED';
-
-const isInProgressRecord = (record: WorkerRecord): boolean =>
-    record.secondPassStatus === 'IN_PROGRESS'
-    || record.workflowState === 'ocr_validating'
-    || record.workflowState === 'first_pass_analyzing'
-    || record.workflowState === 'second_pass_analyzing'
-    || record.workflowState === 'evaluator_review';
-
-const isCompletedRecord = (record: WorkerRecord): boolean =>
-    record.reviewStatus === 'APPROVED'
-    || record.approvalStatus === 'APPROVED'
-    || record.approvalState === 'APPROVED'
-    || record.secondPassStatus === 'DONE'
-    || record.workflowState === 'completed';
-
-const hasRiskSignal = (record: WorkerRecord): boolean =>
-    isImmediateRecord(record)
-    || record.selfAssessedRiskLevel === '상'
-    || (Array.isArray(record.weakAreas) && record.weakAreas.length > 0);
-
-const resolveQueueItem = (record: WorkerRecord): QueueItem => {
-    const riskLabel =
-        record.weakAreas?.find((item) => String(item || '').trim())
-        || record.improvement
-        || record.ocrErrorMessage
-        || '관리자 검토가 필요한 기록';
-
-    if (record.riskDecision === 'CRITICAL_STOP') {
-        return { record, tone: 'critical', statusLabel: '작업중지 확인', riskLabel };
-    }
-    if (isImmediateRecord(record)) {
-        return { record, tone: 'critical', statusLabel: '보호 우선', riskLabel };
-    }
-    if (isPendingReviewRecord(record)) {
-        return { record, tone: 'warning', statusLabel: '검토 대기', riskLabel };
-    }
-    if (isInProgressRecord(record)) {
-        return { record, tone: 'progress', statusLabel: '분석 중', riskLabel };
-    }
-    return {
-        record,
-        tone: isCompletedRecord(record) ? 'normal' : 'progress',
-        statusLabel: isCompletedRecord(record) ? '검토 완료' : '확인 필요',
-        riskLabel,
-    };
-};
-
-const getQueuePriority = (item: QueueItem): number => {
-    const tonePriority: Record<QueueTone, number> = {
-        critical: 0,
-        warning: 1,
-        progress: 2,
-        normal: 3,
-    };
-    return tonePriority[item.tone] * 1000 + (Number(item.record.safetyScore) || 100);
-};
-
 const formatToday = (): string =>
     new Intl.DateTimeFormat('ko-KR', {
         year: 'numeric',
@@ -187,8 +119,9 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
     onOpenAdvanced,
 }) => {
     const { cycle, copy: cycleCopy } = useAssessmentCycle();
-    const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
+    const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('cycle');
     const [tradeFilter, setTradeFilter] = useState('all');
+    const protectionPriorityThreshold = getSafetyLevelThresholds().intermediateMin;
 
     const operationalRecords = useMemo(
         () => workerRecords.filter(isOperationalWorkerRecord),
@@ -234,13 +167,13 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
         };
 
         filteredRecords.forEach((record) => {
-            if (isImmediateRecord(record)) {
+            if (isProtectionPriorityRecord(record, protectionPriorityThreshold)) {
                 result.immediate += 1;
-            } else if (isPendingReviewRecord(record)) {
+            } else if (isPendingOperationsReviewRecord(record)) {
                 result.pending += 1;
-            } else if (isInProgressRecord(record)) {
+            } else if (isOperationsRecordInProgress(record)) {
                 result.progress += 1;
-            } else if (isCompletedRecord(record)) {
+            } else if (isOperationsRecordCompleted(record)) {
                 result.completed += 1;
             } else {
                 result.pending += 1;
@@ -248,21 +181,13 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
         });
 
         return result;
-    }, [filteredRecords]);
+    }, [filteredRecords, protectionPriorityThreshold]);
 
-    const priorityQueue = useMemo(
-        () => filteredRecords
-            .map(resolveQueueItem)
-            .sort((left, right) => {
-                const priorityDifference = getQueuePriority(left) - getQueuePriority(right);
-                if (priorityDifference !== 0) return priorityDifference;
-                const leftTime = parseRecordDate(left.record.date)?.getTime() || 0;
-                const rightTime = parseRecordDate(right.record.date)?.getTime() || 0;
-                return rightTime - leftTime;
-            })
-            .slice(0, 4),
-        [filteredRecords],
+    const allPriorityQueue = useMemo(
+        () => selectOperationsPriorityQueue(filteredRecords, protectionPriorityThreshold, filteredRecords.length),
+        [filteredRecords, protectionPriorityThreshold],
     );
+    const priorityQueue = allPriorityQueue.slice(0, 4);
 
     const riskCounts = useMemo(() => {
         const counts = new Map<string, number>();
@@ -278,7 +203,7 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
     const trendSeries = useMemo(() => {
         const dailyCounts = new Map<string, number>();
         filteredRecords.forEach((record) => {
-            if (!hasRiskSignal(record)) return;
+            if (!hasOperationsRiskSignal(record, protectionPriorityThreshold)) return;
             const parsed = parseRecordDate(record.date);
             if (!parsed) return;
             const key = formatLocalDateKey(parsed);
@@ -300,7 +225,7 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                 value: dailyCounts.get(key) || 0,
             };
         });
-    }, [filteredRecords]);
+    }, [filteredRecords, protectionPriorityThreshold]);
 
     const averageOcrConfidence = useMemo(() => {
         const values = filteredRecords
@@ -308,6 +233,24 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
             .filter((value) => Number.isFinite(value) && value > 0);
         if (!values.length) return null;
         return Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 100);
+    }, [filteredRecords]);
+
+    const sourceReviewCount = useMemo(
+        () => filteredRecords.filter((record) => (
+            Boolean(record.ocrErrorType)
+            || (typeof record.ocrConfidence === 'number' && record.ocrConfidence < 0.7)
+        )).length,
+        [filteredRecords],
+    );
+
+    const latestRecordLabel = useMemo(() => {
+        const latest = filteredRecords.reduce<Date | null>((current, record) => {
+            const parsed = parseRecordDate(record.date);
+            if (!parsed || (current && parsed <= current)) return current;
+            return parsed;
+        }, null);
+        if (!latest) return '기록 없음';
+        return new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric' }).format(latest);
     }, [filteredRecords]);
 
     const aiSuggestion = useMemo(() => {
@@ -332,6 +275,15 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
         filteredRecords.length === operationalRecords.length
             ? `전체 ${filteredRecords.length}건`
             : `${operationalRecords.length}건 중 ${filteredRecords.length}건`;
+    const evidenceCoverage = summary.totalWorkers > 0
+        ? Math.round((summary.validScoreRecordCount / summary.totalWorkers) * 100)
+        : null;
+    const periodScopeLabel: Record<PeriodFilter, string> = {
+        all: '전체 기간',
+        cycle: cycleCopy.currentCycleLabel,
+        '7': '최근 7일',
+        '30': '최근 30일',
+    };
 
     const kpis = [
         {
@@ -354,27 +306,27 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
             key: 'analyzed',
             label: '분석 완료',
             value: summary.analyzedWorkerCount,
-            unit: '건',
+            unit: '명',
             helper: `표시 기록 ${visibleRecordLabel}`,
             tone: 'progress',
         },
         {
             key: 'improvement',
             label: '개선 이행률',
-            value: summary.improvementExecutionRate,
-            unit: '%',
-            helper: `공식 계산 기준 · ${summary.ruleVersion}`,
+            value: summary.analyzedWorkerCount > 0 ? summary.improvementExecutionRate : '—',
+            unit: summary.analyzedWorkerCount > 0 ? '%' : '',
+            helper: summary.analyzedWorkerCount > 0 ? '관리자 확인용 보호 신호' : '세부 분석 후 표시',
             tone: 'normal',
         },
     ] as const;
 
-    const quickLinks: Array<{ page: Page; title: string; description: string }> = [
-        { page: 'ocr-analysis', title: '위험성평가 분석', description: '등록·판독·검토' },
-        { page: 'safety-compliance-hub', title: '안전조치 통합 허브', description: '조치·코칭·이행' },
-        { page: 'education-return', title: '교육 환류', description: '교육자료·개인 안내' },
-        { page: 'monthly-guidance-report', title: cycleCopy.reportLabel, description: '반복 위험·개선 추적' },
-        { page: 'reports', title: '근로자 리포트', description: '개인별 분석 근거' },
-        { page: 'performance-analysis', title: '안전성과 분석', description: `${cycleCopy.shortLabel} 성과와 변화` },
+    const quickLinks: Array<{ key: string; page: Page; title: string; description: string; status: string }> = [
+        { key: 'capture', page: 'ocr-analysis', title: '1. 기록·분석', description: '촬영하고 원문 확인', status: `${filteredRecords.length}건` },
+        { key: 'review', page: 'ocr-analysis', title: '2. 관리자 확인', description: '근거 대조·승인', status: statusCounts.pending ? `${statusCounts.pending}건 대기` : '대기 없음' },
+        { key: 'protect', page: 'safety-compliance-hub', title: '3. 현장 보호조치', description: '담당·기한·이행', status: statusCounts.immediate ? `${statusCounts.immediate}건 우선` : '우선 없음' },
+        { key: 'educate', page: 'education-return', title: '4. 교육 환류', description: '원페이지·개인 안내', status: '확인 기록 기반' },
+        { key: 'track', page: 'monthly-guidance-report', title: '5. 반복위험 추적', description: cycleCopy.trackingLabel, status: cycleCopy.shortLabel },
+        { key: 'report', page: 'reports', title: '6. 공식 리포트', description: '승인 근거·수정 이력', status: '내부 확인용' },
     ];
 
     return (
@@ -389,11 +341,11 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                         <span className="psi-ops-context-divider" aria-hidden="true" />
                         <span>{cycleCopy.cadenceLabel} · {cycleCopy.frequencyLabel}</span>
                     </div>
-                    <h1 id="operations-page-title" className="psi-ops-title">오늘의 안전 운영</h1>
-                    <p className="psi-ops-subtitle">위험 신호를 먼저 확인하고, 검토·조치·교육까지 끊김 없이 이어갑니다.</p>
+                    <h1 id="operations-page-title" className="psi-ops-title">현재 주기 안전 운영</h1>
+                    <p className="psi-ops-subtitle">오늘 처리할 위험 신호를 먼저 확인하고, 검토·조치·교육까지 끊김 없이 이어갑니다.</p>
                 </div>
 
-                <div className="psi-ops-toolbar" aria-label="안전 운영 필터와 주요 작업">
+                <div className="psi-ops-toolbar" role="group" aria-label="안전 운영 필터와 주요 작업">
                     <label className="psi-ops-filter">
                         <span>기간</span>
                         <select value={periodFilter} onChange={(event) => setPeriodFilter(event.target.value as PeriodFilter)}>
@@ -421,6 +373,22 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                 </div>
             </section>
 
+            <section className="psi-ops-assurance" aria-labelledby="operations-assurance-title">
+                <div className="psi-ops-assurance-copy">
+                    <span className="psi-ops-assurance-mark" aria-hidden="true" />
+                    <div>
+                        <h2 id="operations-assurance-title">사람이 확정하는 보호 판단</h2>
+                        <p>자동 분석은 확인할 신호를 정리합니다. 원문과 현장 상황을 대조한 관리자의 판단이 최종 기준입니다.</p>
+                    </div>
+                </div>
+                <dl className="psi-ops-assurance-metrics">
+                    <div><dt>분석 근거</dt><dd>{summary.validScoreRecordCount}/{summary.totalWorkers}명</dd></div>
+                    <div><dt>근거 준비율</dt><dd>{evidenceCoverage === null ? '—' : `${evidenceCoverage}%`}</dd></div>
+                    <div><dt>원문 확인 필요</dt><dd>{sourceReviewCount}건</dd></div>
+                    <div><dt>최근 기록</dt><dd>{latestRecordLabel}</dd></div>
+                </dl>
+            </section>
+
             <section className="psi-ops-kpi-grid" aria-label="주요 안전 지표">
                 {kpis.map((item) => (
                     <article key={item.key} className={`psi-ops-kpi ${OPS_TONE_CLASSES[item.tone].kpi}`}>
@@ -441,10 +409,10 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                     <header className="psi-ops-panel-header">
                         <div>
                             <div className="psi-ops-panel-title-row">
-                                <h2>오늘의 우선 확인</h2>
-                                <span>{priorityQueue.length}건</span>
+                                <h2>{periodScopeLabel[periodFilter]} 우선 확인</h2>
+                                <span>{allPriorityQueue.length}건</span>
                             </div>
-                            <p>보호 우선과 승인 대기 기록을 위험도 순으로 정리했습니다.</p>
+                            <p>보호 우선·승인 대기·분석 중 기록을 위험도 순으로 정리했습니다.{allPriorityQueue.length > priorityQueue.length ? ` 상위 ${priorityQueue.length}건을 표시합니다.` : ''}</p>
                         </div>
                         <button type="button" onClick={() => setCurrentPage('ocr-analysis')} className="psi-ops-text-action">
                             전체 기록 보기
@@ -484,8 +452,8 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                                             </td>
                                             <td data-label="기록일">{getRecordDateLabel(item.record.date)}</td>
                                             <td className="psi-ops-row-action">
-                                                <button type="button" onClick={() => setCurrentPage('ocr-analysis')} aria-label={`${item.record.name} 기록 검토`}>
-                                                    검토
+                                                <button type="button" onClick={() => setCurrentPage(item.actionPage)} aria-label={`${item.record.name} ${item.actionLabel}`}>
+                                                    {item.actionLabel}
                                                 </button>
                                             </td>
                                         </tr>
@@ -587,7 +555,7 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                             <span>
                                 근거 위험 신호 {evidenceCount}건
                                 {' · '}
-                                {averageOcrConfidence === null ? 'OCR 신뢰도 미산정' : `OCR 평균 신뢰도 ${averageOcrConfidence}%`}
+                                {averageOcrConfidence === null ? '원문 인식 상태 미산정' : `원문 인식 평균 ${averageOcrConfidence}%`}
                             </span>
                         </div>
                         <div className="psi-ops-ai-actions">
@@ -601,9 +569,9 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
             <section className="psi-ops-workflow" aria-labelledby="operations-workflow-title">
                 <header>
                     <div>
-                        <p className="psi-ops-eyebrow">Closed safety loop</p>
-                        <h2 id="operations-workflow-title">분석에서 교육 환류까지</h2>
-                        <p>필요한 업무만 빠르게 열고, 상세 분석은 별도 화면에서 이어갑니다.</p>
+                        <p className="psi-ops-eyebrow">기록 → 확인 → 환류</p>
+                        <h2 id="operations-workflow-title">쓴 위험을 확인된 행동으로</h2>
+                        <p>기록을 읽는 데서 끝내지 않고 현장조치, 교육, 다음 주기 재확인까지 연결합니다.</p>
                     </div>
                     <button type="button" onClick={onOpenAdvanced} className="psi-ops-secondary-action">
                         상세 분석 대시보드
@@ -612,12 +580,13 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                 </header>
                 <div className="psi-ops-quick-grid">
                     {quickLinks.map((item, index) => (
-                        <button type="button" key={item.page} onClick={() => setCurrentPage(item.page)}>
+                        <button type="button" key={item.key} onClick={() => setCurrentPage(item.page)}>
                             <span className="psi-ops-quick-number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
                             <span>
                                 <strong>{item.title}</strong>
                                 <small>{item.description}</small>
                             </span>
+                            <em>{item.status}</em>
                             <ChevronIcon />
                         </button>
                     ))}

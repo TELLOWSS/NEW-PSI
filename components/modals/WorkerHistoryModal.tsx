@@ -21,7 +21,7 @@ interface WorkerHistoryModalProps {
     initialSelectedRecord: WorkerRecord;
     onClose: () => void;
     onViewDetails: (record: WorkerRecord) => void;
-    onUpdateRecord: (record: WorkerRecord) => void;
+    onUpdateRecord: (record: WorkerRecord) => boolean | void | Promise<boolean | void>;
     onDeleteRecord: (recordId: string) => void;
 }
 
@@ -92,9 +92,14 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
         setEditableRecord(prev => ({ ...prev, [field]: value } as WorkerRecord));
     }
 
-    const handleSave = () => {
-        onUpdateRecord(editableRecord);
-        alert("수정되었습니다.");
+    const handleSave = async () => {
+        const saved = await onUpdateRecord(editableRecord);
+        if (saved === false) {
+            alert('수정 내용을 저장하지 못했습니다. 기존 기록은 유지됩니다.');
+            return;
+        }
+        setSelectedRecord(editableRecord);
+        alert('수정 내용을 저장했습니다.');
     }
 
     const selectedSafetyTone = getSafetyLevelClass(selectedRecord.safetyLevel);

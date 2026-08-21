@@ -34,7 +34,7 @@
         --psi-slate-200: #e2e8f0;
         --psi-text: #102a43;
         --psi-text-muted: #50657a;
-        --psi-text-subtle: #607386;
+        --psi-text-subtle: #566b7f;
         --psi-border: #d7e0e8;
         --psi-border-strong: #c3ced8;
         --psi-focus: #1769aa;
@@ -53,7 +53,7 @@
         --psi-control-border: #c3ced8;
         --psi-control-border-hover: #9aabba;
         --psi-disabled-bg: #e8edf2;
-        --psi-disabled-text: #607386;
+        --psi-disabled-text: #566b7f;
         --psi-disabled-border: #c3ced8;
         --psi-inverse-surface: #f8fafc;
         --psi-inverse-text: #020617;
@@ -613,7 +613,7 @@
         background: color-mix(in srgb, var(--psi-focus) 9%, var(--psi-surface));
         padding: 0.25rem 0.7rem;
         color: var(--psi-brand);
-        font-size: 0.68rem;
+        font-size: 0.72rem;
         font-weight: 700;
         letter-spacing: 0;
     }
@@ -945,6 +945,91 @@
         transform: translateY(-1px);
     }
 
+    .psi-ops-assurance {
+        display: grid;
+        min-width: 0;
+        grid-template-columns: minmax(280px, 1.2fr) minmax(420px, 1fr);
+        align-items: center;
+        gap: 18px;
+        border: 1px solid color-mix(in srgb, var(--psi-brand) 28%, var(--psi-border));
+        border-radius: var(--psi-radius-lg);
+        background: color-mix(in srgb, var(--psi-info-soft) 72%, var(--psi-surface));
+        padding: 0.85rem 1rem;
+    }
+
+    .psi-ops-assurance-copy {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .psi-ops-assurance-mark {
+        position: relative;
+        width: 30px;
+        height: 34px;
+        flex: 0 0 30px;
+        border: 2px solid var(--psi-brand);
+        border-radius: 12px 12px 15px 15px;
+        background: var(--psi-surface);
+    }
+
+    .psi-ops-assurance-mark::before {
+        position: absolute;
+        top: 9px;
+        left: 8px;
+        width: 11px;
+        height: 6px;
+        border-bottom: 2px solid var(--psi-success);
+        border-left: 2px solid var(--psi-success);
+        transform: rotate(-45deg);
+        content: '';
+    }
+
+    .psi-ops-assurance h2 {
+        color: var(--psi-text);
+        font-size: 0.86rem;
+        font-weight: 850;
+        letter-spacing: -0.015em;
+    }
+
+    .psi-ops-assurance p {
+        margin-top: 0.18rem;
+        color: var(--psi-text-muted);
+        font-size: 0.75rem;
+        font-weight: 600;
+        line-height: 1.5;
+    }
+
+    .psi-ops-assurance-metrics {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        min-width: 0;
+    }
+
+    .psi-ops-assurance-metrics > div {
+        min-width: 0;
+        border-left: 1px solid var(--psi-border);
+        padding: 0 0.75rem;
+    }
+
+    .psi-ops-assurance-metrics dt {
+        color: var(--psi-text-subtle);
+        font-size: 0.72rem;
+        font-weight: 750;
+        white-space: nowrap;
+    }
+
+    .psi-ops-assurance-metrics dd {
+        margin-top: 0.25rem;
+        overflow: hidden;
+        color: var(--psi-text);
+        font-size: 0.86rem;
+        font-weight: 850;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
     .psi-ops-secondary-action {
         border: 1px solid var(--psi-border-strong);
         background: var(--psi-surface);
@@ -1106,7 +1191,7 @@
         margin-top: 0.55rem;
         max-width: calc(100% - 38px);
         color: var(--psi-text-subtle);
-        font-size: 0.65rem;
+        font-size: 0.72rem;
         font-weight: 650;
         line-height: 1.4;
     }
@@ -1168,7 +1253,7 @@
     .psi-ops-workflow header p {
         margin-top: 0.2rem;
         color: var(--psi-text-subtle);
-        font-size: 0.65rem;
+        font-size: 0.72rem;
         font-weight: 600;
         line-height: 1.4;
     }
@@ -1360,7 +1445,7 @@
         background: var(--psi-surface);
         padding: 0.35rem 0.65rem;
         color: var(--psi-brand);
-        font-size: 0.66rem;
+        font-size: 0.72rem;
         font-weight: 800;
     }
 
@@ -1606,7 +1691,7 @@
         align-items: center;
         gap: 5px;
         color: var(--psi-text-subtle);
-        font-size: 0.61rem;
+        font-size: 0.7rem;
         font-weight: 750;
         white-space: nowrap;
     }
@@ -1725,7 +1810,7 @@
         display: grid;
         min-width: 0;
         min-height: 64px;
-        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-columns: auto minmax(0, 1fr) auto auto;
         align-items: center;
         gap: 9px;
         border: 1px solid var(--psi-border);
@@ -1768,9 +1853,21 @@
         margin-top: 0.18rem;
         overflow: hidden;
         color: var(--psi-text-subtle);
-        font-size: 0.57rem;
+        font-size: 0.72rem;
         font-weight: 650;
         text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .psi-ops-quick-grid em {
+        border: 1px solid var(--psi-border);
+        border-radius: 999px;
+        background: var(--psi-surface);
+        padding: 0.2rem 0.45rem;
+        color: var(--psi-text-muted);
+        font-size: 0.7rem;
+        font-style: normal;
+        font-weight: 800;
         white-space: nowrap;
     }
 
@@ -1860,6 +1957,15 @@
     }
 
     @media (max-width: 1023px) {
+        .psi-ops-assurance {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .psi-ops-assurance-metrics > div:first-child {
+            border-left: 0;
+            padding-left: 0;
+        }
+
         .psi-ops-intro {
             align-items: flex-start;
             flex-direction: column;
@@ -1898,7 +2004,7 @@
         }
 
         .psi-ops-context {
-            font-size: 0.7rem;
+            font-size: 0.72rem;
         }
 
         .psi-ops-title {
@@ -1959,7 +2065,45 @@
 
         .psi-ops-kpi p {
             max-width: 100%;
-            font-size: 0.65rem;
+            font-size: 0.72rem;
+        }
+
+        .psi-ops-assurance {
+            gap: 14px;
+            border-radius: 18px;
+            padding: 0.95rem;
+        }
+
+        .psi-ops-assurance-copy {
+            align-items: flex-start;
+        }
+
+        .psi-ops-assurance h2 {
+            font-size: 0.9rem;
+        }
+
+        .psi-ops-assurance p {
+            font-size: 0.78rem;
+        }
+
+        .psi-ops-assurance-metrics {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px 0;
+            border-top: 1px solid var(--psi-border);
+            padding-top: 0.85rem;
+        }
+
+        .psi-ops-assurance-metrics > div:nth-child(odd) {
+            border-left: 0;
+            padding-left: 0;
+        }
+
+        .psi-ops-assurance-metrics dt {
+            font-size: 0.72rem;
+        }
+
+        .psi-ops-assurance-metrics dd {
+            font-size: 0.9rem;
         }
 
         .psi-ops-panel,
@@ -1979,7 +2123,7 @@
 
         .psi-ops-panel-header p,
         .psi-ops-workflow header p {
-            font-size: 0.68rem;
+            font-size: 0.72rem;
         }
 
         .psi-ops-text-action {
@@ -2150,7 +2294,11 @@
         }
 
         .psi-ops-quick-grid small {
-            font-size: 0.68rem;
+            font-size: 0.72rem;
+        }
+
+        .psi-ops-quick-grid em {
+            font-size: 0.72rem;
         }
 
         .psi-ocr-field-hero {
@@ -2604,14 +2752,14 @@
     --psi-slate-200: #e2e8f0;
     --psi-text: #102a43;
     --psi-text-muted: #50657a;
-    --psi-text-subtle: #607386;
+    --psi-text-subtle: #566b7f;
     --psi-border: #d7e0e8;
     --psi-border-strong: #c3ced8;
     --psi-control-bg: #ffffff;
     --psi-control-border: #c3ced8;
     --psi-control-border-hover: #9aabba;
     --psi-disabled-bg: #e8edf2;
-    --psi-disabled-text: #607386;
+    --psi-disabled-text: #566b7f;
     --psi-disabled-border: #c3ced8;
     --psi-surface-translucent: rgba(255, 255, 255, 0.92);
     --psi-surface-muted-translucent: rgba(247, 249, 251, 0.86);

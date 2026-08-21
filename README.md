@@ -4,7 +4,7 @@ PSI는 위험성평가 기록을 분석하고, 관리자 검증·안전조치·�
 
 ## 로컬 실행
 
-1. Node.js를 설치합니다.
+1. Node.js 22.13 이상을 설치합니다.
 2. `npm install`을 실행합니다.
 3. `.env.local`에 필요한 환경변수를 설정합니다.
 4. `npm run dev`로 실행합니다.
@@ -13,6 +13,7 @@ PSI는 위험성평가 기록을 분석하고, 관리자 검증·안전조치·�
 
 ## 현재 기준 문서
 
+- 제품 가치·디자인·출시 기준: [docs/PSI_PRODUCT_VALUE_AND_DESIGN_BLUEPRINT_2026-08-21.md](docs/PSI_PRODUCT_VALUE_AND_DESIGN_BLUEPRINT_2026-08-21.md)
 - 운영: [ADMIN_OPERATION_GUIDE.md](ADMIN_OPERATION_GUIDE.md)
 - 배포 환경: [DEPLOYMENT_ENV_CHECKLIST.md](DEPLOYMENT_ENV_CHECKLIST.md)
 - 검증: [VERIFICATION.md](VERIFICATION.md)
@@ -20,7 +21,7 @@ PSI는 위험성평가 기록을 분석하고, 관리자 검증·안전조치·�
 - 문자·MMS 설정: [SMS_MMS_SETUP.md](SMS_MMS_SETUP.md)
 - 브랜드 문구: [PSI_BRAND_VOICE_GUIDE.md](PSI_BRAND_VOICE_GUIDE.md)
 - 역할별 UX 문구: [PSI_ROLE_BASED_UX_COPY_GUIDE.md](PSI_ROLE_BASED_UX_COPY_GUIDE.md)
-- 제품화 현재 계획: [docs/PSI_보강사항_검증_실행계획_2026-07-14.md](docs/PSI_보강사항_검증_실행계획_2026-07-14.md)
+- 제품화 이전 실행계획: [docs/PSI_보강사항_검증_실행계획_2026-07-14.md](docs/PSI_보강사항_검증_실행계획_2026-07-14.md)
 - 개발 원칙: [docs/PSI_DEVELOPMENT_GUARDRAILS.md](docs/PSI_DEVELOPMENT_GUARDRAILS.md)
 
 과거 계획, 완료 보고, 회차별 인계 문서는 [docs/archive/root-history](docs/archive/root-history)에 보존합니다. 특허, 감사, 마이그레이션, 운영 보고 자료는 기존 전용 폴더에서 관리합니다.

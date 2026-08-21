@@ -168,29 +168,24 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
                         <div className="w-16 h-16 sm:w-20 sm:h-20 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
                             <svg className="w-8 h-8 sm:w-10 sm:h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                         </div>
-                        <h2 className="text-xl sm:text-2xl font-black text-slate-900 mb-2">시스템 일시 중단됨</h2>
+                        <h2 className="text-xl sm:text-2xl font-black text-slate-900 mb-2">안전 운영 화면을 다시 불러와야 합니다</h2>
                         <p className="text-sm sm:text-base text-slate-500 mb-4 sm:mb-6 font-medium">
-                            처리 중 예상치 못한 문제가 발생했습니다.<br/>
-                            데이터는 안전하게 보존되어 있으니 안심하세요.
+                            처리 중 문제가 발생했습니다.<br/>
+                            저장 완료 전 입력은 반영되지 않았을 수 있으니, 다시 연 뒤 기록 목록을 확인해 주세요.
                         </p>
                         {isDynamicImportFetchError(String(this.state.error?.message || '')) ? (
                             <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-xs font-semibold text-amber-800">
-                                배포 직후 파일 해시가 바뀌면서 이전 청크를 참조한 경우입니다. 캐시 새로고침 후 다시 시도해 주세요.
+                                새 버전이 반영되는 동안 연결이 갱신되었습니다. 화면을 다시 불러오면 정상적으로 이어집니다.
                             </div>
                         ) : null}
-                        
-                        <div className="bg-slate-100 p-3 sm:p-4 rounded-lg sm:rounded-xl text-left mb-4 sm:mb-6 overflow-auto max-h-32 sm:max-h-40 text-[10px] sm:text-xs font-mono text-slate-600 border border-slate-200">
-                            <strong>오류 상세 정보:</strong> {this.state.error?.toString()}
-                            <br/>
-                            <span className="opacity-50">시스템 진단 정보: {this.state.errorInfo?.componentStack}</span>
-                        </div>
 
-                        <button 
+                        <button
+                            type="button"
                             onClick={this.handleReset}
                             className="w-full py-3 sm:py-4 bg-indigo-600 text-white rounded-lg sm:rounded-xl text-sm sm:text-base font-bold shadow-lg hover:bg-indigo-700 transition-all hover:-translate-y-1 flex items-center justify-center gap-2"
                         >
                             <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                            시스템 복구 및 새로고침
+                            화면 다시 불러오기
                         </button>
                     </div>
                 </div>
@@ -208,7 +203,11 @@ const initDB = () => new Promise<IDBDatabase>((resolve, reject) => {
     }
     const r = indexedDB.open(IDB_NAME, IDB_VERSION);
     r.onerror = () => reject(r.error);
-    r.onsuccess = () => resolve(r.result);
+    r.onsuccess = () => {
+        const db = r.result;
+        db.onversionchange = () => db.close();
+        resolve(db);
+    };
     r.onupgradeneeded = (e: Event) => {
         const req = e.target as IDBOpenDBRequest;
         const db = req.result as IDBDatabase;
@@ -218,31 +217,45 @@ const initDB = () => new Promise<IDBDatabase>((resolve, reject) => {
     };
 });
 
-const loadWorkerRecordsFromDB = async () => {
-    try {
-        const db = await initDB();
-        return new Promise<WorkerRecord[]>((resolve) => {
-            const tx = db.transaction([WORKER_STORE], 'readonly');
-            const store = tx.objectStore(WORKER_STORE);
-            const request = store.getAll();
-            request.onsuccess = (e: Event) => resolve(((e.target as IDBRequest).result as WorkerRecord[]) || []);
-            request.onerror = () => resolve([]);
-        });
-    } catch (e) { 
-        const msg = extractMessage(e);
-        console.warn("DB Load failed or not supported", msg);
-        return []; 
-    }
+const loadWorkerRecordsFromDB = async (): Promise<WorkerRecord[]> => {
+    const db = await initDB();
+    return new Promise<WorkerRecord[]>((resolve, reject) => {
+        const tx = db.transaction([WORKER_STORE], 'readonly');
+        const store = tx.objectStore(WORKER_STORE);
+        const request = store.getAll();
+        let records: WorkerRecord[] = [];
+        request.onsuccess = (e: Event) => {
+            records = (((e.target as IDBRequest).result as WorkerRecord[]) || []);
+        };
+        request.onerror = () => {
+            db.close();
+            reject(request.error || new Error('저장된 위험성평가 기록을 읽지 못했습니다.'));
+        };
+        tx.oncomplete = () => {
+            db.close();
+            resolve(records);
+        };
+        tx.onerror = () => {
+            db.close();
+            reject(tx.error || new Error('위험성평가 기록 불러오기에 실패했습니다.'));
+        };
+        tx.onabort = () => {
+            db.close();
+            reject(tx.error || new Error('위험성평가 기록 불러오기가 중단되었습니다.'));
+        };
+    });
 };
 
-const saveRecordToDB = async (record: WorkerRecord) => {
-    try {
-        const db = await initDB();
+const saveRecordToDB = async (record: WorkerRecord): Promise<void> => {
+    const db = await initDB();
+    await new Promise<void>((resolve, reject) => {
         const tx = db.transaction([WORKER_STORE], 'readwrite');
         const store = tx.objectStore(WORKER_STORE);
         store.put(record);
-        return new Promise(res => { tx.oncomplete = () => res(true); });
-    } catch (e) { console.error("Save Error:", e); }
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error || new Error('위험성평가 기록 저장에 실패했습니다.')); };
+        tx.onabort = () => { db.close(); reject(tx.error || new Error('위험성평가 기록 저장이 중단되었습니다.')); };
+    });
 };
 
 const saveRecordsToDB = async (records: WorkerRecord[]): Promise<void> => {
@@ -252,20 +265,22 @@ const saveRecordsToDB = async (records: WorkerRecord[]): Promise<void> => {
         const tx = db.transaction([WORKER_STORE], 'readwrite');
         const store = tx.objectStore(WORKER_STORE);
         records.forEach((record) => store.put(record));
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error || new Error('백업 일괄 저장 실패'));
-        tx.onabort = () => reject(tx.error || new Error('백업 일괄 저장이 중단되었습니다.'));
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error || new Error('백업 일괄 저장 실패')); };
+        tx.onabort = () => { db.close(); reject(tx.error || new Error('백업 일괄 저장이 중단되었습니다.')); };
     });
 };
 
-const deleteRecordFromDB = async (id: string) => {
-    try {
-        const db = await initDB();
+const deleteRecordFromDB = async (id: string): Promise<void> => {
+    const db = await initDB();
+    await new Promise<void>((resolve, reject) => {
         const tx = db.transaction([WORKER_STORE], 'readwrite');
         const store = tx.objectStore(WORKER_STORE);
         store.delete(id);
-        return new Promise(res => { tx.oncomplete = () => res(true); });
-    } catch (e) { console.error("Delete Error:", e); }
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error || new Error('위험성평가 기록 삭제에 실패했습니다.')); };
+        tx.onabort = () => { db.close(); reject(tx.error || new Error('위험성평가 기록 삭제가 중단되었습니다.')); };
+    });
 };
 
 const clearDB = async () => {
@@ -276,8 +291,9 @@ const clearDB = async () => {
             const store = tx.objectStore(WORKER_STORE);
             const request = store.clear();
             
-            tx.oncomplete = () => resolve(true);
-            tx.onerror = (e) => reject(e);
+            tx.oncomplete = () => { db.close(); resolve(true); };
+            tx.onerror = (e) => { db.close(); reject(e); };
+            tx.onabort = (e) => { db.close(); reject(e); };
             request.onerror = (e) => reject(e);
         });
     } catch (e) { 
@@ -674,6 +690,7 @@ const App: React.FC = () => {
     const [isUnlockSubmitting, setIsUnlockSubmitting] = useState(false);
     const [workerRecords, setWorkerRecords] = useState<WorkerRecord[]>([]);
     const [safetyCheckRecords, setSafetyCheckRecords] = useState<SafetyCheckRecord[]>([]);
+    const [storageNotice, setStorageNotice] = useState('');
     const [briefingData, setBriefingData] = useState<BriefingData | null>(null);
     const [forecastData, setForecastData] = useState<RiskForecastData | null>(null);
     const [modalState, setModalState] = useState<ModalState>({ type: null });
@@ -684,15 +701,21 @@ const App: React.FC = () => {
 
     // [Ref] Maintain a ref to workerRecords for stable callbacks (prevent stale closures in async handlers)
     const workerRecordsRef = useRef<WorkerRecord[]>([]);
+    const safetyCheckRecordsRef = useRef<SafetyCheckRecord[]>([]);
     useEffect(() => {
         workerRecordsRef.current = workerRecords;
     }, [workerRecords]);
+    useEffect(() => {
+        safetyCheckRecordsRef.current = safetyCheckRecords;
+    }, [safetyCheckRecords]);
 
     // [NEW] Undo Delete State
     const [deletedRecord, setDeletedRecord] = useState<WorkerRecord | null>(null);
     const [showUndoToast, setShowUndoToast] = useState(false);
     const undoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const undoOperationVersionRef = useRef(0);
     const queuedEmbeddingKeysRef = useRef<Set<string>>(new Set());
+    const recordUpdateQueuesRef = useRef<Map<string, Promise<boolean>>>(new Map());
 
     const queueBestPracticeEmbedding = useCallback((record: WorkerRecord) => {
         const isFinalized =
@@ -794,6 +817,7 @@ const App: React.FC = () => {
         const qrData = params.get('d');
         const mode = params.get('mode');
         const sessionId = params.get('sessionId');
+        const guidancePeriod = params.get('guidancePeriod');
 
         if ((mode === 'worker-training' || mode === 'worker-kiosk') && sessionId) {
             setTrainingSessionId(sessionId);
@@ -809,6 +833,11 @@ const App: React.FC = () => {
                 setIsQrScanMode(true);
                 setCurrentPage('individual-report');
             }
+            return;
+        }
+
+        if (guidancePeriod) {
+            setCurrentPage('monthly-guidance-report');
         }
     }, []);
 
@@ -955,6 +984,9 @@ const App: React.FC = () => {
                     }
                 })();
             }
+        }).catch((error) => {
+            console.error('[PSI][Storage] 위험성평가 기록 불러오기 실패:', error);
+            setStorageNotice('이 기기에 저장된 위험성평가 기록을 불러오지 못했습니다. 새 기록을 입력하기 전에 화면을 다시 불러와 주세요.');
         });
         const savedChecks = localStorage.getItem('psi_safety_checks');
         if (savedChecks) {
@@ -972,7 +1004,7 @@ const App: React.FC = () => {
     }, []);
 
     // [Updated] Stable Handler using useCallback
-    const handleUpdateRecord = useCallback(async (updatedRecord: WorkerRecord) => {
+    const performRecordUpdate = useCallback(async (updatedRecord: WorkerRecord): Promise<boolean> => {
         const profileAwareRecord = applyWorkerProfilePolicy(updatedRecord, workerRecordsRef.current);
         const normalizedIdentityRecord = applyIdentityPolicy(profileAwareRecord, workerRecordsRef.current);
         const unifiedWorkerRecord = ensureWorkerUuid(normalizedIdentityRecord, workerRecordsRef.current);
@@ -1041,17 +1073,45 @@ const App: React.FC = () => {
                 }))
             : [];
 
-        setWorkerRecords(prev => prev.map(r => {
+        try {
+            await saveRecordsToDB([hashed, ...relatedPhotoUpdates]);
+        } catch (error) {
+            console.error('[PSI][Storage] 기록 수정 저장 실패:', error);
+            setStorageNotice('수정 내용을 이 기기에 저장하지 못했습니다. 기존 기록은 유지되며, 저장 공간을 확인한 뒤 다시 시도해 주세요.');
+            return false;
+        }
+
+        setStorageNotice('');
+        const nextRecords = workerRecordsRef.current.map(r => {
             if (r.id === hashed.id) return hashed;
             const synced = relatedPhotoUpdates.find(item => item.id === r.id);
             return synced || r;
-        }));
-        await saveRecordToDB(hashed);
-        for (const record of relatedPhotoUpdates) {
-            await saveRecordToDB(record);
-        }
+        });
+        workerRecordsRef.current = nextRecords;
+        setWorkerRecords(nextRecords);
         queueBestPracticeEmbedding(hashed);
+        return true;
     }, [queueBestPracticeEmbedding]);
+
+    const handleUpdateRecord = useCallback((updatedRecord: WorkerRecord): Promise<boolean> => {
+        const previousTask = recordUpdateQueuesRef.current.get(updatedRecord.id) || Promise.resolve(true);
+        const queuedTask = previousTask
+            .catch(() => false)
+            .then(() => performRecordUpdate(updatedRecord))
+            .catch((error) => {
+                console.error('[PSI][Storage] 기록 수정 처리 실패:', error);
+                setStorageNotice('수정 내용을 준비하거나 저장하지 못했습니다. 기존 기록은 유지되며, 화면을 다시 확인한 뒤 재시도해 주세요.');
+                return false;
+            });
+
+        recordUpdateQueuesRef.current.set(updatedRecord.id, queuedTask);
+        void queuedTask.finally(() => {
+            if (recordUpdateQueuesRef.current.get(updatedRecord.id) === queuedTask) {
+                recordUpdateQueuesRef.current.delete(updatedRecord.id);
+            }
+        });
+        return queuedTask;
+    }, [performRecordUpdate]);
 
     // [Updated] Stable Handler with functional updates and Ref access
     const handleDeleteRecord = useCallback(async (id: string) => {
@@ -1061,6 +1121,16 @@ const App: React.FC = () => {
         const targetRecord = workerRecordsRef.current.find(r => r.id === id);
         if (!targetRecord) return;
 
+        try {
+            await deleteRecordFromDB(id);
+        } catch (error) {
+            console.error('[PSI][Storage] 기록 삭제 실패:', error);
+            setStorageNotice('기록을 삭제하지 못했습니다. 기존 기록은 그대로 유지됩니다. 잠시 후 다시 시도해 주세요.');
+            return;
+        }
+
+        setStorageNotice('');
+        undoOperationVersionRef.current += 1;
         // 2. Set for potential undo
         setDeletedRecord(targetRecord);
         setShowUndoToast(true);
@@ -1074,29 +1144,64 @@ const App: React.FC = () => {
             setDeletedRecord(null);
         }, 5000); // 5 seconds to undo
 
-        // 5. Perform delete (Functional Update for robustness)
-        setWorkerRecords(prev => prev.filter(r => r.id !== id));
-        await deleteRecordFromDB(id);
+        // 5. Reflect the persisted deletion in memory.
+        const nextRecords = workerRecordsRef.current.filter(r => r.id !== id);
+        workerRecordsRef.current = nextRecords;
+        setWorkerRecords(nextRecords);
     }, []);
 
     // [Updated] Undo Handler
     const handleUndoDelete = useCallback(async () => {
         if (!deletedRecord) return;
+        const recordToRestore = deletedRecord;
+        const operationVersion = undoOperationVersionRef.current;
+        if (undoTimeoutRef.current) {
+            clearTimeout(undoTimeoutRef.current);
+            undoTimeoutRef.current = null;
+        }
 
+        try {
+            await saveRecordToDB(recordToRestore);
+        } catch (error) {
+            console.error('[PSI][Storage] 삭제 실행 취소 저장 실패:', error);
+            setStorageNotice('삭제 실행 취소를 저장하지 못했습니다. 기록 목록은 변경하지 않았습니다.');
+            return;
+        }
+
+        setStorageNotice('');
         // Restore to state
-        setWorkerRecords(prev => {
-            const restored = [...prev, deletedRecord];
-            return restored.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        });
+        const restored = [...workerRecordsRef.current.filter((record) => record.id !== recordToRestore.id), recordToRestore]
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        workerRecordsRef.current = restored;
+        setWorkerRecords(restored);
 
-        // Restore to DB
-        await saveRecordToDB(deletedRecord);
-
-        // Reset Undo State
-        setShowUndoToast(false);
-        setDeletedRecord(null);
-        if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+        // Do not clear a newer deletion's undo state if it started while this write was pending.
+        if (undoOperationVersionRef.current === operationVersion) {
+            setShowUndoToast(false);
+            setDeletedRecord(null);
+        }
     }, [deletedRecord]);
+
+    const handleAddSafetyCheck = useCallback((input: unknown): boolean => {
+        const nextRecord: SafetyCheckRecord = {
+            ...(input as SafetyCheckRecord),
+            id: Date.now().toString(),
+        };
+        const nextRecords = [nextRecord, ...safetyCheckRecordsRef.current];
+
+        try {
+            localStorage.setItem('psi_safety_checks', JSON.stringify(nextRecords));
+        } catch (error) {
+            console.error('[PSI][Storage] 안전점검 기록 저장 실패:', error);
+            setStorageNotice('안전점검 기록을 이 기기에 저장하지 못했습니다. 저장 공간을 확인한 뒤 다시 시도해 주세요.');
+            return false;
+        }
+
+        setStorageNotice('');
+        safetyCheckRecordsRef.current = nextRecords;
+        setSafetyCheckRecords(nextRecords);
+        return true;
+    }, []);
 
     // [Updated] Delete All Handler
     const handleDeleteAll = useCallback(async () => {
@@ -1106,7 +1211,9 @@ const App: React.FC = () => {
             await clearDB();
             localStorage.removeItem('psi_safety_checks');
             localStorage.removeItem('psi_site_issues');
-            
+
+            workerRecordsRef.current = [];
+            safetyCheckRecordsRef.current = [];
             setWorkerRecords([]);
             setSafetyCheckRecords([]);
             setBriefingData(null);
@@ -1295,17 +1402,18 @@ const App: React.FC = () => {
                                 isQrScanMode={isQrScanMode}
                                 history={workerRecords.filter(r => isSameWorkerTimeline(recordForReport, r))}
                                 onBack={() => { setRecordForReport(null); setIsQrScanMode(false); navigateToPage('ocr-analysis'); }} 
-                                onUpdateRecord={(updated) => {
+                                onUpdateRecord={async (updated) => {
                                     const normalized = applyIdentityPolicy(updated, workerRecordsRef.current);
-                                    handleUpdateRecord(normalized);
-                                    setRecordForReport(normalized);
+                                    const saved = await handleUpdateRecord(normalized);
+                                    if (saved) setRecordForReport(normalized);
+                                    return saved;
                                 }}
                             />
                         )}
                         {currentPage === 'survey-intelligence' && <SurveyIntelligence workerRecords={workerRecords} />}
                         {currentPage === 'predictive-analysis' && <PredictiveAnalysis workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'performance-analysis' && <PerformanceAnalysis workerRecords={workerRecords} />}
-                        {currentPage === 'safety-checks' && <SafetyChecks workerRecords={workerRecords} checkRecords={safetyCheckRecords} onAddCheck={(r: unknown) => setSafetyCheckRecords(p => [{...(r as SafetyCheckRecord), id:Date.now().toString()}, ...p])} />}
+                        {currentPage === 'safety-checks' && <SafetyChecks workerRecords={workerRecords} checkRecords={safetyCheckRecords} onAddCheck={handleAddSafetyCheck} />}
                         {currentPage === 'site-issue-management' && <SiteIssueManagement workerRecords={workerRecords} />}
                         {currentPage === 'reports' && <Reports workerRecords={workerRecords} briefingData={briefingData} setBriefingData={setBriefingData} forecastData={forecastData} setForecastData={setForecastData} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'admin-training' && <AdminTraining />}
@@ -1320,6 +1428,22 @@ const App: React.FC = () => {
                         {currentPage === 'judgment-tagging-input' && <JudgmentTaggingInput />}
                     </Suspense>
                 </Layout>
+            )}
+            {storageNotice && (
+                <div className="fixed inset-x-3 top-3 z-[10000] mx-auto max-w-2xl sm:inset-x-6" role="alert" aria-live="assertive">
+                    <div className="flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950 shadow-xl dark:border-amber-500/50 dark:bg-amber-950 dark:text-amber-100">
+                        <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-amber-200 text-sm font-black dark:bg-amber-800" aria-hidden="true">!</span>
+                        <p className="min-w-0 flex-1 text-sm font-semibold leading-6">{storageNotice}</p>
+                        <button
+                            type="button"
+                            onClick={() => setStorageNotice('')}
+                            className="min-h-10 min-w-10 rounded-xl px-2 text-sm font-black text-amber-900 hover:bg-amber-100 dark:text-amber-100 dark:hover:bg-amber-900"
+                            aria-label="저장 안내 닫기"
+                        >
+                            닫기
+                        </button>
+                    </div>
+                </div>
             )}
             {modalState.type === 'workerHistory' && modalState.record && <WorkerHistoryModal workerName={modalState.workerName!} allRecords={workerRecords} initialSelectedRecord={modalState.record} onClose={() => setModalState({type:null})} onViewDetails={(r) => setModalState({type:'recordDetail', record:r})} onUpdateRecord={handleUpdateRecord} onDeleteRecord={handleDeleteRecord} />}
             {modalState.type === 'recordDetail' && modalState.record && (() => {

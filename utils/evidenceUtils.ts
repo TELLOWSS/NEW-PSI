@@ -284,9 +284,12 @@ export function appendCorrectionHistory(record: WorkerRecord, previous: WorkerRe
 }
 
 export async function attachEvidenceHash(record: WorkerRecord): Promise<WorkerRecord> {
+    const originalImageSha256 = typeof record.originalImage === 'string' && record.originalImage.length > 0
+        ? await sha256Hex(record.originalImage)
+        : null;
     const payload = {
         id: record.id,
-        originalImage: Boolean(record.originalImage),
+        originalImageSha256,
         fullText: record.fullText || '',
         koreanTranslation: record.koreanTranslation || '',
         safetyScore: record.safetyScore,

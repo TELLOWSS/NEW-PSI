@@ -99,6 +99,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const [showScrollTop, setShowScrollTop] = useState(false);
     const mainRef = useRef<HTMLElement>(null);
     const operatorMenuRef = useRef<HTMLDetailsElement>(null);
+    const mobileMenuDialogRef = useRef<HTMLDivElement>(null);
+    const mobileMenuPreviousFocusRef = useRef<HTMLElement | null>(null);
     const { isDevMode, toggle: toggleDevMode } = useDevMode();
     const { mode: operationalMode, cycleMode: cycleOperationalMode } = useOperationalMode();
     const { copy: assessmentCycleCopy } = useAssessmentCycle();
@@ -201,6 +203,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         setIsMobileMenuOpen(false); // Close mobile menu on navigation
     };
 
+    const handleOpenMobileMenu = useCallback(() => {
+        mobileMenuPreviousFocusRef.current = document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+        setIsMobileMenuOpen(true);
+    }, []);
+
     const activeOnePointProofStage = getOnePointProofStage(onePointProofSession?.currentStageId);
     const nextOnePointProofStage = getNextOnePointProofStage(onePointProofSession?.completedStageIds || []);
     const showOnePointProofReturn = Boolean(onePointProofSession?.active && currentPage !== 'introduction');
@@ -270,11 +279,36 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         };
     }, []);
 
-    // Handle Escape key to close mobile menu
+    // Keep keyboard focus inside the modal navigation and restore it when closed.
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape' && isMobileMenuOpen) {
                 setIsMobileMenuOpen(false);
+                return;
+            }
+
+            if (event.key === 'Tab' && isMobileMenuOpen) {
+                const dialog = mobileMenuDialogRef.current;
+                if (!dialog) return;
+                const focusable = Array.from(dialog.querySelectorAll(
+                    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+                )) as HTMLElement[];
+                const visibleFocusable = focusable.filter((element) => !element.hasAttribute('hidden') && element.getAttribute('aria-hidden') !== 'true');
+                if (visibleFocusable.length === 0) {
+                    event.preventDefault();
+                    dialog.focus();
+                    return;
+                }
+
+                const first = visibleFocusable[0];
+                const last = visibleFocusable[visibleFocusable.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
             }
         };
 
@@ -282,6 +316,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
             document.addEventListener('keydown', handleKeyDown);
             // Prevent body scroll when menu is open
             document.body.style.overflow = 'hidden';
+            window.requestAnimationFrame(() => {
+                const dialog = mobileMenuDialogRef.current;
+                const firstFocusable = dialog?.querySelector<HTMLElement>('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])');
+                (firstFocusable || dialog)?.focus();
+            });
         } else {
             document.body.style.overflow = '';
         }
@@ -289,6 +328,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
             document.body.style.overflow = '';
+            if (isMobileMenuOpen) {
+                mobileMenuPreviousFocusRef.current?.focus();
+            }
         };
     }, [isMobileMenuOpen]);
 
@@ -436,13 +478,28 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
             }
             mobileSidebarOverlay={
                 isMobileMenuOpen ? (
-                    <div className="fixed inset-0 z-50 no-print lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation menu">
+                    <div
+                        ref={mobileMenuDialogRef}
+                        className="fixed inset-0 z-50 no-print lg:hidden"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="전체 메뉴"
+                        tabIndex={-1}
+                    >
                         <div
                             className="fixed inset-0 bg-black/60"
                             onClick={() => setIsMobileMenuOpen(false)}
                             aria-hidden="true"
                         />
                         <div className="fixed inset-y-0 left-0 w-[248px] animate-fade-in">
+                            <button
+                                type="button"
+                                onClick={() => setIsMobileMenuOpen(false)}
+                                className="absolute right-2 top-2 z-10 flex h-11 w-11 items-center justify-center rounded-xl border border-slate-600 bg-slate-900/90 text-xl font-bold text-white shadow-lg transition-colors hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                                aria-label="전체 메뉴 닫기"
+                            >
+                                <span aria-hidden="true">×</span>
+                            </button>
                             <Sidebar
                                 currentPage={currentPage}
                                 setCurrentPage={handlePageChange}
@@ -461,10 +518,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                     siteName={siteTitle}
                     currentPageTitle={currentPageTitle}
                     todayLabel={todayLabel}
-                    statusLabel="정상 운영"
+                    statusLabel="관리자 확인 기준"
                     analysisModeLabel={analysisModeLabel}
                     isMobileMenuOpen={isMobileMenuOpen}
-                    onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+                    onOpenMobileMenu={handleOpenMobileMenu}
                     isDark={isDark}
                     themeMode={themeMode}
                     onToggleTheme={handleToggleTheme}

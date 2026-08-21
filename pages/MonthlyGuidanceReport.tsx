@@ -43,6 +43,17 @@ const average = (records: WorkerRecord[], key: MetricKey) => {
 };
 const clampPercent = (value: number) => Math.max(0, Math.min(100, value));
 
+const getConfiguredSiteName = (): string => {
+    if (typeof window === 'undefined') return '현장명 미설정';
+    try {
+        const raw = window.localStorage.getItem('psi_app_settings');
+        const siteName = raw ? (JSON.parse(raw) as { siteName?: unknown }).siteName : '';
+        return typeof siteName === 'string' && siteName.trim() ? siteName.trim() : '현장명 미설정';
+    } catch {
+        return '현장명 미설정';
+    }
+};
+
 const SparkLine: React.FC<{ points: ChartPoint[] }> = ({ points }) => {
     const width = 360;
     const height = 150;
@@ -188,6 +199,7 @@ const createReport = (
     previous: WorkerRecord[],
     assessmentPeriodLabel: string,
     cycleCopy: AssessmentCycleCopy,
+    siteName: string,
 ): GuidanceData => {
     const currentRisks = riskMap(records);
     const previousRisks = riskMap(previous);
@@ -208,7 +220,7 @@ const createReport = (
         return { issueName: risk.riskName, previousCount: before, currentCount: risk.count, trend: trend as 'new' | 'improved' | 'worsened' | 'same', guidanceMessage: trend === 'improved' ? '감소 흐름을 유지하고 실제 작업 전 확인까지 이어갑니다.' : '다음 교육에서 작업 상황과 실천행동을 함께 제시합니다.' };
     });
     return {
-        siteName: 'PSI 적용 현장',
+        siteName,
         educationMonth: cycleCopy.nextCycleLabel,
         basedOnAssessmentMonth: assessmentPeriodLabel,
         totalWorkers: new Set(records.map((r) => r.worker_uuid || r.workerUuid || r.employeeId || r.name)).size,
@@ -243,7 +255,9 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords }) => {
         const period = resolveAssessmentPeriod(new Date(), cycle);
         return [{ period, records: [] as WorkerRecord[] }];
     }, [cycle, workerRecords]);
-    const [assessmentPeriodKey, setAssessmentPeriodKey] = useState('');
+    const [assessmentPeriodKey, setAssessmentPeriodKey] = useState(() => (
+        typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('guidancePeriod') || ''
+    ));
     const [radarMode, setRadarMode] = useState<'field' | 'team'>('field');
     const [showQr, setShowQr] = useState(false);
     const selectedPeriodIndex = Math.max(
@@ -255,9 +269,10 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords }) => {
     const records = selectedGroup?.records || [];
     const previous = previousGroup?.records || [];
     const assessmentPeriodLabel = selectedGroup?.period.label || cycleCopy.currentCycleLabel;
+    const siteName = getConfiguredSiteName();
     const report = useMemo(
-        () => createReport(records, previous, assessmentPeriodLabel, cycleCopy),
-        [assessmentPeriodLabel, cycleCopy, previous, records],
+        () => createReport(records, previous, assessmentPeriodLabel, cycleCopy, siteName),
+        [assessmentPeriodLabel, cycleCopy, previous, records, siteName],
     );
     const monthlyChartPoints = useMemo<ChartPoint[]>(() => (
         [...periodGroups]
@@ -333,7 +348,30 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords }) => {
         </section>
 
         <main className="guidance-print space-y-5 rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm sm:p-6">
-            <header className="border-b border-slate-200 pb-5"><p className="psi-eyebrow text-indigo-600">{assessmentPeriodLabel} 작성자료 기반</p><div className="mt-1 flex flex-wrap items-center justify-between gap-3"><h2 className="psi-page-title">{cycleCopy.reportLabel}</h2><span className="rounded-full bg-emerald-100 px-4 py-2 text-xs font-bold text-emerald-800">실명·개인별 수치 제거 완료</span></div><p className="psi-body-compact mt-2">{report.overallSummary}</p></header>
+            <header className="border-b border-slate-200 pb-5">
+                <p className="psi-eyebrow text-indigo-600">{assessmentPeriodLabel} 작성자료 기반</p>
+                <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="psi-page-title">{cycleCopy.reportLabel}</h2>
+                    <div className="flex flex-wrap gap-2">
+                        <span className="rounded-full bg-emerald-100 px-4 py-2 text-xs font-bold text-emerald-800">실명·개인별 수치 제거 완료</span>
+                        <span className="rounded-full bg-amber-100 px-4 py-2 text-xs font-bold text-amber-900">관리자 승인 전 초안</span>
+                    </div>
+                </div>
+                <p className="psi-body-compact mt-2">{report.overallSummary}</p>
+                <dl className="mt-4 grid gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                    <div><dt className="psi-meta-label">현장명</dt><dd className="mt-1 font-bold text-slate-900">{report.siteName}</dd></div>
+                    <div><dt className="psi-meta-label">대상 구간 · 환류 시점</dt><dd className="mt-1 font-bold text-slate-900">{assessmentPeriodLabel} · {cycleCopy.nextCycleLabel}</dd></div>
+                    <div><dt className="psi-meta-label">문서번호 · 버전</dt><dd className="mt-1 font-bold text-amber-800">미발급 · 초안</dd></div>
+                    <div><dt className="psi-meta-label">관리자 승인</dt><dd className="mt-1 font-bold text-amber-800">승인자·승인일 미입력</dd></div>
+                </dl>
+                <p className="mt-2 text-xs font-semibold leading-5 text-amber-800">공식 발행 전 현장 ID, 작성 완료율의 분모·제외 사유, 조치 담당자·기한, 교육자료 ID, 승인자·승인일과 수정이력을 연결해야 합니다.</p>
+            </header>
+            {records.length === 0 && (
+                <section role="status" className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950">
+                    <h3 className="psi-section-title">선택한 구간에 분석 기록이 없습니다.</h3>
+                    <p className="psi-body-compact mt-2 text-amber-900">위험성평가 기록을 먼저 등록하고 관리자가 원문을 확인한 뒤 다시 열어 주세요. 빈 통계는 공식 자료로 발행하지 않습니다.</p>
+                </section>
+            )}
             <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[['분석 건수', `${report.analyzedRecords}건`], ['참여 인원', `${report.totalWorkers}명`], ['가장 많이 나온 위험', report.topRiskFactors[0]?.riskName || '분석자료 없음'], ['가장 약한 지표', weakest?.label || '분석자료 없음']].map(([k, v]) => <div key={k} className="rounded-2xl border border-slate-200 bg-white p-4"><p className="psi-meta-label">{k}</p><p className="psi-card-title mt-2">{v}</p></div>)}</section>
             <TrackingAnalysisPanel report={report} monthlyPoints={monthlyChartPoints} delta={monthlyDelta} cycleCopy={cycleCopy} />
             <section data-monthly-guidance="group-radar" className="rounded-2xl border border-indigo-100 bg-white p-5">
@@ -395,7 +433,7 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords }) => {
             <section className="rounded-2xl bg-slate-900 p-5 text-white"><h3 className="psi-section-title text-white">{cycleCopy.nextCycleLabel} 개선해야 할 실천행동</h3><ul className="mt-3 space-y-2 text-sm font-medium leading-7 text-slate-200">{report.nextMonthEducationFocus.length ? report.nextMonthEducationFocus.map((v) => <li key={v}>• {v}</li>) : <li>• 분석자료 수집 후 교육 중점 행동을 생성합니다.</li>}</ul></section>
         </main>
 
-        <section className="guidance-no-print rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="psi-section-title">교육용 공유자료 생성</h3><p className="psi-body-compact mt-1">개인 식별정보 없이 현장 전체 계도용 자료만 생성합니다.</p><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Action label="A4 요약 인쇄" onClick={() => window.print()} color="bg-slate-900" /><Action label="PPT 브리핑 개요" onClick={downloadOutline} color="bg-indigo-600" /><Action label="다국어 요약 복사" onClick={() => void copyLanguages()} color="bg-emerald-600" /><Action label="QR 보기" onClick={() => setShowQr((v) => !v)} color="bg-sky-600" /></div>{showQr && <div className="mt-4 flex flex-col items-center rounded-2xl border border-sky-200 bg-sky-50 p-5"><QRCodeCanvas value={qrValue} size={180} includeMargin /><p className="psi-small-note mt-3 text-sky-800">{assessmentPeriodLabel} 익명 계도자료</p></div>}</section>
+        <section className="guidance-no-print rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="psi-section-title">교육용 공유자료 생성</h3><p className="psi-body-compact mt-1">개인 식별정보 없이 현장 전체 계도용 자료만 생성합니다. 승인 전 초안은 현장 교육에 사용하지 마세요.</p><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Action label="A4 요약 인쇄" onClick={() => window.print()} color="bg-slate-900" /><Action label="PPT 브리핑 개요" onClick={downloadOutline} color="bg-indigo-600" /><Action label="다국어 요약 복사" onClick={() => void copyLanguages()} color="bg-emerald-600" /><Action label="QR 파일럿 보기" onClick={() => setShowQr((v) => !v)} color="bg-sky-600" /></div>{showQr && <div className="mt-4 flex flex-col items-center rounded-2xl border border-sky-200 bg-sky-50 p-5"><QRCodeCanvas value={qrValue} size={180} includeMargin /><p className="psi-small-note mt-3 text-sky-800">{assessmentPeriodLabel} 익명 계도자료 · 동일한 PSI 접근 권한 필요</p></div>}</section>
     </div>;
 };
 

@@ -1555,7 +1555,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             const canvas = await captureSheet();
             const link = document.createElement('a');
             const langLabel = previewLanguage !== 'ko-KR' ? LANGUAGE_KOREAN_NAMES[normalizeLanguageCode(previewLanguage)] || '다국어' : '';
-            const exportTokens = ['TBM교육자료', educationMonth, workType];
+            const exportTokens = ['PSI_위험성평가교육자료', educationMonth, workType];
             if (langLabel) exportTokens.push(langLabel);
             
             link.download = buildPsiExportFileName({
@@ -1579,7 +1579,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             const [canvas, JsPDF] = await Promise.all([captureSheet(), ensureJsPdfConstructor()]);
             if (!JsPDF) throw new Error('PDF 생성 도구를 불러오지 못했습니다.');
             const langLabel = previewLanguage !== 'ko-KR' ? LANGUAGE_KOREAN_NAMES[normalizeLanguageCode(previewLanguage)] || '다국어' : '';
-            const exportTokens = ['TBM교육자료', educationMonth, workType];
+            const exportTokens = ['PSI_위험성평가교육자료', educationMonth, workType];
             if (langLabel) exportTokens.push(langLabel);
 
             saveCanvasAsA4Pdf(canvas, JsPDF, buildPsiExportFileName({
@@ -1611,7 +1611,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             slide.addImage({ data: canvas.toDataURL('image/png', 1), x: 0, y: 0, w: 8.27, h: 11.69 });
             
             const langLabel = previewLanguage !== 'ko-KR' ? LANGUAGE_KOREAN_NAMES[normalizeLanguageCode(previewLanguage)] || '다국어' : '';
-            const exportTokens = ['TBM교육자료', educationMonth, workType];
+            const exportTokens = ['PSI_위험성평가교육자료', educationMonth, workType];
             if (langLabel) exportTokens.push(langLabel);
 
             await pptx.writeFile({
@@ -1647,7 +1647,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                 const canvas = await captureSheet();
                 const link = document.createElement('a');
                 const langLabel = lang !== 'ko-KR' ? LANGUAGE_KOREAN_NAMES[normalizeLanguageCode(lang)] || '다국어' : '한국어';
-                const exportTokens = ['TBM교육자료', educationMonth, workType, langLabel];
+                const exportTokens = ['PSI_위험성평가교육자료', educationMonth, workType, langLabel];
                 
                 link.download = buildPsiExportFileName({
                     tokens: exportTokens,
@@ -1687,7 +1687,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                 
                 const canvas = await captureSheet();
                 const langLabel = lang !== 'ko-KR' ? LANGUAGE_KOREAN_NAMES[normalizeLanguageCode(lang)] || '다국어' : '한국어';
-                const exportTokens = ['TBM교육자료', educationMonth, workType, langLabel];
+                const exportTokens = ['PSI_위험성평가교육자료', educationMonth, workType, langLabel];
 
                 saveCanvasAsA4Pdf(canvas, JsPDF, buildPsiExportFileName({
                     tokens: exportTokens,

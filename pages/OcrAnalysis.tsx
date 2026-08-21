@@ -1520,7 +1520,7 @@ interface OcrAnalysisProps {
     onViewDetails: (record: WorkerRecord) => void;
     onOpenReport: (record: WorkerRecord) => void;
     onDeleteRecord: (recordId: string) => void;
-    onUpdateRecord: (record: WorkerRecord) => void;
+    onUpdateRecord: (record: WorkerRecord) => boolean | void | Promise<boolean | void>;
     onNavigateToPredictive?: () => void;
     isStartChecklistIncomplete?: boolean;
 }
@@ -1553,6 +1553,19 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const { mode: operationalMode } = useOperationalMode();
     const isDeveloperExperience = isDevMode && operationalMode === 'developer';
     const isImmediateOperationalMode = operationalMode === 'immediate';
+    const persistRecordUpdate = useCallback(async (record: WorkerRecord): Promise<void> => {
+        const saved = await onUpdateRecord(record);
+        if (saved === false) {
+            throw new Error('기록을 이 기기에 저장하지 못했습니다. 저장 공간을 확인한 뒤 다시 시도해 주세요.');
+        }
+    }, [onUpdateRecord]);
+    const persistRecordUpdates = useCallback(async (records: WorkerRecord[]) => {
+        const results = await Promise.allSettled(records.map((record) => persistRecordUpdate(record)));
+        return {
+            succeeded: results.filter((result) => result.status === 'fulfilled').length,
+            failed: results.filter((result) => result.status === 'rejected').length,
+        };
+    }, [persistRecordUpdate]);
     const storedViewState = getStoredOcrViewState();
     const [files, setFiles] = useState<File[]>([]);
     const [uploadPreflightReports, setUploadPreflightReports] = useState<OcrUploadPreflight[]>([]);
@@ -3954,7 +3967,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 setProgress(`[${title}] ${record.name || '미상'} 처리 중...`);
                 try {
                     // 2차 재가공 시작: 상태 IN_PROGRESS
-                    onUpdateRecord(withHarnessState(record, {
+                    await persistRecordUpdate(withHarnessState(record, {
                         secondPassStatus: 'IN_PROGRESS',
                         workflowState: 'second_pass_analyzing',
                         riskDecision: 'SUPPLEMENTARY_REVIEW',
@@ -3978,7 +3991,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             riskDecision: 'IMMEDIATE_ATTENTION',
                             approvalState: 'PENDING',
                         });
-                        onUpdateRecord(errorRecord);
+                        await persistRecordUpdate(errorRecord);
                         failCount++;
                         preflightFailCount++;
                         setRetryDiagnostics({
@@ -4012,7 +4025,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             riskDecision: 'IMMEDIATE_ATTENTION',
                             approvalState: 'PENDING',
                         });
-                        onUpdateRecord(errorRecord);
+                        await persistRecordUpdate(errorRecord);
                         failCount++;
                         preflightFailCount++;
                         setRetryDiagnostics({
@@ -4054,7 +4067,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             riskDecision: 'IMMEDIATE_ATTENTION',
                             approvalState: 'PENDING',
                         });
-                        onUpdateRecord(errorRecord);
+                        await persistRecordUpdate(errorRecord);
                         failCount++;
                         preflightFailCount++;
                         setRetryDiagnostics({
@@ -4087,7 +4100,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             riskDecision: 'SUPPLEMENTARY_REVIEW',
                             approvalState: 'PENDING',
                         });
-                        onUpdateRecord(errorRecord);
+                        await persistRecordUpdate(errorRecord);
                         failCount++;
                         preflightFailCount++;
                         setRetryDiagnostics({
@@ -4120,7 +4133,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             riskDecision: 'SUPPLEMENTARY_REVIEW',
                             approvalState: 'PENDING',
                         });
-                        onUpdateRecord(errorRecord);
+                        await persistRecordUpdate(errorRecord);
                         failCount++;
                         preflightFailCount++;
                         setRetryDiagnostics({
@@ -4380,7 +4393,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             approvalState: apiResultFailed ? 'PENDING' : 'APPROVED',
                         });
                         const harnessSyncedRecord = await syncHarnessReanalyzeResult(updatedRecord, record);
-                        onUpdateRecord(harnessSyncedRecord);
+                        await persistRecordUpdate(harnessSyncedRecord);
 
                         if (isFailedRecord(harnessSyncedRecord)) {
                             failCount++;
@@ -4483,7 +4496,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             riskDecision: 'IMMEDIATE_ATTENTION',
                             approvalState: 'PENDING',
                         });
-                        onUpdateRecord(await syncHarnessReanalyzeResult(errorRecord, record));
+                        await persistRecordUpdate(await syncHarnessReanalyzeResult(errorRecord, record));
                         failCount++;
                         processingFailCount++;
                         if (failureCode === 'QUOTA') {
@@ -4558,7 +4571,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         riskDecision: 'IMMEDIATE_ATTENTION',
                         approvalState: 'PENDING',
                     });
-                    onUpdateRecord(await syncHarnessReanalyzeResult(errorRecord, record));
+                    await persistRecordUpdate(await syncHarnessReanalyzeResult(errorRecord, record));
                     failCount++;
                     processingFailCount++;
                     if (failureCode === 'QUOTA') {
@@ -4749,14 +4762,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     ocrFailureCode: undefined,
                                     ocrUnknownSubCategory: undefined,
                                 };
-                            onUpdateRecord(synchronizeManagerReviewedRecord(mergedRecord, {
+                            await persistRecordUpdate(synchronizeManagerReviewedRecord(mergedRecord, {
                                 appendAuditTrail: true,
                                 actor: 'manager',
                                 previousRecord: record,
                             }).record);
                             successCount++;
                         } else {
-                            onUpdateRecord(withHarnessState(record, {
+                            await persistRecordUpdate(withHarnessState(record, {
                                 secondPassStatus: 'NEEDED',
                                 workflowState: 'awaiting_manager_approval',
                                 riskDecision: 'SUPPLEMENTARY_REVIEW',
@@ -5028,7 +5041,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         });
     };
 
-    const handleAdminNormalizeFailedBatch = () => {
+    const handleAdminNormalizeFailedBatch = async () => {
         if (failedRecords.length === 0) {
             alert(`정상분류할 ${BRAND_STATUS_LABELS.attentionPending} 건이 없습니다.`);
             return;
@@ -5042,14 +5055,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         );
         if (!proceed) return;
 
-        failedRecords.forEach((record) => {
-            onUpdateRecord(buildAdminNormalizedRecord(record));
-        });
-
-        alert(`관리자 일괄 정상분류 완료: ${failedRecords.length}건`);
+        const result = await persistRecordUpdates(failedRecords.map(buildAdminNormalizedRecord));
+        alert(result.failed > 0
+            ? `관리자 정상분류 저장 완료 ${result.succeeded}건 · 저장 실패 ${result.failed}건\n실패한 기록은 기존 상태로 유지됩니다.`
+            : `관리자 일괄 정상분류 완료: ${result.succeeded}건`);
     };
 
-    const handleAdminNormalizeFailedGroup = (records: WorkerRecord[], label: string) => {
+    const handleAdminNormalizeFailedGroup = async (records: WorkerRecord[], label: string) => {
         if (records.length === 0) {
             alert(`${label} 정상분류 대상이 없습니다.`);
             return;
@@ -5063,14 +5075,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         );
         if (!proceed) return;
 
-        records.forEach((record) => {
-            onUpdateRecord(buildAdminNormalizedRecord(record));
-        });
-
-        alert(`${label} 정상분류 완료: ${records.length}건`);
+        const result = await persistRecordUpdates(records.map(buildAdminNormalizedRecord));
+        alert(result.failed > 0
+            ? `${label} 정상분류 저장 완료 ${result.succeeded}건 · 저장 실패 ${result.failed}건\n실패한 기록은 기존 상태로 유지됩니다.`
+            : `${label} 정상분류 완료: ${result.succeeded}건`);
     };
 
-    const handleAdminNormalizeFailedRecord = (record: WorkerRecord) => {
+    const handleAdminNormalizeFailedRecord = async (record: WorkerRecord) => {
         const proceed = confirm(
             `관리자 수동 정상분류를 진행하시겠습니까?\n\n` +
             `- OCR 실패 플래그를 제거하고\n` +
@@ -5079,8 +5090,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         );
         if (!proceed) return;
 
-        onUpdateRecord(buildAdminNormalizedRecord(record));
-        alert('관리자 수동 정상분류가 적용되었습니다.');
+        try {
+            await persistRecordUpdate(buildAdminNormalizedRecord(record));
+            alert('관리자 수동 정상분류를 저장했습니다.');
+        } catch (error) {
+            alert(extractMessage(error) || '관리자 수동 정상분류를 저장하지 못했습니다. 기존 상태는 유지됩니다.');
+        }
     };
 
     const handleViewRecordById = useCallback((recordId: string) => {
@@ -5763,7 +5778,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         alert(`OCR 검증 패키지를 저장했습니다.\n\n파일명: ${fileName}\n대상: ${records.length}건\n\n이 파일을 reports 폴더에 넣어주면 제가 71건 결과를 같이 검증할 수 있습니다.`);
     };
 
-    const handleNormalizeCurrentOcrMetadata = useCallback(() => {
+    const handleNormalizeCurrentOcrMetadata = useCallback(async () => {
         const targetRecords = selectedRecords.length > 0
             ? selectedRecords
             : (recordListRecords.length > 0 ? recordListRecords : ocrAnalyzedRecords);
@@ -5780,6 +5795,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         let changedCount = 0;
         let skippedCount = 0;
         const fieldCounts = new Map<string, number>();
+        const changedRecords: WorkerRecord[] = [];
 
         targetRecords.forEach((record) => {
             const result = normalizeOcrRecordMetadata<WorkerRecord>(record);
@@ -5793,8 +5809,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             result.changes.forEach((change) => {
                 fieldCounts.set(change.field, (fieldCounts.get(change.field) || 0) + 1);
             });
-            onUpdateRecord(result.record);
+            changedRecords.push(result.record);
         });
+
+        const persistence = await persistRecordUpdates(changedRecords);
 
         const fieldSummary = Array.from(fieldCounts.entries())
             .map(([field, count]) => `${field} ${count}건`)
@@ -5802,12 +5820,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         const scopeLabel = selectedRecords.length > 0 ? '선택 기록' : '현재 화면 기록';
 
         setExportFeedback({
-            tone: changedCount > 0 ? 'success' : 'info',
-            message: '날짜·공종 표준화가 완료되었습니다.',
-            detail: `${scopeLabel} ${targetRecords.length}건 중 ${changedCount}건 보정, 실패 전용 기록 ${skippedCount}건 제외. 변경 항목: ${fieldSummary}`,
+            tone: persistence.failed > 0 ? 'warning' : changedCount > 0 ? 'success' : 'info',
+            message: persistence.failed > 0 ? '일부 기록의 날짜·공종 표준화를 저장하지 못했습니다.' : '날짜·공종 표준화가 완료되었습니다.',
+            detail: `${scopeLabel} ${targetRecords.length}건 중 변경 ${changedCount}건, 저장 ${persistence.succeeded}건, 저장 실패 ${persistence.failed}건, 실패 전용 기록 ${skippedCount}건 제외. 변경 항목: ${fieldSummary}`,
         });
-        alert(`날짜·공종 표준화를 완료했습니다.\n\n대상: ${targetRecords.length}건\n보정: ${changedCount}건\n실패 전용 기록 제외: ${skippedCount}건\n\n변경 항목: ${fieldSummary}`);
-    }, [ocrAnalyzedRecords, onUpdateRecord, recordListRecords, selectedRecords, setExportFeedback]);
+        alert(`날짜·공종 표준화 저장을 마쳤습니다.\n\n대상: ${targetRecords.length}건\n변경: ${changedCount}건\n저장: ${persistence.succeeded}건\n저장 실패: ${persistence.failed}건\n실패 전용 기록 제외: ${skippedCount}건\n\n변경 항목: ${fieldSummary}`);
+    }, [ocrAnalyzedRecords, persistRecordUpdates, recordListRecords, selectedRecords, setExportFeedback]);
 
     const handleExportReanalysisSummary = () => {
         const blob = new Blob([reanalysisSummaryText], { type: 'text/plain;charset=utf-8' });
@@ -5986,13 +6004,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             && evidenceReadinessSummary.handwrittenCoverageRate >= 80
             && evidenceReadinessSummary.nativeGuidanceCoverageRate >= 70;
         const statusLabel = totalRecords === 0
-            ? '데이터 대기'
+            ? '첫 기록 대기'
             : evidenceReady
-                ? '발표 증빙 가능'
-                : '보강 확인';
+                ? '확인 자료 준비'
+                : '원문 보강 필요';
         const proofLine = totalRecords > 0
-            ? `OCR ${totalRecords}건이 근로자 ${workerGroups}명, 다월 추적 ${trackedWorkers}명, 확인 후보 ${reviewRequired}명으로 연결됩니다.`
-            : '촬영 또는 백업 불러오기 후 근로자 진단, 리포트, 추적평가가 한 흐름으로 열립니다.';
+            ? `등록 기록 ${totalRecords}건을 근로자 ${workerGroups}명과 연결했습니다. 반복 확인 ${trackedWorkers}명, 관리자 확인 후보 ${reviewRequired}명입니다.`
+            : '먼저 위험성평가 기록지를 촬영하거나 파일로 등록해 주세요. 분석 후 관리자 확인과 보호조치가 이어집니다.';
 
         return {
             totalRecords,
@@ -6056,7 +6074,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             <section
                 data-mobile-proof="field-mode"
                 className="psi-ocr-field-hero overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl sm:rounded-3xl"
-                aria-label="모바일 현장 원터치 모드"
+                aria-label="위험성평가 기록 등록과 후속 업무"
             >
                 <div className="bg-slate-950 px-4 py-5 text-white sm:px-6 sm:py-6">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -6066,11 +6084,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     {mobileProofSnapshot.statusLabel}
                                 </span>
                                 <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[11px] font-black text-slate-200">
-                                    모바일 현장 모드
+                                    현장 기록 흐름
                                 </span>
                             </div>
                             <h3 className="mt-3 text-xl font-black leading-tight text-white sm:text-2xl">
-                                촬영한 위험성평가 기록지를 진단·리포트·추적평가로 즉시 연결
+                                쓴 위험을 놓치지 않도록 기록지를 먼저 남겨주세요
                             </h3>
                             <p data-mobile-proof="proof-line" className="mt-2 max-w-3xl text-xs font-bold leading-relaxed text-slate-300 sm:text-sm">
                                 {mobileProofSnapshot.proofLine}
@@ -6078,15 +6096,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </div>
                         <div className="grid min-w-0 grid-cols-2 gap-2 text-center text-[11px] font-black sm:min-w-[320px]">
                             <div data-mobile-proof="metric-total-records" className="rounded-2xl border border-white/10 bg-white/10 px-3 py-3">
-                                <p className="text-slate-400">OCR 기록</p>
+                                <p className="text-slate-400">등록 기록</p>
                                 <p className="mt-1 text-xl text-indigo-200">{mobileProofSnapshot.totalRecords}건</p>
                             </div>
                             <div data-mobile-proof="metric-tracked-workers" className="rounded-2xl border border-white/10 bg-white/10 px-3 py-3">
-                                <p className="text-slate-400">다월 추적</p>
+                                <p className="text-slate-400">반복 확인</p>
                                 <p className="mt-1 text-xl text-emerald-200">{mobileProofSnapshot.trackedWorkers}명</p>
                             </div>
                             <div data-mobile-proof="metric-review-required" className="rounded-2xl border border-white/10 bg-white/10 px-3 py-3">
-                                <p className="text-slate-400">확인 후보</p>
+                                <p className="text-slate-400">관리자 확인</p>
                                 <p className="mt-1 text-xl text-amber-200">{mobileProofSnapshot.reviewRequired}명</p>
                             </div>
                             <div data-mobile-proof="metric-protection" className="rounded-2xl border border-white/10 bg-white/10 px-3 py-3">
@@ -6096,24 +6114,24 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </div>
                     </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-4 sm:p-4">
+                <div className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2 sm:p-4 lg:grid-cols-4">
                     <button
                         type="button"
                         data-mobile-proof="action-scan"
                         onClick={handleOpenMobileCapture}
-                        className="flex min-h-[54px] items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-3 py-3 text-xs font-black text-white shadow-md transition-colors hover:bg-indigo-700 active:scale-[0.99]"
+                        className="flex min-h-[62px] items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 py-4 text-sm font-black text-white shadow-lg transition-colors hover:bg-indigo-700 active:scale-[0.99] sm:col-span-2"
                     >
                         <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                             <path d="M5 7h2l1.5-2h7L17 7h2a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" />
                             <circle cx="12" cy="13" r="3.5" />
                         </svg>
-                        촬영/스캔
+                        위험성평가 기록지 촬영·등록
                     </button>
-                    <button
+                    {existingRecords.length > 0 && <button
                         type="button"
                         data-mobile-proof="action-report"
                         onClick={handleOpenMobilePriorityReport}
-                        className="flex min-h-[54px] items-center justify-center gap-2 rounded-2xl bg-slate-900 px-3 py-3 text-xs font-black text-white shadow-md transition-colors hover:bg-black active:scale-[0.99]"
+                        className="flex min-h-[54px] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-xs font-black text-slate-800 transition-colors hover:bg-slate-50 active:scale-[0.99]"
                     >
                         <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                             <path d="M14 3v4a2 2 0 0 0 2 2h4" />
@@ -6121,8 +6139,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <path d="M8 13h8M8 17h5" />
                         </svg>
                         리포트 열기
-                    </button>
-                    <button
+                    </button>}
+                    {existingRecords.length > 0 && <button
                         type="button"
                         data-mobile-proof="action-tracking"
                         onClick={handleOpenMobileTrackingReview}
@@ -6134,13 +6152,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <path d="m7 15 4-4 3 3 5-7" />
                         </svg>
                         추적평가
-                    </button>
-                    <button
+                    </button>}
+                    {existingRecords.length > 0 && <details className="group sm:col-span-2 lg:col-span-4">
+                        <summary className="cursor-pointer list-none rounded-xl px-3 py-2 text-center text-xs font-black text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+                            백업·검증 도구 열기
+                        </summary>
+                        <button
                         type="button"
                         data-mobile-proof="action-evidence-export"
                         onClick={handleExportEvidenceSnapshot}
                         disabled={existingRecords.length === 0}
-                        className="flex min-h-[54px] items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-3 text-xs font-black text-cyan-800 transition-colors hover:bg-cyan-100 active:scale-[0.99] disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                        className="mx-auto mt-2 flex min-h-[48px] w-full max-w-sm items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-3 text-xs font-black text-cyan-800 transition-colors hover:bg-cyan-100 active:scale-[0.99] disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                     >
                         <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                             <path d="M12 3v12" />
@@ -6148,7 +6170,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <path d="M5 21h14" />
                         </svg>
                         증빙 저장
-                    </button>
+                        </button>
+                    </details>}
                 </div>
             </section>
             {/* Control Panel */}
@@ -6656,7 +6679,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 
                 {!isNewOcrSectionCollapsed && (
                     <>
-                <section className="mb-5 rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
+                <details className="mb-5 rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
+                    <summary className="cursor-pointer text-sm font-black text-indigo-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-600">
+                        분석 방식 바꾸기 · 현재 {getOcrEngineLabel(ocrEngine)}
+                    </summary>
                     <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                             <p className="text-sm font-black text-indigo-950">문서 분석 방식</p>
@@ -6696,7 +6722,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             );
                         })}
                     </div>
-                </section>
+                </details>
                 <FileUpload
                     files={files}
                     onFilesChange={(nextFiles) => {
@@ -7555,19 +7581,20 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     />
                     <button
                         className="w-full sm:w-auto px-4 py-2 text-xs rounded bg-emerald-600 text-white font-bold hover:bg-emerald-700"
-                        onClick={() => {
+                        onClick={async () => {
                             if (selectedIds.length === 0) return alert('수정할 근로자를 선택하세요.');
                             if (!batchJobField && !batchTeamLeader) return alert('공종 또는 팀장 중 하나 이상 입력하세요.');
-                            recordListRecords.forEach(r => {
-                                if (selectedIds.includes(r.id)) {
-                                    onUpdateRecord({
-                                        ...r,
+                            const updates = recordListRecords
+                                .filter((record) => selectedIds.includes(record.id))
+                                .map((record) => ({
+                                        ...record,
                                         ...(batchJobField ? { jobField: batchJobField } : {}),
                                         ...(batchTeamLeader ? { teamLeader: batchTeamLeader } : {}),
-                                    });
-                                }
-                            });
-                            alert('일괄 수정이 적용되었습니다.');
+                                    }));
+                            const result = await persistRecordUpdates(updates);
+                            alert(result.failed > 0
+                                ? `일괄 수정 저장 ${result.succeeded}건 · 저장 실패 ${result.failed}건\n실패한 기록은 기존 상태로 유지됩니다.`
+                                : `일괄 수정 ${result.succeeded}건을 저장했습니다.`);
                         }}
                     >선택 근로자 일괄 적용</button>
                 </div>

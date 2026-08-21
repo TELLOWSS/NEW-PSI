@@ -14,7 +14,7 @@ import { getWorkerIdentityKey as getStableWorkerIdentityKey } from '../utils/wor
 interface SafetyChecksProps {
     workerRecords: WorkerRecord[];
     checkRecords: SafetyCheckRecord[];
-    onAddCheck: (newRecord: Omit<SafetyCheckRecord, 'id'>) => void;
+    onAddCheck: (newRecord: Omit<SafetyCheckRecord, 'id'>) => boolean | Promise<boolean>;
 }
 
 const isManagementRole = (field: string) => /관리|팀장|부장|과장|기사|공무|소장/.test(field);
@@ -314,8 +314,13 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                 },
             }, { fallbackMessage: `점검 통합 등록 ${BRAND_STATUS_LABELS.attention}` });
 
-            onAddCheck({ workerName: selectedWorker.name, date, type, reason: riskType, details, image: attachedImage || undefined });
-            setSubmitStatus({ ok: true, message: '통합 액션으로 점검 기록이 등록되었습니다.' });
+            const locallySaved = await onAddCheck({ workerName: selectedWorker.name, date, type, reason: riskType, details, image: attachedImage || undefined });
+            setSubmitStatus(locallySaved
+                ? { ok: true, message: '점검 기록을 서버와 이 기기 목록에 저장했습니다.' }
+                : {
+                    ok: false,
+                    message: '서버 등록은 완료됐지만 이 기기 목록에는 반영하지 못했습니다. 중복 등록하지 말고 화면을 다시 불러와 확인해 주세요.',
+                });
 
             // Reset form
             setSelectedWorkerId('');

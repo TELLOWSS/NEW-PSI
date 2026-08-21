@@ -658,7 +658,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         packageSummaryHashMatched: boolean;
     }) => {
         const ranked = [
-            { label: '위변조 확인값 불일치', count: input.hashMismatches },
+            { label: '내용 일치 확인값 불일치', count: input.hashMismatches },
             { label: '기준정보 불일치', count: input.metadataMismatches },
             { label: '기준 기록 누락', count: input.missingHarnessSnapshots },
             { label: '읽을 수 없는 세부자료', count: input.invalidJsonFiles },
@@ -670,7 +670,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     };
 
     const getVerificationFailureRecommendedAction = (reason: string) => {
-        if (reason.startsWith('위변조')) {
+        if (reason.startsWith('내용 일치')) {
             return '기준 파일과 증빙 데이터 원본을 같은 생성 시점 기준으로 다시 묶어 검증 묶음을 재생성하십시오.';
         }
         if (reason.startsWith('기준정보')) {
@@ -695,7 +695,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     };
 
     const getVerificationFailureDisplayLabel = (reason: string): string => {
-        if (reason.startsWith('위변조')) return '확인값 불일치';
+        if (reason.startsWith('내용 일치')) return '확인값 불일치';
         if (reason.startsWith('기준정보')) return '기준정보 차이';
         if (reason.startsWith('기준 기록')) return '기준 기록 누락';
         if (reason.startsWith('읽을 수 없는')) return '손상 데이터';
@@ -1444,8 +1444,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             title: '현재 보고서는 기본 판단 처리 흐름 중심으로 설명하면 됩니다.',
             description: versionChanges.length > 0
                 ? `저장된 버전 변경 요약 ${versionChanges[0]}를 함께 적으면 문맥 설명력이 높아집니다.`
-                : '추가 승인 변경이나 예외 승인이 없다면 현재 상태와 위변조 확인값 중심으로 설명하시면 됩니다.',
-            action: '처리 단계, 위험 판단, 승인 상태와 위변조 확인값을 짧게 묶어 보고서 근거 문장으로 정리하십시오.',
+                : '추가 승인 변경이나 예외 승인이 없다면 현재 상태와 내용 일치 확인값 중심으로 설명하시면 됩니다.',
+            action: '처리 단계, 위험 판단, 승인 상태와 내용 일치 확인값을 짧게 묶어 보고서 근거 문장으로 정리하십시오.',
             tone: BRAND_TONE.slate,
         };
     }, [previewWorkflowStatus]);
@@ -1678,7 +1678,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         {
             key: 'verify-action',
             eyebrow: '다음 행동',
-            title: verificationResult && !verificationResult.isValid ? '누락 파일과 위변조 확인값 차이를 먼저 보완하세요.' : '파일 준비 후 검증 실행으로 넘어가세요.',
+            title: verificationResult && !verificationResult.isValid ? '누락 파일과 내용 일치 확인값 차이를 먼저 보완하세요.' : '파일 준비 후 검증 실행으로 넘어가세요.',
             description: '검증 실패 시 검증 묶음 요약 확인값과 누락 증빙 데이터 목록을 기준으로 어떤 산출물을 다시 생성해야 하는지 바로 판단할 수 있습니다.',
             tone: verificationResult && !verificationResult.isValid ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
         },
@@ -1745,7 +1745,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             item.invalidJsonFiles += entry.invalidJsonFiles;
 
             const reasonCandidates = [
-                { label: '위변조 확인값 불일치', count: entry.hashMismatches },
+                { label: '내용 일치 확인값 불일치', count: entry.hashMismatches },
                 { label: '기준정보 불일치', count: entry.metadataMismatches },
                 { label: '기준 기록 누락', count: entry.missingHarnessSnapshots },
                 { label: '읽을 수 없는 세부자료', count: entry.invalidJsonFiles },
@@ -4219,7 +4219,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3">
                                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">확인값/기준 기록 이슈</p>
                                 <p className="mt-1 text-sm font-black text-amber-800">{verificationHistorySummary.hashMismatches + verificationHistorySummary.missingHarnessSnapshots}건</p>
-                                <p className="mt-1 text-[11px] font-bold text-amber-700">위변조 확인값 차이 {verificationHistorySummary.hashMismatches}건 · 기준 기록 누락 {verificationHistorySummary.missingHarnessSnapshots}건</p>
+                                <p className="mt-1 text-[11px] font-bold text-amber-700">내용 일치 확인값 차이 {verificationHistorySummary.hashMismatches}건 · 기준 기록 누락 {verificationHistorySummary.missingHarnessSnapshots}건</p>
                             </div>
                             <div className="rounded-xl border border-violet-200 bg-violet-50/80 px-4 py-3">
                                 <p className="text-[10px] font-black tracking-[0.08em] text-violet-500">기준정보 일치 여부</p>
@@ -4981,7 +4981,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                             <p className="mt-1 text-xs font-black text-slate-700">{previewWorkflowStatus?.secondPassStatus || currentPreviewRecord.secondPassStatus || '미지정'}</p>
                                         </div>
                                         <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                                            <p className="text-[10px] font-black tracking-[0.08em] text-slate-400">위변조 확인값</p>
+                                            <p className="text-[10px] font-black tracking-[0.08em] text-slate-400">내용 일치 확인값</p>
                                             <p className="mt-1 text-xs font-black text-slate-700 truncate">{currentPreviewRecord.evidenceHash || '없음'}</p>
                                         </div>
                                         <div className="rounded-xl border border-rose-200 bg-rose-50/70 px-3 py-2">

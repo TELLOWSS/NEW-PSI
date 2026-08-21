@@ -389,7 +389,7 @@ interface RecordDetailModalProps {
     record: WorkerRecord;
     onClose: () => void;
     onBack: () => void;
-    onUpdateRecord: (record: WorkerRecord) => Promise<void> | void;
+    onUpdateRecord: (record: WorkerRecord) => boolean | void | Promise<boolean | void>;
     onOpenReport: (record: WorkerRecord) => void;
     onReanalyze: (record: WorkerRecord) => Promise<WorkerRecord | null>;
     isReanalyzing: boolean;
@@ -1080,9 +1080,24 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         };
     };
 
-    const persistRecordSilently = async (nextRecord: WorkerRecord) => {
+    const persistRecord = async (nextRecord: WorkerRecord): Promise<boolean> => {
+        try {
+            const saved = await onUpdateRecord(nextRecord);
+            if (saved === false) {
+                alert('기록을 저장하지 못했습니다. 기존 기록은 유지됩니다. 저장 공간을 확인한 뒤 다시 시도해 주세요.');
+                return false;
+            }
+            return true;
+        } catch (error) {
+            console.error('[PSI][RecordDetail] 기록 저장 실패:', error);
+            alert('기록을 저장하지 못했습니다. 기존 기록은 유지됩니다. 잠시 후 다시 시도해 주세요.');
+            return false;
+        }
+    };
+
+    const persistRecordSilently = async (nextRecord: WorkerRecord): Promise<WorkerRecord | null> => {
         const consistentRecord = getConsistentRecord(nextRecord, initialRecord);
-        await onUpdateRecord(consistentRecord);
+        if (!await persistRecord(consistentRecord)) return null;
         setRecord(consistentRecord);
         setHasChanges(false);
         return consistentRecord;
@@ -1152,7 +1167,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             }
             : nextRecordBase;
 
-        await persistRecordSilently(withHarnessState(record, nextRecord));
+        const persistedRecord = await persistRecordSilently(withHarnessState(record, nextRecord));
+        if (!persistedRecord) return false;
         setScoreReasonCode('');
         setScoreReasonDetail('');
         setScoreEvidenceSummary('');
@@ -1244,7 +1260,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         onOpenReport(record);
     };
 
-    const handleAddAction = () => {
+    const handleAddAction = async () => {
         if (!actionDetail.trim()) {
             alert('조치 내용을 입력해주세요.');
             return;
@@ -1270,8 +1286,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 }
             ]
         });
+        if (!await persistRecord(nextRecord)) return;
         setRecord(nextRecord);
-        onUpdateRecord(nextRecord);
         setActionDetail('');
         setHasChanges(false);
         alert('조치 이력이 등록되었습니다.');
@@ -1299,8 +1315,11 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                         }
                     ]
                 };
+                if (!await persistRecord(nextRecord)) {
+                    setPendingApprovalAction(null);
+                    return;
+                }
                 setRecord(nextRecord);
-                await onUpdateRecord(nextRecord);
                 setPendingApprovalAction(null);
                 alert(`승인을 진행할 수 없습니다.\n(검증 기준: ${effectiveApprover === 'safety-manager' ? '안전관리자(엄격)' : '현장소장(기본)'})\n\n${blockers.map((item, idx) => `${idx + 1}. ${item}`).join('\n')}`);
                 return;
@@ -1356,8 +1375,11 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     },
                 ],
             };
+            if (!await persistRecord(nextRecord)) {
+                setPendingApprovalAction(null);
+                return;
+            }
             setRecord(nextRecord);
-            await onUpdateRecord(nextRecord);
             setPendingApprovalAction(null);
             alert(`${guidance.title}\n\n${guidance.description}`);
             return;
@@ -1426,8 +1448,11 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             : nextRecordBase));
 
         if (status === 'rejected') {
+            if (!await persistRecord(nextRecord)) {
+                setPendingApprovalAction(null);
+                return;
+            }
             setRecord(nextRecord);
-            await onUpdateRecord(nextRecord);
             void refreshHarnessStatus(nextRecord.workflowRunId);
             setScoreReasonCode('');
             setScoreReasonDetail('');
@@ -1441,8 +1466,11 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
         const finalApprovedRecord = await runSecondaryProcessing(nextRecord);
         const consistentFinalRecord = getConsistentRecord(finalApprovedRecord);
+        if (!await persistRecord(consistentFinalRecord)) {
+            setPendingApprovalAction(null);
+            return;
+        }
         setRecord(consistentFinalRecord);
-        await onUpdateRecord(consistentFinalRecord);
         void refreshHarnessStatus(consistentFinalRecord.workflowRunId);
         setScoreReasonCode('');
         setScoreReasonDetail('');
