@@ -32,9 +32,10 @@ describe('user-facing language quality', () => {
 
     it('explains unavoidable technical key terminology in plain language', () => {
         const settings = read('pages/Settings.tsx');
-        expect(settings).toContain('분석 서비스 연결키(API 키)');
-        expect(settings).toContain('무료 분석 연결키(API 키)');
-        expect(settings).toContain('유료 분석 연결키(API 키)');
+        expect(settings).toContain('브라우저 보조 AI 연결 (서버 OCR과 분리)');
+        expect(settings).toContain('브라우저 보조기능용 무료키');
+        expect(settings).toContain('브라우저 보조기능용 유료키');
+        expect(settings).toContain('서버 OCR은 여기 입력한 키를 사용하지 않습니다.');
     });
 
     it('keeps Korean worker training controls in Korean while unsupported locales use English fallback', () => {

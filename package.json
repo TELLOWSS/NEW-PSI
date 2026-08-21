@@ -101,7 +101,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.28.0",
+    "@google/genai": "^2.18.0",
     "@supabase/supabase-js": "^2.57.2",
     "chart.js": "^4.5.1",
     "html-to-image": "^1.11.13",

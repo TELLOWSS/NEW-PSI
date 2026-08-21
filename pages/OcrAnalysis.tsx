@@ -2,10 +2,11 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect, useDeferredValue } from 'react';
 import { FileUpload } from '../components/FileUpload';
 import { Spinner } from '../components/Spinner';
-import { analyzeWorkerRiskAssessment, updateAnalysisBasedOnEdits, getQuotaState, setQuotaExhausted, clearQuotaState, isRateLimitError, inferOcrFailureCode, validateImageFormat, isFormatCompatibleWithAI, verifyActiveOcrApiKey } from '../services/geminiService';
+import { updateAnalysisBasedOnEdits, getQuotaState, setQuotaExhausted, isRateLimitError, inferOcrFailureCode, validateImageFormat, isFormatCompatibleWithAI } from '../services/geminiService';
+import { OcrGatewayError, requestServerOcrAnalysis } from '../services/ocrGatewayService';
 import { extractMessage } from '../utils/errorUtils';
-import type { WorkerRecord, OcrErrorType, OcrFailureCode, AppSettings, HarnessApprovalState, HarnessRiskDecision, HarnessWorkflowState, OcrUnknownSubCategory } from '../types';
-import { fileToBase64 } from '../utils/fileUtils';
+import type { WorkerRecord, OcrErrorType, OcrFailureCode, OcrTraceInfo, AppSettings, HarnessApprovalState, HarnessRiskDecision, HarnessWorkflowState, OcrUnknownSubCategory } from '../types';
+import { prepareOcrFileForGateway, prepareOcrSourceForGateway } from '../utils/ocrGatewayPayload';
 import {
     assessOcrUploadBatch,
     getOcrFileKey,
@@ -56,6 +57,7 @@ import {
     resolveBackupPayload,
 } from '../utils/backupDataQuality';
 import { recoverBackupRecordsWithoutImages } from '../utils/streamingBackupRecovery';
+import { assessOcrRoutingQuality, getOcrQualityReviewMessage } from '../utils/ocrRoutingQuality';
 
 const OCR_STATUS_COPY = {
     secondPassEmpty: {
@@ -406,22 +408,42 @@ const withHarnessState = (record: WorkerRecord, patch: Partial<WorkerRecord>): W
     };
 };
 
-const buildHarnessPayloadFromRecord = (record: WorkerRecord, fileNameOverride?: string) => ({
-    recordId: record.id,
-    documentText: String(record.fullText || record.koreanTranslation || record.aiInsights || '').trim(),
-    ocrConfidence: typeof record.ocrConfidence === 'number' ? record.ocrConfidence : null,
-    jobType: String(record.jobField || '').trim() || undefined,
-    fileName: String(fileNameOverride || record.filename || record.name || '').trim() || undefined,
-    imageQualityScore: typeof record.integrityScore === 'number'
-        ? Math.max(0, Math.min(1, Number((record.integrityScore / 100).toFixed(4))))
-        : null,
-    metadata: {
-        recordDate: record.date,
-        name: record.name,
-        teamLeader: record.teamLeader,
-        language: record.language,
-        source: 'ocr-analysis',
-    },
+const buildHarnessPayloadFromRecord = (record: WorkerRecord, fileNameOverride?: string) => {
+    const quality = assessOcrRoutingQuality(record as unknown as Record<string, unknown>);
+    return {
+        recordId: record.id,
+        documentText: String(record.fullText || record.koreanTranslation || record.aiInsights || '').trim(),
+        ocrConfidence: typeof record.ocrConfidence === 'number' ? record.ocrConfidence : null,
+        ocrQualityScore: quality.score,
+        ocrQualityReasons: quality.reasons,
+        ocrFieldConfidences: record.ocrFieldConfidences,
+        requiresManualReview: quality.requiresManualReview || Boolean(record.ocrErrorType) || record.secondPassStatus === 'NEEDED',
+        jobType: String(record.jobField || '').trim() || undefined,
+        fileName: String(fileNameOverride || record.filename || record.name || '').trim() || undefined,
+        imageQualityScore: typeof record.integrityScore === 'number'
+            ? Math.max(0, Math.min(1, Number((record.integrityScore / 100).toFixed(4))))
+            : null,
+        metadata: {
+            recordDate: record.date,
+            name: record.name,
+            teamLeader: record.teamLeader,
+            language: record.language,
+            ocrErrorType: record.ocrErrorType,
+            ocrFailureCode: record.ocrFailureCode,
+            source: 'ocr-analysis',
+        },
+    };
+};
+
+const buildProtectedManualReviewPatch = (record: WorkerRecord): Partial<WorkerRecord> => ({
+    secondPassStatus: 'NEEDED',
+    workflowState: 'manual_review_required',
+    riskDecision: record.riskDecision === 'CRITICAL_STOP'
+        ? 'CRITICAL_STOP'
+        : record.ocrErrorType === 'QUALITY' || record.ocrErrorType === 'HANDWRITING'
+            ? 'SUPPLEMENTARY_REVIEW'
+            : 'IMMEDIATE_ATTENTION',
+    approvalState: 'PENDING',
 });
 
 type HarnessPersistenceState = 'connected' | 'fallback' | 'pending';
@@ -673,7 +695,7 @@ const buildOcrRecordMonthIndex = (records: WorkerRecord[]): OcrRecordMonthIndex 
         const key = getRecordMonthKey(record);
         const timestamp = getRecordTimestamp(record);
         const failed = isFailedRecord(record);
-        const imageReady = hasRetryableOriginalImage(record.originalImage) || hasRetryableOriginalImage(record.profileImage);
+        const imageReady = hasRetryableOriginalImage(record.originalImage);
         const score = getOperationalSafetyScore(record);
         const bucket = bucketByKey.get(key) || {
             key,
@@ -843,7 +865,12 @@ const clearBatchCheckpoint = (): void => {
     }
 };
 
-const createFileAnalysisErrorRecord = (file: File, message: string, errorType: OcrErrorType = 'UNKNOWN'): WorkerRecord => {
+const createFileAnalysisErrorRecord = (
+    file: File,
+    message: string,
+    errorType: OcrErrorType = 'UNKNOWN',
+    ocrTrace?: OcrTraceInfo,
+): WorkerRecord => {
     const now = Date.now();
     const filename = String(file.name || 'unknown-file');
     const baseName = filename.includes('.') ? filename.replace(/\.[^/.]+$/, '') : filename;
@@ -879,6 +906,7 @@ const createFileAnalysisErrorRecord = (file: File, message: string, errorType: O
         aiInsights_native: message,
         selfAssessedRiskLevel: '중',
         filename,
+        ocrTrace,
     };
 };
 
@@ -1672,31 +1700,56 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     };
 
     const syncHarnessAnalyzeResult = useCallback(async (record: WorkerRecord, fileNameOverride?: string) => {
-        const fallbackPatch: Partial<WorkerRecord> = {
-            secondPassStatus: isFailedRecord(record) ? 'NEEDED' : 'DONE',
-            workflowState: isFailedRecord(record) ? 'manual_review_required' : 'completed',
-            riskDecision: isFailedRecord(record) ? 'IMMEDIATE_ATTENTION' : 'SAFE_TO_PROCEED',
-            approvalState: isFailedRecord(record) ? 'PENDING' : 'APPROVED',
-        };
+        const requiresManualReview = isFailedRecord(record)
+            || record.secondPassStatus === 'NEEDED'
+            || record.workflowState === 'manual_review_required';
+        const protectedPatch = buildProtectedManualReviewPatch(record);
+        const fallbackPatch: Partial<WorkerRecord> = requiresManualReview
+            ? protectedPatch
+            : {
+                secondPassStatus: 'DONE',
+                workflowState: 'completed',
+                riskDecision: 'SAFE_TO_PROCEED',
+                approvalState: 'APPROVED',
+            };
 
         try {
             const harness = await analyzeHarnessRecord(buildHarnessPayloadFromRecord(record, fileNameOverride));
+            const harnessDecisionPatch: Partial<WorkerRecord> = requiresManualReview
+                ? protectedPatch
+                : {
+                    workflowState: harness.decision.workflowState,
+                    riskDecision: harness.decision.riskDecision,
+                    approvalState: harness.decision.approvalState,
+                    secondPassStatus: harness.decision.secondPassStatus,
+                };
+            const didProtectReviewState = requiresManualReview
+                && (harness.decision.workflowState === 'completed'
+                    || harness.decision.approvalState === 'APPROVED'
+                    || harness.decision.secondPassStatus === 'DONE');
             return withHarnessState(record, {
                 workflowRunId: harness.workflowRunId || record.workflowRunId,
-                workflowState: harness.decision.workflowState,
-                riskDecision: harness.decision.riskDecision,
-                approvalState: harness.decision.approvalState,
-                secondPassStatus: harness.decision.secondPassStatus,
+                ...harnessDecisionPatch,
                 harnessPersistenceWarning: harness.persistence?.warning || undefined,
-                auditTrail: harness.persistence?.warning
+                auditTrail: harness.persistence?.warning || didProtectReviewState
                     ? [
                         ...(record.auditTrail || []),
-                        {
-                            stage: 'validation',
-                            timestamp: new Date().toISOString(),
-                            actor: 'psi-harness',
-                            note: `Harness 분석 저장 보완: ${harness.persistence.warning}`,
-                        },
+                        ...(harness.persistence?.warning
+                            ? [{
+                                stage: 'validation' as const,
+                                timestamp: new Date().toISOString(),
+                                actor: 'psi-harness',
+                                note: `Harness 분석 저장 보완: ${harness.persistence.warning}`,
+                            }]
+                            : []),
+                        ...(didProtectReviewState
+                            ? [{
+                                stage: 'validation' as const,
+                                timestamp: new Date().toISOString(),
+                                actor: 'ocr-quality-gate',
+                                note: 'Harness 완료 응답보다 OCR 관리자 검수 상태를 우선 보존했습니다.',
+                            }]
+                            : []),
                     ]
                     : record.auditTrail,
             });
@@ -1718,12 +1771,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     }, []);
 
     const syncHarnessReanalyzeResult = useCallback(async (record: WorkerRecord, sourceRecord: WorkerRecord) => {
-        const fallbackPatch: Partial<WorkerRecord> = {
-            secondPassStatus: isFailedRecord(record) ? 'NEEDED' : 'DONE',
-            workflowState: isFailedRecord(record) ? 'manual_review_required' : 'completed',
-            riskDecision: isFailedRecord(record) ? 'IMMEDIATE_ATTENTION' : 'SAFE_TO_PROCEED',
-            approvalState: isFailedRecord(record) ? 'PENDING' : 'APPROVED',
-        };
+        const requiresManualReview = isFailedRecord(record)
+            || record.secondPassStatus === 'NEEDED'
+            || record.workflowState === 'manual_review_required';
+        const protectedPatch = buildProtectedManualReviewPatch(record);
+        const fallbackPatch: Partial<WorkerRecord> = requiresManualReview
+            ? protectedPatch
+            : {
+                secondPassStatus: 'DONE',
+                workflowState: 'completed',
+                riskDecision: 'SAFE_TO_PROCEED',
+                approvalState: 'APPROVED',
+            };
 
         try {
             const harness = await reanalyzeHarnessRecord({
@@ -1732,22 +1791,41 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 revisedBy: 'manager',
             });
 
+            const harnessDecisionPatch: Partial<WorkerRecord> = requiresManualReview
+                ? protectedPatch
+                : {
+                    workflowState: harness.decision.workflowState,
+                    riskDecision: harness.decision.riskDecision,
+                    approvalState: harness.decision.approvalState,
+                    secondPassStatus: harness.decision.secondPassStatus,
+                };
+            const didProtectReviewState = requiresManualReview
+                && (harness.decision.workflowState === 'completed'
+                    || harness.decision.approvalState === 'APPROVED'
+                    || harness.decision.secondPassStatus === 'DONE');
             return withHarnessState(record, {
                 workflowRunId: harness.workflowRunId || sourceRecord.workflowRunId || sourceRecord.id,
-                workflowState: harness.decision.workflowState,
-                riskDecision: harness.decision.riskDecision,
-                approvalState: harness.decision.approvalState,
-                secondPassStatus: harness.decision.secondPassStatus,
+                ...harnessDecisionPatch,
                 harnessPersistenceWarning: harness.persistence?.warning || undefined,
-                auditTrail: harness.persistence?.warning
+                auditTrail: harness.persistence?.warning || didProtectReviewState
                     ? [
                         ...(record.auditTrail || []),
-                        {
-                            stage: 'reassessment',
-                            timestamp: new Date().toISOString(),
-                            actor: 'psi-harness',
-                            note: `Harness 재분석 저장 보완: ${harness.persistence.warning}`,
-                        },
+                        ...(harness.persistence?.warning
+                            ? [{
+                                stage: 'reassessment' as const,
+                                timestamp: new Date().toISOString(),
+                                actor: 'psi-harness',
+                                note: `Harness 재분석 저장 보완: ${harness.persistence.warning}`,
+                            }]
+                            : []),
+                        ...(didProtectReviewState
+                            ? [{
+                                stage: 'reassessment' as const,
+                                timestamp: new Date().toISOString(),
+                                actor: 'ocr-quality-gate',
+                                note: 'Harness 완료 응답보다 OCR 관리자 검수 상태를 우선 보존했습니다.',
+                            }]
+                            : []),
                     ]
                     : record.auditTrail,
             });
@@ -2523,7 +2601,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     }, [existingRecords]);
 
     const recordsWithImages = useMemo(() => {
-        return existingRecords.filter(r => hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage));
+        return existingRecords.filter(r => hasRetryableOriginalImage(r.originalImage));
     }, [existingRecords]);
 
     const selectedRecords = useMemo(() => {
@@ -2534,7 +2612,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
     const selectedReanalyzeTargets = useMemo(() => {
         return selectedRecords
-            .filter((record) => hasRetryableOriginalImage(record.originalImage) || hasRetryableOriginalImage(record.profileImage))
+            .filter((record) => hasRetryableOriginalImage(record.originalImage))
             .filter((record) => record.secondPassStatus !== 'DONE');
     }, [selectedRecords]);
 
@@ -3748,38 +3826,25 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     };
 
     const getBestRetryImageSource = useCallback((record: WorkerRecord): string => {
-        const candidates = [record.originalImage, record.profileImage]
-            .map((item) => String(item || '').trim())
-            .filter((item) => item.length > 0);
-
-        if (candidates.length === 0) return '';
-
-        const retryable = candidates.find((item) => hasRetryableOriginalImage(item));
-        return retryable || candidates[0];
+        const originalImage = String(record.originalImage || '').trim();
+        return hasRetryableOriginalImage(originalImage) ? originalImage : '';
     }, []);
 
     const requestServerRetryAnalysis = useCallback(async (record: WorkerRecord): Promise<WorkerRecord> => {
         const bestImageSource = getBestRetryImageSource(record);
-        const response = await fetch('/api/gateway?action=ocr.retry', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                recordId: record.id,
-                imageSource: bestImageSource,
-                filenameHint: record.filename || record.name,
-                ocrEngine,
-                isPaidApiMode,
-            }),
-        });
-
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || !data?.ok || !data?.record) {
-            const errorCode = String(data?.code || '').trim();
-            const fallbackHttpCode = Number(response.status) >= 400 ? `HTTP_${response.status}` : '';
-            const normalizedCode = errorCode || fallbackHttpCode;
-            const errorMessage = String(data?.message || response.statusText || '서버 OCR 재분석 실패').trim();
-            throw new Error(normalizedCode ? `[${normalizedCode}] ${errorMessage}` : errorMessage);
+        if (!bestImageSource) {
+            throw new Error('[INVALID_IMAGE_SOURCE] 문서 원본 이미지가 없어 재분석할 수 없습니다. 프로필 사진은 OCR 원본으로 사용하지 않습니다.');
         }
+        const preparedImageSource = await prepareOcrSourceForGateway(
+            bestImageSource,
+            record.filename || record.name || 'psi-document',
+        );
+        const data = await requestServerOcrAnalysis({
+            recordId: record.id,
+            imageSource: preparedImageSource,
+            filenameHint: record.filename || record.name,
+            ocrEngine,
+        });
 
         const nextHandwrittenAnswers = Array.isArray(data.record.handwrittenAnswers)
             && data.record.handwrittenAnswers.some((answer: any) =>
@@ -3798,9 +3863,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             originalImage: record.originalImage || bestImageSource,
             profileImage: record.profileImage,
             filename: record.filename,
-            role: record.role !== 'worker' ? record.role : data.record.role,
-            isTranslator: record.isTranslator || data.record.isTranslator,
-            isSignalman: record.isSignalman || data.record.isSignalman,
+            role: record.role,
+            isTranslator: record.isTranslator,
+            isSignalman: record.isSignalman,
             handwrittenAnswers: nextHandwrittenAnswers,
             aiInsights_native: nextAiInsightsNative,
             ocrErrorType: undefined,
@@ -3810,6 +3875,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             // P0: Trace 표준화 — 서버가 반환한 trace 저장
             ocrTrace: data.trace
                 ? {
+                    ...data.trace,
                     providerUsed: data.trace.providerUsed ?? 'server_gemini',
                     latencyMs: Number(data.trace.latencyMs) || 0,
                     attempts: Number(data.trace.attempts) || 1,
@@ -3819,7 +3885,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 }
                 : undefined,
         } as WorkerRecord;
-    }, [getBestRetryImageSource, isPaidApiMode, ocrEngine]);
+    }, [getBestRetryImageSource, ocrEngine]);
 
     const extractGatewayErrorCode = useCallback((message: string): string | undefined => {
         const matched = String(message || '').trim().match(/^\[([A-Z0-9_]+)\]/);
@@ -3835,22 +3901,30 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             case 'MISSING_SERVER_GEMINI_KEY':
                 return 'KEY';
             case 'OCR_QUOTA':
+            case 'OCR_RATE_LIMITED':
+            case 'OCR_DAILY_BUDGET_EXCEEDED':
+            case 'OCR_COST_GUARD_BLOCKED':
                 return 'QUOTA';
             case 'OCR_TIMEOUT':
             case 'OCR_UPSTREAM_NETWORK':
             case 'OCR_UPSTREAM_FAILURE':
+            case 'OCR_COST_ESTIMATE_UNAVAILABLE':
                 return 'NETWORK';
             case 'OCR_INVALID_ARGUMENT':
             case 'IMAGE_DATA_TOO_SHORT':
             case 'IMAGE_TOO_LARGE':
             case 'INVALID_BASE64':
+            case 'PDF_PAGE_LIMIT_EXCEEDED':
+            case 'INVALID_PDF':
                 return 'PAYLOAD';
             case 'UNSUPPORTED_IMAGE_FORMAT':
+            case 'OCR_WRONG_DOCUMENT':
                 return 'FORMAT';
             default:
                 if (/^HTTP_5\d\d$/.test(normalizedCode)) return 'NETWORK';
                 if (normalizedCode === 'HTTP_413') return 'PAYLOAD';
                 if (normalizedCode === 'HTTP_415') return 'FORMAT';
+                if (normalizedCode === 'HTTP_429') return 'QUOTA';
                 if (/^HTTP_4\d\d$/.test(normalizedCode)) return 'PAYLOAD';
                 return undefined;
         }
@@ -3873,7 +3947,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         const shouldCapFreeBatch = !isPaidApiMode && !forceReanalyze && requestedTotal > MAX_FREE_OCR_BATCH_RECORDS;
         if (shouldCapFreeBatch) {
             const confirmed = confirm(
-                `무료 분석 모드에서는 대량 처리 안정성을 위해 한 번에 ${MAX_FREE_OCR_BATCH_RECORDS}건씩 처리합니다.\n\n` +
+                `비용절약 보호 모드에서는 과금·할당량 보호를 위해 한 번에 ${MAX_FREE_OCR_BATCH_RECORDS}건씩 처리합니다.\n\n` +
                 `- 요청: ${requestedTotal}건\n` +
                 `- 이번 실행: ${MAX_FREE_OCR_BATCH_RECORDS}건\n` +
                 `- 나머지: ${requestedTotal - MAX_FREE_OCR_BATCH_RECORDS}건은 이번 실행 후 이어서 처리\n\n` +
@@ -3889,7 +3963,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         const quotaAbortThreshold = isPaidApiMode ? PAID_MODE_QUOTA_ABORT_THRESHOLD : FREE_MODE_QUOTA_ABORT_THRESHOLD;
         const quotaProtectionLabel = isPaidApiMode
             ? `운영 API 보호 기준 ${PAID_MODE_QUOTA_ABORT_THRESHOLD}건`
-            : `무료 모드 보호 기준 ${FREE_MODE_QUOTA_ABORT_THRESHOLD}건`;
+            : `비용절약 보호 기준 ${FREE_MODE_QUOTA_ABORT_THRESHOLD}건`;
 
         // 서버 재분석이 1차 경로이므로 브라우저 quota 상태만으로 전체 재분석을 선차단하지 않는다.
         const quotaState = getQuotaState();
@@ -3963,6 +4037,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             for (let i = startIndex; i < processQueue.length; i++) {
                 if (stopRef.current) { stopped = true; break; }
                 const record = processQueue[i];
+                let currentRecordCompleted = false;
+                let currentRecordRestored = false;
                 setBatchProgress(p => ({ ...p, current: i + 1 }));
                 setProgress(`[${title}] ${record.name || '미상'} 처리 중...`);
                 try {
@@ -3992,6 +4068,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             approvalState: 'PENDING',
                         });
                         await persistRecordUpdate(errorRecord);
+                        currentRecordCompleted = true;
                         failCount++;
                         preflightFailCount++;
                         setRetryDiagnostics({
@@ -4026,6 +4103,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             approvalState: 'PENDING',
                         });
                         await persistRecordUpdate(errorRecord);
+                        currentRecordCompleted = true;
                         failCount++;
                         preflightFailCount++;
                         setRetryDiagnostics({
@@ -4068,6 +4146,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             approvalState: 'PENDING',
                         });
                         await persistRecordUpdate(errorRecord);
+                        currentRecordCompleted = true;
                         failCount++;
                         preflightFailCount++;
                         setRetryDiagnostics({
@@ -4101,6 +4180,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             approvalState: 'PENDING',
                         });
                         await persistRecordUpdate(errorRecord);
+                        currentRecordCompleted = true;
                         failCount++;
                         preflightFailCount++;
                         setRetryDiagnostics({
@@ -4134,6 +4214,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             approvalState: 'PENDING',
                         });
                         await persistRecordUpdate(errorRecord);
+                        currentRecordCompleted = true;
                         failCount++;
                         preflightFailCount++;
                         setRetryDiagnostics({
@@ -4156,127 +4237,54 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     let lastRetryErrorMessage = '';
                     let lastServerRouteErrorCode: string | undefined;
                     let lastServerRouteErrorMessage = '';
+                    let lastServerFailureTrace: OcrTraceInfo | undefined;
                     let serverRouteFailedForCurrentRecord = false;
                     let serverRouteFailureCountedForCurrentRecord = false;
                     const MAX_RETRIES = OCR_POLICY.RETRY_POLICY.maxRetries; // P1.3: policy-driven
-                    let usedClientFallback = false;
+                    // OCR 원본은 비용·개인정보 가드가 있는 서버 경로에서만 처리한다.
+                    const usedClientFallback = false;
 
                     while (retryCount < MAX_RETRIES) {
                         try {
                             const modeLabel = forceReanalyze ? '[강제 모드]' : '';
                             const quotaHint = quotaRecoveryTime > 0
-                                ? ` (브라우저 대체 분석 대기 ${quotaRecoveryTime}초)`
+                                ? ` (할당량 보호 대기 ${quotaRecoveryTime}초)`
                                 : '';
                             setProgress(`${modeLabel} [${title}] ${record.name || '미상'} 서버 OCR 재분석 요청 중...${quotaHint}`);
 
                             try {
                                 apiResult = await requestServerRetryAnalysis(record);
-                                usedClientFallback = false;
                                 lastServerRouteErrorCode = undefined;
                                 lastServerRouteErrorMessage = '';
                             } catch (serverError: any) {
                                 const serverMessage = extractMessage(serverError);
+                                lastServerFailureTrace = serverError instanceof OcrGatewayError
+                                    ? serverError.trace
+                                    : serverError?.trace as OcrTraceInfo | undefined;
                                 lastServerRouteErrorMessage = serverMessage;
                                 lastServerRouteErrorCode = extractGatewayErrorCode(serverMessage);
                                 serverRouteFailedForCurrentRecord = true;
                                 if (lastServerRouteErrorCode) {
                                     lastObservedServerRouteErrorCode = lastServerRouteErrorCode;
                                 }
-                                const normalizedServerMessage = serverMessage.toLowerCase();
-                                const normalizedServerCode = String(lastServerRouteErrorCode || '').toUpperCase();
-                                const isServerCredentialOrQuotaCode = [
-                                    'MISSING_SERVER_GEMINI_KEY',
-                                    'OCR_UPSTREAM_AUTH',
-                                    'OCR_QUOTA',
-                                    'HTTP_401',
-                                    'HTTP_403',
-                                    'HTTP_429',
-                                ].includes(normalizedServerCode);
-                                const isServerCredentialCode = [
-                                    'MISSING_SERVER_GEMINI_KEY',
-                                    'OCR_UPSTREAM_AUTH',
-                                    'HTTP_401',
-                                    'HTTP_403',
-                                ].includes(normalizedServerCode);
-                                const shouldBypassClientFallback = [
-                                    'OCR_INVALID_ARGUMENT',
-                                    'UNSUPPORTED_IMAGE_FORMAT',
-                                    'INVALID_BASE64',
-                                    'IMAGE_TOO_LARGE',
-                                    'IMAGE_DATA_TOO_SHORT',
-                                    'HTTP_400',
-                                    'HTTP_413',
-                                    'HTTP_415',
-                                ].includes(normalizedServerCode);
-                                const shouldFallbackToClient =
-                                    !shouldBypassClientFallback && (
-                                    isServerCredentialOrQuotaCode ||
-                                    normalizedServerMessage.includes('failed to fetch') ||
-                                    normalizedServerMessage.includes('network') ||
-                                    normalizedServerMessage.includes('timeout') ||
-                                    normalizedServerMessage.includes('gateway') ||
-                                    normalizedServerMessage.includes('bad gateway') ||
-                                    normalizedServerMessage.includes('service unavailable') ||
-                                    normalizedServerMessage.includes('internal server error') ||
-                                    normalizedServerMessage.includes('ocr_parse_failure') ||
-                                    normalizedServerMessage.includes('ocr_upstream_auth') ||
-                                    normalizedServerMessage.includes('missing_server_gemini_key') ||
-                                    normalizedServerMessage.includes('ocr_quota') ||
-                                    normalizedServerMessage.includes('json 파싱') ||
-                                    normalizedServerMessage.includes('json') ||
-                                    normalizedServerMessage.includes('parse') ||
-                                    normalizedServerMessage.includes('서버 gemini api 키가 설정되지 않았습니다') ||
-                                    normalizedServerMessage.includes('gemini_api_key') ||
-                                    serverMessage.includes('404') ||
-                                    serverMessage.includes('500') ||
-                                    serverMessage.includes('502') ||
-                                    serverMessage.includes('503') ||
-                                    serverMessage.includes('504') ||
-                                    serverMessage.includes('Method Not Allowed') ||
-                                    normalizedServerCode.startsWith('HTTP_5')
-                                    );
-
-                                if (!shouldFallbackToClient) {
-                                    serverRouteFailCount++;
-                                    throw serverError;
-                                }
-
-                                const modeLabel = forceReanalyze ? '[강제 모드]' : '';
-                                setProgress(`${modeLabel} [${title}] ${record.name || '미상'} 브라우저 OCR 대체 분석 실행 중...`);
-                                const fallbackQuotaState = getQuotaState();
-                                const fallbackRecoverySeconds = fallbackQuotaState.isExhausted
-                                    ? Math.ceil((fallbackQuotaState.nextRetryTime - Date.now()) / 1000)
-                                    : 0;
-                                // 서버 키/권한 실패 경로에서는 브라우저 쿼터 잠금 상태를 우회해 실제 대체 분석 가능 여부를 확인한다.
-                                if (isServerCredentialCode) {
-                                    clearQuotaState();
-                                }
-                                if (fallbackRecoverySeconds > 0 && !isServerCredentialCode) {
-                                    throw new Error(`[OCR_QUOTA] 브라우저 OCR 할당량 회복 대기 중입니다. 약 ${fallbackRecoverySeconds}초 후 재시도해주세요.`);
-                                }
-                                const fallbackImageSource = retryImageSource || cleanImage;
-                                if (!fallbackImageSource) {
-                                    throw new Error('재분석 가능한 이미지 데이터가 없습니다.');
-                                }
-                                const results = await analyzeWorkerRiskAssessment(fallbackImageSource, '', record.filename || record.name);
-                                if (results && results.length > 0) {
-                                    apiResult = results[0];
-                                    usedClientFallback = true;
-                                } else {
-                                    throw new Error('Empty result from AI');
-                                }
+                                // 브라우저 직접 호출은 countTokens/건당비용 가드를 우회하므로 개발환경에서도 금지한다.
+                                throw serverError;
                             }
 
                             if (apiResult) {
                                 const insightText = String(apiResult.aiInsights || '');
+                                const isReviewOnlyResult = apiResult.ocrErrorType === 'QUALITY'
+                                    || apiResult.ocrErrorType === 'HANDWRITING';
                                 const hasApiSourceText =
                                     String(apiResult.fullText || '').trim().length > 0 ||
                                     String(apiResult.koreanTranslation || '').trim().length > 0 ||
                                     (apiResult.handwrittenAnswers || []).some((answer) => String(answer?.answerText || '').trim().length > 0);
                                 const verificationAudit = evaluateOcrVerificationCompleteness(apiResult);
                                 const shouldTreatAsFailure =
-                                    Boolean(apiResult.ocrErrorType) ||
-                                    hasOperationalFailureSignal(apiResult) ||
+                                    (!isReviewOnlyResult && (
+                                        Boolean(apiResult.ocrErrorType) ||
+                                        hasOperationalFailureSignal(apiResult)
+                                    )) ||
                                     !hasApiSourceText ||
                                     !verificationAudit.isComplete;
                                 if (shouldTreatAsFailure) {
@@ -4315,17 +4323,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             
                             // [CRITICAL] Detect Rate Limit (429 or Resource Exhausted) using utility function
                             if (isRateLimitError(errMsg)) {
-                                console.warn(`Rate limit hit for ${record.name}. Cooling down...`);
-                                
-                                // Mark quota as exhausted and trigger recovery timer
+                                console.warn(`Rate limit hit for ${record.name}. Stopping the batch without another paid attempt.`);
                                 setQuotaExhausted(15); // 15분 복구 대기
-                                
-                                // Permanently increase delay buffer for future requests
-                                dynamicDelayBuffer = Math.min(10, dynamicDelayBuffer + 2);
-                                
-                                // Wait 30 seconds then retry loop
-                                await waitWithCountdown(30, "⚠️ API 할당량 초과! 냉각 중");
-                                retryCount++;
+                                quotaFailureCount = Math.max(quotaFailureCount, quotaAbortThreshold - 1);
+                                retryCount = MAX_RETRIES;
+                                break;
                             } else if (isTransientRetryableError && retryCount < MAX_RETRIES - 1) {
                                 retryCount++;
                                 const backoffSeconds = Math.min(8, 2 + retryCount);
@@ -4363,7 +4365,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             : usedClientFallback && lastServerRouteErrorMessage
                                 ? ` | 서버실패:${lastServerRouteErrorMessage.slice(0, 80)}`
                                 : '';
-                        const apiResultFailed = Boolean(apiResult.ocrErrorType) || hasOperationalFailureSignal(apiResult);
+                        const qualityAssessment = assessOcrRoutingQuality(apiResult as unknown as Record<string, unknown>);
+                        const qualityReviewMessage = getOcrQualityReviewMessage(qualityAssessment);
+                        const qualityReviewRequired = qualityAssessment.requiresManualReview;
+                        const apiResultFailed = Boolean(apiResult.ocrErrorType)
+                            || hasOperationalFailureSignal(apiResult)
+                            || qualityReviewRequired;
                         const updatedRecord: WorkerRecord = withHarnessState(record, {
                             ...apiResult,
                             id: record.id, 
@@ -4375,16 +4382,16 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             isSignalman: record.isSignalman || apiResult.isSignalman,
                             ocrTrace: traceFromResult,
                             ocrUnknownSubCategory: apiResultFailed ? unknownSubCategory : undefined,
-                            ocrErrorType: apiResultFailed ? apiResult.ocrErrorType : undefined,
-                            ocrErrorMessage: apiResultFailed ? apiResult.ocrErrorMessage : undefined,
-                            ocrFailureCode: apiResultFailed ? resolveFailureCodeFromRecord(apiResult) : undefined,
+                            ocrErrorType: apiResultFailed ? (apiResult.ocrErrorType || 'QUALITY') : undefined,
+                            ocrErrorMessage: apiResultFailed ? (apiResult.ocrErrorMessage || qualityReviewMessage) : undefined,
+                            ocrFailureCode: apiResultFailed ? (apiResult.ocrFailureCode || 'UNKNOWN') : undefined,
                             auditTrail: [
                                 ...(record.auditTrail || []),
                                 {
                                     stage: 'reassessment',
                                     timestamp: new Date().toISOString(),
                                     actor: 'manager',
-                                    note: `OCR 재분석 성공 (${previousErrorLabel}) | ${usedClientFallback ? '브라우저 대체 분석' : '서버 성공'}${unknownSubCategory ? ` | UNKNOWN[${unknownSubCategory}]` : ''}${serverFailureHint}`,
+                                    note: `OCR 재분석 완료 (${previousErrorLabel}) | ${usedClientFallback ? '개발환경 브라우저 대체 분석' : '서버 성공'}${qualityReviewRequired ? ` | 자동확정 보류 ${Math.round(qualityAssessment.score * 100)}점` : ''}${unknownSubCategory ? ` | UNKNOWN[${unknownSubCategory}]` : ''}${serverFailureHint}`,
                                 },
                             ],
                             secondPassStatus: apiResultFailed ? 'NEEDED' : 'DONE',
@@ -4394,6 +4401,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         });
                         const harnessSyncedRecord = await syncHarnessReanalyzeResult(updatedRecord, record);
                         await persistRecordUpdate(harnessSyncedRecord);
+                        currentRecordCompleted = true;
 
                         if (isFailedRecord(harnessSyncedRecord)) {
                             failCount++;
@@ -4430,7 +4438,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             setDailyCounter(next);
                         }
 
-                        if (!forceReanalyze && quotaFailureCount >= quotaAbortThreshold) {
+                        if (quotaFailureCount >= quotaAbortThreshold) {
                             stopped = true;
                             stopRef.current = true;
                             alert(`할당량(QUOTA) 실패가 ${quotaFailureCount}건 감지되어 ${quotaProtectionLabel}에 따라 일괄 재분석을 자동 중단했습니다. 잠시 후 재개하세요.`);
@@ -4483,20 +4491,23 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             ocrFailureCode: failureCode,
                             ocrErrorMessage: withFailureCodePrefix(failureCode, lastRetryErrorMessage || '반복적인 API 오류'),
                             ocrUnknownSubCategory: unknownSubCategory,
-                            ocrTrace: {
-                                providerUsed: usedClientFallback ? 'client_fallback' : 'server_gemini',
-                                latencyMs: 0,
-                                attempts: Math.max(1, retryCount + 1),
-                                fallbackDepth: usedClientFallback ? 1 : 0,
-                                finalCode: failureCode,
-                                recordedAt: new Date().toISOString(),
-                            },
+                            ocrTrace: lastServerFailureTrace
+                                ? { ...lastServerFailureTrace, finalCode: failureCode }
+                                : {
+                                    providerUsed: usedClientFallback ? 'client_fallback' : 'server_gemini',
+                                    latencyMs: 0,
+                                    attempts: Math.max(1, retryCount + 1),
+                                    fallbackDepth: usedClientFallback ? 1 : 0,
+                                    finalCode: failureCode,
+                                    recordedAt: new Date().toISOString(),
+                                },
                             secondPassStatus: 'NEEDED',
                             workflowState: 'awaiting_manager_approval',
                             riskDecision: 'IMMEDIATE_ATTENTION',
                             approvalState: 'PENDING',
                         });
                         await persistRecordUpdate(await syncHarnessReanalyzeResult(errorRecord, record));
+                        currentRecordCompleted = true;
                         failCount++;
                         processingFailCount++;
                         if (failureCode === 'QUOTA') {
@@ -4534,7 +4545,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             );
                             break;
                         }
-                        if (!forceReanalyze && quotaFailureCount >= quotaAbortThreshold) {
+                        if (quotaFailureCount >= quotaAbortThreshold) {
                             stopped = true;
                             stopRef.current = true;
                             alert(`할당량(QUOTA) 실패가 ${quotaFailureCount}건 감지되어 ${quotaProtectionLabel}에 따라 일괄 재분석을 자동 중단했습니다. 잠시 후 재개하세요.`);
@@ -4552,26 +4563,50 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     const catchMappedFailureCode = mapGatewayCodeToFailureCode(catchGatewayCode);
                     const lastServerMappedFailureCode = mapGatewayCodeToFailureCode(lastObservedServerRouteErrorCode);
                     const failureCode = catchMappedFailureCode || lastServerMappedFailureCode || inferOcrFailureCode(errMsg);
+                    const catchFailureTrace = err instanceof OcrGatewayError
+                        ? err.trace
+                        : (err as { trace?: OcrTraceInfo })?.trace;
+                    const isExpiredAdminSession = ['HTTP_401', 'HTTP_403'].includes(String(catchGatewayCode || '').toUpperCase());
+                    if (isExpiredAdminSession) {
+                        let restored = true;
+                        try {
+                            // 요청 전에 기록한 IN_PROGRESS 상태를 원본으로 되돌려 재개 가능한 상태를 보존한다.
+                            await persistRecordUpdate(record);
+                            currentRecordRestored = true;
+                        } catch (restoreError) {
+                            restored = false;
+                            console.error('Failed to restore record after expired admin session:', restoreError);
+                        }
+                        stopped = true;
+                        stopRef.current = true;
+                        alert(restored
+                            ? '관리자 로그인이 만료되어 일괄 재분석을 즉시 중단했습니다. 현재 기록은 분석 전 상태로 복구했습니다. 다시 로그인한 뒤 이어서 실행해 주세요.'
+                            : '관리자 로그인이 만료되어 일괄 재분석을 중단했습니다. 현재 기록 상태 복구에도 실패했으므로 다시 로그인한 뒤 해당 기록의 상태를 확인해 주세요.');
+                        break;
+                    }
                     const errorRecord: WorkerRecord = withHarnessState(record, {
                         ...record,
                         aiInsights: withFailureCodePrefix(failureCode, `⛔ 시스템 오류: ${errMsg}`),
                         ocrErrorType: classifyLegacyOcrErrorType(errMsg),
                         ocrFailureCode: failureCode,
                         ocrErrorMessage: withFailureCodePrefix(failureCode, errMsg),
-                        ocrTrace: {
-                            providerUsed: 'unknown',
-                            latencyMs: 0,
-                            attempts: 1,
-                            fallbackDepth: 0,
-                            finalCode: failureCode,
-                            recordedAt: new Date().toISOString(),
-                        },
+                        ocrTrace: catchFailureTrace
+                            ? { ...catchFailureTrace, finalCode: failureCode }
+                            : {
+                                providerUsed: 'unknown',
+                                latencyMs: 0,
+                                attempts: 1,
+                                fallbackDepth: 0,
+                                finalCode: failureCode,
+                                recordedAt: new Date().toISOString(),
+                            },
                         secondPassStatus: 'NEEDED',
                         workflowState: 'manual_review_required',
                         riskDecision: 'IMMEDIATE_ATTENTION',
                         approvalState: 'PENDING',
                     });
                     await persistRecordUpdate(await syncHarnessReanalyzeResult(errorRecord, record));
+                    currentRecordCompleted = true;
                     failCount++;
                     processingFailCount++;
                     if (failureCode === 'QUOTA') {
@@ -4605,19 +4640,29 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         );
                         break;
                     }
-                    if (!forceReanalyze && quotaFailureCount >= quotaAbortThreshold) {
+                    if (quotaFailureCount >= quotaAbortThreshold) {
                         stopped = true;
                         stopRef.current = true;
                         alert(`할당량(QUOTA) 실패가 ${quotaFailureCount}건 감지되어 ${quotaProtectionLabel}에 따라 일괄 재분석을 자동 중단했습니다. 잠시 후 재개하세요.`);
                         break;
                     }
                 } finally {
+                    if (!currentRecordCompleted && !currentRecordRestored) {
+                        try {
+                            // 수동 중단·예외가 최종 저장 전에 발생하면 IN_PROGRESS를 남기지 않는다.
+                            await persistRecordUpdate(record);
+                            currentRecordRestored = true;
+                        } catch (restoreError) {
+                            console.error('Failed to restore unfinished batch record:', restoreError);
+                        }
+                    }
                     saveBatchCheckpoint({
                         savedAt: Date.now(),
                         title,
                         forceReanalyze,
                         total,
-                        nextIndex: Math.min(i + 1, processQueue.length),
+                        // 최종 결과가 저장된 건만 다음 인덱스로 이동한다. 복구·미완료 건은 현재 건부터 재개한다.
+                        nextIndex: Math.min(currentRecordCompleted ? i + 1 : i, processQueue.length),
                         successCount,
                         failCount,
                         serverSuccessCount,
@@ -4652,14 +4697,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             }
             
             const modeLabel = forceReanalyze ? `[${BRAND_ACTION_LABELS.directReanalyze}]` : '';
-            const fallbackOpportunity = clientFallbackSuccessCount + serverRouteFailCount;
-            const fallbackRecoveryRateText = fallbackOpportunity > 0
-                ? `${Math.round((clientFallbackSuccessCount / fallbackOpportunity) * 100)}%`
-                : '집계 대기';
-            const fallbackRecoveryState = fallbackOpportunity <= 0
-                ? '집계 대기'
-                : (Number(fallbackRecoveryRateText.replace('%', '')) < 30 ? '위험' : Number(fallbackRecoveryRateText.replace('%', '')) < 70 ? '주의' : '안정');
-            const reasonsReport = `\n[원인 집계]\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 대체 분석 성공: ${clientFallbackSuccessCount}\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}\n- KEY/권한 실패: ${keyFailureCount}\n- QUOTA 보호 기준: ${quotaProtectionLabel}${deferredCount > 0 ? `\n- 무료 모드 보호로 이번 실행 제외: ${deferredCount}건` : ''}\n- 대체 분석 회복률: ${fallbackRecoveryRateText} (${fallbackRecoveryState})${keyFailureAbortTriggered ? `\n- 자동중단: KEY 연속 실패 ${consecutiveKeyFailureCount}건` : ''}${lastUnhandledBatchErrorMessage ? `\n- 전역중단코드: ${lastUnhandledBatchErrorCode || 'UNKNOWN'}\n- 전역중단메시지: ${lastUnhandledBatchErrorMessage.slice(0, 140)}` : ''}`;
+            const reasonsReport = `\n[원인 집계]\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 직접 OCR: 비활성\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}\n- KEY/권한 실패: ${keyFailureCount}\n- QUOTA 보호 기준: ${quotaProtectionLabel}${deferredCount > 0 ? `\n- 비용절약 보호로 이번 실행 제외: ${deferredCount}건` : ''}${keyFailureAbortTriggered ? `\n- 자동중단: KEY 연속 실패 ${consecutiveKeyFailureCount}건` : ''}${lastUnhandledBatchErrorMessage ? `\n- 전역중단코드: ${lastUnhandledBatchErrorCode || 'UNKNOWN'}\n- 전역중단메시지: ${lastUnhandledBatchErrorMessage.slice(0, 140)}` : ''}`;
             
             if (stopped) {
                 alert(`${modeLabel} 분석이 중단되었습니다.\n(완료: ${successCount}, ${BRAND_STATUS_LABELS.attentionPending}: ${failCount})${reasonsReport}`);
@@ -4842,30 +4880,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         setFilterStatus(failedOnlyDefault ? 'failed' : 'all');
     }, [failedOnlyDefault]);
 
-    const ensureOcrExecutionPreflight = useCallback(async (): Promise<boolean> => {
-        const verified = await verifyActiveOcrApiKey();
-        if (verified.ok) return true;
-
-        const prefix = verified.failureCode === 'QUOTA'
-            ? '문서 분석 연결은 확인되었지만 현재 사용량 제한 상태입니다.'
-            : verified.failureCode === 'KEY'
-                ? '문서 분석 연결 정보가 유효하지 않거나 사용 권한이 없습니다.'
-                : '문서 분석 전 사전 점검에 실패했습니다.';
-
-        alert(
-            `${prefix}\n현재 모드: ${verified.modeLabel}\n키 출처: ${verified.sourceLabel}\n실패 코드: ${verified.failureCode || 'UNKNOWN'}\n\n${verified.message}`
-        );
-        return false;
-    }, []);
-
     const handleBatchReanalyze = async () => {
-        if (!ocrExecutionKeyStatus.ready) {
-            alert(`문서 분석 연결 정보가 설정되지 않았습니다.\n현재 방식: ${ocrExecutionKeyStatus.modeApiLabel}\n연결 정보 위치: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 분석 서비스 연결키를 먼저 등록해 주세요.`);
-            return;
-        }
-
-        if (!(await ensureOcrExecutionPreflight())) return;
-
         const splitSize = getBatchSplitSize();
         const total = recordsWithImagesBatchTargets.length;
         const excludedDoneCount = recordsWithImages.length - recordsWithImagesBatchTargets.length;
@@ -4883,7 +4898,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         const doneExcludeHint = excludedDoneCount > 0
             ? `\n\n※ 2차 재분석 완료(DONE) ${excludedDoneCount}건은 자동 제외됩니다.`
             : '';
-        if (confirm(`전체 ${total}건 재분석 하시겠습니까?\n[주의] 무료 티어 한도는 시점/계정 상태에 따라 변동됩니다.${splitWarning}${doneExcludeHint}\n\n계속하시겠습니까?`)) {
+        if (confirm(`전체 ${total}건 재분석 하시겠습니까?\n[주의] 서버 유료 API를 사용하며 문서별 토큰·비용가드와 계정 할당량이 적용됩니다.${splitWarning}${doneExcludeHint}\n\n계속하시겠습니까?`)) {
             // 분할 단위가 total보다 작으면 우선순위 상위 splitSize건만 처리
             const sortedByPriority = [...recordsWithImagesBatchTargets].sort((a, b) => getRetryPriorityScore(a) - getRetryPriorityScore(b));
             const batch = total > splitSize ? sortedByPriority.slice(0, splitSize) : sortedByPriority;
@@ -4896,13 +4911,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             alert('재분석할 근로자를 먼저 선택해 주세요.');
             return;
         }
-
-        if (!ocrExecutionKeyStatus.ready) {
-            alert(`문서 분석 연결 정보가 설정되지 않았습니다.\n현재 방식: ${ocrExecutionKeyStatus.modeApiLabel}\n연결 정보 위치: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 분석 서비스 연결키를 먼저 등록해 주세요.`);
-            return;
-        }
-
-        if (!(await ensureOcrExecutionPreflight())) return;
 
         const totalSelected = selectedRecords.length;
         const eligibleCount = selectedReanalyzeTargets.length;
@@ -4964,13 +4972,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     }, [onDeleteRecord]);
 
     const handleRetryFailed = async () => {
-        if (!ocrExecutionKeyStatus.ready) {
-            alert(`문서 분석 연결 정보가 설정되지 않았습니다.\n현재 방식: ${ocrExecutionKeyStatus.modeApiLabel}\n연결 정보 위치: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 분석 서비스 연결키를 먼저 등록해 주세요.`);
-            return;
-        }
-
-        if (!(await ensureOcrExecutionPreflight())) return;
-
         const hardTargets = failedRecords.filter(isHardRetryTarget);
         if (hardTargets.length === 0) {
             alert('다시 확인할 우선 점검 건이 없습니다.\n(점수 미달/저신뢰 건은 개별 검토를 권장합니다.)');
@@ -4983,13 +4984,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     };
 
     const handleForceReanalyze = async () => {
-        if (!ocrExecutionKeyStatus.ready) {
-            alert(`문서 분석 연결 정보가 설정되지 않았습니다.\n현재 방식: ${ocrExecutionKeyStatus.modeApiLabel}\n연결 정보 위치: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 분석 서비스 연결키를 먼저 등록해 주세요.`);
-            return;
-        }
-
-        if (!(await ensureOcrExecutionPreflight())) return;
-
         if (failedRecords.length === 0) {
             alert(`재분석할 ${BRAND_STATUS_LABELS.attentionPending} 건이 없습니다.`);
             return;
@@ -4997,8 +4991,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
         const confirm_msg = confirm(
             `⚠️ ${BRAND_ACTION_LABELS.directReanalyze} 모드\n\n${BRAND_STATUS_LABELS.attentionPending} ${failedRecords.length}건을 사전 점검 없이\n` +
-            `직접 유료 분석으로 다시 처리하시겠습니까?\n\n` +
-            `※ 유료 분석 서비스를 사용하므로 결과가 나올 때까지 비용이 발생합니다.`
+            `서버 고정밀 분석으로 다시 처리하시겠습니까?\n\n` +
+            `※ 서버 유료 API를 사용하며 각 문서는 호출 전에 토큰 수와 최대 비용을 검사합니다.`
         );
         
         if (confirm_msg) {
@@ -5142,33 +5136,72 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 
                 // [IMPROVED] 재시도 로직 추가 (무한 루프 방지)
                 let retryCount = 0;
-                const MAX_FILE_RETRIES = 2;
+                // 서버가 내부에서 최대 2개 모델을 관리하므로 브라우저가 같은 문서를 다시 호출하지 않는다.
+                const MAX_FILE_RETRIES = OCR_POLICY.RETRY_POLICY.maxRetries;
                 let analyzed = false;
                 
                 while (retryCount < MAX_FILE_RETRIES && !analyzed && !stopRef.current) {
                     try {
-                        const base64 = await fileToBase64(files[i]);
-                        const res = await analyzeWorkerRiskAssessment(base64, files[i].type, files[i].name);
+                        const base64 = await prepareOcrFileForGateway(files[i]);
+                        let analyzedRecord: WorkerRecord;
+                        try {
+                            const serverResult = await requestServerOcrAnalysis({
+                                recordId: `upload-${Date.now()}-${i}`,
+                                imageSource: base64,
+                                filenameHint: files[i].name,
+                                ocrEngine,
+                            });
+                            analyzedRecord = {
+                                ...serverResult.record,
+                                originalImage: base64,
+                                filename: files[i].name,
+                                ocrTrace: serverResult.trace,
+                            };
+                        } catch (serverError) {
+                            // 신규 업로드도 서버 비용·보안 가드를 우회하는 브라우저 OCR 폴백을 사용하지 않는다.
+                            throw serverError;
+                        }
                         
                         if (stopRef.current) { stopped = true; break; }
 
-                        if (res && res.length > 0) {
-                            const syncedRecord = await syncHarnessAnalyzeResult(res[0], files[i].name);
-                            results.push(syncedRecord);
-                            analyzed = true; // 성공 시 루프 종료
-                        } else {
-                            throw new Error("Empty result from AI");
-                        }
+                        const qualityAssessment = assessOcrRoutingQuality(analyzedRecord as unknown as Record<string, unknown>);
+                        const qualityAwareRecord: WorkerRecord = qualityAssessment.requiresManualReview && !analyzedRecord.ocrErrorType
+                            ? {
+                                ...analyzedRecord,
+                                ocrErrorType: 'QUALITY',
+                                ocrFailureCode: 'UNKNOWN',
+                                ocrErrorMessage: getOcrQualityReviewMessage(qualityAssessment),
+                                secondPassStatus: 'NEEDED',
+                                workflowState: 'manual_review_required',
+                                riskDecision: 'SUPPLEMENTARY_REVIEW',
+                                approvalState: 'PENDING',
+                            }
+                            : analyzedRecord;
+                        const syncedRecord = await syncHarnessAnalyzeResult(qualityAwareRecord, files[i].name);
+                        results.push(syncedRecord);
+                        analyzed = true;
                     } catch (e: any) {
                         const eMsg = e.message || JSON.stringify(e);
+                        const failureTrace = e instanceof OcrGatewayError ? e.trace : e?.trace as OcrTraceInfo | undefined;
+                        const gatewayCode = extractGatewayErrorCode(eMsg);
+                        const isExpiredAdminSession = ['HTTP_401', 'HTTP_403']
+                            .includes(String(gatewayCode || '').toUpperCase());
+                        if (isExpiredAdminSession) {
+                            stopped = true;
+                            stopRef.current = true;
+                            // 실패 레코드는 만들지 않고 현재 파일부터 선택 목록에 남겨 로그인 후 재개할 수 있게 한다.
+                            failedFiles.push(...files.slice(i));
+                            alert('관리자 로그인이 만료되어 신규 OCR 배치를 즉시 중단했습니다. 실패 기록은 생성하지 않았습니다. 다시 로그인한 뒤 남은 파일을 실행해 주세요.');
+                            break;
+                        }
                         retryCount++;
                         
                         // 429 에러는 우아한 실패 (다음 파일로)
-                        if (isRateLimitError(eMsg)) {
+                        if (isRateLimitError(eMsg) || /OCR_(?:DAILY_BUDGET_EXCEEDED|RATE_LIMITED|QUOTA)/i.test(eMsg)) {
                             console.warn(`Rate limit hit on file ${files[i].name}`);
                             setQuotaExhausted(60);
                             const failMessage = `⛔ API 할당량이 가득 차 ${BRAND_STATUS_LABELS.attention} 안내가 필요합니다. 잠시 후 다시 확인해 주세요.`;
-                            results.push(createFileAnalysisErrorRecord(files[i], failMessage, 'UNKNOWN'));
+                            results.push(createFileAnalysisErrorRecord(files[i], failMessage, 'UNKNOWN', failureTrace));
                             failedFiles.push(files[i]);
                             const next = incrementApiCallCount('fail');
                             setDailyCounter(next);
@@ -5183,7 +5216,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         } else {
                             console.error(`Failed after ${MAX_FILE_RETRIES} retries:`, e);
                             const failMessage = `⛔ 파일 분석 실패: ${extractMessage(e) || '알 수 없는 오류'}`;
-                            results.push(createFileAnalysisErrorRecord(files[i], failMessage, 'UNKNOWN'));
+                            results.push(createFileAnalysisErrorRecord(files[i], failMessage, 'UNKNOWN', failureTrace));
                             failedFiles.push(files[i]);
                             const next = incrementApiCallCount('fail');
                             setDailyCounter(next);
@@ -5191,6 +5224,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             alert(`파일 분석 실패: ${files[i].name}`);
                         }
                     }
+                }
+
+                if (stopRef.current) {
+                    stopped = true;
+                    break;
                 }
 
                 if (shouldStopForQuota) {
@@ -5660,6 +5698,20 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         providerUsed: trace.providerUsed,
                         attempts: trace.attempts,
                         fallbackDepth: trace.fallbackDepth,
+                        modelUsed: trace.modelUsed || null,
+                        modelsAttempted: trace.modelsAttempted || [],
+                        precisionEscalated: Boolean(trace.precisionEscalated),
+                        costGuardBlocked: Boolean(trace.costGuardBlocked),
+                        qualityScore: typeof trace.qualityScore === 'number'
+                            ? Number(trace.qualityScore.toFixed(3))
+                            : null,
+                        qualityReasons: trace.qualityReasons || [],
+                        inputTokens: trace.inputTokens ?? null,
+                        outputTokens: trace.outputTokens ?? null,
+                        thinkingTokens: trace.thinkingTokens ?? null,
+                        estimatedCostUsd: typeof trace.estimatedCostUsd === 'number'
+                            ? Number(trace.estimatedCostUsd.toFixed(6))
+                            : null,
                         finalCode: trace.finalCode || null,
                         latencyMs: trace.latencyMs,
                         recordedAt: trace.recordedAt,
@@ -5754,13 +5806,27 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 scoreDiagnostics: scoreDiagnosticsSummary,
                 recordsWithOriginalImage: records.filter((record) => record.imageEvidence.hasOriginalImage).length,
                 serverGeminiSuccessCount: records.filter((record) => record.trace?.providerUsed === 'server_gemini' && !record.failed).length,
+                precisionEscalationCount: records.filter((record) => record.trace?.precisionEscalated).length,
+                costGuardBlockedCount: records.filter((record) => record.trace?.costGuardBlocked).length,
+                meanQualityScore: (() => {
+                    const scores = records
+                        .map((record) => record.trace?.qualityScore)
+                        .filter((score): score is number => typeof score === 'number');
+                    return scores.length > 0
+                        ? Number((scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(3))
+                        : null;
+                })(),
+                estimatedGeminiCostUsd: Number(records.reduce(
+                    (sum, record) => sum + (record.trace?.estimatedCostUsd || 0),
+                    0,
+                ).toFixed(6)),
             },
             recommendedReadingOrder: [
                 'summary.scoreDiagnostics와 records[].scoreDiagnostics에서 점수 재검증 대상을 먼저 확인',
                 'summary.resultBuckets에서 정상/API 한도/양식 판독 비율을 먼저 확인',
                 'summary.questionCoverage에서 변경 양식 Q1~Q5 추출 상태 확인',
                 'records[].failureHeadline과 records[].ocrErrorMessage로 실제 반려 사유 확인',
-                'records[].trace로 서버 재분석/폴백/최종코드 확인',
+                'records[].trace로 사용 모델·품질 점수·토큰·추정 비용·정밀 승격 여부 확인',
                 '필요 시 전체 백업 JSON으로 원본 이미지 포함 정밀 재검증',
             ],
             records,
@@ -6422,8 +6488,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         {failedRecords.length > 0 && !isAnalyzing && (
                             <button 
                                 onClick={handleRetryFailed}
-                                disabled={!ocrExecutionKeyStatus.ready}
-                                className={`w-full px-5 py-3 rounded-2xl font-black text-sm shadow-xl transition-all border flex items-center justify-center gap-2 group ${ocrExecutionKeyStatus.ready ? 'bg-rose-600 hover:bg-rose-700 border-rose-500' : 'bg-slate-700 border-slate-600 text-slate-300 cursor-not-allowed'}`}
+                                className="w-full px-5 py-3 rounded-2xl font-black text-sm shadow-xl transition-all border flex items-center justify-center gap-2 group bg-rose-600 hover:bg-rose-700 border-rose-500"
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                                 {BRAND_STATUS_LABELS.attentionPending} 건 {BRAND_ACTION_LABELS.smartReanalyze} ({failedRecords.length})
@@ -6434,8 +6499,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         {failedRecords.length > 0 && !isAnalyzing && (
                             <button 
                                 onClick={handleForceReanalyze}
-                                disabled={!ocrExecutionKeyStatus.ready}
-                                className={`w-full px-5 py-3 rounded-2xl font-black text-sm shadow-xl transition-all border flex items-center justify-center gap-2 group ${ocrExecutionKeyStatus.ready ? 'bg-red-700 hover:bg-red-800 border-red-600' : 'bg-slate-700 border-slate-600 text-slate-300 cursor-not-allowed'}`}
+                                className="w-full px-5 py-3 rounded-2xl font-black text-sm shadow-xl transition-all border flex items-center justify-center gap-2 group bg-red-700 hover:bg-red-800 border-red-600"
                                 title={`사전 점검 없이 모든 ${BRAND_STATUS_LABELS.attentionPending} 건을 직접 다시 분석합니다`}
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
@@ -6472,16 +6536,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 titleClassName="text-[10px] font-black uppercase tracking-widest text-emerald-300"
                                 bodyClassName="mt-3 grid grid-cols-1 gap-2.5"
                             >
-                        <div className={`w-full px-3 py-2 rounded-xl border text-[11px] font-bold ${ocrExecutionKeyStatus.ready ? 'bg-emerald-900/30 border-emerald-500/30 text-emerald-200' : 'bg-rose-900/30 border-rose-500/30 text-rose-200'}`}>
-                            문서 분석 연결: {ocrExecutionKeyStatus.sourceLabel} · {ocrExecutionKeyStatus.modeApiLabel}
+                        <div className="w-full px-3 py-2 rounded-xl border text-[11px] font-bold bg-emerald-900/30 border-emerald-500/30 text-emerald-200">
+                            문서 분석 연결: 서버 관리형 · {getOcrEngineLabel(ocrEngine)} · 비용/품질 자동 게이트
                         </div>
                         
                         {recordsWithImages.length > 0 && !isAnalyzing && (
                             <button 
                                 onClick={handleBatchReanalyze}
                                 title={recordsWithImagesBatchTargets.length < recordsWithImages.length ? `2차 완료 ${recordsWithImages.length - recordsWithImagesBatchTargets.length}건 자동 제외` : '이미지 보유 대상 전체 재분석'}
-                                disabled={!ocrExecutionKeyStatus.ready}
-                                className={`w-full px-5 py-3 rounded-2xl font-black text-sm shadow-xl transition-all border flex items-center justify-center gap-2 group ${ocrExecutionKeyStatus.ready ? 'bg-emerald-600 hover:bg-emerald-700 border-emerald-500' : 'bg-slate-700 border-slate-600 text-slate-300 cursor-not-allowed'}`}
+                                className="w-full px-5 py-3 rounded-2xl font-black text-sm shadow-xl transition-all border flex items-center justify-center gap-2 group bg-emerald-600 hover:bg-emerald-700 border-emerald-500"
                             >
                                 <svg className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeWidth={2.5}/></svg>
                                 전체 일괄 재분석 (OCR) {recordsWithImagesBatchTargets.length > 0 ? `${recordsWithImagesBatchTargets.length}건` : ''}
@@ -6692,9 +6755,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </div>
                     <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                         {([
-                            ['auto', '자동 추천', '일반 문서는 빠르게, 복잡한 경우 정밀 모델로 자동 전환'],
-                            ['gemini-fast', 'Gemini 빠른 분석', '선명한 사진과 대량 처리에 적합'],
-                            ['gemini-precise', 'Gemini 정밀 분석', '흐린 글씨, 복잡한 표, 외국어 혼합 문서에 적합'],
+                            ['auto', '자동 가성비 추천', '저비용 1차 판독 후 품질이 부족한 문서만 정밀 모델로 1회 전환'],
+                            ['gemini-fast', '가성비 우선', '선명한 사진과 대량 처리용 · 정밀 승격 없이 비용 최소화'],
+                            ['gemini-precise', '고정밀 우선', '흐린 필기·복잡한 표·다국어 혼합 문서를 처음부터 정밀 판독'],
                             ['openai-precise', 'OpenAI 정밀 분석', 'ChatGPT Plus와 별도인 개발자용 분석 연결 필요'],
                         ] as Array<[OcrEngineMode, string, string]>)
                             .filter(([value]) => isDeveloperExperience || value !== 'openai-precise')
@@ -7057,7 +7120,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             const errorType = getOcrErrorTypeFromRecord(record);
                             const guideMessage = getOcrErrorGuideMessage(errorType);
                             const preflightReason = getPreflightFailureReason(record);
-                            const hasImage = hasRetryableOriginalImage(record.originalImage) || hasRetryableOriginalImage(record.profileImage);
+                            const hasImage = hasRetryableOriginalImage(record.originalImage);
                             const actionGuide = preflightReason
                                 ? '사전확인 항목을 먼저 보완한 뒤 다시 읽기를 실행하세요.'
                                 : hasImage
@@ -7924,7 +7987,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         const recentlyCorrected = isRecentlyCorrected(r);
                         const weakCorrectionReason = hasWeakCorrectionReason(r);
                         const latestCorrectionReason = getLatestCorrectionReason(r);
-                        const hasImage = hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage);
+                        const hasImage = hasRetryableOriginalImage(r.originalImage);
                         const primaryRiskTask = getPrimaryRiskTaskFromRecord(r);
                         const rowErrorType = failed ? getOcrErrorTypeFromRecord(r) : null;
                         const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
@@ -8139,7 +8202,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             {visibleRecordListRecords.map((r: WorkerRecord) => {
                                 const checked = selectedIds.includes(r.id);
                                 const isManager = isManagementRole(r.jobField);
-                                const hasImage = hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage);
+                                const hasImage = hasRetryableOriginalImage(r.originalImage);
                                 const failed = isFailedRecord(r);
                                 const failureCode = failed ? resolveFailureCodeFromRecord(r) : 'UNKNOWN';
                                 const immediateActions = failed ? getFailureImmediateActions(failureCode) : [];

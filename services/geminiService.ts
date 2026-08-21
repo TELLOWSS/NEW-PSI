@@ -4,16 +4,33 @@ import { normalizeNationality as importedNormalizeNationality } from '../utils/w
 import { getWindowProp } from '../utils/windowUtils';
 import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, HandwrittenAnswer, OcrErrorType, OcrFailureCode } from '../types';
 import { extractMessage } from '../utils/errorUtils';
+import { requestServerOcrAnalysis } from './ocrGatewayService';
 import { deriveIntegrityScore, enforceSafetyLevel } from '../utils/evidenceUtils';
 import { getSafetyLevelFromScore, getSafetyLevelThresholds } from '../utils/safetyLevelUtils';
 import { getIsPaidApiMode } from '../utils/apiModeUtils';
 import { resolveOcrExecutionKeyStatus } from '../utils/ocrExecutionKeyStatus';
 import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils';
 import { supabase } from '../lib/supabaseClient';
-import { getAiEngineSettings, resolveGeminiOcrModelChain } from '../utils/aiEngineSettings';
+import {
+    GEMINI_OCR_MODEL_CATALOG,
+    getAiEngineSettings,
+} from '../utils/aiEngineSettings';
+import { isGatewayProcessableOcrMimeType } from '../utils/ocrFilePolicy';
+import { detectOcrSourceMimeType } from '../utils/ocrGatewayPayload';
 import { normalizeOcrRecordMetadata } from '../utils/ocrRecordNormalization';
 import { PSI_FORM_MASTER_PROMPT_BLOCK } from '../config/psiFormMaster';
 import { applyOcrDocumentGate, normalizeOcrDocumentMetadata } from '../utils/ocrDocumentValidation';
+import {
+    calibrateScoreBreakdown,
+    enforceBreakdownDrivenScore,
+    isGenericSlogan,
+} from '../utils/ocrSafetyScoreCalibration';
+
+export {
+    calibrateScoreBreakdown,
+    enforceBreakdownDrivenScore,
+    isGenericSlogan,
+} from '../utils/ocrSafetyScoreCalibration';
 
 /**
  * [API Rate Limiting State Management]
@@ -27,9 +44,8 @@ interface ApiQuotaState {
 
 const QUOTA_STATE_KEY = 'psi_api_quota_state';
 const QUOTA_RECOVERY_MINUTES = 15; // 기본 복구 대기(짧게) + UI에서 수동 해제 가능
-const OCR_MODEL_PRIMARY = 'gemini-3.0-flash';
-const OCR_MODEL_FALLBACK = 'gemini-3-flash-preview';
-const OCR_MODEL_STABLE_FALLBACK = 'gemini-2.5-flash';
+const OCR_MODEL_PRIMARY = GEMINI_OCR_MODEL_CATALOG.economy.id;
+const OCR_MODEL_STABLE_FALLBACK = GEMINI_OCR_MODEL_CATALOG.stableFallback.id;
 const REASONING_MODEL_PRIMARY = 'gemini-3.1-pro-preview';
 const REASONING_MODEL_FALLBACK = 'gemini-3-flash-preview';
 const VECTOR_EMBED_MODEL = 'text-embedding-004';
@@ -146,10 +162,14 @@ const isRateLimitError = (errorMsg: string): boolean => {
     const msg = errorMsg.toLowerCase();
     return msg.includes('429') || 
            msg.includes('resource_exhausted') || 
+           msg.includes('ocr_rate_limited') ||
+           msg.includes('ocr_daily_budget_exceeded') ||
            msg.includes('exhausted') || 
            msg.includes('quota exceeded') || 
            msg.includes('rate limit') ||
-           msg.includes('too many requests');
+           msg.includes('too many requests') ||
+           msg.includes('요청이 너무 많') ||
+           msg.includes('ocr 재분석 한도');
 };
 
 const isModelAvailabilityError = (errorMsg: string): boolean => {
@@ -356,18 +376,19 @@ const fetchTopBestPracticeSectionByText = async (queryText: string): Promise<str
 };
 
 const fetchTopBestPracticeSection = async (
-    ai: GoogleGenAI,
-    imageData: string,
-    mimeType: string,
+    _ai: GoogleGenAI,
+    _imageData: string,
+    _mimeType: string,
     filenameHint?: string,
 ): Promise<string> => {
     try {
-        const searchSeed = await extractSearchSeedFromImage(ai, imageData, mimeType, filenameHint);
-            return await withTimeout(
-                fetchTopBestPracticeSectionByText(searchSeed || String(filenameHint || '위험성평가 작업 대책')),
-                3500,
-                buildBestPracticeSection([]),
-            );
+        // OCR 전에 같은 이미지를 다시 모델에 보내던 무효 seed 호출을 제거한다.
+        // 파일명 기반 RAG만 사용하고, 실제 OCR 원문은 후속 관리자 재가공 단계에서 활용한다.
+        return await withTimeout(
+            fetchTopBestPracticeSectionByText(String(filenameHint || '위험성평가 작업 대책')),
+            3500,
+            buildBestPracticeSection([]),
+        );
     } catch {
         return buildBestPracticeSection([]);
     }
@@ -470,11 +491,16 @@ const workerRecordSchema = {
             "documentType",
             "isPsiForm",
             "documentValidationReason",
+            "documentMarkers",
             "fieldConfidences",
             "name",
             "jobField",
             "date",
             "nationality",
+            "handwrittenAnswers",
+            "fullText",
+            "koreanTranslation",
+            "ocrConfidence",
             "safetyScore",
             "safetyLevel",
             "score_reason",
@@ -899,7 +925,7 @@ const parseJsonObjectFromText = (rawText: string): Record<string, unknown> | nul
     }
 };
 
-export const isGenericSlogan = (text: string): boolean => {
+const legacyIsGenericSlogan = (text: string): boolean => {
     const clean = text.replace(/\s+/g, '');
     if (clean.length === 0) return true;
     if (clean.length <= 4) {
@@ -1067,7 +1093,7 @@ const buildFallbackScoreBreakdownFromAnswers = (
     };
 };
 
-export const calibrateScoreBreakdown = (
+const legacyCalibrateScoreBreakdown = (
     breakdown: NormalizedScoreBreakdown,
     handwrittenAnswers: unknown[],
 ): { breakdown: NormalizedScoreBreakdown; reasoning: string[] } => {
@@ -1263,7 +1289,7 @@ const computeScoreFromBreakdown = (breakdown: NormalizedScoreBreakdown): number 
 
 
 
-export const enforceBreakdownDrivenScore = (
+const legacyEnforceBreakdownDrivenScore = (
     scoreInput: unknown,
     levelInput: unknown,
     reasoningInput: unknown,
@@ -1599,41 +1625,11 @@ function normalizeNationality(rawNationality: string): string {
  * Fixes issues where header says 'image/jpeg' but data is actually 'image/png'.
  */
 function detectMimeTypeFromBase64(base64Data: string): string {
-    if (!base64Data || base64Data.length < 12) return 'image/jpeg';
-    
-    // First 12+ characters contain magic bytes for format detection
-    const signature = base64Data.substring(0, 16);
-
-    // PDF: JVBERi0 (%PDF-)
-    if (signature.startsWith('JVBERi0')) return 'application/pdf';
-    
-    // Check for various image formats by their magic bytes
-    // PNG: iVBORw0KGgo=
-    if (signature.startsWith('iVBORw0KGgo')) return 'image/png';
-    
-    // JPEG: /9j/ (covers JPEG, JPG)
-    if (signature.startsWith('/9j/')) return 'image/jpeg';
-    
-    // GIF: R0lGOD (GIF87a or GIF89a)
-    if (signature.startsWith('R0lGOD')) return 'image/gif';
-    
-    // WebP: UklGR
-    if (signature.startsWith('UklGR')) return 'image/webp';
-    
-    // HEIC: AAAAFftM or similar HEIC signatures
-    if (signature.startsWith('AAAAFftM') || signature.includes('ftyp')) return 'image/heic';
-    
-    // TIFF: SUQy (Intel byte order) or MM (Motorola byte order)
-    if (signature.startsWith('SUQy') || signature.startsWith('TU0=')) return 'image/tiff';
-    
-    // BMP: Qk0= (BM signature)
-    if (signature.startsWith('Qk0=')) return 'image/bmp';
-    
-    // SVG: PHN2ZyA= (<svg )
-    if (signature.startsWith('PHN2ZyA=') || signature.startsWith('PHN2Zw==')) return 'image/svg+xml';
-    
-    // Default fallback (assume JPEG for compatibility)
-    return 'image/jpeg';
+    try {
+        return detectOcrSourceMimeType(base64Data);
+    } catch {
+        return 'application/octet-stream';
+    }
 }
 
 /**
@@ -1688,8 +1684,7 @@ function validateImageFormat(base64Data: string): { isValid: boolean; detectedFo
     const paddedBase64 = `${normalizedBase64}${'='.repeat(paddingLength)}`;
 
     const detectedMime = detectMimeTypeFromBase64(paddedBase64);
-    const supportedFormats = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/tiff', 'image/bmp', 'image/svg+xml'];
-    const isSupported = supportedFormats.includes(detectedMime);
+    const isSupported = isGatewayProcessableOcrMimeType(detectedMime);
 
     // Validate base64 format (only alphanumeric + /+= allowed with whitespace)
     const base64Regex = /^[A-Za-z0-9+/=]*$/;
@@ -1718,8 +1713,7 @@ function validateImageFormat(base64Data: string): { isValid: boolean; detectedFo
  * Gemini supports: PDF, JPEG, PNG, GIF, WebP, HEIC
  */
 function isFormatCompatibleWithAI(mimeType: string): boolean {
-    const aiSupportedFormats = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic'];
-    return aiSupportedFormats.includes(mimeType);
+    return isGatewayProcessableOcrMimeType(mimeType);
 }
 
 /**
@@ -1730,7 +1724,7 @@ async function callGeminiWithRetry(
     declaredMimeType: string | null,
     modelName: string, 
     filenameHint?: string, 
-    maxRetries = 3, // Increased default retries
+    maxRetries = 2,
     fallbackModelName?: string
 ): Promise<WorkerRecord[]> {
     let lastError: unknown;
@@ -1861,7 +1855,7 @@ async function callGeminiWithRetry(
                     systemInstruction: systemInstruction,
                     responseMimeType: "application/json",
                     responseSchema: workerRecordSchema,
-                    temperature: 0.1,
+                    maxOutputTokens: 6_144,
                 }
             });
 
@@ -1877,12 +1871,12 @@ async function callGeminiWithRetry(
                         const qrId = (r['qrId'] as string) || undefined;
                         const jobField = (r['jobField'] as string) || "기타";
                         const teamLeader = (r['teamLeader'] as string) || "미지정";
-                        const ocrConfidence = typeof r['ocrConfidence'] === 'number' ? (r['ocrConfidence'] as number) : 0.9;
+                        const ocrConfidence = typeof r['ocrConfidence'] === 'number' ? (r['ocrConfidence'] as number) : 0;
                         const signatureMatchScore = typeof r['signatureMatchScore'] === 'number' ? (r['signatureMatchScore'] as number) : undefined;
                         const role = (r['role'] as string) as ('worker'|'leader'|'sub_leader') || 'worker';
                         const isTranslator = Boolean(r['isTranslator']);
                         const isSignalman = Boolean(r['isSignalman']);
-                        const date = (r['date'] as string) || new Date().toISOString().split('T')[0];
+                        const date = (r['date'] as string) || '';
                         // [CRITICAL] 국적 정규화 (LANGUAGE_POLICY 준수)
                         const nationality = normalizeNationality((r['nationality'] as string) || '미상');
                         const normalizedScoreAndLevel = enforceBreakdownDrivenScore(
@@ -1964,11 +1958,15 @@ async function callGeminiWithRetry(
                         const textBasedErrorType = detectTextBasedOcrError(withIntegrity);
                         const normalizedConfidence = typeof withIntegrity.ocrConfidence === 'number'
                             ? Math.max(0, Math.min(1, withIntegrity.ocrConfidence))
-                            : 0.9;
+                            : 0;
                         const withOcrTag: WorkerRecord = textBasedErrorType
                             ? {
                                 ...withIntegrity,
                                 ocrConfidence: normalizedConfidence,
+                                ocrErrorType: textBasedErrorType,
+                                ocrFailureCode: textBasedErrorType === 'QUALITY' || textBasedErrorType === 'HANDWRITING'
+                                    ? 'UNKNOWN'
+                                    : withIntegrity.ocrFailureCode,
                             }
                             : withIntegrity;
 
@@ -2100,10 +2098,8 @@ async function callGeminiWithRetry(
                 // [IMPROVED] Use setQuotaExhausted to track quota state
                 setQuotaExhausted(); // 기본 복구 대기 사용
                 
-                // [IMPROVED] Cap wait time to avoid exceeding total wait budget
-                const waitTime = Math.min(15000 * (i + 1), 60000); // Cap at 60s
-                console.warn(`[Quota Limit] Backing off for ${waitTime/1000}s... Recovery time set.`);
-                await delay(waitTime);
+                console.warn('[Quota Limit] 배치 추가 과금을 막기 위해 즉시 중단합니다.');
+                break;
             } else if (i < maxRetries - 1) {
                 // Standard error backoff
                 await delay(3000 * (i + 1)); 
@@ -2116,6 +2112,9 @@ async function callGeminiWithRetry(
     // Ensure 429 is propagated in the error text for the UI to detect
     const lastMsg = extractMessage(lastError);
     const isQuotaError = isRateLimitError(lastMsg);
+    if (isQuotaError) {
+        throw new Error('할당량 초과 (429 RESOURCE_EXHAUSTED). 추가 호출을 중단했습니다.');
+    }
     const finalErrorMsg = isQuotaError
         ? `할당량 초과 (429 RESOURCE_EXHAUSTED). 잠시 후 다시 시도됩니다.`
         : `오류 상세: ${lastMsg || '알 수 없는 오류'}`;
@@ -2333,20 +2332,20 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
 }
 
 export async function analyzeWorkerRiskAssessment(documentSource: string, mimeType: string, filenameHint?: string): Promise<WorkerRecord[]> {
-    const isPaidApiMode = getIsPaidApiMode();
     const { ocrEngine } = getAiEngineSettings();
     if (ocrEngine === 'openai-precise') {
         throw new Error('ChatGPT Plus 구독은 OpenAI API 호출 권한이 아닙니다. OpenAI API 키 연결 후 사용할 수 있습니다.');
     }
-    const modelChain = resolveGeminiOcrModelChain(ocrEngine, { isPaidApiMode });
-    return await callGeminiWithRetry(
-        documentSource,
-        mimeType,
-        modelChain[0] || OCR_MODEL_PRIMARY,
-        filenameHint,
-        3,
-        modelChain[1] || OCR_MODEL_FALLBACK,
-    );
+    const gatewayResult = await requestServerOcrAnalysis({
+        recordId: `ocr-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+        imageSource: documentSource,
+        filenameHint: filenameHint || `psi-document.${mimeType.split('/')[1] || 'bin'}`,
+        ocrEngine,
+    });
+    return [{
+        ...gatewayResult.record,
+        ocrTrace: gatewayResult.trace || gatewayResult.record.ocrTrace,
+    }];
 }
 
 export async function generateSpeechFromText(text: string, voiceName: string = 'Kore'): Promise<string> {

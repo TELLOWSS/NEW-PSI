@@ -24,6 +24,9 @@ import { isPageVisibleByOperationalMode } from './utils/operationalModeUtils';
 import { isRouteVisibleInMode } from './config/routeMeta';
 import { useUiAudienceMode } from './hooks/useUiAudienceMode';
 import { normalizePsiWorkerJobField } from './config/psiFormMaster';
+import { requestServerOcrAnalysis } from './services/ocrGatewayService';
+import { getAiEngineSettings } from './utils/aiEngineSettings';
+import { prepareOcrSourceForGateway } from './utils/ocrGatewayPayload';
 import {
     applyWorkerUuidPolicy,
     getWorkerMatchScore as getSharedWorkerMatchScore,
@@ -1304,23 +1307,41 @@ const App: React.FC = () => {
         
         setIsReanalyzing(true);
         try {
-            const cleanBase64 = record.originalImage.includes('base64,') 
-                ? record.originalImage.split('base64,')[1] 
-                : record.originalImage;
+            const preparedImageSource = await prepareOcrSourceForGateway(
+                record.originalImage,
+                record.filename || record.name || 'psi-document',
+            );
 
-            const geminiServiceModule = await import('./services/geminiService');
-            const results = await geminiServiceModule.analyzeWorkerRiskAssessment(cleanBase64, 'image/jpeg', record.filename || record.name);
+            const serverResult = await requestServerOcrAnalysis({
+                recordId: record.id,
+                imageSource: preparedImageSource,
+                filenameHint: record.filename || record.name,
+                ocrEngine: getAiEngineSettings().ocrEngine,
+            });
             
-            if (results && results.length > 0) {
-                const newResult = results[0];
+            if (serverResult.record) {
+                const newResult = {
+                    ...serverResult.record,
+                    ocrTrace: serverResult.trace,
+                };
                 const updatedRecord: WorkerRecord = {
+                    ...record,
                     ...newResult,
-                    id: record.id, 
-                    originalImage: record.originalImage, 
+                    id: record.id,
+                    workerUuid: record.workerUuid || newResult.workerUuid,
+                    employeeId: record.employeeId || newResult.employeeId,
+                    qrId: record.qrId || newResult.qrId,
+                    originalImage: record.originalImage,
                     profileImage: record.profileImage,
                     date: record.date || new Date().toISOString().split('T')[0],
                     filename: record.filename,
-                    role: record.role || newResult.role 
+                    role: record.role,
+                    isTranslator: record.isTranslator,
+                    isSignalman: record.isSignalman,
+                    auditTrail: [
+                        ...(record.auditTrail || []),
+                        ...(newResult.auditTrail || []),
+                    ],
                 };
                 
                 await handleUpdateRecord(updatedRecord);

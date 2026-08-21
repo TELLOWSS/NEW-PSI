@@ -85,7 +85,7 @@ function resolveApprovalState(workflowState: HarnessWorkflowState, requiresHuman
 
 function resolveSecondPassStatus(workflowState: HarnessWorkflowState): HarnessDecisionResult['secondPassStatus'] {
     if (workflowState === 'completed') return 'DONE';
-    if (workflowState === 'awaiting_manager_approval') return 'NEEDED';
+    if (workflowState === 'awaiting_manager_approval' || workflowState === 'manual_review_required') return 'NEEDED';
     return 'IN_PROGRESS';
 }
 
@@ -95,7 +95,10 @@ export function buildHarnessDecision(options: {
     decision: HarnessRiskDecision;
     overrides: HarnessGuardrailOverride[];
 }): HarnessDecisionResult {
-    const requiresManagerApproval = options.evaluation.requiresHumanApproval || options.decision !== 'SAFE_TO_PROCEED';
+    const hasCriticalValidation = options.validation.issues.some((issue) => issue.severity === 'critical');
+    const requiresManagerApproval = hasCriticalValidation
+        || options.evaluation.requiresHumanApproval
+        || options.decision !== 'SAFE_TO_PROCEED';
     const workflowState = resolveWorkflowState({
         validation: options.validation,
         overrides: options.overrides,

@@ -34,6 +34,20 @@ export interface HarnessAnalyzeRequest {
     jobType?: string;
     fileName?: string;
     imageQualityScore?: number | null;
+    /** OCR 구조·필드·Q1~Q5 게이트가 관리자 검수를 요구하는지 여부 */
+    requiresManualReview?: boolean;
+    /** OCR 비용/품질 라우터의 종합 점수 (0~1) */
+    ocrQualityScore?: number | null;
+    /** OCR 품질 미달 사유 코드 */
+    ocrQualityReasons?: string[];
+    /** 이름·공종·날짜·수기 답변 필드별 신뢰도 */
+    ocrFieldConfidences?: {
+        name?: number;
+        jobField?: number;
+        date?: number;
+        nationality?: number;
+        handwrittenAnswers?: number;
+    };
     weather?: {
         condition?: string;
         windSpeedMps?: number | null;

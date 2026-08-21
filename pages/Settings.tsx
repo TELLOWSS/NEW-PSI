@@ -829,7 +829,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             eyebrow: '지금 상태',
             title: `${settings.siteName || '현장명 미입력'} 기준 시스템 구성을 조정 중입니다.`,
             description: isDeveloperExperience
-                ? `현재 ${isPaidApiMode ? '유료 분석 모드' : '무료 분석 모드'}이며 공종 ${jobFieldInput.split(',').filter((s) => s.trim()).length}개, 기본 교육 언어 ${normalizeTrainingLanguagePreset(settings.trainingLanguagePreset).length}개가 설정되어 있습니다.`
+                ? `현재 ${isPaidApiMode ? '대량 처리 모드' : '비용절약 보호 모드'}이며 공종 ${jobFieldInput.split(',').filter((s) => s.trim()).length}개, 기본 교육 언어 ${normalizeTrainingLanguagePreset(settings.trainingLanguagePreset).length}개가 설정되어 있습니다.`
                 : `${assessmentCycleCopy.cadenceLabel} · ${assessmentCycleCopy.frequencyLabel} 기준이며 공종 ${jobFieldInput.split(',').filter((s) => s.trim()).length}개, 기본 교육 언어 ${normalizeTrainingLanguagePreset(settings.trainingLanguagePreset).length}개가 설정되어 있습니다.`,
             tone: BRAND_TONE.indigoSoft70,
         },
@@ -867,23 +867,25 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             key: 'api-status',
             eyebrow: '지금 상태',
             title: activeApiKeyStatus.hasKey
-                ? `${activeApiKeyStatus.modeLabel} 분석 모드 연결키가 준비되어 있습니다.`
-                : `${activeApiKeyStatus.modeLabel} 분석 모드 연결키가 비어 있습니다.`,
-            description: `${freeApiKey ? '무료 연결키 입력됨' : '무료 연결키 미입력'} · ${paidApiKey ? '유료 연결키 입력됨' : '유료 연결키 미입력'} · 현재 연결 정보 위치: ${activeApiKeyStatus.sourceLabel}`,
+                ? `브라우저 보조기능용 ${activeApiKeyStatus.modeLabel} 연결키가 준비되어 있습니다.`
+                : `브라우저 보조기능용 ${activeApiKeyStatus.modeLabel} 연결키가 비어 있습니다.`,
+            description: `${freeApiKey ? '보조 무료키 입력됨' : '보조 무료키 미입력'} · ${paidApiKey ? '보조 유료키 입력됨' : '보조 유료키 미입력'} · 서버 OCR은 이 키가 아니라 서버 관리형 키와 건당 비용가드를 사용합니다.`,
             tone: isPaidApiMode ? 'border-rose-200 bg-rose-50/80' : 'border-slate-200 bg-slate-50',
         },
         {
             key: 'api-evidence',
             eyebrow: '판단 근거',
-            title: '분석 서비스 연결키와 운영자 확인이 처리 권한의 기준입니다.',
-            description: '유료 모드는 전환 전 확인창을 거쳐 켜지도록 구성해 무분별한 비용 사용 대신 운영 책임이 남도록 만들었습니다.',
+            title: 'OCR은 서버 관리형 키, 기타 브라우저 보조기능은 로컬 연결키를 사용합니다.',
+            description: '서버 OCR은 항상 유료 API에서 실행되며, 호출 전 토큰 계산과 문서당 USD 0.05 비용 상한을 적용합니다.',
             tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'api-action',
             eyebrow: '다음 행동',
-            title: activeApiKeyStatus.hasKey ? '운영 모드에 맞는 실행 키를 유지하세요.' : '현재 모드의 실행 키를 먼저 설정하세요.',
-            description: '현장 규모와 처리량에 맞춰 무료·유료 모드를 선택하면 이후 문서 판독, 리포트, 대량 분석 흐름이 안정적으로 이어집니다.',
+            title: 'OCR 비용 프로필은 OCR 엔진 선택과 서버 비용가드로 제어하세요.',
+            description: activeApiKeyStatus.hasKey
+                ? '브라우저 보조기능 키도 준비되어 있습니다. OCR 원본은 브라우저 키로 직접 전송하지 않습니다.'
+                : '브라우저 보조기능 키가 없어도 서버 OCR은 별도 서버 키가 준비된 배포 환경에서 실행됩니다.',
             tone: activeApiKeyStatus.hasKey ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80',
         },
     ], [activeApiKeyStatus, freeApiKey, isPaidApiMode, paidApiKey]);
@@ -1473,8 +1475,9 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             status: activeApiKeyStatus.hasKey ? 'success' : 'warning',
             title: activeApiKeyStatus.hasKey ? '현재 운영 상태를 확인했습니다.' : '분석 연결키 확인이 필요합니다.',
             detail: [
-                `분석 방식 ${isPaidApiMode ? '유료' : '무료'}`,
-                `실행 키 ${activeApiKeyStatus.hasKey ? '준비됨' : '미설정'}(${activeApiKeyStatus.sourceLabel})`,
+                `처리 프로필 ${isPaidApiMode ? '대량 처리' : '비용절약 보호'}`,
+                'OCR 실행 서버 관리형 유료 API + 문서당 비용가드',
+                `브라우저 보조키 ${activeApiKeyStatus.hasKey ? '준비됨' : '미설정'}(${activeApiKeyStatus.sourceLabel})`,
                 `OCR 엔진 ${getOcrEngineLabel(aiEngineSettings.ocrEngine)}`,
                 `승인 기준 ${settings.approvalPolicy?.strictRoleGate ? '엄격' : '유연'}`,
                 `배치 ${settings.batchSplitSize ?? 50}건`,
@@ -1486,10 +1489,10 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     const handleDirectPolicyCheck = () => {
         trackQuickAction('direct_policy_check');
         const issues: string[] = [];
-        if (!activeApiKeyStatus.hasKey) issues.push('현재 분석 모드의 연결키가 비어 있습니다.');
+        if (!activeApiKeyStatus.hasKey) issues.push('브라우저 보조기능용 연결키가 비어 있습니다. 서버 OCR 연결 상태는 실제 분석 요청으로 별도 확인합니다.');
         if (weightSum < 0.95 || weightSum > 1.05) issues.push(`개인 안전역량 가중치 합계가 ${weightSum.toFixed(2)}입니다.`);
         if (normalizedIntermediateThreshold >= normalizedAdvancedThreshold) issues.push('확인 단계 기준이 안정 단계 기준과 같거나 높습니다.');
-        if ((settings.batchSplitSize ?? 50) > 150 && !isPaidApiMode) issues.push('무료 분석 모드에서 배치 처리 건수가 큽니다.');
+        if ((settings.batchSplitSize ?? 50) > 150 && !isPaidApiMode) issues.push('비용절약 보호 모드에서 배치 처리 건수가 큽니다.');
         if (normalizeTrainingLanguagePreset(settings.trainingLanguagePreset).length < CURRENT_SITE_LANGUAGE_SET.length) issues.push('현장 기본 언어 세트보다 선택 언어가 적습니다.');
         if (harnessSummary.immediateAttention > 0) issues.push(`즉시 보호 대상 ${harnessSummary.immediateAttention}명이 남아 있습니다.`);
         if (harnessSummary.fallback + harnessSummary.pending > 0) issues.push(`저장 보완·대기 ${harnessSummary.fallback + harnessSummary.pending}명이 있습니다.`);
@@ -1499,7 +1502,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             title: issues.length > 0 ? '운영 기준 체크 결과 보강이 필요합니다.' : '운영 기준 체크를 통과했습니다.',
             detail: issues.length > 0
                 ? issues.slice(0, 5).join(' / ')
-                : '분석키, 가중치, 등급 기준, 배치 단위, 언어 세트가 현재 운영 기준 안에 있습니다.',
+                : '서버 OCR 비용가드, 보조키, 가중치, 등급 기준, 배치 단위, 언어 세트가 현재 운영 기준 안에 있습니다.',
         });
     };
 
@@ -1580,8 +1583,8 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         trackQuickAction('direct_apply_stable_mode');
         updateDirectControlState({
             status: 'success',
-            title: '무료 안정 운영 세트로 변경했습니다.',
-            detail: `무료 분석 · OCR 자동 추천 · 배치 ${next.batchSplitSize ?? 50}건 · 엄격 승인 · 등급 기준 80/60으로 반영했습니다.`,
+            title: '비용절약 안정 운영 세트로 변경했습니다.',
+            detail: `OCR 자동 추천 · 서버 건당 비용가드 · 배치 ${next.batchSplitSize ?? 50}건 · 엄격 승인 · 등급 기준 80/60으로 반영했습니다.`,
         });
     };
 
@@ -1589,12 +1592,12 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         if (!paidApiKey.trim()) {
             updateDirectControlState({
                 status: 'warning',
-                title: '유료 분석 연결키가 먼저 필요합니다.',
-                detail: '유료 대량 운영으로 변경하려면 유료 분석 연결키를 입력한 뒤 다시 실행하세요.',
+                title: '브라우저 보조기능용 유료키가 먼저 필요합니다.',
+                detail: '대량 처리 운영으로 변경하려면 브라우저 보조기능용 유료키를 입력한 뒤 다시 실행하세요. 서버 OCR 키는 배포 환경에서 별도로 관리됩니다.',
             });
             return;
         }
-        const confirmed = window.confirm(`${API_MODE_WARNING_MESSAGE}\n\n유료 대량 운영 세트로 전환하면 배치 100건, OCR 빠른 분석, 엄격 승인 기준이 적용됩니다.`);
+        const confirmed = window.confirm(`${API_MODE_WARNING_MESSAGE}\n\n대량 처리 운영 세트로 전환하면 배치 100건, OCR 가성비 분석, 엄격 승인 기준이 적용됩니다. 서버 OCR은 모드와 관계없이 유료 API와 비용가드를 사용합니다.`);
         if (!confirmed) return;
 
         const nextEngine = { ...aiEngineSettings, ocrEngine: 'gemini-fast' as OcrEngineMode };
@@ -1613,8 +1616,8 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         trackQuickAction('direct_apply_scale_mode');
         updateDirectControlState({
             status: 'success',
-            title: '유료 대량 운영 세트로 변경했습니다.',
-            detail: `유료 분석 · ${getOcrEngineLabel(nextEngine.ocrEngine)} · 배치 ${next.batchSplitSize ?? 100}건 · 엄격 승인 기준으로 반영했습니다.`,
+            title: '대량 처리 운영 세트로 변경했습니다.',
+            detail: `서버 비용가드 · ${getOcrEngineLabel(nextEngine.ocrEngine)} · 배치 ${next.batchSplitSize ?? 100}건 · 엄격 승인 기준으로 반영했습니다.`,
         });
     };
 
@@ -1662,7 +1665,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     {[
                         { label: '버전', value: PSI_APP_VERSION },
                         isDeveloperExperience
-                            ? { label: '분석 방식', value: isPaidApiMode ? '유료 분석' : '무료 분석' }
+                            ? { label: '처리 프로필', value: isPaidApiMode ? '대량 처리' : '비용절약 보호' }
                             : { label: '운영 주기', value: assessmentCycleCopy.shortLabel },
                         isDeveloperExperience
                             ? { label: '등록 인원', value: `${workerRecords.length}명` }
@@ -1723,11 +1726,11 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">운영 직접 제어</p>
                         <h3 id="direct-control-heading" className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">확인, 체크, 변경을 설정 화면에서 바로 실행</h3>
                         <p className="mt-1 max-w-3xl text-xs font-semibold leading-5 text-slate-600 dark:text-slate-400">
-                            OCR 대량 처리 전 현재 연결 상태와 운영 기준을 확인하고, 무료 안정 운영 또는 유료 대량 운영 기준으로 즉시 전환합니다.
+                            OCR 대량 처리 전 현재 연결 상태와 운영 기준을 확인하고, 비용절약 안정 운영 또는 대량 처리 운영 기준으로 즉시 전환합니다. 서버 OCR은 개인정보 보호를 위해 서버 관리형 유료 API와 건당 비용가드를 사용합니다.
                         </p>
                         <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black">
                             <span className={`rounded-full border px-2.5 py-1 ${isPaidApiMode ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
-                                분석 {isPaidApiMode ? '유료' : '무료'}
+                                처리 {isPaidApiMode ? '대량' : '비용절약'}
                             </span>
                             <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-indigo-700">
                                 OCR {getOcrEngineLabel(aiEngineSettings.ocrEngine)}
@@ -1773,8 +1776,8 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     <fieldset className={`${styles.controlGroup} ${styles.controlGroupMode}`}>
                         <legend className={styles.controlGroupLegend}>운영 모드</legend>
                         <div className={styles.controlGroupGrid}>
-                            <ActionButton variant="emeraldSolid" fullWidth onClick={handleDirectStableMode}>무료 안정 운영</ActionButton>
-                            <ActionButton variant="indigoSolid" fullWidth onClick={handleDirectScaleMode}>유료 대량 운영</ActionButton>
+                            <ActionButton variant="emeraldSolid" fullWidth onClick={handleDirectStableMode}>비용절약 안정 운영</ActionButton>
+                            <ActionButton variant="indigoSolid" fullWidth onClick={handleDirectScaleMode}>대량 처리 운영</ActionButton>
                         </div>
                     </fieldset>
                     <fieldset className={`${styles.controlGroup} ${styles.controlGroupOcr}`}>
@@ -2209,37 +2212,37 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             <div id="settings-core" className="grid scroll-mt-24 grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-8">
                 {isDeveloperExperience && (
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-100">
-                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5 sm:mb-6">1단계: Google Gemini 분석 서비스 연결</h3>
+                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5 sm:mb-6">1단계: 브라우저 보조 AI 연결 (서버 OCR과 분리)</h3>
                     <InterpretationCardGrid
                         items={apiInterpretationCards}
                         className="grid grid-cols-1 gap-3 mb-5"
                         cardClassName="rounded-2xl border p-4"
                     />
-                    <label className="block text-sm font-bold text-slate-600 mb-2">무료 분석 연결키(API 키)</label>
+                    <label className="block text-sm font-bold text-slate-600 mb-2">브라우저 보조기능용 무료키</label>
                     <div className="relative mb-4">
                         <input
                             type={showKey ? 'text' : 'password'}
                             value={freeApiKey}
                             onChange={(e) => handleFreeApiKeyChange(e.target.value)}
-                            placeholder="무료 분석 연결키 입력"
+                            placeholder="보조기능 무료키 입력"
                             className="w-full p-4 pr-12 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-500 font-mono text-sm transition-all"
                         />
                     </div>
 
-                    <label className="block text-sm font-bold text-slate-600 mb-2">유료 분석 연결키(API 키)</label>
+                    <label className="block text-sm font-bold text-slate-600 mb-2">브라우저 보조기능용 유료키</label>
                     <div className="relative mb-4">
                         <input
                             type={showKey ? 'text' : 'password'}
                             value={paidApiKey}
                             onChange={(e) => handlePaidApiKeyChange(e.target.value)}
-                            placeholder="유료 분석 연결키 입력"
+                            placeholder="보조기능 유료키 입력"
                             className="w-full p-4 pr-12 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-500 font-mono text-sm transition-all"
                         />
                         <button onClick={() => setShowKey(!showKey)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600">{showKey ? '숨김' : '보기'}</button>
                     </div>
 
                     <div className="relative mb-2 rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-3 text-xs font-semibold leading-5 text-indigo-700">
-                        유료 분석 전환은 운영자가 비용 발생 가능성을 확인한 뒤 켜는 방식입니다.
+                        중요: 서버 OCR은 여기 입력한 키를 사용하지 않습니다. Vercel 서버 비밀키로만 호출하며, 모든 OCR 요청에 토큰 사전계산과 문서당 USD 0.05 비용가드를 적용합니다.
                     </div>
                     <span className="text-xs text-indigo-500 font-normal cursor-pointer hover:underline" onClick={() => window.open('https://aistudio.google.com/app/apikey')}>키가 없으신가요?</span>
                     <div className="mt-5 flex items-center justify-between gap-3">
@@ -2250,14 +2253,14 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                             onChange={(e) => handlePaidApiModeToggle(e.target.checked)}
                             className="w-5 h-5 rounded border-slate-300 text-indigo-600"
                         />
-                        <span className="text-sm font-bold text-slate-700">🚀 대규모 고속 처리 모드 (유료 분석)</span>
+                        <span className="text-sm font-bold text-slate-700">🚀 대량 처리 프로필 (브라우저 보조기능 유료키)</span>
                         </label>
                         <span className={`text-xs font-black px-3 py-1 rounded-full ${isPaidApiMode ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                            {isPaidApiMode ? '현재: 유료 분석' : '현재: 무료 분석'}
+                            {isPaidApiMode ? '현재: 대량 처리' : '현재: 비용절약 보호'}
                         </span>
                     </div>
                     <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-semibold ${activeApiKeyStatus.hasKey ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800' : 'border-amber-200 bg-amber-50/80 text-amber-800'}`}>
-                        현재 분석 연결 상태: {activeApiKeyStatus.hasKey ? '준비됨' : '미설정'} · 연결 정보 위치: {activeApiKeyStatus.sourceLabel}
+                        브라우저 보조키 상태: {activeApiKeyStatus.hasKey ? '준비됨' : '미설정'} · 위치: {activeApiKeyStatus.sourceLabel} · 서버 OCR 키는 화면에 노출되지 않음
                     </div>
                 </div>
                 )}

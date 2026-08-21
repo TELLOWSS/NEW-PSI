@@ -1,5 +1,6 @@
 import { DEFAULT_HARNESS_POLICY, HIGH_RISK_KEYWORD_GROUPS } from './policyRegistry.js';
 import type { HarnessAnalyzeRequest, HarnessInputValidationResult, HarnessValidationIssue } from './workflowTypes.js';
+import { OCR_AUTO_ACCEPTANCE_THRESHOLD } from '../../../utils/ocrRoutingQuality.js';
 
 const ALL_HIGH_RISK_KEYWORDS = Object.values(HIGH_RISK_KEYWORD_GROUPS).flat();
 
@@ -18,6 +19,17 @@ export function validateHarnessInput(payload: HarnessAnalyzeRequest): HarnessInp
     const textLength = normalizedText.length;
     const specialCharacterRatio = calculateSpecialCharacterRatio(normalizedText);
     const issues: HarnessValidationIssue[] = [];
+
+    const ocrQualityScore = typeof payload.ocrQualityScore === 'number'
+        ? Math.max(0, Math.min(1, payload.ocrQualityScore))
+        : null;
+    if (payload.requiresManualReview === true || (ocrQualityScore !== null && ocrQualityScore < OCR_AUTO_ACCEPTANCE_THRESHOLD)) {
+        issues.push(buildIssue(
+            'OCR_QUALITY_GATE_REVIEW',
+            'OCR 핵심 필드 또는 Q1~Q5 품질이 자동확정 기준에 미달하여 관리자 원본 검수가 필요합니다.',
+            'critical',
+        ));
+    }
 
     if (textLength < DEFAULT_HARNESS_POLICY.minTextLength) {
         issues.push(buildIssue('INPUT_TEXT_TOO_SHORT', 'OCR 추출 텍스트가 너무 짧아 안전 판단 근거가 부족합니다.', 'high'));

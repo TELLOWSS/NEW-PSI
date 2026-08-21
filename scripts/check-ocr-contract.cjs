@@ -2,7 +2,7 @@
 const path = require('node:path');
 
 const checks = [
-  ['pages/OcrAnalysis.tsx', ['analyzeWorkerRiskAssessment', 'analyzeHarnessRecord', 'ocrConfidence', 'secondPassStatus']],
+  ['pages/OcrAnalysis.tsx', ['requestServerOcrAnalysis', 'analyzeHarnessRecord', 'ocrConfidence', 'secondPassStatus']],
   ['services/geminiService.ts', ['analyzeWorkerRiskAssessment', 'scoreBreakdown']],
   ['types.ts', ['SixMetricBreakdown', 'repeatViolationPenalty', 'improvementExecution']],
 ];

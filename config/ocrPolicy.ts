@@ -8,7 +8,7 @@
  */
 
 /** 정책 버전 식별자 */
-export const OCR_POLICY_VERSION = '1.0.0';
+export const OCR_POLICY_VERSION = '1.2.0';
 
 // ─────────────────────────────────────────────
 // 1) 점수 임계값 (Score Thresholds)
@@ -28,8 +28,10 @@ export const SCORE_THRESHOLDS = {
 // 2) OCR 재시도/폴백 정책 (Retry & Fallback Policy)
 // ─────────────────────────────────────────────
 export const RETRY_POLICY = {
-    /** 배치 재분석 최대 재시도 횟수 */
-    maxRetries: 3,
+    /** 브라우저의 문서당 서버 요청 횟수. 서버 내부 2모델 체인과 중복 과금되지 않도록 1회로 제한 */
+    maxRetries: 1,
+    /** 문서 1건당 공급자 호출 상한 (저가 1회 + 정밀 1회) */
+    maxProviderCallsPerDocument: 2,
     /** Rate Limit 감지 시 기본 쿨다운 시간 (분) */
     rateLimitCooldownMin: 15,
     /** 재시도 간 기본 지연 시간 (초) */
@@ -42,8 +44,14 @@ export const RETRY_POLICY = {
     minImageDataLength: 100,
     /** 서버 요청 타임아웃 (ms) */
     serverTimeoutMs: 25_000,
-    /** 서버 최대 이미지 크기 (bytes) */
-    maxImageBytes: 8 * 1024 * 1024,
+    /** Vercel 4.5MB 본문 제한 안에서 base64/JSON 오버헤드를 포함해 허용하는 원본 상한 */
+    maxImageBytes: 3 * 1024 * 1024,
+    /** 구조화 응답 폭주를 막는 출력 토큰 상한 */
+    maxOutputTokens: 3_072,
+    /** 자동확정 최소 종합 품질 점수 */
+    autoAcceptanceThreshold: 0.86,
+    /** 핵심 필드 최소 신뢰도 */
+    criticalFieldThreshold: 0.82,
 } as const;
 
 // ─────────────────────────────────────────────
@@ -156,9 +164,10 @@ export const HYBRID_OCR = {
      */
     providerChain: [
         { id: 'server_gemini',   priority: 0, label: '서버 Gemini' },
-        { id: 'client_gemini',   priority: 1, label: '브라우저 Gemini' },
-        { id: 'client_fallback', priority: 2, label: '브라우저 폴백' },
+        { id: 'manual_review',   priority: 1, label: '관리자 원본 검수' },
     ],
+    /** 운영 빌드에서는 개인정보가 포함된 원본을 브라우저 키로 직접 전송하지 않는다. */
+    allowClientFallbackInProduction: false,
     /**
      * provider별 자동 비활성화 임계값
      * 연속 실패 횟수가 이 값을 초과하면 해당 provider를 일시 스킵

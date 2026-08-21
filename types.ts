@@ -161,6 +161,26 @@ export interface OcrTraceInfo {
     attempts: number;
     /** 폴백 깊이 (0 = 서버 직성공, 1 = 1단계 폴백 등) */
     fallbackDepth: number;
+    /** 최종 채택된 모델 ID */
+    modelUsed?: string;
+    /** 실제로 요청한 모델 목록 (최대 2회) */
+    modelsAttempted?: string[];
+    /** 저신뢰 결과 때문에 정밀 모델로 승격했는지 여부 */
+    precisionEscalated?: boolean;
+    /** 문서별 예상비용 상한 때문에 추가 승격을 막았는지 여부 */
+    costGuardBlocked?: boolean;
+    /** 구조·필드·Q1~Q5를 합친 품질 점수 (0~1) */
+    qualityScore?: number;
+    /** 승격 또는 검수 사유 코드 */
+    qualityReasons?: string[];
+    /** 공급자 응답 기준 누적 입력 토큰 */
+    inputTokens?: number;
+    /** 공급자 응답 기준 누적 출력 토큰 */
+    outputTokens?: number;
+    /** 공급자 응답 기준 누적 thinking 토큰 */
+    thinkingTokens?: number;
+    /** 공식 단가 카탈로그 기준 예상 비용(USD) */
+    estimatedCostUsd?: number;
     /** 최종 실패코드 (성공 시 undefined) */
     finalCode?: OcrFailureCode;
     /** 추적 기록 타임스탬프 */

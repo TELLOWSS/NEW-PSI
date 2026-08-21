@@ -22,6 +22,21 @@ const requiredMarkers = [
   'OPERATIONAL_SCORE_EXCLUDED',
   'resultBuckets',
   'failureCodes',
+  'precisionEscalationCount',
+  'costGuardBlockedCount',
+  'meanQualityScore',
+  'estimatedGeminiCostUsd',
+  'workerLabel: maskWorkerName(record.name)',
+  "nationality: record.nationality || ''",
+  'modelUsed: trace.modelUsed || null',
+  'modelsAttempted',
+  'qualityScore',
+  'qualityReasons: trace.qualityReasons || []',
+  'inputTokens: trace.inputTokens ?? null',
+  'outputTokens: trace.outputTokens ?? null',
+  'thinkingTokens: trace.thinkingTokens ?? null',
+  'costGuardBlocked: Boolean(trace.costGuardBlocked)',
+  '전체 수기 원문은 제외했습니다',
   '원본 이미지는 포함하지 않았습니다',
   'records[].trace',
 ];
@@ -45,4 +60,4 @@ if (missing.length > 0) {
 }
 
 console.log('[check-ocr-verification-package-contract] PASS');
-console.log('- OCR verification package export is available with privacy-safe diagnostics and Q1-Q5 coverage.');
+console.log('- OCR verification package export protects masked identity/nationality, Q1-Q5 evidence, model quality, token/cost traces, guard counts, and privacy exclusions.');
