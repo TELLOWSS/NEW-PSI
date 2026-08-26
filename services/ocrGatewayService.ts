@@ -15,6 +15,20 @@ export class OcrGatewayError extends Error {
     }
 }
 
+const OCR_SYSTEM_UNAVAILABLE_CODES = new Set([
+    'SECURITY_QUOTA_UNAVAILABLE',
+    'MISSING_SERVER_GEMINI_KEY',
+    'OCR_UPSTREAM_AUTH',
+    'HTTP_500',
+    'HTTP_503',
+]);
+
+/** 파일 자체가 아니라 공통 서버 설정/의존성 장애인 경우에만 배치 회로를 연다. */
+export const isOcrGatewaySystemUnavailable = (error: unknown): boolean => {
+    if (!(error instanceof OcrGatewayError)) return false;
+    return OCR_SYSTEM_UNAVAILABLE_CODES.has(String(error.code || '').toUpperCase());
+};
+
 export type OcrGatewayResult = {
     recordId: string;
     record: WorkerRecord;

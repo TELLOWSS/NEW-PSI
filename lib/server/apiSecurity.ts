@@ -4,7 +4,7 @@ type QuotaResult = {
     allowed: boolean;
     count: number;
     retryAfterSeconds: number;
-    mode: 'database' | 'development-memory';
+    mode: 'database' | 'development-memory' | 'authenticated-memory';
 };
 
 type QuotaOptions = {
@@ -13,6 +13,11 @@ type QuotaOptions = {
     maxRequests: number;
     windowSeconds: number;
     metadata?: Record<string, unknown>;
+    /**
+     * 관리자 인증이 먼저 완료된 고비용 작업에만 허용한다.
+     * DB quota 장애 시에도 프로세스 단위 제한을 유지하며 작업을 계속한다.
+     */
+    allowAuthenticatedMemoryFallback?: boolean;
 };
 
 type MemoryQuotaEntry = { timestamps: number[] };
@@ -37,7 +42,10 @@ export const resolveRequestFingerprint = (req: any): string => {
     return createHash('sha256').update(`${address}|${userAgent}`).digest('hex');
 };
 
-const consumeDevelopmentQuota = (options: QuotaOptions): QuotaResult => {
+const consumeMemoryQuota = (
+    options: QuotaOptions,
+    mode: 'development-memory' | 'authenticated-memory',
+): QuotaResult => {
     const now = Date.now();
     const windowMs = Math.max(1, options.windowSeconds) * 1000;
     const key = `${options.scope}:${options.clientKeyHash}`;
@@ -55,22 +63,45 @@ const consumeDevelopmentQuota = (options: QuotaOptions): QuotaResult => {
         allowed,
         count: active.length,
         retryAfterSeconds,
-        mode: 'development-memory',
+        mode,
     };
 };
 
 export const consumeApiQuota = async (supabase: any, options: QuotaOptions): Promise<QuotaResult> => {
-    const result = await supabase.rpc('psi_consume_api_quota', {
-        p_scope: options.scope,
-        p_client_key_hash: options.clientKeyHash,
-        p_max_requests: options.maxRequests,
-        p_window_seconds: options.windowSeconds,
-        p_metadata: options.metadata || {},
-    });
+    let result: { data?: any; error?: any };
+    try {
+        if (!supabase?.rpc) {
+            throw Object.assign(new Error('Supabase quota client is unavailable.'), {
+                code: 'SUPABASE_CLIENT_UNAVAILABLE',
+            });
+        }
+        result = await supabase.rpc('psi_consume_api_quota', {
+            p_scope: options.scope,
+            p_client_key_hash: options.clientKeyHash,
+            p_max_requests: options.maxRequests,
+            p_window_seconds: options.windowSeconds,
+            p_metadata: options.metadata || {},
+        });
+    } catch (cause) {
+        result = {
+            data: null,
+            error: {
+                code: String((cause as any)?.code || 'SUPABASE_TRANSPORT_ERROR'),
+                message: cause instanceof Error ? cause.message : 'Supabase quota transport failed.',
+            },
+        };
+    }
 
     if (result.error) {
         if (process.env.NODE_ENV !== 'production' && isMissingQuotaMigration(result.error)) {
-            return consumeDevelopmentQuota(options);
+            return consumeMemoryQuota(options, 'development-memory');
+        }
+        if (options.allowAuthenticatedMemoryFallback) {
+            console.warn('[api-security] database quota unavailable; authenticated memory limiter enabled', {
+                scope: options.scope,
+                upstreamCode: String(result.error?.code || 'UNKNOWN').slice(0, 40),
+            });
+            return consumeMemoryQuota(options, 'authenticated-memory');
         }
         const error = new Error(
             isMissingQuotaMigration(result.error)
@@ -102,17 +133,26 @@ export const recordApiUsageEvent = async (
         metadata?: Record<string, unknown>;
     },
 ) => {
-    const { error } = await supabase.from('api_usage_events').insert({
-        scope: event.scope,
-        client_key_hash: event.clientKeyHash,
-        outcome: event.outcome,
-        resource_id: event.resourceId || null,
-        latency_ms: Number.isFinite(event.latencyMs) ? event.latencyMs : null,
-        metadata: event.metadata || {},
-        created_at: new Date().toISOString(),
-    });
+    try {
+        const { error } = await supabase.from('api_usage_events').insert({
+            scope: event.scope,
+            client_key_hash: event.clientKeyHash,
+            outcome: event.outcome,
+            resource_id: event.resourceId || null,
+            latency_ms: Number.isFinite(event.latencyMs) ? event.latencyMs : null,
+            metadata: event.metadata || {},
+            created_at: new Date().toISOString(),
+        });
 
-    if (error && process.env.NODE_ENV === 'production') {
-        console.warn('[api-security] usage audit insert failed:', error.message);
+        if (error && process.env.NODE_ENV === 'production') {
+            console.warn('[api-security] usage audit insert failed:', error.message);
+        }
+    } catch (error) {
+        if (process.env.NODE_ENV === 'production') {
+            console.warn(
+                '[api-security] usage audit transport failed:',
+                error instanceof Error ? error.message : 'unknown transport error',
+            );
+        }
     }
 };

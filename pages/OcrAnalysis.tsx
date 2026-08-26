@@ -3,7 +3,11 @@ import React, { useState, useCallback, useMemo, useRef, useEffect, useDeferredVa
 import { FileUpload } from '../components/FileUpload';
 import { Spinner } from '../components/Spinner';
 import { updateAnalysisBasedOnEdits, getQuotaState, setQuotaExhausted, isRateLimitError, inferOcrFailureCode, validateImageFormat, isFormatCompatibleWithAI } from '../services/geminiService';
-import { OcrGatewayError, requestServerOcrAnalysis } from '../services/ocrGatewayService';
+import {
+    OcrGatewayError,
+    isOcrGatewaySystemUnavailable,
+    requestServerOcrAnalysis,
+} from '../services/ocrGatewayService';
 import { extractMessage } from '../utils/errorUtils';
 import type { WorkerRecord, OcrErrorType, OcrFailureCode, OcrTraceInfo, AppSettings, HarnessApprovalState, HarnessRiskDecision, HarnessWorkflowState, OcrUnknownSubCategory } from '../types';
 import { prepareOcrFileForGateway, prepareOcrSourceForGateway } from '../utils/ocrGatewayPayload';
@@ -5127,6 +5131,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         const failedFiles: File[] = [];
         let stopped = false;
         let shouldStopForQuota = false;
+        let terminalGateMessage = '';
         
         try {
             for (let i = 0; i < files.length; i++) {
@@ -5183,7 +5188,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     } catch (e: any) {
                         const eMsg = e.message || JSON.stringify(e);
                         const failureTrace = e instanceof OcrGatewayError ? e.trace : e?.trace as OcrTraceInfo | undefined;
-                        const gatewayCode = extractGatewayErrorCode(eMsg);
+                        const gatewayCode = e instanceof OcrGatewayError
+                            ? e.code
+                            : extractGatewayErrorCode(eMsg);
                         const isExpiredAdminSession = ['HTTP_401', 'HTTP_403']
                             .includes(String(gatewayCode || '').toUpperCase());
                         if (isExpiredAdminSession) {
@@ -5191,7 +5198,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             stopRef.current = true;
                             // 실패 레코드는 만들지 않고 현재 파일부터 선택 목록에 남겨 로그인 후 재개할 수 있게 한다.
                             failedFiles.push(...files.slice(i));
-                            alert('관리자 로그인이 만료되어 신규 OCR 배치를 즉시 중단했습니다. 실패 기록은 생성하지 않았습니다. 다시 로그인한 뒤 남은 파일을 실행해 주세요.');
+                            terminalGateMessage = '관리자 로그인이 만료되어 분석을 중단했습니다. 실패 기록은 생성하지 않았으며 남은 파일은 그대로 보존했습니다.';
+                            alert(`${terminalGateMessage}\n다시 로그인한 뒤 남은 파일을 실행해 주세요.`);
+                            break;
+                        }
+                        if (isOcrGatewaySystemUnavailable(e)) {
+                            stopped = true;
+                            stopRef.current = true;
+                            failedFiles.push(...files.slice(i));
+                            const normalizedCode = String(gatewayCode || 'SERVER_UNAVAILABLE').toUpperCase();
+                            terminalGateMessage = `분석 서버의 공통 연결 문제(${normalizedCode})로 배치를 중단했습니다. 남은 ${files.length - i}개 파일은 재시도 목록에 보존했습니다.`;
+                            alert(`${terminalGateMessage}\n\n${extractMessage(e) || '잠시 후 다시 시도해 주세요.'}`);
                             break;
                         }
                         retryCount++;
@@ -5221,7 +5238,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             const next = incrementApiCallCount('fail');
                             setDailyCounter(next);
                             analyzed = true;
-                            alert(`파일 분석 실패: ${files[i].name}`);
+                            alert(`파일 분석 실패: ${files[i].name}\n${extractMessage(e) || '알 수 없는 오류'}`);
                         }
                     }
                 }
@@ -5249,13 +5266,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         } finally {
             setIsAnalyzing(false);
             setFiles(failedFiles);
-            setUploadGateMessage(failedFiles.length > 0
+            setUploadGateMessage(terminalGateMessage || (failedFiles.length > 0
                 ? `완료하지 못한 파일 ${failedFiles.length}개를 목록에 남겼습니다. 원인을 확인한 뒤 다시 분석할 수 있습니다.`
-                : '');
+                : ''));
             setProgress('');
             setCooldownTime(0);
             setBatchProgress({ current: 0, total: 0 });
-            if(stopped) alert("중단됨");
+            if (stopped && !terminalGateMessage) alert('사용자 요청으로 분석을 중단했습니다.');
         }
     };
 

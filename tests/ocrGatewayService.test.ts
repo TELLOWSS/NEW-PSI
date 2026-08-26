@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { OcrGatewayError, requestServerOcrAnalysis } from '../services/ocrGatewayService';
+import {
+    OcrGatewayError,
+    isOcrGatewaySystemUnavailable,
+    requestServerOcrAnalysis,
+} from '../services/ocrGatewayService';
 
 describe('server OCR gateway client', () => {
     afterEach(() => {
@@ -23,5 +27,20 @@ describe('server OCR gateway client', () => {
             status: 401,
         } satisfies Partial<OcrGatewayError>);
         await expect(request).rejects.toThrow('[HTTP_401] 로그인이 필요합니다.');
+    });
+
+    it('classifies only common server configuration outages as batch-stopping errors', () => {
+        expect(isOcrGatewaySystemUnavailable(new OcrGatewayError(
+            '[SECURITY_QUOTA_UNAVAILABLE] quota unavailable',
+            { code: 'SECURITY_QUOTA_UNAVAILABLE', status: 503 },
+        ))).toBe(true);
+        expect(isOcrGatewaySystemUnavailable(new OcrGatewayError(
+            '[OCR_UPSTREAM_AUTH] key rejected',
+            { code: 'OCR_UPSTREAM_AUTH', status: 502 },
+        ))).toBe(true);
+        expect(isOcrGatewaySystemUnavailable(new OcrGatewayError(
+            '[OCR_PARSE_FAILURE] one file could not be parsed',
+            { code: 'OCR_PARSE_FAILURE', status: 502 },
+        ))).toBe(false);
     });
 });

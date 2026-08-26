@@ -1714,7 +1714,14 @@ async function handleOcrRetry(req: any, res: any) {
         return res.status(400).json({ ok: false, message: 'imageSource가 필요합니다.' });
     }
 
-    const supabase = getSupabaseClient();
+    let supabase: any = null;
+    try {
+        supabase = getSupabaseClient();
+    } catch (error) {
+        console.warn('[ocr] Supabase client unavailable; authenticated quota fallback will be used', {
+            reason: error instanceof Error ? error.message : 'unknown configuration error',
+        });
+    }
     const fingerprint = resolveRequestFingerprint(req);
     const perMinuteQuota = await consumeApiQuota(supabase, {
         scope: 'ocr.retry.minute',
@@ -1722,6 +1729,7 @@ async function handleOcrRetry(req: any, res: any) {
         maxRequests: Number(process.env.OCR_RETRY_MAX_PER_MINUTE || 6),
         windowSeconds: 60,
         metadata: { recordId },
+        allowAuthenticatedMemoryFallback: true,
     });
     const dailyQuota = perMinuteQuota.allowed
         ? await consumeApiQuota(supabase, {
@@ -1730,8 +1738,16 @@ async function handleOcrRetry(req: any, res: any) {
             maxRequests: Number(process.env.OCR_RETRY_DAILY_BUDGET || 100),
             windowSeconds: 24 * 60 * 60,
             metadata: { recordId, requestedBy: fingerprint },
+            allowAuthenticatedMemoryFallback: true,
         })
         : perMinuteQuota;
+    const quotaMode = perMinuteQuota.mode === 'authenticated-memory'
+        || dailyQuota.mode === 'authenticated-memory'
+        ? 'authenticated-memory'
+        : perMinuteQuota.mode;
+    if (typeof res.setHeader === 'function') {
+        res.setHeader('X-PSI-Quota-Mode', quotaMode);
+    }
 
     if (!perMinuteQuota.allowed || !dailyQuota.allowed) {
         const retryAfterSeconds = Math.max(
@@ -1749,6 +1765,7 @@ async function handleOcrRetry(req: any, res: any) {
             resourceId: recordId,
             metadata: {
                 reason: perMinuteQuota.allowed ? 'daily-budget' : 'minute-rate-limit',
+                quotaMode,
             },
         });
         return res.status(429).json({
@@ -1789,6 +1806,7 @@ async function handleOcrRetry(req: any, res: any) {
             latencyMs: Date.now() - traceStartMs,
             metadata: {
                 engine,
+                quotaMode,
                 ...(failureTrace || {}),
             },
         });
@@ -1805,6 +1823,7 @@ async function handleOcrRetry(req: any, res: any) {
         metadata: {
             engine,
             provider: 'server_gemini',
+            quotaMode,
             attempts: result.attempts,
             fallbackDepth: result.fallbackDepth,
             modelUsed: result.modelUsed,
@@ -1999,6 +2018,12 @@ export default async function handler(req: any, res: any) {
         const statusCode = Number.isInteger(requestedStatus) && requestedStatus >= 400 && requestedStatus < 600
             ? requestedStatus
             : 500;
+        console.error('[gateway] request failed', {
+            action,
+            statusCode,
+            code: String(err?.code || 'UNEXPECTED_GATEWAY_ERROR').slice(0, 80),
+            hasOcrTrace: Boolean(err?.ocrTrace),
+        });
         return res.status(statusCode).json({
             ok: false,
             code: err?.code || null,

@@ -13,6 +13,7 @@ const files = {
   filePolicy: path.join(root, 'utils', 'ocrFilePolicy.ts'),
   ocrPolicy: path.join(root, 'config', 'ocrPolicy.ts'),
   gatewayClient: path.join(root, 'services', 'ocrGatewayService.ts'),
+  apiSecurity: path.join(root, 'lib', 'server', 'apiSecurity.ts'),
   harnessValidation: path.join(root, 'lib', 'server', 'harness', 'inputValidators.ts'),
   harnessRouter: path.join(root, 'lib', 'server', 'harness', 'router.ts'),
 };
@@ -52,6 +53,9 @@ const requiredMarkers = [
   ['filePolicy', "'image/heif'"],
   ['ocrPolicy', 'allowClientFallbackInProduction: false'],
   ['gatewayClient', '`HTTP_${response.status}`'],
+  ['gatewayClient', 'isOcrGatewaySystemUnavailable'],
+  ['apiSecurity', 'authenticated-memory'],
+  ['apiSecurity', 'usage audit transport failed'],
   ['harnessValidation', 'OCR_QUALITY_GATE_REVIEW'],
   ['harnessRouter', "workflowState === 'manual_review_required'"],
 ];
@@ -67,11 +71,14 @@ const requiredPatterns = [
   ['gateway', /OCR_RETRY_MAX_IMAGE_BYTES\s*=\s*3\s*\*\s*1024\s*\*\s*1024/, '서버 3MB 원본 제한'],
   ['gateway', /assertSinglePagePdfPayload\(normalizedBase64\)/, '서버 단일페이지 PDF 재검사'],
   ['gateway', /BMP는 브라우저에서 JPEG로 변환/, '서버 BMP 변환 누락 차단'],
+  ['gateway', /async function handleOcrRetry[\s\S]{0,900}isValidAdminAuthRequest[\s\S]{0,2200}allowAuthenticatedMemoryFallback:\s*true/, '관리자 인증 후에만 OCR quota 장애 폴백'],
+  ['apiSecurity', /if \(options\.allowAuthenticatedMemoryFallback\)[\s\S]{0,500}consumeMemoryQuota\(options, 'authenticated-memory'\)/, '명시적 관리자 메모리 제한 폴백'],
   ['ocrPage', /브라우저 직접 호출은 countTokens\/건당비용 가드를 우회[\s\S]{0,120}throw serverError/, '개발환경 포함 브라우저 OCR 폴백 차단'],
   ['ocrPage', /if \(isExpiredAdminSession\) \{[\s\S]{0,900}stopRef\.current\s*=\s*true[\s\S]{0,400}break/, '인증만료 즉시 일괄중단'],
   ['ocrPage', /await persistRecordUpdate\(record\);[\s\S]{0,900}분석 전 상태로 복구/, '재분석 인증만료 시 IN_PROGRESS 원상복구'],
   ['ocrPage', /수동 중단·예외가 최종 저장 전에 발생하면 IN_PROGRESS를 남기지 않는다[\s\S]{0,900}nextIndex:\s*Math\.min\(currentRecordCompleted\s*\?\s*i\s*\+\s*1\s*:\s*i/, '미완료 기록 원상복구 및 현재 인덱스 재개'],
-  ['ocrPage', /실패 레코드는 만들지 않고 현재 파일부터 선택 목록에 남겨[\s\S]{0,420}실패 기록은 생성하지 않았습니다/, '신규 업로드 인증만료 시 무오염 중단'],
+  ['ocrPage', /if \(isExpiredAdminSession\)[\s\S]{0,700}failedFiles\.push\(\.\.\.files\.slice\(i\)\)[\s\S]{0,500}terminalGateMessage[\s\S]{0,300}break/, '신규 업로드 인증만료 시 무오염 중단'],
+  ['ocrPage', /if \(isOcrGatewaySystemUnavailable\(e\)\)[\s\S]{0,500}failedFiles\.push\(\.\.\.files\.slice\(i\)\)[\s\S]{0,500}break/, '공통 서버 장애 첫 파일 회로 차단'],
 ];
 
 const missing = requiredMarkers
@@ -106,4 +113,4 @@ if (missing.length > 0) {
 }
 
 console.log('[check-ocr-operational-hardening-contract] PASS');
-console.log('- OCR batch protection, client/server payload validation, auth-expiry no-contamination stop, manual-review state preservation, and metadata normalization are protected.');
+console.log('- OCR batch protection, authenticated quota failover, common-outage circuit breaking, auth-expiry no-contamination stop, payload validation, manual-review preservation, and metadata normalization are protected.');
