@@ -41,6 +41,7 @@ const requiredMarkers = [
   ['ocrPage', 'Harness 완료 응답보다 OCR 관리자 검수 상태를 우선 보존했습니다.'],
   ['geminiService', 'normalizeOcrRecordMetadata<WorkerRecord>'],
   ['gateway', 'normalizeOcrRecordMetadata({'],
+  ['gateway', 'isGeminiApiKeyRejection'],
   ['normalization', 'export const normalizeOcrRecordMetadata'],
   ['normalization', '문서 본문 날짜 기준 보정'],
   ['normalization', '문항 답변으로 보이는 공종값 격리'],

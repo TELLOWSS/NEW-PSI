@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import gatewayHandler from '../api/gateway';
+import gatewayHandler, { isGeminiApiKeyRejection } from '../api/gateway';
 
 const createResponse = () => {
     let statusCode = 0;
@@ -31,6 +31,15 @@ afterEach(() => {
 });
 
 describe('gateway public security boundaries', () => {
+    it('recognizes Google API key rejection even when Gemini returns HTTP 400', () => {
+        expect(isGeminiApiKeyRejection(400, JSON.stringify({
+            error: { status: 'INVALID_ARGUMENT', message: 'API key not valid. Please pass a valid API key.' },
+        }))).toBe(true);
+        expect(isGeminiApiKeyRejection(400, JSON.stringify({
+            error: { status: 'INVALID_ARGUMENT', message: 'Request payload is malformed.' },
+        }))).toBe(false);
+    });
+
     it('rejects unauthenticated server OCR before any paid analysis work', async () => {
         const res = createResponse();
         await gatewayHandler({

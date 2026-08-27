@@ -1266,6 +1266,15 @@ const shouldTryNextModel = (code?: string): boolean => {
     return true;
 };
 
+export const isGeminiApiKeyRejection = (status: number, detail: string): boolean => {
+    if (status === 401 || status === 403) return true;
+    if (status !== 400) return false;
+    const normalized = String(detail || '').toLowerCase();
+    return normalized.includes('api key not valid')
+        || normalized.includes('api_key_invalid')
+        || normalized.includes('invalid api key');
+};
+
 const resolveOcrThinkingConfig = (model: string): Record<string, unknown> => {
     if (model.startsWith('gemini-2.5-')) {
         return { thinkingBudget: 0 };
@@ -1403,13 +1412,17 @@ async function analyzeSingleRecord(
             );
             if (!countResponse.ok) {
                 const detail = (await countResponse.text()).slice(0, 300);
-                const countError = countResponse.status === 429
-                    ? createGatewayHttpError(`Gemini 입력 토큰 계산 할당량 초과(429): ${detail}`, 429, 'OCR_QUOTA')
-                    : countResponse.status === 400
-                        ? createGatewayHttpError(`Gemini 입력 토큰 계산 요청 오류(400): ${detail}`, 400, 'OCR_INVALID_ARGUMENT')
-                        : countResponse.status === 401 || countResponse.status === 403
-                            ? createGatewayHttpError(`Gemini 입력 토큰 계산 인증/권한 오류(${countResponse.status})`, 502, 'OCR_UPSTREAM_AUTH')
-                            : createGatewayHttpError(`Gemini 입력 토큰 계산 실패(${countResponse.status}): ${detail}`, 502, 'OCR_COST_ESTIMATE_UNAVAILABLE');
+                const apiKeyRejected = isGeminiApiKeyRejection(countResponse.status, detail);
+                let countError: GatewayHttpError;
+                if (countResponse.status === 429) {
+                    countError = createGatewayHttpError(`Gemini 입력 토큰 계산 할당량 초과(429): ${detail}`, 429, 'OCR_QUOTA');
+                } else if (apiKeyRejected) {
+                    countError = createGatewayHttpError(`Gemini 입력 토큰 계산 인증/권한 오류(${countResponse.status})`, 502, 'OCR_UPSTREAM_AUTH');
+                } else if (countResponse.status === 400) {
+                    countError = createGatewayHttpError(`Gemini 입력 토큰 계산 요청 오류(400): ${detail}`, 400, 'OCR_INVALID_ARGUMENT');
+                } else {
+                    countError = createGatewayHttpError(`Gemini 입력 토큰 계산 실패(${countResponse.status}): ${detail}`, 502, 'OCR_COST_ESTIMATE_UNAVAILABLE');
+                }
                 lastError = countError;
                 if (!shouldTryNextModel(countError.code) || modelIndex === modelChain.length - 1) {
                     throw withFailureTrace(countError);
@@ -1471,13 +1484,17 @@ async function analyzeSingleRecord(
 
             if (!response.ok) {
                 const detail = (await response.text()).slice(0, 300);
-                const mappedError = response.status === 429
-                    ? createGatewayHttpError(`Gemini API 할당량 초과(429): ${detail}`, 429, 'OCR_QUOTA')
-                    : response.status === 400
-                        ? createGatewayHttpError(`Gemini API 요청 형식 오류(400): ${detail}`, 400, 'OCR_INVALID_ARGUMENT')
-                        : response.status === 401 || response.status === 403
-                            ? createGatewayHttpError(`Gemini API 인증/권한 오류(${response.status}): 서버 API 키를 확인하세요.`, 502, 'OCR_UPSTREAM_AUTH')
-                            : createGatewayHttpError(`Gemini API 오류 (${response.status}): ${detail}`, 502, 'OCR_UPSTREAM_FAILURE');
+                const apiKeyRejected = isGeminiApiKeyRejection(response.status, detail);
+                let mappedError: GatewayHttpError;
+                if (response.status === 429) {
+                    mappedError = createGatewayHttpError(`Gemini API 할당량 초과(429): ${detail}`, 429, 'OCR_QUOTA');
+                } else if (apiKeyRejected) {
+                    mappedError = createGatewayHttpError(`Gemini API 인증/권한 오류(${response.status}): 서버 API 키를 확인하세요.`, 502, 'OCR_UPSTREAM_AUTH');
+                } else if (response.status === 400) {
+                    mappedError = createGatewayHttpError(`Gemini API 요청 형식 오류(400): ${detail}`, 400, 'OCR_INVALID_ARGUMENT');
+                } else {
+                    mappedError = createGatewayHttpError(`Gemini API 오류 (${response.status}): ${detail}`, 502, 'OCR_UPSTREAM_FAILURE');
+                }
                 lastError = mappedError;
                 if (!shouldTryNextModel(mappedError.code) || modelIndex === modelChain.length - 1) {
                     throw withFailureTrace(mappedError);
