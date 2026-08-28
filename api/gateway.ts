@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'crypto';
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'crypto';
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../lib/server/adminAuthGuard.js';
 import { createSupabaseServerClient } from '../lib/server/supabaseServer.js';
 import handleHarnessAnalyze from '../lib/server/harness/handlers/analyze.js';
@@ -56,6 +56,10 @@ const OCR_RETRY_MAX_OUTPUT_TOKENS = 3_072;
 const OCR_RETRY_MAX_BILLABLE_OUTPUT_TOKENS = OCR_RETRY_MAX_OUTPUT_TOKENS * 2;
 const OCR_DEFAULT_MAX_USD_PER_DOCUMENT = 0.05;
 const OCR_FILENAME_HINT_MAX_CHARS = 200;
+const OCR_PAID_APPROVAL_DEFAULT_TTL_SECONDS = 5 * 60;
+const OCR_PAID_APPROVAL_MAX_TTL_SECONDS = 10 * 60;
+const OCR_PAID_APPROVAL_TOKEN_VERSION = 1;
+const consumedPaidApprovalNonces = new Map<string, number>();
 
 const OCR_RETRY_LANGUAGE_POLICY = [
     '[언어 정책 — 엄격 준수 / 위반 시 실패체제]',
@@ -199,6 +203,8 @@ type GatewayHttpError = Error & {
     code?: string;
     ocrTrace?: {
         providerUsed: 'server_gemini';
+        billingTier: 'free' | 'paid';
+        paidCalls: number;
         attempts: number;
         fallbackDepth: number;
         modelUsed?: string;
@@ -316,6 +322,19 @@ type RetryRequestBody = {
     imageSource?: string;
     filenameHint?: string;
     ocrEngine?: OcrEngineMode;
+    allowPaidOcr?: boolean;
+    paidApprovalToken?: string;
+};
+
+type PaidOcrApprovalPayload = {
+    v: typeof OCR_PAID_APPROVAL_TOKEN_VERSION;
+    nonce: string;
+    recordDigest: string;
+    adminBinding: string;
+    issuedAt: number;
+    expiresAt: number;
+    maxCostUsd: number;
+    maxPaidGenerateCalls: 1;
 };
 
 type UpsertRequestBody = {
@@ -339,6 +358,273 @@ const resolveGeminiApiKey = () => {
         process.env.GOOGLE_GEMINI_API_KEY ||
         ''
     ).trim();
+};
+
+const resolveFreeGeminiApiKey = () => {
+    return (
+        // OCR은 등급이 명시된 서버 전용 키만 사용한다. generic/VITE 키는 과금 등급을 보장할 수 없어 제외한다.
+        process.env.GEMINI_API_KEY_FREE ||
+        ''
+    ).trim();
+};
+
+const resolvePaidGeminiApiKey = () => {
+    return (
+        process.env.GEMINI_API_KEY_PAID ||
+        ''
+    ).trim();
+};
+
+const resolvePaidApprovalSigningSecret = () => {
+    return (
+        process.env.OCR_PAID_APPROVAL_SECRET ||
+        process.env.ADMIN_SESSION_SECRET ||
+        process.env.ADMIN_API_AUTH_TOKEN ||
+        process.env.PSI_ADMIN_SECRET ||
+        ''
+    ).trim();
+};
+
+const getPaidApprovalTtlSeconds = (): number => {
+    const configured = Number(process.env.OCR_PAID_APPROVAL_TTL_SECONDS);
+    const requested = Number.isFinite(configured) && configured > 0
+        ? Math.floor(configured)
+        : OCR_PAID_APPROVAL_DEFAULT_TTL_SECONDS;
+    return Math.min(OCR_PAID_APPROVAL_MAX_TTL_SECONDS, Math.max(60, requested));
+};
+
+const safeEqualText = (left: string, right: string): boolean => {
+    const leftBuffer = Buffer.from(String(left || ''), 'utf8');
+    const rightBuffer = Buffer.from(String(right || ''), 'utf8');
+    return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+};
+
+const readCookieValue = (req: any, name: string): string => {
+    const rawCookie = String(req?.headers?.cookie || '');
+    for (const item of rawCookie.split(';')) {
+        const separatorIndex = item.indexOf('=');
+        if (separatorIndex < 0 || item.slice(0, separatorIndex).trim() !== name) continue;
+        const value = item.slice(separatorIndex + 1).trim();
+        try {
+            return decodeURIComponent(value);
+        } catch {
+            return value;
+        }
+    }
+    return '';
+};
+
+const resolveAdminApprovalBinding = (req: any): string => {
+    const sessionToken = readCookieValue(req, 'psi_admin_session');
+    const legacyToken = String(req?.headers?.['x-admin-auth'] || '').trim();
+    const credential = sessionToken
+        ? `session:${sessionToken}`
+        : legacyToken
+            ? `legacy:${legacyToken}`
+            : '';
+    if (!credential) {
+        throw createGatewayHttpError('유료 OCR 승인에는 관리자 세션이 필요합니다.', 401, 'ADMIN_AUTH_REQUIRED');
+    }
+    return createHash('sha256').update(credential).digest('hex');
+};
+
+const buildPaidApprovalRecordDigest = (recordId: string, imageSource: string): string => {
+    const imageDigest = createHash('sha256').update(imageSource).digest('hex');
+    return createHash('sha256').update(`${recordId}\u0000${imageDigest}`).digest('hex');
+};
+
+const signPaidApprovalPayload = (encodedPayload: string, secret: string): string => {
+    return createHmac('sha256', secret).update(encodedPayload).digest('base64url');
+};
+
+export const requiresPaidOcrApproval = (code?: string): boolean => {
+    return String(code || '').trim().toUpperCase() === 'OCR_QUOTA';
+};
+
+export const resolveGeminiQuotaErrorCode = (billingTier: 'free' | 'paid'): 'OCR_QUOTA' | 'OCR_PAID_QUOTA' => {
+    return billingTier === 'paid' ? 'OCR_PAID_QUOTA' : 'OCR_QUOTA';
+};
+
+export const resolveOcrModelChainForBilling = (
+    engine: OcrEngineMode,
+    billingTier: 'free' | 'paid',
+    allowPreviewPro: boolean,
+): string[] => {
+    const resolvedModelChain = resolveGeminiOcrModelChain(engine, {
+        isPaidApiMode: billingTier === 'paid'
+            && (engine === 'gemini-precise' ? allowPreviewPro : true),
+    });
+    // 유료 승인은 문서당 generateContent 1회에만 유효하다. 품질 승격/모델 폴백은 새 승인 없이 실행하지 않는다.
+    return billingTier === 'paid' ? resolvedModelChain.slice(0, 1) : resolvedModelChain;
+};
+
+export const isExplicitPaidOcrApprovalRequest = (body: Partial<RetryRequestBody>): boolean => {
+    return body?.allowPaidOcr === true && String(body?.paidApprovalToken || '').trim().length > 0;
+};
+
+export const issuePaidOcrApprovalToken = (
+    req: any,
+    options: { recordId: string; imageSource: string; maxCostUsd: number },
+): { token: string; expiresAt: string; nonceHash: string } => {
+    const secret = resolvePaidApprovalSigningSecret();
+    if (!secret) {
+        throw createGatewayHttpError(
+            '유료 OCR 승인 서명 설정이 없어 안전하게 승인 요청을 만들 수 없습니다.',
+            503,
+            'OCR_PAID_APPROVAL_UNAVAILABLE',
+        );
+    }
+
+    const issuedAt = Math.floor(Date.now() / 1000);
+    const nonce = randomUUID();
+    const payload: PaidOcrApprovalPayload = {
+        v: OCR_PAID_APPROVAL_TOKEN_VERSION,
+        nonce,
+        recordDigest: buildPaidApprovalRecordDigest(options.recordId, options.imageSource),
+        adminBinding: resolveAdminApprovalBinding(req),
+        issuedAt,
+        expiresAt: issuedAt + getPaidApprovalTtlSeconds(),
+        maxCostUsd: Number(options.maxCostUsd.toFixed(6)),
+        maxPaidGenerateCalls: 1,
+    };
+    const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+    const signature = signPaidApprovalPayload(encodedPayload, secret);
+    return {
+        token: `${encodedPayload}.${signature}`,
+        expiresAt: new Date(payload.expiresAt * 1000).toISOString(),
+        nonceHash: createHash('sha256').update(nonce).digest('hex'),
+    };
+};
+
+export const verifyPaidOcrApprovalToken = (
+    req: any,
+    tokenRaw: unknown,
+    options: { recordId: string; imageSource: string; maxCostUsd: number },
+): PaidOcrApprovalPayload => {
+    const token = String(tokenRaw || '').trim();
+    const secret = resolvePaidApprovalSigningSecret();
+    if (!secret || !token || token.length > 4096) {
+        throw createGatewayHttpError('유료 OCR 승인 토큰이 없거나 유효하지 않습니다.', 403, 'OCR_PAID_APPROVAL_INVALID');
+    }
+
+    const [encodedPayload, signature, extra] = token.split('.');
+    if (!encodedPayload || !signature || extra) {
+        throw createGatewayHttpError('유료 OCR 승인 토큰 형식이 올바르지 않습니다.', 403, 'OCR_PAID_APPROVAL_INVALID');
+    }
+    const expectedSignature = signPaidApprovalPayload(encodedPayload, secret);
+    if (!safeEqualText(signature, expectedSignature)) {
+        throw createGatewayHttpError('유료 OCR 승인 토큰 서명이 올바르지 않습니다.', 403, 'OCR_PAID_APPROVAL_INVALID');
+    }
+
+    let payload: PaidOcrApprovalPayload;
+    try {
+        payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8')) as PaidOcrApprovalPayload;
+    } catch {
+        throw createGatewayHttpError('유료 OCR 승인 토큰 내용을 확인할 수 없습니다.', 403, 'OCR_PAID_APPROVAL_INVALID');
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    if (payload?.v !== OCR_PAID_APPROVAL_TOKEN_VERSION
+        || !/^[0-9a-f-]{36}$/i.test(String(payload?.nonce || ''))
+        || !/^[0-9a-f]{64}$/i.test(String(payload?.recordDigest || ''))
+        || !/^[0-9a-f]{64}$/i.test(String(payload?.adminBinding || ''))
+        || !Number.isFinite(payload?.issuedAt)
+        || !Number.isFinite(payload?.expiresAt)
+        || payload.issuedAt > now + 60
+        || payload.expiresAt - payload.issuedAt > OCR_PAID_APPROVAL_MAX_TTL_SECONDS
+        || !Number.isFinite(payload?.maxCostUsd)
+        || payload.maxCostUsd <= 0
+        || payload.maxPaidGenerateCalls !== 1) {
+        throw createGatewayHttpError('유료 OCR 승인 토큰 내용이 올바르지 않습니다.', 403, 'OCR_PAID_APPROVAL_INVALID');
+    }
+    if (payload.expiresAt <= now) {
+        throw createGatewayHttpError('유료 OCR 승인이 만료되었습니다. 다시 확인해 주세요.', 403, 'OCR_PAID_APPROVAL_EXPIRED');
+    }
+    if (payload.maxCostUsd > options.maxCostUsd + 0.000001) {
+        throw createGatewayHttpError('승인 이후 비용 상한이 변경되어 다시 승인이 필요합니다.', 403, 'OCR_PAID_APPROVAL_INVALID');
+    }
+
+    const expectedRecordDigest = buildPaidApprovalRecordDigest(options.recordId, options.imageSource);
+    const expectedAdminBinding = resolveAdminApprovalBinding(req);
+    if (!safeEqualText(payload.recordDigest, expectedRecordDigest)
+        || !safeEqualText(payload.adminBinding, expectedAdminBinding)) {
+        throw createGatewayHttpError(
+            '유료 OCR 승인이 현재 관리자 또는 문서와 일치하지 않습니다.',
+            403,
+            'OCR_PAID_APPROVAL_INVALID',
+        );
+    }
+    return payload;
+};
+
+const getOcrMaxUsdPerDocument = (): number => {
+    return Math.max(
+        0.001,
+        Number(process.env.OCR_MAX_USD_PER_DOCUMENT) || OCR_DEFAULT_MAX_USD_PER_DOCUMENT,
+    );
+};
+
+const estimatePaidOcrApprovalCostUsd = (
+    imageSource: string,
+    engine: OcrEngineMode,
+    allowPreviewPro: boolean,
+    maxCostUsd: number,
+): number => {
+    const normalizedBase64 = String(imageSource || '').includes('base64,')
+        ? String(imageSource || '').split('base64,').pop() || ''
+        : String(imageSource || '');
+    const estimatedBytes = Math.max(0, Math.floor((normalizedBase64.replace(/\s/g, '').length * 3) / 4));
+    // 이미지 해상도를 아직 공급자 countTokens로 확인할 수 없는 429 단계이므로 파일 크기에 비례한 보수 추정치를 사용한다.
+    const estimatedInputTokens = Math.min(8_192, Math.max(1_024, Math.ceil(estimatedBytes / (256 * 1024)) * 1_024));
+    const paidModel = resolveGeminiOcrModelChain(engine, {
+        isPaidApiMode: engine === 'gemini-precise' ? allowPreviewPro : true,
+    })[0];
+    const estimate = estimateGeminiOcrCostUsd(paidModel, {
+        inputTokens: estimatedInputTokens,
+        outputTokens: OCR_RETRY_MAX_BILLABLE_OUTPUT_TOKENS,
+        thinkingTokens: 0,
+    });
+    return Number(Math.min(maxCostUsd, Math.max(0.000001, estimate)).toFixed(6));
+};
+
+export const consumePaidOcrApprovalOnce = async (
+    supabase: any,
+    payload: PaidOcrApprovalPayload,
+): Promise<'database' | 'development-memory' | 'authenticated-memory'> => {
+    const nonceHash = createHash('sha256').update(payload.nonce).digest('hex');
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    for (const [cachedNonceHash, expiresAt] of consumedPaidApprovalNonces) {
+        if (expiresAt <= nowSeconds) consumedPaidApprovalNonces.delete(cachedNonceHash);
+    }
+    if (consumedPaidApprovalNonces.has(nonceHash)) {
+        throw createGatewayHttpError(
+            '이미 사용된 유료 OCR 승인입니다. 무료 한도 상태를 다시 확인해 주세요.',
+            409,
+            'OCR_PAID_APPROVAL_ALREADY_USED',
+        );
+    }
+    const remainingSeconds = Math.max(60, payload.expiresAt - nowSeconds + 60);
+    // 유료 실행은 분산 인스턴스에서도 단 한 번만 허용해야 하므로 DB 장애 시 메모리 폴백을 사용하지 않는다.
+    const consumption = await consumeApiQuota(supabase, {
+        scope: 'ocr.paid-approval.consume',
+        clientKeyHash: nonceHash,
+        maxRequests: 1,
+        windowSeconds: remainingSeconds,
+        metadata: {
+            approvalVersion: payload.v,
+            approvalExpiresAt: new Date(payload.expiresAt * 1000).toISOString(),
+        },
+    });
+    if (!consumption.allowed) {
+        throw createGatewayHttpError(
+            '이미 사용된 유료 OCR 승인입니다. 무료 한도 상태를 다시 확인해 주세요.',
+            409,
+            'OCR_PAID_APPROVAL_ALREADY_USED',
+        );
+    }
+    // warm instance 내 즉시 재사용도 차단한다. 인스턴스 간 원자성은 위 DB quota가 담당하며 DB 장애 시 paid는 fail-closed다.
+    consumedPaidApprovalNonces.set(nonceHash, payload.expiresAt + 60);
+    return consumption.mode;
 };
 
 const normalizePhone = (raw: string) => raw.replace(/\D/g, '');
@@ -1250,6 +1536,7 @@ const shouldTryNextModel = (code?: string): boolean => {
     if (!normalized) return true;
     if (
         normalized === 'OCR_QUOTA' ||
+        normalized === 'OCR_PAID_QUOTA' ||
         normalized === 'OCR_UPSTREAM_AUTH' ||
         normalized === 'MISSING_SERVER_GEMINI_KEY' ||
         normalized === 'OCR_INVALID_ARGUMENT' ||
@@ -1330,11 +1617,23 @@ async function analyzeSingleRecord(
     imageSource: string,
     filenameHint: string,
     engine: OcrEngineMode = 'auto',
-    allowPreviewPro = false,
+    options: {
+        apiKey: string;
+        billingTier: 'free' | 'paid';
+        allowPreviewPro?: boolean;
+        maxCostUsd?: number;
+    },
 ) {
-    const apiKey = resolveGeminiApiKey();
+    const apiKey = String(options.apiKey || '').trim();
     if (!apiKey) {
-        throw createGatewayHttpError('서버 Gemini API 키가 설정되지 않았습니다. GEMINI_API_KEY 환경변수를 확인하세요.', 502, 'MISSING_SERVER_GEMINI_KEY');
+        const isPaid = options.billingTier === 'paid';
+        throw createGatewayHttpError(
+            isPaid
+                ? '서버 유료 Gemini API 키가 설정되지 않았습니다.'
+                : '서버 무료 Gemini API 키가 설정되지 않았습니다. GEMINI_API_KEY_FREE 환경변수를 확인하세요.',
+            502,
+            isPaid ? 'MISSING_SERVER_GEMINI_PAID_KEY' : 'MISSING_SERVER_GEMINI_FREE_KEY',
+        );
     }
 
     const { cleanData, mimeType } = await normalizeImagePayload(imageSource);
@@ -1355,6 +1654,8 @@ async function analyzeSingleRecord(
     const withFailureTrace = (error: GatewayHttpError): GatewayHttpError => {
         error.ocrTrace = {
             providerUsed: 'server_gemini',
+            billingTier: options.billingTier,
+            paidCalls: options.billingTier === 'paid' ? attempts : 0,
             attempts,
             fallbackDepth,
             modelUsed: selectedModel || modelsAttempted[modelsAttempted.length - 1] || undefined,
@@ -1375,13 +1676,13 @@ async function analyzeSingleRecord(
     if (engine === 'openai-precise') {
         throw createGatewayHttpError('ChatGPT Plus 구독은 OpenAI API가 아닙니다. 별도 OpenAI API 키 연결이 필요합니다.', 400, 'OPENAI_API_NOT_CONFIGURED');
     }
-    const modelChain = resolveGeminiOcrModelChain(engine, {
-        isPaidApiMode: engine === 'gemini-precise' ? allowPreviewPro : true,
-    });
-    const maxUsdPerDocument = Math.max(
-        0.001,
-        Number(process.env.OCR_MAX_USD_PER_DOCUMENT) || OCR_DEFAULT_MAX_USD_PER_DOCUMENT,
-    );
+    const allowPreviewPro = options.allowPreviewPro === true;
+    const modelChain = resolveOcrModelChainForBilling(engine, options.billingTier, allowPreviewPro);
+    const configuredMaxUsdPerDocument = getOcrMaxUsdPerDocument();
+    const requestedMaxCostUsd = Number(options.maxCostUsd);
+    const maxUsdPerDocument = Number.isFinite(requestedMaxCostUsd) && requestedMaxCostUsd > 0
+        ? Math.min(configuredMaxUsdPerDocument, requestedMaxCostUsd)
+        : configuredMaxUsdPerDocument;
     const requestContents = [
         {
             parts: [
@@ -1415,7 +1716,11 @@ async function analyzeSingleRecord(
                 const apiKeyRejected = isGeminiApiKeyRejection(countResponse.status, detail);
                 let countError: GatewayHttpError;
                 if (countResponse.status === 429) {
-                    countError = createGatewayHttpError(`Gemini 입력 토큰 계산 할당량 초과(429): ${detail}`, 429, 'OCR_QUOTA');
+                    countError = createGatewayHttpError(
+                        `Gemini 입력 토큰 계산 할당량 초과(429): ${detail}`,
+                        429,
+                        resolveGeminiQuotaErrorCode(options.billingTier),
+                    );
                 } else if (apiKeyRejected) {
                     countError = createGatewayHttpError(`Gemini 입력 토큰 계산 인증/권한 오류(${countResponse.status})`, 502, 'OCR_UPSTREAM_AUTH');
                 } else if (countResponse.status === 400) {
@@ -1487,7 +1792,11 @@ async function analyzeSingleRecord(
                 const apiKeyRejected = isGeminiApiKeyRejection(response.status, detail);
                 let mappedError: GatewayHttpError;
                 if (response.status === 429) {
-                    mappedError = createGatewayHttpError(`Gemini API 할당량 초과(429): ${detail}`, 429, 'OCR_QUOTA');
+                    mappedError = createGatewayHttpError(
+                        `Gemini API 할당량 초과(429): ${detail}`,
+                        429,
+                        resolveGeminiQuotaErrorCode(options.billingTier),
+                    );
                 } else if (apiKeyRejected) {
                     mappedError = createGatewayHttpError(`Gemini API 인증/권한 오류(${response.status}): 서버 API 키를 확인하세요.`, 502, 'OCR_UPSTREAM_AUTH');
                 } else if (response.status === 400) {
@@ -1801,10 +2110,14 @@ async function handleOcrRetry(req: any, res: any) {
         : 'auto';
     // Preview Pro 사용은 클라이언트 플래그가 아니라 서버 운영정책으로만 허용한다.
     const allowPreviewPro = process.env.OCR_ALLOW_PREVIEW_PRO === 'true';
-    let result;
-    try {
-        result = await analyzeSingleRecord(imageSource, filenameHint || recordId, engine, allowPreviewPro);
-    } catch (error) {
+    const maxCostUsd = getOcrMaxUsdPerDocument();
+    const freeApiKey = resolveFreeGeminiApiKey();
+    let billingTier: 'free' | 'paid' = 'free';
+    let paidApprovalUsed = false;
+    let freeQuotaExhausted = false;
+    let paidApprovalNonceHash: string | null = null;
+    let result: Awaited<ReturnType<typeof analyzeSingleRecord>>;
+    const recordFailure = async (error: unknown): Promise<GatewayHttpError> => {
         const gatewayError = error as GatewayHttpError;
         const failureTrace = gatewayError?.ocrTrace
             ? {
@@ -1824,10 +2137,143 @@ async function handleOcrRetry(req: any, res: any) {
             metadata: {
                 engine,
                 quotaMode,
+                billingTier,
+                paidApprovalUsed,
+                freeQuotaExhausted,
+                paidCalls: billingTier === 'paid' ? Number(failureTrace?.attempts || 0) : 0,
+                paidApprovalNonceHash,
+                code: String(gatewayError?.code || 'OCR_UNEXPECTED_FAILURE').slice(0, 80),
                 ...(failureTrace || {}),
             },
         });
-        throw error;
+        return gatewayError;
+    };
+
+    try {
+        result = await analyzeSingleRecord(imageSource, filenameHint || recordId, engine, {
+            apiKey: freeApiKey,
+            billingTier: 'free',
+            allowPreviewPro: false,
+            maxCostUsd,
+        });
+    } catch (error) {
+        const gatewayError = error as GatewayHttpError;
+        if (!requiresPaidOcrApproval(gatewayError?.code)) {
+            throw await recordFailure(error);
+        }
+
+        freeQuotaExhausted = true;
+        const estimatedCostUsd = estimatePaidOcrApprovalCostUsd(imageSource, engine, allowPreviewPro, maxCostUsd);
+        if (!isExplicitPaidOcrApprovalRequest(body)) {
+            const paidKeyConfigured = Boolean(resolvePaidGeminiApiKey());
+            const paidApprovalStoreReady = quotaMode === 'database';
+            const paidApprovalSigningReady = Boolean(resolvePaidApprovalSigningSecret());
+            const paidAvailable = paidKeyConfigured && paidApprovalStoreReady && paidApprovalSigningReady;
+            const paidUnavailableReason = !paidKeyConfigured
+                ? '서버 유료 OCR 키가 등록되지 않았습니다.'
+                : !paidApprovalStoreReady
+                    ? '중복 과금을 막는 일회용 승인 저장소가 연결되지 않아 유료 실행을 안전 차단했습니다.'
+                    : !paidApprovalSigningReady
+                        ? '유료 OCR 승인 서명 비밀키가 등록되지 않았습니다.'
+                        : undefined;
+            const approval = paidAvailable
+                ? issuePaidOcrApprovalToken(req, { recordId, imageSource, maxCostUsd })
+                : null;
+            if (typeof res.setHeader === 'function') {
+                res.setHeader('Cache-Control', 'no-store');
+            }
+            await recordApiUsageEvent(supabase, {
+                scope: 'ocr.paid-approval',
+                clientKeyHash: fingerprint,
+                outcome: 'blocked',
+                resourceId: recordId,
+                latencyMs: Date.now() - traceStartMs,
+                metadata: {
+                    event: 'approval-required',
+                    reason: 'free-provider-quota',
+                    engine,
+                    quotaMode,
+                    estimatedCostUsd,
+                    maxCostUsd,
+                    approvalExpiresAt: approval?.expiresAt,
+                    approvalNonceHash: approval?.nonceHash,
+                    paidKeyConfigured,
+                    paidApprovalStoreReady,
+                    paidApprovalSigningReady,
+                    paidAvailable,
+                },
+            });
+            return res.status(402).json({
+                ok: false,
+                code: 'OCR_PAID_APPROVAL_REQUIRED',
+                message: '무료 Gemini OCR 한도가 소진되었습니다. 이 문서에 유료 OCR을 사용하려면 관리자가 금액을 확인하고 명시적으로 승인해야 합니다.',
+                estimatedCostUsd,
+                maxCostUsd,
+                paidApprovalToken: approval?.token,
+                paidApprovalExpiresAt: approval?.expiresAt,
+                requiresExplicitApproval: true,
+                paidAvailable,
+                paidUnavailableReason,
+            });
+        }
+
+        let approvalPayload: PaidOcrApprovalPayload;
+        try {
+            approvalPayload = verifyPaidOcrApprovalToken(req, body.paidApprovalToken, {
+                recordId,
+                imageSource,
+                maxCostUsd,
+            });
+        } catch (approvalError) {
+            throw await recordFailure(approvalError);
+        }
+
+        const paidApiKey = resolvePaidGeminiApiKey();
+        if (!paidApiKey) {
+            throw await recordFailure(createGatewayHttpError(
+                '유료 OCR 키가 서버에 등록되지 않아 승인된 요청도 실행할 수 없습니다.',
+                503,
+                'MISSING_SERVER_GEMINI_PAID_KEY',
+            ));
+        }
+
+        let approvalConsumptionMode: string;
+        try {
+            approvalConsumptionMode = await consumePaidOcrApprovalOnce(supabase, approvalPayload);
+        } catch (approvalError) {
+            throw await recordFailure(approvalError);
+        }
+        paidApprovalUsed = true;
+        billingTier = 'paid';
+        paidApprovalNonceHash = createHash('sha256').update(approvalPayload.nonce).digest('hex');
+        await recordApiUsageEvent(supabase, {
+            scope: 'ocr.paid-approval',
+            clientKeyHash: fingerprint,
+            outcome: 'success',
+            resourceId: recordId,
+            latencyMs: Date.now() - traceStartMs,
+            metadata: {
+                event: 'approval-consumed',
+                engine,
+                quotaMode,
+                approvalConsumptionMode,
+                paidApprovalNonceHash,
+                approvedMaxCostUsd: approvalPayload.maxCostUsd,
+                maxPaidGenerateCalls: approvalPayload.maxPaidGenerateCalls,
+                estimatedCostUsd,
+            },
+        });
+
+        try {
+            result = await analyzeSingleRecord(imageSource, filenameHint || recordId, engine, {
+                apiKey: paidApiKey,
+                billingTier: 'paid',
+                allowPreviewPro,
+                maxCostUsd: Math.min(maxCostUsd, approvalPayload.maxCostUsd),
+            });
+        } catch (paidError) {
+            throw await recordFailure(paidError);
+        }
     }
     const traceLatencyMs = Date.now() - traceStartMs;
 
@@ -1841,6 +2287,11 @@ async function handleOcrRetry(req: any, res: any) {
             engine,
             provider: 'server_gemini',
             quotaMode,
+            billingTier,
+            paidApprovalUsed,
+            freeQuotaExhausted,
+            paidCalls: billingTier === 'paid' ? result.attempts : 0,
+            paidApprovalNonceHash,
             attempts: result.attempts,
             fallbackDepth: result.fallbackDepth,
             modelUsed: result.modelUsed,
@@ -1861,6 +2312,11 @@ async function handleOcrRetry(req: any, res: any) {
         record: result.record,
         trace: {
             providerUsed: 'server_gemini',
+            billingTier,
+            paidApprovalUsed,
+            freeQuotaExhausted,
+            paidCalls: billingTier === 'paid' ? result.attempts : 0,
+            paidApprovalNonceHash,
             latencyMs: traceLatencyMs,
             attempts: result.attempts,
             fallbackDepth: result.fallbackDepth,

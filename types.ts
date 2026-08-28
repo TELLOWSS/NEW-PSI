@@ -155,6 +155,16 @@ export type OcrUnknownSubCategory =
 export interface OcrTraceInfo {
     /** 실제 실행된 프로바이더 경로 */
     providerUsed: 'server_gemini' | 'client_gemini' | 'client_fallback' | 'unknown';
+    /** 실제 요청에 사용된 Google 프로젝트 요금 등급 */
+    billingTier?: 'free' | 'paid';
+    /** 명시 승인 후 발생한 유료 generateContent 호출 수(정책상 0 또는 1) */
+    paidCalls?: number;
+    /** 무료 공급자 할당량 소진 여부 */
+    freeQuotaExhausted?: boolean;
+    /** 유료 OCR 승인이 실제 소비되었는지 여부 */
+    paidApprovalUsed?: boolean;
+    /** 승인 nonce의 SHA-256 식별자. 원문 토큰·키는 기록하지 않음 */
+    paidApprovalNonceHash?: string | null;
     /** 총 소요 시간 (ms) */
     latencyMs: number;
     /** API 재시도 횟수 */

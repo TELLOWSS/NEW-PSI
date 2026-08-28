@@ -6,6 +6,7 @@ import { updateAnalysisBasedOnEdits, getQuotaState, setQuotaExhausted, isRateLim
 import {
     OcrGatewayError,
     isOcrGatewaySystemUnavailable,
+    isOcrPaidApprovalRequired,
     requestServerOcrAnalysis,
 } from '../services/ocrGatewayService';
 import { extractMessage } from '../utils/errorUtils';
@@ -1569,6 +1570,23 @@ type RetryDiagnostics = {
     lastUpdatedAt: string;
 };
 
+type PaidOcrApprovalPrompt = {
+    requestKey: string;
+    fileName: string;
+    estimatedCostUsd?: number;
+    maxCostUsd: number;
+    canApprove: boolean;
+    unavailableReason?: string;
+};
+
+type PaidOcrApprovalResult = 'approved' | 'declined';
+
+const DEFAULT_PAID_OCR_MAX_COST_USD = 0.05;
+
+const formatPaidOcrUsd = (value: number): string => (
+    `$${value.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 6 })}`
+);
+
 const OcrAnalysis: React.FC<OcrAnalysisProps> = ({ 
     onAnalysisComplete, 
     existingRecords, 
@@ -1661,7 +1679,50 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
     const [isPaidApiMode, setIsPaidApiMode] = useState<boolean>(() => getIsPaidApiMode());
     const [exportFeedback, setExportFeedback] = useState<ExportFeedback>(null);
+    const [paidOcrApprovalPrompt, setPaidOcrApprovalPrompt] = useState<PaidOcrApprovalPrompt | null>(null);
+    const [paidOcrNotice, setPaidOcrNotice] = useState('');
     const masterDataLoadingRef = useRef(false);
+    const paidOcrApprovalResolverRef = useRef<((result: PaidOcrApprovalResult) => void) | null>(null);
+
+    const finishPaidOcrApproval = useCallback((result: PaidOcrApprovalResult) => {
+        const resolve = paidOcrApprovalResolverRef.current;
+        paidOcrApprovalResolverRef.current = null;
+        setPaidOcrApprovalPrompt(null);
+        resolve?.(result);
+    }, []);
+
+    const requestPaidOcrApproval = useCallback((error: OcrGatewayError, fileName: string): Promise<PaidOcrApprovalResult> => {
+        if (paidOcrApprovalResolverRef.current) {
+            // 배치에서 동시에 여러 승인창이 생기지 않도록 두 번째 요청은 유료 실행 없이 보존한다.
+            return Promise.resolve('declined');
+        }
+
+        const serverMaximum = typeof error.maxCostUsd === 'number' && Number.isFinite(error.maxCostUsd)
+            ? error.maxCostUsd
+            : DEFAULT_PAID_OCR_MAX_COST_USD;
+        const estimatedCostUsd = typeof error.estimatedCostUsd === 'number' && Number.isFinite(error.estimatedCostUsd)
+            ? Math.min(error.estimatedCostUsd, serverMaximum)
+            : undefined;
+
+        setPaidOcrNotice('');
+        setProgress(`유료 OCR 실행 승인 대기: ${fileName}`);
+        setPaidOcrApprovalPrompt({
+            requestKey: `${fileName}-${Date.now()}`,
+            fileName,
+            estimatedCostUsd,
+            maxCostUsd: serverMaximum,
+            canApprove: error.paidAvailable !== false && Boolean(error.paidApprovalToken),
+            unavailableReason: error.paidUnavailableReason,
+        });
+        return new Promise<PaidOcrApprovalResult>((resolve) => {
+            paidOcrApprovalResolverRef.current = resolve;
+        });
+    }, []);
+
+    useEffect(() => () => {
+        paidOcrApprovalResolverRef.current?.('declined');
+        paidOcrApprovalResolverRef.current = null;
+    }, []);
     
     // JSON 품질 데이터 로드
     const { data: qualityData, loading: qualityLoading } = useJudgmentTaggingQuality();
@@ -3834,12 +3895,19 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         return hasRetryableOriginalImage(originalImage) ? originalImage : '';
     }, []);
 
-    const requestServerRetryAnalysis = useCallback(async (record: WorkerRecord): Promise<WorkerRecord> => {
+    const requestServerRetryAnalysis = useCallback(async (
+        record: WorkerRecord,
+        options?: {
+            preparedImageSource?: string;
+            allowPaidOcr?: true;
+            paidApprovalToken?: string;
+        },
+    ): Promise<WorkerRecord> => {
         const bestImageSource = getBestRetryImageSource(record);
         if (!bestImageSource) {
             throw new Error('[INVALID_IMAGE_SOURCE] 문서 원본 이미지가 없어 재분석할 수 없습니다. 프로필 사진은 OCR 원본으로 사용하지 않습니다.');
         }
-        const preparedImageSource = await prepareOcrSourceForGateway(
+        const preparedImageSource = options?.preparedImageSource || await prepareOcrSourceForGateway(
             bestImageSource,
             record.filename || record.name || 'psi-document',
         );
@@ -3848,6 +3916,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             imageSource: preparedImageSource,
             filenameHint: record.filename || record.name,
             ocrEngine,
+            allowPaidOcr: options?.allowPaidOcr === true,
+            paidApprovalToken: options?.paidApprovalToken,
         });
 
         const nextHandwrittenAnswers = Array.isArray(data.record.handwrittenAnswers)
@@ -3903,8 +3973,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 return 'PARSE';
             case 'OCR_UPSTREAM_AUTH':
             case 'MISSING_SERVER_GEMINI_KEY':
+            case 'MISSING_SERVER_GEMINI_FREE_KEY':
+            case 'MISSING_SERVER_GEMINI_PAID_KEY':
                 return 'KEY';
             case 'OCR_QUOTA':
+            case 'OCR_PAID_QUOTA':
             case 'OCR_RATE_LIMITED':
             case 'OCR_DAILY_BUDGET_EXCEEDED':
             case 'OCR_COST_GUARD_BLOCKED':
@@ -3948,6 +4021,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const runBatchAnalysis = async (targetRecords: WorkerRecord[], title: string, forceReanalyze: boolean = false) => {
         const requestedTotal = targetRecords.length;
         if (requestedTotal === 0) return alert('재분석할 대상이 없습니다.');
+        setPaidOcrNotice('');
         const shouldCapFreeBatch = !isPaidApiMode && !forceReanalyze && requestedTotal > MAX_FREE_OCR_BATCH_RECORDS;
         if (shouldCapFreeBatch) {
             const confirmed = confirm(
@@ -4026,6 +4100,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         let lastUnhandledBatchErrorMessage = '';
         let lastUnhandledBatchErrorCode: string | undefined;
         let lastObservedServerRouteErrorCode: string | undefined;
+        let paidApprovalBatchMessage = '';
         
         // [Adaptive Throttling State]
         // Start with a 4s buffer. If we hit limits, increase this dynamically.
@@ -4235,6 +4310,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         continue;
                     }
 
+                    // 무료 요청과 승인된 유료 재요청이 동일한 바이트를 사용해야 일회용 승인 토큰의 문서 결합이 유지된다.
+                    const preparedRetryImageSource = await prepareOcrSourceForGateway(
+                        retryImageSource,
+                        record.filename || record.name || 'psi-document',
+                    );
+
                     // 2. Call API with Retry Logic for Rate Limits
                     let apiResult = null;
                     let retryCount = 0;
@@ -4244,6 +4325,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     let lastServerFailureTrace: OcrTraceInfo | undefined;
                     let serverRouteFailedForCurrentRecord = false;
                     let serverRouteFailureCountedForCurrentRecord = false;
+                    let paidApprovalUsedForCurrentRecord = false;
                     const MAX_RETRIES = OCR_POLICY.RETRY_POLICY.maxRetries; // P1.3: policy-driven
                     // OCR 원본은 비용·개인정보 가드가 있는 서버 경로에서만 처리한다.
                     const usedClientFallback = false;
@@ -4257,22 +4339,46 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             setProgress(`${modeLabel} [${title}] ${record.name || '미상'} 서버 OCR 재분석 요청 중...${quotaHint}`);
 
                             try {
-                                apiResult = await requestServerRetryAnalysis(record);
+                                apiResult = await requestServerRetryAnalysis(record, {
+                                    preparedImageSource: preparedRetryImageSource,
+                                });
                                 lastServerRouteErrorCode = undefined;
                                 lastServerRouteErrorMessage = '';
                             } catch (serverError: any) {
-                                const serverMessage = extractMessage(serverError);
-                                lastServerFailureTrace = serverError instanceof OcrGatewayError
-                                    ? serverError.trace
-                                    : serverError?.trace as OcrTraceInfo | undefined;
-                                lastServerRouteErrorMessage = serverMessage;
-                                lastServerRouteErrorCode = extractGatewayErrorCode(serverMessage);
-                                serverRouteFailedForCurrentRecord = true;
-                                if (lastServerRouteErrorCode) {
-                                    lastObservedServerRouteErrorCode = lastServerRouteErrorCode;
+                                if (isOcrPaidApprovalRequired(serverError)) {
+                                    const targetFileName = record.filename || record.name || '이름 없는 위험성평가 문서';
+                                    const approval = await requestPaidOcrApproval(serverError, targetFileName);
+                                    if (approval !== 'approved') {
+                                        stopped = true;
+                                        stopRef.current = true;
+                                        paidApprovalBatchMessage = `유료 OCR을 승인하지 않아 '${targetFileName}'부터 재분석을 중단했습니다. 현재 기록과 남은 대상은 재시도 가능한 상태로 보존했습니다.`;
+                                        break;
+                                    }
+
+                                    setProgress(`[${title}] ${targetFileName} 유료 OCR 1회 실행 중...`);
+                                    // 승인은 이 문서의 단일 재요청에만 전달하며 이후 문서는 다시 무료 경로에서 시작한다.
+                                    paidApprovalUsedForCurrentRecord = true;
+                                    apiResult = await requestServerRetryAnalysis(record, {
+                                        preparedImageSource: preparedRetryImageSource,
+                                        allowPaidOcr: true,
+                                        paidApprovalToken: serverError.paidApprovalToken,
+                                    });
+                                    lastServerRouteErrorCode = undefined;
+                                    lastServerRouteErrorMessage = '';
+                                } else {
+                                    const serverMessage = extractMessage(serverError);
+                                    lastServerFailureTrace = serverError instanceof OcrGatewayError
+                                        ? serverError.trace
+                                        : serverError?.trace as OcrTraceInfo | undefined;
+                                    lastServerRouteErrorMessage = serverMessage;
+                                    lastServerRouteErrorCode = extractGatewayErrorCode(serverMessage);
+                                    serverRouteFailedForCurrentRecord = true;
+                                    if (lastServerRouteErrorCode) {
+                                        lastObservedServerRouteErrorCode = lastServerRouteErrorCode;
+                                    }
+                                    // 브라우저 직접 호출은 countTokens/건당비용 가드를 우회하므로 개발환경에서도 금지한다.
+                                    throw serverError;
                                 }
-                                // 브라우저 직접 호출은 countTokens/건당비용 가드를 우회하므로 개발환경에서도 금지한다.
-                                throw serverError;
                             }
 
                             if (apiResult) {
@@ -4305,6 +4411,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         } catch (err: any) {
                             const errMsg = err.message || JSON.stringify(err);
                             lastRetryErrorMessage = String(errMsg || '');
+                            if (paidApprovalUsedForCurrentRecord) {
+                                stopped = true;
+                                stopRef.current = true;
+                                paidApprovalBatchMessage = `승인한 '${record.filename || record.name || '위험성평가 문서'}'의 유료 OCR 1회 요청 이후 결과를 완료하지 못했습니다. 추가 과금을 막기 위해 자동 재요청하지 않았으며 현재 기록과 남은 대상은 재시도 가능한 상태로 보존했습니다.`;
+                                break;
+                            }
                             const parsedGatewayCode = extractGatewayErrorCode(lastRetryErrorMessage);
                             if (parsedGatewayCode) {
                                 lastServerRouteErrorCode = parsedGatewayCode;
@@ -4471,6 +4583,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 `설정 화면의 문서 분석 연결 정보가 실제 운영 설정과 일치하는지 점검이 필요합니다.`
                             );
                             break;
+                        }
+
+                        if (paidApprovalUsedForCurrentRecord) {
+                            const paidTargetLabel = record.filename || record.name || '위험성평가 문서';
+                            if (i < processQueue.length - 1) {
+                                stopped = true;
+                                stopRef.current = true;
+                                paidApprovalBatchMessage = `승인한 '${paidTargetLabel}' 1건만 유료 OCR로 처리했습니다. 남은 ${processQueue.length - i - 1}건은 자동 유료 전환하지 않고 재시도 대상으로 보존했습니다.`;
+                                break;
+                            }
+                            setPaidOcrNotice(`승인한 '${paidTargetLabel}' 1건만 유료 OCR로 처리했습니다. 추가 유료 실행 권한은 저장하지 않았습니다.`);
                         }
 
                         // Adaptive Rate Limit Buffer
@@ -4704,7 +4827,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             const reasonsReport = `\n[원인 집계]\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 직접 OCR: 비활성\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}\n- KEY/권한 실패: ${keyFailureCount}\n- QUOTA 보호 기준: ${quotaProtectionLabel}${deferredCount > 0 ? `\n- 비용절약 보호로 이번 실행 제외: ${deferredCount}건` : ''}${keyFailureAbortTriggered ? `\n- 자동중단: KEY 연속 실패 ${consecutiveKeyFailureCount}건` : ''}${lastUnhandledBatchErrorMessage ? `\n- 전역중단코드: ${lastUnhandledBatchErrorCode || 'UNKNOWN'}\n- 전역중단메시지: ${lastUnhandledBatchErrorMessage.slice(0, 140)}` : ''}`;
             
             if (stopped) {
-                alert(`${modeLabel} 분석이 중단되었습니다.\n(완료: ${successCount}, ${BRAND_STATUS_LABELS.attentionPending}: ${failCount})${reasonsReport}`);
+                if (paidApprovalBatchMessage) {
+                    setPaidOcrNotice(paidApprovalBatchMessage);
+                } else {
+                    alert(`${modeLabel} 분석이 중단되었습니다.\n(완료: ${successCount}, ${BRAND_STATUS_LABELS.attentionPending}: ${failCount})${reasonsReport}`);
+                }
             } else {
                 if (forceReanalyze) {
                     alert(`${modeLabel} ${title} 완료.\n\n✅ 완료: ${successCount}\n⚠ ${BRAND_STATUS_LABELS.attentionPending}: ${failCount}${reasonsReport}\n\n※ 사전 점검을 생략하는 방식으로 실행되었습니다.\n※ ${BRAND_STATUS_LABELS.attentionPending} 건은 '${BRAND_ACTION_LABELS.directReanalyze}' 또는 '${BRAND_ACTION_LABELS.smartReanalyze}' 버튼으로 ${BRAND_ACTION_LABELS.recheck}할 수 있습니다.`);
@@ -4902,7 +5029,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         const doneExcludeHint = excludedDoneCount > 0
             ? `\n\n※ 2차 재분석 완료(DONE) ${excludedDoneCount}건은 자동 제외됩니다.`
             : '';
-        if (confirm(`전체 ${total}건 재분석 하시겠습니까?\n[주의] 서버 유료 API를 사용하며 문서별 토큰·비용가드와 계정 할당량이 적용됩니다.${splitWarning}${doneExcludeHint}\n\n계속하시겠습니까?`)) {
+        if (confirm(
+            `전체 ${total}건 재분석 하시겠습니까?\n\n` +
+            `[비용 보호] 무료 OCR을 먼저 사용합니다. 무료 한도 소진 시 자동으로 유료 전환하지 않으며, ` +
+            `대상 파일과 최대 비용을 표시한 별도 승인창에서 허락한 파일 1건만 유료로 실행합니다. ` +
+            `이 확인은 유료 결제 승인이 아닙니다.${splitWarning}${doneExcludeHint}\n\n계속하시겠습니까?`
+        )) {
             // 분할 단위가 total보다 작으면 우선순위 상위 splitSize건만 처리
             const sortedByPriority = [...recordsWithImagesBatchTargets].sort((a, b) => getRetryPriorityScore(a) - getRetryPriorityScore(b));
             const batch = total > splitSize ? sortedByPriority.slice(0, splitSize) : sortedByPriority;
@@ -4929,7 +5061,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             ? `\n\n※ 선택 ${totalSelected}건 중 ${excludedCount}건은 자동 제외됩니다.`
             : '';
 
-        if (confirm(`선택 근로자 ${eligibleCount}건만 재분석하시겠습니까?${excludedHint}`)) {
+        if (confirm(
+            `선택 근로자 ${eligibleCount}건만 재분석하시겠습니까?${excludedHint}\n\n` +
+            `무료 OCR을 먼저 사용하며, 유료 OCR은 무료 한도 소진 후 파일별 비용 승인창에서 별도로 허락한 1건만 실행됩니다.`
+        )) {
             runBatchAnalysis(selectedReanalyzeTargets, `선택 근로자 재분석 (${eligibleCount}건)`);
         }
     };
@@ -4996,7 +5131,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         const confirm_msg = confirm(
             `⚠️ ${BRAND_ACTION_LABELS.directReanalyze} 모드\n\n${BRAND_STATUS_LABELS.attentionPending} ${failedRecords.length}건을 사전 점검 없이\n` +
             `서버 고정밀 분석으로 다시 처리하시겠습니까?\n\n` +
-            `※ 서버 유료 API를 사용하며 각 문서는 호출 전에 토큰 수와 최대 비용을 검사합니다.`
+            `※ 무료 OCR을 먼저 사용합니다. 무료 한도 소진 시 유료 OCR은 대상 파일과 최대 비용을 보여주는 별도 승인창에서 허락한 1건만 실행됩니다.`
         );
         
         if (confirm_msg) {
@@ -5111,6 +5246,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         // but typically file upload relies on user adding files first.
         // For mass file upload, we should also implement throttling if > 10 files.
         if (files.length === 0) return;
+        setPaidOcrNotice('');
 
         const freshPreflight = await assessOcrUploadBatch(files);
         setUploadPreflightReports(freshPreflight);
@@ -5144,6 +5280,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 // 서버가 내부에서 최대 2개 모델을 관리하므로 브라우저가 같은 문서를 다시 호출하지 않는다.
                 const MAX_FILE_RETRIES = OCR_POLICY.RETRY_POLICY.maxRetries;
                 let analyzed = false;
+                let paidApprovalUsedForCurrentFile = false;
+                const uploadRequestRecordId = `upload-${Date.now()}-${i}`;
                 
                 while (retryCount < MAX_FILE_RETRIES && !analyzed && !stopRef.current) {
                     try {
@@ -5151,7 +5289,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         let analyzedRecord: WorkerRecord;
                         try {
                             const serverResult = await requestServerOcrAnalysis({
-                                recordId: `upload-${Date.now()}-${i}`,
+                                recordId: uploadRequestRecordId,
                                 imageSource: base64,
                                 filenameHint: files[i].name,
                                 ocrEngine,
@@ -5163,8 +5301,36 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 ocrTrace: serverResult.trace,
                             };
                         } catch (serverError) {
-                            // 신규 업로드도 서버 비용·보안 가드를 우회하는 브라우저 OCR 폴백을 사용하지 않는다.
-                            throw serverError;
+                            if (isOcrPaidApprovalRequired(serverError)) {
+                                const approval = await requestPaidOcrApproval(serverError, files[i].name);
+                                if (approval !== 'approved') {
+                                    stopped = true;
+                                    stopRef.current = true;
+                                    failedFiles.push(...files.slice(i));
+                                    terminalGateMessage = `유료 OCR을 승인하지 않아 '${files[i].name}'부터 분석을 중단했습니다. 현재 파일과 남은 ${files.length - i - 1}개 파일은 재시도 목록에 보존했습니다.`;
+                                    break;
+                                }
+
+                                setProgress(`유료 OCR 1회 실행 중: ${files[i].name}`);
+                                paidApprovalUsedForCurrentFile = true;
+                                const approvedServerResult = await requestServerOcrAnalysis({
+                                    recordId: uploadRequestRecordId,
+                                    imageSource: base64,
+                                    filenameHint: files[i].name,
+                                    ocrEngine,
+                                    allowPaidOcr: true,
+                                    paidApprovalToken: serverError.paidApprovalToken,
+                                });
+                                analyzedRecord = {
+                                    ...approvedServerResult.record,
+                                    originalImage: base64,
+                                    filename: files[i].name,
+                                    ocrTrace: approvedServerResult.trace,
+                                };
+                            } else {
+                                // 신규 업로드도 서버 비용·보안 가드를 우회하는 브라우저 OCR 폴백을 사용하지 않는다.
+                                throw serverError;
+                            }
                         }
                         
                         if (stopRef.current) { stopped = true; break; }
@@ -5191,6 +5357,20 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         const gatewayCode = e instanceof OcrGatewayError
                             ? e.code
                             : extractGatewayErrorCode(eMsg);
+                        if (paidApprovalUsedForCurrentFile) {
+                            stopped = true;
+                            stopRef.current = true;
+                            failedFiles.push(...files.slice(i));
+                            terminalGateMessage = `승인한 '${files[i].name}'의 유료 OCR 1회 요청 이후 결과를 완료하지 못했습니다. 추가 과금을 막기 위해 자동 재요청하지 않았으며 현재 파일과 남은 파일은 재시도 목록에 보존했습니다.`;
+                            break;
+                        }
+                        if (isOcrPaidApprovalRequired(e)) {
+                            stopped = true;
+                            stopRef.current = true;
+                            failedFiles.push(...files.slice(i));
+                            terminalGateMessage = `유료 OCR 승인을 해당 파일 1회 요청에 적용하지 못했습니다. '${files[i].name}'과 남은 파일은 결제 없이 재시도 목록에 보존했습니다.`;
+                            break;
+                        }
                         const isExpiredAdminSession = ['HTTP_401', 'HTTP_403']
                             .includes(String(gatewayCode || '').toUpperCase());
                         if (isExpiredAdminSession) {
@@ -5252,6 +5432,16 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     failedFiles.push(...files.slice(i + 1));
                     break;
                 }
+
+                if (paidApprovalUsedForCurrentFile) {
+                    if (i < files.length - 1) {
+                        stopped = true;
+                        failedFiles.push(...files.slice(i + 1));
+                        terminalGateMessage = `승인한 '${files[i].name}' 1개 파일만 유료 OCR로 처리했습니다. 남은 ${files.length - i - 1}개 파일은 자동 유료 전환하지 않고 재시도 목록에 보존했습니다.`;
+                        break;
+                    }
+                    setPaidOcrNotice(`승인한 '${files[i].name}' 1개 파일만 유료 OCR로 처리했습니다. 추가 유료 실행 권한은 저장하지 않았습니다.`);
+                }
                 
                 // 파일 분석 간 지연
                 if (i < files.length - 1 && !stopRef.current && analyzed) {
@@ -5269,6 +5459,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             setUploadGateMessage(terminalGateMessage || (failedFiles.length > 0
                 ? `완료하지 못한 파일 ${failedFiles.length}개를 목록에 남겼습니다. 원인을 확인한 뒤 다시 분석할 수 있습니다.`
                 : ''));
+            if (terminalGateMessage.includes('유료 OCR')) setPaidOcrNotice(terminalGateMessage);
             setProgress('');
             setCooldownTime(0);
             setBatchProgress({ current: 0, total: 0 });
@@ -6148,10 +6339,101 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     if (file) void handleImportFile(file);
                 }}
             />
+            {paidOcrApprovalPrompt && (
+                <div
+                    className="fixed inset-0 z-[220] flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm"
+                    role="presentation"
+                >
+                    <div
+                        key={paidOcrApprovalPrompt.requestKey}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="paid-ocr-approval-title"
+                        aria-describedby="paid-ocr-approval-description"
+                        onKeyDown={(event) => {
+                            if (event.key === 'Escape') finishPaidOcrApproval('declined');
+                        }}
+                        className="w-full max-w-lg rounded-3xl border border-amber-300 bg-white p-5 shadow-2xl sm:p-6"
+                    >
+                        <div className="flex items-start gap-3">
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-xl" aria-hidden="true">$</div>
+                            <div className="min-w-0">
+                                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-amber-700">결제 전 필수 승인</p>
+                                <h2 id="paid-ocr-approval-title" className="mt-1 text-xl font-black text-slate-950">이 파일에 유료 OCR을 1회 사용할까요?</h2>
+                            </div>
+                        </div>
+
+                        <div id="paid-ocr-approval-description" className="mt-5 space-y-3 text-sm font-bold leading-6 text-slate-700">
+                            <p>무료 OCR 할당량이 소진되었습니다. 승인하지 않으면 결제 없이 현재 파일과 남은 파일을 그대로 보존합니다.</p>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <p className="text-[11px] font-black text-slate-500">대상 파일 · 1개</p>
+                                <p className="mt-1 break-all font-black text-slate-900">{paidOcrApprovalPrompt.fileName}</p>
+                            </div>
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3">
+                                    <p className="text-[11px] font-black text-sky-700">서버 예상 비용</p>
+                                    <p className="mt-1 text-lg font-black text-sky-950">
+                                        {paidOcrApprovalPrompt.estimatedCostUsd === undefined
+                                            ? '산정 범위 내'
+                                            : `${formatPaidOcrUsd(paidOcrApprovalPrompt.estimatedCostUsd)} USD`}
+                                    </p>
+                                </div>
+                                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3">
+                                    <p className="text-[11px] font-black text-rose-700">청구 가능 최대 비용</p>
+                                    <p className="mt-1 text-lg font-black text-rose-950">{formatPaidOcrUsd(paidOcrApprovalPrompt.maxCostUsd)} USD</p>
+                                </div>
+                            </div>
+                            <p className="rounded-2xl bg-amber-50 px-4 py-3 text-xs font-black text-amber-900">
+                                이 승인은 표시된 파일의 이번 요청 1회에만 적용됩니다. 다음 파일과 향후 작업은 자동 승인되지 않습니다.
+                            </p>
+                            {!paidOcrApprovalPrompt.canApprove && (
+                                <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-black text-rose-800">
+                                    {paidOcrApprovalPrompt.unavailableReason || '현재 유료 OCR 연결 또는 일회용 승인 정보가 준비되지 않아 결제 실행을 승인할 수 없습니다. 파일을 보존한 뒤 관리자 설정을 확인해 주세요.'}
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            <button
+                                type="button"
+                                autoFocus
+                                onClick={() => finishPaidOcrApproval('declined')}
+                                className="min-h-[48px] rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-black text-slate-800 transition-colors hover:bg-slate-100"
+                            >
+                                취소하고 파일 보존
+                            </button>
+                            <button
+                                type="button"
+                                disabled={!paidOcrApprovalPrompt.canApprove}
+                                onClick={() => finishPaidOcrApproval('approved')}
+                                className="min-h-[48px] rounded-2xl bg-rose-600 px-4 py-3 text-sm font-black text-white shadow-lg transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                            >
+                                이 파일 1회 유료 실행 승인
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {isStartChecklistIncomplete && (
                 <div role="status" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-950">
                     <p className="text-sm font-black">업무 시작 점검이 아직 완료되지 않았습니다.</p>
                     <p className="mt-1 text-xs font-bold leading-5 text-amber-800">분석 화면과 파일 업로드는 사용할 수 있습니다. 실제 자동 분석 전 분석 연결키, 현장 정보, 저장 연결 상태를 확인해 주세요.</p>
+                </div>
+            )}
+            {paidOcrNotice && (
+                <div role="status" className="flex items-start justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-4 text-amber-950">
+                    <div>
+                        <p className="text-sm font-black">유료 OCR 실행 보호 결과</p>
+                        <p className="mt-1 text-xs font-bold leading-5 text-amber-900">{paidOcrNotice}</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setPaidOcrNotice('')}
+                        className="shrink-0 rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs font-black text-amber-900"
+                        aria-label="유료 OCR 실행 보호 안내 닫기"
+                    >
+                        닫기
+                    </button>
                 </div>
             )}
             <section

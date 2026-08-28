@@ -1,8 +1,6 @@
 export type OcrExecutionKeySource =
     | 'local-primary'
     | 'env-primary'
-    | 'local-secondary'
-    | 'env-secondary'
     | 'none';
 
 export type OcrExecutionKeyStatus = {
@@ -38,24 +36,15 @@ export const resolveOcrExecutionKeyStatus = ({
 
     const primaryLocal = isPaidApiMode ? localPaid : localFree;
     const primaryEnv = isPaidApiMode ? envPaid : envFree;
-    const secondaryLocal = isPaidApiMode ? localFree : localPaid;
-    const secondaryEnv = isPaidApiMode ? envFree : envPaid;
-
     let source: OcrExecutionKeySource = 'none';
     if (primaryLocal) source = 'local-primary';
     else if (primaryEnv) source = 'env-primary';
-    else if (secondaryLocal) source = 'local-secondary';
-    else if (secondaryEnv) source = 'env-secondary';
 
     const sourceLabel = source === 'local-primary'
         ? '설정 키(현재 모드)'
         : source === 'env-primary'
             ? '환경변수(현재 모드)'
-            : source === 'local-secondary'
-                ? '설정 키(보조 모드)'
-                : source === 'env-secondary'
-                    ? '환경변수(보조 모드)'
-                    : '미설정';
+            : '미설정';
 
     const hasKey = source !== 'none';
 

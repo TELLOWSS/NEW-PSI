@@ -42,6 +42,11 @@ const requiredMarkers = [
   ['geminiService', 'normalizeOcrRecordMetadata<WorkerRecord>'],
   ['gateway', 'normalizeOcrRecordMetadata({'],
   ['gateway', 'isGeminiApiKeyRejection'],
+  ['gateway', 'OCR_PAID_APPROVAL_REQUIRED'],
+  ['gateway', 'maxPaidGenerateCalls: 1'],
+  ['gateway', 'paidApprovalStoreReady'],
+  ['gateway', 'GEMINI_API_KEY_FREE'],
+  ['gateway', 'GEMINI_API_KEY_PAID'],
   ['normalization', 'export const normalizeOcrRecordMetadata'],
   ['normalization', '문서 본문 날짜 기준 보정'],
   ['normalization', '문항 답변으로 보이는 공종값 격리'],
@@ -55,6 +60,8 @@ const requiredMarkers = [
   ['ocrPolicy', 'allowClientFallbackInProduction: false'],
   ['gatewayClient', '`HTTP_${response.status}`'],
   ['gatewayClient', 'isOcrGatewaySystemUnavailable'],
+  ['gatewayClient', 'isOcrPaidApprovalRequired'],
+  ['ocrPage', '이 파일 1회 유료 실행 승인'],
   ['apiSecurity', 'authenticated-memory'],
   ['apiSecurity', 'usage audit transport failed'],
   ['harnessValidation', 'OCR_QUALITY_GATE_REVIEW'],
@@ -80,11 +87,25 @@ const requiredPatterns = [
   ['ocrPage', /수동 중단·예외가 최종 저장 전에 발생하면 IN_PROGRESS를 남기지 않는다[\s\S]{0,900}nextIndex:\s*Math\.min\(currentRecordCompleted\s*\?\s*i\s*\+\s*1\s*:\s*i/, '미완료 기록 원상복구 및 현재 인덱스 재개'],
   ['ocrPage', /if \(isExpiredAdminSession\)[\s\S]{0,700}failedFiles\.push\(\.\.\.files\.slice\(i\)\)[\s\S]{0,500}terminalGateMessage[\s\S]{0,300}break/, '신규 업로드 인증만료 시 무오염 중단'],
   ['ocrPage', /if \(isOcrGatewaySystemUnavailable\(e\)\)[\s\S]{0,500}failedFiles\.push\(\.\.\.files\.slice\(i\)\)[\s\S]{0,500}break/, '공통 서버 장애 첫 파일 회로 차단'],
+  ['gateway', /resolveFreeGeminiApiKey[\s\S]{0,240}process\.env\.GEMINI_API_KEY_FREE[\s\S]{0,80}\.trim\(\)/, '무료 OCR 서버 전용 키'],
+  ['gateway', /resolvePaidGeminiApiKey[\s\S]{0,200}process\.env\.GEMINI_API_KEY_PAID[\s\S]{0,80}\.trim\(\)/, '유료 OCR 서버 전용 키'],
+  ['gateway', /billingTier === 'paid' \? resolvedModelChain\.slice\(0, 1\)/, '승인 1건당 유료 모델 호출 1회 제한'],
+  ['gateway', /paidApprovalStoreReady\s*=\s*quotaMode === 'database'[\s\S]{0,500}paidAvailable/, '내구성 승인 저장소 장애 시 유료 fail-closed'],
+  ['ocrPage', /if \(isOcrPaidApprovalRequired\(serverError\)\)[\s\S]{0,2200}allowPaidOcr:\s*true/, '파일별 유료 OCR 명시 승인 재요청'],
 ];
 
 const missing = requiredMarkers
   .filter(([sourceKey, marker]) => !sources[sourceKey].includes(marker))
   .map(([sourceKey, marker]) => `${sourceKey}: ${marker}`);
+
+const freeResolverSource = sources.gateway.match(/const resolveFreeGeminiApiKey\s*=\s*\(\)\s*=>\s*\{([\s\S]*?)\n\};/)?.[1] || '';
+const paidResolverSource = sources.gateway.match(/const resolvePaidGeminiApiKey\s*=\s*\(\)\s*=>\s*\{([\s\S]*?)\n\};/)?.[1] || '';
+if (/VITE_GEMINI|GOOGLE_GEMINI|process\.env\.GEMINI_API_KEY\s*\|\|/.test(freeResolverSource)) {
+  missing.push('gateway: 무료 OCR 키 resolver의 generic/VITE 폴백 금지');
+}
+if (/VITE_GEMINI|GOOGLE_GEMINI|process\.env\.GEMINI_API_KEY\s*\|\|/.test(paidResolverSource)) {
+  missing.push('gateway: 유료 OCR 키 resolver의 generic/VITE 폴백 금지');
+}
 
 for (const [sourceKey, pattern, label] of requiredPatterns) {
   if (!pattern.test(sources[sourceKey])) {

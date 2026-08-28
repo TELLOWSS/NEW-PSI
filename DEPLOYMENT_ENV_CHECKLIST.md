@@ -38,9 +38,29 @@
   - 참조: `api/admin/create-training.ts`
 
 - `GEMINI_API_KEY`
-  - 용도: 하네스 분석/재분석 및 다국어 처리용 Gemini 호출
+  - 용도: 하네스 분석/재분석 및 다국어 처리용 기존 Gemini 호출
+  - 권장값: `GEMINI_API_KEY_FREE`와 같은 무료 프로젝트 키
   - 폴백: `GOOGLE_GEMINI_API_KEY`, `GOOGLE_API_KEY`
   - 참조: `api/gateway.ts`, `api/admin/create-training.ts`, `lib/server/shared/multilingualIntegrityEmbedding.ts`
+
+- `GEMINI_API_KEY_FREE`
+  - 용도: 서버 OCR 기본 실행용 무료 프로젝트 키
+  - 정책: 모든 OCR은 이 키로 먼저 시작하며 유료 키로 자동 전환하지 않음
+  - 비고: OCR 경로는 과금 등급 혼동을 막기 위해 generic `GEMINI_API_KEY`로 폴백하지 않음
+  - 참조: `api/gateway.ts`
+
+- `GEMINI_API_KEY_PAID`
+  - 용도: 무료 공급자 할당량 소진 후 관리자가 해당 문서 비용을 명시 승인한 1회 요청
+  - 정책: 서버 전용 비밀변수로만 저장하고 `VITE_` 접두사를 사용하지 않음
+  - 참조: `api/gateway.ts`
+
+- `OCR_PAID_APPROVAL_SECRET`
+  - 용도: 유료 OCR 승인 토큰 서명
+  - 비고: 관리자 비밀번호·Gemini 키와 다른 긴 임의 문자열 권장
+
+- `OCR_MAX_USD_PER_DOCUMENT`
+  - 용도: 승인된 유료 OCR도 넘을 수 없는 문서당 최대 비용(USD)
+  - 기본값: `0.05`
 
 - `TRAINING_LINK_SECRET`
   - 용도: 근로자 서명 링크 HMAC 서명/검증(권장: 독립 비밀키)
@@ -77,7 +97,7 @@
 - `GOOGLE_GEMINI_API_KEY`
 - `GOOGLE_API_KEY`
 
-권장 정책: 운영에서는 `VITE_*` 키를 표준으로 쓰고, 폴백은 비상용으로만 유지합니다.
+권장 정책: 브라우저 공개 설정만 `VITE_*`를 사용합니다. Gemini 비밀키·관리자 서명키·서비스 역할 키는 서버 전용 이름만 사용하고 `VITE_GEMINI_API_KEY_FREE`, `VITE_GEMINI_API_KEY_PAID`는 제거합니다.
 
 ## 4) 로컬 `.env.local` 예시
 
@@ -89,7 +109,11 @@ VITE_PSI_ADMIN_SECRET=xxxx
 ADMIN_LOGIN_PASSWORD=xxxx
 ADMIN_SESSION_SECRET=xxxx
 GOOGLE_TTS_API_KEY=xxxx
+GEMINI_API_KEY_FREE=xxxx
+GEMINI_API_KEY_PAID=xxxx
 GEMINI_API_KEY=xxxx
+OCR_PAID_APPROVAL_SECRET=xxxx
+OCR_MAX_USD_PER_DOCUMENT=0.05
 TRAINING_LINK_SECRET=xxxx
 NEXT_PUBLIC_APP_BASE_URL=http://localhost:5173
 TRAINING_LINK_TTL_MINUTES=720

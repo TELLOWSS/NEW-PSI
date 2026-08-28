@@ -5,19 +5,67 @@ export class OcrGatewayError extends Error {
     code?: string;
     status: number;
     trace?: OcrTraceInfo;
+    estimatedCostUsd?: number;
+    maxCostUsd?: number;
+    paidApprovalToken?: string;
+    paidAvailable?: boolean;
+    paidUnavailableReason?: string;
 
-    constructor(message: string, options: { code?: string; status: number; trace?: OcrTraceInfo }) {
+    constructor(message: string, options: {
+        code?: string;
+        status: number;
+        trace?: OcrTraceInfo;
+        estimatedCostUsd?: number;
+        maxCostUsd?: number;
+        paidApprovalToken?: string;
+        paidAvailable?: boolean;
+        paidUnavailableReason?: string;
+    }) {
         super(message);
         this.name = 'OcrGatewayError';
         this.code = options.code;
         this.status = options.status;
         this.trace = options.trace;
+        this.estimatedCostUsd = options.estimatedCostUsd;
+        this.maxCostUsd = options.maxCostUsd;
+        this.paidApprovalToken = options.paidApprovalToken;
+        this.paidAvailable = options.paidAvailable;
+        this.paidUnavailableReason = options.paidUnavailableReason;
     }
 }
+
+export const OCR_PAID_APPROVAL_REQUIRED_CODE = 'OCR_PAID_APPROVAL_REQUIRED';
+
+/** 무료 할당량 소진 후 서버가 명시적으로 승인 절차를 요구한 경우만 유료 승인 UI를 연다. */
+export const isOcrPaidApprovalRequired = (error: unknown): error is OcrGatewayError => (
+    error instanceof OcrGatewayError
+    && String(error.code || '').toUpperCase() === OCR_PAID_APPROVAL_REQUIRED_CODE
+);
+
+const readOptionalNonNegativeNumber = (...values: unknown[]): number | undefined => {
+    for (const value of values) {
+        if (value === null || value === undefined) continue;
+        if (typeof value === 'string' && !value.trim()) continue;
+        const parsed = typeof value === 'number' ? value : Number(value);
+        if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+    }
+    return undefined;
+};
+
+const readOptionalString = (...values: unknown[]): string | undefined => {
+    for (const value of values) {
+        const parsed = String(value || '').trim();
+        if (parsed) return parsed;
+    }
+    return undefined;
+};
 
 const OCR_SYSTEM_UNAVAILABLE_CODES = new Set([
     'SECURITY_QUOTA_UNAVAILABLE',
     'MISSING_SERVER_GEMINI_KEY',
+    'MISSING_SERVER_GEMINI_FREE_KEY',
+    'MISSING_SERVER_GEMINI_PAID_KEY',
+    'OCR_PAID_APPROVAL_UNAVAILABLE',
     'OCR_UPSTREAM_AUTH',
     'HTTP_500',
     'HTTP_503',
@@ -40,6 +88,8 @@ export const requestServerOcrAnalysis = async (input: {
     imageSource: string;
     filenameHint?: string;
     ocrEngine?: OcrEngineMode;
+    allowPaidOcr?: boolean;
+    paidApprovalToken?: string;
 }): Promise<OcrGatewayResult> => {
     const response = await fetch('/api/gateway?action=ocr.retry', {
         method: 'POST',
@@ -49,6 +99,9 @@ export const requestServerOcrAnalysis = async (input: {
             imageSource: input.imageSource,
             filenameHint: input.filenameHint,
             ocrEngine: input.ocrEngine || 'auto',
+            // 유료 실행은 사용자가 해당 문서에 승인한 재요청에서만 전송한다.
+            allowPaidOcr: input.allowPaidOcr === true,
+            paidApprovalToken: input.allowPaidOcr === true ? input.paidApprovalToken : undefined,
         }),
     });
 
@@ -60,6 +113,27 @@ export const requestServerOcrAnalysis = async (input: {
             code,
             status: response.status,
             trace: data?.trace as OcrTraceInfo | undefined,
+            estimatedCostUsd: readOptionalNonNegativeNumber(
+                data?.estimatedCostUsd,
+                data?.details?.estimatedCostUsd,
+            ),
+            maxCostUsd: readOptionalNonNegativeNumber(
+                data?.maxCostUsd,
+                data?.details?.maxCostUsd,
+            ),
+            paidApprovalToken: readOptionalString(
+                data?.paidApprovalToken,
+                data?.details?.paidApprovalToken,
+            ),
+            paidAvailable: typeof data?.paidAvailable === 'boolean'
+                ? data.paidAvailable
+                : typeof data?.details?.paidAvailable === 'boolean'
+                    ? data.details.paidAvailable
+                    : undefined,
+            paidUnavailableReason: readOptionalString(
+                data?.paidUnavailableReason,
+                data?.details?.paidUnavailableReason,
+            ),
         });
     }
 

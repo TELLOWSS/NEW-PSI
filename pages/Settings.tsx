@@ -1597,7 +1597,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             });
             return;
         }
-        const confirmed = window.confirm(`${API_MODE_WARNING_MESSAGE}\n\n대량 처리 운영 세트로 전환하면 배치 100건, OCR 가성비 분석, 엄격 승인 기준이 적용됩니다. 서버 OCR은 모드와 관계없이 유료 API와 비용가드를 사용합니다.`);
+        const confirmed = window.confirm(`${API_MODE_WARNING_MESSAGE}\n\n대량 처리 운영 세트로 전환하면 배치 100건, OCR 가성비 분석, 엄격 승인 기준이 적용됩니다. 서버 OCR은 무료 키를 우선 사용하며, 무료 한도 소진 뒤에도 파일별 유료 사용 승인이 없으면 중단합니다.`);
         if (!confirmed) return;
 
         const nextEngine = { ...aiEngineSettings, ocrEngine: 'gemini-fast' as OcrEngineMode };
@@ -2242,7 +2242,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     </div>
 
                     <div className="relative mb-2 rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-3 text-xs font-semibold leading-5 text-indigo-700">
-                        중요: 서버 OCR은 여기 입력한 키를 사용하지 않습니다. Vercel 서버 비밀키로만 호출하며, 모든 OCR 요청에 토큰 사전계산과 문서당 USD 0.05 비용가드를 적용합니다.
+                        중요: 서버 OCR은 여기 입력한 키를 사용하지 않습니다. Vercel 서버 비밀키의 무료 구간을 우선 사용하고, 무료 한도 소진 시 파일별 승인을 받은 요청만 유료 키로 처리합니다. 모든 OCR 요청에는 토큰 사전계산과 문서당 USD 0.05 비용가드를 적용합니다.
                     </div>
                     <span className="text-xs text-indigo-500 font-normal cursor-pointer hover:underline" onClick={() => window.open('https://aistudio.google.com/app/apikey')}>키가 없으신가요?</span>
                     <div className="mt-5 flex items-center justify-between gap-3">

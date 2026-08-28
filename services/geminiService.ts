@@ -70,8 +70,6 @@ const getActiveApiKey = (): string => {
 
     if (status.source === 'local-primary') return isPaidApiMode ? localPaid : localFree;
     if (status.source === 'env-primary') return isPaidApiMode ? envPaid : envFree;
-    if (status.source === 'local-secondary') return isPaidApiMode ? localFree : localPaid;
-    if (status.source === 'env-secondary') return isPaidApiMode ? envFree : envPaid;
     return '';
 };
 
@@ -102,8 +100,6 @@ const getApiKeyForMode = (options?: {
 
     if (keyStatus.source === 'local-primary') return { apiKey: isPaidApiMode ? localPaid : localFree, keyStatus };
     if (keyStatus.source === 'env-primary') return { apiKey: isPaidApiMode ? envPaid : envFree, keyStatus };
-    if (keyStatus.source === 'local-secondary') return { apiKey: isPaidApiMode ? localFree : localPaid, keyStatus };
-    if (keyStatus.source === 'env-secondary') return { apiKey: isPaidApiMode ? envFree : envPaid, keyStatus };
     return { apiKey: '', keyStatus };
 };
 
