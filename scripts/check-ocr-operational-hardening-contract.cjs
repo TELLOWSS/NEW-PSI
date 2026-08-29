@@ -45,6 +45,8 @@ const requiredMarkers = [
   ['gateway', 'OCR_PAID_APPROVAL_REQUIRED'],
   ['gateway', 'maxPaidGenerateCalls: 1'],
   ['gateway', 'paidApprovalStoreReady'],
+  ['gateway', 'verifyPaidOcrAdminPassword'],
+  ['gateway', 'takeAndClearPaidOcrAdminPassword'],
   ['gateway', 'GEMINI_API_KEY_FREE'],
   ['gateway', 'GEMINI_API_KEY_PAID'],
   ['normalization', 'export const normalizeOcrRecordMetadata'],
@@ -62,6 +64,9 @@ const requiredMarkers = [
   ['gatewayClient', 'isOcrGatewaySystemUnavailable'],
   ['gatewayClient', 'isOcrPaidApprovalRequired'],
   ['ocrPage', '이 파일 1회 유료 실행 승인'],
+  ['ocrPage', '현재 관리자 접속 비밀번호 재확인'],
+  ['ocrPage', 'paidOcrApprovalPassword.trim().length > 0'],
+  ['ocrPage', 'disabled={!canSubmitPaidOcrApproval}'],
   ['apiSecurity', 'authenticated-memory'],
   ['apiSecurity', 'usage audit transport failed'],
   ['harnessValidation', 'OCR_QUALITY_GATE_REVIEW'],
@@ -91,12 +96,34 @@ const requiredPatterns = [
   ['gateway', /resolvePaidGeminiApiKey[\s\S]{0,200}process\.env\.GEMINI_API_KEY_PAID[\s\S]{0,80}\.trim\(\)/, '유료 OCR 서버 전용 키'],
   ['gateway', /billingTier === 'paid' \? resolvedModelChain\.slice\(0, 1\)/, '승인 1건당 유료 모델 호출 1회 제한'],
   ['gateway', /paidApprovalStoreReady\s*=\s*quotaMode === 'database'[\s\S]{0,500}paidAvailable/, '내구성 승인 저장소 장애 시 유료 fail-closed'],
+  ['gateway', /consumePaidOcrApprovalOnce[\s\S]{0,2200}consumption\.mode !== 'database'[\s\S]{0,400}SECURITY_QUOTA_UNAVAILABLE/, '유료 승인 nonce의 DB 원자 소비 강제'],
+  ['gateway', /scope:\s*['"]ocr\.paid-approval\.consume['"][\s\S]{0,300}maxRequests:\s*1[\s\S]{0,900}consumption\.mode !== 'database'[\s\S]{0,350}SECURITY_QUOTA_UNAVAILABLE/, '유료 승인 nonce 1회 및 DB 장애 차단'],
+  ['gateway', /verifyPaidOcrApprovalToken[\s\S]{0,700}verifyPaidOcrAdminPassword[\s\S]{0,900}consumePaidOcrApprovalOnce/, '유효 토큰·관리자 비밀번호·원자 소비 순서'],
+  ['gateway', /takeAndClearPaidOcrAdminPassword[\s\S]{0,16000}verifyPaidOcrApprovalToken[\s\S]{0,700}verifyPaidOcrAdminPassword[\s\S]{0,900}consumePaidOcrApprovalOnce[\s\S]{0,500}billingTier\s*=\s*['"]paid['"][\s\S]{0,1200}analyzeSingleRecord\([\s\S]{0,300}apiKey:\s*paidApiKey/, '비밀번호 제거부터 단일 유료 호출까지 승인 순서'],
+  ['gateway', /let paidOcrAdminPassword\s*=\s*takeAndClearPaidOcrAdminPassword\(req, body\)[\s\S]{0,180}const recordId/, 'OCR handler 진입 직후 관리자 비밀번호 제거'],
+  ['gatewayClient', /allowPaidOcr === true \? input\.paidOcrAdminPassword : undefined/, '승인된 유료 재요청에만 관리자 비밀번호 전송'],
+  ['gatewayClient', /let requestBody = JSON\.stringify[\s\S]{0,700}input\.paidOcrAdminPassword = undefined[\s\S]{0,300}const responsePromise = fetch[\s\S]{0,400}requestBody = ''/, '클라이언트 비밀번호 직렬화 참조 즉시 제거'],
+  ['ocrPage', /setPaidOcrApprovalPassword\(''\)[\s\S]{0,220}setPaidOcrApprovalPrompt\(null\)[\s\S]{0,220}resolve\?\.\(result\)/, '승인 결정을 전달하기 전 비밀번호 state 제거'],
   ['ocrPage', /if \(isOcrPaidApprovalRequired\(serverError\)\)[\s\S]{0,2200}allowPaidOcr:\s*true/, '파일별 유료 OCR 명시 승인 재요청'],
 ];
 
 const missing = requiredMarkers
   .filter(([sourceKey, marker]) => !sources[sourceKey].includes(marker))
   .map(([sourceKey, marker]) => `${sourceKey}: ${marker}`);
+
+const paidConsumptionSource = sources.gateway.match(
+  /export const consumePaidOcrApprovalOnce\s*=\s*async\s*\([\s\S]*?\n\};/,
+)?.[0] || '';
+if (/allowAuthenticatedMemoryFallback/.test(paidConsumptionSource)) {
+  missing.push('gateway: 유료 승인 nonce의 authenticated-memory 폴백 금지');
+}
+
+const paidSigningResolverSource = sources.gateway.match(
+  /const resolvePaidApprovalSigningSecret\s*=\s*\(\)\s*=>\s*\{([\s\S]*?)\n\};/,
+)?.[1] || '';
+if (/ADMIN_SESSION_SECRET|ADMIN_API_AUTH_TOKEN|PSI_ADMIN_SECRET|VITE_/.test(paidSigningResolverSource)) {
+  missing.push('gateway: 유료 승인 서명키의 관리자/클라이언트 비밀키 폴백 금지');
+}
 
 const freeResolverSource = sources.gateway.match(/const resolveFreeGeminiApiKey\s*=\s*\(\)\s*=>\s*\{([\s\S]*?)\n\};/)?.[1] || '';
 const paidResolverSource = sources.gateway.match(/const resolvePaidGeminiApiKey\s*=\s*\(\)\s*=>\s*\{([\s\S]*?)\n\};/)?.[1] || '';

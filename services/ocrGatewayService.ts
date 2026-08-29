@@ -90,20 +90,29 @@ export const requestServerOcrAnalysis = async (input: {
     ocrEngine?: OcrEngineMode;
     allowPaidOcr?: boolean;
     paidApprovalToken?: string;
+    paidOcrAdminPassword?: string;
 }): Promise<OcrGatewayResult> => {
-    const response = await fetch('/api/gateway?action=ocr.retry', {
+    let requestBody = JSON.stringify({
+        recordId: input.recordId,
+        imageSource: input.imageSource,
+        filenameHint: input.filenameHint,
+        ocrEngine: input.ocrEngine || 'auto',
+        // 유료 실행 정보는 사용자가 해당 문서에 승인한 재요청에서만 전송한다.
+        allowPaidOcr: input.allowPaidOcr === true,
+        paidApprovalToken: input.allowPaidOcr === true ? input.paidApprovalToken : undefined,
+        paidOcrAdminPassword: input.allowPaidOcr === true ? input.paidOcrAdminPassword : undefined,
+    });
+    // 호출자가 전달한 임시 객체에도 관리자 비밀번호를 남겨두지 않는다.
+    input.paidOcrAdminPassword = undefined;
+
+    const responsePromise = fetch('/api/gateway?action=ocr.retry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            recordId: input.recordId,
-            imageSource: input.imageSource,
-            filenameHint: input.filenameHint,
-            ocrEngine: input.ocrEngine || 'auto',
-            // 유료 실행은 사용자가 해당 문서에 승인한 재요청에서만 전송한다.
-            allowPaidOcr: input.allowPaidOcr === true,
-            paidApprovalToken: input.allowPaidOcr === true ? input.paidApprovalToken : undefined,
-        }),
+        body: requestBody,
     });
+    // fetch가 요청 본문을 인수한 직후 직렬화 문자열 참조도 제거한다.
+    requestBody = '';
+    const response = await responsePromise;
 
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data?.ok || !data?.record) {

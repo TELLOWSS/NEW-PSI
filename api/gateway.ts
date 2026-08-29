@@ -1,5 +1,9 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'crypto';
-import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../lib/server/adminAuthGuard.js';
+import {
+    isValidAdminAuthRequest,
+    sendUnauthorizedAdminResponse,
+    verifyAdminLoginPassword,
+} from '../lib/server/adminAuthGuard.js';
 import { createSupabaseServerClient } from '../lib/server/supabaseServer.js';
 import handleHarnessAnalyze from '../lib/server/harness/handlers/analyze.js';
 import handleHarnessApprove from '../lib/server/harness/handlers/approve.js';
@@ -324,6 +328,8 @@ type RetryRequestBody = {
     ocrEngine?: OcrEngineMode;
     allowPaidOcr?: boolean;
     paidApprovalToken?: string;
+    /** 유료 OCR 승인 시에만 서버에서 즉시 재검증하고 폐기하는 관리자 접속 비밀번호 */
+    paidOcrAdminPassword?: string;
 };
 
 type PaidOcrApprovalPayload = {
@@ -376,13 +382,8 @@ const resolvePaidGeminiApiKey = () => {
 };
 
 const resolvePaidApprovalSigningSecret = () => {
-    return (
-        process.env.OCR_PAID_APPROVAL_SECRET ||
-        process.env.ADMIN_SESSION_SECRET ||
-        process.env.ADMIN_API_AUTH_TOKEN ||
-        process.env.PSI_ADMIN_SECRET ||
-        ''
-    ).trim();
+    // 결제 승인 경계는 관리자 세션/레거시 인증키와 반드시 분리한다.
+    return String(process.env.OCR_PAID_APPROVAL_SECRET || '').trim();
 };
 
 const getPaidApprovalTtlSeconds = (): number => {
@@ -460,6 +461,45 @@ export const resolveOcrModelChainForBilling = (
 
 export const isExplicitPaidOcrApprovalRequest = (body: Partial<RetryRequestBody>): boolean => {
     return body?.allowPaidOcr === true && String(body?.paidApprovalToken || '').trim().length > 0;
+};
+
+export const verifyPaidOcrAdminPassword = (passwordRaw: unknown): true => {
+    const password = typeof passwordRaw === 'string' ? passwordRaw : '';
+    if (!password.trim()) {
+        throw createGatewayHttpError(
+            '유료 OCR 사용 승인을 위해 현재 관리자 접속 비밀번호를 다시 입력해 주세요.',
+            403,
+            'OCR_PAID_PASSWORD_REQUIRED',
+        );
+    }
+    if (!verifyAdminLoginPassword(password)) {
+        throw createGatewayHttpError(
+            '관리자 접속 비밀번호가 일치하지 않아 유료 OCR을 실행하지 않았습니다.',
+            403,
+            'OCR_PAID_PASSWORD_INVALID',
+        );
+    }
+    return true;
+};
+
+export const takeAndClearPaidOcrAdminPassword = (req: any, body: unknown): unknown => {
+    if (body && typeof body === 'object') {
+        const mutableBody = body as Record<string, unknown>;
+        const password = mutableBody.paidOcrAdminPassword;
+        delete mutableBody.paidOcrAdminPassword;
+        if (req?.body && req.body !== body) {
+            if (typeof req.body === 'object') {
+                delete req.body.paidOcrAdminPassword;
+            } else if (typeof req.body === 'string') {
+                req.body = undefined;
+            }
+        }
+        return password;
+    }
+    if (typeof req?.body === 'string') {
+        req.body = undefined;
+    }
+    return undefined;
 };
 
 export const issuePaidOcrApprovalToken = (
@@ -590,7 +630,15 @@ const estimatePaidOcrApprovalCostUsd = (
 export const consumePaidOcrApprovalOnce = async (
     supabase: any,
     payload: PaidOcrApprovalPayload,
-): Promise<'database' | 'development-memory' | 'authenticated-memory'> => {
+    options: { adminPasswordReverified: boolean },
+): Promise<'database'> => {
+    if (options?.adminPasswordReverified !== true) {
+        throw createGatewayHttpError(
+            '유료 OCR 승인 전에 관리자 접속 비밀번호 재확인이 필요합니다.',
+            403,
+            'OCR_PAID_PASSWORD_REQUIRED',
+        );
+    }
     const nonceHash = createHash('sha256').update(payload.nonce).digest('hex');
     const nowSeconds = Math.floor(Date.now() / 1000);
     for (const [cachedNonceHash, expiresAt] of consumedPaidApprovalNonces) {
@@ -604,7 +652,7 @@ export const consumePaidOcrApprovalOnce = async (
         );
     }
     const remainingSeconds = Math.max(60, payload.expiresAt - nowSeconds + 60);
-    // 유료 실행은 분산 인스턴스에서도 단 한 번만 허용해야 하므로 DB 장애 시 메모리 폴백을 사용하지 않는다.
+    // 유료 승인은 다중 Vercel 인스턴스에서도 단 한 번만 소비되어야 하므로 DB 장애 시 반드시 fail-closed 한다.
     const consumption = await consumeApiQuota(supabase, {
         scope: 'ocr.paid-approval.consume',
         clientKeyHash: nonceHash,
@@ -613,8 +661,16 @@ export const consumePaidOcrApprovalOnce = async (
         metadata: {
             approvalVersion: payload.v,
             approvalExpiresAt: new Date(payload.expiresAt * 1000).toISOString(),
+            adminPasswordReverified: true,
         },
     });
+    if (consumption.mode !== 'database') {
+        throw createGatewayHttpError(
+            '유료 OCR 승인 1회 사용 여부를 데이터베이스에서 확인할 수 없어 실행을 차단했습니다.',
+            503,
+            'SECURITY_QUOTA_UNAVAILABLE',
+        );
+    }
     if (!consumption.allowed) {
         throw createGatewayHttpError(
             '이미 사용된 유료 OCR 승인입니다. 무료 한도 상태를 다시 확인해 주세요.',
@@ -622,7 +678,7 @@ export const consumePaidOcrApprovalOnce = async (
             'OCR_PAID_APPROVAL_ALREADY_USED',
         );
     }
-    // warm instance 내 즉시 재사용도 차단한다. 인스턴스 간 원자성은 위 DB quota가 담당하며 DB 장애 시 paid는 fail-closed다.
+    // warm instance 내 즉시 재사용도 차단하고, 인스턴스 간 원자성은 DB quota가 담당한다.
     consumedPaidApprovalNonces.set(nonceHash, payload.expiresAt + 60);
     return consumption.mode;
 };
@@ -2023,20 +2079,41 @@ async function handleOcrRetry(req: any, res: any) {
         return sendUnauthorizedAdminResponse(res);
     }
 
-    const body = (req.body || {}) as RetryRequestBody;
+    let body: RetryRequestBody;
+    if (typeof req.body === 'string') {
+        try {
+            const parsedBody = JSON.parse(req.body || '{}');
+            body = parsedBody && typeof parsedBody === 'object' && !Array.isArray(parsedBody)
+                ? parsedBody as RetryRequestBody
+                : {};
+        } catch {
+            // 원문에 비밀번호가 포함됐을 수 있으므로 파싱 실패 시에도 즉시 참조를 제거한다.
+            req.body = undefined;
+            return res.status(400).json({ ok: false, message: '요청 본문 형식이 올바르지 않습니다.' });
+        }
+        req.body = undefined;
+    } else {
+        body = req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+            ? req.body as RetryRequestBody
+            : {};
+    }
+    let paidOcrAdminPassword = takeAndClearPaidOcrAdminPassword(req, body);
     const recordId = String(body.recordId || '').trim();
     const imageSource = String(body.imageSource || '').trim();
     const filenameHint = String(body.filenameHint || '').trim().slice(0, 120);
 
     if (!recordId) {
+        paidOcrAdminPassword = undefined;
         return res.status(400).json({ ok: false, message: 'recordId가 필요합니다.' });
     }
 
     if (recordId.length > 120) {
+        paidOcrAdminPassword = undefined;
         return res.status(400).json({ ok: false, message: 'recordId 길이가 너무 깁니다.' });
     }
 
     if (!imageSource) {
+        paidOcrAdminPassword = undefined;
         return res.status(400).json({ ok: false, message: 'imageSource가 필요합니다.' });
     }
 
@@ -2076,6 +2153,7 @@ async function handleOcrRetry(req: any, res: any) {
     }
 
     if (!perMinuteQuota.allowed || !dailyQuota.allowed) {
+        paidOcrAdminPassword = undefined;
         const retryAfterSeconds = Math.max(
             perMinuteQuota.retryAfterSeconds || 0,
             dailyQuota.retryAfterSeconds || 0,
@@ -2104,7 +2182,7 @@ async function handleOcrRetry(req: any, res: any) {
     }
 
     const traceStartMs = Date.now();
-    const requestedEngine = String(req.body?.ocrEngine || 'auto') as OcrEngineMode;
+    const requestedEngine = String(body.ocrEngine || 'auto') as OcrEngineMode;
     const engine: OcrEngineMode = ['auto', 'gemini-fast', 'gemini-precise', 'openai-precise'].includes(requestedEngine)
         ? requestedEngine
         : 'auto';
@@ -2156,9 +2234,11 @@ async function handleOcrRetry(req: any, res: any) {
             allowPreviewPro: false,
             maxCostUsd,
         });
+        paidOcrAdminPassword = undefined;
     } catch (error) {
         const gatewayError = error as GatewayHttpError;
         if (!requiresPaidOcrApproval(gatewayError?.code)) {
+            paidOcrAdminPassword = undefined;
             throw await recordFailure(error);
         }
 
@@ -2225,7 +2305,17 @@ async function handleOcrRetry(req: any, res: any) {
                 maxCostUsd,
             });
         } catch (approvalError) {
+            paidOcrAdminPassword = undefined;
             throw await recordFailure(approvalError);
+        }
+
+        let adminPasswordReverified = false;
+        try {
+            adminPasswordReverified = verifyPaidOcrAdminPassword(paidOcrAdminPassword);
+            paidOcrAdminPassword = undefined;
+        } catch (passwordError) {
+            paidOcrAdminPassword = undefined;
+            throw await recordFailure(passwordError);
         }
 
         const paidApiKey = resolvePaidGeminiApiKey();
@@ -2239,7 +2329,9 @@ async function handleOcrRetry(req: any, res: any) {
 
         let approvalConsumptionMode: string;
         try {
-            approvalConsumptionMode = await consumePaidOcrApprovalOnce(supabase, approvalPayload);
+            approvalConsumptionMode = await consumePaidOcrApprovalOnce(supabase, approvalPayload, {
+                adminPasswordReverified,
+            });
         } catch (approvalError) {
             throw await recordFailure(approvalError);
         }
@@ -2258,6 +2350,7 @@ async function handleOcrRetry(req: any, res: any) {
                 quotaMode,
                 approvalConsumptionMode,
                 paidApprovalNonceHash,
+                adminPasswordReverified,
                 approvedMaxCostUsd: approvalPayload.maxCostUsd,
                 maxPaidGenerateCalls: approvalPayload.maxPaidGenerateCalls,
                 estimatedCostUsd,

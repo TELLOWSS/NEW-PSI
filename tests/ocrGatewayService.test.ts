@@ -124,17 +124,21 @@ describe('server OCR gateway client', () => {
         ));
         vi.stubGlobal('fetch', fetchMock);
 
-        await requestServerOcrAnalysis({
+        const defaultRequest = {
             recordId: 'record-1',
             imageSource: 'data:image/jpeg;base64,/9j/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
             paidApprovalToken: 'must-not-leak-without-approval',
-        });
-        await requestServerOcrAnalysis({
+            paidOcrAdminPassword: 'must-not-leak-without-approval',
+        };
+        await requestServerOcrAnalysis(defaultRequest);
+        const approvedRequest = {
             recordId: 'record-1',
             imageSource: 'data:image/jpeg;base64,/9j/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
             allowPaidOcr: true,
             paidApprovalToken: 'approved-file-once',
-        });
+            paidOcrAdminPassword: 'current-admin-password',
+        };
+        await requestServerOcrAnalysis(approvedRequest);
 
         const defaultRequestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body || '{}'));
         expect(defaultRequestBody).toMatchObject({
@@ -142,12 +146,16 @@ describe('server OCR gateway client', () => {
             allowPaidOcr: false,
         });
         expect(defaultRequestBody).not.toHaveProperty('paidApprovalToken');
+        expect(defaultRequestBody).not.toHaveProperty('paidOcrAdminPassword');
+        expect(defaultRequest.paidOcrAdminPassword).toBeUndefined();
 
         const approvedRequestBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body || '{}'));
         expect(approvedRequestBody).toMatchObject({
             recordId: 'record-1',
             allowPaidOcr: true,
             paidApprovalToken: 'approved-file-once',
+            paidOcrAdminPassword: 'current-admin-password',
         });
+        expect(approvedRequest.paidOcrAdminPassword).toBeUndefined();
     });
 });

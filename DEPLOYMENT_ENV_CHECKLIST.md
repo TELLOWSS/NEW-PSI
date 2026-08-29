@@ -52,11 +52,19 @@
 - `GEMINI_API_KEY_PAID`
   - 용도: 무료 공급자 할당량 소진 후 관리자가 해당 문서 비용을 명시 승인한 1회 요청
   - 정책: 서버 전용 비밀변수로만 저장하고 `VITE_` 접두사를 사용하지 않음
+  - 승인 조건: 현재 관리자 접속 비밀번호 재확인 + 문서/이미지/금액에 결속된 5분 승인 토큰 + 데이터베이스의 원자적 1회 소비 기록
+  - 안전 차단: 승인 저장소가 연결되지 않거나 비밀번호가 틀리면 유료 API를 호출하지 않음
   - 참조: `api/gateway.ts`
+
+- 키 회전 원칙
+  - 과거 `VITE_GEMINI_API_KEY_FREE`/`VITE_GEMINI_API_KEY_PAID`로 배포된 키는 브라우저 공개 이력이 있는 것으로 간주하고 재사용하지 않음
+  - 새 무료·유료 키를 각각 발급해 서버 전용 변수에 등록한 뒤 옛 Vercel 변수와 옛 Google 키를 폐기
+  - 유료 키는 Production에만 등록하고, Preview에는 실제 과금 키를 두지 않는 것을 기본으로 함
 
 - `OCR_PAID_APPROVAL_SECRET`
   - 용도: 유료 OCR 승인 토큰 서명
   - 비고: 관리자 비밀번호·Gemini 키와 다른 긴 임의 문자열 권장
+  - 운영: Production/Preview에 Secret으로 등록하고 변경 후 반드시 재배포
 
 - `OCR_MAX_USD_PER_DOCUMENT`
   - 용도: 승인된 유료 OCR도 넘을 수 없는 문서당 최대 비용(USD)

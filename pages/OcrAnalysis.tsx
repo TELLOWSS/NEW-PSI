@@ -1579,7 +1579,9 @@ type PaidOcrApprovalPrompt = {
     unavailableReason?: string;
 };
 
-type PaidOcrApprovalResult = 'approved' | 'declined';
+type PaidOcrApprovalResult =
+    | { status: 'approved'; paidOcrAdminPassword: string }
+    | { status: 'declined' };
 
 const DEFAULT_PAID_OCR_MAX_COST_USD = 0.05;
 
@@ -1680,21 +1682,31 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [isPaidApiMode, setIsPaidApiMode] = useState<boolean>(() => getIsPaidApiMode());
     const [exportFeedback, setExportFeedback] = useState<ExportFeedback>(null);
     const [paidOcrApprovalPrompt, setPaidOcrApprovalPrompt] = useState<PaidOcrApprovalPrompt | null>(null);
+    const [paidOcrApprovalPassword, setPaidOcrApprovalPassword] = useState('');
     const [paidOcrNotice, setPaidOcrNotice] = useState('');
     const masterDataLoadingRef = useRef(false);
     const paidOcrApprovalResolverRef = useRef<((result: PaidOcrApprovalResult) => void) | null>(null);
 
-    const finishPaidOcrApproval = useCallback((result: PaidOcrApprovalResult) => {
+    const finishPaidOcrApproval = useCallback((decision: 'approved' | 'declined') => {
         const resolve = paidOcrApprovalResolverRef.current;
+        if (decision === 'approved' && (!paidOcrApprovalPrompt?.canApprove || paidOcrApprovalPassword.trim().length === 0)) {
+            return;
+        }
+
+        const result: PaidOcrApprovalResult = decision === 'approved'
+            ? { status: 'approved', paidOcrAdminPassword: paidOcrApprovalPassword }
+            : { status: 'declined' };
         paidOcrApprovalResolverRef.current = null;
+        // 비밀번호는 승인/취소 결정 직후 React state에서 먼저 제거한 뒤 요청 흐름을 재개한다.
+        setPaidOcrApprovalPassword('');
         setPaidOcrApprovalPrompt(null);
         resolve?.(result);
-    }, []);
+    }, [paidOcrApprovalPassword, paidOcrApprovalPrompt?.canApprove]);
 
     const requestPaidOcrApproval = useCallback((error: OcrGatewayError, fileName: string): Promise<PaidOcrApprovalResult> => {
         if (paidOcrApprovalResolverRef.current) {
             // 배치에서 동시에 여러 승인창이 생기지 않도록 두 번째 요청은 유료 실행 없이 보존한다.
-            return Promise.resolve('declined');
+            return Promise.resolve({ status: 'declined' });
         }
 
         const serverMaximum = typeof error.maxCostUsd === 'number' && Number.isFinite(error.maxCostUsd)
@@ -1705,6 +1717,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             : undefined;
 
         setPaidOcrNotice('');
+        setPaidOcrApprovalPassword('');
         setProgress(`유료 OCR 실행 승인 대기: ${fileName}`);
         setPaidOcrApprovalPrompt({
             requestKey: `${fileName}-${Date.now()}`,
@@ -1720,7 +1733,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     }, []);
 
     useEffect(() => () => {
-        paidOcrApprovalResolverRef.current?.('declined');
+        paidOcrApprovalResolverRef.current?.({ status: 'declined' });
         paidOcrApprovalResolverRef.current = null;
     }, []);
     
@@ -3901,6 +3914,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             preparedImageSource?: string;
             allowPaidOcr?: true;
             paidApprovalToken?: string;
+            paidOcrAdminPassword?: string;
         },
     ): Promise<WorkerRecord> => {
         const bestImageSource = getBestRetryImageSource(record);
@@ -3911,14 +3925,19 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             bestImageSource,
             record.filename || record.name || 'psi-document',
         );
-        const data = await requestServerOcrAnalysis({
+        let paidOcrAdminPassword = options?.paidOcrAdminPassword;
+        if (options) options.paidOcrAdminPassword = undefined;
+        const request = requestServerOcrAnalysis({
             recordId: record.id,
             imageSource: preparedImageSource,
             filenameHint: record.filename || record.name,
             ocrEngine,
             allowPaidOcr: options?.allowPaidOcr === true,
             paidApprovalToken: options?.paidApprovalToken,
+            paidOcrAdminPassword,
         });
+        paidOcrAdminPassword = undefined;
+        const data = await request;
 
         const nextHandwrittenAnswers = Array.isArray(data.record.handwrittenAnswers)
             && data.record.handwrittenAnswers.some((answer: any) =>
@@ -4348,7 +4367,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 if (isOcrPaidApprovalRequired(serverError)) {
                                     const targetFileName = record.filename || record.name || '이름 없는 위험성평가 문서';
                                     const approval = await requestPaidOcrApproval(serverError, targetFileName);
-                                    if (approval !== 'approved') {
+                                    if (approval.status !== 'approved') {
                                         stopped = true;
                                         stopRef.current = true;
                                         paidApprovalBatchMessage = `유료 OCR을 승인하지 않아 '${targetFileName}'부터 재분석을 중단했습니다. 현재 기록과 남은 대상은 재시도 가능한 상태로 보존했습니다.`;
@@ -4358,11 +4377,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     setProgress(`[${title}] ${targetFileName} 유료 OCR 1회 실행 중...`);
                                     // 승인은 이 문서의 단일 재요청에만 전달하며 이후 문서는 다시 무료 경로에서 시작한다.
                                     paidApprovalUsedForCurrentRecord = true;
-                                    apiResult = await requestServerRetryAnalysis(record, {
+                                    const paidRequest = requestServerRetryAnalysis(record, {
                                         preparedImageSource: preparedRetryImageSource,
                                         allowPaidOcr: true,
                                         paidApprovalToken: serverError.paidApprovalToken,
+                                        paidOcrAdminPassword: approval.paidOcrAdminPassword,
                                     });
+                                    approval.paidOcrAdminPassword = '';
+                                    apiResult = await paidRequest;
                                     lastServerRouteErrorCode = undefined;
                                     lastServerRouteErrorMessage = '';
                                 } else {
@@ -4815,6 +4837,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 `오류 코드를 관리자에게 전달해 원인 확인을 진행해 주세요.`
             );
         } finally {
+            setPaidOcrApprovalPassword('');
             setIsAnalyzing(false);
             setProgress('');
             setCooldownTime(0);
@@ -5303,7 +5326,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         } catch (serverError) {
                             if (isOcrPaidApprovalRequired(serverError)) {
                                 const approval = await requestPaidOcrApproval(serverError, files[i].name);
-                                if (approval !== 'approved') {
+                                if (approval.status !== 'approved') {
                                     stopped = true;
                                     stopRef.current = true;
                                     failedFiles.push(...files.slice(i));
@@ -5313,14 +5336,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                                 setProgress(`유료 OCR 1회 실행 중: ${files[i].name}`);
                                 paidApprovalUsedForCurrentFile = true;
-                                const approvedServerResult = await requestServerOcrAnalysis({
+                                const paidRequest = requestServerOcrAnalysis({
                                     recordId: uploadRequestRecordId,
                                     imageSource: base64,
                                     filenameHint: files[i].name,
                                     ocrEngine,
                                     allowPaidOcr: true,
                                     paidApprovalToken: serverError.paidApprovalToken,
+                                    paidOcrAdminPassword: approval.paidOcrAdminPassword,
                                 });
+                                approval.paidOcrAdminPassword = '';
+                                const approvedServerResult = await paidRequest;
                                 analyzedRecord = {
                                     ...approvedServerResult.record,
                                     originalImage: base64,
@@ -5454,6 +5480,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 if (onNavigateToPredictive) setShowPostAnalysisCta(true);
             }
         } finally {
+            setPaidOcrApprovalPassword('');
             setIsAnalyzing(false);
             setFiles(failedFiles);
             setUploadGateMessage(terminalGateMessage || (failedFiles.length > 0
@@ -6326,6 +6353,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     }, []);
 
     const isCompactMobile = viewportWidth < 640;
+    const canSubmitPaidOcrApproval = Boolean(
+        paidOcrApprovalPrompt?.canApprove && paidOcrApprovalPassword.trim().length > 0,
+    );
 
     return (
         <div className="psi-field-screen psi-ocr-precision space-y-6 sm:space-y-8 animate-fade-in-up">
@@ -6344,14 +6374,21 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     className="fixed inset-0 z-[220] flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm"
                     role="presentation"
                 >
-                    <div
+                    <form
                         key={paidOcrApprovalPrompt.requestKey}
                         role="dialog"
                         aria-modal="true"
                         aria-labelledby="paid-ocr-approval-title"
                         aria-describedby="paid-ocr-approval-description"
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            finishPaidOcrApproval('approved');
+                        }}
                         onKeyDown={(event) => {
-                            if (event.key === 'Escape') finishPaidOcrApproval('declined');
+                            if (event.key === 'Escape') {
+                                event.preventDefault();
+                                finishPaidOcrApproval('declined');
+                            }
                         }}
                         className="w-full max-w-lg rounded-3xl border border-amber-300 bg-white p-5 shadow-2xl sm:p-6"
                     >
@@ -6386,6 +6423,25 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <p className="rounded-2xl bg-amber-50 px-4 py-3 text-xs font-black text-amber-900">
                                 이 승인은 표시된 파일의 이번 요청 1회에만 적용됩니다. 다음 파일과 향후 작업은 자동 승인되지 않습니다.
                             </p>
+                            <label className="block rounded-2xl border border-slate-300 bg-white px-4 py-3" htmlFor="paid-ocr-admin-password">
+                                <span className="text-xs font-black text-slate-800">현재 관리자 접속 비밀번호 재확인</span>
+                                <input
+                                    id="paid-ocr-admin-password"
+                                    type="password"
+                                    value={paidOcrApprovalPassword}
+                                    onChange={(event) => setPaidOcrApprovalPassword(event.target.value)}
+                                    disabled={!paidOcrApprovalPrompt.canApprove}
+                                    autoFocus={paidOcrApprovalPrompt.canApprove}
+                                    autoComplete="off"
+                                    autoCapitalize="none"
+                                    spellCheck={false}
+                                    className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-3 text-base font-bold text-slate-950 outline-none transition focus:border-rose-500 focus:ring-2 focus:ring-rose-200 disabled:cursor-not-allowed disabled:bg-slate-100"
+                                    aria-describedby="paid-ocr-password-help"
+                                />
+                                <span id="paid-ocr-password-help" className="mt-2 block text-[11px] font-bold leading-5 text-slate-500">
+                                    입력값은 이번 승인 확인에만 사용되며 브라우저 저장소·URL·로그·분석 기록에 저장하지 않습니다. Enter로 승인하고 Esc로 취소할 수 있습니다.
+                                </span>
+                            </label>
                             {!paidOcrApprovalPrompt.canApprove && (
                                 <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-black text-rose-800">
                                     {paidOcrApprovalPrompt.unavailableReason || '현재 유료 OCR 연결 또는 일회용 승인 정보가 준비되지 않아 결제 실행을 승인할 수 없습니다. 파일을 보존한 뒤 관리자 설정을 확인해 주세요.'}
@@ -6396,22 +6452,20 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         <div className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
                             <button
                                 type="button"
-                                autoFocus
                                 onClick={() => finishPaidOcrApproval('declined')}
                                 className="min-h-[48px] rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-black text-slate-800 transition-colors hover:bg-slate-100"
                             >
                                 취소하고 파일 보존
                             </button>
                             <button
-                                type="button"
-                                disabled={!paidOcrApprovalPrompt.canApprove}
-                                onClick={() => finishPaidOcrApproval('approved')}
+                                type="submit"
+                                disabled={!canSubmitPaidOcrApproval}
                                 className="min-h-[48px] rounded-2xl bg-rose-600 px-4 py-3 text-sm font-black text-white shadow-lg transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-400"
                             >
                                 이 파일 1회 유료 실행 승인
                             </button>
                         </div>
-                    </div>
+                    </form>
                 </div>
             )}
             {isStartChecklistIncomplete && (

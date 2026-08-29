@@ -12,6 +12,8 @@ import gatewayHandler, {
     requiresPaidOcrApproval,
     resolveGeminiQuotaErrorCode,
     resolveOcrModelChainForBilling,
+    takeAndClearPaidOcrAdminPassword,
+    verifyPaidOcrAdminPassword,
     verifyPaidOcrApprovalToken,
 } from '../api/gateway';
 
@@ -44,6 +46,9 @@ const originalAdminApiAuthToken = process.env.ADMIN_API_AUTH_TOKEN;
 const originalFreeGeminiKey = process.env.GEMINI_API_KEY_FREE;
 const originalPaidGeminiKey = process.env.GEMINI_API_KEY_PAID;
 const originalOcrMinuteLimit = process.env.OCR_RETRY_MAX_PER_MINUTE;
+const originalAdminPassword = process.env.PSI_ADMIN_PASSWORD;
+const originalAdminSessionSecret = process.env.ADMIN_SESSION_SECRET;
+const originalPsiAdminSecret = process.env.PSI_ADMIN_SECRET;
 
 afterEach(() => {
     if (originalSecret === undefined) delete process.env.TRAINING_LINK_SECRET;
@@ -60,6 +65,12 @@ afterEach(() => {
     else process.env.GEMINI_API_KEY_PAID = originalPaidGeminiKey;
     if (originalOcrMinuteLimit === undefined) delete process.env.OCR_RETRY_MAX_PER_MINUTE;
     else process.env.OCR_RETRY_MAX_PER_MINUTE = originalOcrMinuteLimit;
+    if (originalAdminPassword === undefined) delete process.env.PSI_ADMIN_PASSWORD;
+    else process.env.PSI_ADMIN_PASSWORD = originalAdminPassword;
+    if (originalAdminSessionSecret === undefined) delete process.env.ADMIN_SESSION_SECRET;
+    else process.env.ADMIN_SESSION_SECRET = originalAdminSessionSecret;
+    if (originalPsiAdminSecret === undefined) delete process.env.PSI_ADMIN_SECRET;
+    else process.env.PSI_ADMIN_SECRET = originalPsiAdminSecret;
     vi.restoreAllMocks();
 });
 
@@ -97,6 +108,36 @@ describe('gateway public security boundaries', () => {
         expect(isExplicitPaidOcrApprovalRequest({ allowPaidOcr: true })).toBe(false);
     });
 
+    it('requires the current administrator password again for a paid approval retry', () => {
+        process.env.PSI_ADMIN_PASSWORD = 'current-admin-password';
+
+        expect(() => verifyPaidOcrAdminPassword(undefined)).toThrow(expect.objectContaining({
+            code: 'OCR_PAID_PASSWORD_REQUIRED',
+            statusCode: 403,
+        }));
+        expect(() => verifyPaidOcrAdminPassword('wrong-password')).toThrow(expect.objectContaining({
+            code: 'OCR_PAID_PASSWORD_INVALID',
+            statusCode: 403,
+        }));
+        expect(verifyPaidOcrAdminPassword('current-admin-password')).toBe(true);
+    });
+
+    it('clears the paid password safely from object and string request bodies', () => {
+        const objectBody: Record<string, unknown> = {
+            recordId: 'record-1',
+            paidOcrAdminPassword: 'sensitive-password',
+        };
+        const objectRequest = { body: objectBody };
+        expect(takeAndClearPaidOcrAdminPassword(objectRequest, objectBody)).toBe('sensitive-password');
+        expect(objectBody).not.toHaveProperty('paidOcrAdminPassword');
+
+        const stringRequest: { body?: string } = {
+            body: '{"paidOcrAdminPassword":"must-not-survive"}',
+        };
+        expect(() => takeAndClearPaidOcrAdminPassword(stringRequest, stringRequest.body)).not.toThrow();
+        expect(stringRequest.body).toBeUndefined();
+    });
+
     it('binds paid approval to the admin credential, record, image, expiry, and approved cost cap', () => {
         process.env.OCR_PAID_APPROVAL_SECRET = 'test-only-paid-approval-secret';
         const request = { headers: { 'x-admin-auth': 'admin-session-a' } };
@@ -127,6 +168,25 @@ describe('gateway public security boundaries', () => {
         })).toThrow(/비용 상한이 변경/);
     });
 
+    it('requires a dedicated paid-approval signing secret without administrator-key fallbacks', () => {
+        delete process.env.OCR_PAID_APPROVAL_SECRET;
+        process.env.ADMIN_SESSION_SECRET = 'must-not-sign-paid-approval';
+        process.env.ADMIN_API_AUTH_TOKEN = 'must-not-sign-paid-approval';
+        process.env.PSI_ADMIN_SECRET = 'must-not-sign-paid-approval';
+
+        expect(() => issuePaidOcrApprovalToken(
+            { headers: { 'x-admin-auth': 'admin-session-a' } },
+            {
+                recordId: 'record-dedicated-signing-secret',
+                imageSource: 'data:image/png;base64,dedicated-secret',
+                maxCostUsd: 0.05,
+            },
+        )).toThrow(expect.objectContaining({
+            code: 'OCR_PAID_APPROVAL_UNAVAILABLE',
+            statusCode: 503,
+        }));
+    });
+
     it('consumes each paid approval once through the durable quota gate', async () => {
         process.env.OCR_PAID_APPROVAL_SECRET = 'test-only-paid-approval-secret';
         const request = { headers: { 'x-admin-auth': 'admin-session-a' } };
@@ -142,8 +202,12 @@ describe('gateway public security boundaries', () => {
             error: null,
         });
 
-        await expect(consumePaidOcrApprovalOnce({ rpc }, payload)).resolves.toBe('database');
-        await expect(consumePaidOcrApprovalOnce({ rpc }, payload)).rejects.toMatchObject({
+        await expect(consumePaidOcrApprovalOnce({ rpc }, payload, {
+            adminPasswordReverified: true,
+        })).resolves.toBe('database');
+        await expect(consumePaidOcrApprovalOnce({ rpc }, payload, {
+            adminPasswordReverified: true,
+        })).rejects.toMatchObject({
             code: 'OCR_PAID_APPROVAL_ALREADY_USED',
             statusCode: 409,
         });
@@ -166,10 +230,33 @@ describe('gateway public security boundaries', () => {
         const payload = verifyPaidOcrApprovalToken(request, issued.token, context);
         const rpc = vi.fn().mockRejectedValue(Object.assign(new Error('database offline'), { code: 'NETWORK_DOWN' }));
 
-        await expect(consumePaidOcrApprovalOnce({ rpc }, payload)).rejects.toMatchObject({
+        await expect(consumePaidOcrApprovalOnce({ rpc }, payload, {
+            adminPasswordReverified: true,
+        })).rejects.toMatchObject({
             code: 'SECURITY_QUOTA_UNAVAILABLE',
             statusCode: 503,
         });
+    });
+
+    it('does not consume an approval unless password re-verification already succeeded', async () => {
+        process.env.OCR_PAID_APPROVAL_SECRET = 'test-only-paid-approval-secret';
+        const request = { headers: { 'x-admin-auth': 'admin-session-a' } };
+        const context = {
+            recordId: 'record-password-gate',
+            imageSource: 'data:image/png;base64,approval-image-password-gate',
+            maxCostUsd: 0.05,
+        };
+        const issued = issuePaidOcrApprovalToken(request, context);
+        const payload = verifyPaidOcrApprovalToken(request, issued.token, context);
+        const rpc = vi.fn();
+
+        await expect(consumePaidOcrApprovalOnce({ rpc }, payload, {
+            adminPasswordReverified: false,
+        })).rejects.toMatchObject({
+            code: 'OCR_PAID_PASSWORD_REQUIRED',
+            statusCode: 403,
+        });
+        expect(rpc).not.toHaveBeenCalled();
     });
 
     it('returns a bounded approval challenge when and only when the free provider returns 429', async () => {
@@ -209,6 +296,131 @@ describe('gateway public security boundaries', () => {
         expect(res.read().headers['Cache-Control']).toBe('no-store');
         expect(fetchMock).toHaveBeenCalledTimes(1);
         expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({ 'x-goog-api-key': 'test-free-key' });
+    });
+
+    it('blocks an approved paid retry with a wrong administrator password before any paid API call', async () => {
+        process.env.ADMIN_API_AUTH_TOKEN = 'test-admin-auth';
+        process.env.PSI_ADMIN_PASSWORD = 'correct-admin-password';
+        process.env.OCR_PAID_APPROVAL_SECRET = 'test-only-paid-approval-secret';
+        process.env.GEMINI_API_KEY_FREE = 'test-free-key';
+        process.env.GEMINI_API_KEY_PAID = 'test-paid-key';
+        const imageSource = `data:image/png;base64,${Buffer.concat([
+            Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+            Buffer.alloc(120),
+        ]).toString('base64')}`;
+        const requestHeaders = { 'x-admin-auth': 'test-admin-auth', 'x-forwarded-for': '198.51.100.44' };
+        const approval = issuePaidOcrApprovalToken(
+            { headers: requestHeaders },
+            { recordId: 'record-wrong-password', imageSource, maxCostUsd: 0.05 },
+        );
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+            JSON.stringify({ error: { status: 'RESOURCE_EXHAUSTED', message: 'quota exceeded' } }),
+            { status: 429 },
+        ));
+        const res = createResponse();
+        const requestBody: Record<string, unknown> = {
+            recordId: 'record-wrong-password',
+            imageSource,
+            allowPaidOcr: true,
+            paidApprovalToken: approval.token,
+            paidOcrAdminPassword: 'wrong-admin-password',
+        };
+
+        await gatewayHandler({
+            method: 'POST',
+            headers: requestHeaders,
+            query: { action: 'ocr.retry' },
+            body: requestBody,
+        }, res.response);
+
+        expect(res.read().statusCode).toBe(403);
+        expect(res.read().body.code).toBe('OCR_PAID_PASSWORD_INVALID');
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({ 'x-goog-api-key': 'test-free-key' });
+        expect(requestBody).not.toHaveProperty('paidOcrAdminPassword');
+    });
+
+    it('parses a raw JSON request and removes its paid password before upstream OCR', async () => {
+        process.env.ADMIN_API_AUTH_TOKEN = 'test-admin-auth';
+        process.env.PSI_ADMIN_PASSWORD = 'correct-admin-password';
+        process.env.OCR_PAID_APPROVAL_SECRET = 'test-only-paid-approval-secret';
+        process.env.GEMINI_API_KEY_FREE = 'test-free-key';
+        process.env.GEMINI_API_KEY_PAID = 'test-paid-key';
+        const imageSource = `data:image/png;base64,${Buffer.concat([
+            Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+            Buffer.alloc(120),
+        ]).toString('base64')}`;
+        const requestHeaders = { 'x-admin-auth': 'test-admin-auth', 'x-forwarded-for': '198.51.100.46' };
+        const approval = issuePaidOcrApprovalToken(
+            { headers: requestHeaders },
+            { recordId: 'record-raw-string-password', imageSource, maxCostUsd: 0.05 },
+        );
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+            JSON.stringify({ error: { status: 'RESOURCE_EXHAUSTED', message: 'quota exceeded' } }),
+            { status: 429 },
+        ));
+        const request: { method: string; headers: Record<string, string>; query: Record<string, string>; body?: string } = {
+            method: 'POST',
+            headers: requestHeaders,
+            query: { action: 'ocr.retry' },
+            body: JSON.stringify({
+                recordId: 'record-raw-string-password',
+                imageSource,
+                allowPaidOcr: true,
+                paidApprovalToken: approval.token,
+                paidOcrAdminPassword: 'wrong-admin-password',
+            }),
+        };
+        const res = createResponse();
+
+        await gatewayHandler(request, res.response);
+
+        expect(res.read().statusCode).toBe(403);
+        expect(res.read().body.code).toBe('OCR_PAID_PASSWORD_INVALID');
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(request.body).toBeUndefined();
+    });
+
+    it('blocks an approved paid retry before the paid API when atomic nonce storage is unavailable', async () => {
+        process.env.ADMIN_API_AUTH_TOKEN = 'test-admin-auth';
+        process.env.PSI_ADMIN_PASSWORD = 'correct-admin-password';
+        process.env.OCR_PAID_APPROVAL_SECRET = 'test-only-paid-approval-secret';
+        process.env.GEMINI_API_KEY_FREE = 'test-free-key';
+        process.env.GEMINI_API_KEY_PAID = 'test-paid-key';
+        const imageSource = `data:image/png;base64,${Buffer.concat([
+            Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+            Buffer.alloc(120),
+        ]).toString('base64')}`;
+        const requestHeaders = { 'x-admin-auth': 'test-admin-auth', 'x-forwarded-for': '198.51.100.45' };
+        const approval = issuePaidOcrApprovalToken(
+            { headers: requestHeaders },
+            { recordId: 'record-no-atomic-store', imageSource, maxCostUsd: 0.05 },
+        );
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+            JSON.stringify({ error: { status: 'RESOURCE_EXHAUSTED', message: 'quota exceeded' } }),
+            { status: 429 },
+        ));
+        const res = createResponse();
+        const requestBody: Record<string, unknown> = {
+            recordId: 'record-no-atomic-store',
+            imageSource,
+            allowPaidOcr: true,
+            paidApprovalToken: approval.token,
+            paidOcrAdminPassword: 'correct-admin-password',
+        };
+
+        await gatewayHandler({
+            method: 'POST',
+            headers: requestHeaders,
+            query: { action: 'ocr.retry' },
+            body: requestBody,
+        }, res.response);
+
+        expect(res.read().statusCode).toBe(503);
+        expect(res.read().body.code).toBe('SECURITY_QUOTA_UNAVAILABLE');
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({ 'x-goog-api-key': 'test-free-key' });
+        expect(requestBody).not.toHaveProperty('paidOcrAdminPassword');
     });
 
     it('never opens paid approval for a free-key authentication failure', async () => {
