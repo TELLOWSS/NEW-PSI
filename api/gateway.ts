@@ -355,7 +355,9 @@ type UpsertRequestBody = {
 };
 
 function getSupabaseClient() {
-    return createSupabaseServerClient({ errorMessage: 'Supabase 환경변수 누락' });
+    return createSupabaseServerClient({
+        errorMessage: 'Supabase 서버 환경변수가 누락되었습니다. SUPABASE_SERVICE_ROLE_KEY를 확인해 주세요.',
+    });
 }
 
 const resolveGeminiApiKey = () => {

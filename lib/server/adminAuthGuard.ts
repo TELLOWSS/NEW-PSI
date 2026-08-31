@@ -21,8 +21,8 @@ const getSessionSecret = (): string => {
 
 const getLoginPassword = (): string => {
     return (
-        readSecret('PSI_ADMIN_PASSWORD') ||
-        readSecret('ADMIN_LOGIN_PASSWORD')
+        readSecret('ADMIN_LOGIN_PASSWORD') ||
+        readSecret('PSI_ADMIN_PASSWORD')
     );
 };
 

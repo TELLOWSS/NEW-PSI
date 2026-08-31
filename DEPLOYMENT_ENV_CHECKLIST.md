@@ -1,4 +1,4 @@
-# PSI 배포 환경변수 체크리스트 (2026-03-14)
+# PSI 배포 환경변수 체크리스트 (2026-08-31)
 
 이 문서는 현재 코드 기준으로 실제 참조되는 환경변수만 정리합니다.
 
@@ -74,6 +74,15 @@
   - 용도: 근로자 서명 링크 HMAC 서명/검증(권장: 독립 비밀키)
   - 참조: `lib/server/trainingLinkToken.ts`
 
+## 1-1) 유료 OCR 승인 저장소 (필수)
+
+- 적용 파일: `supabase/migrations/20260831000000_paid_ocr_security_gate.sql`
+- 필수 객체: `api_security_events`, `api_usage_events`, `psi_consume_api_quota(...)`
+- 권한 기준: 두 테이블은 RLS 활성화, RPC는 `service_role`만 실행 가능, `anon`/`authenticated` 실행 불가
+- 원자성 기준: 같은 승인 해시와 `max_requests=1`로 두 번 호출하면 첫 호출만 `allowed=true`, 두 번째는 `allowed=false`
+- 배포 원칙: 마이그레이션 적용과 권한/원자성 검증이 끝나기 전에는 유료 OCR을 활성화하지 않음. 앱은 저장소가 없거나 권한이 틀리면 유료 호출 전에 503으로 안전 차단해야 함
+- 주의: 루트의 `supabase_api_security_migration.sql` 전체는 다른 PSI 테이블 의존 구간을 포함합니다. 신규/복구 프로젝트의 유료 OCR 게이트에는 위 정식 migration 파일을 우선 적용합니다.
+
 ## 2) 권장 (운영 안정화)
 
 - `NEXT_PUBLIC_APP_BASE_URL`
@@ -130,14 +139,18 @@ VERCEL_TOKEN=xxxx
 
 ## 5) 배포 전 점검 순서
 
-1. 환경변수 입력 후 `npm run build` 성공 확인
-2. `api/*` 함수 구성이 `admin 10 + gateway 1` 이내로 유지되는지 확인
-3. `vercel build` 또는 CI preflight가 인증 오류 없이 완료되는지 확인
-4. 관리자 화면에서 다국어 링크 생성 확인
-5. 생성된 링크로 근로자 페이지 접속 확인 (`exp`, `sig` 포함)
-6. 만료 링크 차단 동작 확인
-7. 관리자 `링크 재발급` 후 재접속 확인
-8. 동일 이름 재서명(중복 제출) 차단 확인
+1. Supabase 프로젝트가 실행 중이며 프로젝트 URL이 DNS/HTTPS에서 응답하는지 확인
+2. `supabase/migrations/20260831000000_paid_ocr_security_gate.sql` 적용 후 RLS·RPC 권한·1회 소비 원자성 확인
+3. Production에 `SUPABASE_SERVICE_ROLE_KEY`가 설정되고 서버 헬스가 `keyMode=service_role`, `tablesReady=true`인지 확인
+4. 환경변수 입력 후 `npm run build` 성공 확인
+5. `api/*` 함수 구성이 `admin 10 + gateway 1` 이내로 유지되는지 확인
+6. `vercel build` 또는 CI preflight가 인증 오류 없이 완료되는지 확인
+7. 무료 OCR 실문서 1건이 `X-PSI-Quota-Mode: database`, `billingTier=free`, `paidCalls=0`으로 성공하는지 확인
+8. 관리자 화면에서 다국어 링크 생성 확인
+9. 생성된 링크로 근로자 페이지 접속 확인 (`exp`, `sig` 포함)
+10. 만료 링크 차단 동작 확인
+11. 관리자 `링크 재발급` 후 재접속 확인
+12. 동일 이름 재서명(중복 제출) 차단 확인
 
 ## 5-1) 현재 함수 인벤토리 기준선
 

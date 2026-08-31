@@ -14,6 +14,7 @@ describe('adminAuthGuard', () => {
     beforeEach(() => {
         process.env.ADMIN_SESSION_SECRET = 'test-session-secret-with-enough-entropy';
         process.env.ADMIN_LOGIN_PASSWORD = 'test-admin-password';
+        delete process.env.PSI_ADMIN_PASSWORD;
         delete process.env.ADMIN_API_AUTH_TOKEN;
     });
 
@@ -37,6 +38,14 @@ describe('adminAuthGuard', () => {
         const cookie = buildAdminSessionCookie(token, true).split(';')[0];
         expect(isValidAdminAuthRequest({ headers: { cookie } })).toBe(true);
         expect(isValidAdminAuthRequest({ headers: { cookie: `${cookie}tampered` } })).toBe(false);
+    });
+
+    it('prefers ADMIN_LOGIN_PASSWORD when both password variables are configured', () => {
+        process.env.ADMIN_LOGIN_PASSWORD = 'recommended-admin-password';
+        process.env.PSI_ADMIN_PASSWORD = 'fallback-admin-password';
+
+        expect(verifyAdminLoginPassword('recommended-admin-password')).toBe(true);
+        expect(verifyAdminLoginPassword('fallback-admin-password')).toBe(false);
     });
 
     it('never allows bypass flags in production', () => {

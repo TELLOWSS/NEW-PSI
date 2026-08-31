@@ -8,7 +8,7 @@ const ALLOWED_STATUS = new Set<PlanStatus>(['not-started', 'in-progress', 'compl
 
 function getSupabaseClient() {
     return createSupabaseServerClient({
-        errorMessage: 'Supabase 환경변수가 누락되었습니다. SUPABASE_SERVICE_ROLE_KEY 또는 VITE_SUPABASE_ANON_KEY를 확인해 주세요.',
+        errorMessage: 'Supabase 서버 환경변수가 누락되었습니다. SUPABASE_SERVICE_ROLE_KEY를 확인해 주세요.',
     });
 }
 

@@ -112,7 +112,7 @@ LLM 토큰 비용과 페이지형 전문 OCR 비용은 과금 단위가 달라 �
 
 ## 5. 운영 권장 설정
 
-- 필수 서버 변수: `GEMINI_API_KEY_FREE` (`GEMINI_API_KEY`는 무료 키 호환용)
+- 필수 서버 변수: `GEMINI_API_KEY_FREE` (무료 OCR 전용 키이며 필수. generic `GEMINI_API_KEY`는 무료 OCR 호환·폴백 키가 아니며 다른 레거시 서버 기능에서만 사용)
 - 승인 실행 서버 변수: `GEMINI_API_KEY_PAID`, `OCR_PAID_APPROVAL_SECRET`
 - 선택 변수: `OCR_MAX_USD_PER_DOCUMENT=0.05`
 - 예외 검증용: `OCR_ALLOW_PREVIEW_PRO=false`
