@@ -1,4 +1,6 @@
 import type { WorkerRecord } from '../types';
+import { isMonthlyArchiveManifest, type MonthlyArchiveManifest } from './monthlyArchive';
+import { sha256Hex } from './evidenceUtils';
 
 export type StreamingBackupRecoveryProgress = {
     bytesRead: number;
@@ -10,6 +12,8 @@ export type StreamingBackupRecoveryResult = {
     records: WorkerRecord[];
     recoveredRecords: number;
     removedImageCharacters: number;
+    monthlyArchive?: MonthlyArchiveManifest;
+    contentRootHash?: string;
 };
 
 const stripHeavyImageEvidence = (record: Record<string, unknown>) => {
@@ -45,6 +49,8 @@ export const recoverBackupRecordsWithoutImages = async (
     let objectDepth = 0;
     let inString = false;
     let escaped = false;
+    let monthlyArchive: MonthlyArchiveManifest | undefined;
+    const archiveHashEntries: string[] = [];
 
     const emitProgress = () => options.onProgress?.({
         bytesRead,
@@ -52,14 +58,31 @@ export const recoverBackupRecordsWithoutImages = async (
         recoveredRecords: records.length,
     });
 
-    const processText = (text: string) => {
+    const processText = async (text: string) => {
         let cursor = 0;
         if (!recordsArrayStarted) {
             prefixBuffer += text;
             const recordsMatch = /"records"\s*:\s*\[/.exec(prefixBuffer);
             if (!recordsMatch) {
-                prefixBuffer = prefixBuffer.slice(-64);
+                if (prefixBuffer.length > 1024 * 1024) {
+                    throw new Error('백업 헤더가 안전 한도를 초과했습니다. records 배열 위치를 확인해 주세요.');
+                }
                 return;
+            }
+            const header = prefixBuffer.slice(0, recordsMatch.index).replace(/[\s,]+$/, '');
+            let parsedHeader: { monthlyArchive?: unknown } | undefined;
+            try {
+                parsedHeader = JSON.parse(`${header}\n}`) as { monthlyArchive?: unknown };
+            } catch {
+                if (header.includes('"monthlyArchive"')) {
+                    throw new Error('월 마감 manifest 헤더가 손상되어 복원을 중단했습니다.');
+                }
+            }
+            if (parsedHeader?.monthlyArchive !== undefined) {
+                if (!isMonthlyArchiveManifest(parsedHeader.monthlyArchive)) {
+                    throw new Error('월 마감 manifest 형식이 손상되어 복원을 중단했습니다.');
+                }
+                monthlyArchive = parsedHeader.monthlyArchive;
             }
             recordsArrayStarted = true;
             cursor = recordsMatch.index + recordsMatch[0].length;
@@ -102,6 +125,10 @@ export const recoverBackupRecordsWithoutImages = async (
                 objectDepth -= 1;
                 if (objectDepth === 0) {
                     const parsed = JSON.parse(objectBuffer) as Record<string, unknown>;
+                    if (monthlyArchive) {
+                        const recordId = String(parsed.id || '');
+                        archiveHashEntries.push(`${recordId}:${await sha256Hex(JSON.stringify(parsed))}`);
+                    }
                     const stripped = stripHeavyImageEvidence(parsed);
                     records.push(stripped.record);
                     removedImageCharacters += stripped.removedImageCharacters;
@@ -116,11 +143,11 @@ export const recoverBackupRecordsWithoutImages = async (
         const { value, done } = await reader.read();
         if (done) break;
         bytesRead += value.byteLength;
-        processText(decoder.decode(value, { stream: true }));
+        await processText(decoder.decode(value, { stream: true }));
         emitProgress();
     }
 
-    processText(decoder.decode());
+    await processText(decoder.decode());
     emitProgress();
 
     if (!recordsArrayStarted) {
@@ -134,5 +161,9 @@ export const recoverBackupRecordsWithoutImages = async (
         records,
         recoveredRecords: records.length,
         removedImageCharacters,
+        monthlyArchive,
+        ...(monthlyArchive
+            ? { contentRootHash: await sha256Hex(archiveHashEntries.sort().join('\n')) }
+            : {}),
     };
 };

@@ -33,13 +33,21 @@ const isMissingQuotaMigration = (error: any): boolean => {
 };
 
 export const resolveRequestFingerprint = (req: any): string => {
+    const vercelForwarded = String(req?.headers?.['x-vercel-forwarded-for'] || '').split(',')[0].trim();
+    const realIp = String(req?.headers?.['x-real-ip'] || '').split(',')[0].trim();
     const forwarded = String(req?.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
-    const address = forwarded
-        || String(req?.headers?.['x-real-ip'] || '').trim()
+    const address = vercelForwarded
+        || realIp
+        || forwarded
         || String(req?.socket?.remoteAddress || '').trim()
         || 'unknown';
-    const userAgent = String(req?.headers?.['user-agent'] || '').slice(0, 240);
-    return createHash('sha256').update(`${address}|${userAgent}`).digest('hex');
+    // User-Agent is attacker-controlled and must not create a fresh login quota
+    // bucket. Salt the platform-provided address so the stored value is neither
+    // plain IP data nor trivially reusable across PSI installations.
+    const salt = process.env.PSI_SECURITY_FINGERPRINT_SALT
+        || process.env.ADMIN_SESSION_SECRET
+        || 'psi-request-fingerprint-v1';
+    return createHash('sha256').update(`${salt}|${address.slice(0, 160)}`).digest('hex');
 };
 
 const consumeMemoryQuota = (

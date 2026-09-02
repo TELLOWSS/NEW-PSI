@@ -50,7 +50,6 @@ type GatewayAction =
     | 'harness.reanalyze'
     | 'harness.workflow-status';
 
-const EMBEDDING_MODEL = 'text-embedding-004';
 const OCR_RETRY_TIMEOUT_MS = 25_000;
 // Vercel Functions 요청 본문은 4.5MB 제한이며 base64는 원본보다 약 33% 커진다.
 const OCR_RETRY_MAX_IMAGE_BYTES = 3 * 1024 * 1024;
@@ -343,30 +342,11 @@ type PaidOcrApprovalPayload = {
     maxPaidGenerateCalls: 1;
 };
 
-type UpsertRequestBody = {
-    sourceRecordId?: string;
-    safetyScore?: number;
-    koreanText?: string;
-    originalLanguage?: string;
-    actionableCoaching?: string;
-    jobField?: string;
-    nationality?: string;
-    approvedAt?: string;
-};
-
 function getSupabaseClient() {
     return createSupabaseServerClient({
         errorMessage: 'Supabase 서버 환경변수가 누락되었습니다. SUPABASE_SERVICE_ROLE_KEY를 확인해 주세요.',
     });
 }
-
-const resolveGeminiApiKey = () => {
-    return (
-        process.env.GEMINI_API_KEY ||
-        process.env.GOOGLE_GEMINI_API_KEY ||
-        ''
-    ).trim();
-};
 
 const resolveFreeGeminiApiKey = () => {
     return (
@@ -2430,97 +2410,14 @@ async function handleOcrRetry(req: any, res: any) {
     });
 }
 
-const toVectorLiteral = (values: number[]): string => {
-    return `[${values.map((value) => Number(value).toFixed(8)).join(',')}]`;
-};
-
-const requestEmbedding = async (apiKey: string, text: string): Promise<number[]> => {
-    const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:embedContent`,
-        {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': apiKey,
-            },
-            body: JSON.stringify({
-                content: { parts: [{ text }] },
-                taskType: 'SEMANTIC_SIMILARITY',
-            }),
-        }
-    );
-
-    if (!response.ok) {
-        const detail = await response.text().catch(() => '');
-        throw new Error(`Embedding API 실패 (${response.status}): ${detail.slice(0, 300)}`);
-    }
-
-    const payload = await response.json();
-    const values = payload?.embedding?.values;
-
-    if (!Array.isArray(values) || values.length === 0) {
-        throw new Error('Embedding 응답 파싱 실패');
-    }
-
-    return values.map((item: unknown) => Number(item)).filter((item: number) => Number.isFinite(item));
-};
-
 async function handleOcrUpsertBestPractice(req: any, res: any) {
+    // Retired compatibility endpoint: old tabs may still submit complete OCR
+    // text. Discard it before authentication/logging; never embed or persist it.
+    req.body = undefined;
     if (!isValidAdminAuthRequest(req)) {
         return sendUnauthorizedAdminResponse(res);
     }
-
-    const body = (req.body || {}) as UpsertRequestBody;
-
-    const sourceRecordId = String(body.sourceRecordId || '').trim();
-    const safetyScore = Number(body.safetyScore || 0);
-    const koreanText = String(body.koreanText || '').trim();
-
-    if (!sourceRecordId) {
-        return res.status(400).json({ ok: false, message: 'sourceRecordId가 필요합니다.' });
-    }
-
-    if (!Number.isFinite(safetyScore) || safetyScore < 80) {
-        return res.status(200).json({ ok: true, skipped: true, reason: 'score_below_threshold' });
-    }
-
-    if (koreanText.length < 20) {
-        return res.status(200).json({ ok: true, skipped: true, reason: 'text_too_short' });
-    }
-
-    const apiKey = resolveGeminiApiKey();
-    if (!apiKey) {
-        return res.status(200).json({ ok: true, skipped: true, reason: 'missing_gemini_key' });
-    }
-
-    const embedding = await requestEmbedding(apiKey, koreanText);
-    if (embedding.length === 0) {
-        return res.status(200).json({ ok: true, skipped: true, reason: 'embedding_empty' });
-    }
-
-    const supabase = getSupabaseClient();
-
-    const payload = {
-        source_record_id: sourceRecordId,
-        safety_score: Math.round(Math.max(0, Math.min(100, safetyScore))),
-        original_language: String(body.originalLanguage || 'ko').trim() || 'ko',
-        ko_text: koreanText,
-        actionable_coaching: String(body.actionableCoaching || '').trim() || null,
-        job_field: String(body.jobField || '').trim() || null,
-        nationality: String(body.nationality || '').trim() || null,
-        approved_at: String(body.approvedAt || '').trim() || new Date().toISOString(),
-        embedding: toVectorLiteral(embedding),
-    };
-
-    const { error } = await supabase
-        .from('risk_best_practice_vectors')
-        .upsert(payload, { onConflict: 'source_record_id' });
-
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    return res.status(200).json({ ok: true, sourceRecordId, stored: true });
+    return res.status(200).json({ ok: true, skipped: true, reason: 'local-first-storage-policy' });
 }
 
 const resolveAction = (req: any): GatewayAction | '' => {
@@ -2586,7 +2483,8 @@ export default async function handler(req: any, res: any) {
         const statusCode = Number.isInteger(requestedStatus) && requestedStatus >= 400 && requestedStatus < 600
             ? requestedStatus
             : 500;
-        console.error('[gateway] request failed', {
+        const logFailure = statusCode >= 500 ? console.error : console.warn;
+        logFailure('[gateway] request failed', {
             action,
             statusCode,
             code: String(err?.code || 'UNEXPECTED_GATEWAY_ERROR').slice(0, 80),

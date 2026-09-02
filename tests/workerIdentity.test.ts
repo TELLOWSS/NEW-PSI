@@ -5,22 +5,26 @@ import {
     applyWorkerUuidPolicy,
     buildNameBasedWorkerUuid,
     buildWorkerTimelineGroups,
-    getWorkerMatchScore,
     getWorkerIdentityKey,
+    getWorkerMatchScore,
     hasAmbiguousStableWorkerMatches,
+    hasMonthlyJobFieldMismatch,
+    isPotentialSameWorkerManualReviewTarget,
     isSameWorkerTimeline,
     mergeWorkerRegistrationRecords,
-    isPotentialSameWorkerManualReviewTarget,
-    hasMonthlyJobFieldMismatch,
 } from '../utils/workerIdentity';
 
 const baseRecord = (patch: Partial<WorkerRecord>): WorkerRecord => ({
     id: patch.id ?? 'r-1',
-    name: patch.name ?? '홍길동',
-    employeeId: patch.employeeId,
-    qrId: patch.qrId,
+    portableWorkerId: patch.portableWorkerId,
     worker_uuid: patch.worker_uuid,
     workerUuid: patch.workerUuid,
+    name: patch.name ?? '홍길동',
+    employeeId: patch.employeeId,
+    employeeIdGenerated: patch.employeeIdGenerated,
+    employeeIdScope: patch.employeeIdScope,
+    qrId: patch.qrId,
+    qrIdGenerated: patch.qrIdGenerated,
     jobField: patch.jobField ?? '형틀',
     teamLeader: patch.teamLeader ?? '김팀장',
     nationality: patch.nationality ?? '대한민국',
@@ -42,7 +46,7 @@ const baseRecord = (patch: Partial<WorkerRecord>): WorkerRecord => ({
     koreanTranslation: patch.koreanTranslation || '',
     language: patch.language || 'ko',
     ocrConfidence: patch.ocrConfidence ?? 1,
-    matchMethod: patch.matchMethod || 'unmatched',
+    matchMethod: patch.matchMethod ?? 'unmatched',
     integrityScore: patch.integrityScore ?? 100,
     originalImage: patch.originalImage,
     profileImage: patch.profileImage,
@@ -50,7 +54,10 @@ const baseRecord = (patch: Partial<WorkerRecord>): WorkerRecord => ({
 });
 
 describe('worker identity policy', () => {
-    it('preserves either input UUID alias instead of replacing it with a name-based UUID', () => {
+    it('normalizes one existing portable or worker UUID across every alias', () => {
+        const portable = applyWorkerUuidPolicy(baseRecord({
+            portableWorkerId: 'WP-PORTABLE-001',
+        }));
         const snakeCase = applyWorkerUuidPolicy(baseRecord({
             worker_uuid: 'server-worker-001',
         }));
@@ -58,41 +65,180 @@ describe('worker identity policy', () => {
             workerUuid: 'server-worker-002',
         }));
 
-        expect(snakeCase.worker_uuid).toBe('server-worker-001');
+        expect(portable.portableWorkerId).toBe('WP-PORTABLE-001');
+        expect(portable.worker_uuid).toBe('WP-PORTABLE-001');
+        expect(portable.workerUuid).toBe('WP-PORTABLE-001');
+        expect(snakeCase.portableWorkerId).toBe('server-worker-001');
         expect(snakeCase.workerUuid).toBe('server-worker-001');
+        expect(camelCase.portableWorkerId).toBe('server-worker-002');
         expect(camelCase.worker_uuid).toBe('server-worker-002');
-        expect(camelCase.workerUuid).toBe('server-worker-002');
-        expect(snakeCase.worker_uuid).not.toBe(buildNameBasedWorkerUuid(snakeCase));
-        expect(camelCase.workerUuid).not.toBe(buildNameBasedWorkerUuid(camelCase));
     });
 
-    it('uses job field, Korean-managed name, and nationality before volatile codes', () => {
-        const january = baseRecord({
-            id: 'jan',
-            name: '응우옌반안',
-            jobField: '형틀',
-            nationality: '베트남',
+    it('keeps an existing portable ID ahead of inherited and credential identities', () => {
+        const resolved = applyWorkerUuidPolicy(baseRecord({
+            portableWorkerId: 'WP-CURRENT',
+            qrId: 'QR-VERIFIED-001',
             employeeId: 'EMP-2026-AAAA',
-            date: '2026-01-10',
-        });
-        const february = baseRecord({
-            id: 'feb',
-            name: '응우옌반안',
-            jobField: '형틀',
-            nationality: '베트남',
-            employeeId: 'EMP-2026-BBBB',
-            date: '2026-02-10',
-        });
+            matchMethod: 'qr',
+        }), 'WP-INHERITED');
 
-        expect(getWorkerIdentityKey(january)).toBe(getWorkerIdentityKey(february));
-        expect(buildNameBasedWorkerUuid(january)).toBe(buildNameBasedWorkerUuid(february));
-        expect(isSameWorkerTimeline(january, february)).toBe(true);
+        expect(resolved.portableWorkerId).toBe('WP-CURRENT');
+        expect(resolved.worker_uuid).toBe('WP-CURRENT');
+        expect(resolved.workerUuid).toBe('WP-CURRENT');
     });
 
-    it('keeps real same-name records separate when their stable UUIDs differ', () => {
+    it('inherits a stable portable ID before issuing one from a verified credential', () => {
+        const resolved = applyWorkerUuidPolicy(baseRecord({
+            qrId: 'QR-VERIFIED-001',
+            matchMethod: 'qr',
+        }), 'WP-INHERITED');
+
+        expect(resolved.portableWorkerId).toBe('WP-INHERITED');
+        expect(resolved.worker_uuid).toBe('WP-INHERITED');
+        expect(resolved.workerUuid).toBe('WP-INHERITED');
+    });
+
+    it('uses a verified QR as an exact match without exposing it in a newly issued portable ID', () => {
+        const first = baseRecord({
+            id: 'qr-a',
+            name: '근로자A',
+            qrId: 'QR-PORTABLE-0001',
+            matchMethod: 'qr',
+        });
+        const second = baseRecord({
+            id: 'qr-b',
+            name: '근로자B',
+            qrId: 'QR-PORTABLE-0001',
+            matchMethod: 'qr',
+        });
+        const assigned = applyWorkerUuidPolicy(first);
+
+        expect(getWorkerIdentityKey(first)).toBe(getWorkerIdentityKey(second));
+        expect(getWorkerMatchScore(first, second)).toBe(140);
+        expect(isSameWorkerTimeline(first, second)).toBe(true);
+        expect(assigned.portableWorkerId).toMatch(/^WP-[A-F0-9]{32}$/);
+        expect(assigned.portableWorkerId).not.toContain('QR-PORTABLE-0001');
+    });
+
+    it('uses a confirmed employee ID only after the verified-QR path', () => {
+        const employeeA = baseRecord({
+            id: 'employee-a',
+            name: '근로자A',
+            employeeId: 'EMP-2026-AAAA',
+            matchMethod: 'employeeId',
+            employeeIdScope: 'company-a/site-a',
+        });
+        const employeeB = baseRecord({
+            id: 'employee-b',
+            name: '근로자B',
+            employeeId: 'EMP-2026-AAAA',
+            matchMethod: 'employeeId',
+            employeeIdScope: 'company-a/site-a',
+        });
+        const qrPreferred = baseRecord({
+            id: 'qr-preferred',
+            employeeId: 'EMP-2026-AAAA',
+            qrId: 'QR-PORTABLE-0002',
+            matchMethod: 'qr',
+        });
+
+        expect(getWorkerIdentityKey(employeeA)).toBe('employee:COMPANY-A/SITE-A:EMP-2026-AAAA');
+        expect(getWorkerMatchScore(employeeA, employeeB)).toBe(120);
+        expect(isSameWorkerTimeline(employeeA, employeeB)).toBe(true);
+        expect(getWorkerIdentityKey(qrPreferred)).toBe('qr:QR-PORTABLE-0002');
+    });
+
+    it('never treats unscoped or different-company employee IDs as exact identities', () => {
+        const unscoped = baseRecord({ id: 'employee-unscoped', employeeId: 'EMP-2026-AAAA', matchMethod: 'employeeId' });
+        const scopedA = baseRecord({ ...unscoped, id: 'employee-a', employeeIdScope: 'company-a/site-a' });
+        const scopedB = baseRecord({ ...unscoped, id: 'employee-b', employeeIdScope: 'company-b/site-a' });
+
+        expect(getWorkerIdentityKey(unscoped)).toBe('record:EMPLOYEE-UNSCOPED');
+        expect(isSameWorkerTimeline(unscoped, scopedA)).toBe(false);
+        expect(isSameWorkerTimeline(scopedA, scopedB)).toBe(false);
+    });
+
+    it('ignores legacy generated employee and grade-bearing QR credentials', () => {
+        const generated = baseRecord({
+            id: 'generated-a', employeeId: 'EMP-2026-FCXWABCD', qrId: 'QR-FCXWABCD-B',
+            employeeIdScope: 'company-a/site-a', matchMethod: 'qr',
+        });
+        const duplicate = baseRecord({ ...generated, id: 'generated-b' });
+
+        expect(isSameWorkerTimeline(generated, duplicate)).toBe(false);
+        expect(isSameWorkerTimeline({ ...generated, matchMethod: 'employeeId' }, { ...duplicate, matchMethod: 'employeeId' })).toBe(false);
+    });
+
+    it('does not trust legacy WU identifiers that directly embed a management number or QR', () => {
+        for (const worker_uuid of ['WU-EMP-2026-FCXWABCD', 'WU-QR-FCXWABCD-B']) {
+            const first = baseRecord({ id: 'legacy-a', worker_uuid });
+            const second = baseRecord({ id: 'legacy-b', worker_uuid });
+            expect(isSameWorkerTimeline(first, second)).toBe(false);
+            expect(applyWorkerUuidPolicy(first).portableWorkerId).toMatch(/^WP-[A-F0-9]{32}$/);
+        }
+    });
+
+    it('never derives an exact worker ID from name, nationality, job, or old WN identifiers', () => {
+        const first = baseRecord({
+            id: 'legacy-a',
+            worker_uuid: 'WN-LEGACY-NAME-HASH',
+            workerUuid: 'WN-LEGACY-NAME-HASH',
+            name: '응우옌반안',
+            nationality: '베트남',
+            jobField: '형틀',
+        });
+        const second = baseRecord({
+            id: 'legacy-b',
+            name: '응우옌반안',
+            nationality: '베트남',
+            jobField: '형틀',
+        });
+        const assignedFirst = applyWorkerUuidPolicy(first);
+        const assignedSecond = applyWorkerUuidPolicy(second);
+
+        expect(buildNameBasedWorkerUuid(first)).toBe('');
+        expect(assignedFirst.portableWorkerId).toMatch(/^WP-[A-F0-9]{32}$/);
+        expect(assignedSecond.portableWorkerId).toMatch(/^WP-[A-F0-9]{32}$/);
+        expect(assignedFirst.portableWorkerId).not.toBe(assignedSecond.portableWorkerId);
+        expect(assignedFirst.portableWorkerId).not.toContain('WN-');
+    });
+
+    it('preserves a portable identity across job, site, company, and display-name moves', () => {
+        const original = {
+            ...baseRecord({
+                id: 'move-a',
+                portableWorkerId: 'WP-MOVE-001',
+                name: 'NGUYEN VAN AN',
+                jobField: '형틀',
+                teamLeader: 'A팀장',
+                nationality: '베트남',
+            }),
+            siteId: 'site-a',
+            companyId: 'company-a',
+        } as WorkerRecord;
+        const moved = {
+            ...baseRecord({
+                id: 'move-b',
+                portableWorkerId: 'WP-MOVE-001',
+                name: '응우옌 반 안',
+                jobField: '철근',
+                teamLeader: 'B팀장',
+                nationality: '대한민국',
+            }),
+            siteId: 'site-b',
+            companyId: 'company-b',
+        } as WorkerRecord;
+
+        expect(getWorkerIdentityKey(original)).toBe(getWorkerIdentityKey(moved));
+        expect(getWorkerMatchScore(original, moved)).toBe(160);
+        expect(isSameWorkerTimeline(original, moved)).toBe(true);
+        expect(buildWorkerTimelineGroups([original, moved])).toHaveLength(1);
+    });
+
+    it('keeps real same-name records separate when their stable IDs differ', () => {
         const firstWorker = baseRecord({
             id: 'same-name-a',
-            worker_uuid: 'f8762cd7-8a8b-4cb0-a6e2-000000000001',
+            portableWorkerId: 'f8762cd7-8a8b-4cb0-a6e2-000000000001',
             name: '응우옌반안',
             jobField: '형틀',
             nationality: '베트남',
@@ -118,89 +264,41 @@ describe('worker identity policy', () => {
         expect(hasAmbiguousStableWorkerMatches(legacyWorker, [firstWorker, secondWorker])).toBe(true);
     });
 
-    it('does not merge same-name workers when job field or nationality differs', () => {
-        const vietnamFormWorker = baseRecord({
-            id: 'v-form',
+    it('keeps name/nationality/job matches below the automatic merge threshold', () => {
+        const sameJob = baseRecord({
+            id: 'candidate-a',
             name: '응우옌반안',
             jobField: '형틀',
             nationality: '베트남',
         });
-        const vietnamRebarWorker = baseRecord({
-            id: 'v-rebar',
+        const sameJobLater = baseRecord({
+            id: 'candidate-b',
+            name: '응우옌반안',
+            jobField: '형틀',
+            nationality: '베트남',
+        });
+        const movedJob = baseRecord({
+            id: 'candidate-c',
             name: '응우옌반안',
             jobField: '철근',
             nationality: '베트남',
         });
-        const chineseFormWorker = baseRecord({
-            id: 'c-form',
+        const differentNationality = baseRecord({
+            id: 'candidate-d',
             name: '응우옌반안',
             jobField: '형틀',
             nationality: '중국',
         });
 
-        expect(isSameWorkerTimeline(vietnamFormWorker, vietnamRebarWorker)).toBe(false);
-        expect(isSameWorkerTimeline(vietnamFormWorker, chineseFormWorker)).toBe(false);
+        expect(getWorkerMatchScore(sameJob, sameJobLater)).toBe(45);
+        expect(getWorkerMatchScore(sameJob, movedJob)).toBe(35);
+        expect(getWorkerMatchScore(sameJob, differentNationality)).toBe(-1);
+        expect(isSameWorkerTimeline(sameJob, sameJobLater)).toBe(false);
+        expect(isSameWorkerTimeline(sameJob, movedJob)).toBe(false);
+        expect(buildWorkerTimelineGroups([sameJob, sameJobLater])).toHaveLength(2);
     });
 
-    it('uses the name fallback only for legacy records with complete conservative identity fields', () => {
-        const january = baseRecord({
-            id: 'legacy-jan',
-            name: '응우옌반안',
-            jobField: '형틀',
-            nationality: '베트남',
-            date: '2026-01-10',
-        });
-        const february = baseRecord({
-            id: 'legacy-feb',
-            name: '응우옌반안',
-            jobField: '형틀',
-            nationality: '베트남',
-            date: '2026-02-10',
-        });
-        const unknownNationality = baseRecord({
-            id: 'legacy-unknown',
-            name: '응우옌반안',
-            jobField: '형틀',
-            nationality: '미상',
-        });
-
-        expect(isSameWorkerTimeline(january, february)).toBe(true);
-        expect(isSameWorkerTimeline(january, unknownNationality)).toBe(false);
-        expect(applyWorkerUuidPolicy(january).worker_uuid).toBe(buildNameBasedWorkerUuid(january));
-    });
-
-    it('does not merge personal data before server registration when stable UUIDs conflict', () => {
-        const records = [
-            {
-                ...baseRecord({
-                    id: 'server-a',
-                    worker_uuid: 'worker-a',
-                    name: '응우옌반안',
-                    jobField: '형틀',
-                    nationality: '베트남',
-                }),
-                phone_number: '01011112222',
-            },
-            {
-                ...baseRecord({
-                    id: 'server-b',
-                    workerUuid: 'worker-b',
-                    name: '응우옌반안',
-                    jobField: '형틀',
-                    nationality: '베트남',
-                }),
-                birth_date: '900101',
-            },
-        ];
-
-        const merged = mergeWorkerRegistrationRecords(records);
-
-        expect(merged).toHaveLength(2);
-        expect(merged[0].birth_date).toBeUndefined();
-        expect(merged[1].phone_number).toBeUndefined();
-    });
-
-    it('still merges complete UUID-less legacy registration rows conservatively', () => {
+    it('does not merge personal registration data without an exact stable identity', () => {
         const records = [
             {
                 ...baseRecord({ id: 'legacy-a', name: '레거시근로자' }),
@@ -214,15 +312,35 @@ describe('worker identity policy', () => {
 
         const merged = mergeWorkerRegistrationRecords(records);
 
+        expect(merged).toHaveLength(2);
+        expect(merged[0].birth_date).toBeUndefined();
+        expect(merged[1].phone_number).toBeUndefined();
+    });
+
+    it('merges registration fields when the portable identity is exactly the same', () => {
+        const records = [
+            {
+                ...baseRecord({ id: 'portable-a', portableWorkerId: 'WP-REG-001' }),
+                phone_number: '01011112222',
+            },
+            {
+                ...baseRecord({ id: 'portable-b', portableWorkerId: 'WP-REG-001' }),
+                birth_date: '900101',
+            },
+        ];
+
+        const merged = mergeWorkerRegistrationRecords(records);
+
         expect(merged).toHaveLength(1);
         expect(merged[0].phone_number).toBe('01011112222');
         expect(merged[0].birth_date).toBe('900101');
     });
 
-    it('summarizes public-safe evidence readiness without personal details', () => {
+    it('summarizes evidence using explicit portable identities without personal details', () => {
         const summary = analyzeWorkerEvidenceReadiness([
             baseRecord({
                 id: 'a-jan',
+                portableWorkerId: 'WP-WORKER-A',
                 name: 'A근로자',
                 date: '2026-01-05',
                 safetyScore: 50,
@@ -233,6 +351,7 @@ describe('worker identity policy', () => {
             }),
             baseRecord({
                 id: 'a-feb',
+                portableWorkerId: 'WP-WORKER-A',
                 name: 'A근로자',
                 date: '2026-02-05',
                 safetyScore: 62,
@@ -243,6 +362,7 @@ describe('worker identity policy', () => {
             }),
             baseRecord({
                 id: 'b-jan',
+                portableWorkerId: 'WP-WORKER-B',
                 name: 'B근로자',
                 date: '2026-01-05',
                 safetyScore: 72,
@@ -257,21 +377,25 @@ describe('worker identity policy', () => {
         expect(summary.imageCoverageRate).toBe(66.7);
     });
 
-    it('detects potential same worker manual matching targets (same name & nation, different job)', () => {
+    it('marks same name and nationality as manual-review candidates only', () => {
         const workerA = baseRecord({ name: '김민수', nationality: '대한민국', jobField: '형틀' });
-        const workerB = baseRecord({ name: '김민수', nationality: '대한민국', jobField: '철근' });
-        const workerC = baseRecord({ name: '김민수', nationality: '베트남', jobField: '형틀' });
-        const workerD = baseRecord({ name: '이민수', nationality: '대한민국', jobField: '형틀' });
+        const workerB = baseRecord({ id: 'worker-b', name: '김민수', nationality: '대한민국', jobField: '철근' });
+        const workerSameJob = baseRecord({ id: 'worker-same-job', name: '김민수', nationality: '대한민국', jobField: '형틀' });
+        const workerC = baseRecord({ id: 'worker-c', name: '김민수', nationality: '베트남', jobField: '형틀' });
+        const workerD = baseRecord({ id: 'worker-d', name: '이민수', nationality: '대한민국', jobField: '형틀' });
 
         expect(isPotentialSameWorkerManualReviewTarget(workerA, workerB)).toBe(true);
-        expect(isPotentialSameWorkerManualReviewTarget(workerA, workerC)).toBe(false); // 국적 다름
-        expect(isPotentialSameWorkerManualReviewTarget(workerA, workerD)).toBe(false); // 이름 다름
+        expect(isPotentialSameWorkerManualReviewTarget(workerA, workerSameJob)).toBe(true);
+        expect(isPotentialSameWorkerManualReviewTarget(workerA, workerC)).toBe(false);
+        expect(isPotentialSameWorkerManualReviewTarget(workerA, workerD)).toBe(false);
+        expect(isSameWorkerTimeline(workerA, workerB)).toBe(false);
+        expect(isSameWorkerTimeline(workerA, workerSameJob)).toBe(false);
     });
 
-    it('detects monthly job field mismatch in a timeline group', () => {
-        const recordJan = baseRecord({ name: '김민수', date: '2026-01-10', jobField: '형틀' });
-        const recordFebSameJob = baseRecord({ name: '김민수', date: '2026-02-10', jobField: '형틀' });
-        const recordFebDiffJob = baseRecord({ name: '김민수', date: '2026-02-10', jobField: '철근' });
+    it('detects monthly job field mismatch in one confirmed timeline group', () => {
+        const recordJan = baseRecord({ portableWorkerId: 'WP-MISMATCH', date: '2026-01-10', jobField: '형틀' });
+        const recordFebSameJob = baseRecord({ id: 'feb-same', portableWorkerId: 'WP-MISMATCH', date: '2026-02-10', jobField: '형틀' });
+        const recordFebDiffJob = baseRecord({ id: 'feb-diff', portableWorkerId: 'WP-MISMATCH', date: '2026-02-10', jobField: '철근' });
 
         expect(hasMonthlyJobFieldMismatch([recordJan, recordFebSameJob])).toBe(false);
         expect(hasMonthlyJobFieldMismatch([recordJan, recordFebDiffJob])).toBe(true);

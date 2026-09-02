@@ -1,5 +1,6 @@
 import type { WorkerRecord } from '../types';
-import { analyzeWorkerEvidenceReadiness, getWorkerIdentityKey, getWorkerTrackingCandidateIdentityKey } from './workerIdentity';
+import { isMonthlyArchiveManifest, type MonthlyArchiveManifest } from './monthlyArchive';
+import { analyzeWorkerEvidenceReadiness, getWorkerIdentityKey } from './workerIdentity';
 
 export const PSI_BACKUP_SCHEMA_VERSION = 'psi-backup/v2';
 export const BACKUP_LARGE_FILE_WARNING_BYTES = 50 * 1024 * 1024;
@@ -13,6 +14,7 @@ export interface ResolvedBackupPayload {
     records: unknown[];
     schemaVersion: string;
     exportedAt: string;
+    monthlyArchive?: MonthlyArchiveManifest;
 }
 
 export interface BackupImportAnalysis {
@@ -78,6 +80,7 @@ export interface PsiBackupEnvelope {
         identityBasis: string;
         warnings: string[];
     };
+    monthlyArchive?: MonthlyArchiveManifest;
     records: WorkerRecord[];
 }
 
@@ -173,12 +176,18 @@ export const resolveBackupPayload = (payload: unknown): ResolvedBackupPayload =>
     }
 
     const obj = payload as Record<string, unknown>;
+    if (obj.monthlyArchive !== undefined && !isMonthlyArchiveManifest(obj.monthlyArchive)) {
+        throw new Error('월 마감 manifest 형식이 손상되어 무결성 검증 없이 복원할 수 없습니다.');
+    }
     const candidates = [obj.records, obj.workerRecords, obj.data, obj.items];
     const records = candidates.find(Array.isArray) as unknown[] | undefined;
     return {
         records: records || [],
         schemaVersion: normalizeText(obj.schemaVersion) || 'legacy-object',
         exportedAt: normalizeText(obj.exportedAt),
+        monthlyArchive: isMonthlyArchiveManifest(obj.monthlyArchive)
+            ? obj.monthlyArchive
+            : undefined,
     };
 };
 
@@ -386,8 +395,9 @@ export const analyzeBackupImport = (
 export const createBackupEnvelope = (
     records: WorkerRecord[],
     now: Date = new Date(),
+    options: { monthlyArchive?: MonthlyArchiveManifest } = {},
 ): PsiBackupEnvelope => {
-    const readiness = analyzeWorkerEvidenceReadiness(records, now, getWorkerTrackingCandidateIdentityKey);
+    const readiness = analyzeWorkerEvidenceReadiness(records, now, getWorkerIdentityKey);
     const dateStats = getDateStats(records, now);
     const warnings: string[] = [];
     if (dateStats.singleDateConcentration) {
@@ -416,9 +426,10 @@ export const createBackupEnvelope = (
             handwrittenCoverageRate: readiness.handwrittenCoverageRate,
             aiInsightCoverageRate: readiness.aiInsightCoverageRate,
             nativeGuidanceCoverageRate: readiness.nativeGuidanceCoverageRate,
-            identityBasis: '추적 후보 기준: 이름 + 국적. 정확 식별 기준은 UUID/사번/QR을 우선합니다.',
+            identityBasis: '휴대 ID/안정 UUID 및 범위가 확인된 신원 근거만 사용합니다. 이름·국적만으로 자동 병합하지 않습니다.',
             warnings,
         },
+        ...(options.monthlyArchive ? { monthlyArchive: options.monthlyArchive } : {}),
         records,
     };
 };

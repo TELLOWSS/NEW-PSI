@@ -10,7 +10,6 @@ import { getSafetyLevelFromScore, getSafetyLevelThresholds } from '../utils/safe
 import { getIsPaidApiMode } from '../utils/apiModeUtils';
 import { resolveOcrExecutionKeyStatus } from '../utils/ocrExecutionKeyStatus';
 import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils';
-import { supabase } from '../lib/supabaseClient';
 import {
     GEMINI_OCR_MODEL_CATALOG,
     getAiEngineSettings,
@@ -48,14 +47,10 @@ const OCR_MODEL_PRIMARY = GEMINI_OCR_MODEL_CATALOG.economy.id;
 const OCR_MODEL_STABLE_FALLBACK = GEMINI_OCR_MODEL_CATALOG.stableFallback.id;
 const REASONING_MODEL_PRIMARY = 'gemini-3.1-pro-preview';
 const REASONING_MODEL_FALLBACK = 'gemini-3-flash-preview';
-const VECTOR_EMBED_MODEL = 'text-embedding-004';
 
-type BestPracticeCase = {
-    referenceId: string;
-    score: number;
-    similarity: number;
-    text: string;
-};
+// Local-first: historical worker records are never queried from a shared vector store.
+// The current document and bundled rubric remain the only analysis evidence.
+const LOCAL_FIRST_EVIDENCE_SECTION = '[근거 범위] 현재 제공된 문서와 PSI 평가 기준만 사용합니다. 과거 다른 근로자의 원문이나 평가 결과를 추정·인용하지 마세요.';
 
 const getActiveApiKey = (): string => {
     const isPaidApiMode = getIsPaidApiMode();
@@ -244,10 +239,6 @@ const verifyOcrApiKeyByMode = async (options?: {
     }
 };
 
-const toVectorLiteral = (vector: number[]): string => {
-    return `[${vector.map((value) => Number(value).toFixed(8)).join(',')}]`;
-};
-
 const extractSearchSeedFromImage = async (
     ai: GoogleGenAI,
     imageData: string,
@@ -283,110 +274,6 @@ const extractSearchSeedFromImage = async (
         }
     } catch {
         return String(filenameHint || '').trim();
-    }
-};
-
-const requestEmbeddingForQuery = async (queryText: string): Promise<number[]> => {
-    const apiKey = getActiveApiKey();
-    if (!apiKey || !queryText.trim()) return [];
-
-    try {
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${VECTOR_EMBED_MODEL}:embedContent?key=${apiKey}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    content: { parts: [{ text: queryText }] },
-                    taskType: 'SEMANTIC_SIMILARITY',
-                }),
-            }
-        );
-
-        if (!response.ok) return [];
-        const payload = await response.json();
-        const values = payload?.embedding?.values;
-        return Array.isArray(values)
-            ? values.map((item: unknown) => Number(item)).filter((item: number) => Number.isFinite(item))
-            : [];
-    } catch {
-        return [];
-    }
-};
-
-const buildBestPracticeSection = (cases: BestPracticeCase[]): string => {
-    if (cases.length === 0) {
-        return `[과거 현장 실증 우수 대책]\n- 조회 결과 없음 (80점 이상 벡터 사례 미축적)`;
-    }
-
-    const lines = ['[과거 현장 실증 우수 대책]'];
-    cases.forEach((item, index) => {
-        lines.push(
-            `${index + 1}) ref=${item.referenceId}, score=${item.score}, sim=${item.similarity.toFixed(3)}\n` +
-            `   대책요약: ${item.text}`
-        );
-    });
-    return lines.join('\n');
-};
-
-const fetchTopBestPracticeCasesByText = async (queryText: string): Promise<BestPracticeCase[]> => {
-    const queryVector = await requestEmbeddingForQuery(queryText);
-    if (queryVector.length === 0) return [];
-
-    const vectorLiteral = toVectorLiteral(queryVector);
-
-    const ragRes = await supabase.rpc('match_risk_best_practice_vectors', {
-        query_embedding_text: vectorLiteral,
-        match_count: 3,
-        min_score: 80,
-    });
-
-    if (ragRes.error || !Array.isArray(ragRes.data)) {
-        return [];
-    }
-
-    return (ragRes.data as Array<Record<string, unknown>>)
-        .map((row) => {
-            const referenceId = String(row.source_record_id || row.id || '').trim();
-            const score = Number(row.safety_score || 0);
-            const similarity = Number(row.similarity || 0);
-            const baseText = String(row.actionable_coaching || row.ko_text || '').trim();
-            const text = baseText.replace(/\s+/g, ' ').slice(0, 220);
-            return {
-                referenceId,
-                score,
-                similarity,
-                text,
-            };
-        })
-        .filter((item) => item.referenceId && item.text && Number.isFinite(item.score) && Number.isFinite(item.similarity));
-};
-
-const fetchTopBestPracticeSectionByText = async (queryText: string): Promise<string> => {
-    try {
-        const cases = await fetchTopBestPracticeCasesByText(queryText);
-        return buildBestPracticeSection(cases);
-    } catch {
-        return buildBestPracticeSection([]);
-    }
-};
-
-const fetchTopBestPracticeSection = async (
-    _ai: GoogleGenAI,
-    _imageData: string,
-    _mimeType: string,
-    filenameHint?: string,
-): Promise<string> => {
-    try {
-        // OCR 전에 같은 이미지를 다시 모델에 보내던 무효 seed 호출을 제거한다.
-        // 파일명 기반 RAG만 사용하고, 실제 OCR 원문은 후속 관리자 재가공 단계에서 활용한다.
-        return await withTimeout(
-            fetchTopBestPracticeSectionByText(String(filenameHint || '위험성평가 작업 대책')),
-            3500,
-            buildBestPracticeSection([]),
-        );
-    } catch {
-        return buildBestPracticeSection([]);
     }
 };
 
@@ -1757,8 +1644,7 @@ async function callGeminiWithRetry(
         return [createOcrErrorRecord(imageSource, filenameHint, '이미지 데이터 유실', `오류: ${errMsg}`, errorType)];
     }
 
-    // OCR 프롬프트 직전: 현재 문서 기반 검색 시드를 만들고 벡터 DB에서 80점 이상 우수사례 3건 조회
-    const bestPracticeSection = await fetchTopBestPracticeSection(ai, imageData, mimeType, filenameHint);
+    const bestPracticeSection = LOCAL_FIRST_EVIDENCE_SECTION;
 
     // 2. Retry Loop with Aggressive Backoff
     // [IMPROVED] Add total wait time protection
@@ -2171,17 +2057,7 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
         safetyLevel: record.safetyLevel,
     };
 
-    const reanalysisQuerySeed = [
-        record.jobField,
-        record.koreanTranslation,
-        record.fullText,
-        record.actionable_coaching,
-    ].filter(Boolean).join(' ').slice(0, 800);
-    const bestPracticeSection = await withTimeout(
-        fetchTopBestPracticeSectionByText(reanalysisQuerySeed || '위험성평가 작업 대책'),
-        3000,
-        buildBestPracticeSection([]),
-    );
+    const bestPracticeSection = LOCAL_FIRST_EVIDENCE_SECTION;
 
     const systemInstruction = `
     **역할**: 당신은 신규 평가자가 아니라, 원본 대비 수정 편차(Delta)를 계산하는 깐깐한 안전 감사관이다.

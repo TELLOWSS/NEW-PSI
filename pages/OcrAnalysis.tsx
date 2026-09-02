@@ -35,7 +35,16 @@ import { StatusBadge, type StatusBadgeVariant } from '../components/shared/Statu
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { StatusEvidenceActionPanel } from '../components/shared/StatusEvidenceActionPanel';
 import { analyzeHarnessRecord, reanalyzeHarnessRecord } from '../services/harnessService';
-import { handleSupabasePermissionError, supabase } from '../lib/supabaseClient';
+import {
+    createRecordMasterGroup,
+    createRecordMasterTemplate,
+    deleteRecordMasterAssignment,
+    deleteRecordMasterGroup,
+    deleteRecordMasterTemplate,
+    listRecordMasterData,
+    setRecordMasterAssignmentStatus,
+    upsertRecordMasterAssignment,
+} from '../services/recordMasterService';
 import { useMobileBackGuard } from '../hooks/useMobileBackGuard';
 import { API_MODE_CHANGED_EVENT, getIsPaidApiMode } from '../utils/apiModeUtils';
 import { resolveOcrExecutionKeyStatus } from '../utils/ocrExecutionKeyStatus';
@@ -50,7 +59,7 @@ import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils';
 import { useJudgmentTaggingQuality } from '../hooks/useJudgmentTaggingQuality';
-import { analyzeWorkerEvidenceReadiness, getWorkerIdentityKey, getWorkerTrackingCandidateIdentityKey } from '../utils/workerIdentity';
+import { analyzeWorkerEvidenceReadiness, getWorkerIdentityKey } from '../utils/workerIdentity';
 import { normalizeOcrRecordMetadata } from '../utils/ocrRecordNormalization';
 import { getManagerReviewApprovalReadiness, synchronizeManagerReviewedRecord } from '../utils/managerReviewSync';
 import {
@@ -63,6 +72,20 @@ import {
 } from '../utils/backupDataQuality';
 import { recoverBackupRecordsWithoutImages } from '../utils/streamingBackupRecovery';
 import { assessOcrRoutingQuality, getOcrQualityReviewMessage } from '../utils/ocrRoutingQuality';
+import {
+    buildMonthlyArchiveManifest,
+    buildWorkerMonthlyContinuitySummaries,
+    getMonthlyArchiveRecordMonth,
+    getNextMonthlyArchiveGeneration,
+    loadMonthlyArchiveRegistry,
+    PSI_MONTHLY_ARCHIVE_UPDATED_EVENT,
+    saveMonthlyArchiveRegistryEntry,
+    verifyMonthlyArchiveRecords,
+    verifyMonthlyArchiveMetadata,
+    type MonthlyArchiveManifest,
+} from '../utils/monthlyArchive';
+import { registerMonthlyArchiveReceipt } from '../services/archiveManifestService';
+import { selectSafeBackupImports } from '../utils/backupMerge';
 
 const OCR_STATUS_COPY = {
     secondPassEmpty: {
@@ -89,7 +112,9 @@ type BackupWritableTarget = {
 };
 
 type BackupFileHandle = {
+    name?: string;
     createWritable: () => Promise<BackupWritableTarget>;
+    getFile?: () => Promise<File>;
 };
 
 type BackupSaveFilePickerWindow = Window & {
@@ -125,8 +150,11 @@ const yieldToBrowser = (): Promise<void> => (
     new Promise((resolve) => window.setTimeout(resolve, 0))
 );
 
-const buildBackupJsonPrefix = (records: WorkerRecord[]): string => {
-    const envelope = createBackupEnvelope(records);
+const buildBackupJsonPrefix = (
+    records: WorkerRecord[],
+    monthlyArchive?: MonthlyArchiveManifest,
+): string => {
+    const envelope = createBackupEnvelope(records, new Date(), { monthlyArchive });
     const metadata: Partial<ReturnType<typeof createBackupEnvelope>> = { ...envelope };
     delete metadata.records;
 
@@ -143,8 +171,9 @@ const writeBackupJsonChunks = async (
     records: WorkerRecord[],
     writeChunk: (chunk: string) => Promise<void>,
     onProgress?: (writtenRecords: number, totalRecords: number) => void,
+    monthlyArchive?: MonthlyArchiveManifest,
 ): Promise<void> => {
-    await writeChunk(buildBackupJsonPrefix(records));
+    await writeChunk(buildBackupJsonPrefix(records, monthlyArchive));
 
     for (let index = 0; index < records.length; index += 1) {
         let recordJson = '';
@@ -1296,7 +1325,7 @@ const formatWorkerGroupMonth = (record: WorkerRecord): string => {
 };
 
 const getWorkerAccumulationKey = (record: WorkerRecord): string => {
-    return getWorkerTrackingCandidateIdentityKey(record);
+    return getWorkerIdentityKey(record);
 };
 
 const getWorkerDateBucket = (record: WorkerRecord): string => {
@@ -1546,7 +1575,7 @@ const getLeaderIcon = (record: WorkerRecord) => {
 };
 
 interface OcrAnalysisProps {
-    onAnalysisComplete: (records: WorkerRecord[]) => void;
+    onAnalysisComplete: (records: WorkerRecord[]) => void | Promise<void>;
     existingRecords: WorkerRecord[];
     onDeleteAll: () => void;
     onImport: (records: WorkerRecord[]) => void | WorkerRecord[] | Promise<void | WorkerRecord[]>;
@@ -1681,6 +1710,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
     const [isPaidApiMode, setIsPaidApiMode] = useState<boolean>(() => getIsPaidApiMode());
     const [exportFeedback, setExportFeedback] = useState<ExportFeedback>(null);
+    const [monthlyArchiveRegistry, setMonthlyArchiveRegistry] = useState(loadMonthlyArchiveRegistry);
+    const [isMonthlyArchiveExporting, setIsMonthlyArchiveExporting] = useState(false);
+    const monthlyArchiveExportInProgressRef = useRef(false);
+    useEffect(() => {
+        const refreshArchiveRegistry = () => setMonthlyArchiveRegistry(loadMonthlyArchiveRegistry());
+        window.addEventListener(PSI_MONTHLY_ARCHIVE_UPDATED_EVENT, refreshArchiveRegistry);
+        window.addEventListener('storage', refreshArchiveRegistry);
+        return () => {
+            window.removeEventListener(PSI_MONTHLY_ARCHIVE_UPDATED_EVENT, refreshArchiveRegistry);
+            window.removeEventListener('storage', refreshArchiveRegistry);
+        };
+    }, []);
     const [paidOcrApprovalPrompt, setPaidOcrApprovalPrompt] = useState<PaidOcrApprovalPrompt | null>(null);
     const [paidOcrApprovalPassword, setPaidOcrApprovalPassword] = useState('');
     const [paidOcrNotice, setPaidOcrNotice] = useState('');
@@ -1924,50 +1965,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         }
     }, []);
 
-    const fetchMasterGroups = useCallback(async () => {
-        return supabase
-            .from('record_master_groups')
-            .select('id, name')
-            .order('updated_at', { ascending: false });
-    }, []);
-
-    const fetchMasterAssignments = useCallback(async () => {
-        const assignmentViewResult = await supabase
-            .from('record_master_assignment_groups')
-            .select('id, group_id, template_id, status, effective_date')
-            .order('updated_at', { ascending: false });
-
-        if (!assignmentViewResult.error) {
-            return assignmentViewResult;
-        }
-
-        const groupColumnResult = await supabase
-            .from('record_master_assignments')
-            .select('id, group_id, template_id, status, effective_date')
-            .order('updated_at', { ascending: false });
-
-        if (!groupColumnResult.error) {
-            return groupColumnResult;
-        }
-
-        return groupColumnResult;
-    }, []);
-
-    const insertMasterGroup = useCallback(async (name: string) => {
-        return supabase
-            .from('record_master_groups')
-            .insert({ name })
-            .select('id, name')
-            .single();
-    }, []);
-
-    const deleteMasterGroup = useCallback(async (groupId: string) => {
-        return supabase
-            .from('record_master_groups')
-            .delete()
-            .eq('id', groupId);
-    }, []);
-
     const loadMasterData = useCallback(async () => {
         if (masterDataLoadingRef.current) {
             return;
@@ -1977,42 +1974,21 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         setIsMasterDataLoading(true);
 
         try {
-            const [templateResult, groupResult, assignmentResult] = await Promise.all([
-                supabase
-                    .from('record_master_templates')
-                    .select('id, name, version, field_schema, updated_at')
-                    .order('updated_at', { ascending: false }),
-                fetchMasterGroups(),
-                fetchMasterAssignments(),
-            ]);
-
-            if (templateResult.error || groupResult.error || assignmentResult.error) {
-                const firstError = templateResult.error || groupResult.error || assignmentResult.error;
-                if (!handleSupabasePermissionError(firstError)) {
-                    alert(buildMasterDataLoadErrorMessage(firstError?.message));
-                }
-                return;
-            }
-
-            const mappedTemplates: MasterTemplate[] = (templateResult.data || []).map((row: any) => ({
-                id: String(row.id),
-                name: String(row.name || ''),
-                version: String(row.version || ''),
-                fieldSchema: String(row.field_schema || ''),
-                updatedAt: String(row.updated_at || '').replace('T', ' ').slice(0, 16),
+            const masterData = await listRecordMasterData();
+            const mappedTemplates: MasterTemplate[] = masterData.templates.map((row) => ({
+                ...row,
+                updatedAt: String(row.updatedAt || '').replace('T', ' ').slice(0, 16),
             }));
-
-            const mappedGroups: MasterGroup[] = (groupResult.data || []).map((row: any) => ({
-                id: String(row.id),
-                name: String(row.name || ''),
+            const mappedGroups: MasterGroup[] = masterData.groups.map((row) => ({
+                id: row.id,
+                name: row.name,
             }));
-
-            const mappedAssignments: MasterAssignmentItem[] = (assignmentResult.data || []).map((row: any) => ({
-                id: String(row.id),
-                groupId: String(row.group_id || ''),
-                templateId: String(row.template_id),
-                status: row.status === 'inactive' ? 'inactive' : 'active',
-                effectiveDate: String(row.effective_date || ''),
+            const mappedAssignments: MasterAssignmentItem[] = masterData.assignments.map((row) => ({
+                id: row.id,
+                groupId: row.groupId,
+                templateId: row.templateId,
+                status: row.status,
+                effectiveDate: row.effectiveDate,
             }));
 
             setMasterTemplates(mappedTemplates);
@@ -2023,11 +1999,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             setMasterDataLoadedAt(new Date().toLocaleString('ko-KR', {
                 hour12: false,
             }));
+        } catch (error) {
+            alert(buildMasterDataLoadErrorMessage(extractMessage(error)));
         } finally {
             masterDataLoadingRef.current = false;
             setIsMasterDataLoading(false);
         }
-    }, [fetchMasterAssignments, fetchMasterGroups]);
+    }, []);
 
     useEffect(() => {
         try {
@@ -2063,160 +2041,88 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     }, [searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterReason, filterStatus, secondPassStatusFilter, secondPassEditedOnly, secondPassExcludedOnly, secondPassReasonFilter, recordSortMode, recordScopeFilter, recordMonthFilter]);
 
     const handleCreateMasterTemplate = async (payload: { name: string; version: string; fieldSchema: string }) => {
-        const result = await supabase
-            .from('record_master_templates')
-            .insert({
-                name: payload.name,
-                version: payload.version,
-                field_schema: payload.fieldSchema,
-            })
-            .select('id, name, version, field_schema, updated_at')
-            .single();
-
-        if (result.error) {
-            if (!handleSupabasePermissionError(result.error)) {
-                alert(`템플릿 생성 실패: ${result.error.message}`);
-            }
-            return;
+        try {
+            const { template } = await createRecordMasterTemplate(payload);
+            const next: MasterTemplate = {
+                ...template,
+                updatedAt: String(template.updatedAt || '').replace('T', ' ').slice(0, 16),
+            };
+            setMasterTemplates((prev) => [next, ...prev]);
+            setSelectedMasterTemplateId(next.id);
+        } catch (error) {
+            alert(`템플릿 생성 실패: ${extractMessage(error)}`);
         }
-
-        const next: MasterTemplate = {
-            id: String(result.data.id),
-            name: String(result.data.name || ''),
-            version: String(result.data.version || ''),
-            fieldSchema: String(result.data.field_schema || ''),
-            updatedAt: String(result.data.updated_at || '').replace('T', ' ').slice(0, 16),
-        };
-
-        setMasterTemplates((prev) => [next, ...prev]);
-        setSelectedMasterTemplateId(next.id);
     };
 
     const handleDeleteMasterTemplate = async (templateId: string) => {
         if (!confirm('해당 템플릿을 삭제하시겠습니까?')) return;
 
-        const result = await supabase
-            .from('record_master_templates')
-            .delete()
-            .eq('id', templateId);
-
-        if (result.error) {
-            if (!handleSupabasePermissionError(result.error)) {
-                alert(`템플릿 삭제 실패: ${result.error.message}`);
-            }
-            return;
+        try {
+            await deleteRecordMasterTemplate(templateId);
+            setMasterTemplates((prev) => prev.filter((item) => item.id !== templateId));
+            setMasterAssignments((prev) => prev.filter((item) => item.templateId !== templateId));
+            setSelectedMasterTemplateId((prev) => (prev === templateId ? '' : prev));
+        } catch (error) {
+            alert(`템플릿 삭제 실패: ${extractMessage(error)}`);
         }
-
-        setMasterTemplates((prev) => prev.filter((item) => item.id !== templateId));
-        setMasterAssignments((prev) => prev.filter((item) => item.templateId !== templateId));
-        setSelectedMasterTemplateId((prev) => (prev === templateId ? '' : prev));
     };
 
     const handleAddMasterGroup = async (groupName: string) => {
         const normalized = groupName.trim();
         if (!normalized) return;
 
-        const result = await insertMasterGroup(normalized);
-
-        if (result.error) {
-            if (!handleSupabasePermissionError(result.error)) {
-                alert(`공종/팀 그룹 추가 실패: ${result.error.message}`);
-            }
-            return;
+        try {
+            const { group } = await createRecordMasterGroup(normalized);
+            setMasterGroups((prev) => [{ id: group.id, name: group.name }, ...prev]);
+        } catch (error) {
+            alert(`공종/팀 그룹 추가 실패: ${extractMessage(error)}`);
         }
-
-        setMasterGroups((prev) => [{ id: String(result.data.id), name: String(result.data.name || '') }, ...prev]);
     };
 
     const handleDeleteMasterGroup = async (groupId: string) => {
-        const result = await deleteMasterGroup(groupId);
-
-        if (result.error) {
-            if (!handleSupabasePermissionError(result.error)) {
-                alert(`공종/팀 그룹 삭제 실패: ${result.error.message}`);
-            }
-            return;
+        try {
+            await deleteRecordMasterGroup(groupId);
+            setMasterGroups((prev) => prev.filter((group) => group.id !== groupId));
+            setMasterAssignments((prev) => prev.filter((item) => item.groupId !== groupId));
+        } catch (error) {
+            alert(`공종/팀 그룹 삭제 실패: ${extractMessage(error)}`);
         }
-
-        setMasterGroups((prev) => prev.filter((group) => group.id !== groupId));
-        setMasterAssignments((prev) => prev.filter((item) => item.groupId !== groupId));
     };
 
     const handleCreateMasterAssignment = async (payload: { groupId: string; templateId: string; effectiveDate: string }) => {
-        const primaryResult = await supabase
-            .from('record_master_assignments')
-            .upsert(
-                {
-                    group_id: payload.groupId,
-                    template_id: payload.templateId,
-                    status: 'active',
-                    effective_date: payload.effectiveDate,
-                },
-                { onConflict: 'group_id,template_id' }
-            )
-            .select('id, group_id, template_id, status, effective_date')
-            .single();
-
-        const result = primaryResult;
-
-        if (result.error) {
-            if (!handleSupabasePermissionError(result.error)) {
-                alert(`배정 저장 확인 필요: ${result.error.message}`);
-            }
-            return;
+        try {
+            const { assignment } = await upsertRecordMasterAssignment(payload);
+            const next: MasterAssignmentItem = assignment;
+            setMasterAssignments((prev) => {
+                const existingIndex = prev.findIndex((item) => item.id === next.id);
+                if (existingIndex >= 0) {
+                    return prev.map((item, index) => (index === existingIndex ? next : item));
+                }
+                return [next, ...prev.filter((item) => !(item.groupId === next.groupId && item.templateId === next.templateId))];
+            });
+        } catch (error) {
+            alert(`배정 저장 확인 필요: ${extractMessage(error)}`);
         }
-
-        const next: MasterAssignmentItem = {
-            id: String(result.data.id),
-            groupId: String((result.data as any).group_id || ''),
-            templateId: String(result.data.template_id),
-            status: result.data.status === 'inactive' ? 'inactive' : 'active',
-            effectiveDate: String(result.data.effective_date || ''),
-        };
-
-        setMasterAssignments((prev) => {
-            const existingIndex = prev.findIndex((item) => item.id === next.id);
-            if (existingIndex >= 0) {
-                return prev.map((item, index) => (index === existingIndex ? next : item));
-            }
-            return [next, ...prev.filter((item) => !(item.groupId === next.groupId && item.templateId === next.templateId))];
-        });
     };
 
     const handleDeleteMasterAssignment = async (assignmentId: string) => {
-        const result = await supabase
-            .from('record_master_assignments')
-            .delete()
-            .eq('id', assignmentId);
-
-        if (result.error) {
-            if (!handleSupabasePermissionError(result.error)) {
-                alert(`배정 삭제 실패: ${result.error.message}`);
-            }
-            return;
+        try {
+            await deleteRecordMasterAssignment(assignmentId);
+            setMasterAssignments((prev) => prev.filter((item) => item.id !== assignmentId));
+        } catch (error) {
+            alert(`배정 삭제 실패: ${extractMessage(error)}`);
         }
-
-        setMasterAssignments((prev) => prev.filter((item) => item.id !== assignmentId));
     };
 
     const handleSetMasterAssignmentStatus = async (assignmentId: string, status: 'active' | 'inactive') => {
-        const result = await supabase
-            .from('record_master_assignments')
-            .update({ status })
-            .eq('id', assignmentId)
-            .select('id')
-            .single();
-
-        if (result.error) {
-            if (!handleSupabasePermissionError(result.error)) {
-                alert(`상태 변경 실패: ${result.error.message}`);
-            }
-            return;
+        try {
+            const { assignment } = await setRecordMasterAssignmentStatus(assignmentId, status);
+            setMasterAssignments((prev) => prev.map((item) => (
+                item.id === assignmentId ? { ...item, status: assignment.status } : item
+            )));
+        } catch (error) {
+            alert(`상태 변경 실패: ${extractMessage(error)}`);
         }
-
-        setMasterAssignments((prev) => prev.map((item) => (
-            item.id === assignmentId ? { ...item, status } : item
-        )));
     };
 
     const getExpectedSafetyLevel = useCallback((record: WorkerRecord): WorkerRecord['safetyLevel'] => {
@@ -2675,7 +2581,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const hiddenRecordListCount = Math.max(0, recordListRecords.length - visibleRecordListRecords.length);
 
     const evidenceReadinessSummary = useMemo(() => {
-        return analyzeWorkerEvidenceReadiness(existingRecords, new Date(), getWorkerTrackingCandidateIdentityKey);
+        return analyzeWorkerEvidenceReadiness(existingRecords, new Date(), getWorkerIdentityKey);
     }, [existingRecords]);
 
     const recordsWithImages = useMemo(() => {
@@ -5476,7 +5382,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             }
             
             if (results.length > 0) {
-                onAnalysisComplete(results);
+                await onAnalysisComplete(results);
                 if (onNavigateToPredictive) setShowPostAnalysisCta(true);
             }
         } finally {
@@ -5647,6 +5553,181 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         }
     };
 
+    const selectedArchivePeriod = recordMonthFilter === 'all'
+        ? sourceRecordMonthIndex.latestMonthKey
+        : recordMonthFilter;
+    const selectedMonthlyArchive = monthlyArchiveRegistry.find((entry) => entry.periodMonth === selectedArchivePeriod);
+
+    const handleMonthlyArchiveExport = async () => {
+        if (monthlyArchiveExportInProgressRef.current) return;
+        const periodMonth = recordMonthFilter !== 'all'
+            ? recordMonthFilter
+            : sourceRecordMonthIndex.latestMonthKey;
+        if (!periodMonth) {
+            setExportFeedback({
+                tone: 'warning',
+                message: '월 마감 백업을 만들 기록이 없습니다.',
+                detail: '분석 기록을 저장한 뒤 다시 실행하세요.',
+            });
+            return;
+        }
+
+        const monthlyRecords = existingRecords.filter(
+            (record) => getMonthlyArchiveRecordMonth(record) === periodMonth,
+        );
+        if (monthlyRecords.length === 0) {
+            setExportFeedback({
+                tone: 'warning',
+                message: `${periodMonth} 월 마감 대상이 없습니다.`,
+                detail: '월 필터를 확인한 뒤 다시 실행하세요.',
+            });
+            return;
+        }
+
+        if (!confirm(
+            `${periodMonth} 기록 ${monthlyRecords.length}건을 PC 월 마감 파일로 저장합니다.\n\n`
+            + '원본 이미지·수기 원문은 이 파일에만 들어가며 서버에는 자동 전송되지 않습니다. 계속하시겠습니까?',
+        )) return;
+
+        const generation = getNextMonthlyArchiveGeneration(periodMonth);
+        const provisionalName = `PSI_월마감_${periodMonth}_G${String(generation).padStart(3, '0')}.json`;
+        monthlyArchiveExportInProgressRef.current = true;
+        setIsMonthlyArchiveExporting(true);
+
+        try {
+            // Open the picker during the click's user activation, before asynchronous hashing.
+            const saveFilePicker = (window as BackupSaveFilePickerWindow).showSaveFilePicker;
+            let selectedFileHandle: BackupFileHandle | null = null;
+            if (saveFilePicker) {
+                try {
+                    selectedFileHandle = await saveFilePicker({
+                        suggestedName: provisionalName,
+                        types: [{
+                            description: 'NEW-PSI 월 마감 백업 JSON',
+                            accept: { 'application/json': ['.json'] },
+                        }],
+                    });
+                } catch (pickerError) {
+                    if (String((pickerError as { name?: unknown })?.name || '') === 'AbortError') {
+                        setExportFeedback({ tone: 'warning', message: '월 마감 파일 저장을 취소했습니다.' });
+                        return;
+                    }
+                    console.warn('Monthly archive picker unavailable. Using browser download.', pickerError);
+                }
+            }
+            setExportFeedback({
+                tone: 'info',
+                message: `${periodMonth} 월 마감 무결성 해시를 계산 중입니다.`,
+                detail: `${monthlyRecords.length}건의 원본 내용을 PC에서 검증 준비합니다.`,
+                fileName: provisionalName,
+            });
+            const built = await buildMonthlyArchiveManifest({
+                records: monthlyRecords,
+                periodMonth,
+                generation,
+                fileName: provisionalName,
+            });
+            const fileName = selectedFileHandle
+                ? selectedFileHandle.name || provisionalName
+                : `PSI_월마감_${periodMonth}_G${String(generation).padStart(3, '0')}_${built.manifest.contentRootHash.slice(0, 8)}.json`;
+            const manifest: MonthlyArchiveManifest = { ...built.manifest, fileName };
+
+            setExportFeedback({
+                tone: 'info',
+                message: `${periodMonth} 월 마감 파일을 준비 중입니다.`,
+                detail: `${monthlyRecords.length}건의 원문·이미지를 PC 백업으로 순차 저장합니다. 서버에는 저장하지 않습니다.`,
+                fileName,
+            });
+
+            if (selectedFileHandle) {
+                let writable: BackupWritableTarget | null = null;
+                try {
+                    const fileHandle = selectedFileHandle;
+                    writable = await fileHandle.createWritable();
+                    await writeBackupJsonChunks(
+                        monthlyRecords,
+                        (chunk) => writable!.write(chunk),
+                        (writtenRecords, totalRecords) => setExportFeedback({
+                            tone: 'info',
+                            message: `${periodMonth} 월 마감 파일을 저장 중입니다.`,
+                            detail: `${writtenRecords}/${totalRecords}건 기록 중입니다. 창을 닫지 마세요.`,
+                            fileName,
+                        }),
+                        manifest,
+                    );
+                    await writable.close();
+                    const savedFile = fileHandle.getFile ? await fileHandle.getFile().catch(() => null) : null;
+                    saveMonthlyArchiveRegistryEntry({
+                        ...manifest,
+                        status: 'saved-needs-verification',
+                        ...(savedFile ? { byteSize: savedFile.size } : {}),
+                    });
+                    setExportFeedback({
+                        tone: 'success',
+                        message: `${periodMonth} 월 마감 파일을 PC에 저장했습니다.`,
+                        detail: '완료 확정을 위해 방금 저장한 파일을 “백업 파일 불러오기”로 한 번 검증해 주세요. 검증 전에는 서버 요약도 전송하지 않습니다.',
+                        fileName,
+                    });
+                    alert(`월 마감 파일 저장 완료\n\n${fileName}\n\n이 파일을 다시 불러오면 해시를 검증한 뒤 월 마감이 확정됩니다.`);
+                    return;
+                } catch (pickerError) {
+                    if (writable?.abort) await writable.abort().catch(() => undefined);
+                    const pickerErrorName = pickerError instanceof DOMException
+                        ? pickerError.name
+                        : String((pickerError as { name?: unknown })?.name || '');
+                    if (pickerErrorName === 'AbortError') {
+                        setExportFeedback({
+                            tone: 'warning',
+                            message: '월 마감 파일 저장을 취소했습니다.',
+                            detail: '파일과 서버 요약 모두 생성하지 않았습니다.',
+                            fileName,
+                        });
+                        return;
+                    }
+                    console.warn('Monthly archive file picker failed. Falling back to browser download.', pickerError);
+                }
+            }
+
+            const parts: BlobPart[] = [];
+            await writeBackupJsonChunks(
+                monthlyRecords,
+                async (chunk) => { parts.push(chunk); },
+                (writtenRecords, totalRecords) => setExportFeedback({
+                    tone: 'info',
+                    message: `${periodMonth} 월 마감 다운로드를 준비 중입니다.`,
+                    detail: `${writtenRecords}/${totalRecords}건 처리 중입니다.`,
+                    fileName,
+                }),
+                manifest,
+            );
+            const blob = new Blob(parts, { type: 'application/json;charset=utf-8' });
+            triggerBrowserDownload(blob, fileName);
+            saveMonthlyArchiveRegistryEntry({
+                ...manifest,
+                status: 'download-requested',
+                byteSize: blob.size,
+            });
+            setExportFeedback({
+                tone: 'success',
+                message: `${periodMonth} 월 마감 다운로드를 요청했습니다.`,
+                detail: '다운로드 폴더에서 파일을 확인한 후 “백업 파일 불러오기”로 무결성을 검증해 주세요.',
+                fileName,
+            });
+            alert(`월 마감 다운로드 요청 완료\n\n${fileName}\n예상 용량: ${formatExportFileSize(blob.size)}\n\n다운로드 파일을 다시 불러와 검증해 주세요.`);
+        } catch (error) {
+            const message = extractMessage(error) || '월 마감 파일 생성 중 알 수 없는 오류가 발생했습니다.';
+            setExportFeedback({
+                tone: 'error',
+                message: '월 마감 백업에 실패했습니다.',
+                detail: message,
+            });
+            alert(`월 마감 백업 실패\n\n${message}`);
+        } finally {
+            monthlyArchiveExportInProgressRef.current = false;
+            setIsMonthlyArchiveExporting(false);
+        }
+    };
+
     const handleExportEvidenceSnapshot = () => {
         const maskWorkerName = (name?: string) => {
             const text = String(name || '').trim();
@@ -5659,7 +5740,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             snapshotType: 'NEW-PSI public evidence summary',
             generatedAt: new Date().toISOString(),
             privacyNotice: '원본 이미지, 서명, 전체 수기문장, 전화번호, 관리자 식별번호는 제외한 비식별 요약입니다.',
-            identityBasis: '추적 후보 기준은 이름+국적입니다. 정확 식별 기준은 UUID/사번/QR을 우선합니다.',
+            identityBasis: '휴대 ID/안정 UUID 및 범위가 확인된 신원 근거로만 이력을 묶습니다. 이름·국적만으로 자동 병합하지 않습니다.',
             viewScope: focusedWorkerGroup ? '선택 근로자 월별 보기' : '현재 필터 전체 보기',
             activeFilters: {
                 searchApplied: searchTerm.trim().length > 0,
@@ -6211,6 +6292,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             let records: unknown[] = [];
             let schemaVersion = 'unknown';
             let largeRecoveryNote = '';
+            let monthlyArchive: MonthlyArchiveManifest | undefined;
+            let streamedContentRootHash = '';
 
             if (file.size >= BACKUP_STREAMING_RECOVERY_THRESHOLD_BYTES) {
                 const confirmed = confirm(
@@ -6227,11 +6310,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 records = recovered.records;
                 schemaVersion = 'psi-backup/v2-streaming-metadata-recovery';
                 largeRecoveryNote = `원본·프로필 이미지 문자 약 ${formatExportFileSize(recovered.removedImageCharacters)}를 제외하고 핵심 기록을 복구했습니다.`;
+                monthlyArchive = recovered.monthlyArchive;
+                streamedContentRootHash = recovered.contentRootHash || '';
             } else {
                 const data = JSON.parse(await file.text());
                 const resolved = resolveBackupPayload(data);
                 records = resolved.records;
                 schemaVersion = resolved.schemaVersion;
+                monthlyArchive = resolved.monthlyArchive;
             }
 
             if (records.length === 0) {
@@ -6251,14 +6337,78 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 alert(`백업을 안전하게 복원할 수 없습니다.\n\n${validation.warnings.join('\n') || '검증 통과 기록이 없습니다.'}\n\n화면의 사전검증 결과를 확인해 주세요.`);
                 return;
             }
-            if (!confirm(`${validation.confirmationText}${largeRecoveryNote ? `\n\n${largeRecoveryNote}` : ''}`)) return;
 
-            const importedRecords = await Promise.resolve(onImport(validation.validRecords));
+            let verifiedArchiveEntry: (MonthlyArchiveManifest & { byteSize: number; verifiedAt: string }) | undefined;
+            if (monthlyArchive) {
+                const verification = streamedContentRootHash
+                    ? {
+                        valid: verifyMonthlyArchiveMetadata(validation.validRecords, monthlyArchive)
+                            && streamedContentRootHash === monthlyArchive.contentRootHash,
+                        actualHash: streamedContentRootHash,
+                        actualCount: validation.validRecords.length,
+                    }
+                    : await verifyMonthlyArchiveRecords(validation.validRecords, monthlyArchive);
+                if (!verification.valid) {
+                    alert(
+                        '월 마감 파일 무결성 검증에 실패하여 복원을 차단했습니다.\n\n'
+                        + `기대 건수: ${monthlyArchive.recordCount}건 / 실제: ${verification.actualCount}건\n`
+                        + `기대 해시: ${monthlyArchive.contentRootHash}\n실제 해시: ${verification.actualHash}\n\n`
+                        + '파일이 변경되었거나 저장이 끝나기 전에 복사되었을 수 있습니다.',
+                    );
+                    return;
+                }
+                const verifiedAt = new Date().toISOString();
+                saveMonthlyArchiveRegistryEntry({
+                    ...monthlyArchive,
+                    fileName: file.name || monthlyArchive.fileName,
+                    status: 'verified',
+                    byteSize: file.size,
+                    verifiedAt,
+                });
+                verifiedArchiveEntry = { ...monthlyArchive, byteSize: file.size, verifiedAt };
+                setImportValidationDetails((current) => [
+                    current,
+                    `월 마감 무결성 확인 완료: ${monthlyArchive.periodMonth} · ${monthlyArchive.recordCount}건 · ${monthlyArchive.contentRootHash.slice(0, 16)}…`,
+                ].filter(Boolean).join('\n\n'));
+            }
+
+            const monthlyConfirmation = verifiedArchiveEntry
+                ? '\n\n월 마감 파일 해시가 일치합니다. 계속하면 기록을 복원하고 비식별 월 요약 영수증만 서버에 등록합니다. 원문·이미지는 서버에 보내지 않습니다.'
+                : '';
+            if (!confirm(`${validation.confirmationText}${largeRecoveryNote ? `\n\n${largeRecoveryNote}` : ''}${monthlyConfirmation}`)) return;
+
+            const safeMerge = selectSafeBackupImports(validation.validRecords, existingRecords);
+            const safeImportRecords = safeMerge.records;
+            const protectedNewerLocalCount = safeMerge.protectedLocalCount;
+            const importedRecords = safeImportRecords.length > 0
+                ? await Promise.resolve(onImport(safeImportRecords))
+                : [];
+            let archiveReceiptNote = '';
+            if (verifiedArchiveEntry) {
+                try {
+                    const workerSummaries = buildWorkerMonthlyContinuitySummaries(validation.validRecords);
+                    const receipt = await registerMonthlyArchiveReceipt(verifiedArchiveEntry, workerSummaries);
+                    const serverReceiptAt = receipt.receivedAt || new Date().toISOString();
+                    saveMonthlyArchiveRegistryEntry({
+                        ...verifiedArchiveEntry,
+                        fileName: file.name || verifiedArchiveEntry.fileName,
+                        status: 'verified',
+                        byteSize: file.size,
+                        verifiedAt: verifiedArchiveEntry.verifiedAt,
+                        serverReceiptAt,
+                    });
+                    archiveReceiptNote = receipt.continuityCurrent
+                        ? '\n- 서버: 원문 없는 월 요약 영수증 등록 및 현재 세대 반영 완료'
+                        : '\n- 서버: 이전 세대 영수증만 보관했습니다. 더 최신인 월 요약은 그대로 유지됩니다.';
+                } catch (receiptError) {
+                    archiveReceiptNote = `\n- 서버: 요약 영수증 등록 보류 (${extractMessage(receiptError) || '로그인 또는 연결 상태 확인 필요'})`;
+                }
+            }
             const reviewRecord = Array.isArray(importedRecords) && importedRecords.length > 0
                 ? importedRecords[0]
-                : validation.validRecords[0];
+                : safeImportRecords[0];
             resetWorkerSearchFiltersForImport();
-            alert(`백업 복구 완료\n- 원본: ${validation.rawRecordCount}건\n- 검증 통과: ${validation.validRecords.length}건\n- 제외: ${validation.problematicRecordCount + validation.invalidObjectCount}건\n- 신규 ID: ${validation.newRecordCount}건\n- 같은 ID 갱신: ${validation.existingIdCollisionCount}건\n- 예상 총계: ${validation.projectedTotalRecords}건${largeRecoveryNote ? `\n- ${largeRecoveryNote}` : ''}\n\n근로자 정보검색 필터를 전체 보기로 전환했습니다.`);
+            alert(`백업 복구 완료\n- 원본: ${validation.rawRecordCount}건\n- 검증 통과: ${validation.validRecords.length}건\n- 제외: ${validation.problematicRecordCount + validation.invalidObjectCount}건\n- 신규 ID: ${validation.newRecordCount}건\n- 같은 ID 갱신: ${validation.existingIdCollisionCount}건\n- 더 최신인 PC 기록 보호: ${protectedNewerLocalCount}건\n- 예상 총계: ${validation.projectedTotalRecords}건${largeRecoveryNote ? `\n- ${largeRecoveryNote}` : ''}${archiveReceiptNote}\n\n근로자 정보검색 필터를 전체 보기로 전환했습니다.`);
             if (reviewRecord) onViewDetails(reviewRecord);
         } catch (err) {
             const message = extractMessage(err);
@@ -6910,6 +7060,43 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             </p>
                         )}
 
+                        <div className="rounded-2xl border border-sky-400/30 bg-sky-950/40 px-4 py-3 text-[11px] font-bold leading-relaxed text-sky-100">
+                            <p className="text-xs font-black">로컬 우선 보관 · 평가 원문 서버 저장 안 함</p>
+                            <p className="mt-1 text-sky-200">
+                                원본 이미지·수기문장·평가 본문은 PC 월별 파일에만 보관합니다. 파일을 다시 불러와 해시 검증을 통과한 경우에만 서버에 비식별 건수·점수 요약 영수증을 등록합니다.
+                            </p>
+                            <p className="mt-1 text-sky-200/80">OCR 분석을 위한 일시 전송과 DB 영구 보관은 구분됩니다.</p>
+                            <p className="mt-2 border-t border-sky-400/20 pt-2">
+                                {selectedArchivePeriod || '선택월'} 백업: {selectedMonthlyArchive
+                                    ? selectedMonthlyArchive.status === 'verified'
+                                        ? `검증 완료 · 서버 영수증 ${selectedMonthlyArchive.serverReceiptAt ? '등록됨' : '미등록'}`
+                                        : 'PC 파일 저장 후 재검증 필요'
+                                    : '아직 없음'}
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => { void handleMonthlyArchiveExport(); }}
+                            disabled={isMonthlyArchiveExporting}
+                            className="w-full rounded-2xl border border-sky-400/50 bg-sky-600 px-5 py-3 text-sm font-black text-white shadow-xl transition-all hover:bg-sky-700 disabled:cursor-wait disabled:opacity-60"
+                        >
+                            {isMonthlyArchiveExporting ? '월 마감 백업 처리 중…' : `${recordMonthFilter === 'all' ? '최신월' : selectedMonthLabel} PC 월 마감 백업`}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => importInputRef.current?.click()}
+                            className="w-full rounded-2xl border border-white/15 bg-white/10 px-5 py-3 text-sm font-black transition-all hover:bg-white/20"
+                        >
+                            백업 파일 검증·복원
+                        </button>
+                        {exportFeedback && (
+                            <div className={`rounded-2xl border px-3 py-2 text-[11px] font-bold leading-relaxed ${getExportFeedbackClassName(exportFeedback.tone)}`}>
+                                <p className="font-black">{exportFeedback.message}</p>
+                                {exportFeedback.fileName && <p className="mt-1">파일명: {exportFeedback.fileName}</p>}
+                                {exportFeedback.detail && <p className="mt-1">{exportFeedback.detail}</p>}
+                            </div>
+                        )}
+
                         <button
                             type="button"
                             onClick={() => setShowQuickUtilityActions((prev) => !prev)}
@@ -6920,19 +7107,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                         {showQuickUtilityActions && (
                             <>
-                                <button onClick={() => importInputRef.current?.click()} className="w-full px-5 py-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-black text-sm transition-all">백업 파일 불러오기(JSON)</button>
                                 <button onClick={() => { void handleCopyReanalysisSummary(); }} className="w-full px-5 py-3 bg-slate-700 hover:bg-slate-800 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 복사</button>
                                 <button onClick={handleExportReanalysisSummary} className="w-full px-5 py-3 bg-cyan-600 hover:bg-cyan-700 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 내보내기</button>
                                 <button onClick={handleNormalizeCurrentOcrMetadata} className="w-full px-5 py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-2xl font-black text-sm shadow-xl transition-all">날짜·공종 표준화</button>
                                 <button onClick={handleExportOcrVerificationPackage} className="w-full px-5 py-3 bg-emerald-600 hover:bg-emerald-700 rounded-2xl font-black text-sm shadow-xl transition-all">OCR 검증 패키지 저장</button>
                                 <button onClick={() => { void handleExport(); }} className="w-full px-5 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-2xl font-black text-sm shadow-xl transition-all">전체 백업 내보내기</button>
-                                {exportFeedback && (
-                                    <div className={`rounded-2xl border px-3 py-2 text-[11px] font-bold leading-relaxed ${getExportFeedbackClassName(exportFeedback.tone)}`}>
-                                        <p className="font-black">{exportFeedback.message}</p>
-                                        {exportFeedback.fileName && <p className="mt-1">파일명: {exportFeedback.fileName}</p>}
-                                        {exportFeedback.detail && <p className="mt-1">{exportFeedback.detail}</p>}
-                                    </div>
-                                )}
                                 <button onClick={onDeleteAll} className="w-full px-5 py-3 bg-rose-600 hover:bg-rose-700 rounded-2xl font-black text-sm shadow-xl transition-all">전체 삭제</button>
                             </>
                         )}

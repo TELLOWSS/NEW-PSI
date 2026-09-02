@@ -101,8 +101,8 @@ describe('backup data quality', () => {
 
     it('creates and resolves a self-describing v2 backup envelope', () => {
         const records = [
-            record('jan', { name: 'A근로자', date: '2026-01-10', safetyScore: 55 }),
-            record('feb', { name: 'A근로자', date: '2026-02-10', safetyScore: 70 }),
+            record('jan', { name: 'A근로자', portableWorkerId: 'WP-STABLE-A', date: '2026-01-10', safetyScore: 55 }),
+            record('feb', { name: 'A근로자', portableWorkerId: 'WP-STABLE-A', date: '2026-02-10', safetyScore: 70 }),
         ];
         const envelope = createBackupEnvelope(records, new Date('2026-06-18T00:00:00.000Z'));
         const resolved = resolveBackupPayload(envelope);

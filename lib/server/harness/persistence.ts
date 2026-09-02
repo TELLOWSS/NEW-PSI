@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { createHash } from 'node:crypto';
 import type {
     HarnessAnalyzeRequest,
     HarnessApprovalAction,
@@ -28,14 +29,341 @@ type WorkflowRunRow = {
     requires_manager_approval: boolean;
     prompt_version_id?: string | null;
     policy_version_id?: string | null;
-    latest_summary?: string | null;
     latest_confidence?: number | null;
     latest_decision_payload?: Record<string, unknown> | null;
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const HASHED_REFERENCE_PATTERN = /^sha256:[0-9a-f]{64}$/i;
+// Only application-owned codes may cross the persistence boundary. A character
+// regexp alone would also accept personal names, filenames and OCR snippets.
+const SAFE_VERSION_PATTERN = /^psi-harness-(?:prompt|policy|rules)-\d{4}-\d{2}-\d{2}$/;
+const SAFE_CODES = new Set([
+    'uploaded', 'ocr_validating', 'manual_review_required', 'context_ready',
+    'first_pass_analyzing', 'evaluator_review', 'awaiting_manager_approval',
+    'manager_revised', 'second_pass_analyzing', 'completed',
+    'SAFE_TO_PROCEED', 'SUPPLEMENTARY_REVIEW', 'IMMEDIATE_ATTENTION', 'CRITICAL_STOP',
+    'NOT_REQUIRED', 'REQUIRED', 'PENDING', 'APPROVED', 'REJECTED',
+    'NEEDED', 'IN_PROGRESS', 'DONE', 'approve', 'reject', 'request-reanalysis',
+    'info', 'warning', 'high', 'critical', 'unknown',
+    'workflow', 'input-validation', 'context-snapshot', 'analyzer', 'evaluator',
+    'guardrail-decision', 'guardrail-override', 'guardrail-rule', 'approval', 'human-approval',
+    'OCR_QUALITY_GATE_REVIEW', 'INPUT_TEXT_TOO_SHORT', 'INPUT_TEXT_LOW_SIGNAL',
+    'OCR_CONFIDENCE_CRITICAL', 'OCR_CONFIDENCE_LOW', 'IMAGE_QUALITY_LOW',
+    'HIGH_RISK_CONTEXT_MISSING', 'HIGH_RISK_EVIDENCE_THIN',
+    'INPUT_VALIDATION_FAILED', 'ACTION_GUIDANCE_MISSING', 'LOW_MODEL_CONFIDENCE',
+    'INSUFFICIENT_EVIDENCE_VOLUME', 'INPUT_QUALITY_BLOCK', 'HIGH_RISK_JOBTYPE_REVIEW',
+    'CRANE_ACCESS_CONTROL_MISSING', 'HIGH_WIND_CONTEXT', 'EXCAVATION_SUPPORT_MISSING',
+    'EXCAVATION_RAIN_RISK', 'LIFTING_CONTROL_MISSING', 'LIFTING_HIGH_WIND',
+    'FALL_PROTECTION_MISSING', 'OPENING_BARRIER_MISSING', 'SCAFFOLD_PROTECTION_MISSING',
+    'SHORING_SUPPORT_MISSING', 'SHORING_WEATHER_RECHECK',
+    'wrong-document', 'insufficient-psi-markers', 'missing-source-text',
+    'missing-critical-value', 'low-ocr-confidence', 'low-critical-field-confidence', 'incomplete-q1-q5',
+]);
+const PERSISTENCE_SCHEMA_VERSION = 'psi-harness-minimal-v1';
 
 const isUuidLike = (value: string) => UUID_PATTERN.test(String(value || '').trim());
+
+const toFiniteNumber = (value: unknown): number | null => {
+    const numeric = typeof value === 'number' ? value : Number.NaN;
+    return Number.isFinite(numeric) ? numeric : null;
+};
+
+const toSafeCode = (value: unknown): string | null => {
+    const normalized = String(value || '').trim();
+    return SAFE_CODES.has(normalized) || SAFE_VERSION_PATTERN.test(normalized) ? normalized : null;
+};
+
+const toSafeCodeList = (value: unknown): string[] => {
+    if (!Array.isArray(value)) return [];
+
+    const codes = value
+        .map((item) => {
+            if (typeof item === 'string') return toSafeCode(item);
+            if (item && typeof item === 'object') {
+                return toSafeCode((item as Record<string, unknown>).code);
+            }
+            return null;
+        })
+        .filter((item): item is string => Boolean(item));
+
+    return Array.from(new Set(codes));
+};
+
+/**
+ * 서버에는 로컬 OCR 레코드 식별자를 평문으로 남기지 않는다. 동일 입력은 동일
+ * 참조값으로 변환되어 기존 워크플로우 조회/갱신 기능은 유지된다.
+ */
+export const hashHarnessReference = (value: unknown): string | null => {
+    const normalized = String(value || '').trim();
+    if (!normalized) return null;
+    if (HASHED_REFERENCE_PATTERN.test(normalized)) return normalized.toLowerCase();
+    return `sha256:${createHash('sha256').update(`psi-harness-reference-v1\u0000${normalized}`).digest('hex')}`;
+};
+
+const sanitizeValidationSummary = (value: unknown) => {
+    if (!value || typeof value !== 'object') return null;
+    const validation = value as Record<string, unknown>;
+    const issues = Array.isArray(validation.issues) ? validation.issues : [];
+    const detectedKeywords = Array.isArray(validation.detectedKeywords) ? validation.detectedKeywords : [];
+
+    return {
+        ok: typeof validation.ok === 'boolean' ? validation.ok : null,
+        textLength: toFiniteNumber(validation.textLength),
+        specialCharacterRatio: toFiniteNumber(validation.specialCharacterRatio),
+        issueCodes: toSafeCodeList(validation.issueCodes ?? issues),
+        detectedKeywordCount: toFiniteNumber(validation.detectedKeywordCount) ?? detectedKeywords.length,
+    };
+};
+
+const sanitizeEvaluatorSummary = (value: unknown) => {
+    if (!value || typeof value !== 'object') return null;
+    const evaluator = value as Record<string, unknown>;
+    return {
+        evidenceSufficiency: toFiniteNumber(evaluator.evidenceSufficiency),
+        requiresHumanApproval: typeof evaluator.requiresHumanApproval === 'boolean'
+            ? evaluator.requiresHumanApproval
+            : null,
+        flags: toSafeCodeList(evaluator.flags),
+    };
+};
+
+const sanitizeOcrFieldConfidences = (value: unknown) => {
+    if (!value || typeof value !== 'object') return {};
+    const fields = value as Record<string, unknown>;
+    return Object.fromEntries(
+        ['name', 'jobField', 'date', 'nationality', 'handwrittenAnswers']
+            .map((key) => [key, toFiniteNumber(fields[key])] as const)
+            .filter(([, numeric]) => numeric !== null),
+    );
+};
+
+export function buildHarnessPersistenceDecisionPayload(options: {
+    payload: HarnessAnalyzeRequest;
+    decision: HarnessDecisionResult;
+    analyzer?: { confidence?: number };
+    validation?: HarnessInputValidationResult | Record<string, unknown>;
+    evaluator?: HarnessEvaluationOutput | Record<string, unknown>;
+    promptVersion?: string | null;
+    policyVersion?: string | null;
+}) {
+    return {
+        schemaVersion: PERSISTENCE_SCHEMA_VERSION,
+        recordReferenceHash: hashHarnessReference(options.payload.recordId),
+        quality: {
+            ocrConfidence: toFiniteNumber(options.payload.ocrConfidence),
+            imageQualityScore: toFiniteNumber(options.payload.imageQualityScore),
+            ocrQualityScore: toFiniteNumber(options.payload.ocrQualityScore),
+            requiresManualReview: options.payload.requiresManualReview === true,
+            ocrQualityReasonCodes: toSafeCodeList(options.payload.ocrQualityReasons),
+            ocrFieldConfidences: sanitizeOcrFieldConfidences(options.payload.ocrFieldConfidences),
+        },
+        analyzer: {
+            confidence: toFiniteNumber(options.analyzer?.confidence),
+        },
+        validation: sanitizeValidationSummary(options.validation),
+        evaluator: sanitizeEvaluatorSummary(options.evaluator),
+        decision: {
+            workflowState: options.decision.workflowState,
+            riskDecision: options.decision.riskDecision,
+            approvalState: options.decision.approvalState,
+            secondPassStatus: options.decision.secondPassStatus,
+            requiresManagerApproval: options.decision.requiresManagerApproval,
+        },
+        promptVersion: toSafeCode(options.promptVersion),
+        policyVersion: toSafeCode(options.policyVersion),
+    };
+}
+
+export function sanitizeHarnessAuditEvent(event: HarnessAuditEvent) {
+    const rawPayload = event.payload && typeof event.payload === 'object'
+        ? event.payload as Record<string, unknown>
+        : {};
+    const payload: Record<string, unknown> = {};
+    const numericKeys = [
+        'textLength',
+        'specialCharacterRatio',
+        'sensorEventsCount',
+        'confidence',
+        'evidenceSufficiency',
+        'overrideCount',
+    ];
+    const booleanKeys = ['ok', 'requiresHumanApproval', 'requiresManagerApproval'];
+    const codeKeys = [
+        'promptVersion',
+        'policyVersion',
+        'workflowState',
+        'riskDecision',
+        'approvalState',
+        'ruleCode',
+        'ruleVersion',
+        'severity',
+        'originalDecision',
+        'overriddenDecision',
+    ];
+
+    for (const key of numericKeys) {
+        const numeric = toFiniteNumber(rawPayload[key]);
+        if (numeric !== null) payload[key] = numeric;
+    }
+    for (const key of booleanKeys) {
+        if (typeof rawPayload[key] === 'boolean') payload[key] = rawPayload[key];
+    }
+    for (const key of codeKeys) {
+        const code = toSafeCode(rawPayload[key]);
+        if (code) payload[key] = code;
+    }
+
+    const flags = toSafeCodeList(rawPayload.flags);
+    if (flags.length > 0) payload.flags = flags;
+    const issueCodes = toSafeCodeList(rawPayload.issues);
+    if (issueCodes.length > 0) payload.issueCodes = issueCodes;
+    if (Array.isArray(rawPayload.detectedKeywords)) {
+        payload.detectedKeywordCount = rawPayload.detectedKeywords.length;
+    }
+    if (Array.isArray(rawPayload.extractedHazards)) {
+        payload.extractedHazardCount = rawPayload.extractedHazards.length;
+    }
+    if (Array.isArray(rawPayload.recommendedActions)) {
+        payload.recommendedActionCount = rawPayload.recommendedActions.length;
+    }
+
+    const parsedTimestamp = new Date(String(event.timestamp || ''));
+    return {
+        stage: toSafeCode(event.stage) || 'workflow',
+        timestamp: Number.isNaN(parsedTimestamp.getTime()) ? new Date().toISOString() : parsedTimestamp.toISOString(),
+        payload,
+    };
+}
+
+const buildMinimalContextSnapshot = (
+    payload: HarnessAnalyzeRequest,
+    context: HarnessContextSnapshot,
+) => ({
+    weather: {
+        windSpeedMps: toFiniteNumber(context.weather?.windSpeedMps),
+        rainfallMm: toFiniteNumber(context.weather?.rainfallMm),
+    },
+    schedule: {
+        concurrentHighRiskTaskCount: Array.isArray(context.workPlan?.concurrentHighRiskTasks)
+            ? context.workPlan.concurrentHighRiskTasks.length
+            : 0,
+    },
+    sensorEvents: Array.isArray(context.sensorEvents)
+        ? context.sensorEvents.map((event) => ({ severity: toSafeCode(event.severity) || 'unknown' }))
+        : [],
+    metadata: {
+        recordReferenceHash: hashHarnessReference(payload.recordId),
+        requiresManualReview: payload.requiresManualReview === true,
+        ocrQualityScore: toFiniteNumber(payload.ocrQualityScore),
+        ocrQualityReasonCodes: toSafeCodeList(payload.ocrQualityReasons),
+        ocrFieldConfidences: sanitizeOcrFieldConfidences(payload.ocrFieldConfidences),
+    },
+});
+
+const sanitizeStoredDecisionPayload = (
+    value: unknown,
+    run: WorkflowRunRow,
+    promptVersion?: string | null,
+    policyVersion?: string | null,
+) => {
+    const stored = value && typeof value === 'object' ? value as Record<string, any> : {};
+    const quality = stored.quality && typeof stored.quality === 'object'
+        ? stored.quality as Record<string, unknown>
+        : {};
+    const analyzer = stored.analyzer && typeof stored.analyzer === 'object'
+        ? stored.analyzer as Record<string, unknown>
+        : {};
+    const approval = stored.approval && typeof stored.approval === 'object'
+        ? stored.approval as Record<string, unknown>
+        : null;
+
+    return {
+        schemaVersion: PERSISTENCE_SCHEMA_VERSION,
+        recordReferenceHash: hashHarnessReference(stored.recordReferenceHash || run.source_record_id),
+        quality: {
+            ocrConfidence: toFiniteNumber(quality.ocrConfidence),
+            imageQualityScore: toFiniteNumber(quality.imageQualityScore),
+            ocrQualityScore: toFiniteNumber(quality.ocrQualityScore),
+            requiresManualReview: quality.requiresManualReview === true,
+            ocrQualityReasonCodes: toSafeCodeList(quality.ocrQualityReasonCodes),
+            ocrFieldConfidences: sanitizeOcrFieldConfidences(quality.ocrFieldConfidences),
+        },
+        analyzer: {
+            confidence: toFiniteNumber(analyzer.confidence ?? run.latest_confidence),
+        },
+        validation: sanitizeValidationSummary(stored.validation),
+        evaluator: sanitizeEvaluatorSummary(stored.evaluator),
+        decision: {
+            workflowState: run.workflow_state,
+            riskDecision: run.risk_decision,
+            approvalState: run.approval_state,
+            secondPassStatus: run.second_pass_status,
+            requiresManagerApproval: run.requires_manager_approval,
+        },
+        promptVersion: toSafeCode(promptVersion || stored.promptVersion),
+        policyVersion: toSafeCode(policyVersion || stored.policyVersion),
+        approval: approval
+            ? {
+                approverHash: hashHarnessReference(approval.approverHash || approval.approver),
+                action: toSafeCode(approval.action),
+                commentHash: hashHarnessReference(approval.commentHash || approval.comment),
+                commentProvided: approval.commentProvided === true || Boolean(approval.comment),
+                updatedAt: normalizeIsoTimestamp(approval.updatedAt),
+            }
+            : null,
+    };
+};
+
+const normalizeIsoTimestamp = (value: unknown): string | null => {
+    const parsed = new Date(String(value || ''));
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+};
+
+const sanitizeStoredContextRow = (row: Record<string, any> | null) => {
+    if (!row) return null;
+    const weather = row.weather_json && typeof row.weather_json === 'object'
+        ? row.weather_json as Record<string, unknown>
+        : {};
+    const schedule = row.schedule_json && typeof row.schedule_json === 'object'
+        ? row.schedule_json as Record<string, unknown>
+        : {};
+    const metadata = row.metadata_json && typeof row.metadata_json === 'object'
+        ? row.metadata_json as Record<string, unknown>
+        : {};
+    const sensorEvents = Array.isArray(row.sensor_events_json) ? row.sensor_events_json : [];
+    const existingConcurrentTasks = Array.isArray(schedule.concurrentHighRiskTasks)
+        ? schedule.concurrentHighRiskTasks.length
+        : null;
+
+    return {
+        createdAt: normalizeIsoTimestamp(row.created_at) || new Date().toISOString(),
+        weather: {
+            windSpeedMps: toFiniteNumber(weather.windSpeedMps),
+            rainfallMm: toFiniteNumber(weather.rainfallMm),
+        },
+        schedule: {
+            concurrentHighRiskTaskCount: toFiniteNumber(schedule.concurrentHighRiskTaskCount)
+                ?? existingConcurrentTasks
+                ?? 0,
+        },
+        sensorEvents: sensorEvents.map((event: unknown) => {
+            const severity = event && typeof event === 'object'
+                ? toSafeCode((event as Record<string, unknown>).severity)
+                : null;
+            return { severity: severity || 'unknown' };
+        }),
+        metadata: {
+            recordReferenceHash: hashHarnessReference(metadata.recordReferenceHash),
+            requiresManualReview: metadata.requiresManualReview === true,
+            ocrQualityScore: toFiniteNumber(metadata.ocrQualityScore),
+            ocrQualityReasonCodes: toSafeCodeList(metadata.ocrQualityReasonCodes),
+            ocrFieldConfidences: sanitizeOcrFieldConfidences(metadata.ocrFieldConfidences),
+        },
+        ocrConfidenceScore: toFiniteNumber(row.ocr_confidence_score),
+        imageQualityScore: toFiniteNumber(row.image_quality_score),
+    };
+};
 
 const normalizeIsoDate = (value?: string | null) => {
     const raw = String(value || '').trim();
@@ -51,66 +379,41 @@ const isMissingPersistenceDependency = (error: any) => {
     return code === '42P01' || message.includes('ai_workflow_') || message.includes('relation');
 };
 
-const isMissingEnv = (error: any) => {
-    return String(error?.message || '').includes('Supabase 환경변수 누락');
-};
+const PERSISTENCE_CONFIGURATION_WARNING = '서버 전용 저장 연결이 설정되지 않아 처리 상태를 저장하지 않았습니다.';
+
+class HarnessPersistenceConfigurationError extends Error {
+    constructor() {
+        super(PERSISTENCE_CONFIGURATION_WARNING);
+        this.name = 'HarnessPersistenceConfigurationError';
+    }
+}
+
+const isMissingEnv = (error: unknown) => error instanceof HarnessPersistenceConfigurationError;
+
+function getHarnessPersistenceConfig() {
+    return {
+        supabaseUrl: (process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim(),
+        serviceRoleKey: (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '').trim(),
+    };
+}
 
 function getHarnessSupabaseClient(): SupabaseLike {
-    const supabaseUrl =
-        process.env.VITE_SUPABASE_URL ||
-        process.env.NEXT_PUBLIC_SUPABASE_URL ||
-        '';
-    const serviceRoleKey =
-        process.env.SUPABASE_SERVICE_ROLE_KEY ||
-        process.env.SUPABASE_SERVICE_KEY ||
-        process.env.SERVICE_ROLE_KEY ||
-        '';
-    const anonKey =
-        process.env.VITE_SUPABASE_ANON_KEY ||
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-        '';
-    const psiAdminSecret =
-        process.env.VITE_PSI_ADMIN_SECRET ||
-        process.env.PSI_ADMIN_SECRET ||
-        '';
-
-    const keyToUse = serviceRoleKey || anonKey;
-    if (!supabaseUrl || !keyToUse) {
-        throw new Error('Supabase 환경변수 누락');
+    const { supabaseUrl, serviceRoleKey } = getHarnessPersistenceConfig();
+    if (!supabaseUrl || !serviceRoleKey) {
+        throw new HarnessPersistenceConfigurationError();
     }
 
-    return createClient(supabaseUrl, keyToUse, {
-        global: {
-            headers: psiAdminSecret ? { 'x-psi-admin-secret': psiAdminSecret } : {},
+    return createClient(supabaseUrl, serviceRoleKey, {
+        auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false,
         },
     });
 }
 
 async function findWorkflowRun(supabase: SupabaseLike, workflowRunIdOrSource: string): Promise<WorkflowRunRow | null> {
-    const lookup = String(workflowRunIdOrSource || '').trim();
-    if (!lookup) return null;
-
-    if (isUuidLike(lookup)) {
-        const { data, error } = await supabase
-            .from('ai_workflow_runs')
-            .select('id, source_record_id, workflow_state, risk_decision, approval_state, second_pass_status, requires_manager_approval, prompt_version_id, policy_version_id, latest_summary, latest_confidence, latest_decision_payload')
-            .eq('id', lookup)
-            .maybeSingle();
-
-        if (error) throw error;
-        if (data) return data as WorkflowRunRow;
-    }
-
-    const { data, error } = await supabase
-        .from('ai_workflow_runs')
-        .select('id, source_record_id, workflow_state, risk_decision, approval_state, second_pass_status, requires_manager_approval, prompt_version_id, policy_version_id, latest_summary, latest_confidence, latest_decision_payload')
-        .eq('source_record_id', lookup)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-    if (error) throw error;
-    return (data as WorkflowRunRow | null) || null;
+    return (await findWorkflowRunWithResolution(supabase, workflowRunIdOrSource)).run;
 }
 
 async function findWorkflowRunWithResolution(
@@ -125,7 +428,7 @@ async function findWorkflowRunWithResolution(
     if (isUuidLike(lookup)) {
         const { data, error } = await supabase
             .from('ai_workflow_runs')
-            .select('id, source_record_id, workflow_state, risk_decision, approval_state, second_pass_status, requires_manager_approval, prompt_version_id, policy_version_id, latest_summary, latest_confidence, latest_decision_payload')
+            .select('id, source_record_id, workflow_state, risk_decision, approval_state, second_pass_status, requires_manager_approval, prompt_version_id, policy_version_id, latest_confidence, latest_decision_payload')
             .eq('id', lookup)
             .maybeSingle();
 
@@ -137,13 +440,29 @@ async function findWorkflowRunWithResolution(
 
     const { data, error } = await supabase
         .from('ai_workflow_runs')
-        .select('id, source_record_id, workflow_state, risk_decision, approval_state, second_pass_status, requires_manager_approval, prompt_version_id, policy_version_id, latest_summary, latest_confidence, latest_decision_payload')
-        .eq('source_record_id', lookup)
+        .select('id, source_record_id, workflow_state, risk_decision, approval_state, second_pass_status, requires_manager_approval, prompt_version_id, policy_version_id, latest_confidence, latest_decision_payload')
+        .eq('source_record_id', hashHarnessReference(lookup) || lookup)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
     if (error) throw error;
+    // Read-only compatibility for workflows created before reference hashing.
+    // The next update replaces this legacy source ID with the hashed reference.
+    if (!data && !HASHED_REFERENCE_PATTERN.test(lookup)) {
+        const legacy = await supabase
+            .from('ai_workflow_runs')
+            .select('id, source_record_id, workflow_state, risk_decision, approval_state, second_pass_status, requires_manager_approval, prompt_version_id, policy_version_id, latest_confidence, latest_decision_payload')
+            .eq('source_record_id', lookup)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        if (legacy.error) throw legacy.error;
+        return {
+            run: (legacy.data as WorkflowRunRow | null) || null,
+            resolvedBy: legacy.data ? 'source_record_id' : null,
+        };
+    }
     return {
         run: (data as WorkflowRunRow | null) || null,
         resolvedBy: data ? 'source_record_id' : null,
@@ -158,14 +477,9 @@ async function ensurePromptVersion(
     const { data, error } = await client
         .from('ai_prompt_versions')
         .upsert({
-            prompt_version: promptSnapshot.version,
-            system_instruction: promptSnapshot.systemInstruction.join('\n'),
-            prompt_layers_json: {
-                systemInstruction: promptSnapshot.systemInstruction,
-                staticKnowledge: promptSnapshot.staticKnowledge,
-                dynamicContext: promptSnapshot.dynamicContext,
-                assembledPrompt: promptSnapshot.assembledPrompt,
-            },
+            prompt_version: toSafeCode(promptSnapshot.version) || 'unknown',
+            system_instruction: null,
+            prompt_layers_json: {},
             created_by: 'psi-harness-api',
         }, {
             onConflict: 'prompt_version',
@@ -186,8 +500,12 @@ async function ensurePolicyVersion(
     const { data, error } = await client
         .from('ai_policy_versions')
         .upsert({
-            policy_version: policySnapshot.version,
-            policy_json: policySnapshot,
+            policy_version: toSafeCode(policySnapshot.version) || 'unknown',
+            policy_json: {
+                minTextLength: policySnapshot.minTextLength,
+                minOcrConfidence: policySnapshot.minOcrConfidence,
+                criticalOcrConfidence: policySnapshot.criticalOcrConfidence,
+            },
             created_by: 'psi-harness-api',
         }, {
             onConflict: 'policy_version',
@@ -220,25 +538,28 @@ export async function persistHarnessAnalysis(options: {
             ? await ensurePromptVersion(supabase, options.promptSnapshot)
             : null;
         const policyVersionId = await ensurePolicyVersion(supabase, getDefaultHarnessPolicy());
-        const decisionPayload = {
+        const decisionPayload = buildHarnessPersistenceDecisionPayload({
             payload: options.payload,
-            validation: options.validation || null,
-            evaluator: options.evaluator || null,
             decision: options.decision,
-            prompt: options.promptSnapshot || null,
-        };
+            analyzer: options.analyzer,
+            validation: options.validation,
+            evaluator: options.evaluator,
+            promptVersion: options.promptSnapshot?.version || options.context.promptVersion,
+            policyVersion: options.context.policyVersion,
+        });
+        const minimalContext = buildMinimalContextSnapshot(options.payload, options.context);
 
         const runRow = {
-            source_record_id: String(options.payload.recordId || existingRun?.source_record_id || '').trim() || null,
+            source_record_id: hashHarnessReference(options.payload.recordId || existingRun?.source_record_id),
             source_type: 'ocr_record',
-            job_type: String(options.payload.jobType || '').trim() || null,
+            job_type: null,
             document_date: normalizeIsoDate((options.payload.metadata as Record<string, unknown> | undefined)?.documentDate as string | undefined),
             workflow_state: options.decision.workflowState,
             risk_decision: options.decision.riskDecision,
             approval_state: options.decision.approvalState,
             second_pass_status: options.decision.secondPassStatus,
             requires_manager_approval: options.decision.requiresManagerApproval,
-            latest_summary: String(options.analyzer?.summary || '').trim() || null,
+            latest_summary: null,
             latest_confidence: Number.isFinite(options.analyzer?.confidence)
                 ? Number(options.analyzer?.confidence)
                 : null,
@@ -274,10 +595,10 @@ export async function persistHarnessAnalysis(options: {
             .from('ai_context_snapshots')
             .insert({
                 workflow_run_id: workflowRunId,
-                weather_json: options.context.weather,
-                schedule_json: options.context.workPlan,
-                sensor_events_json: options.context.sensorEvents,
-                metadata_json: options.payload.metadata || {},
+                weather_json: minimalContext.weather,
+                schedule_json: minimalContext.schedule,
+                sensor_events_json: minimalContext.sensorEvents,
+                metadata_json: minimalContext.metadata,
                 ocr_confidence_score: Number.isFinite(options.payload.ocrConfidence)
                     ? Number(options.payload.ocrConfidence)
                     : null,
@@ -290,15 +611,16 @@ export async function persistHarnessAnalysis(options: {
         if (contextError) throw contextError;
 
         if (options.auditEvents.length > 0) {
+            const sanitizedEvents = options.auditEvents.map(sanitizeHarnessAuditEvent);
             const { error: eventsError } = await client
                 .from('ai_workflow_events')
-                .insert(options.auditEvents.map((event) => ({
+                .insert(sanitizedEvents.map((event) => ({
                     workflow_run_id: workflowRunId,
                     event_stage: event.stage,
                     event_type: 'system',
                     actor: null,
-                    note: event.note,
-                    payload_json: event.payload || {},
+                    note: null,
+                    payload_json: event.payload,
                     created_at: event.timestamp,
                 })));
             if (eventsError) throw eventsError;
@@ -309,18 +631,18 @@ export async function persistHarnessAnalysis(options: {
                 .from('ai_guardrail_overrides')
                 .insert(options.overrides.map((override) => ({
                     workflow_run_id: workflowRunId,
-                    rule_code: override.ruleCode,
-                    rule_version: override.ruleVersion,
-                    severity: override.severity,
+                    rule_code: toSafeCode(override.ruleCode) || 'unknown',
+                    rule_version: toSafeCode(override.ruleVersion),
+                    severity: toSafeCode(override.severity) || 'warning',
                     trigger_type: 'guardrail-rule',
                     trigger_payload_json: {
-                        ruleVersion: override.ruleVersion,
-                        originalDecision: override.originalDecision,
-                        overriddenDecision: override.overriddenDecision,
+                        ruleVersion: toSafeCode(override.ruleVersion),
+                        originalDecision: toSafeCode(override.originalDecision),
+                        overriddenDecision: toSafeCode(override.overriddenDecision),
                     },
-                    message: override.message,
-                    original_decision: override.originalDecision,
-                    overridden_decision: override.overriddenDecision,
+                    message: null,
+                    original_decision: toSafeCode(override.originalDecision),
+                    overridden_decision: toSafeCode(override.overriddenDecision),
                 })));
             if (overridesError) throw overridesError;
         }
@@ -347,24 +669,39 @@ export async function persistHarnessApproval(options: {
         const client = supabase as any;
         const existingRun = await findWorkflowRun(supabase, options.workflowRunId || options.sourceRecordId || '');
 
-        const previousDecision = existingRun?.risk_decision || null;
+        const previousDecision = toSafeCode(existingRun?.risk_decision);
+        const approvalTimestamp = new Date().toISOString();
+        const recordReferenceHash = hashHarnessReference(
+            existingRun?.source_record_id || options.sourceRecordId || options.workflowRunId,
+        );
         const runUpdate = {
-            source_record_id: String(existingRun?.source_record_id || options.sourceRecordId || options.workflowRunId || '').trim() || null,
+            source_record_id: recordReferenceHash,
             source_type: 'ocr_record',
+            job_type: null,
             workflow_state: options.decision.workflowState,
             risk_decision: options.decision.riskDecision,
             approval_state: options.decision.approvalState,
             second_pass_status: options.decision.secondPassStatus,
             requires_manager_approval: options.decision.requiresManagerApproval,
+            latest_summary: null,
             latest_decision_payload: {
-                ...(existingRun?.latest_decision_payload || {}),
+                ...(existingRun ? sanitizeStoredDecisionPayload(existingRun.latest_decision_payload, existingRun) : {}),
+                schemaVersion: PERSISTENCE_SCHEMA_VERSION,
+                recordReferenceHash,
                 approval: {
-                    approver: options.approver,
+                    approverHash: hashHarnessReference(options.approver),
                     action: options.action,
-                    comment: options.comment || null,
-                    updatedAt: new Date().toISOString(),
+                    commentHash: hashHarnessReference(options.comment),
+                    commentProvided: Boolean(String(options.comment || '').trim()),
+                    updatedAt: approvalTimestamp,
                 },
-                decision: options.decision,
+                decision: {
+                    workflowState: options.decision.workflowState,
+                    riskDecision: options.decision.riskDecision,
+                    approvalState: options.decision.approvalState,
+                    secondPassStatus: options.decision.secondPassStatus,
+                    requiresManagerApproval: options.decision.requiresManagerApproval,
+                },
             },
         };
 
@@ -390,14 +727,12 @@ export async function persistHarnessApproval(options: {
             return { persisted: false, workflowRunId: null, warning: '처리 번호 생성 실패' };
         }
 
-        const approvalTimestamp = new Date().toISOString();
-
         const approvalRow = {
             workflow_run_id: workflowRunId,
-            approver_name: options.approver,
-            approver_role: options.approver,
+            approver_name: null,
+            approver_role: null,
             approval_action: options.action,
-            approval_comment: options.comment || null,
+            approval_comment: null,
             decision_before: previousDecision,
             decision_after: options.decision.riskDecision,
             created_at: approvalTimestamp,
@@ -412,10 +747,13 @@ export async function persistHarnessApproval(options: {
             workflow_run_id: workflowRunId,
             event_stage: 'approval',
             event_type: 'human-approval',
-            actor: options.approver,
-            note: `${options.action} 처리`,
+            actor: null,
+            note: null,
             payload_json: {
-                comment: options.comment || null,
+                action: options.action,
+                approverHash: hashHarnessReference(options.approver),
+                commentHash: hashHarnessReference(options.comment),
+                commentProvided: Boolean(String(options.comment || '').trim()),
                 workflowState: options.decision.workflowState,
                 approvalState: options.decision.approvalState,
                 riskDecision: options.decision.riskDecision,
@@ -449,7 +787,7 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
                 warning: null,
                 data: null,
                 diagnostics: {
-                    lookupValue,
+                    lookupValue: hashHarnessReference(lookupValue) || '',
                     found: false,
                     resolvedBy: null,
                     sourceRecordId: null,
@@ -463,21 +801,21 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
 
         const { data: events, error: eventsError } = await supabase
             .from('ai_workflow_events')
-            .select('event_stage, actor, note, created_at, payload_json')
+            .select('event_stage, created_at')
             .eq('workflow_run_id', run.id)
             .order('created_at', { ascending: true });
         if (eventsError) throw eventsError;
 
         const { data: approvals, error: approvalsError } = await supabase
             .from('ai_human_approvals')
-            .select('approver_name, approver_role, approval_action, approval_comment, decision_before, decision_after, created_at')
+            .select('approval_action, decision_before, decision_after, created_at')
             .eq('workflow_run_id', run.id)
             .order('created_at', { ascending: true });
         if (approvalsError) throw approvalsError;
 
         const { data: overrides, error: overridesError } = await supabase
             .from('ai_guardrail_overrides')
-            .select('rule_code, rule_version, severity, message, trigger_type, trigger_payload_json, original_decision, overridden_decision, created_at')
+            .select('rule_code, rule_version, severity, trigger_type, original_decision, overridden_decision, created_at')
             .eq('workflow_run_id', run.id)
             .order('created_at', { ascending: true });
         if (overridesError) throw overridesError;
@@ -498,14 +836,14 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
             promptVersionId
                 ? supabase
                     .from('ai_prompt_versions')
-                    .select('prompt_version, system_instruction, prompt_layers_json, created_at')
+                    .select('prompt_version, created_at')
                     .eq('id', promptVersionId)
                     .maybeSingle()
                 : Promise.resolve({ data: null, error: null } as any),
             policyVersionId
                 ? supabase
                     .from('ai_policy_versions')
-                    .select('policy_version, policy_json, created_at')
+                    .select('policy_version, created_at')
                     .eq('id', policyVersionId)
                     .maybeSingle()
                 : Promise.resolve({ data: null, error: null } as any),
@@ -513,13 +851,18 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
         if (promptResult?.error) throw promptResult.error;
         if (policyResult?.error) throw policyResult.error;
 
-        const latestDecisionPayload = (run.latest_decision_payload || {}) as Record<string, any>;
         const latestApproval = Array.isArray(approvals) && approvals.length > 0 ? approvals[approvals.length - 1] : null;
-        const evaluatorPayload = (latestDecisionPayload?.evaluator || {}) as Record<string, any>;
-        const approvalPayload = (latestDecisionPayload?.approval || {}) as Record<string, any>;
-        const resolvedPromptVersion = promptResult?.data?.prompt_version ? String(promptResult.data.prompt_version) : null;
-        const resolvedPolicyVersion = policyResult?.data?.policy_version ? String(policyResult.data.policy_version) : null;
-        const resolvedRuleVersions = Array.from(new Set((overrides || []).map((override: any) => String(override.rule_version || '').trim()).filter(Boolean)));
+        const resolvedPromptVersion = toSafeCode(promptResult?.data?.prompt_version);
+        const resolvedPolicyVersion = toSafeCode(policyResult?.data?.policy_version);
+        const latestDecisionPayload = sanitizeStoredDecisionPayload(
+            run.latest_decision_payload,
+            run,
+            resolvedPromptVersion,
+            resolvedPolicyVersion,
+        );
+        const evaluatorPayload = (latestDecisionPayload.evaluator || {}) as Record<string, any>;
+        const approvalPayload = (latestDecisionPayload.approval || {}) as Record<string, any>;
+        const resolvedRuleVersions = Array.from(new Set((overrides || []).map((override: any) => toSafeCode(override.rule_version)).filter(Boolean)));
         const versionDetails = buildHarnessVersionDetailsBundle({
             promptVersions: [resolvedPromptVersion],
             policyVersions: [resolvedPolicyVersion],
@@ -527,30 +870,28 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
         });
         const versionChangeSummary = buildHarnessVersionChangeSummary(versionDetails);
         const normalizedOverrides = (overrides || []).map((override: any) => ({
-            ruleCode: String(override.rule_code || ''),
-            ruleVersion: String(override.rule_version || ''),
-            severity: String(override.severity || 'warning'),
-            message: String(override.message || ''),
-            triggerType: override.trigger_type ? String(override.trigger_type) : null,
-            originalDecision: override.original_decision ? String(override.original_decision) : null,
-            overriddenDecision: override.overridden_decision ? String(override.overridden_decision) : null,
-            createdAt: String(override.created_at || new Date().toISOString()),
-            triggerPayload: override.trigger_payload_json || {},
+            ruleCode: toSafeCode(override.rule_code) || 'unknown',
+            ruleVersion: toSafeCode(override.rule_version) || '',
+            severity: toSafeCode(override.severity) || 'warning',
+            message: '',
+            triggerType: toSafeCode(override.trigger_type),
+            originalDecision: toSafeCode(override.original_decision),
+            overriddenDecision: toSafeCode(override.overridden_decision),
+            createdAt: normalizeIsoTimestamp(override.created_at) || new Date().toISOString(),
+            triggerPayload: {},
         }));
         const ruleImpactSummary = buildHarnessRuleImpactSummary(normalizedOverrides);
 
         const timeline = [
             ...(events || []).map((event: any) => ({
-                stage: String(event.event_stage || 'workflow'),
-                timestamp: String(event.created_at || new Date().toISOString()),
-                note: String(event.note || '').trim() || '워크플로우 이벤트',
-                actor: event.actor ? String(event.actor) : undefined,
+                stage: toSafeCode(event.event_stage) || 'workflow',
+                timestamp: normalizeIsoTimestamp(event.created_at) || new Date().toISOString(),
+                note: toSafeCode(event.event_stage) || 'workflow',
             })),
             ...(approvals || []).map((approval: any) => ({
                 stage: 'human-approval',
-                timestamp: String(approval.created_at || new Date().toISOString()),
-                note: `${approval.approval_action}${approval.approval_comment ? ` · ${approval.approval_comment}` : ''}`,
-                actor: String(approval.approver_role || approval.approver_name || 'manager'),
+                timestamp: normalizeIsoTimestamp(approval.created_at) || new Date().toISOString(),
+                note: toSafeCode(approval.approval_action) || 'approval',
             })),
         ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
@@ -563,10 +904,10 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
             persisted: true,
             warning: null,
             diagnostics: {
-                lookupValue,
+                lookupValue: hashHarnessReference(lookupValue) || '',
                 found: true,
                 resolvedBy,
-                sourceRecordId: run.source_record_id || null,
+                sourceRecordId: hashHarnessReference(run.source_record_id),
                 eventCount,
                 approvalCount,
                 overrideCount,
@@ -580,42 +921,32 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
                 secondPassStatus: run.second_pass_status || 'IN_PROGRESS',
                 overrides: normalizedOverrides,
                 approvals: (approvals || []).map((approval: any) => ({
-                    approverName: approval.approver_name ? String(approval.approver_name) : null,
-                    approverRole: approval.approver_role ? String(approval.approver_role) : null,
-                    action: String(approval.approval_action || 'approve'),
-                    comment: approval.approval_comment ? String(approval.approval_comment) : null,
-                    decisionBefore: approval.decision_before ? String(approval.decision_before) : null,
-                    decisionAfter: approval.decision_after ? String(approval.decision_after) : null,
-                    createdAt: String(approval.created_at || new Date().toISOString()),
+                    approverName: null,
+                    approverRole: null,
+                    action: toSafeCode(approval.approval_action) || 'unknown',
+                    comment: null,
+                    decisionBefore: toSafeCode(approval.decision_before),
+                    decisionAfter: toSafeCode(approval.decision_after),
+                    createdAt: normalizeIsoTimestamp(approval.created_at) || new Date().toISOString(),
                 })),
-                contextSnapshot: latestContextRow
-                    ? {
-                        createdAt: String(latestContextRow.created_at || new Date().toISOString()),
-                        weather: latestContextRow.weather_json || {},
-                        schedule: latestContextRow.schedule_json || {},
-                        sensorEvents: latestContextRow.sensor_events_json || [],
-                        metadata: latestContextRow.metadata_json || {},
-                        ocrConfidenceScore: latestContextRow.ocr_confidence_score ?? null,
-                        imageQualityScore: latestContextRow.image_quality_score ?? null,
-                    }
-                    : null,
+                contextSnapshot: sanitizeStoredContextRow(latestContextRow),
                 promptVersion: promptResult?.data
                     ? {
-                        version: String(promptResult.data.prompt_version || ''),
-                        systemInstruction: String(promptResult.data.system_instruction || ''),
-                        promptLayers: promptResult.data.prompt_layers_json || {},
-                        createdAt: String(promptResult.data.created_at || new Date().toISOString()),
+                        version: resolvedPromptVersion || 'unknown',
+                        systemInstruction: '',
+                        promptLayers: {},
+                        createdAt: normalizeIsoTimestamp(promptResult.data.created_at) || new Date().toISOString(),
                     }
                     : null,
                 policyVersion: policyResult?.data
                     ? {
-                        version: String(policyResult.data.policy_version || ''),
-                        policy: policyResult.data.policy_json || {},
-                        createdAt: String(policyResult.data.created_at || new Date().toISOString()),
+                        version: resolvedPolicyVersion || 'unknown',
+                        policy: {},
+                        createdAt: normalizeIsoTimestamp(policyResult.data.created_at) || new Date().toISOString(),
                     }
                     : null,
                 analyzerSummary: {
-                    summary: run.latest_summary ? String(run.latest_summary) : null,
+                    summary: null,
                     confidence: typeof run.latest_confidence === 'number' ? run.latest_confidence : null,
                 },
                 evaluatorSummary: {
@@ -625,15 +956,15 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
                 },
                 latestApprovalDiff: latestApproval
                     ? {
-                        action: String(latestApproval.approval_action || 'approve'),
-                        comment: latestApproval.approval_comment ? String(latestApproval.approval_comment) : null,
-                        decisionBefore: latestApproval.decision_before ? String(latestApproval.decision_before) : null,
-                        decisionAfter: latestApproval.decision_after ? String(latestApproval.decision_after) : null,
+                        action: toSafeCode(latestApproval.approval_action) || 'unknown',
+                        comment: null,
+                        decisionBefore: toSafeCode(latestApproval.decision_before),
+                        decisionAfter: toSafeCode(latestApproval.decision_after),
                         workflowStateAfter: run.workflow_state,
                         approvalStateAfter: run.approval_state,
                         secondPassStatusAfter: run.second_pass_status || 'IN_PROGRESS',
                         requiresManagerApprovalAfter: Boolean(run.requires_manager_approval),
-                        updatedAt: approvalPayload.updatedAt ? String(approvalPayload.updatedAt) : String(latestApproval.created_at || new Date().toISOString()),
+                        updatedAt: normalizeIsoTimestamp(approvalPayload.updatedAt || latestApproval.created_at) || new Date().toISOString(),
                     }
                     : null,
                 versionDetails,
@@ -651,7 +982,7 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
                 warning: error?.message || '하네스 persistence 비활성',
                 data: null,
                 diagnostics: {
-                    lookupValue: String(workflowRunId || '').trim(),
+                    lookupValue: hashHarnessReference(workflowRunId) || '',
                     found: false,
                     resolvedBy: null,
                     sourceRecordId: null,
@@ -667,24 +998,12 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
 }
 
 function getHarnessPersistenceEnvMeta() {
-    const supabaseUrl =
-        process.env.VITE_SUPABASE_URL ||
-        process.env.NEXT_PUBLIC_SUPABASE_URL ||
-        '';
-    const serviceRoleKey =
-        process.env.SUPABASE_SERVICE_ROLE_KEY ||
-        process.env.SUPABASE_SERVICE_KEY ||
-        process.env.SERVICE_ROLE_KEY ||
-        '';
-    const anonKey =
-        process.env.VITE_SUPABASE_ANON_KEY ||
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-        '';
+    const { supabaseUrl, serviceRoleKey } = getHarnessPersistenceConfig();
 
     return {
         supabaseUrlConfigured: Boolean(supabaseUrl),
-        keyMode: serviceRoleKey ? 'service_role' : anonKey ? 'anon' : 'missing',
-        envConfigured: Boolean(supabaseUrl && (serviceRoleKey || anonKey)),
+        keyMode: serviceRoleKey ? 'service_role' : 'missing',
+        envConfigured: Boolean(supabaseUrl && serviceRoleKey),
     } as const;
 }
 
@@ -722,15 +1041,13 @@ export async function fetchHarnessPersistenceHealth() {
         };
     } catch (error: any) {
         const missingEnv = isMissingEnv(error);
-        const missingTable = isMissingPersistenceDependency(error);
-
         return {
             connected: false,
             envConfigured: missingEnv ? false : envMeta.envConfigured,
             keyMode: envMeta.keyMode,
             supabaseUrlConfigured: envMeta.supabaseUrlConfigured,
-            tablesReady: missingTable ? false : false,
-            warning: error?.message || '하네스 persistence 상태를 확인할 수 없습니다.',
+            tablesReady: false,
+            warning: missingEnv ? PERSISTENCE_CONFIGURATION_WARNING : '서버 저장 연결 상태를 확인할 수 없습니다.',
             checkedAt: new Date().toISOString(),
             counts: {
                 workflowRuns: 0,

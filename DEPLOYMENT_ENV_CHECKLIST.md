@@ -1,4 +1,4 @@
-# PSI 배포 환경변수 체크리스트 (2026-08-31)
+# PSI 배포 환경변수 체크리스트 (2026-09-02)
 
 이 문서는 현재 코드 기준으로 실제 참조되는 환경변수만 정리합니다.
 
@@ -83,7 +83,33 @@
 - 배포 원칙: 마이그레이션 적용과 권한/원자성 검증이 끝나기 전에는 유료 OCR을 활성화하지 않음. 앱은 저장소가 없거나 권한이 틀리면 유료 호출 전에 503으로 안전 차단해야 함
 - 주의: 루트의 `supabase_api_security_migration.sql` 전체는 다른 PSI 테이블 의존 구간을 포함합니다. 신규/복구 프로젝트의 유료 OCR 게이트에는 위 정식 migration 파일을 우선 적용합니다.
 
-## 2) 권장 (운영 안정화)
+## 1-2) PC 월 마감 영수증·마스터 서버 경계 (필수)
+
+- 적용 파일
+  - `supabase/migrations/20260901001000_record_master_server_boundary.sql`
+  - `supabase/migrations/20260902000000_monthly_archive_continuity.sql`
+- 서버 저장 범위: 검증된 월별 백업의 해시·건수·세대 및 근로자 ID별 고정 필드 월 요약만 허용
+- 원본 보관: 위험성평가 본문·수기·번역·이미지·상세 검수 이력은 PC 월별 파일에 보관하며 서버 자동 동기화 금지
+- 전송 시점: 월별 파일 재불러오기와 해시 검증 후 사용자 확인 시에만 등록
+- 용량 보호: 이름·파일 원본·이미지·비밀번호·승인 토큰·전체 WorkerRecord JSON 서버 저장 금지
+- 과거 원본 삭제·정리는 자동 실행하지 않음
+- 마스터 경계: 브라우저 anon 키의 `record_master_*` 직접 CRUD를 금지하고 인증 관리자 API + `service_role`만 허용
+- 권한 기준: 관련 테이블/뷰는 anon/authenticated 권한 회수, 뷰는 `security_invoker`, 테이블은 RLS 강제
+
+## 2) 월 요약 필수 범위 설정 및 운영 안정화
+
+- `PSI_ORGANIZATION_ID`
+  - 용도: 월 마감 영수증·요약의 고객 조직 범위(서버 전용)
+  - 허용 형식: 영문/숫자로 시작하고 영문·숫자·점·밑줄·하이픈, 최대 64자
+  - 필수값: 자동 기본값 없음. 누락하면 영수증 등록을 차단함
+  - 운영값: `psi-new-psi` (현재 배포의 기술적 조직 범위이며 회사명 아님)
+
+- `PSI_SITE_ID`
+  - 용도: 월 마감 영수증·요약의 현장 범위(서버 전용)
+  - 허용 형식: `PSI_ORGANIZATION_ID`와 동일
+  - 필수값: 자동 기본값 없음. 현재 배포값 `primary-site`
+  - 회사·현장별 독립 배포는 서로 다른 고정값을 사용. 브라우저가 임의로 범위를 지정할 수 없음
+  - 이 설정만으로 다중 회사 로그인·동의 기반 이관 기능이 완성되는 것은 아님
 
 - `NEXT_PUBLIC_APP_BASE_URL`
   - 용도: QR/공유 링크의 기준 URL 고정
@@ -134,6 +160,8 @@ OCR_MAX_USD_PER_DOCUMENT=0.05
 TRAINING_LINK_SECRET=xxxx
 NEXT_PUBLIC_APP_BASE_URL=http://localhost:5173
 TRAINING_LINK_TTL_MINUTES=720
+PSI_ORGANIZATION_ID=psi-default
+PSI_SITE_ID=primary-site
 VERCEL_TOKEN=xxxx
 ```
 
@@ -141,26 +169,30 @@ VERCEL_TOKEN=xxxx
 
 1. Supabase 프로젝트가 실행 중이며 프로젝트 URL이 DNS/HTTPS에서 응답하는지 확인
 2. `supabase/migrations/20260831000000_paid_ocr_security_gate.sql` 적용 후 RLS·RPC 권한·1회 소비 원자성 확인
-3. Production에 `SUPABASE_SERVICE_ROLE_KEY`가 설정되고 서버 헬스가 `keyMode=service_role`, `tablesReady=true`인지 확인
-4. 환경변수 입력 후 `npm run build` 성공 확인
-5. `api/*` 함수 구성이 `admin 10 + gateway 1` 이내로 유지되는지 확인
-6. `vercel build` 또는 CI preflight가 인증 오류 없이 완료되는지 확인
-7. 무료 OCR 실문서 1건이 `X-PSI-Quota-Mode: database`, `billingTier=free`, `paidCalls=0`으로 성공하는지 확인
-8. 관리자 화면에서 다국어 링크 생성 확인
-9. 생성된 링크로 근로자 페이지 접속 확인 (`exp`, `sig` 포함)
-10. 만료 링크 차단 동작 확인
-11. 관리자 `링크 재발급` 후 재접속 확인
-12. 동일 이름 재서명(중복 제출) 차단 확인
+3. `20260902000000_monthly_archive_continuity.sql`을 적용하고 service_role 전용 권한 확인. 새 서버 API 배포 후 `20260901001000_record_master_server_boundary.sql`, `20260902001000_harness_privacy_server_boundary.sql`을 적용. 기존 행은 삭제하지 않음
+4. Production에 `SUPABASE_SERVICE_ROLE_KEY`가 설정되고 서버 헬스가 `keyMode=service_role`, `tablesReady=true`인지 확인
+5. 환경변수 입력 후 `npm run build` 성공 확인
+6. `api/*` 함수 구성이 Vercel Hobby 기준 12개 이내인지 확인
+7. `vercel build` 또는 CI preflight가 인증 오류 없이 완료되는지 확인
+8. 무료 OCR 실문서 1건이 `X-PSI-Quota-Mode: database`, `billingTier=free`, `paidCalls=0`으로 성공하는지 확인
+9. OCR 분석실에서 `PC 월 마감 백업` 저장 → 재불러오기 → 해시 검증 → 최소 서버 영수증 등록 확인. 원문·이미지 서버 요청이 없는지 확인
+10. 관리자 화면에서 다국어 링크 생성 확인
+11. 생성된 링크로 근로자 페이지 접속 확인 (`exp`, `sig` 포함)
+12. 만료 링크 차단 동작 확인
+13. 관리자 `링크 재발급` 후 재접속 확인
+14. 동일 이름 재서명(중복 제출) 차단 확인
 
 ## 5-1) 현재 함수 인벤토리 기준선
 
 - `api/gateway.ts` : 하네스 및 공통 gateway 1개
 - `api/admin/*.ts` : 관리자 함수 10개
+- `api/training/submit-signature.ts` : 근로자 서명 제출 1개
 - `api/harness/` : 현재 비어 있어야 함
 - `api/shared/` : 현재 비어 있어야 함
 
 권장 정책:
-- 새로운 서버 로직은 가능하면 `api/gateway.ts` 액션 또는 `lib/server/*` 공유 모듈로 먼저 검토
+- 현재 총 함수는 12개(gateway 1 + admin 10 + training 1)로 상한에 도달했으므로 새 API 파일을 추가하지 않음
+- 새로운 서버 로직은 `api/gateway.ts` 액션, 기존 관리자 API 액션 또는 `lib/server/*` 공유 모듈로 통합
 - `api/*`에 파일을 추가할 때는 Vercel Hobby 함수 수 제한 영향을 먼저 확인
 
 ## 6) 실패 시 빠른 진단

@@ -22,6 +22,16 @@ describe('api security quota utilities', () => {
         expect(first).not.toContain('203.0.113.10');
     });
 
+    it('does not let a changed User-Agent create a fresh quota identity', () => {
+        const first = resolveRequestFingerprint({
+            headers: { 'x-real-ip': '203.0.113.10', 'user-agent': 'attacker-agent-1' },
+        });
+        const second = resolveRequestFingerprint({
+            headers: { 'x-real-ip': '203.0.113.10', 'user-agent': 'attacker-agent-2' },
+        });
+        expect(second).toBe(first);
+    });
+
     it('maps the database quota response', async () => {
         const supabase = {
             rpc: async () => ({

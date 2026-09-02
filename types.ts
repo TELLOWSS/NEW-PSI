@@ -382,11 +382,21 @@ export type HarnessApprovalState =
 
 export interface WorkerRecord {
     id: string; // Unique ID for each record
+    /**
+     * 현장/회사 이동과 무관하게 근로자가 직접 보유·이관하는 불변 식별자.
+     * 이름·국적·공종처럼 바뀌거나 중복될 수 있는 개인정보로 생성하지 않는다.
+     */
+    portableWorkerId?: string;
     worker_uuid?: string;
     workerUuid?: string;
     name: string;
     employeeId?: string;
+    /** 관리번호의 회사/현장 범위. 범위 없는 관리번호는 동일인 자동 병합에 쓰지 않는다. */
+    employeeIdScope?: string;
+    /** 화면 표시용 자동 생성 번호는 본인 확인 근거가 아니다. */
+    employeeIdGenerated?: boolean;
     qrId?: string;
+    qrIdGenerated?: boolean;
     jobField: string;
     teamLeader?: string; // 팀장 이름 (식별용)
     matchMethod?: 'employeeId' | 'qr' | 'signature' | 'role' | 'name' | 'unmatched';

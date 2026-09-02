@@ -1,4 +1,5 @@
-import { stableWorkerHash } from './workerIdentity';
+import type { WorkerRecord } from '../types';
+import { getWorkerIdentityKey, stableWorkerHash } from './workerIdentity';
 
 export const SAFETY_CASE_STORAGE_KEY = 'psi_safety_cases_v1';
 export const SAFETY_CASE_UPDATED_EVENT = 'psi-safety-cases-updated';
@@ -66,6 +67,28 @@ export interface SafetyCasePlanInput {
     dueLabel: string;
     detectedAt?: string;
 }
+
+/** 휴대/고정 근로자 ID가 정확히 일치하는 후속 기록만 로컬 보호사건에 연결한다. */
+export const findSafetyCaseReassessment = <T extends Partial<WorkerRecord>>(
+    caseRecord: Pick<SafetyCaseRecord, 'workerId' | 'completedStages' | 'status'>,
+    workerRecords: T[],
+): T | undefined => {
+    if (caseRecord.status !== 'awaiting-reassessment') return undefined;
+    const acknowledgedTime = new Date(caseRecord.completedStages.acknowledgement || '').getTime();
+    if (!Number.isFinite(acknowledgedTime)) return undefined;
+
+    const caseIdentity = getWorkerIdentityKey({ worker_uuid: caseRecord.workerId });
+    // 이름·공종, 표시용 관리번호, 구버전 WN 파생값, 충돌 ID로는 자동 연결하지 않는다.
+    if (!/^worker:(?:WP-[A-F0-9]{32}|[A-F0-9]{8}-[A-F0-9]{4}-[1-5][A-F0-9]{3}-[89AB][A-F0-9]{3}-[A-F0-9]{12})$/.test(caseIdentity)) return undefined;
+
+    return workerRecords
+        .filter((workerRecord) => getWorkerIdentityKey(workerRecord) === caseIdentity)
+        .filter((workerRecord) => {
+            const assessedTime = new Date(workerRecord.date || '').getTime();
+            return Number.isFinite(assessedTime) && assessedTime > acknowledgedTime;
+        })
+        .sort((left, right) => new Date(right.date || '').getTime() - new Date(left.date || '').getTime())[0];
+};
 
 export const SAFETY_CASE_STAGE_ORDER: SafetyCaseStage[] = [
     'detected',

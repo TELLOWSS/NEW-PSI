@@ -4,6 +4,7 @@ import { postAdminJson } from '../utils/adminApiClient';
 import { loadSafetyCasesFromServer, saveSafetyCaseToServer } from '../services/safetyCaseService';
 import {
   completeSafetyCaseStage,
+  findSafetyCaseReassessment,
   getNextSafetyCaseStage,
   isSafetyCaseOverdue,
   markSafetyCaseActionStarted,
@@ -206,29 +207,7 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
     if (reassessmentCandidates.length === 0 || workerRecords.length === 0) return;
 
     reassessmentCandidates.forEach((caseRecord) => {
-      const acknowledgedAt = caseRecord.completedStages.acknowledgement;
-      if (!acknowledgedAt) return;
-      const acknowledgedTime = new Date(acknowledgedAt).getTime();
-      const matchingRecords = workerRecords
-        .filter((workerRecord) => {
-          const recordIdentity = String(
-            workerRecord.worker_uuid
-            || workerRecord.workerUuid
-            || workerRecord.employeeId
-            || workerRecord.id
-            || '',
-          ).trim();
-          if (caseRecord.workerId && recordIdentity === caseRecord.workerId) return true;
-          return workerRecord.name.trim() === caseRecord.workerName.trim()
-            && workerRecord.jobField.trim() === caseRecord.jobField.trim();
-        })
-        .filter((workerRecord) => {
-          const assessedTime = new Date(workerRecord.date).getTime();
-          return Number.isFinite(assessedTime) && assessedTime > acknowledgedTime;
-        })
-        .sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime());
-
-      const reassessment = matchingRecords[0];
+      const reassessment = findSafetyCaseReassessment(caseRecord, workerRecords);
       if (!reassessment) return;
 
       const next = completeSafetyCaseStage(
@@ -239,9 +218,8 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
         { evidenceId: reassessment.id },
       );
       setSafetyCases(upsertSafetyCase(next));
-      void saveSafetyCaseToServer(next).catch(() => {
-        // 원격 스키마 적용 전에도 로컬 보호사건 흐름은 유지한다.
-      });
+      // 재평가 자동 연결은 PC 로컬 상태만 갱신한다. 화면 열기만으로 이름·위험 내용이
+      // 서버에 누적되지 않도록 자동 원격 저장을 하지 않는다. 명시적 조치 저장은 별도다.
     });
   }, [safetyCases, workerRecords]);
 

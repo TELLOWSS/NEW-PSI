@@ -125,11 +125,26 @@ const getRawWorkerUuidValue = (value: unknown): string => {
     return typeof value === 'string' ? value.trim() : '';
 };
 
+const isLegacyNameDerivedWorkerUuid = (value: unknown): boolean => {
+    const normalized = normalizeWorkerIdentityText(value);
+    // WU-EMP/QR도 구버전의 표시용 번호에서 파생되어 회사 간 중복될 수 있다.
+    return normalized.startsWith('WN-')
+        || normalized.startsWith('WU-EMP-')
+        || normalized.startsWith('WU-QR-');
+};
+
+const getPrivacySafeRawWorkerUuidValues = (record: Partial<WorkerRecord>): string[] => {
+    return [record.portableWorkerId, record.worker_uuid, record.workerUuid]
+        .map(getRawWorkerUuidValue)
+        .filter((value) => value.length > 0 && !isLegacyNameDerivedWorkerUuid(value));
+};
+
 export const getWorkerUuidValues = (record: Partial<WorkerRecord>): string[] => {
-    return Array.from(new Set([
-        normalizeWorkerIdentityText(record.worker_uuid),
-        normalizeWorkerIdentityText(record.workerUuid),
-    ].filter(Boolean)));
+    return Array.from(new Set(
+        getPrivacySafeRawWorkerUuidValues(record)
+            .map(normalizeWorkerIdentityText)
+            .filter(Boolean),
+    ));
 };
 
 export const getWorkerUuidValue = (record: Partial<WorkerRecord>): string => {
@@ -173,47 +188,114 @@ export const getWorkerTrackingCandidateIdentityKey = (record: Partial<WorkerReco
 };
 
 export const buildNameBasedWorkerUuid = (record: Partial<WorkerRecord>): string => {
-    const seed = getWorkerNameIdentitySeed(record);
-    return seed ? `WN-${stableWorkerHash(seed).slice(0, 12)}` : '';
+    // 이름·국적·공종 조합은 동명이인 오병합 및 개인정보 추론 위험이 있으므로
+    // 더 이상 불변 근로자 ID를 만들지 않는다. 호출 호환성을 위해 함수만 유지한다.
+    void record;
+    return '';
+};
+
+let portableWorkerIdFallbackCounter = 0;
+
+const getPortableRandomHex = (): string => {
+    const cryptoApi = globalThis.crypto;
+    if (cryptoApi?.randomUUID) {
+        return cryptoApi.randomUUID().replace(/-/g, '').toUpperCase();
+    }
+
+    if (cryptoApi?.getRandomValues) {
+        const bytes = new Uint8Array(16);
+        cryptoApi.getRandomValues(bytes);
+        return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('').toUpperCase();
+    }
+
+    portableWorkerIdFallbackCounter += 1;
+    const entropy = [
+        Date.now().toString(36),
+        portableWorkerIdFallbackCounter.toString(36),
+        Math.random().toString(36),
+        Math.random().toString(36),
+    ].join('|');
+    return [
+        stableWorkerHash(`portable-a|${entropy}`),
+        stableWorkerHash(`portable-b|${entropy}`),
+        stableWorkerHash(`portable-c|${entropy}`),
+        stableWorkerHash(`portable-d|${entropy}`),
+    ].join('').padEnd(32, '0').slice(0, 32);
+};
+
+/** 개인정보를 포함하지 않는 불투명한 휴대 근로자 식별자를 만든다. */
+export const createPortableWorkerId = (): string => `WP-${getPortableRandomHex()}`;
+
+const assignPortableWorkerId = (record: WorkerRecord, assignedUuid: string): WorkerRecord => ({
+    ...record,
+    portableWorkerId: assignedUuid,
+    worker_uuid: assignedUuid,
+    workerUuid: assignedUuid,
+});
+
+export const isGeneratedEmployeeCredential = (record: Partial<WorkerRecord>): boolean => {
+    if (record.employeeIdGenerated !== undefined) return record.employeeIdGenerated;
+    // 이전 버전의 공종/역할 기반 자동 발급 형식도 보수적으로 제외한다.
+    return /^EMP-\d{4}-(?:LCL[A-Z0-9]+|(?:FC|ST|EL|ME|FN|CV|GN)[A-Z0-9][LSW][A-Z0-9]{4,6})$/.test(
+        normalizeWorkerIdentityText(record.employeeId),
+    );
+};
+
+export const isGeneratedQrCredential = (record: Partial<WorkerRecord>): boolean => {
+    if (record.qrIdGenerated !== undefined) return record.qrIdGenerated;
+    return /^QR-(?:LCL[A-Z0-9-]+|(?:FC|ST|EL|ME|FN|CV|GN)[A-Z0-9][LSW][A-Z0-9]{4,6}-[ABC])$/.test(
+        normalizeWorkerIdentityText(record.qrId),
+    );
+};
+
+const hasVerifiedQrIdentity = (record: Partial<WorkerRecord>): boolean => {
+    return record.matchMethod === 'qr'
+        && !isGeneratedQrCredential(record)
+        && /^QR-[A-Z0-9-]{4,24}$/.test(normalizeWorkerIdentityText(record.qrId));
+};
+
+const hasConfirmedEmployeeIdentity = (record: Partial<WorkerRecord>): boolean => {
+    // applyIdentityPolicy가 이름·공종 등으로 자동 생성한 관리번호는 불변 신원으로 쓰지 않는다.
+    return record.matchMethod === 'employeeId'
+        && !isGeneratedEmployeeCredential(record)
+        && normalizeWorkerIdentityText(record.employeeIdScope).length > 0
+        && /^EMP-\d{4}-[A-Z0-9]{4,10}$/.test(normalizeWorkerIdentityText(record.employeeId));
 };
 
 export const applyWorkerUuidPolicy = (
     record: WorkerRecord,
     inheritedUuid: unknown = '',
 ): WorkerRecord => {
-    const snakeUuid = getRawWorkerUuidValue(record.worker_uuid);
-    const camelUuid = getRawWorkerUuidValue(record.workerUuid);
-
-    if (snakeUuid || camelUuid) {
-        return {
-            ...record,
-            worker_uuid: snakeUuid || camelUuid,
-            workerUuid: camelUuid || snakeUuid,
-        };
+    const existingUuidValues = getWorkerUuidValues(record);
+    if (existingUuidValues.length > 1) {
+        // 충돌하는 기존 ID는 임의로 덮어쓰지 않고 자동 병합 대상에서 제외한다.
+        return record;
     }
 
-    const employeeId = normalizeWorkerIdentityText(record.employeeId);
-    const qrId = normalizeWorkerIdentityText(record.qrId);
-    const inherited = getRawWorkerUuidValue(inheritedUuid);
-    const assignedUuid =
-        inherited ||
-        buildNameBasedWorkerUuid(record) ||
-        (employeeId ? `WU-${employeeId}` : '') ||
-        (qrId ? `WU-${qrId}` : '') ||
-        `WU-${stableWorkerHash([
-            normalizeWorkerIdentityText(record.id),
-            normalizeWorkerIdentityText(record.name),
-            normalizeWorkerIdentityText(record.nationality),
-            normalizeWorkerIdentityText(record.teamLeader),
-            normalizeWorkerIdentityText(record.jobField),
-            normalizeWorkerIdentityText(record.role),
-        ].join('|')).slice(0, 12)}`;
+    if (existingUuidValues.length === 1) {
+        const normalizedUuid = existingUuidValues[0];
+        const assignedUuid = getPrivacySafeRawWorkerUuidValues(record)
+            .find((value) => normalizeWorkerIdentityText(value) === normalizedUuid)
+            || normalizedUuid;
+        return assignPortableWorkerId(record, assignedUuid);
+    }
 
-    return {
-        ...record,
-        worker_uuid: assignedUuid,
-        workerUuid: assignedUuid,
-    };
+    const inherited = getRawWorkerUuidValue(inheritedUuid);
+    if (inherited && !isLegacyNameDerivedWorkerUuid(inherited)) {
+        return assignPortableWorkerId(record, inherited);
+    }
+
+    // 검증 QR와 확인된 관리번호는 기존 기록을 찾는 우선 식별 근거다. 최초 등록 시에는
+    // 원문 값을 ID에 넣지 않고 무작위 휴대 ID를 발급하여 다른 회사에서도 그대로 이관한다.
+    if (hasVerifiedQrIdentity(record)) {
+        return assignPortableWorkerId(record, createPortableWorkerId());
+    }
+
+    if (hasConfirmedEmployeeIdentity(record)) {
+        return assignPortableWorkerId(record, createPortableWorkerId());
+    }
+
+    return assignPortableWorkerId(record, createPortableWorkerId());
 };
 
 export const getWorkerIdentityKey = (record: Partial<WorkerRecord>): string => {
@@ -224,14 +306,13 @@ export const getWorkerIdentityKey = (record: Partial<WorkerRecord>): string => {
     const workerUuid = getWorkerUuidValue(record);
     if (workerUuid) return `worker:${workerUuid}`;
 
-    const nameSeed = getWorkerNameIdentitySeed(record);
-    if (nameSeed) return `job-name-nationality:${nameSeed}`;
+    if (hasVerifiedQrIdentity(record)) {
+        return `qr:${normalizeWorkerIdentityText(record.qrId)}`;
+    }
 
-    const employeeId = normalizeWorkerIdentityText(record.employeeId);
-    if (employeeId) return `employee:${employeeId}`;
-
-    const qrId = normalizeWorkerIdentityText(record.qrId);
-    if (qrId) return `qr:${qrId}`;
+    if (hasConfirmedEmployeeIdentity(record)) {
+        return `employee:${normalizeWorkerIdentityText(record.employeeIdScope)}:${normalizeWorkerIdentityText(record.employeeId)}`;
+    }
 
     return `record:${normalizeWorkerIdentityText(record.id) || 'UNKNOWN'}`;
 };
@@ -245,21 +326,38 @@ export const getWorkerMatchScore = (target: Partial<WorkerRecord>, candidate: Pa
         return targetUuids[0] === candidateUuids[0] ? 160 : -1;
     }
 
-    const targetNameSeed = getWorkerNameIdentitySeed(target);
-    const candidateNameSeed = getWorkerNameIdentitySeed(candidate);
-    if (targetNameSeed && candidateNameSeed) {
-        return targetNameSeed === candidateNameSeed ? 130 : -1;
+    const targetQrId = normalizeWorkerIdentityText(target.qrId);
+    const candidateQrId = normalizeWorkerIdentityText(candidate.qrId);
+    if (hasVerifiedQrIdentity(target) && hasVerifiedQrIdentity(candidate)) {
+        return targetQrId === candidateQrId ? 140 : -1;
     }
 
     const targetEmployeeId = normalizeWorkerIdentityText(target.employeeId);
     const candidateEmployeeId = normalizeWorkerIdentityText(candidate.employeeId);
-    if (targetEmployeeId && candidateEmployeeId && targetEmployeeId === candidateEmployeeId) return 110;
+    if (hasConfirmedEmployeeIdentity(target) && hasConfirmedEmployeeIdentity(candidate)) {
+        if (normalizeWorkerIdentityText(target.employeeIdScope) !== normalizeWorkerIdentityText(candidate.employeeIdScope)) return -1;
+        return targetEmployeeId === candidateEmployeeId ? 120 : -1;
+    }
 
-    const targetQrId = normalizeWorkerIdentityText(target.qrId);
-    const candidateQrId = normalizeWorkerIdentityText(candidate.qrId);
-    if (targetQrId && candidateQrId && targetQrId === candidateQrId) return 100;
+    const targetName = normalizeWorkerIdentityText(target.name);
+    const candidateName = normalizeWorkerIdentityText(candidate.name);
+    const targetNationality = normalizeWorkerIdentityText(target.nationality);
+    const candidateNationality = normalizeWorkerIdentityText(candidate.nationality);
+    if (
+        !targetName
+        || GENERIC_WORKER_NAMES.has(targetName)
+        || targetName !== candidateName
+        || !targetNationality
+        || GENERIC_NATIONALITIES.has(targetNationality)
+        || targetNationality !== candidateNationality
+    ) {
+        return -1;
+    }
 
-    return -1;
+    const targetJob = normalizeWorkerJobIdentityText(target.jobField);
+    const candidateJob = normalizeWorkerJobIdentityText(candidate.jobField);
+    // 이름+국적은 오직 수동 검토 후보 점수다. 자동 병합 기준(55)보다 항상 낮다.
+    return targetJob && candidateJob && targetJob === candidateJob ? 45 : 35;
 };
 
 export const hasAmbiguousStableWorkerMatches = (
@@ -270,7 +368,7 @@ export const hasAmbiguousStableWorkerMatches = (
 
     const matchedStableUuids = new Set(
         candidates
-            .filter((candidate) => getWorkerMatchScore(target, candidate) >= 55)
+            .filter((candidate) => getWorkerMatchScore(target, candidate) >= 35)
             .map(getWorkerUuidValue)
             .filter(Boolean),
     );
@@ -292,12 +390,11 @@ const getRegistrationIdentityKey = (
         return `record:${normalizeWorkerIdentityText(record.id) || index}:uuid-conflict`;
     }
 
-    const nameSeed = getWorkerNameIdentitySeed({
+    const exactIdentityKey = getWorkerIdentityKey({
         ...record,
         jobField: String(record.jobField || record.job_field || ''),
     });
-    const team = normalizeWorkerIdentityText(record.teamLeader || record.team_name);
-    if (nameSeed) return `legacy:${nameSeed}|${team || 'UNKNOWN-TEAM'}`;
+    if (!exactIdentityKey.startsWith('record:')) return exactIdentityKey;
 
     return `record:${normalizeWorkerIdentityText(record.id) || index}`;
 };
@@ -472,25 +569,14 @@ export const analyzeWorkerEvidenceReadiness = (
 };
 
 /**
- * 이름과 국적은 동일하지만 공종이 달라 자동 병합되지 않는 수동 매칭 제안 대상인지 여부
+ * 이름·국적·공종 정보는 자동 병합하지 않고 수동 매칭 제안에만 사용한다.
  */
 export const isPotentialSameWorkerManualReviewTarget = (
     base: Partial<WorkerRecord>,
     candidate: Partial<WorkerRecord>
 ): boolean => {
-    const baseName = normalizeWorkerIdentityText(base.name);
-    const candidateName = normalizeWorkerIdentityText(candidate.name);
-    if (!baseName || GENERIC_WORKER_NAMES.has(baseName) || baseName !== candidateName) return false;
-
-    const baseNation = normalizeWorkerIdentityText(base.nationality);
-    const candidateNation = normalizeWorkerIdentityText(candidate.nationality);
-    if (!baseNation || GENERIC_NATIONALITIES.has(baseNation) || baseNation !== candidateNation) return false;
-
-    const baseJob = normalizeWorkerJobIdentityText(base.jobField);
-    const candidateJob = normalizeWorkerJobIdentityText(candidate.jobField);
-    
-    // 이름, 국적은 같으나 공종이 다른 경우 수동 검토 제안
-    return baseJob !== candidateJob;
+    const score = getWorkerMatchScore(base, candidate);
+    return score >= 35 && score < 55;
 };
 
 /**

@@ -16,24 +16,21 @@ import {
     refreshAdminAuthentication,
     shouldBypassAdminGuardForWorkerTraining,
 } from './utils/adminGuard';
-import { postAdminJson } from './utils/adminApiClient';
 import { getSafetyLevelThresholds } from './utils/safetyLevelUtils';
-import { appendBestPracticeSyncFailureLog, setBestPracticeSyncState } from './utils/bestPracticeSyncStatus';
 import { useOperationalMode } from './contexts/OperationalModeContext';
 import { isPageVisibleByOperationalMode } from './utils/operationalModeUtils';
 import { isRouteVisibleInMode } from './config/routeMeta';
 import { useUiAudienceMode } from './hooks/useUiAudienceMode';
-import { normalizePsiWorkerJobField } from './config/psiFormMaster';
 import { requestServerOcrAnalysis } from './services/ocrGatewayService';
 import { getAiEngineSettings } from './utils/aiEngineSettings';
 import { prepareOcrSourceForGateway } from './utils/ocrGatewayPayload';
+import { selectSafeBackupImports } from './utils/backupMerge';
 import {
     applyWorkerUuidPolicy,
     getWorkerMatchScore as getSharedWorkerMatchScore,
     getWorkerUuidValue as getSharedWorkerUuidValue,
     hasAmbiguousStableWorkerMatches,
     isSameWorkerTimeline as isSharedSameWorkerTimeline,
-    mergeWorkerRegistrationRecords,
     normalizeWorkerIdentityText,
     normalizeNationality,
 } from './utils/workerIdentity';
@@ -403,48 +400,14 @@ const applyWorkerProfilePolicy = (record: WorkerRecord, existingRecords: WorkerR
 
     return ensureWorkerUuid({
         ...record,
+        portableWorkerId: record.portableWorkerId || source.portableWorkerId,
         employeeId: record.employeeId || source.employeeId,
+        employeeIdGenerated: record.employeeId ? record.employeeIdGenerated : source.employeeIdGenerated,
+        employeeIdScope: record.employeeId ? record.employeeIdScope : source.employeeIdScope,
         qrId: record.qrId || source.qrId,
+        qrIdGenerated: record.qrId ? record.qrIdGenerated : source.qrIdGenerated,
         profileImage: record.profileImage || source.profileImage,
     }, existingRecords);
-};
-
-const registerWorkersToServer = async (records: WorkerRecord[]) => {
-    try {
-        const registrationRecords = mergeWorkerRegistrationRecords(records);
-
-        const workersToRegister = registrationRecords
-            .filter((w) => String(w.name || '').trim() && String(w.jobField || w.job_field || '').trim())
-            .map(w => {
-                const phone = String(w.phone_number || w.phoneNumber || '').replace(/\D/g, '');
-                const birth = String(w.birth_date || w.birthDate || '').replace(/\D/g, '');
-                const passport = String(w.passport_number || w.passportNumber || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-
-                const finalBirth = (!phone && !birth && !passport) ? '000000' : birth;
-
-                return {
-                    name: w.name,
-                    nationality: w.nationality || '미상',
-                    job_field: normalizePsiWorkerJobField(w.jobField || w.job_field),
-                    team_name: w.teamLeader || w.team_name || '미지정',
-                    phone_number: phone || null,
-                    birth_date: finalBirth || null,
-                    passport_number: passport || null
-                };
-            });
-
-        if (workersToRegister.length > 0) {
-            await postAdminJson('/api/admin/safety-management', {
-                action: 'bulk-upload-workers',
-                payload: { workers: workersToRegister }
-            }, {
-                fallbackMessage: '근로자 서버 등록 실패'
-            });
-            console.log(`[Import] Registered ${workersToRegister.length} workers on server.`);
-        }
-    } catch (apiErr) {
-        console.warn('[Import] Server worker registration failed:', apiErr);
-    }
 };
 
 const reconcileWorkerProfiles = (records: WorkerRecord[]): { records: WorkerRecord[]; changedIds: string[] } => {
@@ -601,9 +564,13 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
             id: uniqueId,
             worker_uuid: toOptionalStringSafe(r.worker_uuid),
             workerUuid: toOptionalStringSafe(r.workerUuid),
+            portableWorkerId: toOptionalStringSafe(r.portableWorkerId),
             name: toStringSafe(r.name, "식별 대기"),
             employeeId: toOptionalStringSafe(r.employeeId),
+            employeeIdGenerated: typeof r.employeeIdGenerated === 'boolean' ? r.employeeIdGenerated : undefined,
+            employeeIdScope: toOptionalStringSafe(r.employeeIdScope),
             qrId: toOptionalStringSafe(r.qrId),
+            qrIdGenerated: typeof r.qrIdGenerated === 'boolean' ? r.qrIdGenerated : undefined,
             safetyScore: toNumberSafe(r.safetyScore, 0),
             safetyLevel: toSafetyLevelSafe(r.safetyLevel),
             ocrConfidence: typeof r.ocrConfidence === 'number' ? r.ocrConfidence : (hasOcrFailureSignal ? 0 : 1),
@@ -717,87 +684,7 @@ const App: React.FC = () => {
     const [showUndoToast, setShowUndoToast] = useState(false);
     const undoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const undoOperationVersionRef = useRef(0);
-    const queuedEmbeddingKeysRef = useRef<Set<string>>(new Set());
     const recordUpdateQueuesRef = useRef<Map<string, Promise<boolean>>>(new Map());
-
-    const queueBestPracticeEmbedding = useCallback((record: WorkerRecord) => {
-        const isFinalized =
-            record.reviewStatus === 'APPROVED' ||
-            record.approvalStatus === 'APPROVED' ||
-            record.approvalStatus === 'OVERRIDDEN';
-        if (!isFinalized) return;
-        if ((record.ocrErrorType || '').trim()) return;
-        const score = typeof record.safetyScore === 'number' ? record.safetyScore : 0;
-        if (score < 80) return;
-
-        const koreanText = String(record.koreanTranslation || record.fullText || '').trim();
-        if (koreanText.length < 20) return;
-
-        const dedupeKey = `${record.id}:${record.evidenceHash || ''}:${Math.round(score)}`;
-        if (queuedEmbeddingKeysRef.current.has(dedupeKey)) return;
-        queuedEmbeddingKeysRef.current.add(dedupeKey);
-
-        if (!isAdminAuthenticated()) return;
-
-        const body = {
-            sourceRecordId: record.id,
-            safetyScore: score,
-            koreanText,
-            originalLanguage: String(record.language || '').trim() || 'ko',
-            actionableCoaching: String(record.actionable_coaching || '').trim(),
-            jobField: String(record.jobField || '').trim(),
-            nationality: String(record.nationality || '').trim(),
-            approvedAt: record.approvedAt || new Date().toISOString(),
-        };
-
-        const nowIso = new Date().toISOString();
-        setBestPracticeSyncState({
-            status: 'pending',
-            lastAttemptAt: nowIso,
-            message: `우수사례 임베딩 저장 시도 중 (${record.name})`,
-        });
-
-        void fetch('/api/gateway?action=ocr.upsert-best-practice', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(body),
-            keepalive: true,
-        })
-            .then(async (response) => {
-                if (!response.ok) {
-                    const detail = await response.text().catch(() => '');
-                    const failMessage = `동기화 실패(${response.status}): ${detail.slice(0, 120) || '응답 오류'}`;
-                    setBestPracticeSyncState({
-                        status: 'failed',
-                        lastAttemptAt: nowIso,
-                        message: failMessage,
-                    });
-                    appendBestPracticeSyncFailureLog(failMessage);
-                    return;
-                }
-
-                setBestPracticeSyncState({
-                    status: 'success',
-                    lastAttemptAt: nowIso,
-                    lastSuccessAt: new Date().toISOString(),
-                    message: `우수사례 동기화 완료 (${record.name}, ${Math.round(score)}점)`,
-                });
-            })
-            .catch((error) => {
-                const msg = extractMessage(error);
-                const failMessage = `동기화 실패: ${msg}`;
-                setBestPracticeSyncState({
-                    status: 'failed',
-                    lastAttemptAt: nowIso,
-                    message: failMessage,
-                });
-                appendBestPracticeSyncFailureLog(failMessage);
-                console.warn('[best-practice] background upsert failed:', msg);
-            });
-    }, []);
 
     const sessionIdFromUrl = new URLSearchParams(window.location.search).get('sessionId') || '';
     const modeFromUrl = new URLSearchParams(window.location.search).get('mode') || '';
@@ -1061,8 +948,12 @@ const App: React.FC = () => {
                     ...record,
                     worker_uuid: hashed.worker_uuid || record.worker_uuid,
                     workerUuid: hashed.workerUuid || record.workerUuid,
+                    portableWorkerId: hashed.portableWorkerId || record.portableWorkerId,
                     employeeId: record.employeeId || hashed.employeeId,
+                    employeeIdGenerated: record.employeeId ? record.employeeIdGenerated : hashed.employeeIdGenerated,
+                    employeeIdScope: record.employeeId ? record.employeeIdScope : hashed.employeeIdScope,
                     qrId: record.qrId || hashed.qrId,
+                    qrIdGenerated: record.qrId ? record.qrIdGenerated : hashed.qrIdGenerated,
                     profileImage: hashed.profileImage,
                     auditTrail: [
                         ...(record.auditTrail || []),
@@ -1092,9 +983,8 @@ const App: React.FC = () => {
         });
         workerRecordsRef.current = nextRecords;
         setWorkerRecords(nextRecords);
-        queueBestPracticeEmbedding(hashed);
         return true;
-    }, [queueBestPracticeEmbedding]);
+    }, []);
 
     const handleUpdateRecord = useCallback((updatedRecord: WorkerRecord): Promise<boolean> => {
         const previousTask = recordUpdateQueuesRef.current.get(updatedRecord.id) || Promise.resolve(true);
@@ -1230,7 +1120,7 @@ const App: React.FC = () => {
     }, []);
 
     const handleImport = useCallback(async (records: WorkerRecord[]): Promise<WorkerRecord[]> => {
-        const sanitized = sanitizeRecords(records);
+        const sanitized = selectSafeBackupImports(sanitizeRecords(records), workerRecordsRef.current).records;
         const identityContext = [
             ...workerRecordsRef.current,
             ...sanitized.filter((record) => getWorkerUuidValue(record)),
@@ -1257,9 +1147,9 @@ const App: React.FC = () => {
         const mergedImportedData = [...importedRecords, ...allData]
             .filter((record, index, array) => array.findIndex((item) => item.id === record.id) === index);
         const reconciled = reconcileWorkerProfiles(sanitizeRecords(mergedImportedData));
+        workerRecordsRef.current = reconciled.records;
         setWorkerRecords(reconciled.records);
         await saveRecordsToDB(reconciled.records.filter((item) => reconciled.changedIds.includes(item.id)));
-        await registerWorkersToServer(records);
         const reviewRecords = reconciled.records.filter((item) => importedIds.has(item.id));
         return reviewRecords.length > 0 ? reviewRecords : importedRecords;
     }, []);
@@ -1296,7 +1186,6 @@ const App: React.FC = () => {
             const unique = combined.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
             return unique.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         });
-        await registerWorkersToServer(newRecords);
     }, []);
 
     const handleReanalyzeRecord = useCallback(async (record: WorkerRecord): Promise<WorkerRecord | null> => {
@@ -1328,9 +1217,14 @@ const App: React.FC = () => {
                     ...record,
                     ...newResult,
                     id: record.id,
+                    worker_uuid: record.worker_uuid || newResult.worker_uuid,
                     workerUuid: record.workerUuid || newResult.workerUuid,
+                    portableWorkerId: record.portableWorkerId || newResult.portableWorkerId,
                     employeeId: record.employeeId || newResult.employeeId,
+                    employeeIdGenerated: record.employeeId ? record.employeeIdGenerated : newResult.employeeIdGenerated,
+                    employeeIdScope: record.employeeId ? record.employeeIdScope : newResult.employeeIdScope,
                     qrId: record.qrId || newResult.qrId,
+                    qrIdGenerated: record.qrId ? record.qrIdGenerated : newResult.qrIdGenerated,
                     originalImage: record.originalImage,
                     profileImage: record.profileImage,
                     date: record.date || new Date().toISOString().split('T')[0],

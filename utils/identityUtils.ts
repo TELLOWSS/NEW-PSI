@@ -1,4 +1,5 @@
 import type { WorkerRecord } from '../types';
+import { getWorkerUuidValue, isGeneratedEmployeeCredential, isGeneratedQrCredential } from './workerIdentity';
 
 const EMPLOYEE_ID_REGEX = /^EMP-\d{4}-[A-Z0-9]{4,10}$/;
 const QR_ID_REGEX = /^QR-[A-Z0-9-]{4,24}$/;
@@ -22,44 +23,14 @@ const getYear = (dateString?: string): string => {
 };
 
 const getSeed = (record: WorkerRecord): string => {
-    return [
-        record.id || '',
-        record.name || '',
-        record.date || '',
-        record.jobField || '',
-        record.teamLeader || '',
-    ].join('|');
-};
-
-const toTeamCode = (teamLeader?: string): string => {
-    const token = compactToken(teamLeader || 'X');
-    return token.length > 0 ? token[0] : 'X';
-};
-
-const toRoleCode = (role?: WorkerRecord['role']): string => {
-    if (role === 'leader') return 'L';
-    if (role === 'sub_leader') return 'S';
-    return 'W';
-};
-
-const toJobCode = (jobField?: string): string => {
-    const raw = jobField || '';
-    if (/(형틀|목공)/.test(raw)) return 'FC';
-    if (/(철근|철골|용접)/.test(raw)) return 'ST';
-    if (/(전기|전장|통신)/.test(raw)) return 'EL';
-    if (/(설비|배관|기계)/.test(raw)) return 'ME';
-    if (/(도장|마감|내장)/.test(raw)) return 'FN';
-    if (/(토목|굴착|토공)/.test(raw)) return 'CV';
-    return 'GN';
+    // 표시용 번호에도 이름·공종·팀장·점수를 넣지 않는다. 휴대 ID가 없으면 기록 단위다.
+    return getWorkerUuidValue(record) || record.id;
 };
 
 const generateEmployeeId = (record: WorkerRecord): string => {
     const year = getYear(record.date);
-    const jobCode = toJobCode(record.jobField);
-    const teamCode = toTeamCode(record.teamLeader);
-    const roleCode = toRoleCode(record.role);
-    const serialCode = stableHashBase36(getSeed(record)).slice(0, 4).padEnd(4, '0');
-    const suffix = `${jobCode}${teamCode}${roleCode}${serialCode}`;
+    const serialCode = stableHashBase36(getSeed(record)).slice(0, 7).padEnd(7, '0');
+    const suffix = `LCL${serialCode}`;
     return `EMP-${year}-${suffix}`;
 };
 
@@ -70,19 +41,13 @@ const normalizeEmployeeId = (record: WorkerRecord): string => {
     const normalized = normalizeToken(raw);
     if (EMPLOYEE_ID_REGEX.test(normalized)) return normalized;
 
-    const compact = compactToken(normalized);
-    if (compact.length >= 4) {
-        const year = getYear(record.date);
-        return `EMP-${year}-${compact.slice(-8).padStart(4, '0')}`;
-    }
-
     return generateEmployeeId(record);
 };
 
 const generateQrId = (record: WorkerRecord, employeeId: string): string => {
     const employeeSuffix = employeeId.split('-').pop() || '0000';
-    const gradeCode = record.safetyLevel === '고급' ? 'A' : record.safetyLevel === '중급' ? 'B' : 'C';
-    return `QR-${employeeSuffix}-${gradeCode}`;
+    void record;
+    return `QR-LCL-${employeeSuffix}`;
 };
 
 const normalizeQrId = (record: WorkerRecord, employeeId: string): string => {
@@ -91,19 +56,18 @@ const normalizeQrId = (record: WorkerRecord, employeeId: string): string => {
     if (!raw) return target;
 
     const normalized = normalizeToken(raw);
-    const employeeSuffix = employeeId.split('-').pop() || '';
-    if (QR_ID_REGEX.test(normalized) && normalized.includes(employeeSuffix)) return normalized;
-
-    const compact = compactToken(normalized);
-    if (compact.length >= 4) {
-        return target;
-    }
+    // 외부에서 발급한 유효 QR를 현재 현장의 관리번호와 다르다는 이유로 교체하지 않는다.
+    if (QR_ID_REGEX.test(normalized)) return normalized;
 
     return target;
 };
 
-const ensureUniqueEmployeeId = (employeeId: string, currentRecordId: string, existingRecords: WorkerRecord[]): string => {
-    const duplicateExists = (candidate: string) => existingRecords.some((record) => record.id !== currentRecordId && (record.employeeId || '').toUpperCase() === candidate);
+const ensureUniqueEmployeeId = (employeeId: string, currentRecord: WorkerRecord, existingRecords: WorkerRecord[]): string => {
+    const currentRecordId = currentRecord.id;
+    const currentWorkerId = getWorkerUuidValue(currentRecord);
+    const duplicateExists = (candidate: string) => existingRecords.some((record) => record.id !== currentRecordId
+        && !(currentWorkerId && getWorkerUuidValue(record) === currentWorkerId)
+        && (record.employeeId || '').toUpperCase() === candidate);
 
     if (!duplicateExists(employeeId)) return employeeId;
 
@@ -125,13 +89,28 @@ const ensureUniqueEmployeeId = (employeeId: string, currentRecordId: string, exi
 
 export const applyIdentityPolicy = (record: WorkerRecord, existingRecords: WorkerRecord[] = []): WorkerRecord => {
     const normalizedEmployeeId = normalizeEmployeeId(record);
-    const employeeId = ensureUniqueEmployeeId(normalizedEmployeeId, record.id, existingRecords);
+    const wasEmployeeIdGenerated = isGeneratedEmployeeCredential(record)
+        || !record.employeeId
+        || normalizedEmployeeId !== normalizeToken(record.employeeId.trim());
+    // 실제 관리번호는 여러 평가 기록에서 재사용된다. 표시용 자동 번호만 충돌 보정한다.
+    const employeeId = wasEmployeeIdGenerated
+        ? ensureUniqueEmployeeId(normalizedEmployeeId, record, existingRecords)
+        : normalizedEmployeeId;
     const qrId = normalizeQrId(record, employeeId);
+    const employeeIdGenerated = wasEmployeeIdGenerated;
+    const qrIdGenerated = isGeneratedQrCredential(record)
+        || !record.qrId
+        || qrId !== normalizeToken(record.qrId.trim());
+    const selectedCredentialWasGenerated = (record.matchMethod === 'employeeId' && employeeIdGenerated)
+        || (record.matchMethod === 'qr' && qrIdGenerated);
 
     return {
         ...record,
         employeeId,
+        employeeIdGenerated,
         qrId,
+        qrIdGenerated,
+        matchMethod: selectedCredentialWasGenerated ? 'unmatched' : record.matchMethod,
     };
 };
 

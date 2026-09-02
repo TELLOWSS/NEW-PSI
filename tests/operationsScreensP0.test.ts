@@ -15,6 +15,7 @@ import {
 
 const workerRecord = (patch: Partial<WorkerRecord> = {}): WorkerRecord => ({
     id: patch.id || 'record-1',
+    portableWorkerId: patch.portableWorkerId,
     name: patch.name || '홍길동',
     employeeId: patch.employeeId,
     qrId: patch.qrId,
@@ -88,6 +89,7 @@ describe('operations screen P0 boundaries', () => {
         const options = buildSafetyCheckWorkerOptions([
             workerRecord({
                 id: 'january-record',
+                portableWorkerId: 'WP-CONFIRMED-WORKER',
                 name: '응우옌반안',
                 jobField: '형틀',
                 nationality: '베트남',
@@ -96,6 +98,7 @@ describe('operations screen P0 boundaries', () => {
             }),
             workerRecord({
                 id: 'february-record',
+                portableWorkerId: 'WP-CONFIRMED-WORKER',
                 name: '응우옌반안',
                 jobField: '형틀',
                 nationality: '베트남',
@@ -113,5 +116,14 @@ describe('operations screen P0 boundaries', () => {
 
         expect(options).toHaveLength(2);
         expect(options.map((option) => option.id)).toEqual(['different-worker', 'february-record']);
+    });
+
+    it('keeps name-only safety-check targets separate until their portable identity is confirmed', () => {
+        const options = buildSafetyCheckWorkerOptions([
+            workerRecord({ id: 'name-only-a', date: '2026-01-10' }),
+            workerRecord({ id: 'name-only-b', date: '2026-02-10' }),
+        ]);
+
+        expect(options).toHaveLength(2);
     });
 });

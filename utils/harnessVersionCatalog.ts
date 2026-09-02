@@ -32,7 +32,7 @@ const HARNESS_VERSION_CATALOG: HarnessVersionDescriptor[] = [
         details: [
             '시스템 지시어와 정적 지식 레이어를 분리했습니다.',
             '날씨·작업계획·센서 이벤트를 동적 컨텍스트 라인으로 조합합니다.',
-            '감사 추적용 assembledPrompt snapshot 저장을 전제합니다.',
+            '감사 추적에는 프롬프트 버전·해시만 저장하며 조합된 원문 프롬프트는 영구 보관하지 않습니다.',
         ],
         changesFromPrevious: [
             '프롬프트를 단일 문자열에서 계층형 스냅샷 구조로 전환했습니다.',
