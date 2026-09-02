@@ -5679,7 +5679,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         setExportFeedback({
                             tone: 'warning',
                             message: '월 마감 파일 저장을 취소했습니다.',
-                            detail: '파일과 서버 요약 모두 생성하지 않았습니다.',
+                            detail: '백업 파일이 완성되지 않았으므로 저장 위치를 확인해 주세요. 서버 요약은 전송하지 않았습니다.',
                             fileName,
                         });
                         return;
@@ -6373,7 +6373,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             }
 
             const monthlyConfirmation = verifiedArchiveEntry
-                ? '\n\n월 마감 파일 해시가 일치합니다. 계속하면 기록을 복원하고 비식별 월 요약 영수증만 서버에 등록합니다. 원문·이미지는 서버에 보내지 않습니다.'
+                ? '\n\n월 마감 파일 해시가 일치합니다. 계속하면 기록을 복원하고 가명 ID별 월 요약 영수증만 서버에 등록합니다. 원문·이미지는 서버에 보내지 않습니다.'
                 : '';
             if (!confirm(`${validation.confirmationText}${largeRecoveryNote ? `\n\n${largeRecoveryNote}` : ''}${monthlyConfirmation}`)) return;
 
@@ -7063,7 +7063,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         <div className="rounded-2xl border border-sky-400/30 bg-sky-950/40 px-4 py-3 text-[11px] font-bold leading-relaxed text-sky-100">
                             <p className="text-xs font-black">로컬 우선 보관 · 평가 원문 서버 저장 안 함</p>
                             <p className="mt-1 text-sky-200">
-                                원본 이미지·수기문장·평가 본문은 PC 월별 파일에만 보관합니다. 파일을 다시 불러와 해시 검증을 통과한 경우에만 서버에 비식별 건수·점수 요약 영수증을 등록합니다.
+                                원본 이미지·수기문장·평가 본문은 이 PC의 브라우저 작업 저장소와 월별 백업 파일에 보관합니다. 파일을 다시 불러와 검증하고 등록을 확인한 경우에만 서버에 가명 ID별 건수·점수 요약 영수증을 보냅니다.
                             </p>
                             <p className="mt-1 text-sky-200/80">OCR 분석을 위한 일시 전송과 DB 영구 보관은 구분됩니다.</p>
                             <p className="mt-2 border-t border-sky-400/20 pt-2">

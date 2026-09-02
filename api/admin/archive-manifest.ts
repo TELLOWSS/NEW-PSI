@@ -285,7 +285,7 @@ const normalizeManifest = (raw: unknown): NormalizedManifest => {
 const normalizeWorkerUuid = (value: unknown): string => {
     const normalized = String(value || '').trim().toUpperCase();
     if (
-        normalized.startsWith('WN-')
+        /^(?:WN-|WU-EMP-|WU-QR-)/.test(normalized)
         || (!PORTABLE_WORKER_ID_PATTERN.test(normalized) && !UUID_PATTERN.test(normalized))
     ) {
         throw new ArchiveManifestHttpError('휴대 가능한 근로자 ID 형식이 올바르지 않습니다.', 400, 'INVALID_INPUT');

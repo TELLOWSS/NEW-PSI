@@ -158,7 +158,8 @@ describe('monthly archive server receipt boundary', () => {
     });
 
     it.each([
-        { workerUuid: 'WN-name-derived-id' }, { firstAssessmentDate: '2026-07-31' },
+        { workerUuid: 'WN-name-derived-id' }, { workerUuid: 'WU-EMP-display-only' },
+        { workerUuid: 'WU-QR-display-only' }, { firstAssessmentDate: '2026-07-31' },
         { lastAssessmentDate: '2026-08-00' }, { minimumScore: 99 },
         { approvedCount: 3 }, { assessmentCount: 3 }, { averageScore: 80.5 },
         { latestSafetyLevel: 'arbitrary private text' },
