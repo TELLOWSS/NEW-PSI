@@ -2,7 +2,7 @@ import { assessPsiDocumentEvidence, normalizeOcrConfidence } from './ocrDocument
 
 export const OCR_AUTO_ACCEPTANCE_THRESHOLD = 0.86;
 export const OCR_CRITICAL_FIELD_THRESHOLD = 0.82;
-export const OCR_MIN_ANSWER_COUNT = 4;
+export const OCR_MIN_ANSWER_COUNT = 5;
 
 export type OcrRoutingQualityReason =
     | 'wrong-document'

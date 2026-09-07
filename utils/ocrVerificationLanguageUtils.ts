@@ -29,18 +29,32 @@ const inferNativeLangCode = (nationality: string, language?: string): NativeLang
     const nation = normalizeNation(nationality);
     const lang = normalizeLanguage(language);
 
-    if (nation.includes('대한민국') || nation.includes('한국') || nation.includes('korea') || lang.startsWith('ko') || lang.includes('korean')) return 'ko';
-    if (nation.includes('베트남') || nation.includes('vietnam') || nation.includes('việt') || lang.startsWith('vi') || lang.includes('vietnamese')) return 'vi';
-    if (nation.includes('중국') || nation.includes('china') || nation.includes('中国') || lang.startsWith('zh') || lang.includes('chinese')) return 'zh';
-    if (nation.includes('태국') || nation.includes('thailand') || lang.startsWith('th') || lang.includes('thai')) return 'th';
-    if (nation.includes('우즈벡') || nation.includes('uzbekistan') || nation.includes('ўзбек') || nation.includes('узбек') || lang.startsWith('uz') || lang.includes('uzbek')) return 'uz';
-    if (nation.includes('인도네시아') || nation.includes('indonesia') || lang.startsWith('id') || lang.includes('indonesian') || lang.includes('bahasa')) return 'id';
-    if (nation.includes('캄보디아') || nation.includes('cambodia') || nation.includes('កម្ពុជា') || lang.startsWith('km') || lang.includes('khmer')) return 'km';
-    if (nation.includes('몽골') || nation.includes('mongolia') || nation.includes('монгол') || lang.startsWith('mn') || lang.includes('mongol')) return 'mn';
-    if (nation.includes('카자흐') || nation.includes('kazakhstan') || nation.includes('қазақ') || nation.includes('казах') || lang.startsWith('kk') || lang.includes('kazakh')) return 'kk';
-    if (nation.includes('러시아') || nation.includes('russia') || nation.includes('росси') || nation.includes('русск') || lang.startsWith('ru') || lang.includes('russian')) return 'ru';
-    if (nation.includes('네팔') || nation.includes('nepal') || lang.startsWith('ne') || lang.includes('nepali')) return 'ne';
-    if (nation.includes('미얀마') || nation.includes('myanmar') || nation.includes('burma') || nation.includes('မြန်မာ') || lang.startsWith('my') || lang.includes('burmese') || lang.includes('myanmar')) return 'my';
+    // 근로자가 선택하거나 문서에 기록된 언어가 있으면 국적 추정보다 우선한다.
+    if (lang.startsWith('ko') || lang.includes('korean')) return 'ko';
+    if (lang.startsWith('vi') || lang.includes('vietnamese')) return 'vi';
+    if (lang.startsWith('zh') || lang.includes('chinese')) return 'zh';
+    if (lang.startsWith('th') || lang.includes('thai')) return 'th';
+    if (lang.startsWith('uz') || lang.includes('uzbek')) return 'uz';
+    if (lang.startsWith('id') || lang.includes('indonesian') || lang.includes('bahasa')) return 'id';
+    if (lang.startsWith('km') || lang.includes('khmer')) return 'km';
+    if (lang.startsWith('mn') || lang.includes('mongol')) return 'mn';
+    if (lang.startsWith('kk') || lang.includes('kazakh')) return 'kk';
+    if (lang.startsWith('ru') || lang.includes('russian')) return 'ru';
+    if (lang.startsWith('ne') || lang.includes('nepali')) return 'ne';
+    if (lang.startsWith('my') || lang.includes('burmese') || lang.includes('myanmar')) return 'my';
+
+    if (nation.includes('대한민국') || nation.includes('한국') || nation.includes('korea')) return 'ko';
+    if (nation.includes('베트남') || nation.includes('vietnam') || nation.includes('việt')) return 'vi';
+    if (nation.includes('중국') || nation.includes('china') || nation.includes('中国')) return 'zh';
+    if (nation.includes('태국') || nation.includes('thailand')) return 'th';
+    if (nation.includes('우즈벡') || nation.includes('uzbekistan') || nation.includes('ўзбек') || nation.includes('узбек')) return 'uz';
+    if (nation.includes('인도네시아') || nation.includes('indonesia')) return 'id';
+    if (nation.includes('캄보디아') || nation.includes('cambodia') || nation.includes('កម្ពុជា')) return 'km';
+    if (nation.includes('몽골') || nation.includes('mongolia') || nation.includes('монгол')) return 'mn';
+    if (nation.includes('카자흐') || nation.includes('kazakhstan') || nation.includes('қазақ') || nation.includes('казах')) return 'kk';
+    if (nation.includes('러시아') || nation.includes('russia') || nation.includes('росси') || nation.includes('русск')) return 'ru';
+    if (nation.includes('네팔') || nation.includes('nepal')) return 'ne';
+    if (nation.includes('미얀마') || nation.includes('myanmar') || nation.includes('burma') || nation.includes('မြန်မာ')) return 'my';
 
     return 'unknown';
 };
@@ -100,22 +114,23 @@ export const evaluateOcrVerificationCompleteness = (record: OcrVerificationLikeR
     const koreanTranslation = String(record.koreanTranslation || '').trim();
     const aiInsightsNative = String(record.aiInsights_native || '').trim();
     const handwrittenAnswers = Array.isArray(record.handwrittenAnswers) ? record.handwrittenAnswers : [];
-    const answerCount = handwrittenAnswers.filter((item) => String(item?.answerText || '').trim().length > 0).length;
-    const translatedAnswerCount = handwrittenAnswers.filter((item) => String(item?.koreanTranslation || '').trim().length > 0).length;
-    const nativeTranslatedAnswerCount = handwrittenAnswers.filter((item) => String((item as { nativeTranslation?: string })?.nativeTranslation || '').trim().length > 0).length;
+    const answerRows = handwrittenAnswers.filter((item) => String(item?.answerText || '').trim().length > 0);
+    const answerCount = answerRows.length;
+    const translatedAnswerCount = answerRows.filter((item) => String(item?.koreanTranslation || '').trim().length > 0).length;
+    const nativeTranslatedAnswerCount = answerRows.filter((item) => String((item as { nativeTranslation?: string })?.nativeTranslation || '').trim().length > 0).length;
     const combinedText = `${fullText}\n${koreanTranslation}`;
-    const hasQuestionnairePattern = /(?:^|\s)(?:1|2|3|4|5)[\.\)]|가장\s*큰\s*위험요소|위험등급|안전\s*조치|안전\s*행동|最危险|最大的危险因素|危险等级|安全措施|安全行为/u.test(combinedText);
+    const hasQuestionnairePattern = /\bQ[1-5]\b|(?:^|\s)(?:1|2|3|4|5)[\.\)]|가장\s*큰\s*위험요소|위험등급|안전\s*조치|안전\s*행동|最危险|最大的危险因素|危险等级|安全措施|安全行为/iu.test(combinedText);
     const nativeLanguageLabel = getNativeLanguageLabel(record.nationality, record.language);
     const issues: string[] = [];
 
-    if (hasQuestionnairePattern && answerCount === 0) {
-        issues.push('문항별 원문 답변 누락');
+    if (hasQuestionnairePattern && answerCount < 5) {
+        issues.push(`Q1~Q5 원문 답변 누락 ${5 - answerCount}건`);
     }
-    if (hasQuestionnairePattern && translatedAnswerCount === 0) {
-        issues.push('문항별 한국어 해석 누락');
+    if (answerCount > 0 && translatedAnswerCount < answerCount) {
+        issues.push(`문항별 한국어 해석 누락 ${answerCount - translatedAnswerCount}건`);
     }
-    if (hasQuestionnairePattern && !isKoreanNationality(record.nationality, record.language) && nativeTranslatedAnswerCount === 0) {
-        issues.push(`${nativeLanguageLabel} 문항 해석 누락`);
+    if (!isKoreanNationality(record.nationality, record.language) && answerCount > 0 && nativeTranslatedAnswerCount < answerCount) {
+        issues.push(`${nativeLanguageLabel} 문항 해석 누락 ${answerCount - nativeTranslatedAnswerCount}건`);
     }
     if (!aiInsightsNative) {
         issues.push(`${nativeLanguageLabel} 보호 안내 누락`);
@@ -143,7 +158,9 @@ export const evaluateOcrVerificationQuality = (record: OcrVerificationQualityRec
 
     const latinRegex = /[A-Za-z]{2,}/;
     const hasEnglishInKorean = latinRegex.test(aiInsights);
-    const hasEnglishInNative = latinRegex.test(aiInsightsNative);
+    const nativeLangCode = inferNativeLangCode(record.nationality, record.language);
+    const isLatinScriptNativeLanguage = ['vi', 'uz', 'id'].includes(nativeLangCode);
+    const hasEnglishInNative = !isLatinScriptNativeLanguage && latinRegex.test(aiInsightsNative);
 
     const answerRows = handwrittenAnswers.filter((item) => String(item?.answerText || '').trim().length > 0);
     const missingNativeAnswerTranslationCount = isKoreanNationality(record.nationality, record.language)

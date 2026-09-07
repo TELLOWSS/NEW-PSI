@@ -7,7 +7,7 @@ import { WorkerHistoryModal } from './components/modals/WorkerHistoryModal';
 import { RecordDetailModal } from './components/modals/RecordDetailModal';
 import { restoreRecordFromUrl } from './utils/qrUtils';
 import { extractMessage } from './utils/errorUtils';
-import { appendAuditTrail, appendCorrectionHistory, attachEvidenceHash, deriveCompetencyProfile, deriveIntegrityScore, enforceSafetyLevel } from './utils/evidenceUtils';
+import { appendAuditTrail, appendCorrectionHistory, attachEvidenceHash, deriveCompetencyProfile, deriveIntegrityScore, deriveImportedRecordMetrics, enforceSafetyLevel } from './utils/evidenceUtils';
 import { applyIdentityPolicy } from './utils/identityUtils';
 import {
     isAdminAuthenticated,
@@ -1132,11 +1132,7 @@ const App: React.FC = () => {
             const normalizedIdentityRecord = applyIdentityPolicy(profileAwareRecord, identityContext);
             const unifiedWorkerRecord = ensureWorkerUuid(normalizedIdentityRecord, identityContext);
             identityContext.push(unifiedWorkerRecord);
-            const withMetrics = {
-                ...unifiedWorkerRecord,
-                integrityScore: deriveIntegrityScore(unifiedWorkerRecord),
-                competencyProfile: deriveCompetencyProfile(unifiedWorkerRecord),
-            };
+            const withMetrics = deriveImportedRecordMetrics(unifiedWorkerRecord);
             const enforced = enforceSafetyLevel(withMetrics);
             const hashed = await attachEvidenceHash(enforced);
             importedIds.add(hashed.id);

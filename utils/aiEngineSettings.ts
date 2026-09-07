@@ -15,9 +15,9 @@ export const DEFAULT_AI_ENGINE_SETTINGS: AiEngineSettings = {
 };
 
 /**
- * 2026-08-22 Google 공식 GA/Preview 모델 기준 OCR 라우팅 카탈로그.
+ * 2026-09-07 Google 공식 GA/Preview 모델 기준 OCR 라우팅 카탈로그.
  * 가격은 Gemini Developer API Standard 유료 티어의 USD / 1M tokens이며,
- * 3.7 Flash는 2026-12-31까지의 프로모션 단가다.
+ * 3.8/3.7 Flash는 2026-12-31까지의 프로모션 단가다.
  */
 export const GEMINI_OCR_MODEL_CATALOG = {
     economy: {
@@ -27,17 +27,18 @@ export const GEMINI_OCR_MODEL_CATALOG = {
         outputUsdPerMillionTokens: 2.50,
     },
     precision: {
-        id: 'gemini-3.7-flash',
+        id: 'gemini-3.8-flash',
         lifecycle: 'ga',
         inputUsdPerMillionTokens: 0.75,
         outputUsdPerMillionTokens: 3.75,
         promotionalPriceEndsAt: '2026-12-31',
     },
     stableFallback: {
-        id: 'gemini-2.5-flash',
+        id: 'gemini-3.7-flash',
         lifecycle: 'ga',
-        inputUsdPerMillionTokens: 0.30,
-        outputUsdPerMillionTokens: 2.50,
+        inputUsdPerMillionTokens: 0.75,
+        outputUsdPerMillionTokens: 3.75,
+        promotionalPriceEndsAt: '2026-12-31',
     },
     exceptionalPrecision: {
         id: 'gemini-3.1-pro-preview',
@@ -60,6 +61,7 @@ export interface GeminiOcrCostGuardDecision {
     projectedAttemptCostUsd: number;
     projectedTotalCostUsd: number;
     remainingBudgetUsd: number;
+    reason?: 'unpriced-model';
 }
 
 export const estimateGeminiOcrCostUsd = (
@@ -91,6 +93,18 @@ export const evaluateGeminiOcrCostGuard = (options: {
 }): GeminiOcrCostGuardDecision => {
     const spentUsd = Math.max(0, Number(options.spentUsd) || 0);
     const maxUsd = Math.max(0, Number(options.maxUsd) || 0);
+    const isPricedModel = Object.values(GEMINI_OCR_MODEL_CATALOG)
+        .some((item) => item.id === options.modelId);
+    // 미등록 모델은 가격을 0원으로 오인하지 않고 공급자 호출 전에 차단한다.
+    if (!isPricedModel) {
+        return {
+            allowed: false,
+            projectedAttemptCostUsd: 0,
+            projectedTotalCostUsd: spentUsd,
+            remainingBudgetUsd: Math.max(0, maxUsd - spentUsd),
+            reason: 'unpriced-model',
+        };
+    }
     const projectedAttemptCostUsd = estimateGeminiOcrCostUsd(options.modelId, {
         inputTokens: Math.max(0, Number(options.countedInputTokens) || 0),
         outputTokens: Math.max(0, Number(options.maxBillableOutputTokens) || 0),
@@ -137,7 +151,8 @@ export const resolveGeminiOcrModelChain = (
     engine: OcrEngineMode,
     options?: { isPaidApiMode?: boolean },
 ): string[] => {
-    const isPaidApiMode = options?.isPaidApiMode === true;
+    // 유료 여부는 서버의 단일 호출 승인 게이트에서 처리한다. 이 목록은 GA 모델만 사용한다.
+    void options;
 
     if (engine === 'gemini-fast') {
         return [
@@ -146,25 +161,15 @@ export const resolveGeminiOcrModelChain = (
         ];
     }
     if (engine === 'gemini-precise') {
-        return isPaidApiMode
-            ? [
-                GEMINI_OCR_MODEL_CATALOG.precision.id,
-                GEMINI_OCR_MODEL_CATALOG.exceptionalPrecision.id,
-            ]
-            : [
-                GEMINI_OCR_MODEL_CATALOG.precision.id,
-                GEMINI_OCR_MODEL_CATALOG.stableFallback.id,
-            ];
-    }
-    return isPaidApiMode
-        ? [
-            GEMINI_OCR_MODEL_CATALOG.economy.id,
+        return [
             GEMINI_OCR_MODEL_CATALOG.precision.id,
-        ]
-        : [
-            GEMINI_OCR_MODEL_CATALOG.economy.id,
             GEMINI_OCR_MODEL_CATALOG.stableFallback.id,
         ];
+    }
+    return [
+        GEMINI_OCR_MODEL_CATALOG.economy.id,
+        GEMINI_OCR_MODEL_CATALOG.precision.id,
+    ];
 };
 
 export const getOcrEngineLabel = (engine: OcrEngineMode): string => {

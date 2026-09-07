@@ -10,7 +10,10 @@ import handleHarnessApprove from '../lib/server/harness/handlers/approve.js';
 import handleHarnessPersistenceHealth from '../lib/server/harness/handlers/persistenceHealth.js';
 import handleHarnessReanalyze from '../lib/server/harness/handlers/reanalyze.js';
 import handleHarnessWorkflowStatus from '../lib/server/harness/handlers/workflowStatus.js';
-import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils.js';
+import {
+    evaluateOcrVerificationCompleteness,
+    evaluateOcrVerificationQuality,
+} from '../utils/ocrVerificationLanguageUtils.js';
 import {
     evaluateGeminiOcrCostGuard,
     estimateGeminiOcrCostUsd,
@@ -70,6 +73,7 @@ const OCR_RETRY_LANGUAGE_POLICY = [
     '[절대 원칙]',
     '- 모든 분석 결과에서 영어 단독 사용 절대 금지. aiInsights, aiInsights_native, 필드에 영어 단어/문장 혼용 금지.',
     '- nationality 표준: 대한민국/베트남/중국/태국/우즈베키스탄/인도네시아/캄보디아/몽골/카자흐스탄/러시아/네팔/미얀마 중 표준 한글로 반환.',
+    '- language는 문서 또는 근로자 정보에 확인된 BCP-47 언어코드를 우선 사용하고, 확인되지 않으면 unknown으로 반환. 국적만으로 선호 언어를 확정하지 말 것.',
     '- aiInsights는 관리자 검토용 한국어 문장. 영어 혼용 금지.',
     '- aiInsights_native는 작업자에게 직접 전달할 모국어 보호 안내. 빈 문자열 반환 절대 금지. 영어 혼용 금지.',
     '- 대한민국 근로자도 aiInsights_native를 한국어로 현장 전달용 안내로 반드시 채울 것.',
@@ -80,8 +84,10 @@ const OCR_RETRY_LANGUAGE_POLICY = [
     '[국가별 모국어 배정]',
     '- 대한민국 → 한국어 | 베트남 → 베트남어 | 중국 → 중국어 간체',
     '- 태국 → 태국어 | 우즈베키스탄 → 우즈베크어 | 인도네시아 → 인도네시아어',
-    '- 캄보디아 → 크메르어 | 몽골 → 몽골어 | 카자흐스탄 → 러시아어 | 러시아 → 러시아어',
+    '- 캄보디아 → 크메르어 | 몽골 → 몽골어 | 카자흐스탄 → language=ru이면 러시아어, language=kk이면 카자흐어, 미확인이면 카자흐어 | 러시아 → 러시아어',
     '- 네팔 → 네팔어(देवनागरी) | 미얀마 → 미얀마어(မြန်မာဘာသာ)',
+    '- 모든 번역에서 숫자·단위·보호구·장비명과 금지/반드시/즉시 중지 같은 안전 강도를 원문과 동일하게 보존할 것.',
+    '- answerText는 보이는 원문을 교정하거나 자연스럽게 바꾸지 말고 그대로 전사할 것. 관리자용 한국어 해석과 근로자용 자연스러운 모국어 안내를 섞지 말 것.',
 ].join('\n');
 
 const OCR_RETRY_RESPONSE_SCHEMA = {
@@ -437,7 +443,7 @@ export const resolveOcrModelChainForBilling = (
         isPaidApiMode: billingTier === 'paid'
             && (engine === 'gemini-precise' ? allowPreviewPro : true),
     });
-    // 유료 승인은 문서당 generateContent 1회에만 유효하다. 품질 승격/모델 폴백은 새 승인 없이 실행하지 않는다.
+    // 유료 승인은 문서당 공급자 생성 1회에만 유효하다. 품질 승격/모델 폴백은 새 승인 없이 실행하지 않는다.
     return billingTier === 'paid' ? resolvedModelChain.slice(0, 1) : resolvedModelChain;
 };
 
@@ -1600,14 +1606,64 @@ export const isGeminiApiKeyRejection = (status: number, detail: string): boolean
         || normalized.includes('invalid api key');
 };
 
-const resolveOcrThinkingConfig = (model: string): Record<string, unknown> => {
-    if (model.startsWith('gemini-2.5-')) {
-        return { thinkingBudget: 0 };
+export const isGeminiModelAvailabilityError = (status: number, detail: string): boolean => {
+    if (status === 404 || status === 410) return true;
+    const normalized = String(detail || '').toLowerCase();
+    return normalized.includes('no longer available')
+        || normalized.includes('model not found')
+        || (normalized.includes('models/') && normalized.includes('not found'))
+        || (normalized.includes('model') && normalized.includes('unsupported'));
+};
+
+const resolveOcrThinkingLevel = (model: string): 'minimal' | 'low' => (
+    model.includes('flash-lite') ? 'minimal' : 'low'
+);
+
+export const buildGeminiOcrInteractionInput = (
+    prompt: string,
+    cleanData: string,
+    mimeType: string,
+): Array<Record<string, unknown>> => [
+    { type: 'text', text: prompt },
+    mimeType === 'application/pdf'
+        ? { type: 'document', data: cleanData, mime_type: mimeType }
+        : { type: 'image', data: cleanData, mime_type: mimeType, resolution: 'high' },
+];
+
+export const readGeminiInteractionText = (payload: Record<string, any>): string => {
+    const direct = String(payload?.output_text || payload?.outputText || '').trim();
+    if (direct) return direct;
+
+    const steps = Array.isArray(payload?.steps) ? payload.steps : [];
+    for (let index = steps.length - 1; index >= 0; index -= 1) {
+        const content = Array.isArray(steps[index]?.content) ? steps[index].content : [];
+        const text = content
+            .filter((item: any) => item?.type === 'text' && typeof item?.text === 'string')
+            .map((item: any) => item.text)
+            .join('')
+            .trim();
+        if (text) return text;
     }
-    if (model.includes('flash-lite')) {
-        return { thinkingLevel: 'minimal' };
-    }
-    return { thinkingLevel: 'low' };
+    return '';
+};
+
+export const readGeminiInteractionUsage = (payload: Record<string, any>, countedInputTokens: number) => {
+    const usage = payload?.usage || payload?.total_usage || {};
+    return {
+        inputTokens: Math.max(0, Number(
+            usage.total_input_tokens
+            ?? usage.totalInputTokens
+            ?? countedInputTokens,
+        ) || countedInputTokens),
+        outputTokens: Math.max(0, Number(
+            usage.total_output_tokens
+            ?? usage.totalOutputTokens,
+        ) || 0),
+        thinkingTokens: Math.max(0, Number(
+            usage.total_thought_tokens
+            ?? usage.totalThoughtTokens,
+        ) || 0),
+    };
 };
 
 const sanitizeOcrFilenameHint = (value: string): string => String(value || 'unknown')
@@ -1729,9 +1785,16 @@ async function analyzeSingleRecord(
             ],
         },
     ];
+    const interactionInput = buildGeminiOcrInteractionInput(
+        buildOcrPromptText(filenameHint),
+        cleanData,
+        mimeType,
+    );
 
     for (let modelIndex = 0; modelIndex < modelChain.length; modelIndex++) {
         const model = modelChain[modelIndex];
+        modelsAttempted.push(model);
+        fallbackDepth = Math.max(fallbackDepth, modelIndex);
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), OCR_RETRY_TIMEOUT_MS);
 
@@ -1752,19 +1815,28 @@ async function analyzeSingleRecord(
             if (!countResponse.ok) {
                 const detail = (await countResponse.text()).slice(0, 300);
                 const apiKeyRejected = isGeminiApiKeyRejection(countResponse.status, detail);
+                const modelUnavailable = isGeminiModelAvailabilityError(countResponse.status, detail);
                 let countError: GatewayHttpError;
                 if (countResponse.status === 429) {
                     countError = createGatewayHttpError(
-                        `Gemini 입력 토큰 계산 할당량 초과(429): ${detail}`,
+                        options.billingTier === 'paid'
+                            ? '유료 Gemini 할당량에 도달해 요청을 중단했습니다.'
+                            : '무료 Gemini 할당량에 도달했습니다. 유료 사용은 관리자 승인 전까지 실행되지 않습니다.',
                         429,
                         resolveGeminiQuotaErrorCode(options.billingTier),
                     );
                 } else if (apiKeyRejected) {
                     countError = createGatewayHttpError(`Gemini 입력 토큰 계산 인증/권한 오류(${countResponse.status})`, 502, 'OCR_UPSTREAM_AUTH');
+                } else if (modelUnavailable) {
+                    countError = createGatewayHttpError(
+                        `현재 OCR 모델(${model})을 사용할 수 없어 다른 무료 활성 모델을 확인합니다.`,
+                        503,
+                        'OCR_MODEL_UNAVAILABLE',
+                    );
                 } else if (countResponse.status === 400) {
-                    countError = createGatewayHttpError(`Gemini 입력 토큰 계산 요청 오류(400): ${detail}`, 400, 'OCR_INVALID_ARGUMENT');
+                    countError = createGatewayHttpError('Gemini 입력 토큰 계산 요청 형식이 현재 API와 맞지 않습니다.', 400, 'OCR_INVALID_ARGUMENT');
                 } else {
-                    countError = createGatewayHttpError(`Gemini 입력 토큰 계산 실패(${countResponse.status}): ${detail}`, 502, 'OCR_COST_ESTIMATE_UNAVAILABLE');
+                    countError = createGatewayHttpError(`Gemini 입력 토큰 계산을 확인할 수 없습니다(${countResponse.status}). 비용 보호를 위해 호출을 중단했습니다.`, 502, 'OCR_COST_ESTIMATE_UNAVAILABLE');
                 }
                 lastError = countError;
                 if (!shouldTryNextModel(countError.code) || modelIndex === modelChain.length - 1) {
@@ -1787,9 +1859,11 @@ async function analyzeSingleRecord(
             if (!costDecision.allowed) {
                 costGuardBlocked = true;
                 const budgetError = createGatewayHttpError(
-                    `문서당 OCR 비용 상한($${maxUsdPerDocument.toFixed(3)})을 넘을 수 있어 ${model} 호출을 차단했습니다.`,
+                    costDecision.reason === 'unpriced-model'
+                        ? `가격표에 등록되지 않은 OCR 모델(${model})이라 호출을 차단했습니다.`
+                        : `문서당 OCR 비용 상한($${maxUsdPerDocument.toFixed(3)})을 넘을 수 있어 ${model} 호출을 차단했습니다.`,
                     422,
-                    'OCR_COST_GUARD_BLOCKED',
+                    costDecision.reason === 'unpriced-model' ? 'OCR_MODEL_UNPRICED' : 'OCR_COST_GUARD_BLOCKED',
                 );
                 lastError = budgetError;
                 if (bestParsed) {
@@ -1800,12 +1874,10 @@ async function analyzeSingleRecord(
             }
 
             attempts += 1;
-            fallbackDepth = Math.max(0, attempts - 1);
-            modelsAttempted.push(model);
             if (modelIndex > 0) precisionEscalated = true;
 
             const response = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+                'https://generativelanguage.googleapis.com/v1beta/interactions',
                 {
                     method: 'POST',
                     headers: {
@@ -1814,13 +1886,19 @@ async function analyzeSingleRecord(
                     },
                     signal: controller.signal,
                     body: JSON.stringify({
-                        contents: requestContents,
-                        generationConfig: {
-                            responseMimeType: 'application/json',
-                            responseSchema: OCR_RETRY_RESPONSE_SCHEMA,
-                            maxOutputTokens: OCR_RETRY_MAX_OUTPUT_TOKENS,
-                            thinkingConfig: resolveOcrThinkingConfig(model),
+                        model,
+                        input: interactionInput,
+                        response_format: {
+                            type: 'text',
+                            mime_type: 'application/json',
+                            schema: OCR_RETRY_RESPONSE_SCHEMA,
                         },
+                        generation_config: {
+                            max_output_tokens: OCR_RETRY_MAX_OUTPUT_TOKENS,
+                            thinking_level: resolveOcrThinkingLevel(model),
+                        },
+                        // 근로자 원문과 분석 결과를 API 세션에 저장하지 않는 무상태 호출.
+                        store: false,
                     }),
                 },
             );
@@ -1828,19 +1906,28 @@ async function analyzeSingleRecord(
             if (!response.ok) {
                 const detail = (await response.text()).slice(0, 300);
                 const apiKeyRejected = isGeminiApiKeyRejection(response.status, detail);
+                const modelUnavailable = isGeminiModelAvailabilityError(response.status, detail);
                 let mappedError: GatewayHttpError;
                 if (response.status === 429) {
                     mappedError = createGatewayHttpError(
-                        `Gemini API 할당량 초과(429): ${detail}`,
+                        options.billingTier === 'paid'
+                            ? '유료 Gemini 할당량에 도달해 요청을 중단했습니다.'
+                            : '무료 Gemini 할당량에 도달했습니다. 유료 사용은 관리자 승인 전까지 실행되지 않습니다.',
                         429,
                         resolveGeminiQuotaErrorCode(options.billingTier),
                     );
                 } else if (apiKeyRejected) {
                     mappedError = createGatewayHttpError(`Gemini API 인증/권한 오류(${response.status}): 서버 API 키를 확인하세요.`, 502, 'OCR_UPSTREAM_AUTH');
+                } else if (modelUnavailable) {
+                    mappedError = createGatewayHttpError(
+                        `현재 OCR 모델(${model})을 사용할 수 없어 다른 무료 활성 모델을 확인합니다.`,
+                        503,
+                        'OCR_MODEL_UNAVAILABLE',
+                    );
                 } else if (response.status === 400) {
-                    mappedError = createGatewayHttpError(`Gemini API 요청 형식 오류(400): ${detail}`, 400, 'OCR_INVALID_ARGUMENT');
+                    mappedError = createGatewayHttpError('Gemini API 요청 형식이 현재 버전과 맞지 않습니다.', 400, 'OCR_INVALID_ARGUMENT');
                 } else {
-                    mappedError = createGatewayHttpError(`Gemini API 오류 (${response.status}): ${detail}`, 502, 'OCR_UPSTREAM_FAILURE');
+                    mappedError = createGatewayHttpError(`Gemini OCR 서비스가 응답하지 않았습니다(${response.status}).`, 502, 'OCR_UPSTREAM_FAILURE');
                 }
                 lastError = mappedError;
                 if (!shouldTryNextModel(mappedError.code) || modelIndex === modelChain.length - 1) {
@@ -1850,10 +1937,17 @@ async function analyzeSingleRecord(
             }
 
             const data = await response.json();
-            const usage = data?.usageMetadata || {};
-            const currentInputTokens = Math.max(0, Number(usage.promptTokenCount) || countedInputTokens);
-            const currentOutputTokens = Math.max(0, Number(usage.candidatesTokenCount) || 0);
-            const currentThinkingTokens = Math.max(0, Number(usage.thoughtsTokenCount) || 0);
+            if (data?.status && data.status !== 'completed') {
+                throw createGatewayHttpError(
+                    `Gemini OCR 응답이 완료되지 않았습니다(${String(data.status)}).`,
+                    502,
+                    'OCR_INCOMPLETE_RESPONSE',
+                );
+            }
+            const usage = readGeminiInteractionUsage(data, countedInputTokens);
+            const currentInputTokens = usage.inputTokens;
+            const currentOutputTokens = usage.outputTokens;
+            const currentThinkingTokens = usage.thinkingTokens;
             inputTokens += currentInputTokens;
             outputTokens += currentOutputTokens;
             thinkingTokens += currentThinkingTokens;
@@ -1862,7 +1956,7 @@ async function analyzeSingleRecord(
                 outputTokens: currentOutputTokens,
                 thinkingTokens: currentThinkingTokens,
             });
-            const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const rawText = readGeminiInteractionText(data);
             const candidate = parseJsonCandidate(rawText);
 
             if (!candidate) {
@@ -1952,20 +2046,27 @@ async function analyzeSingleRecord(
         throw withFailureTrace(createGatewayHttpError('서버 OCR 결과에 유효 텍스트가 없어 재분석이 필요합니다.', 502, 'OCR_PARSE_FAILURE'));
     }
 
-    if (!verificationAudit.isComplete) {
-        throw withFailureTrace(createGatewayHttpError(`서버 OCR 구조 검증 실패: ${verificationAudit.issues.join(', ')}`, 502, 'OCR_PARSE_FAILURE'));
-    }
-
     const changedFormCoverage = evaluateChangedPsiFormCoverage({
         filename: filenameHint,
         fullText: String(parsed.fullText || '').trim(),
         koreanTranslation: String(parsed.koreanTranslation || '').trim(),
         handwrittenAnswers: normalizedHandwrittenAnswers,
     });
-
-    if (!changedFormCoverage.isAcceptable) {
-        throw withFailureTrace(createGatewayHttpError(changedFormCoverage.message, 502, 'OCR_PARSE_FAILURE'));
-    }
+    const verificationQuality = evaluateOcrVerificationQuality({
+        nationality: normalizedNationality,
+        language: String(parsed.language || 'unknown').trim(),
+        jobField: String(parsed.jobField || '기타').trim(),
+        aiInsights: String(parsed.aiInsights || '').trim(),
+        aiInsights_native: nativeInsights,
+        handwrittenAnswers: normalizedHandwrittenAnswers,
+        safetyScore: Number(parsed.safetyScore) || 0,
+        strengths_native: toStringArray(parsed.strengths_native),
+        weakAreas_native: toStringArray(parsed.weakAreas_native),
+        improvement_native: String(parsed.improvement_native || '').trim(),
+        suggestions_native: toStringArray(parsed.suggestions_native),
+        score_reason_native: String(parsed.score_reason_native || '').trim(),
+        actionable_coaching_native: String(parsed.actionable_coaching_native || '').trim(),
+    });
 
     const calibratedScore = enforceBreakdownDrivenScore(
         parsed.safetyScore,
@@ -2016,8 +2117,16 @@ async function analyzeSingleRecord(
         handwrittenAnswers: normalizedHandwrittenAnswers,
     }, { appendAuditTrail: false }).record;
 
-    const qualityMessage = getOcrQualityReviewMessage(finalQuality);
-    const normalizedRecord = finalQuality.requiresManualReview
+    const verificationRequiresManualReview = !verificationAudit.isComplete
+        || !verificationQuality.isHealthy
+        || !changedFormCoverage.isAcceptable;
+    const qualityMessage = [
+        getOcrQualityReviewMessage(finalQuality),
+        ...verificationAudit.issues,
+        ...verificationQuality.issues,
+        !changedFormCoverage.isAcceptable ? changedFormCoverage.message : '',
+    ].filter(Boolean).join(' | ');
+    const normalizedRecord = (finalQuality.requiresManualReview || verificationRequiresManualReview)
         ? {
             ...normalizedBaseRecord,
             date: String(parsed.date || '').trim() ? normalizedBaseRecord.date : '',
@@ -2048,7 +2157,11 @@ async function analyzeSingleRecord(
         precisionEscalated,
         costGuardBlocked,
         qualityScore: finalQuality.score,
-        qualityReasons: finalQuality.reasons,
+        qualityReasons: [
+            ...finalQuality.reasons,
+            ...verificationAudit.issues,
+            ...verificationQuality.issues,
+        ],
         inputTokens,
         outputTokens,
         thinkingTokens,

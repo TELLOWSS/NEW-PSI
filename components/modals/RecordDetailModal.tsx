@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { isLegacyMigratedRecord } from '../../utils/legacyBackupMigration';
 import type {
     WorkerRecord,
     AppSettings,
@@ -2224,6 +2225,15 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     {/* RIGHT: PROFILE & INFO EDIT AREA */}
                     <div className="w-full lg:w-[50%] flex flex-col bg-slate-50 overflow-hidden">
                         <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-5 sm:space-y-8 custom-scrollbar">
+                            {isLegacyMigratedRecord(record) && (
+                                <div role="note" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+                                    <p className="font-black">구형 백업에서 복원한 과거 평가</p>
+                                    <p className="mt-1 leading-relaxed">
+                                        원점수 {String(record.legacyBackup.originalEvaluation.safetyScore)} · 원등급 {String(record.legacyBackup.originalEvaluation.safetyLevel)}를 보존했습니다.
+                                        현재 기준의 재평가나 승인 완료를 뜻하지 않습니다. 원본에 없던 보조 지표는 현행 로직으로 계산됩니다. 문항·동일인·승인 이력은 원본과 별도로 확인해 주세요.
+                                    </p>
+                                </div>
+                            )}
                             
                             <div className={`overflow-hidden rounded-[28px] border shadow-sm ${decisionBoardTone.container}`}>
                                 <div className="relative p-5 sm:p-6">

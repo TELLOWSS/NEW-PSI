@@ -1,3 +1,5 @@
+import type { LegacyBackupProvenance } from './utils/legacyBackupMigration';
+
 export type Page =
     'dashboard' | 
     'ocr-analysis' | 
@@ -382,6 +384,8 @@ export type HarnessApprovalState =
 
 export interface WorkerRecord {
     id: string; // Unique ID for each record
+    /** 구형 백업의 원평가와 변환 근거. 승인/정정 이력과 구분하며 최신 판정에 사용하지 않는다. */
+    legacyBackup?: LegacyBackupProvenance;
     /**
      * 현장/회사 이동과 무관하게 근로자가 직접 보유·이관하는 불변 식별자.
      * 이름·국적·공종처럼 바뀌거나 중복될 수 있는 개인정보로 생성하지 않는다.

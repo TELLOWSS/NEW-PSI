@@ -23,6 +23,7 @@ const requiredMarkers = [
   ['engineSettings', 'options?: { isPaidApiMode?: boolean }'],
   ['engineSettings', "id: 'gemini-3.5-flash-lite'"],
   ['engineSettings', "id: 'gemini-3.7-flash'"],
+  ['engineSettings', "id: 'gemini-3.8-flash'"],
   ['engineSettings', 'estimateGeminiOcrCostUsd'],
   ['engineSettings', 'evaluateGeminiOcrCostGuard'],
   ['geminiService', 'const gatewayResult = await requestServerOcrAnalysis({'],
@@ -86,22 +87,24 @@ const analyzeSource = analyzeStart >= 0 && analyzeEnd > analyzeStart
 const countOccurrences = (text, needle) => text.split(needle).length - 1;
 const countTokensIndex = analyzeSource.indexOf(':countTokens');
 const costGuardIndex = analyzeSource.indexOf('evaluateGeminiOcrCostGuard({');
-const generateContentIndex = analyzeSource.indexOf(':generateContent');
+const interactionsIndex = analyzeSource.indexOf("'/v1beta/interactions'") >= 0
+  ? analyzeSource.indexOf("'/v1beta/interactions'")
+  : analyzeSource.indexOf('/v1beta/interactions');
 
 if (!analyzeSource) {
   missing.push('gateway: analyzeSingleRecord 비용 가드 검사 범위');
 } else {
-  if (!(countTokensIndex >= 0 && countTokensIndex < costGuardIndex && costGuardIndex < generateContentIndex)) {
-    missing.push('gateway: countTokens → USD 비용 가드 → generateContent 호출 순서');
+  if (!(countTokensIndex >= 0 && countTokensIndex < costGuardIndex && costGuardIndex < interactionsIndex)) {
+    missing.push('gateway: countTokens → USD 비용 가드 → Interactions 호출 순서');
   }
-  if (countOccurrences(analyzeSource, ':generateContent') !== 1) {
-    missing.push('gateway: analyzeSingleRecord 생성 호출 지점 단일화');
+  if (countOccurrences(analyzeSource, '/v1beta/interactions') !== 1) {
+    missing.push('gateway: analyzeSingleRecord Interactions 생성 호출 지점 단일화');
   }
   if (countOccurrences(analyzeSource, ':countTokens') !== 1) {
     missing.push('gateway: analyzeSingleRecord 실제 입력 토큰 계산 지점 단일화');
   }
   if (countOccurrences(analyzeSource, "'x-goog-api-key': apiKey") < 2) {
-    missing.push('gateway: countTokens/generateContent x-goog-api-key 헤더 인증');
+    missing.push('gateway: countTokens/Interactions x-goog-api-key 헤더 인증');
   }
   if (analyzeSource.includes('?key=${apiKey}')) {
     missing.push('gateway: URL 쿼리 API 키 금지');
@@ -109,8 +112,14 @@ if (!analyzeSource) {
   if (!/maxBillableOutputTokens:\s*OCR_RETRY_MAX_BILLABLE_OUTPUT_TOKENS/.test(analyzeSource)) {
     missing.push('gateway: 누적비용 가드에 6,144 billable 출력 예약 전달');
   }
-  if (!/maxOutputTokens:\s*OCR_RETRY_MAX_OUTPUT_TOKENS/.test(analyzeSource)) {
-    missing.push('gateway: generateContent 3,072 출력 상한 전달');
+  if (!/max_output_tokens:\s*OCR_RETRY_MAX_OUTPUT_TOKENS/.test(analyzeSource)) {
+    missing.push('gateway: Interactions 3,072 출력 상한 전달');
+  }
+  if (!/store:\s*false/.test(analyzeSource)) {
+    missing.push('gateway: Interactions 원문 세션 저장 금지(store:false)');
+  }
+  if (/gemini-2\.5-/i.test(analyzeSource)) {
+    missing.push('gateway: 종료된 Gemini 2.5 OCR 모델 금지');
   }
 }
 

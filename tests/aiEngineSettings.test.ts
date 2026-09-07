@@ -11,23 +11,30 @@ describe('AI engine routing', () => {
     it('routes clear bulk documents to the fast Gemini chain', () => {
         expect(resolveGeminiOcrModelChain('gemini-fast', { isPaidApiMode: true })).toEqual([
             'gemini-3.5-flash-lite',
-            'gemini-2.5-flash',
+            'gemini-3.7-flash',
         ]);
     });
 
     it('routes difficult documents to the precise model first', () => {
-        expect(resolveGeminiOcrModelChain('gemini-precise', { isPaidApiMode: true })[0]).toBe('gemini-3.7-flash');
+        expect(resolveGeminiOcrModelChain('gemini-precise', { isPaidApiMode: true })[0]).toBe('gemini-3.8-flash');
     });
 
     it('keeps automatic routing to at most one precision escalation', () => {
         expect(resolveGeminiOcrModelChain('auto', { isPaidApiMode: true })).toEqual([
             'gemini-3.5-flash-lite',
-            'gemini-3.7-flash',
+            'gemini-3.8-flash',
         ]);
     });
 
     it('never routes a free automatic request to the preview Pro model', () => {
         expect(resolveGeminiOcrModelChain('auto', { isPaidApiMode: false })).not.toContain('gemini-3.1-pro-preview');
+    });
+
+    it('never routes production OCR to a retired Gemini 2.5 model', () => {
+        for (const engine of ['auto', 'gemini-fast', 'gemini-precise'] as const) {
+            expect(resolveGeminiOcrModelChain(engine, { isPaidApiMode: false }))
+                .not.toEqual(expect.arrayContaining([expect.stringMatching(/^gemini-2\.5-/)]));
+        }
     });
 
     it('estimates provider cost from actual token usage', () => {
@@ -68,5 +75,17 @@ describe('Gemini OCR hard cost guard', () => {
         expect(decision.allowed).toBe(false);
         expect(decision.projectedTotalCostUsd).toBeGreaterThan(0.05);
         expect(decision.remainingBudgetUsd).toBeCloseTo(0.04, 8);
+    });
+
+    it('fails closed before calling a model without a registered price', () => {
+        const decision = evaluateGeminiOcrCostGuard({
+            modelId: 'gemini-future-unpriced',
+            countedInputTokens: 2_000,
+            maxBillableOutputTokens: 3_072,
+            spentUsd: 0,
+            maxUsd: 0.05,
+        });
+
+        expect(decision).toMatchObject({ allowed: false, reason: 'unpriced-model' });
     });
 });

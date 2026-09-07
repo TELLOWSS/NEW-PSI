@@ -44,6 +44,14 @@ describe('server OCR gateway client', () => {
             { code: 'MISSING_SERVER_GEMINI_FREE_KEY', status: 502 },
         ))).toBe(true);
         expect(isOcrGatewaySystemUnavailable(new OcrGatewayError(
+            '[OCR_MODEL_UNAVAILABLE] model retired',
+            { code: 'OCR_MODEL_UNAVAILABLE', status: 503 },
+        ))).toBe(true);
+        expect(isOcrGatewaySystemUnavailable(new OcrGatewayError(
+            '[OCR_COST_ESTIMATE_UNAVAILABLE] count unavailable',
+            { code: 'OCR_COST_ESTIMATE_UNAVAILABLE', status: 502 },
+        ))).toBe(true);
+        expect(isOcrGatewaySystemUnavailable(new OcrGatewayError(
             '[OCR_PARSE_FAILURE] one file could not be parsed',
             { code: 'OCR_PARSE_FAILURE', status: 502 },
         ))).toBe(false);

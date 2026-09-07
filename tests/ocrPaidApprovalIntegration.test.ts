@@ -206,11 +206,11 @@ afterEach(() => {
 });
 
 describe('paid OCR approval integration', () => {
-    it('runs one paid countTokens and one paid generateContent only after challenge, password, and durable nonce consumption', async () => {
+    it('runs one paid countTokens and one stateless paid interaction only after challenge, password, and durable nonce consumption', async () => {
         const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
             const url = String(input);
             const apiKey = getApiKey(init);
-            const operation = url.endsWith(':countTokens') ? 'countTokens' : 'generateContent';
+            const operation = url.endsWith(':countTokens') ? 'countTokens' : 'interactions';
             durableSupabase.events.push(`fetch:${apiKey}:${operation}`);
 
             if (apiKey === FREE_API_KEY) {
@@ -224,15 +224,14 @@ describe('paid OCR approval integration', () => {
                     headers: { 'Content-Type': 'application/json' },
                 });
             }
-            if (apiKey === PAID_API_KEY && operation === 'generateContent') {
+            if (apiKey === PAID_API_KEY && operation === 'interactions') {
                 return new Response(JSON.stringify({
-                    candidates: [{
-                        content: { parts: [{ text: JSON.stringify([successfulOcrRecord]) }] },
-                    }],
-                    usageMetadata: {
-                        promptTokenCount: 600,
-                        candidatesTokenCount: 300,
-                        thoughtsTokenCount: 0,
+                    status: 'completed',
+                    output_text: JSON.stringify([successfulOcrRecord]),
+                    usage: {
+                        total_input_tokens: 600,
+                        total_output_tokens: 300,
+                        total_thought_tokens: 0,
                     },
                 }), { status: 200, headers: { 'Content-Type': 'application/json' } });
             }
@@ -294,7 +293,19 @@ describe('paid OCR approval integration', () => {
 
         const paidCalls = fetchMock.mock.calls.filter(([, init]) => getApiKey(init) === PAID_API_KEY);
         expect(paidCalls.filter(([url]) => String(url).endsWith(':countTokens'))).toHaveLength(1);
-        expect(paidCalls.filter(([url]) => String(url).endsWith(':generateContent'))).toHaveLength(1);
+        expect(paidCalls.filter(([url]) => String(url).endsWith('/interactions'))).toHaveLength(1);
+        const interactionBody = JSON.parse(String(
+            paidCalls.find(([url]) => String(url).endsWith('/interactions'))?.[1]?.body || '{}',
+        ));
+        expect(interactionBody).toMatchObject({
+            model: 'gemini-3.5-flash-lite',
+            store: false,
+            response_format: { type: 'text', mime_type: 'application/json' },
+            generation_config: { thinking_level: 'minimal' },
+        });
+        expect(interactionBody.input).toEqual(expect.arrayContaining([
+            expect.objectContaining({ type: 'image', resolution: 'high' }),
+        ]));
         expect(durableSupabase.events.indexOf('rpc:ocr.paid-approval.consume')).toBeLessThan(
             durableSupabase.events.indexOf(`fetch:${PAID_API_KEY}:countTokens`),
         );

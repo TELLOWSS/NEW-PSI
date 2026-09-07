@@ -29,8 +29,8 @@ export type MultilingualRiskSubmissionResult = {
     skippedReason: string | null;
 };
 
-const TRANSLATION_MODEL = 'gemini-2.5-flash';
-const SCORING_MODEL = 'gemini-2.5-flash';
+const TRANSLATION_MODEL = 'gemini-3.5-flash-lite';
+const SCORING_MODEL = 'gemini-3.5-flash-lite';
 const EMBEDDING_MODEL = 'text-embedding-004';
 
 const DEFAULT_MIN_SCORE = 80;
@@ -113,14 +113,13 @@ const requestGeminiJson = async (
     prompt: string
 ): Promise<Record<string, unknown>> => {
     const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: {
-                    temperature: 0.1,
                     responseMimeType: 'application/json',
                 },
             }),
@@ -145,10 +144,10 @@ const toVectorLiteral = (values: number[]): string => {
 
 const requestGeminiEmbedding = async (apiKey: string, koreanText: string): Promise<number[]> => {
     const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:embedContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:embedContent`,
         {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
             body: JSON.stringify({
                 content: {
                     parts: [{ text: koreanText }],

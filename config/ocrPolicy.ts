@@ -8,7 +8,7 @@
  */
 
 /** 정책 버전 식별자 */
-export const OCR_POLICY_VERSION = '1.2.0';
+export const OCR_POLICY_VERSION = '1.3.0';
 
 // ─────────────────────────────────────────────
 // 1) 점수 임계값 (Score Thresholds)

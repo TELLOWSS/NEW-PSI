@@ -5,10 +5,14 @@ vi.mock('../lib/server/supabaseServer.js', () => ({
 }));
 
 import gatewayHandler, {
+    buildGeminiOcrInteractionInput,
     consumePaidOcrApprovalOnce,
     isExplicitPaidOcrApprovalRequest,
     isGeminiApiKeyRejection,
+    isGeminiModelAvailabilityError,
     issuePaidOcrApprovalToken,
+    readGeminiInteractionText,
+    readGeminiInteractionUsage,
     requiresPaidOcrApproval,
     resolveGeminiQuotaErrorCode,
     resolveOcrModelChainForBilling,
@@ -82,6 +86,39 @@ describe('gateway public security boundaries', () => {
         expect(isGeminiApiKeyRejection(400, JSON.stringify({
             error: { status: 'INVALID_ARGUMENT', message: 'Request payload is malformed.' },
         }))).toBe(false);
+    });
+
+    it('recognizes retired and missing Gemini models without treating them as paid quota', () => {
+        expect(isGeminiModelAvailabilityError(404, '{"error":{"status":"NOT_FOUND"}}')).toBe(true);
+        expect(isGeminiModelAvailabilityError(400, 'This model is no longer available to new users.')).toBe(true);
+        expect(requiresPaidOcrApproval('OCR_MODEL_UNAVAILABLE')).toBe(false);
+    });
+
+    it('builds stateless Interactions-compatible media input and reads the raw REST response', () => {
+        expect(buildGeminiOcrInteractionInput('분석', 'image-data', 'image/png')).toEqual([
+            { type: 'text', text: '분석' },
+            { type: 'image', data: 'image-data', mime_type: 'image/png', resolution: 'high' },
+        ]);
+        expect(buildGeminiOcrInteractionInput('분석', 'pdf-data', 'application/pdf')).toEqual([
+            { type: 'text', text: '분석' },
+            { type: 'document', data: 'pdf-data', mime_type: 'application/pdf' },
+        ]);
+
+        const payload = {
+            status: 'completed',
+            steps: [{ type: 'model_output', content: [{ type: 'text', text: '[{"ok":true}]' }] }],
+            usage: {
+                total_input_tokens: 1120,
+                total_output_tokens: 240,
+                total_thought_tokens: 40,
+            },
+        };
+        expect(readGeminiInteractionText(payload)).toBe('[{"ok":true}]');
+        expect(readGeminiInteractionUsage(payload, 1)).toEqual({
+            inputTokens: 1120,
+            outputTokens: 240,
+            thinkingTokens: 40,
+        });
     });
 
     it('requests paid approval only for free-provider quota exhaustion', () => {
@@ -296,6 +333,49 @@ describe('gateway public security boundaries', () => {
         expect(res.read().headers['Cache-Control']).toBe('no-store');
         expect(fetchMock).toHaveBeenCalledTimes(1);
         expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({ 'x-goog-api-key': 'test-free-key' });
+    });
+
+    it('stops after all free active models are unavailable without opening paid approval or exposing provider JSON', async () => {
+        process.env.ADMIN_API_AUTH_TOKEN = 'test-admin-model-lifecycle';
+        process.env.GEMINI_API_KEY_FREE = 'test-free-model-lifecycle';
+        process.env.GEMINI_API_KEY_PAID = 'must-not-be-called';
+        const imageSource = `data:image/png;base64,${Buffer.concat([
+            Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+            Buffer.alloc(120),
+        ]).toString('base64')}`;
+        const upstreamDetail = JSON.stringify({
+            error: {
+                status: 'NOT_FOUND',
+                message: 'This model is no longer available to new users. secret-upstream-detail',
+            },
+        });
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(
+            upstreamDetail,
+            { status: 404, headers: { 'Content-Type': 'application/json' } },
+        ));
+        const res = createResponse();
+
+        await gatewayHandler({
+            method: 'POST',
+            headers: {
+                'x-admin-auth': 'test-admin-model-lifecycle',
+                'x-forwarded-for': '198.51.100.147',
+            },
+            query: { action: 'ocr.retry' },
+            body: { recordId: 'record-retired-models', imageSource, ocrEngine: 'auto' },
+        }, res.response);
+
+        expect(res.read().statusCode).toBe(503);
+        expect(res.read().body).toMatchObject({ ok: false, code: 'OCR_MODEL_UNAVAILABLE' });
+        expect(JSON.stringify(res.read().body)).not.toContain('secret-upstream-detail');
+        expect(JSON.stringify(res.read().body)).not.toContain('OCR_PAID_APPROVAL_REQUIRED');
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(fetchMock.mock.calls.every(([url]) => String(url).endsWith(':countTokens'))).toBe(true);
+        expect(String(fetchMock.mock.calls[0]?.[0])).toContain('gemini-3.5-flash-lite');
+        expect(String(fetchMock.mock.calls[1]?.[0])).toContain('gemini-3.8-flash');
+        expect(fetchMock.mock.calls.every(([, init]) => (
+            (init?.headers as Record<string, string>)?.['x-goog-api-key'] === 'test-free-model-lifecycle'
+        ))).toBe(true);
     });
 
     it('blocks an approved paid retry with a wrong administrator password before any paid API call', async () => {

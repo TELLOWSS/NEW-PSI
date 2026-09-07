@@ -1,6 +1,7 @@
 import type { WorkerRecord, AuditTrailEntry, CorrectionEntry, SafetyCompetencyProfile, AppSettings } from '../types';
 import { getSafetyLevelFromScore } from './safetyLevelUtils';
 import { DEFAULT_COMPETENCY_WEIGHTS, sanitizeCompetencyWeights } from './competencyWeights';
+import { shouldPreserveLegacyEvaluation } from './legacyBackupMigration';
 
 const textEncoder = new TextEncoder();
 
@@ -186,13 +187,33 @@ export function getApprovalBlockers(record: WorkerRecord, approverRole: 'safety-
 export function enforceSafetyLevel(record: WorkerRecord): WorkerRecord {
     const integrity = typeof record.integrityScore === 'number' ? record.integrityScore : deriveIntegrityScore(record);
     const score = typeof record.safetyScore === 'number' ? record.safetyScore : 0;
-    const safetyLevel = getSafetyLevelFromScore(score);
+    // Loading an old evaluation is not permission to regrade it with today's rules.
+    // Explicit assessment edits cease matching the preserved original snapshot.
+    const safetyLevel = shouldPreserveLegacyEvaluation(record)
+        ? record.safetyLevel
+        : getSafetyLevelFromScore(score);
 
     return {
         ...record,
         integrityScore: integrity,
         competencyProfile: record.competencyProfile || deriveCompetencyProfile(record),
         safetyLevel,
+    };
+}
+
+/** Restore original metrics only when they actually existed in the old assessment. */
+export function deriveImportedRecordMetrics(record: WorkerRecord): WorkerRecord {
+    const original = record.legacyBackup?.originalEvaluation;
+    const preserveOriginal = shouldPreserveLegacyEvaluation(record);
+    return {
+        ...record,
+        integrityScore: preserveOriginal && typeof original?.integrityScore === 'number'
+            && Number.isFinite(original.integrityScore) && typeof record.integrityScore === 'number'
+            ? record.integrityScore
+            : deriveIntegrityScore(record),
+        competencyProfile: preserveOriginal && original?.competencyProfile && record.competencyProfile
+            ? record.competencyProfile
+            : deriveCompetencyProfile(record),
     };
 }
 

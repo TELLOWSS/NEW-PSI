@@ -85,7 +85,8 @@ import {
     type MonthlyArchiveManifest,
 } from '../utils/monthlyArchive';
 import { registerMonthlyArchiveReceipt } from '../services/archiveManifestService';
-import { selectSafeBackupImports } from '../utils/backupMerge';
+import { selectSafeBackupImports, selectSafeLegacyBackupImports } from '../utils/backupMerge';
+import { migrateLegacyBackupRecords } from '../utils/legacyBackupMigration';
 
 const OCR_STATUS_COPY = {
     secondPassEmpty: {
@@ -2158,6 +2159,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     // Strict stop control
     const stopRef = useRef<boolean>(false);
     const importInputRef = useRef<HTMLInputElement>(null);
+    const importBusyRef = useRef(false);
     const failedQuickActionsRef = useRef<HTMLDivElement>(null);
     const newOcrCaptureSectionRef = useRef<HTMLDivElement>(null);
     const evidenceReadinessSectionRef = useRef<HTMLDivElement>(null);
@@ -3910,6 +3912,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             case 'OCR_TIMEOUT':
             case 'OCR_UPSTREAM_NETWORK':
             case 'OCR_UPSTREAM_FAILURE':
+            case 'OCR_MODEL_UNAVAILABLE':
+            case 'OCR_MODEL_UNPRICED':
             case 'OCR_COST_ESTIMATE_UNAVAILABLE':
                 return 'NETWORK';
             case 'OCR_INVALID_ARGUMENT':
@@ -6275,6 +6279,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     }, []);
 
     const handleImportFile = async (file: File) => {
+        if (importBusyRef.current) {
+            alert('백업 사전검사 또는 복원이 진행 중입니다. 완료 후 다시 선택해 주세요.');
+            return;
+        }
         if (file.size >= BACKUP_HARD_FILE_LIMIT_BYTES) {
             alert(`백업 파일이 ${(file.size / (1024 * 1024)).toFixed(1)}MB로 안전 복구 한도 ${(BACKUP_HARD_FILE_LIMIT_BYTES / (1024 * 1024)).toFixed(0)}MB를 초과했습니다.\n파일을 월별로 분리한 뒤 순서대로 복원해 주세요.`);
             if (importInputRef.current) importInputRef.current.value = '';
@@ -6288,10 +6296,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             return;
         }
 
+        importBusyRef.current = true;
         try {
             let records: unknown[] = [];
             let schemaVersion = 'unknown';
             let largeRecoveryNote = '';
+            let legacyRecoveryNote = '';
             let monthlyArchive: MonthlyArchiveManifest | undefined;
             let streamedContentRootHash = '';
 
@@ -6313,11 +6323,19 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 monthlyArchive = recovered.monthlyArchive;
                 streamedContentRootHash = recovered.contentRootHash || '';
             } else {
-                const data = JSON.parse(await file.text());
+                const data = JSON.parse((await file.text()).replace(/^\uFEFF/, ''));
                 const resolved = resolveBackupPayload(data);
                 records = resolved.records;
                 schemaVersion = resolved.schemaVersion;
                 monthlyArchive = resolved.monthlyArchive;
+                // Verify signed archive contents before any compatibility transformation.
+                if (monthlyArchive) {
+                    const originalVerification = await verifyMonthlyArchiveRecords(records as WorkerRecord[], monthlyArchive);
+                    if (!originalVerification.valid) {
+                        throw new Error('월 마감 파일 원본 무결성 검증에 실패하여 복원을 중단했습니다.');
+                    }
+                    streamedContentRootHash = originalVerification.actualHash;
+                }
             }
 
             if (records.length === 0) {
@@ -6325,17 +6343,47 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 return;
             }
 
+            const migration = await migrateLegacyBackupRecords(records, {
+                onProgress: (completed, total) => {
+                    setImportValidationSummary(`구형 백업 호환 검사 ${completed}/${total}건 · 원문·이미지는 이 기기에서만 처리합니다.`);
+                },
+            });
+            if (migration.report.quarantinedRecordCount > 0) {
+                setImportValidationSummary(`원본 ${migration.report.inputRecordCount}건 · 호환 확인 필요 ${migration.report.quarantinedRecordCount}건 · 저장하지 않음`);
+                setImportValidationDetails(migration.report.issues.map((issue) => `#${issue.recordIndex}: ${issue.message}`).join('\n'));
+                throw new Error('구형 백업에 안전하게 변환할 수 없는 항목이 있습니다. 일부만 조용히 복원하지 않고 전체 작업을 중단했습니다. 사전검사 상세를 확인해 주세요.');
+            }
+            records = migration.records;
+            const legacyRecordCount = records.filter((record) => Boolean((record as WorkerRecord)?.legacyBackup)).length;
+            if (legacyRecordCount > 0) {
+                legacyRecoveryNote = `구형 백업 ${legacyRecordCount}건: 원점수·원등급 보존, 누락 기록 ID ${migration.report.generatedIdCount}건 생성, 이미지 항목 ${migration.report.movedImageCount}건 연결. 재OCR·유료 호출 없음. 승인 이력과 동일인 여부는 별도 확인이 필요합니다.`;
+            }
             const validation = analyzeBackupImport(records, existingRecords, {
                 fileName: file.name,
                 fileSize: file.size,
                 schemaVersion,
             });
             setImportValidationSummary(validation.summary);
-            setImportValidationDetails([validation.details, largeRecoveryNote].filter(Boolean).join('\n\n'));
+            setImportValidationDetails([validation.details, legacyRecoveryNote, largeRecoveryNote].filter(Boolean).join('\n\n'));
 
             if (validation.blocked) {
                 alert(`백업을 안전하게 복원할 수 없습니다.\n\n${validation.warnings.join('\n') || '검증 통과 기록이 없습니다.'}\n\n화면의 사전검증 결과를 확인해 주세요.`);
                 return;
+            }
+
+            const legacySafety = await selectSafeLegacyBackupImports(validation.validRecords, existingRecords);
+            if (legacySafety.unreadableIncomingImageCount > 0) {
+                throw new Error(`복원 대상 이미지 ${legacySafety.unreadableIncomingImageCount}건의 중복 검사가 불가능하여 저장하지 않았습니다. 원본을 확인해 주세요.`);
+            }
+            if (legacySafety.unreadableExistingImageCount > 0) {
+                const incompleteCheck = `기존 PC 이미지 ${legacySafety.unreadableExistingImageCount}건은 형식을 읽을 수 없어 중복 대조를 완료하지 못했습니다. 해당 기존 자료는 별도로 확인해 주세요.`;
+                legacyRecoveryNote = [legacyRecoveryNote, incompleteCheck].filter(Boolean).join('\n');
+                setImportValidationDetails((current) => `${current}\n\n${incompleteCheck}`);
+            }
+            if (legacySafety.heldRecordCount > 0) {
+                setImportValidationSummary(`다른 ID의 기존 기록과 구형 자료 ${legacySafety.heldRecordCount}건이 겹칩니다. 중복 검토 전에는 저장하지 않습니다.`);
+                setImportValidationDetails((current) => `${current}\n\n[기존 기록 중복 검토]\n${legacySafety.matches.map((match) => `${match.incomingId} → ${match.existingIds.join(', ')} (${match.reason})`).join('\n')}`);
+                throw new Error('기존 PC 기록에 동일 문서 또는 동일 원본이 다른 ID로 저장되어 있습니다. 자동으로 합치거나 덮어쓰지 않았습니다. 사전검사 상세에서 중복 후보를 확인해 주세요.');
             }
 
             let verifiedArchiveEntry: (MonthlyArchiveManifest & { byteSize: number; verifiedAt: string }) | undefined;
@@ -6375,7 +6423,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             const monthlyConfirmation = verifiedArchiveEntry
                 ? '\n\n월 마감 파일 해시가 일치합니다. 계속하면 기록을 복원하고 가명 ID별 월 요약 영수증만 서버에 등록합니다. 원문·이미지는 서버에 보내지 않습니다.'
                 : '';
-            if (!confirm(`${validation.confirmationText}${largeRecoveryNote ? `\n\n${largeRecoveryNote}` : ''}${monthlyConfirmation}`)) return;
+            if (!confirm(`${validation.confirmationText}${legacyRecoveryNote ? `\n\n${legacyRecoveryNote}` : ''}${largeRecoveryNote ? `\n\n${largeRecoveryNote}` : ''}${monthlyConfirmation}`)) return;
 
             const safeMerge = selectSafeBackupImports(validation.validRecords, existingRecords);
             const safeImportRecords = safeMerge.records;
@@ -6408,12 +6456,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 ? importedRecords[0]
                 : safeImportRecords[0];
             resetWorkerSearchFiltersForImport();
-            alert(`백업 복구 완료\n- 원본: ${validation.rawRecordCount}건\n- 검증 통과: ${validation.validRecords.length}건\n- 제외: ${validation.problematicRecordCount + validation.invalidObjectCount}건\n- 신규 ID: ${validation.newRecordCount}건\n- 같은 ID 갱신: ${validation.existingIdCollisionCount}건\n- 더 최신인 PC 기록 보호: ${protectedNewerLocalCount}건\n- 예상 총계: ${validation.projectedTotalRecords}건${largeRecoveryNote ? `\n- ${largeRecoveryNote}` : ''}${archiveReceiptNote}\n\n근로자 정보검색 필터를 전체 보기로 전환했습니다.`);
+            const actualImported = Array.isArray(importedRecords) ? importedRecords : [];
+            const existingIds = new Set(existingRecords.map((record) => record.id));
+            const actualNewCount = actualImported.filter((record) => !existingIds.has(record.id)).length;
+            const actualUpdatedCount = actualImported.length - actualNewCount;
+            const protectedAtCommit = protectedNewerLocalCount + Math.max(0, safeImportRecords.length - actualImported.length);
+            alert(`백업 복구 완료\n- 원본: ${validation.rawRecordCount}건\n- 검증 통과: ${validation.validRecords.length}건\n- 제외: ${validation.problematicRecordCount + validation.invalidObjectCount}건\n- 실제 저장: ${actualImported.length}건 (신규 ${actualNewCount} / 갱신 ${actualUpdatedCount})\n- 기존 PC 기록 유지·보호: ${protectedAtCommit}건\n- 복원 후 예상 총계: ${existingRecords.length + actualNewCount}건${legacyRecoveryNote ? `\n- ${legacyRecoveryNote}` : ''}${largeRecoveryNote ? `\n- ${largeRecoveryNote}` : ''}${archiveReceiptNote}\n\n근로자 정보검색 필터를 전체 보기로 전환했습니다.`);
             if (reviewRecord) onViewDetails(reviewRecord);
         } catch (err) {
             const message = extractMessage(err);
             alert(`백업 파일 불러오기 중 확인이 필요합니다.\n${message || '파일 형식 또는 저장 연결 상태를 확인해 주세요.'}`);
         } finally {
+            importBusyRef.current = false;
             if (importInputRef.current) importInputRef.current.value = '';
         }
     };

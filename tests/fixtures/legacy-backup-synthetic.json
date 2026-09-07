@@ -1,0 +1,20 @@
+[
+  {
+    "name": "합성복구검증",
+    "jobField": "형틀",
+    "date": "2025-08-20",
+    "nationality": "대한민국",
+    "language": "ko",
+    "safetyScore": 85,
+    "safetyLevel": "중급",
+    "strengths": ["합성 검증 자료"],
+    "weakAreas": ["합성 보완 항목"],
+    "suggestions": [],
+    "fullText": "실제 근로자 정보가 없는 백업 복구 시험 자료입니다.",
+    "aiInsights": "재OCR 없이 과거 기록 보존을 확인하는 합성 자료입니다.",
+    "handwrittenAnswers": [{"questionNumber":"1","answerText":"합성 답변","koreanTranslation":"합성 답변"}],
+    "imageBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aJa8AAAAASUVORK5CYII=",
+    "mimeType": "image/png",
+    "isValid": true
+  }
+]
