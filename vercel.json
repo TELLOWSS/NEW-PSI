@@ -59,7 +59,7 @@
       "maxDuration": 10
     },
     "api/gateway.ts": {
-      "maxDuration": 60
+      "maxDuration": 240
     }
   }
 }

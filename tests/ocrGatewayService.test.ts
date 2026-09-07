@@ -31,6 +31,9 @@ describe('server OCR gateway client', () => {
     });
 
     it('classifies only common server configuration outages as batch-stopping errors', () => {
+        for (const code of ['OCR_TIMEOUT', 'HTTP_504']) {
+            expect(isOcrGatewaySystemUnavailable(new OcrGatewayError('response timed out', { code, status: 504 }))).toBe(true);
+        }
         expect(isOcrGatewaySystemUnavailable(new OcrGatewayError(
             '[SECURITY_QUOTA_UNAVAILABLE] quota unavailable',
             { code: 'SECURITY_QUOTA_UNAVAILABLE', status: 503 },

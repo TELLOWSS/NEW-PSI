@@ -53,7 +53,8 @@ type GatewayAction =
     | 'harness.reanalyze'
     | 'harness.workflow-status';
 
-const OCR_RETRY_TIMEOUT_MS = 25_000;
+// Two free quality passes fit within the gateway's 240s execution window.
+const OCR_RETRY_TIMEOUT_MS = 90_000;
 // Vercel Functions 요청 본문은 4.5MB 제한이며 base64는 원본보다 약 33% 커진다.
 const OCR_RETRY_MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 const OCR_RETRY_MAX_PDF_PAGES = 1;
@@ -1575,12 +1576,14 @@ const toStringArray = (value: unknown): string[] => {
     return value.map((item) => String(item || '').trim()).filter(Boolean);
 };
 
-const shouldTryNextModel = (code?: string): boolean => {
+export const shouldTryNextModel = (code?: string): boolean => {
     const normalized = String(code || '').trim().toUpperCase();
     if (!normalized) return true;
     if (
         normalized === 'OCR_QUOTA' ||
         normalized === 'OCR_PAID_QUOTA' ||
+        // An aborted response does not prove the provider stopped processing it.
+        normalized === 'OCR_TIMEOUT' ||
         normalized === 'OCR_UPSTREAM_AUTH' ||
         normalized === 'MISSING_SERVER_GEMINI_KEY' ||
         normalized === 'OCR_INVALID_ARGUMENT' ||
@@ -1990,7 +1993,7 @@ async function analyzeSingleRecord(
             const gatewayError = (error && typeof error === 'object' && Number((error as any).statusCode) >= 400)
                 ? (error as GatewayHttpError)
                 : (error?.name === 'AbortError'
-                    ? createGatewayHttpError(`OCR 엔진 응답 시간이 초과되었습니다. (${Math.floor(OCR_RETRY_TIMEOUT_MS / 1000)}초)`, 504, 'OCR_TIMEOUT')
+                    ? createGatewayHttpError(`OCR 응답 대기시간(${Math.floor(OCR_RETRY_TIMEOUT_MS / 1000)}초)을 넘었습니다. 원본을 보존하고 중복 분석을 중단했습니다. 잠시 후 해당 문서만 다시 시도해 주세요. 유료로 자동 전환되지 않습니다.`, 504, 'OCR_TIMEOUT')
                     : createGatewayHttpError(`OCR 엔진 연결에 실패했습니다: ${String(error?.message || error || 'network_error')}`, 502, 'OCR_UPSTREAM_NETWORK'));
             lastError = gatewayError;
             if (bestParsed) {

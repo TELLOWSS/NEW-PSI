@@ -4019,6 +4019,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         let serverSuccessCount = canResumeFromCheckpoint ? (storedCheckpoint?.serverSuccessCount || 0) : 0;
         let clientFallbackSuccessCount = canResumeFromCheckpoint ? (storedCheckpoint?.clientFallbackSuccessCount || 0) : 0;
         let preflightFailCount = canResumeFromCheckpoint ? (storedCheckpoint?.preflightFailCount || 0) : 0;
+        const preflightDetails: string[] = [];
         let processingFailCount = canResumeFromCheckpoint ? (storedCheckpoint?.processingFailCount || 0) : 0;
         let serverRouteFailCount = canResumeFromCheckpoint ? (storedCheckpoint?.serverRouteFailCount || 0) : 0;
         let keyFailureCount = canResumeFromCheckpoint ? (storedCheckpoint?.keyFailureCount || 0) : 0;
@@ -4059,13 +4060,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     }));
 
                     const retryImageSource = getBestRetryImageSource(record);
+                    const preflightReason = getPreflightFailureReason(record);
+                    if (preflightReason && (!forceReanalyze || !retryImageSource)) {
+                        preflightDetails.push(`${record.filename || record.name || record.id}: ${preflightReason}`);
+                    }
 
                     if (!retryImageSource) {
                         const failureCode: OcrFailureCode = 'PAYLOAD';
-                        const failureMessage = withFailureCodePrefix(failureCode, '원본/대체 이미지 데이터 없음');
+                        const failureMessage = withFailureCodePrefix(failureCode, '문서 원본이 없습니다. 원본 포함 백업을 복원하거나 해당 문서를 다시 등록해 주세요.');
                         const errorRecord: WorkerRecord = withHarnessState(record, {
                             ...record,
-                            aiInsights: withFailureCodePrefix(failureCode, '❌ 원본/대체 이미지 데이터가 없어 재분석할 수 없습니다.'),
+                            aiInsights: withFailureCodePrefix(failureCode, '문서 원본이 없어 재분석할 수 없습니다. 원본 포함 백업을 복원하거나 문서를 다시 등록해 주세요.'),
                             ocrErrorType: 'LAYOUT',
                             ocrFailureCode: failureCode,
                             ocrErrorMessage: failureMessage,
@@ -4328,7 +4333,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         hasOperationalFailureSignal(apiResult)
                                     )) ||
                                     !hasApiSourceText ||
-                                    !verificationAudit.isComplete;
+                                    (!isReviewOnlyResult && !verificationAudit.isComplete);
                                 if (shouldTreatAsFailure) {
                                     const gatewayLikeCode = !hasApiSourceText ? 'OCR_PARSE_FAILURE' : undefined;
                                     const fallbackMsg = !hasApiSourceText
@@ -4355,6 +4360,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 lastObservedServerRouteErrorCode = parsedGatewayCode;
                             }
                             const normalizedErr = String(errMsg || '').toLowerCase();
+                            if (parsedGatewayCode === 'OCR_TIMEOUT' || parsedGatewayCode === 'HTTP_504') {
+                                stopped = true;
+                                stopRef.current = true;
+                                throw err;
+                            }
                             const isTransientRetryableError =
                                 normalizedErr.includes('failed to fetch') ||
                                 normalizedErr.includes('network') ||
@@ -4757,19 +4767,22 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             }
             
             const modeLabel = forceReanalyze ? `[${BRAND_ACTION_LABELS.directReanalyze}]` : '';
+            const preflightReport = preflightDetails.length
+                ? `\n\n[사전 검증 상세]\n${preflightDetails.slice(0, 5).join('\n')}${preflightDetails.length > 5 ? `\n외 ${preflightDetails.length - 5}건: 각 기록의 사전진단을 확인해 주세요.` : ''}\n원본 누락·손상은 재분석 버튼만으로 해결되지 않습니다. 원본 포함 백업 복원 또는 해당 문서 재등록이 필요합니다.`
+                : '';
             const reasonsReport = `\n[원인 집계]\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 직접 OCR: 비활성\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}\n- KEY/권한 실패: ${keyFailureCount}\n- QUOTA 보호 기준: ${quotaProtectionLabel}${deferredCount > 0 ? `\n- 비용절약 보호로 이번 실행 제외: ${deferredCount}건` : ''}${keyFailureAbortTriggered ? `\n- 자동중단: KEY 연속 실패 ${consecutiveKeyFailureCount}건` : ''}${lastUnhandledBatchErrorMessage ? `\n- 전역중단코드: ${lastUnhandledBatchErrorCode || 'UNKNOWN'}\n- 전역중단메시지: ${lastUnhandledBatchErrorMessage.slice(0, 140)}` : ''}`;
             
             if (stopped) {
                 if (paidApprovalBatchMessage) {
                     setPaidOcrNotice(paidApprovalBatchMessage);
                 } else {
-                    alert(`${modeLabel} 분석이 중단되었습니다.\n(완료: ${successCount}, ${BRAND_STATUS_LABELS.attentionPending}: ${failCount})${reasonsReport}`);
+                    alert(`${modeLabel} 분석이 중단되었습니다.\n(완료: ${successCount}, ${BRAND_STATUS_LABELS.attentionPending}: ${failCount})${preflightReport}${reasonsReport}\n${lastObservedServerRouteErrorCode === 'OCR_TIMEOUT' || lastObservedServerRouteErrorCode === 'HTTP_504' ? '응답 지연으로 중복 요청을 중단했습니다. 남은 문서는 보존되어 있습니다.' : ''}`);
                 }
             } else {
                 if (forceReanalyze) {
                     alert(`${modeLabel} ${title} 완료.\n\n✅ 완료: ${successCount}\n⚠ ${BRAND_STATUS_LABELS.attentionPending}: ${failCount}${reasonsReport}\n\n※ 사전 점검을 생략하는 방식으로 실행되었습니다.\n※ ${BRAND_STATUS_LABELS.attentionPending} 건은 '${BRAND_ACTION_LABELS.directReanalyze}' 또는 '${BRAND_ACTION_LABELS.smartReanalyze}' 버튼으로 ${BRAND_ACTION_LABELS.recheck}할 수 있습니다.`);
                 } else {
-                    alert(`${title} 완료.\n완료: ${successCount}\n${BRAND_STATUS_LABELS.attentionPending}: ${failCount}${reasonsReport}\n\n* ${BRAND_STATUS_LABELS.attentionPending} 건은 '${BRAND_STATUS_LABELS.attentionHold} 건 재분석' 버튼으로 ${BRAND_ACTION_LABELS.recheck}할 수 있습니다.`);
+                    alert(`${title} 처리 종료.\n분석 성공: ${successCount}\n${BRAND_STATUS_LABELS.attentionPending}: ${failCount}${preflightReport}${reasonsReport}\n\n* 원본이 정상인 처리 실패 건만 잠시 후 다시 시도해 주세요.`);
                 }
             }
         }

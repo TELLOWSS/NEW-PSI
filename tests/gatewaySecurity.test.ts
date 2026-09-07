@@ -16,6 +16,7 @@ import gatewayHandler, {
     requiresPaidOcrApproval,
     resolveGeminiQuotaErrorCode,
     resolveOcrModelChainForBilling,
+    shouldTryNextModel,
     takeAndClearPaidOcrAdminPassword,
     verifyPaidOcrAdminPassword,
     verifyPaidOcrApprovalToken,
@@ -76,9 +77,44 @@ afterEach(() => {
     if (originalPsiAdminSecret === undefined) delete process.env.PSI_ADMIN_SECRET;
     else process.env.PSI_ADMIN_SECRET = originalPsiAdminSecret;
     vi.restoreAllMocks();
+    vi.useRealTimers();
 });
 
 describe('gateway public security boundaries', () => {
+    it('waits beyond 25 seconds and stops at 90 seconds without duplicate or paid generation', async () => {
+        vi.useFakeTimers();
+        process.env.ADMIN_API_AUTH_TOKEN = 'timeout-test-auth';
+        process.env.GEMINI_API_KEY_FREE = 'timeout-free-key';
+        process.env.GEMINI_API_KEY_PAID = 'never-use-paid';
+        const imageSource = `data:image/png;base64,${Buffer.concat([
+            Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+            Buffer.alloc(120),
+        ]).toString('base64')}`;
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+            if (String(url).includes(':countTokens')) return new Response(JSON.stringify({ totalTokens: 1120 }));
+            return new Promise<Response>((_resolve, reject) => {
+                init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
+            });
+        });
+        const res = createResponse();
+        const pending = gatewayHandler({
+            method: 'POST',
+            headers: { 'x-admin-auth': 'timeout-test-auth', 'x-forwarded-for': '198.51.100.181' },
+            query: { action: 'ocr.retry' },
+            body: { recordId: 'timeout-test', imageSource, ocrEngine: 'auto' },
+        }, res.response);
+        await vi.advanceTimersByTimeAsync(30_000);
+        expect(res.read().statusCode).toBe(0);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        await vi.advanceTimersByTimeAsync(60_001);
+        await pending;
+        expect(res.read().statusCode).toBe(504);
+        expect(res.read().body.code).toBe('OCR_TIMEOUT');
+        expect(res.read().body.paidApprovalToken).toBeUndefined();
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(shouldTryNextModel('OCR_TIMEOUT')).toBe(false);
+        expect(requiresPaidOcrApproval('OCR_TIMEOUT')).toBe(false);
+    });
     it('recognizes Google API key rejection even when Gemini returns HTTP 400', () => {
         expect(isGeminiApiKeyRejection(400, JSON.stringify({
             error: { status: 'INVALID_ARGUMENT', message: 'API key not valid. Please pass a valid API key.' },
