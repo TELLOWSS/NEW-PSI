@@ -2795,6 +2795,40 @@
 }
 
 /* [Report Layout Overlap Fix] Reset letter-spacing and text-rendering for printable/PDF documents to avoid overlapping glyphs, especially in foreign/complex scripts */
+/* Dashboard: visual hierarchy, period navigation, and theme-aware metric accents. */
+.psi-ops-dashboard .psi-ops-intro {
+    padding: clamp(20px, 3vw, 36px);
+    border: 1px solid #294a72;
+    border-radius: 24px;
+    background: radial-gradient(ellipse at 90% 0%, #1d5670 0%, transparent 55%), linear-gradient(120deg, #0f1b35, #142e51);
+    box-shadow: 0 12px 32px #0f1b3514;
+    align-items: center;
+}
+.psi-ops-dashboard .psi-ops-intro .psi-ops-title { color: #fff; font-size: clamp(26px, 3vw, 38px); letter-spacing: -0.04em; }
+.psi-ops-dashboard .psi-ops-intro .psi-ops-context,
+.psi-ops-dashboard .psi-ops-intro .psi-ops-subtitle { color: #c5d6e8; }
+.psi-ops-eyebrow { margin: 16px 0 6px; color: #79e3dd; font-size: 11px; font-weight: 800; letter-spacing: 0.12em; }
+.psi-ops-hero-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.psi-ops-hero-pills span { padding: 7px 10px; color: #c5d6e8; background: #ffffff0c; border: 1px solid #ffffff20; border-radius: 8px; font-size: 11px; }
+.psi-ops-hero-pills b { color: #fff; margin-left: 6px; }
+.psi-ops-dashboard .psi-ops-kpi { border-top: 3px solid var(--psi-brand); border-radius: 18px; padding: 20px; box-shadow: 0 5px 20px #10263d07; }
+.psi-ops-dashboard .psi-ops-kpi--critical { border-top-color: var(--psi-danger); background: linear-gradient(135deg, color-mix(in srgb, var(--psi-danger) 7%, var(--psi-surface)), var(--psi-surface)); }
+.psi-ops-dashboard .psi-ops-kpi--warning { border-top-color: var(--psi-warning); background: linear-gradient(135deg, color-mix(in srgb, var(--psi-warning) 8%, var(--psi-surface)), var(--psi-surface)); }
+.psi-ops-dashboard .psi-ops-kpi--progress { border-top-color: var(--psi-info); }
+.psi-ops-dashboard .psi-ops-kpi--normal { border-top-color: #10b981; }
+.psi-ops-dashboard .psi-ops-panel { border-radius: 20px; box-shadow: 0 5px 22px #10263d06; }
+.psi-ops-trend-tabs { display: flex; gap: 4px; margin: 0 16px 10px; padding: 4px; border-radius: 12px; background: var(--psi-surface); border: 1px solid var(--psi-border); }
+.psi-ops-dashboard .psi-ops-intro .psi-ops-eyebrow { color: #79e3dd; }
+.psi-ops-dashboard .psi-ops-intro label { color: #c5d6e8; }
+.psi-ops-trend-tabs button { flex: 1; padding: 8px 6px; border-radius: 8px; font-size: 12px; font-weight: 800; color: var(--psi-text-muted); }
+.psi-ops-trend-tabs button[aria-pressed="true"] { background: var(--psi-brand); color: white; box-shadow: 0 3px 8px #254a7925; }
+.psi-ops-trend-tabs button:focus-visible { outline: 2px solid var(--psi-brand); outline-offset: 2px; }
+.psi-ops-trend-scope { margin: 8px 16px 12px; color: var(--psi-text-subtle); font-size: 11px; line-height: 1.6; }
+.psi-ops-trend-empty { margin: 8px 16px; padding: 12px; border-radius: 10px; background: var(--psi-info-soft); color: var(--psi-text); font-size: 12px; }
+.psi-ops-dashboard .psi-ops-chart { height: 210px; }
+.psi-ops-dashboard .psi-ops-chart-rail > span { min-height: 0; border-radius: 6px 6px 0 0; background: linear-gradient(to top, #4f74c8, #80b7ed); }
+.psi-ops-dashboard .psi-ops-chart-rail > span.is-current { background: linear-gradient(to top, #087f8c, #43d5bc); }
+
 [data-report-page],
 [data-report-page] *,
 [data-report-template-root],

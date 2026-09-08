@@ -4,8 +4,8 @@ import { calculateCoreMetricSnapshot, isOperationalWorkerRecord } from '../../ut
 import { useAssessmentCycle } from '../../hooks/useAssessmentCycle';
 import { resolveAssessmentPeriod } from '../../utils/assessmentCycle';
 import { getSafetyLevelThresholds } from '../../utils/safetyLevelUtils';
+import { buildOperationsTrend, TREND_PERIODS, type TrendGranularity } from '../../utils/operationsTrend';
 import {
-    hasOperationsRiskSignal,
     isOperationsRecordCompleted,
     isOperationsRecordInProgress,
     isPendingOperationsReviewRecord,
@@ -50,13 +50,6 @@ const OPS_TONE_CLASSES: Record<OperationsQueueTone, {
     },
 };
 
-const formatLocalDateKey = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-};
-
 const parseRecordDate = (value: string): Date | null => {
     const normalized = String(value || '').trim();
     if (!normalized) return null;
@@ -94,12 +87,6 @@ const formatToday = (): string =>
         weekday: 'short',
     }).format(new Date());
 
-const formatDayLabel = (dateKey: string): string => {
-    const parsed = new Date(`${dateKey}T00:00:00`);
-    if (Number.isNaN(parsed.getTime())) return dateKey.slice(5);
-    return new Intl.DateTimeFormat('ko-KR', { weekday: 'short' }).format(parsed).replace('요일', '');
-};
-
 const ChevronIcon = () => (
     <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden="true">
         <path d="m7 4 6 6-6 6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -121,6 +108,7 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
     const { cycle, copy: cycleCopy } = useAssessmentCycle();
     const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('cycle');
     const [tradeFilter, setTradeFilter] = useState('all');
+    const [trendPeriod, setTrendPeriod] = useState<TrendGranularity>('monthly');
     const protectionPriorityThreshold = getSafetyLevelThresholds().intermediateMin;
 
     const operationalRecords = useMemo(
@@ -200,32 +188,11 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
         return [...counts.entries()].sort((left, right) => right[1] - left[1]);
     }, [filteredRecords]);
 
-    const trendSeries = useMemo(() => {
-        const dailyCounts = new Map<string, number>();
-        filteredRecords.forEach((record) => {
-            if (!hasOperationsRiskSignal(record, protectionPriorityThreshold)) return;
-            const parsed = parseRecordDate(record.date);
-            if (!parsed) return;
-            const key = formatLocalDateKey(parsed);
-            dailyCounts.set(key, (dailyCounts.get(key) || 0) + 1);
-        });
-
-        const existingKeys = [...dailyCounts.keys()].sort((left, right) => left.localeCompare(right));
-        const anchor = existingKeys.length
-            ? new Date(`${existingKeys[existingKeys.length - 1]}T00:00:00`)
-            : new Date();
-
-        return Array.from({ length: 7 }, (_, index) => {
-            const date = new Date(anchor);
-            date.setDate(anchor.getDate() - (6 - index));
-            const key = formatLocalDateKey(date);
-            return {
-                key,
-                label: formatDayLabel(key),
-                value: dailyCounts.get(key) || 0,
-            };
-        });
-    }, [filteredRecords, protectionPriorityThreshold]);
+    const trend = useMemo(() => buildOperationsTrend(
+        operationalRecords.filter(record => tradeFilter === 'all' || record.jobField === tradeFilter),
+        trendPeriod, protectionPriorityThreshold,
+    ), [operationalRecords, tradeFilter, trendPeriod, protectionPriorityThreshold]);
+    const trendSeries = trend.points;
 
     const averageOcrConfidence = useMemo(() => {
         const values = filteredRecords
@@ -341,8 +308,10 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                         <span className="psi-ops-context-divider" aria-hidden="true" />
                         <span>{cycleCopy.cadenceLabel} · {cycleCopy.frequencyLabel}</span>
                     </div>
-                    <h1 id="operations-page-title" className="psi-ops-title">현재 주기 안전 운영</h1>
+                    <p className="psi-ops-eyebrow">PSI · 현장 운영 대시보드</p>
+                    <h1 id="operations-page-title" className="psi-ops-title">현장 안전, 한눈에.</h1>
                     <p className="psi-ops-subtitle">오늘 처리할 위험 신호를 먼저 확인하고, 검토·조치·교육까지 끊김 없이 이어갑니다.</p>
+                    <div className="psi-ops-hero-pills"><span>선택 기간 기록 <b>{filteredRecords.length}건</b></span><span>검토 대기 <b>{statusCounts.pending}건</b></span><span>확인 완료 <b>{statusCounts.completed}건</b></span></div>
                 </div>
 
                 <div className="psi-ops-toolbar" role="group" aria-label="안전 운영 필터와 주요 작업">
@@ -477,21 +446,27 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                     <header className="psi-ops-panel-header">
                         <div>
                             <h2>최근 위험 기록 추이</h2>
-                            <p>최신 기록일 기준 7일</p>
+                            <p>최신 작성일 {trend.latestDate || '미등록'} 기준 {TREND_PERIODS[trendPeriod].range}</p>
                         </div>
-                        <span className="psi-ops-panel-unit">건수</span>
+                        <span className="psi-ops-panel-unit">위험 신호 {trend.risks} / 기록 {trend.total}건</span>
                     </header>
+                    <div className="psi-ops-trend-tabs" role="group" aria-label="위험 기록 추이 집계 단위">
+                        {(Object.keys(TREND_PERIODS) as TrendGranularity[]).map(period => <button key={period} type="button" aria-pressed={trendPeriod === period} onClick={() => setTrendPeriod(period)}>{TREND_PERIODS[period].label}</button>)}
+                    </div>
+                    <p className="psi-ops-trend-scope">공종 필터 적용 · 상단 기간과 별도로 문서 작성일 집계 · 막대는 위험 신호 기록 건수</p>
+                    {trend.total === 0 && <p className="psi-ops-trend-empty">집계할 기록이 없습니다. 기록 없음은 위험 없음 판정을 뜻하지 않습니다.</p>}
                     <div
                         className="psi-ops-chart"
+                        style={{ gridTemplateColumns: `repeat(${trendSeries.length}, minmax(30px, 1fr))`, overflowX: 'auto' }}
                         role="img"
                         aria-label={`최근 위험 기록 추이: ${trendSeries.map((item) => `${item.label} ${item.value}건`).join(', ')}`}
                     >
                         {trendSeries.map((item, index) => (
-                            <div key={item.key} className="psi-ops-chart-column" aria-hidden="true">
+                            <div key={item.key} className="psi-ops-chart-column" aria-hidden="true" title={`${item.key} ~ ${item.end}: 위험 신호 ${item.value}건 / 전체 기록 ${item.total}건`}>
                                 <div className="psi-ops-chart-rail">
                                     <span
                                         className={index === trendSeries.length - 1 ? 'is-current' : undefined}
-                                        style={{ height: `${Math.max(item.value ? 12 : 2, (item.value / trendMax) * 100)}%` }}
+                                        style={{ height: `${item.value ? Math.max(12, (item.value / trendMax) * 100) : 0}%` }}
                                     >
                                         {item.value > 0 ? <b>{item.value}</b> : null}
                                     </span>
@@ -500,6 +475,7 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                             </div>
                         ))}
                     </div>
+                    <p className="psi-ops-trend-scope">{trendSeries[0].key} ~ {trend.latestDate || trendSeries[trendSeries.length - 1].end}{trend.invalidDateCount > 0 ? ` · 날짜 확인 필요 ${trend.invalidDateCount}건 제외` : ''}</p>
                 </article>
 
                 <article className="psi-ops-panel psi-ops-distribution">
