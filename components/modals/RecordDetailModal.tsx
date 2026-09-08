@@ -2261,6 +2261,18 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 <StatusBadge variant="slateSoft" className="px-3 py-1 text-[11px]">
                                                     분석 시각: {formatOcrAnalysisTime(record)}
                                                 </StatusBadge>
+                                                {qualityAudit.nativeReadabilityDetails.length > 0 && (
+                                                    <details className="w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                                                        <summary className="cursor-pointer font-bold">모국어 검증 상세 {qualityAudit.nativeReadabilityDetails.length}건 · 항목과 사유 보기</summary>
+                                                        <p className="mt-2 text-xs">자동 규칙이 표시한 확인 항목입니다. 번역 오류 확정이나 사진 결함 판정을 뜻하지 않습니다.</p>
+                                                        {qualityAudit.nativeReadabilityDetails.map((issue, index) => (
+                                                            <div key={`${issue.field}-${issue.code}-${index}`} className="mt-2 border-t border-amber-200 pt-2">
+                                                                <p className="font-bold">{issue.field}: {issue.message}</p>
+                                                                <p className="mt-1 whitespace-pre-wrap break-words" lang={record.language}>{issue.excerpt}</p>
+                                                            </div>
+                                                        ))}
+                                                    </details>
+                                                )}
                                                 {record.teamLeader && (
                                                     <StatusBadge variant="slateSoft" className="px-3 py-1 text-[11px]">
                                                         팀장 {record.teamLeader}

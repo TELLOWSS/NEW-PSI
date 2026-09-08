@@ -3,6 +3,7 @@ import React, { useState, useCallback, useMemo, useRef, useEffect, useDeferredVa
 import { FileUpload } from '../components/FileUpload';
 import { NativeLanguageEvidencePanel } from '../components/NativeLanguageEvidencePanel';
 import { formatOcrAnalysisTime } from '../utils/ocrAnalysisTime';
+import { isOcrReviewOnlyRecord, getOcrReviewGuide } from '../utils/ocrReviewPresentation';
 import { Spinner } from '../components/Spinner';
 import { updateAnalysisBasedOnEdits, getQuotaState, setQuotaExhausted, isRateLimitError, inferOcrFailureCode, validateImageFormat, isFormatCompatibleWithAI } from '../services/geminiService';
 import {
@@ -259,7 +260,7 @@ const classifyLegacyOcrErrorType = (raw: string): OcrErrorType => {
         message.includes('parse') ||
         message.includes('json') ||
         message.includes('ocr_')
-    ) return 'QUALITY';
+    ) return 'UNKNOWN';
 
     if (message.includes('모서리') || message.includes('잘림') || message.includes('배경') || message.includes('layout') || message.includes('crop')) return 'LAYOUT';
     if (message.includes('해상도') || message.includes('low resolution') || message.includes('too short') || message.includes('멀리')) return 'RESOLUTION';
@@ -273,10 +274,11 @@ const getOcrErrorTypeFromRecord = (record: WorkerRecord): OcrErrorType => {
     return classifyLegacyOcrErrorType(String(record.aiInsights || ''));
 };
 
-const getOcrErrorGuideMessage = (errorType: OcrErrorType): string => {
+const getOcrErrorGuideMessage = (errorType: OcrErrorType, record?: WorkerRecord): string => {
+    if (record && isOcrReviewOnlyRecord(record)) return getOcrReviewGuide(record);
     switch (errorType) {
         case 'QUALITY':
-            return '📸 사진에 빛 반사가 있거나 흔들렸습니다. 밝은 곳에서 초점을 맞춰 다시 찍어주세요.';
+            return '판독 결과 또는 번역에 확인할 항목이 있습니다. 먼저 상세 검증 사유를 확인하고, 원본에서 실제로 글자가 읽히지 않을 때만 재촬영해 주세요.';
         case 'HANDWRITING':
             return '✍️ 글씨를 인식하기 어렵습니다. 정자체로 작성되었는지 확인해 주세요.';
         case 'LAYOUT':
@@ -291,7 +293,7 @@ const getOcrErrorGuideMessage = (errorType: OcrErrorType): string => {
 const getOcrErrorGuideSummary = (errorType: OcrErrorType): string => {
     switch (errorType) {
         case 'QUALITY':
-            return '조치: 반사/흔들림 최소화 후 재촬영';
+            return '조치: 원문·문항별 번역 및 검증 사유 확인';
         case 'HANDWRITING':
             return '조치: 정자체 확인 후 재작성/재촬영';
         case 'LAYOUT':
@@ -306,7 +308,7 @@ const getOcrErrorGuideSummary = (errorType: OcrErrorType): string => {
 const getOcrErrorTypeKoreanLabel = (errorType: OcrErrorType): string => {
     switch (errorType) {
         case 'QUALITY':
-            return '촬영 품질';
+            return '판독·번역 검토';
         case 'RESOLUTION':
             return '해상도';
         case 'HANDWRITING':
@@ -419,6 +421,8 @@ const inferHarnessWorkflowState = (record: Partial<WorkerRecord>): HarnessWorkfl
 };
 
 const inferHarnessRiskDecision = (record: Partial<WorkerRecord>): HarnessRiskDecision => {
+    if (record.riskDecision) return record.riskDecision;
+    if (isOcrReviewOnlyRecord(record)) return 'SUPPLEMENTARY_REVIEW';
     if (record.ocrErrorType) return 'IMMEDIATE_ATTENTION';
     if (record.secondPassStatus === 'NEEDED') return 'SUPPLEMENTARY_REVIEW';
     return 'SAFE_TO_PROCEED';
@@ -584,7 +588,7 @@ const getHarnessApprovalBadgeVariant = (state: HarnessApprovalState): StatusBadg
 const getOcrErrorMobileLabel = (errorType: OcrErrorType): string => {
     switch (errorType) {
         case 'QUALITY':
-            return '📸 품질';
+            return '문항·번역 검토';
         case 'HANDWRITING':
             return '✍️ 악필';
         case 'LAYOUT':
@@ -606,9 +610,9 @@ const getFailureChecklist = (errorType: OcrErrorType): string[] => {
             ];
         case 'QUALITY':
             return [
-                '반사광·그림자·흔들림 여부 확인',
-                '초점이 맞는 원본 사진으로 재업로드',
-                '야간/역광 촬영이면 밝기 보정 후 다시 확인',
+                '상세 검증에서 누락 필드·번역 오류 사유 확인',
+                '원문·한국어·모국어 문항을 대조하고 필요한 부분 수정',
+                '실제로 글자가 읽히지 않는 부분만 재촬영 또는 재판독',
             ];
         case 'RESOLUTION':
             return [
@@ -1022,12 +1026,14 @@ const getFailureCodeDisplayLabel = (code: OcrFailureCode): string => {
 };
 
 const getRecordFailureDisplayLabel = (record: WorkerRecord): string => {
+    if (isOcrReviewOnlyRecord(record)) return '내용 추출 완료 · 검토 필요';
     const failureCode = resolveFailureCodeFromRecord(record);
     if (failureCode && failureCode !== 'UNKNOWN') return getFailureCodeDisplayLabel(failureCode);
     return getOcrErrorTypeKoreanLabel(getOcrErrorTypeFromRecord(record));
 };
 
 const getRecordFailureHeadline = (record: WorkerRecord): string => {
+    if (isOcrReviewOnlyRecord(record)) return '분석 결과가 저장되었습니다. 필드·번역 검토가 필요합니다.';
     const failureCode = resolveFailureCodeFromRecord(record);
     if (failureCode === 'QUOTA') return 'API 한도 초과로 대기 중입니다.';
     if (failureCode === 'KEY') return 'API 키 또는 권한 확인이 필요합니다.';
@@ -1518,6 +1524,7 @@ const getSecondPassEligibility = (record: WorkerRecord, editedOnly = false): { e
 };
 
 const isHardRetryTarget = (r: WorkerRecord): boolean => {
+    if (isOcrReviewOnlyRecord(r)) return false;
     if (r.ocrErrorType) return true;
 
     const insight = String(r.aiInsights || '').toLowerCase();
@@ -3565,7 +3572,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     ? `${primaryFailedRecord.name || '미상'} 기록부터 확인하면 흐름이 풀립니다`
                     : `${BRAND_STATUS_LABELS.attentionPending} 기록을 먼저 줄여야 합니다`,
                 description: primaryErrorType
-                    ? getOcrErrorGuideMessage(primaryErrorType)
+                    ? getOcrErrorGuideMessage(primaryErrorType, primaryFailedRecord || undefined)
                     : '대표 기록이 없으면 유형별 묶음부터 순서대로 확인하는 편이 안정적입니다.',
                 tone: BRAND_TONE.rose,
             },
@@ -3583,8 +3590,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             {
                 key: 'action',
                 eyebrow: '다음 행동',
-                title: `${BRAND_ACTION_LABELS.smartReanalyze} 후 관리자 판단으로 넘기세요`,
-                description: '자동으로 다시 읽을 수 있는 건 먼저 줄이고, 끝까지 남는 기록만 상세 검증으로 보내면 운영 피로가 낮아집니다.',
+                title: '추출된 내용과 검증 사유를 먼저 확인하세요',
+                description: '내용이 추출된 검토 대상은 원문·번역 대조가 우선입니다. 원문 누락이나 실제 판독 실패가 있을 때만 재분석하세요.',
                 tone: BRAND_TONE.emerald,
             },
         ];
@@ -3640,7 +3647,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             return acc;
         }, {});
 
-        return ['문서 구도', '촬영 품질', '해상도', '악필/필기', '기타 오류']
+        return ['문서 구도', '판독·번역 검토', '해상도', '악필/필기', '기타 오류']
             .map((label) => {
                 const openCount = failedTypeGroups.find((group) => group.label === label)?.count || 0;
                 const resolvedCount = resolvedCounts[label] || 0;
@@ -7502,18 +7509,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 <div className="bg-rose-50 border-2 border-rose-200 rounded-3xl p-5 sm:p-6 shadow-lg">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div>
-                            <p className="text-xs font-black text-rose-600 tracking-widest">문서 판독 오류 자동 분류</p>
+                            <p className="text-xs font-black text-rose-600 tracking-widest">분석 후 확인 항목</p>
                             <h4 className="text-lg sm:text-xl font-black text-rose-800 mt-1">{primaryFailedRecord.name || '미상'} · {getOcrErrorTypeKoreanLabel(primaryFailedErrorType)}</h4>
-                            <p className="text-sm font-bold text-rose-700 mt-2">{getOcrErrorGuideMessage(primaryFailedErrorType)}</p>
+                            <p className="text-sm font-bold text-rose-700 mt-2">{getOcrErrorGuideMessage(primaryFailedErrorType, primaryFailedRecord)}</p>
                             {primaryFailedPreflightReason && (
                                 <p className="text-xs font-black text-rose-900 mt-2">사전검증 실패 사유: {primaryFailedPreflightReason}</p>
                             )}
                         </div>
                         <button
-                            onClick={handleRetryCapture}
+                            onClick={() => isOcrReviewOnlyRecord(primaryFailedRecord) ? onViewDetails(primaryFailedRecord) : handleRetryCapture()}
                             className="w-full sm:w-auto px-6 py-4 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-base shadow-xl transition-all"
                         >
-                            🔄 다시 촬영하기
+                            {isOcrReviewOnlyRecord(primaryFailedRecord) ? '원문·번역 검토하기' : '원본 촬영·등록하기'}
                         </button>
                     </div>
                 </div>
@@ -7568,7 +7575,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             {
                                 key: 'failed-harness-action',
                                 eyebrow: '다음 행동',
-                                title: '자동 재분석 → 수동 정상분류 → 승인/반려 기록 순으로 이어서 정리하세요',
+                                title: '원문·번역 대조 → 필요한 부분 보완 → 승인/반려 기록 순으로 정리하세요',
                                 description: '남은 실패 건을 줄인 뒤에도 보완이 필요한 레코드는 승인 사유와 감사 이력을 남겨야 현장 책임 흐름이 끊기지 않습니다.',
                                 tone: BRAND_TONE.emeraldSoft,
                             },
@@ -7725,10 +7732,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-3">
                         {failedPreviewRecords.map((record) => {
                             const errorType = getOcrErrorTypeFromRecord(record);
-                            const guideMessage = getOcrErrorGuideMessage(errorType);
+                            const guideMessage = getOcrErrorGuideMessage(errorType, record);
                             const preflightReason = getPreflightFailureReason(record);
                             const hasImage = hasRetryableOriginalImage(record.originalImage);
-                            const actionGuide = preflightReason
+                            const actionGuide = isOcrReviewOnlyRecord(record)
+                                ? '이미 추출된 결과의 누락 필드와 번역을 확인하세요. 전체 OCR 재실행은 필수가 아닙니다.'
+                                : preflightReason
                                 ? '사전확인 항목을 먼저 보완한 뒤 다시 읽기를 실행하세요.'
                                 : hasImage
                                 ? '원본 재판독을 먼저 시도하고, 남으면 보호 판단으로 넘기세요.'
@@ -8604,7 +8613,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         const hasImage = hasRetryableOriginalImage(r.originalImage);
                         const primaryRiskTask = getPrimaryRiskTaskFromRecord(r);
                         const rowErrorType = failed ? getOcrErrorTypeFromRecord(r) : null;
-                        const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
+                        const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType, r) : '';
                         const rowGuideMobile = rowErrorType ? getOcrErrorMobileLabel(rowErrorType) : '';
                         const preflightReason = failed ? getPreflightFailureReason(r) : null;
                         const reviewTrustState = getReviewTrustState(r);
@@ -8831,7 +8840,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const latestCorrectionReason = getLatestCorrectionReason(r);
                                 const primaryRiskTask = getPrimaryRiskTaskFromRecord(r);
                                 const rowErrorType = failed ? getOcrErrorTypeFromRecord(r) : null;
-                                const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
+                                const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType, r) : '';
                                 const rowGuideSummary = rowErrorType ? getOcrErrorGuideSummary(rowErrorType) : '';
                                 const rowGuideMobile = rowErrorType ? getOcrErrorMobileLabel(rowErrorType) : '';
                                 const reviewTrustState = getReviewTrustState(r);

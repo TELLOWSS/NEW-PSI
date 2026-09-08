@@ -170,19 +170,21 @@ export const evaluateOcrVerificationQuality = (record: OcrVerificationQualityRec
     const hasJobContextInInsights = jobField.length > 0 && (aiInsights.includes(jobField) || aiInsightsNative.includes(jobField));
     const hasConcreteActionSignal = /(작업\s*전|작업\s*중|작업\s*후|체결|점검|통제|확인|\d+\s*(?:m|미터|cm|개|회|분)|ก่อน|前|后|检查|确认|kiểm tra|trước|sau|провер|контрол)/u.test(`${aiInsights}\n${aiInsightsNative}`);
     const scoreOverestimateRisk = Number(record.safetyScore || 0) >= 80 && (!hasJobContextInInsights || !hasConcreteActionSignal);
-    const nativeTextChunks = isKoreanNationality(record.nationality, record.language)
+    const nativeTextChunks: Array<{ field: string; text: string }> = isKoreanNationality(record.nationality, record.language)
         ? []
         : [
-            aiInsightsNative,
-            record.score_reason_native,
-            record.actionable_coaching_native,
-            record.improvement_native,
-            ...(Array.isArray(record.strengths_native) ? record.strengths_native : []),
-            ...(Array.isArray(record.weakAreas_native) ? record.weakAreas_native : []),
-            ...(Array.isArray(record.suggestions_native) ? record.suggestions_native : []),
-            ...handwrittenAnswers.map((item) => (item as { nativeTranslation?: string })?.nativeTranslation),
-        ].map((value) => String(value || '').trim()).filter(Boolean);
-    const nativeReadabilityIssues = nativeTextChunks.flatMap((value) => getNativeReportReadabilityIssues(value, policy));
+            { field: '종합 안내', text: aiInsightsNative },
+            { field: '점수 근거', text: record.score_reason_native },
+            { field: '행동 안내', text: record.actionable_coaching_native },
+            { field: '개선 안내', text: record.improvement_native },
+            ...(Array.isArray(record.strengths_native) ? record.strengths_native : []).map((text, i) => ({ field: `강점 ${i + 1}`, text })),
+            ...(Array.isArray(record.weakAreas_native) ? record.weakAreas_native : []).map((text, i) => ({ field: `보완점 ${i + 1}`, text })),
+            ...(Array.isArray(record.suggestions_native) ? record.suggestions_native : []).map((text, i) => ({ field: `제안 ${i + 1}`, text })),
+            ...handwrittenAnswers.map((item) => ({ field: `Q${item.questionNumber} 모국어 번역`, text: item.nativeTranslation })),
+        ].map(item => ({ field: item.field, text: String(item.text || '').trim() })).filter(item => item.text);
+    const nativeReadabilityDetails = nativeTextChunks.flatMap(item => getNativeReportReadabilityIssues(item.text, policy)
+        .map(issue => ({ ...issue, field: item.field, excerpt: item.text.slice(0, 240) })));
+    const nativeReadabilityIssues = nativeReadabilityDetails;
     const nativeReadabilityErrorCount = nativeReadabilityIssues.filter((issue) => issue.severity === 'error').length;
     const nativeReadabilityWarningCount = nativeReadabilityIssues.filter((issue) => issue.severity === 'warning').length;
 
@@ -201,6 +203,7 @@ export const evaluateOcrVerificationQuality = (record: OcrVerificationQualityRec
         missingNativeAnswerTranslationCount,
         nativeReadabilityErrorCount,
         nativeReadabilityWarningCount,
+        nativeReadabilityDetails,
         scoreOverestimateRisk,
         issues,
         isHealthy: issues.length === 0,
