@@ -1681,6 +1681,7 @@ const buildOcrPromptText = (filenameHint: string): string => [
     '마크다운 없이 JSON만 반환하세요.',
     '필수 키: documentType, isPsiForm, documentValidationReason, documentMarkers, fieldConfidences, name, jobField, teamLeader, date, nationality, language, safetyScore, safetyLevel, score_reason, score_reason_native, actionable_coaching, actionable_coaching_native, scoreBreakdown, strengths, strengths_native, weakAreas, weakAreas_native, improvement, improvement_native, suggestions, suggestions_native, aiInsights, aiInsights_native, fullText, koreanTranslation, scoreReasoning, ocrConfidence, handwrittenAnswers',
     '[문서 유형 선확인 - 가장 먼저 수행]',
+    '- 빛반사·그림자·부분 흐림만으로 문서 전체를 거부하지 마세요. 읽히는 내용은 추출하고 읽히지 않는 부분만 판독불가로 남기세요. 안전대책을 추측해 채우지 마세요.',
     '- PSI, NEW-PSI 또는 PSI-RA-01 위험성평가 기록지의 제목, 하단 공종·이름 칸, Q1~Q5 문항 구조가 실제로 보이는지 먼저 확인하세요.',
     '- 해당 양식이 아니거나 확실하지 않으면 isPsiForm=false, documentType="other-safety-document" 또는 "unknown"으로 반환하세요.',
     '- isPsiForm=false이면 보이지 않는 값을 추정하지 말고 safetyScore=0으로 반환하세요.',
@@ -2088,6 +2089,7 @@ async function analyzeSingleRecord(
     const safetyScore = calibratedScore.safetyScore;
 
     const normalizedBaseRecord = normalizeOcrRecordMetadata({
+        ocrAnalyzedAt: new Date().toISOString(),
         name: String(parsed.name || '식별 대기').trim(),
         jobField: String(parsed.jobField || '기타').trim(),
         teamLeader: String(parsed.teamLeader || '미지정').trim(),

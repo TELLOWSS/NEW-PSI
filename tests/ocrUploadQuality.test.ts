@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     calculatePixelQualityMetrics,
+    buildOcrUploadIssues,
     mergeUniqueOcrFiles,
 } from '../utils/ocrUploadQuality';
 
@@ -11,6 +12,15 @@ const fileStub = (name: string, size: number, lastModified: number) => ({
 }) as File;
 
 describe('OCR upload preflight utilities', () => {
+    it('does not block OCR based only on thumbnail brightness, blur, or page shape', () => {
+        const issues = buildOcrUploadIssues(300, 1600, { meanLuminance: 30, contrast: 10, brightPixelRatio: 0.3, laplacianVariance: 5 });
+        expect(issues.length).toBeGreaterThan(0);
+        expect(issues.every(issue => issue.severity === 'warning')).toBe(true);
+    });
+    it('does not mislabel high-contrast white paper as glare based on bright pixels alone', () => {
+        const issues = buildOcrUploadIssues(1400, 2000, { meanLuminance: 225, contrast: 65, brightPixelRatio: 0.8, laplacianVariance: 150 });
+        expect(issues.some(issue => issue.code === 'POSSIBLE_GLARE')).toBe(false);
+    });
     it('adds files without replacing the existing selection and skips duplicates', () => {
         const first = fileStub('first.jpg', 100, 1);
         const second = fileStub('second.jpg', 200, 2);

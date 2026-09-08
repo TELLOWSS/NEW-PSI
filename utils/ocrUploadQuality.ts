@@ -107,7 +107,7 @@ export const calculatePixelQualityMetrics = (
     };
 };
 
-const buildIssues = (
+export const buildOcrUploadIssues = (
     width: number,
     height: number,
     metrics: PixelQualityMetrics,
@@ -119,7 +119,7 @@ const buildIssues = (
     if (shortSide < 640) {
         issues.push({
             code: 'LOW_RESOLUTION',
-            severity: 'block',
+            severity: 'warning',
             message: '해상도가 너무 낮습니다. 문서의 짧은 면이 640px 이상이 되도록 다시 촬영해 주세요.',
         });
     } else if (shortSide < 1000) {
@@ -133,12 +133,12 @@ const buildIssues = (
     if (aspectRatio < 0.45 || aspectRatio > 2.2) {
         issues.push({
             code: 'EXTREME_ASPECT_RATIO',
-            severity: 'block',
+            severity: 'warning',
             message: '문서가 잘렸거나 지나치게 기울어진 것으로 보입니다. 종이 네 모서리가 모두 보이게 다시 촬영해 주세요.',
         });
     }
     if (metrics.meanLuminance < 45) {
-        issues.push({ code: 'TOO_DARK', severity: 'block', message: '사진이 너무 어둡습니다. 밝은 곳에서 다시 촬영해 주세요.' });
+        issues.push({ code: 'TOO_DARK', severity: 'warning', message: '사진이 어두워 보입니다. 분석은 가능하며 판독이 어려운 부분은 원본 대조가 필요합니다.' });
     } else if (metrics.meanLuminance > 238) {
         issues.push({ code: 'TOO_BRIGHT', severity: 'warning', message: '사진이 너무 밝아 연필 글씨가 사라질 수 있습니다.' });
     }
@@ -146,12 +146,12 @@ const buildIssues = (
         issues.push({ code: 'LOW_CONTRAST', severity: 'warning', message: '글자와 배경의 대비가 낮습니다. 그림자 없이 선명하게 다시 촬영해 주세요.' });
     }
     if (metrics.laplacianVariance < 18) {
-        issues.push({ code: 'POSSIBLE_BLUR', severity: 'block', message: '사진이 흔들리거나 초점이 맞지 않은 것으로 보입니다.' });
+        issues.push({ code: 'POSSIBLE_BLUR', severity: 'warning', message: '축소 미리보기에서 흐림이 의심됩니다. 원본 판독 가능 여부는 분석 결과로 확인합니다.' });
     } else if (metrics.laplacianVariance < 38) {
         issues.push({ code: 'POSSIBLE_BLUR', severity: 'warning', message: '일부 글씨가 흐릴 수 있습니다. 원본 확대 확인이 필요합니다.' });
     }
-    if (metrics.brightPixelRatio > 0.2) {
-        issues.push({ code: 'POSSIBLE_GLARE', severity: 'warning', message: '빛 반사가 넓게 감지되었습니다. 조명 각도를 바꿔 다시 촬영하는 것을 권장합니다.' });
+    if (metrics.brightPixelRatio > 0.2 && metrics.contrast < 22) {
+        issues.push({ code: 'POSSIBLE_GLARE', severity: 'warning', message: '밝은 영역의 대비가 낮습니다. 흰 종이일 수도 있어 빛반사로 확정하지 않으며 분석을 계속할 수 있습니다.' });
     }
 
     return issues;
@@ -199,7 +199,7 @@ export const assessOcrUploadFile = async (file: File): Promise<OcrUploadPrefligh
         if ('close' in image && typeof image.close === 'function') image.close();
         const pixels = context.getImageData(0, 0, width, height).data;
         const metrics = calculatePixelQualityMetrics(pixels, width, height);
-        const issues = buildIssues(sourceWidth, sourceHeight, metrics);
+        const issues = buildOcrUploadIssues(sourceWidth, sourceHeight, metrics);
         return {
             key,
             fileName: file.name,

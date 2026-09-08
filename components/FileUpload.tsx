@@ -291,7 +291,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                         <div>
                             <h3 className="text-base font-black text-slate-900">분석 전 사진 품질 점검</h3>
-                            <p className="mt-1 text-xs font-bold text-slate-500">차단 항목은 다시 촬영하고, 주의 항목은 원본과 분석 결과를 대조해 주세요.</p>
+                            <p className="mt-1 text-xs font-bold text-slate-500">밝기·흐림·반사 추정은 참고 안내이며 분석을 막지 않습니다. 먼저 분석한 뒤 읽히지 않은 부분만 원본과 대조해 주세요.</p>
                         </div>
                         <button
                             type="button"

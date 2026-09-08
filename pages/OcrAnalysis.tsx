@@ -1,6 +1,8 @@
 
 import React, { useState, useCallback, useMemo, useRef, useEffect, useDeferredValue } from 'react';
 import { FileUpload } from '../components/FileUpload';
+import { NativeLanguageEvidencePanel } from '../components/NativeLanguageEvidencePanel';
+import { formatOcrAnalysisTime } from '../utils/ocrAnalysisTime';
 import { Spinner } from '../components/Spinner';
 import { updateAnalysisBasedOnEdits, getQuotaState, setQuotaExhausted, isRateLimitError, inferOcrFailureCode, validateImageFormat, isFormatCompatibleWithAI } from '../services/geminiService';
 import {
@@ -1582,7 +1584,7 @@ interface OcrAnalysisProps {
     onImport: (records: WorkerRecord[]) => void | WorkerRecord[] | Promise<void | WorkerRecord[]>;
     onViewDetails: (record: WorkerRecord) => void;
     onOpenReport: (record: WorkerRecord) => void;
-    onDeleteRecord: (recordId: string) => void;
+    onDeleteRecord: (recordId: string, options?: { confirmed?: boolean }) => Promise<boolean>;
     onUpdateRecord: (record: WorkerRecord) => boolean | void | Promise<boolean | void>;
     onNavigateToPredictive?: () => void;
     isStartChecklistIncomplete?: boolean;
@@ -5015,34 +5017,38 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         }
     };
 
-    const handleDeleteSelectedRecords = () => {
+    const handleDeleteSelectedRecords = async () => {
+        if (isAnalyzing) return;
         if (selectedRecords.length === 0) {
             alert('삭제할 근로자를 먼저 선택해 주세요.');
             return;
         }
 
         const selectedCount = selectedRecords.length;
-        if (!confirm(`선택된 근로자 ${selectedCount}명을 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.`)) {
+        if (!confirm(`선택한 분석 기록 ${selectedCount}건을 삭제하시겠습니까?\n해당 근로자의 다른 미선택 기록은 유지됩니다. 삭제 후에는 별도 백업이 있어야 복원할 수 있습니다.`)) {
             return;
         }
 
-        selectedRecords.forEach((record) => {
-            onDeleteRecord(record.id);
-        });
-        setSelectedIds([]);
+        const deletedIds = new Set<string>();
+        for (const record of selectedRecords) {
+            if (await onDeleteRecord(record.id, { confirmed: true })) deletedIds.add(record.id);
+        }
+        setSelectedIds(ids => ids.filter(id => !deletedIds.has(id)));
+        if (deletedIds.size < selectedCount) alert(`삭제 완료 ${deletedIds.size}건 / 실패 ${selectedCount - deletedIds.size}건. 실패한 기록은 선택 상태로 유지했습니다.`);
     };
 
-    const handleDeleteSingleRecord = useCallback((record: WorkerRecord) => {
+    const handleDeleteSingleRecord = useCallback(async (record: WorkerRecord) => {
         const label = `${record.name || '이름 미확인'} / ${String(record.date || '').slice(0, 10) || '날짜 미확인'}`;
         if (!confirm(`${label} 기록 1건을 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.`)) {
             return;
         }
 
-        onDeleteRecord(record.id);
-        setSelectedIds((ids) => ids.filter((id) => id !== record.id));
+        if (await onDeleteRecord(record.id, { confirmed: true })) {
+            setSelectedIds((ids) => ids.filter((id) => id !== record.id));
+        }
     }, [onDeleteRecord]);
 
-    const handleDeleteWorkerRecords = useCallback((records: WorkerRecord[], label: string) => {
+    const handleDeleteWorkerRecords = useCallback(async (records: WorkerRecord[], label: string) => {
         const uniqueRecords = Array.from(new Map(records.map((record) => [record.id, record])).values());
         if (uniqueRecords.length === 0) return;
 
@@ -5050,8 +5056,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             return;
         }
 
-        const deletedIds = new Set(uniqueRecords.map((record) => record.id));
-        uniqueRecords.forEach((record) => onDeleteRecord(record.id));
+        const deletedIds = new Set<string>();
+        for (const record of uniqueRecords) {
+            if (await onDeleteRecord(record.id, { confirmed: true })) deletedIds.add(record.id);
+        }
         setSelectedIds((ids) => ids.filter((id) => !deletedIds.has(id)));
         setFocusedWorkerGroupKey(null);
     }, [onDeleteRecord]);
@@ -8157,6 +8165,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
             {/* 공종/팀장 일괄 수정 UI */}
             <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden mb-4" data-ocr-collapse-delete="record-hub">
+                <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-4" aria-label="기록 선택 및 삭제">
+                    <span className="text-sm font-bold">선택 {selectedRecords.length}건</span>
+                    <button type="button" disabled={isAnalyzing} onClick={() => setSelectedIds(recordListRecords.map(r => r.id))} className="rounded-lg border px-3 py-2 text-sm">현재 목록 전체 선택</button>
+                    <button type="button" onClick={() => setSelectedIds([])} className="rounded-lg border px-3 py-2 text-sm">선택 해제</button>
+                    <button type="button" disabled={isAnalyzing || selectedRecords.length === 0} onClick={handleDeleteSelectedRecords} className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700 disabled:opacity-40">선택 기록 삭제</button>
+                </div>
+                <NativeLanguageEvidencePanel records={existingRecords} />
                 <div className="border-b border-slate-100 bg-slate-950 px-4 py-4 text-white sm:px-6">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                         <div>
@@ -8632,6 +8647,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             {getLeaderIcon(r)}
                                         </p>
                                         <p className="mt-0.5 text-[11px] text-slate-500 font-bold">{r.nationality} · {r.date}</p>
+                                        <p className="mt-0.5 text-[11px] text-slate-600">분석 시각: {formatOcrAnalysisTime(r)}</p>
                                         <p className="mt-0.5 text-[11px] text-slate-500 font-bold">공종 {r.jobField || '미분류'} · 팀장 {r.teamLeader || '미지정'}</p>
                                         <p className="mt-1 rounded-lg border border-indigo-100 bg-indigo-50 px-2 py-1 text-[10px] font-black leading-snug text-indigo-700">
                                             Q1 실제 위험작업: {primaryRiskTask || '미확인'}
@@ -8738,9 +8754,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <div className="mt-3 grid grid-cols-2 gap-2">
                                     <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-3 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl">보호 판단</button>
                                     <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-3 py-2 bg-slate-900 text-white font-black text-xs rounded-xl">교육 리포트</button>
-                                    {showWorkerExtraActions && (
+                                    {(
                                         <button
                                             type="button"
+                                            disabled={isAnalyzing}
                                             data-ocr-collapse-delete="delete-single-record"
                                             onClick={(e) => { e.stopPropagation(); handleDeleteSingleRecord(r); }}
                                             className="col-span-2 px-3 py-2 bg-rose-50 text-rose-700 border border-rose-200 font-black text-xs rounded-xl"
@@ -8864,6 +8881,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                     {getLeaderIcon(r)}
                                                 </span>
                                                 <span className="text-[10px] text-slate-400 font-bold tracking-wider">{r.nationality} | {r.date}</span>
+                                                <span className="text-[11px] text-slate-600">분석 시각: {formatOcrAnalysisTime(r)}</span>
                                                 {isDevMode && typeof r.ocrConfidence === 'number' && operationalMode === 'developer' && (
                                                     <span className="text-[9px] text-slate-500 font-bold">OCR 신뢰도: {(r.ocrConfidence * 100).toFixed(0)}%</span>
                                                 )}
@@ -9005,9 +9023,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 </div>
                                                 <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-4 py-2 bg-indigo-600 border border-indigo-600 text-white font-black text-xs rounded-xl hover:bg-indigo-700 transition-all shadow-sm">보호 판단 열기</button>
                                                 <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-4 py-2 bg-slate-900 text-white font-black text-xs rounded-xl hover:bg-black transition-all shadow-sm">교육 리포트 열기</button>
-                                                {showWorkerExtraActions && (
+                                                {(
                                                     <button
                                                         type="button"
+                                                        disabled={isAnalyzing}
                                                         data-ocr-collapse-delete="delete-single-record"
                                                         onClick={(e) => { e.stopPropagation(); handleDeleteSingleRecord(r); }}
                                                         className="px-4 py-2 bg-rose-50 border border-rose-200 text-rose-700 font-black text-xs rounded-xl hover:bg-rose-100 transition-all shadow-sm"

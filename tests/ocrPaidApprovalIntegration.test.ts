@@ -268,6 +268,7 @@ describe('paid OCR approval integration', () => {
         const approved = await callOcrGateway(approvedBody);
 
         expect(approved.statusCode).toBe(200);
+        expect(approved.body.record.ocrAnalyzedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
         expect(approved.body).toMatchObject({
             ok: true,
             recordId: approvalContext.recordId,

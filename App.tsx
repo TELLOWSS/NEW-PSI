@@ -1007,19 +1007,19 @@ const App: React.FC = () => {
     }, [performRecordUpdate]);
 
     // [Updated] Stable Handler with functional updates and Ref access
-    const handleDeleteRecord = useCallback(async (id: string) => {
-        if(!confirm("정말 이 기록을 삭제하시겠습니까?")) return;
+    const handleDeleteRecord = useCallback(async (id: string, options?: { confirmed?: boolean }): Promise<boolean> => {
+        if (!options?.confirmed && !confirm("정말 이 기록을 삭제하시겠습니까?")) return false;
         
         // Use ref to find record without adding dependency
         const targetRecord = workerRecordsRef.current.find(r => r.id === id);
-        if (!targetRecord) return;
+        if (!targetRecord) return false;
 
         try {
             await deleteRecordFromDB(id);
         } catch (error) {
             console.error('[PSI][Storage] 기록 삭제 실패:', error);
             setStorageNotice('기록을 삭제하지 못했습니다. 기존 기록은 그대로 유지됩니다. 잠시 후 다시 시도해 주세요.');
-            return;
+            return false;
         }
 
         setStorageNotice('');
@@ -1041,6 +1041,7 @@ const App: React.FC = () => {
         const nextRecords = workerRecordsRef.current.filter(r => r.id !== id);
         workerRecordsRef.current = nextRecords;
         setWorkerRecords(nextRecords);
+        return true;
     }, []);
 
     // [Updated] Undo Handler

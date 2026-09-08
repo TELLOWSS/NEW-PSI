@@ -384,6 +384,8 @@ export type HarnessApprovalState =
 
 export interface WorkerRecord {
     id: string; // Unique ID for each record
+    /** 실제 OCR 분석 완료 시각(UTC ISO). 문서 작성일·수정일과 구분한다. */
+    ocrAnalyzedAt?: string;
     /** 구형 백업의 원평가와 변환 근거. 승인/정정 이력과 구분하며 최신 판정에 사용하지 않는다. */
     legacyBackup?: LegacyBackupProvenance;
     /**

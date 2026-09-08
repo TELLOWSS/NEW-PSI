@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { isLegacyMigratedRecord } from '../../utils/legacyBackupMigration';
+import { formatOcrAnalysisTime } from '../../utils/ocrAnalysisTime';
 import type {
     WorkerRecord,
     AppSettings,
@@ -2255,7 +2256,10 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                     {record.nationality || '국적 미확인'}
                                                 </StatusBadge>
                                                 <StatusBadge variant="slateSoft" className="px-3 py-1 text-[11px]">
-                                                    {record.date || '일자 미확인'}
+                                                    작성일: {record.date || '일자 미확인'}
+                                                </StatusBadge>
+                                                <StatusBadge variant="slateSoft" className="px-3 py-1 text-[11px]">
+                                                    분석 시각: {formatOcrAnalysisTime(record)}
                                                 </StatusBadge>
                                                 {record.teamLeader && (
                                                     <StatusBadge variant="slateSoft" className="px-3 py-1 text-[11px]">
