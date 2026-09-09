@@ -4,6 +4,8 @@
  * - 현장 전체 평균과 함께 비교 표시
  */
 import React from 'react';
+import { buildRadarMetrics, metricValue, SIX_METRIC_KEYS, SIX_METRIC_LABELS, METRIC_MAX } from '../../utils/radarMetrics';
+import { getSafetyLevelThresholds } from '../../utils/safetyLevelUtils';
 import {
     RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
     ResponsiveContainer, Tooltip, Legend,
@@ -18,35 +20,6 @@ interface Props {
     siteAverageMetrics: SixMetricAverages;
 }
 
-const SIX_METRIC_KEYS = [
-    'psychological',
-    'jobUnderstanding',
-    'riskAssessmentUnderstanding',
-    'proficiency',
-    'improvementExecution',
-    'repeatViolationPenalty',
-] as const;
-
-const SIX_METRIC_LABELS: Record<typeof SIX_METRIC_KEYS[number], string> = {
-    psychological: '응답 충실도',
-    jobUnderstanding: '업무이해도',
-    riskAssessmentUnderstanding: '위험성평가',
-    proficiency: '숙련도',
-    improvementExecution: '개선이행도',
-    repeatViolationPenalty: '반복위반 패널티',
-};
-
-type SixMetricKey = typeof SIX_METRIC_KEYS[number];
-
-const METRIC_MAX: Record<SixMetricKey, number> = {
-    psychological:              10,
-    jobUnderstanding:           20,
-    riskAssessmentUnderstanding:20,
-    proficiency:                30,
-    improvementExecution:       20,
-    repeatViolationPenalty:     30,
-};
-
 const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload || !payload.length) return null;
     const item = payload[0].payload;
@@ -56,7 +29,7 @@ const CustomTooltip = ({ active, payload }: any) => {
             {payload.map((p: any) => (
                 <div key={p.dataKey} className="flex justify-between gap-4">
                     <span style={{ color: p.stroke }}>{p.name}</span>
-                    <span className="font-bold">{p.value}점/{item.max}점</span>
+                    <span className="font-bold">{p.value}% ({p.dataKey === '타겟' ? item.targetRaw : item.siteRaw}/{item.max}점)</span>
                 </div>
             ))}
         </div>
@@ -64,8 +37,9 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 const RISK_BADGE = (score: number) => {
-    if (score < 60) return { label: '추가 확인', color: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200/20' };
-    if (score < 75) return { label: '주의',   color: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/20' };
+    const thresholds = getSafetyLevelThresholds();
+    if (score < thresholds.intermediateMin) return { label: '추가 확인', color: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200/20' };
+    if (score < thresholds.advancedMin) return { label: '주의',   color: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/20' };
     return { label: '양호', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/20' };
 };
 
@@ -81,18 +55,10 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
     const badge = RISK_BADGE(targetGroup.compositeScore);
     const isIntegratedNationality = targetGroup.nationality === '전체 국적';
 
-    const chartData = SIX_METRIC_KEYS.map(key => ({
-        metric: SIX_METRIC_LABELS[key],
-        max: METRIC_MAX[key],
-        타겟:   Math.abs(targetGroup.metrics[key]),
-        현장평균: Math.abs(siteAverageMetrics[key]),
-    }));
-
-    const weakMetrics = SIX_METRIC_KEYS
-        .map(k => ({
-            label: SIX_METRIC_LABELS[k],
-            ratio: Math.abs(targetGroup.metrics[k]) / METRIC_MAX[k],
-        }))
+    const chartData = buildRadarMetrics(targetGroup.metrics, siteAverageMetrics);
+    const weakMetrics = chartData
+        .filter(item => item.타겟 !== null)
+        .map(item => ({ label: item.metric, ratio: item.타겟! / 100 }))
         .sort((a, b) => a.ratio - b.ratio)
         .slice(0, 3);
 
@@ -127,6 +93,7 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-center">
                 {/* Radar Chart */}
                 <div className="w-full">
+                    <p className="mb-3 text-sm text-[var(--psi-text-muted)]">5개 역량을 각 항목 만점 대비 0–100%로 비교합니다. 반복위반 감점은 별도로 표시합니다.</p>
                     <ResponsiveContainer width="100%" height={250}>
                         <RadarChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
                             <PolarGrid stroke="var(--psi-border)" />
@@ -136,6 +103,7 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
                             />
                             <PolarRadiusAxis
                                 angle={90}
+                                domain={[0, 100]}
                                 tick={{ fontSize: 9, fill: 'var(--psi-text-subtle)' }}
                                 tickCount={4}
                             />
@@ -169,7 +137,7 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
                 {/* 취약 지표 요약 */}
                 <div className="space-y-3">
                     <p className="text-xs font-bold text-[var(--psi-text-muted)] uppercase tracking-wide">
-                        ⚡ 취약 지표 TOP 3 (전파교육 타겟)
+                        우선 확인할 응답 지표 (상대적으로 낮은 순)
                     </p>
                     {weakMetrics.map((m, i) => (
                         <div key={m.label} className="flex items-center gap-3">
@@ -204,11 +172,12 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
                                 <div key={k} className="flex justify-between text-[var(--psi-text-muted)]">
                                     <span className="truncate mr-1">{SIX_METRIC_LABELS[k]}</span>
                                     <span className="font-bold shrink-0">
-                                        {Math.abs(targetGroup.metrics[k])}/{METRIC_MAX[k]}
+                                        {metricValue(k, targetGroup.metrics[k]) === null ? '자료 없음' : `${metricValue(k, targetGroup.metrics[k])}/${METRIC_MAX[k]}점`}
                                     </span>
                                 </div>
                             ))}
                         </div>
+                        <p className="mt-3 text-sm text-[var(--psi-text-muted)]">반복위반 감점은 낮을수록 좋습니다. 감점 0점은 취약 지표가 아닙니다. 응답 점수만으로 현장 조치 완료를 판단하지 않습니다.</p>
                     </div>
                 </div>
             </div>

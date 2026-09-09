@@ -2820,6 +2820,7 @@
 .psi-ops-trend-tabs { display: flex; gap: 4px; margin: 0 16px 10px; padding: 4px; border-radius: 12px; background: var(--psi-surface); border: 1px solid var(--psi-border); }
 .psi-ops-dashboard .psi-ops-intro .psi-ops-eyebrow { color: #79e3dd; }
 .psi-ops-dashboard .psi-ops-intro label { color: #c5d6e8; }
+.psi-ops-dashboard .psi-ops-intro .psi-ops-filter > span { color: #c5d6e8; font-size: 12px; }
 .psi-ops-trend-tabs button { flex: 1; padding: 8px 6px; border-radius: 8px; font-size: 12px; font-weight: 800; color: var(--psi-text-muted); }
 .psi-ops-trend-tabs button[aria-pressed="true"] { background: var(--psi-brand); color: white; box-shadow: 0 3px 8px #254a7925; }
 .psi-ops-trend-tabs button:focus-visible { outline: 2px solid var(--psi-brand); outline-offset: 2px; }
@@ -2828,6 +2829,27 @@
 .psi-ops-dashboard .psi-ops-chart { height: 210px; }
 .psi-ops-dashboard .psi-ops-chart-rail > span { min-height: 0; border-radius: 6px 6px 0 0; background: linear-gradient(to top, #4f74c8, #80b7ed); }
 .psi-ops-dashboard .psi-ops-chart-rail > span.is-current { background: linear-gradient(to top, #087f8c, #43d5bc); }
+
+/* Audit follow-up: a working surface, with compact context and readable controls. */
+.psi-ops-dashboard .psi-ops-intro { padding: 20px 24px; border-radius: 18px; }
+.psi-ops-dashboard .psi-ops-intro .psi-ops-title { font-size: clamp(24px, 2.4vw, 30px); }
+.psi-ops-dashboard .psi-ops-eyebrow { margin-top: 10px; font-size: 12px; }
+.psi-ops-dashboard .psi-ops-subtitle { font-size: 14px; line-height: 1.6; }
+.psi-ops-dashboard .psi-ops-hero-pills { margin-top: 12px; }
+.psi-ops-dashboard .psi-ops-hero-pills span { font-size: 12px; padding: 5px 9px; }
+.psi-ops-dashboard .psi-ops-panel-header h2 { font-size: 1.0625rem; font-weight: 750; }
+.psi-ops-dashboard .psi-ops-trend-tabs button { font-size: 14px; min-height: 40px; }
+.psi-ops-dashboard .psi-ops-trend-scope { font-size: 12px; }
+.psi-analysis-shortcuts summary { min-height: 28px; }
+.psi-analysis-shortcuts[open] summary { margin-bottom: 20px; }
+.psi-analysis-shortcuts .text-slate-400,
+.psi-analysis-shortcuts .text-slate-500 { color: #b9cadd !important; }
+.psi-analysis-shortcuts button h4 { font-size: 14px; }
+.psi-analysis-shortcuts button p,
+.psi-analysis-shortcuts button span { font-size: 12px; }
+@media (max-width: 640px) {
+    .psi-ops-dashboard .psi-ops-intro { padding: 16px; }
+}
 
 [data-report-page],
 [data-report-page] *,

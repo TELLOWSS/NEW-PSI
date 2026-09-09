@@ -15,6 +15,18 @@ try {
         localStorage.setItem('psi_dashboard_ui_mode_lock_v2', 'false');
     });
     await page.goto('http://127.0.0.1:5177', { waitUntil: 'networkidle' });
+    for (const width of [390, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        for (const label of ['일간', '주간', '월간', '년간']) {
+            await page.getByRole('button', { name: label, exact: true }).click();
+            await page.waitForFunction(() => {
+                const chart = document.querySelector('.psi-ops-chart');
+                const last = chart?.lastElementChild;
+                return chart && last && last.getBoundingClientRect().right <= chart.getBoundingClientRect().right + 2;
+            });
+        }
+    }
+    console.log('PASS: latest trend bucket is visible at desktop/mobile widths in all four periods.');
     await page.locator('.psi-sidebar nav button').filter({ hasText: '안전조치 통합 허브' }).click();
     await page.getByRole('button', { name: '공통', exact: true }).click();
     await page.evaluate(() => {
@@ -36,6 +48,18 @@ try {
     await page.getByRole('button', { name: '상세 분석 대시보드', exact: true }).click();
     await page.getByRole('button', { name: '3. 팀 비교', exact: true }).click();
     await page.locator('#advanced-team-comparison').waitFor({ state: 'visible' });
+    const shortcuts = page.locator('#field-mobile-flow');
+    assert.equal(await shortcuts.evaluate(element => element.open), false);
+    await shortcuts.locator('summary').focus();
+    await page.keyboard.press('Enter');
+    assert.equal(await shortcuts.evaluate(element => element.open), true);
+    await shortcuts.getByRole('button', { name: /STEP 04.*교육 환류/ }).click();
+    await page.locator('[data-education-return="page"]').waitFor({ state: 'visible' });
+    for (const width of [390, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
+    }
+    console.log('PASS: shortcuts start collapsed, keyboard toggle and education link work without a training session.');
     console.log('PASS: quota failure remains unsaved; direct team comparison is visible. API calls blocked.');
 } finally {
     await browser.close();

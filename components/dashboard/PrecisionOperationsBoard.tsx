@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Page, SafetyCheckRecord, WorkerRecord } from '../../types';
 import { calculateCoreMetricSnapshot, isOperationalWorkerRecord } from '../../utils/coreMetrics';
 import { useAssessmentCycle } from '../../hooks/useAssessmentCycle';
@@ -193,6 +193,16 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
         trendPeriod, protectionPriorityThreshold,
     ), [operationalRecords, tradeFilter, trendPeriod, protectionPriorityThreshold]);
     const trendSeries = trend.points;
+    const trendChartRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const chart = trendChartRef.current;
+        if (!chart) return;
+        const showLatest = () => { chart.scrollLeft = chart.scrollWidth; };
+        showLatest();
+        const observer = new ResizeObserver(showLatest);
+        observer.observe(chart);
+        return () => observer.disconnect();
+    }, [trendSeries]);
 
     const averageOcrConfidence = useMemo(() => {
         const values = filteredRecords
@@ -457,6 +467,8 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                     {trend.total === 0 && <p className="psi-ops-trend-empty">집계할 기록이 없습니다. 기록 없음은 위험 없음 판정을 뜻하지 않습니다.</p>}
                     <div
                         className="psi-ops-chart"
+                        ref={trendChartRef}
+                        tabIndex={0}
                         style={{ gridTemplateColumns: `repeat(${trendSeries.length}, minmax(30px, 1fr))`, overflowX: 'auto' }}
                         role="img"
                         aria-label={`최근 위험 기록 추이: ${trendSeries.map((item) => `${item.label} ${item.value}건`).join(', ')}`}
@@ -475,7 +487,7 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                             </div>
                         ))}
                     </div>
-                    <p className="psi-ops-trend-scope">{trendSeries[0].key} ~ {trend.latestDate || trendSeries[trendSeries.length - 1].end}{trend.invalidDateCount > 0 ? ` · 날짜 확인 필요 ${trend.invalidDateCount}건 제외` : ''}</p>
+                    <p className="psi-ops-trend-scope">{trendSeries[0].key} ~ {trend.latestDate || trendSeries[trendSeries.length - 1].end} · 좌우로 이동해 이전 구간 확인{trend.invalidDateCount > 0 ? ` · 날짜 확인 필요 ${trend.invalidDateCount}건 제외` : ''}</p>
                 </article>
 
                 <article className="psi-ops-panel psi-ops-distribution">

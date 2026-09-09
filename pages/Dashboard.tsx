@@ -2619,7 +2619,8 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 />
 
                 <div className="mb-4 rounded-xl border border-slate-800 bg-slate-950 p-3 text-white sm:p-4 lg:p-5">
-                        <section id="field-mobile-flow" className="rounded-xl border border-slate-700 bg-slate-900 p-4 sm:p-5">
+                        <details id="field-mobile-flow" className="psi-analysis-shortcuts rounded-xl border border-slate-700 bg-slate-900 p-4 sm:p-5">
+                            <summary className="cursor-pointer text-base font-bold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4">업무 바로가기 · 필요한 기능 펼치기</summary>
                             <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-3">
                                 <div>
                                     <div className="flex items-center gap-1.5">
@@ -2665,10 +2666,10 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                     },
                                     {
                                         step: '04',
-                                        label: '위험인지 진단',
-                                        page: 'worker-training' as Page,
-                                        desc: '자가진단 테스트',
-                                        status: '진단 활성화',
+                                        label: '교육 환류',
+                                        page: 'education-return' as Page,
+                                        desc: '검증 기록으로 교육자료 준비',
+                                        status: '교육자료 확인',
                                         isWarning: false,
                                     },
                                     {
@@ -2768,7 +2769,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                     </button>
                                 ))}
                             </div>
-                        </section>
+                        </details>
 
                     {(selectedTarget || selectedTradeForComparison || selectedTeam !== 'ALL') && (
                         <div className="mb-4 flex flex-wrap items-center gap-2">
