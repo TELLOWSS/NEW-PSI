@@ -55,7 +55,7 @@ for (const consumer of consumers) {
 const passed = results.every((result) => result.passed);
 const report = {
     generatedAt: new Date().toISOString(),
-    ruleVersion: 'psi-core-metrics-2026-06-22-v1',
+    ruleVersion: 'psi-core-metrics-2026-09-09-v2',
     passed,
     passedCount: results.filter((result) => result.passed).length,
     totalCount: results.length,

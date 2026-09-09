@@ -11,6 +11,7 @@ import {
 const record = (patch: Partial<WorkerRecord>): WorkerRecord => ({
     id: 'record-1',
     name: '김근로',
+    worker_uuid: `verified-${patch.name || '김근로'}`,
     jobField: '형틀',
     date: '2026-06-01',
     nationality: '대한민국',
@@ -35,12 +36,12 @@ const record = (patch: Partial<WorkerRecord>): WorkerRecord => ({
 });
 
 describe('core metrics single source', () => {
-    it('groups the same worker even when monthly worker UUID values differ', () => {
+    it('does not merge different worker UUIDs merely because names match', () => {
         const april = record({ id: 'apr', worker_uuid: 'monthly-04', date: '2026-04-10', safetyScore: 50 });
         const may = record({ id: 'may', worker_uuid: 'monthly-05', date: '2026-05-10', safetyScore: 80 });
 
-        expect(getCoreMetricWorkerKey(april)).toBe(getCoreMetricWorkerKey(may));
-        expect(selectLatestCoreMetricRecords([april, may])).toEqual([may]);
+        expect(getCoreMetricWorkerKey(april)).not.toBe(getCoreMetricWorkerKey(may));
+        expect(selectLatestCoreMetricRecords([april, may])).toEqual([april, may]);
     });
 
     it('uses only each worker latest valid record for the current snapshot', () => {

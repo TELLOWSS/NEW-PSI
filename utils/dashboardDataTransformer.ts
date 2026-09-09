@@ -1,5 +1,6 @@
 import type { WorkerRecord } from '../types';
 import { getWorkerIdentityKey } from './workerIdentity';
+import { hasValidSafetyScore, selectLatestCoreMetricRecords } from './coreMetrics';
 
 export interface SixMetricAverages {
     psychological: number;
@@ -142,6 +143,7 @@ export function transformDashboardData(workerRecords: WorkerRecord[]): Dashboard
     let siteMetricCount = 0;
     let unassignedRecordCount = 0;
     const siteMetricSums: SixMetricAverages = { ...EMPTY_METRICS };
+    const latestRecords = new Set(selectLatestCoreMetricRecords(workerRecords));
 
     const ensureGroup = (trade: string, nationality: string) => {
         const key = getTargetGroupKey(trade, nationality);
@@ -165,9 +167,6 @@ export function transformDashboardData(workerRecords: WorkerRecord[]): Dashboard
 
         if (!trade || !nationality) continue;
 
-        tradesSet.add(trade);
-        nationalitiesSet.add(nationality);
-
         const workerId = getStrictWorkerIdentity(record);
         const groupKey = getTargetGroupKey(trade, nationality);
 
@@ -185,17 +184,23 @@ export function transformDashboardData(workerRecords: WorkerRecord[]): Dashboard
             });
         }
 
+        // Retain full history above, but current groups count one latest record per identity.
+        if (!latestRecords.has(record) || !hasValidSafetyScore(record)) continue;
+        tradesSet.add(trade);
+        nationalitiesSet.add(nationality);
         for (const group of [
             ensureGroup(trade, nationality),
             ensureGroup(trade, ALL_NATIONALITY_LABEL),
         ]) {
-            group.sumSafetyScore += record.safetyScore || 0;
-            group.count += 1;
+            if (hasValidSafetyScore(record)) {
+                group.sumSafetyScore += record.safetyScore;
+                group.count += 1;
+            }
             if (workerId) {
                 group.workerSet.add(workerId);
             }
 
-            const sb = record.scoreBreakdown;
+            const sb = hasValidSafetyScore(record) ? record.scoreBreakdown : undefined;
             if (sb) {
                 group.metricSums.psychological += sb.psychological ?? 0;
                 group.metricSums.jobUnderstanding += sb.jobUnderstanding ?? 0;
@@ -207,7 +212,7 @@ export function transformDashboardData(workerRecords: WorkerRecord[]): Dashboard
             }
         }
 
-        const sb = record.scoreBreakdown;
+        const sb = hasValidSafetyScore(record) ? record.scoreBreakdown : undefined;
         if (sb) {
             siteMetricSums.psychological += sb.psychological ?? 0;
             siteMetricSums.jobUnderstanding += sb.jobUnderstanding ?? 0;
@@ -225,7 +230,7 @@ export function transformDashboardData(workerRecords: WorkerRecord[]): Dashboard
     const allWorkers = new Map<string, WorkerTrendData>();
 
     for (const [workerId, records] of workerRecordsMap) {
-        const sorted = [...records].sort((a, b) => safeDateValue(a.date) - safeDateValue(b.date));
+        const sorted = records.filter(hasValidSafetyScore).sort((a, b) => safeDateValue(a.date) - safeDateValue(b.date) || a.id.localeCompare(b.id));
         if (!sorted.length) continue;
 
         const firstScore = sorted[0]?.safetyScore ?? 0;

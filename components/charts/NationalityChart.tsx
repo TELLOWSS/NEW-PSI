@@ -3,6 +3,7 @@ import type { Chart, ChartConfiguration } from 'chart.js/auto';
 import type { WorkerRecord } from '../../types';
 import { ensureChartJs } from '../../utils/externalScripts';
 import { useResolvedTheme } from '../../hooks/useResolvedTheme';
+import { selectLatestCoreMetricRecords } from '../../utils/coreMetrics';
 
 interface ChartProps {
     records: WorkerRecord[];
@@ -51,10 +52,7 @@ export const NationalityChart: React.FC<ChartProps> = ({ records }) => {
             const ChartLib = await ensureChartJs().catch(() => null);
             if (!ChartLib || disposed || !chartRef.current) return;
 
-            const uniqueWorkers = new Map<string, string>();
-            records.forEach(r => uniqueWorkers.set(r.name, r.nationality));
-        
-            const nationalityCounts = Array.from(uniqueWorkers.values()).reduce((acc, nationality) => {
+            const nationalityCounts = selectLatestCoreMetricRecords(records).map(record => record.nationality || '미상').reduce((acc, nationality) => {
                 acc[nationality] = (acc[nationality] || 0) + 1;
                 return acc;
             }, {} as Record<string, number>);

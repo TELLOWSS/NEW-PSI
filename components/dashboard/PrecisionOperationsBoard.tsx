@@ -358,6 +358,7 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                     <div>
                         <h2 id="operations-assurance-title">사람이 확정하는 보호 판단</h2>
                         <p>자동 분석은 확인할 신호를 정리합니다. 원문과 현장 상황을 대조한 관리자의 판단이 최종 기준입니다.</p>
+                        {summary.unconfirmedIdentityCount > 0 && <p>식별 미확인 {summary.unconfirmedIdentityCount}건은 개별 집계됩니다. 이름만으로 합치지 않으므로 표시 인원은 실제 인원과 다를 수 있습니다.</p>}
                     </div>
                 </div>
                 <dl className="psi-ops-assurance-metrics">

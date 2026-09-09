@@ -1,18 +1,19 @@
 import type { WorkerRecord } from '../types';
 import { getSafetyLevelThresholds } from './safetyLevelUtils';
+import { getWorkerIdentityKey } from './workerIdentity';
 
-export const CORE_METRIC_RULE_VERSION = 'psi-core-metrics-2026-06-22-v1';
+export const CORE_METRIC_RULE_VERSION = 'psi-core-metrics-2026-09-09-v2';
 
 export const CORE_METRIC_CATALOG = {
     totalWorkers: {
         label: '근로자 수',
         unit: '명',
-        rule: '현재 범위에서 동일 근로자를 한 명으로 집계',
+        rule: '확인된 식별자로 최신 기록을 집계하며 미확인 기록은 개별 단위로 유지',
     },
     averageScore: {
         label: '평균 위험인식 신호',
         unit: '점',
-        rule: '근로자별 최신 유효 점수 1건의 산술평균',
+        rule: '근로자별 최신 기록의 유효 점수만 평균하며 최신 점수 누락 시 과거 점수로 대체하지 않음',
     },
     protectionPriorityCount: {
         label: '보호 우선',
@@ -42,6 +43,7 @@ export interface CoreMetricSnapshot {
     validScoreRecordCount: number;
     excludedInvalidScoreCount: number;
     totalWorkers: number;
+    unconfirmedIdentityCount: number;
     averageScore: number;
     protectionPriorityCount: number;
     analyzedWorkerCount: number;
@@ -52,19 +54,6 @@ export interface CoreMetricSnapshot {
 export interface MonthlyCoreMetricPoint extends CoreMetricSnapshot {
     month: string;
 }
-
-const normalizeIdentityText = (value: unknown): string => (
-    String(value || '').trim().toUpperCase().replace(/\s+/g, '')
-);
-
-const normalizeJobIdentityText = (value: unknown): string => {
-    const raw = String(value || '').trim().toUpperCase();
-    if (!raw) return '';
-    const parts = raw.split(/[,\s/·ㆍ+|]+/).map((part) => part.trim()).filter(Boolean);
-    return parts.length > 1
-        ? Array.from(new Set(parts)).sort().join('+')
-        : raw.replace(/[,\s/·ㆍ+|]+/g, '');
-};
 
 const getRecordTime = (record: Partial<WorkerRecord>): number => {
     const timestamp = new Date(String(record.date || '')).getTime();
@@ -81,24 +70,12 @@ const average = (values: number[]): number => (
 );
 
 export const getCoreMetricWorkerKey = (record: Partial<WorkerRecord>): string => {
-    const name = normalizeIdentityText(record.name);
-    const job = normalizeJobIdentityText(record.jobField);
-    const nationality = normalizeIdentityText(record.nationality) || 'UNKNOWN';
-    if (name && job && !['식별대기', '이름없음', '이름미확인', '미상', '분석실패'].includes(name)) {
-        return `job-name-nationality:${job}|${name}|${nationality}`;
-    }
-
-    const employeeId = normalizeIdentityText(record.employeeId);
-    if (employeeId) return `employee:${employeeId}`;
-
-    const qrId = normalizeIdentityText(record.qrId);
-    if (qrId) return `qr:${qrId}`;
-
-    const workerUuid = normalizeIdentityText(record.worker_uuid || record.workerUuid);
-    if (workerUuid) return `worker:${workerUuid}`;
-
-    return `record:${normalizeIdentityText(record.id) || 'UNKNOWN'}`;
+    return getWorkerIdentityKey(record);
 };
+
+export const hasValidSafetyScore = (record: Partial<WorkerRecord>): boolean =>
+    typeof record.safetyScore === 'number' && Number.isFinite(record.safetyScore)
+    && record.safetyScore >= 0 && record.safetyScore <= 100;
 
 export const isOperationalWorkerRecord = (record: Partial<WorkerRecord>): boolean => (
     !/관리|팀장|부장|과장|기사|공무|소장/.test(String(record.jobField || ''))
@@ -126,16 +103,12 @@ export const selectLatestCoreMetricRecords = (records: WorkerRecord[]): WorkerRe
 
 export const calculateCoreMetricSnapshot = (records: WorkerRecord[]): CoreMetricSnapshot => {
     const latestRecords = selectLatestCoreMetricRecords(records);
-    const validScoreRecords = latestRecords.filter((record) => (
-        Number.isFinite(Number(record.safetyScore))
-        && Number(record.safetyScore) >= 0
-        && Number(record.safetyScore) <= 100
-    ));
+    const validScoreRecords = latestRecords.filter(hasValidSafetyScore);
     const thresholds = getSafetyLevelThresholds();
     const scores = validScoreRecords.map((record) => Number(record.safetyScore));
     const improvementValues = validScoreRecords
         .map((record) => record.scoreBreakdown?.improvementExecution)
-        .filter((value): value is number => Number.isFinite(value));
+        .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 20);
 
     return {
         ruleVersion: CORE_METRIC_RULE_VERSION,
@@ -143,6 +116,7 @@ export const calculateCoreMetricSnapshot = (records: WorkerRecord[]): CoreMetric
         validScoreRecordCount: validScoreRecords.length,
         excludedInvalidScoreCount: latestRecords.length - validScoreRecords.length,
         totalWorkers: latestRecords.length,
+        unconfirmedIdentityCount: latestRecords.filter(record => getCoreMetricWorkerKey(record).startsWith('record:')).length,
         averageScore: round(average(scores)),
         protectionPriorityCount: validScoreRecords.filter((record) => (
             Number(record.safetyScore) < thresholds.intermediateMin
