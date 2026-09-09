@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, Component, Suspense, lazy, type ReactNode, type ErrorInfo } from 'react';
+import { preserveEvidenceText } from './utils/evidenceText';
 import { Layout } from './components/Layout';
 import { AdminLockScreen } from './components/AdminLockScreen';
 import { Spinner } from './components/Spinner';
@@ -610,7 +611,7 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
                 improvementExecution: toNumberSafe((r.scoreBreakdown as Record<string, unknown>).improvementExecution, 0),
                 repeatViolationPenalty: toNumberSafe((r.scoreBreakdown as Record<string, unknown>).repeatViolationPenalty, 0),
             } : undefined,
-            fullText: toStringSafe(r.fullText, ""),
+            fullText: preserveEvidenceText(r.fullText),
             koreanTranslation: toStringSafe(r.koreanTranslation, ""),
             language: toStringSafe(r.language, "unknown"),
             selfAssessedRiskLevel:
