@@ -103,6 +103,10 @@ export const recoverBackupRecordsWithoutImages = async (
     options: {
         onProgress?: (progress: StreamingBackupRecoveryProgress) => void;
         signal?: AbortSignal;
+        /** Local archive sink: awaited per record; nothing retained or regraded. */
+        onOriginalRecord?: (record: Record<string, unknown>, rawJson: string) => Promise<void>;
+        onRootMetadata?: (key: string, value: unknown) => Promise<void>;
+        maxRecordCharacters?: number;
     } = {},
 ): Promise<StreamingBackupRecoveryResult> => {
     const reader = file.stream().getReader();
@@ -110,6 +114,7 @@ export const recoverBackupRecordsWithoutImages = async (
     const records: WorkerRecord[] = [];
     let bytesRead = 0;
     let removedImageCharacters = 0;
+    let recoveredCount = 0;
     let state: ParserState = 'root';
     // TypeScript does not track assignments made inside processText across
     // awaits; read the current parser state through its declared state type.
@@ -136,7 +141,7 @@ export const recoverBackupRecordsWithoutImages = async (
     const emitProgress = () => options.onProgress?.({
         bytesRead,
         totalBytes: file.size,
-        recoveredRecords: records.length,
+        recoveredRecords: recoveredCount,
     });
 
     const finishCapture = async () => {
@@ -166,6 +171,7 @@ export const recoverBackupRecordsWithoutImages = async (
                 }
                 monthlyArchive = parsed;
             }
+            await options.onRootMetadata?.(rootKey, parsed);
             state = 'object-separator';
         } else {
             if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) failFraming();
@@ -183,6 +189,13 @@ export const recoverBackupRecordsWithoutImages = async (
                     workerUuid: original.workerUuid,
                 } as WorkerRecord);
             }
+            if (options.onOriginalRecord) {
+                await options.onOriginalRecord(original, completed.parts.join(''));
+                checkAborted();
+                recoveredCount += 1;
+                state = 'record-separator';
+                return;
+            }
             // Hash/migrate before stripping: source image bytes are part of a
             // legacy document ID, and monthly hashes refer to the original file.
             const migrated = await migrateLegacyBackupRecords([original]);
@@ -196,6 +209,7 @@ export const recoverBackupRecordsWithoutImages = async (
             }
             const stripped = stripHeavyImageEvidence(migratedRecord);
             records.push(stripped.record);
+            recoveredCount += 1;
             removedImageCharacters += stripped.removedImageCharacters;
             state = 'record-separator';
         }
@@ -215,6 +229,10 @@ export const recoverBackupRecordsWithoutImages = async (
             const part = text.slice(segmentStart, end);
             capture.parts.push(part);
             capture.length += part.length;
+            if (capture.kind === 'record' && options.maxRecordCharacters
+                && capture.length > options.maxRecordCharacters) {
+                throw new Error('단일 기록이 저메모리 처리 한도를 초과했습니다. 원본은 변경하지 않았습니다.');
+            }
             if (capture.kind !== 'record') {
                 metadataCharacters += part.length;
                 if (metadataCharacters > MAX_METADATA_CHARACTERS) {
@@ -346,7 +364,7 @@ export const recoverBackupRecordsWithoutImages = async (
         checkAborted();
         return {
             records,
-            recoveredRecords: records.length,
+            recoveredRecords: recoveredCount,
             removedImageCharacters,
             monthlyArchive,
             ...(contentRootHash ? { contentRootHash } : {}),

@@ -74,6 +74,7 @@ import {
     resolveBackupPayload,
 } from '../utils/backupDataQuality';
 import { recoverBackupRecordsWithoutImages } from '../utils/streamingBackupRecovery';
+import LocalBackupArchivePanel from '../components/LocalBackupArchivePanel';
 import { assessOcrRoutingQuality, getOcrQualityReviewMessage } from '../utils/ocrRoutingQuality';
 import {
     buildMonthlyArchiveManifest,
@@ -6316,6 +6317,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             if (importInputRef.current) importInputRef.current.value = '';
             return;
         }
+        if (file.size >= BACKUP_LARGE_FILE_WARNING_BYTES) {
+            alert('저메모리 보호: 50MiB 이상 백업은 운영 목록에 한꺼번에 복원하지 않습니다.\n[PC 저메모리 보관함 · 원본 보존]에서 보관함을 만들고 원문을 1건씩 확인하세요.\n이미지를 제외하거나 기존 기록을 삭제하지 않습니다.');
+            if (importInputRef.current) importInputRef.current.value = '';
+            return;
+        }
         if (
             file.size >= BACKUP_LARGE_FILE_WARNING_BYTES
             && !confirm(`대용량 백업 ${(file.size / (1024 * 1024)).toFixed(1)}MB입니다.\n복원 중 브라우저 메모리를 많이 사용할 수 있습니다. 계속하시겠습니까?`)
@@ -7169,8 +7175,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             onClick={() => importInputRef.current?.click()}
                             className="w-full rounded-2xl border border-white/15 bg-white/10 px-5 py-3 text-sm font-black transition-all hover:bg-white/20"
                         >
-                            백업 파일 검증·복원
+                            백업 파일 검증·복원 (50MiB 미만)
                         </button>
+                        <LocalBackupArchivePanel />
                         {exportFeedback && (
                             <div className={`rounded-2xl border px-3 py-2 text-[11px] font-bold leading-relaxed ${getExportFeedbackClassName(exportFeedback.tone)}`}>
                                 <p className="font-black">{exportFeedback.message}</p>
