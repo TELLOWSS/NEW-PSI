@@ -417,6 +417,10 @@ export const isRouteVisibleInMode = (page: Page, mode: UiAudienceMode): boolean 
     return meta.menuVisibleInPractitionerMode;
 };
 
+// Contextual report links are available without adding a context-free sidebar entry.
+export const isRouteAccessibleInMode = (page: Page, mode: UiAudienceMode): boolean =>
+    (page === 'individual-report' && mode === 'practitioner') || isRouteVisibleInMode(page, mode);
+
 const PRODUCT_GROUP_LABEL_MAP: Record<ProductGroup, string> = {
     'dashboard': '현장 관제',
     'tbm': '위험성평가 교육',

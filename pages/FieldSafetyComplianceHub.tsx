@@ -12,6 +12,7 @@
 
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import type { WorkerRecord } from '../types';
+import { LOCAL_RECORDS_CHANGED, persistLocalRecords } from '../utils/checkedLocalPersistence';
 import { postAdminJson } from '../utils/adminApiClient';
 import { toVercelFriendlyMessage } from '../utils/errorUtils';
 import { isAdminAuthenticated } from '../utils/adminGuard';
@@ -275,7 +276,7 @@ function loadRiskCheckSessions(): RiskCheckSession[] {
 }
 
 function saveRiskCheckSessions(sessions: RiskCheckSession[]) {
-    try { localStorage.setItem(RISK_CHECK_KEY, JSON.stringify(sessions)); } catch { /* ignore */ }
+    return persistLocalRecords(RISK_CHECK_KEY, sessions);
 }
 
 function loadViolations(): SiteViolation[] {
@@ -284,7 +285,7 @@ function loadViolations(): SiteViolation[] {
 }
 
 function saveViolations(violations: SiteViolation[]) {
-    try { localStorage.setItem(VIOLATIONS_KEY, JSON.stringify(violations)); } catch { /* ignore */ }
+    return persistLocalRecords(VIOLATIONS_KEY, violations);
 }
 
 function reasonCodeToKo(code: string): string {
@@ -370,8 +371,9 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
             checkerName, items: [...items], photo, createdAt: new Date().toISOString(),
         };
         const next = [session, ...sessions];
+        setSaved(false);
+        if (!saveRiskCheckSessions(next)) return;
         setSessions(next);
-        saveRiskCheckSessions(next);
         setSaved(true);
         setPhoto('');
         if (photoRef.current) photoRef.current.value = '';
@@ -379,8 +381,8 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
 
     function removeSession(id: string) {
         const next = sessions.filter(s => s.id !== id);
+        if (!saveRiskCheckSessions(next)) return;
         setSessions(next);
-        saveRiskCheckSessions(next);
     }
 
     const nonCompliantCount = items.filter(it => it.status === 'non-compliant').length;
@@ -1005,28 +1007,28 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
             status: 'open', resolutionNote: '', photo, createdAt: new Date().toISOString(),
         };
         const next = [v, ...violations];
+        if (!saveViolations(next)) return;
         setViolations(next);
-        saveViolations(next);
         setDescription(''); setPhoto(''); setCategory(''); setDueDate(''); setShowForm(false);
         if (photoRef.current) photoRef.current.value = '';
     }
 
     function setStatus(id: string, status: ViolationStatus) {
         const next = violations.map(v => v.id === id ? { ...v, status } : v);
+        if (!saveViolations(next)) return;
         setViolations(next);
-        saveViolations(next);
     }
 
     function setResolution(id: string, note: string) {
         const next = violations.map(v => v.id === id ? { ...v, resolutionNote: note } : v);
+        if (!saveViolations(next)) return;
         setViolations(next);
-        saveViolations(next);
     }
 
     function remove(id: string) {
         const next = violations.filter(v => v.id !== id);
+        if (!saveViolations(next)) return;
         setViolations(next);
-        saveViolations(next);
     }
 
     const openCount = violations.filter(v => v.status === 'open').length;
@@ -1695,6 +1697,16 @@ interface FieldSafetyComplianceHubProps {
 const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ workerRecords }) => {
     const { isDevMode } = useDevMode();
     const [activeTab, setActiveTab] = useState<ActiveTab>('risk-check');
+    const [storageRevision, setStorageRevision] = useState(0);
+    useEffect(() => {
+        const refresh = () => setStorageRevision(value => value + 1);
+        window.addEventListener(LOCAL_RECORDS_CHANGED, refresh);
+        window.addEventListener('storage', refresh);
+        return () => {
+            window.removeEventListener(LOCAL_RECORDS_CHANGED, refresh);
+            window.removeEventListener('storage', refresh);
+        };
+    }, []);
     const [assessmentMonth, setAssessmentMonth] = useState(getCurrentMonth());
     const harnessSummary = useMemo(() => summarizeHarnessRecords(workerRecords), [workerRecords]);
 
@@ -1717,7 +1729,7 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
             harnessSummary,
         });
         return isDevMode ? cards : cards.filter((card) => card.key !== 'hub-harness');
-    }, [activeTab, harnessSummary.approvalBacklog, harnessSummary.fallback, harnessSummary.immediateAttention, workerRecords.length]);
+    }, [activeTab, storageRevision, harnessSummary.approvalBacklog, harnessSummary.fallback, harnessSummary.immediateAttention, workerRecords.length]);
 
     const workerOptions: WorkerOption[] = useMemo(() => {
         const seen = new Set<string>();
@@ -1736,7 +1748,7 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
             { id: 'violations',  label: '현장 지적사항',       shortLabel: '지적사항',  icon: '🚨', badge: openCount > 0 ? openCount : undefined },
             { id: 'review',      label: '이행 종합판정',       shortLabel: '종합판정',  icon: '🏷️' },
         ];
-    }, []);
+    }, [storageRevision]);
 
     const mobileHealthBadge = harnessSummary.immediateAttention > 0
         ? { label: '즉시 보호 우선', tone: 'bg-rose-500/20 text-rose-300 border border-rose-400/40' }

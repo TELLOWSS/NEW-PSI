@@ -41,7 +41,7 @@ const required = [
   ['pages/EducationReturn.tsx', files.page, 'cycleCopy.trackingLabel'],
   ['pages/EducationReturn.tsx', files.page, 'secondary={isDeveloperExperience'],
   ['pages/EducationReturn.tsx', files.page, 'data-education-return="tracking-preview"'],
-  ['pages/EducationReturn.tsx', files.page, 'psi-display-title'],
+  ['pages/EducationReturn.tsx', files.page, 'psi-page-title'],
   ['pages/EducationReturn.tsx', files.page, 'psi-data-value'],
   ['pages/EducationReturn.tsx', files.page, 'psi-body-copy'],
   ['pages/EducationReturn.tsx', files.page, '다음 단계: QR·음성 배포'],

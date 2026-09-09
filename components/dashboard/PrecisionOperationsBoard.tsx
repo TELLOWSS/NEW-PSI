@@ -279,7 +279,7 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
         },
         {
             key: 'improvement',
-            label: '개선 이행률',
+            label: '응답 기반 개선 신호',
             value: summary.analyzedWorkerCount > 0 ? summary.improvementExecutionRate : '—',
             unit: summary.analyzedWorkerCount > 0 ? '%' : '',
             helper: summary.analyzedWorkerCount > 0 ? '관리자 확인용 보호 신호' : '세부 분석 후 표시',

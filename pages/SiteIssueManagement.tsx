@@ -72,9 +72,8 @@ const normalizeAiDate = (input: string): string => {
     return new Date().toISOString().split('T')[0];
 };
 
-const mapRiskToIssueType = (riskLevel: 'High' | 'Medium' | 'Low'): string => {
-    if (riskLevel === 'High') return '추락 위험';
-    if (riskLevel === 'Medium') return '낙하물 위험';
+const mapRiskToIssueType = (_riskLevel: 'High' | 'Medium' | 'Low'): string => {
+    // Severity alone cannot identify the hazard mechanism; require manual classification.
     return '기타';
 };
 

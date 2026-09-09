@@ -136,7 +136,7 @@ const OutputCard: React.FC<{
                 </div>
                 <span className={`rounded-full border px-3 py-1 text-xs font-bold ${statusClasses.soft}`}>{status}</span>
             </div>
-            <h3 className="psi-page-title mt-4">{title}</h3>
+            <h3 className="mt-4 text-lg font-bold leading-snug tracking-tight">{title}</h3>
             <div className="mt-4 flex-1">{children}</div>
             <button
                 type="button"
@@ -171,7 +171,7 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
     const isDeveloperExperience = isDevMode && operationalMode === 'developer';
     const summary = useMemo(() => buildEducationReturnSummary(workerRecords, cycle), [cycle, workerRecords]);
     const trendPrefix = summary.periodTrendPct > 0 ? '+' : '';
-    const riskText = summary.topRisks.join(' · ');
+    const riskText = summary.topRisks.join(' · ') || '위험 키워드 자료 없음';
     const repeatedRiskText = summary.repeatedRiskKeywords.slice(0, 3).join(' · ');
 
     return (
@@ -180,15 +180,15 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                 <div className="flex flex-col gap-5 2xl:flex-row 2xl:items-start 2xl:justify-between">
                     <div className="max-w-4xl">
                         <p className="psi-eyebrow">교육 환류</p>
-                        <h2 className="psi-display-title mt-1">PSI 교육 환류 센터</h2>
+                        <h2 className="psi-page-title mt-1">PSI 교육 환류 센터</h2>
                         <p className="psi-body-copy mt-3 max-w-3xl">
                             관리자가 확인한 {cycleCopy.recordLabel}는 개인 보호 리포트, {cycleCopy.nextCycleLabel} 원페이지 교육자료, {cycleCopy.trackingLabel}로 환류됩니다.
                         </p>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-3 2xl:min-w-[620px]">
-                        <MetricCard label="OCR 분석 완료" value={`${summary.completedRecords}건`} tone="blue" icon={<VerifyIcon />} />
+                        <MetricCard label="관리자 확인 완료" value={`${summary.completedRecords}건`} tone="blue" icon={<VerifyIcon />} />
                         <MetricCard label="관리자 확인 필요" value={`${summary.reviewRequiredRecords}건`} tone="orange" icon={<VerifyIcon />} />
-                        <MetricCard label="다국어 환류 가능" value={`${summary.supportedLanguageCount}개 언어`} tone="green" icon={<EducationIcon />} />
+                        <MetricCard label="기록된 언어" value={`${summary.supportedLanguageCount}개 언어`} tone="green" icon={<EducationIcon />} />
                     </div>
                 </div>
 
@@ -273,10 +273,10 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                 >
                     <div data-education-return="tracking-preview" className="overflow-hidden rounded-2xl border border-slate-200">
                         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-3 py-3">
-                            <p className="psi-item-title">{cycleCopy.previousCycleLabel} 대비</p>
+                            <p className="psi-item-title">직전 기록 구간 대비</p>
                             <div className="text-right">
-                                <p className="text-xl font-extrabold text-emerald-700">{trendPrefix}{summary.periodTrendPct}%</p>
-                                <p className="psi-small-note">위험 신호 변화</p>
+                                <p className="text-xl font-extrabold text-emerald-700">{summary.hasTrendComparison ? `${trendPrefix}${summary.periodTrendPct}%` : '비교 자료 없음'}</p>
+                                <p className="psi-small-note">평균 응답 점수 상대 변화</p>
                             </div>
                         </div>
                         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-3 py-3">
@@ -287,7 +287,7 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                             </div>
                         </div>
                         <div className="flex items-center justify-between gap-3 px-3 py-3">
-                            <p className="psi-item-title">개선 이행률</p>
+                            <p className="psi-item-title" title="응답의 개선 이행 항목 점수를 환산한 값이며 현장 조치 완료율이 아닙니다.">응답 기반 개선 신호</p>
                             <p className="text-xl font-extrabold text-blue-700">{summary.improvementRate}%</p>
                         </div>
                     </div>
@@ -300,7 +300,7 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                             {[
                                 [`${cycleCopy.shortLabel} 흐름`, Math.min(100, Math.abs(summary.periodTrendPct) * 4), summary.periodTrendPct >= 0 ? 'bg-emerald-500' : 'bg-rose-500'],
                                 ['반복 위험', Math.min(100, summary.repeatedRiskKeywords.length * 18), 'bg-amber-500'],
-                                ['개선 이행', summary.improvementRate, 'bg-blue-600'],
+                                ['응답 개선 신호', summary.improvementRate, 'bg-blue-600'],
                             ].map(([label, width, color]) => (
                                 <div key={String(label)}>
                                     <div className="h-1.5 overflow-hidden rounded-full bg-white">

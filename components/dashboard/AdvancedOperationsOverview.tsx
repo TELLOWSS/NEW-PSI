@@ -62,7 +62,7 @@ export function AdvancedOperationsOverview(props: AdvancedOperationsOverviewProp
                                     : 'border-emerald-800 bg-emerald-950/50 text-emerald-200'
                             }`}>
                                 <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${hasAttentionItem ? 'bg-amber-400' : 'bg-emerald-400'}`} />
-                                {hasAttentionItem ? '확인 항목 있음' : '자동 분석 정상'}
+                                {hasAttentionItem ? '확인 항목 있음' : '확인 대상 없음'}
                             </span>
                         </div>
                         <h2 className="mt-2 text-xl font-black tracking-tight text-white sm:text-2xl">

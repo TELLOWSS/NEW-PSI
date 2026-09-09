@@ -19,7 +19,7 @@ import {
 import { getSafetyLevelThresholds } from './utils/safetyLevelUtils';
 import { useOperationalMode } from './contexts/OperationalModeContext';
 import { isPageVisibleByOperationalMode } from './utils/operationalModeUtils';
-import { isRouteVisibleInMode } from './config/routeMeta';
+import { isRouteAccessibleInMode } from './config/routeMeta';
 import { useUiAudienceMode } from './hooks/useUiAudienceMode';
 import { requestServerOcrAnalysis } from './services/ocrGatewayService';
 import { getAiEngineSettings } from './utils/aiEngineSettings';
@@ -754,7 +754,7 @@ const App: React.FC = () => {
             return;
         }
         // 역할(UiAudienceMode) 기반 가드 — 사이드바 표시 조건과 동일하게 맞춤
-        if (!isRouteVisibleInMode(currentPage, uiAudienceMode)) {
+        if (!isRouteAccessibleInMode(currentPage, uiAudienceMode)) {
             setCurrentPage('dashboard');
             return;
         }
@@ -770,7 +770,7 @@ const App: React.FC = () => {
             return;
         }
         // 역할(UiAudienceMode) 기반 방어 — 사이드바 표시 조건과 동일하게 맞춤
-        if (!isRouteVisibleInMode(resolvedPage, uiAudienceMode)) {
+        if (!isRouteAccessibleInMode(resolvedPage, uiAudienceMode)) {
             setCurrentPage('dashboard');
             return;
         }

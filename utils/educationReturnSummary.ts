@@ -1,5 +1,6 @@
 import type { AssessmentCycleSettings, WorkerRecord } from '../types';
 import { getAssessmentCycleCopy, groupRecordsByAssessmentPeriod } from './assessmentCycle';
+import { calculateCoreMetricSnapshot } from './coreMetrics';
 
 export interface EducationReturnSummary {
     totalRecords: number;
@@ -14,6 +15,7 @@ export interface EducationReturnSummary {
     reportTargets: number;
     monthlyTrendPct: number;
     periodTrendPct: number;
+    hasTrendComparison: boolean;
     improvementRate: number;
     onePageStatus: '생성 가능' | '자료 대기';
     reportStatus: '확인 필요' | '확인 가능' | '자료 대기';
@@ -21,8 +23,6 @@ export interface EducationReturnSummary {
     trackingStatus: string;
 }
 
-const DEFAULT_TOP_RISKS = ['추락', '장비 충돌', '자재 낙하'];
-const DEFAULT_SUPPORTED_LANGUAGE_COUNT = 8;
 
 const parseDateTime = (value: string | undefined): number => {
     const time = new Date(value || '').getTime();
@@ -62,11 +62,9 @@ const isReviewRequired = (record: WorkerRecord): boolean => {
 };
 
 const isCompleted = (record: WorkerRecord): boolean => {
-    return record.workflowState === 'completed'
-        || record.reviewStatus === 'APPROVED'
+    return !isReviewRequired(record) && (record.reviewStatus === 'APPROVED'
         || record.approvalStatus === 'APPROVED'
-        || record.approvalState === 'APPROVED'
-        || (Number(record.safetyScore) > 0 && !record.ocrFailureCode && !record.ocrErrorType);
+        || record.approvalState === 'APPROVED');
 };
 
 export const buildEducationReturnSummary = (
@@ -88,7 +86,7 @@ export const buildEducationReturnSummary = (
     const jobFields = countBy(records.map((record) => record.jobField || ''));
     const languages = new Set(
         records
-            .flatMap((record) => [record.language, record.nationality])
+            .map((record) => record.language)
             .map((value) => String(value || '').trim())
             .filter(Boolean),
     );
@@ -102,28 +100,26 @@ export const buildEducationReturnSummary = (
         ? Math.round(((currentAverage - previousAverage) / previousAverage) * 100)
         : 0;
 
-    const improvedRecords = records.filter((record) => {
-        const approved = record.reviewStatus === 'APPROVED' || record.approvalStatus === 'APPROVED' || record.approvalState === 'APPROVED';
-        const hasAction = Boolean(String(record.improvement || record.actionable_coaching || '').trim());
-        return approved || hasAction;
-    }).length;
-
-    const improvementRate = records.length > 0 ? Math.round((improvedRecords / records.length) * 100) : 0;
-    const reviewRequiredRecords = records.filter(isReviewRequired).length;
+    const improvementRate = calculateCoreMetricSnapshot(records).improvementExecutionRate;
+    const repeatedRiskKeywords = countBy(periodGroups.flatMap(group =>
+        [...new Set(group.records.flatMap(record => record.weakAreas || []).map(value => value.trim()).filter(Boolean))],
+    )).filter(([, periods]) => periods > 1).map(([risk]) => risk);
+    const reviewRequiredRecords = records.filter(record => !isCompleted(record)).length;
 
     return {
         totalRecords: records.length,
         completedRecords: records.filter(isCompleted).length,
         reviewRequiredRecords,
-        supportedLanguageCount: Math.max(DEFAULT_SUPPORTED_LANGUAGE_COUNT, languages.size),
+        supportedLanguageCount: languages.size,
         targetMonth,
         targetPeriod: latestPeriod?.label || targetMonth,
         workScopeLabel: jobFields.length > 0 ? jobFields[0][0] : '전체 공종',
-        topRisks: topRisks.length > 0 ? topRisks : DEFAULT_TOP_RISKS,
-        repeatedRiskKeywords: topRisks.length > 0 ? topRisks : DEFAULT_TOP_RISKS,
+        topRisks,
+        repeatedRiskKeywords,
         reportTargets: records.length,
         monthlyTrendPct: periodTrendPct,
         periodTrendPct,
+        hasTrendComparison: (periodScores[periodScores.length - 1]?.length || 0) > 0 && previousAverage > 0,
         improvementRate,
         onePageStatus: records.length > 0 ? '생성 가능' : '자료 대기',
         reportStatus: records.length === 0 ? '자료 대기' : reviewRequiredRecords > 0 ? '확인 필요' : '확인 가능',

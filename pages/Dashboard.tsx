@@ -385,7 +385,11 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     }, []);
 
     // 팀별 보기: 팀장 기준 유니크 팀 목록 추출
-    const [selectedTeam, setSelectedTeam] = useState<string | 'ALL'>('ALL');
+    const [selectedTeam, updateSelectedTeam] = useState<string | 'ALL'>('ALL');
+    const setSelectedTeam = (team: string) => {
+        updateSelectedTeam(team);
+        setSelectedTarget(null);
+    };
     const teamOptions = useMemo<DashboardTeamOption[]>(() => {
         const grouped = new Map<string, WorkerRecord[]>();
 
@@ -685,6 +689,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     };
 
     const handleNavigateToTeamComparison = () => {
+        setIsDetailedAnalysisRequested(true);
         setIsDashboardViewModeManual(true);
         setDashboardViewMode('full');
         setMobileInsightTab('team');
@@ -771,10 +776,6 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         setMobileInsightTab('chart');
         setDetailViewMode(nationality === ALL_NATIONALITY_LABEL ? 'integrated' : 'nationality');
     };
-
-    useEffect(() => {
-        setSelectedTarget(null);
-    }, [selectedTeam]);
 
     useEffect(() => {
         if (selectedTarget?.trade) {
@@ -2471,7 +2472,9 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     }, [activeHarnessDrilldown, latestFilteredWorkerRecords]);
     
     // [SIMULATION DATE] 2026-02-17
-    const today = "2026년 2월 17일 화요일";
+    const today = new Intl.DateTimeFormat('ko-KR', {
+        timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'long',
+    }).format(new Date());
     const effectiveDashboardViewMode: DashboardViewMode =
         !isDetailedAnalysisRequested && (viewportWidth < 640 || isImmediateOperationalMode)
             ? 'essential'
@@ -2603,7 +2606,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             <div id="advanced-overview" className="scroll-mt-24">
                 <AdvancedOperationsOverview
                     appVersion={PSI_APP_VERSION}
-                    dateLabel={today.split(' ')[0].replace('년', '/').replace('월', '/').replace('일', '')}
+                    dateLabel={today}
                     totalWorkers={stats.totalWorkers}
                     averageScore={stats.averageScore}
                     protectionPriorityCount={stats.highRiskWorkers}
@@ -2673,7 +2676,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         label: '현장 컨텍스트',
                                         page: 'field-context-input' as Page,
                                         desc: '기상/시간/공정 입력',
-                                        status: '연동 정상',
+                                        status: '현장 정보 입력',
                                         isWarning: false,
                                     },
                                     {
@@ -2681,7 +2684,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         label: '행동 패턴 분석',
                                         page: 'safety-behavior-management' as Page,
                                         desc: '행동 유형 추적',
-                                        status: '패턴 감지 중',
+                                        status: '관찰 기록 확인',
                                         isWarning: false,
                                     },
                                     {
@@ -2689,7 +2692,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         label: '선행 위험신호',
                                         page: 'predictive-analysis' as Page,
                                         desc: '조치 우선순위 확인',
-                                        status: '분석 갱신 완료',
+                                        status: '위험신호 확인',
                                         isWarning: false,
                                     },
                                     {
@@ -2697,7 +2700,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         label: '현장 개입 추천',
                                         page: 'intervention-coaching' as Page,
                                         desc: '행동 교정 코칭 가이드',
-                                        status: harnessDashboardSummary.immediateAttention > 0 ? `즉시 조치 ${harnessDashboardSummary.immediateAttention}건` : '조치 완료',
+                                        status: harnessDashboardSummary.immediateAttention > 0 ? `즉시 조치 ${harnessDashboardSummary.immediateAttention}건` : '즉시 조치 신호 없음',
                                         isWarning: harnessDashboardSummary.immediateAttention > 0,
                                     },
                                     {
@@ -2713,7 +2716,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         label: '데이터 태깅 검증',
                                         page: 'ocr-analysis' as Page,
                                         desc: '문서 자동 판독·검증',
-                                        status: harnessDashboardSummary.approvalBacklog > 0 ? `승인 대기 ${harnessDashboardSummary.approvalBacklog}건` : '검증 완료',
+                                        status: harnessDashboardSummary.approvalBacklog > 0 ? `승인 대기 ${harnessDashboardSummary.approvalBacklog}건` : '대기 신호 없음',
                                         isWarning: harnessDashboardSummary.approvalBacklog > 0,
                                     },
                                     {
@@ -2721,7 +2724,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         label: '안전 분석 리포트',
                                         page: 'reports' as Page,
                                         desc: '이행 감사 보고서',
-                                        status: '보고서 갱신',
+                                        status: '리포트 확인',
                                         isWarning: false,
                                     },
                                     {
@@ -2729,7 +2732,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         label: '시스템 환경 설정',
                                         page: 'settings' as Page,
                                         desc: '권한 및 연동 설정',
-                                        status: '연동 완료',
+                                        status: '설정 확인',
                                         isWarning: false,
                                     },
                                 ].map((channel) => (
