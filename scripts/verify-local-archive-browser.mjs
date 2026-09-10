@@ -30,7 +30,9 @@ try {
     await page.goto('http://127.0.0.1:5177', { waitUntil: 'networkidle' });
     await page.locator('.psi-sidebar nav button').filter({ hasText: '위험성평가 분석' }).first().click();
     const panel = page.locator('details').filter({ has: page.locator('summary', { hasText: 'PC 저메모리 보관함' }) });
-    await panel.locator('summary').click({ timeout: 30000 });
+    await page.getByRole('button', { name: /2\. 백업에서 이어하기/ }).click();
+    await page.getByRole('button', { name: '큰 JSON·PC 보관함 열기', exact: true }).click();
+    await panel.getByRole('button', { name: '보관 폴더 열기', exact: true }).waitFor();
     console.log('archive-panel-ready');
     const bytes = await page.evaluate(async count => {
         const root = await navigator.storage.getDirectory();

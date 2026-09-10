@@ -1712,6 +1712,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [showPostAnalysisCta, setShowPostAnalysisCta] = useState(false);
     const [showAllWorkerAccumulations, setShowAllWorkerAccumulations] = useState(false);
     const [showRecordControlPanel, setShowRecordControlPanel] = useState(false);
+    const [showWorkflowTools, setShowWorkflowTools] = useState(false);
+    const [workflowIntent, setWorkflowIntent] = useState<'new' | 'backup' | 'records' | null>(null);
     const [showWorkerTrackingPanel, setShowWorkerTrackingPanel] = useState(false);
     const [showRecordListPanel, setShowRecordListPanel] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 640 : true));
     const [focusedWorkerGroupKey, setFocusedWorkerGroupKey] = useState<string | null>(null);
@@ -6595,12 +6597,55 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     }, []);
 
     const isCompactMobile = viewportWidth < 640;
+    const returnToWorkflowStart = () => {
+        const target = document.getElementById('ocr-start-guide');
+        target?.scrollIntoView({ behavior: 'auto', block: 'start' });
+        target?.focus({ preventScroll: true });
+    };
+    const openWorkflowDestination = (destination: 'new' | 'archive' | 'records') => {
+        if (destination === 'new') { setWorkflowIntent('new'); setIsNewOcrSectionCollapsed(false); }
+        if (destination === 'archive') { setWorkflowIntent('backup'); setShowWorkflowTools(true); setMobileMode('detailed'); setShowMobileUtilityPanel(true); }
+        if (destination === 'records') { setWorkflowIntent('records'); setShowRecordListPanel(true); setShowRecordControlPanel(true); }
+        window.setTimeout(() => {
+            const id = destination === 'new' ? 'new-ocr-capture-section' : destination === 'archive' ? 'ocr-archive-workspace' : 'ocr-record-workspace';
+            const target = document.getElementById(id);
+            if (destination === 'archive') {
+                const archiveDetails = target?.querySelector('details');
+                if (archiveDetails) archiveDetails.open = true;
+            }
+            target?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+            target?.focus({ preventScroll: true });
+        }, 80);
+    };
     const canSubmitPaidOcrApproval = Boolean(
         paidOcrApprovalPrompt?.canApprove && paidOcrApprovalPassword.trim().length > 0,
     );
 
     return (
         <div className="psi-field-screen psi-ocr-precision space-y-6 sm:space-y-8 animate-fade-in-up">
+            <section id="ocr-start-guide" tabIndex={-1} aria-labelledby="ocr-start-title" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm outline-none sm:p-7">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div><p className="text-sm font-semibold text-indigo-700">위험성평가 작업 시작</p><h2 id="ocr-start-title" className="mt-1 text-2xl font-bold text-slate-950">오늘 어떤 작업을 하시나요?</h2></div>
+                    <span className="rounded-full bg-slate-100 px-3 py-2 text-sm text-slate-600">현재 작업 목록 {existingRecords.length}건</span>
+                </div>
+                <div className="mt-5 grid gap-3 lg:grid-cols-3" aria-label="작업 선택">
+                    <button type="button" aria-pressed={workflowIntent === 'new'} onClick={() => openWorkflowDestination('new')} className="min-h-[120px] rounded-2xl bg-indigo-600 p-5 text-left text-white transition hover:bg-indigo-700 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-indigo-400">
+                        <span className="block text-sm text-indigo-100">처음 분석하는 문서가 있어요</span><span className="mt-2 block text-lg font-bold">1. 새 문서 분석</span><span className="mt-2 block text-sm leading-6 text-indigo-100">사진·파일 등록부터 시작합니다.</span>
+                    </button>
+                    <button type="button" aria-pressed={workflowIntent === 'backup'} onClick={() => setWorkflowIntent('backup')} className="min-h-[120px] rounded-2xl border border-slate-200 bg-slate-50 p-5 text-left text-slate-950 transition hover:border-indigo-400 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-indigo-400">
+                        <span className="block text-sm text-slate-600">예전에 하던 작업이 있어요</span><span className="mt-2 block text-lg font-bold">2. 백업에서 이어하기</span><span className="mt-2 block text-sm leading-6 text-slate-600">저장한 JSON 또는 PC 보관함을 엽니다.</span>
+                    </button>
+                    <button type="button" aria-pressed={workflowIntent === 'records'} onClick={() => openWorkflowDestination('records')} className="min-h-[120px] rounded-2xl border border-slate-200 bg-slate-50 p-5 text-left text-slate-950 transition hover:border-indigo-400 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-indigo-400">
+                        <span className="block text-sm text-slate-600">이미 분석한 내용을 찾고 싶어요</span><span className="mt-2 block text-lg font-bold">3. 기존 기록 확인</span><span className="mt-2 block text-sm leading-6 text-slate-600">이름·날짜로 찾아 수정하거나 리포트를 엽니다.</span>
+                    </button>
+                </div>
+                {workflowIntent === 'backup' ? <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-slate-900" aria-label="백업 이어하기 방법">
+                    <p className="text-base font-semibold">가지고 있는 백업 형식을 선택하세요.</p>
+                    <div className="mt-3 flex flex-wrap gap-3"><button type="button" disabled={isAnalyzing} onClick={() => importInputRef.current?.click()} className="rounded-xl bg-indigo-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">JSON 파일 불러오기 · 50MiB 미만</button><button type="button" onClick={() => openWorkflowDestination('archive')} className="rounded-xl border border-indigo-300 bg-white px-4 py-3 text-sm font-bold text-indigo-900">큰 JSON·PC 보관함 열기</button></div>
+                    <p className="mt-3 text-sm leading-6">큰 JSON은 보관함으로 나눈 뒤 필요한 기록만 작업 이어하기로 가져옵니다. 원본 백업은 그대로 남습니다.</p>
+                </div> : <p className="mt-4 text-base leading-7 text-slate-600">{workflowIntent === 'records' ? (existingRecords.length ? '기록 관리에서 검색 → 원문 확인 → 수정·저장 또는 리포트 열기 순서로 진행하세요.' : '현재 작업 목록이 비어 있습니다. 새 문서를 등록하거나 백업에서 작업을 이어갈 수 있습니다.') : '새 문서는 파일 등록 → 분석 결과·원문 확인 → 수정·저장 순서로 진행합니다. 버튼을 누르는 것만으로 분석이 실행되지는 않습니다.'}</p>}
+                <p className="mt-3 text-sm text-slate-500">유료 분석은 별도 승인 후에만 실행됩니다. 연결 점검·일괄 처리 도구는 아래 ‘운영 도구’에서 찾을 수 있습니다.</p>
+            </section>
             <input
                 type="file"
                 ref={importInputRef}
@@ -6836,6 +6881,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 </div>
             </section>
             {/* Control Panel */}
+            <details id="ocr-operation-tools" open={showWorkflowTools || isAnalyzing || Boolean(importValidationSummary)} onToggle={event => setShowWorkflowTools(event.currentTarget.open)} className="rounded-2xl border border-slate-200 bg-white">
+            <summary className="cursor-pointer px-5 py-4 text-base font-semibold text-slate-700">운영 도구 · 연결 점검, 일괄 처리, 백업 {isAnalyzing ? '(분석 진행 중)' : ''}</summary>
             <div className="bg-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl text-white relative overflow-hidden">
                 <div data-mobile-overflow-allow="true" className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -mr-48 -mt-48"></div>
                 <div className="relative z-10 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1.15fr)_360px] gap-6 xl:gap-8 items-start">
@@ -7181,7 +7228,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         >
                             백업 파일 검증·복원 (50MiB 미만)
                         </button>
-                        <LocalBackupArchivePanel workingRecords={existingRecords} onResume={async source => {
+                        <div id="ocr-archive-workspace" tabIndex={-1} aria-label="PC 보관함 작업 공간" className="scroll-mt-24 outline-none"><button type="button" onClick={returnToWorkflowStart} className="mb-3 rounded-lg border border-white/30 px-3 py-2 text-sm text-white">처음 작업 선택으로</button><LocalBackupArchivePanel workingRecords={existingRecords} onResume={async source => {
                             const prepared = await prepareArchiveWorkRecord(source);
                             const current = existingRecords.find(record => record.id === prepared.id);
                             if (current) {
@@ -7192,7 +7239,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             const imported = await handleImportFile(file);
                             return imported ? { id: imported.id, message: '1건을 작업 목록에 저장하고 상세 화면을 열었습니다. 수정 후 저장하고 새 작업본 백업을 만드세요.' }
                                 : { message: '작업 목록 반영이 완료되지 않았습니다. 취소 또는 사전검사 안내를 확인해 주세요. 원본은 유지됩니다.' };
-                        }} />
+                        }} /></div>
                         {exportFeedback && (
                             <div className={`rounded-2xl border px-3 py-2 text-[11px] font-bold leading-relaxed ${getExportFeedbackClassName(exportFeedback.tone)}`}>
                                 <p className="font-black">{exportFeedback.message}</p>
@@ -7350,13 +7397,16 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 )}
             </div>
 
+            </details>
             <div
                 id="new-ocr-capture-section"
+                tabIndex={-1}
                 ref={newOcrCaptureSectionRef}
                 className="bg-white p-5 sm:p-10 rounded-3xl shadow-xl border border-slate-100 overflow-hidden relative"
             >
-                <div className="flex items-center justify-between gap-3 mb-6">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
                     <h3 className="text-xl sm:text-2xl font-black text-slate-900">신규 기록 분석</h3>
+                    <button type="button" onClick={returnToWorkflowStart} className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700">처음 작업 선택으로</button>
                     <button
                         type="button"
                         onClick={() => setIsNewOcrSectionCollapsed(prev => !prev)}
@@ -8195,8 +8245,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             </section>
 
             {/* 공종/팀장 일괄 수정 UI */}
-            <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden mb-4" data-ocr-collapse-delete="record-hub">
+            <div id="ocr-record-workspace" tabIndex={-1} className="scroll-mt-24 bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden mb-4 outline-none" data-ocr-collapse-delete="record-hub">
                 <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-4" aria-label="기록 선택 및 삭제">
+                    <button type="button" onClick={returnToWorkflowStart} className="rounded-lg border px-3 py-2 text-sm">처음 작업 선택으로</button>
                     <span className="text-sm font-bold">선택 {selectedRecords.length}건</span>
                     <button type="button" disabled={isAnalyzing} onClick={() => setSelectedIds(recordListRecords.map(r => r.id))} className="rounded-lg border px-3 py-2 text-sm">현재 목록 전체 선택</button>
                     <button type="button" onClick={() => setSelectedIds([])} className="rounded-lg border px-3 py-2 text-sm">선택 해제</button>
