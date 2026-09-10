@@ -29,7 +29,7 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     await page.goto('http://127.0.0.1:5177', { waitUntil: 'networkidle' });
     await page.locator('.psi-sidebar nav button').filter({ hasText: '위험성평가 분석' }).first().click();
-    const panel = page.locator('details').filter({ has: page.locator('summary', { hasText: 'PC 저메모리 보관함' }) });
+    const panel = page.locator('#ocr-archive-workspace > details');
     await page.getByRole('button', { name: /2\. 백업에서 이어하기/ }).click();
     await page.getByRole('button', { name: '큰 JSON·PC 보관함 열기', exact: true }).click();
     await panel.getByRole('button', { name: '보관 폴더 열기', exact: true }).waitFor();
