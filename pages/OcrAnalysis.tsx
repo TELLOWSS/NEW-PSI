@@ -75,6 +75,7 @@ import {
 } from '../utils/backupDataQuality';
 import { recoverBackupRecordsWithoutImages } from '../utils/streamingBackupRecovery';
 import LocalBackupArchivePanel from '../components/LocalBackupArchivePanel';
+import { prepareArchiveWorkRecord, normalizeArchiveWorkDate } from '../utils/archiveWorkResume';
 import { assessOcrRoutingQuality, getOcrQualityReviewMessage } from '../utils/ocrRoutingQuality';
 import {
     buildMonthlyArchiveManifest,
@@ -6378,6 +6379,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             }
 
             const migration = await migrateLegacyBackupRecords(records, {
+                preserveExistingEvaluation: true,
                 onProgress: (completed, total) => {
                     setImportValidationSummary(`구형 백업 호환 검사 ${completed}/${total}건 · 원문·이미지는 이 기기에서만 처리합니다.`);
                 },
@@ -6387,7 +6389,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 setImportValidationDetails(migration.report.issues.map((issue) => `#${issue.recordIndex}: ${issue.message}`).join('\n'));
                 throw new Error('구형 백업에 안전하게 변환할 수 없는 항목이 있습니다. 일부만 조용히 복원하지 않고 전체 작업을 중단했습니다. 사전검사 상세를 확인해 주세요.');
             }
-            records = migration.records;
+            records = monthlyArchive ? migration.records : migration.records.map(record => record && typeof record === 'object' && !Array.isArray(record)
+                ? normalizeArchiveWorkDate(record as Record<string, unknown>) : record);
             const legacyRecordCount = records.filter((record) => Boolean((record as WorkerRecord)?.legacyBackup)).length;
             if (legacyRecordCount > 0) {
                 legacyRecoveryNote = `구형 백업 ${legacyRecordCount}건: 원점수·원등급 보존, 누락 기록 ID ${migration.report.generatedIdCount}건 생성, 이미지 항목 ${migration.report.movedImageCount}건 연결. 재OCR·유료 호출 없음. 승인 이력과 동일인 여부는 별도 확인이 필요합니다.`;
@@ -6488,7 +6491,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             }
             const reviewRecord = Array.isArray(importedRecords) && importedRecords.length > 0
                 ? importedRecords[0]
-                : safeImportRecords[0];
+                : existingRecords.find(record => record.id === safeImportRecords[0]?.id);
             resetWorkerSearchFiltersForImport();
             const actualImported = Array.isArray(importedRecords) ? importedRecords : [];
             const existingIds = new Set(existingRecords.map((record) => record.id));
@@ -6497,6 +6500,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             const protectedAtCommit = protectedNewerLocalCount + Math.max(0, safeImportRecords.length - actualImported.length);
             alert(`백업 복구 완료\n- 원본: ${validation.rawRecordCount}건\n- 검증 통과: ${validation.validRecords.length}건\n- 제외: ${validation.problematicRecordCount + validation.invalidObjectCount}건\n- 실제 저장: ${actualImported.length}건 (신규 ${actualNewCount} / 갱신 ${actualUpdatedCount})\n- 기존 PC 기록 유지·보호: ${protectedAtCommit}건\n- 복원 후 예상 총계: ${existingRecords.length + actualNewCount}건${legacyRecoveryNote ? `\n- ${legacyRecoveryNote}` : ''}${largeRecoveryNote ? `\n- ${largeRecoveryNote}` : ''}${archiveReceiptNote}\n\n근로자 정보검색 필터를 전체 보기로 전환했습니다.`);
             if (reviewRecord) onViewDetails(reviewRecord);
+            return reviewRecord;
         } catch (err) {
             const message = extractMessage(err);
             alert(`백업 파일 불러오기 중 확인이 필요합니다.\n${message || '파일 형식 또는 저장 연결 상태를 확인해 주세요.'}`);
@@ -7177,7 +7181,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         >
                             백업 파일 검증·복원 (50MiB 미만)
                         </button>
-                        <LocalBackupArchivePanel />
+                        <LocalBackupArchivePanel workingRecords={existingRecords} onResume={async source => {
+                            const prepared = await prepareArchiveWorkRecord(source);
+                            const current = existingRecords.find(record => record.id === prepared.id);
+                            if (current) {
+                                onViewDetails(current);
+                                return { id: current.id, message: '같은 ID의 현재 작업본을 열었습니다. 보관 자료로 덮어쓰지 않았습니다.' };
+                            }
+                            const file = new File([JSON.stringify({ schemaVersion: 'psi-backup/v2', records: [prepared] })], 'PSI_작업재개_1건.json', { type: 'application/json' });
+                            const imported = await handleImportFile(file);
+                            return imported ? { id: imported.id, message: '1건을 작업 목록에 저장하고 상세 화면을 열었습니다. 수정 후 저장하고 새 작업본 백업을 만드세요.' }
+                                : { message: '작업 목록 반영이 완료되지 않았습니다. 취소 또는 사전검사 안내를 확인해 주세요. 원본은 유지됩니다.' };
+                        }} />
                         {exportFeedback && (
                             <div className={`rounded-2xl border px-3 py-2 text-[11px] font-bold leading-relaxed ${getExportFeedbackClassName(exportFeedback.tone)}`}>
                                 <p className="font-black">{exportFeedback.message}</p>

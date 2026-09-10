@@ -193,7 +193,7 @@ const evaluationSnapshot = (record: Record<string, unknown>): LegacyOriginalEval
 
 export const migrateLegacyBackupRecords = async (
     inputRecords: unknown[],
-    options: { onProgress?: (completed: number, total: number) => void } = {},
+    options: { onProgress?: (completed: number, total: number) => void; preserveExistingEvaluation?: boolean } = {},
 ): Promise<LegacyMigrationResult> => {
     const records: unknown[] = [];
     const quarantined: LegacyMigrationResult['quarantined'] = [];
@@ -217,7 +217,7 @@ export const migrateLegacyBackupRecords = async (
             } else if (!isObject(source) || !isRecognizableLegacyRecord(source)) {
                 records.push(source);
                 report.unchangedRecordCount += 1;
-            } else if (owns(source, 'legacyBackup') && (missingId || imageAlias
+            } else if (owns(source, 'legacyBackup') && (missingId || imageAlias || options.preserveExistingEvaluation
                 || (isObject(source.legacyBackup) && source.legacyBackup.schemaVersion === LEGACY_BACKUP_MIGRATION_SCHEMA_VERSION))) {
                 if (!isLegacyMigratedRecord(source) || imageAlias) {
                     throw new LegacyBackupMigrationError('invalid-provenance', '구형 백업 변환 출처 정보가 일치하지 않습니다. 원본과 대조해 주세요.');
@@ -225,7 +225,7 @@ export const migrateLegacyBackupRecords = async (
                 // A later manual correction is legitimate: never reset it from the original snapshot.
                 records.push(source);
                 report.unchangedRecordCount += 1;
-            } else if (!missingId && !imageAlias) {
+            } else if (!missingId && !imageAlias && !options.preserveExistingEvaluation) {
                 records.push(source);
                 report.unchangedRecordCount += 1;
             } else {
