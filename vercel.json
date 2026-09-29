@@ -55,9 +55,6 @@
     "api/admin/predictive-plan-status.ts": {
       "maxDuration": 10
     },
-    "api/admin/update-training-targets.ts": {
-      "maxDuration": 10
-    },
     "api/gateway.ts": {
       "maxDuration": 240
     }
