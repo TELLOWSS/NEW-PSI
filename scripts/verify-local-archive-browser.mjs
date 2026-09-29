@@ -4,6 +4,7 @@ import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 const count = Number(process.argv[2] || 180);
+const password = 'synthetic-qa-backup-only-2026';
 assert(Number.isInteger(count) && count > 0 && count <= 500);
 await mkdir('artifacts', { recursive: true });
 const browser = await chromium.launch({ headless: true, args: ['--js-flags=--max-old-space-size=256'] });
@@ -57,20 +58,28 @@ try {
     }, count);
     console.log(JSON.stringify({ phase: 'fixture-created', bytes }));
     const started = Date.now();
-    await panel.getByRole('button', { name: '새 PC 보관함 만들기', exact: true }).click();
+    await panel.getByLabel('백업 비밀번호 (12자 이상)', { exact: true }).fill(password);
+    await panel.getByLabel('새 보관함 비밀번호 확인', { exact: true }).fill(password);
+    await panel.getByRole('button', { name: '새 암호화 PC 보관함 만들기', exact: true }).click();
     console.log('archive-started');
     await panel.getByRole('status').filter({ hasText: `${count}건 보관 완료` }).waitFor({ timeout: 240000 });
-    const archive = await page.evaluate(async () => {
+    const archive = await page.evaluate(async password => {
+        const { openProtectedLocalArchive, verifyLocalArchiveRestore } = await import('/utils/encryptedLocalBackupArchive.ts');
+        const { readArchivedRecord } = await import('/utils/localBackupArchive.ts');
         const root = await navigator.storage.getDirectory();
         for await (const [name, folder] of root.entries()) {
             if (!name.startsWith('PSI-보관-')) continue;
-            const index = JSON.parse(await (await (await folder.getFileHandle('index.json')).getFile()).text());
-            const records = await folder.getDirectoryHandle('records');
-            const last = JSON.parse(await (await (await records.getFileHandle(index.entries.at(-1).file)).getFile()).text());
+            const opened = await openProtectedLocalArchive(folder, password);
+            const { index } = opened;
+            await verifyLocalArchiveRestore(opened.directory, index);
+            const last = await readArchivedRecord(opened.directory, index.entries.at(-1));
+            const physicalIndex = await (await (await folder.getFileHandle('index.json')).getFile()).text();
+            if (physicalIndex.includes('검증-') || JSON.parse(physicalIndex).entries) throw new Error('Index leaked plaintext');
             return { count: index.records, indexBytes: (await (await folder.getFileHandle('index.json')).getFile()).size, preserved: last.date === '2025.11.29' && last.safetyLevel === '중급' && last.fullText === '  원문 보존\n' && last.padding.length === 1024 * 1024 };
         }
-    });
+    }, password);
     assert.equal(archive.count, count); assert(archive.preserved);
+    await panel.getByLabel('백업 비밀번호 (12자 이상)', { exact: true }).fill(password);
     await panel.getByRole('button', { name: '보관 폴더 열기', exact: true }).click();
     await panel.getByRole('status').filter({ hasText: '목록을 연결했습니다' }).waitFor();
     assert.equal(await panel.locator('li').count(), Math.min(count, 20));
@@ -82,12 +91,24 @@ try {
     if (count === 1) {
         await panel.getByRole('button', { name: '이 기록 작업 이어하기', exact: true }).click();
         await page.getByRole('button', { name: '상세창 닫기', exact: true }).click();
-        const downloadPromise = page.waitForEvent('download');
-        await panel.getByRole('button', { name: '수정본 새 백업 저장 (1건)', exact: true }).click();
-        const download = await downloadPromise;
-        const stream = await download.createReadStream();
-        const buffers = []; for await (const chunk of stream) buffers.push(chunk);
-        const saved = JSON.parse(Buffer.concat(buffers).toString('utf8'));
+        await panel.getByLabel('백업 비밀번호 (12자 이상)', { exact: true }).fill(password);
+        await panel.getByLabel('새 보관함 비밀번호 확인', { exact: true }).fill(password);
+        await panel.getByRole('button', { name: '수정본 암호화 보관 (1건)', exact: true }).click();
+        await panel.getByRole('status').filter({ hasText: '1건 보관 완료' }).waitFor();
+        const saved = await page.evaluate(async password => {
+            const { openProtectedLocalArchive } = await import('/utils/encryptedLocalBackupArchive.ts');
+            const { readArchivedRecord } = await import('/utils/localBackupArchive.ts');
+            const root = await navigator.storage.getDirectory();
+            for await (const [name, folder] of root.entries()) {
+                if (!name.startsWith('PSI-보관-')) continue;
+                const opened = await openProtectedLocalArchive(folder, password);
+                const metadata = JSON.parse(await (await (await opened.directory.getFileHandle('source-envelope.json')).getFile()).text());
+                if (metadata.scope !== 'work-resume-copy') continue;
+                return { ...metadata, records: [await readArchivedRecord(opened.directory, opened.index.entries[0])] };
+            }
+            throw new Error('Encrypted work copy missing');
+        }, password);
+        const buffers = [Buffer.from(JSON.stringify(saved))];
         assert.equal(saved.records.length, 1);
         assert.equal(saved.records[0].date, '2025-11-29');
         assert.equal(saved.records[0].safetyLevel, '중급');
@@ -113,6 +134,7 @@ try {
         });
         assert.deepEqual(stored, { fullText: '  원문 보존\n', date: '2025-11-29', safetyLevel: '중급' });
         await fresh.close();
+        await panel.getByRole('button', { name: /검증-0 ·.*원문 열기/ }).click();
         await panel.getByRole('button', { name: '이 기록 작업 이어하기', exact: true }).click();
         await page.getByRole('button', { name: '상세창 닫기', exact: true }).click();
         assert.equal(resumeConfirmations, 1, 'Existing work copy must open without another import');
