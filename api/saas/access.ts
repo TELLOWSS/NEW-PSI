@@ -1,8 +1,13 @@
 import { authenticateTenantUser, requireTenantContext, sendTenantError, TenantAccessError } from '../../lib/server/tenantAuth.js';
+import tenantSafetyActions from '../../lib/server/tenantSafetyActions.js';
 
 export default async function handler(req: any, res: any) {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Vary', 'Authorization, X-PSI-Tenant-ID');
+    if (req.query?.resource === 'actions') return tenantSafetyActions(req, res);
+    if (req.query?.resource !== undefined) {
+        return res.status(404).json({ ok: false, code: 'SAAS_RESOURCE_NOT_FOUND' });
+    }
     if (req.method !== 'GET') {
         res.setHeader('Allow', 'GET');
         return res.status(405).json({ ok: false, code: 'METHOD_NOT_ALLOWED' });

@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import TenantSafetyActionsPanel from '../components/TenantSafetyActionsPanel';
+import { requestTenantWorkspace, TenantWorkspaceRequestError } from '../utils/tenantWorkspaceRequest';
 
 type Membership = { tenant_id: string; role: string; psi_tenants: { name: string } | null };
 const roleNames: Record<string, string> = { owner: '기업 책임자', admin: '관리자', reviewer: '검토자', viewer: '조회자' };
@@ -11,7 +13,7 @@ export default function TenantAccess() {
     const [password, setPassword] = useState('');
     const [memberships, setMemberships] = useState<Membership[]>([]);
     const [signedIn, setSignedIn] = useState(false);
-    const [selected, setSelected] = useState<{ name: string; role: string } | null>(null);
+    const [selected, setSelected] = useState<{ name: string; role: string; tenantId: string; userId: string } | null>(null);
     const [busy, setBusy] = useState(false);
     const [ready, setReady] = useState(false);
     const [error, setError] = useState('');
@@ -31,18 +33,20 @@ export default function TenantAccess() {
         };
     }, []);
 
-    const requestAccess = async (tenantId?: string) => {
+    const getAccessToken = async () => {
         const client = clientRef.current;
-        if (!client) throw new Error('기업 계정 서비스를 사용할 수 없습니다.');
+        if (!client) return null;
         const { data } = await client.auth.getSession();
-        if (!data.session) throw new Error('다시 로그인해 주세요.');
-        const response = await fetch('/api/saas/access', {
-            method: 'GET', credentials: 'omit', cache: 'no-store',
-            headers: { Authorization: `Bearer ${data.session.access_token}`, ...(tenantId ? { 'X-PSI-Tenant-ID': tenantId } : {}) },
-        });
-        const body = await response.json().catch(() => null);
-        if (!response.ok || !body?.ok) throw new Error(body?.message || '기업 소속을 확인할 수 없습니다.');
-        return body;
+        return data.session?.access_token || null;
+    };
+    const requestAccess = (tenantId?: string) => requestTenantWorkspace(getAccessToken, () => generation.current, tenantId);
+
+    const loseAccess = (cause: TenantWorkspaceRequestError) => {
+        generation.current += 1; setSelected(null); setError(cause.message);
+        if (cause.status === 401) {
+            setMemberships([]); setSignedIn(false); setPassword('');
+            void clientRef.current?.auth.signOut({ scope: 'local' }).catch(() => undefined);
+        }
     };
 
     const signOut = async () => {
@@ -62,6 +66,7 @@ export default function TenantAccess() {
             const { error: loginError } = await client.auth.signInWithPassword({ email: email.trim(), password });
             setPassword('');
             if (loginError) throw new Error('로그인 정보를 확인해 주세요.');
+            if (generation.current !== ticket) return;
             const data = await requestAccess();
             if (generation.current !== ticket) return;
             setMemberships(data.memberships); setSignedIn(true);
@@ -78,14 +83,14 @@ export default function TenantAccess() {
         setBusy(true); setSelected(null); setError('');
         try {
             const data = await requestAccess(membership.tenant_id);
-            if (generation.current === ticket) setSelected({ name: membership.psi_tenants?.name || '등록된 기업', role: data.role });
+            if (generation.current === ticket) setSelected({ name: membership.psi_tenants?.name || '등록된 기업', role: data.role, tenantId: data.tenantId, userId: data.userId });
         } catch (cause) {
             if (generation.current === ticket) setError(cause instanceof Error ? cause.message : '기업 소속을 확인할 수 없습니다.');
         } finally { if (generation.current === ticket) setBusy(false); }
     };
 
     return <main className="min-h-screen bg-slate-100 px-4 py-12 text-slate-900">
-        <section className="mx-auto max-w-lg rounded-2xl bg-white p-6 shadow-sm sm:p-8" aria-labelledby="tenant-access-title">
+        <section className={`mx-auto ${selected ? 'max-w-3xl' : 'max-w-lg'} rounded-2xl bg-white p-6 shadow-sm sm:p-8`} aria-labelledby="tenant-access-title">
             <p className="text-sm font-bold text-indigo-700">NEW-PSI</p>
             <h1 id="tenant-access-title" className="mt-2 text-2xl font-bold">기업 계정 확인</h1>
             <p className="mt-3 text-sm leading-6 text-slate-600">개인 계정으로 로그인하여 소속 기업과 이용 권한을 확인하세요.</p>
@@ -109,8 +114,10 @@ export default function TenantAccess() {
             </div>}
             {selected && <div role="status" className="mt-6 rounded-lg bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">
                 <p className="font-bold">{selected.name} · {roleNames[selected.role]}</p>
-                <p>기업 소속이 확인되었습니다. 공동 서비스의 업무 화면은 준비 중입니다.</p>
+                <p>현재 선택한 기업의 권한으로 조치 기록을 확인합니다. 기업을 바꾸거나 로그아웃하면 열린 기록과 입력 내용이 지워집니다.</p>
             </div>}
+            {selected && <TenantSafetyActionsPanel key={`${selected.userId}:${selected.tenantId}`} role={selected.role}
+                request={options => requestTenantWorkspace(getAccessToken, () => generation.current, selected.tenantId, options)} onAccessLost={loseAccess} />}
             {error && <p role="alert" className="mt-4 text-sm leading-6 text-red-700">{error}</p>}
         </section>
     </main>;
