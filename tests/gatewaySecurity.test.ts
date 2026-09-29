@@ -52,6 +52,7 @@ const originalFreeGeminiKey = process.env.GEMINI_API_KEY_FREE;
 const originalPaidGeminiKey = process.env.GEMINI_API_KEY_PAID;
 const originalOcrMinuteLimit = process.env.OCR_RETRY_MAX_PER_MINUTE;
 const originalAdminPassword = process.env.PSI_ADMIN_PASSWORD;
+const originalAdminLoginPassword = process.env.ADMIN_LOGIN_PASSWORD;
 const originalAdminSessionSecret = process.env.ADMIN_SESSION_SECRET;
 const originalPsiAdminSecret = process.env.PSI_ADMIN_SECRET;
 
@@ -72,6 +73,8 @@ afterEach(() => {
     else process.env.OCR_RETRY_MAX_PER_MINUTE = originalOcrMinuteLimit;
     if (originalAdminPassword === undefined) delete process.env.PSI_ADMIN_PASSWORD;
     else process.env.PSI_ADMIN_PASSWORD = originalAdminPassword;
+    if (originalAdminLoginPassword === undefined) delete process.env.ADMIN_LOGIN_PASSWORD;
+    else process.env.ADMIN_LOGIN_PASSWORD = originalAdminLoginPassword;
     if (originalAdminSessionSecret === undefined) delete process.env.ADMIN_SESSION_SECRET;
     else process.env.ADMIN_SESSION_SECRET = originalAdminSessionSecret;
     if (originalPsiAdminSecret === undefined) delete process.env.PSI_ADMIN_SECRET;
@@ -182,7 +185,7 @@ describe('gateway public security boundaries', () => {
     });
 
     it('requires the current administrator password again for a paid approval retry', () => {
-        process.env.PSI_ADMIN_PASSWORD = 'current-admin-password';
+        process.env.ADMIN_LOGIN_PASSWORD = 'current-admin-password';
 
         expect(() => verifyPaidOcrAdminPassword(undefined)).toThrow(expect.objectContaining({
             code: 'OCR_PAID_PASSWORD_REQUIRED',
@@ -416,7 +419,7 @@ describe('gateway public security boundaries', () => {
 
     it('blocks an approved paid retry with a wrong administrator password before any paid API call', async () => {
         process.env.ADMIN_API_AUTH_TOKEN = 'test-admin-auth';
-        process.env.PSI_ADMIN_PASSWORD = 'correct-admin-password';
+        process.env.ADMIN_LOGIN_PASSWORD = 'correct-admin-password';
         process.env.OCR_PAID_APPROVAL_SECRET = 'test-only-paid-approval-secret';
         process.env.GEMINI_API_KEY_FREE = 'test-free-key';
         process.env.GEMINI_API_KEY_PAID = 'test-paid-key';
@@ -458,7 +461,7 @@ describe('gateway public security boundaries', () => {
 
     it('parses a raw JSON request and removes its paid password before upstream OCR', async () => {
         process.env.ADMIN_API_AUTH_TOKEN = 'test-admin-auth';
-        process.env.PSI_ADMIN_PASSWORD = 'correct-admin-password';
+        process.env.ADMIN_LOGIN_PASSWORD = 'correct-admin-password';
         process.env.OCR_PAID_APPROVAL_SECRET = 'test-only-paid-approval-secret';
         process.env.GEMINI_API_KEY_FREE = 'test-free-key';
         process.env.GEMINI_API_KEY_PAID = 'test-paid-key';
@@ -499,7 +502,7 @@ describe('gateway public security boundaries', () => {
 
     it('blocks an approved paid retry before the paid API when atomic nonce storage is unavailable', async () => {
         process.env.ADMIN_API_AUTH_TOKEN = 'test-admin-auth';
-        process.env.PSI_ADMIN_PASSWORD = 'correct-admin-password';
+        process.env.ADMIN_LOGIN_PASSWORD = 'correct-admin-password';
         process.env.OCR_PAID_APPROVAL_SECRET = 'test-only-paid-approval-secret';
         process.env.GEMINI_API_KEY_FREE = 'test-free-key';
         process.env.GEMINI_API_KEY_PAID = 'test-paid-key';
