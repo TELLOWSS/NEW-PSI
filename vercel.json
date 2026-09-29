@@ -1,9 +1,13 @@
 {
   "framework": "vite",
-  "installCommand": "npm install",
-  "buildCommand": "npm run build",
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build:verified",
   "outputDirectory": "dist",
   "rewrites": [
+    {
+      "source": "/api/admin/:endpoint",
+      "destination": "/api/admin?endpoint=:endpoint"
+    },
     {
       "source": "/api/(.*)",
       "destination": "/api/$1"
@@ -40,22 +44,7 @@
     }
   ],
   "functions": {
-    "api/admin/auth.ts": {
-      "maxDuration": 10
-    },
-    "api/admin/safety-management.ts": {
-      "maxDuration": 10
-    },
-    "api/admin/send-report-message.ts": {
-      "maxDuration": 10
-    },
-    "api/admin/training.ts": {
-      "maxDuration": 10
-    },
-    "api/admin/predictive-plan-status.ts": {
-      "maxDuration": 10
-    },
-    "api/admin/update-training-targets.ts": {
+    "api/admin.ts": {
       "maxDuration": 10
     },
     "api/gateway.ts": {

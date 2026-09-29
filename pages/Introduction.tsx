@@ -759,7 +759,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         { label: '현장 안전 관제센터', desc: '현장 작성물, 위험 신호, 개선 이행을 한 화면에서 확인', stat: `기록 ${previewMetrics.totalWorkers}건`, page: 'dashboard' },
         { label: '위험성평가 분석', desc: '수기 이미지와 PDF를 OCR로 읽고 관리자 검증까지 연결', stat: `확인 ${previewMetrics.qaValidationTargets}건`, page: 'ocr-analysis' },
         { label: '근로자 의견 분석', desc: '근로자 의견과 응답 경향을 위험 신호로 정리', stat: '의견 분석', page: 'survey-intelligence' },
-        { label: '안전성과 분석', desc: '개선 이행률과 성과 추이를 현장별로 확인', stat: `승인 ${previewMetrics.approvedRecords}건`, page: 'performance-analysis' },
+        { label: '안전성과 분석', desc: '응답 기반 개선 신호과 성과 추이를 현장별로 확인', stat: `승인 ${previewMetrics.approvedRecords}건`, page: 'performance-analysis' },
         { label: cycleCopy.reportLabel, desc: `${cycleCopy.shortLabel} 위험 항목을 익명화해 계도자료로 정리`, stat: `${cycleCopy.shortLabel} 분류`, page: 'monthly-guidance-report' },
         { label: '위험성평가 교육자료', desc: `${cycleCopy.shortLabel} 분석 결과를 원페이지 위험성평가 교육자료로 정리`, stat: '교육자료', page: 'a4-education-material' },
         { label: '파일럿 QR/음성 안내', desc: '확정된 원페이지 교육자료를 보조 채널로 전달하는 시험 기능', stat: '파일럿', page: 'admin-training' },

@@ -42,9 +42,7 @@ const requestAdminAuth = async (payload: Record<string, unknown>) => {
 };
 
 export const refreshAdminAuthentication = async (): Promise<boolean> => {
-    const isLocalDev =
-        import.meta.env.DEV ||
-        (typeof window !== 'undefined' && window.location.hostname === 'localhost');
+    const isLocalDev = import.meta.env.DEV;
     
     try {
         const bypassUi = localStorage.getItem('psi_admin_bypass_ui') === 'true';

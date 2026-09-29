@@ -21,10 +21,8 @@ export const AdminLockScreen: React.FC<AdminLockScreenProps> = ({
         }
     });
 
-    const isBypassAllowedEnv =
-        import.meta.env.DEV ||
-        import.meta.env.VITE_ALLOW_ADMIN_BYPASS === 'true' ||
-        (typeof window !== 'undefined' && window.location.hostname === 'localhost');
+    const isBypassAllowedEnv = import.meta.env.DEV;
+    const effectiveBypass = isBypassAllowedEnv && bypass;
 
     const handleBypassChange = (enabled: boolean) => {
         setBypass(enabled);
@@ -40,7 +38,7 @@ export const AdminLockScreen: React.FC<AdminLockScreenProps> = ({
                 <form
                     onSubmit={(event) => {
                         event.preventDefault();
-                        onUnlock(password, bypass);
+                        onUnlock(password, effectiveBypass);
                     }}
                     className="space-y-4"
                 >
@@ -71,9 +69,9 @@ export const AdminLockScreen: React.FC<AdminLockScreenProps> = ({
                         aria-label="관리자 비밀번호"
                         value={password}
                         onChange={(event) => setPassword(event.target.value)}
-                        placeholder={bypass ? "비밀번호 우회 활성화됨" : "비밀번호 입력"}
-                        disabled={bypass}
-                        autoFocus={!bypass}
+                        placeholder={effectiveBypass ? "비밀번호 우회 활성화됨" : "비밀번호 입력"}
+                        disabled={effectiveBypass}
+                        autoFocus={!effectiveBypass}
                         className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-800 disabled:opacity-50 transition-colors duration-200"
                     />
                     <ActionButton
@@ -83,11 +81,11 @@ export const AdminLockScreen: React.FC<AdminLockScreenProps> = ({
                         fullWidth
                         className="px-4 py-3 text-sm font-black"
                     >
-                        {isSubmitting ? '확인 중...' : bypass ? '개발자 우회 로그인' : '관리자 모드 진입'}
+                        {isSubmitting ? '확인 중...' : effectiveBypass ? '개발자 우회 로그인' : '관리자 모드 진입'}
                     </ActionButton>
                 </form>
                 <p className="mt-3 text-center text-[11px] font-semibold leading-5 text-slate-500 dark:text-slate-400">
-                    관리자 비밀번호는 서버 운영 설정값으로 관리됩니다. 분실 시 Vercel 환경변수 `ADMIN_LOGIN_PASSWORD` 또는 `PSI_ADMIN_PASSWORD`를 재설정해 주세요.
+                    비밀번호를 잊으셨다면 서비스 운영 관리자에게 문의해 주세요.
                 </p>
                 {errorMessage && (
                     <p className="mt-3 text-center text-xs font-bold text-rose-600 dark:text-rose-300">{errorMessage}</p>

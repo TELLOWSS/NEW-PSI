@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
-import { markSchemaCompatibilityFallback } from '../../lib/server/schemaCompatibility.js';
+import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../adminAuthGuard.js';
+import { markSchemaCompatibilityFallback } from '../schemaCompatibility.js';
 
 type SurveyRiskLevel = '상' | '중' | '하';
 type BaselineSeverity = 'minor' | 'serious' | 'fatal';

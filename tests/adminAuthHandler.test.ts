@@ -19,7 +19,7 @@ vi.mock('../lib/server/supabaseServer.js', () => ({
     createSupabaseServerClient: mocks.createSupabaseServerClient,
 }));
 
-import handler from '../api/admin/auth';
+import handler from '../lib/server/admin/auth';
 
 const createResponse = () => {
     let statusCode = 0;

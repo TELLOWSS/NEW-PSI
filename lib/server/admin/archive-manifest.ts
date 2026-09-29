@@ -1,5 +1,5 @@
-import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
-import { createSupabaseServerClient } from '../../lib/server/supabaseServer.js';
+import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../adminAuthGuard.js';
+import { createSupabaseServerClient } from '../supabaseServer.js';
 
 export type ArchiveManifestAction = 'register' | 'list' | 'health';
 

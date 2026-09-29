@@ -3,7 +3,7 @@ import { unlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { createClient } from '@supabase/supabase-js';
-import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
+import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../adminAuthGuard.js';
 
 const MAX_REPORT_IMAGES = 2;
 const MAX_MMS_IMAGE_BYTES = 200 * 1024;
@@ -15,7 +15,7 @@ type ReportImagePayload = {
     pageLabel?: string;
 };
 
-const supabase = createClient(
+const createAdminClient = () => createClient(
     process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SUPABASE_SERVICE_KEY ||
@@ -24,12 +24,14 @@ const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
     {
         global: {
-            headers: (process.env.VITE_PSI_ADMIN_SECRET || process.env.PSI_ADMIN_SECRET)
-                ? { 'x-psi-admin-secret': process.env.VITE_PSI_ADMIN_SECRET || process.env.PSI_ADMIN_SECRET || '' }
+            headers: process.env.PSI_ADMIN_SECRET
+                ? { 'x-psi-admin-secret': process.env.PSI_ADMIN_SECRET || '' }
                 : {},
         },
     },
 );
+let cachedSupabase: ReturnType<typeof createAdminClient> | undefined;
+const getSupabase = () => cachedSupabase ??= createAdminClient();
 
 const normalizePhone = (value: unknown) => String(value || '').replace(/\D/g, '');
 const normalizeWorkerUuid = (value: unknown) => String(value || '').trim();
@@ -112,7 +114,7 @@ async function persistPhoneNumber(workerUuid: string, workerName: string, teamNa
     }
 
     try {
-        let query = supabase
+        let query = getSupabase()
             .from('workers')
             .update({ phone_number: phoneNumber });
 
@@ -154,7 +156,7 @@ async function appendReportMessageLog(payload: {
     resultPayload?: unknown;
 }) {
     try {
-        const { error } = await supabase
+        const { error } = await getSupabase()
             .from(REPORT_MESSAGE_LOG_TABLE)
             .insert({
                 worker_id: payload.workerId || null,

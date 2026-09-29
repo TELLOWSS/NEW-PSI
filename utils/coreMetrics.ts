@@ -26,7 +26,7 @@ export const CORE_METRIC_CATALOG = {
         rule: '근로자별 최신 기록에 6개 지표 상세점수가 있는 인원',
     },
     improvementExecutionRate: {
-        label: '개선 이행률',
+        label: '응답 기반 개선 신호',
         unit: '%',
         rule: '근로자별 최신 개선이행 점수(0~20)를 100점 비율로 환산한 평균',
     },

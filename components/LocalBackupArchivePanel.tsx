@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { createLocalArchive, openLocalArchive, readArchivedRecord, type ArchiveDirectory, type ArchiveEntry, type LocalArchiveIndex } from '../utils/localBackupArchive';
+import { readArchivedRecord, type ArchiveDirectory, type ArchiveEntry, type LocalArchiveIndex } from '../utils/localBackupArchive';
+import { createEncryptedLocalArchive, openProtectedLocalArchive, validateArchivePassword, verifyLocalArchiveRestore } from '../utils/encryptedLocalBackupArchive';
 import type { WorkerRecord } from '../types';
 
 type PickerWindow = Window & { showDirectoryPicker?: (options: { mode: 'read' | 'readwrite' }) => Promise<ArchiveDirectory> };
@@ -12,6 +13,9 @@ export default function LocalBackupArchivePanel({ onResume, workingRecords = [] 
     const [query, setQuery] = useState('');
     const [page, setPage] = useState(0);
     const [busy, setBusy] = useState(false);
+    const [password, setPassword] = useState('');
+    const [confirmation, setConfirmation] = useState('');
+    const [encrypted, setEncrypted] = useState(false);
     const [status, setStatus] = useState('원본 JSON은 그대로 보존됩니다. 운영 기록에는 합산하지 않습니다.');
     const [record, setRecord] = useState<Record<string, unknown>>();
     const [showImage, setShowImage] = useState(false);
@@ -20,7 +24,11 @@ export default function LocalBackupArchivePanel({ onResume, workingRecords = [] 
     const controller = useRef<AbortController>();
     const alive = useRef(true);
     const working = useRef(false);
-    useEffect(() => { alive.current = true; return () => { alive.current = false; controller.current?.abort(); }; }, []);
+    useEffect(() => { alive.current = true; return () => { alive.current = false; controller.current?.abort(); folder.current = undefined; }; }, []);
+    const clearArchive = () => {
+        folder.current = undefined; setIndex(undefined); setRecord(undefined); setShowImage(false);
+        setResumedId(undefined); setQuery(''); setPage(0); setEncrypted(false);
+    };
     const execute = async (action: () => Promise<void>, keepRecord = false) => {
         if (working.current) return;
         working.current = true; setBusy(true);
@@ -29,33 +37,51 @@ export default function LocalBackupArchivePanel({ onResume, workingRecords = [] 
         catch (error) { if (alive.current) setStatus(error instanceof DOMException && error.name === 'AbortError'
             ? '취소했습니다. 원본은 유지됩니다. index.json이 없는 생성 폴더는 미완료입니다.'
             : `처리 중단: ${error instanceof Error ? error.message : '저장 권한과 공간을 확인해 주세요.'}`); }
-        finally { working.current = false; if (alive.current) setBusy(false); }
+        finally { working.current = false; if (alive.current) { setBusy(false); setPassword(''); setConfirmation(''); } }
     };
     const pick = async (mode: 'read' | 'readwrite') => {
         const picker = (window as PickerWindow).showDirectoryPicker;
         if (!picker) throw new Error('PC 보관함은 폴더 접근을 지원하는 데스크톱 Chrome/Edge에서 사용해 주세요.');
         return picker.call(window, { mode });
     };
-    const create = () => execute(async () => {
-        if (!source) return;
+    const createFromSource = async (input: Blob) => {
+        validateArchivePassword(password);
+        if (password !== confirmation) throw new Error('백업 비밀번호와 확인 입력이 다릅니다.');
+        const cancellation = new AbortController();
+        controller.current = cancellation;
         const parent = await pick('readwrite');
+        if (!alive.current || cancellation.signal.aborted) throw new DOMException('취소되었습니다.', 'AbortError');
+        clearArchive();
         const name = `PSI-보관-${new Date().toISOString().slice(0, 10)}-${crypto.randomUUID()}`;
         const target = await parent.getDirectoryHandle(name, { create: true });
-        controller.current = new AbortController();
-        setStatus('기록별로 읽고 PC에 저장합니다. 원본 이미지는 제외하지 않습니다.');
-        const result = await createLocalArchive(source, target, controller.current.signal, count => {
+        if (!alive.current || cancellation.signal.aborted) throw new DOMException('취소되었습니다.', 'AbortError');
+        setStatus('기록별로 암호화하여 PC에 저장합니다. 원본 이미지는 제외하지 않습니다.');
+        const opened = await createEncryptedLocalArchive(input, target, password, cancellation.signal, count => {
             if (alive.current) setStatus(`${count}건 저장·대조 중 · 완료 판정 전에는 원본을 삭제하지 마세요.`);
         });
         if (!alive.current) return;
-        folder.current = target; setIndex(result); setPage(0); setQuery('');
+        const result = opened.index;
+        folder.current = opened.directory; setIndex(result); setEncrypted(true); setPage(0); setQuery('');
         setStatus(`${result.records}건 보관 완료 · ${name} 폴더 전체를 함께 보관하세요. 원문 검증은 OCR 정확도 인증이 아닙니다.`);
-    });
+    };
+    const create = () => execute(async () => { if (source) await createFromSource(source); });
     const open = () => execute(async () => {
         const target = await pick('read');
-        const result = await openLocalArchive(target);
         if (!alive.current) return;
-        folder.current = target; setIndex(result); setPage(0); setQuery('');
+        clearArchive();
+        const opened = await openProtectedLocalArchive(target, password);
+        if (!alive.current) return;
+        const result = opened.index;
+        folder.current = opened.directory; setIndex(result); setEncrypted(opened.encrypted); setPage(0); setQuery('');
         setStatus(`${result.records}건 목록을 연결했습니다. 각 기록은 열 때 해시를 확인합니다.`);
+    });
+    const verify = () => execute(async () => {
+        if (!folder.current || !index) return;
+        controller.current = new AbortController();
+        const result = await verifyLocalArchiveRestore(folder.current, index, controller.current.signal, count => {
+            if (alive.current) setStatus(`${count} / ${index.records}건 복원 가능 여부 확인 중`);
+        });
+        if (alive.current) setStatus(`${result.records}건 전체 원문과 출처 정보 읽기·무결성 확인 완료. 운영 기록은 변경하지 않았습니다.`);
     });
     const inspect = (entry: ArchiveEntry) => execute(async () => {
         if (!folder.current) return;
@@ -74,11 +100,7 @@ export default function LocalBackupArchivePanel({ onResume, workingRecords = [] 
         const savedAt = new Date().toISOString();
         const blob = new Blob([JSON.stringify({ schemaVersion: 'psi-backup/v2', product: 'NEW-PSI', scope: 'work-resume-copy', exportedAt: savedAt, records: [workingRecord] })], { type: 'application/json' });
         if (blob.size >= 32 * 1024 * 1024) throw new Error('작업본이 32MiB 이상입니다. 대용량 보관 경로를 사용해 주세요.');
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a'); link.href = url;
-        link.download = `PSI_작업본_${savedAt.replace(/[:.]/g, '-')}.json`; link.click();
-        setTimeout(() => URL.revokeObjectURL(url), 30000);
-        setStatus('선택한 기록의 현재 저장본 다운로드를 요청했습니다. 저장된 파일을 확인하세요. 원래 보관함은 변경하지 않았습니다. 편집창의 미저장 내용은 포함되지 않습니다.');
+        await createFromSource(blob);
     }, true);
     const rawImage = record?.originalImage ?? record?.imageBase64;
     const image = typeof rawImage === 'string' && /^data:image\/(png|jpeg);base64,/i.test(rawImage) ? rawImage : undefined;
@@ -86,15 +108,23 @@ export default function LocalBackupArchivePanel({ onResume, workingRecords = [] 
         <summary className="cursor-pointer text-sm font-bold">PC 저메모리 보관함 · 원본 보존</summary>
         <div className="mt-3 space-y-3 text-sm leading-relaxed">
             <p>목록만 읽고 원문은 1건씩 엽니다. 작업 이어하기를 선택한 기록만 운영 목록으로 가져옵니다. 보관함 조회·작업 재개는 유료 OCR을 실행하지 않습니다.</p>
-            <p className="text-amber-200">폴더 안의 파일을 따로 옮기지 마세요. 암호화 기능은 없으므로 접근이 제한된 PC 폴더에 보관하세요. 기존 운영 목록의 메모리 사용량은 이 기능으로 줄어들지 않습니다.</p>
+            <p className="text-amber-200">새 보관함은 이름·날짜 목록과 원본을 함께 암호화합니다. 폴더 전체를 보관하고 비밀번호는 별도로 안전하게 보관하세요. 비밀번호를 잊으면 복원할 수 없습니다. 기존 평문 백업은 자동으로 암호화되지 않습니다.</p>
             <label className="block">보관할 월별 JSON<input type="file" accept=".json" disabled={busy} onChange={event => setSource(event.target.files?.[0])} className="mt-1 block w-full text-xs" /></label>
+            <label className="block">백업 비밀번호 (12자 이상)<input type="password" autoComplete="off" value={password} disabled={busy} onChange={event => setPassword(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-500 bg-slate-900 p-2" /></label>
+            <label className="block">새 보관함 비밀번호 확인<input type="password" autoComplete="off" value={confirmation} disabled={busy} onChange={event => setConfirmation(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-500 bg-slate-900 p-2" /></label>
+            <p className="text-xs text-slate-300">기존 암호화 보관함을 열 때는 비밀번호만 입력하세요. 기존 평문 보관함은 비밀번호 없이 열 수 있습니다. 수정본을 새로 보관할 때는 두 칸을 다시 입력하세요.</p>
             <div className="flex flex-wrap gap-2">
-                <button type="button" disabled={busy || !source} onClick={() => void create()} className="rounded-lg bg-sky-700 px-3 py-2 font-bold disabled:opacity-50">새 PC 보관함 만들기</button>
+                <button type="button" disabled={busy || !source} onClick={() => void create()} className="rounded-lg bg-sky-700 px-3 py-2 font-bold disabled:opacity-50">새 암호화 PC 보관함 만들기</button>
                 <button type="button" disabled={busy} onClick={() => void open()} className="rounded-lg bg-slate-700 px-3 py-2 font-bold disabled:opacity-50">보관 폴더 열기</button>
-                {busy && <button type="button" onClick={() => controller.current?.abort()} className="rounded-lg bg-rose-800 px-3 py-2">보관 생성 취소</button>}
+                {busy && <button type="button" onClick={() => controller.current?.abort()} className="rounded-lg bg-rose-800 px-3 py-2">진행 중인 생성·검증 취소</button>}
             </div>
             <p role="status" aria-live="polite">{status}</p>
             {index && <>
+                <p className={encrypted ? 'text-emerald-200' : 'text-amber-200'}>{encrypted ? '암호화 보관함 열림 · 사용 후 잠가 주세요.' : '기존 평문 보관함 · 암호화 보호 없음'}</p>
+                <div className="flex flex-wrap gap-2">
+                    <button type="button" disabled={busy} onClick={() => void verify()} className="rounded-lg bg-emerald-800 px-3 py-2 font-bold disabled:opacity-50">전체 복원 검증</button>
+                    <button type="button" disabled={busy} onClick={() => { clearArchive(); setPassword(''); setConfirmation(''); setStatus('보관함을 닫았습니다. 다시 열려면 폴더와 비밀번호를 확인해 주세요.'); }} className="rounded-lg bg-slate-700 px-3 py-2 font-bold disabled:opacity-50">보관함 잠그기</button>
+                </div>
                 <label className="block">이름·날짜 검색<input value={query} onChange={event => { setQuery(event.target.value); setPage(0); }} className="mt-1 block w-full rounded-lg border border-slate-500 bg-slate-900 p-2" /></label>
                 <p>{matches.length}건 · 한 화면 20건 · 이 목록은 운영 통계와 별도입니다.</p>
                 <ul className="space-y-2">{matches.slice(page * 20, page * 20 + 20).map(entry => <li key={entry.file}>
@@ -104,7 +134,7 @@ export default function LocalBackupArchivePanel({ onResume, workingRecords = [] 
             </>}
             {record && <section aria-label="선택한 보관 원문" className="space-y-2 rounded-lg border border-slate-600 p-3">
                 {onResume && <button type="button" disabled={busy} onClick={() => void resume()} className="rounded-lg bg-sky-700 px-3 py-2 font-bold disabled:opacity-50">이 기록 작업 이어하기</button>}
-                <button type="button" disabled={busy || !workingRecord} onClick={() => void saveWork()} className="rounded-lg bg-emerald-800 px-3 py-2 font-bold disabled:opacity-50">수정본 새 백업 저장 (1건)</button>
+                <button type="button" disabled={busy || !workingRecord} onClick={() => void saveWork()} className="rounded-lg bg-emerald-800 px-3 py-2 font-bold disabled:opacity-50">수정본 암호화 보관 (1건)</button>
                 <p>같은 ID의 작업본이 있으면 현재 작업본을 엽니다. 수정 후 편집창에서 저장하고 새 백업을 만드세요. 원래 보관함은 수정되지 않습니다.</p>
                 <button type="button" onClick={() => { setRecord(undefined); setShowImage(false); }} className="rounded-lg bg-slate-700 px-3 py-2">원문 닫기 · 메모리 해제</button>
                 <p>원점수: {String(record.safetyScore ?? '없음')} · 원등급: {String(record.safetyLevel ?? '없음')}</p>

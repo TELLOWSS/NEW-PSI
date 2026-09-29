@@ -22,7 +22,7 @@ export const createSupabaseServerClient = (options: SupabaseServerClientOptions 
 
     const adminSecret = options.includeAdminSecret === false
         ? ''
-        : process.env.VITE_PSI_ADMIN_SECRET || process.env.PSI_ADMIN_SECRET || '';
+        : process.env.PSI_ADMIN_SECRET || '';
 
     return createClient(supabaseUrl, serviceRoleKey, {
         global: {

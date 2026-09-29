@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { executeRecordMasterAction } from '../api/admin/record-master';
+import { executeRecordMasterAction } from '../lib/server/admin/record-master';
 
 const root = process.cwd();
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8');
@@ -15,7 +15,7 @@ describe('record-master server boundary', () => {
     });
 
     it('requires an authenticated server handler and a service-role client', () => {
-        const source = read('api/admin/record-master.ts');
+        const source = read('lib/server/admin/record-master.ts');
         expect(source).toContain('isValidAdminAuthRequest(req)');
         expect(source).toContain('createSupabaseServerClient');
         expect(source).toContain('SUPABASE_SERVICE_ROLE_KEY');

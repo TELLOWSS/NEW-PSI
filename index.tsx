@@ -4,6 +4,7 @@ import './styles.css';
 import App from './App';
 import { DevModeProvider } from './contexts/DevModeContext';
 import { OperationalModeProvider } from './contexts/OperationalModeContext';
+const TenantAccess = React.lazy(() => import('./pages/TenantAccess'));
 
 const RUNTIME_RECOVERY_RELOAD_KEY = 'psi_runtime_recovery_reload_once';
 const VERSION_MISMATCH_RELOAD_KEY = 'psi_version_mismatch_reload_once';
@@ -126,11 +127,17 @@ const root = ReactDOM.createRoot(rootElement);
 try {
   root.render(
     <React.StrictMode>
+      {window.location.pathname === '/saas/access' ? (
+        <React.Suspense fallback={<p role="status">기업 계정 화면을 불러오는 중…</p>}>
+          <TenantAccess />
+        </React.Suspense>
+      ) : (
       <OperationalModeProvider>
         <DevModeProvider>
           <App />
         </DevModeProvider>
       </OperationalModeProvider>
+      )}
     </React.StrictMode>
   );
   document.documentElement.dataset.psiMounted = '1';

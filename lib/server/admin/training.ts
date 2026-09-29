@@ -1,14 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
-import { buildSignedTrainingMobileUrl, resolveLinkTtlMinutes } from '../../lib/server/trainingLinkToken.js';
-import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
-import { markSchemaCompatibilityFallback } from '../../lib/server/schemaCompatibility.js';
+import { buildSignedTrainingMobileUrl, resolveLinkTtlMinutes } from '../trainingLinkToken.js';
+import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../adminAuthGuard.js';
+import { markSchemaCompatibilityFallback } from '../schemaCompatibility.js';
 import {
     assessConstructionTranslation,
     buildConstructionTranslationPrompt,
     TRAINING_LANGUAGE_LABELS,
     type TrainingLanguageCode,
     type TranslationQualityReport,
-} from '../../utils/constructionTrainingTranslation.js';
+} from '../../../utils/constructionTrainingTranslation.js';
 import {
     assessTrainingReleaseReadiness,
     embedTrainingReleaseMetadata,
@@ -16,7 +16,7 @@ import {
     parseTrainingTranslationReports,
     normalizeTrainingStringMap,
     TRAINING_TRANSLATION_QUALITY_KEY,
-} from '../../utils/trainingReleaseReadiness.js';
+} from '../../../utils/trainingReleaseReadiness.js';
 
 const TRAINING_AUDIO_LANGUAGE_CODES = Object.keys(TRAINING_LANGUAGE_LABELS) as TrainingLanguageCode[];
 
@@ -72,7 +72,6 @@ function safeGetEnv() {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
         '';
     const psiAdminSecret =
-        process.env.VITE_PSI_ADMIN_SECRET ||
         process.env.PSI_ADMIN_SECRET ||
         '';
     const geminiApiKey =
@@ -993,7 +992,8 @@ export default async function handler(req: any, res: any) {
         const body = (typeof req.body === 'string'
             ? JSON.parse(req.body || '{}')
             : (req.body || {})) as Record<string, unknown>;
-        const action = String(body.action || '') as TrainingAction;
+        const legacyAction = String(req?.query?.legacyAction || '').trim();
+        const action = String(body.action || (legacyAction === 'update-targets' ? legacyAction : '')) as TrainingAction;
 
         if (!action) {
             return sendJsonError(res, 400, 'action이 필요합니다.');

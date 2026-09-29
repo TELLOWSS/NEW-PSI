@@ -11,7 +11,7 @@ vi.mock('@supabase/supabase-js', () => ({
 import {
     handleDeleteWorker,
     handleDeleteWorkers,
-} from '../api/admin/safety-management';
+} from '../lib/server/admin/safety-management';
 
 describe('worker soft delete fail-closed behavior', () => {
     beforeEach(() => {
