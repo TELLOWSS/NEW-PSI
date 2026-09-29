@@ -14,13 +14,13 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
+import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../adminAuthGuard.js';
 import {
     PSI_WORKER_JOB_FIELDS as ALLOWED_JOB_FIELDS,
     PSI_WORKER_JOB_FIELD_ALIASES as JOB_FIELD_ALIASES,
-} from '../../config/psiFormMaster.js';
+} from '../../../config/psiFormMaster.js';
 
-const supabase = createClient(
+const createAdminClient = () => createClient(
     process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SUPABASE_SERVICE_KEY ||
@@ -35,6 +35,8 @@ const supabase = createClient(
         },
     }
 );
+let cachedSupabase: ReturnType<typeof createAdminClient> | undefined;
+const getSupabase = () => cachedSupabase ??= createAdminClient();
 
 // -----------------------------------------------------------------------
 // 프리셋 상수
@@ -314,7 +316,7 @@ async function handleRecordUnsafeBehavior(payload: any): Promise<any> {
         };
     });
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
         .from('safety_behavior_observations')
         .insert(normalizedRows)
         .select('id');
@@ -329,7 +331,7 @@ async function handleRecordUnsafeBehavior(payload: any): Promise<any> {
         .map((r) => ({ worker_id: r.worker_id, assessment_month: r.assessment_month }));
 
     for (const { worker_id, assessment_month } of flaggedWorkerMonths) {
-        await supabase
+        await getSupabase()
             .from('worker_integrity_reviews')
             .upsert(
                 {
@@ -380,7 +382,7 @@ async function handleRegisterCoachingAction(payload: any): Promise<any> {
         };
     });
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
         .from('safety_coaching_actions')
         .insert(normalizedRows)
         .select('id');
@@ -392,7 +394,7 @@ async function handleRegisterCoachingAction(payload: any): Promise<any> {
     // 코칭 완료하고 결과가 '개선됨'이면 reason code 정리
     const improvedRecords = normalizedRows.filter((r) => r.followup_result === '개선됨');
     for (const rec of improvedRecords) {
-        const { data: reviewData } = await supabase
+        const { data: reviewData } = await getSupabase()
             .from('worker_integrity_reviews')
             .select('id, integrity_reason_codes')
             .eq('worker_id', rec.worker_id)
@@ -403,7 +405,7 @@ async function handleRegisterCoachingAction(payload: any): Promise<any> {
             const updatedCodes = (reviewData.integrity_reason_codes || []).filter(
                 (code: string) => code !== 'COACHING_MISSING'
             );
-            await supabase
+            await getSupabase()
                 .from('worker_integrity_reviews')
                 .update({
                     integrity_reason_codes: updatedCodes,
@@ -474,7 +476,7 @@ async function handleRecordSafetyClosureLoop(payload: any): Promise<any> {
         created_at: row.created_at,
     }));
 
-    const { data: observationData, error: observationError } = await supabase
+    const { data: observationData, error: observationError } = await getSupabase()
         .from('safety_behavior_observations')
         .insert(observationRows)
         .select('id');
@@ -501,7 +503,7 @@ async function handleRecordSafetyClosureLoop(payload: any): Promise<any> {
 
     let coachingIds: any[] = [];
     if (coachingRows.length > 0) {
-        const { data: coachingData, error: coachingError } = await supabase
+        const { data: coachingData, error: coachingError } = await getSupabase()
             .from('safety_coaching_actions')
             .insert(coachingRows)
             .select('id');
@@ -515,7 +517,7 @@ async function handleRecordSafetyClosureLoop(payload: any): Promise<any> {
         .map((row) => ({ worker_id: row.worker_id, assessment_month: row.assessment_month }));
 
     for (const { worker_id, assessment_month } of flaggedWorkerMonths) {
-        await supabase
+        await getSupabase()
             .from('worker_integrity_reviews')
             .upsert(
                 {
@@ -532,7 +534,7 @@ async function handleRecordSafetyClosureLoop(payload: any): Promise<any> {
 
     const improvedRecords = coachingRows.filter((row) => row.followup_result === '개선됨');
     for (const rec of improvedRecords) {
-        const { data: reviewData } = await supabase
+        const { data: reviewData } = await getSupabase()
             .from('worker_integrity_reviews')
             .select('id, integrity_reason_codes')
             .eq('worker_id', rec.worker_id)
@@ -543,7 +545,7 @@ async function handleRecordSafetyClosureLoop(payload: any): Promise<any> {
             const updatedCodes = (reviewData.integrity_reason_codes || []).filter(
                 (code: string) => code !== 'COACHING_MISSING'
             );
-            await supabase
+            await getSupabase()
                 .from('worker_integrity_reviews')
                 .update({
                     integrity_reason_codes: updatedCodes,
@@ -583,25 +585,25 @@ async function handleEvaluateWorkerIntegrity(payload: any): Promise<any> {
 
     // 병렬 조회
     const [trainingRes, observationsRes, coachingRes, threeMonthObsRes] = await Promise.all([
-        supabase
+        getSupabase()
             .from('training_logs')
             .select('worker_id, created_at, signature_data, signature_method, selected_language_code, assessment_month')
             .in('worker_id', worker_ids)
             .eq('assessment_month', assessment_month),
 
-        supabase
+        getSupabase()
             .from('safety_behavior_observations')
             .select('worker_id, unsafe_behavior_flag, observed_at')
             .in('worker_id', worker_ids)
             .eq('assessment_month', assessment_month),
 
-        supabase
+        getSupabase()
             .from('safety_coaching_actions')
             .select('worker_id, followup_result, action_completed_at')
             .in('worker_id', worker_ids)
             .eq('assessment_month', assessment_month),
 
-        supabase
+        getSupabase()
             .from('safety_behavior_observations')
             .select('worker_id, unsafe_behavior_flag')
             .in('worker_id', worker_ids)
@@ -713,7 +715,7 @@ async function handleEvaluateWorkerIntegrity(payload: any): Promise<any> {
 
     // DB upsert
     if (upsertRows.length > 0) {
-        const { error: upsertError } = await supabase
+        const { error: upsertError } = await getSupabase()
             .from('worker_integrity_reviews')
             .upsert(upsertRows, { onConflict: 'worker_id,assessment_month' });
 
@@ -806,7 +808,7 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
 
     let existingRows: ExistingWorkerRow[] = [];
 
-    const activeWithPassport = await supabase
+    const activeWithPassport = await getSupabase()
         .from('workers')
         .select('id, name, nationality, job_field, team_name, phone_number, birth_date, passport_number, deleted_at')
         .is('deleted_at', null)
@@ -815,7 +817,7 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
     if (!activeWithPassport.error) {
         existingRows = normalizeExistingRows(activeWithPassport.data);
     } else if (isDeletedAtColumnMissing(activeWithPassport.error)) {
-        const fallbackNoDeleted = await supabase
+        const fallbackNoDeleted = await getSupabase()
             .from('workers')
             .select('id, name, nationality, job_field, team_name, phone_number, birth_date, passport_number')
             .limit(10000);
@@ -823,7 +825,7 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
         if (!fallbackNoDeleted.error) {
             existingRows = normalizeExistingRows(fallbackNoDeleted.data);
         } else {
-            const fallbackNoDeletedNoPassport = await supabase
+            const fallbackNoDeletedNoPassport = await getSupabase()
                 .from('workers')
                 .select('id, name, nationality, job_field, team_name, phone_number, birth_date')
                 .limit(10000);
@@ -833,7 +835,7 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
             existingRows = normalizeExistingRows(fallbackNoDeletedNoPassport.data);
         }
     } else {
-        const fallbackNoPassport = await supabase
+        const fallbackNoPassport = await getSupabase()
             .from('workers')
             .select('id, name, nationality, job_field, team_name, phone_number, birth_date, deleted_at')
             .is('deleted_at', null)
@@ -940,7 +942,7 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
                 updated_at: new Date().toISOString(),
             };
 
-            const { data: insertedData, error: insertError } = await supabase
+            const { data: insertedData, error: insertError } = await getSupabase()
                 .from('workers')
                 .insert(insertPayload)
                 .select('id, name, nationality, job_field, team_name, phone_number, birth_date, passport_number')
@@ -1002,7 +1004,7 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
             continue;
         }
 
-        const { error: updateError } = await supabase
+        const { error: updateError } = await getSupabase()
             .from('workers')
             .update(merged)
             .eq('id', matched.id);
@@ -1044,14 +1046,14 @@ async function handleListWorkers(payload: any): Promise<any> {
     let error: any = null;
 
     if (includeDeleted) {
-        const response = await supabase
+        const response = await getSupabase()
             .from('workers')
             .select('id, name, job_field, team_name, birth_date, phone_number, passport_number, deleted_at')
             .limit(limit);
         data = response.data;
         error = response.error;
     } else {
-        const response = await supabase
+        const response = await getSupabase()
             .from('workers')
             .select('id, name, job_field, team_name, birth_date, phone_number, passport_number, deleted_at')
             .is('deleted_at', null)
@@ -1061,7 +1063,7 @@ async function handleListWorkers(payload: any): Promise<any> {
     }
 
     if (error && isDeletedAtColumnMissing(error)) {
-        const fallback = await supabase
+        const fallback = await getSupabase()
             .from('workers')
             .select('id, name, job_field, team_name, birth_date, phone_number, passport_number')
             .limit(limit);
@@ -1071,11 +1073,11 @@ async function handleListWorkers(payload: any): Promise<any> {
 
     if (error && isPassportColumnMissing(error)) {
         const fallbackNoPassport = includeDeleted
-            ? await supabase
+            ? await getSupabase()
                 .from('workers')
                 .select('id, name, job_field, team_name, birth_date, phone_number, deleted_at')
                 .limit(limit)
-            : await supabase
+            : await getSupabase()
                 .from('workers')
                 .select('id, name, job_field, team_name, birth_date, phone_number, deleted_at')
                 .is('deleted_at', null)
@@ -1147,7 +1149,7 @@ async function handleGetWorkerContact(payload: any): Promise<any> {
     let error: any = null;
 
     if (workerId) {
-        const response = await supabase
+        const response = await getSupabase()
             .from('workers')
             .select('id, name, team_name, job_field, phone_number, deleted_at')
             .eq('id', workerId)
@@ -1156,7 +1158,7 @@ async function handleGetWorkerContact(payload: any): Promise<any> {
         error = response.error;
 
         if (error && isDeletedAtColumnMissing(error)) {
-            const fallback = await supabase
+            const fallback = await getSupabase()
                 .from('workers')
                 .select('id, name, team_name, job_field, phone_number')
                 .eq('id', workerId)
@@ -1165,7 +1167,7 @@ async function handleGetWorkerContact(payload: any): Promise<any> {
             error = fallback.error;
         }
     } else if (workerName) {
-        const response = await supabase
+        const response = await getSupabase()
             .from('workers')
             .select('id, name, team_name, job_field, phone_number, deleted_at')
             .eq('name', workerName)
@@ -1174,7 +1176,7 @@ async function handleGetWorkerContact(payload: any): Promise<any> {
         error = response.error;
 
         if (error && isDeletedAtColumnMissing(error)) {
-            const fallback = await supabase
+            const fallback = await getSupabase()
                 .from('workers')
                 .select('id, name, team_name, job_field, phone_number')
                 .eq('name', workerName)
@@ -1232,7 +1234,7 @@ async function handleListReportMessageLogs(payload: any): Promise<any> {
     }
 
     const buildQuery = (includeFailureCategory: boolean) => {
-        let query = supabase
+        let query = getSupabase()
             .from(REPORT_MESSAGE_LOG_TABLE)
             .select(includeFailureCategory
                 ? 'id, worker_id, worker_name, team_name, phone_number, send_mode, status, failure_category, sent_count, provider, message, created_at'
@@ -1251,7 +1253,7 @@ async function handleListReportMessageLogs(payload: any): Promise<any> {
 
     if (error && isReportMessageLogColumnMissing(error.message || error.details || '', 'send_mode')) {
         const buildLegacyQuery = (includeFailureCategory: boolean) => {
-            let query = supabase
+            let query = getSupabase()
                 .from(REPORT_MESSAGE_LOG_TABLE)
                 .select(includeFailureCategory
                     ? 'id, worker_id, worker_name, team_name, phone_number, status, failure_category, sent_count, provider, message, created_at'
@@ -1317,7 +1319,7 @@ async function handleGetReportMessageDashboardSummary(payload: any): Promise<any
     const rangeStart = resolveReportMessageRangeStart(range);
 
     if (rangeStart) {
-        const { data, error } = await supabase
+        const { data, error } = await getSupabase()
             .from(REPORT_MESSAGE_LOG_TABLE)
             .select('worker_id, worker_name, team_name, phone_number, send_mode, status, failure_category, provider, message, created_at')
             .gte('created_at', rangeStart)
@@ -1497,11 +1499,11 @@ async function handleGetReportMessageDashboardSummary(payload: any): Promise<any
     }
 
     const [monthlyResult, teamResult, failureResult, sendModeResult, retryResult] = await Promise.all([
-        supabase.from('report_message_monthly_summary').select('month_date, month_label, total_count, success_count, failed_count, success_rate').order('month_date', { ascending: false }).limit(limit),
-        supabase.from('report_message_team_summary').select('team_name, total_count, success_count, failed_count, success_rate, last_sent_at').order('total_count', { ascending: false }).limit(limit),
-        supabase.from('report_message_failure_summary').select('failure_category, failure_count, last_occurred_at').order('failure_count', { ascending: false }).limit(limit),
-        supabase.from('report_message_send_mode_summary').select('send_mode, total_count, success_count, failed_count, success_rate, last_sent_at').order('total_count', { ascending: false }).limit(4),
-        supabase.from('report_message_retry_queue').select('retry_key, worker_id, worker_name, team_name, phone_number, failure_category, provider, message, failed_at, priority_score').order('priority_score', { ascending: false }).order('failed_at', { ascending: false }).limit(limit),
+        getSupabase().from('report_message_monthly_summary').select('month_date, month_label, total_count, success_count, failed_count, success_rate').order('month_date', { ascending: false }).limit(limit),
+        getSupabase().from('report_message_team_summary').select('team_name, total_count, success_count, failed_count, success_rate, last_sent_at').order('total_count', { ascending: false }).limit(limit),
+        getSupabase().from('report_message_failure_summary').select('failure_category, failure_count, last_occurred_at').order('failure_count', { ascending: false }).limit(limit),
+        getSupabase().from('report_message_send_mode_summary').select('send_mode, total_count, success_count, failed_count, success_rate, last_sent_at').order('total_count', { ascending: false }).limit(4),
+        getSupabase().from('report_message_retry_queue').select('retry_key, worker_id, worker_name, team_name, phone_number, failure_category, provider, message, failed_at, priority_score').order('priority_score', { ascending: false }).order('failed_at', { ascending: false }).limit(limit),
     ]);
 
     const summaryError = monthlyResult.error || teamResult.error || failureResult.error || sendModeResult.error || retryResult.error;
@@ -1615,7 +1617,7 @@ async function handleAppendOpsAlertClickLog(payload: any): Promise<any> {
     const taggingErrorCount = normalizeNonNegativeInteger(payload?.taggingErrorCount);
     const interventionNotStartedCount = normalizeNonNegativeInteger(payload?.interventionNotStartedCount);
 
-    const { error } = await supabase
+    const { error } = await getSupabase()
         .from(OPS_ALERT_CLICK_LOG_TABLE)
         .upsert({
             id,
@@ -1661,7 +1663,7 @@ async function handleListOpsAlertClickLogs(payload: any): Promise<any> {
     const startDate = String(payload?.startDate || '').trim();
     const endDate = String(payload?.endDate || '').trim();
 
-    let query = supabase
+    let query = getSupabase()
         .from(OPS_ALERT_CLICK_LOG_TABLE)
         .select('id, clicked_at, action, delay_alert_active, tagging_error_count, intervention_not_started_count', { count: 'exact' })
         .order('clicked_at', { ascending: false })
@@ -1719,7 +1721,7 @@ async function handleListOpsAlertClickLogs(payload: any): Promise<any> {
 // 액션 5-6: 경보 CTA 클릭 로그 전체 초기화
 // -----------------------------------------------------------------------
 async function handleClearOpsAlertClickLogs(): Promise<any> {
-    const { error } = await supabase
+    const { error } = await getSupabase()
         .from(OPS_ALERT_CLICK_LOG_TABLE)
         .delete()
         .not('id', 'is', null);
@@ -1762,7 +1764,7 @@ async function handleUpdateWorker(payload: any): Promise<any> {
         throw new Error('생년월일은 6자리 또는 8자리만 허용');
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
         .from('workers')
         .update({
             name,
@@ -1799,7 +1801,7 @@ export async function handleDeleteWorker(payload: any): Promise<any> {
     const id = String(payload?.id || payload?.workerId || '').trim();
     if (!id) throw new Error('worker id 필수');
 
-    const softDelete = await supabase
+    const softDelete = await getSupabase()
         .from('workers')
         .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq('id', id)
@@ -1834,7 +1836,7 @@ export async function handleDeleteWorkers(payload: any): Promise<any> {
     if (ids.length === 0) throw new Error('삭제할 worker id 목록이 필요합니다.');
 
     const timestamp = new Date().toISOString();
-    const softDelete = await supabase
+    const softDelete = await getSupabase()
         .from('workers')
         .update({ deleted_at: timestamp, updated_at: timestamp })
         .in('id', ids)
@@ -1865,7 +1867,7 @@ async function handleRestoreWorker(payload: any): Promise<any> {
     const id = String(payload?.id || payload?.workerId || '').trim();
     if (!id) throw new Error('worker id 필수');
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
         .from('workers')
         .update({ deleted_at: null, updated_at: new Date().toISOString() })
         .eq('id', id)
@@ -1898,7 +1900,7 @@ async function handleRestoreWorkers(payload: any): Promise<any> {
 
     if (ids.length === 0) throw new Error('복구할 worker id 목록이 필요합니다.');
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
         .from('workers')
         .update({ deleted_at: null, updated_at: new Date().toISOString() })
         .in('id', ids)
@@ -1948,7 +1950,7 @@ async function handleFlushAudioStorage(payload: any): Promise<any> {
     let targetSessionRows: Array<{ id: string; audio_urls?: Record<string, string | null> | null }> = [];
 
     if (mode === 'all') {
-        const { data: sessions, error: sessionsError } = await supabase
+        const { data: sessions, error: sessionsError } = await getSupabase()
             .from('training_sessions')
             .select('id, audio_urls');
 
@@ -1962,7 +1964,7 @@ async function handleFlushAudioStorage(payload: any): Promise<any> {
         })).filter((row) => Boolean(row.id));
         targetSessionIds = targetSessionRows.map((row) => row.id);
     } else {
-        const { data: sessions, error: sessionsError } = await supabase
+        const { data: sessions, error: sessionsError } = await getSupabase()
             .from('training_sessions')
             .select('id, audio_urls')
             .in('id', requestSessionIds);
@@ -2023,7 +2025,7 @@ async function handleFlushAudioStorage(payload: any): Promise<any> {
         let listFailed = false;
 
         while (true) {
-            const { data: listedFiles, error: listError } = await supabase.storage
+            const { data: listedFiles, error: listError } = await getSupabase().storage
                 .from('training_audio')
                 .list(sessionId, { limit: pageSize, offset });
 
@@ -2078,7 +2080,7 @@ async function handleFlushAudioStorage(payload: any): Promise<any> {
         const chunk = removablePaths.slice(index, index + 100);
         if (chunk.length === 0) continue;
 
-        const { error: removeError } = await supabase.storage
+        const { error: removeError } = await getSupabase().storage
             .from('training_audio')
             .remove(chunk);
 
@@ -2093,7 +2095,7 @@ async function handleFlushAudioStorage(payload: any): Promise<any> {
         const chunkSessionIds = uniqueSessionIds.slice(index, index + 200);
         if (chunkSessionIds.length === 0) continue;
 
-        const { error: updateError } = await supabase
+        const { error: updateError } = await getSupabase()
             .from('training_sessions')
             .update({ audio_urls: {} })
             .in('id', chunkSessionIds);

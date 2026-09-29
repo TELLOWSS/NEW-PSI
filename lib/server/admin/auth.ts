@@ -7,13 +7,13 @@ import {
     isValidAdminAuthRequest,
     verifyAdminLoginPassword,
     isBypassAllowed,
-} from '../../lib/server/adminAuthGuard.js';
+} from '../adminAuthGuard.js';
 import {
     consumeApiQuota,
     recordApiUsageEvent,
     resolveRequestFingerprint,
-} from '../../lib/server/apiSecurity.js';
-import { createSupabaseServerClient } from '../../lib/server/supabaseServer.js';
+} from '../apiSecurity.js';
+import { createSupabaseServerClient } from '../supabaseServer.js';
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_WINDOW_SECONDS = 15 * 60;

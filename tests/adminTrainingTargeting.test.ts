@@ -3,7 +3,7 @@ import {
     calculateTrainingAwarenessStats,
     normalizeTrainingTargets,
     parseStoredTrainingTargets,
-} from '../api/admin/training';
+} from '../lib/server/admin/training';
 import { buildTrainingTargetSelectionPayload } from '../pages/AdminTraining';
 
 describe('admin training targeting', () => {

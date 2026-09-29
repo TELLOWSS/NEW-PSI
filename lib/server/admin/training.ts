@@ -1,14 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
-import { buildSignedTrainingMobileUrl, resolveLinkTtlMinutes } from '../../lib/server/trainingLinkToken.js';
-import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
-import { markSchemaCompatibilityFallback } from '../../lib/server/schemaCompatibility.js';
+import { buildSignedTrainingMobileUrl, resolveLinkTtlMinutes } from '../trainingLinkToken.js';
+import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../adminAuthGuard.js';
+import { markSchemaCompatibilityFallback } from '../schemaCompatibility.js';
 import {
     assessConstructionTranslation,
     buildConstructionTranslationPrompt,
     TRAINING_LANGUAGE_LABELS,
     type TrainingLanguageCode,
     type TranslationQualityReport,
-} from '../../utils/constructionTrainingTranslation.js';
+} from '../../../utils/constructionTrainingTranslation.js';
 import {
     assessTrainingReleaseReadiness,
     embedTrainingReleaseMetadata,
@@ -16,7 +16,7 @@ import {
     parseTrainingTranslationReports,
     normalizeTrainingStringMap,
     TRAINING_TRANSLATION_QUALITY_KEY,
-} from '../../utils/trainingReleaseReadiness.js';
+} from '../../../utils/trainingReleaseReadiness.js';
 
 const TRAINING_AUDIO_LANGUAGE_CODES = Object.keys(TRAINING_LANGUAGE_LABELS) as TrainingLanguageCode[];
 

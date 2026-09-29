@@ -26,13 +26,13 @@ const globalHeaders = new Map(
 const sourceFiles = [
     'pages/SurveyIntelligence.tsx',
     'services/surveyRiskBaselineService.ts',
-    'api/admin/survey-risk-baselines.ts',
+    'lib/server/admin/survey-risk-baselines.ts',
     'utils/surveyRiskGap.ts',
 ];
 const sourceText = (await Promise.all(sourceFiles.map(read))).join('\n');
 const safetyCaseFiles = [
     'utils/safetyCase.ts',
-    'api/admin/safety-cases.ts',
+    'lib/server/admin/safety-cases.ts',
     'services/safetyCaseService.ts',
     'supabase_safety_case_closed_loop_migration.sql',
     'pages/InterventionCoaching.tsx',

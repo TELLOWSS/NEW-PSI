@@ -1,6 +1,6 @@
-import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
-import { createSupabaseServerClient } from '../../lib/server/supabaseServer.js';
-import { markSchemaCompatibilityFallback } from '../../lib/server/schemaCompatibility.js';
+import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../adminAuthGuard.js';
+import { createSupabaseServerClient } from '../supabaseServer.js';
+import { markSchemaCompatibilityFallback } from '../schemaCompatibility.js';
 
 type PlanStatus = 'not-started' | 'in-progress' | 'completed';
 

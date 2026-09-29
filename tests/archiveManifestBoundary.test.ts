@@ -20,7 +20,7 @@ import handler, {
     MAX_ARCHIVE_REQUEST_BYTES,
     MAX_WORKER_SUMMARIES,
     resolveArchiveScope,
-} from '../api/admin/archive-manifest';
+} from '../lib/server/admin/archive-manifest';
 import {
     MONTHLY_ARCHIVE_RECEIPT_LIMITS,
     registerMonthlyArchiveReceipt,
