@@ -992,7 +992,8 @@ export default async function handler(req: any, res: any) {
         const body = (typeof req.body === 'string'
             ? JSON.parse(req.body || '{}')
             : (req.body || {})) as Record<string, unknown>;
-        const action = String(body.action || '') as TrainingAction;
+        const legacyAction = String(req?.query?.legacyAction || '').trim();
+        const action = String(body.action || (legacyAction === 'update-targets' ? legacyAction : '')) as TrainingAction;
 
         if (!action) {
             return sendJsonError(res, 400, 'action이 필요합니다.');
