@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../lib/server/supabaseServer.js', () => ({
     createSupabaseServerClient: () => null,
@@ -55,6 +55,14 @@ const originalAdminPassword = process.env.PSI_ADMIN_PASSWORD;
 const originalAdminLoginPassword = process.env.ADMIN_LOGIN_PASSWORD;
 const originalAdminSessionSecret = process.env.ADMIN_SESSION_SECRET;
 const originalPsiAdminSecret = process.env.PSI_ADMIN_SECRET;
+const originalDeploymentModel = process.env.PSI_DEPLOYMENT_MODEL;
+
+beforeEach(() => {
+    // Keep gateway security tests independent from Vercel/project-level auth mode variables.
+    // Individual tests opt into an admin login password explicitly when required.
+    delete process.env.ADMIN_LOGIN_PASSWORD;
+    delete process.env.PSI_DEPLOYMENT_MODEL;
+});
 
 afterEach(() => {
     if (originalSecret === undefined) delete process.env.TRAINING_LINK_SECRET;
@@ -79,6 +87,8 @@ afterEach(() => {
     else process.env.ADMIN_SESSION_SECRET = originalAdminSessionSecret;
     if (originalPsiAdminSecret === undefined) delete process.env.PSI_ADMIN_SECRET;
     else process.env.PSI_ADMIN_SECRET = originalPsiAdminSecret;
+    if (originalDeploymentModel === undefined) delete process.env.PSI_DEPLOYMENT_MODEL;
+    else process.env.PSI_DEPLOYMENT_MODEL = originalDeploymentModel;
     vi.restoreAllMocks();
     vi.useRealTimers();
 });
