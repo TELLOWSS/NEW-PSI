@@ -283,7 +283,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
         if (score < 75 && imp < 60) {
             return `평균 위험인식 신호(${score}점)과 개선율(${imp}%)이 정체 중입니다. ${priorityTrade.name} 공종을 중심으로 밀착 지도가 필요합니다.`;
         } else if (imp < 60) {
-            return `근로자 안전 이해도(${score}점)에 비해 개선 이행률(${imp}%)이 낮습니다. 지적 사항 보강 상태를 점검하세요.`;
+            return `근로자 안전 이해도(${score}점)에 비해 응답 기반 개선 신호(${imp}%)이 낮습니다. 원문 응답을 확인하고 필요한 보호조치를 검토하세요.`;
         } else {
             return `전체 지표가 우수하게 유지 중입니다. 원페이지 교육자료와 ${assessmentCycleCopy.trackingLabel} 흐름을 점검하며 현재의 흐름을 보존하십시오.`;
         }
@@ -459,14 +459,14 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                                             : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
                                     }`}
                                 >
-                                    개선 이행률
+                                    응답 기반 개선 신호
                                 </button>
                             </div>
                         </div>
 
                         <div className="mt-3">
                             <h3 className="text-sm font-black text-slate-900 dark:text-slate-150">현장 안전 트렌드 & 지표 분석</h3>
-                            <p className="mt-1 text-[11px] font-medium text-slate-400 leading-4">최근 {assessmentCycleCopy.shortLabel} 위험인식 신호와 공종별 개선 이행 추이를 그래프로 분석합니다.</p>
+                            <p className="mt-1 text-[11px] font-medium text-slate-400 leading-4">최근 {assessmentCycleCopy.shortLabel} 위험인식 신호와 공종별 응답 기반 개선 신호를 그래프로 분석합니다.</p>
                         </div>
 
                         {/* 메트릭 정보 요약 */}
@@ -477,7 +477,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                             </div>
                             <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
                                 <b className="text-base font-black text-emerald-700 dark:text-emerald-400">{summary.improvement}%</b>
-                                <span className="block text-[9px] font-bold text-slate-400 mt-0.5">평균 개선율</span>
+                                <span className="block text-[9px] font-bold text-slate-400 mt-0.5">평균 개선 신호</span>
                             </div>
                             <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
                                 <b className="text-base font-black text-slate-700 dark:text-slate-350">{summary.workTypes}개</b>

@@ -13,7 +13,7 @@ const consumers = [
     },
     {
         file: 'components/IntegratedWorkBoard.tsx',
-        metrics: ['평균 응답품질', '보호 우선', '개선 이행률', '월 추세'],
+        metrics: ['평균 응답품질', '보호 우선', '응답 기반 개선 신호', '월 추세'],
         required: ['calculateCoreMetricSnapshot', 'buildMonthlyCoreMetricSeries'],
         forbidden: [/record\.safetyLevel\s*===\s*'초급'\s*\|\|\s*record\.safetyScore\s*<\s*60/],
     },
@@ -25,7 +25,7 @@ const consumers = [
     },
     {
         file: 'utils/reportBuilders.ts',
-        metrics: ['월 평균 응답품질', '월 개선 이행률'],
+        metrics: ['월 평균 응답품질', '월 응답 기반 개선 신호'],
         required: ['buildMonthlyCoreMetricSeries'],
         forbidden: [/average\(monthRecords\.map\(\(item\)\s*=>\s*item\.safetyScore/],
     },

@@ -1,4 +1,4 @@
-# PSI 배포 환경변수 체크리스트 (2026-09-02)
+# PSI 배포 환경변수 체크리스트 (2026-09-29)
 
 이 문서는 현재 코드 기준으로 실제 참조되는 환경변수만 정리합니다.
 
@@ -17,9 +17,9 @@
   - 폴백: `SUPABASE_SERVICE_KEY`, `SERVICE_ROLE_KEY`
   - 참조: `api/admin/*.ts`, `api/gateway.ts`, `lib/server/harness/persistence.ts`
 
-- `VITE_PSI_ADMIN_SECRET`
-  - 용도: 관리자 요청 헤더 및 관리 기능 보호
-  - 참조: `lib/supabaseClient.ts`, `api/admin/*.ts`, `api/gateway.ts`, `pages/WorkerManagement.tsx`
+- `PSI_ADMIN_SECRET`
+  - 용도: 기존 관리자 서버 요청 헤더. 서버 전용으로 설정
+  - `VITE_PSI_ADMIN_SECRET`은 제거하고 이미 공개된 값은 회전해야 합니다.
 
 - `ADMIN_LOGIN_PASSWORD`
   - 용도: 관리자 모드 진입 비밀번호
@@ -29,9 +29,9 @@
 
 - `ADMIN_SESSION_SECRET`
   - 용도: 관리자 로그인 세션 서명키
-  - 대체: `ADMIN_API_AUTH_TOKEN`, `PSI_ADMIN_SECRET`, `VITE_PSI_ADMIN_SECRET`
+  - 대체 키 없음. 별도의 비공개 서명키 필수
   - 참조: `lib/server/adminAuthGuard.ts`, `api/admin/auth.ts`
-  - 비고: 로그인 비밀번호와 다른 긴 임의 문자열 권장
+  - 비고: 로그인 비밀번호와 다른 32자 이상 무작위 문자열 필수(운영 빌드 검사)
 
 - `GOOGLE_TTS_API_KEY`
   - 용도: 다국어 음성(TTS) 생성
@@ -39,7 +39,7 @@
 
 - `GEMINI_API_KEY`
   - 용도: 하네스 분석/재분석 및 다국어 처리용 기존 Gemini 호출
-  - 권장값: `GEMINI_API_KEY_FREE`와 같은 무료 프로젝트 키
+  - 실고객 개인정보 입력 전 해당 프로젝트의 과금 상태·데이터 처리 약관을 검증해야 합니다. 변수 이름만으로 유료 서비스를 판정할 수 없습니다.
   - 폴백: `GOOGLE_GEMINI_API_KEY`, `GOOGLE_API_KEY`
   - 참조: `api/gateway.ts`, `api/admin/create-training.ts`, `lib/server/shared/multilingualIntegrityEmbedding.ts`
 
@@ -148,7 +148,7 @@
 VITE_SUPABASE_URL=https://xxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=xxxx
 SUPABASE_SERVICE_ROLE_KEY=xxxx
-VITE_PSI_ADMIN_SECRET=xxxx
+PSI_ADMIN_SECRET=xxxx
 ADMIN_LOGIN_PASSWORD=xxxx
 ADMIN_SESSION_SECRET=xxxx
 GOOGLE_TTS_API_KEY=xxxx
@@ -207,7 +207,7 @@ VERCEL_TOKEN=xxxx
 
 - 관리자 기능 접근 실패
   - 관리자 모드 진입 실패: `ADMIN_LOGIN_PASSWORD` 또는 `PSI_ADMIN_PASSWORD` 설정 확인
-  - 로그인 후 관리자 기능 호출 실패: `ADMIN_SESSION_SECRET`, `VITE_PSI_ADMIN_SECRET`, `PSI_ADMIN_SECRET` 설정 확인
+  - 로그인 후 관리자 기능 호출 실패: `ADMIN_SESSION_SECRET`, `PSI_ADMIN_SECRET` 설정 확인
   - 운영자 로그인 세션과 배포 환경변수 반영 여부 확인
 
 - 하네스 분석/재분석 실패
@@ -218,3 +218,7 @@ VERCEL_TOKEN=xxxx
   - `VERCEL_TOKEN` 유효성 확인
   - 프로젝트 연결 상태(`vercel pull`)와 함수 수 제한 초과 여부 확인
 
+
+## 공용 SaaS 전환
+
+`PSI_DEPLOYMENT_MODEL=shared-saas`는 현재 출시 검사를 실패시킵니다. 기존 경로의 기업별 분리가 완료되지 않았기 때문입니다. [전환 절차](docs/SAAS_MIGRATION.md)를 따라야 하며 환경변수 변경만으로 고객 공동 운영을 시작하면 안 됩니다.

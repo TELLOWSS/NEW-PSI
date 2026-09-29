@@ -24,8 +24,8 @@ const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
     {
         global: {
-            headers: (process.env.VITE_PSI_ADMIN_SECRET || process.env.PSI_ADMIN_SECRET)
-                ? { 'x-psi-admin-secret': process.env.VITE_PSI_ADMIN_SECRET || process.env.PSI_ADMIN_SECRET || '' }
+            headers: process.env.PSI_ADMIN_SECRET
+                ? { 'x-psi-admin-secret': process.env.PSI_ADMIN_SECRET || '' }
                 : {},
         },
     },

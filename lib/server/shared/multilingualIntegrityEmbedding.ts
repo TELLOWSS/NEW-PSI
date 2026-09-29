@@ -82,7 +82,6 @@ const getSupabaseClient = () => {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
         '';
     const psiAdminSecret =
-        process.env.VITE_PSI_ADMIN_SECRET ||
         process.env.PSI_ADMIN_SECRET ||
         '';
 

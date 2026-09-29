@@ -24,7 +24,7 @@ function getSupabaseClient() {
     const url = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SERVICE_ROLE_KEY || '';
     const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-    const adminSecret = process.env.VITE_PSI_ADMIN_SECRET || process.env.PSI_ADMIN_SECRET || '';
+    const adminSecret =  process.env.PSI_ADMIN_SECRET || '';
     const key = serviceKey || anonKey;
     if (!url || !key) throw new Error('Supabase 환경변수가 누락되었습니다.');
     return createClient(url, key, {
