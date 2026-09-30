@@ -3,7 +3,7 @@ export class TenantWorkspaceRequestError extends Error {
 }
 
 interface RequestOptions {
-    resource?: 'actions' | 'training-drafts';
+    resource?: 'actions' | 'training-drafts' | 'workers';
     method?: 'GET' | 'POST' | 'PATCH';
     body?: unknown;
     query?: Record<string, string>;

@@ -12,7 +12,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('memory-only tenant request lifecycle', () => {
-    it.each(['actions', 'training-drafts'] as const)('uses the user token and selected company, excludes legacy cookies, and disables caches', async resource => {
+    it.each(['actions', 'training-drafts', 'workers'] as const)('uses the user token and selected company, excludes legacy cookies, and disables caches', async resource => {
         await requestTenantWorkspace(getToken, () => generation, 'company-a', { resource, method: 'POST', body: { title: 'Guardrail' } });
         expect(fetchMock).toHaveBeenCalledWith(`/api/saas/access?resource=${resource}`, expect.objectContaining({
             method: 'POST', credentials: 'omit', cache: 'no-store', headers: {
@@ -27,10 +27,10 @@ describe('memory-only tenant request lifecycle', () => {
         await expect(pending).rejects.toMatchObject({ code: 'REQUEST_CANCELLED' });
         expect(fetchMock).not.toHaveBeenCalled();
     });
-    it('does not deliver old-company records when a response finishes after a switch', async () => {
+    it.each(['actions', 'training-drafts', 'workers'] as const)('does not deliver old-company %s records when a response finishes after a switch', async resource => {
         let finish!: (result: any) => void;
         fetchMock.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
-        const pending = requestTenantWorkspace(getToken, () => generation, 'company-a');
+        const pending = requestTenantWorkspace(getToken, () => generation, 'company-a', { resource });
         await Promise.resolve(); generation += 1;
         finish({ ok: true, status: 200, json: async () => ({ ok: true, items: [{ secret: 'company-a record' }] }) });
         await expect(pending).rejects.toMatchObject({ code: 'REQUEST_CANCELLED' });

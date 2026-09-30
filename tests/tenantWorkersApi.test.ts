@@ -10,13 +10,13 @@ const tenantId='b9300000-0000-4000-8000-000000000001';
 const userId='a9300000-0000-4000-8000-000000000001';
 const id='c9300000-0000-4000-8000-000000000001';
 const requestId='d9300000-0000-4000-8000-000000000001';
-const row=(overrides={})=>({tenant_id:tenantId,id,title:'Guardrail repair',site_name:'Test site',source_text_ko:'Protective guardrail missing',revision:1,created_at:'2026-09-30T01:00:00.123456+00:00',updated_at:'2026-09-30T01:00:00.123456+00:00',...overrides});
-const createBody=()=>({requestId,title:'Guardrail repair',siteName:'Test site',sourceTextKo:'Protective guardrail missing'});
+const row=(overrides={})=>({tenant_id:tenantId,id,name:'Guardrail repair',worker_code:'Test site',trade:'Protective guardrail missing',active:true,revision:1,created_at:'2026-09-30T01:00:00.123456+00:00',updated_at:'2026-09-30T01:00:00.123456+00:00',...overrides});
+const createBody=()=>({requestId,name:'Guardrail repair',workerCode:'Test site',trade:'Protective guardrail missing'});
 let role='admin';
 let queue: any[];
 let calls: {table:string; operations:[string,...any[]][]}[];
 const response=()=>({code:0,body:null as any,setHeader:vi.fn(),status(code:number){this.code=code;return this;},json(body:any){this.body=body;return this;}});
-const request=(method='GET',body?:unknown,query:Record<string,unknown>={})=>({method,headers:{authorization:'Bearer verified-user-token','x-psi-tenant-id':tenantId},query:{resource:'training-drafts',...query},body});
+const request=(method='GET',body?:unknown,query:Record<string,unknown>={})=>({method,headers:{authorization:'Bearer verified-user-token','x-psi-tenant-id':tenantId},query:{resource:'workers',...query},body});
 
 beforeEach(()=>{
     vi.resetAllMocks(); role='admin'; queue=[]; calls=[];
@@ -33,7 +33,7 @@ describe('tenant education draft request boundary',()=>{
     it('routes through the existing SaaS function and scopes every list to the verified company',async()=>{
         queue.push({data:[row({unrelated_secret:'not part of DTO'})],error:null});
         const req=request(),res=response(); await handler(req,res);
-        expect(res.code).toBe(200); expect(res.body.items[0]).toMatchObject({id,title:'Guardrail repair',revision:1});
+        expect(res.code).toBe(200); expect(res.body.items[0]).toMatchObject({id,name:'Guardrail repair',revision:1});
         expect(mocks.context).toHaveBeenCalledWith(req,undefined);
         expect(calls[0].operations).toContainEqual(['eq','tenant_id',tenantId]);
         expect(calls[0].operations).toContainEqual(['limit',26]);
@@ -49,19 +49,19 @@ describe('tenant education draft request boundary',()=>{
         queue.push({data:row(),error:null});
         const req=request('POST',JSON.stringify(createBody())),res=response(); await handler(req,res);
         expect(res.code).toBe(201);
-        expect(mocks.context).toHaveBeenCalledWith(req,['owner','admin','reviewer']);
-        expect(calls[0].operations).toContainEqual(['insert',{tenant_id:tenantId,request_id:requestId,title:'Guardrail repair',site_name:'Test site',source_text_ko:'Protective guardrail missing',worker_ids:[]}]);
+        expect(mocks.context).toHaveBeenCalledWith(req,['owner','admin']);
+        expect(calls[0].operations).toContainEqual(['insert',{tenant_id:tenantId,request_id:requestId,name:'Guardrail repair',worker_code:'Test site',trade:'Protective guardrail missing'}]);
     });
     it.each(['tenantId','tenant_id','created_by','updated_by','role','status','revision'])('rejects client-supplied authority field %s',async field=>{
         const res=response(); await handler(request('POST',{...createBody(),[field]:'spoofed'}),res);
         expect(res.code).toBe(400); expect(mocks.from).not.toHaveBeenCalled();
     });
-    it.each([null,[], '{broken', {title:'x'},  {...createBody(),title:' '}, {...createBody(),requestId:'bad'}])('rejects malformed or invalid input without writing',async body=>{
+    it.each([null,[], '{broken', {name:'x'},  {...createBody(),name:' '}, {...createBody(),requestId:'bad'}])('rejects malformed or invalid input without writing',async body=>{
         const res=response(); await handler(request('POST',body),res);
         expect(res.code).toBe(400); expect(mocks.from).not.toHaveBeenCalled();
     });
     it('bounds request size before storing arbitrary text',async()=>{
-        const res=response(); await handler(request('POST',{...createBody(),sourceTextKo:'x'.repeat(66000)}),res);
+        const res=response(); await handler(request('POST',{...createBody(),trade:'x'.repeat(66000)}),res);
         expect(res.code).toBe(413); expect(mocks.from).not.toHaveBeenCalled();
     });
     it('recovers a creation retry only for the same user, company, request and content',async()=>{
@@ -72,30 +72,30 @@ describe('tenant education draft request boundary',()=>{
         expect(calls[1].operations).toContainEqual(['eq','created_by',userId]);
         expect(calls[1].operations).toContainEqual(['eq','request_id',requestId]);
     });
-    it.each([null,row({title:'Different submitted content'})])('does not overwrite a conflicting creation request',async existing=>{
+    it.each([null,row({name:'Different submitted content'})])('does not overwrite a conflicting creation request',async existing=>{
         queue.push({data:null,error:{code:'23505'}},{data:existing,error:null});
         const res=response(); await handler(request('POST',createBody()),res);
-        expect(res.code).toBe(409); expect(res.body.code).toBe('TRAINING_DRAFT_REQUEST_CONFLICT');
+        expect(res.code).toBe(409); expect(res.body.code).toBe('TENANT_WORKER_REQUEST_CONFLICT');
         expect(calls.flatMap(call=>call.operations).some(operation=>operation[0]==='update')).toBe(false);
     });
     it('includes company, record ID and expected revision in every update',async()=>{
-        queue.push({data:row({title:'Edited draft',revision:2}),error:null});
-        const res=response(); await handler(request('PATCH',{id,expectedRevision:1,title:'Edited draft'}),res);
+        queue.push({data:row({name:'Edited draft',revision:2}),error:null});
+        const res=response(); await handler(request('PATCH',{id,expectedRevision:1,name:'Edited draft'}),res);
         expect(res.code).toBe(200);
         for(const pair of [['tenant_id',tenantId],['id',id],['revision',1]]) expect(calls[0].operations).toContainEqual(['eq',...pair]);
-        expect(calls[0].operations).toContainEqual(['update',{title:'Edited draft'}]);
+        expect(calls[0].operations).toContainEqual(['update',{name:'Edited draft'}]);
     });
     it('rejects a stale or inaccessible update with no record content disclosure',async()=>{
         queue.push({data:null,error:null});
-        const res=response(); await handler(request('PATCH',{id,expectedRevision:1,title:'New title'}),res);
+        const res=response(); await handler(request('PATCH',{id,expectedRevision:1,name:'New name'}),res);
         expect(res.code).toBe(409); expect(res.body.item).toBeUndefined();
     });
     it('scopes revision history to the same company and record and omits actor identifiers',async()=>{
-        queue.push({data:row(),error:null},{data:[{tenant_id:tenantId,draft_id:id,draft_revision:1,title:'Guardrail repair',site_name:'Test site',source_text_ko:'Protective guardrail missing',occurred_at:'2026-09-30',actor_id:'private'}],error:null});
+        queue.push({data:row(),error:null},{data:[{tenant_id:tenantId,worker_id:id,worker_revision:1,name:'Guardrail repair',worker_code:'Test site',trade:'Protective guardrail missing',occurred_at:'2026-09-30',actor_id:'private'}],error:null});
         const res=response(); await handler(request('GET',undefined,{id}),res);
         expect(res.code).toBe(200); expect(res.body.events[0].revision).toBe(1);
         expect(calls[1].operations).toContainEqual(['eq','tenant_id',tenantId]);
-        expect(calls[1].operations).toContainEqual(['eq','draft_id',id]);
+        expect(calls[1].operations).toContainEqual(['eq','worker_id',id]);
         expect(JSON.stringify(res.body)).not.toContain('private');
     });
     it('does not query history for a missing or foreign record',async()=>{
@@ -119,23 +119,20 @@ describe('tenant education draft request boundary',()=>{
         await handler(request('GET',undefined,{cursor:malicious}),res);
         expect(res.code).toBe(400); expect(mocks.from).toHaveBeenCalledTimes(2);
     });
-    it.each([null, 'not-an-array', ['bad'], [id,id], Array(201).fill(id)])('rejects invalid or duplicate target IDs', async workerIds => {
-        const res=response(); await handler(request('PATCH',{id,expectedRevision:1,workerIds}),res);
+    it.each(['workerCode','tenant_id','revision'])('rejects changes to immutable registry field %s', async field => {
+        const res=response(); await handler(request('PATCH',{id,expectedRevision:1,[field]:'spoofed'}),res);
         expect(res.code).toBe(400); expect(mocks.from).not.toHaveBeenCalled();
     });
-    it('binds target selection to the same tenant and draft revision', async () => {
-        queue.push({data:row({worker_ids:[id],revision:2}),error:null});
-        const res=response(); await handler(request('PATCH',{id,expectedRevision:1,workerIds:[id]}),res);
-        expect(res.code).toBe(200); expect(res.body.item.workerIds).toEqual([id]);
-        expect(calls[0].operations).toContainEqual(['update',{worker_ids:[id]}]);
+    it('records deactivation with the expected revision and verified company', async () => {
+        queue.push({data:row({active:false,revision:2}),error:null});
+        const res=response(); await handler(request('PATCH',{id,expectedRevision:1,active:false}),res);
+        expect(res.code).toBe(200); expect(res.body.item.active).toBe(false);
         expect(calls[0].operations).toContainEqual(['eq','tenant_id',tenantId]);
         expect(calls[0].operations).toContainEqual(['eq','revision',1]);
     });
-    it('maps foreign or inactive worker rejection without leaking a database message', async () => {
-        queue.push({data:null,error:{code:'23514',message:'secret internal SQL'}});
-        const res=response(); await handler(request('PATCH',{id,expectedRevision:1,workerIds:[id]}),res);
-        expect(res.code).toBe(409); expect(res.body.code).toBe('TRAINING_WORKER_UNAVAILABLE');
-        expect(JSON.stringify(res.body)).not.toContain('secret');
+    it.each([null,'false',0])('rejects a non-boolean activation value', async active => {
+        const res=response(); await handler(request('PATCH',{id,expectedRevision:1,active}),res);
+        expect(res.code).toBe(400); expect(mocks.from).not.toHaveBeenCalled();
     });
     it('keeps unsupported methods/resources out of storage',async()=>{
         const res=response(); await handler(request('DELETE'),res); expect(res.code).toBe(405);

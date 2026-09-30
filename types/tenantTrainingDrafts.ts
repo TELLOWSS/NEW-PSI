@@ -3,6 +3,7 @@ export interface TenantTrainingDraft {
     title: string;
     siteName: string;
     sourceTextKo: string;
+    workerIds: string[];
     revision: number;
     createdAt: string;
     updatedAt: string;
@@ -12,5 +13,6 @@ export interface TenantTrainingDraftEvent {
     title: string;
     siteName: string;
     sourceTextKo: string;
+    workerIds: string[];
     occurredAt: string;
 }
