@@ -19,7 +19,7 @@ const files = {
 };
 
 const sources = Object.fromEntries(
-  Object.entries(files).map(([key, filePath]) => [key, fs.readFileSync(filePath, 'utf8')]),
+  Object.entries(files).map(([key, filePath]) => [key, fs.readFileSync(filePath, 'utf8').replace(/\r\n/g, '\n')]),
 );
 const packageJson = JSON.parse(sources.packageJson);
 
