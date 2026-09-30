@@ -1,3 +1,4 @@
+import { signTrainingAudioMap } from '../trainingAudio.js';
 import { createClient } from '@supabase/supabase-js';
 import { buildSignedTrainingMobileUrl, resolveLinkTtlMinutes } from '../trainingLinkToken.js';
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../adminAuthGuard.js';
@@ -132,7 +133,12 @@ async function handleListSessions(res: any) {
         return sendJsonError(res, 500, formatSupabaseError(result.error));
     }
 
-    return res.status(200).json({ ok: true, sessions: result.data || [] });
+    const sessions = await Promise.all((result.data || []).map(async (session: any) => ({
+        ...session,
+        audio_urls: await signTrainingAudioMap(supabase, session.id, session.audio_urls),
+    })));
+    res.setHeader('Cache-Control', 'private, no-store');
+    return res.status(200).json({ ok: true, sessions });
 }
 
 async function handleListTargetWorkers(res: any) {
@@ -930,7 +936,7 @@ async function handleUploadAudio(req: any, res: any, body: Record<string, unknow
     return res.status(200).json({
         ok: true,
         sessionId,
-        audioUrls,
+        audioUrls: await signTrainingAudioMap(supabase, sessionId, audioUrls),
         missingLanguages,
         releaseReady: releaseReadiness.ready,
         releaseBlockers: releaseReadiness.blockers,
@@ -1002,6 +1008,8 @@ export default async function handler(req: any, res: any) {
         if (!isValidAdminAuthRequest(req)) {
             return sendUnauthorizedAdminResponse(res);
         }
+
+        res.setHeader('Cache-Control', 'private, no-store');
 
         switch (action) {
             case 'create':
