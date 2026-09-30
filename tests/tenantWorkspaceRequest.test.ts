@@ -12,9 +12,9 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('memory-only tenant request lifecycle', () => {
-    it('uses the user token and selected company, excludes legacy cookies, and disables caches', async () => {
-        await requestTenantWorkspace(getToken, () => generation, 'company-a', { resource: 'actions', method: 'POST', body: { title: 'Guardrail' } });
-        expect(fetchMock).toHaveBeenCalledWith('/api/saas/access?resource=actions', expect.objectContaining({
+    it.each(['actions', 'training-drafts'] as const)('uses the user token and selected company, excludes legacy cookies, and disables caches', async resource => {
+        await requestTenantWorkspace(getToken, () => generation, 'company-a', { resource, method: 'POST', body: { title: 'Guardrail' } });
+        expect(fetchMock).toHaveBeenCalledWith(`/api/saas/access?resource=${resource}`, expect.objectContaining({
             method: 'POST', credentials: 'omit', cache: 'no-store', headers: {
                 Authorization: 'Bearer memory-only-user-token', 'X-PSI-Tenant-ID': 'company-a', 'Content-Type': 'application/json',
             }, body: '{"title":"Guardrail"}',

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import TenantTrainingDraftsPanel from '../components/TenantTrainingDraftsPanel';
 import TenantSafetyActionsPanel from '../components/TenantSafetyActionsPanel';
 import { requestTenantWorkspace, TenantWorkspaceRequestError } from '../utils/tenantWorkspaceRequest';
 
@@ -114,9 +115,11 @@ export default function TenantAccess() {
             </div>}
             {selected && <div role="status" className="mt-6 rounded-lg bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">
                 <p className="font-bold">{selected.name} · {roleNames[selected.role]}</p>
-                <p>현재 선택한 기업의 권한으로 조치 기록을 확인합니다. 기업을 바꾸거나 로그아웃하면 열린 기록과 입력 내용이 지워집니다.</p>
+                <p>현재 선택한 기업의 권한으로 조치 기록과 교육 초안을 확인합니다. 기업을 바꾸거나 로그아웃하면 열린 기록과 입력 내용이 지워집니다.</p>
             </div>}
             {selected && <TenantSafetyActionsPanel key={`${selected.userId}:${selected.tenantId}`} role={selected.role}
+                request={options => requestTenantWorkspace(getAccessToken, () => generation.current, selected.tenantId, options)} onAccessLost={loseAccess} />}
+            {selected && <TenantTrainingDraftsPanel key={`${selected.userId}:${selected.tenantId}`} role={selected.role}
                 request={options => requestTenantWorkspace(getAccessToken, () => generation.current, selected.tenantId, options)} onAccessLost={loseAccess} />}
             {error && <p role="alert" className="mt-4 text-sm leading-6 text-red-700">{error}</p>}
         </section>
