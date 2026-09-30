@@ -8,6 +8,7 @@ export function releaseConfigurationErrors(env) {
     // Legacy APIs, public worker links and browser caches are not tenant-scoped yet.
     if (mode === 'shared-saas') errors.push('Shared SaaS release blocked: legacy data paths must be migrated and isolation-tested first. See docs/SAAS_MIGRATION.md.');
     if (env.VERCEL_ENV === 'production') {
+        if ((env.TRAINING_LINK_SECRET || '').trim().length < 32) errors.push('TRAINING_LINK_SECRET must contain at least 32 characters.');
         if ((env.ADMIN_SESSION_SECRET || '').trim().length < 32) errors.push('ADMIN_SESSION_SECRET must contain at least 32 characters.');
         if (!(env.ADMIN_LOGIN_PASSWORD || env.PSI_ADMIN_PASSWORD || '').trim()) errors.push('A private administrator login password is required.');
         if (env.VITE_PSI_ADMIN_SECRET) errors.push('Remove VITE_PSI_ADMIN_SECRET and rotate the exposed credential.');
