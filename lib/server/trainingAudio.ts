@@ -61,6 +61,10 @@ export async function readTrainingMaterial(client: any, access: { sessionId: str
     }
     const expiresIn = Math.floor((access.expiresAt - Date.now()) / 1000);
     if (expiresIn < 1) throw failure(403, '교육 접근 시간이 만료되었습니다.');
-    const audioUrls = await signTrainingAudioMap(client, sessionId, session.audio_urls, expiresIn);
+    const storedAudio = normalizeTrainingStringMap(session.audio_urls);
+    const releasedAudio = metadata
+        ? Object.fromEntries(metadata.selectedLanguages.filter(code => Object.hasOwn(storedAudio, code)).map(code => [code, storedAudio[code]]))
+        : storedAudio;
+    const audioUrls = await signTrainingAudioMap(client, sessionId, releasedAudio, expiresIn);
     return { id: session.id, case_id: session.case_id || null, source_text_ko: session.source_text_ko, translated_texts: session.translated_texts, audio_urls: audioUrls };
 }

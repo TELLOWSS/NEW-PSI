@@ -7,10 +7,14 @@ const origin = 'https://project.supabase.co';
 const locator = `${origin}/storage/v1/object/public/training_audio/session-1/ko-KR.mp3?v=1`;
 const oldSecret = process.env.TRAINING_LINK_SECRET;
 const oldModel = process.env.PSI_DEPLOYMENT_MODEL;
+const oldOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const oldViteOrigin = process.env.VITE_SUPABASE_URL;
 beforeEach(() => { process.env.TRAINING_LINK_SECRET = 'synthetic-audio-test'; delete process.env.PSI_DEPLOYMENT_MODEL; });
 afterEach(() => {
     if (oldSecret === undefined) delete process.env.TRAINING_LINK_SECRET; else process.env.TRAINING_LINK_SECRET = oldSecret;
     if (oldModel === undefined) delete process.env.PSI_DEPLOYMENT_MODEL; else process.env.PSI_DEPLOYMENT_MODEL = oldModel;
+    if (oldOrigin === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL; else process.env.NEXT_PUBLIC_SUPABASE_URL = oldOrigin;
+    if (oldViteOrigin === undefined) delete process.env.VITE_SUPABASE_URL; else process.env.VITE_SUPABASE_URL = oldViteOrigin;
     vi.restoreAllMocks();
 });
 const proof = (linkTtl = 600000, workerTtl = 600000) => {
@@ -74,6 +78,15 @@ describe('training material and audio boundary', () => {
         const db = client({ id: 'session-1', source_text_ko: '교육', audio_urls: {}, translated_texts: { __release__: JSON.stringify({ version: 1, status: 'draft', selectedLanguages: ['ko-KR'] }) } });
         await expect(readTrainingMaterial(db, verifyTrainingMaterialAccess(proof()))).rejects.toThrow('검수');
         expect(db.sign).not.toHaveBeenCalled();
+    });
+    it('issues only released languages, excluding unselected draft audio', async () => {
+        delete process.env.VITE_SUPABASE_URL;
+        process.env.NEXT_PUBLIC_SUPABASE_URL = origin;
+        const db = client({ id: 'session-1', source_text_ko: '교육', audio_urls: { 'ko-KR': locator, 'vi-VN': locator.replace('ko-KR', 'vi-VN') }, translated_texts: { __release__: JSON.stringify({ version: 1, status: 'ready', selectedLanguages: ['ko-KR'] }) } });
+        const result = await readTrainingMaterial(db, verifyTrainingMaterialAccess(proof()));
+        expect(Object.keys(result.audio_urls)).toEqual(['ko-KR']);
+        expect(db.sign.mock.calls[0][0]).toEqual(['session-1/ko-KR.mp3']);
+        expect(db.sign.mock.calls[0][1]).toBeLessThanOrEqual(300);
     });
     it('gateway rejects unauthenticated requests with no-store before accessing DB', async () => {
         const res: any = { setHeader: vi.fn(), status: vi.fn(() => res), json: vi.fn() };
