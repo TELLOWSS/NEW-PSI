@@ -2570,6 +2570,11 @@ export default async function handler(req: any, res: any) {
     }
 
     try {
+        if (process.env.PSI_DEPLOYMENT_MODEL === 'shared-saas'
+            && ['worker.authenticate', 'training.material', 'training.check-access', 'training.submit'].includes(action)) {
+            if (typeof res.setHeader === 'function') res.setHeader('Cache-Control', 'private, no-store');
+            return res.status(503).json({ ok: false, code: 'TENANT_TRAINING_NOT_READY', message: '기업별 교육 접근 준비가 완료되지 않았습니다. 관리자에게 문의하세요.' });
+        }
         switch (action) {
             case 'training.material': {
                 res.setHeader('Cache-Control', 'private, no-store');
