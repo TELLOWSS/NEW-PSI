@@ -1,4 +1,5 @@
 import { authenticateTenantUser, requireTenantContext, sendTenantError, TenantAccessError } from '../../lib/server/tenantAuth.js';
+import { tenantWorkerAccounts, tenantEducationReleases, workerEducation } from '../../lib/server/tenantEducation.js';
 import tenantWorkers from '../../lib/server/tenantWorkers.js';
 import tenantTrainingDrafts from '../../lib/server/tenantTrainingDrafts.js';
 import tenantSafetyActions from '../../lib/server/tenantSafetyActions.js';
@@ -6,6 +7,9 @@ import tenantSafetyActions from '../../lib/server/tenantSafetyActions.js';
 export default async function handler(req: any, res: any) {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Vary', 'Authorization, X-PSI-Tenant-ID');
+    if (req.query?.resource === 'worker-education') return workerEducation(req, res);
+    if (req.query?.resource === 'worker-accounts') return tenantWorkerAccounts(req, res);
+    if (req.query?.resource === 'education-releases') return tenantEducationReleases(req, res);
     if (req.query?.resource === 'workers') return tenantWorkers(req, res);
     if (req.query?.resource === 'training-drafts') return tenantTrainingDrafts(req, res);
     if (req.query?.resource === 'actions') return tenantSafetyActions(req, res);

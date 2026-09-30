@@ -2,8 +2,8 @@ export class TenantWorkspaceRequestError extends Error {
     constructor(message: string, public status: number, public code: string) { super(message); }
 }
 
-interface RequestOptions {
-    resource?: 'actions' | 'training-drafts' | 'workers';
+export interface TenantWorkspaceRequestOptions {
+    resource?: 'actions' | 'training-drafts' | 'workers' | 'worker-accounts' | 'education-releases' | 'worker-education';
     method?: 'GET' | 'POST' | 'PATCH';
     body?: unknown;
     query?: Record<string, string>;
@@ -15,7 +15,7 @@ export async function requestTenantWorkspace(
     getAccessToken: () => Promise<string | null>,
     getGeneration: () => number,
     tenantId?: string,
-    options: RequestOptions = {},
+    options: TenantWorkspaceRequestOptions = {},
 ) {
     const ticket = getGeneration();
     const ensureCurrent = () => {
