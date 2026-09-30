@@ -132,7 +132,7 @@
     "vitest": "^4.1.9"
   },
   "overrides": {
-    "brace-expansion": "^2.1.4",
+    "brace-expansion": "^2.1.7",
     "image-size": "2.0.4"
   }
 }

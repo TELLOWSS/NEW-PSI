@@ -5,7 +5,7 @@ import {
     verifyAdminLoginPassword,
 } from '../lib/server/adminAuthGuard.js';
 import { createSupabaseServerClient } from '../lib/server/supabaseServer.js';
-import { verifyTrainingMaterialAccess, readTrainingMaterial } from '../lib/server/trainingAudio.js';
+import { verifyTrainingMaterialAccess, readTrainingMaterial, loadReleasedTrainingSession } from '../lib/server/trainingAudio.js';
 import { authorizeTrainingWorker, loadActiveTrainingWorker } from '../lib/server/trainingAudience.js';
 import handleHarnessAnalyze from '../lib/server/harness/handlers/analyze.js';
 import handleHarnessApprove from '../lib/server/harness/handlers/approve.js';
@@ -1092,7 +1092,7 @@ async function handleSingleSignature(
     }
 
     const supabase = getSupabaseClient();
-    const caseId = await loadTrainingCaseId(supabase, sessionId);
+    let caseId = authorization.mode === 'worker-auth' ? null : await loadTrainingCaseId(supabase, sessionId);
     const authorizedWorkerId = resolveAuthorizedWorkerId(authorization, payload);
     let normalizedWorkerName = String(workerName || '').trim();
     let normalizedNationality = String(nationality || '').trim();
@@ -1106,6 +1106,14 @@ async function handleSingleSignature(
             : await loadCanonicalWorker(supabase, authorizedWorkerId);
         normalizedWorkerName = canonicalWorker.name;
         normalizedNationality = canonicalWorker.nationality;
+    }
+
+    if (authorization.mode === 'worker-auth') {
+        const { session, metadata } = await loadReleasedTrainingSession(supabase, String(sessionId));
+        caseId = String(session.case_id || '').trim() || null;
+        if (metadata && !metadata.selectedLanguages.includes(String(selectedLanguageCode || '').trim())) {
+            throw createGatewayHttpError('선택한 언어의 교육자료를 다시 확인해 주세요.', 422, 'TRAINING_LANGUAGE_NOT_RELEASED');
+        }
     }
 
     if (!normalizedWorkerName) {

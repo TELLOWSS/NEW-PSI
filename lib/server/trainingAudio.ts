@@ -1,4 +1,4 @@
-import { normalizeTrainingStringMap, parseTrainingReleaseMetadata, assessTrainingReleaseReadiness } from '../../utils/trainingReleaseReadiness.js';
+import { normalizeTrainingStringMap, parseTrainingReleaseMetadata, assessTrainingReleaseReadiness, TRAINING_RELEASE_METADATA_KEY } from '../../utils/trainingReleaseReadiness.js';
 import { TRAINING_LANGUAGE_LABELS } from '../../utils/constructionTrainingTranslation.js';
 import { verifyTrainingLinkToken, verifyWorkerAuthenticationToken } from './trainingLinkToken.js';
 import { authorizeTrainingWorker } from './trainingAudience.js';
@@ -53,9 +53,7 @@ export async function signTrainingAudioMap(client: any, sessionId: string, value
     }));
 }
 
-export async function readTrainingMaterial(client: any, access: { sessionId: string; workerId: string; expiresIn: number; expiresAt: number }) {
-    const { sessionId } = access;
-    await authorizeTrainingWorker(client, sessionId, access.workerId);
+export async function loadReleasedTrainingSession(client: any, sessionId: string) {
     let result = await client.from('training_sessions').select('id, case_id, source_text_ko, audio_urls, translated_texts').eq('id', sessionId).single();
     if (result.error?.code === '42703' || result.error?.code === 'PGRST204') {
         result = await client.from('training_sessions').select('id, source_text_ko, audio_urls, translated_texts').eq('id', sessionId).single();
@@ -63,10 +61,20 @@ export async function readTrainingMaterial(client: any, access: { sessionId: str
     if (result.error || !result.data) throw failure(404, '교육자료를 찾을 수 없습니다.');
     const session = result.data;
     const metadata = parseTrainingReleaseMetadata(session.translated_texts);
+    if (!metadata && session.translated_texts && Object.hasOwn(session.translated_texts, TRAINING_RELEASE_METADATA_KEY)) {
+        throw failure(422, '교육자료 검수 정보를 확인할 수 없습니다. 관리자에게 문의하세요.');
+    }
     if (metadata) {
         const readiness = assessTrainingReleaseReadiness({ selectedLanguages: metadata.selectedLanguages, sourceTextKo: session.source_text_ko, translatedTexts: session.translated_texts, audioUrls: session.audio_urls, approvedReviewLanguages: metadata.approvedReviewLanguages });
         if (metadata.status !== 'ready' || !readiness.ready) throw failure(422, '교육자료 검수가 완료되지 않았습니다.');
     }
+    return { session, metadata };
+}
+
+export async function readTrainingMaterial(client: any, access: { sessionId: string; workerId: string; expiresIn: number; expiresAt: number }) {
+    const { sessionId } = access;
+    await authorizeTrainingWorker(client, sessionId, access.workerId);
+    const { session, metadata } = await loadReleasedTrainingSession(client, sessionId);
     const expiresIn = Math.floor((access.expiresAt - Date.now()) / 1000);
     if (expiresIn < 1) throw failure(403, '교육 접근 시간이 만료되었습니다.');
     const storedAudio = normalizeTrainingStringMap(session.audio_urls);
