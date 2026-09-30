@@ -1,6 +1,7 @@
 import { normalizeTrainingStringMap, parseTrainingReleaseMetadata, assessTrainingReleaseReadiness } from '../../utils/trainingReleaseReadiness.js';
 import { TRAINING_LANGUAGE_LABELS } from '../../utils/constructionTrainingTranslation.js';
 import { verifyTrainingLinkToken, verifyWorkerAuthenticationToken } from './trainingLinkToken.js';
+import { authorizeTrainingWorker } from './trainingAudience.js';
 
 const failure = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode });
 export const trainingAudioOrigin = () => process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -35,7 +36,7 @@ export function verifyTrainingMaterialAccess(body: any, now = Date.now()) {
     if (!verifyWorkerAuthenticationToken(sessionId, workerId, body?.workerAuthExpiresAt, body?.workerAuthToken).ok) throw failure(403, '근로자 본인 확인을 다시 진행해 주세요.');
     const expiresIn = Math.min(300, Math.floor((Number(body.linkExpiresAt) - now) / 1000), Math.floor((Number(body.workerAuthExpiresAt) - now) / 1000));
     if (expiresIn < 1) throw failure(403, '교육 접근 시간이 만료되었습니다.');
-    return { sessionId, expiresIn, expiresAt: Math.min(Number(body.linkExpiresAt), Number(body.workerAuthExpiresAt), now + expiresIn * 1000) };
+    return { sessionId, workerId, expiresIn, expiresAt: Math.min(Number(body.linkExpiresAt), Number(body.workerAuthExpiresAt), now + expiresIn * 1000) };
 }
 
 export async function signTrainingAudioMap(client: any, sessionId: string, values: unknown, expiresIn = 300, origin = trainingAudioOrigin()) {
@@ -52,8 +53,9 @@ export async function signTrainingAudioMap(client: any, sessionId: string, value
     }));
 }
 
-export async function readTrainingMaterial(client: any, access: { sessionId: string; expiresIn: number; expiresAt: number }) {
+export async function readTrainingMaterial(client: any, access: { sessionId: string; workerId: string; expiresIn: number; expiresAt: number }) {
     const { sessionId } = access;
+    await authorizeTrainingWorker(client, sessionId, access.workerId);
     let result = await client.from('training_sessions').select('id, case_id, source_text_ko, audio_urls, translated_texts').eq('id', sessionId).single();
     if (result.error?.code === '42703' || result.error?.code === 'PGRST204') {
         result = await client.from('training_sessions').select('id, source_text_ko, audio_urls, translated_texts').eq('id', sessionId).single();

@@ -1546,7 +1546,7 @@ const AdminTraining: React.FC = () => {
                     </div>
 
                     <div className="mt-4">
-                        <p className="text-xs font-black text-slate-700 dark:text-slate-200">이수율 대상 범위</p>
+                        <p className="text-xs font-black text-slate-700 dark:text-slate-200">교육 접근 및 이수율 대상</p>
                         <div className="mt-2 grid gap-2 sm:grid-cols-2">
                             <label className={`rounded-xl border p-3 ${targetMode === 'attendance_only' ? 'border-indigo-300 bg-indigo-50 dark:bg-indigo-900/30' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'}`}>
                                 <input
@@ -1555,8 +1555,8 @@ const AdminTraining: React.FC = () => {
                                     checked={targetMode === 'attendance_only'}
                                     onChange={() => setTargetMode('attendance_only')}
                                 />
-                                <span className="ml-2 text-xs font-black text-slate-800 dark:text-slate-100">지정 대상자 전체 기준</span>
-                                <p className="mt-1 pl-5 text-[11px] font-bold text-slate-500 dark:text-slate-400">선택한 대상자 전체를 이수율 분모로 사용합니다.</p>
+                                <span className="ml-2 text-xs font-black text-slate-800 dark:text-slate-100">지정 대상자만 접근</span>
+                                <p className="mt-1 pl-5 text-[11px] font-bold text-slate-500 dark:text-slate-400">선택한 근로자만 교육 열람·서명이 가능하며, 전체 대상자를 기준으로 이수율을 계산합니다.</p>
                             </label>
                             <label className={`rounded-xl border p-3 ${targetMode === 'submitted_only' ? 'border-amber-300 bg-amber-50 dark:bg-amber-900/20' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'}`}>
                                 <input
@@ -1566,7 +1566,7 @@ const AdminTraining: React.FC = () => {
                                     onChange={() => setTargetMode('submitted_only')}
                                 />
                                 <span className="ml-2 text-xs font-black text-slate-800 dark:text-slate-100">범위 미지정</span>
-                                <p className="mt-1 pl-5 text-[11px] font-bold text-slate-500 dark:text-slate-400">제출 현황만 집계하며 이수율은 표시하지 않습니다.</p>
+                                <p className="mt-1 pl-5 text-[11px] font-bold text-slate-500 dark:text-slate-400">등록된 근로자가 본인 확인 후 접근할 수 있습니다. 제출 현황만 집계하며 이수율은 표시하지 않습니다.</p>
                             </label>
                         </div>
                     </div>

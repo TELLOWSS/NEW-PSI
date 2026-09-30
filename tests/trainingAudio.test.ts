@@ -26,8 +26,9 @@ const proof = (linkTtl = 600000, workerTtl = 600000) => {
 const client = (session: any) => {
     const sign = vi.fn(async (paths: string[], ttl: number) => ({ data: paths.map(path => ({ path, signedUrl: `https://signed.test/${path}?ttl=${ttl}` })) }));
     const single = vi.fn(async () => ({ data: session, error: null }));
-    const chain: any = { select: vi.fn(() => chain), eq: vi.fn(() => chain), single };
-    return { from: vi.fn(() => chain), storage: { from: vi.fn(() => ({ createSignedUrls: sign })) }, sign, chain };
+    const chain: any = { select: vi.fn(() => chain), eq: vi.fn(() => chain), single, maybeSingle: vi.fn(async () => ({ data: session && { ...session, target_mode: 'submitted_only', target_worker_names: [] }, error: null })) };
+    const worker: any = { select: vi.fn(() => worker), eq: vi.fn(() => worker), is: vi.fn(() => worker), maybeSingle: vi.fn(async () => ({ data: { id: 'worker-1', name: '테스트', nationality: '한국', deleted_at: null }, error: null })) };
+    return { from: vi.fn((table: string) => table === 'workers' ? worker : chain), storage: { from: vi.fn(() => ({ createSignedUrls: sign })) }, sign, chain, worker };
 };
 describe('training material and audio boundary', () => {
     it('returns a service-unavailable error without revealing configuration details', () => {

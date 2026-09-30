@@ -6,6 +6,7 @@ import {
 } from '../lib/server/adminAuthGuard.js';
 import { createSupabaseServerClient } from '../lib/server/supabaseServer.js';
 import { verifyTrainingMaterialAccess, readTrainingMaterial } from '../lib/server/trainingAudio.js';
+import { authorizeTrainingWorker, loadActiveTrainingWorker } from '../lib/server/trainingAudience.js';
 import handleHarnessAnalyze from '../lib/server/harness/handlers/analyze.js';
 import handleHarnessApprove from '../lib/server/harness/handlers/approve.js';
 import handleHarnessPersistenceHealth from '../lib/server/harness/handlers/persistenceHealth.js';
@@ -839,6 +840,7 @@ async function handleTrainingCheckAccess(req: any, res: any) {
     }
 
     const supabase = getSupabaseClient();
+    await authorizeTrainingWorker(supabase, normalizedSessionId, normalizedWorkerId);
     const blocked = await hasExistingTrainingLog(supabase, {
         sessionId: normalizedSessionId,
         workerId: normalizedWorkerId,
@@ -1051,6 +1053,7 @@ async function handleWorkerAuthenticate(req: any, res: any) {
         return res.status(403).json({ ok: false, message: AUTH_FAIL_MESSAGE });
     }
 
+    const authorizedWorker = await authorizeTrainingWorker(supabase, normalizedSessionId, String(matches[0]?.id || ''));
     await recordApiUsageEvent(supabase, {
         scope: 'worker.authenticate',
         clientKeyHash: fingerprint,
@@ -1058,28 +1061,11 @@ async function handleWorkerAuthenticate(req: any, res: any) {
         resourceId: normalizedSessionId,
         metadata: { keyType: normalizedType, workerId: String(matches[0]?.id || '') },
     });
-    return sendWorkerAuthenticationSuccess(res, matches[0], normalizedSessionId);
+    return sendWorkerAuthenticationSuccess(res, authorizedWorker, normalizedSessionId);
 }
 
 async function loadCanonicalWorker(supabase: any, workerId: string) {
-    const { data, error } = await supabase
-        .from('workers')
-        .select('id, name, nationality')
-        .eq('id', workerId)
-        .maybeSingle();
-
-    if (error) {
-        throw new Error(`workers 조회 실패: ${error.message}`);
-    }
-    if (!data?.id || !data?.name) {
-        throw createGatewayHttpError('인증된 근로자 정보를 찾을 수 없습니다.', 403, 'WORKER_NOT_FOUND');
-    }
-
-    return {
-        id: String(data.id).trim(),
-        name: String(data.name).trim(),
-        nationality: String(data.nationality || '').trim(),
-    };
+    return loadActiveTrainingWorker(supabase, workerId);
 }
 
 async function handleSingleSignature(
@@ -1115,7 +1101,9 @@ async function handleSingleSignature(
         if (!authorizedWorkerId) {
             throw createGatewayHttpError('인증된 workerId가 필요합니다.', 403, 'WORKER_AUTH_REQUIRED');
         }
-        const canonicalWorker = await loadCanonicalWorker(supabase, authorizedWorkerId);
+        const canonicalWorker = authorization.mode === 'worker-auth'
+            ? await authorizeTrainingWorker(supabase, String(sessionId), authorizedWorkerId)
+            : await loadCanonicalWorker(supabase, authorizedWorkerId);
         normalizedWorkerName = canonicalWorker.name;
         normalizedNationality = canonicalWorker.nationality;
     }
@@ -2582,14 +2570,17 @@ export default async function handler(req: any, res: any) {
                 return res.status(200).json({ ok: true, data: session, audioExpiresAt: access.expiresAt });
             }
             case 'training.check-access':
+                if (typeof res.setHeader === 'function') res.setHeader('Cache-Control', 'private, no-store');
                 return await handleTrainingCheckAccess(req, res);
             case 'training.submit':
+                if (typeof res.setHeader === 'function') res.setHeader('Cache-Control', 'private, no-store');
                 return await handleTrainingSubmit(req, res);
             case 'ocr.retry':
                 return await handleOcrRetry(req, res);
             case 'ocr.upsert-best-practice':
                 return await handleOcrUpsertBestPractice(req, res);
             case 'worker.authenticate':
+                if (typeof res.setHeader === 'function') res.setHeader('Cache-Control', 'private, no-store');
                 return await handleWorkerAuthenticate(req, res);
             case 'harness.analyze':
                 return await handleHarnessAnalyze(req, res);
