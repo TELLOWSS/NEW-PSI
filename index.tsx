@@ -5,6 +5,7 @@ import App from './App';
 import { DevModeProvider } from './contexts/DevModeContext';
 import { OperationalModeProvider } from './contexts/OperationalModeContext';
 const TenantAccess = React.lazy(() => import('./pages/TenantAccess'));
+const WorkerTenantEducation = React.lazy(() => import('./pages/WorkerTenantEducation'));
 
 const RUNTIME_RECOVERY_RELOAD_KEY = 'psi_runtime_recovery_reload_once';
 const VERSION_MISMATCH_RELOAD_KEY = 'psi_version_mismatch_reload_once';
@@ -127,7 +128,9 @@ const root = ReactDOM.createRoot(rootElement);
 try {
   root.render(
     <React.StrictMode>
-      {window.location.pathname === '/saas/access' ? (
+      {window.location.pathname === '/saas/education' ? (
+        <React.Suspense fallback={<p role="status">개인 교육 화면을 불러오는 중…</p>}><WorkerTenantEducation /></React.Suspense>
+      ) : window.location.pathname === '/saas/access' ? (
         <React.Suspense fallback={<p role="status">기업 계정 화면을 불러오는 중…</p>}>
           <TenantAccess />
         </React.Suspense>

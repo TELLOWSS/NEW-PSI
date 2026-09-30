@@ -1,16 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { TenantWorkerAccountPanel } from './TenantEducationControls';
 import type { TenantWorkerEvent, TenantWorker } from '../types/tenantWorkers';
 import { TenantWorkspaceRequestError } from '../utils/tenantWorkspaceRequest';
 
 interface Props {
     key?: string;
     role: string;
-    request: (options: { resource: 'workers'; method?: 'GET' | 'POST' | 'PATCH'; body?: unknown; query?: Record<string, string>; signal?: AbortSignal }) => Promise<any>;
+    request: (options: { resource?: 'workers' | 'worker-accounts'; method?: 'GET' | 'POST' | 'PATCH'; body?: unknown; query?: Record<string, string>; signal?: AbortSignal }) => Promise<any>;
     onAccessLost: (error: TenantWorkspaceRequestError) => void;
 }
 const emptyForm = () => ({ name: '', workerCode: '', trade: '', active: true });
 
 export default function TenantWorkersPanel({ role, request, onAccessLost }: Props) {
+    const [accountWorker, setAccountWorker] = useState<TenantWorker | null>(null);
     const [items, setItems] = useState<TenantWorker[]>([]);
     const [nextCursor, setNextCursor] = useState<string | null>(null);
     const [loaded, setLoaded] = useState(false);
@@ -94,8 +96,10 @@ export default function TenantWorkersPanel({ role, request, onAccessLost }: Prop
                     {canWrite && <button type="button" disabled={busy} onClick={() => edit(item)} className="min-h-12 rounded-lg border border-slate-300 px-3 py-2 font-semibold disabled:opacity-50">근로자 정보 수정</button>}
                     <button type="button" disabled={busy} onClick={() => void run(signal => request({ resource: 'workers', query: { id: item.id }, signal }), result => setHistory({ name: result.item.name, events: result.events, limited: result.historyLimited }))} className="min-h-12 rounded-lg px-3 py-2 font-semibold text-indigo-700 underline disabled:opacity-50">변경 이력</button>
                 </div>
+                {canWrite && <button type="button" disabled={busy} onClick={() => setAccountWorker(item)} className="min-h-12 rounded-lg px-3 py-2 text-indigo-700 underline">개인 교육 계정 관리</button>}
             </li>)}
         </ul>
+        {accountWorker && canWrite && <TenantWorkerAccountPanel key={accountWorker.id} worker={items.find(item => item.id === accountWorker.id) || accountWorker} request={request} onAccessLost={onAccessLost} />}
         {nextCursor && <button type="button" disabled={busy} onClick={() => load(true)} className="mt-3 min-h-12 rounded-lg border border-slate-300 px-4 py-3 font-semibold disabled:opacity-50">이전 기록 더 보기</button>}
         {history && <section className="mt-5 rounded-lg bg-slate-50 p-4" aria-label="근로자 명단 변경 이력">
             <h3 className="font-bold">{history.name} · 변경 이력</h3>

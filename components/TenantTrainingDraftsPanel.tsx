@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { TenantEducationReleasePanel } from './TenantEducationControls';
 import type { TenantTrainingDraftEvent, TenantTrainingDraft } from '../types/tenantTrainingDrafts';
 import type { TenantWorker } from '../types/tenantWorkers';
 import { TenantWorkspaceRequestError } from '../utils/tenantWorkspaceRequest';
@@ -6,12 +7,13 @@ import { TenantWorkspaceRequestError } from '../utils/tenantWorkspaceRequest';
 interface Props {
     key?: string;
     role: string;
-    request: (options: { resource: 'training-drafts' | 'workers'; method?: 'GET' | 'POST' | 'PATCH'; body?: unknown; query?: Record<string, string>; signal?: AbortSignal }) => Promise<any>;
+    request: (options: { resource?: 'training-drafts' | 'workers' | 'education-releases'; method?: 'GET' | 'POST' | 'PATCH'; body?: unknown; query?: Record<string, string>; signal?: AbortSignal }) => Promise<any>;
     onAccessLost: (error: TenantWorkspaceRequestError) => void;
 }
 const emptyForm = () => ({ title: '', siteName: '', sourceTextKo: '', workerIds: [] as string[] });
 
 export default function TenantTrainingDraftsPanel({ role, request, onAccessLost }: Props) {
+    const [releaseDraft, setReleaseDraft] = useState<TenantTrainingDraft | null>(null);
     const [items, setItems] = useState<TenantTrainingDraft[]>([]);
     const [nextCursor, setNextCursor] = useState<string | null>(null);
     const [loaded, setLoaded] = useState(false);
@@ -107,8 +109,10 @@ export default function TenantTrainingDraftsPanel({ role, request, onAccessLost 
                     {canWrite && <button type="button" disabled={busy} onClick={() => edit(item)} className="min-h-12 rounded-lg border border-slate-300 px-3 py-2 font-semibold disabled:opacity-50">초안 수정</button>}
                     <button type="button" disabled={busy} onClick={() => void run(signal => request({ resource: 'training-drafts', query: { id: item.id }, signal }), result => setHistory({ title: result.item.title, events: result.events, limited: result.historyLimited }))} className="min-h-12 rounded-lg px-3 py-2 font-semibold text-indigo-700 underline disabled:opacity-50">변경 이력</button>
                 </div>
+                <button type="button" disabled={busy} onClick={() => setReleaseDraft(item)} className="min-h-12 rounded-lg px-3 py-2 text-indigo-700 underline">배포 관리</button>
             </li>)}
         </ul>
+        {releaseDraft && <TenantEducationReleasePanel key={releaseDraft.id + (items.find(item => item.id === releaseDraft.id)?.revision || releaseDraft.revision)} draft={items.find(item => item.id === releaseDraft.id) || releaseDraft} role={role} request={request} onAccessLost={onAccessLost} />}
         {nextCursor && <button type="button" disabled={busy} onClick={() => load(true)} className="mt-3 min-h-12 rounded-lg border border-slate-300 px-4 py-3 font-semibold disabled:opacity-50">이전 기록 더 보기</button>}
         {history && <section className="mt-5 rounded-lg bg-slate-50 p-4" aria-label="교육 초안 변경 이력">
             <h3 className="font-bold">{history.title} · 변경 이력</h3>
