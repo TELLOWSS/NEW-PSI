@@ -30,6 +30,15 @@ const client = (session: any) => {
     return { from: vi.fn(() => chain), storage: { from: vi.fn(() => ({ createSignedUrls: sign })) }, sign, chain };
 };
 describe('training material and audio boundary', () => {
+    it('returns a service-unavailable error without revealing configuration details', () => {
+        const valid = proof();
+        delete process.env.TRAINING_LINK_SECRET;
+        try { verifyTrainingMaterialAccess(valid); throw new Error('expected failure'); }
+        catch (error: any) {
+            expect(error.statusCode).toBe(503);
+            expect(error.message).not.toContain('TRAINING_LINK_SECRET');
+        }
+    });
     it('requires both proofs bound to the same session and worker', () => {
         const valid = proof();
         expect(verifyTrainingMaterialAccess(valid).expiresIn).toBe(300);

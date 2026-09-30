@@ -25,7 +25,13 @@ export function verifyTrainingMaterialAccess(body: any, now = Date.now()) {
     if (process.env.PSI_DEPLOYMENT_MODEL === 'shared-saas') throw failure(503, '기업별 교육 접근 준비가 완료되지 않았습니다.');
     const sessionId = String(body?.sessionId || '').trim();
     const workerId = String(body?.workerId || '').trim();
-    if (!verifyTrainingLinkToken(sessionId, body?.linkExpiresAt, body?.linkToken).ok) throw failure(403, '검증되지 않거나 만료된 교육 링크입니다.');
+    let linkVerification: ReturnType<typeof verifyTrainingLinkToken>;
+    try {
+        linkVerification = verifyTrainingLinkToken(sessionId, body?.linkExpiresAt, body?.linkToken);
+    } catch {
+        throw failure(503, '교육 인증 설정을 확인해 주세요. 관리자에게 문의하세요.');
+    }
+    if (!linkVerification.ok) throw failure(403, '검증되지 않거나 만료된 교육 링크입니다.');
     if (!verifyWorkerAuthenticationToken(sessionId, workerId, body?.workerAuthExpiresAt, body?.workerAuthToken).ok) throw failure(403, '근로자 본인 확인을 다시 진행해 주세요.');
     const expiresIn = Math.min(300, Math.floor((Number(body.linkExpiresAt) - now) / 1000), Math.floor((Number(body.workerAuthExpiresAt) - now) / 1000));
     if (expiresIn < 1) throw failure(403, '교육 접근 시간이 만료되었습니다.');
