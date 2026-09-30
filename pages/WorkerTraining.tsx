@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
-import { isSupabasePermissionError, supabase } from '../lib/supabaseClient';
 import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import type { TranslationQualityReport } from '../utils/constructionTrainingTranslation';
@@ -789,6 +788,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
     const [hasSessionLoaded, setHasSessionLoaded] = useState(false);
     const [loadRequestId, setLoadRequestId] = useState(0);
     const [sessionData, setSessionData] = useState<SessionRow | null>(null);
+    const audioExpiresAtRef = useRef(0);
+    const audioRequestInFlightRef = useRef(false);
 
     const [workerName, setWorkerName] = useState('');
     const [nationality, setNationality] = useState('대한민국');
@@ -844,7 +845,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
     const isLinkExpired = Number.isFinite(linkExpiresAt) ? Date.now() > linkExpiresAt : false;
     const isLinkMetaMissing = !linkToken || !Number.isFinite(linkExpiresAt) || linkExpiresAt <= 0;
     const isDemoSession = activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoAvailable;
-    const requiresWorkerAuthentication = isKioskMode && !isDemoSession;
+    const requiresWorkerAuthentication = !isDemoSession;
 
     const normalizedAudioMap = useMemo(() => normalizeMapObject(sessionData?.audio_urls), [sessionData]);
     const normalizedTextMap = useMemo(() => normalizeMapObject(sessionData?.translated_texts), [sessionData]);
@@ -1199,6 +1200,21 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
         sessionLoadInFlightRef.current = false;
     }, [activeSessionId]);
 
+    async function requestTrainingMaterial() {
+        const response = await fetch('/api/gateway?action=training.material', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store',
+            body: JSON.stringify({ sessionId: activeSessionId, linkExpiresAt, linkToken,
+                workerId: authenticatedWorker?.workerId,
+                workerAuthExpiresAt: authenticatedWorker?.workerAuthExpiresAt,
+                workerAuthToken: authenticatedWorker?.workerAuthToken }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.message || t.sessionFetchErrorLabel);
+        return result as { data: SessionRow; audioExpiresAt: number };
+    }
+
     useEffect(() => {
         if (!activeSessionId) {
             setLoading(false);
@@ -1227,32 +1243,13 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
             setLoading(true);
             setMessage('');
 
-            let { data, error } = await supabase
-                .from('training_sessions')
-                .select('id, case_id, source_text_ko, audio_urls, translated_texts')
-                .eq('id', activeSessionId)
-                .single();
-            if (error && String(error.message || '').toLowerCase().includes('case_id')) {
-                const fallback = await supabase
-                    .from('training_sessions')
-                    .select('id, source_text_ko, audio_urls, translated_texts')
-                    .eq('id', activeSessionId)
-                    .single();
-                data = fallback.data
-                    ? { ...fallback.data, case_id: null }
-                    : null;
-                error = fallback.error;
-            }
-
-            if (error) {
-                if (isSupabasePermissionError(error)) {
-                    setMessage(t.permissionDenied);
-                } else {
-                    setMessage(`${t.sessionFetchErrorLabel}: ${error.message}`);
-                }
+            try {
+                const material = await requestTrainingMaterial();
+                setSessionData(material.data);
+                audioExpiresAtRef.current = material.audioExpiresAt;
+            } catch (error) {
+                setMessage(error instanceof Error ? error.message : t.sessionFetchErrorLabel);
                 setSessionData(null);
-            } else {
-                setSessionData(data as SessionRow);
             }
 
             setHasSessionLoaded(true);
@@ -1304,6 +1301,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
     };
 
     const handleToggleAudio = async () => {
+        if (audioRequestInFlightRef.current) return;
         const audio = audioRef.current;
         if (!audio || !selectedAudioUrl) {
             setMessage(t.audioMissing);
@@ -1312,6 +1310,16 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
 
         try {
             if (audio.paused) {
+                if (!isDemoSession && Date.now() >= audioExpiresAtRef.current - 5000) {
+                    audioRequestInFlightRef.current = true;
+                    const material = await requestTrainingMaterial();
+                    const map = normalizeMapObject(material.data.audio_urls);
+                    const refreshedUrl = resolveLanguageCandidates(effectiveLangKey).map(code => map[code]).find(Boolean);
+                    if (!refreshedUrl) throw new Error(t.audioMissing);
+                    audioExpiresAtRef.current = material.audioExpiresAt;
+                    // Keep session state stable so URL refresh cannot reset or pause playback.
+                    audio.src = refreshedUrl;
+                }
                 await audio.play();
                 setIsPlaying(true);
                 setHasPlayedAudio(true);
@@ -1322,6 +1330,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({
         } catch {
             setMessage(t.audioMissing);
             setIsPlaying(false);
+        } finally {
+            audioRequestInFlightRef.current = false;
         }
     };
 

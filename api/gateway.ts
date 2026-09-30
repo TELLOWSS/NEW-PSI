@@ -5,6 +5,7 @@ import {
     verifyAdminLoginPassword,
 } from '../lib/server/adminAuthGuard.js';
 import { createSupabaseServerClient } from '../lib/server/supabaseServer.js';
+import { verifyTrainingMaterialAccess, readTrainingMaterial } from '../lib/server/trainingAudio.js';
 import handleHarnessAnalyze from '../lib/server/harness/handlers/analyze.js';
 import handleHarnessApprove from '../lib/server/harness/handlers/approve.js';
 import handleHarnessPersistenceHealth from '../lib/server/harness/handlers/persistenceHealth.js';
@@ -42,6 +43,7 @@ import {
 } from '../lib/server/apiSecurity.js';
 
 type GatewayAction =
+    | 'training.material'
     | 'training.check-access'
     | 'training.submit'
     | 'ocr.retry'
@@ -2573,6 +2575,12 @@ export default async function handler(req: any, res: any) {
 
     try {
         switch (action) {
+            case 'training.material': {
+                res.setHeader('Cache-Control', 'private, no-store');
+                const access = verifyTrainingMaterialAccess(req.body);
+                const session = await readTrainingMaterial(getSupabaseClient(), access);
+                return res.status(200).json({ ok: true, data: session, audioExpiresAt: access.expiresAt });
+            }
             case 'training.check-access':
                 return await handleTrainingCheckAccess(req, res);
             case 'training.submit':
