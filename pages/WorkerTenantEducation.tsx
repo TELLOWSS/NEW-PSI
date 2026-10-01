@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requestTenantWorkspace, TenantWorkspaceRequestError } from '../utils/tenantWorkspaceRequest';
 import type { WorkerEducation } from '../types/tenantEducation';
+import { scheduleEducationExpiry } from '../utils/educationExpiry';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default function WorkerTenantEducation() {
  const [link]=useState(()=>{
@@ -12,6 +13,14 @@ export default function WorkerTenantEducation() {
  const client=useRef<SupabaseClient|null>(null),generation=useRef(0),abort=useRef<AbortController|null>(null),pending=useRef(false);
  const [ready,setReady]=useState(false),[signedIn,setSignedIn]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[education,setEducation]=useState<WorkerEducation|null>(null);
+ useEffect(()=>{
+  if(!education)return;
+  const ticket=generation.current;
+  return scheduleEducationExpiry(education.expiresAt,()=>{
+   if(ticket!==generation.current)return;
+   setEducation(null);setError('교육 열람 기간이 종료됐습니다. 관리자에게 새로운 교육 배포를 요청해 주세요.');
+  });
+ },[education]);
  useEffect(()=>{
   if(!link)return;
   const url=import.meta.env.VITE_SUPABASE_URL||import.meta.env.NEXT_PUBLIC_SUPABASE_URL;
