@@ -1,3 +1,4 @@
+import { escapeSpreadsheetCsvCell } from '../utils/spreadsheetCsv';
 
 import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import type { WorkerRecord, SafetyCheckRecord, Page } from '../types';
@@ -1815,13 +1816,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const handleExportTradeComparisonPresetsCsv = () => {
         if (tradeComparisonPresets.length === 0) return;
 
-        const escapeCsv = (value: unknown): string => {
-            const str = String(value ?? '');
-            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-                return `"${str.replace(/"/g, '""')}"`;
-            }
-            return str;
-        };
+        const escapeCsv = escapeSpreadsheetCsvCell;
 
         const rows: string[][] = [
             ['id', 'name', 'trades', 'tradeCount', 'pinned', 'appliedRecent7d', 'appliedTotal', 'lastUsedAt', 'createdAt'],
@@ -2014,13 +2009,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const handleExportTeamComparisonPresetsCsv = () => {
         if (teamComparisonPresets.length === 0) return;
 
-        const escapeCsv = (value: unknown): string => {
-            const str = String(value ?? '');
-            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-                return `"${str.replace(/"/g, '""')}"`;
-            }
-            return str;
-        };
+        const escapeCsv = escapeSpreadsheetCsvCell;
 
         const rows: string[][] = [
             ['id', 'name', 'trade', 'teams', 'teamCount', 'pinned', 'appliedRecent7d', 'appliedTotal', 'lastUsedAt', 'createdAt'],

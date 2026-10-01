@@ -1,3 +1,4 @@
+import { escapeSpreadsheetCsvCell } from '../utils/spreadsheetCsv';
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { flushSync } from 'react-dom';
@@ -1915,7 +1916,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         const rangeLabel = getRangeFilterLabel(messageHistoryRangeFilter);
         const rangeToken = getRangeFilterFileToken(messageHistoryRangeFilter);
 
-        const escapeCsv = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+        const escapeCsv = escapeSpreadsheetCsvCell;
         const rows = [
             ['조회기간', '근로자명', '팀명', '전화번호', '발송시각', '상태', '페이지수', '공급자', '메모'],
             ...filteredMessageHistoryRows.map((row) => [
@@ -2013,7 +2014,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         const rangeLabel = getRangeFilterLabel(dashboardRangeFilter);
         const rangeToken = getRangeFilterFileToken(dashboardRangeFilter);
 
-        const escapeCsv = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+        const escapeCsv = escapeSpreadsheetCsvCell;
         const sections = [
             ['[Overview]'],
             ['조회기간', '총발송', '성공', BRAND_STATUS_LABELS.attention, '성공률', '개별발송', '일괄발송', '최다 팀', `주요 ${BRAND_STATUS_LABELS.attention} 원인`],

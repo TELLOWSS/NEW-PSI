@@ -1,3 +1,4 @@
+import { escapeSpreadsheetCsvCell } from '../utils/spreadsheetCsv';
 
 import React, { Suspense, lazy, useState, useRef, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -629,13 +630,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         return parsed;
     };
 
-    const escapeCsvCell = (value: unknown) => {
-        const str = String(value ?? '');
-        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-            return `"${str.replace(/"/g, '""')}"`;
-        }
-        return str;
-    };
+    const escapeCsvCell = escapeSpreadsheetCsvCell;
 
     const downloadTextFile = (fileName: string, content: string, mimeType: string) => {
         const blob = new Blob([content], { type: mimeType });
@@ -2276,13 +2271,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             ];
             const csvRows: string[] = [csvHeader.join(',')];
 
-            const escapeCsv = (value: unknown) => {
-                const str = String(value ?? '');
-                if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-                    return `"${str.replace(/"/g, '""')}"`;
-                }
-                return str;
-            };
+            const escapeCsv = escapeSpreadsheetCsvCell;
 
             for (let i = 0; i < filteredRecords.length; i++) {
                 if (abortRef.current) break;

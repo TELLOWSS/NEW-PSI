@@ -1,3 +1,4 @@
+import { escapeSpreadsheetCsvCell } from '../utils/spreadsheetCsv';
 import React, { useState, useCallback, useEffect } from 'react';
 
 interface JudgmentTaggingRecord {
@@ -134,7 +135,7 @@ export const JudgmentTaggingInput: React.FC = () => {
 
     const csvHeader = 'ID,원문,위험분류,위험소분류,판단태그,권장조치,합의상태\n';
     const csvRows = records.map(r =>
-      `"${r.id}","${r.rawText.replace(/"/g, '""')}","${r.riskCategory}","${r.riskSubcategory}","${r.judgmentTags.join(';')}","${r.recommendedAction.replace(/"/g, '""')}","${r.consensusStatus}"`
+      [r.id, r.rawText, r.riskCategory, r.riskSubcategory, r.judgmentTags.join(';'), r.recommendedAction, r.consensusStatus].map(escapeSpreadsheetCsvCell).join(',')
     ).join('\n');
 
     const csv = csvHeader + csvRows;

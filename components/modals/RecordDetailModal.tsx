@@ -1,3 +1,4 @@
+import { escapeSpreadsheetCsvCell } from '../../utils/spreadsheetCsv';
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { isLegacyMigratedRecord } from '../../utils/legacyBackupMigration';
@@ -118,13 +119,7 @@ const truncateText = (value?: string, maxLength = 120) => {
     return normalized.length > maxLength ? `${normalized.slice(0, maxLength).trim()}…` : normalized;
 };
 
-const escapeCsvCell = (value: unknown) => {
-    const str = String(value ?? '');
-    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-        return `"${str.replace(/"/g, '""')}"`;
-    }
-    return str;
-};
+const escapeCsvCell = escapeSpreadsheetCsvCell;
 
 const downloadTextFile = (fileName: string, content: string, mimeType: string) => {
     const blob = new Blob([content], { type: mimeType });
