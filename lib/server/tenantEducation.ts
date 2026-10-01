@@ -87,6 +87,24 @@ export async function tenantEducationReleases(req: any, res: any) {
         const context=await requireTenantContext(req,req.method==='GET'?undefined:managers);
         if(req.method==='GET') {
             const draft=id(req.query?.draftId), after=cursor(req.query?.cursor);
+            if (req.query?.releaseId !== undefined) {
+                const releaseId=id(req.query.releaseId);
+                const release=await context.client.from('psi_tenant_education_releases').select('worker_ids')
+                    .eq('tenant_id',context.tenantId).eq('draft_id',draft).eq('id',releaseId).maybeSingle();
+                if(release.error) database(release.error);
+                if(!release.data) throw new TenantAccessError(404,'RELEASE_NOT_FOUND','교육 배포 기록을 찾을 수 없습니다.');
+                const ids=release.data.worker_ids;
+                if(!Array.isArray(ids)||ids.length<1||ids.length>200||ids.some(value=>typeof value!=='string'||!uuid.test(value))) database(null);
+                const workers=await context.client.from('psi_tenant_workers').select('id,name,worker_code,active')
+                    .eq('tenant_id',context.tenantId).in('id',ids).limit(200);
+                if(workers.error) database(workers.error);
+                const targets=ids.map(workerId=>{
+                    const worker=workers.data?.find(value=>value.id===workerId);
+                    if(!worker||typeof worker.name!=='string'||typeof worker.worker_code!=='string'||typeof worker.active!=='boolean') database(null);
+                    return {id:worker.id,name:worker.name,workerCode:worker.worker_code,active:worker.active};
+                });
+                return res.status(200).json({ok:true,targets});
+            }
             let query=context.client.from('psi_tenant_education_releases').select(releaseColumns)
                 .eq('tenant_id',context.tenantId).eq('draft_id',draft).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(26);
             if(after) query=query.or(`created_at.lt.${after.createdAt},and(created_at.eq.${after.createdAt},id.lt.${after.id})`);
