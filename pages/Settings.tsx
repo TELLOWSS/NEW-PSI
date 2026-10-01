@@ -1,3 +1,4 @@
+import { escapeSpreadsheetCsvCell } from '../utils/spreadsheetCsv';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { AppSettings, WorkerRecord } from '../types';
@@ -1412,13 +1413,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     };
 
     const handleExportHarnessProbeCsv = () => {
-        const escapeCsv = (value: unknown) => {
-            const str = String(value ?? '');
-            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-                return `"${str.replace(/"/g, '""')}"`;
-            }
-            return str;
-        };
+        const escapeCsv = escapeSpreadsheetCsvCell;
 
         const rows: string[][] = [
             ['runId', 'recordId', 'name', 'jobField', 'teamLeader', 'date', 'status', 'workflowState', 'riskDecision', 'approvalState', 'resolvedBy', 'found', 'eventCount', 'approvalCount', 'timelineCount', 'warning', 'overrideCount', 'criticalRuleCount', 'ruleImpactRuleCodes', 'ruleImpactNarrative', 'checkedAt'],

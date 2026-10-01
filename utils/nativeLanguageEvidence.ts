@@ -1,3 +1,4 @@
+import { escapeSpreadsheetCsvCell } from './spreadsheetCsv';
 import type { WorkerRecord } from '../types';
 import { evaluateOcrVerificationCompleteness, evaluateOcrVerificationQuality } from './ocrVerificationLanguageUtils';
 
@@ -34,7 +35,7 @@ export const summarizeNativeLanguageEvidence = (records: WorkerRecord[]): Langua
 };
 
 export const buildNativeLanguageEvidenceCsv = (rows: LanguageEvidenceRow[], timestamp: string): string => {
-    const cell = (value: string | number) => `"${String(value).replace(/^[=+@-]/, "'$&").replace(/"/g, '""')}"`;
+    const cell = escapeSpreadsheetCsvCell;
     const data: Array<Array<string | number>> = [
         ['검사시각(UTC)', timestamp],
         ['검사범위', '현재 PC 기록 전체. 원어민 자연스러움·의미 정확도 인증이 아닙니다.'],

@@ -1,3 +1,4 @@
+import { escapeSpreadsheetCsvCell } from './spreadsheetCsv';
 import type { WorkerRecord } from '../types';
 import { ensureJsPdfConstructor } from './externalScripts';
 import { getSafetyLevelDisplayLabel, SAFETY_SIGNAL_COPY } from './safetyLevelUtils';
@@ -8,13 +9,7 @@ const A4_CANVAS_HEIGHT = 1754;
 const CANVAS_MARGIN = 72;
 
 export function exportEvidencePackageCsv(record: WorkerRecord) {
-    const escapeCsv = (value: unknown) => {
-        const str = String(value ?? '');
-        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-            return `"${str.replace(/"/g, '""')}"`;
-        }
-        return str;
-    };
+    const escapeCsv = escapeSpreadsheetCsvCell;
 
     const header = ['stage', 'timestamp', 'actor', 'note'];
     const rows = (record.auditTrail || []).map((entry) => [entry.stage, entry.timestamp, entry.actor, entry.note || '']);
