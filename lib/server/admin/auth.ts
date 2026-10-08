@@ -81,6 +81,8 @@ export default async function handler(req: any, res: any) {
         });
     } catch {
         clearSensitiveBody();
+        // Do not log user credentials, IP addresses, tokens, or environment values.
+        console.error('[psi-admin-auth] security_store_configuration_unavailable');
         return res.status(503).json({
             ok: false,
             code: 'ADMIN_LOGIN_SECURITY_UNAVAILABLE',
@@ -97,8 +99,14 @@ export default async function handler(req: any, res: any) {
             windowSeconds: LOGIN_WINDOW_SECONDS,
             metadata: { action: 'login' },
         });
-    } catch {
+    } catch (error) {
         clearSensitiveBody();
+        // Log only a bounded upstream error code to distinguish missing RPC,
+        // permissions, and transport failures while keeping login fail-closed.
+        const upstreamCode = error && typeof error === 'object' && 'upstreamCode' in error
+            ? String(error.upstreamCode || 'UNKNOWN').slice(0, 40)
+            : 'UNKNOWN';
+        console.error('[psi-admin-auth] durable_login_quota_unavailable', { upstreamCode });
         return res.status(503).json({
             ok: false,
             code: 'ADMIN_LOGIN_SECURITY_UNAVAILABLE',
