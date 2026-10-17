@@ -110,7 +110,7 @@ export default async function handler(req: any, res: any) {
         return res.status(503).json({
             ok: false,
             code: 'ADMIN_LOGIN_SECURITY_UNAVAILABLE',
-            message: '로그인 시도 제한을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+            message: '관리자 인증 저장소에 연결할 수 없습니다. 비밀번호 오류가 아니므로 반복 입력하지 말고, 운영 관리자에게 데이터베이스 상태 확인을 요청해 주세요.',
         });
     }
 
