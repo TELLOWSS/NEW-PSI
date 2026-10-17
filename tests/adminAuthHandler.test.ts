@@ -185,6 +185,7 @@ describe('admin auth durable login limiter', () => {
             body: { code: 'ADMIN_LOGIN_SECURITY_UNAVAILABLE' },
         });
         expect(req.body).toBeUndefined();
+        expect(res.read().body.message).toContain('비밀번호 오류가 아니므로');
         expect(log).toHaveBeenCalledWith(
             '[psi-admin-auth] durable_login_quota_unavailable',
             { upstreamCode: 'PGRST202' },
