@@ -81,6 +81,8 @@ export default async function handler(req: any, res: any) {
         });
     } catch {
         clearSensitiveBody();
+        // Do not log user credentials, IP addresses, tokens, or environment values.
+        console.error('[psi-admin-auth] security_store_configuration_unavailable');
         return res.status(503).json({
             ok: false,
             code: 'ADMIN_LOGIN_SECURITY_UNAVAILABLE',
@@ -97,12 +99,18 @@ export default async function handler(req: any, res: any) {
             windowSeconds: LOGIN_WINDOW_SECONDS,
             metadata: { action: 'login' },
         });
-    } catch {
+    } catch (error) {
         clearSensitiveBody();
+        // Log only a bounded upstream error code to distinguish missing RPC,
+        // permissions, and transport failures while keeping login fail-closed.
+        const upstreamCode = error && typeof error === 'object' && 'upstreamCode' in error
+            ? String(error.upstreamCode || 'UNKNOWN').slice(0, 40)
+            : 'UNKNOWN';
+        console.error('[psi-admin-auth] durable_login_quota_unavailable', { upstreamCode });
         return res.status(503).json({
             ok: false,
             code: 'ADMIN_LOGIN_SECURITY_UNAVAILABLE',
-            message: '로그인 시도 제한을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+            message: '관리자 인증 저장소에 연결할 수 없습니다. 비밀번호 오류가 아니므로 반복 입력하지 말고, 운영 관리자에게 데이터베이스 상태 확인을 요청해 주세요.',
         });
     }
 

@@ -170,6 +170,32 @@ describe('admin auth durable login limiter', () => {
         expect(req.body).toBeUndefined();
     });
 
+    it('logs only a diagnostic error code when durable login quota is unavailable', async () => {
+        const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+        mocks.consumeApiQuota.mockRejectedValue(Object.assign(new Error('sensitive upstream detail'), {
+            upstreamCode: 'PGRST202',
+        }));
+        const req = createRequest({ action: 'login', password: 'test-admin-password' });
+        const res = createResponse();
+
+        await handler(req, res.response);
+
+        expect(res.read()).toMatchObject({
+            statusCode: 503,
+            body: { code: 'ADMIN_LOGIN_SECURITY_UNAVAILABLE' },
+        });
+        expect(req.body).toBeUndefined();
+        expect(res.read().body.message).toContain('비밀번호 오류가 아니므로');
+        expect(log).toHaveBeenCalledWith(
+            '[psi-admin-auth] durable_login_quota_unavailable',
+            { upstreamCode: 'PGRST202' },
+        );
+        expect(JSON.stringify(log.mock.calls)).not.toContain('test-admin-password');
+        expect(JSON.stringify(log.mock.calls)).not.toContain('sensitive upstream detail');
+        expect(mocks.recordApiUsageEvent).not.toHaveBeenCalled();
+        log.mockRestore();
+    });
+
     it('rejects malformed JSON without echoing sensitive input', async () => {
         const req = createRequest('{"action":"login","password":');
         const res = createResponse();

@@ -115,9 +115,11 @@ export const consumeApiQuota = async (supabase: any, options: QuotaOptions): Pro
             isMissingQuotaMigration(result.error)
                 ? '보안 사용량 제한 마이그레이션이 적용되지 않았습니다.'
                 : `보안 사용량 제한 확인 실패: ${result.error.message}`,
-        ) as Error & { statusCode?: number; code?: string };
+        ) as Error & { statusCode?: number; code?: string; upstreamCode?: string };
         error.statusCode = 503;
         error.code = 'SECURITY_QUOTA_UNAVAILABLE';
+        // The upstream error classification is diagnostic only; never return it to callers.
+        error.upstreamCode = String(result.error?.code || 'UNKNOWN').slice(0, 40);
         throw error;
     }
 
