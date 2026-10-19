@@ -61,6 +61,7 @@
     "audit:mobile-overflow": "node scripts/audit-mobile-overflow.mjs",
     "qa:mobile:autoflow": "npm run build && npm run qa:mobile:capture && npm run check:mobile-qa:evidence:report && npm run qa:mobile:finalize",
     "qa:mobile:ready": "npm run build && npm run qa:mobile:capture && npm run check:mobile-qa:evidence",
+    "qa:inspector:production": "node scripts/verify-inspector-production.mjs",
     "qa:survey-baseline": "node scripts/verify-survey-baseline-ui.mjs",
     "qa:plain-language": "node scripts/verify-plain-language-ui.mjs",
     "qa:a4-poster": "node scripts/verify-a4-poster-ui.mjs",
@@ -104,7 +105,7 @@
     "build:verified": "npm run check:release-config && npm run verify:ci",
     "check:release-config": "node scripts/check-release-config.mjs",
     "prepare:inspector-ocr": "node scripts/prepare-inspector-ocr.mjs",
-    "prebuild": "npm run prepare:inspector-ocr"
+    "prebuild": "npm run prepare:inspector-ocr && node scripts/prepare-inspector-validator.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.18.0",

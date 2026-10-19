@@ -1,8 +1,6 @@
-import Ajv2020 from 'ajv/dist/2020.js';
-import { visionSchema } from './visionSchema.js';
+import validateSchema from './visionValidator.generated.js';
 import type { Evidence, InspectionDocument, VisionImport } from './types.js';
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const validateSchema = new Ajv2020({ allErrors: false, strict: true }).compile<VisionImport>(visionSchema);
 export class InspectorInputError extends Error {}
 function fail(message = '입력 형식과 필수 항목을 확인해 주세요.'): never { throw new InspectorInputError(message); }
 function object(value: unknown): value is Record<string, any> { return !!value && typeof value === 'object' && !Array.isArray(value); }
