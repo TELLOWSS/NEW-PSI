@@ -1,5 +1,19 @@
 # PSI SAFETY INSPECTOR — 구현 진행현황
 
+## 2026-10-20 승인된 운영 동기화 검증 (최신)
+
+사용자는 UI·UX·그래픽 보강 완료 후 GitHub main·Vercel 운영 동기화를 승인했다. 아래 이전 단계의 Preview 장애·점검 0건·운영 전환 미수행 문구는 당시의 이력이다. 최종 병합 커밋·운영 도메인 확인 결과는 PR #29에 기록한다.
+
+- 검증 코드: `93a601ec08820c9ca9b0930565a2bc446e640bc2`. GitHub CI run `39321352126` 성공.
+- Production 설정의 staged 배포 `dpl_FnjpTnaEWbsVXjUwmxjxjPpmT7ay`에서 실제 관리자 로그인 → 메뉴 진입 → 사진 원본·해시 저장 → 수동 JSON 가져오기 → 질문별 미확인 답변·사람 검토 저장 → 검토용 보고서 생성 → DB/Storage 연결 재조회 통과. 업무 API 모의응답 없음.
+- 승인된 합성자료 점검 1건만 사용: `1c698c22-8752-4184-9e17-cabc010f25e2`. 보고서 `dee52fa9-4d4f-4d66-9a21-af2501c099d4`. 실제 현장·작업자·위험 판단 자료가 아니며 이름·설명·사진·가져온 JSON에 기능시험임을 명시했다.
+- 원본 1장, 저장 버전 6, 감사 이력 6개. 보고서의 미확인 질문·법령 검증 대기·DRAFT 경계를 확인했다.
+- 운영 CSP에서 Ajv 동적 컴파일이 차단되는 문제를 standalone 사전 생성으로 해결했다. Unicode 문자 길이 검증도 CommonJS 상호운용에 의존하지 않는다. CSP 완화·로그인 우회·비밀 조회 없음.
+- 전체 115 files / 1,018 tests (TZ=UTC), TypeScript, production build 통과. 정상·오류 JSON을 동적 코드 생성 금지 Node에서 검증하고 생성물·원본 schema 일치를 검사한다. `npm run qa:inspector:production`은 실제 production 번들·운영 CSP·실제 메뉴 진입을 fixture 인증으로 별도 검증한다. 기존 날짜 시험 2개는 호스트 PDT에서 UTC 날짜 단정 때문에 실패해 CI와 같은 UTC로 전체 재확인했다.
+- Preview에는 서버 역할 키 누락이 계속 남으며 이 작업에서 비밀 값을 조회·변경하지 않았다. Production 설정은 정상이다. 공개 도메인 연결을 보류한 배포에서 검증한 뒤 main으로 전환한다.
+- 공식 법령 원문·시행일 adapter, 전문가 현장사진 검수, 개인 승인·기업/현장 RLS, 실기기·정식 출력·11개 언어는 별도 미완료다. 유료 AI는 기본 비활성화다.
+
+
 기준일 2026-10-19 / 제품 기획 v1.2 / 상태: M1 첫 구현 검증 완료 / PR #29 / Vercel preview READY
 
 ## 실제 작업 대상
