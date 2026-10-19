@@ -10,10 +10,13 @@ export type VisionImport = {
 export type InspectorAction = { id: string; title: string; owner: string; dueDate: string;
     status: 'open' | 'review-requested' | 'verified'; completionPhotoId: string; note: string; verifiedAt?: string };
 export type OcrResult = { rawText: string; recognizedText: string; confidence: number; language: 'kor'|'eng'|'vie'|'chi_sim'; engine: 'LOCAL_TESSERACT'; reviewStatus: 'unreviewed'|'corrected'|'accepted' };
+export type ConfirmationAnswer = { questionIndex: number; question: string; answer: 'confirmed' | 'not-confirmed' | 'unknown'; note: string };
+export const confirmationAnswerLabel = { confirmed: '현장 확인됨', 'not-confirmed': '확인 결과와 다름', unknown: '아직 확인하지 못함' } as const;
 export type InspectionDocument = {
     title: string; siteName: string; location: string; workType: string; eventAt: string;
     notes: string; urgent: boolean; ocrResults: Record<string, OcrResult>; photoIds: string[]; analyses: Record<string, VisionImport>;
     reviews: Record<string, { decision: 'accepted' | 'rejected'; note: string }>;
+    confirmationAnswers?: Record<string, ConfirmationAnswer[]>;
     actions: InspectorAction[];
 };
 export type Inspection = { id: string; revision: number; document: InspectionDocument; created_at: string; updated_at: string };

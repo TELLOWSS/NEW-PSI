@@ -51,3 +51,29 @@ describe('inspector evidence and manual import contract',()=>{
         expect(()=>validateDocument({...doc,workerScore:100},inspection,[photo])).toThrow();
     });
 });
+
+describe('question-specific human confirmation',()=>{
+    const answer=()=>({questionIndex:0,question:analysis().requires_confirmation[0].question,answer:'unknown' as const,note:'사진 밖은 현장 확인이 필요함'});
+    const doc=()=>({...newInspectionDocument(),photoIds:[photoId],analyses:{[photoId]:parseVisionImport(analysis(),inspection,photo)},confirmationAnswers:{[photoId]:[answer()]}});
+    it('retains explicitly unknown answers and supports older documents without answers',()=>{
+        expect(validateDocument(doc(),inspection,[photo]).confirmationAnswers?.[photoId][0].answer).toBe('unknown');
+        expect(validateDocument(newInspectionDocument(),inspection,[]).confirmationAnswers).toBeUndefined();
+    });
+    it.each([{questionIndex:9},{question:'다른 질문'},{answer:'approved'},{note:'짧음'},{approved:true}])('rejects mismatched or forged answer %#',patch=>{
+        const value=doc();Object.assign(value.confirmationAnswers[photoId][0],patch);expect(()=>validateDocument(value,inspection,[photo])).toThrow();
+    });
+    it('rejects duplicate question answers and malformed values',()=>{
+        for(const answers of [[answer(),answer()],[null],'not an array'])expect(()=>validateDocument({...doc(),confirmationAnswers:{[photoId]:answers}},inspection,[photo])).toThrow();
+    });
+    it('requires fresh answers after replacing analysis even if the question text stayed the same',()=>{
+        const before=doc(),next=structuredClone(before);next.analyses[photoId].limitations.push('새 판독');
+        expect(()=>assertSafeEdit(next,before)).toThrow('다시 답변');delete (next as any).confirmationAnswers[photoId];expect(()=>assertSafeEdit(next,before)).not.toThrow();
+    });
+    it('requires review again when answers or inspection context changes',()=>{
+        const before={...doc(),reviews:{[photoId]:{decision:'accepted' as const,note:'원본과 현장 대조 완료'}}};
+        const changed=structuredClone(before);changed.confirmationAnswers[photoId][0].note='현장 상황을 새로 확인함';
+        expect(()=>assertSafeEdit(changed,before)).toThrow('다시 검토');delete (changed as any).reviews[photoId];expect(()=>assertSafeEdit(changed,before)).not.toThrow();
+        const newContext={...before,notes:'새 작업 조건'};expect(()=>assertSafeEdit(newContext,before)).toThrow('다시 검토');
+        expect(()=>assertSafeEdit({...newContext,reviews:{},confirmationAnswers:{}},before)).not.toThrow();
+    });
+});

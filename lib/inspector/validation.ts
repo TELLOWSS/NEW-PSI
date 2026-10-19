@@ -27,7 +27,7 @@ export function parseVisionImport(raw: string | unknown, inspectionId: string, p
 }
 export function validateDocument(value: unknown, inspectionId: string, evidence: Evidence[]): InspectionDocument {
     if (new TextEncoder().encode(JSON.stringify(value) || '').length > 480000) fail('점검 내용이 너무 큽니다. 사진별 분석 내용을 줄여 주세요.');
-    exact(value, ['title','siteName','location','workType','eventAt','notes','urgent','ocrResults','photoIds','analyses','reviews','actions']);
+    exact(value, ['title','siteName','location','workType','eventAt','notes','urgent','ocrResults','photoIds','analyses','reviews','actions','confirmationAnswers']);
     const doc = value as InspectionDocument;
     text(doc.title, 200, 1); text(doc.siteName, 200); text(doc.location, 200); text(doc.workType, 100); text(doc.notes, 8000);
     text(doc.eventAt, 32, 1);
@@ -45,6 +45,18 @@ export function validateDocument(value: unknown, inspectionId: string, evidence:
     for (const [id, analysis] of Object.entries(doc.analyses)) {
         if (!doc.photoIds.includes(id)) fail();
         parseVisionImport(analysis, inspectionId, byId.get(id)!);
+    }
+    if (doc.confirmationAnswers !== undefined) {
+        if (!object(doc.confirmationAnswers) || Object.keys(doc.confirmationAnswers).length > 20) fail();
+        for (const [id, answers] of Object.entries(doc.confirmationAnswers)) {
+            if (!doc.analyses[id] || !Array.isArray(answers) || answers.length > 50 || answers.some(a=>!object(a)) || new Set(answers.map(a => a.questionIndex)).size !== answers.length) fail();
+            for (const answer of answers) {
+                exact(answer, ['questionIndex','question','answer','note']);
+                if (!Number.isSafeInteger(answer.questionIndex) || answer.questionIndex < 0 || answer.question !== doc.analyses[id].requires_confirmation[answer.questionIndex]?.question
+                    || !['confirmed','not-confirmed','unknown'].includes(answer.answer)) fail('확인 질문과 답변을 다시 대조해 주세요.');
+                text(answer.note, 2000, 5);
+            }
+        }
     }
     for (const [id, review] of Object.entries(doc.reviews)) {
         exact(review, ['decision','note']);
@@ -67,8 +79,13 @@ export function validateDocument(value: unknown, inspectionId: string, evidence:
 export function assertSafeEdit(next: InspectionDocument, previous: InspectionDocument) {
     // Original evidence remains linked. Every changed analysis invalidates that photo's old review.
     if (previous.photoIds.some(id => !next.photoIds.includes(id))) fail('등록한 원본사진은 제거할 수 없습니다.');
+    const contextChanged = (['notes','siteName','location','workType','eventAt'] as const).some(key => next[key] !== previous[key]);
+    if (contextChanged && (Object.keys(next.reviews).length || Object.values(next.confirmationAnswers || {}).some(answers => answers.length))) fail('점검 설명이나 현장 정보가 바뀌면 사실을 다시 검토해 주세요.');
     for (const [id, analysis] of Object.entries(next.analyses)) {
-        if (JSON.stringify(analysis) !== JSON.stringify(previous.analyses[id]) && next.reviews[id]) fail('분석을 변경한 사진은 사실을 다시 검토해 주세요.');
+        const changed = JSON.stringify(analysis) !== JSON.stringify(previous.analyses[id]);
+        if (changed && next.reviews[id]) fail('분석을 변경한 사진은 사실을 다시 검토해 주세요.');
+        if (changed && next.confirmationAnswers?.[id]?.length) fail('분석을 변경한 사진의 질문에 다시 답변해 주세요.');
+        if (JSON.stringify(next.confirmationAnswers?.[id] || []) !== JSON.stringify(previous.confirmationAnswers?.[id] || []) && next.reviews[id]) fail('확인 답변을 변경하면 사실을 다시 검토해 주세요.');
     }
     for (const old of previous.actions.filter(a => a.status === 'verified')) {
         if (JSON.stringify(next.actions.find(a => a.id === old.id)) !== JSON.stringify(old)) fail('확인된 개선기록은 변경할 수 없습니다.');

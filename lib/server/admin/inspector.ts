@@ -65,11 +65,16 @@ export default async function inspector(req: any, res: any) {
         const quota = await consumeApiQuota(db,{scope:'inspector.admin',clientKeyHash:resolveRequestFingerprint(req),maxRequests:120,windowSeconds:60});
         if(!quota.allowed) {res.setHeader('Retry-After',String(quota.retryAfterSeconds)); reject(429,'RATE_LIMIT','요청이 많습니다. 잠시 후 다시 시도해 주세요.');}
         if(body.op === 'list') {
-            keys(body,['before']);
+            keys(body,['before','beforeId']);
             let query = db.from('psi_inspector_summary').select('id,revision,title,work_type,location,urgent,open_actions,needs_review,created_at,updated_at').order('created_at',{ascending:false}).order('id',{ascending:false}).limit(51);
-            if(body.before !== undefined) {if(typeof body.before !== 'string' || !/^\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z|\+00:00)$/.test(body.before)) reject(400,'INVALID_CURSOR','목록 위치를 확인해 주세요.'); query=query.lt('created_at',body.before);}
+            if(body.beforeId !== undefined && (body.before === undefined || typeof body.beforeId !== 'string' || !UUID.test(body.beforeId))) reject(400,'INVALID_CURSOR','목록 위치를 확인해 주세요.');
+            if(body.before !== undefined) {
+                if(typeof body.before !== 'string' || body.before.length > 40 || !/^\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z|\+00:00)$/.test(body.before) || !Number.isFinite(Date.parse(body.before))) reject(400,'INVALID_CURSOR','목록 위치를 확인해 주세요.');
+                query=body.beforeId ? query.or(`created_at.lt.${body.before},and(created_at.eq.${body.before},id.lt.${body.beforeId})`) : query.lt('created_at',body.before);
+            }
             const {data,error} = await query; dbError(error);
-            return res.status(200).json({ok:true,items:(data||[]).slice(0,50),hasMore:(data||[]).length>50});
+            const items=(data||[]).slice(0,50),hasMore=(data||[]).length>50,last=items.at(-1);
+            return res.status(200).json({ok:true,items,hasMore,nextCursor:hasMore && last ? {before:last.created_at,beforeId:last.id} : null});
         }
         if(body.op === 'create') {
             keys(body,['id']); const inspectionId=id(body.id);
@@ -96,10 +101,28 @@ export default async function inspector(req: any, res: any) {
             if(prior) {if(prior.sha256!==hash) reject(409,'PHOTO_CONFLICT','사진번호에 다른 원본이 등록되어 있습니다.');return res.status(200).json({ok:true,photo:prior,replayed:true});}
             if(evidence.length>=20) reject(400,'PHOTO_LIMIT','점검당 사진은 20개까지 등록할 수 있습니다.');
             const storageKey=`${inspectionId}/${photoId}/${hash}.${format.extension}`;
-            const uploaded=await db.storage.from(BUCKET).upload(storageKey,bytes,{contentType:format.mime,upsert:false});dbError(uploaded.error);
+            const uploaded=await db.storage.from(BUCKET).upload(storageKey,bytes,{contentType:format.mime,upsert:false});
+            if(uploaded.error) {
+                const status=String(uploaded.error.statusCode ?? uploaded.error.status ?? '');
+                if(status!=='409' && status!=='Duplicate' && status!=='ResourceAlreadyExists') dbError(uploaded.error);
+                // A previous request may have stored the bytes but lost its DB response.
+                const replay=(await getEvidence(db,inspectionId)).find(p=>p.id===photoId);
+                if(replay) {if(replay.sha256!==hash) reject(409,'PHOTO_CONFLICT','사진번호에 다른 원본이 등록되어 있습니다.');return res.status(200).json({ok:true,photo:replay,replayed:true});}
+                const recovered=await db.storage.from(BUCKET).download(storageKey);dbError(recovered.error);
+                if(!recovered.data || createHash('sha256').update(Buffer.from(await recovered.data.arrayBuffer())).digest('hex')!==hash) reject(409,'PHOTO_CONFLICT','보관된 원본을 확인할 수 없습니다.');
+            }
             const {data,error}=await db.from('psi_inspector_evidence').insert({id:photoId,inspection_id:inspectionId,sha256:hash,mime_type:format.mime,byte_size:bytes.length,storage_key:storageKey})
                 .select('id,inspection_id,sha256,mime_type,byte_size,created_at').single();
-            if(error) {await db.storage.from(BUCKET).remove([storageKey]); dbError(error);}
+            if(error) {
+                if(error.code==='23505') {
+                    const replay=(await getEvidence(db,inspectionId)).find(p=>p.id===photoId);
+                    if(replay?.sha256===hash) return res.status(200).json({ok:true,photo:replay,replayed:true});
+                    if(replay) reject(409,'PHOTO_CONFLICT','사진번호에 다른 원본이 등록되어 있습니다.');
+                }
+                // Never delete bytes here: another concurrent retry may already reference them.
+                // Unlinked bytes remain private and can be recovered by the same upload ID.
+                dbError(error);
+            }
             return res.status(201).json({ok:true,photo:data});
         }
         if(body.op==='photo') {

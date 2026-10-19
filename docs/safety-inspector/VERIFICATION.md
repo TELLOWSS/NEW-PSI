@@ -44,3 +44,13 @@ node scripts/verify-inspector-ui.mjs
 공식법령·제재·사례 엔진은 아직 미구현이므로 법적 결론·확정 금액을 출력하지 않는다. 보고서는 검토용이고 개인 서명/최종 발행 승인이 없다. PSI 지표·별도 SMART TBM으로 자동 전송하지 않는다. 기존 Gemini OCR을 신규 OCR로 교체하지 않았다.
 
 운영 main 병합·production 도메인 전환은 이번 첫 구현의 범위에서 수행하지 않는다. PR 및 preview의 실제 커밋·빌드 결과는 IMPLEMENTATION_STATUS에 기록한다.
+
+
+## 2026-10-20 후속 회귀
+
+- 전체 112 files / 1,004 tests PASS. 신규 계약 시험은 질문 원문 불일치·번호 범위·중복·잘못된 상태·승인필드 주입·짧은 근거·null 답변·기존 문서 호환·답변/설명 변경 후 재검토를 검증한다.
+- API 시험은 Storage 충돌(409/Duplicate/ResourceAlreadyExists), 미연결 원본의 SHA-256 복구, 원본 변조 거부, 삽입 경합 시 원본 보존, DB 실패 시 안전한 재시도, 마이크로초가 같은 생성시각의 ID 경계 및 커서 주입 거부를 검증한다.
+- 실제 Chromium 138 + 같은 출처 WASM OCR, 390×844 / 768×1024 / 1440×1080: PASS. 질문 답변 저장 전 사실 검토 비활성화, 명시적 미확인 상태를 저장 후 검토·조치 확인·보고서로 전달, 목록 50건 중 편집으로 순서가 바뀐 뒤에도 원래 다음 커서 사용을 확인했다. pageerror 0.
+- PDF 텍스트에 `아직 확인하지 못함`과 현장 추가 확인 사유가 남는 것을 확인했다.
+- Supabase 보안 advisors 재조회에서 신규 점검 테이블 관련 WARN/ERROR 없음. 기존 서버 전용 4개 테이블의 no-policy INFO는 유지된다. 이번 변경은 DB DDL을 포함하지 않는다.
+- 실제 preview 서버 GET: 405, Allow POST, Cache-Control private no-store. 실제 인증 세션을 사용하는 통합 시험은 자동 승인 검토가 기존 대화 자격정보 제출을 거부하여 보류했다. 모의시험을 실배포 인증 통과로 기록하지 않는다.

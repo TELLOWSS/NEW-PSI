@@ -1,6 +1,6 @@
 import React from 'react';
 import type { InspectionReport } from '../../lib/inspector/types';
-import { inspectionState } from '../../lib/inspector/types';
+import { confirmationAnswerLabel, inspectionState } from '../../lib/inspector/types';
 export default function InspectorReport({ report }: { report: InspectionReport }) {
     const {inspection,evidence,generatedAt}=report.snapshot, doc=inspection.document;
     return <article className="si-report" aria-label="점검 검토용 보고서">
@@ -15,7 +15,7 @@ export default function InspectorReport({ report }: { report: InspectionReport }
             {r && <p>검토 사유: {r.note}</p>}
             <h4>AI 관찰 제안</h4><ul>{a?.observed_facts.map((x,n)=><li key={n}>{x.text} (시각 근거: {x.visual_basis})</li>)}</ul>
             <h4>AI 추론 · 현장 확인 필요</h4><ul>{a?.ai_hypotheses.map((x,n)=><li key={n}>{x.text} — {x.reason}</li>)}</ul>
-            <h4>추가 확인 질문</h4><ul>{a?.requires_confirmation.map((x,n)=><li key={n}>{x.question} — {x.why}</li>)}</ul>
+            <h4>질문별 현장 확인</h4><ul>{a?.requires_confirmation.map((x,n)=>{const answer=doc.confirmationAnswers?.[photo.id]?.find(a=>a.questionIndex===n);return <li key={n}>{x.question} — {x.why}<p>확인 상태: {answer?confirmationAnswerLabel[answer.answer]:'답변 대기'} · 근거: {answer?.note || '미기록'}</p></li>;})}</ul>
             {a?.limitations.length ? <p>판독 한계: {a.limitations.join(' / ')}</p> : null}
             {ocr && <><h4>기기 내 문자 인식 · 검수 상태: {ocr.reviewStatus==='accepted'?'검수 수용':'검토 필요'}</h4><p className="si-pre">원 인식: {ocr.rawText}</p><p className="si-pre">정정문: {ocr.recognizedText}</p></>}
         </section>;})}
