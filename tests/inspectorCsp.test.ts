@@ -6,6 +6,6 @@ it('keeps the committed validator synchronized with the import schema',async()=>
 });
 it('imports and validates with JavaScript code generation disabled',async()=>{
  const {execFileSync}=await import('node:child_process');
- const result=execFileSync(process.execPath,['--disallow-code-generation-from-strings','--input-type=module','-e',`import validate from './lib/inspector/visionValidator.generated.js'; if(validate({}))process.exit(1); console.log('CSP-safe');`],{cwd:process.cwd(),encoding:'utf8'});
+ const result=execFileSync(process.execPath,['--disallow-code-generation-from-strings','--input-type=module','-e',`import validate from './lib/inspector/visionValidator.generated.js'; const valid={schema_version:'1.1',inspection_id:'i',photo_id:'p',source_photo_sha256:'a'.repeat(64),processing_mode:'CHATGPT_MANUAL',observed_facts:[{text:'가상🦺',visual_basis:'문구',confidence:'high'}],ai_hypotheses:[],requires_confirmation:[],recommended_controls:[],law_candidate_keywords:[],limitations:[]}; if(validate({}) || !validate(valid))process.exit(1); console.log('CSP-safe');`],{cwd:process.cwd(),encoding:'utf8'});
  expect(result.trim()).toBe('CSP-safe');
 });
