@@ -79,10 +79,13 @@ export default async function handler(req: any, res: any) {
         supabase = createSupabaseServerClient({
             errorMessage: '관리자 로그인 보안 저장소가 설정되지 않았습니다.',
         });
-    } catch {
+    } catch (cause) {
         clearSensitiveBody();
-        // Do not log user credentials, IP addresses, tokens, or environment values.
-        console.error('[psi-admin-auth] security_store_configuration_unavailable');
+        // Log only a bounded missing-field classification, never configuration values.
+        const details = cause && typeof cause === 'object' && 'missingConfig' in cause && Array.isArray(cause.missingConfig)
+            ? cause.missingConfig.filter((value: unknown) => value === 'url' || value === 'serviceRoleKey')
+            : [];
+        console.error('[psi-admin-auth] security_store_configuration_unavailable', { missingConfig: details });
         return res.status(503).json({
             ok: false,
             code: 'ADMIN_LOGIN_SECURITY_UNAVAILABLE',

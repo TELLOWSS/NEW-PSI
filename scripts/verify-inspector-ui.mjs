@@ -50,13 +50,17 @@ try{
     await page.getByRole('button',{name:'첫 점검 만들기'}).click();
     await page.getByLabel('점검명',{exact:true}).fill('개구부 주변 방호 점검');await page.getByLabel('현장명',{exact:true}).fill('검증용 가상 현장');await page.getByLabel('동·층·구역',{exact:true}).fill('2002동 18층');await page.getByLabel('공종',{exact:true}).fill('형틀');
     await page.getByLabel('점검자 설명 · 원문과 수정 이력이 함께 보관됩니다').fill('개구부 주변의 방호상태를 확인하고 작업 전 접근통제를 검토함. 사진 밖의 방호상태는 별도 확인 필요.');
-    await page.getByRole('button',{name:'변경사항 저장'}).click();
+    await page.getByRole('button',{name:'기록 저장',exact:true}).click();
     // Synthetic non-sensitive text image. Actual WebAssembly OCR runs against this image in-browser.
     const png=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=1000;c.height=400;const g=c.getContext('2d');g.fillStyle='white';g.fillRect(0,0,1000,400);g.fillStyle='black';g.font='bold 60px Arial';g.fillText('SAFETY FIRST',50,140);g.fillText('CHECK GUARDRAIL',50,260);return c.toDataURL('image/png').split(',')[1];});
     await page.getByLabel('사진 보관이 허용되었고, 얼굴·명찰·도면 등 불필요한 민감정보를 처리했습니다.').check();
     await page.getByLabel('현장사진 선택').setInputFiles({name:'synthetic-safety.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')});
     await page.getByRole('status').filter({hasText:'사진 원본과 해시를 저장했습니다.'}).waitFor();
-    await page.getByAltText('선택한 점검 원본사진').waitFor();await page.getByLabel('문자 언어',{exact:true}).selectOption('eng');
+    await page.getByAltText('선택한 점검 원본사진').waitFor();
+    await page.getByRole('button',{name:'원본 확대',exact:true}).click();await page.getByRole('dialog',{name:'원본사진 확대'}).waitFor();
+    await page.keyboard.press('Tab');if(!await page.evaluate(()=>document.querySelector('.si-lightbox')?.contains(document.activeElement)))throw new Error('Photo dialog did not trap keyboard focus');
+    await page.keyboard.press('Escape');if(await page.getByRole('dialog').count())throw new Error('Photo dialog did not close with Escape');
+    await page.getByLabel('문자 언어',{exact:true}).selectOption('eng');
     await page.getByRole('button',{name:'기기 내 문자 인식',exact:true}).click();await page.getByLabel('대조·정정문',{exact:true}).waitFor({timeout:60000});
     const ocrText=await page.getByLabel('대조·정정문',{exact:true}).inputValue();if(!ocrText.includes('SAFETY'))throw new Error(`Local OCR failed: ${ocrText}`);
     await page.getByLabel('원본과 대조해 문자 인식 결과를 검수했습니다.').check();await page.getByRole('button',{name:'변경사항 저장'}).click();
@@ -78,14 +82,33 @@ try{
     for(const [name,width,height]of [['mobile',390,844],['tablet',768,1024],['desktop',1440,1080]]){
         await page.setViewportSize({width,height});await page.getByRole('button',{name:/사진·설명/}).click();
         const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);if(overflow)throw new Error(`Horizontal overflow: ${name}`);
+        await page.getByLabel('점검명',{exact:true}).fill(`개구부 주변 방호 점검 · ${name} 화면 검증`);
+        const dock=page.getByRole('button',{name:'기록 저장',exact:true});
+        const dockVisible=await dock.evaluate(el=>{const r=el.getBoundingClientRect();return r.top>=0 && r.bottom<=innerHeight && !!document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)?.closest('.si-bottom-bar');});
+        if(!dockVisible)throw new Error(`Save dock obscured at ${name}`);
         await page.screenshot({path:resolve(output,`${name}-evidence.png`),fullPage:true});
+        await dock.click();
+        if(name==='mobile'){
+            await page.locator('#psi-main-content').evaluate(el=>el.scrollTo({top:0,behavior:'instant'}));
+            await page.screenshot({path:resolve(output,'mobile-overview.png'),fullPage:true});
+            await page.getByRole('button',{name:/관찰·사실 검토/}).click();await page.getByRole('heading',{name:'질문별 현장 확인',exact:true}).scrollIntoViewIfNeeded();
+            await page.screenshot({path:resolve(output,'mobile-review.png'),fullPage:true});
+        }
     }
+    await page.evaluate(()=>document.documentElement.classList.add('dark'));
+    await page.locator('#psi-main-content').evaluate(el=>el.scrollTo({top:0,behavior:'instant'}));
+    await page.screenshot({path:resolve(output,'desktop-dark.png'),fullPage:true});
+    await page.evaluate(()=>document.documentElement.classList.remove('dark'));
     // Editing an old visible row reorders the list, but must not change the server cursor.
     const stamp='2026-10-19T12:00:00.123456+00:00';
     const summary={id:item.id,title:item.document.title,work_type:'검증',location:'가상',urgent:false,open_actions:0,needs_review:false,created_at:stamp};
     listFixture={rows:[...Array.from({length:49},(_,n)=>({...summary,id:`a0190000-0000-4000-8000-${String(n+1).padStart(12,'0')}`,title:`목록 검증 ${n+1}`})),summary],cursor:{before:stamp,beforeId:item.id},extra:{...summary,id:'a0190000-0000-4000-8000-000000000099',title:'다음 페이지 확인'}};
     await page.getByRole('button',{name:'목록 불러오기',exact:true}).click();
     await page.getByLabel('점검명',{exact:true}).fill('목록 재정렬 후 커서 검증');await page.getByRole('button',{name:'변경사항 저장'}).click();
+    const listCount=requests.filter(x=>x==='list').length;
+    await page.getByLabel('불러온 점검 검색',{exact:true}).fill('해당없는검색어');await page.getByText('검색·필터와 일치하는 기록이 없습니다.',{exact:false}).waitFor();
+    if(requests.filter(x=>x==='list').length!==listCount)throw new Error('Local search unexpectedly requested server data');
+    await page.getByRole('button',{name:'필터 초기화',exact:true}).click();
     await page.getByRole('button',{name:'이전 점검 더 보기',exact:true}).click();await page.getByRole('button').filter({hasText:'다음 페이지 확인'}).waitFor();
     if(errors.length)throw new Error(errors.join('\n'));
     await writeFile(resolve(output,'result.json'),JSON.stringify({fixture:'network mocked, actual client UI and self-hosted WASM OCR',viewports:[390,768,1440],ocrText,apiOperations:requests,errors},null,2));

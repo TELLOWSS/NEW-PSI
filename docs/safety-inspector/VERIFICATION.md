@@ -54,3 +54,11 @@ node scripts/verify-inspector-ui.mjs
 - PDF 텍스트에 `아직 확인하지 못함`과 현장 추가 확인 사유가 남는 것을 확인했다.
 - Supabase 보안 advisors 재조회에서 신규 점검 테이블 관련 WARN/ERROR 없음. 기존 서버 전용 4개 테이블의 no-policy INFO는 유지된다. 이번 변경은 DB DDL을 포함하지 않는다.
 - 실제 preview 서버 GET: 405, Allow POST, Cache-Control private no-store. 실제 인증 세션을 사용하는 통합 시험은 자동 승인 검토가 기존 대화 자격정보 제출을 거부하여 보류했다. 모의시험을 실배포 인증 통과로 기록하지 않는다.
+
+## 2026-10-20 경험 보강 검증
+
+전체 114 files / 1,016 tests PASS, verify:fast·타입·감사·빌드 통과. 서버 설정의 standard URL fallback·기존 우선순위·공백·누락 분류·비밀 비노출, 검색/필터·미확인 질문 및 반려 후 다음 행동을 추가 검증했다.
+
+브라우저 시험에는 native 사진 dialog의 Tab·Escape, 로컬 검색이 서버 요청을 추가하지 않는지, 모바일/태블릿/PC 저장 버튼의 실제 클릭 지점, 다크 테마 캡처, 미확인 질문 PDF 요약을 추가했다. 기존 본문 페이지의 transform 때문에 고정 저장 바가 가려지는 문제를 portal로 수정했고, 저장 후에는 하단 바를 숨긴다.
+
+실배포 로그인은 사용자 승인 후 실행했으며 HTTP 503으로 실패했다. 서버 로그는 보안 저장소 구성 불가를 기록했다. DB quota 함수의 rollback-only 호출 성공, 실제 검증용 점검 0건을 확인했다. Vercel 환경변수 조회 403과 로컬 CLI 인증 부재 때문에 구성 변경은 미수행이다. 로그인 우회·메모리 제한 대체·비밀 조회·시험자료 임의 생성 없이 이 경계를 미통과로 남겼다.

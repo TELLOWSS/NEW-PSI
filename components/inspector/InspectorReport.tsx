@@ -5,6 +5,7 @@ export default function InspectorReport({ report }: { report: InspectionReport }
     const {inspection,evidence,generatedAt}=report.snapshot, doc=inspection.document;
     return <article className="si-report" aria-label="점검 검토용 보고서">
         <header><p className="si-eyebrow">NEW-PSI · SAFETY INSPECTOR</p><h2>현장점검 검토용 보고서</h2><p>법령 검증 대기 · 최종 승인 전</p></header>
+        <div className="si-report-summary"><span>증거사진 <b>{evidence.length}</b>장</span><span>미결 조치 <b>{doc.actions.filter(a=>a.status!=='verified').length}</b>건</span><span>미확인 질문 <b>{Object.entries(doc.analyses).reduce((sum,[id,a])=>sum+a.requires_confirmation.filter((_,n)=>{const answer=doc.confirmationAnswers?.[id]?.find(x=>x.questionIndex===n);return !answer || answer.answer==='unknown';}).length,0)}</b>건</span><span>공식 법령 검증 대기</span></div>
         <dl className="si-report-meta"><div><dt>점검명</dt><dd>{doc.title}</dd></div><div><dt>현장·위치</dt><dd>{doc.siteName || '미입력'} / {doc.location || '미입력'}</dd></div><div><dt>공종·촬영시점</dt><dd>{doc.workType || '미입력'} / {doc.eventAt}</dd></div><div><dt>상태</dt><dd>{inspectionState(doc)}</dd></div><div><dt>점검번호·버전</dt><dd>{inspection.id} · {inspection.revision}</dd></div><div><dt>생성시각</dt><dd>{generatedAt}</dd></div></dl>
         <h3>1. 점검자 설명</h3><p className="si-pre">{doc.notes || '설명이 등록되지 않았습니다.'}</p>
         {doc.urgent && <p className="si-urgent">긴급 검토 요청: 현장 접근통제·작업중지 필요성을 책임자가 먼저 검토해야 합니다.</p>}

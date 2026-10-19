@@ -11,6 +11,7 @@ import { createSupabaseServerClient } from './supabaseServer';
 const SUPABASE_ENV_KEYS = [
     'VITE_SUPABASE_URL',
     'NEXT_PUBLIC_SUPABASE_URL',
+    'SUPABASE_URL',
     'SUPABASE_SERVICE_ROLE_KEY',
     'SUPABASE_SERVICE_KEY',
     'SERVICE_ROLE_KEY',
