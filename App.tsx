@@ -114,6 +114,7 @@ const Settings = lazyWithRecovery('Settings', () => import('./pages/Settings'));
 const AdminTraining = lazyWithRecovery('AdminTraining', () => import('./pages/AdminTraining'));
 const WorkerTraining = lazyWithRecovery('WorkerTraining', () => import('./pages/WorkerTraining'));
 const SafetyBehaviorManagement = lazyWithRecovery('SafetyBehaviorManagement', () => import('./pages/SafetyBehaviorManagement'));
+const SafetyInspector = lazyWithRecovery('SafetyInspector', () => import('./pages/SafetyInspector'));
 const FieldSafetyComplianceHub = lazyWithRecovery('FieldSafetyComplianceHub', () => import('./pages/FieldSafetyComplianceHub'));
 const SurveyIntelligence = lazyWithRecovery('SurveyIntelligence', () => import('./pages/SurveyIntelligence'));
 // Mobile 12-screen components (Phase B-2)
@@ -1332,6 +1333,7 @@ const App: React.FC = () => {
                         {currentPage === 'admin-training' && <AdminTraining />}
                         {currentPage === 'worker-training' && <WorkerTraining sessionId={trainingSessionId} />}
                         {currentPage === 'safety-behavior-management' && <SafetyBehaviorManagement workerRecords={workerRecords} />}
+                        {currentPage === 'safety-inspector' && <SafetyInspector />}
                         {currentPage === 'safety-compliance-hub' && <FieldSafetyComplianceHub workerRecords={workerRecords} />}
                         {currentPage === 'feedback' && <Feedback />}
                         {currentPage === 'introduction' && <Introduction workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}

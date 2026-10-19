@@ -64,6 +64,10 @@ const sidebarMenuItems: SidebarMenuItem[] = [
         icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7" /></svg>,
     },
     {
+        id: 'safety-inspector',
+        icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeWidth={2} d="M9 3h6l2 3h3v15H4V6h3l2-3zM8 12h8M8 16h5" /></svg>,
+    },
+    {
         id: 'safety-compliance-hub',
         icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5-4.5A11.9 11.9 0 0112 3 11.9 11.9 0 014 5.5V11c0 5 3.4 8.2 8 10 4.6-1.8 8-5 8-10V5.5z" /></svg>,
     },

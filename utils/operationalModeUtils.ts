@@ -9,6 +9,7 @@ const IMMEDIATE_VISIBLE_PAGES = new Set<Page>([
     'dashboard',
     'ocr-analysis',
     'safety-compliance-hub',
+    'safety-inspector',
     'worker-management',
     'safety-checks',
     'site-issue-management',

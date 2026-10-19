@@ -7,9 +7,9 @@
     "node": "22.x"
   },
   "scripts": {
-    "predev": "node scripts/auto-daily-bootstrap.cjs",
+    "predev": "node scripts/auto-daily-bootstrap.cjs && npm run prepare:inspector-ocr",
     "dev": "vite",
-    "dev:web": "vite",
+    "dev:web": "npm run prepare:inspector-ocr && vite",
     "dev:api": "node scripts/run-vercel-dev.cjs",
     "dev:all": "concurrently -k -n WEB,API -c cyan,magenta \"npm:dev:web\" \"npm:dev:api\"",
     "check:context": "node scripts/check-repo-context.cjs",
@@ -102,11 +102,18 @@
     "test:ci": "vitest run --maxWorkers=2",
     "verify:ci": "npm run verify:fast && npm run test:ci && npm audit --omit=dev --audit-level=high && npm run build",
     "build:verified": "npm run check:release-config && npm run verify:ci",
-    "check:release-config": "node scripts/check-release-config.mjs"
+    "check:release-config": "node scripts/check-release-config.mjs",
+    "prepare:inspector-ocr": "node scripts/prepare-inspector-ocr.mjs",
+    "prebuild": "npm run prepare:inspector-ocr"
   },
   "dependencies": {
     "@google/genai": "^2.18.0",
     "@supabase/supabase-js": "^2.57.2",
+    "@tesseract.js-data/chi_sim": "1.0.0",
+    "@tesseract.js-data/eng": "1.0.0",
+    "@tesseract.js-data/kor": "1.0.0",
+    "@tesseract.js-data/vie": "1.0.0",
+    "ajv": "8.20.0",
     "chart.js": "^4.5.1",
     "html-to-image": "^1.11.13",
     "pdfjs-dist": "^6.2.108",
@@ -116,7 +123,8 @@
     "react-dom": "^19.2.0",
     "react-signature-canvas": "1.0.7",
     "recharts": "^3.8.1",
-    "solapi": "^5.5.1"
+    "solapi": "^5.5.1",
+    "tesseract.js": "6.0.1"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

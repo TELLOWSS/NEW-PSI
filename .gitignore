@@ -39,3 +39,8 @@ reports/existing-records-audit-*.md
 reports/worker-identity-linkage-*.json
 reports/worker-identity-linkage-*.md
 
+
+# Rebuilt from pinned npm dependencies, never remote scripts
+public/inspector-ocr/
+
+supabase/.temp/
