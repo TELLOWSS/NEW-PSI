@@ -11,7 +11,7 @@
 - `npm run build`: Vite production build 성공. 배포 단계에서 worker/WASM/언어팩을 같은 출처 경로로 생성.
 - `git diff --check`: 통과.
 
-실행 환경 Node 24.19.0. 저장소/Vercel의 지정 Node 22.x 검증은 GitHub Actions 및 Vercel build 로그로 별도 확인한다.
+실행 환경 Node 24.19.0. GitHub Actions release-verification 및 Vercel preview의 Node 22.x 빌드도 성공했다. 실제 배포 e41ef672, preview READY. 첫 화면/배포된 OCR 라이선스 문서 HTTP 200 및 wasm 허용 CSP를 확인했다.
 
 ## 브라우저 재현
 

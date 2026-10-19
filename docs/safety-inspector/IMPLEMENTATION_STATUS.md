@@ -1,6 +1,6 @@
 # PSI SAFETY INSPECTOR — 구현 진행현황
 
-기준일 2026-10-19 / 제품 기획 v1.2 / 상태: M1 첫 구현 검증 완료 / PR·preview 준비
+기준일 2026-10-19 / 제품 기획 v1.2 / 상태: M1 첫 구현 검증 완료 / PR #29 / Vercel preview READY
 
 ## 실제 작업 대상
 
@@ -62,3 +62,16 @@
 9. Vercel 환경변수 목록 조회는 플러그인 403. 비밀 조회나 우회 설정 없이 차단 상태를 기록했다.
 
 운영 main 병합·도메인 전환은 아직 수행하지 않았다. 첨부 인계자료의 운영 승인·회귀 원칙에 따라 PR과 preview에서 검토 가능한 상태를 먼저 만든다.
+
+## GitHub 및 배포 기록
+
+- 구현 커밋: `e41ef672725141f7fc6a241e5b42ff9bf2995d4c`
+- PR: https://github.com/TELLOWSS/NEW-PSI/pull/29 (draft)
+- 검증 workflow: https://github.com/TELLOWSS/NEW-PSI/actions/runs/39250945186
+- Vercel preview: `dpl_AXgj5aQ69h8EcW9KkHSN4sxHwRCB` (Git 자동 배포, READY)
+- 검증 주소: https://new-9qttz9f6n-tellowss-projects.vercel.app
+- 대상 commit은 위 구현 커밋, 환경은 preview(target=null), Node 22.x 빌드 성공. GitHub release-verification 성공 확인. 첫 화면과 같은 출처 OCR 라이선스 문서 HTTP 200 및 wasm 허용 CSP 확인.
+- 수동 중복 배포 요청 `dpl_FxmPWQJRcdwUziRJXuRYAruzSF4i`는 큐에서 취소해 중복 빌드를 방지했다.
+- 최종 로컬 순차 검증: verify:fast / types / 985 tests / dependency audit / production build 모두 exit 0.
+
+이후 상태 문서와 원본 줄바꿈 보존 정리는 문서/형식 변경이며 실제 동작 변경과 구분한다.
