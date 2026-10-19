@@ -296,6 +296,14 @@ export const routeMetaMap: Record<Page, RouteMeta> = {
         emptyStateMessage: '등록된 조치가 없습니다.',
         errorMessage: '조치 정보를 저장하지 못했습니다.',
     }),
+    'safety-inspector': createMeta({
+        id: 'safety-inspector', productGroup: 'risk-assessment',
+        practitionerLabel: '사진점검 · 개선관리', workerLabel: '현장점검 확인', developerLabel: 'Safety Inspector',
+        description: '사진과 설명을 근거로 관찰을 검토하고 개선·재점검을 기록합니다.',
+        menuVisibleInPractitionerMode: true, menuVisibleInWorkerMode: false, menuVisibleInDeveloperMode: true,
+        fallbackTitle: '사진점검 · 개선관리', emptyStateMessage: '새 점검에 사진과 설명을 등록해 주세요.',
+        errorMessage: '점검 기록을 불러오지 못했습니다. 다시 확인해 주세요.',
+    }),
     'safety-compliance-hub': createMeta({
         id: 'safety-compliance-hub',
         productGroup: 'risk-assessment',

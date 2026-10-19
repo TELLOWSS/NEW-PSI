@@ -170,6 +170,16 @@ describe('admin auth durable login limiter', () => {
         expect(req.body).toBeUndefined();
     });
 
+    it('logs missing field names without environment values or credentials', async () => {
+        const log=vi.spyOn(console,'error').mockImplementation(()=>{});
+        mocks.createSupabaseServerClient.mockImplementation(()=>{throw Object.assign(new Error('private upstream value'),{missingConfig:['serviceRoleKey','private upstream value']});});
+        const req=createRequest({action:'login',password:'test-admin-password'}),res=createResponse();
+        await handler(req,res.response);
+        expect(res.read()).toMatchObject({statusCode:503,body:{code:'ADMIN_LOGIN_SECURITY_UNAVAILABLE'}});
+        expect(log).toHaveBeenCalledWith('[psi-admin-auth] security_store_configuration_unavailable',{missingConfig:['serviceRoleKey']});
+        expect(JSON.stringify(log.mock.calls)).not.toContain('private upstream value');expect(JSON.stringify(log.mock.calls)).not.toContain('test-admin-password');expect(req.body).toBeUndefined();expect(mocks.consumeApiQuota).not.toHaveBeenCalled();log.mockRestore();
+    });
+
     it('logs only a diagnostic error code when durable login quota is unavailable', async () => {
         const log = vi.spyOn(console, 'error').mockImplementation(() => {});
         mocks.consumeApiQuota.mockRejectedValue(Object.assign(new Error('sensitive upstream detail'), {

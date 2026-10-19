@@ -1,3 +1,4 @@
+import inspector from '../lib/server/admin/inspector.js';
 import auth from '../lib/server/admin/auth.js';
 import archiveManifest from '../lib/server/admin/archive-manifest.js';
 import predictivePlan from '../lib/server/admin/predictive-plan-status.js';
@@ -10,6 +11,7 @@ import training from '../lib/server/admin/training.js';
 
 const handlers = new Map<string, (req: any, res: any) => Promise<any>>([
     ['auth', auth],
+    ['inspector', inspector],
     ['archive-manifest', archiveManifest],
     ['predictive-plan-status', predictivePlan],
     ['record-master', recordMaster],

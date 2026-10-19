@@ -20,6 +20,7 @@ export type Page =
     'worker-training' |
     'safety-behavior-management' |
     'safety-compliance-hub' |
+    'safety-inspector' |
     'survey-intelligence' |
     'settings' |
     // Mobile 12-screen additions (Phase B-2)
