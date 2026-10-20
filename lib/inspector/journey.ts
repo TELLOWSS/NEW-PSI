@@ -1,0 +1,36 @@
+import type {InspectionDocument, InspectionReport} from './types.js';
+export const controlPriorityLabel={immediate:'즉시 검토',soon:'우선 검토',routine:'일상 관리'} as const;
+export function formatInspectionTimestamp(value:string) {
+    const date=new Date(value);
+    return Number.isFinite(date.getTime())?new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(date)+' (한국시간)':'시각 미확인';
+}
+/** Progress only considers photos in this inspection; optional questions never block completion. */
+export function inspectionProgress(doc:InspectionDocument) {
+    const reviewedIds=doc.photoIds.filter(id=>!!doc.analyses[id] && doc.reviews[id]?.decision==='accepted');
+    const pendingIds=doc.photoIds.filter(id=>!reviewedIds.includes(id));
+    const analyzed=doc.photoIds.filter(id=>!!doc.analyses[id]).length;
+    const unknown=doc.photoIds.reduce((sum,id)=>sum+(doc.analyses[id]?.requires_confirmation.filter((_,n)=>{
+        const answer=doc.confirmationAnswers?.[id]?.find(a=>a.questionIndex===n);
+        return !answer||answer.answer==='unknown';
+    }).length||0),0);
+    return {photos:doc.photoIds.length,analyzed,reviewedIds,pendingIds,unknown};
+}
+export function buildInspectionBrief(report:InspectionReport) {
+    const {inspection,evidence}=report.snapshot,doc=inspection.document;
+    const lines=['현장점검 검토 요약',`점검명: ${doc.title}`,`현장·위치: ${[doc.siteName,doc.location].filter(Boolean).join(' / ')||'미입력'}`,`공종: ${doc.workType||'미입력'}`,`점검시점: ${formatInspectionTimestamp(doc.eventAt)}`,`보고서 사진: ${evidence.length}장`];
+    if(doc.urgent)lines.push('긴급 검토 요청: 접근통제·작업중지 필요성을 현장 책임자가 우선 검토하세요.');
+    if(doc.notes)lines.push(`점검자 진술: ${doc.notes}`);
+    evidence.forEach((photo,n)=>{
+        const a=doc.analyses[photo.id],review=doc.reviews[photo.id];
+        lines.push('',`사진 ${n+1} · ${review?.decision==='accepted'?'점검자 확인됨':'확인 대기'}`);
+        if(doc.photoNotes?.[photo.id])lines.push(`점검자 설명: ${doc.photoNotes[photo.id]}`);
+        if(!a){lines.push('분석 없음');return;}
+        a.observed_facts.forEach(x=>lines.push(`AI 관찰 제안: ${x.text} / 시각 근거: ${x.visual_basis}`));
+        a.ai_hypotheses.forEach(x=>lines.push(`AI 추론·추가 확인 필요: ${x.text} / 이유: ${x.reason}`));
+        a.recommended_controls.forEach(x=>lines.push(`개선 권고(${controlPriorityLabel[x.priority]}): ${x.action}`));
+        a.requires_confirmation.forEach((x,i)=>{const answer=doc.confirmationAnswers?.[photo.id]?.find(a=>a.questionIndex===i);const state=answer?.answer==='confirmed'?'현장 확인됨':answer?.answer==='not-confirmed'?'확인 결과와 다름':'아직 확인하지 못함';lines.push(`현장 확인: ${x.question} / ${state}${answer?.note?` / 근거: ${answer.note}`:''}`);});
+        if(a.limitations.length)lines.push(`판독 한계: ${a.limitations.join(' / ')}`);
+    });
+    lines.push('','법령 검증 대기 · 최종 승인 전. 개선 권고는 실제 조치 완료를 의미하지 않습니다.',`보고서: ${report.id} / 점검 버전 ${report.inspection_revision}`);
+    return lines.join('\n');
+}

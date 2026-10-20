@@ -10,6 +10,12 @@ describe('inspector evidence and manual import contract',()=>{
         const value=analysis();expect(parseVisionImport(JSON.stringify(value),inspection,photo)).toEqual(value);
         expect(buildInspectorPrompt(inspection,photo,newInspectionDocument())).toContain(photo.sha256);
     });
+    it('accepts a single complete JSON code fence without loosening the source contract',()=>{
+        const fenced='```json\n'+JSON.stringify(analysis())+'\n```';expect(parseVisionImport(fenced,inspection,photo)).toEqual(analysis());
+        expect(()=>parseVisionImport('설명\n'+fenced,inspection,photo)).toThrow('JSON');
+        expect(()=>parseVisionImport(fenced+'\n'+fenced,inspection,photo)).toThrow('JSON');
+        expect(()=>parseVisionImport('```json\n'+JSON.stringify({...analysis(),photo_id:'other'})+'\n```',inspection,photo)).toThrow('일치하지');
+    });
     it.each(['inspection_id','photo_id','source_photo_sha256'])('rejects a result for another source (%s)',field=>{
         expect(()=>parseVisionImport({...analysis(),[field]:field==='source_photo_sha256'?'b'.repeat(64):'other'},inspection,photo)).toThrow('일치하지');
     });

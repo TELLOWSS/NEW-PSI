@@ -9,9 +9,8 @@ export function filterInspectionRecords(items:InspectionSummary[],query:string,f
 }
 export function inspectionAttention(doc:InspectionDocument):{tab:InspectorTab;title:string;detail:string} {
     if(!doc.photoIds.length)return {tab:'evidence',title:'첫 사진으로 점검을 시작하세요',detail:'원본사진과 직접 본 작업 상황을 함께 기록합니다.'};
-    if(!doc.notes.trim())return {tab:'evidence',title:'사진의 작업 상황을 설명해 주세요',detail:'직접 본 사실과 확인이 필요한 부분을 구분해 기록합니다.'};
     const analyses=Object.entries(doc.analyses);
-    if(!analyses.length)return {tab:'analysis',title:'사진의 관찰 결과를 가져오세요',detail:'표준 프롬프트로 수동 분석한 뒤 원본과 대조합니다.'};
+    if(!analyses.length)return {tab:'analysis',title:'사진을 분석하고 확인해 주세요',detail:'앱에서 바로 분석하거나 ChatGPT 답변을 가져온 뒤 사진과 대조합니다.'};
     const pending=analyses.filter(([id])=>doc.reviews[id]?.decision!=='accepted').length;
     if(pending)return {tab:'analysis',title:`사진 ${pending}건의 사실 검토가 남아 있습니다`,detail:'AI 관찰은 제안입니다. 사진과 현장 상황을 대조하세요.'};
     const questions=analyses.reduce((count,[id,a])=>count+a.requires_confirmation.filter((_,n)=>{const answer=doc.confirmationAnswers?.[id]?.find(x=>x.questionIndex===n);return !answer || answer.answer==='unknown';}).length,0);
