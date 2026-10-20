@@ -35,7 +35,7 @@ try{
         else if(b.op==='save'){assert.equal(b.expectedRevision,item.revision);result.item=bump(b.document);}
         else if(b.op==='analyze-photo'){
             analyzeCalls++;assert.equal(b.expectedRevision,item.revision);assert.equal(item.document.apiEnabled,true);assert.equal(b.externalConfirmed,true);assert.ok(item.document.photoNotes[b.photoId]);
-            if(scenario==='api-retry'&&analyzeCalls===1){await r.fulfill({status:503,json:{ok:false,message:'연결 상태를 확인한 뒤 직접 다시 요청해 주세요.'}});return;}
+            if(scenario==='api-retry'&&analyzeCalls===1){await r.fulfill({status:409,json:{ok:false,code:'AI_RESPONSE_INVALID',retryable:true,message:'AI 응답을 적용하지 않았습니다. 직접 다시 요청해 주세요.'}});return;}
             const d=structuredClone(item.document);d.analyses[b.photoId]=syntheticAnalysis(item,evidence.find(p=>p.id===b.photoId));delete d.materialCompletion;result.item=bump(d);
         }
         else if(b.op==='confirm-photo'){assert.equal(b.expectedRevision,item.revision);const d=structuredClone(item.document);assert.ok(d.analyses[b.photoId]);d.reviews[b.photoId]={decision:'accepted',note:'사진과 현장 상황을 대조했습니다.',confirmedAt:new Date().toISOString(),actor:'dedicated-admin'};result.item=bump(d);}
