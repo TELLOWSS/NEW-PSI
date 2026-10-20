@@ -1,3 +1,5 @@
+import { validateOptimization, purgeInspection } from './inspectorAssets.js';
+import { inspectorAiConfig, analyzeInspectorPhoto } from './inspectorAi.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { isValidAdminAuthRequest } from '../adminAuthGuard.js';
 import { createSupabaseServerClient } from '../supabaseServer.js';
@@ -36,7 +38,7 @@ async function getInspection(db: any, inspectionId: string): Promise<Inspection>
     return data;
 }
 async function getEvidence(db: any, inspectionId: string): Promise<Evidence[]> {
-    const {data,error} = await db.from('psi_inspector_evidence').select('id,inspection_id,sha256,mime_type,byte_size,created_at').eq('inspection_id',inspectionId).order('created_at'); dbError(error);
+    const {data,error} = await db.from('psi_inspector_evidence').select('id,inspection_id,sha256,mime_type,byte_size,created_at,optimization_receipt').eq('inspection_id',inspectionId).order('created_at'); dbError(error);
     return data || [];
 }
 async function update(db: any, current: Inspection, document: any, revision: unknown) {
@@ -82,24 +84,55 @@ export default async function inspector(req: any, res: any) {
             if(error?.code==='23505') return res.status(200).json({ok:true,item:await getInspection(db,inspectionId),replayed:true});
             dbError(error); return res.status(201).json({ok:true,item:data});
         }
+        if(body.op==='usage'){keys(body,[]);const result=await db.rpc('psi_inspector_usage');dbError(result.error);return res.status(200).json({ok:true,usage:result.data});}
+        if(body.op==='ai-status'){keys(body,[]);const {provider,model,ready,maxCalls,maxOutputTokens}=inspectorAiConfig();return res.status(200).json({ok:true,provider,model,ready,maxCalls,maxOutputTokens});}
+        if(body.op==='delete-inspection') {keys(body,['id','mode','expectedRevision','confirmation']);const inspectionId=id(body.id);if(!['files','all'].includes(body.mode)||body.confirmation!==inspectionId||!Number.isSafeInteger(body.expectedRevision))reject(400,'DELETE_CONFIRMATION','삭제 범위와 확인 문구를 확인해 주세요.');try{return res.status(200).json({ok:true,receipt:await purgeInspection(db,inspectionId,body.mode,body.expectedRevision)});}catch(e){reject(409,'DELETE_INCOMPLETE',e instanceof Error?e.message:'삭제를 완료하지 못했습니다.');}}
         const inspectionId=id(body.id), current=await getInspection(db,inspectionId);
         if(body.op==='detail') {keys(body,['id']); const evidence=await getEvidence(db,inspectionId);
             const {data:reports,error:reportsError}=await db.from('psi_inspector_reports').select('id,inspection_revision,created_at').eq('inspection_id',inspectionId).order('created_at',{ascending:false}).limit(20);dbError(reportsError);
             const {data:events,error}=await db.from('psi_inspector_events').select('revision,occurred_at,actor_label').eq('inspection_id',inspectionId).order('revision',{ascending:false}).limit(100);dbError(error);
-            return res.status(200).json({ok:true,item:current,evidence,events:events||[],reports:reports||[]});}
+            const {data:control,error:controlError}=await db.from('psi_inspector_controls').select('state,receipt,changed_at').eq('inspection_id',inspectionId).maybeSingle();dbError(controlError);
+            return res.status(200).json({ok:true,item:current,evidence,events:events||[],reports:reports||[],control});}
+        if(['complete-materials','confirm-photo','analyze-photo'].includes(body.op)){
+            keys(body,['id','photoId','expectedRevision','externalConfirmed']);
+            if(body.expectedRevision!==current.revision)reject(409,'REVISION_CONFLICT','최신 저장본에서 진행해 주세요.');
+            const document=structuredClone(current.document),evidence=await getEvidence(db,inspectionId);delete document.materialCompletion;
+            if(body.op==='complete-materials'){
+                const photoIds=document.photoIds.filter(id=>document.reviews[id]?.decision==='accepted');
+                if(!photoIds.length)reject(400,'REVIEW_REQUIRED','분석을 확인한 사진이 없습니다.');
+                document.materialCompletion={revision:current.revision+1,completedAt:new Date().toISOString(),photoIds};
+            }else{
+                const photo=evidence.find(p=>p.id===id(body.photoId));if(!photo)reject(404,'PHOTO_NOT_FOUND','사진을 확인해 주세요.');
+                if(body.op==='confirm-photo'){
+                    if(!document.analyses[photo.id])reject(400,'ANALYSIS_REQUIRED','분석 결과를 먼저 가져와 주세요.');
+                    document.reviews[photo.id]={decision:'accepted',note:'점검자가 사진·설명과 분석을 대조하여 확인함',confirmedAt:new Date().toISOString(),actor:'dedicated-admin'};
+                }else{
+                    if(body.externalConfirmed!==true)reject(400,'EXTERNAL_CONFIRMATION','외부 분석 허용을 확인해 주세요.');
+                    try{document.analyses[photo.id]=await analyzeInspectorPhoto(db,current,photo);}catch(e){reject(409,'AI_NOT_COMPLETED',e instanceof Error?e.message:'분석을 완료하지 못했습니다.');}
+                    delete document.reviews[photo.id];if(document.confirmationAnswers)delete document.confirmationAnswers[photo.id];
+                }
+            }
+            validateDocument(document,inspectionId,evidence);return res.status(200).json({ok:true,item:await update(db,current,document,body.expectedRevision)});
+        }
         if(body.op==='save') {
             keys(body,['id','expectedRevision','document']);
-            const document=validateDocument(body.document,inspectionId,await getEvidence(db,inspectionId));assertSafeEdit(document,current.document);
+            const document=validateDocument(body.document,inspectionId,await getEvidence(db,inspectionId));
+            for(const [pid,a] of Object.entries(document.analyses))if(a.processing_mode==='PAID_API_APPROVED' && JSON.stringify(a)!==JSON.stringify(current.document.analyses[pid]))reject(400,'INVALID_SOURCE','API 분석 출처는 서버에서만 기록합니다.');
+            for(const [pid,r] of Object.entries(document.reviews))if(r.confirmedAt && JSON.stringify(r)!==JSON.stringify(current.document.reviews[pid]))reject(400,'INVALID_REVIEW','확인 버튼을 이용해 주세요.');
+            assertSafeEdit(document,current.document);
             return res.status(200).json({ok:true,item:await update(db,current,document,body.expectedRevision)});
         }
         if(body.op==='upload') {
-            keys(body,['id','photoId','base64','uploadConfirmed']); if(body.uploadConfirmed!==true) reject(400,'UPLOAD_CONFIRMATION','사진의 보관 허용과 민감정보 처리를 확인해 주세요.'); const photoId=id(body.photoId);
+            keys(body,['id','photoId','base64','uploadConfirmed','optimizationReceipt']); if(body.uploadConfirmed!==true) reject(400,'UPLOAD_CONFIRMATION','사진의 보관 허용과 민감정보 처리를 확인해 주세요.'); const photoId=id(body.photoId);
             if(typeof body.base64!=='string' || body.base64.length>4_194_304 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(body.base64)) reject(413,'PHOTO_SIZE','사진은 3MB 이하로 선택해 주세요.');
             const bytes=Buffer.from(body.base64,'base64');if(!bytes.length || bytes.length>MAX_PHOTO) reject(413,'PHOTO_SIZE','사진은 3MB 이하로 선택해 주세요.');
             const format=photoFormat(bytes),hash=createHash('sha256').update(bytes).digest('hex');
+            let receipt;try{receipt=validateOptimization(body.optimizationReceipt,bytes,hash);}catch{reject(400,'INVALID_OPTIMIZATION','사진 최적화 증빙을 검증하지 못했습니다.');}
             const evidence=await getEvidence(db,inspectionId), prior=evidence.find(p=>p.id===photoId);
             if(prior) {if(prior.sha256!==hash) reject(409,'PHOTO_CONFLICT','사진번호에 다른 원본이 등록되어 있습니다.');return res.status(200).json({ok:true,photo:prior,replayed:true});}
             if(evidence.length>=20) reject(400,'PHOTO_LIMIT','점검당 사진은 20개까지 등록할 수 있습니다.');
+            const operation=`upload:${inspectionId}:${photoId}:${hash}`;const reserve=await db.rpc('psi_inspector_reserve',{p_id:inspectionId,p_operation:operation,p_kind:'upload',p_bytes:bytes.length});dbError(reserve.error);if(!reserve.data)reject(409,'UPLOAD_BLOCKED','업로드가 진행 중이거나 삭제·용량 제한 상태입니다.');
+            try {
             const storageKey=`${inspectionId}/${photoId}/${hash}.${format.extension}`;
             const uploaded=await db.storage.from(BUCKET).upload(storageKey,bytes,{contentType:format.mime,upsert:false});
             if(uploaded.error) {
@@ -111,8 +144,8 @@ export default async function inspector(req: any, res: any) {
                 const recovered=await db.storage.from(BUCKET).download(storageKey);dbError(recovered.error);
                 if(!recovered.data || createHash('sha256').update(Buffer.from(await recovered.data.arrayBuffer())).digest('hex')!==hash) reject(409,'PHOTO_CONFLICT','보관된 원본을 확인할 수 없습니다.');
             }
-            const {data,error}=await db.from('psi_inspector_evidence').insert({id:photoId,inspection_id:inspectionId,sha256:hash,mime_type:format.mime,byte_size:bytes.length,storage_key:storageKey})
-                .select('id,inspection_id,sha256,mime_type,byte_size,created_at').single();
+            const {data,error}=await db.from('psi_inspector_evidence').insert({id:photoId,inspection_id:inspectionId,sha256:hash,mime_type:format.mime,byte_size:bytes.length,storage_key:storageKey,optimization_receipt:receipt})
+                .select('id,inspection_id,sha256,mime_type,byte_size,created_at,optimization_receipt').single();
             if(error) {
                 if(error.code==='23505') {
                     const replay=(await getEvidence(db,inspectionId)).find(p=>p.id===photoId);
@@ -124,9 +157,11 @@ export default async function inspector(req: any, res: any) {
                 dbError(error);
             }
             return res.status(201).json({ok:true,photo:data});
+            } finally {const finished=await db.rpc('psi_inspector_finish',{p_operation:operation});dbError(finished.error);}
         }
         if(body.op==='photo') {
             keys(body,['id','photoId']);const photoId=id(body.photoId);
+            const guard=await db.from('psi_inspector_controls').select('state').eq('inspection_id',inspectionId).maybeSingle();dbError(guard.error);if(guard.data && guard.data.state!=='active')reject(410,'PHOTO_DELETED','사진이 삭제 중이거나 삭제되었습니다.');
             const {data,error}=await db.from('psi_inspector_evidence').select('storage_key').eq('inspection_id',inspectionId).eq('id',photoId).maybeSingle();dbError(error);
             if(!data) reject(404,'PHOTO_NOT_FOUND','원본사진을 찾을 수 없습니다.');
             const signed=await db.storage.from(BUCKET).createSignedUrl(data.storage_key,120);dbError(signed.error);
@@ -150,7 +185,9 @@ export default async function inspector(req: any, res: any) {
         }
         if(body.op==='report') {
             keys(body,['id','expectedRevision']);if(body.expectedRevision!==current.revision) reject(409,'REVISION_CONFLICT','최신 저장본을 다시 확인해 주세요.');
-            const evidence=await getEvidence(db,inspectionId);
+            const allEvidence=await getEvidence(db,inspectionId);
+            const completion=current.document.materialCompletion;
+            const evidence=completion?allEvidence.filter(p=>completion.photoIds.includes(p.id)):allEvidence;
             const snapshot={inspection:current,evidence,legalStatus:'UNVERIFIED',reportStatus:'DRAFT',generatedAt:new Date().toISOString()};
             const hash=createHash('sha256').update(serializeSnapshot(snapshot)).digest('hex');
             const {data,error}=await db.from('psi_inspector_reports').insert({id:randomUUID(),inspection_id:inspectionId,inspection_revision:current.revision,snapshot,snapshot_sha256:hash}).select('id,inspection_id,inspection_revision,snapshot,snapshot_sha256,created_at').single();dbError(error);

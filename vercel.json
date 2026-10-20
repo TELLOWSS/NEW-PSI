@@ -45,7 +45,7 @@
   ],
   "functions": {
     "api/admin.ts": {
-      "maxDuration": 10
+      "maxDuration": 90
     },
     "api/gateway.ts": {
       "maxDuration": 240
