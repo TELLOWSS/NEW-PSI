@@ -1,5 +1,5 @@
 import { validateOptimization, purgeInspection } from './inspectorAssets.js';
-import { inspectorAiConfig, analyzeInspectorPhoto } from './inspectorAi.js';
+import { InspectorAiError, inspectorAiConfig, analyzeInspectorPhoto } from './inspectorAi.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { isValidAdminAuthRequest } from '../adminAuthGuard.js';
 import { createSupabaseServerClient } from '../supabaseServer.js';
@@ -95,7 +95,8 @@ export default async function inspector(req: any, res: any) {
             const {data:control,error:controlError}=await db.from('psi_inspector_controls').select('state,receipt,changed_at').eq('inspection_id',inspectionId).maybeSingle();dbError(controlError);
             return res.status(200).json({ok:true,item:current,evidence,events:events||[],reports:reports||[],control});}
         if(['complete-materials','confirm-photo','analyze-photo'].includes(body.op)){
-            keys(body,['id','photoId','expectedRevision','externalConfirmed']);
+            keys(body,['id','photoId','expectedRevision','externalConfirmed',...(body.op==='analyze-photo'?['requestId']:[])]);
+            if(body.requestId!==undefined)id(body.requestId);
             if(body.expectedRevision!==current.revision)reject(409,'REVISION_CONFLICT','최신 저장본에서 진행해 주세요.');
             const document=structuredClone(current.document),evidence=await getEvidence(db,inspectionId);delete document.materialCompletion;
             if(body.op==='complete-materials'){
@@ -109,7 +110,11 @@ export default async function inspector(req: any, res: any) {
                     document.reviews[photo.id]={decision:'accepted',note:'점검자가 사진·설명과 분석을 대조하여 확인함',confirmedAt:new Date().toISOString(),actor:'dedicated-admin'};
                 }else{
                     if(body.externalConfirmed!==true)reject(400,'EXTERNAL_CONFIRMATION','외부 분석 허용을 확인해 주세요.');
-                    try{document.analyses[photo.id]=await analyzeInspectorPhoto(db,current,photo);}catch(e){reject(409,'AI_NOT_COMPLETED',e instanceof Error?e.message:'분석을 완료하지 못했습니다.');}
+                    try{document.analyses[photo.id]=await analyzeInspectorPhoto(db,current,photo,body.requestId);}catch(e){
+                        const failure=e instanceof InspectorAiError?e:new InspectorAiError('AI_NOT_COMPLETED','사진 분석을 완료하지 못했습니다. 저장 기록과 연결 상태를 확인해 주세요.');
+                        console.warn('inspector_ai_failure',{code:failure.code,provider:inspectorAiConfig().provider});
+                        return res.status(409).json({ok:false,code:failure.code,message:failure.message,retryable:failure.retryable});
+                    }
                     delete document.reviews[photo.id];if(document.confirmationAnswers)delete document.confirmationAnswers[photo.id];
                 }
             }

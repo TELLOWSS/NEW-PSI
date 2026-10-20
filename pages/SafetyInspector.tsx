@@ -2,6 +2,7 @@ import {optimizePhoto, copyPhotoImage, pastedPhotos} from '../lib/inspector/phot
 import {createPortal} from 'react-dom';
 import React, { useEffect, useRef, useState } from 'react';
 import { postAdminJson } from '../utils/adminApiClient';
+import {createInspectorAnalysisClient} from '../lib/inspector/analysisClient';
 import { buildInspectorPrompt } from '../lib/inspector/prompt';
 import { parseVisionImport } from '../lib/inspector/validation';
 import { confirmationAnswerLabel, type ConfirmationAnswer, inspectionState, summarizeInspection, type Evidence, type InspectionSummary, type Inspection, type InspectionDocument, type InspectionReport } from '../lib/inspector/types';
@@ -32,6 +33,7 @@ export default function SafetyInspector() {
 }
 
 function InspectorAdvancedWorkspace({onQuick}:{onQuick:()=>void}) {
+    const [analyzePhoto]=useState(()=>createInspectorAnalysisClient());
     const [items,setItems]=useState<InspectionSummary[]>([]),[hasMore,setHasMore]=useState(false),[loaded,setLoaded]=useState(false);
     const [nextCursor,setNextCursor]=useState<{before:string;beforeId:string}|null>(null);
     const [search,setSearch]=useState(''),[recordFilter,setRecordFilter]=useState<RecordFilter>('all');
@@ -121,7 +123,7 @@ function InspectorAdvancedWorkspace({onQuick}:{onQuick:()=>void}) {
         let latest=item;
         if(dirty||!doc.apiEnabled){setActivity('설명과 API 설정을 저장하고 있습니다');const saved=await api({op:'save',id:item.id,expectedRevision:item.revision,document:{...doc,apiEnabled:true,materialCompletion:undefined}});if(!alive.current)return;latest=saved.item;useItem(latest);}
         setActivity('사진을 분석하고 있습니다. 완료되면 결과가 표시됩니다');
-        const result=await postAdminJson<any>('/api/admin/inspector',{op:'analyze-photo',id:latest.id,photoId,expectedRevision:latest.revision,externalConfirmed:true},{timeoutMs:55000,fallbackMessage:'사진 분석을 완료하지 못했습니다. 연결 상태를 확인한 뒤 직접 다시 요청해 주세요.'});
+        const result=await analyzePhoto({id:latest.id,photoId,expectedRevision:latest.revision});
         if(alive.current){useItem(result.item);setMessage('분석을 받았습니다. 관찰과 개선 권고를 읽고 사진을 확인해 주세요.');}
     });
     const finishReport=()=>void run(async()=>{

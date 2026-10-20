@@ -1,5 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {postAdminJson} from '../../utils/adminApiClient';
+import {createInspectorAnalysisClient} from '../../lib/inspector/analysisClient';
 import {optimizePhoto,pastedPhotos} from '../../lib/inspector/photoAssets';
 import {LEGAL_CARDS,legalForText,sanctionText,type LegalReference} from '../../lib/inspector/legal';
 import type {Evidence,Inspection,InspectionReport,OptimizationReceipt} from '../../lib/inspector/types';
@@ -17,6 +18,7 @@ export default function InspectorQuickWorkspace({onAdvanced}:{onAdvanced:()=>voi
     const [consent,setConsent]=useState(false),[busy,setBusy]=useState(false),[activity,setActivity]=useState(''),[error,setError]=useState('');
     const [reference,setReference]=useState<LegalReference|null>(null),[showBasics,setShowBasics]=useState(false),[resultNote,setResultNote]=useState('');
     const [analyzedResult,setAnalyzedResult]=useState(false);
+    const [analyzePhoto]=useState(()=>createInspectorAnalysisClient());
     const [report,setReport]=useState<InspectionReport|null>(null),[copied,setCopied]=useState(false);
     const inflight=useRef(false),alive=useRef(true),createId=useRef(crypto.randomUUID()),latest=useRef<Inspection|null>(null),uploaded=useRef<Evidence|null>(null),noteRef=useRef<HTMLTextAreaElement>(null),resultRef=useRef<HTMLElement>(null),errorRef=useRef<HTMLParagraphElement>(null);
     const analysis=analyzedResult&&item&&photo?item.document.analyses[photo.id]:null;
@@ -44,8 +46,8 @@ export default function InspectorQuickWorkspace({onAdvanced}:{onAdvanced:()=>voi
         if(JSON.stringify(document)!==JSON.stringify(old))current=accept((await request({op:'save',id:current.id,expectedRevision:current.revision,document})).item);
         return {current,registered};
     };
-    const showResult=(current:Inspection,registered:Evidence)=>{
-        const a=current.document.analyses[registered.id];
+    const showResult=(current:Inspection,registered:Evidence,useAnalysis=true)=>{
+        const a=useAnalysis?current.document.analyses[registered.id]:null;
         const signal=[note,...(a?.observed_facts.map(x=>x.text)||[]),...(a?.law_candidate_keywords||[])].join('\n');
         setAnalyzedResult(!!a);setReference(legalForText(signal,current.document.eventAt));setResultNote(note);setReport(null);
         requestAnimationFrame(()=>resultRef.current?.scrollIntoView({block:'start',behavior:'smooth'}));
@@ -56,8 +58,13 @@ export default function InspectorQuickWorkspace({onAdvanced}:{onAdvanced:()=>voi
         if(!apiEnabled||ready!==true){showResult(current,registered);return;}
         setActivity('사진 분석 중 · 법령과 조치 함께 준비');
         // Only this explicit user action calls a paid provider. Uploading and topic lookup never do.
-        const next=accept((await request({op:'analyze-photo',id:current.id,photoId:registered.id,expectedRevision:current.revision,externalConfirmed:true},70000)).item);
-        if(alive.current)showResult(next,registered);
+        try{
+            const next=accept((await analyzePhoto({id:current.id,photoId:registered.id,expectedRevision:current.revision})).item);
+            if(alive.current)showResult(next,registered);
+        }catch(cause){
+            if(alive.current)showResult(current,registered,false);
+            throw cause;
+        }
     });
     const lookup=()=>{if(!note.trim()){setError('상황을 짧게 적거나 아래 주제를 선택해 주세요.');noteRef.current?.focus();return;}setError('');setAnalyzedResult(false);setReference(legalForText(note));setResultNote(note);setReport(null);};
     const confirmCurrent=async()=>{let current=latest.current;const registered=uploaded.current;if(!current||!registered)throw new Error('사진 결과를 먼저 저장해 주세요.');if(current.document.analyses[registered.id]&&current.document.reviews[registered.id]?.decision!=='accepted')current=accept((await request({op:'confirm-photo',id:current.id,photoId:registered.id,expectedRevision:current.revision})).item);return current;};

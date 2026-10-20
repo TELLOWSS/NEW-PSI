@@ -92,3 +92,22 @@ describe('simple-mode server workflow',()=>{
     it('requires exact inspection-ID acknowledgement for destructive scope',async()=>{const res=response();await inspector(req({op:'delete-inspection',id,mode:'all',expectedRevision:1,confirmation:'yes'}),res);expect(res.code).toBe(400);expect(db.rpc).not.toHaveBeenCalled();});
     it('returns only configured provider metadata and never its secret',async()=>{vi.stubEnv('PSI_INSPECTOR_AI_PROVIDER','openai');vi.stubEnv('PSI_INSPECTOR_AI_MODEL','test-model');vi.stubEnv('OPENAI_API_KEY','never-expose-fixture');try{const res=response();await inspector(req({op:'ai-status'}),res);expect(res.code).toBe(200);expect(res.body).toMatchObject({ready:true,provider:'openai',model:'test-model'});expect(JSON.stringify(res.body)).not.toContain('never-expose-fixture');}finally{vi.unstubAllEnvs();}});
 });
+
+describe('structured inspector analysis error response',()=>{
+ it('returns a retryable API error without saving malformed output or disclosing the provider response',async()=>{
+    const warn=vi.spyOn(console,'warn').mockImplementation(()=>{});
+    vi.stubEnv('PSI_INSPECTOR_AI_PROVIDER','gemini');vi.stubEnv('PSI_INSPECTOR_AI_MODEL','fixture-model');vi.stubEnv('GEMINI_API_KEY','fixture-do-not-expose');
+    const fetch=vi.fn().mockResolvedValue({ok:true,status:200,json:async()=>({candidates:[{finishReason:'STOP',content:{parts:[{text:JSON.stringify({observed_facts:['private invalid provider text']})}]}}]})});vi.stubGlobal('fetch',fetch);
+    const document={...newInspectionDocument(),apiEnabled:true,photoIds:[photoId]},item=row(document);
+    storage.download.mockResolvedValue({data:new Blob([photoBytes])});
+    queue.push({data:item,error:null},{data:[photoRow()],error:null},{data:{storage_key:'private/test-photo'},error:null},{data:item,error:null},{data:null,error:null});
+    try{
+        const res=response();await inspector(req({op:'analyze-photo',id,photoId,expectedRevision:1,externalConfirmed:true,requestId:'a0190000-0000-4000-8000-000000000010'}),res);
+        expect(res.code).toBe(409);expect(res.body).toMatchObject({ok:false,code:'AI_RESPONSE_INVALID',retryable:true});expect(JSON.stringify(res.body)).not.toContain('private invalid');expect(JSON.stringify(res.body)).not.toContain('fixture-do-not-expose');
+        expect(fetch).toHaveBeenCalledOnce();expect(calls.some(c=>c.operations.some((x:any)=>x[0]==='update'))).toBe(false);expect(warn).toHaveBeenCalledWith('inspector_ai_failure',{code:'AI_RESPONSE_INVALID',provider:'gemini'});
+    }finally{warn.mockRestore();vi.unstubAllGlobals();vi.unstubAllEnvs();}
+ });
+ it('validates request IDs before any paid operation',async()=>{
+    queue.push({data:row(),error:null});const res=response();await inspector(req({op:'analyze-photo',id,photoId,expectedRevision:1,externalConfirmed:true,requestId:'invalid'}),res);expect(res.code).toBe(400);expect(db.rpc).not.toHaveBeenCalled();
+ });
+});
