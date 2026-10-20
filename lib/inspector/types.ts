@@ -25,7 +25,7 @@ export type InspectionDocument = {
 export type Inspection = { id: string; revision: number; document: InspectionDocument; created_at: string; updated_at: string };
 export type Evidence = { id: string; inspection_id: string; sha256: string; mime_type: string; byte_size: number; created_at: string; optimization_receipt?: OptimizationReceipt | null };
 export type InspectionReport = { id: string; inspection_id: string; inspection_revision: number; snapshot_sha256: string;
-    snapshot: { inspection: Inspection; evidence: Evidence[]; legalStatus: 'UNVERIFIED'; reportStatus: 'DRAFT'; generatedAt: string }; created_at: string };
+    snapshot: { inspection: Inspection; evidence: Evidence[]; legalStatus: 'UNVERIFIED'; reportStatus: 'DRAFT'; generatedAt: string; legalReference?: import('./legal.js').LegalReference }; created_at: string };
 export const inspectionState = (doc: InspectionDocument) => doc.urgent ? '긴급 검토' : doc.actions.length
     ? (doc.actions.every(a => a.status === 'verified') ? '조치 확인 · 법령 검토 대기' : '개선조치 진행')
     : Object.values(doc.reviews).some(r => r.decision === 'accepted') ? '사실 검토됨'

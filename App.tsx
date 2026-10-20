@@ -711,6 +711,11 @@ const App: React.FC = () => {
         const sessionId = params.get('sessionId');
         const guidancePeriod = params.get('guidancePeriod');
 
+        if (mode === 'photo-inspector') {
+            setCurrentPage('safety-inspector');
+            return;
+        }
+
         if ((mode === 'worker-training' || mode === 'worker-kiosk') && sessionId) {
             setTrainingSessionId(sessionId);
             setIsWorkerKioskMode(mode === 'worker-kiosk');
