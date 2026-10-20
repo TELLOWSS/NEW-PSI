@@ -1,6 +1,6 @@
 export type VisionImport = {
     schema_version: '1.1'; inspection_id: string; photo_id: string; source_photo_sha256: string;
-    processing_mode: 'CHATGPT_MANUAL';
+    processing_mode: 'CHATGPT_MANUAL' | 'PAID_API_APPROVED';
     observed_facts: { text: string; visual_basis: string; confidence: 'high' | 'medium' | 'low' }[];
     ai_hypotheses: { text: string; reason: string }[];
     requires_confirmation: { question: string; why: string }[];
@@ -12,15 +12,18 @@ export type InspectorAction = { id: string; title: string; owner: string; dueDat
 export type OcrResult = { rawText: string; recognizedText: string; confidence: number; language: 'kor'|'eng'|'vie'|'chi_sim'; engine: 'LOCAL_TESSERACT'; reviewStatus: 'unreviewed'|'corrected'|'accepted' };
 export type ConfirmationAnswer = { questionIndex: number; question: string; answer: 'confirmed' | 'not-confirmed' | 'unknown'; note: string };
 export const confirmationAnswerLabel = { confirmed: '현장 확인됨', 'not-confirmed': '확인 결과와 다름', unknown: '아직 확인하지 못함' } as const;
+export type OptimizationReceipt = { version: 'browser-jpeg-v2'; source_kind: 'optimized'; source_bytes: number; source_width: number; source_height: number; uploaded_bytes: number; uploaded_width: number; uploaded_height: number; quality: number; uploaded_asset_sha256: string; created_at: string };
+export type MaterialCompletion = { revision: number; completedAt: string; photoIds: string[] };
 export type InspectionDocument = {
+    photoNotes?: Record<string,string>; apiEnabled?: boolean; materialCompletion?: MaterialCompletion;
     title: string; siteName: string; location: string; workType: string; eventAt: string;
     notes: string; urgent: boolean; ocrResults: Record<string, OcrResult>; photoIds: string[]; analyses: Record<string, VisionImport>;
-    reviews: Record<string, { decision: 'accepted' | 'rejected'; note: string }>;
+    reviews: Record<string, { decision: 'accepted' | 'rejected'; note: string; confirmedAt?: string; actor?: 'dedicated-admin' }>;
     confirmationAnswers?: Record<string, ConfirmationAnswer[]>;
     actions: InspectorAction[];
 };
 export type Inspection = { id: string; revision: number; document: InspectionDocument; created_at: string; updated_at: string };
-export type Evidence = { id: string; inspection_id: string; sha256: string; mime_type: string; byte_size: number; created_at: string };
+export type Evidence = { id: string; inspection_id: string; sha256: string; mime_type: string; byte_size: number; created_at: string; optimization_receipt?: OptimizationReceipt | null };
 export type InspectionReport = { id: string; inspection_id: string; inspection_revision: number; snapshot_sha256: string;
     snapshot: { inspection: Inspection; evidence: Evidence[]; legalStatus: 'UNVERIFIED'; reportStatus: 'DRAFT'; generatedAt: string }; created_at: string };
 export const inspectionState = (doc: InspectionDocument) => doc.urgent ? '긴급 검토' : doc.actions.length

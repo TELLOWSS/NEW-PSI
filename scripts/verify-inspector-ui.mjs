@@ -47,7 +47,7 @@ try{
     await page.getByRole('heading',{name:'현장을 읽고, 개선까지 연결하다.'}).waitFor();await page.evaluate(()=>document.fonts.ready);
     await page.screenshot({path:resolve(output,'desktop-empty.png'),fullPage:true});
     if(requests.length)throw new Error('Entering Inspector must not request business data automatically');
-    await page.getByRole('button',{name:'첫 점검 만들기'}).click();
+    await page.getByRole('button',{name:'첫 점검 만들기'}).click();await page.getByRole('button',{name:'간편모드 · 상세모드로 전환',exact:true}).click();
     await page.getByLabel('점검명',{exact:true}).fill('개구부 주변 방호 점검');await page.getByLabel('현장명',{exact:true}).fill('검증용 가상 현장');await page.getByLabel('동·층·구역',{exact:true}).fill('2002동 18층');await page.getByLabel('공종',{exact:true}).fill('형틀');
     await page.getByLabel('점검자 설명 · 원문과 수정 이력이 함께 보관됩니다').fill('개구부 주변의 방호상태를 확인하고 작업 전 접근통제를 검토함. 사진 밖의 방호상태는 별도 확인 필요.');
     await page.getByRole('button',{name:'기록 저장',exact:true}).click();
@@ -55,11 +55,12 @@ try{
     const png=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=1000;c.height=400;const g=c.getContext('2d');g.fillStyle='white';g.fillRect(0,0,1000,400);g.fillStyle='black';g.font='bold 60px Arial';g.fillText('SAFETY FIRST',50,140);g.fillText('CHECK GUARDRAIL',50,260);return c.toDataURL('image/png').split(',')[1];});
     await page.getByLabel('사진 보관이 허용되었고, 얼굴·명찰·도면 등 불필요한 민감정보를 처리했습니다.').check();
     await page.getByLabel('현장사진 선택').setInputFiles({name:'synthetic-safety.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')});
-    await page.getByRole('status').filter({hasText:'사진 원본과 해시를 저장했습니다.'}).waitFor();
+    await page.getByRole('status').filter({hasText:'기기 원본은 변경하지 않고 최적화 사본과 증빙을 저장했습니다.'}).waitFor();
     await page.getByAltText('선택한 점검 원본사진').waitFor();
     await page.getByRole('button',{name:'원본 확대',exact:true}).click();await page.getByRole('dialog',{name:'원본사진 확대'}).waitFor();
     await page.keyboard.press('Tab');if(!await page.evaluate(()=>document.querySelector('.si-lightbox')?.contains(document.activeElement)))throw new Error('Photo dialog did not trap keyboard focus');
     await page.keyboard.press('Escape');if(await page.getByRole('dialog').count())throw new Error('Photo dialog did not close with Escape');
+    await page.getByText('사진 속 문자 읽기 · 선택',{exact:true}).click();
     await page.getByLabel('문자 언어',{exact:true}).selectOption('eng');
     await page.getByRole('button',{name:'기기 내 문자 인식',exact:true}).click();await page.getByLabel('대조·정정문',{exact:true}).waitFor({timeout:60000});
     const ocrText=await page.getByLabel('대조·정정문',{exact:true}).inputValue();if(!ocrText.includes('SAFETY'))throw new Error(`Local OCR failed: ${ocrText}`);
@@ -67,6 +68,7 @@ try{
     await page.getByRole('button',{name:/관찰·사실 검토/}).click();
     const p=evidence[0],a={schema_version:'1.1',inspection_id:item.id,photo_id:p.id,source_photo_sha256:p.sha256,processing_mode:'CHATGPT_MANUAL',observed_facts:[{text:'표지에 안전 우선 문구가 보임',visual_basis:'사진 중앙',confidence:'high'}],ai_hypotheses:[{text:'방호상태 현장 확인 필요',reason:'문구만으로 실제 방호를 알 수 없음'}],requires_confirmation:[{question:'개구부 방호가 실제 설치되어 있나요?',why:'사진 밖 상태 미확인'}],recommended_controls:[{action:'현장 방호상태를 재점검',priority:'soon'}],law_candidate_keywords:['개구부'],limitations:['가상 문자 사진이며 현장 위험을 확인할 수 없음']};
     await page.getByLabel('AI 분석결과 JSON',{exact:true}).fill(JSON.stringify(a));await page.getByRole('button',{name:'원본 대조 후 결과 가져오기'}).click();
+    await page.getByText('질문별 현장 확인 · 선택',{exact:true}).click();await page.getByText('분석 보완·반려 · 상세 기록',{exact:true}).click();
     await page.getByLabel('질문 1 확인 상태',{exact:true}).selectOption('unknown');
     await page.getByLabel('질문 1 확인 근거',{exact:true}).fill('사진 밖 구간은 현장에서 추가 확인이 필요함');
     if(await page.getByRole('button',{name:'사실 검토 수용',exact:true}).isEnabled())throw new Error('Changed confirmation must be saved before review');
@@ -76,7 +78,7 @@ try{
     await page.getByRole('button',{name:/개선·재점검/}).click();await page.getByLabel('개선할 사항').fill('개구부 방호상태 현장 재점검');await page.getByLabel('담당자·담당 공종').fill('검증용 형틀 담당');await page.getByLabel('완료기한').fill('2026-10-20');await page.getByRole('button',{name:'조치 추가',exact:true}).click();
     await page.getByLabel('개선사진',{exact:true}).selectOption(p.id);await page.getByLabel('조치 내용·현장 재점검 기록').fill('개선 방호상태와 잔여 위험을 현장에서 확인함');await page.getByRole('button',{name:'완료 검토 요청',exact:true}).click();await page.getByRole('button',{name:'변경사항 저장'}).click();
     page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'현장 재점검 확인',exact:true}).click();await page.getByText('조치 확인 · 법령 검토 대기',{exact:true}).first().waitFor();
-    await page.getByRole('button',{name:/^05.*보고서/}).click();await page.getByRole('button',{name:'검토용 보고서 생성',exact:true}).click();await page.getByRole('article',{name:'점검 검토용 보고서'}).waitFor();
+    await page.getByRole('button',{name:/^05.*보고서/}).click();await page.getByRole('button',{name:'보고서 작성',exact:true}).click();await page.getByRole('article',{name:'점검 검토용 보고서'}).waitFor();await page.waitForFunction(()=>!document.querySelector('[data-report-photo-state=loading]'));
     if(!(await page.getByRole('article').innerText()).includes('아직 확인하지 못함'))throw new Error('Unknown confirmation was omitted from report');
     await page.screenshot({path:resolve(output,'desktop-report.png'),fullPage:true});await page.pdf({path:resolve(output,'draft-report.pdf'),printBackground:true,preferCSSPageSize:true});
     for(const [name,width,height]of [['mobile',390,844],['tablet',768,1024],['desktop',1440,1080]]){
@@ -91,7 +93,7 @@ try{
         if(name==='mobile'){
             await page.locator('#psi-main-content').evaluate(el=>el.scrollTo({top:0,behavior:'instant'}));
             await page.screenshot({path:resolve(output,'mobile-overview.png'),fullPage:true});
-            await page.getByRole('button',{name:/관찰·사실 검토/}).click();await page.getByRole('heading',{name:'질문별 현장 확인',exact:true}).scrollIntoViewIfNeeded();
+            await page.getByRole('button',{name:/관찰·사실 검토/}).click();await page.getByText('질문별 현장 확인 · 선택',{exact:true}).scrollIntoViewIfNeeded();
             await page.screenshot({path:resolve(output,'mobile-review.png'),fullPage:true});
         }
     }

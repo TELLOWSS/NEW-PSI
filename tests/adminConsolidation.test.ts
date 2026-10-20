@@ -82,7 +82,7 @@ it('keeps four deployable functions with legacy rewrites and separate OCR durati
     expect(entries).toHaveLength(4);
     const config = JSON.parse(readFileSync(resolve('vercel.json'), 'utf8'));
     expect(config.rewrites[0]).toEqual({ source: '/api/admin/:endpoint', destination: '/api/admin?endpoint=:endpoint' });
-    expect(config.functions['api/admin.ts'].maxDuration).toBe(10);
+    expect(config.functions['api/admin.ts'].maxDuration).toBe(90);
     expect(config.functions['api/gateway.ts'].maxDuration).toBe(240);
     for (const path of Object.keys(config.functions)) expect(entries).toContain(resolve(path));
 });

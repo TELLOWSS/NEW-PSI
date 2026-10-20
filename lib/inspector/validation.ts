@@ -6,13 +6,13 @@ function fail(message = '입력 형식과 필수 항목을 확인해 주세요.'
 function object(value: unknown): value is Record<string, any> { return !!value && typeof value === 'object' && !Array.isArray(value); }
 function exact(value: any, keys: string[]) { if (!object(value) || Object.keys(value).some(k => !keys.includes(k))) fail(); }
 function text(value: unknown, max: number, min = 0) { if (typeof value !== 'string' || value.length > max || value.trim().length < min || value.includes('\u0000')) fail(); }
-export function parseVisionImport(raw: string | unknown, inspectionId: string, photo: Pick<Evidence, 'id' | 'sha256'>): VisionImport {
+export function parseVisionImport(raw: string | unknown, inspectionId: string, photo: Pick<Evidence, 'id' | 'sha256'>, allowApi=false): VisionImport {
     const serialized = typeof raw === 'string' ? raw : JSON.stringify(raw);
     if (typeof serialized !== 'string' || new TextEncoder().encode(serialized).length > 100_000) fail('분석결과는 100KB 이하로 가져와 주세요.');
     let value: any;
     try { value = JSON.parse(serialized); } catch { return fail('JSON 형식의 분석결과를 붙여넣어 주세요.'); }
     if (!validateSchema(value)) fail('분석결과가 표준 형식과 다릅니다. 표준 프롬프트로 다시 요청해 주세요.');
-    if (value.processing_mode !== 'CHATGPT_MANUAL') fail('현재는 ChatGPT 수동 분석결과만 가져올 수 있습니다.');
+    if (value.processing_mode !== 'CHATGPT_MANUAL' && !(allowApi && value.processing_mode==='PAID_API_APPROVED')) fail('현재는 ChatGPT 수동 분석결과만 가져올 수 있습니다.');
     if (value.inspection_id !== inspectionId || value.photo_id !== photo.id || value.source_photo_sha256.toLowerCase() !== photo.sha256.toLowerCase()) {
         fail('점검번호·사진번호·원본 해시가 일치하지 않습니다. 선택한 사진의 결과인지 확인해 주세요.');
     }
@@ -25,7 +25,7 @@ export function parseVisionImport(raw: string | unknown, inspectionId: string, p
 }
 export function validateDocument(value: unknown, inspectionId: string, evidence: Evidence[]): InspectionDocument {
     if (new TextEncoder().encode(JSON.stringify(value) || '').length > 480000) fail('점검 내용이 너무 큽니다. 사진별 분석 내용을 줄여 주세요.');
-    exact(value, ['title','siteName','location','workType','eventAt','notes','urgent','ocrResults','photoIds','analyses','reviews','actions','confirmationAnswers']);
+    exact(value, ['title','siteName','location','workType','eventAt','notes','urgent','ocrResults','photoIds','analyses','reviews','actions','confirmationAnswers','photoNotes','apiEnabled','materialCompletion']);
     const doc = value as InspectionDocument;
     text(doc.title, 200, 1); text(doc.siteName, 200); text(doc.location, 200); text(doc.workType, 100); text(doc.notes, 8000);
     text(doc.eventAt, 32, 1);
@@ -33,6 +33,9 @@ export function validateDocument(value: unknown, inspectionId: string, evidence:
     if (!Array.isArray(doc.photoIds) || doc.photoIds.length > 20 || new Set(doc.photoIds).size !== doc.photoIds.length) fail();
     const byId = new Map(evidence.map(p => [p.id, p]));
     if (doc.photoIds.some(id => typeof id !== 'string' || !UUID.test(id) || !byId.has(id))) fail('사진 원본이 저장되지 않았거나 다른 점검의 사진입니다.');
+    if(doc.apiEnabled!==undefined && typeof doc.apiEnabled!=='boolean') fail();
+    if(doc.photoNotes!==undefined) {if(!object(doc.photoNotes) || Object.keys(doc.photoNotes).length>20)fail();for(const [id,note] of Object.entries(doc.photoNotes)){if(!doc.photoIds.includes(id))fail();text(note,4000);}}
+    if(doc.materialCompletion!==undefined){const m=doc.materialCompletion;exact(m,['revision','completedAt','photoIds']);if(!Number.isSafeInteger(m.revision)||m.revision<1||!Number.isFinite(Date.parse(m.completedAt))||!Array.isArray(m.photoIds)||m.photoIds.length===0||new Set(m.photoIds).size!==m.photoIds.length||m.photoIds.some(id=>!doc.photoIds.includes(id)||doc.reviews[id]?.decision!=='accepted'))fail('보고서 자료 완료 상태를 다시 확인해 주세요.');}
     if (!object(doc.ocrResults) || Object.keys(doc.ocrResults).length > 20) fail();
     for (const [id, result] of Object.entries(doc.ocrResults)) {
         exact(result, ['rawText','recognizedText','confidence','language','engine','reviewStatus']);
@@ -42,7 +45,7 @@ export function validateDocument(value: unknown, inspectionId: string, evidence:
     if (!object(doc.analyses) || !object(doc.reviews) || Object.keys(doc.analyses).length > 20 || Object.keys(doc.reviews).length > 20) fail();
     for (const [id, analysis] of Object.entries(doc.analyses)) {
         if (!doc.photoIds.includes(id)) fail();
-        parseVisionImport(analysis, inspectionId, byId.get(id)!);
+        parseVisionImport(analysis, inspectionId, byId.get(id)!, true);
     }
     if (doc.confirmationAnswers !== undefined) {
         if (!object(doc.confirmationAnswers) || Object.keys(doc.confirmationAnswers).length > 20) fail();
@@ -57,7 +60,8 @@ export function validateDocument(value: unknown, inspectionId: string, evidence:
         }
     }
     for (const [id, review] of Object.entries(doc.reviews)) {
-        exact(review, ['decision','note']);
+        exact(review, ['decision','note','confirmedAt','actor']);
+        if(review.confirmedAt!==undefined && (!Number.isFinite(Date.parse(review.confirmedAt)) || review.actor!=='dedicated-admin'))fail();
         if (!doc.analyses[id] || !['accepted','rejected'].includes(review.decision)) fail();
         text(review.note, 2000, 5);
     }
@@ -79,12 +83,15 @@ export function assertSafeEdit(next: InspectionDocument, previous: InspectionDoc
     if (previous.photoIds.some(id => !next.photoIds.includes(id))) fail('등록한 원본사진은 제거할 수 없습니다.');
     const contextChanged = (['notes','siteName','location','workType','eventAt'] as const).some(key => next[key] !== previous[key]);
     if (contextChanged && (Object.keys(next.reviews).length || Object.values(next.confirmationAnswers || {}).some(answers => answers.length))) fail('점검 설명이나 현장 정보가 바뀌면 사실을 다시 검토해 주세요.');
+    if(JSON.stringify(next.materialCompletion)!==JSON.stringify(previous.materialCompletion) && next.materialCompletion)fail('보고서 자료 완료 버튼을 이용해 주세요.');
+    for(const id of new Set([...Object.keys(next.photoNotes||{}),...Object.keys(previous.photoNotes||{})]))if((next.photoNotes?.[id] || '')!==(previous.photoNotes?.[id] || '') && (next.reviews[id] || next.analyses[id]))fail('사진 설명 변경 후 분석과 검토를 다시 진행해 주세요.');
     for (const [id, analysis] of Object.entries(next.analyses)) {
         const changed = JSON.stringify(analysis) !== JSON.stringify(previous.analyses[id]);
         if (changed && next.reviews[id]) fail('분석을 변경한 사진은 사실을 다시 검토해 주세요.');
         if (changed && next.confirmationAnswers?.[id]?.length) fail('분석을 변경한 사진의 질문에 다시 답변해 주세요.');
         if (JSON.stringify(next.confirmationAnswers?.[id] || []) !== JSON.stringify(previous.confirmationAnswers?.[id] || []) && next.reviews[id]) fail('확인 답변을 변경하면 사실을 다시 검토해 주세요.');
     }
+    if(previous.materialCompletion && next.materialCompletion && JSON.stringify(next)!==JSON.stringify(previous))fail('변경 후 보고서 작성자료를 다시 완료해 주세요.');
     for (const old of previous.actions.filter(a => a.status === 'verified')) {
         if (JSON.stringify(next.actions.find(a => a.id === old.id)) !== JSON.stringify(old)) fail('확인된 개선기록은 변경할 수 없습니다.');
     }
