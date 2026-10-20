@@ -9,8 +9,10 @@ function text(value: unknown, max: number, min = 0) { if (typeof value !== 'stri
 export function parseVisionImport(raw: string | unknown, inspectionId: string, photo: Pick<Evidence, 'id' | 'sha256'>, allowApi=false): VisionImport {
     const serialized = typeof raw === 'string' ? raw : JSON.stringify(raw);
     if (typeof serialized !== 'string' || new TextEncoder().encode(serialized).length > 100_000) fail('분석결과는 100KB 이하로 가져와 주세요.');
+    // Accept a single copied JSON code block, without repairing or guessing its contents.
+    const trimmed=serialized.trim(),fenced=trimmed.match(/^```(?:json)?\s*\n([\s\S]*?)\n```$/i);
     let value: any;
-    try { value = JSON.parse(serialized); } catch { return fail('JSON 형식의 분석결과를 붙여넣어 주세요.'); }
+    try { value = JSON.parse(fenced?fenced[1]:serialized); } catch { return fail('JSON 형식의 분석결과를 붙여넣어 주세요.'); }
     if (!validateSchema(value)) fail('분석결과가 표준 형식과 다릅니다. 표준 프롬프트로 다시 요청해 주세요.');
     if (value.processing_mode !== 'CHATGPT_MANUAL' && !(allowApi && value.processing_mode==='PAID_API_APPROVED')) fail('현재는 ChatGPT 수동 분석결과만 가져올 수 있습니다.');
     if (value.inspection_id !== inspectionId || value.photo_id !== photo.id || value.source_photo_sha256.toLowerCase() !== photo.sha256.toLowerCase()) {

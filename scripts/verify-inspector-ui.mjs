@@ -67,6 +67,7 @@ try{
     await page.getByLabel('원본과 대조해 문자 인식 결과를 검수했습니다.').check();await page.getByRole('button',{name:'변경사항 저장'}).click();
     await page.getByRole('button',{name:/관찰·사실 검토/}).click();
     const p=evidence[0],a={schema_version:'1.1',inspection_id:item.id,photo_id:p.id,source_photo_sha256:p.sha256,processing_mode:'CHATGPT_MANUAL',observed_facts:[{text:'표지에 안전 우선 문구가 보임',visual_basis:'사진 중앙',confidence:'high'}],ai_hypotheses:[{text:'방호상태 현장 확인 필요',reason:'문구만으로 실제 방호를 알 수 없음'}],requires_confirmation:[{question:'개구부 방호가 실제 설치되어 있나요?',why:'사진 밖 상태 미확인'}],recommended_controls:[{action:'현장 방호상태를 재점검',priority:'soon'}],law_candidate_keywords:['개구부'],limitations:['가상 문자 사진이며 현장 위험을 확인할 수 없음']};
+    await page.getByRole('button',{name:'ChatGPT로 직접 분석',exact:false}).click();await page.getByLabel('외부 AI 분석이 허용된 사진이며 불필요한 식별정보를 처리했습니다.').check();
     await page.getByLabel('AI 분석결과 JSON',{exact:true}).fill(JSON.stringify(a));await page.getByRole('button',{name:'원본 대조 후 결과 가져오기'}).click();
     await page.getByText('질문별 현장 확인 · 선택',{exact:true}).click();await page.getByText('분석 보완·반려 · 상세 기록',{exact:true}).click();
     await page.getByLabel('질문 1 확인 상태',{exact:true}).selectOption('unknown');
