@@ -13,7 +13,7 @@ describe('Vercel production security headers', () => {
     it('blocks framing, MIME sniffing, and unnecessary browser capabilities', () => {
         expect(headers.get('x-frame-options')).toBe('DENY');
         expect(headers.get('x-content-type-options')).toBe('nosniff');
-        expect(headers.get('permissions-policy')).toContain('camera=()');
+        expect(headers.get('permissions-policy')).toContain('camera=(self)');
         expect(headers.get('permissions-policy')).toContain('microphone=()');
         expect(headers.get('permissions-policy')).toContain('geolocation=()');
     });

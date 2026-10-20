@@ -5,7 +5,7 @@ const requiredHeaders = new Map([
     ['x-content-type-options', ['nosniff']],
     ['x-frame-options', ['deny']],
     ['referrer-policy', ['strict-origin-when-cross-origin']],
-    ['permissions-policy', ['camera=()', 'microphone=()', 'geolocation=()']],
+    ['permissions-policy', ['camera=(self)', 'microphone=()', 'geolocation=()']],
     ['cross-origin-opener-policy', ['same-origin-allow-popups']],
     ['cross-origin-resource-policy', ['same-site']],
 ]);
