@@ -33,6 +33,15 @@ describe('server authenticated dedicated inspector boundary',()=>{
     it('does not expose another inspection photo by guessed photo ID',async()=>{queue.push({data:row(),error:null},{data:null,error:null},{data:null,error:null});const res=response();await inspector(req({op:'photo',id,photoId}),res);expect(res.code).toBe(404);expect(calls[2].operations).toContainEqual(['eq','inspection_id',id]);expect(db.storage.from).not.toHaveBeenCalled();});
     it('requires submitted improvement evidence before administrator verification',async()=>{queue.push({data:row(),error:null});const res=response();await inspector(req({op:'verify-action',id,actionId:photoId,expectedRevision:1,verificationNote:'I verified on site'}),res);expect(res.code).toBe(409);expect(calls.some(c=>c.operations.some((x:any)=>x[0]==='update'))).toBe(false);});
     it('freezes report data with unverified law state instead of approving unresolved actions',async()=>{queue.push({data:row(),error:null},{data:[],error:null},{data:{id:photoId},error:null});const res=response();await inspector(req({op:'report',id,expectedRevision:1}),res);expect(res.code).toBe(201);const insert=calls[2].operations.find((x:any)=>x[0]==='insert')[1];expect(insert.snapshot).toMatchObject({legalStatus:'UNVERIFIED',reportStatus:'DRAFT',inspection:{revision:1}});expect(insert.snapshot_sha256).toMatch(/^[a-f0-9]{64}$/);});
+    it('freezes official legal references server-side without trusting client fine fields',async()=>{
+        const document={...newInspectionDocument(),notes:'개구부 덮개 없음',eventAt:'2026-10-20T00:00:00Z'};
+        queue.push({data:row(document),error:null},{data:[],error:null},{data:{id:photoId},error:null});
+        const res=response();await inspector(req({op:'report',id,expectedRevision:1}),res);expect(res.code).toBe(201);
+        const inserted=calls[2].operations.find((x:any)=>x[0]==='insert')[1];
+        expect(inserted.snapshot.legalReference).toMatchObject({version:'kr-osh-2026-10-20-v1',reviewedAt:'2026-10-20',cards:[{id:'opening',sanctions:[{fineMaxKRW:50_000_000,kind:'criminal'}]}]});
+        const stable=JSON.stringify(inserted.snapshot);document.notes='감전';expect(JSON.stringify(inserted.snapshot.legalReference)).toContain('opening');expect(stable).toContain('제43조');
+        queue.push({data:row(),error:null});const rejected=response();await inspector(req({op:'report',id,expectedRevision:1,legalReference:{amount:1}}),rejected);expect(rejected.code).toBe(400);
+    });
     it('does not return provider errors, storage paths or secrets to clients',async()=>{queue.push({error:{code:'42P01',message:'secret-key and SQL details'},data:null});const res=response();await inspector(req({op:'list'}),res);expect(res.code).toBe(503);expect(JSON.stringify(res.body)).not.toContain('secret-key');});
 });
 

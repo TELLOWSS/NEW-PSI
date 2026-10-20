@@ -1,4 +1,5 @@
 import type {InspectionDocument, InspectionReport} from './types.js';
+import {sanctionText} from './legal.js';
 export const controlPriorityLabel={immediate:'즉시 검토',soon:'우선 검토',routine:'일상 관리'} as const;
 export function formatInspectionTimestamp(value:string) {
     const date=new Date(value);
@@ -31,6 +32,8 @@ export function buildInspectionBrief(report:InspectionReport) {
         a.requires_confirmation.forEach((x,i)=>{const answer=doc.confirmationAnswers?.[photo.id]?.find(a=>a.questionIndex===i);const state=answer?.answer==='confirmed'?'현장 확인됨':answer?.answer==='not-confirmed'?'확인 결과와 다름':'아직 확인하지 못함';lines.push(`현장 확인: ${x.question} / ${state}${answer?.note?` / 근거: ${answer.note}`:''}`);});
         if(a.limitations.length)lines.push(`판독 한계: ${a.limitations.join(' / ')}`);
     });
-    lines.push('','법령 검증 대기 · 최종 승인 전. 개선 권고는 실제 조치 완료를 의미하지 않습니다.',`보고서: ${report.id} / 점검 버전 ${report.inspection_revision}`);
+    const legal=report.snapshot.legalReference;
+    if(legal){lines.push('',`관련 법령 요지 · 공식 원문 대조 ${legal.reviewedAt}`);if(legal.dateStatus==='outside-reviewed-period')lines.push('사건 당시 법령은 별도 대조 필요');legal.cards.forEach(card=>{lines.push(card.title);card.actions.forEach(action=>lines.push(`바로 할 조치: ${action}`));card.duties.forEach(d=>lines.push(`${d.label}: ${d.summary}`,d.url));card.sanctions.forEach(s=>lines.push(`${s.actor}: ${sanctionText(s)} / 조건: ${s.condition} / 근거: ${s.basis}`,s.url));});lines.push('금액은 법정상한이며 실제 부과액이 아닙니다. 사진별 합산 금지.');}
+    lines.push('',`${legal?'법령의 현장 적용 검토':'작성 당시 법령 자료 미수록'} · 최종 승인 전. 개선 권고는 실제 조치 완료를 의미하지 않습니다.`,`보고서: ${report.id} / 점검 버전 ${report.inspection_revision}`);
     return lines.join('\n');
 }

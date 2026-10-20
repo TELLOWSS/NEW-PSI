@@ -41,7 +41,7 @@ await page.route('**/api/admin/inspector',async r=>{const b=r.request().postData
 await page.route('**/__photo/*',r=>r.fulfill({body:images.get(r.request().url().split('/').pop()),contentType:'image/jpeg'}));
 const waitIdle=()=>page.waitForFunction(()=>!Array.from(document.querySelectorAll('button')).some(b=>b.textContent==='처리 중…'));
 try{
- await page.goto('http://127.0.0.1:3022/',{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>typeof window.__setCurrentPage==='function');await page.evaluate(()=>window.__setCurrentPage('safety-inspector'));if(qaFont){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}await page.getByRole('button',{name:'첫 점검 만들기',exact:true}).click();
+ await page.goto('http://127.0.0.1:3022/',{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>typeof window.__setCurrentPage==='function');await page.evaluate(()=>window.__setCurrentPage('safety-inspector'));if(qaFont){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}await page.getByRole('button',{name:'저장 기록 · 상세 관리',exact:true}).click();await page.getByRole('button',{name:'첫 점검 만들기',exact:true}).click();
  await page.getByLabel('사진 보관이 허용되었고, 얼굴·명찰·도면 등 불필요한 민감정보를 처리했습니다.').check();
  const camera=page.getByRole('dialog',{name:'카메라로 바로 촬영',exact:true});
  const cameraButton=page.getByRole('button',{name:/^카메라로 바로 촬영/});

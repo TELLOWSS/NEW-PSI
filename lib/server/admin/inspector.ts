@@ -7,6 +7,7 @@ import { consumeApiQuota, resolveRequestFingerprint } from '../apiSecurity.js';
 import { assertSafeEdit, InspectorInputError, UUID, validateDocument } from '../../inspector/validation.js';
 import { serializeSnapshot } from '../../inspector/snapshot.js';
 import { newInspectionDocument, type Evidence, type Inspection } from '../../inspector/types.js';
+import { legalForInspection } from '../../inspector/legal.js';
 
 const BUCKET = 'psi-inspector-evidence';
 const MAX_PHOTO = 3 * 1024 * 1024;
@@ -188,7 +189,7 @@ export default async function inspector(req: any, res: any) {
             const allEvidence=await getEvidence(db,inspectionId);
             const completion=current.document.materialCompletion;
             const evidence=completion?allEvidence.filter(p=>completion.photoIds.includes(p.id)):allEvidence;
-            const snapshot={inspection:current,evidence,legalStatus:'UNVERIFIED',reportStatus:'DRAFT',generatedAt:new Date().toISOString()};
+            const snapshot={inspection:current,evidence,legalStatus:'UNVERIFIED',reportStatus:'DRAFT',generatedAt:new Date().toISOString(),legalReference:legalForInspection(current.document,evidence.map(p=>p.id))};
             const hash=createHash('sha256').update(serializeSnapshot(snapshot)).digest('hex');
             const {data,error}=await db.from('psi_inspector_reports').insert({id:randomUUID(),inspection_id:inspectionId,inspection_revision:current.revision,snapshot,snapshot_sha256:hash}).select('id,inspection_id,inspection_revision,snapshot,snapshot_sha256,created_at').single();dbError(error);
             return res.status(201).json({ok:true,report:data});

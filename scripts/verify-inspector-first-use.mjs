@@ -27,7 +27,7 @@ try{
       const b=r.request().postDataJSON();ops.push(b.op);let result={ok:true};
       try{
         if(b.op==='create'){item={id:b.id,revision:1,created_at:new Date().toISOString(),updated_at:new Date().toISOString(),document:{title:'처음 쓰는 현장점검',siteName:'',location:'',workType:'',eventAt:new Date().toISOString(),notes:'',urgent:false,photoIds:[],analyses:{},reviews:{},actions:[],ocrResults:{}}};result.item=item;}
-        else if(b.op==='ai-status'){statusCalls++;Object.assign(result,{ready:scenario!=='api-unavailable'&&(scenario!=='api-reconnect'||statusCalls>1),provider:'gemini',model:'fixture',maxCalls:20});}
+        else if(b.op==='ai-status'){if(item)statusCalls++;Object.assign(result,{ready:scenario!=='api-unavailable'&&(scenario!=='api-reconnect'||statusCalls>1),provider:'gemini',model:'fixture',maxCalls:20});}
         else if(b.op==='usage'&&scenario==='api-reconnect'){await r.fulfill({status:503,json:{ok:false,message:'Usage unavailable'}});return;}
         else if(b.op==='usage')result.usage={projectBytes:100000,uploadCeilingBytes:900000000};
         else if(b.op==='upload'){const bytes=Buffer.from(b.base64,'base64');assert.ok(bytes.length<=3*1024*1024);const photo={id:b.photoId,inspection_id:item.id,sha256:createHash('sha256').update(bytes).digest('hex'),mime_type:'image/jpeg',byte_size:bytes.length,created_at:new Date().toISOString(),optimization_receipt:b.optimizationReceipt};images.set(photo.id,bytes);evidence.push(photo);result.photo=photo;}
@@ -51,7 +51,7 @@ try{
     const idle=()=>page.waitForFunction(()=>!document.querySelector('.si-bottom-bar button')?.disabled);
     await page.goto(base+'/',{waitUntil:'domcontentloaded'});await page.getByRole('navigation',{name:'모바일 하단 탐색'}).locator('button[aria-haspopup=dialog]').click();await page.getByText('사진점검 · 개선관리',{exact:true}).filter({visible:true}).first().click();
     if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}
-    await page.getByRole('button',{name:'첫 점검 만들기',exact:true}).click();await page.getByRole('heading',{name:'사진과 점검자 설명',exact:true}).waitFor();await idle();
+    await page.getByRole('button',{name:'저장 기록 · 상세 관리',exact:true}).click();await page.getByRole('button',{name:'첫 점검 만들기',exact:true}).click();await page.getByRole('heading',{name:'사진과 점검자 설명',exact:true}).waitFor();await idle();
     assert.equal(await page.getByRole('button',{name:/^카메라로 바로 촬영/}).isDisabled(),true);
     await page.getByLabel(photoConsent).check();
     const source=Buffer.from(await page.evaluate(()=>{const c=document.createElement('canvas');c.width=1280;c.height=960;const g=c.getContext('2d');g.fillStyle='#789';g.fillRect(0,0,c.width,c.height);g.fillStyle='white';g.font='80px sans-serif';g.fillText('SYNTHETIC SAFETY',50,400);return c.toDataURL('image/jpeg',.95).split(',')[1];}),'base64');

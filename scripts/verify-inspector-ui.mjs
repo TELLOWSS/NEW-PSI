@@ -44,10 +44,10 @@ await page.route('**/__fixture-photo/*',route=>route.fulfill({body:photos.get(ro
 try{
     await page.goto('http://127.0.0.1:3020/',{waitUntil:'networkidle'});
     await page.waitForFunction(()=>typeof window.__setCurrentPage==='function');await page.evaluate(()=>window.__setCurrentPage('safety-inspector'));
-    await page.getByRole('heading',{name:'현장을 읽고, 개선까지 연결하다.'}).waitFor();await page.evaluate(()=>document.fonts.ready);
+    await page.getByRole('heading',{name:'사진 한 장, 필요한 답을 한눈에'}).waitFor();await page.evaluate(()=>document.fonts.ready);
     await page.screenshot({path:resolve(output,'desktop-empty.png'),fullPage:true});
-    if(requests.length)throw new Error('Entering Inspector must not request business data automatically');
-    await page.getByRole('button',{name:'첫 점검 만들기'}).click();await page.getByRole('button',{name:'간편모드 · 상세모드로 전환',exact:true}).click();
+    if(requests.some(op=>op!=='ai-status'))throw new Error('Entering Inspector must not request business data automatically');
+    await page.getByRole('button',{name:'저장 기록 · 상세 관리',exact:true}).click();await page.getByRole('heading',{name:'현장을 읽고, 개선까지 연결하다.'}).waitFor();await page.getByRole('button',{name:'첫 점검 만들기'}).click();await page.getByRole('button',{name:'간편모드 · 상세모드로 전환',exact:true}).click();
     await page.getByLabel('점검명',{exact:true}).fill('개구부 주변 방호 점검');await page.getByLabel('현장명',{exact:true}).fill('검증용 가상 현장');await page.getByLabel('동·층·구역',{exact:true}).fill('2002동 18층');await page.getByLabel('공종',{exact:true}).fill('형틀');
     await page.getByLabel('점검자 설명 · 원문과 수정 이력이 함께 보관됩니다').fill('개구부 주변의 방호상태를 확인하고 작업 전 접근통제를 검토함. 사진 밖의 방호상태는 별도 확인 필요.');
     await page.getByRole('button',{name:'기록 저장',exact:true}).click();
