@@ -40,3 +40,5 @@
 @media(max-width:1023px){.si-quick-dock .si-quick-finish{bottom:calc(84px + env(safe-area-inset-bottom))}.si-quick:has(.si-quick-result){padding-bottom:230px}}
 @media(max-width:700px){.si-quick-heading{margin-bottom:16px}.si-quick-heading h1{font-size:27px}.si-input-recap{padding:10px;gap:8px}.si-input-recap img{width:42px;height:46px}.si-input-recap .si-btn{font-size:11px;padding:8px}.si-quick-result{margin-top:20px}.si-quick-result h2{font-size:20px}.si-quick-result>.si-section-heading .si-btn{font-size:11px;padding:8px}.si-problem{padding:18px 16px}.si-problem h3{font-size:20px}.si-answer-tabs button{font-size:13px}.si-law-preview p{font-size:16px}.si-quick-context textarea{font-size:16px}.si-quick-dock .si-quick-finish{width:calc(100vw - 20px);padding:9px 10px;gap:8px}.si-quick-dock .si-btn{padding:9px 6px;font-size:12px}.si-quick-consent{padding:8px 0;min-height:44px}}
 @media print{.si-quick-dock,.si-quick-finish{display:none!important}}
+
+@media(max-width:1023px){body:has(.si-quick-dock) button[aria-label="최상단으로 이동"]{bottom:calc(192px + env(safe-area-inset-bottom))!important}}
