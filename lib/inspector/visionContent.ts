@@ -3,7 +3,7 @@ import {InspectorInputError,parseVisionImport} from './validation.js';
 import type {Evidence,VisionImport} from './types.js';
 
 // Providers generate observations only. Record identity, asset hashes and provenance belong to the server.
-const limits={observed_facts:6,ai_hypotheses:3,requires_confirmation:3,recommended_controls:6,law_candidate_keywords:8,limitations:3} as const;
+const limits={observed_facts:6,ai_hypotheses:3,requires_confirmation:3,recommended_controls:6,law_candidate_keywords:8,limitations:3,risk_findings:3} as const;
 type ContentKey=keyof typeof limits;
 export type InspectorVisionContent=Pick<VisionImport,ContentKey>;
 function providerShape(input:any):any {

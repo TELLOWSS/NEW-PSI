@@ -23,6 +23,7 @@ export function parseVisionImport(raw: string | unknown, inspectionId: string, p
         if (typeof item === 'string') text(item, 2000, 1);
         else for (const field of Object.values(item)) text(field, 4000, 1);
     }
+    if(value.risk_findings?.some((finding:any)=>!value.observed_facts[Number(finding.observation_index)]))fail('위험 해석의 사진 관찰 근거가 없습니다.');
     return value;
 }
 export function validateDocument(value: unknown, inspectionId: string, evidence: Evidence[]): InspectionDocument {

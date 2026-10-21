@@ -12,7 +12,7 @@ export function inspectorAiConfig(){
     const key=provider==='gemini'?(process.env.GEMINI_API_KEY||process.env.GOOGLE_GEMINI_API_KEY||process.env.GOOGLE_API_KEY||''):provider==='openai'?(process.env.OPENAI_API_KEY||''):'';
     return {provider,model,key,ready:!!key&&/^[a-zA-Z0-9._-]{1,100}$/.test(model),maxCalls:20,maxOutputTokens:4096};
 }
-export function analysisFingerprint(item:Inspection,photo:Evidence,model:string){return createHash('sha256').update(JSON.stringify({version:3,contract:'vision-content-v1',photo:photo.sha256,photoId:photo.id,notes:item.document.photoNotes?.[photo.id]||'',common:item.document.notes,site:item.document.siteName,location:item.document.location,work:item.document.workType,event:item.document.eventAt,model})).digest('hex');}
+export function analysisFingerprint(item:Inspection,photo:Evidence,model:string){return createHash('sha256').update(JSON.stringify({version:4,contract:'vision-content-v2-findings',photo:photo.sha256,photoId:photo.id,notes:item.document.photoNotes?.[photo.id]||'',common:item.document.notes,site:item.document.siteName,location:item.document.location,work:item.document.workType,event:item.document.eventAt,model})).digest('hex');}
 const incomplete=()=>new InspectorAiError('AI_INCOMPLETE','AI 응답이 출력 한도에서 중단되었습니다. 사진·설명은 저장되어 있습니다. 필요하면 직접 다시 분석해 주세요. 다시 실행하면 API 사용료가 발생할 수 있습니다.',true);
 const refused=()=>new InspectorAiError('AI_REFUSED','AI 공급자가 이 사진의 분석을 제공하지 않았습니다. 사진 속 불필요한 식별정보를 처리하거나 설명으로 기준을 조회해 주세요.');
 function geminiText(result:any):string {

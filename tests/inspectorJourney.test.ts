@@ -1,3 +1,4 @@
+import {legalForText} from '../lib/inspector/legal';
 import {describe,expect,it} from 'vitest';
 import {buildInspectionBrief,inspectionProgress,formatInspectionTimestamp} from '../lib/inspector/journey';
 import {inspectionAttention} from '../lib/inspector/experience';
@@ -15,5 +16,6 @@ describe('first-use progress and faithful report brief',()=>{
  it('keeps observation, hypothesis, recommendation, and unknown status distinct',()=>{const text=buildInspectionBrief(report());expect(text).toContain('AI 관찰 제안: 발판 틈새');expect(text).toContain('AI 추론·추가 확인 필요: 자재 낙하');expect(text).toContain('개선 권고(즉시 검토): 하부 접근통제');expect(text).toContain('아직 확인하지 못함');expect(text).toContain('작성 당시 법령 자료 미수록 · 최종 승인 전');expect(text).toContain('실제 조치 완료를 의미하지 않습니다');});
  it('preserves negative confirmation and its recorded basis',()=>{const value=report();value.snapshot.inspection.document.confirmationAnswers={included:[{questionIndex:0,question:'하부 통제 상태는?',answer:'not-confirmed',note:'실제 상태와 다름'}]};expect(buildInspectionBrief(value)).toContain('확인 결과와 다름 / 근거: 실제 상태와 다름');expect(inspectionProgress(value.snapshot.inspection.document).unknown).toBe(1);});
  it('handles legacy reports without analysis and reports with no photos honestly',()=>{const value=report();value.snapshot.inspection.document.analyses={};expect(buildInspectionBrief(value)).toContain('분석 없음');value.snapshot.evidence=[];expect(buildInspectionBrief(value)).toContain('보고서 사진: 0장');});
+ it('copies photo-linked risk interpretations and the cases frozen in the report',()=>{const value=report();value.snapshot.inspection.document.analyses.included.risk_findings=[{observation_index:'0',problem:'발판 틈새 노출',risk:'자재 낙하 가능성',action:'하부 통제',priority:'immediate'}];value.snapshot.legalReference=legalForText('비계');const text=buildInspectionBrief(value);expect(text).toContain('문제 제안: 발판 틈새 노출');expect(text).toContain('가능 위험: 자재 낙하 가능성');expect(text).toContain('관련 공개 감독사례:');expect(text).toContain('news_seq=18869');});
  it('does not mutate the report when creating presentation text',()=>{const value=report(),before=JSON.stringify(value);buildInspectionBrief(value);expect(JSON.stringify(value)).toBe(before);});
 });

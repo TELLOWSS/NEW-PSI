@@ -26,6 +26,7 @@ export function buildInspectionBrief(report:InspectionReport) {
         lines.push('',`사진 ${n+1} · ${review?.decision==='accepted'?'점검자 확인됨':'확인 대기'}`);
         if(doc.photoNotes?.[photo.id])lines.push(`점검자 설명: ${doc.photoNotes[photo.id]}`);
         if(!a){lines.push('분석 없음');return;}
+        a.risk_findings?.forEach(f=>lines.push(`문제 제안: ${f.problem}`,`가능 위험: ${f.risk}`,`우선 조치(${controlPriorityLabel[f.priority]}): ${f.action}`));
         a.observed_facts.forEach(x=>lines.push(`AI 관찰 제안: ${x.text} / 시각 근거: ${x.visual_basis}`));
         a.ai_hypotheses.forEach(x=>lines.push(`AI 추론·추가 확인 필요: ${x.text} / 이유: ${x.reason}`));
         a.recommended_controls.forEach(x=>lines.push(`개선 권고(${controlPriorityLabel[x.priority]}): ${x.action}`));
@@ -33,7 +34,7 @@ export function buildInspectionBrief(report:InspectionReport) {
         if(a.limitations.length)lines.push(`판독 한계: ${a.limitations.join(' / ')}`);
     });
     const legal=report.snapshot.legalReference;
-    if(legal){lines.push('',`관련 법령 요지 · 공식 원문 대조 ${legal.reviewedAt}`);if(legal.dateStatus==='outside-reviewed-period')lines.push('사건 당시 법령은 별도 대조 필요');legal.cards.forEach(card=>{lines.push(card.title);card.actions.forEach(action=>lines.push(`바로 할 조치: ${action}`));card.duties.forEach(d=>lines.push(`${d.label}: ${d.summary}`,d.url));card.sanctions.forEach(s=>lines.push(`${s.actor}: ${sanctionText(s)} / 조건: ${s.condition} / 근거: ${s.basis}`,s.url));});lines.push('금액은 법정상한이며 실제 부과액이 아닙니다. 사진별 합산 금지.');}
+    if(legal){lines.push('',`관련 법령 요지 · 공식 원문 대조 ${legal.reviewedAt}`);if(legal.dateStatus==='outside-reviewed-period')lines.push('사건 당시 법령은 별도 대조 필요');legal.cards.forEach(card=>{lines.push(card.title);card.actions.forEach(action=>lines.push(`바로 할 조치: ${action}`));card.duties.forEach(d=>lines.push(`${d.label}: ${d.summary}`,d.url));card.sanctions.forEach(s=>lines.push(`${s.actor}: ${sanctionText(s)} / 조건: ${s.condition} / 근거: ${s.basis}`,s.url));});lines.push('금액은 법정상한이며 실제 부과액이 아닙니다. 사진별 합산 금지.');legal.inspectionCases?.forEach(c=>lines.push('',`관련 공개 감독사례: ${c.title} (${c.publishedAt})`,c.finding,c.response,`현장 적용 힌트: ${c.lesson}`,c.url));}
     lines.push('',`${legal?'법령의 현장 적용 검토':'작성 당시 법령 자료 미수록'} · 최종 승인 전. 개선 권고는 실제 조치 완료를 의미하지 않습니다.`,`보고서: ${report.id} / 점검 버전 ${report.inspection_revision}`);
     return lines.join('\n');
 }

@@ -156,6 +156,56 @@ export const visionSchema = {
         "type": "string",
         "minLength": 1
       }
+    },
+    "risk_findings": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "observation_index",
+          "problem",
+          "risk",
+          "action",
+          "priority"
+        ],
+        "properties": {
+          "observation_index": {
+            "type": "string",
+            "enum": [
+              "0",
+              "1",
+              "2",
+              "3",
+              "4",
+              "5"
+            ]
+          },
+          "problem": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "risk": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "priority": {
+            "enum": [
+              "immediate",
+              "soon",
+              "routine"
+            ]
+          }
+        }
+      }
     }
   }
 } as const;
