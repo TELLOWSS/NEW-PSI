@@ -5,6 +5,8 @@ export type VisionImport = {
     ai_hypotheses: { text: string; reason: string }[];
     requires_confirmation: { question: string; why: string }[];
     recommended_controls: { action: string; priority: 'immediate' | 'soon' | 'routine' }[];
+    /** Optional extension: legacy manual imports and frozen reports remain valid. */
+    risk_findings?: {observation_index:'0'|'1'|'2'|'3'|'4'|'5';problem:string;risk:string;action:string;priority:'immediate'|'soon'|'routine'}[];
     law_candidate_keywords: string[]; limitations: string[];
 };
 export type InspectorAction = { id: string; title: string; owner: string; dueDate: string;

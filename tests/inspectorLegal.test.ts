@@ -39,6 +39,8 @@ describe('dated official legal references, independent of provider assertions',(
         expect(legalForText('비계','2026-10-20T15:30:00Z').dateStatus).toBe('outside-reviewed-period');
         expect(legalForText('비계','2026-10-20T00:00:00Z').dateStatus).toBe('reference-date');
     });
+    it('ranks multiple specific signals above an incidental broad topic',()=>{expect(legalForText('통로에 비계 발판과 이동식비계가 보임').cards[0].id).toBe('scaffold');});
+    it('links only verified relevant official inspections and freezes isolated case data',()=>{const r=legalForText('개구부');expect(r.inspectionCases?.length).toBe(3);for(const c of r.inspectionCases||[])expect(new URL(c.url).hostname).toBe('www.moel.go.kr');r.inspectionCases![0].finding='changed';expect(legalForText('개구부').inspectionCases![0].finding).not.toBe('changed');expect(legalForText('감전').inspectionCases).toEqual([]);expect(r.inspectionCases![0].response).toContain('여러 현장 합계');});
     it('pins every duty and sanction to an official statute source and returns isolated snapshots',()=>{
         for(const card of LEGAL_CARDS)for(const item of [...card.duties,...card.sanctions])expect(new URL(item.url).hostname).toBe('www.law.go.kr');
         const r=legalForText('개구부');r.cards[0].sanctions[0].fineMaxKRW=1;expect(legalForText('개구부').cards[0].sanctions[0].fineMaxKRW).toBe(50_000_000);

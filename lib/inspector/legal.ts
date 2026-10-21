@@ -1,13 +1,14 @@
+import {casesForTopics,type InspectionCase} from './inspectionCases.js';
 import type {InspectionDocument} from './types.js';
 
 /** Curated references, not an LLM answer or a live statute synchronization service. */
-export const LEGAL_VERSION='kr-osh-2026-10-20-v1';
+export const LEGAL_VERSION='kr-osh-2026-10-20-v2-cases-2026-10-21';
 export const LEGAL_REVIEWED_AT='2026-10-20';
 const source=(article:number,rules=false)=>`https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=${String(article).padStart(4,'0')}&lsiSeq=${rules?'273603':'283449'}&urlMode=lsScJoRltInfoR`;
 export type LegalDuty={label:string;summary:string;url:string};
 export type LegalSanction={kind:'criminal'|'administrative';actor:string;condition:string;fineMaxKRW:number;prisonYears?:number;basis:string;url:string};
 export type LegalCard={id:string;title:string;keywords:string[];duties:LegalDuty[];actions:string[];scope:string;sanctions:LegalSanction[]};
-export type LegalReference={version:string;reviewedAt:string;dateStatus:'reference-date'|'outside-reviewed-period';cards:LegalCard[]};
+export type LegalReference={version:string;reviewedAt:string;dateStatus:'reference-date'|'outside-reviewed-period';cards:LegalCard[];inspectionCases?:InspectionCase[]};
 const duty=(article:number,summary:string,rules=true):LegalDuty=>({label:`${rules?'산업안전보건기준에 관한 규칙':'산업안전보건법'} 제${article}조`,summary,url:source(article,rules)});
 const safety:LegalSanction={kind:'criminal',actor:'사업주',condition:'법 제38조제1항~제3항의 안전조치 의무 위반이 성립하는 경우',fineMaxKRW:50_000_000,prisonYears:5,basis:'산업안전보건법 제168조제1호',url:source(168)};
 const admin=(fineMaxKRW:number,basis:string,condition:string,actor='사업주'):LegalSanction=>({kind:'administrative',actor,condition,fineMaxKRW,basis:`산업안전보건법 제175조${basis}`,url:source(175)});
@@ -37,7 +38,9 @@ export function legalForText(text:string,eventAt?:string):LegalReference {
     // A dated corpus cannot determine historical or future law. Current references remain useful, explicitly labelled.
     const date=eventAt?new Date(eventAt):null;
     const day=date&&Number.isFinite(date.getTime())?new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(date):LEGAL_REVIEWED_AT;
-    return {version:LEGAL_VERSION,reviewedAt:LEGAL_REVIEWED_AT,dateStatus:day>LEGAL_REVIEWED_AT||day<'2026-08-01'?'outside-reviewed-period':'reference-date',cards:structuredClone(LEGAL_CARDS.filter(card=>card.keywords.some(word=>normalized.includes(word))))};
+    const matches=LEGAL_CARDS.map((card,index)=>({card,index,score:card.keywords.reduce((total,word)=>total+(normalized.includes(word)?Math.min(word.length,12):0),0)})).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||a.index-b.index);
+    const cards=structuredClone(matches.map(x=>x.card));
+    return {version:LEGAL_VERSION,reviewedAt:LEGAL_REVIEWED_AT,dateStatus:day>LEGAL_REVIEWED_AT||day<'2026-08-01'?'outside-reviewed-period':'reference-date',cards,inspectionCases:casesForTopics(cards.map(c=>c.id))};
 }
 export function legalForInspection(doc:InspectionDocument,photoIds=doc.photoIds):LegalReference {
     const signals=[doc.workType,doc.notes,...photoIds.flatMap(id=>[doc.photoNotes?.[id]||'',...(doc.analyses[id]?.observed_facts.map(f=>f.text)||[]),...(doc.analyses[id]?.law_candidate_keywords||[])])];

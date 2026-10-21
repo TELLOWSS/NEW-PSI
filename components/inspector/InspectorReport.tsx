@@ -31,6 +31,7 @@ export default function InspectorReport({ report }: { report: InspectionReport }
             <h4>사진 {i+1} · {photo.id}</h4><div data-report-photo-state={photos[photo.id]?.url?'ready':photos[photo.id]?.failed?'failed':'loading'}>{photos[photo.id]?.url?<img className="si-report-photo" src={photos[photo.id].url} alt={`점검 사진 ${i+1}`}/>:<p role="status">{photos[photo.id]?.failed?'사진을 불러오지 못했습니다. 삭제 여부·접근 권한을 확인하세요.':'보고서 사진을 준비하고 있습니다…'}</p>}</div><p className="si-pre">사진별 점검자 설명: {doc.photoNotes?.[photo.id] || '미입력'}</p><p className="si-hash">등록 사진 SHA-256: {photo.sha256}</p>
             <p>분석 출처: {a?(a.processing_mode==='PAID_API_APPROVED'?'서버 API 분석':'ChatGPT 사용자 수동 가져오기'):'분석 없음'} · 사실 검토: {r ? r.decision==='accepted'?'검토 수용':'반려':'검토 대기'}</p>
             {r && <p>검토 사유: {r.note}</p>}
+            {!!a?.risk_findings?.length&&<><h4>문제 지점·위험·우선 조치 · AI 해석</h4>{a.risk_findings.map((f,n)=><div key={n}><b>{f.problem}</b><p>사진 근거: {a.observed_facts[Number(f.observation_index)]?.visual_basis} · {a.observed_facts[Number(f.observation_index)]?.text}</p><p>가능 위험: {f.risk}</p><p>우선 조치: {f.action}</p></div>)}</>}
             <h4>AI 관찰 제안</h4><ul>{a?.observed_facts.map((x,n)=><li key={n}>{x.text} (시각 근거: {x.visual_basis})</li>)}</ul>
             <h4>AI 추론 · 현장 확인 필요</h4><ul>{a?.ai_hypotheses.map((x,n)=><li key={n}>{x.text} — {x.reason}</li>)}</ul>
             <h4>AI 개선 권고 · 현장 적용 검토</h4>{a?.recommended_controls.length?<ul>{a.recommended_controls.map((x,n)=><li key={n}>{controlPriorityLabel[x.priority]}: {x.action}</li>)}</ul>:<p>등록된 개선 권고가 없습니다.</p>}
