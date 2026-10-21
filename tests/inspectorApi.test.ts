@@ -38,7 +38,8 @@ describe('server authenticated dedicated inspector boundary',()=>{
         queue.push({data:row(document),error:null},{data:[],error:null},{data:{id:photoId},error:null});
         const res=response();await inspector(req({op:'report',id,expectedRevision:1}),res);expect(res.code).toBe(201);
         const inserted=calls[2].operations.find((x:any)=>x[0]==='insert')[1];
-        expect(inserted.snapshot.legalReference).toMatchObject({version:'kr-osh-2026-10-20-v1',reviewedAt:'2026-10-20',cards:[{id:'opening',sanctions:[{fineMaxKRW:50_000_000,kind:'criminal'}]}]});
+        expect(inserted.snapshot.legalReference).toMatchObject({version:'kr-osh-2026-10-20-v2-cases-2026-10-21',reviewedAt:'2026-10-20',cards:[{id:'opening',sanctions:[{fineMaxKRW:50_000_000,kind:'criminal'}]}]});
+        expect(inserted.snapshot.legalReference.inspectionCases).toHaveLength(3);
         const stable=JSON.stringify(inserted.snapshot);document.notes='감전';expect(JSON.stringify(inserted.snapshot.legalReference)).toContain('opening');expect(stable).toContain('제43조');
         queue.push({data:row(),error:null});const rejected=response();await inspector(req({op:'report',id,expectedRevision:1,legalReference:{amount:1}}),rejected);expect(rejected.code).toBe(400);
     });
