@@ -1,5 +1,6 @@
 import {DEFAULT_REVIEW_NOTE} from './expertReview';
 import type {InspectionDocument,InspectorAction} from './types';
+import {actionPhotoSummary} from './actionFollowup';
 
 type Priority='immediate'|'soon'|'routine'|'expert';
 export type ActionSource={photoId:string;photoNumber:number;description:string;reviewNote:string};
@@ -37,6 +38,6 @@ export function duplicateAction(actions:InspectorAction[],candidate:InspectorAct
     return actions.some(a=>normalize(a.title)===normalize(candidate.title)&&a.owner===candidate.owner&&a.dueDate===candidate.dueDate&&a.note===candidate.note);
 }
 export const actionStatusLabel=(action:InspectorAction)=>action.status==='verified'?'현장 재점검 확인':action.status==='review-requested'?'완료 검토 요청':'미조치';
-export function buildRegisteredActionRequest(actions:InspectorAction[],title:string){
-    return ['[등록한 현장 조치]',`점검명: ${title}`,...actions.flatMap((a,n)=>['',`${n+1}. ${a.title}`,`담당: ${a.owner} / 기한: ${a.dueDate} / 상태: ${actionStatusLabel(a)}`,...(a.note?[a.note]:[])]),'','미조치는 완료 후 개선사진과 현장 재점검 결과를 회신해 주세요.'].join('\n');
+export function buildRegisteredActionRequest(actions:InspectorAction[],title:string,photoIds:string[]=[]){
+    return ['[등록한 현장 조치]',`점검명: ${title}`,...actions.flatMap((a,n)=>['',`${n+1}. ${a.title}`,`담당: ${a.owner} / 기한: ${a.dueDate} / 상태: ${actionStatusLabel(a)}`,...actionPhotoSummary(a,photoIds),...(a.note?[a.note]:[])]),'','미조치는 완료 후 개선사진과 현장 재점검 결과를 회신해 주세요.'].join('\n');
 }
