@@ -31,6 +31,10 @@ describe('dated official legal references, independent of provider assertions',(
         doc.analyses.included={schema_version:'1.1',inspection_id:'i',photo_id:'included',source_photo_sha256:'a'.repeat(64),processing_mode:'CHATGPT_MANUAL',observed_facts:[],ai_hypotheses:[{text:'개구부',reason:'추측'}],requires_confirmation:[],recommended_controls:[{action:'화재 예방',priority:'routine'}],law_candidate_keywords:[],limitations:[]};
         expect(legalForInspection(doc,['included']).cards.map(c=>c.id)).toEqual(['scaffold']);
     });
+    it('excludes rejected AI observations and keywords while retaining inspector descriptions',()=>{
+        const doc=newInspectionDocument();doc.photoIds=['p'];doc.photoNotes={p:'비계 발판 고정 확인'};doc.analyses.p={schema_version:'1.1',inspection_id:'i',photo_id:'p',source_photo_sha256:'a'.repeat(64),processing_mode:'PAID_API_APPROVED',observed_facts:[{text:'특별교육 미실시',visual_basis:'가상',confidence:'low'}],ai_hypotheses:[],requires_confirmation:[],recommended_controls:[],law_candidate_keywords:['특별교육'],limitations:[]};doc.reviews.p={decision:'rejected',note:'사진으로 교육 여부 판정 불가'};
+        const r=legalForInspection(doc);expect(r.cards.map(c=>c.id)).toEqual(['scaffold']);expect(r.cards.some(c=>c.id==='education')).toBe(false);
+    });
     it('does not allow AI-generated fine amounts to become authoritative',()=>{
         const r=legalForText('개구부 과태료 999999999원 확정');expect(r.cards[0].sanctions[0].fineMaxKRW).toBe(50_000_000);
     });
@@ -40,7 +44,7 @@ describe('dated official legal references, independent of provider assertions',(
         expect(legalForText('비계','2026-10-20T00:00:00Z').dateStatus).toBe('reference-date');
     });
     it('ranks multiple specific signals above an incidental broad topic',()=>{expect(legalForText('통로에 비계 발판과 이동식비계가 보임').cards[0].id).toBe('scaffold');});
-    it('links only verified relevant official inspections and freezes isolated case data',()=>{const r=legalForText('개구부');expect(r.inspectionCases?.length).toBe(3);for(const c of r.inspectionCases||[])expect(new URL(c.url).hostname).toBe('www.moel.go.kr');r.inspectionCases![0].finding='changed';expect(legalForText('개구부').inspectionCases![0].finding).not.toBe('changed');expect(legalForText('감전').inspectionCases).toEqual([]);expect(r.inspectionCases![0].response).toContain('여러 현장 합계');});
+    it('links only verified relevant official inspections and freezes isolated case data',()=>{const r=legalForText('개구부');expect(r.inspectionCases?.length).toBe(4);for(const c of r.inspectionCases||[])expect(new URL(c.url).hostname).toBe('www.moel.go.kr');r.inspectionCases![0].finding='changed';expect(legalForText('개구부').inspectionCases![0].finding).not.toBe('changed');expect(legalForText('감전').inspectionCases?.map(c=>c.id)).toEqual(['moel-20032','moel-19976']);expect(r.inspectionCases!.find(c=>c.id==='moel-18869')!.response).toContain('여러 현장 합계');});
     it('pins every duty and sanction to an official statute source and returns isolated snapshots',()=>{
         for(const card of LEGAL_CARDS)for(const item of [...card.duties,...card.sanctions])expect(new URL(item.url).hostname).toBe('www.law.go.kr');
         const r=legalForText('개구부');r.cards[0].sanctions[0].fineMaxKRW=1;expect(legalForText('개구부').cards[0].sanctions[0].fineMaxKRW).toBe(50_000_000);

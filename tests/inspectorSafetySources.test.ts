@@ -1,0 +1,7 @@
+import {it,expect} from 'vitest';
+import {legalForText,LEGAL_CARDS} from '../lib/inspector/legal';
+import {legalApplication} from '../lib/inspector/legalApplication';
+import {SAFETY_TRENDS} from '../lib/inspector/safetyTrends';
+it('distinguishes statutory dimensions from unknown photo measurements and exceptions',()=>{const card=LEGAL_CARDS.find(c=>c.id==='scaffold')!;expect(legalApplication(card).standard).toContain('발판재료 사이 틈 3cm');expect(legalApplication(card).standard).toContain('예외');expect(legalApplication(card).check).toContain('실측');});
+it('keeps recent official trends separate from case outcomes, dated and immutable',()=>{const r=legalForText('화재');expect(r.casesReviewedAt).toBe('2026-10-22');expect(r.recentTrends?.[0]).toMatchObject({kind:'잠정 통계·점검 예고',publishedAt:'2026-10-20',period:'2026년 1~9월 누적 · 잠정'});expect(r.recentTrends![0].summary).toContain('예고');r.recentTrends![0].summary='changed';expect(SAFETY_TRENDS[0].summary).not.toBe('changed');for(const t of SAFETY_TRENDS)expect(new URL(t.url).hostname).toBe('www.moel.go.kr');});
+it('provides a topic-specific inspection finding without reusing the whole-case fine as an individual amount',()=>{const c=legalForText('감전').inspectionCases![0];expect(c.focus!.electric.finding).toContain('제302조');expect(c.focus!.electric.finding).toContain('제301조와는 별도');expect(c.response).toContain('총액');expect(legalForText('법령 요지').inspectionCases).toEqual([]);});

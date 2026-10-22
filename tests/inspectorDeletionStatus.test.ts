@@ -1,0 +1,10 @@
+import {it,expect,vi} from 'vitest';
+import {inspectionDeletionStatus} from '../lib/server/admin/inspectorAssets';
+function fixture({state='purged',mode='all',files=false,records=0,failed=false,pending=0}={}){
+ const queries:any[]=[];
+ const db:any={from:(table:string)=>{const trace:any={table,ops:[]};queries.push(trace);const q:any={then:(r:any)=>Promise.resolve(table.endsWith('controls')?{data:{state,deletion_mode:mode,verify_after:'2026-01-01T00:00:00Z'}}:{data:pending?[{started_at:'2026-10-22T00:00:00Z'}]:[],count:failed?null:trace.ops.some((o:any)=>o[0]==='eq'&&o[1]==='finished')?pending:records,error:failed?{}:null}).then(r)};for(const method of ['select','eq','order','limit','maybeSingle'])q[method]=(...args:any[])=>{trace.ops.push([method,...args]);return q;};return q;},storage:{from:vi.fn(()=>({list:vi.fn(async(path:string)=>({data:files?path==='own'?[{name:'photo',id:null}]:[{name:'hash.jpg',id:'file',metadata:{size:42}}]:[]}))}))}};return {db,queries};
+}
+it('independently verifies purged records and storage, binding every query to one inspection',async()=>{const {db,queries}=fixture();const s=await inspectionDeletionStatus(db,'own');expect(s).toMatchObject({state:'purged',verified:true,remainingFiles:0,remainingRecords:{inspections:0,reports:0,evidence:0,events:0,operations:0}});for(const q of queries)expect(q.ops).toContainEqual(['eq',q.table.endsWith('inspections')?'id':'inspection_id','own']);});
+it.each([{files:true},{records:1},{state:'deleting'},{pending:1}])('does not mark residual or incomplete deletion successful %#',async o=>{expect((await inspectionDeletionStatus(fixture(o).db,'own')).verified).toBe(false);});
+it('reports a files-only outcome without claiming its retained records were deleted',async()=>{const {db}=fixture({state:'files-deleted',mode:'files'});expect(await inspectionDeletionStatus(db,'own')).toMatchObject({mode:'files',verified:true});});
+it('does not equate a failed count with zero records',async()=>{await expect(inspectionDeletionStatus(fixture({failed:true}).db,'own')).rejects.toThrow('남은 기록');});

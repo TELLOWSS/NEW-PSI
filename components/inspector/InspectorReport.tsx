@@ -5,6 +5,7 @@ import {postAdminJson} from '../../utils/adminApiClient';
 import type { InspectionReport } from '../../lib/inspector/types';
 import { confirmationAnswerLabel, inspectionState } from '../../lib/inspector/types';
 import InspectorLegalResult from './InspectorLegalResult';
+import {buildReportActionRequests} from '../../lib/inspector/expertReview';
 export default function InspectorReport({ report }: { report: InspectionReport }) {
     const {inspection,evidence,generatedAt}=report.snapshot, doc=inspection.document;
     const [briefMessage,setBriefMessage]=useState('');
@@ -21,7 +22,7 @@ export default function InspectorReport({ report }: { report: InspectionReport }
     },[report.id]);
     return <article className="si-report" aria-label="점검 검토용 보고서">
         <header><p className="si-eyebrow">NEW-PSI · SAFETY INSPECTOR</p><h2>현장점검 검토용 보고서</h2><p>{report.snapshot.legalReference?'공식 법령 요지·조건별 금액 포함 · 현장 적용 및 최종 승인 전':'작성 당시 법령 자료 미수록 · 최종 승인 전'}</p></header>
-        <section className="si-report-brief"><div className="si-section-heading"><h3>바로 활용하는 보고 요약</h3><button className="si-btn" onClick={()=>void Promise.resolve().then(()=>navigator.clipboard.writeText(buildInspectionBrief(report))).then(()=>setBriefMessage('보고 요약을 복사했습니다.')).catch(()=>setBriefMessage('복사할 수 없습니다. 아래 요약을 선택해 복사해 주세요.'))}>보고 요약 복사</button></div>{briefMessage&&<p role="status">{briefMessage}</p>}<details><summary>보고 요약 내용 보기</summary><p className="si-pre">{buildInspectionBrief(report)}</p></details></section>
+        <section className="si-report-brief"><div className="si-section-heading"><h3>바로 활용하는 보고 요약</h3><button className="si-btn" onClick={()=>void navigator.clipboard.writeText(buildReportActionRequests(report)).then(()=>setBriefMessage('현장 전달용 요약을 복사했습니다.')).catch(()=>setBriefMessage('복사하지 못했습니다. 보고 요약 내용을 선택해 주세요.'))}>현장 전달용 요약 복사</button><button className="si-btn" onClick={()=>void Promise.resolve().then(()=>navigator.clipboard.writeText(buildInspectionBrief(report))).then(()=>setBriefMessage('보고 요약을 복사했습니다.')).catch(()=>setBriefMessage('복사할 수 없습니다. 아래 요약을 선택해 복사해 주세요.'))}>보고 요약 복사</button></div>{briefMessage&&<p role="status">{briefMessage}</p>}<details><summary>보고 요약 내용 보기</summary><p className="si-pre">{buildInspectionBrief(report)}</p></details></section>
         <div className="si-report-summary"><span>증거사진 <b>{evidence.length}</b>장</span><span>미결 조치 <b>{doc.actions.filter(a=>a.status!=='verified').length}</b>건</span><span>미확인 질문 <b>{Object.entries(doc.analyses).filter(([id])=>evidence.some(p=>p.id===id)).reduce((sum,[id,a])=>sum+a.requires_confirmation.filter((_,n)=>{const answer=doc.confirmationAnswers?.[id]?.find(x=>x.questionIndex===n);return !answer || answer.answer==='unknown';}).length,0)}</b>건</span><span>{report.snapshot.legalReference?'법령 요지·금액 포함 · 적용 검토':'작성 당시 법령 미수록'}</span></div>
         <dl className="si-report-meta"><div><dt>점검명</dt><dd>{doc.title}</dd></div><div><dt>현장·위치</dt><dd>{doc.siteName || '미입력'} / {doc.location || '미입력'}</dd></div><div><dt>공종·촬영시점</dt><dd>{doc.workType || '미입력'} / {formatInspectionTimestamp(doc.eventAt)}</dd></div><div><dt>상태</dt><dd>{inspectionState(doc)}</dd></div><div><dt>점검번호·버전</dt><dd>{inspection.id} · {inspection.revision}</dd></div><div><dt>생성시각</dt><dd>{formatInspectionTimestamp(generatedAt)}</dd></div></dl>
         <h3>1. 현장 공통 설명</h3><p className="si-pre">{doc.notes || '공통 설명은 별도로 입력하지 않았습니다. 사진별 설명은 아래에 표시됩니다.'}</p>
@@ -29,8 +30,8 @@ export default function InspectorReport({ report }: { report: InspectionReport }
         <h3>2. 사진별 관찰과 사실 검토</h3>
         {evidence.map((photo,i)=>{const a=doc.analyses[photo.id],r=doc.reviews[photo.id],ocr=doc.ocrResults[photo.id];return <section key={photo.id} className="si-report-block">
             <h4>사진 {i+1} · {photo.id}</h4><div data-report-photo-state={photos[photo.id]?.url?'ready':photos[photo.id]?.failed?'failed':'loading'}>{photos[photo.id]?.url?<img className="si-report-photo" src={photos[photo.id].url} alt={`점검 사진 ${i+1}`}/>:<p role="status">{photos[photo.id]?.failed?'사진을 불러오지 못했습니다. 삭제 여부·접근 권한을 확인하세요.':'보고서 사진을 준비하고 있습니다…'}</p>}</div><p className="si-pre">사진별 점검자 설명: {doc.photoNotes?.[photo.id] || '미입력'}</p><p className="si-hash">등록 사진 SHA-256: {photo.sha256}</p>
-            <p>분석 출처: {a?(a.processing_mode==='PAID_API_APPROVED'?'서버 API 분석':'ChatGPT 사용자 수동 가져오기'):'분석 없음'} · 사실 검토: {r ? r.decision==='accepted'?'검토 수용':'반려':'검토 대기'}</p>
-            {r && <p>검토 사유: {r.note}</p>}
+            <p>분석 출처: {a?(a.processing_mode==='PAID_API_APPROVED'?'서버 API 분석':'ChatGPT 사용자 수동 가져오기'):'분석 없음'} · 사실 검토: {r ? r.decision==='accepted'?'검토 수용':'AI 해석 수용 안 함':'검토 대기'}</p>
+            {r && <section className="si-human-report"><h4>전문가 검토 의견</h4><p className="si-pre">{r.note}</p>{r.decision==='rejected'&&<p>AI 해석 수용 안 함 · 아래 AI 내용은 원기록 대조용이며 조치 지시가 아닙니다.</p>}</section>}
             {!!a?.risk_findings?.length&&<><h4>문제 지점·위험·우선 조치 · AI 해석</h4>{a.risk_findings.map((f,n)=><div key={n}><b>{f.problem}</b><p>사진 근거: {a.observed_facts[Number(f.observation_index)]?.visual_basis} · {a.observed_facts[Number(f.observation_index)]?.text}</p><p>가능 위험: {f.risk}</p><p>우선 조치: {f.action}</p></div>)}</>}
             <h4>AI 관찰 제안</h4><ul>{a?.observed_facts.map((x,n)=><li key={n}>{x.text} (시각 근거: {x.visual_basis})</li>)}</ul>
             <h4>AI 추론 · 현장 확인 필요</h4><ul>{a?.ai_hypotheses.map((x,n)=><li key={n}>{x.text} — {x.reason}</li>)}</ul>

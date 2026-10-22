@@ -1,4 +1,4 @@
-import { validateOptimization, purgeInspection } from './inspectorAssets.js';
+import { validateOptimization, purgeInspection, inspectionDeletionStatus } from './inspectorAssets.js';
 import { InspectorAiError, inspectorAiConfig, analyzeInspectorPhoto } from './inspectorAi.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { isValidAdminAuthRequest } from '../adminAuthGuard.js';
@@ -87,7 +87,8 @@ export default async function inspector(req: any, res: any) {
         }
         if(body.op==='usage'){keys(body,[]);const result=await db.rpc('psi_inspector_usage');dbError(result.error);return res.status(200).json({ok:true,usage:result.data});}
         if(body.op==='ai-status'){keys(body,[]);const {provider,model,ready,maxCalls,maxOutputTokens}=inspectorAiConfig();return res.status(200).json({ok:true,provider,model,ready,maxCalls,maxOutputTokens});}
-        if(body.op==='delete-inspection') {keys(body,['id','mode','expectedRevision','confirmation']);const inspectionId=id(body.id);if(!['files','all'].includes(body.mode)||body.confirmation!==inspectionId||!Number.isSafeInteger(body.expectedRevision))reject(400,'DELETE_CONFIRMATION','삭제 범위와 확인 문구를 확인해 주세요.');try{return res.status(200).json({ok:true,receipt:await purgeInspection(db,inspectionId,body.mode,body.expectedRevision)});}catch(e){reject(409,'DELETE_INCOMPLETE',e instanceof Error?e.message:'삭제를 완료하지 못했습니다.');}}
+        if(body.op==='deletion-status'){keys(body,['id']);return res.status(200).json({ok:true,status:await inspectionDeletionStatus(db,id(body.id))});}
+        if(body.op==='delete-inspection') {keys(body,['id','mode','expectedRevision','confirmation']);const inspectionId=id(body.id);if(!['files','all'].includes(body.mode)||body.confirmation!==inspectionId||!Number.isSafeInteger(body.expectedRevision))reject(400,'DELETE_CONFIRMATION','삭제 범위와 확인 문구를 확인해 주세요.');try{const receipt=await purgeInspection(db,inspectionId,body.mode,body.expectedRevision);const status=await inspectionDeletionStatus(db,inspectionId);if(!status.verified)throw new Error('삭제 후 파일·기록 잔여 검증이 완료되지 않았습니다. 다시 확인해 주세요.');return res.status(200).json({ok:true,receipt,status});}catch(e){reject(409,'DELETE_INCOMPLETE',e instanceof Error?e.message:'삭제를 완료하지 못했습니다.');}}
         const inspectionId=id(body.id), current=await getInspection(db,inspectionId);
         if(body.op==='detail') {keys(body,['id']); const evidence=await getEvidence(db,inspectionId);
             const {data:reports,error:reportsError}=await db.from('psi_inspector_reports').select('id,inspection_revision,created_at').eq('inspection_id',inspectionId).order('created_at',{ascending:false}).limit(20);dbError(reportsError);
@@ -95,7 +96,7 @@ export default async function inspector(req: any, res: any) {
             const {data:control,error:controlError}=await db.from('psi_inspector_controls').select('state,receipt,changed_at').eq('inspection_id',inspectionId).maybeSingle();dbError(controlError);
             return res.status(200).json({ok:true,item:current,evidence,events:events||[],reports:reports||[],control});}
         if(['complete-materials','confirm-photo','analyze-photo'].includes(body.op)){
-            keys(body,['id','photoId','expectedRevision','externalConfirmed',...(body.op==='analyze-photo'?['requestId']:[])]);
+            keys(body,['id','photoId','expectedRevision','externalConfirmed',...(body.op==='analyze-photo'?['requestId']:[]),...(body.op==='confirm-photo'?['decision','reviewNote']:[])]);
             if(body.requestId!==undefined)id(body.requestId);
             if(body.expectedRevision!==current.revision)reject(409,'REVISION_CONFLICT','최신 저장본에서 진행해 주세요.');
             const document=structuredClone(current.document),evidence=await getEvidence(db,inspectionId);delete document.materialCompletion;
@@ -107,7 +108,12 @@ export default async function inspector(req: any, res: any) {
                 const photo=evidence.find(p=>p.id===id(body.photoId));if(!photo)reject(404,'PHOTO_NOT_FOUND','사진을 확인해 주세요.');
                 if(body.op==='confirm-photo'){
                     if(!document.analyses[photo.id])reject(400,'ANALYSIS_REQUIRED','분석 결과를 먼저 가져와 주세요.');
-                    document.reviews[photo.id]={decision:'accepted',note:'점검자가 사진·설명과 분석을 대조하여 확인함',confirmedAt:new Date().toISOString(),actor:'dedicated-admin'};
+                    const decision=body.decision===undefined?'accepted':body.decision;
+                    if(!['accepted','rejected'].includes(decision))reject(400,'INVALID_REVIEW','전문가 검토 구분을 확인해 주세요.');
+                    if(body.reviewNote!==undefined&&(typeof body.reviewNote!=='string'||body.reviewNote.length>2000||body.reviewNote.includes('\u0000')))reject(400,'INVALID_REVIEW','검토 의견은 2,000자 이내로 적어 주세요.');
+                    const reviewNote=(body.reviewNote||'').trim();
+                    if((reviewNote&&reviewNote.length<5)||(decision==='rejected'&&reviewNote.length<5))reject(400,'REVIEW_REQUIRED','AI 해석과 다른 점이나 현장 판단을 5자 이상 적어 주세요.');
+                    document.reviews[photo.id]={decision,note:reviewNote||'점검자가 사진·설명과 분석을 대조하여 확인함',confirmedAt:new Date().toISOString(),actor:'dedicated-admin'};
                 }else{
                     if(body.externalConfirmed!==true)reject(400,'EXTERNAL_CONFIRMATION','외부 분석 허용을 확인해 주세요.');
                     try{document.analyses[photo.id]=await analyzeInspectorPhoto(db,current,photo,body.requestId);}catch(e){
@@ -171,6 +177,7 @@ export default async function inspector(req: any, res: any) {
             const {data,error}=await db.from('psi_inspector_evidence').select('storage_key').eq('inspection_id',inspectionId).eq('id',photoId).maybeSingle();dbError(error);
             if(!data) reject(404,'PHOTO_NOT_FOUND','원본사진을 찾을 수 없습니다.');
             const signed=await db.storage.from(BUCKET).createSignedUrl(data.storage_key,120);dbError(signed.error);
+            const after=await db.from('psi_inspector_controls').select('state').eq('inspection_id',inspectionId).maybeSingle();dbError(after.error);if(after.data&&after.data.state!=='active')reject(410,'PHOTO_DELETED','사진이 삭제 중이거나 삭제되었습니다.');
             return res.status(200).json({ok:true,url:signed.data.signedUrl,expiresIn:120});
         }
         if(body.op==='verify-action') {
