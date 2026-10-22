@@ -22,9 +22,13 @@ describe('saved inspection handover and closing boundaries',()=>{
         const item=fixture(),d=item.document;d.photoIds=['a','b','c','d'];d.materialCompletion={revision:5,completedAt:'2026-10-23T00:00:00Z',photoIds:['a']};d.actions=[{...action('work'),completionPhotoId:'d'}];
         expect(reportReadiness(item).reportPhotos).toBe(2);expect(buildInspectionHandover(item)).toContain('개선 후: 사진 4');
     });
+    it('includes an explicitly accepted first AI risk/action as a proposal, without relabelling it a registered action',()=>{
+        const item=fixture(),d=item.document;d.photoIds=['a'];d.analyses.a={risk_findings:[{problem:'덮개 미확인',risk:'추락 가능',action:'접근 통제 후 덮개 상태 확인'}]} as VisionImport;d.reviews.a={decision:'accepted',note:'사진 대조 후 보완 요청'};
+        const text=buildInspectionHandover(item);expect(text).toContain('수용한 AI 위험·조치 (첫 1/1건)');expect(text).toContain('추락 가능 / 조치: 접근 통제 후 덮개 상태 확인');expect(text).toContain('등록된 조치 없음');
+    });
     it('bounds maximal documents to one share packet without silently dropping later photos/actions',()=>{
         const item=fixture(),d=item.document;d.photoIds=Array.from({length:20},(_,i)=>String(i));
-        for(const id of d.photoIds){d.photoNotes??={};d.photoNotes[id]='설명'.repeat(2000);d.reviews[id]={decision:'accepted',note:'검토'.repeat(1000)};}
+        for(const id of d.photoIds){d.photoNotes??={};d.photoNotes[id]='설명'.repeat(2000);d.reviews[id]={decision:'accepted',note:'검토'.repeat(1000)};d.analyses[id]={risk_findings:[{problem:'문제'.repeat(1000),risk:'위험'.repeat(1000),action:'조치'.repeat(1000)}]} as VisionImport;}
         d.actions=Array.from({length:30},(_,i)=>({...action(String(i)),title:'제목'.repeat(500),owner:'담당'.repeat(50),note:'내용'.repeat(1000),sourcePhotoIds:[...d.photoIds],completionPhotoId:'19'}));
         const text=buildInspectionHandover(item);expect(text.length).toBeLessThan(50000);expect(text).toContain('사진 20 ·');expect(text).toContain('30. ');expect(text).toContain('…(요약)');
     });

@@ -29,10 +29,13 @@ export function buildInspectionHandover(item:Inspection):string {
         '입력 중인 내용·사진 파일·법령 판단은 포함하지 않습니다. 긴 문장은 요약되며 전체 근거는 저장 점검·검토용 보고서에서 확인하세요.',
         '', '[사진별 저장 내용 · 번호는 모은 사진 목록 기준]',
         ...rows.flatMap(p=>{
-            const review=d.reviews[p.id];
+            const review=d.reviews[p.id],accepted=review?.decision==='accepted'?d.analyses[p.id]:undefined;
+            const finding=accepted?.risk_findings?.[0],control=accepted?.recommended_controls?.[0];
             return [`사진 ${p.number} · ${status[p.kind]}`,
                 `설명: ${excerpt(d.photoNotes?.[p.id]||'',180)||'미입력'}`,
                 ...(review?[`전문가 기록: ${excerpt(review.note,240)}`]:[]),
+                ...(finding?[`수용한 AI 위험·조치 (첫 1/${accepted!.risk_findings!.length}건): ${excerpt(finding.problem,100)} / ${excerpt(finding.risk,100)} / 조치: ${excerpt(finding.action,180)}`]
+                    :control?[`수용한 AI 조치 제안 (첫 1/${accepted!.recommended_controls.length}건): ${excerpt(control.action,180)}`]:[]),
             ];
         }),
         '', '[등록 조치 · 전체 목록]',
