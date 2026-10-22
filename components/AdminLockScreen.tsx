@@ -84,6 +84,7 @@ export const AdminLockScreen: React.FC<AdminLockScreenProps> = ({
                         {isSubmitting ? '확인 중...' : effectiveBypass ? '개발자 우회 로그인' : '관리자 모드 진입'}
                     </ActionButton>
                 </form>
+                <a href="/product" className="mt-4 block rounded-xl border border-slate-200 px-4 py-3 text-center text-sm font-bold text-slate-700 dark:border-slate-700 dark:text-slate-200">처음이라면 · 사진점검 제품 체험</a>
                 <p className="mt-3 text-center text-[11px] font-semibold leading-5 text-slate-500 dark:text-slate-400">
                     비밀번호를 잊으셨다면 서비스 운영 관리자에게 문의해 주세요.
                 </p>
