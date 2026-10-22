@@ -38,8 +38,8 @@ describe('server authenticated dedicated inspector boundary',()=>{
         queue.push({data:row(document),error:null},{data:[],error:null},{data:{id:photoId},error:null});
         const res=response();await inspector(req({op:'report',id,expectedRevision:1}),res);expect(res.code).toBe(201);
         const inserted=calls[2].operations.find((x:any)=>x[0]==='insert')[1];
-        expect(inserted.snapshot.legalReference).toMatchObject({version:'kr-osh-2026-10-20-v2-cases-2026-10-21',reviewedAt:'2026-10-20',cards:[{id:'opening',sanctions:[{fineMaxKRW:50_000_000,kind:'criminal'}]}]});
-        expect(inserted.snapshot.legalReference.inspectionCases).toHaveLength(3);
+        expect(inserted.snapshot.legalReference).toMatchObject({version:'kr-osh-2026-10-20-v3-cases-trends-2026-10-22',reviewedAt:'2026-10-20',cards:[{id:'opening',sanctions:[{fineMaxKRW:50_000_000,kind:'criminal'}]}]});
+        expect(inserted.snapshot.legalReference.inspectionCases).toHaveLength(4);
         const stable=JSON.stringify(inserted.snapshot);document.notes='감전';expect(JSON.stringify(inserted.snapshot.legalReference)).toContain('opening');expect(stable).toContain('제43조');
         queue.push({data:row(),error:null});const rejected=response();await inspector(req({op:'report',id,expectedRevision:1,legalReference:{amount:1}}),rejected);expect(rejected.code).toBe(400);
     });
@@ -84,6 +84,18 @@ describe('simple-mode server workflow',()=>{
     it('records explicit expert confirmation without requiring every optional question answer',async()=>{
         const document={...newInspectionDocument(),photoIds:[photoId],analyses:{[photoId]:manualAnalysis()}};queue.push({data:row(document),error:null},{data:[photoRow()],error:null},{data:{...row(document),revision:2},error:null});const res=response();await inspector(req({op:'confirm-photo',id,photoId,expectedRevision:1}),res);expect(res.code).toBe(200);const saved=calls[2].operations.find((o:any)=>o[0]==='update')[1].document;expect(saved.reviews[photoId]).toMatchObject({decision:'accepted',actor:'dedicated-admin'});expect(saved.reviews[photoId].confirmedAt).toMatch(/Z$/);expect(saved.confirmationAnswers).toBeUndefined();
     });
+    it('stores a trimmed expert correction with server provenance and clears prior completion',async()=>{
+        const document={...newInspectionDocument(),photoIds:[photoId],analyses:{[photoId]:manualAnalysis()},reviews:{[photoId]:{decision:'accepted' as const,note:'기존 검토 의견'}},materialCompletion:{revision:1,completedAt:new Date().toISOString(),photoIds:[photoId]}};
+        queue.push({data:row(document),error:null},{data:[photoRow()],error:null},{data:{...row(document),revision:2},error:null});
+        const res=response();await inspector(req({op:'confirm-photo',id,photoId,expectedRevision:1,decision:'rejected',reviewNote:'  뒤쪽 난간 설치 확인. 발판 고정 보완 요청  '}),res);
+        expect(res.code).toBe(200);const saved=calls[2].operations.find((o:any)=>o[0]==='update')[1].document;
+        expect(saved.reviews[photoId]).toMatchObject({decision:'rejected',note:'뒤쪽 난간 설치 확인. 발판 고정 보완 요청',actor:'dedicated-admin'});expect(saved.materialCompletion).toBeUndefined();expect(db.rpc).not.toHaveBeenCalled();
+    });
+    it.each([{decision:'rejected'},{decision:'rejected',reviewNote:'짧음'},{decision:'accepted',reviewNote:null},{decision:'accepted',reviewNote:'x'.repeat(2001)},{decision:'approved',reviewNote:'검토 기록 있음'}])('rejects invalid or unexplained expert decisions %#',async body=>{
+        const document={...newInspectionDocument(),photoIds:[photoId],analyses:{[photoId]:manualAnalysis()}};
+        queue.push({data:row(document),error:null},{data:[photoRow()],error:null});const res=response();await inspector(req({op:'confirm-photo',id,photoId,expectedRevision:1,...body}),res);
+        expect(res.code).toBe(400);expect(calls.some(c=>c.operations.some((x:any)=>x[0]==='update'))).toBe(false);
+    });
     it('completes only accepted photos and rejects fabricated completion on ordinary save',async()=>{
         const document={...newInspectionDocument(),photoIds:[photoId],analyses:{[photoId]:manualAnalysis()},reviews:{[photoId]:{decision:'accepted' as const,note:'Reviewed on site'}}};queue.push({data:row(document),error:null},{data:[photoRow()],error:null},{data:{...row(document),revision:2},error:null});const res=response();await inspector(req({op:'complete-materials',id,expectedRevision:1}),res);expect(res.code).toBe(200);const saved=calls[2].operations.find((o:any)=>o[0]==='update')[1].document;expect(saved.materialCompletion).toMatchObject({revision:2,photoIds:[photoId]});
         queue.push({data:row(document),error:null},{data:[photoRow()],error:null});const forged=response();await inspector(req({op:'save',id,expectedRevision:1,document:saved}),forged);expect(forged.code).toBe(400);
@@ -112,3 +124,5 @@ describe('structured inspector analysis error response',()=>{
     queue.push({data:row(),error:null});const res=response();await inspector(req({op:'analyze-photo',id,photoId,expectedRevision:1,externalConfirmed:true,requestId:'invalid'}),res);expect(res.code).toBe(400);expect(db.rpc).not.toHaveBeenCalled();
  });
 });
+
+it('rechecks the deletion fence after signing a URL',async()=>{queue.push({data:row()},{data:null},{data:{storage_key:'own/photo/hash.jpg'}},{data:{state:'deleting'}});const res=response();await inspector(req({op:'photo',id,photoId}),res);expect(res.code).toBe(410);expect(res.body).not.toHaveProperty('url');});
