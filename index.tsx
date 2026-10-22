@@ -1,9 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './styles.css';
-import App from './App';
-import { DevModeProvider } from './contexts/DevModeContext';
-import { OperationalModeProvider } from './contexts/OperationalModeContext';
+const OperationalApp = React.lazy(() => import('./pages/OperationalApp'));
+const InspectorProduct = React.lazy(() => import('./pages/InspectorProduct'));
 const TenantAccess = React.lazy(() => import('./pages/TenantAccess'));
 const WorkerTenantEducation = React.lazy(() => import('./pages/WorkerTenantEducation'));
 
@@ -128,18 +126,16 @@ const root = ReactDOM.createRoot(rootElement);
 try {
   root.render(
     <React.StrictMode>
-      {window.location.pathname === '/saas/education' ? (
+      {window.location.pathname.replace(/\/$/, '') === '/product' ? (
+        <React.Suspense fallback={<p role="status">NEW-PSI 제품 체험을 준비합니다…</p>}><InspectorProduct/></React.Suspense>
+      ) : window.location.pathname === '/saas/education' ? (
         <React.Suspense fallback={<p role="status">개인 교육 화면을 불러오는 중…</p>}><WorkerTenantEducation /></React.Suspense>
       ) : window.location.pathname === '/saas/access' ? (
         <React.Suspense fallback={<p role="status">기업 계정 화면을 불러오는 중…</p>}>
           <TenantAccess />
         </React.Suspense>
       ) : (
-      <OperationalModeProvider>
-        <DevModeProvider>
-          <App />
-        </DevModeProvider>
-      </OperationalModeProvider>
+      <React.Suspense fallback={<p role="status">안전 운영 화면을 불러오는 중…</p>}><OperationalApp/></React.Suspense>
       )}
     </React.StrictMode>
   );

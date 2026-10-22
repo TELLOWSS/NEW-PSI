@@ -1,4 +1,4 @@
-import React,{useCallback,useEffect,useRef,useState} from 'react';
+import React,{lazy,Suspense,useCallback,useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import {postAdminJson} from '../../utils/adminApiClient';
 import {createInspectorAnalysisClient} from '../../lib/inspector/analysisClient';
@@ -8,7 +8,7 @@ import type {Evidence,Inspection,InspectionReport,InspectorAction,OptimizationRe
 import InspectorCameraDialog from './InspectorCameraDialog';
 import InspectorLegalResult from './InspectorLegalResult';
 import InspectorAnswer from './InspectorAnswer';
-import InspectorReport from './InspectorReport';
+const InspectorReport=lazy(()=>import('./InspectorReport'));
 import InspectorPhotoDialog from './InspectorPhotoDialog';
 import InspectorStorageManager from './InspectorStorageManager';
 import InspectorExpertReview from './InspectorExpertReview';
@@ -208,6 +208,7 @@ export default function InspectorQuickWorkspace({onAdvanced}:{onAdvanced:()=>voi
     const brief=()=>[...(analysis?[`${reviewSaved?'저장한 전문가 검토':'저장 전 검토 선택'}: ${review.decision==='rejected'?'AI 해석 수용 안 함':'AI 참고 활용'}`,review.note.trim()?`전문가 의견${reviewSaved?'':' (저장 전)'}: ${review.note.trim()}`:'']:[]),resultNote,...((review.decision==='rejected'?null:analysis)?.risk_findings?.flatMap(f=>[`문제 제안: ${f.problem}`,`가능 위험: ${f.risk}`,`우선 조치: ${f.action}`])||[]),...((review.decision==='rejected'?null:analysis)?.observed_facts.map(f=>`관찰 제안: ${f.text}`)||[]),...((review.decision==='rejected'?null:analysis)?.recommended_controls.map(c=>`조치 제안: ${c.action}`)||[]),...((effectiveReference?.cards||[]).flatMap(card=>[card.title,...card.actions,...card.duties.map(d=>`${d.label}: ${d.summary}\n${d.url}`),...card.sanctions.map(s=>`${s.actor}: ${sanctionText(s)} / 조건: ${s.condition} / 근거: ${s.basis}\n${s.url}`)])),...((effectiveReference?.inspectionCases||[]).flatMap(c=>[`공개 감독사례: ${c.title} (${c.publishedAt})`,c.finding,c.response,c.url])),`공식 원문 대조: ${reference?.reviewedAt} · 금액은 법정상한 · 실제 위반·부과액 확정 아님`].join('\n');
     return <div className="si-workspace si-quick" onPaste={e=>{if(e.defaultPrevented||busy||photo)return;const files=pastedPhotos(e.clipboardData);if(files.length){e.preventDefault();choose(files[0]);}}}>
         <header className="si-quick-heading"><div><p className="si-eyebrow">NEW-PSI · 현장 사진점검</p><h1>사진 한 장, 필요한 답을 한눈에</h1><p>위험요인 · 바로 할 조치 · 법령 요지 · 벌금·과태료</p></div><button className="si-btn" disabled={busy||storageBusy} onClick={()=>{if((!local||report)&&!actionDraftDirty||window.confirm('상세 관리로 이동합니다. 저장 전 사진·설명·작성 중인 조치는 이 화면을 닫으면 사라집니다. 이동할까요?'))onAdvanced();}}>저장 기록 · 상세 관리</button></header>
+        {!item&&!local&&!deletedResumeId&&<a className="si-product-entry" href="/product">처음이라면 결과 미리보기 · 현장 도입 안내 <span aria-hidden="true">↗</span></a>}
         {(item||deletedResumeId)&&<InspectorStorageManager key={item?.id||deletedResumeId} id={item?.id||deletedResumeId} revision={item?.revision||0} title={item?.document.title||'이 탭의 이전 점검 · 삭제 결과'} initialOpen={!!deletedResumeId} disabled={busy||!!local&&!photo} onWorking={setStorageBusy} onLocked={()=>{setStorageLocked(true);clearActive();}} onComplete={()=>startNew()}/>}
         {storageLocked&&<p className="si-notice">삭제 중이거나 사진이 삭제된 점검입니다. 위 보관·삭제 관리에서 검증 결과를 확인하세요.</p>}
         <fieldset className="si-work-area" hidden={storageLocked} disabled={storageBusy}>
@@ -239,7 +240,7 @@ export default function InspectorQuickWorkspace({onAdvanced}:{onAdvanced:()=>voi
 
         </section>}
         <details className="si-quick-basics" open={showBasics} onToggle={e=>setShowBasics(e.currentTarget.open)}><summary>현장 필수 법령 요지 · 금액 전체 보기 ({LEGAL_CARDS.length}개 주제)</summary>{showBasics&&<InspectorLegalResult reference={{...legalForText(''),cards:LEGAL_CARDS}}/>}</details>
-        {report&&<><div className="si-quick-print"><button className="si-btn si-primary" onClick={()=>window.print()}>보고서 인쇄 · PDF 저장</button><button className="si-btn" disabled={busy} onClick={nextPhoto}>사진 더 추가</button><button className="si-btn" disabled={busy} onClick={startNew}>새 점검 시작</button><p>사진·조치·법령 요지·조건별 금액을 포함한 검토용 보고서입니다.</p></div><InspectorReport report={report}/></>}
+        {report&&<><div className="si-quick-print"><button className="si-btn si-primary" onClick={()=>window.print()}>보고서 인쇄 · PDF 저장</button><button className="si-btn" disabled={busy} onClick={nextPhoto}>사진 더 추가</button><button className="si-btn" disabled={busy} onClick={startNew}>새 점검 시작</button><p>사진·조치·법령 요지·조건별 금액을 포함한 검토용 보고서입니다.</p></div><Suspense fallback={<p role="status">보고서 화면을 준비합니다…</p>}><InspectorReport report={report}/></Suspense></>}
         {!storageLocked&&item&&item.document.photoIds.length>0&&!report&&!editInput&&(!local||photo)&&createPortal(<div className="si-workspace si-dock-scope si-quick-dock"><div className="si-quick-finish" aria-label="결과 확인과 저장"><p>{busy?activity||'처리 중…':`${item.document.photoIds.length}장 보관 · ${item.document.photoIds.filter(id=>!!item.document.reviews[id]).length}장 전문가 검토`}</p>{photo?<button className="si-btn" disabled={busy||storageBusy||resultNote!==note} onClick={nextPhoto}>확인하고 다음 사진</button>:<button className="si-btn" disabled={busy||storageBusy} onClick={()=>setCamera(true)}>다음 사진 촬영</button>}<button className="si-btn si-primary" disabled={busy||storageBusy||(!!photo&&resultNote!==note)} onClick={finish}>{photo?'확인 · 보고서 저장':'모은 자료로 보고서 완성'}</button></div></div>,document.body)}
         {zoom&&preview&&<InspectorPhotoDialog src={preview} onClose={()=>setZoom(false)} caption={local||photo?.optimization_receipt?'점검용 최적화 사본입니다. 고화질 원본은 기기에 별도로 보관하세요.':'보관한 점검 사진입니다. 기기 원본 보관 상태는 별도로 확인하세요.'}/>}
         </fieldset>
