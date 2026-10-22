@@ -70,12 +70,16 @@ export function validateDocument(value: unknown, inspectionId: string, evidence:
     }
     if (!Array.isArray(doc.actions) || doc.actions.length > 30 || new Set(doc.actions.map(a => a.id)).size !== doc.actions.length) fail();
     for (const action of doc.actions) {
-        exact(action, ['id','title','owner','dueDate','status','completionPhotoId','note','verifiedAt']);
+        exact(action, ['id','title','owner','dueDate','status','completionPhotoId','note','verifiedAt','sourcePhotoIds']);
         if (!UUID.test(action.id) || !['open','review-requested','verified'].includes(action.status)) fail();
         text(action.title, 1000, 1); text(action.owner, 100, 1); text(action.note, 2000); text(action.dueDate, 10);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(action.dueDate) || !Number.isFinite(Date.parse(action.dueDate))
             || new Date(action.dueDate).toISOString().slice(0,10) !== action.dueDate) fail();
         if (action.completionPhotoId !== '' && !doc.photoIds.includes(action.completionPhotoId)) fail();
+        if(action.sourcePhotoIds!==undefined){
+            if(!Array.isArray(action.sourcePhotoIds)||!action.sourcePhotoIds.length||action.sourcePhotoIds.length>20||new Set(action.sourcePhotoIds).size!==action.sourcePhotoIds.length||action.sourcePhotoIds.some(id=>!doc.photoIds.includes(id)))fail('조치 전 사진의 연결을 확인해 주세요.');
+            if(action.completionPhotoId&&action.sourcePhotoIds.some(id=>id===action.completionPhotoId||byId.get(id)?.sha256===byId.get(action.completionPhotoId)?.sha256))fail('조치 전 사진을 개선사진으로 재사용할 수 없습니다. 개선 후 다른 사진을 첨부해 주세요.');
+        }
         if (action.status !== 'open' && (!action.completionPhotoId || action.note.trim().length < 5)) fail('완료 확인에는 개선사진과 재점검 내용이 필요합니다.');
         if (action.verifiedAt !== undefined && (typeof action.verifiedAt !== 'string' || !Number.isFinite(Date.parse(action.verifiedAt)))) fail();
     }
@@ -100,6 +104,7 @@ export function assertSafeEdit(next: InspectionDocument, previous: InspectionDoc
     }
     for (const action of next.actions) {
         const old = previous.actions.find(a => a.id === action.id);
+        if(old?.sourcePhotoIds&&JSON.stringify(old.sourcePhotoIds)!==JSON.stringify(action.sourcePhotoIds))fail('등록한 조치의 적용 사진은 바꿀 수 없습니다. 적용 범위가 다르면 새 조치로 등록해 주세요.');
         if ((action.status === 'verified' || action.verifiedAt) && JSON.stringify(action) !== JSON.stringify(old)) fail('완료 확인은 재점검 확인 버튼을 이용해 주세요.');
     }
 }

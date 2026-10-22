@@ -8,6 +8,7 @@ import { assertSafeEdit, InspectorInputError, UUID, validateDocument } from '../
 import { serializeSnapshot } from '../../inspector/snapshot.js';
 import { newInspectionDocument, type Evidence, type Inspection } from '../../inspector/types.js';
 import { legalForInspection } from '../../inspector/legal.js';
+import {reportPhotoSelection} from '../../inspector/actionFollowup.js';
 
 const BUCKET = 'psi-inspector-evidence';
 const MAX_PHOTO = 3 * 1024 * 1024;
@@ -187,6 +188,7 @@ export default async function inspector(req: any, res: any) {
             if(!action || action.status!=='review-requested' || !action.completionPhotoId) reject(409,'REINSPECTION_REQUIRED','개선사진을 등록하고 완료 검토를 요청한 뒤 재점검해 주세요.');
             const evidence=await getEvidence(db,inspectionId);if(!evidence.some(p=>p.id===action.completionPhotoId)) reject(409,'EVIDENCE_REQUIRED','개선사진 원본을 확인해 주세요.');
             action.status='verified';action.note=body.verificationNote.trim();action.verifiedAt=new Date().toISOString();
+            delete document.materialCompletion;
             validateDocument(document,inspectionId,evidence);
             return res.status(200).json({ok:true,item:await update(db,current,document,body.expectedRevision)});
         }
@@ -199,8 +201,8 @@ export default async function inspector(req: any, res: any) {
         if(body.op==='report') {
             keys(body,['id','expectedRevision']);if(body.expectedRevision!==current.revision) reject(409,'REVISION_CONFLICT','최신 저장본을 다시 확인해 주세요.');
             const allEvidence=await getEvidence(db,inspectionId);
-            const completion=current.document.materialCompletion;
-            const evidence=completion?allEvidence.filter(p=>completion.photoIds.includes(p.id)):allEvidence;
+            const selection=reportPhotoSelection(current.document);
+            const evidence=allEvidence.filter(p=>selection.has(p.id));
             const snapshot={inspection:current,evidence,legalStatus:'UNVERIFIED',reportStatus:'DRAFT',generatedAt:new Date().toISOString(),legalReference:legalForInspection(current.document,evidence.map(p=>p.id))};
             const hash=createHash('sha256').update(serializeSnapshot(snapshot)).digest('hex');
             const {data,error}=await db.from('psi_inspector_reports').insert({id:randomUUID(),inspection_id:inspectionId,inspection_revision:current.revision,snapshot,snapshot_sha256:hash}).select('id,inspection_id,inspection_revision,snapshot,snapshot_sha256,created_at').single();dbError(error);

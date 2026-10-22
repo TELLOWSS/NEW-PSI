@@ -1,7 +1,8 @@
 import React,{useEffect,useId,useRef,useState} from 'react';
 import {actionPriorityLabel,actionSourceNote,actionStatusLabel,actionSuggestions,buildRegisteredActionRequest,type ActionSource,type ActionSuggestion} from '../../lib/inspector/actionPlan';
-import type {Inspection,InspectorAction} from '../../lib/inspector/types';
+import type {Evidence,Inspection,InspectorAction} from '../../lib/inspector/types';
 import InspectorShareButton from './InspectorShareButton';
+import InspectorActionFollowup,{type ImprovementSubmission} from './InspectorActionFollowup';
 
 function ActionDraft({suggestion,sources,busy,onSave,onDirty,onOpen}:{key?:string;suggestion?:ActionSuggestion;sources:ActionSource[];busy:boolean;onSave:(action:InspectorAction)=>Promise<boolean>;onDirty:(dirty:boolean)=>void;onOpen:(id:string)=>void}){
     const initialTitle=suggestion&&suggestion.title.length<=1000?suggestion.title:'';
@@ -12,7 +13,7 @@ function ActionDraft({suggestion,sources,busy,onSave,onDirty,onOpen}:{key?:strin
     useEffect(()=>{if(!dirty)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[dirty]);
     const submit=async(e:React.FormEvent)=>{
         e.preventDefault();if(busy||!checked||!selected.length||!title.trim()||!owner.trim()||!dueDate)return;
-        const action:InspectorAction={id:actionId.current,title:title.trim(),owner:owner.trim(),dueDate,status:'open',completionPhotoId:'',note:actionSourceNote(sources.filter(s=>selected.includes(s.photoId)))};
+        const action:InspectorAction={id:actionId.current,title:title.trim(),owner:owner.trim(),dueDate,status:'open',completionPhotoId:'',note:actionSourceNote(sources.filter(s=>selected.includes(s.photoId))),sourcePhotoIds:sources.filter(s=>selected.includes(s.photoId)).map(s=>s.photoId)};
         if(await onSave(action))setSaved(true);
     };
     if(saved)return <div><p role="status" className="si-notice">조치를 미조치 상태로 저장했습니다. ‘등록 조치’에서 요청문을 복사하세요.</p><button type="button" className="si-btn" onClick={()=>{actionId.current=crypto.randomUUID();setTitle(initialTitle);setSelected([]);setChecked(false);setSaved(false);}}>다른 범위의 조치 작성</button></div>;
@@ -26,19 +27,21 @@ function ActionDraft({suggestion,sources,busy,onSave,onDirty,onOpen}:{key?:strin
         <div className="si-action-assignment"><label htmlFor={prefix+'owner'}>담당자·공종<input id={prefix+'owner'} required maxLength={100} value={owner} disabled={busy} placeholder="예: 형틀반장" onChange={e=>setOwner(e.target.value)}/></label><label htmlFor={prefix+'due'}>완료기한<input id={prefix+'due'} type="date" required value={dueDate} disabled={busy} onChange={e=>setDueDate(e.target.value)}/></label></div>
         <label className="si-action-ack"><input type="checkbox" checked={checked} disabled={busy} onChange={e=>setChecked(e.target.checked)}/><span>선택한 사진의 실제 위치·상태와 조치 적용 범위를 확인했습니다.</span></label>
         <button className="si-btn si-primary" disabled={busy||!checked||!selected.length||!title.trim()||!owner.trim()||!dueDate}>확인한 조치 저장</button>
-        <p className="si-caption">미조치로 등록합니다. 개선사진·현장 재점검은 상세 관리에서 이어갑니다.</p>
+        <p className="si-caption">미조치로 등록합니다. 등록 조치에서 개선사진·전후 비교·현장 재점검을 이어갑니다.</p>
     </form>;
 }
 
-export default function InspectorActionPlanner({item,busy,active,onSave,onDirty,onOpen}:{key?:string;item:Inspection;busy:boolean;active:boolean;onSave:(action:InspectorAction)=>Promise<boolean>;onDirty:(dirty:boolean)=>void;onOpen:(id:string)=>void}){
+export default function InspectorActionPlanner({item,busy,active,onSave,onDirty,onOpen,evidence,loadPhoto,onSubmitImprovement,onVerify}:{key?:string;item:Inspection;busy:boolean;active:boolean;onSave:(action:InspectorAction)=>Promise<boolean>;onDirty:(dirty:boolean)=>void;onOpen:(id:string)=>void;evidence:Evidence[];loadPhoto:(id:string)=>Promise<Blob>;onSubmitImprovement:(input:ImprovementSubmission)=>Promise<boolean>;onVerify:(id:string,note:string)=>Promise<boolean>}){
     const selectId=useId();
     const doc=item.document,suggestions=actionSuggestions(doc),[selected,setSelected]=useState(''),[mode,setMode]=useState<'draft'|'registered'>('draft'),[message,setMessage]=useState(''),[page,setPage]=useState(0);
-    const dirty=useRef(false);
-    const updateDirty=React.useCallback((value:boolean)=>{dirty.current=value;onDirty(value);},[onDirty]);
+    const dirty=useRef(false),followupDirty=useRef(new Set<string>());
+    const updateDirty=React.useCallback((value:boolean)=>{dirty.current=value;onDirty(value||followupDirty.current.size>0);},[onDirty]);
+    const updateFollowupDirty=React.useCallback((id:string,value:boolean)=>{if(value)followupDirty.current.add(id);else followupDirty.current.delete(id);onDirty(dirty.current||followupDirty.current.size>0);},[onDirty]);
+    const changePage=(next:number)=>{if(!followupDirty.current.size||window.confirm('페이지를 바꾸면 저장 전 개선사진·재점검 입력이 사라집니다. 바꿀까요?'))setPage(next);};
     const current=suggestions.find(s=>s.key===(selected||suggestions[0]?.key)),manual=selected==='manual';
     const sources=manual?doc.photoIds.map((photoId,index)=>({photoId,photoNumber:index+1,description:doc.photoNotes?.[photoId]||'',reviewNote:''})):current?.sources||[];
     const remaining=doc.actions.filter(a=>a.status!=='verified'),pages=Math.max(1,Math.ceil(doc.actions.length/3)),activePage=Math.min(page,pages-1);
-    const copy=(actions:InspectorAction[])=>void navigator.clipboard.writeText(buildRegisteredActionRequest(actions,doc.title)).then(()=>setMessage('등록한 조치요청문을 복사했습니다.')).catch(()=>setMessage('복사하지 못했습니다. 아래 조치 내용을 선택해 주세요.'));
+    const copy=(actions:InspectorAction[])=>void navigator.clipboard.writeText(buildRegisteredActionRequest(actions,doc.title,doc.photoIds)).then(()=>setMessage('등록한 조치요청문을 복사했습니다.')).catch(()=>setMessage('복사하지 못했습니다. 아래 조치 내용을 선택해 주세요.'));
     return <details className="si-action-planner" hidden={active}><summary>조치 모아보기 <span>· 제안 {suggestions.length}개 · 미결 {remaining.length}건</span></summary>
         <p className="si-caption">선택 기능 · 검토한 사진의 같은 조치 문구를 묶어 봅니다. 조치는 직접 확인해 저장하세요.</p>
         <div className="si-action-views"><button type="button" className="si-btn" aria-pressed={mode==='draft'} onClick={()=>setMode('draft')}>조치 정리</button><button type="button" className="si-btn" aria-pressed={mode==='registered'} onClick={()=>setMode('registered')}>등록 조치 {doc.actions.length}</button></div>
@@ -46,10 +49,10 @@ export default function InspectorActionPlanner({item,busy,active,onSave,onDirty,
             <label className="si-label" htmlFor={selectId}>정리할 제안</label><select id={selectId} value={manual?'manual':current?.key||''} disabled={busy} onChange={e=>{if(!dirty.current||window.confirm('제안을 바꾸면 작성 중인 조치 입력이 지워집니다. 바꿀까요?'))setSelected(e.target.value);}}>{!suggestions.length&&<option value="">검토한 사진의 조치 제안 없음</option>}{suggestions.map((s,n)=><option key={s.key} value={s.key}>{n+1}. {actionPriorityLabel[s.priority]} · {s.title.slice(0,45)} · 사진 {s.sources.length}장</option>)}<option value="manual">직접 조치 작성</option></select>
             {doc.actions.length>=30?<p className="si-notice">한 점검의 조치 30건을 모두 사용했습니다.</p>:(current||manual)?<ActionDraft key={manual?'manual':current!.key} suggestion={manual?undefined:current} sources={sources} busy={busy} onSave={onSave} onDirty={updateDirty} onOpen={onOpen}/>:<p className="si-caption">사진 결과를 검토하거나 ‘직접 조치 작성’을 선택하세요. AI를 끈 점검도 직접 작성할 수 있습니다.</p>}
         </div><div className="si-registered-actions" hidden={mode!=='registered'}>
-            <p>미결 {remaining.length}건 · 재점검 확인 {doc.actions.length-remaining.length}건</p><button type="button" className="si-btn" disabled={!remaining.length} onClick={()=>copy(remaining)}>미결 조치요청문 복사</button><InspectorShareButton title="현장 미결 조치 요청" text={buildRegisteredActionRequest(remaining,doc.title)} disabled={!remaining.length} label="미결 조치 보내기"/>
-            {doc.actions.slice(activePage*3,activePage*3+3).map(action=><section key={action.id}><h3>{action.title}</h3><p>{action.owner} · {action.dueDate} · {actionStatusLabel(action)}</p><details><summary>적용 사진·기록 보기</summary><p className="si-pre">{action.note||'기록 없음'}</p></details><button type="button" className="si-btn" onClick={()=>copy([action])}>이 조치요청문 복사</button></section>)}
+            <p>미결 {remaining.length}건 · 재점검 확인 {doc.actions.length-remaining.length}건</p><button type="button" className="si-btn" disabled={!remaining.length} onClick={()=>copy(remaining)}>미결 조치요청문 복사</button><InspectorShareButton title="현장 미결 조치 요청" text={buildRegisteredActionRequest(remaining,doc.title,doc.photoIds)} disabled={!remaining.length} label="미결 조치 보내기"/>
+            {doc.actions.slice(activePage*3,activePage*3+3).map(action=><section key={action.id}><h3>{action.title}</h3><p>{action.owner} · {action.dueDate} · {actionStatusLabel(action)}</p><details><summary>적용 사진·기록 보기</summary><p className="si-pre">{action.note||'기록 없음'}</p></details><button type="button" className="si-btn" onClick={()=>copy([action])}>이 조치요청문 복사</button><InspectorActionFollowup item={item} action={action} evidence={evidence} busy={busy} loadPhoto={loadPhoto} onSubmit={onSubmitImprovement} onVerify={onVerify} onDirty={updateFollowupDirty}/></section>)}
             {!doc.actions.length&&<p className="si-caption">아직 등록한 조치가 없습니다. 보고서 작성은 조치 등록 없이도 가능합니다.</p>}
-            {pages>1&&<div className="si-action-pagination"><button type="button" className="si-btn" disabled={!activePage} onClick={()=>setPage(activePage-1)}>이전 조치</button><span>{activePage+1} / {pages}</span><button type="button" className="si-btn" disabled={activePage>=pages-1} onClick={()=>setPage(activePage+1)}>다음 조치</button></div>}
+            {pages>1&&<div className="si-action-pagination"><button type="button" className="si-btn" disabled={!activePage||busy} onClick={()=>changePage(activePage-1)}>이전 조치</button><span>{activePage+1} / {pages}</span><button type="button" className="si-btn" disabled={activePage>=pages-1||busy} onClick={()=>changePage(activePage+1)}>다음 조치</button></div>}
         </div>
         {message&&<p role="status">{message}</p>}
     </details>;

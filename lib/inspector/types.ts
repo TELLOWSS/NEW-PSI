@@ -10,7 +10,9 @@ export type VisionImport = {
     law_candidate_keywords: string[]; limitations: string[];
 };
 export type InspectorAction = { id: string; title: string; owner: string; dueDate: string;
-    status: 'open' | 'review-requested' | 'verified'; completionPhotoId: string; note: string; verifiedAt?: string };
+    status: 'open' | 'review-requested' | 'verified'; completionPhotoId: string; note: string; verifiedAt?: string;
+    /** Optional for legacy records; new actions explicitly link the original scope. */
+    sourcePhotoIds?: string[] };
 export type OcrResult = { rawText: string; recognizedText: string; confidence: number; language: 'kor'|'eng'|'vie'|'chi_sim'; engine: 'LOCAL_TESSERACT'; reviewStatus: 'unreviewed'|'corrected'|'accepted' };
 export type ConfirmationAnswer = { questionIndex: number; question: string; answer: 'confirmed' | 'not-confirmed' | 'unknown'; note: string };
 export const confirmationAnswerLabel = { confirmed: '현장 확인됨', 'not-confirmed': '확인 결과와 다름', unknown: '아직 확인하지 못함' } as const;
