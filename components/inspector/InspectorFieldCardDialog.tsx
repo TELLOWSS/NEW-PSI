@@ -20,7 +20,7 @@ export default function InspectorFieldCardDialog({photo,seed,source,onClose}:{ph
         const result=await shareInspectorPacket({title:'PSI 현장 전달 카드',text,files:[card]});
         working.current=false;if(alive.current){setSharing(false);setMessage(shareResultMessage[result]);}
     };
-    const download=()=>{if(!card||!url)return;const link=document.createElement('a');link.href=url;link.download=card.name;link.click();setMessage('카드 다운로드를 요청했습니다. 기기의 다운로드 목록을 확인해 주세요.');};
+    const download=()=>{if(!card)return;const downloadUrl=URL.createObjectURL(card),link=document.createElement('a');link.href=downloadUrl;link.download=card.name;link.click();setTimeout(()=>URL.revokeObjectURL(downloadUrl),30000);setMessage('카드 다운로드를 요청했습니다. 기기의 다운로드 목록을 확인해 주세요.');};
     return <dialog ref={ref} className="si-field-card si-share-dialog si-workspace" aria-label="사진·조치 전달 카드" onCancel={e=>{e.preventDefault();if(!working.current)onClose();}}>
         <div className="si-section-heading"><div><p className="si-eyebrow">사진과 요청을 한 장에</p><h2>현장 전달 카드</h2></div><button autoFocus type="button" className="si-btn" disabled={building||sharing} onClick={onClose}>닫기</button></div>
         <p className="si-caption">사진과 문구를 한 이미지로 담습니다. 내용을 확인해 만든 뒤 카카오톡 등 공유 앱에서 상대를 선택하세요.</p>
