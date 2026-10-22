@@ -27,6 +27,18 @@ try{
     if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-font')} body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}
     await page.getByRole('button',{name:'검토 대기 사진 1부터 이어보기',exact:true}).waitFor();
     const collection=page.getByRole('region',{name:'모은 사진과 보고서'}),photos=page.getByRole('group',{name:'모은 사진 분류'});
+    const handover=page.getByRole('region',{name:'보고서와 현장 인계'});
+    assert.equal(await handover.getByRole('button',{name:'모은 자료로 보고서 완성',exact:true}).isDisabled(),true);
+    assert.match(await handover.innerText(),/사진 2장만 더 검토/);
+    await handover.getByText('점검 전체 인계문 · 복사/공유/파일',{exact:true}).click();
+    await handover.getByRole('button',{name:'점검 전체 인계문 복사',exact:true}).click();
+    const handoverText=await page.evaluate(()=>navigator.clipboard.readText());
+    assert.match(handoverText,/사진 16 ·/);assert.match(handoverText,/합성 조치 8/);assert.match(handoverText,/AI 해석 미수용/);assert.match(handoverText,/저장 버전: 10/);
+    await handover.getByRole('button',{name:'점검 전체 인계문 보내기',exact:true}).click();
+    const handoverDialog=page.getByRole('dialog');assert.equal(await handoverDialog.locator('textarea').inputValue(),handoverText);assert.match(await handoverDialog.innerText(),/문구만 공유합니다/);assert.equal(await handoverDialog.locator('.si-share-files').count(),0);
+    await handoverDialog.getByRole('button',{name:'닫기',exact:true}).click();
+    const downloadPromise=page.waitForEvent('download');await handover.getByRole('button',{name:'인계문 파일 저장',exact:true}).click();const download=await downloadPromise;assert.match(download.suggestedFilename(),/^PSI-인계문-.*-v10\.txt$/);assert.equal(await readFile(await download.path(),'utf8'),handoverText);
+
     await collection.locator('details>summary').first().click();
     assert.equal(await collection.locator('ol li').count(),5);
     await collection.getByRole('button',{name:'다음 사진 목록',exact:true}).click();assert.equal(await collection.locator('ol li .si-collected-index').first().innerText(),'6');
@@ -46,10 +58,10 @@ try{
     await page.clock.fastForward(24*60*60*1000);assert.match(await planner.innerText(),/기준일 2026-10-23/);
     page.once('dialog',d=>d.accept());await filters.getByRole('button',{name:'재점검 확인 2',exact:true}).click();assert.equal(await planner.locator('.si-registered-actions>section').count(),2);
     assert.equal(await planner.getByRole('button',{name:'분류한 미결 요청문 복사',exact:true}).count(),0);
-    for(const width of [320,390,768,1440]){await page.setViewportSize({width,height:950});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.locator('.si-work-summary').scrollIntoViewIfNeeded();await page.screenshot({path:`${out}/queue-${width}.png`,fullPage:true});await filters.scrollIntoViewIfNeeded();await page.screenshot({path:`${out}/actions-${width}.png`,fullPage:true});}
-    await page.emulateMedia({colorScheme:'dark'});await page.evaluate(()=>document.documentElement.classList.add('dark'));await page.waitForTimeout(250);console.log('DARK',await page.locator('.si-queue-filters button').last().evaluate(e=>({root:document.documentElement.className,background:getComputedStyle(e).backgroundColor,color:getComputedStyle(e).color})));await page.screenshot({path:out+'/queue-dark.png',fullPage:true});
-    await page.getByRole('button',{name:'검토 대기 사진 1부터 이어보기',exact:true}).click();await page.getByRole('heading',{name:'사진 분석과 관련 기준',exact:true}).waitFor();
+    for(const width of [320,390,768,1440]){await page.setViewportSize({width,height:950});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await handover.scrollIntoViewIfNeeded();await page.screenshot({path:`${out}/handover-${width}.png`,fullPage:true});await page.locator('.si-work-summary').scrollIntoViewIfNeeded();await page.screenshot({path:`${out}/queue-${width}.png`,fullPage:true});await filters.scrollIntoViewIfNeeded();await page.screenshot({path:`${out}/actions-${width}.png`,fullPage:true});}
+    await page.emulateMedia({colorScheme:'dark'});await page.evaluate(()=>document.documentElement.classList.add('dark'));await page.waitForTimeout(250);console.log('DARK',await page.locator('.si-queue-filters button').last().evaluate(e=>({root:document.documentElement.className,background:getComputedStyle(e).backgroundColor,color:getComputedStyle(e).color})));await page.screenshot({path:out+'/queue-dark.png',fullPage:true});await handover.scrollIntoViewIfNeeded();await page.screenshot({path:out+'/handover-dark.png',fullPage:true});
+    await handover.getByRole('button',{name:'남은 사진 1 검토하기',exact:true}).click();await page.getByRole('heading',{name:'사진 분석과 관련 기준',exact:true}).waitFor();
     assert.equal(JSON.stringify(item),before);assert.ok(ops.every(op=>['ai-status','detail','photo'].includes(op)));assert.deepEqual(errors,[]);
-    const proof={status:'PASS',fixtureBusinessApi:true,syntheticPhotos:16,actions:8,viewports:[320,390,768,1440],checks:['photo classification/pagination','next pending without analysis','overdue excludes today/verified','owner search','filtered copy/share preview','sort','empty/reset','dirty discard cancellation','midnight freezes editing list','verified not dispatched'],ops,paidAiCalls:0,businessMutations:0};await writeFile(out+'/verification.json',JSON.stringify(proof,null,2));console.log(JSON.stringify(proof));
+    const proof={status:'PASS',fixtureBusinessApi:true,syntheticPhotos:16,actions:8,viewports:[320,390,768,1440],checks:['photo classification/pagination','next pending without analysis','overdue excludes today/verified','owner search','filtered copy/share preview','sort','empty/reset','dirty discard cancellation','midnight freezes editing list','verified not dispatched','closing preflight','saved full handover excludes view filters','copy/share text-only preview','UTF-8 txt exact content','pending direct open'],ops,paidAiCalls:0,businessMutations:0};await writeFile(out+'/verification.json',JSON.stringify(proof,null,2));console.log(JSON.stringify(proof));
 }catch(cause){await page.screenshot({path:out+'/failure.png',fullPage:true});console.error(JSON.stringify({errors}));throw cause;
 }finally{await context.close();await browser.close();if(server)await new Promise(r=>server.httpServer.close(r));}

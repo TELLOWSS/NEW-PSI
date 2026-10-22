@@ -42,6 +42,7 @@ export default function InspectorQuickWorkspace({onAdvanced}:{onAdvanced:()=>voi
     const [report,setReport]=useState<InspectionReport|null>(null),[copied,setCopied]=useState(false);
     const inflight=useRef(false),alive=useRef(true),createId=useRef(crypto.randomUUID()),latest=useRef<Inspection|null>(null),uploaded=useRef<Evidence|null>(null),noteRef=useRef<HTMLTextAreaElement>(null),resultRef=useRef<HTMLElement>(null),errorRef=useRef<HTMLParagraphElement>(null);
     const analysis=analyzedResult&&item&&photo?item.document.analyses[photo.id]:null;
+    const pendingPhoto=item?.document.photoIds.find(id=>item.document.analyses[id]&&!item.document.reviews[id]);
     useEffect(()=>{alive.current=true;void request({op:'ai-status'}).then(r=>{if(alive.current){setReady(r.ready);setConnection({provider:r.provider,model:r.model});}}).catch(()=>{if(alive.current)setReady(false);});return()=>{alive.current=false;};},[]);
     useEffect(()=>{const file=local?.file||storedPhoto;if(!file){setPreview('');return;}const url=URL.createObjectURL(file);setPreview(url);return()=>URL.revokeObjectURL(url);},[local,storedPhoto]);
     useEffect(()=>{if(reference)resultRef.current?.focus({preventScroll:true});},[reference]);
@@ -114,6 +115,7 @@ export default function InspectorQuickWorkspace({onAdvanced}:{onAdvanced:()=>voi
     const clearActive=()=>{setEditInput(false);setLocal(null);setStoredPhoto(null);setPhoto(null);uploaded.current=null;setNote('');setReview({decision:'accepted',note:''});setReference(null);setReport(null);setResultNote('');setAnalyzedResult(false);setAnalysisFailed(false);setActionCopied(false);};
     const nextPhoto=()=>void run(async()=>{if(photo){await savePhoto();await confirmCurrent();}clearActive();window.scrollTo({top:0,behavior:'smooth'});});
     const finish=()=>void run(async()=>{
+        if(actionDraftDirty)throw new Error('입력 중인 조치를 먼저 저장하거나 정리한 뒤 보고서를 작성해 주세요.');
         let current=latest.current;
         if(local||photo){
             if(resultNote!==note)throw new Error('설명이 바뀌었습니다. 결과를 다시 확인해 주세요.');
@@ -121,9 +123,9 @@ export default function InspectorQuickWorkspace({onAdvanced}:{onAdvanced:()=>voi
             current=await confirmCurrent();
         }
         if(!current?.document.photoIds.length)throw new Error('보고서에 넣을 사진이 없습니다.');
+        if(current.document.photoIds.some(id=>current.document.analyses[id]&&!current.document.reviews[id]))throw new Error('모은 사진에서 ‘검토 대기’ 사진을 열어 확인해 주세요.');
         const title=reportTitle.trim()||'사진 현장점검';
         if(current.document.title!==title)current=accept((await request({op:'save',id:current.id,expectedRevision:current.revision,document:{...current.document,title,materialCompletion:undefined}})).item);
-        if(current.document.photoIds.some(id=>current.document.analyses[id]&&!current.document.reviews[id]))throw new Error('모은 사진에서 ‘검토 대기’ 사진을 열어 확인해 주세요.');
         if(current.document.photoIds.every(id=>current.document.analyses[id]&&current.document.reviews[id]?.decision==='accepted')&&!current.document.materialCompletion)current=accept((await request({op:'complete-materials',id:current.id,expectedRevision:current.revision})).item);
         setActivity('사진·전문가 의견·근거를 보고서에 저장 중');
         const r=await request({op:'report',id:current.id,expectedRevision:current.revision});
@@ -241,7 +243,7 @@ export default function InspectorQuickWorkspace({onAdvanced}:{onAdvanced:()=>voi
         </section>}
         <details className="si-quick-basics" open={showBasics} onToggle={e=>setShowBasics(e.currentTarget.open)}><summary>현장 필수 법령 요지 · 금액 전체 보기 ({LEGAL_CARDS.length}개 주제)</summary>{showBasics&&<InspectorLegalResult reference={{...legalForText(''),cards:LEGAL_CARDS}}/>}</details>
         {report&&<><div className="si-quick-print"><button className="si-btn si-primary" onClick={()=>window.print()}>보고서 인쇄 · PDF 저장</button><button className="si-btn" disabled={busy} onClick={nextPhoto}>사진 더 추가</button><button className="si-btn" disabled={busy} onClick={startNew}>새 점검 시작</button><p>사진·조치·법령 요지·조건별 금액을 포함한 검토용 보고서입니다.</p></div><Suspense fallback={<p role="status">보고서 화면을 준비합니다…</p>}><InspectorReport report={report}/></Suspense></>}
-        {!storageLocked&&item&&item.document.photoIds.length>0&&!report&&!editInput&&(!local||photo)&&createPortal(<div className="si-workspace si-dock-scope si-quick-dock"><div className="si-quick-finish" aria-label="결과 확인과 저장"><p>{busy?activity||'처리 중…':`${item.document.photoIds.length}장 보관 · ${item.document.photoIds.filter(id=>!!item.document.reviews[id]).length}장 전문가 검토`}</p>{photo?<button className="si-btn" disabled={busy||storageBusy||resultNote!==note} onClick={nextPhoto}>확인하고 다음 사진</button>:<button className="si-btn" disabled={busy||storageBusy} onClick={()=>setCamera(true)}>다음 사진 촬영</button>}<button className="si-btn si-primary" disabled={busy||storageBusy||(!!photo&&resultNote!==note)} onClick={finish}>{photo?'확인 · 보고서 저장':'모은 자료로 보고서 완성'}</button></div></div>,document.body)}
+        {!storageLocked&&item&&item.document.photoIds.length>0&&!report&&!editInput&&(!local||photo)&&createPortal(<div className="si-workspace si-dock-scope si-quick-dock"><div className="si-quick-finish" aria-label="결과 확인과 저장"><p>{busy?activity||'처리 중…':`${item.document.photoIds.length}장 보관 · ${item.document.photoIds.filter(id=>!!item.document.reviews[id]).length}장 전문가 검토`}</p>{photo?<button className="si-btn" disabled={busy||storageBusy||resultNote!==note} onClick={nextPhoto}>확인하고 다음 사진</button>:<button className="si-btn" disabled={busy||storageBusy} onClick={()=>setCamera(true)}>다음 사진 촬영</button>}<button className="si-btn si-primary" disabled={busy||storageBusy||(!!photo&&resultNote!==note)} onClick={!photo&&pendingPhoto?()=>openSavedPhoto(pendingPhoto):finish}>{photo?'확인 · 보고서 저장':pendingPhoto?'검토 대기 사진 이어보기':'모은 자료로 보고서 완성'}</button></div></div>,document.body)}
         {zoom&&preview&&<InspectorPhotoDialog src={preview} onClose={()=>setZoom(false)} caption={local||photo?.optimization_receipt?'점검용 최적화 사본입니다. 고화질 원본은 기기에 별도로 보관하세요.':'보관한 점검 사진입니다. 기기 원본 보관 상태는 별도로 확인하세요.'}/>}
         </fieldset>
         {camera&&<InspectorCameraDialog onClose={()=>setCamera(false)} onUse={file=>{setCamera(false);choose(file);}}/>}

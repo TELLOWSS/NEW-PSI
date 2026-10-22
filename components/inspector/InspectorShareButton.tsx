@@ -25,7 +25,7 @@ function ShareDialog({title,text,prepareFiles,onClose}:{title:string;text:string
         {files.length>0&&<fieldset className="si-share-files" disabled={sharing}><legend>함께 보낼 사진 {selected.length} / {files.length}장</legend>{files.map((file,n)=><div key={file.name}><label><input type="checkbox" checked={selected.includes(n)} onChange={e=>setSelected(old=>e.target.checked?[...old,n]:old.filter(i=>i!==n))}/>{previews[n]&&<img src={previews[n]} alt={`공유할 사진 ${n+1}`}/>}<span>사진 {n+1} · {(file.size/1048576).toFixed(2)}MB</span></label><button type="button" className="si-btn" onClick={()=>download(file)}>사진 {n+1} 다운로드</button></div>)}</fieldset>}
         <div className="si-share-actions"><button type="button" className="si-btn si-primary" disabled={sharing||loading||!body.trim()} onClick={share}>{sharing?'공유창 처리 중…':selected.length?'사진·문구 공유창 열기':'문구 공유창 열기'}</button><button type="button" className="si-btn" disabled={sharing||!body.trim()} onClick={()=>void navigator.clipboard.writeText(body).then(()=>setMessage('문구를 복사했습니다. 카카오톡 대화창에 붙여넣고 사진을 첨부해 주세요.')).catch(()=>setMessage('복사하지 못했습니다. 위 문구를 선택해 복사하세요.'))}>문구 복사</button></div>
         {message&&<p role="status" className="si-notice">{message}</p>}
-        <p className="si-caption">최적화 사진 사본을 보냅니다. 앱에서 사진과 문구 중 일부가 빠지면 복사·다운로드로 보완하세요. 공유한 사본은 이 점검을 삭제해도 상대방 기기에서 삭제되지 않습니다.</p>
+        <p className="si-caption">{prepareFiles?'최적화 사진 사본을 보냅니다. 앱에서 사진과 문구 중 일부가 빠지면 복사·다운로드로 보완하세요.':'문구만 공유합니다. 보낼 내용을 미리 확인하세요.'} 공유한 사본·문구는 이 점검을 삭제해도 상대방 기기에서 삭제되지 않습니다.</p>
     </dialog>;
 }
 

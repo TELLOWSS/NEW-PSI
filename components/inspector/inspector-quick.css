@@ -90,3 +90,7 @@
 @media print{.si-work-summary,.si-queue-filters,.si-action-queue-controls,.si-filtered-dispatch{display:none!important}}
 
 .si-queue-tools{margin:14px 0;border:1px solid var(--si-line);border-radius:10px;padding:6px 12px}.si-queue-tools>summary{min-height:44px;padding:10px 0;font-size:12px;font-weight:700;cursor:pointer}
+
+/* Closing and handover stay available when the photo list is collapsed. */
+.si-handover{border-top:1px solid var(--si-line);margin-top:14px;padding-top:16px;overflow-wrap:anywhere}.si-handover h2{font-size:17px;margin:0 0 8px}.si-handover-state{font-size:14px;font-weight:700;color:var(--si-teal);line-height:1.7}.si-handover>details{margin:12px 0;border:1px solid var(--si-line);border-radius:10px;padding:0 12px}.si-handover summary{min-height:44px;padding:12px 0;font-size:12px;font-weight:700;cursor:pointer}.si-handover label{display:block;margin-top:8px}.si-handover>details input{margin:8px 0 14px}.si-handover-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.si-handover .si-btn{min-height:44px;white-space:normal;justify-content:center}.si-handover>button{width:100%}.si-handover-actions .si-btn{flex:1 1 150px}.si-handover summary:focus-visible{outline:3px solid var(--si-teal);outline-offset:3px}
+@media print{.si-handover{display:none!important}}
