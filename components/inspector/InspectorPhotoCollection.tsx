@@ -2,6 +2,7 @@ import React,{useEffect,useState} from 'react';
 import {photoQueue,photoFilterLabels,overdueAction,type PhotoFilter} from '../../lib/inspector/workQueue';
 import {useInspectionDay} from './useInspectionDay';
 import type {Inspection} from '../../lib/inspector/types';
+import InspectorHandover from './InspectorHandover';
 export default function InspectorPhotoCollection({item,active,busy,title,onTitle,onOpen,onFinish}:{item:Inspection;active:boolean;busy:boolean;title:string;onTitle:(title:string)=>void;onOpen:(id:string)=>void;onFinish:()=>void}){
     const [open,setOpen]=useState(!active&&item.document.photoIds.length<=5),[filter,setFilter]=useState<PhotoFilter>('all'),[page,setPage]=useState(0);
     useEffect(()=>setOpen(!active&&item.document.photoIds.length<=5),[active,item.document.photoIds.length]);
@@ -17,8 +18,7 @@ export default function InspectorPhotoCollection({item,active,busy,title,onTitle
             {!filtered.length&&<p className="si-caption">선택한 분류에 사진이 없습니다.</p>}
             {pages>1&&<div className="si-action-pagination"><button type="button" className="si-btn" disabled={!current} onClick={()=>setPage(current-1)}>이전 사진 목록</button><span>{current+1} / {pages} · {filtered.length}장</span><button type="button" className="si-btn" disabled={current>=pages-1} onClick={()=>setPage(current+1)}>다음 사진 목록</button></div>}
             {active&&<p className="si-caption">현재 사진을 확인하고 ‘다음 사진’을 누르면 이전 사진을 열어 검토할 수 있습니다.</p>}
-            <label htmlFor="si-report-title">보고서 제목</label><input id="si-report-title" value={title} maxLength={200} disabled={busy} onChange={e=>onTitle(e.target.value)}/>
-            {!active&&doc.photoIds.length>0&&<button type="button" className="si-btn si-primary" disabled={busy} onClick={onFinish}>모은 자료로 보고서 완성</button>}
         </details>
+        {!active&&doc.photoIds.length>0&&<InspectorHandover item={item} busy={busy} title={title} onTitle={onTitle} onOpen={onOpen} onFinish={onFinish}/>}
     </section>;
 }
