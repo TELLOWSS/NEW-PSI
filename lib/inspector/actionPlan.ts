@@ -30,6 +30,25 @@ export function actionSuggestions(doc:InspectionDocument):ActionSuggestion[]{
     return [...groups.values()].sort((a,b)=>rank[a.priority]-rank[b.priority]);
 }
 
+/** Prefer the saved expert wording for this exact photo, never a different photo's proposal. */
+export function photoActionEntry(doc:InspectionDocument,photoId:string){
+    if(!doc.photoIds.includes(photoId))return 'manual';
+    const candidates=actionSuggestions(doc).filter(s=>s.sources.some(source=>source.photoId===photoId));
+    return (candidates.find(s=>s.kind==='expert')||candidates[0])?.key||'manual';
+}
+/** Suggestions are confined to the current saved inspection; nothing is retained across inspections. */
+export function recentActionOwners(actions:InspectorAction[]){
+    return [...new Set([...actions].reverse().map(a=>a.owner.normalize('NFC').trim()).filter(Boolean))].slice(0,5);
+}
+export function calendarDueDate(day:string,offset:number){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||!Number.isInteger(offset)||offset<0||offset>365)return '';
+    const date=new Date(day+'T00:00:00Z');
+    if(!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==day)return '';
+    date.setUTCDate(date.getUTCDate()+offset);
+    const result=date.toISOString().slice(0,10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(result)?result:'';
+}
+
 /** Full photo IDs fit even at the 20-photo limit; excerpts are only navigation hints. */
 export function actionSourceNote(sources:ActionSource[]){
     return ['등록 시 전문가가 선택한 적용 사진 (현장 범위 확인)',...sources.map(s=>`사진 ${s.photoNumber} · ${s.photoId}${s.description?` · ${normalize(s.description).slice(0,24)}`:''}`)].join('\n');
