@@ -1,7 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import {buildActionRequest,buildReportActionRequests,DEFAULT_REVIEW_NOTE} from '../lib/inspector/expertReview';
 import {buildInspectionBrief} from '../lib/inspector/journey';
-import {newInspectionDocument,type VisionImport,type InspectionReport} from '../lib/inspector/types';
+import {inspectionState,newInspectionDocument,type VisionImport,type InspectionReport} from '../lib/inspector/types';
 const analysis:VisionImport={schema_version:'1.1',inspection_id:'i',photo_id:'p',source_photo_sha256:'a'.repeat(64),processing_mode:'PAID_API_APPROVED',observed_facts:[{text:'난간 미설치 추정',visual_basis:'촬영 범위',confidence:'low'}],risk_findings:[{observation_index:'0',problem:'난간이 없다는 AI 제안',risk:'추락 가능성',action:'난간 신규 설치',priority:'immediate'}],ai_hypotheses:[],requires_confirmation:[],recommended_controls:[{action:'난간 신규 설치',priority:'immediate'}],law_candidate_keywords:[],limitations:[]};
 const correction={decision:'rejected' as const,note:'뒤쪽 난간은 설치되어 있음. 발판 고정 상태 보완 요청'};
 const report=():InspectionReport=>{const document={...newInspectionDocument(),photoIds:['p','excluded'],photoNotes:{p:'3층 발판 점검',excluded:'전달하면 안 되는 제외 사진'},analyses:{p:structuredClone(analysis),excluded:structuredClone(analysis)},reviews:{p:correction}};return {id:'r',inspection_id:'i',inspection_revision:3,snapshot_sha256:'b'.repeat(64),created_at:new Date().toISOString(),snapshot:{inspection:{id:'i',revision:3,document,created_at:new Date().toISOString(),updated_at:new Date().toISOString()},evidence:[{id:'p',inspection_id:'i',sha256:'a'.repeat(64),mime_type:'image/jpeg',byte_size:30,created_at:new Date().toISOString()}],generatedAt:new Date().toISOString(),legalStatus:'UNVERIFIED',reportStatus:'DRAFT'}};};
@@ -11,3 +11,5 @@ describe('expert judgement takes precedence in operational messages',()=>{
  it('copies only frozen report photos and respects the recorded correction without mutation',()=>{const value=report(),before=JSON.stringify(value),text=buildReportActionRequests(value);expect(text).toContain(correction.note);expect(text).not.toContain('전달하면 안 되는');expect(text).not.toContain('난간 신규 설치');expect(JSON.stringify(value)).toBe(before);});
  it('keeps expert rejection clear in the existing full report brief',()=>{const text=buildInspectionBrief(report());expect(text).toContain('전문가 검토 의견: '+correction.note);expect(text).toContain('AI 해석 수용 안 함');expect(text).not.toContain('난간 신규 설치');});
 });
+
+it('labels a recorded expert rejection as reflected, rather than an unreviewed AI result',()=>{const doc={...newInspectionDocument(),photoIds:['p'],analyses:{p:analysis},reviews:{p:correction}};expect(inspectionState(doc)).toBe('전문가 의견 반영');expect(inspectionState({...doc,reviews:{}})).toBe('AI 결과 검토 대기');});
