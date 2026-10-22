@@ -12,6 +12,13 @@ const openai=(text=JSON.stringify(content()))=>({status:'completed',output:[{typ
 const mock=(result:any)=>{const fetch=vi.fn().mockResolvedValue({ok:true,status:200,json:async()=>result});vi.stubGlobal('fetch',fetch);return fetch;};
 afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();});
 describe('explicit photo analysis boundaries',()=>{
+ it.each(['gemini','openai'])('sends a real photo with empty selected-photo notes to %s once without substituting another hint',async provider=>{
+    env(provider);const fetch=mock(provider==='gemini'?gemini():openai()),item=row();item.document.photoNotes[photo.id]='';
+    await analyzeInspectorPhoto(fixture(item),item,photo);
+    const body=JSON.parse(fetch.mock.calls[0][1].body),prompt=provider==='gemini'?body.contents[0].parts[0].text:body.input[0].content[0].text;
+    expect(prompt).toContain('"photo_notes":""');expect(prompt).toContain('설명이 없어도 사진 자체에서');expect(prompt).not.toContain('wrong photo hint');expect(fetch).toHaveBeenCalledOnce();
+    if(provider==='gemini')expect(body.contents[0].parts[1].inlineData.data).toBe(bytes.toString('base64'));else expect(body.input[0].content[1].image_url).toContain(bytes.toString('base64'));
+ });
  it('does not access DB or provider while OFF or unconfigured',async()=>{const db=fixture(),fetch=vi.fn();vi.stubGlobal('fetch',fetch);env();await expect(analyzeInspectorPhoto(db,{...row(),document:{...row().document,apiEnabled:false}},photo)).rejects.toThrow('OFF');expect(db.rpc).not.toHaveBeenCalled();expect(fetch).not.toHaveBeenCalled();vi.stubEnv('PSI_INSPECTOR_AI_MODEL','');expect(inspectorAiConfig().ready).toBe(false);});
  it('deduplicates operations and rejects changed or switched OFF context before external transfer',async()=>{env();const fetch=vi.fn();vi.stubGlobal('fetch',fetch);await expect(analyzeInspectorPhoto(fixture(row(),false),row(),photo)).rejects.toMatchObject({code:'AI_REQUEST_BLOCKED',retryable:false});await expect(analyzeInspectorPhoto(fixture({...row(),revision:4}),row(),photo)).rejects.toThrow('변경');expect(fetch).not.toHaveBeenCalled();expect(analysisFingerprint(row(),photo,'m')).not.toBe(analysisFingerprint({...row(),document:{...row().document,photoNotes:{[photo.id]:'different hint'}}},photo,'m'));});
  it.each(['gemini','openai'])('sends %s a strict content schema and real image, binding identity on server',async provider=>{
