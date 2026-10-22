@@ -130,7 +130,7 @@ try{
         if(scenario==='api-retry')assert.notEqual(attempts[0],attempts[1]);
         assert.equal(analyzeCalls,['ai-off','action-manual','direct-manual','api-unavailable'].includes(scenario)?0:scenario==='api-retry'?2:1);
         if(!analyzeCalls)assert.ok((await page.getByRole('region',{name:'사진점검 결과'}).innerText()).includes('사진을 AI로 판독한 결과가 아닙니다'));
-        assert.equal(await page.getByText('실제 단차 높이는?',{exact:false}).isVisible(),false);
+        assert.equal(await page.locator('.si-answer-more').getByText('실제 단차 높이는?',{exact:false}).isVisible(),false);if(scenario==='no-findings')assert.equal(await page.locator('.si-discovery-next').getByText('실제 단차 높이는?',{exact:true}).isVisible(),true);
         await page.getByRole('button',{name:'결과 복사',exact:true}).click();await page.getByRole('button',{name:'결과 복사 완료',exact:true}).waitFor();assert.ok((await page.evaluate(()=>navigator.clipboard.readText())).includes('법정상한'));
         if(scenario==='camera-ai'){
             assert.ok((await page.getByLabel('핵심 답변').innerText()).includes('아래층으로 떨어질'));await page.getByRole('button',{name:'2 전선 피복 손상',exact:true}).click();assert.ok((await page.getByLabel('핵심 답변').innerText()).includes('사진 오른쪽'));await page.getByRole('tab',{name:'사례·동향',exact:false}).click();await page.getByText('접지 분접함의 접지 탈락',{exact:false}).waitFor();await page.getByRole('button',{name:'1 개구부 가장자리 방호 상태 불명확',exact:true}).click();await page.getByRole('tab',{name:'핵심 조치',exact:true}).click();assert.equal(await page.getByRole('region',{name:'사진과 설명 입력'}).isVisible(),false);
