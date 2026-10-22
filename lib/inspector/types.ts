@@ -30,6 +30,7 @@ export type InspectionReport = { id: string; inspection_id: string; inspection_r
     snapshot: { inspection: Inspection; evidence: Evidence[]; legalStatus: 'UNVERIFIED'; reportStatus: 'DRAFT'; generatedAt: string; legalReference?: import('./legal.js').LegalReference }; created_at: string };
 export const inspectionState = (doc: InspectionDocument) => doc.urgent ? '긴급 검토' : doc.actions.length
     ? (doc.actions.every(a => a.status === 'verified') ? '조치 확인 · 법령 검토 대기' : '개선조치 진행')
+    : Object.values(doc.reviews).some(r => r.decision === 'rejected') ? '전문가 의견 반영'
     : Object.values(doc.reviews).some(r => r.decision === 'accepted') ? '사실 검토됨'
     : Object.keys(doc.analyses).length ? 'AI 결과 검토 대기' : doc.photoIds.length ? '증거 등록됨' : '작성 중';
 export const newInspectionDocument = (): InspectionDocument => ({ title: '새 현장점검', siteName: '', location: '', workType: '',
