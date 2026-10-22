@@ -19,7 +19,7 @@ export default function InspectorStorageManager({id,revision,title,disabled=fals
         if(!retry)autoFired.current=false;
         inflight.current=true;setBusy(true);callbacks.current.onWorking?.(true);setError('');setAuto(false);
         try{const result=await request({op:'delete-inspection',id,expectedRevision:revision,confirmation:id,mode},85000);if(!alive.current)return;setStatus(result.status);callbacks.current.onLocked();if(!result.status?.verified)throw new Error('잔여 검증이 완료되지 않았습니다.');}
-        catch(e){if(alive.current){setError(e instanceof Error?e.message:'삭제 미완료');try{const s=await read();if(s?.state==='deleting'&&s.verifyAfter&&Date.parse(s.verifyAfter)>Date.now()&&!s.pendingOperations&&!autoFired.current)setAuto(true);}catch{setError('삭제 상태 조회도 실패했습니다. 연결 복구 후 상태를 다시 확인하세요.');}}}
+        catch(e){if(alive.current){setError(e instanceof Error?e.message.replace(/^\d{3} - /,''):'삭제 미완료');try{const s=await read();if(s?.state==='deleting'&&s.verifyAfter&&Date.parse(s.verifyAfter)>Date.now()&&!s.pendingOperations){if(s.remainingFiles===0)setError('');if(!autoFired.current)setAuto(true);}}catch{setError('삭제 상태 조회도 실패했습니다. 연결 복구 후 상태를 다시 확인하세요.');}}}
         finally{inflight.current=false;if(alive.current){setNow(Date.now());setBusy(false);callbacks.current.onWorking?.(false);}}
     };
     // Continue only this user's explicitly started deletion, while this panel stays open.
