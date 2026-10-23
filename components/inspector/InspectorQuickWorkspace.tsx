@@ -23,6 +23,7 @@ import InspectorShareButton from './InspectorShareButton';
 import {sharePhotoFile} from '../../lib/inspector/sharing';
 import {duplicateAction} from '../../lib/inspector/actionPlan';
 import {sameAction} from '../../lib/inspector/actionFollowup';
+import {changeActionAssignment,recoveredAssignment,type AssignmentChange} from '../../lib/inspector/actionAssignment';
 import type {ImprovementSubmission} from './InspectorActionFollowup';
 import {buildActionRequest,DEFAULT_REVIEW_NOTE,type ExpertReview} from '../../lib/inspector/expertReview';
 
@@ -230,6 +231,21 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
         });
         return saved;
     };
+    const reassignAction=async(change:AssignmentChange)=>{
+        let saved=false;await run(async()=>{
+            const current=latest.current;
+            if(!current||storageLocked||local||photo)throw new Error('현재 사진을 확인한 뒤 등록 조치를 변경해 주세요.');
+            const document=changeActionAssignment(current.document,change);
+            setActivity('등록 조치 담당·기한 변경 저장 중');
+            try{accept((await request({op:'save',id:current.id,expectedRevision:current.revision,document})).item);}
+            catch(cause){
+                let recovered;try{recovered=await request({op:'detail',id:current.id});}catch{throw cause;}
+                if(!recoveredAssignment(current,document,recovered.item,recovered.control))throw cause;
+                accept(recovered.item);
+            }
+            if(alive.current){setReport(null);setEntryNotice('담당·기한 변경을 저장했습니다. 요청문·조치대장·보고서는 새 저장본으로 전달하세요.');saved=true;}
+        });return saved;
+    };
     const submitImprovement=async(input:ImprovementSubmission)=>{
         let saved=false;await run(async()=>{
             const current=latest.current,action=current?.document.actions.find(a=>a.id===input.actionId);
@@ -275,8 +291,9 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
         <fieldset className="si-work-area" hidden={storageLocked} disabled={storageBusy}>
         {!item&&!local&&!deletedResumeId&&resumeId&&<section className="si-resume" aria-label="이전 점검 이어하기"><div><b>이 탭에서 저장한 점검이 있습니다</b><p>보관한 사진과 전문가 검토를 불러와 이어서 완성하세요.</p></div><button className="si-btn" disabled={busy} onClick={resume}>이전 점검 이어하기</button></section>}
         {item&&entryIntent&&<section className="si-resumed-context" aria-label="현재 저장 점검"><p className="si-eyebrow">저장한 점검 이어하기</p><h2>{item.document.title}</h2><p>버전 {item.revision} · 사진 {item.document.photoIds.length}장 · 검토 대기 {recordResumeStatus(item.document).pendingPhotos}장 · 미결 조치 {recordResumeStatus(item.document).remainingActions}건</p>{entryNotice&&<p role="status" className="si-notice">{entryNotice}</p>}</section>}
+        {item&&!entryIntent&&entryNotice&&<p role="status" className="si-notice">{entryNotice}</p>}
         {item&&item.document.photoIds.length>0&&<InspectorPhotoCollection item={item} active={!!(local||photo)} busy={busy} title={reportTitle} onTitle={setReportTitle} onOpen={openSavedPhoto} onFinish={finish}/>}
-        {item&&!storageLocked&&(item.document.photoIds.length>0||item.document.actions.length>0)&&<InspectorActionPlanner key={`${item.id}:${actionEntry?.token||''}`} item={item} active={!!(local||photo)} busy={busy} onSave={saveAction} onDirty={setActionDraftDirty} onOpen={openSavedPhoto} evidence={evidence} loadPhoto={loadEvidencePhoto} onSubmitImprovement={submitImprovement} onVerify={verifyAction} initialPhotoId={actionEntry?.photoId} initialRegistered={entryIntent==='actions'&&!actionEntry} onCloseEntry={closeActionEntry}/>}
+        {item&&!storageLocked&&(item.document.photoIds.length>0||item.document.actions.length>0)&&<InspectorActionPlanner key={`${item.id}:${actionEntry?.token||''}`} item={item} active={!!(local||photo)} busy={busy} onSave={saveAction} onReassign={reassignAction} onDirty={setActionDraftDirty} onOpen={openSavedPhoto} evidence={evidence} loadPhoto={loadEvidencePhoto} onSubmitImprovement={submitImprovement} onVerify={verifyAction} initialPhotoId={actionEntry?.photoId} initialRegistered={entryIntent==='actions'&&!actionEntry} onCloseEntry={closeActionEntry}/>}
         {reference&&<div className="si-input-recap">{preview&&<button className="si-preview-open" aria-label="점검 사진 크게 보기" onClick={()=>{setZoomFocus('');setZoom(true);}}><img src={preview} alt="점검 사진 미리보기"/></button>}<div><b>{analysis?'사진 분석 결과 준비됨':photo&&!resultNote.trim()?'사진 저장 · 아직 AI 판독 전':'설명으로 기준 조회됨'}</b><p>{resultNote||'설명 없이 사진에서 단서 찾기'}</p></div><button className="si-btn" disabled={busy} aria-expanded={editInput} aria-controls="si-quick-input" onClick={()=>{if(note.trim())setHintOpen(true);setEditInput(v=>!v);}}>{editInput?'입력 접기':'사진·설명 수정'}</button></div>}
         <section id="si-quick-input" hidden={!!reference&&!editInput} className="si-quick-input" aria-label="사진과 설명 입력">
             <div className="si-quick-photo">{preview?<><img src={preview} alt="분석할 현장사진"/>{!photo&&<button className="si-btn" disabled={busy} onClick={()=>{setLocal(null);setReference(null);}}>다른 사진 선택</button>}</>:<><InspectorScene/><span className="si-capture-label">현장 사진으로 시작</span><div className="si-quick-camera-mark" aria-hidden="true"><InspectorIcon name="camera"/></div><h2>사진을 찍거나 가져오세요</h2><p>PC에서는 사진을 복사한 뒤 Ctrl+V로 붙여넣을 수 있습니다.</p><div className="si-quick-buttons"><button className="si-btn si-primary" disabled={busy} onClick={()=>setCamera(true)}><InspectorIcon name="camera"/>카메라로 바로 촬영</button><label className="si-btn"><InspectorIcon name="upload"/>사진 선택<input aria-label="현장사진 선택" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)choose(file);}}/></label></div></>}</div>
