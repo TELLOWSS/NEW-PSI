@@ -62,7 +62,7 @@ try{
    else{
     await page.getByLabel('현재 저장 점검').getByRole('heading',{name:doc.title,exact:true}).waitFor();
     if(['review','retry'].includes(scenario)){
-     await page.getByLabel('핵심 답변').waitFor();assert.match(await page.locator('.si-current-photo-scope').innerText(),/사진 2\/3/);assert.match(await page.getByLabel('핵심 답변').innerText(),/두 번째 사진/);assert.equal(ops.filter(b=>b.op==='photo').length,1);
+     await page.getByLabel('핵심 답변').waitFor();assert.match(await page.locator('.si-current-photo-scope').innerText(),/사진 2\/3/);await page.locator('.si-finding-proof summary').click();assert.match(await page.getByLabel('핵심 답변').innerText(),/두 번째 사진/);await page.locator('.si-finding-proof summary').click();assert.equal(ops.filter(b=>b.op==='photo').length,1);
      if(scenario==='review'){
       const review=page.locator('.si-expert-review');await review.getByRole('button',{name:'판단·조치 보완',exact:true}).click();await review.locator('textarea').fill('저장하지 않은 전문가 의견');cancelExit=true;await page.getByRole('button',{name:'저장 기록 · 상세 관리',exact:true}).click();assert.equal(await review.locator('textarea').inputValue(),'저장하지 않은 전문가 의견');assert.equal(await list.count(),0);cancelExit=false;
      }
