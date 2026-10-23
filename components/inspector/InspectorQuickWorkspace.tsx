@@ -176,7 +176,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
     };
     const createReport=(savedOnly:boolean)=>{
         if(inflight.current||storageBusy||storageLocked)return;
-        if(actionDraftDirty&&!savedOnly){setReportBlocked(true);requestAnimationFrame(()=>document.querySelector<HTMLElement>('.si-report-draft-choice')?.scrollIntoView({block:'center',behavior:'instant'}));return;}
+        if(actionDraftDirty&&!savedOnly){setReportBlocked(true);requestAnimationFrame(()=>{const choice=document.querySelector<HTMLElement>('.si-report-draft-choice');choice?.scrollIntoView({block:'center',behavior:'instant'});choice?.focus({preventScroll:true});});return;}
         if(savedOnly&&(local||photo||storageLocked||storageBusy))return;
         void run(async()=>{
         let current=latest.current;
