@@ -1,0 +1,6 @@
+export type ShareReply={requestId:string;kind:'planned'|'difficult'|'photo';name:string;note:string;photoId:string|null;sha256:string|null;submittedAt:string};
+export type ActionShare={id:string;inspection_id:string;action_id:string;photo_id:string;creation_revision:number;snapshot:{title:string;owner:string;dueDate:string;photoSha256:string;photoNumber:number};created_at:string;expires_at:string;revoked_at:string|null;responses:ShareReply[];adopted_at:string|null;token?:string};
+export const replyKindLabel={planned:'조치 예정',difficult:'조치 어려움',photo:'개선사진 접수'} as const;
+export function shareTokenFromHash(hash:string){const t=hash.replace(/^#/,'');return /^[A-Za-z0-9_-]{43}$/.test(t)?t:'';}
+export function actionShareUrl(origin:string,token:string){if(!shareTokenFromHash(token))throw new Error('공유 링크를 확인해 주세요.');return new URL('/inspection-reply',origin).href+'#'+token;}
+export function actionShareText(s:ActionShare,url:string){return ['[PSI 현장 조치 요청]',s.snapshot.title,`담당: ${s.snapshot.owner} / 기한: ${s.snapshot.dueDate}`,'조치 가능 여부 또는 개선사진을 회신해 주세요.',url,`링크 만료: ${new Date(s.expires_at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})} (한국시간)`,'링크를 가진 사람은 열람·회신할 수 있습니다. 필요한 상대에게만 전달하세요.','사진 제출은 완료 승인이 아니며 점검자가 별도 재점검합니다.'].join('\n');}
