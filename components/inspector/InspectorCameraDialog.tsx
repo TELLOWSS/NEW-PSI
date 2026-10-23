@@ -5,6 +5,8 @@ import {InspectorIcon} from './InspectorGraphics';
 export default function InspectorCameraDialog({onClose, onUse}: {onClose:()=>void; onUse:(file:File)=>void}) {
     const dialogRef=useRef<HTMLDialogElement>(null), videoRef=useRef<HTMLVideoElement>(null);
     const streamRef=useRef<MediaStream|null>(null), generation=useRef(0), encoding=useRef(false);
+    const [mode,setMode]=useState<'landscape'|'portrait'>(()=>{try{return sessionStorage.getItem('psi.inspector.camera.mode.v1')==='portrait'?'portrait':'landscape';}catch{return 'landscape';}});
+    const [frame,setFrame]=useState<{width:number;height:number}|null>(null);
     const [facing,setFacing]=useState<'environment'|'user'>('environment');
     const [attempt,setAttempt]=useState(0), [ready,setReady]=useState(false), [capturing,setCapturing]=useState(false);
     const [photo,setPhoto]=useState<File|null>(null), [preview,setPreview]=useState(''), [decoded,setDecoded]=useState(false);
@@ -23,10 +25,13 @@ export default function InspectorCameraDialog({onClose, onUse}: {onClose:()=>voi
     },[photo]);
     useEffect(()=>{
         const token=++generation.current;
-        setReady(false);setError('');
+        setReady(false);setFrame(null);setError('');
         if(!photo){
             if(!navigator.mediaDevices?.getUserMedia)setError('이 브라우저에서는 실시간 카메라를 열 수 없습니다. 아래 기기 카메라를 이용하거나 사진 선택으로 돌아가세요.');
-            else void navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:facing},width:{ideal:1920},height:{ideal:1080}}}).then(async stream=>{
+            else {
+                // Prefer a native frame over software crop-and-scale; unsupported preferences are ignored.
+                const video:MediaTrackConstraints&{resizeMode?:ConstrainDOMString}={facingMode:{ideal:facing},width:{ideal:mode==='landscape'?1920:1080},height:{ideal:mode==='landscape'?1080:1440},aspectRatio:{ideal:mode==='landscape'?16/9:3/4},resizeMode:{ideal:'none'}};
+                void navigator.mediaDevices.getUserMedia({audio:false,video}).then(async stream=>{
                 if(generation.current!==token){stream.getTracks().forEach(track=>track.stop());return;}
                 streamRef.current=stream;
                 const video=videoRef.current;
@@ -36,12 +41,17 @@ export default function InspectorCameraDialog({onClose, onUse}: {onClose:()=>voi
                 stop();
                 setError(cause?.name==='NotAllowedError'?'카메라 권한이 허용되지 않았습니다. 브라우저의 카메라 권한을 허용한 뒤 다시 연결하거나 아래 기기 카메라를 이용하세요.':'카메라를 연결하지 못했습니다. 다른 앱에서 사용 중인지 확인하거나 아래 기기 카메라를 이용하세요.');
             });
+            }
         }
         const hide=()=>{if(document.hidden && !photo){++generation.current;stop();setReady(false);setError('화면을 벗어나 카메라를 중지했습니다. 다시 연결해 주세요.');}};
         document.addEventListener('visibilitychange',hide);
         return()=>{++generation.current;stop();document.removeEventListener('visibilitychange',hide);};
-    },[facing,attempt,photo]);
+    },[facing,attempt,photo,mode]);
 
+    const changeMode=(next:'landscape'|'portrait')=>{if(capturing||next===mode)return;++generation.current;stop();setReady(false);setFrame(null);setMode(next);try{sessionStorage.setItem('psi.inspector.camera.mode.v1',next);}catch{/* In-memory mode remains available. */}};
+    const refreshFrame=()=>{const video=videoRef.current;if(streamRef.current&&video?.videoWidth&&video.videoHeight){setFrame({width:video.videoWidth,height:video.videoHeight});setReady(true);}};
+    const actualDirection=frame?(frame.width===frame.height?'정방형':frame.width>frame.height?'가로':'세로'):'';
+    const directionMismatch=!!frame&&(mode==='landscape'?frame.width<=frame.height:frame.height<=frame.width);
     const capture=()=>{
         const video=videoRef.current;
         if(!ready || !video?.videoWidth || !video.videoHeight || encoding.current)return;
@@ -62,10 +72,14 @@ export default function InspectorCameraDialog({onClose, onUse}: {onClose:()=>voi
     return <dialog ref={dialogRef} className="si-camera-dialog" aria-labelledby="si-camera-title" onCancel={e=>{e.preventDefault();onClose();}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
         <div className="si-camera-heading"><div><p className="si-eyebrow">{photo?'CHECK YOUR PHOTO':'LIVE CAMERA'}</p><h2 id="si-camera-title">{photo?'촬영 사진 바로 확인':'카메라로 바로 촬영'}</h2></div><button className="si-btn" autoFocus onClick={onClose}><InspectorIcon name="close"/>닫기</button></div>
         <p className="si-caption">{photo?'초점과 촬영 범위를 확인하세요. ‘이 사진 사용’을 누르면 최적화 후 점검에 등록합니다.':'카메라 권한을 허용하면 화면을 보며 촬영할 수 있습니다. 소리는 녹음하지 않습니다.'}</p>
-        <div className="si-camera-stage">
-            {photo?(preview&&<img src={preview} alt="등록 전 촬영 사진 미리보기" onLoad={()=>setDecoded(true)} onError={()=>{setDecoded(false);setError('사진 미리보기를 읽지 못했습니다. 다시 촬영해 주세요.');}}/>):<video ref={videoRef} autoPlay playsInline muted aria-label="실시간 카메라 화면" onLoadedData={()=>{const video=videoRef.current;setReady(!!streamRef.current && !!video?.videoWidth && !!video.videoHeight);}}/>}
+        {!photo&&<><div className="si-camera-modes" role="group" aria-label="촬영 방향"><button type="button" className="si-btn" aria-pressed={mode==='landscape'} disabled={capturing} onClick={()=>changeMode('landscape')}><span className="si-frame-icon si-frame-landscape" aria-hidden="true"/><span>가로 <small>현장 전경 · 기본</small></span></button><button type="button" className="si-btn" aria-pressed={mode==='portrait'} disabled={capturing} onClick={()=>changeMode('portrait')}><span className="si-frame-icon si-frame-portrait" aria-hidden="true"/><span>세로 <small>높이·설비</small></span></button></div><p className="si-camera-direction-guide">{mode==='landscape'?'현장 전경은 가로 촬영을 권장합니다. 휴대폰을 가로로 돌려 대상과 주변 동선을 함께 담으세요.':'세로로 긴 설비나 높이를 확인할 때 사용하세요. 휴대폰을 세로로 들고 대상의 위아래를 함께 담으세요.'}</p></>}
+        <div className={`si-camera-stage si-camera-stage-${mode}${photo?' si-camera-stage-photo':''}`}>
+
+            {photo?(preview&&<img src={preview} alt="등록 전 촬영 사진 미리보기" onLoad={e=>{setDecoded(true);setFrame({width:e.currentTarget.naturalWidth,height:e.currentTarget.naturalHeight});}} onError={()=>{setDecoded(false);setError('사진 미리보기를 읽지 못했습니다. 다시 촬영해 주세요.');}}/>):<video ref={videoRef} autoPlay playsInline muted aria-label="실시간 카메라 화면" onLoadedData={refreshFrame} onResize={refreshFrame}/>}
             {!photo && !ready && <span className="si-camera-wait" role="status">{error?'카메라 연결을 확인해 주세요':'카메라 연결 중…'}</span>}
         </div>
+        {frame&&<p className="si-camera-frame-status" role="status">{photo?'촬영본':'현재 영상'} · {actualDirection} {frame.width} × {frame.height}{!photo&&directionMismatch&&<span>선택 방향과 다릅니다. 기기를 {mode==='landscape'?'가로':'세로'}로 돌려 확인하세요. 지원하지 않는 기기에서는 현재 보이는 전체 영상으로 촬영됩니다.</span>}</p>}
+        {!photo&&<p className="si-caption">촬영 방향은 카메라 지원 범위 안에서 요청합니다. 미리보기 전체를 저장하며, 앱에서 사진을 늘이거나 잘라 맞추지 않습니다.</p>}
         {error&&<p className="si-notice" role="alert">{error}</p>}
         <div className="si-camera-actions">{photo?<>
             <button className="si-btn" onClick={retry}>다시 촬영</button>
