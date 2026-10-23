@@ -1,11 +1,12 @@
 import type {Inspection} from './types.js';
+import {pendingReviewQueue} from './reviewQueue.js';
 import {photoQueue} from './workQueue.js';
 import {reportPhotoSelection,actionPhotoSummary} from './actionFollowup.js';
 
 export function reportReadiness(item:Inspection){
     const doc=item.document,photos=photoQueue(doc);
     return {
-        pending:photos.filter(p=>p.kind==='pending'),
+        pending:pendingReviewQueue(doc),
         manual:photos.filter(p=>p.kind==='manual').length,
         expert:photos.filter(p=>p.kind==='expert').length,
         improvement:photos.filter(p=>p.kind==='improvement').length,
