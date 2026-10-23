@@ -38,11 +38,11 @@ export function sanctionText(s:LegalSanction) {
 /** A material's end is not necessarily a floor edge; an electrical cover is not a hole cover. */
 function keywordScore(card:LegalCard,text:string){
     const compact=text.toLowerCase().replace(/\s+/g,'');
-    if(card.id==='rebar-puncture')return /(?:철근(?:의|이)?(?:돌출|노출|단부|끝단|끝부분|상단부|하단부|방호캡|보호캡)|(?:돌출|노출)(?:된)?(?:수평|수직)?철근|철근.{0,12}(?:찔|관통)|(?:찔|관통).{0,12}철근)/.test(compact)?20:0;
-    const edgeText=compact.replace(/(?:철근|전선|배관|파이프|호스|철선|강선|철물|부재|패널|자재)(?:의)?(?:상|하)?(?:단부|끝단)|상단부|하단부/g,'');
+    if(card.id==='rebar-puncture')return /(?:철근(?:의|이)?(?:돌출|노출|단부|끝단|끝부분|상단부|하단부|절단부|말단부|방호캡|보호캡)|(?:돌출|노출)(?:된)?(?:수평|수직)?철근|철근.{0,12}(?:찔|관통)|(?:찔|관통).{0,12}철근)/.test(compact)?20:0;
+    const edgeText=compact.replace(/(?:철근|전선|배관|파이프|호스|철선|강선|철물|부재|패널|자재)(?:의)?(?:상|하|절|말|노출|돌출)?(?:단부|끝단)|상단부|하단부/g,'');
     return card.keywords.reduce((sum,word)=>{
         if(card.id==='opening'&&word==='단부')return sum+(edgeText.includes('단부')?2:0);
-        if(card.id==='opening'&&word==='덮개'&&!/(개구부|구멍|추락|바닥|슬래브|슬라브)/.test(compact))return sum;
+        if(card.id==='opening'&&word==='덮개'&&!/(개구부|구멍|추락)/.test(compact))return sum;
         return sum+(compact.includes(word.replace(/\s+/g,''))?Math.min(word.length,12):0);
     },0);
 }
