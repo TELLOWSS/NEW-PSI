@@ -106,7 +106,7 @@ try{
     const stamp='2026-10-19T12:00:00.123456+00:00';
     const summary={id:item.id,title:item.document.title,work_type:'검증',location:'가상',urgent:false,open_actions:0,needs_review:false,created_at:stamp};
     listFixture={rows:[...Array.from({length:49},(_,n)=>({...summary,id:`a0190000-0000-4000-8000-${String(n+1).padStart(12,'0')}`,title:`목록 검증 ${n+1}`})),summary],cursor:{before:stamp,beforeId:item.id},extra:{...summary,id:'a0190000-0000-4000-8000-000000000099',title:'다음 페이지 확인'}};
-    await page.getByRole('button',{name:'목록 불러오기',exact:true}).click();
+    await page.getByRole('button',{name:'새로고침',exact:true}).click();
     await page.getByLabel('점검명',{exact:true}).fill('목록 재정렬 후 커서 검증');await page.getByRole('button',{name:'변경사항 저장'}).click();
     const listCount=requests.filter(x=>x==='list').length;
     await page.getByLabel('불러온 점검 검색',{exact:true}).fill('해당없는검색어');await page.getByText('검색·필터와 일치하는 기록이 없습니다.',{exact:false}).waitFor();

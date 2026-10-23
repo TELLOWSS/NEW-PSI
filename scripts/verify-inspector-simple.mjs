@@ -26,7 +26,8 @@ await page.route('**/api/admin/auth',r=>r.fulfill({json:{ok:true,authenticated:t
 await page.route('https://fonts.googleapis.com/**',r=>r.fulfill({body:'',contentType:'text/css'}));await page.route('https://cdn.jsdelivr.net/**',r=>r.fulfill({body:'',contentType:'text/css'}));
 const bump=document=>(item={...item,revision:item.revision+1,document:structuredClone(document),updated_at:new Date().toISOString()});
 await page.route('**/api/admin/inspector',async r=>{const b=r.request().postDataJSON();ops.push(b.op);let result={ok:true};
- if(b.op==='create')item={id:b.id,revision:1,created_at:new Date().toISOString(),updated_at:new Date().toISOString(),document:{title:'새 현장점검',siteName:'',location:'',workType:'',eventAt:new Date().toISOString(),notes:'',urgent:false,photoIds:[],analyses:{},reviews:{},actions:[],ocrResults:{}}},result.item=item;
+ if(b.op==='list')Object.assign(result,{items:[],hasMore:false,nextCursor:null});
+        else if(b.op==='create')item={id:b.id,revision:1,created_at:new Date().toISOString(),updated_at:new Date().toISOString(),document:{title:'새 현장점검',siteName:'',location:'',workType:'',eventAt:new Date().toISOString(),notes:'',urgent:false,photoIds:[],analyses:{},reviews:{},actions:[],ocrResults:{}}},result.item=item;
  else if(b.op==='save')result.item=bump(b.document);
  else if(b.op==='upload'){const bytes=Buffer.from(b.base64,'base64'),hash=createHash('sha256').update(bytes).digest('hex');validateOptimization(b.optimizationReceipt,bytes,hash);const photo={id:b.photoId,inspection_id:item.id,sha256:hash,mime_type:'image/jpeg',byte_size:bytes.length,created_at:new Date().toISOString(),optimization_receipt:b.optimizationReceipt};images.set(photo.id,bytes);evidence.push(photo);result.photo=photo;}
  else if(b.op==='photo')result.url=`http://127.0.0.1:3022/__photo/${b.photoId}`;

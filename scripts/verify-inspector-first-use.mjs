@@ -26,7 +26,8 @@ try{
     await page.route('**/api/admin/inspector',async r=>{
       const b=r.request().postDataJSON();ops.push(b.op);let result={ok:true};
       try{
-        if(b.op==='create'){item={id:b.id,revision:1,created_at:new Date().toISOString(),updated_at:new Date().toISOString(),document:{title:'처음 쓰는 현장점검',siteName:'',location:'',workType:'',eventAt:new Date().toISOString(),notes:'',urgent:false,photoIds:[],analyses:{},reviews:{},actions:[],ocrResults:{}}};result.item=item;}
+        if(b.op==='list')Object.assign(result,{items:[],hasMore:false,nextCursor:null});
+        else if(b.op==='create'){item={id:b.id,revision:1,created_at:new Date().toISOString(),updated_at:new Date().toISOString(),document:{title:'처음 쓰는 현장점검',siteName:'',location:'',workType:'',eventAt:new Date().toISOString(),notes:'',urgent:false,photoIds:[],analyses:{},reviews:{},actions:[],ocrResults:{}}};result.item=item;}
         else if(b.op==='ai-status'){if(item)statusCalls++;Object.assign(result,{ready:scenario!=='api-unavailable'&&(scenario!=='api-reconnect'||statusCalls>1),provider:'gemini',model:'fixture',maxCalls:20});}
         else if(b.op==='usage'&&scenario==='api-reconnect'){await r.fulfill({status:503,json:{ok:false,message:'Usage unavailable'}});return;}
         else if(b.op==='usage')result.usage={projectBytes:100000,uploadCeilingBytes:900000000};
