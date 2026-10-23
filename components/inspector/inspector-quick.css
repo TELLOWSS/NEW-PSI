@@ -173,3 +173,9 @@
 @media(max-width:700px){.si-quick-heading{padding-bottom:14px}.si-quick-photo{gap:12px;padding:24px 16px}.si-quick-photo h2{font-size:21px}.si-quick-photo>.si-scene{width:290px;right:-70px;bottom:-65px}.si-capture-label{font-size:9px}.si-answer-tabs{border-radius:12px}.si-problem{padding:18px 16px}.si-problem h3{font-size:22px;line-height:1.4}.si-problem .si-do-now{padding:14px}.si-finding-heading{margin-top:8px}.si-finding-picker button{min-width:145px;max-width:260px}}
 @media(prefers-reduced-motion:reduce){.si-quick .si-btn{transition:none}}
 @media print{.si-finding-heading,.si-finding-copy,.si-capture-label{display:none!important}.si-answer-tabs{position:static}}
+
+/* Explicit review persistence, separate from advancing photos or generating reports. */
+.si-review-save{display:flex;align-items:center;gap:12px;margin-top:14px;padding:12px 14px;border:1px solid var(--si-line);border-left:3px solid #a96b2d;border-radius:10px;background:var(--si-soft)}
+.si-review-save>div{flex:1;min-width:0}.si-expert-review .si-review-save b{font-size:12px;color:#87511d}.si-review-save p{font-size:12px;color:var(--si-muted);line-height:1.7;margin:4px 0 0}.si-review-save .si-btn{min-height:44px;white-space:normal;justify-content:center}.si-review-save.is-saved{border-left-color:var(--si-teal);background:var(--si-accent-soft)}.si-expert-review .si-review-save.is-saved b{color:var(--si-teal)}.si-review-save-notice{font-size:12px;color:var(--si-teal);line-height:1.7;overflow-wrap:anywhere;margin:10px 0 0}.si-review-save-notice:empty{display:none}.dark .si-review-save.is-unsaved b{color:#f2d1a2}
+@media(max-width:600px){.si-review-save{align-items:stretch;flex-direction:column;gap:9px}.si-review-save .si-btn{width:100%}}
+@media print{.si-review-save,.si-review-save-notice{display:none!important}}
