@@ -156,6 +156,22 @@
 @media print{.si-bottom-bar,.si-lightbox,.si-next-action{display:none!important}.si-report h3,.si-report h4{break-after:avoid;page-break-after:avoid}.si-report-summary{background:#f2f7f5;color:#234b40}.si-report-summary span{display:inline-block!important;margin-right:14px}.si-workspace{color:#182b40;--si-line:#dce4e9;--si-muted:#64748b}.si-report li{break-inside:avoid}}
 
 .si-lightbox::backdrop{background:#0c1a29ed}
+.si-record-row{border:1px solid var(--si-line);border-radius:12px;margin:10px 0;overflow:hidden}
+.si-record-row .si-record{margin:0;border-radius:0;border-bottom:0;width:100%;text-align:left;overflow-wrap:anywhere}
+.si-record-row-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:3px 10px 10px}
+.si-record-row-actions>span{font-size:10px;color:var(--si-muted);font-variant-numeric:tabular-nums}
+.si-record-row-actions .si-btn{min-height:44px;padding:8px 16px;font-size:12px}
+.si-record-sort{margin:12px 0}
+.si-deletion-recovery{padding:12px;border:1px solid #e5bca4;border-radius:10px;background:var(--si-soft);font-size:12px;margin:12px 0}
+.si-deletion-recovery>.si-btn{width:100%;margin-top:8px;font-size:12px}
+.si-record-delete-dialog{position:fixed;inset:0;margin:auto;padding:0;width:min(640px,calc(100vw - 24px));max-height:calc(100dvh - 32px);border:1px solid var(--si-line);border-radius:16px;background:var(--si-surface,#fff);color:var(--si-navy);overflow:auto;z-index:250;box-shadow:0 24px 80px #10263844}
+.si-record-delete-dialog::backdrop{background:#0c1a29aa;backdrop-filter:blur(4px)}
+.si-record-delete-dialog>header{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;background:var(--si-surface,#fff);border-bottom:1px solid var(--si-line)}
+.si-record-delete-dialog>header h2{font-size:20px;margin:0}
+.si-record-delete-body{padding:4px 20px 20px;overflow-wrap:anywhere}
+.si-record-delete-dialog .si-storage-manager{margin:8px 0}
+@media(max-width:760px){.si-records-home .si-list{order:0}.si-record-delete-dialog{width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}.si-record-delete-dialog>header{padding:12px 16px}.si-record-delete-body{padding:4px 16px 16px}.si-record-sort select{font-size:16px!important}}
+@media print{.si-record-delete-dialog{display:none!important}}
 
 /* Portal keeps the dock outside the shell's transformed page-transition container. */
 .si-workspace.si-dock-scope{display:contents}
