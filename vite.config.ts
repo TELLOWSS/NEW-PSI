@@ -30,8 +30,8 @@ export default defineConfig(({ mode }) => {
         async writeBundle(output) {
           const directory=path.resolve(output.dir || 'dist');
           const html=await readFile(path.join(directory,'index.html'),'utf8');
-          const title='NEW-PSI 사진점검 | 발견에서 개선 증빙까지';
-          const description='사진 한 장에서 위험·조치·관련 법령을 검토하고 개선 전후 증빙과 보고서까지 연결하세요. 로그인 없는 예시 체험과 현장 도입 구성.';
+          const title='NEW-PSI 사진점검 | 사진 한 장에서 조치·보고서까지';
+          const description='무엇이 문제인지 몰라도 사진 한 장에서 시작하세요. 위험 단서·전문가 검토·담당과 기한·개선 증빙·보고서와 조치대장까지, 로그인 없는 샘플 체험.';
           const product=html.replace(/<title>[\s\S]*?<\/title>/,`<title>${title}</title>`)
             .replace(/<meta name="description"[^>]*>/,`<meta name="description" content="${description}" />`)
             .replace('</head>',`<link rel="canonical" href="https://new-psi-eta.vercel.app/product" />
@@ -41,7 +41,7 @@ export default defineConfig(({ mode }) => {
     <meta property="og:title" content="${title}" />
     <meta property="og:description" content="${description}" />
     <meta property="og:url" content="https://new-psi-eta.vercel.app/product" />
-    <meta property="og:image" content="https://new-psi-eta.vercel.app/inspector-product-preview.png" />
+    <meta property="og:image" content="https://new-psi-eta.vercel.app/inspector-product-preview-v2.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="NEW-PSI 사진점검 제품 화면 · 체험용 도해" />
