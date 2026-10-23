@@ -36,6 +36,20 @@ export function photoActionEntry(doc:InspectionDocument,photoId:string){
     const candidates=actionSuggestions(doc).filter(s=>s.sources.some(source=>source.photoId===photoId));
     return (candidates.find(s=>s.kind==='expert')||candidates[0])?.key||'manual';
 }
+export type FindingActionEntry={key:string;context:string};
+/** Resolve against the confirmed saved photo; never fall back to another AI finding. */
+export function findingActionEntry(doc:InspectionDocument,photoId:string,index:number):FindingActionEntry {
+    const review=doc.reviews[photoId],analysis=doc.analyses[photoId];
+    if(!doc.photoIds.includes(photoId)||!analysis||!review)throw new Error('저장한 사진 분석과 전문가 검토를 먼저 확인해 주세요.');
+    if(review.decision==='rejected'||review.note.trim()&&review.note!==DEFAULT_REVIEW_NOTE){
+        const key=photoActionEntry(doc,photoId);
+        return {key,context:'저장한 전문가 의견 우선 · AI 위험 선택을 조치로 옮기지 않았습니다.'};
+    }
+    if(!Number.isInteger(index)||index<0||!analysis.risk_findings?.[index])throw new Error('선택한 위험을 저장된 분석에서 찾지 못했습니다. 사진 결과를 다시 열어 주세요.');
+    const finding=analysis.risk_findings[index],key='ai:'+normalize(finding.action);
+    if(!actionSuggestions(doc).some(s=>s.key===key&&s.sources.some(source=>source.photoId===photoId)))throw new Error('선택한 위험의 조치 제안을 확인하지 못했습니다.');
+    return {key,context:`선택한 위험 ${index+1}: ${finding.problem}`};
+}
 /** Suggestions are confined to the current saved inspection; nothing is retained across inspections. */
 export function recentActionOwners(actions:InspectorAction[]){
     return [...new Set([...actions].reverse().map(a=>a.owner.normalize('NFC').trim()).filter(Boolean))].slice(0,5);

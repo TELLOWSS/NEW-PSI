@@ -1,14 +1,25 @@
 import {describe,expect,it} from 'vitest';
-import {actionSourceNote,actionSuggestions,buildRegisteredActionRequest,duplicateAction,photoActionEntry,recentActionOwners,calendarDueDate} from '../lib/inspector/actionPlan';
+import {actionSourceNote,actionSuggestions,buildRegisteredActionRequest,duplicateAction,photoActionEntry,recentActionOwners,calendarDueDate,findingActionEntry} from '../lib/inspector/actionPlan';
 import {buildReportActionRequests,DEFAULT_REVIEW_NOTE} from '../lib/inspector/expertReview';
 import {buildInspectionBrief} from '../lib/inspector/journey';
-import {newInspectionDocument,type InspectionReport,type InspectorAction,type VisionImport} from '../lib/inspector/types';
+import {newInspectionDocument,type InspectionDocument,type InspectionReport,type InspectorAction,type VisionImport} from '../lib/inspector/types';
 const photo=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const analysis=(action='접근 통제',priority:'immediate'|'soon'|'routine'='soon'):VisionImport=>({schema_version:'1.1',inspection_id:photo(90),photo_id:photo(1),source_photo_sha256:'a'.repeat(64),processing_mode:'CHATGPT_MANUAL',observed_facts:[],ai_hypotheses:[],requires_confirmation:[],recommended_controls:[{action,priority}],law_candidate_keywords:[],limitations:[]});
-const document=()=>({...newInspectionDocument(),photoIds:[photo(1),photo(2)],photoNotes:{[photo(1)]:'1층 통로',[photo(2)]:'다른 위치 3층'},analyses:{[photo(1)]:analysis(),[photo(2)]:analysis('접근  통제','immediate')},reviews:{[photo(1)]:{decision:'accepted' as const,note:DEFAULT_REVIEW_NOTE},[photo(2)]:{decision:'accepted' as const,note:DEFAULT_REVIEW_NOTE}}});
+const document=():InspectionDocument=>({...newInspectionDocument(),photoIds:[photo(1),photo(2)],photoNotes:{[photo(1)]:'1층 통로',[photo(2)]:'다른 위치 3층'},analyses:{[photo(1)]:analysis(),[photo(2)]:analysis('접근  통제','immediate')},reviews:{[photo(1)]:{decision:'accepted' as const,note:DEFAULT_REVIEW_NOTE},[photo(2)]:{decision:'accepted' as const,note:DEFAULT_REVIEW_NOTE}}});
 const action:InspectorAction={id:photo(40),title:'접근 통제',owner:'형틀반장',dueDate:'2026-10-23',status:'open',completionPhotoId:'',note:'선택한 사진 적용 범위'};
 describe('expert action planning without additional AI',()=>{
  it('opens only this photo’s saved proposal, prefers the expert, and falls back to manual for missing/unreviewed photos',()=>{const doc=document();doc.analyses[photo(1)]=analysis('다른 사진 전용 조치');expect(photoActionEntry(doc,photo(2))).toBe('ai:접근 통제');doc.reviews[photo(2)]={decision:'rejected' as any,note:'실측 후 발판 보강'};expect(photoActionEntry(doc,photo(2))).toBe('expert:실측 후 발판 보강');delete doc.reviews[photo(2)];expect(photoActionEntry(doc,photo(2))).toBe('manual');expect(photoActionEntry(doc,photo(99))).toBe('manual');});
+ it('carries the explicitly selected finding rather than a higher-priority first proposal, scoped to its photo',()=>{
+  const doc=document(),a=doc.analyses[photo(2)];a.risk_findings=[{observation_index:'0',problem:'개구부',risk:'추락',action:'접근 통제',priority:'immediate'},{observation_index:'0',problem:'전선 피복 손상',risk:'감전',action:'전원 확인 후 절연 보완',priority:'soon'}];
+  const before=JSON.stringify(doc);expect(findingActionEntry(doc,photo(2),1)).toEqual({key:'ai:전원 확인 후 절연 보완',context:'선택한 위험 2: 전선 피복 손상'});expect(JSON.stringify(doc)).toBe(before);
+ });
+ it('retains saved expert priority for rejected and accepted-with-opinion reviews without carrying rejected AI context',()=>{
+  for(const decision of ['accepted','rejected'] as const){const doc=document();doc.reviews[photo(2)]={decision,note:'실측 후 발판 보완'};expect(findingActionEntry(doc,photo(2),999)).toEqual({key:'expert:실측 후 발판 보완',context:'저장한 전문가 의견 우선 · AI 위험 선택을 조치로 옮기지 않았습니다.'});}
+ });
+ it('never silently substitutes the first action for missing, out-of-range, legacy or unreviewed selections',()=>{
+  const doc=document();for(const n of [-1,0,1.5,99])expect(()=>findingActionEntry(doc,photo(2),n)).toThrow();
+  delete doc.reviews[photo(2)];expect(()=>findingActionEntry(doc,photo(2),0)).toThrow();expect(()=>findingActionEntry(doc,photo(99),0)).toThrow();
+ });
  it('offers at most five distinct recent owners from this inspection without mutating or guessing roles',()=>{const actions=['형틀반장','철근반장','비계반장','A','B','C',' 형틀반장 '].map((owner,n)=>({...action,id:photo(50+n),owner}));const before=JSON.stringify(actions);expect(recentActionOwners(actions)).toEqual(['형틀반장','C','B','A','비계반장']);expect(recentActionOwners([])).toEqual([]);expect(JSON.stringify(actions)).toBe(before);});
  it('calculates calendar dates across year/leap boundaries and rejects invalid days and offsets',()=>{expect(calendarDueDate('2026-12-31',1)).toBe('2027-01-01');expect(calendarDueDate('2028-02-28',1)).toBe('2028-02-29');expect(calendarDueDate('2026-10-23',3)).toBe('2026-10-26');for(const [day,offset] of [['2026-02-30',1],['2026-10-23',-1],['2026-10-23',0.5],['bad',3],['9999-12-31',1]] as const)expect(calendarDueDate(day,offset)).toBe('');});
  it('groups only equal wording and keeps all distinct photo contexts without mutation',()=>{const doc=document(),before=JSON.stringify(doc),groups=actionSuggestions(doc);expect(groups).toHaveLength(1);expect(groups[0].sources.map(s=>s.description)).toEqual(['1층 통로','다른 위치 3층']);expect(groups[0].priority).toBe('immediate');expect(JSON.stringify(doc)).toBe(before);});
