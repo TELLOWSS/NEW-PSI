@@ -681,7 +681,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                     </div>
                 </main>
             }
-            mobileBottomNav={
+            mobileBottomNav={currentPage === 'safety-inspector' ? undefined :
                 <nav className="psi-mobile-nav fixed inset-x-0 bottom-0 z-40 border-t px-2 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] pt-2 backdrop-blur transition-colors lg:hidden no-print" aria-label="모바일 하단 탐색">
                     <div className="grid grid-cols-5 gap-1">
                         {mobileBottomTabs.map((tab) => {
@@ -719,7 +719,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                 </nav>
             }
             scrollTopButton={
-                showScrollTop ? (
+                showScrollTop && currentPage !== 'safety-inspector' ? (
                     <button
                         type="button"
                         onClick={handleScrollToTop}

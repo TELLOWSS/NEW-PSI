@@ -1,5 +1,5 @@
 import React,{lazy,Suspense,useEffect,useId,useRef,useState} from 'react';
-import {actionPriorityLabel,actionSourceNote,actionStatusLabel,actionSuggestions,buildRegisteredActionRequest,calendarDueDate,photoActionEntry,recentActionOwners,type ActionSource,type ActionSuggestion,type FindingActionEntry} from '../../lib/inspector/actionPlan';
+import {actionDraftChanged,actionPriorityLabel,actionSourceNote,actionStatusLabel,actionSuggestions,buildRegisteredActionRequest,calendarDueDate,photoActionEntry,recentActionOwners,type ActionSource,type ActionSuggestion,type FindingActionEntry} from '../../lib/inspector/actionPlan';
 import type {Evidence,Inspection,InspectorAction} from '../../lib/inspector/types';
 import InspectorShareButton from './InspectorShareButton';
 import InspectorActionFollowup,{type ImprovementSubmission} from './InspectorActionFollowup';
@@ -15,7 +15,8 @@ function ActionDraft({suggestion,sources,busy,onSave,onDirty,onOpen,initialPhoto
     const initialTitle=suggestion&&suggestion.title.length<=1000?suggestion.title:'';
     const prefix=useId(),[title,setTitle]=useState(initialTitle),[owner,setOwner]=useState(''),[dueDate,setDueDate]=useState(''),[selected,setSelected]=useState<string[]>(()=>initialPhotoId&&sources.some(s=>s.photoId===initialPhotoId)?[initialPhotoId]:[]),[checked,setChecked]=useState(false),[saved,setSaved]=useState(false);
     const actionId=useRef(crypto.randomUUID());
-    const dirty=!saved&&(!!owner||!!dueDate||!!selected.length||title!==initialTitle);
+    const initialSelected=initialPhotoId&&sources.some(s=>s.photoId===initialPhotoId)?[initialPhotoId]:[];
+    const dirty=!saved&&actionDraftChanged(initialTitle,title,owner,dueDate,selected,initialSelected);
     useEffect(()=>{onDirty(dirty);return()=>onDirty(false);},[dirty,onDirty]);
     useEffect(()=>{if(!dirty)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[dirty]);
     const submit=async(e:React.FormEvent)=>{
@@ -38,7 +39,7 @@ function ActionDraft({suggestion,sources,busy,onSave,onDirty,onOpen,initialPhoto
     </form>;
 }
 
-export default function InspectorActionPlanner({item,busy,active,onSave,onReassign,onDirty,onOpen,evidence,loadPhoto,onSubmitImprovement,onVerify,onAdoptShare,initialPhotoId,initialSelection,onCloseEntry,initialRegistered=false,inboxRequest=0}:{key?:string;item:Inspection;busy:boolean;active:boolean;onSave:(action:InspectorAction)=>Promise<boolean>;onReassign:(change:AssignmentChange)=>Promise<boolean>;onDirty:(dirty:boolean)=>void;onOpen:(id:string)=>void;evidence:Evidence[];loadPhoto:(id:string)=>Promise<Blob>;onSubmitImprovement:(input:ImprovementSubmission)=>Promise<boolean>;onVerify:(id:string,note:string)=>Promise<boolean>;onAdoptShare:(id:string)=>Promise<boolean>;initialPhotoId?:string;initialSelection?:FindingActionEntry;onCloseEntry?:()=>void;initialRegistered?:boolean;inboxRequest?:number}){
+export default function InspectorActionPlanner({item,busy,active,onSave,onReassign,onDirty,onOpen,evidence,loadPhoto,onSubmitImprovement,onVerify,onAdoptShare,initialPhotoId,initialSelection,onCloseEntry,initialRegistered=false,inboxRequest=0,draftRequest=0}:{key?:string;item:Inspection;busy:boolean;active:boolean;onSave:(action:InspectorAction)=>Promise<boolean>;onReassign:(change:AssignmentChange)=>Promise<boolean>;onDirty:(dirty:boolean)=>void;onOpen:(id:string)=>void;evidence:Evidence[];loadPhoto:(id:string)=>Promise<Blob>;onSubmitImprovement:(input:ImprovementSubmission)=>Promise<boolean>;onVerify:(id:string,note:string)=>Promise<boolean>;onAdoptShare:(id:string)=>Promise<boolean>;initialPhotoId?:string;initialSelection?:FindingActionEntry;onCloseEntry?:()=>void;initialRegistered?:boolean;inboxRequest?:number;draftRequest?:number}){
     const selectId=useId();
     const [filter,setFilter]=useState<ActionFilter>(initialRegistered?'unresolved':'all'),[query,setQuery]=useState(''),[order,setOrder]=useState<'registered'|'due'>(initialRegistered?'due':'registered'),[editingFollowup,setEditingFollowup]=useState(false);
     const today=useInspectionDay(editingFollowup);
@@ -51,6 +52,15 @@ export default function InspectorActionPlanner({item,busy,active,onSave,onReassi
     const dirty=useRef(false),followupDirty=useRef(new Set<string>());
     const [replyTarget,setReplyTarget]=useState<{actionId:string;shareId:string;request:number}|null>(null);
     useEffect(()=>{if(!inboxRequest)return;setOpen(true);setMode('inbox');const frame=requestAnimationFrame(()=>{root.current?.scrollIntoView({block:'start',behavior:'smooth'});root.current?.querySelector<HTMLElement>('summary')?.focus({preventScroll:true});});return()=>cancelAnimationFrame(frame);},[inboxRequest]);
+    useEffect(()=>{
+        if(!draftRequest)return;setOpen(true);setMode(dirty.current?'draft':'registered');
+        const frame=requestAnimationFrame(()=>{
+            let target:HTMLElement|null=null;
+            if(dirty.current)target=root.current?.querySelector<HTMLElement>('.si-action-draft textarea,.si-action-draft input')||null;
+            else{const key=[...followupDirty.current][0],id=key?.replace(/^assignment:/,'');const row=id?root.current?.querySelector<HTMLElement>(`[data-action-id="${CSS.escape(id)}"]`):null;if(row){const scope=row.querySelector<HTMLElement>(key?.startsWith('assignment:')?'.si-assignment-editor':'.si-action-followup');if(scope instanceof HTMLDetailsElement)scope.open=true;target=scope?.querySelector<HTMLElement>('textarea,input:not([type=checkbox]):not([type=file]),summary')||scope;}}
+            (target||root.current)?.scrollIntoView({block:'center',behavior:'instant'});target?.focus({preventScroll:true});
+        });return()=>cancelAnimationFrame(frame);
+    },[draftRequest]);
     const openReply=(actionId:string,shareId:string)=>{
         if(busy||dirty.current||followupDirty.current.size)return;
         const index=doc.actions.findIndex(a=>a.id===actionId);if(index<0)return;

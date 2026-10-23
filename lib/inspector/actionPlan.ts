@@ -74,3 +74,8 @@ export const actionStatusLabel=(action:InspectorAction)=>action.status==='verifi
 export function buildRegisteredActionRequest(actions:InspectorAction[],title:string,photoIds:string[]=[]){
     return ['[등록한 현장 조치]',`점검명: ${title}`,...actions.flatMap((a,n)=>['',`${n+1}. ${a.title}`,`담당: ${a.owner} / 기한: ${a.dueDate} / 상태: ${actionStatusLabel(a)}`,...actionPhotoSummary(a,photoIds),...(a.note?[a.note]:[])]),'','미조치는 완료 후 개선사진과 현장 재점검 결과를 회신해 주세요.'].join('\n');
 }
+
+/** Prefilled source scope is a baseline, not an unsaved user edit. */
+export function actionDraftChanged(initialTitle:string,title:string,owner:string,dueDate:string,selected:string[],initialSelected:string[]):boolean {
+    return !!owner||!!dueDate||title!==initialTitle||selected.length!==initialSelected.length||selected.some(id=>!initialSelected.includes(id));
+}
