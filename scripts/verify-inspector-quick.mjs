@@ -262,8 +262,19 @@ try{
         if(['multi-photo','action-group'].includes(scenario)){
             await page.getByLabel('현장사진 선택').setInputFiles({name:'second.jpg',mimeType:'image/jpeg',buffer:source});await page.getByAltText('분석할 현장사진').waitFor();await fillHint('3층 개구부 덮개 없음');await page.locator('.si-quick-start').click();await page.getByLabel('핵심 답변').waitFor();await page.waitForFunction(()=>!document.querySelector('.si-quick-start').disabled);assert.equal(analyzeCalls,2);assert.equal(item.document.photoIds.length,2);assert.equal(ops.filter(op=>op==='create').length,1);
         }
+        const checkActionCsv=async status=>{
+            const beforeOps=ops.length,beforeItem=JSON.stringify(item),beforeAI=analyzeCalls,button=page.getByRole('button',{name:'조치대장 CSV 내려받기 · 1건',exact:true});
+            const waiting=page.waitForEvent('download');await button.click();const download=await waiting;
+            assert.equal(download.suggestedFilename(),`PSI-조치대장-${item.id.slice(0,8)}-v${item.revision}.csv`);
+            const bytes=await readFile(await download.path()),csv=bytes.toString('utf8');assert.deepEqual([...bytes.subarray(0,3)],[239,187,191]);
+            assert.ok(csv.includes('"담당자","기한","상태","조치 전 사진","개선 후 사진"'));assert.ok(csv.includes('"형틀반장","2026-10-23","'+status+'","사진 1"'));
+            assert.ok(csv.includes('"'+item.document.actions[0].title.replaceAll('"','""')+'"'));assert.ok(csv.includes('검토용'));assert.equal(csv.split('\r\n').filter(Boolean).length,2);
+            if(status==='현장 재점검 확인'){assert.ok(csv.includes('"사진 2"'));assert.ok(csv.includes(item.document.actions[0].verifiedAt));}
+            assert.equal(ops.length,beforeOps);assert.equal(analyzeCalls,beforeAI);assert.equal(JSON.stringify(item),beforeItem);
+        };
         if(scenario.startsWith('action-')){
             await page.getByRole('button',{name:'확인하고 다음 사진',exact:true}).click();
+            assert.equal(await page.getByRole('button',{name:'조치대장 CSV 내려받기 · 0건',exact:true}).isDisabled(),true);
             const planner=page.locator('.si-action-planner');await planner.locator(':scope>summary').click();
             if(scenario==='action-manual')await planner.getByLabel('정리할 제안',{exact:true}).selectOption('manual');
             assert.equal(await planner.getByRole('checkbox').evaluateAll(boxes=>boxes.some(box=>box.checked)),false);
@@ -280,6 +291,15 @@ try{
             await save.click();if(scenario==='action-save-failed'){await page.getByRole('alert').waitFor();assert.equal(item.document.actions.length,0);await save.click();}
             await planner.getByText('조치를 미조치 상태로 저장했습니다.',{exact:false}).waitFor();assert.equal(item.document.actions.length,1);assert.equal(item.document.actions[0].status,'open');assert.equal(item.document.actions[0].completionPhotoId,'');assert.ok(item.document.actions[0].note.includes(evidence[0].id));if(evidence.length>1)assert.ok(!item.document.actions[0].note.includes(evidence[1].id));
             await planner.getByRole('button',{name:'등록 조치 1',exact:true}).click();await planner.getByRole('button',{name:'미결 조치요청문 복사',exact:true}).click();await planner.getByText('등록한 조치요청문을 복사했습니다.',{exact:true}).waitFor();const request=await page.evaluate(()=>navigator.clipboard.readText());assert.ok(request.includes('형틀반장'));assert.ok(request.includes('상태: 미조치'));assert.equal(analyzeCalls,scenario==='action-manual'?0:scenario==='action-group'?2:1);
+            if(['action-group','action-manual','action-followup-file'].includes(scenario))await checkActionCsv('미조치');
+            if(scenario==='action-group'){
+                const beforeOps=ops.length;await page.evaluate(()=>{window.__qaCreateObjectURL=URL.createObjectURL;URL.createObjectURL=()=>{throw new Error('fixture download blocked');};});
+                await page.getByRole('button',{name:'조치대장 CSV 내려받기 · 1건',exact:true}).click();await page.getByText('파일을 준비하지 못했습니다. 다시 시도해 주세요. 저장된 점검은 유지됩니다.',{exact:true}).waitFor();
+                await page.evaluate(()=>{URL.createObjectURL=window.__qaCreateObjectURL;delete window.__qaCreateObjectURL;});assert.equal(ops.length,beforeOps);await checkActionCsv('미조치');
+                const panel=page.getByRole('region',{name:'보고서와 현장 인계',exact:true});
+                for(const width of [320,390,844]){await page.setViewportSize({width,height:width===844?390:900});await panel.scrollIntoViewIfNeeded();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:`${out}/action-register-${width}.png`,fullPage:true});}
+                await page.setViewportSize({width:390,height:900});await page.evaluate(()=>document.documentElement.classList.add('dark'));await page.waitForTimeout(250);await panel.scrollIntoViewIfNeeded();await page.screenshot({path:out+'/action-register-dark.png',fullPage:true});await page.evaluate(()=>document.documentElement.classList.remove('dark'));
+            }
             if(scenario==='action-group'){await page.screenshot({path:out+'/registered-action-mobile.png',fullPage:true});await page.evaluate(()=>document.documentElement.classList.add('dark'));await page.screenshot({path:out+'/registered-action-dark.png',fullPage:true});await page.evaluate(()=>document.documentElement.classList.remove('dark'));}
             if(scenario.startsWith('action-followup-')){
                 await page.getByRole('button',{name:'모은 자료로 보고서 완성',exact:true}).last().click();await page.getByRole('article',{name:'점검 검토용 보고서'}).waitFor();const frozen=JSON.stringify(reports[0]);assert.equal(reports[0].snapshot.inspection.document.actions[0].status,'open');await page.getByRole('button',{name:'사진 더 추가',exact:true}).click();
@@ -298,9 +318,11 @@ try{
                 }
                 await followup.getByRole('heading',{name:'현장 재점검 확인',exact:true}).waitFor();assert.equal(item.document.actions[0].status,'review-requested');assert.equal(evidence.length,2);assert.equal(item.document.photoIds.length,2);assert.deepEqual(item.document.actions[0].sourcePhotoIds,[evidence[0].id]);assert.notEqual(evidence[0].sha256,evidence[1].sha256);assert.equal(item.document.materialCompletion,undefined);assert.equal(analyzeCalls,1);assert.equal(JSON.stringify(reports[0]),frozen);
                 if(scenario==='action-followup-resume'){await page.reload({waitUntil:'domcontentloaded'});await page.getByRole('button',{name:'이전 점검 이어하기',exact:true}).click();await planner.locator(':scope>summary').click();await planner.getByRole('button',{name:'등록 조치 1',exact:true}).click();followup=planner.locator('.si-action-followup');await followup.locator(':scope>summary').click();await followup.getByRole('heading',{name:'현장 재점검 확인',exact:true}).waitFor();}
+                if(scenario==='action-followup-file')await checkActionCsv('완료 검토 요청');
                 const verify=followup.getByRole('button',{name:'현장 재점검 확정',exact:true});assert.equal(await verify.isEnabled(),false);await followup.getByLabel('현장에서 확인한 내용 (5자 이상)',{exact:true}).fill('실제 현장에서 고정 상태와 통행 상태를 재확인');assert.equal(await verify.isEnabled(),false);await followup.getByLabel('개선사진과 실제 현장 상태를 재점검했습니다.',{exact:true}).check();
                 for(const width of [320,390,768,1440]){await page.setViewportSize({width,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);}await page.setViewportSize({width:390,height:900});
                 await verify.click();await followup.getByText('현장 재점검 확인 ·',{exact:false}).waitFor();assert.equal(item.document.actions[0].status,'verified');assert.ok(item.document.actions[0].verifiedAt);assert.equal(JSON.stringify(reports[0]),frozen);assert.equal(analyzeCalls,1);assert.equal(ops.filter(op=>op==='verify-action').length,1);
+                if(scenario==='action-followup-file')await checkActionCsv('현장 재점검 확인');
                 await followup.getByRole('button',{name:'전후 사진·조치 보내기',exact:true}).click();const share=page.getByRole('dialog',{name:'현장 자료 보내기',exact:true});await page.waitForFunction(()=>document.querySelectorAll('.si-share-files img').length===2);assert.equal(await share.getByRole('checkbox').count(),2);const message=await share.getByLabel('보낼 문구',{exact:true}).inputValue();assert.ok(message.includes('조치 전: 사진 1'));assert.ok(message.includes('개선 후: 사진 2'));assert.ok(message.includes('상태: 현장 재점검 확인'));await share.getByRole('button',{name:'닫기',exact:true}).click();
                 if(scenario==='action-followup-file'){await followup.scrollIntoViewIfNeeded();await page.screenshot({path:out+'/followup-verified-mobile.png',fullPage:true});await page.evaluate(()=>document.documentElement.classList.add('dark'));await page.screenshot({path:out+'/followup-verified-dark.png',fullPage:true});await page.evaluate(()=>document.documentElement.classList.remove('dark'));}
             }
