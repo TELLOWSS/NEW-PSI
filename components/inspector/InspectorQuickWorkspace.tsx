@@ -169,7 +169,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
         if(current.document.photoIds.every(id=>current.document.analyses[id]&&current.document.reviews[id]?.decision==='accepted')&&!current.document.materialCompletion)current=accept((await request({op:'complete-materials',id:current.id,expectedRevision:current.revision})).item);
         setActivity('사진·전문가 의견·근거를 보고서에 저장 중');
         const r=await request({op:'report',id:current.id,expectedRevision:current.revision});
-        if(alive.current){forgetReviewPosition(current.id);setReport(r.report);requestAnimationFrame(()=>document.querySelector('.si-report')?.scrollIntoView({block:'start',behavior:'smooth'}));}
+        if(alive.current){forgetReviewPosition(current.id);setReviewNotice('');setReport(r.report);requestAnimationFrame(()=>document.querySelector('.si-report')?.scrollIntoView({block:'start',behavior:'smooth'}));}
     });
     const restoreSavedPhoto=async(current:Inspection,registered:Evidence)=>{
         const photoId=registered.id;
