@@ -9,7 +9,7 @@ const canonical=(value:unknown):string=>Array.isArray(value)?`[${value.map(canon
 /** Read back only the same saved photo/analysis/context after a lost confirmation response. */
 export function recoveredReview(before:Inspection,after:Inspection,photo:Evidence,evidence:Evidence[],review:ExpertReview,control?:{state:string}|null){
  const id=photo.id,a=before.document,b=after.document;
- return (!control||control.state==='active')&&after.id===before.id&&after.revision>before.revision&&a.photoIds.includes(id)&&b.photoIds.includes(id)&&!!a.analyses[id]&&a.analyses[id].source_photo_sha256===photo.sha256&&evidence.some(p=>p.id===id&&p.inspection_id===before.id&&p.sha256===photo.sha256)&&(a.photoNotes?.[id]||'')===(b.photoNotes?.[id]||'')&&a.eventAt===b.eventAt&&canonical(a.analyses[id])===canonical(b.analyses[id])&&reviewIsSaved(after,id,review);
+ return (!control||control.state==='active')&&after.id===before.id&&after.revision>before.revision&&a.photoIds.includes(id)&&b.photoIds.includes(id)&&!!a.analyses[id]&&a.analyses[id].source_photo_sha256===photo.sha256&&evidence.some(p=>p.id===id&&p.inspection_id===before.id&&p.sha256===photo.sha256)&&(a.photoNotes?.[id]||'')===(b.photoNotes?.[id]||'')&&(['title','eventAt','siteName','location','workType','notes','urgent','apiEnabled'] as const).every(key=>a[key]===b[key])&&canonical(a.analyses[id])===canonical(b.analyses[id])&&reviewIsSaved(after,id,review);
 }
 export type ReviewPosition={inspectionId:string;photoId:string};
 const uuid=(value:unknown)=>typeof value==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value);
