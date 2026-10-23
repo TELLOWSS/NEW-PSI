@@ -12,6 +12,7 @@ export default function InspectorLegalResult({reference}:{reference:LegalReferen
             <div className="si-legal-actions"><b>바로 할 조치</b><ul>{card.actions.map(action=><li key={action}>{action}</li>)}</ul></div>
             {card.duties.map(duty=><div className="si-legal-duty" key={duty.label}><a href={duty.url} target="_blank" rel="noopener noreferrer">{duty.label} ↗</a><p>{duty.summary}</p></div>)}
             {card.sanctions.map((s,n)=><div className={`si-sanction si-sanction-${s.kind}`} key={n}><span>{s.kind==='criminal'?'형사벌칙':'행정 과태료'} · 대상: {s.actor}</span><strong>{sanctionText(s)}</strong><p>{s.condition}</p><a href={s.url} target="_blank" rel="noopener noreferrer">근거: {s.basis} ↗</a></div>)}
+            {card.sanctionNote&&<p className="si-notice">금액 자동 산정 안 함 · {card.sanctionNote}</p>}
             <p className="si-caption">적용 전 확인: {card.scope}</p>
         </article>)}
         {!!reference.inspectionCases?.length&&<section className="si-report-cases"><h4>관련 고용노동부 공개 감독사례</h4><p className="si-caption">관련 주제 참고 사례이며 이 현장과 동일 사건·처분이 아닙니다. 수록 사례 원문 확인: {reference.casesReviewedAt||'2026-10-21'}</p>{reference.inspectionCases.map(c=><article key={c.id}><h4>{c.title} · {c.publishedAt}</h4><p>{c.finding}</p><p>{c.response}</p><p>현장 적용 힌트: {c.lesson}</p><a href={c.url} target="_blank" rel="noopener noreferrer">고용노동부 공식 원문 ↗</a></article>)}</section>}
