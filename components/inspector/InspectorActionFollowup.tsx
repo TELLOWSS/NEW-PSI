@@ -21,7 +21,7 @@ function usePhoto(id:string,local:Blob|undefined,enabled:boolean,loadPhoto:(id:s
     },[id,local,enabled,loadPhoto]);
     return enabled&&photo.id===id?photo:{};
 }
-export default function InspectorActionFollowup({item,action,evidence,busy,loadPhoto,onSubmit,onVerify,onDirty}:{item:Inspection;action:InspectorAction;evidence:Evidence[];busy:boolean;loadPhoto:(id:string)=>Promise<Blob>;onSubmit:(input:ImprovementSubmission)=>Promise<boolean>;onVerify:(actionId:string,note:string)=>Promise<boolean>;onDirty:(id:string,dirty:boolean)=>void}){
+export default function InspectorActionFollowup({item,action,evidence,busy,loadPhoto,onSubmit,onVerify,onDirty}:{key?:string;item:Inspection;action:InspectorAction;evidence:Evidence[];busy:boolean;loadPhoto:(id:string)=>Promise<Blob>;onSubmit:(input:ImprovementSubmission)=>Promise<boolean>;onVerify:(actionId:string,note:string)=>Promise<boolean>;onDirty:(id:string,dirty:boolean)=>void}){
     const prefix=useId(),[open,setOpen]=useState(false),[prepared,setPrepared]=useState<PreparedImprovement|null>(null),[choosing,setChoosing]=useState(false),[camera,setCamera]=useState(false),[error,setError]=useState(''),[submitted,setSubmitted]=useState(false);
     const [beforeId,setBeforeId]=useState(action.sourcePhotoIds?.[0]||''),[afterId,setAfterId]=useState(action.completionPhotoId),[note,setNote]=useState(action.status==='review-requested'?action.note:''),[checked,setChecked]=useState(false),[verification,setVerification]=useState(''),[rechecked,setRechecked]=useState(false),[zoom,setZoom]=useState('');
     const choosingRef=useRef(false);
