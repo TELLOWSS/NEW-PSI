@@ -2,6 +2,7 @@ import type {LegalCard} from './legal.js';
 import {fieldGuide} from './fieldGuide.js';
 /** Concise application lenses derived from the dated duties; never machine measurements. */
 const standards:Record<string,string>={
+ 'rebar-puncture':'콘크리트공사 표준안전 작업지침 제16조제3호: 조립된 철근 접촉에 따른 찔림·화상 등의 위험 방지. 지도·권고 기술 지침이며 개구부·단부 추락 기준과 구분.',
  opening:'추락 위험 개구부·발판 끝은 고정 덮개·안전난간 등으로 방호. 난간 상부 높이 90cm 이상, 중간 난간 등 구조 조건은 제13조 대조.',
  fall:'발판 확보가 우선. 설치 곤란 시 추락방호망, 그마저 곤란 시 안전대 등 필요한 대체조치. 가장자리·개구부는 제43조 별도 대조.',
  scaffold:'제56조 대상 비계·높이 2m 이상: 발판 폭 40cm 이상, 발판재료 사이 틈 3cm 이하 및 고정·강도. 비계 종류별 제외·조문 예외 먼저 확인.',

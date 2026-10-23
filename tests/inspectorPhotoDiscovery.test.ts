@@ -11,8 +11,8 @@ describe('photo-first discovery boundaries',()=>{
         const a=analysis(),r=legalForText('개구부 덮개 난간 미설치 전선'),before=JSON.stringify(a);
         expect(r.cards[0].id).toBe('opening');expect(findingLegalTopic(a,r,0)).toBe('electric');expect(findingLegalTopic(a,r,1)).toBe('');expect(JSON.stringify(a)).toBe(before);
     });
-    it('does not manufacture a legal match for missing findings, foreign references or missing observations',()=>{
-        const a=analysis();expect(findingLegalTopic(a,legalForText('개구부'),0)).toBe('');expect(findingLegalTopic({...a,risk_findings:[]},legalForText('전선'),0)).toBe('');a.risk_findings![0].observation_index='5';expect(findingLegalTopic(a,legalForText('전선'),0)).toBe('');
+    it('does not manufacture a legal match for missing findings or missing observations, while resolving outside prior candidates',()=>{
+        const a=analysis();expect(findingLegalTopic(a,legalForText('개구부'),0)).toBe('electric');expect(findingLegalTopic({...a,risk_findings:[]},legalForText('전선'),0)).toBe('');a.risk_findings![0].observation_index='5';expect(findingLegalTopic(a,legalForText('전선'),0)).toBe('');
     });
     it('supports empty hints without inserting a guessed problem and keeps manual imports compatible',()=>{
         const doc=newInspectionDocument(),before=JSON.stringify(doc),photo={id:'photo',sha256:'a'.repeat(64),inspection_id:'inspection',mime_type:'image/jpeg',byte_size:1,created_at:'2026-10-23T00:00:00Z'};
