@@ -76,13 +76,16 @@ describe('consolidated administrator security boundary', () => {
     });
 });
 
-it('keeps four deployable functions with legacy rewrites and separate OCR duration', () => {
+it('keeps five deployable functions with a separate scoped reply endpoint and OCR duration', () => {
     const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? walk(resolve(dir, entry.name)) : [resolve(dir, entry.name)]);
     const entries = walk(resolve('api')).filter(path => /\.ts$/.test(path) && !/\.d\.ts$/.test(path));
-    expect(entries).toHaveLength(4);
+    expect(entries).toHaveLength(5);
+    expect(entries).toContain(resolve('api/inspection-share.ts'));
     const config = JSON.parse(readFileSync(resolve('vercel.json'), 'utf8'));
     expect(config.rewrites[0]).toEqual({ source: '/api/admin/:endpoint', destination: '/api/admin?endpoint=:endpoint' });
     expect(config.functions['api/admin.ts'].maxDuration).toBe(90);
     expect(config.functions['api/gateway.ts'].maxDuration).toBe(240);
+    expect(config.functions['api/inspection-share.ts'].maxDuration).toBe(30);
+    for(const route of config.headers)for(const header of route.headers){expect(typeof header.key).toBe('string');expect(typeof header.value).toBe('string');}
     for (const path of Object.keys(config.functions)) expect(entries).toContain(resolve(path));
 });

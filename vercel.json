@@ -26,37 +26,75 @@
     }
   ],
   "headers": [
-    {"source":"/inspection-reply", "headers":[{"key":"X-Robots-Tag","value":"noindex, nofollow, noarchive"},{"key":"Referrer-Policy","value":"no-referrer"}]},
     {
       "source": "/(.*)",
       "headers": [
-    {"source":"/inspection-reply", "headers":[{"key":"X-Robots-Tag","value":"noindex, nofollow, noarchive"},{"key":"Referrer-Policy","value":"no-referrer"}]},
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://aistudiocdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src 'self' data: blob: https://flagcdn.com https://www.transparenttextures.com; connect-src 'self' https: wss:; worker-src 'self' blob:; media-src 'self' data: blob:; manifest-src 'self'; upgrade-insecure-requests" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()" },
-        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin-allow-popups" },
-        { "key": "Cross-Origin-Resource-Policy", "value": "same-site" }
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://aistudiocdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src 'self' data: blob: https://flagcdn.com https://www.transparenttextures.com; connect-src 'self' https: wss:; worker-src 'self' blob:; media-src 'self' data: blob:; manifest-src 'self'; upgrade-insecure-requests"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()"
+        },
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin-allow-popups"
+        },
+        {
+          "key": "Cross-Origin-Resource-Policy",
+          "value": "same-site"
+        }
       ]
     },
     {
       "source": "/api/(.*)",
       "headers": [
-    {"source":"/inspection-reply", "headers":[{"key":"X-Robots-Tag","value":"noindex, nofollow, noarchive"},{"key":"Referrer-Policy","value":"no-referrer"}]},
-        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" }
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate"
+        }
       ]
     },
     {
       "source": "/(.*\\.js|.*\\.css|.*\\.woff2?|.*\\.png|.*\\.svg|.*\\.ico)",
       "headers": [
-    {"source":"/inspection-reply", "headers":[{"key":"X-Robots-Tag","value":"noindex, nofollow, noarchive"},{"key":"Referrer-Policy","value":"no-referrer"}]},
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/inspection-reply",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
       ]
     }
   ],
   "functions": {
-    "api/inspection-share.ts": {"maxDuration":30},
+    "api/inspection-share.ts": {
+      "maxDuration": 30
+    },
     "api/admin.ts": {
       "maxDuration": 90
     },
