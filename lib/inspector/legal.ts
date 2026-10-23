@@ -69,7 +69,7 @@ export function legalForPhoto(analysis:VisionImport|null|undefined,note:string,e
     return legalForText([note,...(analysis?.observed_facts.map(f=>f.text)||[]),...(analysis?.law_candidate_keywords||[])].join('\n'),eventAt);
 }
 export function legalForInspection(doc:InspectionDocument,photoIds=doc.photoIds):LegalReference {
-    const references=[legalForText([doc.workType,doc.notes].join(' '),doc.eventAt),...photoIds.map(id=>doc.reviews[id]?.decision==='rejected'?legalForText([doc.photoNotes?.[id]||'',doc.reviews[id].note].join(' '),doc.eventAt):legalForPhoto(doc.analyses[id],doc.photoNotes?.[id]||'',doc.eventAt))];
-    // Frozen reports retain their saved legalReference. New references never treat controls/hypotheses as facts.
+    const references=[legalForText([doc.workType,doc.notes].join(' '),doc.eventAt),...photoIds.flatMap(id=>doc.reviews[id]?.decision==='rejected'?[legalForText([doc.photoNotes?.[id]||'',doc.reviews[id].note].join(' '),doc.eventAt)]:[legalForPhoto(doc.analyses[id],'',doc.eventAt),legalForText(doc.photoNotes?.[id]||'',doc.eventAt)])];
+    // Inspector statements remain report material independently of AI. Frozen references are never rewritten.
     return legalForTopics(references.flatMap(r=>r.cards.map(c=>c.id)),doc.eventAt);
 }
