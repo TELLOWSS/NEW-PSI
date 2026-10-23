@@ -2,13 +2,14 @@ import React,{useEffect,useState} from 'react';
 import {photoQueue,photoFilterLabels,overdueAction,type PhotoFilter} from '../../lib/inspector/workQueue';
 import {useInspectionDay} from './useInspectionDay';
 import type {Inspection} from '../../lib/inspector/types';
+import {pendingReviewQueue} from '../../lib/inspector/reviewQueue';
 import InspectorHandover from './InspectorHandover';
 export default function InspectorPhotoCollection({item,active,busy,title,onTitle,onOpen,onFinish}:{item:Inspection;active:boolean;busy:boolean;title:string;onTitle:(title:string)=>void;onOpen:(id:string)=>void;onFinish:()=>void}){
     const [open,setOpen]=useState(!active&&item.document.photoIds.length<=5),[filter,setFilter]=useState<PhotoFilter>('all'),[page,setPage]=useState(0);
     useEffect(()=>setOpen(!active&&item.document.photoIds.length<=5),[active,item.document.photoIds.length]);
     const today=useInspectionDay(),doc=item.document,rows=photoQueue(doc),reviewed=doc.photoIds.filter(id=>!!doc.reviews[id]).length;
     const filtered=rows.filter(p=>filter==='all'||p.kind===filter),pages=Math.max(1,Math.ceil(filtered.length/5)),current=Math.min(page,pages-1);
-    const pending=rows.filter(p=>p.kind==='pending'),requested=doc.actions.filter(a=>a.status==='review-requested'),late=doc.actions.filter(a=>overdueAction(a,today));
+    const pending=pendingReviewQueue(doc),requested=doc.actions.filter(a=>a.status==='review-requested'),late=doc.actions.filter(a=>overdueAction(a,today));
     return <section className="si-photo-collection" aria-label="모은 사진과 보고서">
         {!active&&<div className="si-work-summary" aria-label="이 점검의 다음 할 일"><div><b>이어서 처리할 사항</b><span>기준일 {today} · 한국시간 · 기기 시계</span></div><dl><div><dt>AI 검토 대기</dt><dd>{pending.length}장</dd></div><div><dt>완료 검토 요청</dt><dd>{requested.length}건</dd></div><div><dt>기한 지난 미결</dt><dd>{late.length}건</dd></div></dl>{pending.length>0?<button type="button" className="si-btn" disabled={busy} onClick={()=>onOpen(pending[0].id)}>검토 대기 사진 {pending[0].number}부터 이어보기</button>:<p className="si-caption">AI 검토 대기 사진이 없습니다. 조치 완료·안전 승인 여부와는 별개입니다.</p>}</div>}
         <details open={open} onToggle={e=>setOpen(e.currentTarget.open)}><summary>모은 사진 {doc.photoIds.length}장 <span>· 전문가 검토 {reviewed}장</span></summary>
