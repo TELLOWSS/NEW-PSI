@@ -9,12 +9,12 @@ import {findingLegalReference} from '../../lib/inspector/photoDiscovery';
 
 const priorities={immediate:'우선 통제 검토',soon:'빠른 개선 검토',routine:'관리 상태 확인'};
 const panels=['핵심 조치','법령·금액','사례·동향'];
-export default function InspectorAnswer({analysis,reference,note,hasPhoto=false,rejected=false,onViewPhoto,onComposeCard}:{key?:number|string;analysis:VisionImport|null|undefined;reference:LegalReference;note:string;hasPhoto?:boolean;rejected?:boolean;onViewPhoto?:(location:string)=>void;onComposeCard?:(findingIndex:number)=>void}) {
-    const [tab,setTab]=useState(0),[findingIndex,setFindingIndex]=useState(0),[manual,setManual]=useState<{analysis:VisionImport|null|undefined;index:number;topic:string}|null>(null);
+export default function InspectorAnswer({analysis,reference,note,hasPhoto=false,rejected=false,onViewPhoto,onComposeCard,selectedFinding,onFindingChange,onDraftAction}:{key?:number|string;analysis:VisionImport|null|undefined;reference:LegalReference;note:string;hasPhoto?:boolean;rejected?:boolean;onViewPhoto?:(location:string)=>void;onComposeCard?:(findingIndex:number)=>void;selectedFinding?:number;onFindingChange?:(index:number)=>void;onDraftAction?:()=>void}) {
+    const [tab,setTab]=useState(0),[internalFindingIndex,setFindingIndex]=useState(0),[manual,setManual]=useState<{analysis:VisionImport|null|undefined;index:number;topic:string}|null>(null);
     const [copyState,setCopyState]=useState<{analysis:VisionImport;index:number;message:string}|null>(null);
     const picker=useRef<HTMLDivElement>(null);
     const id=useId(),tabs=useRef<(HTMLButtonElement|null)[]>([]),panel=useRef<HTMLElement>(null);
-    const findings=analysis?.risk_findings||[],finding=findings[findingIndex],fact=finding?analysis?.observed_facts[Number(finding.observation_index)]:undefined;
+    const findings=analysis?.risk_findings||[],findingIndex=selectedFinding??internalFindingIndex,finding=findings[findingIndex],fact=finding?analysis?.observed_facts[Number(finding.observation_index)]:undefined;
     const matched=analysis?.risk_findings&&!rejected?findingLegalReference(analysis,reference,findingIndex):reference;
     const overridden=!!manual&&manual.analysis===analysis&&manual.index===findingIndex;
     const topic=overridden?manual.topic:matched.cards[0]?.id||'';
@@ -27,7 +27,7 @@ export default function InspectorAnswer({analysis,reference,note,hasPhoto=false,
     const cases=(topicReference.inspectionCases||[]).filter(c=>c.topics.includes(topic));
     const chooseTab=(n:number)=>{setTab(n);requestAnimationFrame(()=>panel.current?.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'}));};
     const chooseFinding=(n:number)=>{
-        setFindingIndex(n);setManual(null);
+        setFindingIndex(n);onFindingChange?.(n);setManual(null);
         requestAnimationFrame(()=>picker.current?.querySelector<HTMLButtonElement>(`[data-finding-index="${n}"]`)?.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'}));
     };
     const copyFinding=async()=>{
@@ -51,6 +51,7 @@ export default function InspectorAnswer({analysis,reference,note,hasPhoto=false,
                     <details key={findingIndex} className="si-finding-proof"><summary><InspectorIcon name="search"/>사진 근거·위험 설명</summary><div><p className="si-evidence"><b>어디를 볼까요</b> {fact?.visual_basis}</p><p className="si-evidence"><b>사진에 보이는 단서</b> {fact?.text}</p><div className="si-risk"><b>왜 문제가 될까요</b><p>{finding.risk}</p></div></div></details>
                     {!rejected&&<div className="si-finding-copy"><button className="si-btn" type="button" onClick={()=>void copyFinding()}><InspectorIcon name="document"/>이 위험·조치 복사</button><p role="status" aria-live="polite">{copyMessage}</p></div>}</>:analysis?<><h3>{analysis.risk_findings||!analysis.observed_facts.length?'이 사진으로 문제를 특정하기 어렵습니다':'사진에서 보이는 상황'}</h3><ul>{analysis.observed_facts.slice(0,analysis.risk_findings?1:3).map((f,n)=><li key={n}>{f.text}<small>{f.visual_basis}</small></li>)}</ul>{analysis.risk_findings&&<p className="si-caption">구체적인 위험 해석이 제시되지 않았습니다. 안전이 확인되었다는 뜻은 아닙니다.</p>}{!analysis.risk_findings&&analysis.ai_hypotheses.length>0&&<div className="si-risk"><b>추가 해석 · AI 추론</b><p>{analysis.ai_hypotheses[0].text}</p><small>{analysis.ai_hypotheses[0].reason}</small></div>}{!analysis.risk_findings&&analysis.recommended_controls[0]&&<div className="si-do-now"><b>우선 조치 제안</b><p>{analysis.recommended_controls[0].action}</p></div>}</>:<><p className="si-priority">{hasPhoto&&!note.trim()?'사진 저장 상태 · AI 판독 전':'입력 설명 기준 · 사진 판독 아님'}</p><h3>{card?.title||(hasPhoto&&!note.trim()?'아직 사진에서 위험을 찾은 결과가 아닙니다':'상황을 조금 더 구체적으로 알려 주세요')}</h3><p>{hasPhoto&&!note.trim()?'사진 자체의 단서를 찾으려면 사진 AI 연결과 ON 상태가 필요합니다. 설명 입력은 필수가 아닙니다.':brief(note)}</p>{note.length>180&&<details><summary>입력 설명 전체</summary><p>{note}</p></details>}{card&&<div className="si-do-now"><b>우선 조치 참고</b><p>{card.actions[0]}</p></div>}</>}
                 </article>
+                {onDraftAction&&finding&&<button type="button" className="si-btn si-primary si-selected-action-entry" onClick={onDraftAction}>{rejected?'사진 검토 저장 · 전문가 조치 작성':'사진 검토 저장 · 이 위험 조치 작성'}</button>}{onDraftAction&&finding&&<p className="si-caption">사진 전체의 검토 선택·의견을 함께 저장합니다. 조치·담당·기한은 다음 화면에서 확인한 뒤 등록합니다.</p>}
                 {onComposeCard&&<button type="button" className="si-btn si-card-entry" onClick={()=>onComposeCard(finding?findingIndex:-1)}>이 사진·조치 한 장으로 보내기</button>}
                 {analysis?.risk_findings&&findings.length===0&&<aside className="si-discovery-next" aria-label="다음에 확인할 한 가지"><h3>다음에 확인할 한 가지</h3>{followup?<><b>{brief(followup.question)}</b><p>{brief(followup.why)}</p></>:<p>{brief(analysis.limitations[0]||'촬영 범위와 화질만으로 구체적인 문제를 좁히기 어렵습니다.')}</p>}<p>안전한 위치에서 대상과 주변 작업이 함께 보이는 사진을 보태거나, 아는 상황만 힌트로 적어 주세요. 위험구역에 들어가거나 설비를 조작하며 촬영하지 마세요.</p><small>선택 보완 사항입니다. 답변·재촬영이 보고서 작성을 막지 않습니다.</small></aside>}
                 {card&&(!analysis||finding)&&<div className="si-law-preview"><b>{card.duties[0].label}</b><p>{card.sanctions[0]?sanctionText(card.sanctions[0]):'금액 자동 산정 안 함'}</p>{card.sanctions[0]?<small>{card.sanctions[0].actor} · 의무 위반 성립 시 법정상한 · 실제 부과액 아님</small>:<small>{card.sanctionNote}</small>}<button className="si-btn" type="button" onClick={()=>{chooseTab(1);requestAnimationFrame(()=>tabs.current[1]?.focus());}}>이 사진의 적용 조건 보기</button></div>}

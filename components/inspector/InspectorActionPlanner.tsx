@@ -1,5 +1,5 @@
 import React,{useEffect,useId,useRef,useState} from 'react';
-import {actionPriorityLabel,actionSourceNote,actionStatusLabel,actionSuggestions,buildRegisteredActionRequest,calendarDueDate,photoActionEntry,recentActionOwners,type ActionSource,type ActionSuggestion} from '../../lib/inspector/actionPlan';
+import {actionPriorityLabel,actionSourceNote,actionStatusLabel,actionSuggestions,buildRegisteredActionRequest,calendarDueDate,photoActionEntry,recentActionOwners,type ActionSource,type ActionSuggestion,type FindingActionEntry} from '../../lib/inspector/actionPlan';
 import type {Evidence,Inspection,InspectorAction} from '../../lib/inspector/types';
 import InspectorShareButton from './InspectorShareButton';
 import InspectorActionFollowup,{type ImprovementSubmission} from './InspectorActionFollowup';
@@ -35,11 +35,14 @@ function ActionDraft({suggestion,sources,busy,onSave,onDirty,onOpen,initialPhoto
     </form>;
 }
 
-export default function InspectorActionPlanner({item,busy,active,onSave,onReassign,onDirty,onOpen,evidence,loadPhoto,onSubmitImprovement,onVerify,initialPhotoId,onCloseEntry,initialRegistered=false}:{key?:string;item:Inspection;busy:boolean;active:boolean;onSave:(action:InspectorAction)=>Promise<boolean>;onReassign:(change:AssignmentChange)=>Promise<boolean>;onDirty:(dirty:boolean)=>void;onOpen:(id:string)=>void;evidence:Evidence[];loadPhoto:(id:string)=>Promise<Blob>;onSubmitImprovement:(input:ImprovementSubmission)=>Promise<boolean>;onVerify:(id:string,note:string)=>Promise<boolean>;initialPhotoId?:string;onCloseEntry?:()=>void;initialRegistered?:boolean}){
+export default function InspectorActionPlanner({item,busy,active,onSave,onReassign,onDirty,onOpen,evidence,loadPhoto,onSubmitImprovement,onVerify,initialPhotoId,initialSelection,onCloseEntry,initialRegistered=false}:{key?:string;item:Inspection;busy:boolean;active:boolean;onSave:(action:InspectorAction)=>Promise<boolean>;onReassign:(change:AssignmentChange)=>Promise<boolean>;onDirty:(dirty:boolean)=>void;onOpen:(id:string)=>void;evidence:Evidence[];loadPhoto:(id:string)=>Promise<Blob>;onSubmitImprovement:(input:ImprovementSubmission)=>Promise<boolean>;onVerify:(id:string,note:string)=>Promise<boolean>;initialPhotoId?:string;initialSelection?:FindingActionEntry;onCloseEntry?:()=>void;initialRegistered?:boolean}){
     const selectId=useId();
     const [filter,setFilter]=useState<ActionFilter>(initialRegistered?'unresolved':'all'),[query,setQuery]=useState(''),[order,setOrder]=useState<'registered'|'due'>(initialRegistered?'due':'registered'),[editingFollowup,setEditingFollowup]=useState(false);
     const today=useInspectionDay(editingFollowup);
-    const doc=item.document,suggestions=actionSuggestions(doc),[selected,setSelected]=useState(()=>initialPhotoId?photoActionEntry(doc,initialPhotoId):''),[mode,setMode]=useState<'draft'|'registered'>(initialRegistered?'registered':'draft'),[message,setMessage]=useState(''),[page,setPage]=useState(0);
+    const doc=item.document,suggestions=actionSuggestions(doc),[selected,setSelected]=useState(()=>{
+        if(!initialSelection)return initialPhotoId?photoActionEntry(doc,initialPhotoId):'';
+        return suggestions.some(s=>s.key===initialSelection.key&&s.sources.some(source=>source.photoId===initialPhotoId))?initialSelection.key:'manual';
+    }),[mode,setMode]=useState<'draft'|'registered'>(initialRegistered?'registered':'draft'),[message,setMessage]=useState(''),[page,setPage]=useState(0);
     const root=useRef<HTMLDetailsElement>(null),[open,setOpen]=useState(!!initialPhotoId||initialRegistered);
     useEffect(()=>{if(!initialPhotoId&&!initialRegistered)return;const frame=requestAnimationFrame(()=>{root.current?.scrollIntoView({block:'start',behavior:'smooth'});if(initialPhotoId)root.current?.querySelector<HTMLTextAreaElement>('textarea')?.focus({preventScroll:true});else root.current?.querySelector<HTMLElement>('summary')?.focus({preventScroll:true});});return()=>cancelAnimationFrame(frame);},[initialPhotoId,initialRegistered]);
     const dirty=useRef(false),followupDirty=useRef(new Set<string>());
@@ -59,6 +62,7 @@ export default function InspectorActionPlanner({item,busy,active,onSave,onReassi
         {initialRegistered&&<p className="si-caption si-action-record-title">점검: <b>{doc.title}</b> · 저장 버전 {item.revision}</p>}
         <p className="si-caption">{initialRegistered?'미조치와 완료 검토 요청을 기한순으로 열었습니다. 개선사진과 현장 상태를 대조해 이어서 확인하세요.':'선택 기능 · 검토한 사진의 같은 조치 문구를 묶어 봅니다. 조치는 직접 확인해 저장하세요.'}</p>
         {initialPhotoId&&doc.photoIds.includes(initialPhotoId)&&<p className="si-notice">사진 {doc.photoIds.indexOf(initialPhotoId)+1}에서 이어 작성합니다. 이 사진만 먼저 선택했으며 다른 사진은 직접 추가하세요. 담당자·기한·적용 범위를 확인한 뒤 저장합니다. {onCloseEntry&&<button type="button" className="si-btn" disabled={busy} onClick={onCloseEntry}>이 조치 작성 닫기</button>}</p>}
+        {initialSelection&&selected===initialSelection.key&&<p className="si-notice si-action-origin" aria-label="조치 작성 출처">{initialSelection.context}</p>}
         <div className="si-action-views"><button type="button" className="si-btn" aria-pressed={mode==='draft'} onClick={()=>setMode('draft')}>조치 정리</button><button type="button" className="si-btn" aria-pressed={mode==='registered'} onClick={()=>setMode('registered')}>등록 조치 {doc.actions.length}</button></div>
         <div hidden={mode!=='draft'} onFocusCapture={()=>{if(!selected&&current)setSelected(current.key);}}>
             <label className="si-label" htmlFor={selectId}>정리할 제안</label><select id={selectId} value={manual?'manual':current?.key||''} disabled={busy} onChange={e=>{if(!dirty.current||window.confirm('제안을 바꾸면 작성 중인 조치 입력이 지워집니다. 바꿀까요?'))setSelected(e.target.value);}}>{!suggestions.length&&<option value="">검토한 사진의 조치 제안 없음</option>}{suggestions.map((s,n)=><option key={s.key} value={s.key}>{n+1}. {actionPriorityLabel[s.priority]} · {s.title.slice(0,45)} · 사진 {s.sources.length}장</option>)}<option value="manual">직접 조치 작성</option></select>
