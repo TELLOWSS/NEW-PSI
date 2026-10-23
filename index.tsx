@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 const OperationalApp = React.lazy(() => import('./pages/OperationalApp'));
+const InspectorReply = React.lazy(() => import('./pages/InspectorReply'));
 const InspectorProduct = React.lazy(() => import('./pages/InspectorProduct'));
 const TenantAccess = React.lazy(() => import('./pages/TenantAccess'));
 const WorkerTenantEducation = React.lazy(() => import('./pages/WorkerTenantEducation'));
@@ -126,7 +127,7 @@ const root = ReactDOM.createRoot(rootElement);
 try {
   root.render(
     <React.StrictMode>
-      {window.location.pathname.replace(/\/$/, '') === '/product' ? (
+      {window.location.pathname.replace(/\/$/, '') === '/inspection-reply' ? (<React.Suspense fallback={<p role="status">조치 회신 화면 준비 중…</p>}><InspectorReply/></React.Suspense>) : window.location.pathname.replace(/\/$/, '') === '/product' ? (
         <React.Suspense fallback={<p role="status">NEW-PSI 제품 체험을 준비합니다…</p>}><InspectorProduct/></React.Suspense>
       ) : window.location.pathname === '/saas/education' ? (
         <React.Suspense fallback={<p role="status">개인 교육 화면을 불러오는 중…</p>}><WorkerTenantEducation /></React.Suspense>
