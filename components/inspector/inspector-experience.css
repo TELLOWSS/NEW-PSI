@@ -210,3 +210,6 @@
 @media print{body:has(.si-report) #root .si-report .si-report-brief,body:has(.si-report) #root .si-report .si-report-brief *{display:none!important;visibility:hidden!important}}
 .is-simple .si-analysis-card .si-photos:has(.si-photo-rail button:only-child)>.si-label,.is-simple .si-analysis-card .si-photos:has(.si-photo-rail button:only-child)>.si-photo-rail,.is-simple .si-analysis-card .si-photo-proof{display:none}.is-simple .si-analysis-card.is-awaiting-analysis .si-photo{max-height:150px}.is-simple .si-analysis-card.is-awaiting-analysis .si-photo-frame{max-height:180px}
 @media print{html:has(.si-report),body:has(.si-report){background:#fff!important;color:#182b40!important;color-scheme:light!important;transition:none!important;animation:none!important}body:has(.si-report) #root .si-report{background:#fff!important}}
+.si-record-row-actions{flex-wrap:wrap}
+.si-record-row-actions>span{flex-basis:100%}
+.si-record-row-actions .si-record-resume{flex:1;color:var(--si-teal);border-color:#a8d0c2;background:var(--si-accent-soft)}
