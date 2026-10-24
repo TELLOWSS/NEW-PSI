@@ -1,5 +1,6 @@
 import {inspectorShareAdmin} from './inspectorShare.js';
 import { validateOptimization, purgeInspection, inspectionDeletionStatus } from './inspectorAssets.js';
+import {inspectorBillingStatus} from './inspectorBilling.js';
 import { InspectorAiError, inspectorAiConfig, analyzeInspectorPhoto } from './inspectorAi.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { isValidAdminAuthRequest } from '../adminAuthGuard.js';
@@ -88,7 +89,7 @@ export default async function inspector(req: any, res: any) {
             dbError(error); return res.status(201).json({ok:true,item:data});
         }
         if(body.op==='usage'){keys(body,[]);const result=await db.rpc('psi_inspector_usage');dbError(result.error);return res.status(200).json({ok:true,usage:result.data});}
-        if(body.op==='ai-status'){keys(body,[]);const {provider,model,ready,maxCalls,maxOutputTokens}=inspectorAiConfig();return res.status(200).json({ok:true,provider,model,ready,maxCalls,maxOutputTokens});}
+        if(body.op==='ai-status'){keys(body,[]);const config=inspectorAiConfig();const {provider,model,ready,maxCalls,maxOutputTokens}=config;const cost=await inspectorBillingStatus(config);return res.status(200).json({ok:true,provider,model,ready,maxCalls,maxOutputTokens,cost});}
         if(body.op==='deletion-status'){keys(body,['id']);return res.status(200).json({ok:true,status:await inspectionDeletionStatus(db,id(body.id))});}
         if(body.op==='delete-inspection') {keys(body,['id','mode','expectedRevision','confirmation']);const inspectionId=id(body.id);if(!['files','all'].includes(body.mode)||body.confirmation!==inspectionId||!Number.isSafeInteger(body.expectedRevision))reject(400,'DELETE_CONFIRMATION','삭제 범위와 확인 문구를 확인해 주세요.');try{const receipt=await purgeInspection(db,inspectionId,body.mode,body.expectedRevision);const status=await inspectionDeletionStatus(db,inspectionId);if(!status.verified)throw new Error('삭제 후 파일·기록 잔여 검증이 완료되지 않았습니다. 다시 확인해 주세요.');return res.status(200).json({ok:true,receipt,status});}catch(e){reject(409,'DELETE_INCOMPLETE',e instanceof Error?e.message:'삭제를 완료하지 못했습니다.');}}
         const inspectionId=id(body.id), current=await getInspection(db,inspectionId);
@@ -122,7 +123,7 @@ export default async function inspector(req: any, res: any) {
                     try{document.analyses[photo.id]=await analyzeInspectorPhoto(db,current,photo,body.requestId);}catch(e){
                         const failure=e instanceof InspectorAiError?e:new InspectorAiError('AI_NOT_COMPLETED','사진 분석을 완료하지 못했습니다. 저장 기록과 연결 상태를 확인해 주세요.');
                         console.warn('inspector_ai_failure',{code:failure.code,provider:inspectorAiConfig().provider});
-                        return res.status(409).json({ok:false,code:failure.code,message:failure.message,retryable:failure.retryable});
+                        return res.status(409).json({ok:false,code:failure.code,message:failure.message,retryable:failure.retryable,...(failure.cost?{cost:failure.cost}:{})});
                     }
                     delete document.reviews[photo.id];if(document.confirmationAnswers)delete document.confirmationAnswers[photo.id];
                 }

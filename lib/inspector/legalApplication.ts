@@ -16,6 +16,7 @@ const standards:Record<string,string>={
  posting:'근로자가 쉽게 볼 수 있는 곳에 법령·명령 요지와 안전보건관리규정을 게시·비치하고 알림. 이 앱의 일부 조문만으로 전체 게시 의무 충족 아님.',
  education:'정기·채용·작업내용 변경·특별교육의 대상과 예외를 각각 대조. 교육 종류·대상·이수 자료 없이 사진만으로 미실시 확정 불가.',
  signs:'대상 위험·시설에 맞는 표지 종류·위치와 필요한 모국어 표기를 대조. 일반 안내문과 법정 안전보건표지를 구분.',
+ dust:'실제 분진이 심하게 흩날리는 작업인지 확인한 뒤 물질·작업 조건에 맞는 비산 방지 조치를 대조. 포대 존재와 MSDS 미비치는 별개.',
  msds:'대상 물질·공급/취급 주체를 확인한 뒤 MSDS 게시·비치, 공정 요령, 교육, 용기 경고표시 의무를 각각 대조.'
 };
 export function legalApplication(card:LegalCard){const guide=fieldGuide(card.id);return {standard:standards[card.id]||card.duties[0]?.summary,check:guide?.check||card.scope,proof:guide?.proof||'해당 기준과 실제 상태를 대조한 기록'};}

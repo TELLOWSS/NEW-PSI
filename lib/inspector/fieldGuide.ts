@@ -13,6 +13,7 @@ const guides:Record<string,{check:string;proof:string}>={
  posting:{check:'근로자가 쉽게 읽을 수 있는 위치인가? 현장 적용 법령과 관리규정이 최신인가?',proof:'게시 위치·내용·개정일을 확인할 수 있는 사진'},
  education:{check:'정기·채용·변경·특별교육 중 무엇인가? 대상·시간·면제와 이수 기록 확인',proof:'교육 종류·대상·일자·실시 내용을 기록으로 대조'},
  signs:{check:'위험 위치에서 표지를 볼 수 있는가? 뜻과 필요한 언어를 알아볼 수 있는가?',proof:'작업자 시야에서 본 표지의 위치와 내용 촬영'},
+ dust:{check:'실제 취급·혼합·청소 중인가? 비산·노출과 물질 특성에 맞는 조치 대조',proof:'작업 단계·제품 MSDS·비산 방지 조치 및 현장 확인 기록'},
  msds:{check:'대상 물질인가? MSDS 접근·공정 요령·교육과 용기 경고표시를 각각 확인',proof:'제품명과 일치하는 MSDS·용기표시·교육 기록 대조'}
 };
 export const fieldGuide=(id:string)=>guides[id];

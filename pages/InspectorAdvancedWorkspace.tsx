@@ -9,6 +9,7 @@ import { confirmationAnswerLabel, type ConfirmationAnswer, inspectionState, summ
 import { InspectorIcon, InspectorScene } from '../components/inspector/InspectorGraphics';
 import { displayInspectionDate, filterInspectionRecords, inspectionAttention, localCalendarDate, recordFilterLabels, type InspectorTab, type RecordFilter } from '../lib/inspector/experience';
 import {inspectionProgress} from '../lib/inspector/journey';
+import {normalizeAiCost,type InspectorAiCost} from '../lib/inspector/aiCost';
 import InspectorAnalysisInput from '../components/inspector/InspectorAnalysisInput';
 import InspectorCameraDialog from '../components/inspector/InspectorCameraDialog';
 import InspectorPhotoDialog from '../components/inspector/InspectorPhotoDialog';
@@ -48,7 +49,7 @@ export default function InspectorAdvancedWorkspace({onQuick,onResume}:{onQuick:(
     const [control,setControl]=useState<{state:string;receipt?:unknown}|null>(null);
     const locked=!!control && control.state!=='active';
     const [simple,setSimple]=useState(true),[detailPhoto,setDetailPhoto]=useState(false);
-    const [usage,setUsage]=useState<{projectBytes:number;uploadCeilingBytes:number}|null>(null),[aiStatus,setAiStatus]=useState<{ready:boolean;provider:string;model:string;maxCalls:number}|null>(null);
+    const [usage,setUsage]=useState<{projectBytes:number;uploadCeilingBytes:number}|null>(null),[aiStatus,setAiStatus]=useState<{ready:boolean;provider:string;model:string;maxCalls:number;cost?:InspectorAiCost}|null>(null);
     const [expandedPhoto,setExpandedPhoto]=useState(false),[cameraOpen,setCameraOpen]=useState(false),[addingPhoto,setAddingPhoto]=useState(true);
     const [item,setItem]=useState<Inspection|null>(null),[doc,setDoc]=useState<InspectionDocument|null>(null),[evidence,setEvidence]=useState<Evidence[]>([]);
     const [tab,setTab]=useState<Tab>('evidence'),[photoId,setPhotoId]=useState(''),[photoUrl,setPhotoUrl]=useState('');
@@ -127,12 +128,12 @@ export default function InspectorAdvancedWorkspace({onQuick,onResume}:{onQuick:(
     const inspectConfirm=()=>void run(async()=>{if(!item)return;const latest=dirty?await save():item;if(!latest)return;const result=await api({op:'confirm-photo',id:item.id,photoId,expectedRevision:latest.revision});if(alive.current){useItem(result.item);setMessage('사진·설명과 분석을 대조한 확인을 기록했습니다. 다음 사진을 진행하거나 보고서 자료를 완료하세요.');}});
     const completeMaterials=()=>void run(async()=>{if(!item||!doc)return;const count=doc.photoIds.filter(id=>doc.reviews[id]?.decision==='accepted').length;if(!count)throw new Error('분석을 확인한 사진이 없습니다.');if(count<doc.photoIds.length&&!window.confirm(`확인한 ${count}장만 보고서 자료로 완료합니다. 나머지 ${doc.photoIds.length-count}장은 제외하시겠습니까?`))return;const latest=dirty?await save():item;if(!latest)return;const result=await api({op:'complete-materials',id:item.id,expectedRevision:latest.revision});if(alive.current){useItem(result.item);setTab('report');setMessage('보고서 작성자료를 완료했습니다. 보고서 작성 버튼을 누르면 사진과 분석을 고정합니다.');}});
     const toggleApi=(enabled:boolean)=>void run(async()=>{if(!item||!doc)return;const next={...doc,apiEnabled:enabled,materialCompletion:undefined};const result=await api({op:'save',id:item.id,expectedRevision:item.revision,document:next});if(alive.current)useItem(result.item);});
-    const inspectApi=()=>void run(async()=>{
+    const inspectApi=()=>void run(async()=>{if(!normalizeAiCost(aiStatus?.cost).allowed)throw new Error(normalizeAiCost(aiStatus?.cost).message);
         if(!item||!doc||!photo)return;if(!bridgeConsent)throw new Error('외부 AI로 사진을 보내기 전 사용 허용을 확인해 주세요.');
         let latest=item;
         if(dirty||!doc.apiEnabled){setActivity('설명과 API 설정을 저장하고 있습니다');const saved=await api({op:'save',id:item.id,expectedRevision:item.revision,document:{...doc,apiEnabled:true,materialCompletion:undefined}});if(!alive.current)return;latest=saved.item;useItem(latest);}
         setActivity('사진을 분석하고 있습니다. 완료되면 결과가 표시됩니다');
-        const result=await analyzePhoto({id:latest.id,photoId,expectedRevision:latest.revision});
+        let result;try{result=await analyzePhoto({id:latest.id,photoId,expectedRevision:latest.revision});}catch(cause){if(alive.current&&cause&&typeof cause==='object'&&'cost' in cause&&cause.cost)setAiStatus(status=>status?{...status,cost:normalizeAiCost(cause.cost)}:status);throw cause;}
         if(alive.current){useItem(result.item);setMessage('분석을 받았습니다. 관찰과 개선 권고를 읽고 사진을 확인해 주세요.');}
     });
     const finishReport=()=>void run(async()=>{
@@ -155,7 +156,7 @@ export default function InspectorAdvancedWorkspace({onQuick,onResume}:{onQuick:(
 
     const printReport=()=>void run(async()=>{if(document.querySelector('[data-report-photo-state="loading"]'))throw new Error('보고서 사진을 불러오는 중입니다. 완료 후 인쇄해 주세요.');await Promise.all(Array.from(document.querySelectorAll<HTMLImageElement>('.si-report-photo')).map(image=>image.decode()));if(document.querySelector('[data-report-photo-state="failed"]')&&!window.confirm('일부 사진이 누락되었습니다. 누락 표시를 포함해 인쇄하시겠습니까?'))return;window.print();});
 
-    const analysisInput=item&&doc&&photo?<InspectorAnalysisInput busy={busy} dirty={dirty} apiEnabled={!!doc.apiEnabled} apiReady={aiStatus?aiStatus.ready:null} consent={bridgeConsent} photoUrl={photoUrl} prompt={buildInspectorPrompt(item.id,photo,doc)} text={importText} onConsent={setBridgeConsent} onText={setImportText} onAnalyze={inspectApi} onCopyPhoto={()=>void run(async()=>{await copyPhotoImage(photoUrl);setMessage('사진을 복사했습니다. ChatGPT에 먼저 붙여넣어 이미지 미리보기를 확인한 뒤, 프롬프트를 복사하세요.');})} onCopyPrompt={copyPrompt} onImport={importAnalysis} onSave={()=>void run(async()=>{await save();})} onRefresh={refreshStatus}/>:null;
+    const analysisInput=item&&doc&&photo?<InspectorAnalysisInput busy={busy} dirty={dirty} apiEnabled={!!doc.apiEnabled} apiCost={aiStatus?.cost} apiReady={aiStatus?aiStatus.ready:null} consent={bridgeConsent} photoUrl={photoUrl} prompt={buildInspectorPrompt(item.id,photo,doc)} text={importText} onConsent={setBridgeConsent} onText={setImportText} onAnalyze={inspectApi} onCopyPhoto={()=>void run(async()=>{await copyPhotoImage(photoUrl);setMessage('사진을 복사했습니다. ChatGPT에 먼저 붙여넣어 이미지 미리보기를 확인한 뒤, 프롬프트를 복사하세요.');})} onCopyPrompt={copyPrompt} onImport={importAnalysis} onSave={()=>void run(async()=>{await save();})} onRefresh={refreshStatus}/>:null;
     return <main className={`si-workspace ${item?'si-working':''} ${simple?'is-simple':''} ${!item?'si-records-home':''}`} aria-labelledby="si-title">
         <div className="si-quick-return"><button className="si-btn" disabled={busy} onClick={()=>{if(!dirty||window.confirm('저장하지 않은 변경사항을 닫고 사진 점검 첫 화면으로 이동할까요?'))onQuick();}}>← 사진으로 바로 점검</button></div>
         <header className="si-hero"><div className="si-hero-copy"><p className="si-eyebrow">NEW-PSI / SAFETY INSPECTOR</p><h1 id="si-title">현장을 읽고,<br className="si-mobile-break"/> 개선까지 연결하다.</h1><p className="si-lead">사진 한 장의 신호를 근거가 남는 점검으로.</p><div className="si-hero-tags"><span><InspectorIcon name="shield"/>최적화 사본과 검토 이력 보관</span><span>사람의 확인으로 이어지는 안전</span></div></div><InspectorScene/><div className="si-hero-side"><span className="si-pill"><i className="si-status-dot"/>유료 AI 기본 꺼짐</span><span>사진 → 사실 검토 → 개선 → 보고</span><button className="si-btn si-primary" disabled={busy} onClick={create}><InspectorIcon name="camera"/>새 점검 시작</button></div></header>

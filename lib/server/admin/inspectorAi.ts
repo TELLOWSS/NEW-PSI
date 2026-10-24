@@ -1,10 +1,12 @@
 import {createHash} from 'node:crypto';
+import {inspectorBillingStatus} from './inspectorBilling.js';
 import {buildInspectorApiPrompt} from '../../inspector/prompt.js';
 import {inspectorVisionContentSchema,parseInspectorApiContent} from '../../inspector/visionContent.js';
+import type {InspectorAiCost} from '../../inspector/aiCost.js';
 import type {Evidence,Inspection} from '../../inspector/types.js';
 
 export class InspectorAiError extends Error {
-    constructor(public code:string,message:string,public retryable=false){super(message);}
+    constructor(public code:string,message:string,public retryable=false,public cost?:InspectorAiCost){super(message);}
 }
 export function inspectorAiConfig(){
     const provider=process.env.PSI_INSPECTOR_AI_PROVIDER || 'gemini';
@@ -12,7 +14,7 @@ export function inspectorAiConfig(){
     const key=provider==='gemini'?(process.env.GEMINI_API_KEY||process.env.GOOGLE_GEMINI_API_KEY||process.env.GOOGLE_API_KEY||''):provider==='openai'?(process.env.OPENAI_API_KEY||''):'';
     return {provider,model,key,ready:!!key&&/^[a-zA-Z0-9._-]{1,100}$/.test(model),maxCalls:20,maxOutputTokens:4096};
 }
-export function analysisFingerprint(item:Inspection,photo:Evidence,model:string){return createHash('sha256').update(JSON.stringify({version:4,contract:'vision-content-v2-findings',photo:photo.sha256,photoId:photo.id,notes:item.document.photoNotes?.[photo.id]||'',common:item.document.notes,site:item.document.siteName,location:item.document.location,work:item.document.workType,event:item.document.eventAt,model})).digest('hex');}
+export function analysisFingerprint(item:Inspection,photo:Evidence,model:string){return createHash('sha256').update(JSON.stringify({version:5,contract:'vision-content-v2-findings',photo:photo.sha256,photoId:photo.id,notes:item.document.photoNotes?.[photo.id]||'',common:item.document.notes,site:item.document.siteName,location:item.document.location,work:item.document.workType,event:item.document.eventAt,model})).digest('hex');}
 const incomplete=()=>new InspectorAiError('AI_INCOMPLETE','AI 응답이 출력 한도에서 중단되었습니다. 사진·설명은 저장되어 있습니다. 필요하면 직접 다시 분석해 주세요. 다시 실행하면 API 사용료가 발생할 수 있습니다.',true);
 const refused=()=>new InspectorAiError('AI_REFUSED','AI 공급자가 이 사진의 분석을 제공하지 않았습니다. 사진 속 불필요한 식별정보를 처리하거나 설명으로 기준을 조회해 주세요.');
 function geminiText(result:any):string {
@@ -36,6 +38,8 @@ export async function analyzeInspectorPhoto(db:any,item:Inspection,photo:Evidenc
     const config=inspectorAiConfig();
     if(!item.document.apiEnabled)throw new InspectorAiError('AI_OFF','사진점검 API가 OFF 상태입니다.');
     if(!config.ready)throw new InspectorAiError('AI_NOT_CONFIGURED','서버의 사진점검 공급자·모델·API 키 설정이 필요합니다.');
+    const billing=await inspectorBillingStatus(config);
+    if(!billing.allowed)throw new InspectorAiError('AI_COST_BLOCKED',billing.message,false,billing);
     const context=analysisFingerprint(item,photo,config.provider+':'+config.model);
     // Same request ID is idempotent. A new ID is issued only after an explicit, acknowledged retry.
     const operation=requestId?createHash('sha256').update(context+':'+requestId).digest('hex'):context;
@@ -58,6 +62,7 @@ export async function analyzeInspectorPhoto(db:any,item:Inspection,photo:Evidenc
         }catch{
             throw new InspectorAiError('AI_CONNECTION_FAILED','AI 연결을 완료하지 못했습니다. 사진·설명은 저장되어 있습니다. 필요하면 직접 다시 분석해 주세요. 다시 실행하면 API 사용료가 발생할 수 있습니다.',true);
         }
+        if(response.status===429)throw new InspectorAiError('AI_QUOTA_REACHED','공급자 한도에 도달해 분석을 중단했습니다. 유료 전환·다른 모델 호출·자동 재시도는 하지 않습니다. 잔여 한도와 초기화 시각은 공급자에서 확인하세요.',true);
         if(!response.ok)throw new InspectorAiError('AI_PROVIDER_REJECTED','AI 공급자가 요청을 완료하지 못했습니다. API 설정·사용량을 확인하거나 설명으로 기준을 조회해 주세요.',[408,429,500,502,503,504].includes(response.status));
         let result:any;
         try{result=await response.json();}catch{throw new InspectorAiError('AI_RESPONSE_INVALID','AI 응답을 읽지 못했습니다. 사진·설명은 저장되어 있습니다. 직접 다시 분석할 수 있습니다.',true);}

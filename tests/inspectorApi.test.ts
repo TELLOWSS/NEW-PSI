@@ -1,9 +1,10 @@
 import {createHash} from 'node:crypto';
 import {beforeEach,describe,expect,it,vi} from 'vitest';
-const mocks=vi.hoisted(()=>({auth:vi.fn(),client:vi.fn(),quota:vi.fn()}));
+const mocks=vi.hoisted(()=>({auth:vi.fn(),client:vi.fn(),quota:vi.fn(),billing:vi.fn()}));
 vi.mock('../lib/server/adminAuthGuard.js',()=>({isValidAdminAuthRequest:mocks.auth}));
 vi.mock('../lib/server/supabaseServer.js',()=>({createSupabaseServerClient:mocks.client}));
 vi.mock('../lib/server/apiSecurity.js',()=>({consumeApiQuota:mocks.quota,resolveRequestFingerprint:()=> 'hashed-request'}));
+vi.mock('../lib/server/admin/inspectorBilling.js',()=>({inspectorBillingStatus:mocks.billing}));
 import inspector from '../lib/server/admin/inspector';
 import {newInspectionDocument} from '../lib/inspector/types';
 const id='a0190000-0000-4000-8000-000000000001',photoId='a0190000-0000-4000-8000-000000000002';
@@ -11,7 +12,7 @@ const row=(document=newInspectionDocument())=>({id,revision:1,document,created_a
 const response=()=>({code:0,body:null as any,setHeader:vi.fn(),status(c:number){this.code=c;return this;},json(b:any){this.body=b;return this;}});
 let queue:any[],calls:any[],db:any,storage:any;
 const req=(body:any,method='POST')=>({method,body,headers:{}});
-beforeEach(()=>{vi.resetAllMocks();delete process.env.PSI_DEPLOYMENT_MODEL;queue=[];calls=[];mocks.auth.mockReturnValue(true);mocks.quota.mockResolvedValue({allowed:true});
+beforeEach(()=>{vi.resetAllMocks();delete process.env.PSI_DEPLOYMENT_MODEL;queue=[];calls=[];mocks.billing.mockResolvedValue({policy:'free-only',state:'free-project',allowed:true,message:'synthetic verified free project',remainingRequests:null});mocks.auth.mockReturnValue(true);mocks.quota.mockResolvedValue({allowed:true});
     storage={upload:vi.fn().mockResolvedValue({error:null}),remove:vi.fn(),download:vi.fn(),createSignedUrl:vi.fn().mockResolvedValue({data:{signedUrl:'https://example.invalid/signed'},error:null})};
     db={rpc:vi.fn().mockResolvedValue({data:true,error:null}),from:vi.fn(table=>{const trace={table,operations:[] as any[]};calls.push(trace);const q:any={then(resolve:any,reject:any){return Promise.resolve(queue.shift()||{data:null,error:null}).then(resolve,reject);}};for(const op of ['select','insert','update','eq','order','limit','lt','or','single','maybeSingle'])q[op]=(...args:any[])=>{trace.operations.push([op,...args]);return q;};return q;}),storage:{from:vi.fn(()=>storage)}};
     mocks.client.mockReturnValue(db);
@@ -38,7 +39,7 @@ describe('server authenticated dedicated inspector boundary',()=>{
         queue.push({data:row(document),error:null},{data:[],error:null},{data:{id:photoId},error:null});
         const res=response();await inspector(req({op:'report',id,expectedRevision:1}),res);expect(res.code).toBe(201);
         const inserted=calls[2].operations.find((x:any)=>x[0]==='insert')[1];
-        expect(inserted.snapshot.legalReference).toMatchObject({version:'kr-osh-2026-10-23-v4-context-links',reviewedAt:'2026-10-20',cards:[{id:'opening',sanctions:[{fineMaxKRW:50_000_000,kind:'criminal'}]}]});
+        expect(inserted.snapshot.legalReference).toMatchObject({version:'kr-osh-2026-10-24-v5-dust-context',reviewedAt:'2026-10-20',cards:[{id:'opening',sanctions:[{fineMaxKRW:50_000_000,kind:'criminal'}]}]});
         expect(inserted.snapshot.legalReference.inspectionCases).toHaveLength(4);
         const stable=JSON.stringify(inserted.snapshot);document.notes='감전';expect(JSON.stringify(inserted.snapshot.legalReference)).toContain('opening');expect(stable).toContain('제43조');
         queue.push({data:row(),error:null});const rejected=response();await inspector(req({op:'report',id,expectedRevision:1,legalReference:{amount:1}}),rejected);expect(rejected.code).toBe(400);
