@@ -14,7 +14,7 @@ export default function InspectorChemicalReview({photo,onAmend}:{key?:string;pho
         catch{if(alive.current)setMessage('문자 읽기를 완료하지 못했습니다. 제품명·제조사를 직접 입력할 수 있습니다.');}
         finally{if(alive.current)setReading(false);if(abort.current===controller)abort.current=null;}
     };
-    return <section className="si-context-check" aria-label="화학제품 MSDS 추가 확인"><b>이 제품은 MSDS도 대조해 보세요</b><p>현재 위험과 연결된 제품 단서가 있습니다. 포대·용기만으로 성분·MSDS 대상 여부나 미비치를 확정하지 않습니다. 분진 방지와 MSDS 관리는 따로 확인하세요.</p><details><summary>제품·표시·자료·교육 확인</summary>
+    return <section className="si-context-check" aria-label="화학제품 MSDS 추가 확인"><b>이 제품은 MSDS도 대조해 보세요</b><p>사진 관찰에 제품 단서가 있습니다. 포대·용기만으로 성분·MSDS 대상 여부나 미비치를 확정하지 않습니다. 분진 방지와 MSDS 관리는 따로 확인하세요.</p><details><summary>제품·표시·자료·교육 확인</summary>
         {photo&&<button type="button" className="si-btn" disabled={reading} onClick={()=>void read()}>{reading?'기기에서 문자 읽는 중…':'제품 표시 문자 읽기 · 외부 AI 호출 없음'}</button>}
         <label className="si-label">대조한 제품명·제조사·표시<textarea value={text} onChange={e=>setText(e.target.value)} maxLength={1500} rows={3} placeholder="포대·용기 표시와 일치하는 내용만 입력하세요. OCR 결과도 직접 대조해야 합니다."/></label>
         {onAmend&&<button type="button" className="si-btn" disabled={reading||!text.trim()} onClick={()=>{onAmend(text.trim());setMessage('제품 정보를 사진 설명에 넣었습니다. 설명을 저장하거나 직접 재분석해야 기록·결과에 반영됩니다. 자동 분석·저장은 하지 않았습니다.');}}>대조한 내용을 사진 설명에 넣기</button>}

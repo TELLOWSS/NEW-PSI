@@ -10,8 +10,11 @@ export function withContextStage(note:string,stage:string){
 /** Review candidates only, never an assertion of missing MSDS or a chemical composition. */
 export function chemicalReviewCandidate(analysis:VisionImport,index:number){
     const finding=analysis.risk_findings?.[index],fact=finding&&analysis.observed_facts[Number(finding.observation_index)];
+    const product=/시멘트|몰탈|모르타르|레미탈|도료|페인트|신너|접착제|방수제|에폭시|화학물질|화학제품|물질안전보건자료|\bmsds\b|\bsds\b/i;
+    // A neutral product observation can warrant document review without inventing a defect.
+    if(!analysis.risk_findings?.length)return analysis.observed_facts.some(f=>product.test(f.text));
     if(!finding||!fact)return false;
-    return /시멘트|몰탈|모르타르|레미탈|도료|페인트|신너|접착제|방수제|에폭시|화학물질|화학제품|물질안전보건자료|\bmsds\b|\bsds\b/i.test([finding.problem,finding.risk,fact.text].join(' '));
+    return product.test([finding.problem,finding.risk,fact.text].join(' '));
 }
 export function findingEvidenceStatus(analysis:VisionImport,index:number){
     const finding=analysis.risk_findings?.[index],fact=finding&&analysis.observed_facts[Number(finding.observation_index)];
