@@ -3,7 +3,7 @@ import {replyKindGuide,replyMissing,reinspectionStage,reportPrintState} from '..
 
 describe('inspection follow-through for first-time users',()=>{
  it('explains all three replies while never treating photos as field approval',()=>{
-  expect(replyKindGuide('photo')).toMatchObject({requiresPhoto:true});
+  expect(replyKindGuide('photo')).toMatchObject({requiresPhoto:true,choiceLabel:'개선사진 보내기'});
   expect(replyKindGuide('photo').help).toContain('완료 승인');
   expect(replyKindGuide('planned')).toMatchObject({requiresPhoto:false});
   expect(replyKindGuide('difficult')).toMatchObject({requiresPhoto:false});
