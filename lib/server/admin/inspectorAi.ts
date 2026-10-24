@@ -34,11 +34,11 @@ function openaiText(result:any):string {
     if(result?.error||(result?.status&&result.status!=='completed'))throw new InspectorAiError('AI_INTERRUPTED','AI 응답이 완료되지 않았습니다. 사진·설명은 저장되어 있습니다.',true);
     return content.filter((part:any)=>part?.type==='output_text'&&typeof part.text==='string').map((part:any)=>part.text).join('');
 }
-export async function analyzeInspectorPhoto(db:any,item:Inspection,photo:Evidence,requestId?:string){
+export async function analyzeInspectorPhoto(db:any,item:Inspection,photo:Evidence,requestId?:string,profileToken?:string){
     const config=inspectorAiConfig();
     if(!item.document.apiEnabled)throw new InspectorAiError('AI_OFF','사진점검 API가 OFF 상태입니다.');
     if(!config.ready)throw new InspectorAiError('AI_NOT_CONFIGURED','서버의 사진점검 공급자·모델·API 키 설정이 필요합니다.');
-    const billing=await inspectorBillingStatus(config);
+    const billing=await inspectorBillingStatus(config,profileToken);
     if(!billing.allowed)throw new InspectorAiError('AI_COST_BLOCKED',billing.message,false,billing);
     const context=analysisFingerprint(item,photo,config.provider+':'+config.model);
     // Same request ID is idempotent. A new ID is issued only after an explicit, acknowledged retry.
