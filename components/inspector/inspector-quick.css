@@ -195,3 +195,16 @@
 
 /* Context and cost stay compact; details reveal operational evidence on demand. */
 .si-context-hints{border:0;padding:0;margin:16px 0;min-width:0}.si-context-hints legend{font-size:14px;font-weight:700;margin-bottom:8px}.si-context-hints legend span{font-weight:400}.si-context-hints>div{display:flex;flex-wrap:wrap;gap:6px}.si-context-hints .si-btn{min-height:44px;padding:9px 12px}.si-context-hints [aria-pressed=true]{background:var(--si-accent,#187968);color:#fff}.si-cost-notice{padding:14px;margin:12px 0;border:1px solid #d8c295;border-radius:14px;background:#fff8e9;color:#493b26;overflow-wrap:anywhere}.si-cost-free-project{background:#ecf8f2;border-color:#a9d9c4;color:#174b3c}.si-cost-notice p{margin:7px 0;font-size:13px;line-height:1.6}.si-cost-notice details{font-size:13px;margin:8px 0}.si-cost-notice .si-btn{min-height:44px}.si-context-check{padding:14px;border:1px solid #b8cbd6;border-radius:14px;background:var(--si-panel,#f1f7fb);margin:14px 0}.si-context-check p{line-height:1.65;font-size:14px}.si-context-check .si-btn{min-height:44px}.si-source-freshness{font-size:12px;line-height:1.65;padding:10px 12px;background:var(--si-bg,#f3f6f5);border-radius:10px;margin:12px 0}
+
+/* A recovery action remains readable and tappable on narrow field devices. */
+.si-analysis-help{padding:16px;border:1px solid #cbd5e1;border-radius:14px;background:#f8fafc;color:#163047;min-width:0;overflow-wrap:anywhere}
+.si-analysis-help h3{margin:0 0 8px;font-size:1rem;line-height:1.5}
+.si-analysis-help p{line-height:1.65;margin:8px 0}
+.si-analysis-help .si-help-retention{padding:10px 12px;border-radius:8px;background:#eaf3f1;color:#244b45}
+.si-help-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.si-help-actions .si-btn{min-height:44px;white-space:normal;text-align:center}
+.si-analysis-help textarea{box-sizing:border-box;width:100%;max-width:100%;padding:12px;font:inherit;font-size:13px;line-height:1.6;resize:vertical}
+.si-operator-settings{margin-top:12px}
+.si-operator-settings>summary{cursor:pointer;font-size:13px;color:#536579;min-height:32px}
+@media(max-width:480px){.si-help-actions{display:grid;grid-template-columns:1fr}.si-help-actions .si-btn{width:100%}}
+.si-start-guide{padding:10px 12px;border-radius:10px;background:#eef5f3;color:#31574e;font-size:13px;line-height:1.65;margin:8px 0;overflow-wrap:anywhere}
