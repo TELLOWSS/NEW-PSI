@@ -214,3 +214,46 @@
 .si-result-journey summary{cursor:pointer;font-size:13px;min-height:36px;padding:8px 0}.si-result-journey ol{padding:0;list-style:none;margin:4px 0}
 .si-result-journey li{display:flex;flex-direction:column;gap:3px;padding:10px 0;border-bottom:1px solid #d5e6df;font-size:13px}
 @media(max-width:480px){.si-journey-actions{display:grid;grid-template-columns:1fr}.si-journey-actions .si-btn{width:100%}}
+
+
+/* Novice-first safety inspection: large entry action, one readable stage cue.
+   Pure display rules; existing consent, analysis and review gates remain unchanged. */
+.si-novice-steps{margin:0 0 18px;padding:16px 18px;background:var(--si-surface);border:1px solid var(--si-line);border-radius:16px}
+.si-novice-steps ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.si-novice-steps li{display:flex;align-items:center;min-width:0;gap:8px;color:var(--si-muted);font-size:12px;line-height:1.45}
+.si-novice-steps li>span{width:26px;height:26px;border:1px solid var(--si-line);border-radius:50%;display:grid;place-items:center;flex-shrink:0;font-size:12px}
+.si-novice-steps li b{font-weight:650;white-space:normal}
+.si-novice-steps li.is-current{color:var(--si-navy)}
+.si-novice-steps li.is-current>span{color:#fff;background:#166960;border-color:#166960}
+.si-novice-steps li.is-past>span{color:#14695b;border-color:#8dbba7}
+.si-novice-steps p{font-size:13px;line-height:1.65;color:var(--si-muted);margin:12px 0 0}
+.si-quick-buttons .si-novice-main-camera{min-height:52px;font-size:16px;font-weight:750;padding:12px 18px;flex:1 1 230px;justify-content:center}
+.si-quick-buttons .si-novice-photo-choice{min-height:48px;flex:1 1 190px;display:flex;align-items:center;justify-content:center}
+.si-novice-analysis-status{border:1px solid var(--si-line);border-radius:12px;padding:11px 13px;background:var(--si-soft);display:flex;flex-direction:column;gap:5px;overflow-wrap:anywhere}
+.si-novice-analysis-status b{font-size:14px}
+.si-novice-analysis-status span{font-size:12px;color:var(--si-muted);line-height:1.65}
+.si-novice-analysis-settings{border:1px solid var(--si-line);padding:0 12px;border-radius:12px}
+.si-novice-analysis-settings>summary{cursor:pointer;min-height:48px;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:650;line-height:1.45}
+.si-novice-analysis-settings>.si-quick-api{padding:10px 0}
+.si-novice-manual{min-height:48px;width:100%;justify-content:center;white-space:normal;line-height:1.5}
+.si-task-progress .si-task-body{min-width:0}
+.si-task-phases{padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:4px 10px;margin:7px 0 0;font-size:11px;color:var(--si-muted)}
+.si-task-phases li.is-current{color:var(--si-teal);font-weight:750}
+.si-task-phases li.is-past{color:#36796c}
+@media(max-width:700px){
+ .si-novice-steps{padding:12px;margin-bottom:14px}
+ .si-novice-steps ol{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .si-novice-steps li{font-size:12px}
+ .si-quick-buttons{width:100%}
+ .si-quick-buttons .si-novice-main-camera,.si-quick-buttons .si-novice-photo-choice{width:100%;flex-basis:100%}
+ .si-task-progress .si-task-time{font-size:11px}
+}
+@media(max-width:360px){.si-task-progress{gap:7px;padding:11px!important}.si-task-phases{font-size:10px;gap:4px}}
+@media print{.si-novice-steps,.si-novice-analysis-settings,.si-novice-analysis-status,.si-novice-manual{display:none!important}}
+
+
+.si-report-readiness{margin:14px 0 20px;border:1px solid var(--si-line);background:var(--si-surface);border-radius:14px;padding:15px 17px;line-height:1.6}
+.si-report-readiness>b{font-size:15px}
+.si-report-readiness p{margin:5px 0;color:var(--si-navy);font-size:13px}
+.si-report-readiness small{font-size:12px;color:var(--si-muted)}
+@media print{.si-report-readiness{display:none!important}}
