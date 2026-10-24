@@ -1,7 +1,9 @@
+import InspectorAiCostNotice from './InspectorAiCostNotice';
+import {normalizeAiCost,type InspectorAiCost} from '../../lib/inspector/aiCost';
 import React, {useState} from 'react';
 import {InspectorIcon} from './InspectorGraphics';
 
-type Props={busy:boolean;dirty:boolean;apiEnabled:boolean;apiReady:boolean|null;consent:boolean;photoUrl:string;prompt:string;text:string;
+type Props={busy:boolean;dirty:boolean;apiEnabled:boolean;apiReady:boolean|null;apiCost?:InspectorAiCost;consent:boolean;photoUrl:string;prompt:string;text:string;
     onConsent:(checked:boolean)=>void;onText:(value:string)=>void;onAnalyze:()=>void;onCopyPhoto:()=>void;onCopyPrompt:()=>void;onImport:()=>void;onSave:()=>void;onRefresh:()=>void};
 export default function InspectorAnalysisInput(props:Props) {
     const [method,setMethod]=useState<'api'|'manual'>('api');
@@ -14,7 +16,7 @@ export default function InspectorAnalysisInput(props:Props) {
             <p className="si-caption">AI 결과는 관찰·추론·개선 권고로 구분됩니다. 분석 후 현장 상황과 대조해 주세요.</p>
             {apiReady===null?<p role="status">서버 API 연결을 확인하고 있습니다.</p>:apiReady===false?<div className="si-notice"><p>앱 분석에 필요한 서버 API 연결을 사용할 수 없습니다. ChatGPT로 직접 분석을 진행하거나 용량·API 상태를 다시 확인해 주세요.</p><div className="si-inline"><button className="si-btn" disabled={busy} onClick={()=>setMethod('manual')}>ChatGPT로 진행하기</button><button className="si-btn" disabled={busy} onClick={props.onRefresh}>API 연결 다시 확인</button></div></div>:<>
                 {!consent&&<p className="si-caption">위의 사진 사용 확인을 체크하면 분석 버튼을 사용할 수 있습니다.</p>}
-                <button className="si-btn si-primary" disabled={busy || !consent || !photoUrl} onClick={props.onAnalyze}>{busy?'처리 중…':apiEnabled?'이 사진 분석 · API':'API 켜고 이 사진 분석'}</button>
+                <InspectorAiCostNotice cost={props.apiCost} busy={busy} onRefresh={props.onRefresh}/><button className="si-btn si-primary" disabled={busy || !consent || !photoUrl || !normalizeAiCost(props.apiCost).allowed} onClick={props.onAnalyze}>{busy?'처리 중…':apiEnabled?'이 사진 분석 · API':'API 켜고 이 사진 분석'}</button>
                 <p className="si-caption">버튼을 누를 때만 요청합니다. API 제공자 요금은 별도이며 자동 재시도하지 않습니다. 변경한 설명은 먼저 저장됩니다.</p>
             </>}
         </div>:<div className="si-manual-guide">

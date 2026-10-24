@@ -15,7 +15,7 @@ export function createInspectorAnalysisClient(transport:typeof send=send){
             if(!result?.ok){
                 // A terminal provider failure can be retried only by the user's next click.
                 if(result?.retryable===true)attempts.delete(key);
-                throw new Error(result?.message||'사진 분석을 완료하지 못했습니다. 저장 기록을 확인해 주세요.');
+                throw Object.assign(new Error(result?.message||'사진 분석을 완료하지 못했습니다. 저장 기록을 확인해 주세요.'),{code:result?.code,cost:result?.cost});
             }
             return result;
         }).finally(()=>{active.flight=undefined;});

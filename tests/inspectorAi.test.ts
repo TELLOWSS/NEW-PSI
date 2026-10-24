@@ -1,5 +1,7 @@
 import {afterEach,describe,expect,it,vi} from 'vitest';
 import {analyzeInspectorPhoto,analysisFingerprint,inspectorAiConfig} from '../lib/server/admin/inspectorAi';
+import {inspectorBillingStatus} from '../lib/server/admin/inspectorBilling';
+vi.mock('../lib/server/admin/inspectorBilling',()=>({inspectorBillingStatus:vi.fn(async()=>({policy:'free-only',state:'free-project',allowed:true,message:'fixture only',remainingRequests:null}))}));
 import {newInspectionDocument} from '../lib/inspector/types';
 import {createHash} from 'node:crypto';
 const bytes=Buffer.from('synthetic image'),photo={id:'a0190000-0000-4000-8000-000000000002',inspection_id:'a0190000-0000-4000-8000-000000000001',sha256:createHash('sha256').update(bytes).digest('hex'),mime_type:'image/jpeg',byte_size:bytes.length,created_at:new Date().toISOString()};
@@ -19,6 +21,8 @@ describe('explicit photo analysis boundaries',()=>{
     expect(prompt).toContain('"photo_notes":""');expect(prompt).toContain('설명이 없어도 사진 자체에서');expect(prompt).not.toContain('wrong photo hint');expect(fetch).toHaveBeenCalledOnce();
     if(provider==='gemini')expect(body.contents[0].parts[1].inlineData.data).toBe(bytes.toString('base64'));else expect(body.input[0].content[1].image_url).toContain(bytes.toString('base64'));
  });
+ it('blocks inference before reserving, reading a photo or sending to the provider when costs cannot be verified',async()=>{env('gemini');vi.mocked(inspectorBillingStatus).mockResolvedValueOnce({policy:'free-only',state:'unverified',allowed:false,message:'무료 미확인',remainingRequests:null});const db=fixture(),fetch=mock({});await expect(analyzeInspectorPhoto(db,row(),photo)).rejects.toMatchObject({code:'AI_COST_BLOCKED',retryable:false});expect(db.rpc).not.toHaveBeenCalled();expect(fetch).not.toHaveBeenCalled();});
+ it('stops on provider quota rejection without switching provider/model or automatically retrying',async()=>{env('gemini');const fetch=mock({});fetch.mockResolvedValue({ok:false,status:429});await expect(analyzeInspectorPhoto(fixture(),row(),photo)).rejects.toMatchObject({code:'AI_QUOTA_REACHED',retryable:true});expect(fetch).toHaveBeenCalledOnce();});
  it('does not access DB or provider while OFF or unconfigured',async()=>{const db=fixture(),fetch=vi.fn();vi.stubGlobal('fetch',fetch);env();await expect(analyzeInspectorPhoto(db,{...row(),document:{...row().document,apiEnabled:false}},photo)).rejects.toThrow('OFF');expect(db.rpc).not.toHaveBeenCalled();expect(fetch).not.toHaveBeenCalled();vi.stubEnv('PSI_INSPECTOR_AI_MODEL','');expect(inspectorAiConfig().ready).toBe(false);});
  it('deduplicates operations and rejects changed or switched OFF context before external transfer',async()=>{env();const fetch=vi.fn();vi.stubGlobal('fetch',fetch);await expect(analyzeInspectorPhoto(fixture(row(),false),row(),photo)).rejects.toMatchObject({code:'AI_REQUEST_BLOCKED',retryable:false});await expect(analyzeInspectorPhoto(fixture({...row(),revision:4}),row(),photo)).rejects.toThrow('변경');expect(fetch).not.toHaveBeenCalled();expect(analysisFingerprint(row(),photo,'m')).not.toBe(analysisFingerprint({...row(),document:{...row().document,photoNotes:{[photo.id]:'different hint'}}},photo,'m'));});
  it.each(['gemini','openai'])('sends %s a strict content schema and real image, binding identity on server',async provider=>{
