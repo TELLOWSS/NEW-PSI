@@ -250,3 +250,10 @@
 }
 @media(max-width:360px){.si-task-progress{gap:7px;padding:11px!important}.si-task-phases{font-size:10px;gap:4px}}
 @media print{.si-novice-steps,.si-novice-analysis-settings,.si-novice-analysis-status,.si-novice-manual{display:none!important}}
+
+
+.si-report-readiness{margin:14px 0 20px;border:1px solid var(--si-line);background:var(--si-surface);border-radius:14px;padding:15px 17px;line-height:1.6}
+.si-report-readiness>b{font-size:15px}
+.si-report-readiness p{margin:5px 0;color:var(--si-navy);font-size:13px}
+.si-report-readiness small{font-size:12px;color:var(--si-muted)}
+@media print{.si-report-readiness{display:none!important}}
