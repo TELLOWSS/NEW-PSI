@@ -33,6 +33,7 @@ import {normalizeAiCost,type InspectorAiCost} from '../../lib/inspector/aiCost';
 import InspectorTaskProgress from './InspectorTaskProgress';
 import InspectorNoviceSteps from './InspectorNoviceSteps';
 import {noviceStep} from '../../lib/inspector/noviceExperience';
+import type {ReportPhotoLoadState} from '../../lib/inspector/noviceFollowThrough';
 import InspectorShareButton from './InspectorShareButton';
 import {sharePhotoFile} from '../../lib/inspector/sharing';
 import {duplicateAction,findingActionEntry,type FindingActionEntry} from '../../lib/inspector/actionPlan';
@@ -78,7 +79,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
     const [analysisFailure,setAnalysisFailure]=useState<AnalysisFailure>({});
     const [analyzedResult,setAnalyzedResult]=useState(false),[analysisFailed,setAnalysisFailed]=useState(false);
     const [analyzePhoto]=useState(()=>createInspectorAnalysisClient());
-    const [report,setReport]=useState<InspectionReport|null>(null),[copied,setCopied]=useState(false);
+    const [report,setReport]=useState<InspectionReport|null>(null),[printPhotoStatus,setPrintPhotoStatus]=useState<ReportPhotoLoadState>('loading'),[copied,setCopied]=useState(false);
     const inflight=useRef(false),alive=useRef(true),createId=useRef(crypto.randomUUID()),latest=useRef<Inspection|null>(null),uploaded=useRef<Evidence|null>(null),noteRef=useRef<HTMLTextAreaElement>(null),startRef=useRef<HTMLButtonElement>(null),resultRef=useRef<HTMLElement>(null),errorRef=useRef<HTMLParagraphElement>(null);
     const analysis=analyzedResult&&item&&photo?item.document.analyses[photo.id]:null;
     const pendingPhoto=item?pendingReviewQueue(item.document)[0]?.id:undefined;
@@ -222,7 +223,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
         if(current.document.photoIds.every(id=>current.document.analyses[id]&&current.document.reviews[id]?.decision==='accepted')&&!current.document.materialCompletion)current=accept((await request({op:'complete-materials',id:current.id,expectedRevision:current.revision})).item);
         setActivity('사진·전문가 의견·근거를 보고서에 저장 중');
         const r=await request({op:'report',id:current.id,expectedRevision:current.revision});
-        if(alive.current){forgetReviewPosition(current.id);setReviewNotice('');setReport(r.report);requestAnimationFrame(()=>document.querySelector('.si-report')?.scrollIntoView({block:'start',behavior:'smooth'}));}
+        if(alive.current){forgetReviewPosition(current.id);setReviewNotice('');setPrintPhotoStatus('loading');setReport(r.report);requestAnimationFrame(()=>document.querySelector('.si-report')?.scrollIntoView({block:'start',behavior:'smooth'}));}
         });
     };
     const finish=()=>createReport(false);
@@ -416,7 +417,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
         </section>}
         {fieldCard&&createPortal(<Suspense fallback={<div role="status">전달 카드 편집기 준비 중…</div>}><InspectorFieldCardDialog {...fieldCard} onClose={()=>setFieldCard(null)}/></Suspense>,document.body)}
         <details className="si-quick-basics" open={showBasics} onToggle={e=>setShowBasics(e.currentTarget.open)}><summary>현장 필수 법령 요지 · 금액 전체 보기 ({LEGAL_CARDS.length}개 주제)</summary>{showBasics&&<InspectorLegalResult reference={{...legalForText(''),cards:LEGAL_CARDS}}/>}</details>
-        {report&&<><div className="si-quick-print"><button className="si-btn si-primary" onClick={()=>window.print()}>보고서 인쇄 · PDF 저장</button><button className="si-btn" disabled={busy} onClick={nextPhoto}>사진 더 추가</button><button className="si-btn" disabled={busy} onClick={startNew}>새 점검 시작</button><p>검토용 보고서입니다. 보고서를 만들었다고 개선조치가 완료되거나 법 위반이 확정되는 것은 아닙니다.</p></div><Suspense fallback={<p role="status">보고서 화면을 준비합니다…</p>}><InspectorReport report={report}/></Suspense></>}
+        {report&&<><div className="si-quick-print"><button className="si-btn si-primary" disabled={printPhotoStatus==='loading'} onClick={()=>{if(printPhotoStatus==='failed'&&!window.confirm('일부 보고서 사진을 불러오지 못했습니다. 사진이 누락된 상태로 인쇄할까요?'))return;window.print();}}>{printPhotoStatus==='loading'?'사진 준비 중 · 인쇄 대기':printPhotoStatus==='failed'?'사진 누락 확인 후 인쇄/PDF 저장':'보고서 인쇄 · PDF 저장'}</button><button className="si-btn" disabled={busy} onClick={nextPhoto}>사진 더 추가</button><button className="si-btn" disabled={busy} onClick={startNew}>새 점검 시작</button><p>검토용 보고서입니다. 보고서를 만들었다고 개선조치가 완료되거나 법 위반이 확정되는 것은 아닙니다.</p></div><Suspense fallback={<p role="status">보고서 화면을 준비합니다…</p>}><InspectorReport report={report} onPhotoState={setPrintPhotoStatus}/></Suspense></>}
         {!busy&&!analysisFailed&&!storageLocked&&item&&item.document.photoIds.length>0&&!report&&!editInput&&(!local||photo)&&createPortal(<div className={`si-workspace si-dock-scope si-quick-dock${editingField?' is-editing-field':''}`} ><div className="si-quick-finish" aria-label="결과 확인과 저장"><p>{busy?activity||'처리 중…':`${item.document.photoIds.length}장 보관 · ${item.document.photoIds.filter(id=>!!item.document.reviews[id]).length}장 검토 기록`}</p>{photo?<button className="si-btn" disabled={busy||storageBusy||resultNote!==note||!!analysis&&!reviewSaved||actionDraftDirty} onClick={nextPhoto}>확인하고 다음 사진</button>:<button className="si-btn" disabled={busy||storageBusy} onClick={()=>setCamera(true)}>다음 사진 촬영</button>}<button className="si-btn si-primary" disabled={busy||storageBusy} onClick={photo&&journey?()=>handleJourney(journey.action):!photo&&actionDraftDirty?()=>{setReportBlocked(true);setDraftRequest(n=>n+1);}:!photo&&pendingPhoto?()=>openSavedPhoto(pendingPhoto):finish}>{photo&&journey?journey.label:!photo&&actionDraftDirty?'작성 중인 입력 계속하기':photo?'확인 · 보고서 저장':pendingPhoto?'검토 대기 사진 이어보기':'모은 자료로 보고서 완성'}</button></div></div>,document.body)}
         {zoom&&preview&&<InspectorPhotoDialog src={preview} onClose={()=>setZoom(false)} caption={(zoomFocus?`AI 관찰 위치: ${zoomFocus} · `:'')+(local||photo?.optimization_receipt?'점검용 최적화 사본입니다. 고화질 원본은 기기에 별도로 보관하세요.':'보관한 점검 사진입니다. 기기 원본 보관 상태는 별도로 확인하세요.')}/>}
         </fieldset>
