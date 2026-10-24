@@ -1,0 +1,22 @@
+import {describe,expect,it} from 'vitest';
+import {newInspectionDocument,type Inspection,type VisionImport} from '../lib/inspector/types';
+import {DEFAULT_REVIEW_NOTE} from '../lib/inspector/expertReview';
+import {resultJourney} from '../lib/inspector/resultJourney';
+const analysis=(id:string)=>({photo_id:id,requires_confirmation:[],recommended_controls:[],risk_findings:[]} as unknown as VisionImport);
+const item=():Inspection=>({id:'inspection',revision:3,created_at:'',updated_at:'',document:{...newInspectionDocument(),photoIds:['p'],analyses:{p:analysis('p')}}});
+const options={notesMatch:true,analysisViewed:true,review:{decision:'accepted' as const,note:''},hasDraft:false};
+const reviewed=()=>{const v=item();v.document.reviews.p={decision:'accepted',note:DEFAULT_REVIEW_NOTE};return v;};
+describe('next useful action after a photo result',()=>{
+ it('requires review before recommending a report and never changes the record',()=>{const v=item(),before=JSON.stringify(v);expect(resultJourney(v,'p',options)).toMatchObject({action:'save-review',reviewStatus:'현장 대조 후 저장 필요'});expect(JSON.stringify(v)).toBe(before);});
+ it('prioritizes changed input over an old saved review',()=>{expect(resultJourney(reviewed(),'p',{...options,notesMatch:false})).toMatchObject({action:'edit-input',reviewStatus:'설명 수정됨 · 결과 확인 필요'});});
+ it('opens saved AI results rather than treating an unseen result as manual inspection',()=>{expect(resultJourney(reviewed(),'p',{...options,analysisViewed:false})).toMatchObject({action:'view-stored'});});
+ it.each([{decision:'rejected' as const,note:''},{decision:'accepted' as const,note:'짧음'}])('guides an invalid opinion to the editing field: %j',review=>{expect(resultJourney(item(),'p',{...options,review})).toMatchObject({action:'review-fields'});});
+ it('keeps changed opinions pending instead of treating the prior saved review as current',()=>{expect(resultJourney(reviewed(),'p',{...options,review:{decision:'accepted',note:'현장에서 새롭게 확인한 의견'}})).toMatchObject({action:'save-review'});});
+ it('protects an action draft before moving to another photo or report',()=>{expect(resultJourney(reviewed(),'p',{...options,hasDraft:true})).toMatchObject({action:'return-draft',reportStatus:'작성 중인 입력부터 저장'});});
+ it('puts other pending photos before report creation',()=>{const v=reviewed();v.document.photoIds.push('p2');v.document.analyses.p2=analysis('p2');expect(resultJourney(v,'p',options)).toMatchObject({action:'next-review',pending:1,pendingPhotos:[{id:'p2',number:2}]});});
+ it('allows a manual photo to lead to pending AI review without claiming manual approval',()=>{const v=item();delete v.document.analyses.p;v.document.photoIds.push('p2');v.document.analyses.p2=analysis('p2');expect(resultJourney(v,'p',options)).toMatchObject({action:'next-review',reviewStatus:'자동 분석 없음 · 직접 확인 기록'});});
+ it('allows a manual report without creating an AI review or inventing an action',()=>{const v=item();delete v.document.analyses.p;expect(resultJourney(v,'p',options)).toMatchObject({action:'draft-action',secondary:{action:'report'}});expect(v.document.reviews).toEqual({});expect(v.document.actions).toEqual([]);});
+ it('counts only actions explicitly linked to this photo, and keeps unresolved status visible',()=>{const v=reviewed();v.document.actions=[{id:'a',title:'미결',owner:'반장',dueDate:'2026-10-25',status:'open',note:'',completionPhotoId:'',sourcePhotoIds:['p']},{id:'b',title:'다른 사진',owner:'반장',dueDate:'2026-10-25',status:'verified',note:'',completionPhotoId:'',sourcePhotoIds:['other']}];expect(resultJourney(v,'p',options)).toMatchObject({action:'report',linked:1,unresolved:1});expect(resultJourney(v,'p',options)?.description).toContain('완료를 뜻하지 않습니다');});
+ it('preserves human rejection as a saved opinion, without reopening it as AI acceptance',()=>{const v=reviewed();v.document.reviews.p={decision:'rejected',note:'현장 확인 결과와 다릅니다'};expect(resultJourney(v,'p',{...options,review:{decision:'rejected',note:'현장 확인 결과와 다릅니다'}})).toMatchObject({action:'report'});expect(v.document.reviews.p.decision).toBe('rejected');});
+ it('does not guide a photo absent from the saved inspection',()=>{expect(resultJourney(item(),'missing',options)).toBeNull();});
+});
