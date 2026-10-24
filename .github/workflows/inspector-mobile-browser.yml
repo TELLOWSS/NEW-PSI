@@ -1,0 +1,54 @@
+name: PSI inspector mobile browser QA
+
+on:
+  pull_request:
+    paths:
+      - 'components/inspector/**'
+      - 'pages/InspectorReply.tsx'
+      - 'lib/inspector/**'
+      - 'scripts/verify-inspector-camera.mjs'
+      - 'scripts/verify-inspector-action-share.mjs'
+      - '.github/workflows/inspector-mobile-browser.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: inspector-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inspector-mobile:
+    name: synthetic-camera-and-sharing
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+      PSI_SHARE_DIST: dist
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Build once for field-browser QA
+        run: npm run build
+      - name: Camera permission, rotation, fallback and narrow viewports
+        run: node scripts/verify-inspector-camera.mjs
+      - name: Sharing, reply, denied/revoked links and handoff
+        run: node scripts/verify-inspector-action-share.mjs
+      - name: Upload synthetic-only QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inspector-mobile-qa-evidence
+          path: |
+            artifacts/audit/inspector-camera/
+            artifacts/audit/action-share/
+          if-no-files-found: ignore
+          retention-days: 7
