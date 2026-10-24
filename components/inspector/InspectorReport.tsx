@@ -10,7 +10,8 @@ import InspectorShareButton from './InspectorShareButton';
 import {sharePhotoFile} from '../../lib/inspector/sharing';
 import {actionPhotoSummary} from '../../lib/inspector/actionFollowup';
 import InspectorPhotoComparison from './InspectorPhotoComparison';
-export default function InspectorReport({ report }: { report: InspectionReport }) {
+import {reportPrintState,type ReportPhotoLoadState} from '../../lib/inspector/noviceFollowThrough';
+export default function InspectorReport({ report,onPhotoState }: { report: InspectionReport;onPhotoState?:(state:ReportPhotoLoadState)=>void }) {
     const {inspection,evidence,generatedAt}=report.snapshot, doc=inspection.document;
     const [briefMessage,setBriefMessage]=useState('');
     const [photos,setPhotos]=useState<Record<string,{url?:string;blob?:Blob;failed?:boolean}>>({});
@@ -24,8 +25,11 @@ export default function InspectorReport({ report }: { report: InspectionReport }
         }catch{if(!disposed)setPhotos(old=>({...old,[photo.id]:{failed:true}}));}}};
         void Promise.all([worker(),worker()]);return()=>{disposed=true;controller.abort();urls.forEach(url=>URL.revokeObjectURL(url));};
     },[report.id]);
+    const photoState=reportPrintState(evidence.length,evidence.map(photo=>photos[photo.id]?.failed?'failed':photos[photo.id]?.url?'ready':'loading'));
+    useEffect(()=>{onPhotoState?.(photoState);},[photoState,onPhotoState]);
     return <article className="si-report" aria-label="점검 검토용 보고서">
         <header><p className="si-eyebrow">NEW-PSI · SAFETY INSPECTOR</p><h2>현장점검 검토용 보고서</h2><p>{report.snapshot.legalReference?'공식 법령 요지·조건별 금액 포함 · 현장 적용 및 최종 승인 전':'작성 당시 법령 자료 미수록 · 최종 승인 전'}</p></header>
+        <section className="si-report-readers-guide" aria-label="보고서 확인 순서"><b>처음 확인하는 분을 위한 보고서 길잡이</b><ol><li>사진별 위험요인과 현장 전문가 검토 의견을 비교합니다.</li><li>관련 법령·금액은 적용 조건과 공식 원문을 대조합니다.</li><li>미결 조치·개선사진·현장 재점검 결과를 확인한 뒤 공유합니다.</li></ol><p>이 자료는 검토용이며 보고서를 출력했다고 현장 개선이나 법 위반이 확정되지 않습니다.</p><p role="status">{photoState==='loading'?`보고서 사진 ${evidence.filter(photo=>photos[photo.id]?.url).length}/${evidence.length}장 준비 중 · 완료 후 인쇄 가능`:photoState==='failed'?'일부 사진을 불러오지 못했습니다. 사진 누락 여부를 확인하고 인쇄 여부를 결정하세요.':'보고서 사진 준비 완료 · 인쇄/PDF 저장 가능'}</p></section>
         <section className="si-report-brief"><div className="si-section-heading"><h3>바로 활용하는 보고 요약</h3><button className="si-btn" onClick={()=>void navigator.clipboard.writeText(buildReportActionRequests(report)).then(()=>setBriefMessage('현장 전달용 요약을 복사했습니다.')).catch(()=>setBriefMessage('복사하지 못했습니다. 보고 요약 내용을 선택해 주세요.'))}>현장 전달용 요약 복사</button><button className="si-btn" onClick={()=>void Promise.resolve().then(()=>navigator.clipboard.writeText(buildInspectionBrief(report))).then(()=>setBriefMessage('보고 요약을 복사했습니다.')).catch(()=>setBriefMessage('복사할 수 없습니다. 아래 요약을 선택해 복사해 주세요.'))}>보고 요약 복사</button><InspectorShareButton title={doc.title+' · 검토용 보고 요약'} text={buildInspectionBrief(report)} label="보고서 사진·요약 보내기" prepareFiles={async()=>Promise.all(evidence.map(async(photo,n)=>{const blob=photos[photo.id]?.blob;if(!blob)throw new Error('사진 로딩 미완료');return sharePhotoFile(blob,n+1);}))}/></div>{briefMessage&&<p role="status">{briefMessage}</p>}<details><summary>보고 요약 내용 보기</summary><p className="si-pre">{buildInspectionBrief(report)}</p></details></section>
         <div className="si-report-summary"><span>증거사진 <b>{evidence.length}</b>장</span><span>미결 조치 <b>{doc.actions.filter(a=>a.status!=='verified').length}</b>건</span><span>미확인 질문 <b>{Object.entries(doc.analyses).filter(([id])=>evidence.some(p=>p.id===id)).reduce((sum,[id,a])=>sum+a.requires_confirmation.filter((_,n)=>{const answer=doc.confirmationAnswers?.[id]?.find(x=>x.questionIndex===n);return !answer || answer.answer==='unknown';}).length,0)}</b>건</span><span>{report.snapshot.legalReference?'법령 요지·금액 포함 · 적용 검토':'작성 당시 법령 미수록'}</span></div>
         <dl className="si-report-meta"><div><dt>점검명</dt><dd>{doc.title}</dd></div><div><dt>현장·위치</dt><dd>{doc.siteName || '미입력'} / {doc.location || '미입력'}</dd></div><div><dt>공종·촬영시점</dt><dd>{doc.workType || '미입력'} / {formatInspectionTimestamp(doc.eventAt)}</dd></div><div><dt>상태</dt><dd>{inspectionState(doc)}</dd></div><div><dt>점검번호·버전</dt><dd>{inspection.id} · {inspection.revision}</dd></div><div><dt>생성시각</dt><dd>{formatInspectionTimestamp(generatedAt)}</dd></div></dl>
