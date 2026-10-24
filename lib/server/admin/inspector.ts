@@ -3,7 +3,7 @@ import {freeRegistrationChallenge,registerFreeProject,freeProfileCookie,writeFre
 import {inspectorShareAdmin} from './inspectorShare.js';
 import { validateOptimization, purgeInspection, inspectionDeletionStatus } from './inspectorAssets.js';
 import {inspectorBillingStatus} from './inspectorBilling.js';
-import { InspectorAiError, inspectorAiConfig, analyzeInspectorPhoto, checkInspectorAiConnection } from './inspectorAi.js';
+import { InspectorAiError, inspectorAiConfig, analyzeInspectorPhoto, checkInspectorAiConnection, checkInspectorAiAnalysis } from './inspectorAi.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { isValidAdminAuthRequest } from '../adminAuthGuard.js';
 import { createSupabaseServerClient } from '../supabaseServer.js';
@@ -91,6 +91,12 @@ export default async function inspector(req: any, res: any) {
             dbError(error); return res.status(201).json({ok:true,item:data});
         }
         if(body.op==='usage'){keys(body,[]);const result=await db.rpc('psi_inspector_usage');dbError(result.error);return res.status(200).json({ok:true,usage:result.data});}
+        if(body.op==='ai-analysis-check'){
+            keys(body,['confirmed']);if(body.confirmed!==true)reject(400,'EXTERNAL_CONFIRMATION','합성 이미지 전송과 무료 한도 1회 사용을 확인해 주세요.');
+            const testQuota=await consumeApiQuota(db,{scope:'inspector.ai-check',clientKeyHash:'dedicated-project',maxRequests:1,windowSeconds:60});
+            if(!testQuota.allowed){res.setHeader('Retry-After',String(testQuota.retryAfterSeconds));reject(429,'AI_CHECK_RATE_LIMIT','작동 시험은 서버 전체에서 1분에 한 번 가능합니다. 잠시 후 확인해 주세요.');}
+            try{return res.status(200).json({ok:true,...await checkInspectorAiAnalysis(freeProfileCookie(req))});}catch(e){if(e instanceof InspectorAiError){if(e.cost?.state==='billing-linked')writeFreeProfileCookie(res);return res.status(409).json({ok:false,code:e.code,message:e.message,...(e.cost?{cost:e.cost}:{})});}throw e;}
+        }
         if(body.op==='ai-connection-check'){keys(body,[]);try{return res.status(200).json({ok:true,...await checkInspectorAiConnection(freeProfileCookie(req))});}catch(e){if(e instanceof InspectorAiError){if(e.cost?.state==='billing-linked')writeFreeProfileCookie(res);return res.status(409).json({ok:false,code:e.code,message:e.message,...(e.cost?{cost:e.cost}:{})});}throw e;}}
         if(body.op==='free-project-register'){keys(body,['challenge','projectId','confirmed']);const config=inspectorAiConfig();const current=await inspectorBillingStatus(config);if(['billing-linked','unsupported-model','unavailable'].includes(current.state))reject(409,'FREE_REGISTRATION_BLOCKED',current.message);let token;try{token=registerFreeProject(config,body.challenge,body.projectId,body.confirmed);}catch(e){reject(400,'FREE_REGISTRATION_INVALID',e instanceof Error?e.message:'등록을 확인해 주세요.');}writeFreeProfileCookie(res,token);return res.status(200).json({ok:true});}
         if(body.op==='free-project-revoke'){keys(body,[]);writeFreeProfileCookie(res);return res.status(200).json({ok:true});}
