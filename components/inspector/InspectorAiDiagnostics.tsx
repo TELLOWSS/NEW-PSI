@@ -6,7 +6,8 @@ export default function InspectorAiDiagnostics({disabled,onCost}:{disabled:boole
     const check=async()=>{
         if(lock.current||disabled)return;lock.current=true;setBusy(true);setMessage('합성 이미지 1회 분석 및 응답 형식 검증 중…');setFailed(false);
         try{
-            const result=await postAdminJson('/api/admin/inspector',{op:'ai-analysis-check',confirmed:true},{timeoutMs:90000,fallbackMessage:'AI 작동 시험을 완료하지 못했습니다.'});
+            const result=await postAdminJson('/api/admin/inspector',{op:'ai-analysis-check',confirmed:true},{requireOk:false,timeoutMs:90000,fallbackMessage:'AI 작동 시험을 완료하지 못했습니다.'});
+            if(!result?.ok)throw Object.assign(new Error(result?.message||'AI 작동 시험을 완료하지 못했습니다.'),{code:result?.code,cost:result?.cost});
             if(result.cost)onCost(normalizeAiCost(result.cost));
             if(result.connected!==true||result.syntheticOnly!==true||result.inferenceRequests!==1)throw new Error('작동 시험의 완료 증빙을 확인하지 못했습니다.');
             setMessage(`실제 이미지 분석·응답 형식 검증 통과 · ${result.model} · ${new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',timeStyle:'short'}).format(new Date(result.checkedAt))}. 고객 사진 전송·점검기록 생성 없음. 현장 분석 정확도를 보증하는 시험은 아닙니다.`);

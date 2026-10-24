@@ -67,6 +67,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
     const [consent,setConsent]=useState(false),[busy,setBusy]=useState(false),[activity,setActivity]=useState(''),[error,setError]=useState('');
     const [reference,setReference]=useState<LegalReference|null>(null),[showBasics,setShowBasics]=useState(false),[resultNote,setResultNote]=useState('');
     const [connection,setConnection]=useState({provider:'',model:''}),[editInput,setEditInput]=useState(false),[resultKey,setResultKey]=useState(0);
+    const [analysisRecovery,setAnalysisRecovery]=useState<'retry'|'stored'|'settings'|'blocked'>('stored');
     const [analyzedResult,setAnalyzedResult]=useState(false),[analysisFailed,setAnalysisFailed]=useState(false);
     const [analyzePhoto]=useState(()=>createInspectorAnalysisClient());
     const [report,setReport]=useState<InspectionReport|null>(null),[copied,setCopied]=useState(false);
@@ -123,7 +124,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
             const next=accept((await analyzePhoto({id:current.id,photoId:registered.id,expectedRevision:current.revision})).item);
             if(alive.current){setReview({decision:'accepted',note:''});showResult(next,registered);}
         }catch(cause){
-            if(alive.current){setAnalysisFailed(true);showResult(current,registered,false);}
+            if(alive.current){const failure=cause as {code?:string;retryable?:boolean};setAnalysisRecovery(failure.retryable===true?'retry':failure.code==='AI_COST_BLOCKED'?'blocked':!failure.code||['AI_REQUEST_BLOCKED','AI_CONTEXT_CHANGED'].includes(failure.code)?'stored':'settings');setAnalysisFailed(true);showResult(current,registered,false);}
             throw cause;
         }
     });
@@ -134,6 +135,17 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
         const prior=current.document.reviews[registered.id];
         setReview({decision:prior?.decision||'accepted',note:prior?.note===DEFAULT_REVIEW_NOTE?'':prior?.note||''});setError('');setAnalysisFailed(false);showResult(current,registered);
     };
+    const recoverStoredAnalysis=()=>void run(async()=>{
+        const current=latest.current,registered=uploaded.current;if(!current||!registered)throw new Error('저장 기록에서 사진을 다시 열어 주세요.');
+        setActivity('저장 결과 확인 중 · AI 재요청 없음');
+        const saved=await request({op:'detail',id:current.id});
+        if(saved.control?.state&&saved.control.state!=='active'){setStorageLocked(true);throw new Error('삭제 중이거나 삭제된 점검입니다. 저장 기록에서 삭제 상태를 확인해 주세요.');}
+        if(!(saved.evidence||[]).some((p:Evidence)=>p.id===registered.id&&p.sha256===registered.sha256))throw new Error('선택한 사진을 저장 기록에서 확인하지 못했습니다. 저장 기록을 다시 열어 주세요.');
+        if((saved.item.document.photoNotes?.[registered.id]||'')!==note)throw new Error('저장된 사진 설명이 변경됐습니다. 입력을 덮어쓰지 않았습니다. 저장 기록에서 최신 사진을 다시 열어 주세요.');
+        accept(saved.item);setEvidence(saved.evidence);
+        if(saved.item.document.analyses[registered.id]){viewStoredResult();return;}
+        throw new Error('저장된 분석 결과가 아직 없습니다. 처리 중이거나 설명이 달라졌을 수 있습니다. 자동 재분석하지 않았습니다. 잠시 후 저장 결과를 확인하거나 사진·설명을 다시 열어 주세요.');
+    });
     const confirmCurrent=async()=>{
         let current=latest.current;const registered=uploaded.current;
         if(!current||!registered)throw new Error('사진 결과를 먼저 저장해 주세요.');
@@ -339,7 +351,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
         <header className="si-quick-heading"><div><p className="si-eyebrow">NEW-PSI · 현장 사진점검</p><h1>사진 한 장, 필요한 답을 한눈에</h1><p>위험요인 · 바로 할 조치 · 법령 요지 · 벌금·과태료</p></div><button className="si-btn" disabled={busy||storageBusy} onClick={()=>{if(!unsavedPhoto&&!actionDraftDirty||window.confirm('상세 관리로 이동합니다. 저장 전 사진·설명·검토·작성 중인 조치는 이 화면을 닫으면 사라집니다. 이동할까요?'))onAdvanced();}}>저장 기록 · 상세 관리</button></header>
         {!item&&!local&&!deletedResumeId&&<a className="si-product-entry" href="/product">처음이라면 결과 미리보기 · 현장 도입 안내 <span aria-hidden="true">↗</span></a>}
         {(item||deletedResumeId)&&<InspectorStorageManager key={item?.id||deletedResumeId} id={item?.id||deletedResumeId} revision={item?.revision||0} title={item?.document.title||'이 탭의 이전 점검 · 삭제 결과'} initialOpen={!!deletedResumeId} disabled={busy||!!local&&!photo} onWorking={setStorageBusy} onLocked={()=>{setStorageLocked(true);clearActive();}} onComplete={()=>startNew()}/>}
-        {storageLocked&&<p className="si-notice">삭제 중이거나 사진이 삭제된 점검입니다. 위 보관·삭제 관리에서 검증 결과를 확인하세요.</p>}
+        {storageLocked&&<p className="si-notice" role="alert">삭제 중이거나 사진이 삭제된 점검입니다. 위 보관·삭제 관리에서 검증 결과를 확인하세요.</p>}
         <fieldset className="si-work-area" hidden={storageLocked} disabled={storageBusy}>
         {!item&&!local&&!deletedResumeId&&resumeId&&<section className="si-resume" aria-label="이전 점검 이어하기"><div><b>이 탭에서 저장한 점검이 있습니다</b><p>보관한 사진과 전문가 검토를 불러와 이어서 완성하세요.</p></div><button className="si-btn" disabled={busy} onClick={resume}>이전 점검 이어하기</button></section>}
         {item&&entryIntent&&<section className="si-resumed-context" aria-label="현재 저장 점검"><p className="si-eyebrow">저장한 점검 이어하기</p><h2>{item.document.title}</h2><p>버전 {item.revision} · 사진 {item.document.photoIds.length}장 · 검토 대기 {recordResumeStatus(item.document).pendingPhotos}장 · 미결 조치 {recordResumeStatus(item.document).remainingActions}건</p>{entryNotice&&<p role="status" className="si-notice">{entryNotice}</p>}</section>}
@@ -359,7 +371,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
                 <p className="si-caption">{local?`기기에서 최적화 완료: ${(local.receipt.source_bytes/1048576).toFixed(2)}MB → ${(local.receipt.uploaded_bytes/1048576).toFixed(2)}MB · ${local.receipt.uploaded_width}×${local.receipt.uploaded_height}px. `:''}기기 원본은 바꾸지 않습니다. 보관·삭제는 ‘저장 기록 · 상세 관리’에서 확인할 수 있습니다.</p>
             </div>
         </section>
-        {error&&<div className="si-quick-error"><p ref={errorRef} className="si-notice si-error" role="alert" tabIndex={-1}>{error}</p>{analysisFailed&&local&&photo&&apiEnabled&&ready&&<button className="si-btn" disabled={busy} onClick={analyze}>사진 분석 다시 시도</button>}</div>}
+        {error&&<div className="si-quick-error"><p ref={errorRef} className="si-notice si-error" role="alert" tabIndex={-1}>{error}</p>{analysisFailed&&photo&&<div aria-label="사진 분석 복구">{analysisRecovery==='retry'&&apiEnabled&&ready&&<><p className="si-caption">사진을 다시 올리지 않습니다. 직접 재시도하면 무료 한도를 다시 사용합니다.</p><button className="si-btn" disabled={busy||!cost.allowed||!consent} onClick={analyze}>사진 분석 다시 시도</button></>}{analysisRecovery==='stored'&&<><p className="si-caption">응답이 끊겨도 서버에 결과가 저장됐을 수 있습니다. AI를 다시 호출하기 전에 저장 결과를 확인하세요.</p><button className="si-btn" disabled={busy||storageLocked} onClick={recoverStoredAnalysis}>저장 결과 먼저 확인 · AI 호출 없음</button></>}{analysisRecovery==='blocked'&&<p className="si-caption">무료 상태를 다시 확인한 뒤 진행하세요. 유료 모델로 바꾸거나 자동 재시도하지 않습니다.</p>}<button className="si-btn" disabled={busy||storageLocked} onClick={()=>{setEditInput(true);requestAnimationFrame(()=>document.getElementById('si-quick-input')?.scrollIntoView({block:'start',behavior:'smooth'}));}}>사진·설명과 연결 설정 확인</button></div>}</div>}
         {!reference&&<section className="si-quick-topics"><p>사진이 없어도 필요한 기준을 바로 볼 수 있습니다.</p><div>{LEGAL_CARDS.map(card=><button className="si-btn" key={card.id} disabled={busy} onClick={()=>{const text=card.keywords[0];setNote(text);setResultNote(text);setEditInput(false);setSelectedFinding(0);setResultKey(k=>k+1);setAnalyzedResult(false);setReference(legalForText(text));setReport(null);}}>{card.title}</button>)}</div></section>}
         {busy&&createPortal(<InspectorTaskProgress activity={activity}/>,document.body)}
         {reference&&<section ref={resultRef} tabIndex={-1} className="si-quick-result" aria-label="사진점검 결과">
