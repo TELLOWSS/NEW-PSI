@@ -1,3 +1,4 @@
+import {useAiCost} from '../../lib/inspector/useAiCost';
 import InspectorAiDiagnostics from './InspectorAiDiagnostics';
 import React,{lazy,Suspense,useCallback,useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
@@ -63,7 +64,8 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
     const [review,setReview]=useState<ExpertReview>({decision:'accepted',note:''}),[reportTitle,setReportTitle]=useState('사진 현장점검'),[actionCopied,setActionCopied]=useState(false),[zoom,setZoom]=useState(false);
     const [item,setItem]=useState<Inspection|null>(null),[photo,setPhoto]=useState<Evidence|null>(null);
     const [apiEnabled,setApiEnabled]=useState(true),[ready,setReady]=useState<boolean|null>(null),[camera,setCamera]=useState(false);
-    const [cost,setCost]=useState<InspectorAiCost>(()=>normalizeAiCost(null));
+    const [costStatus,setCost]=useState<InspectorAiCost>(()=>normalizeAiCost(null));
+    const cost=useAiCost(costStatus);
     const [consent,setConsent]=useState(false),[busy,setBusy]=useState(false),[activity,setActivity]=useState(''),[error,setError]=useState('');
     const [reference,setReference]=useState<LegalReference|null>(null),[showBasics,setShowBasics]=useState(false),[resultNote,setResultNote]=useState('');
     const [connection,setConnection]=useState({provider:'',model:''}),[editInput,setEditInput]=useState(false),[resultKey,setResultKey]=useState(0);
