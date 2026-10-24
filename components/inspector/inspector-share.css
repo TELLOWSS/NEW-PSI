@@ -29,5 +29,5 @@
 .si-reply-missing{font-size:12px;line-height:1.65;background:#fff7e6;border-radius:8px;padding:11px 12px;color:#6d501b;overflow-wrap:anywhere}
 .si-reply-page .si-reply-submit{min-height:52px;white-space:normal;line-height:1.5;font-size:15px}
 @media(max-width:550px){.si-reply-journey ol{grid-template-columns:1fr}.si-reply-journey li{display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:center}.si-reply-journey span{margin:0}}
-@media(max-width:380px){.si-reply-page .si-reply-form fieldset{grid-template-columns:1fr}.si-reply-page .si-reply-form fieldset label{min-height:48px}}
+@media(max-width:620px){.si-reply-page .si-reply-form fieldset{grid-template-columns:1fr}.si-reply-page .si-reply-form fieldset label{min-height:48px}}
 @media print{.si-reply-journey,.si-reply-kind-guide,.si-reply-missing{display:none!important}}
