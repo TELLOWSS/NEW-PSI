@@ -257,3 +257,23 @@
 .si-report-readiness p{margin:5px 0;color:var(--si-navy);font-size:13px}
 .si-report-readiness small{font-size:12px;color:var(--si-muted)}
 @media print{.si-report-readiness{display:none!important}}
+
+
+/* Reinspection remains an explicit expert action; UI does not alter the approval state. */
+.si-followup-steps{border:1px solid var(--si-line);border-radius:12px;background:var(--si-surface);padding:12px 14px;margin:12px 0 16px}
+.si-followup-steps ol{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;list-style:none;padding:0;margin:0}
+.si-followup-steps li{padding:10px;background:var(--si-soft);border-radius:8px;min-width:0}
+.si-followup-steps li.is-current{border:1px solid var(--si-teal);background:var(--si-accent-soft)}
+.si-followup-steps li.is-past{opacity:.8}
+.si-followup-steps b{display:block;font-size:12px;line-height:1.5}
+.si-followup-steps span{display:block;font-size:11px;line-height:1.5;color:var(--si-muted);margin-top:4px}
+.si-followup-steps p{font-size:13px;line-height:1.7;margin:12px 0 0}
+.si-reinspection-checks{margin:12px 0 16px;padding-left:24px;font-size:13px;line-height:1.75}
+.si-reinspection-checks li{margin:5px 0}
+.si-report-readers-guide{padding:16px;border:1px solid var(--si-line);border-radius:14px;background:var(--si-soft);margin:14px 0 20px;line-height:1.7}
+.si-report-readers-guide b{font-size:16px}
+.si-report-readers-guide ol{margin:10px 0;padding-left:23px;font-size:13px}
+.si-report-readers-guide p{font-size:12px;margin:6px 0;color:var(--si-muted)}
+.si-report-readers-guide p[role=status]{font-weight:700;color:var(--si-teal)}
+@media(max-width:600px){.si-followup-steps ol{grid-template-columns:1fr}.si-followup-steps li{padding:9px}.si-followup-steps span{margin-top:2px}}
+@media print{.si-followup-steps,.si-report-readers-guide{display:none!important}}

@@ -12,3 +12,22 @@
 .si-share-beginner-steps span{display:block;font-size:11px;color:#536579;margin-top:4px;overflow-wrap:anywhere}
 @media(max-width:620px){.si-share-beginner-steps{grid-template-columns:1fr}.si-share-beginner-steps li{padding:9px 12px}}
 @media print{.si-share-beginner-steps{display:none!important}}
+
+
+/* Recipient instructions: reveal only the next required response, not technical setup. */
+.si-reply-journey{border:1px solid #bfd4d0;border-radius:16px;padding:12px;background:#fff;margin:4px 0 16px;color:#153d3a}
+.si-reply-journey ol{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.si-reply-journey li{padding:10px;border-radius:9px;background:#f5f7f7;min-width:0}
+.si-reply-journey li.is-current{background:#e4f6ef;outline:1px solid #92c8b4}
+.si-reply-journey li.is-done{background:#ecf3f1}
+.si-reply-journey b{font-size:12px;display:block;line-height:1.5}
+.si-reply-journey span{font-size:11px;color:#506c6b;line-height:1.5;display:block;margin-top:4px;overflow-wrap:anywhere}
+.si-reply-lead{font-size:13px;color:#526b6b;line-height:1.65}
+.si-reply-kind-guide{background:#eff8f4;border-left:3px solid #23836e;border-radius:8px;padding:12px 14px;margin-top:12px}
+.si-reply-kind-guide strong{font-size:14px;color:#165749}
+.si-reply-kind-guide p{font-size:13px;line-height:1.7;margin:6px 0 0;color:#334e49}
+.si-reply-missing{font-size:12px;line-height:1.65;background:#fff7e6;border-radius:8px;padding:11px 12px;color:#6d501b;overflow-wrap:anywhere}
+.si-reply-page .si-reply-submit{min-height:52px;white-space:normal;line-height:1.5;font-size:15px}
+@media(max-width:550px){.si-reply-journey ol{grid-template-columns:1fr}.si-reply-journey li{display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:center}.si-reply-journey span{margin:0}}
+@media(max-width:620px){.si-reply-page .si-reply-form fieldset{grid-template-columns:1fr}.si-reply-page .si-reply-form fieldset label{min-height:48px}}
+@media print{.si-reply-journey,.si-reply-kind-guide,.si-reply-missing{display:none!important}}
