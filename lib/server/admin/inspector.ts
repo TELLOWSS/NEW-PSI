@@ -1,8 +1,9 @@
+import {inspectorKeyDiagnostics} from './inspectorServerRegistration.js';
 import {freeRegistrationChallenge,registerFreeProject,freeProfileCookie,writeFreeProfileCookie} from './inspectorFreeRegistration.js';
 import {inspectorShareAdmin} from './inspectorShare.js';
 import { validateOptimization, purgeInspection, inspectionDeletionStatus } from './inspectorAssets.js';
 import {inspectorBillingStatus} from './inspectorBilling.js';
-import { InspectorAiError, inspectorAiConfig, analyzeInspectorPhoto } from './inspectorAi.js';
+import { InspectorAiError, inspectorAiConfig, analyzeInspectorPhoto, checkInspectorAiConnection } from './inspectorAi.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { isValidAdminAuthRequest } from '../adminAuthGuard.js';
 import { createSupabaseServerClient } from '../supabaseServer.js';
@@ -90,9 +91,10 @@ export default async function inspector(req: any, res: any) {
             dbError(error); return res.status(201).json({ok:true,item:data});
         }
         if(body.op==='usage'){keys(body,[]);const result=await db.rpc('psi_inspector_usage');dbError(result.error);return res.status(200).json({ok:true,usage:result.data});}
+        if(body.op==='ai-connection-check'){keys(body,[]);try{return res.status(200).json({ok:true,...await checkInspectorAiConnection(freeProfileCookie(req))});}catch(e){if(e instanceof InspectorAiError){if(e.cost?.state==='billing-linked')writeFreeProfileCookie(res);return res.status(409).json({ok:false,code:e.code,message:e.message,...(e.cost?{cost:e.cost}:{})});}throw e;}}
         if(body.op==='free-project-register'){keys(body,['challenge','projectId','confirmed']);const config=inspectorAiConfig();const current=await inspectorBillingStatus(config);if(['billing-linked','unsupported-model','unavailable'].includes(current.state))reject(409,'FREE_REGISTRATION_BLOCKED',current.message);let token;try{token=registerFreeProject(config,body.challenge,body.projectId,body.confirmed);}catch(e){reject(400,'FREE_REGISTRATION_INVALID',e instanceof Error?e.message:'등록을 확인해 주세요.');}writeFreeProfileCookie(res,token);return res.status(200).json({ok:true});}
         if(body.op==='free-project-revoke'){keys(body,[]);writeFreeProfileCookie(res);return res.status(200).json({ok:true});}
-        if(body.op==='ai-status'){keys(body,[]);const config=inspectorAiConfig();const {provider,model,ready,maxCalls,maxOutputTokens}=config;const cost=await inspectorBillingStatus(config,freeProfileCookie(req));if(cost.state==='billing-linked')writeFreeProfileCookie(res);if(['unverified','operator-confirmed'].includes(cost.state))cost.registrationChallenge=freeRegistrationChallenge(config);return res.status(200).json({ok:true,provider,model,ready,maxCalls,maxOutputTokens,cost});}
+        if(body.op==='ai-status'){keys(body,[]);const config=inspectorAiConfig();const {provider,model,ready,maxCalls,maxOutputTokens}=config;const cost=await inspectorBillingStatus(config,freeProfileCookie(req));if(cost.state==='billing-linked')writeFreeProfileCookie(res);if(['unverified','operator-confirmed'].includes(cost.state))cost.registrationChallenge=freeRegistrationChallenge(config);return res.status(200).json({ok:true,provider,model,ready,maxCalls,maxOutputTokens,cost,keyDiagnostics:inspectorKeyDiagnostics(config)});}
         if(body.op==='deletion-status'){keys(body,['id']);return res.status(200).json({ok:true,status:await inspectionDeletionStatus(db,id(body.id))});}
         if(body.op==='delete-inspection') {keys(body,['id','mode','expectedRevision','confirmation']);const inspectionId=id(body.id);if(!['files','all'].includes(body.mode)||body.confirmation!==inspectionId||!Number.isSafeInteger(body.expectedRevision))reject(400,'DELETE_CONFIRMATION','삭제 범위와 확인 문구를 확인해 주세요.');try{const receipt=await purgeInspection(db,inspectionId,body.mode,body.expectedRevision);const status=await inspectionDeletionStatus(db,inspectionId);if(!status.verified)throw new Error('삭제 후 파일·기록 잔여 검증이 완료되지 않았습니다. 다시 확인해 주세요.');return res.status(200).json({ok:true,receipt,status});}catch(e){reject(409,'DELETE_INCOMPLETE',e instanceof Error?e.message:'삭제를 완료하지 못했습니다.');}}
         const inspectionId=id(body.id), current=await getInspection(db,inspectionId);

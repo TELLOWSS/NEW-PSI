@@ -11,7 +11,7 @@ export class InspectorAiError extends Error {
 export function inspectorAiConfig(){
     const provider=process.env.PSI_INSPECTOR_AI_PROVIDER || 'gemini';
     const model=process.env.PSI_INSPECTOR_AI_MODEL || (provider==='gemini'?'gemini-3.5-flash-lite':'');
-    const key=provider==='gemini'?(process.env.GEMINI_API_KEY||process.env.GOOGLE_GEMINI_API_KEY||process.env.GOOGLE_API_KEY||''):provider==='openai'?(process.env.OPENAI_API_KEY||''):'';
+    const key=provider==='gemini'?(process.env.GEMINI_API_KEY_FREE||process.env.GEMINI_API_KEY||process.env.GOOGLE_GEMINI_API_KEY||process.env.GOOGLE_API_KEY||''):provider==='openai'?(process.env.OPENAI_API_KEY||''):'';
     return {provider,model,key,ready:!!key&&/^[a-zA-Z0-9._-]{1,100}$/.test(model),maxCalls:20,maxOutputTokens:4096};
 }
 export function analysisFingerprint(item:Inspection,photo:Evidence,model:string){return createHash('sha256').update(JSON.stringify({version:5,contract:'vision-content-v2-findings',photo:photo.sha256,photoId:photo.id,notes:item.document.photoNotes?.[photo.id]||'',common:item.document.notes,site:item.document.siteName,location:item.document.location,work:item.document.workType,event:item.document.eventAt,model})).digest('hex');}
@@ -72,4 +72,14 @@ export async function analyzeInspectorPhoto(db:any,item:Inspection,photo:Evidenc
             throw new InspectorAiError('AI_RESPONSE_INVALID','AI 응답 항목이 표준과 맞지 않아 적용하지 않았습니다. 사진·설명은 저장되어 있습니다. 직접 다시 분석하거나 아래 설명 기반 기준을 볼 수 있습니다. 다시 실행하면 API 사용료가 발생할 수 있습니다.',true);
         }
     }finally{await db.rpc('psi_inspector_finish',{p_operation:operation});}
+}
+
+/** Metadata-only connection check: no image, prompt or generateContent request. */
+export async function checkInspectorAiConnection(profileToken?:string){
+    const config=inspectorAiConfig(),cost=await inspectorBillingStatus(config,profileToken);
+    if(!cost.allowed)throw new InspectorAiError('AI_COST_BLOCKED',cost.message,false,cost);
+    if(config.provider!=='gemini')throw new InspectorAiError('AI_CHECK_UNSUPPORTED','현재 무료 연결 확인은 Gemini만 지원합니다.');
+    let response:Response;try{response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${config.model}`,{method:'GET',headers:{'x-goog-api-key':config.key},signal:AbortSignal.timeout(10000),cache:'no-store',redirect:'error'});}catch{throw new InspectorAiError('AI_CHECK_FAILED','공급자 모델 정보 연결을 확인하지 못했습니다. 사진 분석은 실행하지 않았습니다.');}
+    if(!response.ok)throw new InspectorAiError('AI_CHECK_REJECTED',`모델 정보 조회가 거부됐습니다 (HTTP ${response.status}). 사진 분석은 실행하지 않았습니다.`);
+    const model=await response.json();return {connected:model.name===`models/${config.model}`&&Array.isArray(model.supportedGenerationMethods)&&model.supportedGenerationMethods.includes('generateContent'),provider:config.provider,model:config.model,inferenceRequests:0,cost};
 }
