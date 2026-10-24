@@ -254,3 +254,14 @@
  .si-camera-dialog:has(video)>.si-camera-direction-guide{grid-column:1/-1;order:6;margin:4px 0}
  .si-camera-dialog:has(video)>p.si-caption,.si-camera-dialog:has(video)>p.si-notice{grid-column:1/-1;order:7;font-size:11px;line-height:1.6;margin:2px 0}
 }
+
+
+/* Field photo: short, actionable camera guidance at 320px through tablet widths. */
+.si-camera-simple-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));list-style:none;margin:10px 0 14px;padding:0;gap:7px}
+.si-camera-simple-steps li{padding:9px 6px;border-radius:9px;text-align:center;background:#eaf0f3;color:#40566a;font-size:12px;line-height:1.5}
+.si-camera-simple-steps li.is-current{background:#d5eee6;color:#174d42;font-weight:700}
+.si-camera-recovery{margin:14px 0;padding:12px 14px;border-radius:11px;border:1px solid #e2ba86;background:#fff7e9;color:#583a18;overflow-wrap:anywhere}
+.si-camera-recovery strong{font-size:14px}
+.si-camera-recovery p{font-size:13px;line-height:1.7;margin:6px 0}
+@media(max-width:380px){.si-camera-simple-steps{gap:4px}.si-camera-simple-steps li{font-size:11px;padding:7px 3px}}
+@media print{.si-camera-simple-steps,.si-camera-recovery{display:none!important}}

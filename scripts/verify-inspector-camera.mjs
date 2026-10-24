@@ -30,9 +30,9 @@ try{
     return stream;
    }});
   },scenario);
-  await page.goto(base+'/?mode=photo-inspector',{waitUntil:'domcontentloaded'});await page.getByRole('heading',{name:'사진 한 장, 필요한 답을 한눈에'}).waitFor();
+  await page.goto(base+'/?mode=photo-inspector',{waitUntil:'domcontentloaded'});await page.getByRole('heading',{name:'사진만 찍어도 점검을 시작할 수 있습니다'}).waitFor();
   if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','가로 촬영'));}
-  await page.getByRole('button',{name:'카메라로 바로 촬영',exact:true}).click();const dialog=page.getByRole('dialog',{name:'카메라로 바로 촬영',exact:true});await dialog.waitFor();
+  await page.getByRole('button',{name:'사진 찍고 점검하기',exact:true}).click();const dialog=page.getByRole('dialog',{name:'카메라로 바로 촬영',exact:true});await dialog.waitFor();
   const modes=dialog.getByRole('group',{name:'촬영 방향',exact:true}),landscape=modes.getByRole('button',{name:'가로',exact:false}),portrait=modes.getByRole('button',{name:'세로',exact:false});assert.equal(await landscape.getAttribute('aria-pressed'),'true');
   if(scenario==='native-fallback'){
    await dialog.getByRole('alert').waitFor();assert.equal(await dialog.getByRole('button',{name:'지금 촬영',exact:true}).isDisabled(),true);await portrait.click();await dialog.getByRole('alert').waitFor();
@@ -57,7 +57,7 @@ try{
   await captured.getByRole('button',{name:'다시 촬영',exact:true}).click();await page.getByRole('dialog',{name:'카메라로 바로 촬영',exact:true}).waitFor();assert.equal(await portrait.getAttribute('aria-pressed'),scenario==='landscape'?'false':'true');
   await page.getByRole('dialog').getByRole('button',{name:'닫기',exact:true}).click();await page.waitForFunction(()=>window.__streams.every(s=>s.getTracks().every(t=>t.readyState==='ended')));
   if(scenario!=='storage-blocked'){
-   await page.getByRole('button',{name:'카메라로 바로 촬영',exact:true}).click();await page.getByRole('group',{name:'촬영 방향',exact:true}).waitFor();assert.equal(await page.getByRole('group',{name:'촬영 방향'}).getByRole('button',{name:'세로',exact:false}).getAttribute('aria-pressed'),scenario==='landscape'?'false':'true');await page.getByRole('dialog').getByRole('button',{name:'닫기',exact:true}).click();await page.waitForFunction(()=>window.__streams.every(s=>s.getTracks().every(t=>t.readyState==='ended')));
+   await page.getByRole('button',{name:'사진 찍고 점검하기',exact:true}).click();await page.getByRole('group',{name:'촬영 방향',exact:true}).waitFor();assert.equal(await page.getByRole('group',{name:'촬영 방향'}).getByRole('button',{name:'세로',exact:false}).getAttribute('aria-pressed'),scenario==='landscape'?'false':'true');await page.getByRole('dialog').getByRole('button',{name:'닫기',exact:true}).click();await page.waitForFunction(()=>window.__streams.every(s=>s.getTracks().every(t=>t.readyState==='ended')));
   }
   assert.deepEqual(errors,[]);assert.equal(ops.filter(op=>op!=='ai-status').length,0);results.push({scenario,status:'PASS',captured:size,businessWrites:0,paidAI:0,allStreamsStopped:true});console.log('PASS '+scenario);await context.close();
  }
