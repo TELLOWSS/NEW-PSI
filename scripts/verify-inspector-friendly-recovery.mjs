@@ -60,7 +60,7 @@ for(const scenario of ['blocked','unavailable','retry','quota','settings','unkno
   if(scenario==='unknown')assert.equal(await help.getByRole('button',{name:'직접 점검 계속하기',exact:true}).count(),1);
   {await help.getByRole('button',{name:'직접 점검 계속하기',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('.si-quick fieldset')?.disabled);assert.equal(item.document.apiEnabled,false);assert.equal(ops.filter(x=>x==='upload').length,1);}
  }
- if(scenario==='blocked'){await page.getByRole('button',{name:'확인 · 보고서 저장',exact:true}).click();await page.locator('.si-report').waitFor();await page.locator('.si-report img').first().waitFor();assert.equal(ops.filter(x=>x==='analyze-photo').length,0);assert.equal(ops.filter(x=>x==='report').length,1);assert.ok((await page.locator('.si-report').innerText()).includes('직접 확인한 발판 틈새.'));}
+ if(scenario==='blocked'){await page.getByRole('region',{name:'점검 다음 단계'}).getByRole('button',{name:'보고서로 기록하기',exact:true}).click();await page.locator('.si-report').waitFor();await page.locator('.si-report img').first().waitFor();assert.equal(ops.filter(x=>x==='analyze-photo').length,0);assert.equal(ops.filter(x=>x==='report').length,1);assert.ok((await page.locator('.si-report').innerText()).includes('직접 확인한 발판 틈새.'));}
  if(scenario==='advanced'){
   await page.getByRole('button',{name:'저장 기록 · 상세 관리',exact:true}).click();await page.locator('.si-record').first().waitFor({timeout:1000}).catch(()=>{});
   // Open the saved fixture through the actual records list.

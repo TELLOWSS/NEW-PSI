@@ -208,3 +208,9 @@
 .si-operator-settings>summary{cursor:pointer;font-size:13px;color:#536579;min-height:32px}
 @media(max-width:480px){.si-help-actions{display:grid;grid-template-columns:1fr}.si-help-actions .si-btn{width:100%}}
 .si-start-guide{padding:10px 12px;border-radius:10px;background:#eef5f3;color:#31574e;font-size:13px;line-height:1.65;margin:8px 0;overflow-wrap:anywhere}
+.si-result-journey{border:1px solid #b7d3cb;border-radius:16px;padding:18px;margin:18px 0;background:#f1f8f5;color:#173d34;overflow-wrap:anywhere;min-width:0}
+.si-result-journey h2{font-size:18px;margin:6px 0 10px;line-height:1.5}.si-result-journey p{font-size:14px;line-height:1.65}
+.si-journey-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.si-journey-actions .si-btn{min-height:44px;white-space:normal}
+.si-result-journey summary{cursor:pointer;font-size:13px;min-height:36px;padding:8px 0}.si-result-journey ol{padding:0;list-style:none;margin:4px 0}
+.si-result-journey li{display:flex;flex-direction:column;gap:3px;padding:10px 0;border-bottom:1px solid #d5e6df;font-size:13px}
+@media(max-width:480px){.si-journey-actions{display:grid;grid-template-columns:1fr}.si-journey-actions .si-btn{width:100%}}
