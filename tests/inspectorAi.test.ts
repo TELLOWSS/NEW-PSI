@@ -1,5 +1,5 @@
 import {afterEach,describe,expect,it,vi} from 'vitest';
-import {analyzeInspectorPhoto,analysisFingerprint,inspectorAiConfig,checkInspectorAiConnection} from '../lib/server/admin/inspectorAi';
+import {analyzeInspectorPhoto,analysisFingerprint,inspectorAiConfig,checkInspectorAiConnection,checkInspectorAiAnalysis} from '../lib/server/admin/inspectorAi';
 import {inspectorBillingStatus} from '../lib/server/admin/inspectorBilling';
 vi.mock('../lib/server/admin/inspectorBilling',()=>({inspectorBillingStatus:vi.fn(async()=>({policy:'free-only',state:'free-project',allowed:true,message:'fixture only',remainingRequests:null}))}));
 import {newInspectionDocument} from '../lib/inspector/types';
@@ -61,3 +61,12 @@ describe('explicit photo analysis boundaries',()=>{
  });
  it('does not reveal provider HTTP responses or automatically retry failures',async()=>{env();const fetch=mock({});fetch.mockResolvedValue({ok:false,status:503,json:async()=>({error:'secret provider response'})});const error=await analyzeInspectorPhoto(fixture(),row(),photo).catch(e=>e);expect(error).toMatchObject({code:'AI_PROVIDER_REJECTED',retryable:true});expect(error.message).not.toContain('secret');expect(fetch).toHaveBeenCalledOnce();});
 });
+
+describe('synthetic vision diagnostics',()=>{
+ it('exercises the production image and schema path once without customer data or database calls',async()=>{env('gemini');const fetch=mock(gemini(JSON.stringify({...content(),observed_facts:[{text:'왼쪽 빨간색, 오른쪽 파란색',visual_basis:'합성 카드',confidence:'high'}]})));const result=await checkInspectorAiAnalysis();expect(result).toMatchObject({connected:true,inferenceRequests:1,syntheticOnly:true,customerPhotosSent:0,businessWrites:0});expect(fetch).toHaveBeenCalledOnce();const body=JSON.parse(fetch.mock.calls[0][1].body);expect(body.contents[0].parts[1].inlineData.mimeType).toBe('image/png');expect(body.contents[0].parts[0].text).toContain('실제 현장 사진이 아닙니다');expect(body.generationConfig.responseJsonSchema.required).toHaveLength(7);});
+ it('blocks diagnostics before inference when free usage is unavailable',async()=>{env('gemini');vi.mocked(inspectorBillingStatus).mockResolvedValueOnce({policy:'free-only',state:'billing-linked',allowed:false,message:'billing linked',remainingRequests:null});const fetch=mock({});await expect(checkInspectorAiAnalysis()).rejects.toMatchObject({code:'AI_COST_BLOCKED'});expect(fetch).not.toHaveBeenCalled();});
+ it.each([[400,'AI_REQUEST_REJECTED'],[401,'AI_AUTH_REJECTED'],[403,'AI_PERMISSION_REJECTED'],[404,'AI_MODEL_UNAVAILABLE']])('classifies HTTP %s without exposing provider text',async(status,code)=>{env('gemini');const fetch=mock({});fetch.mockResolvedValue({ok:false,status,json:async()=>({error:'private provider response'})});await expect(checkInspectorAiAnalysis()).rejects.toMatchObject({code,retryable:false});expect(fetch).toHaveBeenCalledOnce();});
+ it('rejects malformed model output rather than reporting a working connection',async()=>{env('gemini');mock(gemini('{broken'));await expect(checkInspectorAiAnalysis()).rejects.toMatchObject({code:'AI_RESPONSE_INVALID'});});
+});
+
+it('does not report success when valid JSON describes a different image',async()=>{env('gemini');mock(gemini());await expect(checkInspectorAiAnalysis()).rejects.toMatchObject({code:'AI_CHECK_CONTENT_MISMATCH'});});
