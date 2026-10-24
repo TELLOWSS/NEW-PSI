@@ -13,12 +13,12 @@ export function createInspectorAnalysisClient(transport:typeof send=send){
         const active=attempt;
         active.flight=Promise.resolve().then(()=>transport({op:'analyze-photo',...input,externalConfirmed:true,requestId:active.id})).then(result=>{
             if(!result?.ok){
-                // A terminal provider failure can be retried only by the user's next click.
-                if(result?.retryable===true)attempts.delete(key);
-                throw Object.assign(new Error(result?.message||'사진 분석을 완료하지 못했습니다. 저장 기록을 확인해 주세요.'),{code:result?.code,cost:result?.cost});
+                // Acknowledged failures permit a fresh ID only on a later explicit action; transport uncertainty never does.
+                if(result?.retryable===true||['AI_AUTH_REJECTED','AI_PERMISSION_REJECTED','AI_MODEL_UNAVAILABLE'].includes(result?.code))attempts.delete(key);
+                throw Object.assign(new Error(result?.message||'사진 분석을 완료하지 못했습니다. 저장 기록을 확인해 주세요.'),{code:result?.code,cost:result?.cost,retryable:result?.retryable===true,outcomeUnknown:false});
             }
             return result;
-        }).finally(()=>{active.flight=undefined;});
+        },cause=>{throw Object.assign(new Error(cause instanceof Error?cause.message:'분석 응답을 받지 못했습니다. 저장 결과부터 확인해 주세요.'),{outcomeUnknown:true});}).finally(()=>{active.flight=undefined;});
         return active.flight;
     };
 }
