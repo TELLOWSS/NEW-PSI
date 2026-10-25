@@ -1,0 +1,88 @@
+{
+  "schema": "psi-oss-license-review-v1",
+  "reviewDate": "2026-10-26",
+  "regularAllowed": [
+    "MIT",
+    "ISC",
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "BSD-2-Clause",
+    "0BSD",
+    "BlueOak-1.0.0",
+    "MIT AND ISC",
+    "(MIT AND Zlib)",
+    "(MIT OR GPL-3.0-or-later)"
+  ],
+  "reviewRequired": [
+    "MPL-2.0",
+    "CC-BY-4.0"
+  ],
+  "existingReviewInventory": [
+    {
+      "name": "caniuse-lite",
+      "version": "1.0.30001813",
+      "license": "CC-BY-4.0"
+    },
+    {
+      "name": "lightningcss",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "name": "lightningcss-android-arm64",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "name": "lightningcss-darwin-arm64",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "name": "lightningcss-darwin-x64",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "name": "lightningcss-freebsd-x64",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "name": "lightningcss-linux-arm-gnueabihf",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "name": "lightningcss-linux-arm64-gnu",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "name": "lightningcss-linux-arm64-musl",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "name": "lightningcss-linux-x64-gnu",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "name": "lightningcss-linux-x64-musl",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "name": "lightningcss-win32-arm64-msvc",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "name": "lightningcss-win32-x64-msvc",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    }
+  ],
+  "notice": "This manifest is a license-identifier inventory only. It is NOT a commercial-use legal approval, redistribution clearance, or full third-party copyright notice. Each resource, bundled asset, and model must be separately reviewed before commercial release."
+}
