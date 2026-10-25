@@ -112,31 +112,26 @@ try{
  await page.goto(baseUrl,{waitUntil:'networkidle'});
  await seedDatabase();
  await page.reload({waitUntil:'networkidle'});
- const metric=title=>page.getByRole('region',{name:title+' 지표'});
- const safety=metric('현장 안전 지수');
- const workers=metric('활동 중인 근로자');
- const protection=metric('보호 우선 모니터링');
- await page.screenshot({path:resolve(outputDir,'dashboard-first-render.png'),fullPage:true});
- console.log('[PSI dashboard first render] '+JSON.stringify(await page.evaluate(()=>({text:document.body.innerText.slice(0,2200),sections:Array.from(document.querySelectorAll('section[aria-label]')).slice(0,10).map(e=>e.getAttribute('aria-label')),url:location.href,snapshot:localStorage.getItem('psi_dashboard_live_sync_snapshot_v1')}))).slice(0,3300));
- await safety.waitFor({timeout:5000});
- const diagnostic=await page.evaluate(()=>({cards:Array.from(document.querySelectorAll('section[aria-label$=" 지표"]')).map(e=>({label:e.getAttribute('aria-label'),text:e.innerText.slice(0,240)})),snapshot:localStorage.getItem('psi_dashboard_live_sync_snapshot_v1'),recordCount:document.body.innerText.length,login:document.body.innerText.slice(0,180)}));
- console.log('[PSI metric diagnostic] '+JSON.stringify(diagnostic).slice(0,3500));
- await page.screenshot({path:resolve(outputDir,'current-dashboard-diagnostic.png'),fullPage:true});
- const values={
-  average:Number(await safety.locator('strong').innerText()),
-  workers:Number(await workers.locator('strong').innerText()),
-  protection:Number(await protection.locator('strong').innerText())
- };
- recordCheck('근로자별 최신 점수 평균 65.0',values.average===65,values);
- recordCheck('동일 근로자 중복 기록 제외 후 2명',values.workers===2,values);
- recordCheck('보호 우선 점수 기준 1명',values.protection===1,values);
+ // BASIC mode is the product's default as of 2026-10; it does not show old advanced metric cards.
+ await page.getByRole('region',{name:'주요 안전 지표'}).waitFor({timeout:15000});
+ const initialBoard=await page.getByRole('region',{name:'주요 안전 지표'}).innerText();
+ recordCheck('간편 관제: 보호 우선·분석 상태 표시',initialBoard.includes('보호 우선')&&initialBoard.includes('분석 완료'),{text:initialBoard.slice(0,450)});
  const snapshot=await page.evaluate(()=>{try{return JSON.parse(localStorage.getItem('psi_dashboard_live_sync_snapshot_v1')||'null')}catch{return null}});
- recordCheck('공식 계산 규칙·평균·보호대상 동기화',snapshot?.averageScore===65&&snapshot?.highRiskWorkers===1&&snapshot?.totalWorkers===2&&snapshot?.metricRuleVersion==='psi-core-metrics-2026-06-22-v1',snapshot);
- await page.screenshot({path:resolve(outputDir,'current-dashboard-desktop.png')});
+ // New identity policy distinguishes confirmed worker UUIDs; all three fixture records are distinct.
+ recordCheck('현재 공식 계산 규칙 v2: 3명 / 평균 50 / 보호 우선 2',snapshot?.totalWorkers===3&&snapshot?.averageScore===50&&snapshot?.highRiskWorkers===2&&snapshot?.metricRuleVersion==='psi-core-metrics-2026-09-09-v2',snapshot);
+ await page.screenshot({path:resolve(outputDir,'current-basic-dashboard.png')});
+ await page.getByRole('button',{name:'상세 분석 대시보드',exact:true}).click();
+ const metric=title=>page.getByRole('region',{name:title+' 지표'});
+ const safety=metric('현장 안전 지수'),workers=metric('활동 중인 근로자'),protection=metric('보호 우선 모니터링');
+ await safety.locator('strong').getByText('50.0',{exact:true}).waitFor({timeout:15000});
+ const values={average:Number(await safety.locator('strong').innerText()),workers:Number(await workers.locator('strong').innerText()),protection:Number(await protection.locator('strong').innerText())};
+ recordCheck('상세 관제는 같은 평균 점수 50.0 유지',values.average===50,values);
+ recordCheck('상세 관제 활동 근로자 3명과 보호 우선 2명 일치',values.workers===3&&values.protection===2,values);
+ await page.screenshot({path:resolve(outputDir,'current-advanced-dashboard.png')});
  await page.setViewportSize({width:390,height:844});
  await safety.waitFor({state:'visible'});
  const width=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,viewport:innerWidth}));
- recordCheck('390px에서 대시보드의 횡스크롤 넘침 없음',width.scroll<=width.viewport+1,width);
+ recordCheck('390px에서 상세 관제의 횡스크롤 넘침 없음',width.scroll<=width.viewport+1,width);
  await page.screenshot({path:resolve(outputDir,'current-dashboard-mobile.png')});
  recordCheck('브라우저 실행 오류 없음',pageErrors.length===0,pageErrors);
  const result={passed:checks.every(c=>c.passed),passedCount:checks.filter(c=>c.passed).length,totalCount:checks.length,checks,fixtureOnly:true,paidAiCalls:0};
