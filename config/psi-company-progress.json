@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "kind": "reviewed_snapshot",
+  "product": "NEW-PSI",
+  "capturedAt": "2026-10-25T06:42:40+09:00",
+  "sourceSha": "3d60e568a51dc3f21755309363d3c3bde37336a5",
+  "sourcePr": "https://github.com/TELLOWSS/NEW-PSI/pull/81",
+  "sourceRun": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40169833793",
+  "scope": "PR 검증용 합성 Chromium·릴리즈 자동검사. 실제 현장·모바일 단말의 검증 결과가 아닙니다.",
+  "departments": [
+    {
+      "id": "product-ux",
+      "status": "blocked",
+      "summary": "사용자 이해·보고서 이동 검증 보완 필요",
+      "passed": 0,
+      "total": 2,
+      "finding": "구형 문서 분석 문구 및 보고서 탭 진입 검사가 최신 UI와 불일치",
+      "improvement": "간편/상세 화면별 내비게이션과 개인 보고서 생성 흐름 검증 재구성",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40169833793"
+    },
+    {
+      "id": "design",
+      "status": "unverified",
+      "summary": "모바일·다크모드 디자인 독립 재검토 필요",
+      "passed": 0,
+      "total": 0,
+      "finding": "부서 소유권은 배정했지만 통합 UI 시각 품질은 현재 PR에서 자동 판정되지 않음",
+      "improvement": "320·390·768·1440px별 가독성·CTA·다크모드·접근성 화면 검토",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/pull/81"
+    },
+    {
+      "id": "platform",
+      "status": "pass",
+      "summary": "사진점검 운영 번들 진입 검증 통과",
+      "passed": 1,
+      "total": 1,
+      "finding": "현재 사진점검 실행 경로와 CSP 아래의 메뉴 진입 확인",
+      "improvement": "전체 부서 브라우저검사 CI 연동 및 동일 커밋 배포 확인",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40169833793"
+    },
+    {
+      "id": "safety-ai",
+      "status": "blocked",
+      "summary": "6대 지표·관리자 기준 통과, 조치 환류 미검증",
+      "passed": 2,
+      "total": 3,
+      "finding": "6대 지표 6/6, 관리자 위험 기준 11/11 통과. 현장 개입 경로는 실패",
+      "improvement": "현재 허브 기반 보호조치·교육 연결을 실제 화면에서 재검증",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40169833793"
+    },
+    {
+      "id": "security",
+      "status": "review",
+      "summary": "읽기 전용 보안 권고 검토 중",
+      "passed": 0,
+      "total": 0,
+      "finding": "연결된 두 DB의 자동 보안 권고를 확인했으나 운영 DB 식별·권한별 실제 영향 미확정",
+      "improvement": "운영 연결을 확인한 뒤 RLS·고권한 객체를 비파괴적으로 개별 검증",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/pull/81"
+    },
+    {
+      "id": "qa",
+      "status": "blocked",
+      "summary": "소유권·릴리즈 통과, 전체 제품 브라우저 3/6",
+      "passed": 3,
+      "total": 6,
+      "finding": "조직 책임 검사와 기존 릴리즈 검사 통과, 새로운 전제품 통합 테스트 3건 실패",
+      "improvement": "분야별 오류를 분리 기록하고 모두 녹색일 때만 main 병합",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40169833793"
+    }
+  ],
+  "activity": [
+    {
+      "department": "qa",
+      "date": "2026-10-25",
+      "result": "pass",
+      "title": "전 파일 책임·교차검토 규칙 검사 통과",
+      "details": "6개 부서 경로별 소유권 검사 증거 자동 생성",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40169833793"
+    },
+    {
+      "department": "safety-ai",
+      "date": "2026-10-25",
+      "result": "pass",
+      "title": "위험성평가 관리자 기준 11/11 통과",
+      "details": "합성 데이터로 위험등급 등록·비교 계산 확인",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40169833793"
+    },
+    {
+      "department": "safety-ai",
+      "date": "2026-10-25",
+      "result": "pass",
+      "title": "대시보드 신규 계산 규칙 6/6 통과",
+      "details": "간편·상세 화면, 최신 근로자 식별/보호지표 교차검증",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40169833793"
+    },
+    {
+      "department": "product-ux",
+      "date": "2026-10-25",
+      "result": "blocked",
+      "title": "다국어 개인보고서 흐름 재검증 요구",
+      "details": "구형 보고서 목록 탭을 찾지 못한 실패를 공개 이력으로 보존",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40169833793"
+    },
+    {
+      "department": "qa",
+      "date": "2026-10-25",
+      "result": "blocked",
+      "title": "전제품 브라우저 3/6 — 운영 반영 보류",
+      "details": "실패한 범위는 통과 처리하지 않았음",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40169833793"
+    }
+  ]
+}
