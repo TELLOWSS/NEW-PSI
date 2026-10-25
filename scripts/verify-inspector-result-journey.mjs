@@ -68,7 +68,7 @@ for(const scenario of ['review','short-opinion','rejected','changed-input','prin
   }
   await journey.getByRole('button',{name:'현장 대조 후 검토 저장',exact:true}).click();await journey.getByRole('button',{name:'보고서로 기록하기',exact:true}).waitFor();
   assert.equal(ops.filter(x=>x==='confirm-photo').length,1);assert.equal(ops.filter(x=>x==='analyze-photo').length,1);assert.equal(item.document.reviews[photo.id].decision,scenario==='rejected'?'rejected':'accepted');
-  await journey.screenshot({path:`${output}/${scenario}-guide.png`});await journey.getByRole('button',{name:'보고서로 기록하기',exact:true}).click();await page.locator('.si-report').waitFor();
+  await journey.screenshot({path:`${output}/${scenario}-guide.png`});await journey.getByRole('button',{name:'보고서로 기록하기',exact:true}).click();await page.locator('.si-report').waitFor();await page.waitForFunction(()=>document.activeElement?.classList.contains('si-report'));const reportTop=await page.locator('.si-report').evaluate(e=>e.getBoundingClientRect().top);assert.ok(reportTop>=-10&&reportTop<480,`New report should be visible after creation, got top=${reportTop}`);
   assert.equal(ops.filter(x=>x==='report').length,1);assert.equal(ops.filter(x=>x==='upload').length,1);assert.ok((await page.locator('.si-report').innerText()).includes('직접 확인한 발판 틈새.'));
   const print=page.locator('.si-quick-print .si-primary');
   if(scenario==='print-loading'){
