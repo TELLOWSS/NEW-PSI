@@ -40,6 +40,19 @@ try{
  await new Promise(r=>server.httpServer.close(r));
  const summary={status:results.length===scenarios.length&&results.every(result=>result.status==='PASS')?'PASS':'FAIL',syntheticOnly:true,paidAiCalls:0,realWorkerRecords:false,plannedScenarios:scenarios.length,completedScenarios:results.length,results};
  await writeFile(resolve(output,'cross-module-browser.json'),JSON.stringify(summary,null,2)+'\n');
+ const charter=JSON.parse(await readFile('config/psi-company-ownership.json','utf8'));
+ const reviewSnapshot=JSON.parse(await readFile('config/psi-company-progress.json','utf8'));
+ const departments=charter.departments.map(d=>{
+   const tests=results.filter(item=>item.owner===d.id);
+   const previous=reviewSnapshot.departments.find(item=>item.id===d.id);
+   const status=tests.length===0?'UNVERIFIED':tests.some(item=>item.status==='FAIL')?'BLOCKED':'PASS';
+   return {id:d.id,title:d.title,status,passed:tests.filter(item=>item.status==='PASS').length,total:tests.length,tests:tests.map(({name,status,durationMs,exitCode,timedOut})=>({name,status,durationMs,exitCode,timedOut})),previousFinding:previous?.finding||'검증 이력 없음',improvement:previous?.improvement||'검토 및 테스트 범위 설정 필요'};
+ });
+ const departmentAudit={generatedAt:new Date().toISOString(),candidateCommit:process.env.GITHUB_SHA||null,syntheticOnly:true,summary:summary.status,departments};
+ await writeFile(resolve(output,'department-audit.json'),JSON.stringify(departmentAudit,null,2)+'\n');
+ const markdown=['# NEW-PSI 부서별 독립 검증 자동 보고','', '실데이터가 아닌 합성 브라우저 검증 결과입니다. 결과가 없는 부서는 미검증으로 기록합니다.', '', '| 담당 부서 | 검증 상태 | 통과 / 전체 |', '|---|---|---|',...departments.map(d=>'| '+d.title+' | '+d.status+' | '+d.passed+'/'+d.total+' |'),'','## 발견사항 및 조치', ...departments.flatMap(d=>['','### '+d.title,'- 기존 지적: '+d.previousFinding,'- 개선 항목: '+d.improvement,'- 실행 증거: '+d.tests.map(t=>t.name+' '+t.status).join(', ')])].join('\n');
+ await writeFile(resolve(output,'department-audit.md'),markdown+'\n');
+
  console.log('[PSI company browser] '+summary.status+' '+results.filter(x=>x.status==='PASS').length+'/'+scenarios.length);
  if(summary.status!=='PASS')process.exitCode=1;
 }
