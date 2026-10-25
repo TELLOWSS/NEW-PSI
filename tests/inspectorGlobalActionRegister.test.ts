@@ -26,7 +26,7 @@ describe('admin global inspector action register',()=>{
   const csv=buildGlobalActionRegisterCsv([row],'2026-10-26');
   expect(csv.charCodeAt(0)).toBe(0xfeff);expect(csv).toContain("'=HYPERLINK");
   expect(csv).toContain("'@TASK");expect(csv).toContain("'=Danger");
-  expect(csv).toContain('조회한 점검 범위만');
+  expect(csv).toContain('사용자가 불러온 점검 범위만');
  });
  it('does not mutate persisted data when a projected UI record is edited',()=>{
   const original=inspection('a',[action('one','2026-10-28')]),before=JSON.stringify(original);
