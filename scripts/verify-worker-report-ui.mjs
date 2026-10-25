@@ -126,8 +126,8 @@ await page.getByRole('heading', { name: '안전 리포트 센터' }).last().wait
 await page.getByText('생성 대상 근로자 2명', { exact: false }).waitFor({ state: 'visible' });
 
 const listText = await page.locator('body').innerText();
-const workerTabClass = await page.getByRole('button', { name: '개인별 안전보고서' }).getAttribute('class');
-recordCheck('첫 진입부터 개인별 통합목록 표시', workerTabClass?.includes('text-indigo-600') && listText.includes('생성 대상 근로자 2명'), {
+const workerTabClass = await page.getByRole('tab', { name: '개인별 안전보고서' }).getAttribute('aria-selected');
+recordCheck('첫 진입부터 개인별 통합목록 표시', workerTabClass === 'true' && listText.includes('생성 대상 근로자 2명'), {
     activeTab: '개인별 안전보고서',
 });
 recordCheck('근로자별 한 줄 집계', listText.includes('생성 대상 근로자 2명') && listText.includes('3개월 · 총 3건'), {
