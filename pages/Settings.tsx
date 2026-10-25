@@ -54,6 +54,7 @@ import {
     PSI_APP_SETTINGS_STORAGE_KEY,
 } from '../utils/assessmentCycle';
 import styles from './Settings.module.css';
+import { PsiCompanyAuditPanel } from '../components/management/PsiCompanyAuditPanel';
 
 const TRAINING_LANGUAGE_OPTIONS = SHARED_TRAINING_LANGUAGE_OPTIONS.map(({ code, label }) => ({
     code,
@@ -1676,6 +1677,8 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     ))}
                 </div>
             </header>
+
+            <PsiCompanyAuditPanel />
 
             <section className={styles.overview} aria-labelledby="settings-overview-heading">
                 <h3 id="settings-overview-heading" className="sr-only">설정 운영 요약</h3>
