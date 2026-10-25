@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "kind": "reviewed_snapshot",
   "product": "NEW-PSI",
-  "capturedAt": "2026-10-25T06:42:40+09:00",
+  "capturedAt": "2026-10-25T06:42:40Z",
   "sourceSha": "3d60e568a51dc3f21755309363d3c3bde37336a5",
   "sourcePr": "https://github.com/TELLOWSS/NEW-PSI/pull/81",
   "sourceRun": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40169833793",
