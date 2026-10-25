@@ -144,7 +144,7 @@ recordCheck('모국어 준비 상태 표시', listText.includes('크메르어') 
 await page.getByText('생성 대상 근로자 2명', { exact: false }).scrollIntoViewIfNeeded();
 await page.screenshot({ path: resolve(outputDir, 'worker-target-list.png'), fullPage: false });
 
-await page.getByText('SOVAN', { exact: true }).first().click();
+await page.locator('table:visible tbody tr').filter({hasText:'SOVAN'}).getByRole('button',{name:'통합 리포트 보기'}).click();
 const reportRoot = page.locator('[data-report-template-root="true"]').last();
 await reportRoot.waitFor({ state: 'visible' });
 const pages = reportRoot.locator(':scope > [data-report-page="true"]');
