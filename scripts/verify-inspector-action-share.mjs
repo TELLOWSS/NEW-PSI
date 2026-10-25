@@ -80,7 +80,7 @@ try{await verifyStandaloneInspectorEntry();for(const scenario of ['flow','lost-p
  throw Error('Unexpected op '+b.op);
  });
  if(['flow','lost-plan-ack','lost-photo-ack','offline-before-send','reload-lost-plan-ack','reload-lost-photo-ack','reload-offline-before-send'].includes(scenario)){
-  await page.goto(base+'/?mode=photo-inspector');await loadFont(page);await page.getByRole('button',{name:'이전 점검 이어하기',exact:true}).click();const radar=page.getByRole('region',{name:'조치 관리 우선순위'});await radar.waitFor();assert.match(await radar.innerText(),/미조치 1건/);
+  await page.goto(base+'/?mode=photo-inspector');await loadFont(page);await page.getByRole('button',{name:'이전 점검 이어하기',exact:true}).click();const radar=page.getByRole('region',{name:'조치 관리 우선순위'});await radar.waitFor();assert.match(await radar.innerText(),/약정기한 내 진행 중인 조치 1건/);assert.equal(await radar.locator('.si-action-radar-metric.is-scheduled dd').innerText(),'1건');assert.equal(await radar.locator('.si-action-radar-metric.is-overdue dd').innerText(),'0건');
  await radar.locator('.si-action-handoff>summary').click();
  const handoff=radar.getByRole('textbox',{name:'교육 및 다음 위험성평가 검토 초안'});
  assert.equal(await handoff.getAttribute('readonly'),'');

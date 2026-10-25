@@ -70,9 +70,10 @@ export function validateDocument(value: unknown, inspectionId: string, evidence:
     }
     if (!Array.isArray(doc.actions) || doc.actions.length > 30 || new Set(doc.actions.map(a => a.id)).size !== doc.actions.length) fail();
     for (const action of doc.actions) {
-        exact(action, ['id','title','owner','dueDate','status','completionPhotoId','note','verifiedAt','sourcePhotoIds']);
+        exact(action, ['id','title','owner','dueDate','status','completionPhotoId','note','verifiedAt','sourcePhotoIds','scheduleContext']);
         if (!UUID.test(action.id) || !['open','review-requested','verified'].includes(action.status)) fail();
         text(action.title, 1000, 1); text(action.owner, 100, 1); text(action.note, 2000); text(action.dueDate, 10);
+        if(action.scheduleContext!==undefined)text(action.scheduleContext,300);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(action.dueDate) || !Number.isFinite(Date.parse(action.dueDate))
             || new Date(action.dueDate).toISOString().slice(0,10) !== action.dueDate) fail();
         if (action.completionPhotoId !== '' && !doc.photoIds.includes(action.completionPhotoId)) fail();

@@ -6,7 +6,7 @@ function label(action:InspectorAction,today:string){
     if(action.status==='verified')return '현장 재점검 확인 기록';
     if(overdueAction(action,today))return '기한 경과 · 미결';
     if(action.status==='review-requested')return '개선사진 접수 · 재점검 대기';
-    return '미조치 · 이행 확인 필요';
+    return action.dueDate>today?'약정기한 내 조치 중 · 진행 확인 필요':'미조치 · 이행 확인 필요';
 }
 /**
  * Manual handoff only; no AI inference, automatic TBM transmission, or employee-grade scores.
@@ -32,6 +32,7 @@ export function buildNextCycleHandoffDraft(doc:InspectionDocument,today:string):
         lines.push(`${index+1}. [${label(a,today)}] ${clean(a.title,140)}`);
         lines.push(`   기한: ${a.dueDate||'기록 확인 필요'} · 사진 연결: 조치 전 ${sourceCount?sourceCount+'장':'미지정'} / 개선 후 ${after?'연결 기록 있음':'미등록'}`);
         if(a.status==='verified')lines.push(`   재점검 기록시각: ${a.verifiedAt||'기록 확인 필요'} (확인자 신원은 이 기록으로 증명되지 않음)`);
+        if(a.scheduleContext?.trim())lines.push(`   최초 기한 설정 근거: ${clean(a.scheduleContext,120)}`);
         if(a.note?.trim())lines.push(`   기록한 내용: ${clean(a.note,180)}`);
     });
     if(actions.length>chosen.length)lines.push(`나머지 ${actions.length-chosen.length}건은 원본 조치목록에서 반드시 별도 확인하세요.`);

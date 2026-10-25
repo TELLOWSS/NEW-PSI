@@ -13,6 +13,28 @@ function validDay(value:string) {
 export function overdueAction(action:InspectorAction,today:string):boolean {
     return action.status!=='verified'&&validDay(today)&&validDay(action.dueDate)&&action.dueDate<today;
 }
+
+/** Correction deadline and danger urgency are different dimensions. */
+export type ActionDeadlinePhase='verified'|'reinspection'|'overdue'|'today'|'scheduled'|'unknown';
+export function actionDeadlinePhase(action:InspectorAction,today:string):ActionDeadlinePhase {
+ if(action.status==='verified')return 'verified';
+ if(action.status==='review-requested')return 'reinspection';
+ if(!validDay(today)||!validDay(action.dueDate))return 'unknown';
+ if(action.dueDate<today)return 'overdue';
+ if(action.dueDate===today)return 'today';
+ return 'scheduled';
+}
+export function actionDeadlineText(action:InspectorAction,today:string):string {
+ const phase=actionDeadlinePhase(action,today);
+ if(phase==='verified')return '현장 재점검 확인됨';
+ if(phase==='reinspection')return '개선사진 접수 · 관리자 재점검 대기';
+ if(phase==='overdue')return '약정기한 경과 · 이행 확인 필요';
+ if(phase==='today')return '오늘 약정기한 · 진행상황 확인';
+ if(phase==='unknown')return '담당자·기한 재확인 필요';
+ const days=Math.round((Date.parse(action.dueDate+'T00:00:00Z')-Date.parse(today+'T00:00:00Z'))/86400000);
+ return '기한 내 조치 중 · D-'+days+' (진행 및 임시 보호조치 확인)';
+}
+
 /** Classify metadata only. An improvement without AI is not a pending AI review. */
 export function photoQueue(doc:InspectionDocument) {
     const improvements=new Set(doc.actions.map(a=>a.completionPhotoId).filter(Boolean));
