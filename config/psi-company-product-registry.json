@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "verifiedAt": "2026-10-25",
+  "team": "tellowss-projects",
+  "sharedSkillSource": "TELLOWSS/NEW-PSI/skills/psi-ai-company/SKILL.md",
+  "products": [
+    {
+      "id": "new-psi",
+      "title": "NEW-PSI",
+      "github": "TELLOWSS/NEW-PSI",
+      "vercelProject": "new-psi",
+      "vercelProjectId": "prj_vtGmKF78CkEuu2PxsR1eIA4ieM17",
+      "category": "safety-intelligence",
+      "verificationCommand": "npm run verify:ci",
+      "notes": "사진점검/6대 지표/안전분석 메인; QA 전제품 7흐름 별도 검사"
+    },
+    {
+      "id": "psi-zero-day",
+      "title": "PSI : ZERO DAY",
+      "github": "TELLOWSS/psi-zero-day",
+      "vercelProject": "psi-zero-day",
+      "vercelProjectId": "prj_W0pIPvmZkiP5mSi92LRxH7aw3PNa",
+      "category": "safety-game",
+      "verificationCommand": "npm test && npm run build",
+      "notes": "게임 스토리/그래픽/오디오/Android 품질; 기존 AGENTS.md·마스터 원칙 우선"
+    },
+    {
+      "id": "smart-tbm",
+      "title": "SMART TBM",
+      "github": "TELLOWSS/SMART-TBM-1-",
+      "vercelProject": "tbm",
+      "vercelProjectId": "prj_9ft10r9T9PWXBaRl7isZ4tUfKSmY",
+      "category": "toolbox-meeting",
+      "verificationCommand": "npm run build",
+      "notes": "NEW-PSI와 관계 있으나 별도 프로그램·데이터·출시"
+    },
+    {
+      "id": "smart-sfcs",
+      "title": "SMART-SFCS",
+      "github": "TELLOWSS/SMART-SFCS",
+      "vercelProject": "smart-sfcs",
+      "vercelProjectId": "prj_3OJK57ROO1YBNcUR3HRjZwAuQ3rI",
+      "category": "safety-operations",
+      "verificationCommand": "npm run build",
+      "notes": "제품별 별도 데이터·환경 변수 확인"
+    },
+    {
+      "id": "smart-safety-books",
+      "title": "SMART SAFETY BOOKS",
+      "github": "TELLOWSS/SMART-SAFETY-BOOKS",
+      "vercelProject": "smart-safety-books",
+      "vercelProjectId": "prj_P6BwTyNWNUkuio6s8QaI5in6eicn",
+      "category": "safety-documents",
+      "verificationCommand": null,
+      "notes": "패키지·실제 CI 확인 후 설정"
+    },
+    {
+      "id": "smart-construction-safety",
+      "title": "SMART CONSTRUCTION SAFETY",
+      "github": "TELLOWSS/SMART-CONSTRUCTION-SAFETY",
+      "vercelProject": "smart-construction-safety",
+      "vercelProjectId": "prj_tuGIPg2PJaSIKx92t8cuBRykwsmm",
+      "category": "construction-safety",
+      "verificationCommand": null,
+      "notes": "패키지·실제 CI 확인 후 설정"
+    },
+    {
+      "id": "smart-sign-pro",
+      "title": "SMART SIGN PRO",
+      "github": "TELLOWSS/SMART-SIGN-PRO",
+      "vercelProject": "smart-sign-pro",
+      "vercelProjectId": "prj_iTVu8eJNAKmthYtdgQUlHVBqqjXy",
+      "category": "safety-signage",
+      "verificationCommand": null,
+      "notes": "패키지·실제 CI 확인 후 설정"
+    }
+  ],
+  "unmatchedGitHub": [
+    "TELLOWSS/SMARTPDF-OCR",
+    "TELLOWSS/-"
+  ],
+  "safetyRules": [
+    "프로젝트 ID/저장소 연결을 실조회하고 변동 시 업데이트",
+    "프로젝트별 main을 넘나드는 무차별 병합 금지",
+    "제품별 Vercel project ID·domain·target·GitHub commit SHA를 각각 검증",
+    "각 제품의 독자적 지침·브랜치 보호·시크릿 유지"
+  ]
+}
