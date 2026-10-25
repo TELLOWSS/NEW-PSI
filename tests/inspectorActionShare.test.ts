@@ -5,7 +5,7 @@ vi.mock('../lib/server/supabaseServer.js',()=>({createSupabaseServerClient:mock.
 vi.mock('../lib/server/apiSecurity.js',()=>({consumeApiQuota:mock.quota,resolveRequestFingerprint:()=> 'qa-ip'}));
 import handler from '../api/inspection-share';
 import {inspectorShareAdmin,inspectorShareToken,shareHash} from '../lib/server/admin/inspectorShare';
-import {shareTokenFromHash,actionShareUrl} from '../lib/inspector/actionShare';
+import {shareTokenFromHash,actionShareUrl,summarizeActionShareReplies,type ShareReply} from '../lib/inspector/actionShare';
 import {validMarks} from '../lib/inspector/photoMarks';
 const token='Q'.repeat(43),pid='10000000-0000-4000-8000-000000000002',id='10000000-0000-4000-8000-000000000001',rid='10000000-0000-4000-8000-000000000003';
 const res=()=>({code:0,body:null as any,headers:{} as Record<string,string>,setHeader(k:string,v:string){this.headers[k]=v;},status(n:number){this.code=n;return this;},json(v:any){this.body=v;return this;}});
@@ -43,4 +43,29 @@ describe('scoped external inspection action replies',()=>{
   await expect(inspectorShareAdmin(db,current,{op:'share-adopt',id,shareId:rid,expectedRevision:1,confirmed:false})).rejects.toThrow();expect(db.rpc).not.toHaveBeenCalled();
  });
 
+});
+
+describe('response summary never claims action completion or message delivery',()=>{
+ const response=(kind:ShareReply['kind'],requestId:string):ShareReply=>({
+  requestId,kind,name:'합성 근로자',note:'사진과 현장을 관리자와 대조해야 합니다',
+  photoId:kind==='photo'?pid:null,sha256:kind==='photo'?'a'.repeat(64):null,
+  submittedAt:'2026-10-25T00:00:00Z',
+ });
+ it('distinguishes no reply from a sent or read request',()=>{
+  const result=summarizeActionShareReplies([]);
+  expect(result).toMatchObject({total:0,planned:0,difficult:0,photo:0});
+  expect(result.nextStep).toContain('전달 또는 열람이 확인된 것은 아닙니다');
+ });
+ it('counts every type and highlights support needs even if a photo is also received',()=>{
+  const result=summarizeActionShareReplies([response('planned','one'),response('photo','two'),response('difficult','three')]);
+  expect(result).toMatchObject({total:3,planned:1,difficult:1,photo:1});
+  expect(result.nextStep).toContain('장애 사유');
+  expect(result.nextStep).toContain('현장');
+  expect(result.nextStep).not.toContain('완료 승인');
+ });
+ it('treats a received photo as pending review, not verified work',()=>{
+  expect(summarizeActionShareReplies([response('photo','one')]).nextStep).toContain('완료로 처리하지 마세요');
+  expect(summarizeActionShareReplies([response('planned','one')]).nextStep).toContain('별도로 확인');
+  expect(summarizeActionShareReplies([response('difficult','one')]).nextStep).toContain('임시 보호조치');
+ });
 });
