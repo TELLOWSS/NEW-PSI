@@ -96,8 +96,8 @@ const pages = [
     },
     {
         page: 'ocr-analysis',
-        anchor: '위험성평가 문서 분석 현황',
-        expected: ['다국어 문서 글자 인식(OCR)'],
+        anchor: '오늘 어떤 작업을 하시나요?',
+        expected: ['1. 새 문서 분석'],
         screenshot: 'document-analysis.png',
     },
     {
@@ -114,8 +114,8 @@ const pages = [
     },
     {
         page: 'settings',
-        anchor: '현장 운영 설정',
-        expected: ['Google Gemini 분석 서비스 연결', '확인단계 등급 기준점수'],
+        anchor: '현장 운영 기준 관리',
+        expected: ['현장 정보, 위험성평가 운영 주기', '부서별 품질·개선 현황'],
         screenshot: 'settings.png',
     },
 ];
