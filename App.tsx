@@ -654,6 +654,8 @@ const App: React.FC = () => {
     const { mode: operationalMode } = useOperationalMode();
     const uiAudienceMode = useUiAudienceMode();
     const [currentPage, setCurrentPage] = useState<Page>('dashboard');
+    // Contextual education handoff may open an admin-only tool even when its sidebar entry is hidden.
+    const [safetyTrainingHandoffOpen, setSafetyTrainingHandoffOpen] = useState(false);
     // Checklist gate is deactivated by default
     const [isWorkerKioskMode, setIsWorkerKioskMode] = useState(false);
     const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
@@ -755,6 +757,8 @@ const App: React.FC = () => {
         }
         const isKioskTrainingFlow = currentPage === 'worker-training' && isWorkerKioskMode;
         if (isKioskTrainingFlow) return;
+        // This is not an authentication bypass: App already requires verified admin login.
+        if (currentPage === 'admin-training' && safetyTrainingHandoffOpen) return;
         // 운영 모드 기반 가드
         if (!isPageVisibleByOperationalMode(currentPage, operationalMode)) {
             setCurrentPage('dashboard');
@@ -765,9 +769,10 @@ const App: React.FC = () => {
             setCurrentPage('dashboard');
             return;
         }
-    }, [currentPage, operationalMode, uiAudienceMode, isWorkerKioskMode]);
+    }, [currentPage, operationalMode, uiAudienceMode, isWorkerKioskMode, safetyTrainingHandoffOpen]);
 
     const navigateToPage = useCallback((page: Page) => {
+        setSafetyTrainingHandoffOpen(false);
         const resolvedPage: Page = page === 'ppt-pdf-one-page-summary'
             ? 'a4-education-material'
             : page;
@@ -1344,7 +1349,15 @@ const App: React.FC = () => {
                         {currentPage === 'introduction' && <Introduction workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'settings' && <Settings workerRecords={workerRecords} />}
                         {currentPage === 'field-context-input' && <FieldContextInput />}
-                        {currentPage === 'intervention-coaching' && <InterventionCoaching workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
+                        {currentPage === 'intervention-coaching' && <InterventionCoaching workerRecords={workerRecords} onNavigateToPage={(page) => {
+                            if (page === 'admin-training') {
+                                // Explicit safety-case action: open the training authoring tool without revealing it in the menu.
+                                setSafetyTrainingHandoffOpen(true);
+                                setCurrentPage('admin-training');
+                            } else {
+                                navigateToPage(page);
+                            }
+                        }} />}
                         {currentPage === 'judgment-tagging-input' && <JudgmentTaggingInput />}
                     </Suspense>
                 </Layout>
