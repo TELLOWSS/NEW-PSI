@@ -1,12 +1,16 @@
-import React from 'react';
-import type {InspectorAction} from '../../lib/inspector/types';
+import React,{useState} from 'react';
+import type {InspectorAction,InspectionDocument} from '../../lib/inspector/types';
+import {buildNextCycleHandoffDraft} from '../../lib/inspector/educationHandoff';
+import {copyInspectorShareText,shareCopyResultMessage} from '../../lib/inspector/sharing';
 import {summarizeActionRadar} from '../../lib/inspector/actionRadar';
 import {useInspectionDay} from './useInspectionDay';
 import './inspector-action-radar.css';
 
-export default function InspectorActionRadar({actions,disabled=false,onOpenActions,onOpenInbox}:{actions:readonly InspectorAction[];disabled?:boolean;onOpenActions?:()=>void;onOpenInbox?:()=>void}){
+export default function InspectorActionRadar({actions,document:doc,disabled=false,onOpenActions,onOpenInbox}:{actions:readonly InspectorAction[];document?:InspectionDocument;disabled?:boolean;onOpenActions?:()=>void;onOpenInbox?:()=>void}){
+    const [copyFeedback,setCopyFeedback]=useState('');
     const today=useInspectionDay();
     const summary=summarizeActionRadar(actions,today);
+    const handoff=doc?buildNextCycleHandoffDraft(doc,today):'';
     return <section className="si-action-radar" role="region" aria-label="조치 관리 우선순위" data-action-radar="saved-only">
         <div className="si-action-radar-header">
             <div><p className="si-eyebrow">PSI · ACTION WATCH</p><h2>오늘 확인할 조치</h2></div>
@@ -29,6 +33,15 @@ export default function InspectorActionRadar({actions,disabled=false,onOpenActio
             {onOpenActions&&<button className="si-btn si-primary" type="button" onClick={onOpenActions} disabled={disabled}>조치 관리 열기</button>}
             {onOpenInbox&&<button className="si-btn" type="button" onClick={onOpenInbox} disabled={disabled}>회신 기록 확인</button>}
         </div>}
+        {doc&&actions.length>0&&<details className="si-action-handoff">
+            <summary>교육·다음 위험성평가 전달 초안</summary>
+            <p className="si-caption">저장한 조치 기록을 바탕으로 작성한 검토용 문구입니다. PSI 지표·다국어 교육·별도 SMART TBM에 자동 전송하거나 승인 처리하지 않습니다. 개인 이름·위치·민감정보를 확인하고 필요한 부분만 전달하세요.</p>
+            <label className="si-label">전달 전 수정·선택할 참고 문구
+                <textarea aria-label="교육 및 다음 위험성평가 검토 초안" readOnly value={handoff} rows={9}/>
+            </label>
+            <button type="button" className="si-btn" disabled={disabled} onClick={()=>void copyInspectorShareText(handoff).then(result=>setCopyFeedback(shareCopyResultMessage[result]))}>검토 초안 복사</button>
+            {copyFeedback&&<p className="si-caption" role="status">{copyFeedback}</p>}
+        </details>}
         <p className="si-caption">{summary.scope} 저장된 회신이 없어도 요청이 실제로 전달되지 않았다고 단정할 수 없습니다.</p>
     </section>;
 }

@@ -5,6 +5,7 @@ import {actionStatusLabel,buildRegisteredActionRequest} from '../../lib/inspecto
 import {sharePhotoFile} from '../../lib/inspector/sharing';
 import {formatInspectionTimestamp} from '../../lib/inspector/journey';
 import {reinspectionStage} from '../../lib/inspector/noviceFollowThrough';
+import {auditActionPhotoPair} from '../../lib/inspector/actionEvidenceAudit';
 import InspectorCameraDialog from './InspectorCameraDialog';
 import InspectorPhotoComparison from './InspectorPhotoComparison';
 import InspectorPhotoDialog from './InspectorPhotoDialog';
@@ -29,6 +30,10 @@ export default function InspectorActionFollowup({item,action,evidence,busy,loadP
     const followupStage=reinspectionStage(action);
     const locked=busy||choosing||sending,verified=action.status==='verified',sourceIds=action.sourcePhotoIds|| (beforeId?[beforeId]:[]),selectedBefore=sourceIds.includes(beforeId)?beforeId:sourceIds[0]||'',selectedAfter=prepared?.id||afterId||action.completionPhotoId;
     const before=usePhoto(selectedBefore,undefined,open,loadPhoto),after=usePhoto(selectedAfter,prepared?.file,open,loadPhoto);
+    const evidenceAudit=auditActionPhotoPair({
+        beforeIds:sourceIds,afterId:selectedAfter,registeredIds:item.document.photoIds,
+        evidence,preparedSha:prepared?.receipt.uploaded_asset_sha256,
+    });
     const dirty=!verified&&(!!prepared||!!verification||!!note&&note!==action.note||!action.sourcePhotoIds&&!!beforeId||afterId!==action.completionPhotoId);
     useEffect(()=>{onDirty(action.id,dirty);return()=>onDirty(action.id,false);},[action.id,dirty,onDirty]);
     useEffect(()=>{if(!dirty)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[dirty]);
@@ -37,7 +42,7 @@ export default function InspectorActionFollowup({item,action,evidence,busy,loadP
         try{const optimized=await optimizePhoto(file);if(sourceIds.some(id=>evidence.find(p=>p.id===id)?.sha256===optimized.receipt.uploaded_asset_sha256))throw new Error('조치 전과 같은 사진입니다. 개선 후 사진을 선택해 주세요.');setPrepared({...optimized,id:crypto.randomUUID()});setAfterId('');setChecked(false);}catch(e){setError(e instanceof Error?e.message:'사진을 준비하지 못했습니다.');}finally{choosingRef.current=false;setChoosing(false);}
     };
     const send=async()=>{
-        if(!checked||!sourceIds.length||!selectedAfter||note.trim().length<5||locked||sendingRef.current)return;
+        if(!checked||!sourceIds.length||!selectedAfter||note.trim().length<5||locked||sendingRef.current||!evidenceAudit.canSubmit)return;
         sendingRef.current=true;setSending(true);setSubmitted(true);setError('');
         try{
             const ok=await onSubmit({actionId:action.id,sourcePhotoIds:sourceIds,photoId:selectedAfter,...(prepared?{prepared}:{}),note:note.trim()});
@@ -54,6 +59,9 @@ export default function InspectorActionFollowup({item,action,evidence,busy,loadP
             {sourceIds.length>1?<label className="si-label">비교할 조치 전 사진<select aria-label="비교할 조치 전 사진" value={selectedBefore} disabled={locked} onChange={e=>setBeforeId(e.target.value)}>{sourceIds.map(id=><option key={id} value={id}>사진 {item.document.photoIds.indexOf(id)+1} · {item.document.photoNotes?.[id]?.slice(0,35)||'설명 없음'}</option>)}</select></label>:!action.sourcePhotoIds&&!verified?<label className="si-label">이전 조치의 원래 사진 지정<select aria-label="이전 조치의 원래 사진 지정" value={beforeId} disabled={locked||submitted} onChange={e=>{setBeforeId(e.target.value);setChecked(false);}}><option value="">실제 조치 전 사진을 직접 선택</option>{item.document.photoIds.filter(id=>id!==selectedAfter).map(id=><option key={id} value={id}>사진 {item.document.photoIds.indexOf(id)+1} · {item.document.photoNotes?.[id]?.slice(0,35)||'설명 없음'}</option>)}</select></label>:null}
             {verified&&!sourceIds.length&&<p className="si-caption">이전 기록에는 조치 전 사진 연결이 없습니다. 원래 기록을 임의로 추정하거나 변경하지 않습니다.</p>}
             <InspectorPhotoComparison before={before.url} after={after.url} beforeLabel={`조치 전${selectedBefore?` · 사진 ${item.document.photoIds.indexOf(selectedBefore)+1}`:''}`} afterLabel={prepared?'개선 후 · 저장 전 사본':`개선 후${selectedAfter?item.document.photoIds.includes(selectedAfter)?` · 사진 ${item.document.photoIds.indexOf(selectedAfter)+1}`:' · 연결 대기 사본':''}`} beforeError={before.failed} afterError={after.failed}/>
+            <p className={'si-caption si-evidence-integrity '+(evidenceAudit.canSubmit?'is-linked':'is-attention')} data-photo-evidence-audit={evidenceAudit.code} role="status">
+                <strong>사진 연결 확인 · {evidenceAudit.title}</strong> — {evidenceAudit.description} 사진이 달라도 같은 장소·범위 및 실제 조치 여부는 현장에서 직접 확인해야 합니다.
+            </p>
             <div className="si-inline"><button type="button" className="si-btn" disabled={!before.url} onClick={()=>setZoom(before.url!)}>조치 전 크게 보기</button><button type="button" className="si-btn" disabled={!after.url} onClick={()=>setZoom(after.url!)}>개선 후 크게 보기</button></div>
             {!verified&&<>
                 <p className="si-caption">사진 첨부는 완료 승인이 아닙니다. 개선사진도 기존 점검에 최적화 사본으로 보관하며 전체 삭제 범위에 포함합니다. AI 분석은 호출하지 않습니다.</p>
@@ -64,7 +72,8 @@ export default function InspectorActionFollowup({item,action,evidence,busy,loadP
                 {prepared&&<p className="si-caption">최적화: {(prepared.receipt.source_bytes/1048576).toFixed(2)}MB → {(prepared.receipt.uploaded_bytes/1048576).toFixed(2)}MB · {prepared.receipt.uploaded_width}×{prepared.receipt.uploaded_height}px. 기기 원본은 변경하지 않습니다.</p>}
                 <label htmlFor={prefix+'note'}>실제 개선 내용 (5자 이상)</label><textarea id={prefix+'note'} maxLength={2000} rows={3} disabled={locked||submitted} value={note} onChange={e=>{setNote(e.target.value);setChecked(false);}} placeholder="예: 해당 개구부 덮개 고정 및 주변 접근통제 보완"/>
                 <label className="si-action-ack"><input type="checkbox" checked={checked} disabled={locked||submitted} onChange={e=>setChecked(e.target.checked)}/><span>적용 위치와 개선 내용을 확인했고, 사진 보관·민감정보 처리를 확인했습니다.</span></label>
-                <button type="button" className="si-btn si-primary" disabled={locked||!checked||!sourceIds.length||!selectedAfter||note.trim().length<5} onClick={()=>void send()}>{sending?'같은 사진 저장 결과 확인 중…':submitted?'같은 개선사진·내용으로 다시 시도':'개선사진 저장 · 완료 검토 요청'}</button>
+                <button type="button" className="si-btn si-primary" disabled={locked||!checked||!sourceIds.length||!selectedAfter||note.trim().length<5||!evidenceAudit.canSubmit} onClick={()=>void send()}>{sending?'같은 사진 저장 결과 확인 중…':submitted?'같은 개선사진·내용으로 다시 시도':'개선사진 저장 · 완료 검토 요청'}</button>
+                {!evidenceAudit.canSubmit&&!!selectedAfter&&<p className="si-caption" role="alert">사진 연결에 확인이 필요합니다. 조치 전·후 사진을 다시 선택하거나 저장본의 증거사진 보관 상태를 확인하세요.</p>}
                 {submitted&&!busy&&!sending&&<p className="si-caption">사진·설명은 바꾸지 않고 동일한 요청으로 안전하게 재시도합니다. 이미 저장됐을 가능성이 있으므로 다른 사진이 필요하면 저장 기록을 먼저 확인하세요.</p>}
             </>}
             {action.status==='review-requested'&&!prepared&&afterId===action.completionPhotoId&&note===action.note&&<section className="si-reinspection"><h4>현장 재점검 확인</h4><p className="si-caption">사진만으로 이행을 확정하지 않습니다. 실제 현장 대조 후에만 관리자 확인을 기록하세요.</p><ol className="si-reinspection-checks"><li>원래 지적한 위치와 개선사진의 위치·범위가 같은지 확인</li><li>현장에서 고정 상태·접근통제 등 필요한 조치가 실제 유지되는지 확인</li><li>잔여 위험과 작업 재개 가능 여부를 별도 점검</li></ol><p className="si-caption">아래 확인은 위 항목을 실제로 대조했을 때만 선택합니다. 체크리스트 표시 자체는 점검 증빙이 아닙니다.</p><label htmlFor={prefix+'verify'}>현장에서 확인한 내용 (5자 이상)</label><textarea id={prefix+'verify'} rows={3} maxLength={2000} value={verification} disabled={locked} onChange={e=>{setVerification(e.target.value);setRechecked(false);}}/><label className="si-action-ack"><input type="checkbox" checked={rechecked} disabled={locked} onChange={e=>setRechecked(e.target.checked)}/><span>개선사진과 실제 현장 상태를 재점검했습니다.</span></label><button type="button" className="si-btn si-primary" disabled={locked||!rechecked||verification.trim().length<5} onClick={()=>void onVerify(action.id,verification.trim()).then(saved=>{if(saved){setVerification('');setRechecked(false);}})}>현장 재점검 확정</button></section>}

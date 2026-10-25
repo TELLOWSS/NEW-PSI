@@ -30,3 +30,18 @@
 @media(max-width:640px){.si-action-radar{padding:14px}.si-action-radar-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.si-action-radar-metric{padding:10px}.si-action-radar h2{font-size:18px}.si-action-radar-actions .si-btn{flex:1;min-width:120px}}
 @media(max-width:340px){.si-action-radar-actions{flex-direction:column}.si-action-radar-actions .si-btn{width:100%}}
 @media print{.si-action-radar-actions{display:none!important}}
+
+/* Human-reviewed education / next risk-assessment handoff. Never auto-sends. */
+.si-action-handoff{margin:14px 0;padding:12px 14px;background:#fff;border:1px solid #cadfda;border-radius:12px}
+.si-action-handoff summary{font-size:14px;font-weight:800;min-height:44px;display:list-item;cursor:pointer;padding:10px 0}
+.si-action-handoff textarea{display:block;width:100%;max-width:100%;min-height:160px;resize:vertical;padding:12px;box-sizing:border-box;border:1px solid #a8c8c3;border-radius:10px;color:#173b40;background:#f8fbfa;font-size:13px;line-height:1.75;white-space:pre-wrap}
+.si-action-handoff .si-label{display:block;font-weight:700;margin:8px 0}
+.si-action-handoff .si-btn{min-height:44px}
+.si-evidence-integrity{padding:11px 12px;border-radius:10px;border:1px solid #bbdbcf;background:#eff8f4;color:#254c40;line-height:1.65}
+.si-evidence-integrity.is-attention{border-color:#e1be82;background:#fff5e3;color:#65451b}
+.si-evidence-integrity strong{font-weight:800}
+.dark .si-action-handoff{background:#1b3035;border-color:#47706b}
+.dark .si-action-handoff textarea{background:#172a30;color:#e4f7ee;border-color:#557b72}
+.dark .si-evidence-integrity{background:#1c3b35;color:#d8f5e5;border-color:#487c6d}
+.dark .si-evidence-integrity.is-attention{background:#42301e;color:#ffebc9;border-color:#97714b}
+@media print{.si-action-handoff .si-btn{display:none!important}}
