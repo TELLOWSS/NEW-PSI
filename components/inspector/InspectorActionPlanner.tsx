@@ -67,7 +67,8 @@ export default function InspectorActionPlanner({item,busy,active,onSave,onReassi
     useEffect(()=>{
         if(!priorityId||!open||mode!=='registered'||filter!=='all'||query||order!=='registered')return;
         const frame=requestAnimationFrame(()=>{
-            const row=Array.from(root.current?.querySelectorAll<HTMLElement>('[data-action-id]')||[]).find(el=>el.dataset.actionId===priorityId);
+            const rows:HTMLElement[]=root.current?Array.from(root.current.querySelectorAll<HTMLElement>('[data-action-id]')):[];
+            const row=rows.find(el=>el.dataset.actionId===priorityId);
             if(!row)return;
             const followup=row.querySelector<HTMLDetailsElement>('.si-action-followup');
             if(followup)followup.open=true;
