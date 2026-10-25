@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import type { MonthlyGuidanceReport as GuidanceData, SixMetricBreakdown, WorkerRecord } from '../types';
+import type { MonthlyGuidanceReport as GuidanceData, SixMetricBreakdown, WorkerRecord, Page } from '../types';
 import { FieldRadarChart } from '../components/charts/FieldRadarChart';
 import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
 import {
@@ -9,7 +9,7 @@ import {
     type AssessmentCycleCopy,
 } from '../utils/assessmentCycle';
 
-interface Props { workerRecords: WorkerRecord[]; }
+interface Props { workerRecords: WorkerRecord[]; onNavigateToPage?: (page:Page)=>void; }
 
 type MetricKey = keyof SixMetricBreakdown;
 type ChartPoint = { month: string; value: number; label: string };
@@ -246,7 +246,7 @@ const createReport = (
     };
 };
 
-const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords }) => {
+const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage }) => {
     const { cycle, copy: cycleCopy } = useAssessmentCycle();
     const periodGroups = useMemo(() => {
         const groups = Array.from(groupRecordsByAssessmentPeriod(workerRecords, cycle).values())
@@ -433,6 +433,15 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords }) => {
             <section className="rounded-2xl bg-slate-900 p-5 text-white"><h3 className="psi-section-title text-white">{cycleCopy.nextCycleLabel} 개선해야 할 실천행동</h3><ul className="mt-3 space-y-2 text-sm font-medium leading-7 text-slate-200">{report.nextMonthEducationFocus.length ? report.nextMonthEducationFocus.map((v) => <li key={v}>• {v}</li>) : <li>• 분석자료 수집 후 교육 중점 행동을 생성합니다.</li>}</ul></section>
         </main>
 
+        {onNavigateToPage&&<nav aria-label="교육·리포트 후속 업무" className="guidance-no-print rounded-2xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-800 dark:bg-slate-900">
+          <p className="text-sm font-black text-sky-900 dark:text-sky-100">자료는 한 번 검토하고, 필요한 결과물로 이어서 작업합니다.</p>
+          <p className="mt-1 text-xs leading-5 text-sky-800 dark:text-sky-200">여기는 익명 계도 요약입니다. 5단계 전파교육 제작·개인 보호 리포트·교육 환류는 각각 별도 검토와 출력 절차가 있으며 승인 상태나 첨부자료를 자동 복사하지 않습니다.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" onClick={()=>onNavigateToPage('education-return')} className="min-h-11 rounded-xl border border-sky-300 bg-white px-4 py-2 text-sm font-bold text-sky-900 dark:bg-slate-800 dark:text-sky-100">교육 환류 전체 흐름</button>
+            <button type="button" onClick={()=>onNavigateToPage('a4-education-material')} className="min-h-11 rounded-xl border border-sky-300 bg-white px-4 py-2 text-sm font-bold text-sky-900 dark:bg-slate-800 dark:text-sky-100">5단계 A4 교육자료 제작</button>
+            <button type="button" onClick={()=>onNavigateToPage('reports')} className="min-h-11 rounded-xl border border-sky-300 bg-white px-4 py-2 text-sm font-bold text-sky-900 dark:bg-slate-800 dark:text-sky-100">관리자 안전 리포트</button>
+          </div>
+        </nav>}
         <section className="guidance-no-print rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="psi-section-title">교육용 공유자료 생성</h3><p className="psi-body-compact mt-1">개인 식별정보 없이 현장 전체 계도용 자료만 생성합니다. 승인 전 초안은 현장 교육에 사용하지 마세요.</p><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Action label="A4 요약 인쇄" onClick={() => window.print()} color="bg-slate-900" /><Action label="PPT 브리핑 개요" onClick={downloadOutline} color="bg-indigo-600" /><Action label="다국어 요약 복사" onClick={() => void copyLanguages()} color="bg-emerald-600" /><Action label="QR 파일럿 보기" onClick={() => setShowQr((v) => !v)} color="bg-sky-600" /></div>{showQr && <div className="mt-4 flex flex-col items-center rounded-2xl border border-sky-200 bg-sky-50 p-5"><QRCodeCanvas value={qrValue} size={180} includeMargin /><p className="psi-small-note mt-3 text-sky-800">{assessmentPeriodLabel} 익명 계도자료 · 동일한 PSI 접근 권한 필요</p></div>}</section>
     </div>;
 };

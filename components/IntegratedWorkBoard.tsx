@@ -17,6 +17,7 @@ import {
     calculateCoreMetricSnapshot,
     isOperationalWorkerRecord,
 } from '../utils/coreMetrics';
+import {getWeakestWorkTrade} from '../utils/workTradeSignals';
 import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
 import { groupRecordsByAssessmentPeriod } from '../utils/assessmentCycle';
 
@@ -201,6 +202,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
         const metrics = calculateCoreMetricSnapshot(workerRecords.filter(isOperationalWorkerRecord));
         return {
             averageScore: metrics.averageScore,
+            validScoreRecordCount: metrics.validScoreRecordCount,
             highRisk: metrics.protectionPriorityCount,
             analyzed: metrics.analyzedWorkerCount,
             improvement: metrics.improvementExecutionRate,
@@ -242,29 +244,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
         return { scoreValues, improvementValues };
     }, [assessmentCycle, workerRecords]);
 
-    const priorityTrade = useMemo(() => {
-        const tradeScores = new Map<string, { sum: number; count: number }>();
-        workerRecords.filter(isOperationalWorkerRecord).forEach((r) => {
-            const score = Number(r.safetyScore);
-            const trade = String(r.jobField || '').trim();
-            if (trade && Number.isFinite(score)) {
-                const current = tradeScores.get(trade) || { sum: 0, count: 0 };
-                tradeScores.set(trade, { sum: current.sum + score, count: current.count + 1 });
-            }
-        });
-        
-        let worstTrade = '대기 중';
-        let worstAvg = 100;
-        tradeScores.forEach((val, key) => {
-            const avg = val.sum / val.count;
-            if (avg < worstAvg) {
-                worstAvg = avg;
-                worstTrade = key;
-            }
-        });
-        
-        return { name: worstTrade, score: worstTrade === '대기 중' ? 0 : Math.round(worstAvg * 10) / 10 };
-    }, [workerRecords]);
+    const priorityTrade = useMemo(() => getWeakestWorkTrade(workerRecords), [workerRecords]);
 
     const trendDelta = useMemo(() => {
         if (cycleTrends.scoreValues.length >= 2) {
@@ -278,7 +258,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
     const aiInsightText = useMemo(() => {
         const score = summary.averageScore;
         const imp = summary.improvement;
-        if (score === 0) return '현장 데이터 수집이 시작되었습니다. 축적 데이터에 따라 실시간 AI 관제 소견이 활성화됩니다.';
+        if (summary.validScoreRecordCount === 0) return '유효 위험인식 점수 자료가 없어 우선 공종을 판단할 수 없습니다. 먼저 원본·누락 값을 확인하세요.';
         
         if (score < 75 && imp < 60) {
             return `평균 위험인식 신호(${score}점)과 개선율(${imp}%)이 정체 중입니다. ${priorityTrade.name} 공종을 중심으로 밀착 지도가 필요합니다.`;
@@ -331,7 +311,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                         </p>
                         <div className="mt-2.5 flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-500">
                             <span className="inline-flex h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-                            <span>분석 데이터 기준: 현재 브라우저에 누적된 현장 안전점검 데이터 ({workerRecords.length}건)</span>
+                            <span>분석 기준: 현재 브라우저 위험성평가 기록 {workerRecords.length}건 · 인스펙터 및 현장 이슈와 별도</span>
                             <span title={summary.metricRuleVersion}>· 공식 계산 기준: 근로자별 최신 기록</span>
                         </div>
                     </div>

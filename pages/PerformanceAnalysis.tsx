@@ -16,8 +16,8 @@ import type { UiAudienceMode } from '../config/routeMeta';
 import {
     buildMonthlyCoreMetricSeries,
     calculateCoreMetricSnapshot,
-    selectLatestCoreMetricRecords,
 } from '../utils/coreMetrics';
+import {getValidPerformanceScores,getBestPerformanceTrade,getReliablePerformanceTeamSignals,calculateValidScoreDeviation} from '../utils/performanceScoreSignals';
 import { SAFETY_SIGNAL_COPY } from '../utils/safetyLevelUtils';
 import { groupRecordsByAssessmentPeriod } from '../utils/assessmentCycle';
 
@@ -191,13 +191,6 @@ const summarizeHarnessRecords = (records: WorkerRecord[]) => {
     });
 };
 
-const calculateStandardDeviation = (scores: number[]) => {
-    if (scores.length < 2) return 0;
-    const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
-    const variance = scores.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / scores.length;
-    return Math.sqrt(variance);
-};
-
 const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords }) => {
     const uiAudienceMode = useUiAudienceMode();
     const { cycle: assessmentCycle, copy: assessmentCycleCopy } = useAssessmentCycle();
@@ -342,30 +335,15 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
     const latestCycleTrend = cycleTrendDashboards[cycleTrendDashboards.length - 1];
 
     const kpiData = useMemo(() => {
-        if (filteredBaseRecords.length === 0) return null;
-        
-        const currentAvg = cycleMetricSeries[cycleMetricSeries.length - 1]?.averageScore || 0;
-        const prevAvg = cycleMetricSeries[cycleMetricSeries.length - 2]?.averageScore || 0;
-        const trend = currentAvg - prevAvg;
-
-        const allScores = selectLatestCoreMetricRecords(filteredBaseRecords)
-            .map((record) => Number(record.safetyScore))
-            .filter(Number.isFinite);
-        const volatility = calculateStandardDeviation(allScores);
-
-        const fieldRecords = filteredBaseRecords.reduce((acc, r) => {
-            const field = r.jobField || '미분류';
-            if (!acc[field]) acc[field] = [];
-            acc[field].push(r);
-            return acc;
-        }, {} as Record<string, WorkerRecord[]>);
-        
-        const topField = (Object.entries(fieldRecords) as Array<[string, WorkerRecord[]]>)
-            .map(([field, records]) => ({ field, avg: calculateCoreMetricSnapshot(records).averageScore }))
-            .sort((a, b) => b.avg - a.avg)[0];
-
-        return { currentAvg, trend, volatility, topField };
-    }, [cycleMetricSeries, filteredBaseRecords]);
+        const current=cycleMetricSeries[cycleMetricSeries.length-1];
+        if(!current?.validScoreRecordCount)return null;
+        const previous=cycleMetricSeries[cycleMetricSeries.length-2];
+        const trend=previous?.validScoreRecordCount?current.averageScore-previous.averageScore:null;
+        const validScores=getValidPerformanceScores(filteredBaseRecords);
+        const volatility=calculateValidScoreDeviation(validScores.map(r=>r.safetyScore));
+        const topField=getBestPerformanceTrade(filteredBaseRecords);
+        return {currentAvg:current.averageScore,trend,volatility,topField,sampleCount:validScores.length};
+    },[cycleMetricSeries,filteredBaseRecords]);
 
     const matrixData = useMemo(() => {
         const fields = Array.from(new Set(filteredBaseRecords.map(r => r.jobField || '미분류'))).sort();
@@ -379,42 +357,23 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                     field,
                     scores: uniqueMonths.map(month => {
                         const records = filteredBaseRecords.filter(r => (r.jobField || '미분류') === field && r.date.startsWith(month));
-                        return records.length > 0
-                            ? calculateCoreMetricSnapshot(records).averageScore
-                            : null;
+                        if(!records.length)return null;
+                        const metric=calculateCoreMetricSnapshot(records);
+                        return metric.validScoreRecordCount?metric.averageScore:null;
                     })
                 };
             })
         };
     }, [filteredBaseRecords]);
 
-    const safetyTeamSignals = useMemo(() => {
-        const grouped = filteredBaseRecords.reduce((map, record) => {
-            const key = String(record.teamLeader || record.jobField || '미분류 팀').trim();
-            const bucket = map.get(key) || [];
-            bucket.push(record);
-            map.set(key, bucket);
-            return map;
-        }, new Map<string, WorkerRecord[]>());
-        return (Array.from(grouped.values()) as WorkerRecord[][]).map(records => {
-            const teamLabel = records[0]?.teamLeader
-                ? `${records[0].teamLeader} 팀`
-                : `${records[0]?.jobField || '미분류'} 공종`;
-            const scores = records.map(r => r.safetyScore);
-            const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-            const stdDev = calculateStandardDeviation(scores);
-            const safetyHabitIndex = avg / (1 + stdDev);
-            const workerCount = new Set(records.map(getWorkerIdentityKey)).size;
-            return { teamLabel, avg, stdDev, recordCount: records.length, workerCount, safetyHabitIndex };
-        })
-        .filter(team => team.workerCount >= 3 && team.recordCount >= 3)
-        .sort((a, b) => b.safetyHabitIndex - a.safetyHabitIndex)
-        .slice(0, 5);
-    }, [filteredBaseRecords]);
+    const safetyTeamSignals = useMemo(
+        () => getReliablePerformanceTeamSignals(filteredBaseRecords),
+        [filteredBaseRecords],
+    );
 
     const riskKeywords = useMemo(() => {
         const counts: Record<string, number> = {};
-        filteredBaseRecords.flatMap(r => r.weakAreas).forEach(w => {
+        filteredBaseRecords.flatMap(r => r.weakAreas || []).forEach(w => {
             const keyword = w.split(' ')[0]; // 첫 단어만 추출 (예: 추락, 감전)
             if(keyword.length > 1) counts[keyword] = (counts[keyword] || 0) + 1;
         });
@@ -441,7 +400,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
         {
             key: 'performance-evidence',
             eyebrow: '판단 근거',
-            title: `평균 ${kpiData?.currentAvg.toFixed(1) || '-'}점 · 변동성 ${kpiData?.volatility.toFixed(1) || '-'} · 최우수 ${kpiData?.topField.field || '-'}`,
+            title: `평균 ${kpiData?.currentAvg.toFixed(1) ?? '-'}점 · 변동성 ${kpiData?.volatility.toFixed(1) ?? '-'} · 최우수 ${kpiData?.topField?.field || '자료 없음'}`,
             description: `${SAFETY_SIGNAL_COPY.score}, 일관성, 공종별 편차, ${SAFETY_SIGNAL_COPY.level} 분포, 위험 키워드를 함께 봐야 단순 수치보다 실제 현장 안정도를 더 정확히 읽을 수 있습니다.`,
             tone: BRAND_TONE.whiteSoft,
         },
@@ -634,7 +593,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
             {uiAudienceMode !== 'worker' && (
                 <section className="rounded-2xl border border-blue-200 bg-blue-50/70 p-5 shadow-sm">
                     <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-black text-blue-700">{assessmentCycleCopy.shortLabel} 개선 추적</p><h3 className="mt-1 text-lg font-black text-slate-900">{assessmentCycleCopy.shortLabel} 개선 추적 요약</h3></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700">{latestCycleTrend?.month || '분석 대기'}</span></div>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">{assessmentCycleCopy.shortLabel} 평균 위험인식 신호</p><p className="mt-1 text-2xl font-black">{latestCycleTrend?.averageScore ?? 0}</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">응답 기반 개선 신호</p><p className="mt-1 text-2xl font-black text-emerald-700">{latestCycleTrend?.improvementExecutionRate ?? 0}%</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">반복지적 건수</p><p className="mt-1 text-2xl font-black text-orange-700">{latestCycleTrend?.repeatedIssueCount ?? 0}건</p></div></div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">{assessmentCycleCopy.shortLabel} 평균 위험인식 신호</p><p className="mt-1 text-2xl font-black">{cycleMetricSeries[cycleMetricSeries.length-1]?.validScoreRecordCount ? latestCycleTrend?.averageScore : '자료 없음'}</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">응답 기반 개선 신호</p><p className="mt-1 text-2xl font-black text-emerald-700">{cycleMetricSeries[cycleMetricSeries.length-1]?.validScoreRecordCount ? `${latestCycleTrend?.improvementExecutionRate ?? 0}%` : '자료 없음'}</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">반복지적 건수</p><p className="mt-1 text-2xl font-black text-orange-700">{latestCycleTrend?.repeatedIssueCount ?? 0}건</p></div></div>
                     <p className="mt-3 text-sm font-bold text-slate-600">{assessmentCycleCopy.nextCycleLabel} 교육 반영: {latestCycleTrend?.nextEducationFocus.join(' · ') || `${assessmentCycleCopy.shortLabel} 분석 데이터가 쌓이면 자동 제안됩니다.`}</p>
                 </section>
             )}
@@ -644,7 +603,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                         <div className="p-3 bg-blue-50 text-blue-600 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                         </div>
-                        {kpiData && (
+                        {kpiData?.trend !== null && kpiData?.trend !== undefined && (
                             <span className={`px-2 py-1 text-xs font-bold rounded-full ${kpiData.trend >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                                 {kpiData.trend >= 0 ? '+' : ''}{kpiData.trend.toFixed(1)} vs {assessmentCycleCopy.previousCycleLabel}
                             </span>
@@ -652,7 +611,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                     </div>
                     <div>
                         <p className="text-sm font-medium text-slate-500 dark:text-slate-300">종합 위험인식 신호</p>
-                        <h3 className="text-3xl font-black text-slate-800 dark:text-slate-100 mt-1">{kpiData?.currentAvg.toFixed(1) || '-'}</h3>
+                        <h3 className="text-3xl font-black text-slate-800 dark:text-slate-100 mt-1">{kpiData?.currentAvg.toFixed(1) ?? '자료 없음'}</h3>
                     </div>
                 </div>
                 <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-700 flex flex-col justify-between group hover:-translate-y-1 transition-transform duration-300">
@@ -667,7 +626,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                     <div>
                         <p className="text-sm font-medium text-slate-500 dark:text-slate-300">안전 일관성 (표준편차)</p>
                         <div className="flex items-baseline gap-2 mt-1">
-                            <h3 className="text-3xl font-black text-slate-800 dark:text-slate-100">{kpiData?.volatility.toFixed(1) || '-'}</h3>
+                            <h3 className="text-3xl font-black text-slate-800 dark:text-slate-100">{kpiData?.volatility.toFixed(1) ?? '자료 없음'}</h3>
                             <span className="text-xs text-slate-400 dark:text-slate-500">낮을수록 안정적</span>
                         </div>
                     </div>
@@ -680,8 +639,8 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                     </div>
                     <div>
                         <p className="text-sm font-medium text-slate-500 dark:text-slate-300">최우수 성과 공종</p>
-                        <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-1 truncate">{kpiData?.topField.field || '-'}</h3>
-                        <p className="text-sm text-teal-600 font-bold mt-1">Avg. {kpiData?.topField.avg.toFixed(1)}점</p>
+                        <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-1 truncate">{kpiData?.topField?.field || '자료 없음'}</h3>
+                        <p className="text-sm text-teal-600 font-bold mt-1">{kpiData?.topField ? `Avg. ${kpiData.topField.avg.toFixed(1)}점 · 유효 ${kpiData.topField.sampleCount}명` : '유효 점수 없음'}</p>
                     </div>
                 </div>
                 <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-2xl shadow-lg flex flex-col justify-between group hover:-translate-y-1 transition-transform duration-300 text-white">
@@ -832,7 +791,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                 <div className="xl:col-span-1 bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
                     <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-6">팀별 안전 실천 신호</h3>
                     <p className="text-xs text-slate-500 dark:text-slate-300 mb-4">
-                        개인 순위는 표시하지 않고, 3명 이상이 포함된 팀만 익명 집계합니다.
+                        개인 순위는 표시하지 않고, 유효 점수를 가진 서로 다른 3명 이상이 포함된 팀만 집계합니다. 중복 기록·점수 누락은 제외합니다.
                     </p>
                     <div className="space-y-4">
                         {safetyTeamSignals.length > 0 ? safetyTeamSignals.map((team) => (

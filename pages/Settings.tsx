@@ -56,6 +56,7 @@ import {
 import styles from './Settings.module.css';
 import { PsiCompanyAuditPanel } from '../components/management/PsiCompanyAuditPanel';
 import { FreeTierCapacityPlanner } from '../components/management/FreeTierCapacityPlanner';
+import {OperatorReleaseProof} from '../components/management/OperatorReleaseProof';
 
 const TRAINING_LANGUAGE_OPTIONS = SHARED_TRAINING_LANGUAGE_OPTIONS.map(({ code, label }) => ({
     code,
@@ -1681,6 +1682,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             </header>
 
             <PsiCompanyAuditPanel />
+            <OperatorReleaseProof />
             <FreeTierCapacityPlanner />
 
             <section className={styles.overview} aria-labelledby="settings-overview-heading">
