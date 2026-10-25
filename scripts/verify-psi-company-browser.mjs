@@ -7,7 +7,7 @@ import {resolve} from 'node:path';
 const url='http://127.0.0.1:4182/';
 const scenarios=[
  {owner:'platform',name:'inspector-production-navigation',script:'scripts/verify-inspector-production.mjs'},
- {owner:'safety-ai',name:'six-metrics-dashboard',script:'scripts/verify-core-metrics-ui.mjs'},
+ {owner:'safety-ai',name:'six-metrics-dashboard',script:'scripts/verify-psi-current-metrics-ui.mjs'},
  {owner:'safety-ai',name:'survey-risk-baselines',script:'scripts/verify-survey-baseline-ui.mjs'},
  {owner:'product-ux',name:'plain-language-journeys',script:'scripts/verify-plain-language-ui.mjs'},
  {owner:'product-ux',name:'multilingual-worker-report',script:'scripts/verify-worker-report-ui.mjs'},
