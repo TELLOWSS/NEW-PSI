@@ -14,7 +14,7 @@ try{
  await page.route('https://cdn.jsdelivr.net/**',r=>r.fulfill({body:'',contentType:'text/css'}));
  await page.goto('http://127.0.0.1:3021/',{waitUntil:'domcontentloaded'});
  await page.getByText('사진점검 · 개선관리',{exact:true}).first().click();
- await page.getByRole('heading',{name:'사진 한 장, 필요한 답을 한눈에',exact:true}).waitFor();
+ await page.getByRole('heading',{name:'사진만 찍어도 점검을 시작할 수 있습니다',exact:true}).waitFor();
  if(errors.length)throw new Error(errors.join('\n'));
  console.log('PASS: production bundle, real menu navigation, unchanged production CSP');
 }finally{await browser.close();await new Promise(resolve=>server.httpServer.close(resolve));}
