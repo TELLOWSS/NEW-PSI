@@ -1,5 +1,6 @@
 import React,{useMemo,useState} from 'react';
 import {DEFAULT_FREE_TIER_SCENARIO,estimateFreeTierCapacity,type FreeTierScenario} from '../../utils/freeTierCapacity';
+import {getClientRequestDiagnostics,subscribeClientRequestDiagnostics} from '../../utils/clientRequestDiagnostics';
 
 /**
  * No billing API, database, storage, or analytics calls.
@@ -8,6 +9,8 @@ import {DEFAULT_FREE_TIER_SCENARIO,estimateFreeTierCapacity,type FreeTierScenari
 export const FreeTierCapacityPlanner:React.FC=()=>{
     const [values,setValues]=useState<FreeTierScenario>(DEFAULT_FREE_TIER_SCENARIO);
     const [expanded,setExpanded]=useState(false);
+    const [diagnostics,setDiagnostics]=useState(getClientRequestDiagnostics);
+    React.useEffect(()=>subscribeClientRequestDiagnostics(setDiagnostics),[]);
     const result=useMemo(()=>estimateFreeTierCapacity(values),[values]);
     const update=(name:keyof FreeTierScenario,value:string)=>setValues(prev=>({...prev,[name]:Math.min(100000,Math.max(0,Number(value)||0))}));
     return <section aria-labelledby="psi-free-tier-capacity-title" className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 dark:border-slate-700 dark:bg-slate-900">
@@ -46,6 +49,22 @@ export const FreeTierCapacityPlanner:React.FC=()=>{
             <p className="font-bold">상용 도입 전 확인: Hobby는 개인·비상업적 이용에 한정됩니다. 필요 시 요금제, 테넌트 보안·데이터 보존 및 외부 AI 사용 예산을 별도로 검토하세요.</p>
             <p>협력사 안전관리비·안전시설비·신호수 인건비는 PSI/Inspector 운영 용량 계획에 포함되지 않으며 데이터가 합쳐지지 않습니다.</p>
         </div>
+        <section aria-label="이 탭의 API 요청 결과" className="mt-4 rounded-xl border border-teal-200 bg-teal-50 p-3 dark:border-teal-800 dark:bg-teal-950">
+            <div className="flex flex-wrap justify-between gap-2">
+                <h4 className="text-sm font-black text-teal-900 dark:text-teal-100">이 탭에서 발생한 API 요청 결과</h4>
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">기기 안에서만 집계 · 새로고침 시 초기화</span>
+            </div>
+            <dl className="mt-3 grid grid-cols-2 gap-2 text-center sm:grid-cols-5">
+                {([
+                    ['정상 응답',diagnostics.success],
+                    ['이용 한도',diagnostics.rateLimited],
+                    ['오류 응답',diagnostics.httpError],
+                    ['응답 시간 초과',diagnostics.timeout],
+                    ['네트워크 실패',diagnostics.network],
+                ] as const).map(([label,value])=><div key={label} className="rounded-lg border border-teal-100 bg-white p-2 dark:border-teal-800 dark:bg-slate-800"><dt className="text-xs text-slate-600 dark:text-slate-300">{label}</dt><dd className="text-xl font-black tabular-nums text-slate-900 dark:text-slate-100">{value}</dd></div>)}
+            </dl>
+            <p className="mt-2 text-xs leading-5 text-slate-700 dark:text-teal-100">Vercel·Supabase의 전체 사용량이 아닙니다. 이 탭의 공통 API 클라이언트 요청 결과만 메모리에서 집계합니다. 요청 본문·사진·신원·토큰은 저장하지 않으며, 오류 시 자동 재전송하지 않습니다. 저장 기록을 먼저 확인하세요.</p>
+        </section>
         <div className="mt-4 flex flex-wrap gap-3 text-xs">
             <a href="https://vercel.com/docs/plans/hobby" target="_blank" rel="noreferrer noopener" className="min-h-11 rounded-lg border border-slate-300 px-4 py-3 font-bold underline dark:border-slate-600 dark:text-slate-100">Vercel 공식 한도 확인</a>
             <a href="https://supabase.com/docs/guides/platform/billing-on-supabase" target="_blank" rel="noreferrer noopener" className="min-h-11 rounded-lg border border-slate-300 px-4 py-3 font-bold underline dark:border-slate-600 dark:text-slate-100">Supabase 공식 한도 확인</a>

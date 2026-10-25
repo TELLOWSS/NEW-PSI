@@ -1,8 +1,9 @@
 import { assertAdminAuthenticated, clearAdminAuthentication } from './adminGuard';
+import { classifyRequestOutcome, recordClientRequestOutcome } from './clientRequestDiagnostics';
 
 /**
- * Vercel 무료(Hobby) 플랜 서버리스 함수 타임아웃 기준: 10초
- * 클라이언트 측에서 9초 내에 강제 중단하여 사용자에게 명확한 에러 메시지 노출.
+ * 브라우저 기본 대기시간은 9초입니다. Vercel 서버 함수의 실제 제한과는 별개입니다.
+ * 응답이 끊긴 저장 요청은 이미 완료됐을 수 있으므로 자동 재시도를 하지 않습니다.
  * 긴 작업(Gemini 번역/audio 생성 등)은 timeoutMs 옵션으로 개별 조정 가능.
  */
 const VERCEL_FREE_SAFE_TIMEOUT_MS = 9_000;
@@ -11,13 +12,36 @@ export type SafeJsonParseOptions = {
     fallbackMessage: string;
     requireOk?: boolean;
     nonJsonMessage?: string;
-    /** ms 단위 요청 타임아웃 (기본: 9000ms — Vercel 무료 10초 제한 1초 여유). 0 = 타임아웃 없음 */
+    /** ms 단위 브라우저 응답 대기시간. 0 = 클라이언트 타임아웃 없음 */
     timeoutMs?: number;
 };
 
-const buildRawErrorMessage = (status: number, detail: string, fallback: string) => {
-    const normalized = String(detail || '').trim();
-    return `${status} - ${normalized || fallback}`;
+export class AdminApiError extends Error {
+    constructor(message:string,public status:number|null=null,public retryAfterSeconds:number|null=null,public outcomeUnknown=false){
+        super(message);this.name='AdminApiError';
+    }
+}
+export function parseRetryAfterSeconds(value:string|null):number|null{
+    if(!value||!/^\\d{1,4}$/.test(value.trim()))return null;
+    const seconds=Number(value);return seconds>=1&&seconds<=3600?seconds:null;
+}
+const safeDetail=(detail:unknown,fallback:string):string=>{
+    if(typeof detail!=='string')return fallback;
+    const text=detail.trim();
+    if(!text||text.length>220||!/[가-힣]/.test(text)||/[<>@]/.test(text)||/https?:\\/\\/|\\b(SQL|PGRST|JSON|token|bearer|stack|authorization|api[_ -]?key)\\b/i.test(text))return fallback;
+    return text;
+};
+export function friendlyHttpMessage(status:number,fallback:string,retryAfterSeconds:number|null,detail?:unknown):string{
+    if(status===401)return '로그인이 만료됐습니다. 다시 로그인하고 저장 기록을 먼저 확인해 주세요.';
+    if(status===402)return '서비스 이용량 또는 이용 조건으로 요청이 제한됐습니다. 운영자에게 확인하고 저장 기록부터 확인해 주세요.';
+    if(status===403)return '현재 계정에 작업 권한이 없습니다. 관리자에게 확인해 주세요.';
+    if(status===408||status===429)return '요청이 일시적으로 제한됐습니다. '+(retryAfterSeconds?'약 '+retryAfterSeconds+'초 이후에 ':'잠시 후 ')+'저장된 결과를 먼저 확인하고 필요한 작업만 다시 진행해 주세요.';
+    if(status===413)return '사진 또는 입력 크기가 너무 큽니다. 파일을 줄인 뒤 다시 선택해 주세요.';
+    if(status>=500&&status<=599)return '서버의 처리 결과를 확인하지 못했습니다. 중복 저장을 막기 위해 저장 기록부터 확인해 주세요.';
+    return safeDetail(detail,fallback);
+}
+const buildRawErrorMessage = (status:number,detail:unknown,fallback:string,retryAfterSeconds:number|null=null)=>{
+    return friendlyHttpMessage(status,fallback,retryAfterSeconds,detail);
 };
 
 export async function parseAdminJsonResponse<T = any>(
@@ -32,25 +56,26 @@ export async function parseAdminJsonResponse<T = any>(
 
     const contentType = response.headers.get('content-type') || '';
     const rawText = await response.text();
+    const retryAfterSeconds=parseRetryAfterSeconds(response.headers.get('Retry-After'));
     const isJson = contentType.includes('application/json');
 
     if (!isJson) {
         if (!response.ok) {
-            throw new Error(buildRawErrorMessage(response.status, rawText || nonJsonMessage, fallbackMessage));
+            throw new AdminApiError(buildRawErrorMessage(response.status, undefined, fallbackMessage,retryAfterSeconds),response.status,retryAfterSeconds,true);
         }
-        throw new Error(buildRawErrorMessage(response.status, nonJsonMessage, fallbackMessage));
+        throw new AdminApiError(buildRawErrorMessage(response.status, nonJsonMessage, fallbackMessage,retryAfterSeconds),response.status,retryAfterSeconds,true);
     }
 
     let data: any = null;
     try {
         data = rawText ? JSON.parse(rawText) : null;
     } catch {
-        throw new Error(buildRawErrorMessage(response.status, rawText || 'JSON 파싱 실패', fallbackMessage));
+        throw new AdminApiError(buildRawErrorMessage(response.status,undefined,fallbackMessage,retryAfterSeconds),response.status,retryAfterSeconds,true);
     }
 
     if (requireOk && (!response.ok || !data?.ok)) {
         const detail = data?.details || data?.message || data?.error || rawText;
-        throw new Error(buildRawErrorMessage(response.status, detail, fallbackMessage));
+        throw new AdminApiError(buildRawErrorMessage(response.status, detail, fallbackMessage,retryAfterSeconds),response.status,retryAfterSeconds,response.status>=500);
     }
 
     return data as T;
@@ -76,6 +101,7 @@ export async function postAdminJson<T = any>(
         }, timeoutMs);
     }
 
+    const started=Date.now();
     let response: Response;
     try {
         response = await fetch(url, {
@@ -91,21 +117,26 @@ export async function postAdminJson<T = any>(
         if (timerId) clearTimeout(timerId);
         // AbortError: 타임아웃 초과 → 사용자 친화적 메시지
         if (err instanceof Error && err.name === 'AbortError') {
-            throw new Error(
-                `요청 시간 초과 (${timeoutMs / 1000}초) · Vercel 무료 플랜 제한입니다. 잠시 후 다시 시도해 주세요.`,
-            );
+            recordClientRequestOutcome('timeout',Date.now()-started);
+            throw new AdminApiError('응답 대기 시간이 초과됐습니다. 저장됐을 수 있으니 기록부터 확인하세요. 자동으로 재전송하지 않습니다.',null,null,true);
         }
         // 네트워크 오류
-        throw new Error(
-            `네트워크 오류 · 서버에 연결할 수 없습니다. 인터넷 연결 또는 배포 상태를 확인해 주세요. (${String((err as Error)?.message ?? err)})`,
-        );
+        recordClientRequestOutcome('network',Date.now()-started);
+        throw new AdminApiError('네트워크 연결이 끊겼습니다. 저장 기록과 인터넷 상태를 먼저 확인하세요. 자동으로 재전송하지 않습니다.',null,null,true);
     }
 
     if (timerId) clearTimeout(timerId);
     if (response.status === 401) {
         clearAdminAuthentication();
     }
-    return parseAdminJsonResponse<T>(response, options);
+    try {
+        const result=await parseAdminJsonResponse<T>(response,options);
+        recordClientRequestOutcome(classifyRequestOutcome(response.status,response.ok&&(result as any)?.ok!==false),Date.now()-started);
+        return result;
+    } catch(error) {
+        recordClientRequestOutcome(classifyRequestOutcome(response.status,false),Date.now()-started);
+        throw error;
+    }
 }
 
 /**
@@ -137,9 +168,7 @@ export async function fetchWithTimeout(
     } catch (err: unknown) {
         clearTimeout(timerId);
         if (err instanceof Error && err.name === 'AbortError') {
-            throw new Error(
-                `요청 시간 초과 (${timeoutMs / 1000}초) · Vercel 무료 플랜 제한입니다. 잠시 후 다시 시도해 주세요.`,
-            );
+            throw new AdminApiError('응답 대기 시간이 초과됐습니다. 서버의 저장 여부를 먼저 확인해 주세요.',null,null,true);
         }
         throw err;
     }
