@@ -39,7 +39,7 @@ function ActionDraft({suggestion,sources,busy,onSave,onDirty,onOpen,initialPhoto
     </form>;
 }
 
-export default function InspectorActionPlanner({item,busy,active,onSave,onReassign,onDirty,onOpen,evidence,loadPhoto,onSubmitImprovement,onVerify,onAdoptShare,initialPhotoId,initialSelection,onCloseEntry,initialRegistered=false,inboxRequest=0,draftRequest=0}:{key?:string;item:Inspection;busy:boolean;active:boolean;onSave:(action:InspectorAction)=>Promise<boolean>;onReassign:(change:AssignmentChange)=>Promise<boolean>;onDirty:(dirty:boolean)=>void;onOpen:(id:string)=>void;evidence:Evidence[];loadPhoto:(id:string)=>Promise<Blob>;onSubmitImprovement:(input:ImprovementSubmission)=>Promise<boolean>;onVerify:(id:string,note:string)=>Promise<boolean>;onAdoptShare:(id:string)=>Promise<boolean>;initialPhotoId?:string;initialSelection?:FindingActionEntry;onCloseEntry?:()=>void;initialRegistered?:boolean;inboxRequest?:number;draftRequest?:number}){
+export default function InspectorActionPlanner({item,busy,active,onSave,onReassign,onDirty,onOpen,evidence,loadPhoto,onSubmitImprovement,onVerify,onAdoptShare,initialPhotoId,initialSelection,onCloseEntry,initialRegistered=false,inboxRequest=0,draftRequest=0,priorityFocus}:{key?:string;item:Inspection;busy:boolean;active:boolean;onSave:(action:InspectorAction)=>Promise<boolean>;onReassign:(change:AssignmentChange)=>Promise<boolean>;onDirty:(dirty:boolean)=>void;onOpen:(id:string)=>void;evidence:Evidence[];loadPhoto:(id:string)=>Promise<Blob>;onSubmitImprovement:(input:ImprovementSubmission)=>Promise<boolean>;onVerify:(id:string,note:string)=>Promise<boolean>;onAdoptShare:(id:string)=>Promise<boolean>;initialPhotoId?:string;initialSelection?:FindingActionEntry;onCloseEntry?:()=>void;initialRegistered?:boolean;inboxRequest?:number;draftRequest?:number;priorityFocus?:{actionId:string;request:number}|null}){
     const selectId=useId();
     const [filter,setFilter]=useState<ActionFilter>(initialRegistered?'unresolved':'all'),[query,setQuery]=useState(''),[order,setOrder]=useState<'registered'|'due'>(initialRegistered?'due':'registered'),[editingFollowup,setEditingFollowup]=useState(false);
     const today=useInspectionDay(editingFollowup);
@@ -51,6 +51,33 @@ export default function InspectorActionPlanner({item,busy,active,onSave,onReassi
     useEffect(()=>{if(!initialPhotoId&&!initialRegistered)return;const frame=requestAnimationFrame(()=>{root.current?.scrollIntoView({block:'start',behavior:'smooth'});if(initialPhotoId)root.current?.querySelector<HTMLTextAreaElement>('textarea')?.focus({preventScroll:true});else root.current?.querySelector<HTMLElement>('summary')?.focus({preventScroll:true});});return()=>cancelAnimationFrame(frame);},[initialPhotoId,initialRegistered]);
     const dirty=useRef(false),followupDirty=useRef(new Set<string>());
     const [replyTarget,setReplyTarget]=useState<{actionId:string;shareId:string;request:number}|null>(null);
+    const [priorityId,setPriorityId]=useState('');
+    useEffect(()=>{
+        if(!priorityFocus?.request)return;
+        if(busy||dirty.current||followupDirty.current.size){
+            setMessage('저장하지 않은 담당·개선사진·재점검 입력을 먼저 저장하거나 정리해 주세요. 이동하면서 입력을 버리지 않습니다.');
+            return;
+        }
+        const index=doc.actions.findIndex(a=>a.id===priorityFocus.actionId);
+        if(index<0){setMessage('선택한 조치가 최신 저장본에 없습니다. 조치 목록을 다시 확인하세요.');return;}
+        // The registered order is the original array order, so paging is deterministic.
+        setOpen(true);setMode('registered');setFilter('all');setQuery('');setOrder('registered');
+        setPage(Math.floor(index/3));setPriorityId(priorityFocus.actionId);setMessage('');
+    },[priorityFocus?.request]);
+    useEffect(()=>{
+        if(!priorityId||!open||mode!=='registered'||filter!=='all'||query||order!=='registered')return;
+        const frame=requestAnimationFrame(()=>{
+            const rows:HTMLElement[]=root.current?Array.from(root.current.querySelectorAll<HTMLElement>('[data-action-id]')):[];
+            const row=rows.find(el=>el.dataset.actionId===priorityId);
+            if(!row)return;
+            const followup=row.querySelector<HTMLDetailsElement>('.si-action-followup');
+            if(followup)followup.open=true;
+            const focus=followup?.querySelector<HTMLElement>('summary')||row;
+            focus.scrollIntoView({block:'center',behavior:'smooth'});focus.focus({preventScroll:true});
+            setPriorityId('');
+        });
+        return()=>cancelAnimationFrame(frame);
+    },[priorityId,open,mode,filter,query,order,page,doc.actions]);
     useEffect(()=>{if(!inboxRequest)return;setOpen(true);setMode('inbox');const frame=requestAnimationFrame(()=>{root.current?.scrollIntoView({block:'start',behavior:'smooth'});root.current?.querySelector<HTMLElement>('summary')?.focus({preventScroll:true});});return()=>cancelAnimationFrame(frame);},[inboxRequest]);
     useEffect(()=>{
         if(!draftRequest)return;setOpen(true);setMode(dirty.current?'draft':'registered');
@@ -95,7 +122,7 @@ export default function InspectorActionPlanner({item,busy,active,onSave,onReassi
             <div className="si-action-queue-controls"><label htmlFor={selectId+'search'}>조치·담당 검색<input id={selectId+'search'} type="search" maxLength={200} value={query} onChange={e=>changeList(filter,e.target.value,order)} placeholder="예: 개구부, 형틀반장"/></label><label htmlFor={selectId+'sort'}>목록 순서<select aria-label="목록 순서" id={selectId+'sort'} value={order} onChange={e=>changeList(filter,query,e.target.value as 'registered'|'due')}><option value="registered">등록 순서</option><option value="due">기한 빠른 미결부터</option></select></label></div>
             <p className="si-caption">{filtered.length}건 일치 · 기준일 {today} (한국시간·기기 시계). 오늘 기한은 지연으로 세지 않습니다.{editingFollowup?' 저장 전 담당·기한/개선 입력을 보호하기 위해 기준일을 잠시 유지합니다.':''}</p></details>
             {((filter!=='all'&&filter!=='unresolved')||query.trim())&&filteredRemaining.length>0&&<div className="si-filtered-dispatch"><p className="si-caption">분류·검색에 맞는 미결 {filteredRemaining.length}건 전체 · 다른 페이지의 일치 조치도 포함</p><button type="button" className="si-btn" disabled={busy} onClick={()=>copy(filteredRemaining)}>분류한 미결 요청문 복사</button><InspectorShareButton title="분류한 현장 미결 조치 요청" text={buildRegisteredActionRequest(filteredRemaining,doc.title,doc.photoIds)} disabled={busy} label="분류한 미결 보내기"/></div>}
-            {filtered.slice(activePage*3,activePage*3+3).map(action=><section key={action.id} data-action-id={action.id} className={replyTarget?.actionId===action.id?'si-reply-target':undefined}><h3>{action.title}</h3><p>{action.owner} · {action.dueDate} · {actionStatusLabel(action)}{overdueAction(action,today)&&<strong className="si-overdue-label"> · 기한 지남</strong>}</p><details><summary>적용 사진·기록 보기</summary><p className="si-pre">{action.note||'기록 없음'}</p></details><button type="button" className="si-btn" onClick={()=>copy([action])}>이 조치요청문 복사</button><Suspense fallback={<p role="status">공유 기능 준비 중…</p>}><InspectorActionShare item={item} action={action} busy={busy||editingFollowup||dirty.current} onAdopt={onAdoptShare} focusShareId={replyTarget?.actionId===action.id?replyTarget.shareId:undefined} focusRequest={replyTarget?.actionId===action.id?replyTarget.request:0}/></Suspense><InspectorAssignmentEditor action={action} busy={busy||followupDirty.current.has(action.id)} today={today} owners={recentActionOwners(doc.actions)} onSave={onReassign} onDirty={updateFollowupDirty}/><InspectorActionFollowup key={`${action.id}:${action.owner}:${action.dueDate}`} item={item} action={action} evidence={evidence} busy={busy||followupDirty.current.has('assignment:'+action.id)} loadPhoto={loadPhoto} onSubmit={onSubmitImprovement} onVerify={onVerify} onDirty={updateFollowupDirty}/></section>)}
+            {filtered.slice(activePage*3,activePage*3+3).map(action=><section key={action.id} tabIndex={-1} data-action-id={action.id} className={replyTarget?.actionId===action.id||priorityId===action.id?'si-reply-target':undefined}><h3>{action.title}</h3><p>{action.owner} · {action.dueDate} · {actionStatusLabel(action)}{overdueAction(action,today)&&<strong className="si-overdue-label"> · 기한 지남</strong>}</p><details><summary>적용 사진·기록 보기</summary><p className="si-pre">{action.note||'기록 없음'}</p></details><button type="button" className="si-btn" onClick={()=>copy([action])}>이 조치요청문 복사</button><Suspense fallback={<p role="status">공유 기능 준비 중…</p>}><InspectorActionShare item={item} action={action} busy={busy||editingFollowup||dirty.current} onAdopt={onAdoptShare} focusShareId={replyTarget?.actionId===action.id?replyTarget.shareId:undefined} focusRequest={replyTarget?.actionId===action.id?replyTarget.request:0}/></Suspense><InspectorAssignmentEditor action={action} busy={busy||followupDirty.current.has(action.id)} today={today} owners={recentActionOwners(doc.actions)} onSave={onReassign} onDirty={updateFollowupDirty}/><InspectorActionFollowup key={`${action.id}:${action.owner}:${action.dueDate}`} item={item} action={action} evidence={evidence} busy={busy||followupDirty.current.has('assignment:'+action.id)} loadPhoto={loadPhoto} onSubmit={onSubmitImprovement} onVerify={onVerify} onDirty={updateFollowupDirty}/></section>)}
             {!doc.actions.length&&<p className="si-caption">아직 등록한 조치가 없습니다. 보고서 작성은 조치 등록 없이도 가능합니다.</p>}
             {!!doc.actions.length&&!filtered.length&&<p className="si-caption">분류·검색에 맞는 조치가 없습니다. <button type="button" className="si-btn" onClick={()=>changeList('all','','registered')}>전체 조치로 돌아가기</button></p>}
             {pages>1&&<div className="si-action-pagination"><button type="button" className="si-btn" disabled={!activePage||busy} onClick={()=>changePage(activePage-1)}>이전 조치</button><span>{activePage+1} / {pages}</span><button type="button" className="si-btn" disabled={activePage>=pages-1||busy} onClick={()=>changePage(activePage+1)}>다음 조치</button></div>}

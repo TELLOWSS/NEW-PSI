@@ -2,14 +2,15 @@ import React,{useState} from 'react';
 import type {InspectorAction,InspectionDocument} from '../../lib/inspector/types';
 import {buildNextCycleHandoffDraft} from '../../lib/inspector/educationHandoff';
 import {copyInspectorShareText,shareCopyResultMessage} from '../../lib/inspector/sharing';
-import {summarizeActionRadar} from '../../lib/inspector/actionRadar';
+import {selectPriorityAction,summarizeActionRadar} from '../../lib/inspector/actionRadar';
 import {useInspectionDay} from './useInspectionDay';
 import './inspector-action-radar.css';
 
-export default function InspectorActionRadar({actions,document:doc,disabled=false,onOpenActions,onOpenInbox}:{actions:readonly InspectorAction[];document?:InspectionDocument;disabled?:boolean;onOpenActions?:()=>void;onOpenInbox?:()=>void}){
+export default function InspectorActionRadar({actions,document:doc,disabled=false,onOpenActions,onOpenInbox,onOpenPriorityAction}:{actions:readonly InspectorAction[];document?:InspectionDocument;disabled?:boolean;onOpenActions?:()=>void;onOpenInbox?:()=>void;onOpenPriorityAction?:(actionId:string)=>void}){
     const [copyFeedback,setCopyFeedback]=useState('');
     const today=useInspectionDay();
     const summary=summarizeActionRadar(actions,today);
+    const priority=selectPriorityAction(actions,today);
     const handoff=doc?buildNextCycleHandoffDraft(doc,today):'';
     return <section className="si-action-radar" role="region" aria-label="조치 관리 우선순위" data-action-radar="saved-only">
         <div className="si-action-radar-header">
@@ -29,8 +30,11 @@ export default function InspectorActionRadar({actions,document:doc,disabled=fals
             {summary.dueToday>0&&<span>오늘 기한 {summary.dueToday}건 · 기한 초과 아님</span>}
             {summary.missingAssignment>0&&<span>담당·기한 확인 필요 {summary.missingAssignment}건</span>}
         </p>}
-        {(onOpenActions||onOpenInbox)&&<div className="si-action-radar-actions">
-            {onOpenActions&&<button className="si-btn si-primary" type="button" onClick={onOpenActions} disabled={disabled}>조치 관리 열기</button>}
+        {priority&&onOpenPriorityAction&&<p className="si-caption" data-priority-action-id={priority.actionId}><b>가장 먼저 볼 저장 조치:</b> {priority.title} · {priority.reason==='overdue'?'기한 지남':priority.reason==='reinspection'?'현장 재점검 대기':priority.reason==='assignment'?'담당·기한 확인 필요':'조치 진행 확인'}</p>}
+        {(onOpenActions||onOpenInbox||onOpenPriorityAction)&&<div className="si-action-radar-actions">
+            {priority&&onOpenPriorityAction
+                ?<button className="si-btn si-primary" type="button" onClick={()=>onOpenPriorityAction(priority.actionId)} disabled={disabled}>우선 조치 바로 확인</button>
+                :onOpenActions&&<button className="si-btn si-primary" type="button" onClick={onOpenActions} disabled={disabled}>조치 관리 열기</button>}
             {onOpenInbox&&<button className="si-btn" type="button" onClick={onOpenInbox} disabled={disabled}>회신 기록 확인</button>}
         </div>}
         {doc&&actions.length>0&&<details className="si-action-handoff">

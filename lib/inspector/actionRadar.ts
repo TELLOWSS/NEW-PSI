@@ -1,6 +1,19 @@
 import type {InspectorAction} from './types.js';
 import {koreanDay,overdueAction} from './workQueue.js';
 
+export type PriorityActionTarget={actionId:string;title:string;reason:'overdue'|'reinspection'|'assignment'|'open'};
+
+/** One directly navigable action from saved records. Never infers actual field completion. */
+export function selectPriorityAction(actions:readonly InspectorAction[],today:string=koreanDay()):PriorityActionTarget|null{
+    const pending=actions.filter(a=>a.status!=='verified');
+    if(!pending.length)return null;
+    const rank=(a:InspectorAction)=>overdueAction(a,today)?0:a.status==='review-requested'?1:(!a.owner?.trim()||!/\d{4}-\d{2}-\d{2}/.test(a.dueDate||''))?2:3;
+    const ranked=[...pending].sort((a,b)=>rank(a)-rank(b)||(a.dueDate||'9999').localeCompare(b.dueDate||'9999')||a.id.localeCompare(b.id));
+    const first=ranked[0],score=rank(first);
+    return {actionId:first.id,title:first.title,reason:score===0?'overdue':score===1?'reinspection':score===2?'assignment':'open'};
+}
+
+
 export type ActionRadarSummary={
     total:number; overdue:number; awaitingReinspection:number; open:number; verified:number;
     dueToday:number; missingAssignment:number; immediateMessage:string; scope:string;
