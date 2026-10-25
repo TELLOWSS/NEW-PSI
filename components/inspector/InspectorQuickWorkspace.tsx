@@ -19,6 +19,7 @@ import InspectorLegalResult from './InspectorLegalResult';
 import InspectorAnswer from './InspectorAnswer';
 import {InspectorIcon,InspectorScene} from './InspectorGraphics';
 const InspectorReport=lazy(()=>import('./InspectorReport'));
+const InspectorGlobalActionRegister=lazy(()=>import('./InspectorGlobalActionRegister'));
 const InspectorFieldCardDialog=lazy(()=>import('./InspectorFieldCardDialog'));
 import {seedFieldCard,type FieldCardSeed} from '../../lib/inspector/fieldCard';
 import InspectorPhotoDialog from './InspectorPhotoDialog';
@@ -264,11 +265,20 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
         if(!current||!registered||local||photo)throw new Error('현재 사진을 확인한 뒤 이전 사진을 열어 주세요.');
         await restoreSavedPhoto(current,registered);
     });
-    const loadSaved=(id:string,intent?:RecordResumeIntent,positionPhotoId?:string)=>void run(async()=>{
+    const loadSaved=(id:string,intent?:RecordResumeIntent,positionPhotoId?:string,focusedActionId?:string)=>void run(async()=>{
         setActivity('선택한 저장 점검 불러오는 중');
         let r;try{r=await request({op:'detail',id});}catch(cause){const deleted=await request({op:'deletion-status',id});if(deleted.status?.state==='purged'&&deleted.status.verified){if(!alive.current)return;setDeletedResumeId(id);setStorageLocked(true);return;}throw cause;}
-        if(!alive.current)return;accept(r.item);setStorageLocked(!!r.control&&r.control.state!=='active');setEvidence(r.evidence);setReportTitle(r.item.document.title==='새 현장점검'?'사진 현장점검':r.item.document.title);setApiEnabled(!!r.item.document.apiEnabled);setConsent(false);setEntryIntent(intent||null);setEntryNotice('');
+        if(!alive.current)return;
+        if(latest.current?.id!==id){clearActive();setActionEntry(null);setActionDraftDirty(false);}
+        accept(r.item);setStorageLocked(!!r.control&&r.control.state!=='active');setEvidence(r.evidence);setReportTitle(r.item.document.title==='새 현장점검'?'사진 현장점검':r.item.document.title);setApiEnabled(!!r.item.document.apiEnabled);setConsent(false);setEntryIntent(intent||null);setEntryNotice('');
         if(r.control&&r.control.state!=='active')return;
+        if(focusedActionId){
+            if(r.item.document.actions.some((a:InspectorAction)=>a.id===focusedActionId)){
+                setEntryIntent('actions');
+                setPriorityFocus(prev=>({actionId:focusedActionId,request:(prev?.request||0)+1}));
+            }else setEntryNotice('선택한 조치가 최신 저장본에 없습니다. 기록을 다시 확인해 주세요.');
+            return;
+        }
         if(positionPhotoId){
             const registered=r.evidence.find((p:Evidence)=>p.id===positionPhotoId);
             if(!r.item.document.photoIds.includes(positionPhotoId)||!registered){forgetReviewPosition(id);setEntryNotice('마지막 검토 사진을 현재 저장본에서 찾지 못했습니다. 다른 사진을 대신 열지 않았습니다. 저장한 목록을 확인하세요.');setEntryIntent('overview');return;}
@@ -367,6 +377,13 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
     const brief=()=>[...(analysis?[`${reviewSaved?'저장한 전문가 검토':'저장 전 검토 선택'}: ${review.decision==='rejected'?'AI 해석 수용 안 함':'AI 참고 활용'}`,review.note.trim()?`전문가 의견${reviewSaved?'':' (저장 전)'}: ${review.note.trim()}`:'']:[]),resultNote,...((review.decision==='rejected'?null:analysis)?.risk_findings?.flatMap(f=>[`문제 제안: ${f.problem}`,`가능 위험: ${f.risk}`,`우선 조치: ${f.action}`])||[]),...((review.decision==='rejected'?null:analysis)?.observed_facts.map(f=>`관찰 제안: ${f.text}`)||[]),...((review.decision==='rejected'?null:analysis)?.recommended_controls.map(c=>`조치 제안: ${c.action}`)||[]),...((effectiveReference?.cards||[]).flatMap(card=>[card.title,...card.actions,...card.duties.map(d=>`${d.label}: ${d.summary}\n${d.url}`),...card.sanctions.map(s=>`${s.actor}: ${sanctionText(s)} / 조건: ${s.condition} / 근거: ${s.basis}\n${s.url}`),...(card.sanctionNote?[card.sanctionNote]:[])])),...((effectiveReference?.inspectionCases||[]).flatMap(c=>[`공개 감독사례: ${c.title} (${c.publishedAt})`,c.finding,c.response,c.url])),`공식 원문 대조: ${reference?.reviewedAt} · 금액은 법정상한 · 실제 위반·부과액 확정 아님`].join('\n');
     return <div className="si-workspace si-quick" aria-busy={busy} onFocusCapture={e=>focusField(e.target)} onBlurCapture={blurField} onPaste={e=>{if(e.defaultPrevented||busy||photo)return;const files=pastedPhotos(e.clipboardData);if(files.length){e.preventDefault();choose(files[0]);}}}>
         <header className="si-quick-heading"><div><p className="si-eyebrow">NEW-PSI · 현장 사진점검</p><h1>사진만 찍어도 점검을 시작할 수 있습니다</h1><p>위험 확인 → 현장 검토 → 필요한 조치 → 검토용 보고서</p></div><button className="si-btn" disabled={busy||storageBusy} onClick={()=>{if(!unsavedPhoto&&!actionDraftDirty||window.confirm('상세 관리로 이동합니다. 저장 전 사진·설명·검토·작성 중인 조치는 이 화면을 닫으면 사라집니다. 이동할까요?'))onAdvanced();}}>저장 기록 · 상세 관리</button></header>
+        <Suspense fallback={<p role="status" className="si-caption">통합 조치대장 기능 준비 중…</p>}><InspectorGlobalActionRegister
+            blocked={busy||storageBusy||unsavedPhoto||actionDraftDirty||!!local||!!photo}
+            onOpenAction={(inspectionId,actionId)=>{
+                if(busy||storageBusy||unsavedPhoto||actionDraftDirty||local||photo){setError('작성 중인 사진·조치·재점검 내용을 먼저 저장하거나 정리해 주세요. 미저장 입력은 버리지 않습니다.');return;}
+                loadSaved(inspectionId,'actions',undefined,actionId);
+            }}
+        /></Suspense>
         {!report&&!deletedResumeId&&(!item||!!local||!!photo)&&(!reference||!!local||!!photo)&&<InspectorNoviceSteps step={activeNoviceStep}/>}
         {!item&&!local&&!deletedResumeId&&<a className="si-product-entry" href="/product">처음이라면 결과 미리보기 · 현장 도입 안내 <span aria-hidden="true">↗</span></a>}
         {(item||deletedResumeId)&&<InspectorStorageManager key={item?.id||deletedResumeId} id={item?.id||deletedResumeId} revision={item?.revision||0} title={item?.document.title||'이 탭의 이전 점검 · 삭제 결과'} initialOpen={!!deletedResumeId} disabled={busy||!!local&&!photo} onWorking={setStorageBusy} onLocked={()=>{setStorageLocked(true);clearActive();}} onComplete={()=>startNew()}/>}
