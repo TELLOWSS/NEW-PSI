@@ -49,6 +49,8 @@ try{for(const scenario of ['flow','lost-plan-ack','lost-photo-ack','offline-befo
     assert.equal(shares[0].responses.length,0);
     await receiver.getByRole('button',{name:'같은 회신 다시 확인·보내기'}).click();
    }
+  }else if(scenario==='lost-photo-ack'){
+   await receiver.getByRole('region',{name:'접수한 회신'}).waitFor();
   }else{
    await receiver.getByRole('alert').waitFor();
    assert.equal(await receiver.getByLabel('응답자·공종 (본인 입력)',{exact:true}).isDisabled(),true);
