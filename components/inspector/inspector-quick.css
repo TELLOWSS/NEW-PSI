@@ -280,4 +280,4 @@
 
 /* Present the real report and its print action after lazy loading, clear of mobile header. */
 .si-quick-print,.si-report{scroll-margin-top:84px}
-.si-report:focus{outline:none}
+.si-report:focus{outline:2px solid var(--si-teal);outline-offset:3px}
