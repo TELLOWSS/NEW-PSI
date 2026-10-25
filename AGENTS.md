@@ -1,7 +1,7 @@
 # NEW-PSI — 에이전트 진입 규칙 (AGENTS.md)
 
 이 저장소에서 작업하는 Codex/AI 코드 작업자는 먼저 다음 문서를 읽는다.
-1. `skills/psi-ai-company/SKILL.md` — 제품 간 공통 AI 회사형 7명 애칭/책임/결재/검증
+1. `.agents/skills/psi-ai-company/SKILL.md` — 제품 간 공통 AI 회사형 7명 애칭/책임/결재/검증
 2. `config/psi-company-agent-roster.json` — 이름·고유 역할·권한
 3. `config/psi-company-product-registry.json` — 각 GitHub/Vercel 제품을 섞지 않도록 하는 제품 등록부
 4. `docs/psi-ai-company/OPERATING_CHARTER.md` — NEW-PSI 조직 승인·산업안전 판단 경계
