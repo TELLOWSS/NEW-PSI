@@ -2,7 +2,7 @@ import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {describe,expect,it} from 'vitest';
 import type {InspectorAction} from '../lib/inspector/types';
-import {summarizeActionRadar} from '../lib/inspector/actionRadar';
+import {selectPriorityAction,summarizeActionRadar} from '../lib/inspector/actionRadar';
 import InspectorActionRadar from '../components/inspector/InspectorActionRadar';
 
 const make=(id:string,patch:Partial<InspectorAction>={}):InspectorAction=>({
@@ -51,5 +51,34 @@ describe('inspector saved-action priority radar',()=>{
         expect(html).toContain('회신 기록 확인');
         expect(html).toContain('링크 발송');
         expect(html).not.toContain('자동 완료');
+    });
+});
+
+describe('one-tap priority action routing without automatic completion',()=>{
+    it('selects overdue action before reinspection, assignment and open; never picks verified',()=>{
+        const actions=[
+            make('normal',{dueDate:'2026-11-01'}),
+            make('review',{dueDate:'2026-11-01',status:'review-requested',completionPhotoId:'after'}),
+            make('late',{dueDate:'2026-10-23'}),
+            make('verified',{status:'verified',dueDate:'2026-01-01',verifiedAt:'2026-10-25T12:00:00Z'}),
+        ];
+        const copy=JSON.stringify(actions);
+        expect(selectPriorityAction(actions,'2026-10-25')).toMatchObject({actionId:'late',reason:'overdue'});
+        expect(JSON.stringify(actions)).toBe(copy);
+        expect(selectPriorityAction(actions.filter(a=>a.id!=='late'),'2026-10-25')).toMatchObject({actionId:'review',reason:'reinspection'});
+        expect(selectPriorityAction(actions.filter(a=>a.status==='verified'),'2026-10-25')).toBeNull();
+    });
+    it('makes saved missing assignments reviewable without guessing deadlines',()=>{
+        expect(selectPriorityAction([make('missing',{owner:'',dueDate:''}),make('normal',{dueDate:'2026-11-01'})],'2026-10-25')).toMatchObject({actionId:'missing',reason:'assignment'});
+    });
+    it('shows one direct action button and a distinct inbox button when a target exists',()=>{
+        const html=renderToStaticMarkup(React.createElement(InspectorActionRadar,{
+            actions:[make('x',{dueDate:'2026-10-24'})],onOpenActions:()=>{},onOpenInbox:()=>{},onOpenPriorityAction:()=>{},
+        }));
+        expect(html).toContain('우선 조치 바로 확인');
+        expect(html).toContain('회신 기록 확인');
+        expect(html).not.toContain('조치 관리 열기');
+        expect(html).toContain('data-priority-action-id="x"');
+        expect(html).not.toContain('완료 승인');
     });
 });
