@@ -13,6 +13,7 @@ import { serializeSnapshot } from '../../inspector/snapshot.js';
 import { newInspectionDocument, type Evidence, type Inspection } from '../../inspector/types.js';
 import { legalForInspection } from '../../inspector/legal.js';
 import {reportPhotoSelection} from '../../inspector/actionFollowup.js';
+import {projectGlobalActionRows} from '../../inspector/globalActionRegister.js';
 
 const BUCKET = 'psi-inspector-evidence';
 const MAX_PHOTO = 3 * 1024 * 1024;
@@ -83,6 +84,29 @@ export default async function inspector(req: any, res: any) {
             const {data,error} = await query; dbError(error);
             const items=(data||[]).slice(0,50),hasMore=(data||[]).length>50,last=items.at(-1);
             return res.status(200).json({ok:true,items,hasMore,nextCursor:hasMore && last ? {before:last.created_at,beforeId:last.id} : null});
+        }
+        if(body.op === 'global-action-register') {
+            keys(body,['before','beforeId']);
+            if(body.beforeId!==undefined&&(body.before===undefined||typeof body.beforeId!=='string'||!UUID.test(body.beforeId)))reject(400,'INVALID_CURSOR','조치대장 조회 위치를 확인해 주세요.');
+            if(body.before!==undefined&&(typeof body.before!=='string'||body.before.length>40||!/^(?:\\d{4}-\\d{2}-\\d{2})T[\\d:.]+(?:Z|\\+00:00)$/.test(body.before)||!Number.isFinite(Date.parse(body.before))))reject(400,'INVALID_CURSOR','조치대장 조회 위치를 확인해 주세요.');
+            // Explicit administrator-only load, 20 inspection documents per page, no evidence blobs or AI calls.
+            let query=db.from('psi_inspector_inspections').select('id,revision,document,created_at,updated_at')
+                .order('created_at',{ascending:false}).order('id',{ascending:false}).limit(21);
+            if(body.before!==undefined)query=body.beforeId
+                ?query.or(`created_at.lt.${body.before},and(created_at.eq.${body.before},id.lt.${body.beforeId})`)
+                :query.lt('created_at',body.before);
+            const result=await query;dbError(result.error);
+            const batch=(result.data||[]).slice(0,20),hasMore=(result.data||[]).length>20,last=batch.at(-1);
+            // Exclude records undergoing a deletion or photo-only purge.
+            let excluded=new Set<string>();
+            if(batch.length){
+                const guard=await db.from('psi_inspector_controls').select('inspection_id,state')
+                    .in('inspection_id',batch.map((i:any)=>i.id));dbError(guard.error);
+                excluded=new Set((guard.data||[]).filter((x:any)=>x.state!=='active').map((x:any)=>x.inspection_id));
+            }
+            const active=batch.filter((i:any)=>!excluded.has(i.id));
+            const rows=projectGlobalActionRows(active);
+            return res.status(200).json({ok:true,rows,inspectionCount:active.length,hasMore,nextCursor:hasMore&&last?{before:last.created_at,beforeId:last.id}:null,scope:'loaded-page-only'});
         }
         if(body.op === 'create') {
             keys(body,['id']); const inspectionId=id(body.id);

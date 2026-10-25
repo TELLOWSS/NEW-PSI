@@ -1,0 +1,19 @@
+.si-global-register{margin:12px 0 16px;border:1px solid #60a5fa55;background:linear-gradient(125deg,#eff6ff,#f8fafc);border-radius:18px;color:#172554}
+.si-global-register>summary{cursor:pointer;display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap;list-style:inside;padding:15px 16px;font-weight:850;min-height:52px}
+.si-global-register>summary span{font-size:12px;color:#475569;font-weight:600}.si-global-register-body{padding:4px 16px 18px;display:grid;gap:14px}
+.si-global-register-toolbar{display:flex;flex-wrap:wrap;gap:8px}
+.si-global-register-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.si-global-register-stats button{border:1px solid #cbd5e1;border-radius:12px;background:white;padding:11px 6px;min-height:60px;color:#0f172a;display:flex;flex-direction:column;align-items:center;gap:3px}
+.si-global-register-stats button.is-active{border-color:#0369a1;outline:2px solid #38bdf8}
+.si-global-register-stats b{font-size:20px}.si-global-register-stats span{font-size:11px}
+.si-global-register-controls{display:grid;grid-template-columns:minmax(0,2fr) minmax(130px,1fr);gap:10px}
+.si-global-register-controls label{display:grid;gap:5px;font-size:12px;font-weight:700}
+.si-global-register-controls input,.si-global-register-controls select{width:100%;background:#fff;border:1px solid #cbd5e1;border-radius:9px;min-height:44px;padding:8px;color:#0f172a}
+.si-global-register-list{display:grid;gap:8px;max-height:540px;overflow-y:auto}
+.si-global-register-entry{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;display:flex;gap:12px;align-items:center;justify-content:space-between}
+.si-global-register-entry>div{min-width:0;overflow-wrap:anywhere}.si-global-register-entry b{font-size:14px}.si-global-register-entry p{font-size:12px;color:#475569;margin:5px 0 0;line-height:1.6}
+.si-global-register-entry .si-global-register-urgent{color:#9a3412;font-weight:700}
+.si-global-register-entry button{flex-shrink:0;min-height:44px}
+@media(max-width:560px){.si-global-register>summary{display:block}.si-global-register>summary span{display:block;margin-top:4px}.si-global-register-controls{grid-template-columns:1fr}.si-global-register-entry{flex-direction:column;align-items:stretch}.si-global-register-entry button{width:100%}.si-global-register-stats span{font-size:10px}}
+@media(prefers-color-scheme:dark){.si-global-register{background:#0f172a;color:#e2e8f0}.si-global-register>summary span{color:#cbd5e1}.si-global-register-entry,.si-global-register-stats button{background:#1e293b;color:#f1f5f9;border-color:#334155}.si-global-register-entry p{color:#cbd5e1}.si-global-register-controls input,.si-global-register-controls select{background:#1e293b;color:#f1f5f9;border-color:#475569}}
+@media print{.si-global-register{display:none!important}}
