@@ -11,13 +11,14 @@ const output='artifacts/audit/inspector-friendly-recovery'+(target?'-deployed':b
 const allowed={policy:'free-only',state:'free-project',allowed:true,message:'fixture only',remainingRequests:null,billingCheck:'verified'};
 try{
 for(const scenario of ['blocked','unavailable','retry','quota','settings','unknown','copy-fallback','advanced','waiting']){
+ if(process.env.PSI_RECOVERY_SCENARIOS&&!process.env.PSI_RECOVERY_SCENARIOS.split(',').includes(scenario))continue;
  console.log('scenario',scenario);
  const context=await browser.newContext({viewport:{width:390,height:844},permissions:['clipboard-read','clipboard-write']});const page=await context.newPage();const ops=[],errors=[];let item,photo,bytes,heldStatus;
  page.setDefaultTimeout(15000);page.setDefaultNavigationTimeout(15000);page.on('pageerror',e=>{errors.push(e.message);console.log('pageerror',e.message);});
  await page.route('https://cdn.jsdelivr.net/**',r=>r.fulfill({body:'',contentType:'text/css'}));
  await page.route('https://cdn.tailwindcss.com/**',r=>r.fulfill({body:'',contentType:'application/javascript'}));
  await page.route('https://fonts.googleapis.com/**',r=>r.fulfill({body:'',contentType:'text/css'}));
- await page.route('**/__qa-korean.otf',async r=>r.fulfill({body:await readFile('artifacts/fonts/NotoSansCJKkr-Regular.otf'),contentType:'font/otf'}));
+ if(process.env.PSI_QA_KOREAN_FONT)await page.route('**/__qa-korean.otf',async r=>r.fulfill({body:await readFile(process.env.PSI_QA_KOREAN_FONT),contentType:'font/otf'}));
  await page.route('**/api/admin/auth',r=>r.fulfill({json:{ok:true,authenticated:true}}));
  await page.route('**/__fixture-photo',r=>r.fulfill({body:bytes,contentType:'image/jpeg'}));
  await page.route('**/api/admin/inspector',async r=>{const b=r.request().postDataJSON();ops.push(b.op);let result={ok:true};
@@ -39,10 +40,8 @@ for(const scenario of ['blocked','unavailable','retry','quota','settings','unkno
   }else throw new Error('Unexpected fixture operation: '+b.op);
   await r.fulfill({json:result});
  });
- await page.goto(base+'/',{waitUntil:'domcontentloaded'});
- if(!target&&!built){await page.waitForFunction(()=>typeof window.__setCurrentPage==='function',null,{timeout:15000});await page.evaluate(()=>window.__setCurrentPage('safety-inspector'));}
- else{await page.getByRole('navigation',{name:'모바일 하단 탐색'}).locator('button[aria-haspopup=dialog]').click();await page.getByText('사진점검 · 개선관리',{exact:true}).filter({visible:true}).first().click();}
- await page.locator('.si-quick').waitFor();await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));
+ await page.goto(base+'/?mode=photo-inspector',{waitUntil:'domcontentloaded'});
+ await page.locator('.si-quick').waitFor();if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}
  const source=Buffer.from(await page.evaluate(()=>{const c=document.createElement('canvas');c.width=640;c.height=480;c.getContext('2d').fillRect(0,0,640,480);return c.toDataURL('image/jpeg').split(',')[1];}),'base64');
  await page.locator('.si-quick input[type=file]').first().setInputFiles({name:'synthetic.jpg',mimeType:'image/jpeg',buffer:source});
  await page.locator('.si-quick-consent input').check();await page.locator('.si-photo-hint summary').click();await page.locator('.si-quick textarea').first().fill('직접 확인한 발판 틈새.');
