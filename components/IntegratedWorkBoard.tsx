@@ -18,6 +18,7 @@ import {
     isOperationalWorkerRecord,
 } from '../utils/coreMetrics';
 import {getWeakestWorkTrade} from '../utils/workTradeSignals';
+import {selectOperatorNextTask} from '../utils/operatorNextTask';
 import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
 import { groupRecordsByAssessmentPeriod } from '../utils/assessmentCycle';
 
@@ -245,6 +246,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
     }, [assessmentCycle, workerRecords]);
 
     const priorityTrade = useMemo(() => getWeakestWorkTrade(workerRecords), [workerRecords]);
+    const nextTask = useMemo(() => selectOperatorNextTask(workerRecords), [workerRecords]);
 
     const trendDelta = useMemo(() => {
         if (cycleTrends.scoreValues.length >= 2) {
@@ -339,6 +341,21 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                         </button>
                     </div>
                 </div>
+            </section>
+
+            <section aria-label="관리자 지금 확인할 일" data-psi-next-task className="psi-industrial-panel border border-sky-200 bg-sky-50/70 p-4 sm:p-5 dark:border-sky-700/50 dark:bg-sky-950/25">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="max-w-2xl">
+                        <p className="text-[11px] font-black tracking-wider text-sky-800 dark:text-sky-200">TODAY'S NEXT STEP · 기록 기반 안내</p>
+                        <h2 className="mt-1 text-base font-black text-slate-900 dark:text-white">{nextTask.title}</h2>
+                        <p className="mt-1 text-sm leading-6 text-slate-700 dark:text-slate-300">{nextTask.description}</p>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                        <button type="button" data-psi-next-action="primary" onClick={()=>setCurrentPage(nextTask.page)} className="min-h-11 rounded-xl bg-sky-800 px-4 py-3 text-sm font-bold text-white hover:bg-sky-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600">{nextTask.label}</button>
+                        <button type="button" onClick={()=>setCurrentPage('safety-inspector')} className="min-h-11 rounded-xl border border-sky-700 bg-white px-4 py-3 text-sm font-bold text-sky-900 hover:bg-sky-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 dark:bg-slate-900 dark:text-sky-200">사진점검·재점검 열기</button>
+                    </div>
+                </div>
+                <p className="mt-3 border-t border-sky-200 pt-2 text-[11px] leading-5 text-sky-900 dark:border-sky-800 dark:text-sky-200">이 안내는 현재 위험성평가 기록의 최신 상태만 참고합니다. 인스펙터 서버·브라우저 현장 이슈의 실제 조치 완료·작업재개 승인 여부는 확인하지 않습니다. 프로그램은 안전관리자·운영자용입니다.</p>
             </section>
 
             {/* 화면 구성 설정 아코디언 */}
@@ -639,20 +656,6 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                                 className="text-xs font-black text-blue-700 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200 flex items-center gap-1.5"
                             >
                                 교육 환류 센터 열기 <span aria-hidden="true">→</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setCurrentPage('reports')}
-                                className="text-xs font-black text-violet-700 dark:text-violet-300 hover:text-violet-800 dark:hover:text-violet-200 flex items-center gap-1.5"
-                            >
-                                👤 근로자 개인별 리포트 보기 <span aria-hidden="true">→</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => openStep(BOARD_STEPS[3])}
-                                className="text-xs font-black text-slate-700 dark:text-slate-350 hover:text-blue-700 dark:hover:text-blue-400 flex items-center gap-1.5"
-                            >
-                                📑 위험성평가 교육자료 스튜디오 열기 <span aria-hidden="true">→</span>
                             </button>
                             {isDeveloperExperience && (
                                 <button

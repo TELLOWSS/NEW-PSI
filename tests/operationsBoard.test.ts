@@ -63,3 +63,17 @@ describe('operations board protection queue', () => {
         expect(item.actionPage).toBe('safety-compliance-hub');
     });
 });
+
+
+/* score-validation extension */
+describe('strict missing safety score evidence',()=>{
+    it('rejects null, blank and textual scores instead of interpreting them as zero',()=>{
+        const noScore=(s:unknown)=>record({safetyScore:s, selfAssessedRiskLevel:'중'} as Partial<WorkerRecord>);
+        expect(isProtectionPriorityRecord(noScore(null),60)).toBe(false);
+        expect(isProtectionPriorityRecord(noScore(''),60)).toBe(false);
+        expect(isProtectionPriorityRecord(noScore('0'),60)).toBe(false);
+        expect(isProtectionPriorityRecord(noScore(0),60)).toBe(true);
+        expect(isProtectionPriorityRecord(noScore(100),60)).toBe(false);
+    });
+
+});
