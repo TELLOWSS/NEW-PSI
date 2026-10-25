@@ -4,6 +4,9 @@ const path=require('node:path');
 const cp=require('node:child_process');
 const config=JSON.parse(fs.readFileSync('config/psi-company-ownership.json','utf8'));
 const ids=new Set(config.departments.map(dept=>dept.id));
+const named=JSON.parse(fs.readFileSync('config/psi-company-agent-roster.json','utf8'));
+const products=JSON.parse(fs.readFileSync('config/psi-company-product-registry.json','utf8'));
+
 const errors=[];
 function validateRule(rule,name){
  if(!ids.has(rule.owner))errors.push(name+': owner is unknown');
@@ -13,6 +16,23 @@ function validateRule(rule,name){
  if(rule.risk!=='standard'&&rule.owner!=='qa'&&!rule.review.includes('qa'))errors.push(name+': independent QA reviewer required');
 }
 if(config.departments.length!==6||ids.size!==6)errors.push('Six distinct departments are required');
+if(named.chief?.id!=='cto'||named.chief?.name!=='아틀라스')errors.push('Chief operating role must be ATLAS');
+const roleIds=new Set(),roleNames=new Set();
+for(const agent of named.departments||[]){
+ if(roleIds.has(agent.id)||roleNames.has(agent.name))errors.push('Repeated agent identity '+agent.id);
+ roleIds.add(agent.id);roleNames.add(agent.name);
+ if(!ids.has(agent.id)||!(agent.authority||[]).length||!(agent.reviewWith||[]).length)errors.push('Missing agent responsibility '+agent.id);
+}
+for(const id of ids)if(!roleIds.has(id))errors.push('Missing named team owner '+id);
+if((products.products||[]).length!==7)errors.push('Seven Vercel products must be mapped');
+const githubIds=new Set(),vercelIds=new Set();
+for(const product of products.products||[]){
+ if(!String(product.github||'').startsWith('TELLOWSS/')||!String(product.vercelProjectId||'').startsWith('prj_'))errors.push('Unverified product identity '+product.id);
+ if(githubIds.has(product.github)||vercelIds.has(product.vercelProjectId))errors.push('Duplicate product routing '+product.id);
+ githubIds.add(product.github);vercelIds.add(product.vercelProjectId);
+}
+for(const file of ['AGENTS.md','skills/psi-ai-company/SKILL.md','skills/psi-ai-company/templates/PRODUCT_PROFILE.md','docs/psi-ai-company/NEW_CHAT_HANDOFF.md'])if(!fs.existsSync(file))errors.push('Missing persistent new chat skill: '+file);
+
 const prefixes=new Set();
 for(const rule of config.responsibility){validateRule(rule,rule.prefix);if(prefixes.has(rule.prefix))errors.push('duplicate '+rule.prefix);prefixes.add(rule.prefix);}
 validateRule(config.fallback,'fallback');
