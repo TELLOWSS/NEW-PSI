@@ -171,11 +171,10 @@ const seedDatabase = async () => {
 };
 
 const openInterventionPage = async () => {
-    const interventionEntry = page.getByText('현장 개입 추천', { exact: true }).first();
-    if (await interventionEntry.count() === 0) {
-        await page.getByRole('button', { name: /상세 분석 대시보드/ }).click();
-    }
-    await page.getByText('현장 개입 추천', { exact: true }).first().click();
+    const expand = page.getByRole('button', {name:/상세 분석 대시보드/});
+    if(await expand.isVisible().catch(()=>false))await expand.click();
+    await page.addStyleTag({content:'*{animation-duration:0s!important;transition-duration:0s!important}'});
+    await page.getByRole('button',{name:/현장 개입 추천/}).filter({visible:true}).first().click({timeout:15000});
     await page.getByText(caseId, { exact: true }).waitFor({ state: 'visible' });
 };
 
