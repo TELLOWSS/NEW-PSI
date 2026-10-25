@@ -31,7 +31,8 @@ for(const product of products.products||[]){
  if(githubIds.has(product.github)||vercelIds.has(product.vercelProjectId))errors.push('Duplicate product routing '+product.id);
  githubIds.add(product.github);vercelIds.add(product.vercelProjectId);
 }
-for(const file of ['AGENTS.md','skills/psi-ai-company/SKILL.md','skills/psi-ai-company/templates/PRODUCT_PROFILE.md','docs/psi-ai-company/NEW_CHAT_HANDOFF.md'])if(!fs.existsSync(file))errors.push('Missing persistent new chat skill: '+file);
+for(const file of ['AGENTS.md','.agents/skills/psi-ai-company/SKILL.md','skills/psi-ai-company/SKILL.md','skills/psi-ai-company/templates/PRODUCT_PROFILE.md','docs/psi-ai-company/NEW_CHAT_HANDOFF.md'])if(!fs.existsSync(file))errors.push('Missing persistent new chat skill: '+file);
+if(fs.existsSync('.agents/skills/psi-ai-company/SKILL.md')&&fs.readFileSync('.agents/skills/psi-ai-company/SKILL.md','utf8')!==fs.readFileSync('skills/psi-ai-company/SKILL.md','utf8'))errors.push('Skill alias diverged from discoverable skill');
 
 const prefixes=new Set();
 for(const rule of config.responsibility){validateRule(rule,rule.prefix);if(prefixes.has(rule.prefix))errors.push('duplicate '+rule.prefix);prefixes.add(rule.prefix);}
