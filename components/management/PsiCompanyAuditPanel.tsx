@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import progress from '../../config/psi-company-progress.json';
 import ownership from '../../config/psi-company-ownership.json';
 import roster from '../../config/psi-company-agent-roster.json';
+import roadmap from '../../config/psi-product-upgrade-roadmap.json';
 
 type DepartmentStatus = 'pass' | 'blocked' | 'review' | 'unverified';
 type Filter = 'all' | DepartmentStatus;
@@ -24,6 +25,7 @@ const filters: Array<{id:Filter;label:string}> = [
 export const PsiCompanyAuditPanel: React.FC = () => {
     const [filter,setFilter] = useState<Filter>('all');
     const [expanded,setExpanded] = useState<string[]>([]);
+    const [roadmapFilter,setRoadmapFilter] = useState<'all'|'P0'|'P1'>('all');
     const departmentTitles = useMemo(()=>new Map(ownership.departments.map((item)=>[item.id,item.title])),[]);
     const roleNames = useMemo(()=>new Map(roster.departments.map((item)=>[item.id,item])),[]);
     const shown = progress.departments.filter(item => filter==='all'||item.status===filter);
@@ -69,6 +71,62 @@ export const PsiCompanyAuditPanel: React.FC = () => {
                     <p className="mt-1">{progress.scope}</p>
                     <p className="mt-1">부서는 자동검증과 사람의 검토 책임을 뜻합니다. 독립 AI 직원 6명이 상시 실행된다는 뜻이 아닙니다.</p>
                 </div>
+
+                <section aria-labelledby="psi-upgrade-roadmap-title" className="space-y-4 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 dark:border-slate-700 dark:bg-slate-900">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="max-w-xl">
+                            <p className="text-[11px] font-bold tracking-[0.14em] text-sky-700 dark:text-sky-300">PSI · PRODUCT MODERNIZATION</p>
+                            <h4 id="psi-upgrade-roadmap-title" className="mt-1 text-lg font-black text-slate-900 dark:text-white">NEW-PSI 전체 개선 로드맵</h4>
+                            <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                실제 업무에서 중요도가 높은 순서대로 개선합니다. 구현·검증 대기와 운영 반영 완료는 서로 다른 상태입니다.
+                            </p>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
+                            <p className="text-xs text-slate-600 dark:text-slate-300">관리 대상 영역</p>
+                            <p className="text-xl font-black tabular-nums text-slate-900 dark:text-white">{roadmap.streams.length}개</p>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2" role="group" aria-label="전체 개선 로드맵 우선순위">
+                        {([
+                            {id:'all',label:'전체 보기'},
+                            {id:'P0',label:'우선 개선'},
+                            {id:'P1',label:'다음 개선'},
+                        ] as const).map(option=>(
+                            <button key={option.id} type="button" aria-pressed={roadmapFilter===option.id}
+                                onClick={()=>setRoadmapFilter(option.id)}
+                                className={'min-h-11 rounded-xl border px-3 py-2 text-sm font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-500 '+(roadmapFilter===option.id?'border-sky-700 bg-sky-700 text-white':'border-slate-200 bg-white text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100')}>
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                        {roadmap.streams.filter(item=>roadmapFilter==='all'||item.priority===roadmapFilter).map(item=>(
+                            <article key={item.id} data-psi-upgrade-stream={item.id} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/60">
+                                <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
+                                    <span className={'rounded-md px-2 py-1 '+(item.priority==='P0'?'bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-200':'bg-sky-100 text-sky-900 dark:bg-sky-500/20 dark:text-sky-200')}>
+                                        {item.priority==='P0'?'우선 개선':'다음 개선'}
+                                    </span>
+                                    <span className="rounded-md bg-slate-200 px-2 py-1 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                                        {item.phase==='first-change'?'1차 코드 수정 · 최종검증 전':item.phase==='review-needed'?'보안 독립검토 필요':'후속 구현 예정'}
+                                    </span>
+                                </div>
+                                <h5 className="mt-3 text-base font-black text-slate-900 dark:text-white">{item.title}</h5>
+                                <p className="mt-1 text-sm leading-6 text-slate-700 dark:text-slate-200">{item.scope}</p>
+                                <dl className="mt-3 space-y-2 text-sm leading-5">
+                                    <div><dt className="font-bold text-slate-600 dark:text-slate-300">이번 반영·기존 기반</dt><dd className="mt-1 text-slate-800 dark:text-slate-100">{item.implemented}</dd></div>
+                                    <div><dt className="font-bold text-slate-600 dark:text-slate-300">다음 실작업</dt><dd className="mt-1 text-slate-800 dark:text-slate-100">{item.next}</dd></div>
+                                    <div><dt className="font-bold text-slate-600 dark:text-slate-300">통과 조건</dt><dd className="mt-1 text-slate-800 dark:text-slate-100">{item.acceptance}</dd></div>
+                                </dl>
+                                <p className="mt-3 border-t border-slate-200 pt-3 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300">
+                                    책임: {roleNames.get(item.owner)?.name||item.owner} · 교차 검토: {item.review.map(role=>roleNames.get(role)?.name||role).join(' · ')}
+                                </p>
+                            </article>
+                        ))}
+                    </div>
+                    <p className="text-xs leading-5 text-slate-600 dark:text-slate-300">
+                        {roadmap.evidenceScope} SMART TBM·ZERO DAY 등 독립 프로그램은 이 로드맵에 자동 편입하지 않습니다.
+                    </p>
+                </section>
 
                 <div className="flex flex-wrap gap-2" role="group" aria-label="부서 검증 상태 필터">
                     {filters.map(item=>(

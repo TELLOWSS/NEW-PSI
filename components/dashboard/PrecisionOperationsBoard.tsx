@@ -242,7 +242,7 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
         if (statusCounts.pending > 0) {
             return `관리자 검토가 필요한 기록 ${statusCounts.pending}건이 남아 있습니다. ${topRiskCount ? `${topRisk} 신호 ${topRiskCount}건을` : '최신 기록을'} 우선 확인해 주세요.`;
         }
-        return `현재 보호 우선 기록은 없습니다. 완료된 조치의 교육 환류와 ${cycleCopy.shortLabel} 반복 여부를 이어서 확인해 주세요.`;
+        return `선택된 기록에서 보호 우선 신호는 표시되지 않았습니다. 데이터 누락과 현장 조치 여부를 확인하고, 완료된 조치의 교육 환류와 ${cycleCopy.shortLabel} 반복 여부를 이어서 확인해 주세요.`;
     }, [cycleCopy.shortLabel, filteredRecords.length, priorityQueue, riskCounts, statusCounts.immediate, statusCounts.pending]);
 
     const trendMax = Math.max(1, ...trendSeries.map((item) => item.value));
@@ -298,12 +298,14 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
     ] as const;
 
     const quickLinks: Array<{ key: string; page: Page; title: string; description: string; status: string }> = [
-        { key: 'capture', page: 'ocr-analysis', title: '1. 기록·분석', description: '촬영하고 원문 확인', status: `${filteredRecords.length}건` },
-        { key: 'review', page: 'ocr-analysis', title: '2. 관리자 확인', description: '근거 대조·승인', status: statusCounts.pending ? `${statusCounts.pending}건 대기` : '대기 없음' },
-        { key: 'protect', page: 'safety-compliance-hub', title: '3. 현장 보호조치', description: '담당·기한·이행', status: statusCounts.immediate ? `${statusCounts.immediate}건 우선` : '우선 없음' },
-        { key: 'educate', page: 'education-return', title: '4. 교육 환류', description: '원페이지·개인 안내', status: '확인 기록 기반' },
-        { key: 'track', page: 'monthly-guidance-report', title: '5. 반복위험 추적', description: cycleCopy.trackingLabel, status: cycleCopy.shortLabel },
-        { key: 'report', page: 'reports', title: '6. 공식 리포트', description: '승인 근거·수정 이력', status: '내부 확인용' },
+        { key: 'capture', page: 'ocr-analysis', title: '위험성평가 원문 등록', description: '사진·문서 OCR 후 원문 대조', status: `${filteredRecords.length}건 기록` },
+        { key: 'photo', page: 'safety-inspector', title: '현장 사진점검', description: '촬영 → 사실 구분 → 검토', status: '사진으로 점검 시작' },
+        { key: 'review', page: 'ocr-analysis', title: '관리자 확인', description: '근거 대조·승인/보완', status: statusCounts.pending ? `${statusCounts.pending}건 대기` : '표시된 대기 없음' },
+        { key: 'protect', page: 'safety-compliance-hub', title: '현장 보호조치', description: '담당·기한·이행 확인', status: statusCounts.immediate ? `${statusCounts.immediate}건 우선` : '표시된 우선 기록 없음' },
+        { key: 'signals', page: 'predictive-analysis', title: '6대 지표·선행 위험신호', description: '공종별 위험 신호 대조', status: '분석 근거 확인' },
+        { key: 'educate', page: 'education-return', title: '다국어 교육 환류', description: '검증 기록으로 교육 안내', status: '전파 전 사람 확인' },
+        { key: 'track', page: 'monthly-guidance-report', title: '다음 주기 반복위험', description: cycleCopy.trackingLabel, status: cycleCopy.shortLabel },
+        { key: 'report', page: 'reports', title: '안전 리포트', description: '승인 근거·수정 이력', status: '공유 전 최종 검토' },
     ];
 
     return (
@@ -529,10 +531,10 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                 <article className="psi-ops-panel psi-ops-ai">
                     <header className="psi-ops-panel-header">
                         <div className="psi-ops-ai-title">
-                            <span aria-hidden="true">AI</span>
+                            <span aria-hidden="true">PSI</span>
                             <div>
-                                <h2>AI 제안</h2>
-                                <p>관리자 검토형 안내</p>
+                                <h2>기록 기반 확인 제안</h2>
+                                <p>저장된 기록의 분류 규칙 기반 · 새 AI 호출 없음</p>
                             </div>
                         </div>
                         <span className="psi-ops-ai-review">사람의 확인 필요</span>
@@ -581,7 +583,7 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                     ))}
                 </div>
                 <p className="psi-ops-data-note">
-                    현재 화면은 이 기기에 연결된 위험성평가 {workerRecords.length}건과 안전점검 {safetyCheckRecords.length}건을 기준으로 표시합니다.
+                    현재 화면의 위험지표는 이 기기에 연결된 위험성평가 {workerRecords.length}건을 기준으로 표시합니다. 별도로 저장된 안전점검 {safetyCheckRecords.length}건과 사진점검 건수는 위 지표에 자동 합산하지 않습니다. 기록 없음은 현장 위험 없음의 증거가 아닙니다.
                 </p>
             </section>
         </div>

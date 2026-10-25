@@ -11,10 +11,13 @@ export type OperationsQueueItem = {
     actionPage: Page;
 };
 
-const hasValidSafetyScore = (record: Partial<WorkerRecord>): boolean => {
-    const score = Number(record.safetyScore);
-    return Number.isFinite(score) && score >= 0 && score <= 100;
-};
+/** Missing, null and text scores are unknown—not a 0-point risk score. */
+const hasValidSafetyScore = (record: Partial<WorkerRecord>): boolean => (
+    typeof record.safetyScore === 'number'
+    && Number.isFinite(record.safetyScore)
+    && record.safetyScore >= 0
+    && record.safetyScore <= 100
+);
 
 export const isProtectionPriorityRecord = (
     record: Partial<WorkerRecord>,
@@ -73,7 +76,7 @@ export const resolveOperationsQueueItem = (
         return {
             record,
             tone: 'critical',
-            statusLabel: '작업중지 확인',
+            statusLabel: '작업중지 신호 · 현장 확인',
             riskLabel,
             actionLabel: '조치 확인',
             actionPage: 'safety-compliance-hub',
