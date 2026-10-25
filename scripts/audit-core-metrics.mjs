@@ -30,9 +30,15 @@ const consumers = [
         forbidden: [/average\(monthRecords\.map\(\(item\)\s*=>\s*item\.safetyScore/],
     },
     {
+        file: 'utils/performanceScoreSignals.ts',
+        metrics: ['성과분석 점수 표본 검증 · 최신 근로자 판정'],
+        required: ['hasValidSafetyScore', 'selectLatestCoreMetricRecords', 'getValidPerformanceScores'],
+        forbidden: [/Number\(r\.safetyScore\)/],
+    },
+    {
         file: 'pages/PerformanceAnalysis.tsx',
         metrics: ['월 평균 응답품질', '공종 평균', '변동성'],
-        required: ['buildMonthlyCoreMetricSeries', 'calculateCoreMetricSnapshot', 'selectLatestCoreMetricRecords'],
+        required: ['buildMonthlyCoreMetricSeries', 'calculateCoreMetricSnapshot', 'getValidPerformanceScores'],
         forbidden: [/const\s+monthlyAvgs\s*=/],
     },
 ];

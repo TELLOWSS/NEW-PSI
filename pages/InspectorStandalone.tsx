@@ -1,5 +1,6 @@
 import React,{useEffect,useState} from 'react';
 import SafetyInspector from './SafetyInspector';
+import {currentReleaseLabel} from '../utils/releaseGate';
 import {AdminLockScreen} from '../components/AdminLockScreen';
 import {refreshAdminAuthentication,loginAdmin,logoutAdmin} from '../utils/adminGuard';
 import '../styles.css';
@@ -44,7 +45,7 @@ export default function InspectorStandalone(){
         <a className="inspector-standalone-skip" href="#inspector-standalone-main">사진점검 본문으로 이동</a>
         <header className="inspector-standalone-header">
             <div className="inspector-standalone-brand"><small>FIELD SAFETY · PSI INSPECTOR</small><strong>사진점검 전용 작업공간</strong>
-            <p>사진 한 장 → 위험 검토 → 현장 조치 → 재점검 → 보고서</p></div>
+            <p>사진 한 장 → 위험 검토 → 현장 조치 → 재점검 → 보고서</p><p aria-label="실행 코드 버전">{currentReleaseLabel()}</p></div>
             <nav aria-label="독립 사진점검 탐색">
                 <a href="/product">사용 안내</a>
                 <a href="/">PSI 전체로 이동</a>

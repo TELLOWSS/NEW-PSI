@@ -7,6 +7,8 @@ export default defineConfig(({ mode }) => {
     loadEnv(mode, '.', '');
     const projectRoot = process.cwd();
     return {
+      // Build provenance is public code identity only, never a token or a deployment approval.
+      define: { __PSI_RELEASE_COMMIT__: JSON.stringify(process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || '') },
       root: projectRoot,
       cacheDir: path.resolve(projectRoot, 'node_modules/.vite'),
       envPrefix: ['VITE_', 'NEXT_PUBLIC_'],

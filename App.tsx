@@ -1317,7 +1317,7 @@ const App: React.FC = () => {
                                 isStartChecklistIncomplete={false}
                             />
                         )}
-                        {currentPage === 'monthly-guidance-report' && <MonthlyGuidanceReport workerRecords={workerRecords} />}
+                        {currentPage === 'monthly-guidance-report' && <MonthlyGuidanceReport workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'a4-education-material' && <A4EducationMaterial workerRecords={workerRecords} onOpenTraining={() => navigateToPage('admin-training')} />}
                         {currentPage === 'worker-management' && <WorkerManagement workerRecords={workerRecords} onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} onOpenPhotoRegistration={(r, queueRecordIds) => setModalState({type:'recordDetail', record:r, source:'worker-management-photo-queue', queueRecordIds})} onUpdateRecord={handleUpdateRecord} />}
                         {currentPage === 'individual-report' && recordForReport && (
@@ -1338,7 +1338,7 @@ const App: React.FC = () => {
                         {currentPage === 'predictive-analysis' && <PredictiveAnalysis workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'performance-analysis' && <PerformanceAnalysis workerRecords={workerRecords} />}
                         {currentPage === 'safety-checks' && <SafetyChecks workerRecords={workerRecords} checkRecords={safetyCheckRecords} onAddCheck={handleAddSafetyCheck} />}
-                        {currentPage === 'site-issue-management' && <SiteIssueManagement workerRecords={workerRecords} />}
+                        {currentPage === 'site-issue-management' && <SiteIssueManagement workerRecords={workerRecords} onOpenInspector={() => navigateToPage('safety-inspector')} />}
                         {currentPage === 'reports' && <Reports workerRecords={workerRecords} briefingData={briefingData} setBriefingData={setBriefingData} forecastData={forecastData} setForecastData={setForecastData} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'admin-training' && <AdminTraining />}
                         {currentPage === 'worker-training' && <WorkerTraining sessionId={trainingSessionId} />}

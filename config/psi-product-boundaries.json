@@ -15,7 +15,13 @@
       "ownership": "NEW-PSI safety intelligence",
       "embeddedInspector": "/?mode=photo-inspector",
       "inspectorsOnlyFrom": "explicit workflow actions; not payroll/expense",
-      "safetyCostAutoSync": false
+      "safetyCostAutoSync": false,
+      "programAudience": [
+        "site safety managers",
+        "authorized PSI operations personnel"
+      ],
+      "programSharedWithWorkers": false,
+      "workerInputsAreSeparate": "Existing QR survey and training input channels remain separate from access to the administrator program; they are not program distribution."
     },
     "psi-inspector": {
       "ownership": "PSI Inspector module",
@@ -38,7 +44,13 @@
       ],
       "authRequired": true,
       "safetyExpenseAutoSync": false,
-      "workStopOrResumeApprovalAutomatic": false
+      "workStopOrResumeApprovalAutomatic": false,
+      "programAudience": [
+        "site safety managers",
+        "authorized inspection operators"
+      ],
+      "programSharedWithWorkers": false,
+      "respondentLinkNotProgramAccess": "Existing limited action-response links, if used, do not authorize access to the full Inspector program."
     },
     "smart-tbm": {
       "ownership": "independent product",

@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "date": "2026-10-25",
+  "basis": "static source inspection (NOT actual feature-use telemetry)",
+  "deletedFeatures": [],
+  "items": [
+    {
+      "id": "core-dashboard",
+      "source": "pages/Dashboard.tsx",
+      "purpose": "core safety metrics and operations overview",
+      "status": "keep",
+      "note": "work-board mirrors overview; compare presentation not duplicate databases"
+    },
+    {
+      "id": "work-board",
+      "source": "components/IntegratedWorkBoard.tsx",
+      "purpose": "overview and user task guidance",
+      "status": "improved",
+      "note": "was duplicating invalid work-trade score calculation; now core rule"
+    },
+    {
+      "id": "ocr",
+      "source": "pages/OcrAnalysis.tsx",
+      "purpose": "self-risk assessment OCR and analysis",
+      "status": "keep",
+      "note": "Inspector has separate photo evidence and results"
+    },
+    {
+      "id": "prediction",
+      "source": "pages/PredictiveAnalysis.tsx",
+      "purpose": "leading risk signals",
+      "status": "review",
+      "note": "performance/dashboard share some metric representations"
+    },
+    {
+      "id": "performance",
+      "source": "pages/PerformanceAnalysis.tsx",
+      "purpose": "period and KPI interpretation",
+      "status": "review",
+      "note": "dashboard and predictive analysis display metrics"
+    },
+    {
+      "id": "site-issues",
+      "source": "pages/SiteIssueManagement.tsx",
+      "purpose": "browser-local issue notebook",
+      "status": "improved",
+      "note": "NOT the Inspector server; no automatic merge"
+    },
+    {
+      "id": "inspector",
+      "source": "pages/SafetyInspector.tsx",
+      "purpose": "photo-to-reinspection server workflow",
+      "status": "keep",
+      "note": "separate photo module with independent entry"
+    },
+    {
+      "id": "inspector-standalone",
+      "source": "pages/InspectorStandalone.tsx",
+      "purpose": "direct inspector access for operators",
+      "status": "keep",
+      "note": "same Inspector auth/storage is intentional"
+    },
+    {
+      "id": "safety-checks",
+      "source": "pages/SafetyChecks.tsx",
+      "purpose": "risk cognition checks",
+      "status": "review",
+      "note": "issue register and Inspector are different workflows"
+    },
+    {
+      "id": "education-return",
+      "source": "pages/EducationReturn.tsx",
+      "purpose": "education feedback and work assignment",
+      "status": "keep",
+      "note": "distinct from output artifact"
+    },
+    {
+      "id": "guidance",
+      "source": "pages/MonthlyGuidanceReport.tsx",
+      "purpose": "monthly guidance narrative",
+      "status": "review",
+      "note": "overlaps report presentation only"
+    },
+    {
+      "id": "a4",
+      "source": "pages/A4EducationMaterial.tsx",
+      "purpose": "A4 training export",
+      "status": "keep",
+      "note": "distinct artifact"
+    },
+    {
+      "id": "training-admin",
+      "source": "pages/AdminTraining.tsx",
+      "purpose": "administrator education setup",
+      "status": "keep",
+      "note": "limited worker response is not the operator program"
+    },
+    {
+      "id": "training-response",
+      "source": "pages/WorkerTraining.tsx",
+      "purpose": "bounded education response entry",
+      "status": "keep",
+      "note": "not program distribution"
+    },
+    {
+      "id": "reports",
+      "source": "pages/Reports.tsx",
+      "purpose": "safety report center",
+      "status": "review",
+      "note": "other report outputs require task-by-task verification"
+    },
+    {
+      "id": "settings",
+      "source": "pages/Settings.tsx",
+      "purpose": "operator configuration and QA",
+      "status": "review",
+      "note": "large component candidate for gradual extraction"
+    },
+    {
+      "id": "contractor-safety-cost",
+      "source": "config/psi-product-boundaries.json",
+      "purpose": "separately managed contractor expense boundary",
+      "status": "external",
+      "note": "do not merge or change external app"
+    }
+  ]
+}
