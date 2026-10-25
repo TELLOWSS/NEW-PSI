@@ -4,6 +4,7 @@ import type {RecordResumeEntry} from '../lib/inspector/recordResume';
 import '../components/inspector/inspector.css';
 import '../components/inspector/inspector-experience.css';
 import '../components/inspector/inspector-quick.css';
+import '../components/inspector/inspector-collab.css';
 
 const InspectorAdvancedWorkspace=lazy(()=>import('./InspectorAdvancedWorkspace'));
 
