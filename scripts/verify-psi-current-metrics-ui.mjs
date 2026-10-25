@@ -116,7 +116,9 @@ try{
  const safety=metric('현장 안전 지수');
  const workers=metric('활동 중인 근로자');
  const protection=metric('보호 우선 모니터링');
- await safety.waitFor({timeout:15000});
+ await page.screenshot({path:resolve(outputDir,'dashboard-first-render.png'),fullPage:true});
+ console.log('[PSI dashboard first render] '+JSON.stringify(await page.evaluate(()=>({text:document.body.innerText.slice(0,2200),sections:Array.from(document.querySelectorAll('section[aria-label]')).slice(0,10).map(e=>e.getAttribute('aria-label')),url:location.href,snapshot:localStorage.getItem('psi_dashboard_live_sync_snapshot_v1')}))).slice(0,3300));
+ await safety.waitFor({timeout:5000});
  const diagnostic=await page.evaluate(()=>({cards:Array.from(document.querySelectorAll('section[aria-label$=" 지표"]')).map(e=>({label:e.getAttribute('aria-label'),text:e.innerText.slice(0,240)})),snapshot:localStorage.getItem('psi_dashboard_live_sync_snapshot_v1'),recordCount:document.body.innerText.length,login:document.body.innerText.slice(0,180)}));
  console.log('[PSI metric diagnostic] '+JSON.stringify(diagnostic).slice(0,3500));
  await page.screenshot({path:resolve(outputDir,'current-dashboard-diagnostic.png'),fullPage:true});
