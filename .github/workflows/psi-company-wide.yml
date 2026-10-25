@@ -70,7 +70,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Build production client for full-product browser checks
         run: npm run build
-      - name: Independently verify six core product journeys
+      - name: Independently verify seven product and transparency journeys
         run: node scripts/verify-psi-company-browser.mjs
       - name: Upload synthetic-only cross-department evidence
         if: always()
