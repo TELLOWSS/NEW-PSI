@@ -1,7 +1,7 @@
 import type {InspectionDocument,InspectorAction} from './types.js';
 import {overdueAction} from './workQueue.js';
 
-const clean=(value:string,max=180)=>value.replace(/[\\r\\n\\t]+/g,' ').replace(/\\s+/g,' ').trim().slice(0,max);
+const clean=(value:string,max=180)=>value.replace(/[\r\n\t]+/g,' ').replace(/\s+/g,' ').trim().slice(0,max);
 function label(action:InspectorAction,today:string){
     if(action.status==='verified')return '현장 재점검 확인 기록';
     if(overdueAction(action,today))return '기한 경과 · 미결';
@@ -37,5 +37,5 @@ export function buildNextCycleHandoffDraft(doc:InspectionDocument,today:string):
     if(actions.length>chosen.length)lines.push(`나머지 ${actions.length-chosen.length}건은 원본 조치목록에서 반드시 별도 확인하세요.`);
     lines.push('다음 TBM/교육·위험성평가 검토: 반복 위험과 잔여 위험을 현장에서 확인하고, 누가 언제 어떤 확인을 했는지 별도 승인기록과 대조하세요.');
     lines.push('별도 SMART TBM 프로그램 및 PSI 6대 지표에는 자동 반영되지 않았습니다.');
-    return lines.join('\\n');
+    return lines.join('\n');
 }
