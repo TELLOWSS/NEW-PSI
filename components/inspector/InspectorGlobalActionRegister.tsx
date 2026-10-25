@@ -36,7 +36,7 @@ export default function InspectorGlobalActionRegister({onOpenAction,blocked=fals
  return <details className="si-global-register" data-global-register="loaded-pages-only" onToggle={e=>{if(e.currentTarget.open&&!loaded&&!inflight.current)void fetchPage(null,true);}}>
   <summary>전체 점검 통합 조치대장 <span>정기·컨설팅 점검의 약정기한 모아보기</span></summary>
   <div className="si-global-register-body">
-   <p className="si-caption">관리자가 직접 열었을 때만 서버의 최근 점검을 20건씩 조회합니다. 사진 파일은 내려받지 않습니다. **집계는 불러온 점검 범위만**이며, 실제 현장 전체의 미결·무위험을 확정하지 않습니다.</p>
+   <p className="si-caption">관리자가 직접 열었을 때만 서버의 최근 점검을 20건씩 조회합니다. 사진 파일은 내려받지 않습니다. 집계는 불러온 점검 범위만이며, 실제 현장 전체의 미결·무위험을 확정하지 않습니다.</p>
    <div className="si-global-register-toolbar">
     <button type="button" className="si-btn" disabled={loading} onClick={()=>void fetchPage(null,true)}>{loading?'조회 중…':loaded?'최신 저장 조치 새로고침':'조치대장 불러오기'}</button>
     <button type="button" className="si-btn" disabled={!rows.length||loading} onClick={exportLoaded}>현재 조회 결과 CSV</button>
