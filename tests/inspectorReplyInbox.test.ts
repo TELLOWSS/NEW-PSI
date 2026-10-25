@@ -1,5 +1,6 @@
 import {describe,it,expect} from 'vitest';
-import {replyInbox} from '../lib/inspector/replyInbox';
+import {inboxNextStep,inboxRequiresReview,replyInbox} from '../lib/inspector/replyInbox';
+import {readFileSync} from 'node:fs';
 import type {ActionShare,ShareReply} from '../lib/inspector/actionShare';
 import type {InspectorAction} from '../lib/inspector/types';
 const action:InspectorAction={id:'action-a',title:'현재 수정한 조치',owner:'현재 담당',dueDate:'2026-11-01',status:'open',completionPhotoId:'',note:''};
@@ -32,5 +33,34 @@ describe('inspection reply inbox triage',()=>{
  });
  it('does not copy capability tokens, private paths or the full inspection into overview entries',()=>{
   const r=replyInbox([share('safe')],[action],'own',now)[0];expect(JSON.stringify(r)).not.toContain('secret-capability');expect(r).not.toHaveProperty('token');expect(r).not.toHaveProperty('inspection_id');expect(r).not.toHaveProperty('snapshot');
+ });
+});
+
+describe('Inspector reply follow-through clarity',()=>{
+ it('includes planned replies in immediate human review but excludes unopened or adopted links',()=>{
+  for(const kind of ['photo','planned','difficult'] as const)expect(inboxRequiresReview(kind)).toBe(true);
+  for(const kind of ['waiting','closed','adopted','missing'] as const)expect(inboxRequiresReview(kind)).toBe(false);
+  expect(inboxNextStep('planned')).toContain('예정된 날짜');
+  expect(inboxNextStep('photo')).toContain('현장 재점검');
+  expect(inboxNextStep('difficult')).toContain('대체 방안');
+  expect(inboxNextStep('adopted')).not.toContain('완료 확정');
+ });
+ it('selects the latest response using submitted time, not arbitrary array ordering',()=>{
+  const photoOld=reply('photo','2026-10-22T08:00:00Z');
+  const photoNew={...reply('photo','2026-10-24T11:00:00Z'),requestId:'photo-new',note:'새로운 사진'};
+  const row=replyInbox([share('last',{responses:[photoNew,photoOld,reply('planned','2026-10-24T12:00:00Z')]})],[action],'own',now)[0];
+  expect(row.kind).toBe('photo');
+  expect(row.reply?.requestId).toBe('photo-new');
+  const textRow=replyInbox([share('last-text',{responses:[reply('planned','2026-10-24T12:00:00Z'),reply('difficult','2026-10-24T11:00:00Z')]})],[action],'own',now)[0];
+  expect(textRow.kind).toBe('planned');
+ });
+ it('shows exactly one main reply inbox entry without dropping the action radar shortcut',()=>{
+  const source=readFileSync(new URL('../components/inspector/InspectorQuickWorkspace.tsx',import.meta.url),'utf8');
+  expect(source).toContain("onOpenInbox={()=>setInboxRequest(n=>n+1)}");
+  expect(source).not.toContain('className="si-inbox-entry"');
+  const ui=readFileSync(new URL('../components/inspector/InspectorReplyInbox.tsx',import.meta.url),'utf8');
+  expect(ui).toContain('inboxRequiresReview');
+  expect(ui).toContain('data-inbox-next-step');
+  expect(ui).toContain('조치 예정일·보호조치 확인');
  });
 });
