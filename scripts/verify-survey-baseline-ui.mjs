@@ -60,9 +60,10 @@ const recordCheck = (name, passed, evidence) => {
 try {
     await page.addInitScript(() => {
         window.sessionStorage.setItem('isAdminAuthenticated', 'true');
+        window.localStorage.setItem('psi_ui_composition_v1', JSON.stringify({version:4,sidebarOrder:['dashboard','survey-intelligence','reports','ocr-analysis'],hiddenSidebarPages:[]}));
     });
     await page.goto(baseUrl, { waitUntil: 'networkidle' });
-    await page.getByText('위험성평가 분석', { exact: true }).first().click();
+    await page.getByText('근로자 의견 분석', { exact: true }).first().click();
     await page.getByText('관리자 기준 위험도 등록', { exact: false }).first().waitFor({ state: 'visible' });
     recordCheck(
         '기본 메뉴 접근',
