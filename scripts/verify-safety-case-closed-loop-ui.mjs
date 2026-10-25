@@ -191,8 +191,8 @@ const interventionText = await page.locator('body').innerText();
 const stageLabels = ['위험 발견', '보호조치', '리포트', '교육', '본인확인·서명', '재평가'];
 recordCheck('보호사건 식별번호 표시', interventionText.includes(caseId), { caseId });
 recordCheck('6단계 진행상태 표시', stageLabels.every((label) => interventionText.includes(label)), { stageLabels });
-recordCheck('현재 단계와 다음 행동 표시', interventionText.includes('리포트 대기') && interventionText.includes('리포트 연결하기'), {
-    expectedStatus: '리포트 대기',
+recordCheck('현재 단계와 다음 행동 표시', interventionText.includes('보호조치 완료') && interventionText.includes('리포트 연결하기'), {
+    expectedStatus: '보호조치 완료 → 리포트 연결하기',
 });
 await page.getByText(caseId, { exact: true }).scrollIntoViewIfNeeded();
 await page.screenshot({ path: resolve(outputDir, 'safety-case-report-stage.png'), fullPage: false });
