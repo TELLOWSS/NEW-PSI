@@ -6,7 +6,7 @@ describe('one-tap inspector priority navigation safeguards',()=>{
         const planner=read('components/inspector/InspectorActionPlanner.tsx');
         expect(planner).toContain('priorityFocus.actionId');
         expect(planner).toContain('setPage(Math.floor(index/3))');
-        expect(planner).toContain("root.current?.querySelectorAll<HTMLElement>('[data-action-id]')");
+        expect(planner).toContain("root.current.querySelectorAll<HTMLElement>('[data-action-id]')");
         expect(planner).toContain("setPriorityId('')");
     });
     it('never drops unsaved field changes and opens evidence only for human review',()=>{
