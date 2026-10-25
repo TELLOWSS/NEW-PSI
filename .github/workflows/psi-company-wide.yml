@@ -79,6 +79,8 @@ jobs:
           name: psi-company-product-qa
           path: |
             artifacts/audit/psi-company/cross-module-browser.json
+            artifacts/audit/psi-company/department-audit.json
+            artifacts/audit/psi-company/department-audit.md
             artifacts/audit/browser/
           if-no-files-found: ignore
           retention-days: 7
