@@ -1643,6 +1643,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                             <span className={`mr-2 h-2 w-2 rounded-full ${mobileSettingsBadge.tone}`} aria-hidden="true" />
                             {mobileSettingsBadge.label}
                         </span>
+                        <button type="button" onClick={() => document.getElementById('settings-company-qa')?.scrollIntoView({behavior: 'smooth',block:'start'})} className={styles.heroSecondary}>조직 검증 보기</button>
                         <button type="button" onClick={() => setShowGuide((prev) => !prev)} className={styles.heroSecondary}>
                             {showGuide ? '가이드 닫기' : '운영 가이드'}
                         </button>
