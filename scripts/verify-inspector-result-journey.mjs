@@ -49,7 +49,16 @@ for(const scenario of ['review','short-opinion','rejected','changed-input','prin
  await page.locator('.si-quick').waitFor();await page.evaluate(()=>{window.__printCalls=0;window.__confirmCalls=0;window.print=()=>{window.__printCalls++};window.confirm=()=>{window.__confirmCalls++;return false};});if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}
  const source=Buffer.from(await page.evaluate(()=>{const c=document.createElement('canvas');c.width=640;c.height=480;c.getContext('2d').fillRect(0,0,640,480);return c.toDataURL('image/jpeg').split(',')[1];}),'base64');
  await page.locator('.si-quick input[type=file]').first().setInputFiles({name:'synthetic.jpg',mimeType:'image/jpeg',buffer:source});
- await page.locator('.si-quick-consent input').check();await page.locator('.si-photo-hint summary').click();await page.locator('.si-quick textarea').first().fill('직접 확인한 발판 틈새.');
+ await page.locator('.si-consent-cue').getByText('다음 단계 · 사진 보관 안내 확인').waitFor();
+ assert.equal(await page.locator('.si-quick-start').isDisabled(),true,'Consent must not be implicitly accepted');
+ assert.equal(await page.locator('.si-quick-start').innerText(),'먼저 사진 보관 안내 확인');
+ await page.waitForFunction(()=>document.activeElement?.classList.contains('si-consent-input'));
+ await page.waitForFunction(()=>{const el=document.querySelector('.si-quick-consent');if(!el)return false;const rect=el.getBoundingClientRect();return rect.top>=0&&rect.bottom<=innerHeight;});
+ if(scenario==='review'){await page.screenshot({path:output+'/first-photo-consent.png'});assert.equal(ops.filter(x=>x==='upload').length,0);}
+ await page.locator('.si-quick-consent input').check();
+ await page.getByText('확인 완료 · 이제 점검할 수 있습니다',{exact:true}).waitFor();
+ assert.equal(await page.locator('.si-quick-start').isDisabled(),false);
+ await page.locator('.si-photo-hint summary').click();await page.locator('.si-quick textarea').first().fill('직접 확인한 발판 틈새.');
  await page.locator('.si-quick-start').click();const journey=page.getByRole('region',{name:'점검 다음 단계'});await journey.waitFor();
  assert.equal(ops.filter(x=>x==='analyze-photo').length,1);assert.equal(ops.filter(x=>x==='confirm-photo').length,0);
  assert.equal(await journey.getByRole('button',{name:'현장 대조 후 검토 저장',exact:true}).count(),1);
