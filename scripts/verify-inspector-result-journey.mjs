@@ -10,16 +10,16 @@ const browser=await chromium.launch({executablePath:process.env.PSI_CHROMIUM_PAT
 const output='artifacts/audit/inspector-result-journey'+(target?'-deployed':built?'-built':'');await mkdir(output,{recursive:true});const results=[];
 const allowed={policy:'free-only',state:'free-project',allowed:true,message:'fixture only',remainingRequests:null,billingCheck:'verified'};
 try{
-for(const scenario of ['review','short-opinion','rejected','changed-input']){
+for(const scenario of ['review','short-opinion','rejected','changed-input','print-loading','print-failed']){
  console.log('scenario',scenario);
- const context=await browser.newContext({viewport:{width:390,height:844},permissions:['clipboard-read','clipboard-write']});const page=await context.newPage();const ops=[],errors=[];let item,photo,bytes,heldStatus;
+ const context=await browser.newContext({viewport:{width:390,height:844},permissions:['clipboard-read','clipboard-write']});const page=await context.newPage();const ops=[],errors=[];let item,photo,bytes,heldStatus,heldPhotoRoute;
  page.setDefaultTimeout(15000);page.setDefaultNavigationTimeout(15000);page.on('pageerror',e=>{errors.push(e.message);console.log('pageerror',e.message);});
  await page.route('https://cdn.jsdelivr.net/**',r=>r.fulfill({body:'',contentType:'text/css'}));
  await page.route('https://cdn.tailwindcss.com/**',r=>r.fulfill({body:'',contentType:'application/javascript'}));
  await page.route('https://fonts.googleapis.com/**',r=>r.fulfill({body:'',contentType:'text/css'}));
  if(process.env.PSI_QA_KOREAN_FONT)await page.route('**/__qa-korean.otf',async r=>r.fulfill({body:await readFile(process.env.PSI_QA_KOREAN_FONT),contentType:'font/otf'}));
  await page.route('**/api/admin/auth',r=>r.fulfill({json:{ok:true,authenticated:true}}));
- await page.route('**/__fixture-photo',r=>r.fulfill({body:bytes,contentType:'image/jpeg'}));
+ await page.route('**/__fixture-photo',r=>{if(scenario==='print-loading'){heldPhotoRoute=r;return;}if(scenario==='print-failed')return r.fulfill({status:404,body:'not found'});return r.fulfill({body:bytes,contentType:'image/jpeg'});});
  await page.route('**/api/admin/inspector',async r=>{const b=r.request().postDataJSON();ops.push(b.op);let result={ok:true};
   if(b.op==='ai-status'&&scenario==='waiting'){heldStatus=r;return;}
   if(b.op==='ai-status')Object.assign(result,{ready:scenario!=='unavailable',provider:'gemini',model:'fixture',cost:scenario==='blocked'||scenario==='advanced'?{...allowed,state:'unverified',allowed:false,billingCheck:'not-configured'}:allowed});
@@ -46,20 +46,21 @@ for(const scenario of ['review','short-opinion','rejected','changed-input']){
   await r.fulfill({json:result});
  });
  await page.goto(base+'/?mode=photo-inspector',{waitUntil:'domcontentloaded'});
- await page.locator('.si-quick').waitFor();if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}
+ await page.locator('.si-quick').waitFor();await page.evaluate(()=>{window.__printCalls=0;window.__confirmCalls=0;window.print=()=>{window.__printCalls++};window.confirm=()=>{window.__confirmCalls++;return false};});if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}
  const source=Buffer.from(await page.evaluate(()=>{const c=document.createElement('canvas');c.width=640;c.height=480;c.getContext('2d').fillRect(0,0,640,480);return c.toDataURL('image/jpeg').split(',')[1];}),'base64');
  await page.locator('.si-quick input[type=file]').first().setInputFiles({name:'synthetic.jpg',mimeType:'image/jpeg',buffer:source});
  await page.locator('.si-quick-consent input').check();await page.locator('.si-photo-hint summary').click();await page.locator('.si-quick textarea').first().fill('직접 확인한 발판 틈새.');
  await page.locator('.si-quick-start').click();const journey=page.getByRole('region',{name:'점검 다음 단계'});await journey.waitFor();
  assert.equal(ops.filter(x=>x==='analyze-photo').length,1);assert.equal(ops.filter(x=>x==='confirm-photo').length,0);
  assert.equal(await journey.getByRole('button',{name:'현장 대조 후 검토 저장',exact:true}).count(),1);
+ assert.equal(await page.locator('.si-photo-action-entry').count(),0,'Duplicate result-page primary action');
  assert.equal(await page.locator('.si-quick-finish').getByRole('button',{name:'확인하고 다음 사진',exact:true}).isDisabled(),true);
  if(scenario==='changed-input'){
   await page.getByRole('button',{name:'사진·설명 수정',exact:true}).click();await page.locator('#si-quick-note').fill('수정한 설명을 아직 저장하지 않았습니다.');
   await journey.getByRole('button',{name:'수정한 설명 확인하기',exact:true}).click();await page.waitForFunction(()=>document.activeElement?.id==='si-quick-note');
   assert.equal(item.document.photoNotes[photo.id],'직접 확인한 발판 틈새.');assert.equal(ops.filter(x=>x==='confirm-photo').length,0);assert.equal(ops.filter(x=>x==='report').length,0);
  }else{
-  if(scenario!=='review'){
+  if(scenario==='short-opinion'||scenario==='rejected'){
    await page.getByRole('button',{name:'판단·조치 보완',exact:true}).click();
    if(scenario==='rejected')await page.getByRole('radio',{name:'AI 해석과 다름',exact:true}).check();else await page.locator('#si-expert-note').fill('짧음');
    await journey.getByRole('button',{name:'검토 의견 보완하기',exact:true}).click();await page.waitForFunction(()=>document.activeElement?.id==='si-expert-note');assert.equal(await page.getByRole('button',{name:'검토만 저장',exact:true}).isDisabled(),true);
@@ -69,6 +70,29 @@ for(const scenario of ['review','short-opinion','rejected','changed-input']){
   assert.equal(ops.filter(x=>x==='confirm-photo').length,1);assert.equal(ops.filter(x=>x==='analyze-photo').length,1);assert.equal(item.document.reviews[photo.id].decision,scenario==='rejected'?'rejected':'accepted');
   await journey.screenshot({path:`${output}/${scenario}-guide.png`});await journey.getByRole('button',{name:'보고서로 기록하기',exact:true}).click();await page.locator('.si-report').waitFor();
   assert.equal(ops.filter(x=>x==='report').length,1);assert.equal(ops.filter(x=>x==='upload').length,1);assert.ok((await page.locator('.si-report').innerText()).includes('직접 확인한 발판 틈새.'));
+  const print=page.locator('.si-quick-print .si-primary');
+  if(scenario==='print-loading'){
+   await page.locator('[data-report-photo-state="loading"]').waitFor();
+   assert.equal(await print.isDisabled(),true,'Print must wait for evidence photo');
+   for(let n=0;n<30&&!heldPhotoRoute;n++)await page.waitForTimeout(100);
+   assert.ok(heldPhotoRoute,'Expected delayed photo fetch');
+   await page.screenshot({path:output+'/print-loading-blocked.png'});
+   await heldPhotoRoute.fulfill({body:bytes,contentType:'image/jpeg'});
+   await page.locator('[data-report-photo-state="ready"]').waitFor();
+   assert.equal(await print.isDisabled(),false);
+   await print.click();assert.equal(await page.evaluate(()=>window.__printCalls),1);
+  }else if(scenario==='print-failed'){
+   await page.locator('[data-report-photo-state="failed"]').waitFor();
+   assert.equal(await print.isDisabled(),false);
+   await print.click();assert.deepEqual(await page.evaluate(()=>[window.__confirmCalls,window.__printCalls]),[1,0]);
+   await page.evaluate(()=>{window.confirm=()=>{window.__confirmCalls++;return true};});
+   await print.click();assert.deepEqual(await page.evaluate(()=>[window.__confirmCalls,window.__printCalls]),[2,1]);
+   assert.match(await page.locator('.si-report-readers-guide').innerText(),/불러오지 못/);
+  }else{
+   await page.locator('[data-report-photo-state="ready"]').waitFor();
+   assert.equal(await print.isDisabled(),false);
+  }
+
  }
  for(const width of [320,390,844,1440]){await page.setViewportSize({width,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,scenario+' overflow '+width);}
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:`${output}/${scenario}.png`,fullPage:true});assert.deepEqual(errors,[]);results.push({scenario,ops,passed:true});await context.close();
