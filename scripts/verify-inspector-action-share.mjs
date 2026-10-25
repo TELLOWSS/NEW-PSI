@@ -14,6 +14,11 @@ async function verifyStandaloneInspectorEntry(){
  const page=await context.newPage();
  let loggedIn=false,authAttempts=0,inspectorCalls=0,unexpectedApis=[],pageErrors=[];
  page.on('pageerror',error=>pageErrors.push(error.message));
+ await page.route('**/api/**',async route=>{
+    unexpectedApis.push(new URL(route.request().url()).pathname);
+    await route.fulfill({status:403,json:{ok:false,message:'synthetic QA only'}});
+ });
+
  await page.route('**/api/admin/auth',async route=>{
     const data=route.request().postDataJSON();
     if(data.action==='login'){authAttempts++;loggedIn=data.password==='synthetic-inspector-password';}
@@ -28,16 +33,12 @@ async function verifyStandaloneInspectorEntry(){
         : {ok:true,items:[],evidence:[],events:[],reports:[],hasMore:false};
     await route.fulfill({json:result});
  });
- await page.route('**/api/**',async route=>{
-    unexpectedApis.push(new URL(route.request().url()).pathname);
-    await route.fulfill({status:403,json:{ok:false,message:'synthetic QA only'}});
- });
  try{
     await page.goto(base+'/inspector',{waitUntil:'domcontentloaded'});
     await page.getByRole('button',{name:'관리자 모드 진입'}).waitFor();
     assert.equal(inspectorCalls,0,'No inspection data before verified admin auth');
     assert.equal(authAttempts,0,'Standalone must not auto-login');
-    await page.getByRole('textbox',{name:'관리자 비밀번호'}).fill('synthetic-inspector-password');
+    await page.getByLabel('관리자 비밀번호').fill('synthetic-inspector-password');
     await page.getByRole('button',{name:'관리자 모드 진입'}).click();
     await page.getByRole('heading',{name:'사진만 찍어도 점검을 시작할 수 있습니다'}).waitFor();
     await page.getByRole('navigation',{name:'독립 사진점검 탐색'}).waitFor();
