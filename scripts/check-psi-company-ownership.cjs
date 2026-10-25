@@ -16,6 +16,22 @@ if(config.departments.length!==6||ids.size!==6)errors.push('Six distinct departm
 const prefixes=new Set();
 for(const rule of config.responsibility){validateRule(rule,rule.prefix);if(prefixes.has(rule.prefix))errors.push('duplicate '+rule.prefix);prefixes.add(rule.prefix);}
 validateRule(config.fallback,'fallback');
+const reviewed=JSON.parse(fs.readFileSync('config/psi-company-progress.json','utf8'));
+const snapshotIds=new Set();
+for(const item of reviewed.departments||[]){
+ if(!ids.has(item.id)||snapshotIds.has(item.id))errors.push('Invalid or repeated progress department: '+item.id);
+ snapshotIds.add(item.id);
+ if(!['pass','blocked','review','unverified'].includes(item.status))errors.push('Invalid progress state: '+item.id);
+ if(!Number.isInteger(item.passed)||!Number.isInteger(item.total)||item.passed<0||item.total<item.passed)errors.push('Invalid progress check count: '+item.id);
+ if(item.status==='pass'&&(item.total===0||item.passed!==item.total))errors.push('Cannot claim unverified progress as passed: '+item.id);
+ if(!String(item.finding||'').trim()||!String(item.improvement||'').trim())errors.push('Missing finding or improvement: '+item.id);
+ if(!String(item.evidence||'').startsWith('https://github.com/TELLOWSS/NEW-PSI/'))errors.push('Progress evidence must refer to PSI GitHub: '+item.id);
+}
+for(const id of ids)if(!snapshotIds.has(id))errors.push('Missing department progress: '+id);
+if(!String(reviewed.sourceRun||'').startsWith('https://github.com/TELLOWSS/NEW-PSI/actions/runs/'))errors.push('Missing independent CI run evidence');
+if(!Array.isArray(reviewed.activity)||reviewed.activity.length===0)errors.push('Missing progress history');
+for(const item of reviewed.activity||[])if(!ids.has(item.department))errors.push('History has unknown department: '+item.department);
+
 const files=cp.execFileSync('git',['ls-files','-z'],{encoding:'utf8'}).split('\0').filter(Boolean);
 const accountable={},critical=[];
 const sensitive=/^(api\/|supabase\/|supabase_|lib\/server\/|lib\/inspector\/|components\/inspector\/|\.github\/workflows\/)/;
