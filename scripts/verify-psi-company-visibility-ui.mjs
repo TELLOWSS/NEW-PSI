@@ -1,4 +1,4 @@
-import {mkdir,writeFile} from 'node:fs/promises';
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {chromium} from 'playwright';
 
@@ -6,6 +6,8 @@ import {chromium} from 'playwright';
 const baseUrl=process.env.PSI_UI_URL||'http://127.0.0.1:4182/';
 const outputDir=resolve('artifacts/audit/browser/company-visibility');
 await mkdir(outputDir,{recursive:true});
+const progress=JSON.parse(await readFile('config/psi-company-progress.json','utf8'));
+const expectedBlocked=progress.departments.filter(item=>item.status==='blocked').length;
 const browser=await chromium.launch({headless:true});
 const page=await browser.newPage({viewport:{width:1440,height:1000}});
 const checks=[],pageErrors=[];
@@ -31,7 +33,7 @@ try{
  await panel.getByRole('button',{name:/발견 사항 · 개선 내용 보기/}).first().click();
  check('개선 내용 접기·펼치기',await panel.getByText('개선 및 다음 조치').first().isVisible(),{expanded:true});
  await panel.getByRole('button',{name:'보완 필요'}).click();
- check('보완 필요 부서만 표시',(await panel.locator('[data-psi-department]').count())===3,{expected:3});
+ check('보완 필요 부서만 표시',(await panel.locator('[data-psi-department]').count())===expectedBlocked,{expected:expectedBlocked});
  await panel.getByRole('button',{name:'미검증'}).click();
  check('검증하지 않은 디자인 부서 숨기지 않음',(await panel.locator('[data-psi-department]').count())===1&&await panel.locator('[data-psi-department="design"]').count()===1,{expected:'design'});
  await panel.getByRole('button',{name:'전체 부서'}).click();
