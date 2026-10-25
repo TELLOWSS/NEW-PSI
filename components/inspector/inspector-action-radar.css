@@ -1,0 +1,32 @@
+
+/* Saved-action radar: no network requests or inferred delivery/read receipts. */
+.si-action-radar{margin:16px 0;padding:18px;border:1px solid #bcd6d2;border-radius:16px;background:#f6faf9;color:#173a3d;overflow-wrap:anywhere}
+.si-action-radar-header{display:flex;align-items:start;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.si-action-radar h2{font-size:20px;line-height:1.35;margin:2px 0 0;font-weight:800;color:#113e40}
+.si-action-radar .si-eyebrow{color:#286d66;font-size:11px;font-weight:800;letter-spacing:.08em}
+.si-action-radar-scope{font-size:12px;font-weight:650;color:#3d625d}
+.si-action-radar-lead{margin:14px 0;font-size:14px;font-weight:650;line-height:1.65;color:#1d4643}
+.si-action-radar-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0}
+.si-action-radar-metric{padding:12px 10px;border:1px solid #d6e4e0;border-radius:10px;background:#fff;min-width:0}
+.si-action-radar-metric.is-overdue{border-color:#e3be91;background:#fff8ed}
+.si-action-radar-metric.is-review{border-color:#a4c8dc;background:#f2f9fd}
+.si-action-radar-metric dt{font-size:12px;line-height:1.55;color:#365c58;font-weight:650}
+.si-action-radar-metric dd{font-size:25px;line-height:1.4;font-weight:850;color:#143e41;margin:4px 0 0;font-variant-numeric:tabular-nums}
+.si-action-radar-metric dd small{font-size:12px;font-weight:650;margin-left:3px}
+.si-action-radar-detail{margin:12px 0 0;font-size:12px;display:flex;gap:6px;flex-wrap:wrap;color:#68491f}
+.si-action-radar-detail span{border-radius:8px;background:#fff0d5;padding:6px 9px}
+.si-action-radar-actions{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 10px}
+.si-action-radar-actions .si-btn{min-height:44px}
+.si-action-radar .si-caption{font-size:12px;line-height:1.65;color:#49615e;margin:10px 0 0}
+.dark .si-action-radar{background:#15272e;border-color:#376262;color:#f1f8f6}
+.dark .si-action-radar h2,.dark .si-action-radar-lead,.dark .si-action-radar-metric dd{color:#edf8f3}
+.dark .si-action-radar .si-eyebrow,.dark .si-action-radar-scope,.dark .si-action-radar .si-caption{color:#bdd4cc}
+.dark .si-action-radar-metric{background:#23383e;border-color:#49646a}
+.dark .si-action-radar-metric.is-overdue{background:#413121;border-color:#a07641}
+.dark .si-action-radar-metric.is-review{background:#233e51;border-color:#5f89ab}
+.dark .si-action-radar-metric dt{color:#c2dcd4}
+.dark .si-action-radar-detail{color:#ffeac4}
+.dark .si-action-radar-detail span{background:#4f3a1e}
+@media(max-width:640px){.si-action-radar{padding:14px}.si-action-radar-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.si-action-radar-metric{padding:10px}.si-action-radar h2{font-size:18px}.si-action-radar-actions .si-btn{flex:1;min-width:120px}}
+@media(max-width:340px){.si-action-radar-actions{flex-direction:column}.si-action-radar-actions .si-btn{width:100%}}
+@media print{.si-action-radar-actions{display:none!important}}
