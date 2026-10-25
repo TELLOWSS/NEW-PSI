@@ -22,13 +22,13 @@ export class AdminApiError extends Error {
     }
 }
 export function parseRetryAfterSeconds(value:string|null):number|null{
-    if(!value||!/^\\d{1,4}$/.test(value.trim()))return null;
+    if(!value||!/^\d{1,4}$/.test(value.trim()))return null;
     const seconds=Number(value);return seconds>=1&&seconds<=3600?seconds:null;
 }
 const safeDetail=(detail:unknown,fallback:string):string=>{
     if(typeof detail!=='string')return fallback;
     const text=detail.trim();
-    if(!text||text.length>220||!/[가-힣]/.test(text)||/[<>@]/.test(text)||/https?:\\/\\/|\\b(SQL|PGRST|JSON|token|bearer|stack|authorization|api[_ -]?key)\\b/i.test(text))return fallback;
+    if(!text||text.length>220||!/[가-힣]/.test(text)||/[<>@]/.test(text)||/https?:\/\/|\b(SQL|PGRST|JSON|token|bearer|stack|authorization|api[_ -]?key)\b/i.test(text))return fallback;
     return text;
 };
 export function friendlyHttpMessage(status:number,fallback:string,retryAfterSeconds:number|null,detail?:unknown):string{
