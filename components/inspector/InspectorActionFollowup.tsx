@@ -23,11 +23,11 @@ function usePhoto(id:string,local:Blob|undefined,enabled:boolean,loadPhoto:(id:s
     return enabled&&photo.id===id?photo:{};
 }
 export default function InspectorActionFollowup({item,action,evidence,busy,loadPhoto,onSubmit,onVerify,onDirty}:{key?:string;item:Inspection;action:InspectorAction;evidence:Evidence[];busy:boolean;loadPhoto:(id:string)=>Promise<Blob>;onSubmit:(input:ImprovementSubmission)=>Promise<boolean>;onVerify:(actionId:string,note:string)=>Promise<boolean>;onDirty:(id:string,dirty:boolean)=>void}){
-    const prefix=useId(),[open,setOpen]=useState(false),[prepared,setPrepared]=useState<PreparedImprovement|null>(null),[choosing,setChoosing]=useState(false),[camera,setCamera]=useState(false),[error,setError]=useState(''),[submitted,setSubmitted]=useState(false);
+    const prefix=useId(),[open,setOpen]=useState(false),[prepared,setPrepared]=useState<PreparedImprovement|null>(null),[choosing,setChoosing]=useState(false),[camera,setCamera]=useState(false),[error,setError]=useState(''),[submitted,setSubmitted]=useState(false),[sending,setSending]=useState(false);
     const [beforeId,setBeforeId]=useState(action.sourcePhotoIds?.[0]||''),[afterId,setAfterId]=useState(action.completionPhotoId),[note,setNote]=useState(action.status==='review-requested'?action.note:''),[checked,setChecked]=useState(false),[verification,setVerification]=useState(''),[rechecked,setRechecked]=useState(false),[zoom,setZoom]=useState('');
-    const choosingRef=useRef(false);
+    const choosingRef=useRef(false),sendingRef=useRef(false);
     const followupStage=reinspectionStage(action);
-    const locked=busy||choosing,verified=action.status==='verified',sourceIds=action.sourcePhotoIds|| (beforeId?[beforeId]:[]),selectedBefore=sourceIds.includes(beforeId)?beforeId:sourceIds[0]||'',selectedAfter=prepared?.id||afterId||action.completionPhotoId;
+    const locked=busy||choosing||sending,verified=action.status==='verified',sourceIds=action.sourcePhotoIds|| (beforeId?[beforeId]:[]),selectedBefore=sourceIds.includes(beforeId)?beforeId:sourceIds[0]||'',selectedAfter=prepared?.id||afterId||action.completionPhotoId;
     const before=usePhoto(selectedBefore,undefined,open,loadPhoto),after=usePhoto(selectedAfter,prepared?.file,open,loadPhoto);
     const dirty=!verified&&(!!prepared||!!verification||!!note&&note!==action.note||!action.sourcePhotoIds&&!!beforeId||afterId!==action.completionPhotoId);
     useEffect(()=>{onDirty(action.id,dirty);return()=>onDirty(action.id,false);},[action.id,dirty,onDirty]);
@@ -36,7 +36,17 @@ export default function InspectorActionFollowup({item,action,evidence,busy,loadP
         if(locked||submitted||choosingRef.current)return;choosingRef.current=true;setChoosing(true);setError('');
         try{const optimized=await optimizePhoto(file);if(sourceIds.some(id=>evidence.find(p=>p.id===id)?.sha256===optimized.receipt.uploaded_asset_sha256))throw new Error('조치 전과 같은 사진입니다. 개선 후 사진을 선택해 주세요.');setPrepared({...optimized,id:crypto.randomUUID()});setAfterId('');setChecked(false);}catch(e){setError(e instanceof Error?e.message:'사진을 준비하지 못했습니다.');}finally{choosingRef.current=false;setChoosing(false);}
     };
-    const send=async()=>{if(!checked||!sourceIds.length||!selectedAfter||note.trim().length<5||locked)return;setSubmitted(true);if(await onSubmit({actionId:action.id,sourcePhotoIds:sourceIds,photoId:selectedAfter,...(prepared?{prepared}:{}),note:note.trim()})){setPrepared(null);setAfterId(selectedAfter);setChecked(false);setSubmitted(false);setNote(note.trim());setRechecked(false);}};
+    const send=async()=>{
+        if(!checked||!sourceIds.length||!selectedAfter||note.trim().length<5||locked||sendingRef.current)return;
+        sendingRef.current=true;setSending(true);setSubmitted(true);setError('');
+        try{
+            const ok=await onSubmit({actionId:action.id,sourcePhotoIds:sourceIds,photoId:selectedAfter,...(prepared?{prepared}:{}),note:note.trim()});
+            if(ok){setPrepared(null);setAfterId(selectedAfter);setChecked(false);setSubmitted(false);setNote(note.trim());setRechecked(false);}
+            else setError('저장 여부가 아직 확인되지 않았습니다. 다른 사진으로 바꾸지 말고 같은 내용으로 다시 시도하세요. 저장된 사본은 기록 관리에서 확인할 수 있습니다.');
+        }catch{
+            setError('요청 결과를 확인하지 못했습니다. 같은 사진·내용으로 다시 시도하거나 저장 기록에서 먼저 확인하세요.');
+        }finally{sendingRef.current=false;setSending(false);}
+    };
     return <details className="si-action-followup" open={open} onToggle={e=>setOpen(e.currentTarget.open)} onPaste={e=>{const files=pastedPhotos(e.clipboardData);if(files.length){e.preventDefault();if(!verified&&!locked&&!submitted)void choose(files[0]);}}}>
         <summary>개선사진·전후 비교·재점검</summary>
         {open&&<>
@@ -52,10 +62,10 @@ export default function InspectorActionFollowup({item,action,evidence,busy,loadP
                 {!prepared&&evidence.some(p=>!item.document.photoIds.includes(p.id))&&<p className="si-caption">업로드 후 연결되지 않은 사본이 있습니다. 위에서 선택해 사진과 실제 위치를 확인하면 재업로드 없이 이어갈 수 있습니다.</p>}
                 {evidence.length>=20&&<p className="si-caption">20장 보관 한도입니다. 이미 보관한 개선사진을 선택하거나 새 점검에서 후속 기록을 작성하세요.</p>}
                 {prepared&&<p className="si-caption">최적화: {(prepared.receipt.source_bytes/1048576).toFixed(2)}MB → {(prepared.receipt.uploaded_bytes/1048576).toFixed(2)}MB · {prepared.receipt.uploaded_width}×{prepared.receipt.uploaded_height}px. 기기 원본은 변경하지 않습니다.</p>}
-                <label htmlFor={prefix+'note'}>실제 개선 내용 (5자 이상)</label><textarea id={prefix+'note'} maxLength={2000} rows={3} disabled={locked} value={note} onChange={e=>{setNote(e.target.value);setChecked(false);}} placeholder="예: 해당 개구부 덮개 고정 및 주변 접근통제 보완"/>
-                <label className="si-action-ack"><input type="checkbox" checked={checked} disabled={locked} onChange={e=>setChecked(e.target.checked)}/><span>적용 위치와 개선 내용을 확인했고, 사진 보관·민감정보 처리를 확인했습니다.</span></label>
-                <button type="button" className="si-btn si-primary" disabled={locked||!checked||!sourceIds.length||!selectedAfter||note.trim().length<5} onClick={()=>void send()}>개선사진 저장 · 완료 검토 요청</button>
-                {submitted&&!busy&&<p className="si-caption">저장 결과를 확인하지 못했습니다. 같은 사진으로 재시도하세요. 등록된 사본은 보관·삭제 관리에서 확인할 수 있습니다.</p>}
+                <label htmlFor={prefix+'note'}>실제 개선 내용 (5자 이상)</label><textarea id={prefix+'note'} maxLength={2000} rows={3} disabled={locked||submitted} value={note} onChange={e=>{setNote(e.target.value);setChecked(false);}} placeholder="예: 해당 개구부 덮개 고정 및 주변 접근통제 보완"/>
+                <label className="si-action-ack"><input type="checkbox" checked={checked} disabled={locked||submitted} onChange={e=>setChecked(e.target.checked)}/><span>적용 위치와 개선 내용을 확인했고, 사진 보관·민감정보 처리를 확인했습니다.</span></label>
+                <button type="button" className="si-btn si-primary" disabled={locked||!checked||!sourceIds.length||!selectedAfter||note.trim().length<5} onClick={()=>void send()}>{sending?'같은 사진 저장 결과 확인 중…':submitted?'같은 개선사진·내용으로 다시 시도':'개선사진 저장 · 완료 검토 요청'}</button>
+                {submitted&&!busy&&!sending&&<p className="si-caption">사진·설명은 바꾸지 않고 동일한 요청으로 안전하게 재시도합니다. 이미 저장됐을 가능성이 있으므로 다른 사진이 필요하면 저장 기록을 먼저 확인하세요.</p>}
             </>}
             {action.status==='review-requested'&&!prepared&&afterId===action.completionPhotoId&&note===action.note&&<section className="si-reinspection"><h4>현장 재점검 확인</h4><p className="si-caption">사진만으로 이행을 확정하지 않습니다. 실제 현장 대조 후에만 관리자 확인을 기록하세요.</p><ol className="si-reinspection-checks"><li>원래 지적한 위치와 개선사진의 위치·범위가 같은지 확인</li><li>현장에서 고정 상태·접근통제 등 필요한 조치가 실제 유지되는지 확인</li><li>잔여 위험과 작업 재개 가능 여부를 별도 점검</li></ol><p className="si-caption">아래 확인은 위 항목을 실제로 대조했을 때만 선택합니다. 체크리스트 표시 자체는 점검 증빙이 아닙니다.</p><label htmlFor={prefix+'verify'}>현장에서 확인한 내용 (5자 이상)</label><textarea id={prefix+'verify'} rows={3} maxLength={2000} value={verification} disabled={locked} onChange={e=>{setVerification(e.target.value);setRechecked(false);}}/><label className="si-action-ack"><input type="checkbox" checked={rechecked} disabled={locked} onChange={e=>setRechecked(e.target.checked)}/><span>개선사진과 실제 현장 상태를 재점검했습니다.</span></label><button type="button" className="si-btn si-primary" disabled={locked||!rechecked||verification.trim().length<5} onClick={()=>void onVerify(action.id,verification.trim()).then(saved=>{if(saved){setVerification('');setRechecked(false);}})}>현장 재점검 확정</button></section>}
             {verified&&<p role="status" className="si-notice">{actionStatusLabel(action)} · {action.verifiedAt?formatInspectionTimestamp(action.verifiedAt):'확인시각 미기록'}<br/>{action.note}</p>}
