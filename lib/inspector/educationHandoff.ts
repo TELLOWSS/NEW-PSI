@@ -6,7 +6,7 @@ function label(action:InspectorAction,today:string){
     if(action.status==='verified')return '현장 재점검 확인 기록';
     if(overdueAction(action,today))return '기한 경과 · 미결';
     if(action.status==='review-requested')return '개선사진 접수 · 재점검 대기';
-    return a.dueDate>today?'약정기한 내 조치 중 · 진행 확인 필요':'미조치 · 이행 확인 필요';
+    return action.dueDate>today?'약정기한 내 조치 중 · 진행 확인 필요':'미조치 · 이행 확인 필요';
 }
 /**
  * Manual handoff only; no AI inference, automatic TBM transmission, or employee-grade scores.
