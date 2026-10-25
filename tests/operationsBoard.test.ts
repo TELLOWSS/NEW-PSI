@@ -43,6 +43,10 @@ describe('operations board protection queue', () => {
         expect(isProtectionPriorityRecord(record({ selfAssessedRiskLevel: '상', safetyScore: 90 }), 60)).toBe(true);
         expect(isProtectionPriorityRecord(record({ safetyScore: -1 }), 60)).toBe(false);
         expect(isProtectionPriorityRecord(record({ safetyScore: Number.NaN }), 60)).toBe(false);
+        expect(isProtectionPriorityRecord(record({ safetyScore: null } as unknown as Partial<WorkerRecord>), 60)).toBe(false);
+        expect(isProtectionPriorityRecord(record({ safetyScore: '' } as unknown as Partial<WorkerRecord>), 60)).toBe(false);
+        expect(isProtectionPriorityRecord(record({ safetyScore: '0' } as unknown as Partial<WorkerRecord>), 60)).toBe(false);
+        expect(isProtectionPriorityRecord(record({ safetyScore: 0 }), 60)).toBe(true);
     });
 
     it('keeps completed safe records out of the priority queue', () => {
@@ -58,7 +62,7 @@ describe('operations board protection queue', () => {
     it('routes a work-stop signal directly to the field action surface', () => {
         const item = resolveOperationsQueueItem(record({ riskDecision: 'CRITICAL_STOP' }), 60);
 
-        expect(item.statusLabel).toBe('작업중지 확인');
+        expect(item.statusLabel).toBe('작업중지 신호 · 현장 확인');
         expect(item.actionLabel).toBe('조치 확인');
         expect(item.actionPage).toBe('safety-compliance-hub');
     });
