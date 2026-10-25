@@ -20,7 +20,7 @@ page.on('pageerror', (error) => pageErrors.push(error.message));
 await page.addInitScript(() => {
     window.sessionStorage.setItem('isAdminAuthenticated', 'true');
     window.localStorage.setItem('psi_ui_composition_v1', JSON.stringify({
-        version: 3,
+        version: 4,
         sidebarOrder: [
             'dashboard',
             'site-issue-management',
