@@ -1,0 +1,125 @@
+/* PSI UI Design track — integrated with UX first-photo flow.
+   Scoped to the quick workspace, leaves advanced tools/report printing unchanged. */
+.si-quick .si-quick-heading{
+  position:relative;isolation:isolate;overflow:hidden;min-width:0;
+  margin-bottom:20px;padding:28px 30px;border-radius:23px;
+  border:1px solid #214d58;
+  background:radial-gradient(ellipse 65% 95% at 96% 0%,#327d73 0%,transparent 76%),
+             linear-gradient(124deg,#10283e 0%,#173e4c 56%,#154f50 100%);
+  box-shadow:0 14px 36px #0b354123,0 2px 4px #06233312;
+}
+.si-quick .si-quick-heading::after{
+  content:"";position:absolute;z-index:-1;pointer-events:none;
+  width:300px;height:300px;right:-94px;top:-178px;border-radius:50%;
+  border:1px solid #c0efe341;box-shadow:0 0 0 25px #b9eadb09,0 0 0 55px #b9eadb07;
+}
+.si-quick .si-quick-heading>div{position:relative;z-index:1}
+.si-quick .si-quick-heading .si-eyebrow{
+  display:inline-flex;align-items:center;gap:9px;
+  color:#b9ecde;letter-spacing:.14em;font-size:10px;font-weight:800
+}
+.si-quick .si-quick-heading .si-eyebrow::before{
+  content:"";display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:#95edcd;box-shadow:0 0 0 4px #95edcd25
+}
+.si-quick .si-quick-heading h1{
+  max-width:800px;color:#fff;font-size:clamp(25px,3vw,36px);
+  line-height:1.34;letter-spacing:-.045em;margin:12px 0 10px
+}
+.si-quick .si-quick-heading p:not(.si-eyebrow){margin:0;color:#ccdfdf;font-size:13px}
+.si-quick .si-quick-heading>.si-btn{
+  position:relative;z-index:1;flex:0 0 auto;min-height:44px;
+  color:#f0fff9;border:1px solid #b7e6d26b;background:#e0fff50f;
+  font-size:12px;font-weight:650;backdrop-filter:blur(4px)
+}
+.si-quick .si-quick-heading>.si-btn:hover:not(:disabled){background:#effff322;color:#fff;border-color:#b7e6d2a8}
+.si-quick .si-quick-input{
+  border:1px solid #aaccc633;border-radius:23px;
+  box-shadow:0 10px 35px #0d334a12,0 1px 3px #0d334a10;
+}
+.si-quick .si-quick-photo{
+  background:radial-gradient(ellipse at 18% 3%,#246c66 0%,transparent 67%),
+             linear-gradient(142deg,#122c40 0%,#173b4a 60%,#174850 100%);
+}
+.si-quick .si-quick-photo::after{
+  content:"";position:absolute;pointer-events:none;inset:12px;
+  border:1px solid #defff112;border-radius:16px;
+}
+.si-quick .si-quick-photo .si-quick-camera-mark{
+  background:#d5fff20f;border:1px solid #b9f0e77d;
+  box-shadow:0 0 0 8px #a0e9d10a,0 18px 40px #03192448;
+}
+.si-quick .si-quick-photo .si-novice-main-camera{
+  box-shadow:0 5px 18px #031e2750;border-radius:12px;
+}
+.si-quick .si-quick-photo .si-novice-main-camera:focus-visible,
+.si-quick .si-quick-heading .si-btn:focus-visible,
+.si-quick .si-quick-start:focus-visible{
+  outline:3px solid #8dd8cf;outline-offset:3px
+}
+.si-quick .si-quick-context{background:var(--si-surface);gap:13px}
+.si-quick .si-novice-analysis-status{
+  border-color:#c5ded5;border-left:4px solid #348977;
+  border-radius:12px;background:var(--si-soft);padding:12px 14px;
+}
+.si-quick .si-quick-consent{
+  border:1px solid var(--si-line);border-radius:14px;
+  padding:14px;min-height:70px;align-items:flex-start;
+  background:var(--si-soft);transition:border-color .2s,background-color .2s,box-shadow .2s;
+}
+.si-quick .si-quick-consent span{display:block;min-width:0;color:var(--si-navy);line-height:1.65;font-size:12px}
+.si-quick .si-quick-consent input{width:19px;height:19px;accent-color:#166f66;margin-top:2px}
+.si-quick .si-quick-consent[data-stage="pending"]{
+  background:#fff9eb;border-color:#d9b76e;box-shadow:0 0 0 3px #e2ad4b0b;
+}
+.si-quick .si-quick-consent[data-stage="ready"]{
+  background:#eaf7f0;border-color:#88cbb1;
+}
+.si-quick .si-quick-consent:focus-within{
+  outline:3px solid #50ae9b;outline-offset:3px
+}
+.si-quick .si-quick-consent .si-consent-cue{
+  display:block;font-size:13px;color:#775014;margin-bottom:4px;font-weight:800;line-height:1.45
+}
+.si-quick .si-quick-consent[data-stage="ready"] .si-consent-cue{color:#176448}
+.si-quick .si-quick-start{
+  width:100%;border-radius:13px;min-height:54px;
+  font-size:16px!important;font-weight:800;
+  box-shadow:0 7px 17px #136b6225;
+}
+.si-quick .si-quick-start:disabled{box-shadow:none;opacity:.8}
+.si-quick .si-start-guide{border-radius:10px;margin:0;line-height:1.65}
+.si-quick .si-result-journey{
+  border:1px solid #aed1c5;background:linear-gradient(128deg,#f0faf5,#e8f6f2);
+  box-shadow:0 7px 25px #134e3c10;border-radius:18px;
+}
+.dark .si-quick .si-quick-context{background:var(--si-surface)}
+.dark .si-quick .si-novice-analysis-status{border-color:#3f6c5f}
+.dark .si-quick .si-quick-consent{background:#182e32;border-color:#42605e}
+.dark .si-quick .si-quick-consent span{color:#e0e9e5}
+.dark .si-quick .si-quick-consent[data-stage="pending"]{background:#372e20;border-color:#aa915f}
+.dark .si-quick .si-quick-consent[data-stage="ready"]{background:#19382e;border-color:#5aa68b}
+.dark .si-quick .si-quick-consent .si-consent-cue{color:#f4d6a0}
+.dark .si-quick .si-quick-consent[data-stage="ready"] .si-consent-cue{color:#b0ebcc}
+.dark .si-quick .si-result-journey{background:#17342d;border-color:#4b8a74;color:#e6f2eb}
+@media(max-width:700px){
+  .si-quick .si-quick-heading{padding:22px 20px;margin-bottom:16px;border-radius:18px;gap:15px}
+  .si-quick .si-quick-heading h1{font-size:clamp(23px,6.1vw,29px)}
+  .si-quick .si-quick-heading>.si-btn{width:100%;justify-content:center;min-height:46px}
+  .si-quick .si-quick-input{border-radius:18px}
+  .si-quick .si-quick-photo{min-height:220px}
+  .si-quick .si-quick-context{padding:18px 16px}
+  .si-quick .si-quick-consent{padding:12px;min-height:72px}
+  .si-quick .si-quick-start{min-height:54px}
+}
+@media(max-width:360px){
+  .si-quick .si-quick-heading{padding:18px 15px}
+  .si-quick .si-quick-heading h1{font-size:23px}
+  .si-quick .si-quick-context{padding:15px 12px}
+}
+@media(prefers-reduced-motion:reduce){
+  .si-quick .si-quick-consent{transition:none}
+}
+@media print{
+  .si-quick .si-quick-heading,.si-quick .si-quick-consent,.si-quick .si-start-guide{display:none!important}
+}
