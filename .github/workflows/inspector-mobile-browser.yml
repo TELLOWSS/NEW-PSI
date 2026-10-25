@@ -8,6 +8,7 @@ on:
       - 'lib/inspector/**'
       - 'scripts/verify-inspector-camera.mjs'
       - 'scripts/verify-inspector-action-share.mjs'
+      - 'scripts/verify-inspector-result-journey.mjs'
       - '.github/workflows/inspector-mobile-browser.yml'
   workflow_dispatch:
 
@@ -42,6 +43,8 @@ jobs:
         run: node scripts/verify-inspector-camera.mjs
       - name: Sharing, reply, denied/revoked links and handoff
         run: node scripts/verify-inspector-action-share.mjs
+      - name: First-use photo to expert review and printable report
+        run: PSI_QA_BUILT=1 node scripts/verify-inspector-result-journey.mjs
       - name: Upload synthetic-only QA evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -50,5 +53,6 @@ jobs:
           path: |
             artifacts/audit/inspector-camera/
             artifacts/audit/action-share/
+            artifacts/audit/inspector-result-journey-built/
           if-no-files-found: ignore
           retention-days: 7

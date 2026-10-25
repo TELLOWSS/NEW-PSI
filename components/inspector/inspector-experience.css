@@ -265,3 +265,5 @@
 .si-camera-recovery p{font-size:13px;line-height:1.7;margin:6px 0}
 @media(max-width:380px){.si-camera-simple-steps{gap:4px}.si-camera-simple-steps li{font-size:11px;padding:7px 3px}}
 @media print{.si-camera-simple-steps,.si-camera-recovery{display:none!important}}
+
+.si-camera-simple-steps li.is-complete{background:#e7f1ef;color:#24675a;font-weight:600}

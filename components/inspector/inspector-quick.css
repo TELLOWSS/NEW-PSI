@@ -277,3 +277,7 @@
 .si-report-readers-guide p[role=status]{font-weight:700;color:var(--si-teal)}
 @media(max-width:600px){.si-followup-steps ol{grid-template-columns:1fr}.si-followup-steps li{padding:9px}.si-followup-steps span{margin-top:2px}}
 @media print{.si-followup-steps,.si-report-readers-guide{display:none!important}}
+
+/* Present the real report and its print action after lazy loading, clear of mobile header. */
+.si-quick-print,.si-report{scroll-margin-top:84px}
+.si-report:focus{outline:2px solid var(--si-teal);outline-offset:3px}

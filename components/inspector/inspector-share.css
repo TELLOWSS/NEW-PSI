@@ -31,3 +31,14 @@
 @media(max-width:550px){.si-reply-journey ol{grid-template-columns:1fr}.si-reply-journey li{display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:center}.si-reply-journey span{margin:0}}
 @media(max-width:620px){.si-reply-page .si-reply-form fieldset{grid-template-columns:1fr}.si-reply-page .si-reply-form fieldset label{min-height:48px}}
 @media print{.si-reply-journey,.si-reply-kind-guide,.si-reply-missing{display:none!important}}
+
+/* Measured 390px recipient screenshot: preserve all decision context, remove stacked navigation bloat. */
+@media(max-width:550px){
+ .si-reply-page .si-reply-journey ol{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+ .si-reply-page .si-reply-journey li{display:block;padding:9px 3px;text-align:center;min-height:43px}
+ .si-reply-page .si-reply-journey b{font-size:11px;line-height:1.5}
+ .si-reply-page .si-reply-journey span{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+ .si-reply-page .si-reply-request dl{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .si-reply-page .si-reply-request dl>div{min-width:0}
+}
+@media(max-width:340px){.si-reply-page .si-reply-request dl{grid-template-columns:1fr}}
