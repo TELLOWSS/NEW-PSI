@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import progress from '../../config/psi-company-progress.json';
 import ownership from '../../config/psi-company-ownership.json';
+import roster from '../../config/psi-company-agent-roster.json';
 
 type DepartmentStatus = 'pass' | 'blocked' | 'review' | 'unverified';
 type Filter = 'all' | DepartmentStatus;
@@ -24,6 +25,7 @@ export const PsiCompanyAuditPanel: React.FC = () => {
     const [filter,setFilter] = useState<Filter>('all');
     const [expanded,setExpanded] = useState<string[]>([]);
     const departmentTitles = useMemo(()=>new Map(ownership.departments.map((item)=>[item.id,item.title])),[]);
+    const roleNames = useMemo(()=>new Map(roster.departments.map((item)=>[item.id,item])),[]);
     const shown = progress.departments.filter(item => filter==='all'||item.status===filter);
     const verified = progress.departments.filter(item=>item.status==='pass').length;
     const blocked = progress.departments.filter(item=>item.status==='blocked').length;
@@ -38,8 +40,9 @@ export const PsiCompanyAuditPanel: React.FC = () => {
                         <p className="text-[11px] font-bold tracking-[0.16em] text-sky-200">PSI ORGANIZATION · AUDIT TRAIL</p>
                         <h3 id="psi-company-title" className="mt-1 text-xl font-black tracking-tight sm:text-2xl">부서별 품질·개선 현황</h3>
                         <p className="mt-2 text-sm leading-6 text-slate-200">
-                            각 부서의 확인 결과, 발견 사항, 개선 계획, 실제 검증 기록을 함께 공개합니다.
+                            총괄 아틀라스(ATLAS)가 조정하고 나비·루미·코어·세이프·키퍼·프루프가 책임 분야별 검증 기준을 지킵니다.
                         </p>
+                        <p className="mt-2 text-xs font-semibold text-sky-100">아틀라스 또는 담당자의 애칭으로 개선을 지시할 수 있습니다. 이름은 독립 AI 프로세스가 아닌 책임 역할입니다.</p>
                     </div>
                     <a href={progress.sourceRun} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-xl border border-white/30 bg-white/10 px-4 py-2 text-sm font-bold text-white underline-offset-4 hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
                         GitHub 검증 원문 보기 ↗
@@ -85,7 +88,8 @@ export const PsiCompanyAuditPanel: React.FC = () => {
                                 <div className="flex flex-wrap items-start justify-between gap-3">
                                     <div>
                                         <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">{item.id}</p>
-                                        <h4 className="mt-1 text-base font-black text-slate-900 dark:text-white">{departmentTitles.get(item.id)||item.id}</h4>
+                                        <h4 className="mt-1 text-base font-black text-slate-900 dark:text-white">{roleNames.get(item.id)?.name||item.id} <span className="text-xs font-bold text-slate-500 dark:text-slate-300">({roleNames.get(item.id)?.english||item.id})</span></h4>
+                                        <p className="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-300">{departmentTitles.get(item.id)||item.id} · {roleNames.get(item.id)?.mission}</p>
                                     </div>
                                     <span className={'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold '+info.className}>
                                         <span aria-hidden="true" className={'h-2 w-2 rounded-full '+info.dot} />{info.label}
@@ -117,7 +121,7 @@ export const PsiCompanyAuditPanel: React.FC = () => {
                                 <li key={item.department+'-'+index} className="flex gap-3 rounded-xl bg-slate-50 px-3 py-3 dark:bg-slate-800/70">
                                     <span className={'mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full '+styleByStatus[status].dot} aria-hidden="true" />
                                     <div className="min-w-0 flex-1">
-                                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400">{item.date} · {departmentTitles.get(item.department)||item.department} · {styleByStatus[status].label}</p>
+                                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400">{item.date} · {roleNames.get(item.department)?.name||item.department} ({departmentTitles.get(item.department)||item.department}) · {styleByStatus[status].label}</p>
                                         <p className="mt-1 text-sm font-black text-slate-900 dark:text-white">{item.title}</p>
                                         <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">{item.details}</p>
                                     </div>

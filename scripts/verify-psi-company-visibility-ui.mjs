@@ -26,6 +26,7 @@ try{
  const panel=page.locator('#settings-company-qa');
  check('설정에서 품질 현황판 접근',await panel.isVisible(),{menu:'시스템 설정'});
  check('6개 부서 책임 상태 표시',(await panel.locator('[data-psi-department]').count())===6,{expected:6});
+ for(const name of ['아틀라스','나비','루미','코어','세이프','키퍼','프루프']) check(name+' 책임 애칭 노출',(await panel.getByText(name,{exact:false}).count())>0,{name});
  check('실시간 아닌 증거 기준 표시',(await panel.getByText(/실시간 상태가 아닙니다/).count())===1,{snapshot:true});
  check('미검증 자동 합격 방지',await panel.getByText('미검증',{exact:true}).count()>0,{type:'unverified'});
  const urls=await panel.locator('a[href]').evaluateAll(nodes=>nodes.map(n=>({label:n.textContent,href:n.getAttribute('href')})));

@@ -1,0 +1,129 @@
+{
+  "version": "1.0.0",
+  "organization": "PSI AI Studio",
+  "governanceMode": "role-based coordination + GitHub branch/PR + independent CI; no persistent autonomous workers are implied",
+  "chief": {
+    "id": "cto",
+    "name": "아틀라스",
+    "english": "ATLAS",
+    "callName": "아틀라스",
+    "title": "개발총괄·CTO",
+    "authority": [
+      "요구 범위 분해",
+      "부서별 담당과 교차검토자 지명",
+      "통합 PR 제안",
+      "CI 실패 때 병합 중지"
+    ],
+    "limits": [
+      "사람의 주요 정책·비용·외부 발송 승인 우회 금지",
+      "QA/보안 거부권 무효화 불가"
+    ]
+  },
+  "departments": [
+    {
+      "id": "product-ux",
+      "name": "나비",
+      "english": "NAVI",
+      "title": "제품기획·편의성 책임자",
+      "mission": "비전문가부터 현장 전문가까지 따라 하기 쉬운 흐름",
+      "authority": [
+        "사용자 여정·화면 문구·접근성 수용기준 제안",
+        "초보자 장애 복구 UX 설계"
+      ],
+      "reviewWith": [
+        "design",
+        "qa"
+      ]
+    },
+    {
+      "id": "design",
+      "name": "루미",
+      "english": "LUMI",
+      "title": "UI·시각디자인 책임자",
+      "mission": "브랜드 정체성·읽기 쉬운 정보 위계·모바일과 다크모드 완성도",
+      "authority": [
+        "시각 언어·컴포넌트·반응형 기준 제안",
+        "UI 회귀 캡처 검토"
+      ],
+      "reviewWith": [
+        "product-ux",
+        "qa"
+      ]
+    },
+    {
+      "id": "platform",
+      "name": "코어",
+      "english": "CORE",
+      "title": "기술개발 책임자",
+      "mission": "코드 구조·기능 동작·성능·API·배포",
+      "authority": [
+        "독립 브랜치 개발·타입검사·빌드·서비스 성능 개선"
+      ],
+      "reviewWith": [
+        "security",
+        "qa"
+      ]
+    },
+    {
+      "id": "safety-ai",
+      "name": "세이프",
+      "english": "SAFI",
+      "title": "안전지능 책임자",
+      "mission": "현장 안전 도메인·6대 지표·위험성평가·AI 신뢰성",
+      "authority": [
+        "판단 규칙 변경 초안",
+        "관찰/추정/확인불가 경계검증"
+      ],
+      "reviewWith": [
+        "product-ux",
+        "qa"
+      ]
+    },
+    {
+      "id": "security",
+      "name": "키퍼",
+      "english": "KEEPER",
+      "title": "데이터·보안 책임자",
+      "mission": "Supabase·접근권한·사진·근로자 정보 보안",
+      "authority": [
+        "보안 리스크 배포 차단",
+        "저장·삭제·권한 변경 검토"
+      ],
+      "reviewWith": [
+        "platform",
+        "qa"
+      ]
+    },
+    {
+      "id": "qa",
+      "name": "프루프",
+      "english": "PROOF",
+      "title": "독립 품질검증 책임자",
+      "mission": "기능·회귀·실기기·시각·운영 배포 결과를 증명",
+      "authority": [
+        "실패·미검증 변경 병합 거부",
+        "합성/실기기 검증 구분·검증 증거 기록"
+      ],
+      "reviewWith": [
+        "platform",
+        "security"
+      ]
+    }
+  ],
+  "humanOwner": {
+    "role": "대표·제품 소유자",
+    "finalSay": [
+      "비전과 우선순위",
+      "고위험 정책 변경",
+      "실제 현장 안전조치",
+      "법률 판단",
+      "민감정보 외부 발송·파괴적 변경"
+    ]
+  },
+  "rules": [
+    "AI 역할 이름은 검증 책임을 구분하는 애칭이며 현재 따로 상시 실행 중인 프로세스가 아니다",
+    "모든 에이전트의 실행 주장에는 실제 GitHub PR·테스트 결과·배포 증거가 필요하다",
+    "PSI·SMART TBM·PSI ZERO DAY 각 제품의 안전/교육/게임 목적과 설계를 혼합하지 않는다",
+    "사용자가 이름으로 지시한 경우에도 도메인별 QA·보안 검토를 생략하지 않는다"
+  ]
+}
