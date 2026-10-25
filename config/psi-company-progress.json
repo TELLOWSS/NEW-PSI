@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "kind": "reviewed_snapshot",
+  "product": "NEW-PSI",
+  "capturedAt": "2026-10-25T07:38:25Z",
+  "sourceSha": "a6a7a70e0d829345e710ba954fa6b4a9c82d5137",
+  "sourcePr": "https://github.com/TELLOWSS/NEW-PSI/pull/81",
+  "sourceRun": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40173419450",
+  "scope": "2026-10-25 GitHub Actions 합성 Chromium 7개 업무 흐름·독립 릴리즈 검증 통과. 실제 현장·Android 실기기·외부 발송 검증은 별도이며, 이 화면은 마지막 승인 후보의 검토 시점 사본입니다.",
+  "departments": [
+    {
+      "id": "product-ux",
+      "status": "pass",
+      "summary": "쉬운 설명과 다국어 개인보고서 회귀 검증 통과",
+      "passed": 2,
+      "total": 2,
+      "finding": "쉬운 언어·메뉴 이동 14/14, 다국어 근로자 보고서 11/11 합성 검사 통과",
+      "improvement": "구형 메뉴명·숨김 목록 선택을 현재 UX에 맞게 교정. 실사용자·Android·언어별 전달 검증은 별도 과제",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40173419450"
+    },
+    {
+      "id": "design",
+      "status": "unverified",
+      "summary": "반응형 자동검사 통과, 디자인 전문 검토는 미완료",
+      "passed": 0,
+      "total": 0,
+      "finding": "현황판 320·390·768·1440px, 다크모드, 필터를 포함한 13/13 QA 검사는 통과. 색상·정보위계·실기기 디자인 품질의 독립 심사는 별도 미완료",
+      "improvement": "모바일 실제 터치·서체 대비·스크린리더·사진점검에서 보고서까지의 시각적 위계 검토",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40173419450"
+    },
+    {
+      "id": "platform",
+      "status": "pass",
+      "summary": "사진점검 진입·안전사건 교육 연결 코드 검증 통과",
+      "passed": 1,
+      "total": 1,
+      "finding": "사진점검 CSP·진입 확인 통과. 안전조치→관리자 교육 화면의 숨김 메뉴 차단 문제 해결 후 회귀 검사 통과",
+      "improvement": "운영 배포의 메인 SHA·Vercel 도메인 일치 확인과 오류 모니터링",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40173419450"
+    },
+    {
+      "id": "safety-ai",
+      "status": "pass",
+      "summary": "6대 지표·위험 기준·보호조치 환류 검증 통과",
+      "passed": 3,
+      "total": 3,
+      "finding": "대시보드 6/6, 관리자 위험 기준 11/11, 위험 발견→조치→보고서→교육 인계 7/7 합성 검사 통과",
+      "improvement": "실현장 근거·작업중지 판단·교육 서명과 후속 재평가의 사람 승인 검증",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40173419450"
+    },
+    {
+      "id": "security",
+      "status": "review",
+      "summary": "데이터베이스 접근권한 독립 검토 필요",
+      "passed": 0,
+      "total": 0,
+      "finding": "연결 프로젝트의 읽기 전용 보안 권고를 확인했으나 운영 DB 식별·권한별 영향은 아직 확정되지 않음",
+      "improvement": "운영 연결 확인 후 RLS, 고권한 함수·뷰, 사진 삭제·공유 토큰 접근제어를 비파괴적으로 점검",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40173419450"
+    },
+    {
+      "id": "qa",
+      "status": "pass",
+      "summary": "전제품 7개 업무 흐름과 릴리즈 검증 통과",
+      "passed": 7,
+      "total": 7,
+      "finding": "부서 소유권 검사, 전체 릴리즈 검사, 합성 브라우저 7/7 모두 통과. 조직 현황판 13/13도 통과",
+      "improvement": "PR 병합 후 본 운영 도메인과 배포 SHA 일치 확인, 실기기 현장 평가 별도 수행",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40173419450"
+    }
+  ],
+  "activity": [
+    {
+      "department": "qa",
+      "date": "2026-10-25",
+      "result": "pass",
+      "title": "전제품 브라우저 7/7 최종 통과",
+      "details": "GitHub Actions 40173419450 · 7개 부문 합성 브라우저 검사 통과",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40173419450"
+    },
+    {
+      "department": "product-ux",
+      "date": "2026-10-25",
+      "result": "pass",
+      "title": "다국어 보고서 11/11 · 쉬운 말 14/14 통과",
+      "details": "현재 메뉴 선택, 보고서 대상 및 실제 PDF 생성 검사",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40173419450"
+    },
+    {
+      "department": "safety-ai",
+      "date": "2026-10-25",
+      "result": "pass",
+      "title": "안전조치→리포트→교육 연결 7/7 통과",
+      "details": "기존 숨김 메뉴에 따른 교육 연결 단절을 수정하고 재검증",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40173419450"
+    },
+    {
+      "department": "qa",
+      "date": "2026-10-25",
+      "result": "pass",
+      "title": "조직 현황판 모바일·다크모드 13/13 통과",
+      "details": "320·390·768·1440px, 필터·증거 링크·펼치기 검증",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40173419450"
+    },
+    {
+      "department": "safety-ai",
+      "date": "2026-10-25",
+      "result": "pass",
+      "title": "6대 지표 6/6 · 관리자 위험 기준 11/11 통과",
+      "details": "현행 계산 규칙과 위험등급 등록 근거 검증",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40173419450"
+    },
+    {
+      "department": "security",
+      "date": "2026-10-25",
+      "result": "review",
+      "title": "DB 읽기 전용 보안 감리 실시",
+      "details": "고위험 권고는 실운영 영향 확인 전 자동 변경하지 않음",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/pull/81"
+    },
+    {
+      "department": "qa",
+      "date": "2026-10-25",
+      "result": "blocked",
+      "title": "이전 진단: 브라우저 3/6 미통과 발견",
+      "details": "과거 실패 이력을 삭제하지 않고 7/7 개선 전 단계로 보존",
+      "evidence": "https://github.com/TELLOWSS/NEW-PSI/actions/runs/40169833793"
+    }
+  ]
+}

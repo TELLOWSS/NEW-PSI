@@ -54,6 +54,7 @@ import {
     PSI_APP_SETTINGS_STORAGE_KEY,
 } from '../utils/assessmentCycle';
 import styles from './Settings.module.css';
+import { PsiCompanyAuditPanel } from '../components/management/PsiCompanyAuditPanel';
 
 const TRAINING_LANGUAGE_OPTIONS = SHARED_TRAINING_LANGUAGE_OPTIONS.map(({ code, label }) => ({
     code,
@@ -1642,6 +1643,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                             <span className={`mr-2 h-2 w-2 rounded-full ${mobileSettingsBadge.tone}`} aria-hidden="true" />
                             {mobileSettingsBadge.label}
                         </span>
+                        <button type="button" onClick={() => document.getElementById('settings-company-qa')?.scrollIntoView({behavior: 'smooth',block:'start'})} className={styles.heroSecondary}>조직 검증 보기</button>
                         <button type="button" onClick={() => setShowGuide((prev) => !prev)} className={styles.heroSecondary}>
                             {showGuide ? '가이드 닫기' : '운영 가이드'}
                         </button>
@@ -1676,6 +1678,8 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     ))}
                 </div>
             </header>
+
+            <PsiCompanyAuditPanel />
 
             <section className={styles.overview} aria-labelledby="settings-overview-heading">
                 <h3 id="settings-overview-heading" className="sr-only">설정 운영 요약</h3>
