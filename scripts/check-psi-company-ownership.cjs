@@ -27,7 +27,7 @@ for(const file of files){
  if(sensitive.test(file)&&rule===config.fallback)errors.push('Critical path unowned: '+file);
 }
 for(const prefix of config.criticalPaths)if(!files.some(file=>file.startsWith(prefix)))errors.push('Required product boundary missing: '+prefix);
-const requiredScripts=['scripts/verify-psi-company-browser.mjs','scripts/verify-inspector-production.mjs','scripts/verify-core-metrics-ui.mjs','scripts/verify-survey-baseline-ui.mjs','scripts/verify-plain-language-ui.mjs','scripts/verify-worker-report-ui.mjs','scripts/verify-safety-case-closed-loop-ui.mjs'];
+const requiredScripts=['scripts/verify-psi-company-browser.mjs','scripts/verify-inspector-production.mjs','scripts/verify-psi-current-metrics-ui.mjs','scripts/verify-survey-baseline-ui.mjs','scripts/verify-plain-language-ui.mjs','scripts/verify-worker-report-ui.mjs','scripts/verify-safety-case-closed-loop-ui.mjs'];
 for(const file of requiredScripts)if(!fs.existsSync(file))errors.push('Missing required coverage: '+file);
 const output={date:new Date().toISOString(),pass:!errors.length,totalTrackedFiles:files.length,coverageByDepartment:accountable,criticalPaths:critical.length,errors};
 fs.mkdirSync(path.join('artifacts','audit','psi-company'),{recursive:true});
