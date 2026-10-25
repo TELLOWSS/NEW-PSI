@@ -1,0 +1,328 @@
+{
+  "version": 1,
+  "product": "NEW-PSI",
+  "departments": [
+    {
+      "id": "product-ux",
+      "title": "제품기획·편의성",
+      "leadRole": "제품책임자"
+    },
+    {
+      "id": "design",
+      "title": "UI·디자인",
+      "leadRole": "디자인책임자"
+    },
+    {
+      "id": "platform",
+      "title": "기술개발",
+      "leadRole": "기술개발책임자"
+    },
+    {
+      "id": "safety-ai",
+      "title": "안전지능",
+      "leadRole": "안전지능책임자"
+    },
+    {
+      "id": "security",
+      "title": "데이터·보안",
+      "leadRole": "정보보안책임자"
+    },
+    {
+      "id": "qa",
+      "title": "독립 품질검증",
+      "leadRole": "품질검증책임자"
+    }
+  ],
+  "responsibility": [
+    {
+      "prefix": "api/admin/inspector",
+      "owner": "safety-ai",
+      "review": [
+        "security",
+        "qa"
+      ],
+      "risk": "critical"
+    },
+    {
+      "prefix": "api/inspection-share",
+      "owner": "security",
+      "review": [
+        "product-ux",
+        "qa"
+      ],
+      "risk": "critical"
+    },
+    {
+      "prefix": "api/",
+      "owner": "platform",
+      "review": [
+        "security",
+        "qa"
+      ],
+      "risk": "high"
+    },
+    {
+      "prefix": "supabase/",
+      "owner": "security",
+      "review": [
+        "platform",
+        "qa"
+      ],
+      "risk": "critical"
+    },
+    {
+      "prefix": "supabase_",
+      "owner": "security",
+      "review": [
+        "platform",
+        "qa"
+      ],
+      "risk": "critical"
+    },
+    {
+      "prefix": "lib/inspector/",
+      "owner": "safety-ai",
+      "review": [
+        "product-ux",
+        "qa"
+      ],
+      "risk": "high"
+    },
+    {
+      "prefix": "components/inspector/",
+      "owner": "product-ux",
+      "review": [
+        "design",
+        "qa"
+      ],
+      "risk": "high"
+    },
+    {
+      "prefix": "components/dashboard/",
+      "owner": "safety-ai",
+      "review": [
+        "product-ux",
+        "qa"
+      ],
+      "risk": "high"
+    },
+    {
+      "prefix": "components/charts/",
+      "owner": "safety-ai",
+      "review": [
+        "product-ux",
+        "qa"
+      ],
+      "risk": "high"
+    },
+    {
+      "prefix": "components/tbm/",
+      "owner": "product-ux",
+      "review": [
+        "safety-ai",
+        "qa"
+      ],
+      "risk": "high"
+    },
+    {
+      "prefix": "components/",
+      "owner": "design",
+      "review": [
+        "product-ux",
+        "qa"
+      ],
+      "risk": "standard"
+    },
+    {
+      "prefix": "pages/",
+      "owner": "product-ux",
+      "review": [
+        "design",
+        "qa"
+      ],
+      "risk": "standard"
+    },
+    {
+      "prefix": "services/",
+      "owner": "platform",
+      "review": [
+        "security",
+        "qa"
+      ],
+      "risk": "high"
+    },
+    {
+      "prefix": "lib/server/",
+      "owner": "security",
+      "review": [
+        "platform",
+        "qa"
+      ],
+      "risk": "critical"
+    },
+    {
+      "prefix": "lib/",
+      "owner": "platform",
+      "review": [
+        "security",
+        "qa"
+      ],
+      "risk": "high"
+    },
+    {
+      "prefix": "hooks/",
+      "owner": "platform",
+      "review": [
+        "product-ux",
+        "qa"
+      ],
+      "risk": "standard"
+    },
+    {
+      "prefix": "utils/",
+      "owner": "platform",
+      "review": [
+        "security",
+        "qa"
+      ],
+      "risk": "high"
+    },
+    {
+      "prefix": "config/",
+      "owner": "platform",
+      "review": [
+        "security",
+        "qa"
+      ],
+      "risk": "high"
+    },
+    {
+      "prefix": "public/",
+      "owner": "design",
+      "review": [
+        "product-ux",
+        "qa"
+      ],
+      "risk": "standard"
+    },
+    {
+      "prefix": "templates/",
+      "owner": "product-ux",
+      "review": [
+        "safety-ai",
+        "qa"
+      ],
+      "risk": "standard"
+    },
+    {
+      "prefix": "tests/",
+      "owner": "qa",
+      "review": [
+        "platform",
+        "security"
+      ],
+      "risk": "high"
+    },
+    {
+      "prefix": "scripts/",
+      "owner": "qa",
+      "review": [
+        "platform",
+        "security"
+      ],
+      "risk": "high"
+    },
+    {
+      "prefix": ".github/",
+      "owner": "qa",
+      "review": [
+        "platform",
+        "security"
+      ],
+      "risk": "critical"
+    },
+    {
+      "prefix": "docs/",
+      "owner": "product-ux",
+      "review": [
+        "qa",
+        "safety-ai"
+      ],
+      "risk": "standard"
+    },
+    {
+      "prefix": "styles.css",
+      "owner": "design",
+      "review": [
+        "product-ux",
+        "qa"
+      ],
+      "risk": "standard"
+    },
+    {
+      "prefix": "App.tsx",
+      "owner": "platform",
+      "review": [
+        "product-ux",
+        "qa"
+      ],
+      "risk": "high"
+    },
+    {
+      "prefix": "index.tsx",
+      "owner": "platform",
+      "review": [
+        "security",
+        "qa"
+      ],
+      "risk": "high"
+    },
+    {
+      "prefix": "types",
+      "owner": "platform",
+      "review": [
+        "safety-ai",
+        "qa"
+      ],
+      "risk": "standard"
+    },
+    {
+      "prefix": "vite",
+      "owner": "platform",
+      "review": [
+        "security",
+        "qa"
+      ],
+      "risk": "high"
+    },
+    {
+      "prefix": "vercel.json",
+      "owner": "platform",
+      "review": [
+        "security",
+        "qa"
+      ],
+      "risk": "critical"
+    }
+  ],
+  "fallback": {
+    "owner": "platform",
+    "review": [
+      "security",
+      "qa"
+    ],
+    "risk": "standard"
+  },
+  "criticalPaths": [
+    "App.tsx",
+    "api/",
+    "supabase/",
+    "lib/inspector/",
+    "components/inspector/",
+    "pages/"
+  ],
+  "excludedProducts": [
+    "SMART TBM standalone",
+    "PSI : ZERO DAY games"
+  ]
+}
