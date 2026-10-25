@@ -1,4 +1,5 @@
 import type { Page, WorkerRecord } from '../types';
+import {hasValidSafetyScore} from './coreMetrics';
 
 export type OperationsQueueTone = 'critical' | 'warning' | 'progress' | 'normal';
 
@@ -11,11 +12,6 @@ export type OperationsQueueItem = {
     actionPage: Page;
 };
 
-const hasValidSafetyScore = (record: Partial<WorkerRecord>): boolean => {
-    const score = Number(record.safetyScore);
-    return Number.isFinite(score) && score >= 0 && score <= 100;
-};
-
 export const isProtectionPriorityRecord = (
     record: Partial<WorkerRecord>,
     protectionPriorityThreshold: number,
@@ -23,7 +19,7 @@ export const isProtectionPriorityRecord = (
     record.riskDecision === 'CRITICAL_STOP'
     || record.riskDecision === 'IMMEDIATE_ATTENTION'
     || record.selfAssessedRiskLevel === '상'
-    || (hasValidSafetyScore(record) && Number(record.safetyScore) < protectionPriorityThreshold)
+    || (hasValidSafetyScore(record) && (record.safetyScore as number) < protectionPriorityThreshold)
 );
 
 export const isPendingOperationsReviewRecord = (record: Partial<WorkerRecord>): boolean => (
