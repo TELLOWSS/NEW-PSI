@@ -1,0 +1,84 @@
+name: PSI company-wide cross-department verification
+
+on:
+  pull_request:
+    paths:
+      - 'App.tsx'
+      - 'pages/**'
+      - 'components/**'
+      - 'lib/**'
+      - 'api/**'
+      - 'services/**'
+      - 'utils/**'
+      - 'config/**'
+      - 'supabase/**'
+      - 'supabase_*.sql'
+      - 'scripts/**'
+      - 'tests/**'
+      - '.github/workflows/**'
+      - 'vercel.json'
+      - 'package*.json'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: psi-company-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  organization:
+    name: accountable-department-ownership
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node scripts/check-psi-company-ownership.cjs
+      - name: Upload ownership evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: psi-company-ownership
+          path: artifacts/audit/psi-company/ownership.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  cross-module-browser:
+    name: synthetic-product-journeys
+    needs: organization
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Build production client for full-product browser checks
+        run: npm run build
+      - name: Independently verify six core product journeys
+        run: node scripts/verify-psi-company-browser.mjs
+      - name: Upload synthetic-only cross-department evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: psi-company-product-qa
+          path: |
+            artifacts/audit/psi-company/cross-module-browser.json
+            artifacts/audit/browser/
+          if-no-files-found: ignore
+          retention-days: 7
