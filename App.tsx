@@ -1338,7 +1338,7 @@ const App: React.FC = () => {
                         {currentPage === 'predictive-analysis' && <PredictiveAnalysis workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'performance-analysis' && <PerformanceAnalysis workerRecords={workerRecords} />}
                         {currentPage === 'safety-checks' && <SafetyChecks workerRecords={workerRecords} checkRecords={safetyCheckRecords} onAddCheck={handleAddSafetyCheck} />}
-                        {currentPage === 'site-issue-management' && <SiteIssueManagement workerRecords={workerRecords} />}
+                        {currentPage === 'site-issue-management' && <SiteIssueManagement workerRecords={workerRecords} onOpenInspector={() => navigateToPage('safety-inspector')} />}
                         {currentPage === 'reports' && <Reports workerRecords={workerRecords} briefingData={briefingData} setBriefingData={setBriefingData} forecastData={forecastData} setForecastData={setForecastData} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'admin-training' && <AdminTraining />}
                         {currentPage === 'worker-training' && <WorkerTraining sessionId={trainingSessionId} />}

@@ -1,5 +1,6 @@
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
+import {readSiteIssueList,persistSiteIssueList} from '../utils/siteIssueStorage';
 import { Spinner } from '../components/Spinner';
 import { analyzeExternalIssueDocument } from '../services/geminiService';
 import { compressImage } from '../utils/imageCompression';
@@ -27,6 +28,7 @@ interface Issue {
 
 interface SiteIssueManagementProps {
     workerRecords?: WorkerRecord[];
+    onOpenInspector?: () => void;
 }
 
 const createIssueDraft = (): Partial<Issue> => ({
@@ -156,13 +158,16 @@ const summarizeHarnessRecords = (records: WorkerRecord[]) => {
     });
 };
 
-const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords = [] }) => {
-    const [issues, setIssues] = useState<Issue[]>(() => {
-        try {
-            const saved = localStorage.getItem('psi_site_issues');
-            return saved ? JSON.parse(saved) : [];
-        } catch(e) { return []; }
-    });
+const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords = [], onOpenInspector }) => {
+    const [initialStore] = useState(() => readSiteIssueList<Issue>(() => window.localStorage.getItem('psi_site_issues')));
+    const [issues,setIssues] = useState<Issue[]>(initialStore.items);
+    const [storageWarning,setStorageWarning]=useState(initialStore.warning);
+    const writeIssues=(next:Issue[]):boolean=>{
+        if(!initialStore.safe){setStorageWarning('기존 현장 이슈를 읽지 못해 덮어쓰기를 중단했습니다. 원본 복구가 필요합니다.');return false;}
+        const saved=persistSiteIssueList(next,text=>window.localStorage.setItem('psi_site_issues',text));
+        if(!saved.ok){setStorageWarning(saved.warning);return false;}
+        setIssues(next);setStorageWarning('');return true;
+    };
     const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all');
     const [showAddModal, setShowAddModal] = useState(false);
     const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
@@ -171,10 +176,6 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
 
     // New Issue Form State
     const [newIssue, setNewIssue] = useState<Partial<Issue>>(createIssueDraft());
-
-    useEffect(() => {
-        localStorage.setItem('psi_site_issues', JSON.stringify(issues));
-    }, [issues]);
 
     const getStatusBadge = (status: string) => {
         switch(status) {
@@ -283,7 +284,7 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
             return;
         }
         const issue: Issue = {
-            id: Date.now().toString(),
+            id: crypto.randomUUID(),
             date: newIssue.date || new Date().toISOString().split('T')[0],
             time: new Date().toLocaleTimeString('ko-KR', {hour: '2-digit', minute:'2-digit'}),
             location: newIssue.location || '',
@@ -295,17 +296,16 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
             image: newIssue.image,
             riskLevel: newIssue.riskLevel || 'Medium'
         };
-        setIssues([issue, ...issues]);
-        closeAddModal();
+        if(writeIssues([issue, ...issues]))closeAddModal();
     };
 
     const updateStatus = (id: string, newStatus: Issue['status']) => {
-        setIssues(issues.map(i => i.id === id ? {...i, status: newStatus} : i));
+        writeIssues(issues.map(i => i.id === id ? {...i, status: newStatus} : i));
     };
 
     const deleteIssue = (id: string) => {
         if(window.confirm("삭제하시겠습니까?")) {
-            setIssues(issues.filter(i => i.id !== id));
+            writeIssues(issues.filter(i => i.id !== id));
         }
     };
 
@@ -410,7 +410,7 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                         <div>
                             <p className="text-xs font-black uppercase tracking-[0.18em] text-orange-600 dark:text-orange-300">🔴 즉시 조치 대상</p>
                             <p className="mt-1 text-sm font-black text-orange-800 dark:text-orange-100">
-                                심각도 높음 {issueSummary.pendingCount}건
+                                검토 필요 {issueSummary.pendingCount}건
                             </p>
                             <p className="mt-0.5 text-xs font-medium text-orange-700 dark:text-orange-200">
                                 {issueSummary.inProgressCount}건 처리 중, {issueSummary.completedCount}건 완료
@@ -461,7 +461,7 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                     {/* 상태 정보 */}
                     <div className="flex-1 w-full">
                         <h3 className="text-base sm:text-lg font-black text-amber-900 dark:text-amber-100">2. 경보 알림 진행 현황</h3>
-                        <p className="mt-1 text-[10px] sm:text-[11px] font-semibold text-amber-700 dark:text-amber-300">현장 지적사항 처리 현황을 실시간 추적합니다</p>
+                        <p className="mt-1 text-[10px] sm:text-[11px] font-semibold text-amber-700 dark:text-amber-300">이 브라우저에 저장된 지적사항만 표시합니다 · 인스펙터 서버 조치와 별도</p>
                         <div className="mt-3 sm:mt-4 grid grid-cols-3 gap-2 sm:gap-3">
                             <div className="rounded-xl bg-white/70 dark:bg-slate-900/60 px-3 py-2.5 sm:py-3 text-center border border-orange-100 dark:border-orange-900/30 shadow-sm">
                                 <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.1em] text-orange-700 dark:text-orange-400">미검토</p>
@@ -511,6 +511,11 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                     </div>
                 </div>
                 <p className="text-slate-500 dark:text-slate-400">현장 순회 중 발견된 불안전 요소나 시정 조치가 필요한 사항을 기록하고 추적 관리합니다.</p>
+                <section aria-label="지적사항과 인스펙터 보관 범위" className="mt-3 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm leading-6 text-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
+                  <p>이 목록은 현재 브라우저에만 저장됩니다. 인스펙터는 별도 인증 서버에 사진·조치·재점검을 보관합니다. 두 기록은 자동 동기화되거나 완료 처리되지 않습니다.</p>
+                  {onOpenInspector&&<button type="button" onClick={onOpenInspector} className="mt-2 min-h-11 rounded-lg border border-sky-700 bg-white px-4 py-2 font-bold text-sky-800 dark:bg-slate-800 dark:text-sky-100">인스펙터 사진점검 열기 · 자동 복사 없음</button>}
+                </section>
+                {storageWarning&&<p role="alert" className="mt-3 rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-bold text-red-800 dark:bg-red-950 dark:text-red-100">{storageWarning} 저장 확인 전에는 현재 화면을 닫지 말고 관리자에게 문의하세요.</p>}
 
                 <div className="mt-4 md:hidden sticky top-2 z-20 rounded-2xl border border-amber-200 dark:border-amber-900/30 bg-amber-50/95 dark:bg-amber-950/90 backdrop-blur p-4 shadow-sm">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700 dark:text-amber-400">모바일 핵심 경보</p>
