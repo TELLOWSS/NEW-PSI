@@ -33,7 +33,7 @@ try{
   const result=await run(task);
   results.push(result);
   console.log('[PSI company browser] '+result.name+' '+result.status);
-  if(result.status!=='PASS')break;
+  // Run all synthetic departments, even after a failure, so independent teams see the full defect inventory.
  }
 }finally{
  await new Promise(r=>server.httpServer.close(r));
