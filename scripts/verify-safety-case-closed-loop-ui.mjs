@@ -174,7 +174,9 @@ const openInterventionPage = async () => {
     const expand = page.getByRole('button', {name:/상세 분석 대시보드/});
     if(await expand.isVisible().catch(()=>false))await expand.click();
     await page.addStyleTag({content:'*{animation-duration:0s!important;transition-duration:0s!important}'});
-    await page.getByRole('button',{name:/현장 개입 추천/}).filter({visible:true}).first().click({timeout:15000});
+    const flow=page.locator('details#field-mobile-flow');
+    await flow.locator('summary').click();
+    await flow.getByRole('button',{name:/현장 개입 추천/}).click({timeout:15000});
     await page.getByText(caseId, { exact: true }).waitFor({ state: 'visible' });
 };
 
