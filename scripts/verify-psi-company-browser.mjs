@@ -11,7 +11,8 @@ const scenarios=[
  {owner:'safety-ai',name:'survey-risk-baselines',script:'scripts/verify-survey-baseline-ui.mjs'},
  {owner:'product-ux',name:'plain-language-journeys',script:'scripts/verify-plain-language-ui.mjs'},
  {owner:'product-ux',name:'multilingual-worker-report',script:'scripts/verify-worker-report-ui.mjs'},
- {owner:'safety-ai',name:'safety-case-closed-loop',script:'scripts/verify-safety-case-closed-loop-ui.mjs'}
+ {owner:'safety-ai',name:'safety-case-closed-loop',script:'scripts/verify-safety-case-closed-loop-ui.mjs'},
+ {owner:'qa',name:'department-visibility',script:'scripts/verify-psi-company-visibility-ui.mjs'}
 ];
 const output='artifacts/audit/psi-company';
 await mkdir(output,{recursive:true});
