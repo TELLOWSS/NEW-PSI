@@ -9,7 +9,50 @@ const server=external?null:await preview({build:{outDir:process.env.PSI_SHARE_DI
 let proxy;if(external&&(process.env.HTTPS_PROXY||process.env.HTTP_PROXY)){const u=new URL(process.env.HTTPS_PROXY||process.env.HTTP_PROXY);proxy={server:u.protocol+'//'+u.host,...(u.username?{username:decodeURIComponent(u.username),password:decodeURIComponent(u.password)}:{})};}
 const loadFont=async p=>{if(process.env.PSI_QA_KOREAN_FONT){await p.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await p.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}};
 const browser=await chromium.launch({headless:true,executablePath:process.env.PSI_CHROMIUM_PATH,...(proxy?{proxy}:{})}),results=[];
-try{for(const scenario of ['flow','lost-plan-ack','lost-photo-ack','offline-before-send','reload-lost-plan-ack','reload-lost-photo-ack','reload-offline-before-send','revoked','expired','invalid']){
+async function verifyStandaloneInspectorEntry(){
+ const context=await browser.newContext({viewport:{width:390,height:844},ignoreHTTPSErrors:!!external,reducedMotion:'reduce'});
+ const page=await context.newPage();
+ let loggedIn=false,authAttempts=0,inspectorCalls=0,unexpectedApis=[],pageErrors=[];
+ page.on('pageerror',error=>pageErrors.push(error.message));
+ await page.route('**/api/admin/auth',async route=>{
+    const data=route.request().postDataJSON();
+    if(data.action==='login'){authAttempts++;loggedIn=data.password==='synthetic-inspector-password';}
+    if(data.action==='logout')loggedIn=false;
+    await route.fulfill({json:{ok:true,authenticated:loggedIn,...(!loggedIn?{message:'관리자 인증이 필요합니다.'}:{})}});
+ });
+ await page.route('**/api/admin/inspector',async route=>{
+    inspectorCalls++;
+    const data=route.request().postDataJSON();
+    const result=data.op==='ai-status'
+        ? {ok:true,ready:false,provider:'',model:'',cost:null}
+        : {ok:true,items:[],evidence:[],events:[],reports:[],hasMore:false};
+    await route.fulfill({json:result});
+ });
+ await page.route('**/api/**',async route=>{
+    unexpectedApis.push(new URL(route.request().url()).pathname);
+    await route.fulfill({status:403,json:{ok:false,message:'synthetic QA only'}});
+ });
+ try{
+    await page.goto(base+'/inspector',{waitUntil:'domcontentloaded'});
+    await page.getByRole('button',{name:'관리자 모드 진입'}).waitFor();
+    assert.equal(inspectorCalls,0,'No inspection data before verified admin auth');
+    assert.equal(authAttempts,0,'Standalone must not auto-login');
+    await page.getByRole('textbox',{name:'관리자 비밀번호'}).fill('synthetic-inspector-password');
+    await page.getByRole('button',{name:'관리자 모드 진입'}).click();
+    await page.getByRole('heading',{name:'사진만 찍어도 점검을 시작할 수 있습니다'}).waitFor();
+    await page.getByRole('navigation',{name:'독립 사진점검 탐색'}).waitFor();
+    assert.equal(await page.locator('.psi-sidebar').count(),0,'Standalone must not load PSI global sidebar');
+    assert.equal(await page.locator('.inspector-standalone').count(),1);
+    assert.equal(await page.getByRole('link',{name:'PSI 전체로 이동'}).getAttribute('href'),'/');
+    assert.ok(!unexpectedApis.some(x=>/cost|expense|worker|risk-score/i.test(x)),JSON.stringify(unexpectedApis));
+    await page.getByRole('button',{name:'사진점검에서 로그아웃'}).click();
+    await page.getByRole('button',{name:'관리자 모드 진입'}).waitFor();
+    assert.equal(loggedIn,false);
+    assert.equal(pageErrors.length,0,JSON.stringify(pageErrors));
+    results.push({scenario:'standalone-inspector-auth-and-isolation',status:'PASS',authAttempts,inspectorCalls,unexpectedApis});
+ }finally{await context.close();}
+}
+try{await verifyStandaloneInspectorEntry();for(const scenario of ['flow','lost-plan-ack','lost-photo-ack','offline-before-send','reload-lost-plan-ack','reload-lost-photo-ack','reload-offline-before-send','revoked','expired','invalid']){
  console.log('START '+scenario);const context=await browser.newContext({viewport:{width:390,height:900},permissions:['clipboard-read','clipboard-write'],reducedMotion:'reduce',ignoreHTTPSErrors:!!external}),page=await context.newPage(),id=randomUUID(),pid=randomUUID(),aid=randomUUID(),token='Q'.repeat(43),ops=[],errors=[];let shares=[],publicReplies=0,authCalls=0,closed=false,offlineInjected=false;
  page.on('pageerror',e=>errors.push(e.message));
  const image=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=2000;c.height=1400;const g=c.getContext('2d');g.fillStyle='#184e67';g.fillRect(0,0,2000,1400);g.fillStyle='#f7b14c';g.fillRect(300,300,700,600);return c.toDataURL('image/jpeg').split(',')[1];});const bytes=Buffer.from(image,'base64'),sha=createHash('sha256').update(bytes).digest('hex'),images=new Map([[pid,bytes]]);
