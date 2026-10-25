@@ -21,6 +21,7 @@ export default function InspectorActionRadar({actions,document:doc,disabled=fals
         <dl className="si-action-radar-grid">
             {[
                 {label:'기한 지남',value:summary.overdue,key:'overdue'},
+                {label:'기한 내 진행',value:summary.scheduled,key:'scheduled'},
                 {label:'현장 재점검 대기',value:summary.awaitingReinspection,key:'review'},
                 {label:'미조치',value:summary.open,key:'open'},
                 {label:'재점검 확인',value:summary.verified,key:'verified'},
@@ -46,6 +47,7 @@ export default function InspectorActionRadar({actions,document:doc,disabled=fals
             <button type="button" className="si-btn" disabled={disabled} onClick={()=>void copyInspectorShareText(handoff).then(result=>setCopyFeedback(shareCopyResultMessage[result]))}>검토 초안 복사</button>
             {copyFeedback&&<p className="si-caption" role="status">{copyFeedback}</p>}
         </details>}
+        <p className="si-caption">컨설팅·정기점검의 기한부 조치는 당일·1일·2일·지정일로 약정할 수 있습니다. 단, 급박한 위험은 기한과 별개로 접근통제·작업중지 필요성을 현장 책임자가 먼저 검토해야 합니다. 기한이 남았다고 안전을 확정할 수 없습니다.</p>
         <p className="si-caption">{summary.scope} 저장된 회신이 없어도 요청이 실제로 전달되지 않았다고 단정할 수 없습니다.</p>
     </section>;
 }

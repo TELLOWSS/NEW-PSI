@@ -72,7 +72,7 @@ export function duplicateAction(actions:InspectorAction[],candidate:InspectorAct
 }
 export const actionStatusLabel=(action:InspectorAction)=>action.status==='verified'?'현장 재점검 확인':action.status==='review-requested'?'완료 검토 요청':'미조치';
 export function buildRegisteredActionRequest(actions:InspectorAction[],title:string,photoIds:string[]=[]){
-    return ['[등록한 현장 조치]',`점검명: ${title}`,...actions.flatMap((a,n)=>['',`${n+1}. ${a.title}`,`담당: ${a.owner} / 기한: ${a.dueDate} / 상태: ${actionStatusLabel(a)}`,...actionPhotoSummary(a,photoIds),...(a.note?[a.note]:[])]),'','미조치는 완료 후 개선사진과 현장 재점검 결과를 회신해 주세요.'].join('\n');
+    return ['[등록한 현장 조치]',`점검명: ${title}`,...actions.flatMap((a,n)=>['',`${n+1}. ${a.title}`,`담당: ${a.owner} / 기한: ${a.dueDate} / 상태: ${actionStatusLabel(a)}`,...(a.scheduleContext?.trim()?[`기한 설정 근거·현장 여건: ${a.scheduleContext.trim()}`]:[]),...actionPhotoSummary(a,photoIds),...(a.note?[a.note]:[])]),'','미조치는 완료 후 개선사진과 현장 재점검 결과를 회신해 주세요.'].join('\n');
 }
 
 /** Prefilled source scope is a baseline, not an unsaved user edit. */

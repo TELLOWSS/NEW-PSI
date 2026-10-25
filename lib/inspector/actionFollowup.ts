@@ -9,5 +9,5 @@ export function actionPhotoSummary(action:InspectorAction,photoIds:string[]){
     return [...(action.sourcePhotoIds?.length?[`조치 전: ${action.sourcePhotoIds.map(number).join(', ')}`]:[]),...(action.completionPhotoId?[`개선 후: ${number(action.completionPhotoId)}`]:[])];
 }
 export function sameAction(a:InspectorAction,b:InspectorAction){
-    return (['id','title','owner','dueDate','status','completionPhotoId','note','verifiedAt'] as const).every(key=>a[key]===b[key])&&JSON.stringify(a.sourcePhotoIds||[])===JSON.stringify(b.sourcePhotoIds||[]);
+    return (['id','title','owner','dueDate','status','completionPhotoId','note','verifiedAt'] as const).every(key=>a[key]===b[key])&&JSON.stringify(a.sourcePhotoIds||[])===JSON.stringify(b.sourcePhotoIds||[])&&(a.scheduleContext||'')===(b.scheduleContext||'');
 }
