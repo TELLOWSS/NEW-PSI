@@ -9,6 +9,8 @@ on:
       - 'scripts/verify-inspector-camera.mjs'
       - 'scripts/verify-inspector-action-share.mjs'
       - 'scripts/verify-inspector-result-journey.mjs'
+      - 'scripts/verify-inspector-queue.mjs'
+      - 'scripts/verify-inspector-friendly-recovery.mjs'
       - '.github/workflows/inspector-mobile-browser.yml'
   workflow_dispatch:
 
@@ -45,6 +47,10 @@ jobs:
         run: node scripts/verify-inspector-action-share.mjs
       - name: First-use photo to expert review and printable report
         run: PSI_QA_BUILT=1 node scripts/verify-inspector-result-journey.mjs
+      - name: Sixteen-photo triage, search, export and unsaved drafts
+        run: PSI_QUEUE_DIST=dist node scripts/verify-inspector-queue.mjs
+      - name: Analysis blocked, denied, timed out and manual recovery
+        run: PSI_QA_BUILT=1 node scripts/verify-inspector-friendly-recovery.mjs
       - name: Upload synthetic-only QA evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -54,5 +60,7 @@ jobs:
             artifacts/audit/inspector-camera/
             artifacts/audit/action-share/
             artifacts/audit/inspector-result-journey-built/
+            artifacts/audit/inspector-queue/
+            artifacts/audit/inspector-friendly-recovery-built/
           if-no-files-found: ignore
           retention-days: 7
