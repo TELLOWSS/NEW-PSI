@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "appliesTo": "NEW-PSI platform + PSI Inspector",
+  "rules": {
+    "partner-safety-expense": {
+      "ownership": "cooperating-contractor-independent-product",
+      "status": "existing optimized independent workflow; repository and live implementation not verified here",
+      "includeInPsiDashboard": false,
+      "includeInInspector": false,
+      "autoMergeAllowed": false,
+      "forbidden": "Do not import personnel wage, signal-worker payroll, safety facility expense ledgers, bills, settlements or approvals into Inspector or the PSI six indicators",
+      "externalIntegration": "none without separate owner approval, contract, privacy and authority review"
+    },
+    "psi-core": {
+      "ownership": "NEW-PSI safety intelligence",
+      "embeddedInspector": "/?mode=photo-inspector",
+      "inspectorsOnlyFrom": "explicit workflow actions; not payroll/expense",
+      "safetyCostAutoSync": false
+    },
+    "psi-inspector": {
+      "ownership": "PSI Inspector module",
+      "standaloneEntry": "/inspector",
+      "demoEntry": "/product",
+      "legacyEmbeddedEntry": "/?mode=photo-inspector",
+      "sharedToday": [
+        "existing dedicated admin authentication",
+        "existing Inspector API and storage"
+      ],
+      "independentToday": [
+        "entry URL",
+        "workspace UI",
+        "photo review + followup flows"
+      ],
+      "notYetIndependent": [
+        "dedicated tenant/user provisioning",
+        "separate domain/project/backend",
+        "separate storage and billing"
+      ],
+      "authRequired": true,
+      "safetyExpenseAutoSync": false,
+      "workStopOrResumeApprovalAutomatic": false
+    },
+    "smart-tbm": {
+      "ownership": "independent product",
+      "automaticInspectorSync": false
+    },
+    "psi-zero-day": {
+      "ownership": "independent game",
+      "automaticInspectorSync": false
+    }
+  }
+}
