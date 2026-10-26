@@ -18,6 +18,8 @@ import { ensureHtml2Canvas, ensureJsPdfConstructor } from '../utils/externalScri
 import { buildPsiExportFileName } from '../utils/exportFileNaming';
 import { createEducationSceneManifest, createEducationWorkflowSvg } from '../utils/educationVisualExports';
 import EducationPreview30 from '../components/tbm/EducationPreview30';
+import MultilingualEducationAuditPanel from '../components/tbm/MultilingualEducationAuditPanel';
+import { buildEducationLanguageAudit } from '../utils/multilingualEducationAudit';
 import { captureReportCanvas, saveCanvasAsA4Pdf } from '../utils/pdfCapture';
 import {
     buildMonthlyEducationPackageText,
@@ -1249,6 +1251,13 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const translationNeedsRefresh = translationLanguageCodes.length > 0
         && translationSourceText !== currentTranslationSourceText;
     const currentPreviewIsStaleTranslation = translationNeedsRefresh && previewLanguage !== 'ko-KR';
+    const languageAudit = useMemo(() => buildEducationLanguageAudit({
+        draft,
+        sourceText: currentTranslationSourceText,
+        savedSourceText: translationSourceText,
+        translatedTexts,
+        structuredTranslations,
+    }), [draft, currentTranslationSourceText, translationSourceText, translatedTexts, structuredTranslations]);
 
     const applyStudioState = (nextState: StoredStudioState) => {
         setEducationMonth(nextState.educationMonth);
@@ -2241,6 +2250,21 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                             {isOverflowing ? 'A4 넘침 · 저장 차단' : '출력 1장 확인'}
                         </span>
                     </div>
+
+                    <MultilingualEducationAuditPanel
+                        audit={languageAudit}
+                        onRegenerate={() => setActiveTab('ai')}
+                        onInspect={(item) => {
+                            if (item.status === 'missing') {
+                                setActiveTab('ai');
+                                setNotice(item.label + ' 번역이 없습니다. 한국어 원문으로 번역을 준비해 주세요.');
+                                return;
+                            }
+                            setPreviewLanguage(item.code);
+                            setViewMode(item.code === 'ko-KR' ? 'single' : 'split');
+                            if (item.issues.length > 0) setNotice(item.issues.join(' '));
+                        }}
+                    />
 
                     {/* 언어 선택 탭 */}
                     <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-100 dark:bg-slate-800 p-4 rounded-2xl mb-4 no-print">
