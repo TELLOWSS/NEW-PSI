@@ -2,6 +2,7 @@ import type {Page,WorkerRecord} from '../types';
 import {isOperationalWorkerRecord,selectLatestCoreMetricRecords,calculateCoreMetricSnapshot} from './coreMetrics';
 import {getSafetyLevelThresholds} from './safetyLevelUtils';
 import {isPendingOperationsReviewRecord,isProtectionPriorityRecord} from './operationsBoard';
+import {summarizeOperatorSafetyEvidence} from './operatorSafetyEvidence';
 
 export type OperatorNextTask={title:string;description:string;label:string;page:Page;status:'review'|'start'|'education'};
 /**
@@ -20,6 +21,16 @@ export function selectOperatorNextTask(records:WorkerRecord[]):OperatorNextTask{
     const threshold=getSafetyLevelThresholds().intermediateMin;
     if(latest.some(record=>isProtectionPriorityRecord(record,threshold))){
         return {title:'보호 우선 기록 검토',description:'근로자 위험 신호 또는 유효 점수를 기준으로 선정된 기록입니다. 작업 현장의 사실과 조치 필요성을 확인하세요.',label:'보호 우선 기록 열기',page:'ocr-analysis',status:'review'};
+    }
+    // Prior recorded stop signals are NOT automatically resolved by a newer score.
+    // This is an audit reminder, not a new stop command or an assumption of ongoing danger.
+    const evidence = summarizeOperatorSafetyEvidence(records);
+    if(evidence.olderCriticalStopRecords>0){
+        return {
+            title:'이전 작업중지 신호의 처리 경위 확인',
+            description:'과거 위험성평가 기록에 작업중지 신호가 있습니다. 최신 기록만으로 해제·조치 완료를 증명할 수 없습니다. 현장 확인 기록을 대조하세요.',
+            label:'이전 위험성평가 기록 검토',page:'ocr-analysis',status:'review',
+        };
     }
     if(latest.some(isPendingOperationsReviewRecord)){
         return {title:'관리자 검토 대기',description:'저장된 위험성평가 중 검토 대기 상태가 있습니다. 승인 전 기록을 먼저 확인하세요.',label:'검토 대기 기록 열기',page:'ocr-analysis',status:'review'};

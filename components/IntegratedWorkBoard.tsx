@@ -19,6 +19,7 @@ import {
 } from '../utils/coreMetrics';
 import {getWeakestWorkTrade} from '../utils/workTradeSignals';
 import {selectOperatorNextTask} from '../utils/operatorNextTask';
+import {summarizeOperatorSafetyEvidence} from '../utils/operatorSafetyEvidence';
 import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
 import { groupRecordsByAssessmentPeriod } from '../utils/assessmentCycle';
 
@@ -199,11 +200,14 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
         };
     }, []);
 
+    const operatorEvidence = useMemo(() => summarizeOperatorSafetyEvidence(workerRecords), [workerRecords]);
+
     const summary = useMemo(() => {
         const metrics = calculateCoreMetricSnapshot(workerRecords.filter(isOperationalWorkerRecord));
         return {
             averageScore: metrics.averageScore,
             validScoreRecordCount: metrics.validScoreRecordCount,
+            improvementSampleCount: operatorEvidence.validImprovementResponseRecords,
             highRisk: metrics.protectionPriorityCount,
             analyzed: metrics.analyzedWorkerCount,
             improvement: metrics.improvementExecutionRate,
@@ -211,7 +215,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
             workerCount: metrics.totalWorkers,
             metricRuleVersion: metrics.ruleVersion,
         };
-    }, [workerRecords]);
+    }, [workerRecords, operatorEvidence.validImprovementResponseRecords]);
 
     const cycleTrends = useMemo(() => {
         const operationalRecords = workerRecords.filter(isOperationalWorkerRecord);
@@ -261,13 +265,14 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
         const score = summary.averageScore;
         const imp = summary.improvement;
         if (summary.validScoreRecordCount === 0) return '유효 위험인식 점수 자료가 없어 우선 공종을 판단할 수 없습니다. 먼저 원본·누락 값을 확인하세요.';
+        if (summary.improvementSampleCount === 0) return '위험인식 점수는 있지만 유효한 개선이행 상세 응답이 없어 개선율을 판단할 수 없습니다. 미기재를 0%로 평가하지 마세요.';
         
         if (score < 75 && imp < 60) {
             return `평균 위험인식 신호(${score}점)과 개선율(${imp}%)이 정체 중입니다. ${priorityTrade.name} 공종을 중심으로 밀착 지도가 필요합니다.`;
         } else if (imp < 60) {
             return `근로자 안전 이해도(${score}점)에 비해 응답 기반 개선 신호(${imp}%)이 낮습니다. 원문 응답을 확인하고 필요한 보호조치를 검토하세요.`;
         } else {
-            return `전체 지표가 우수하게 유지 중입니다. 원페이지 교육자료와 ${assessmentCycleCopy.trackingLabel} 흐름을 점검하며 현재의 흐름을 보존하십시오.`;
+            return `이번 기록의 위험인식·개선 응답 신호를 확인했습니다. 원페이지 교육자료와 ${assessmentCycleCopy.trackingLabel} 근거를 대조하고 현장의 실제 조치 상태를 별도로 점검하세요.`;
         }
     }, [assessmentCycleCopy.trackingLabel, priorityTrade, summary]);
 
@@ -355,7 +360,42 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                         <button type="button" onClick={()=>setCurrentPage('safety-inspector')} className="min-h-11 rounded-xl border border-sky-700 bg-white px-4 py-3 text-sm font-bold text-sky-900 hover:bg-sky-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 dark:bg-slate-900 dark:text-sky-200">사진점검·재점검 열기</button>
                     </div>
                 </div>
-                <p className="mt-3 border-t border-sky-200 pt-2 text-[11px] leading-5 text-sky-900 dark:border-sky-800 dark:text-sky-200">이 안내는 현재 위험성평가 기록의 최신 상태만 참고합니다. 인스펙터 서버·브라우저 현장 이슈의 실제 조치 완료·작업재개 승인 여부는 확인하지 않습니다. 프로그램은 안전관리자·운영자용입니다.</p>
+                <div data-psi-risk-evidence className="mt-3 grid grid-cols-2 gap-2 border-t border-sky-200 pt-3 text-xs sm:grid-cols-4 dark:border-sky-800" aria-label="위험성평가 기록의 범위와 확인 필요 항목">
+                    <div className="rounded-lg bg-white/75 p-2 dark:bg-slate-900/60">
+                        <span className="block text-[11px] text-slate-600 dark:text-slate-300">근로자별 최신 평가</span>
+                        <strong className="mt-1 block text-base text-slate-900 dark:text-white">{operatorEvidence.latestAssessmentRecords}건</strong>
+                    </div>
+                    <div className="rounded-lg bg-white/75 p-2 dark:bg-slate-900/60">
+                        <span className="block text-[11px] text-slate-600 dark:text-slate-300">현재 기록의 중지 신호</span>
+                        <strong className="mt-1 block text-base text-rose-800 dark:text-rose-300">{operatorEvidence.latestCriticalStopSignals}건</strong>
+                    </div>
+                    <div className="rounded-lg bg-white/75 p-2 dark:bg-slate-900/60">
+                        <span className="block text-[11px] text-slate-600 dark:text-slate-300">과거 기록의 중지 신호</span>
+                        <strong className="mt-1 block text-base text-amber-800 dark:text-amber-300">{operatorEvidence.olderCriticalStopRecords}건</strong>
+                    </div>
+                    <div className="rounded-lg bg-white/75 p-2 dark:bg-slate-900/60">
+                        <span className="block text-[11px] text-slate-600 dark:text-slate-300">최신 평가 중 점수 미확인</span>
+                        <strong className="mt-1 block text-base text-slate-900 dark:text-white">{operatorEvidence.missingOrInvalidScoreRecords}건</strong>
+                    </div>
+                </div>
+                {(operatorEvidence.latestCriticalStopSignals > 0 || operatorEvidence.olderCriticalStopRecords > 0) && (
+                    <div role="status" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm dark:border-rose-700 dark:bg-rose-950/30">
+                        <p className="font-bold text-rose-950 dark:text-rose-100">
+                            {operatorEvidence.latestCriticalStopSignals > 0
+                                ? '최신 평가에 작업중지 신호가 있습니다. 현장 접근통제·작업중지 필요성을 우선 검토하세요.'
+                                : '과거 평가에 작업중지 신호가 있습니다. 해제·조치 완료 여부는 이 화면에서 확인되지 않습니다.'}
+                        </p>
+                        <button type="button" onClick={()=>setCurrentPage(operatorEvidence.latestCriticalStopSignals > 0 ? nextTask.page : 'ocr-analysis')}
+                            className="min-h-11 rounded-lg border border-rose-600 bg-white px-3 py-2 text-xs font-black text-rose-900 dark:bg-slate-900 dark:text-rose-200">
+                            {operatorEvidence.latestCriticalStopSignals > 0 ? '보호조치 근거 확인' : '과거 기록 확인'}
+                        </button>
+                    </div>
+                )}
+                <p className="mt-3 text-[11px] leading-5 text-sky-900 dark:text-sky-200">
+                    분석 범위: 현재 불러온 위험성평가 {operatorEvidence.loadedSourceRecords}건 중 근로자 작성 {operatorEvidence.operationalSourceRecords}건을 기준으로 최신 기록을 선별합니다.
+                    중지 신호는 기록상 표식으로 실제 통제·작업재개 여부를 인증하지 않습니다.
+                    인스펙터 서버·브라우저 현장 이슈 및 교육의 미결 상태는 이 카드에서 조회하지 않습니다.
+                </p>
             </section>
 
             {/* 화면 구성 설정 아코디언 */}
@@ -392,9 +432,9 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
             <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
                 {[
                     { label: '현장 작성물', value: `${workerRecords.length}건`, helper: '이 브라우저', icon: '📝', color: 'blue' },
-                    { label: 'AI 분석 완료', value: `${summary.analyzed}건`, helper: `위험인식 신호 ${summary.averageScore}점`, icon: '🤖', color: 'indigo' },
-                    { label: '보호 우선 집중', value: `${summary.highRisk}건`, helper: '교육 우선 대상', icon: '🚨', color: 'rose' },
-                    { label: '개선 이행', value: `${summary.improvement}%`, helper: `${summary.workTypes}개 공종`, icon: '✅', color: 'emerald' },
+                    { label: '6대 지표 상세 응답', value: `${summary.analyzed}건`, helper: summary.validScoreRecordCount ? `위험인식 신호 ${summary.averageScore}점` : '유효 점수 자료 없음', icon: '🧭', color: 'indigo' },
+                    { label: '점수상 보호 우선', value: `${summary.highRisk}건`, helper: '최신 유효 점수 기준', icon: '🚨', color: 'rose' },
+                    { label: '개선이행 응답 신호', value: summary.improvementSampleCount ? `${summary.improvement}%` : '자료 없음', helper: `유효 응답 ${summary.improvementSampleCount}건`, icon: '✅', color: 'emerald' },
                     { label: '교육 세션', value: trainingSummary ? `${trainingSummary.trainingSessions}건` : '-', helper: '서버 전체', icon: '🏫', color: 'violet' },
                     { label: '교육 참여', value: trainingSummary?.trainingSubmissions == null ? '-' : `${trainingSummary.trainingSubmissions}건`, helper: '서버 전체', icon: '👥', color: 'sky' },
                 ].map((item) => {
@@ -469,11 +509,11 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                         {/* 메트릭 정보 요약 */}
                         <div className="mt-3.5 grid grid-cols-3 gap-2 text-center">
                             <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
-                                <b className="text-base font-black text-blue-700 dark:text-blue-400">{summary.averageScore}점</b>
+                                <b className="text-base font-black text-blue-700 dark:text-blue-400">{summary.validScoreRecordCount ? `${summary.averageScore}점` : '자료 없음'}</b>
                                 <span className="block text-[9px] font-bold text-slate-400 mt-0.5">평균 위험인식 신호</span>
                             </div>
                             <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
-                                <b className="text-base font-black text-emerald-700 dark:text-emerald-400">{summary.improvement}%</b>
+                                <b className="text-base font-black text-emerald-700 dark:text-emerald-400">{summary.improvementSampleCount ? `${summary.improvement}%` : '자료 없음'}</b>
                                 <span className="block text-[9px] font-bold text-slate-400 mt-0.5">평균 개선 신호</span>
                             </div>
                             <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
