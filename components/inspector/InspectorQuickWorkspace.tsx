@@ -13,7 +13,7 @@ import {assetHash,optimizePhoto,pastedPhotos} from '../../lib/inspector/photoAss
 import {LEGAL_CARDS,legalForText,legalForPhoto,sanctionText,type LegalReference} from '../../lib/inspector/legal';
 import {reviewIsSaved,recoveredReview,photoWorkUnsaved,parseReviewPosition} from '../../lib/inspector/reviewPersistence';
 import {recordResumeStatus,validResumeEntry,type RecordResumeEntry,type RecordResumeIntent} from '../../lib/inspector/recordResume';
-import type {Evidence,Inspection,InspectionReport,InspectorAction,OptimizationReceipt} from '../../lib/inspector/types';
+import {inspectionKindLabel,inspectionKindText,type InspectionKind,type Evidence,type Inspection,type InspectionReport,type InspectorAction,type OptimizationReceipt} from '../../lib/inspector/types';
 import InspectorCameraDialog from './InspectorCameraDialog';
 import InspectorLegalResult from './InspectorLegalResult';
 import InspectorAnswer from './InspectorAnswer';
@@ -71,7 +71,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
     const [storageLocked,setStorageLocked]=useState(false),[storageBusy,setStorageBusy]=useState(false),[deletedResumeId,setDeletedResumeId]=useState('');
     const [local,setLocal]=useState<LocalPhoto|null>(null),[preview,setPreview]=useState(''),[note,setNote]=useState('');
     const [evidence,setEvidence]=useState<Evidence[]>([]),[storedPhoto,setStoredPhoto]=useState<Blob|null>(null),[resumeId,setResumeId]=useState(()=>validResumeEntry(initialEntry)?initialEntry.id:lastInspection());
-    const [review,setReview]=useState<ExpertReview>({decision:'accepted',note:''}),[reportTitle,setReportTitle]=useState('사진 현장점검'),[actionCopied,setActionCopied]=useState(false),[zoom,setZoom]=useState(false);
+    const [review,setReview]=useState<ExpertReview>({decision:'accepted',note:''}),[reportTitle,setReportTitle]=useState('사진 현장점검'),[inspectionKind,setInspectionKind]=useState<InspectionKind|''>(''),[actionCopied,setActionCopied]=useState(false),[zoom,setZoom]=useState(false);
     const [item,setItem]=useState<Inspection|null>(null),[photo,setPhoto]=useState<Evidence|null>(null);
     const [apiEnabled,setApiEnabled]=useState(true),[ready,setReady]=useState<boolean|null>(null),[camera,setCamera]=useState(false);
     const [costStatus,setCost]=useState<InspectorAiCost>(()=>normalizeAiCost(null));
@@ -112,7 +112,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
         const analyses={...old.analyses},reviews={...old.reviews},answers={...old.confirmationAnswers};
         if(changed){delete analyses[registered.id];delete reviews[registered.id];delete answers[registered.id];}
         const contextChanged=old.title!==(reportTitle.trim()||'사진 현장점검')||changed||!old.photoIds.includes(registered.id)||!!old.apiEnabled!==analysisEnabled;
-        const document={...old,title:reportTitle.trim()||'사진 현장점검',photoIds:[...new Set([...old.photoIds,registered.id])],photoNotes:{...old.photoNotes,[registered.id]:note},apiEnabled:analysisEnabled,analyses,reviews,confirmationAnswers:answers,materialCompletion:contextChanged?undefined:old.materialCompletion};
+        const document={...old,...(inspectionKind?{inspectionKind}:{}),title:reportTitle.trim()||'사진 현장점검',photoIds:[...new Set([...old.photoIds,registered.id])],photoNotes:{...old.photoNotes,[registered.id]:note},apiEnabled:analysisEnabled,analyses,reviews,confirmationAnswers:answers,materialCompletion:contextChanged?undefined:old.materialCompletion};
         if(JSON.stringify(document)!==JSON.stringify(old))current=accept((await request({op:'save',id:current.id,expectedRevision:current.revision,document})).item);
         return {current,registered};
     };
@@ -270,7 +270,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
         let r;try{r=await request({op:'detail',id});}catch(cause){const deleted=await request({op:'deletion-status',id});if(deleted.status?.state==='purged'&&deleted.status.verified){if(!alive.current)return;setDeletedResumeId(id);setStorageLocked(true);return;}throw cause;}
         if(!alive.current)return;
         if(latest.current?.id!==id){clearActive();setActionEntry(null);setActionDraftDirty(false);}
-        accept(r.item);setStorageLocked(!!r.control&&r.control.state!=='active');setEvidence(r.evidence);setReportTitle(r.item.document.title==='새 현장점검'?'사진 현장점검':r.item.document.title);setApiEnabled(!!r.item.document.apiEnabled);setConsent(false);setEntryIntent(intent||null);setEntryNotice('');
+        accept(r.item);setStorageLocked(!!r.control&&r.control.state!=='active');setEvidence(r.evidence);setReportTitle(r.item.document.title==='새 현장점검'?'사진 현장점검':r.item.document.title);setInspectionKind(r.item.document.inspectionKind||'');setApiEnabled(!!r.item.document.apiEnabled);setConsent(false);setEntryIntent(intent||null);setEntryNotice('');
         if(r.control&&r.control.state!=='active')return;
         if(focusedActionId){
             if(r.item.document.actions.some((a:InspectorAction)=>a.id===focusedActionId)){
@@ -295,7 +295,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
     const resume=()=>{const intent=validResumeEntry(initialEntry)?initialEntry.intent:undefined,position=reviewPosition();return loadSaved(resumeId,intent,!intent&&position?.inspectionId===resumeId?position.photoId:undefined);};
     // StrictMode's discarded mount must not start a duplicate read or leave the UI busy.
     useEffect(()=>{if(!validResumeEntry(initialEntry))return;const timer=setTimeout(()=>loadSaved(initialEntry.id,initialEntry.intent),0);return()=>clearTimeout(timer);},[]);
-    const startNew=()=>{if(actionDraftDirty&&!storageLocked&&!window.confirm('저장하지 않은 조치 입력이 있습니다. 정리하고 새 점검을 시작할까요?'))return;forgetReviewPosition();setDeletedResumeId('');setEntryIntent(null);setEntryNotice('');setStorageLocked(false);clearActive();setActionEntry(null);latest.current=null;createId.current=crypto.randomUUID();setItem(null);setEvidence([]);setReportTitle('사진 현장점검');setConsent(false);setResumeId('');setError('');try{sessionStorage.removeItem(LAST_INSPECTION);}catch{}window.scrollTo({top:0,behavior:'smooth'});};
+    const startNew=()=>{if(actionDraftDirty&&!storageLocked&&!window.confirm('저장하지 않은 조치 입력이 있습니다. 정리하고 새 점검을 시작할까요?'))return;forgetReviewPosition();setDeletedResumeId('');setEntryIntent(null);setEntryNotice('');setStorageLocked(false);clearActive();setActionEntry(null);latest.current=null;createId.current=crypto.randomUUID();setItem(null);setEvidence([]);setReportTitle('사진 현장점검');setInspectionKind('');setConsent(false);setResumeId('');setError('');try{sessionStorage.removeItem(LAST_INSPECTION);}catch{}window.scrollTo({top:0,behavior:'smooth'});};
     const saveAction=async(action:InspectorAction)=>{
         let saved=false;
         await run(async()=>{
@@ -392,7 +392,31 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry}:{onAdv
         {!item&&!local&&!deletedResumeId&&resumeId&&<section className="si-resume" aria-label="이전 점검 이어하기"><div><b>이 탭에서 저장한 점검이 있습니다</b><p>보관한 사진과 전문가 검토를 불러와 이어서 완성하세요.</p></div><button className="si-btn" disabled={busy} onClick={resume}>이전 점검 이어하기</button></section>}
         {item&&entryIntent&&<section className="si-resumed-context" aria-label="현재 저장 점검"><p className="si-eyebrow">저장한 점검 이어하기</p><h2>{item.document.title}</h2><p>버전 {item.revision} · 사진 {item.document.photoIds.length}장 · 검토 대기 {recordResumeStatus(item.document).pendingPhotos}장 · 미결 조치 {recordResumeStatus(item.document).remainingActions}건</p>{entryNotice&&<p role="status" className="si-notice">{entryNotice}</p>}</section>}
         {item&&!entryIntent&&entryNotice&&<p role="status" className="si-notice">{entryNotice}</p>}
-        {item&&item.document.photoIds.length>0&&<InspectorPhotoCollection item={item} active={!!(local||photo)} busy={busy} title={reportTitle} onTitle={setReportTitle} onOpen={openSavedPhoto} onFinish={finish}/>}
+        <section className="si-notice" aria-label="점검 유형 및 기한부 개선 관리">
+            <label htmlFor="si-quick-inspection-kind"><strong>점검 유형</strong></label>
+            <select id="si-quick-inspection-kind" value={inspectionKind}
+                disabled={busy||storageBusy||storageLocked||actionDraftDirty||!!item&&(unsavedPhoto||!!local||!!photo)}
+                onChange={e=>{
+                    const next=e.target.value as InspectionKind|'';
+                    if(!item){setInspectionKind(next);return;}
+                    void run(async()=>{
+                        const current=latest.current;
+                        if(!current||storageLocked)throw new Error('저장된 점검을 다시 확인해 주세요.');
+                        const {inspectionKind:_oldKind,...base}=current.document;
+                        const document={...base,...(next?{inspectionKind:next}:{})};
+                        if(JSON.stringify(document)===JSON.stringify(current.document)){setInspectionKind(next);return;}
+                        setActivity('점검 유형 저장 중');
+                        const updated=await request({op:'save',id:current.id,expectedRevision:current.revision,document});
+                        accept(updated.item);setInspectionKind(next);setReport(null);
+                    });
+                }}>
+                <option value="">유형 미지정(기존 점검)</option>
+                {(Object.keys(inspectionKindLabel) as InspectionKind[]).map(kind=><option key={kind} value={kind}>{inspectionKindLabel[kind]}</option>)}
+            </select>
+            <p className="si-caption">정기·컨설팅점검은 담당자에게 기한을 지정하여 개선을 요청하고 개선사진 접수 뒤 현장 재점검으로 완료를 확인합니다. 기한이 남아 있어도 급박한 위험의 통제 필요성은 우선 검토합니다. 점검 유형으로 법적 위험 판단을 자동 결정하지 않습니다.</p>
+            {item&&<p className="si-caption">현재 저장 유형: {inspectionKindText(item.document.inspectionKind)} · 선택 변경은 서버에 저장됩니다.</p>}
+         </section>
+         {item&&item.document.photoIds.length>0&&<InspectorPhotoCollection item={item} active={!!(local||photo)} busy={busy} title={reportTitle} onTitle={setReportTitle} onOpen={openSavedPhoto} onFinish={finish}/>}
         {!storageLocked&&actionDraftDirty&&<section className="si-report-draft-choice" aria-label="작성 중인 입력과 보고서" tabIndex={-1}><div><b>{reportBlocked?'작성 중인 조치가 있어 보고서 범위를 골라 주세요':'작성 중인 입력이 있습니다'}</b><p>조치·담당 변경·개선 입력은 아직 저장되지 않았습니다. 입력은 유지하며, 저장본만 보고서에 담을 수도 있습니다.</p>{local&&!photo&&<p>선택한 새 사진을 먼저 저장하거나 사진 선택을 해제한 뒤 작성 중인 입력으로 돌아가세요.</p>}</div><div className="si-draft-choice-actions"><button type="button" className="si-btn si-primary" disabled={busy||storageBusy||!!local&&!photo} onClick={returnToDraft}>{photo?'현재 사진 검토 저장 · 입력으로 돌아가기':'작성 중인 입력으로 이동'}</button><button type="button" className="si-btn" disabled={busy||storageBusy||!item||!!local||!!photo} onClick={finishSavedOnly}>미저장 입력 제외 · 저장본으로 보고서</button></div></section>}
         {item&&!storageLocked&&!local&&!photo&&item.document.actions.length>0&&<InspectorActionRadar actions={item.document.actions} document={item.document} disabled={busy||storageBusy||actionDraftDirty} onOpenActions={()=>setDraftRequest(n=>n+1)} onOpenInbox={()=>setInboxRequest(n=>n+1)} onOpenPriorityAction={actionId=>setPriorityFocus(prev=>({actionId,request:(prev?.request||0)+1}))}/>}
         {item&&!report&&!storageLocked&&!photo&&!local&&item.document.photoIds.length>0&&<section className="si-report-readiness" aria-label="검토용 보고서 준비 상태"><b>모은 사진으로 보고서를 만들 수 있습니다</b><p>사진 {item.document.photoIds.length}장 · 저장된 AI 검토 {item.document.photoIds.filter(id=>!!item.document.analyses[id]&&!!item.document.reviews[id]).length}장 · 아직 검토할 AI 사진 {item.document.photoIds.filter(id=>!!item.document.analyses[id]&&!item.document.reviews[id]).length}장 · 미결 조치 {item.document.actions.filter(action=>action.status!=='verified').length}건 (현장 재점검 대기 {item.document.actions.filter(action=>action.status==='review-requested').length}건)</p><small>미검토 AI 사진은 먼저 열어 확인해 주세요. 개선사진 접수와 완료 검토 요청은 현장 재점검 확정이 아닙니다. 조치 기록을 갱신했다면 최신 저장본으로 새 보고서를 작성하세요. 보고서 작성은 법 위반 확정이나 작업재개 승인이 아닙니다.</small></section>}

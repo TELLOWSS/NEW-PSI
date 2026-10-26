@@ -1,10 +1,10 @@
-import type {Inspection,InspectorAction} from './types.js';
+import {inspectionKindText,type InspectionKind,type Inspection,type InspectorAction} from './types.js';
 import {actionDeadlinePhase,type ActionDeadlinePhase} from './workQueue.js';
 import {actionCsvCell} from './actionRegister.js';
 
 /** Saved actions from explicit requested pages only, never proposed AI controls. */
 export type GlobalActionRow={
- inspectionId:string;inspectionRevision:number;inspectionTitle:string;siteName:string;location:string;workType:string;urgent:boolean;
+ inspectionId:string;inspectionRevision:number;inspectionTitle:string;inspectionKind?:InspectionKind;siteName:string;location:string;workType:string;urgent:boolean;
  inspectionCreatedAt:string;inspectionUpdatedAt:string;actionId:string;title:string;owner:string;dueDate:string;
  status:InspectorAction['status'];scheduleContext:string;verifiedAt:string;
 };
@@ -15,7 +15,7 @@ export const registerFilterLabel:Record<RegisterFilter,string>={
 };
 export function projectGlobalActionRows(items:readonly GlobalActionSource[]):GlobalActionRow[]{
  return items.flatMap(item=>(item.document.actions||[]).filter(a=>['open','review-requested','verified'].includes(a.status)).map(a=>({
-  inspectionId:item.id,inspectionRevision:item.revision,inspectionTitle:item.document.title,
+  inspectionId:item.id,inspectionRevision:item.revision,inspectionTitle:item.document.title,inspectionKind:item.document.inspectionKind,
   siteName:item.document.siteName,location:item.document.location,workType:item.document.workType,
   urgent:item.document.urgent,inspectionCreatedAt:item.created_at,inspectionUpdatedAt:item.updated_at,
   actionId:a.id,title:a.title,owner:a.owner,dueDate:a.dueDate,status:a.status,
@@ -31,7 +31,7 @@ export function filterGlobalActions(rows:readonly GlobalActionRow[],filter:Regis
  return rows.filter(row=>{
   const phase=globalActionPhase(row,today);
   const eligible=filter==='all'||(filter==='unresolved'?phase!=='verified':phase===filter);
-  return eligible&&(!q||[row.inspectionTitle,row.siteName,row.location,row.workType,row.title,row.owner].some(text=>String(text||'').normalize('NFC').toLocaleLowerCase('ko-KR').includes(q)));
+  return eligible&&(!q||[row.inspectionTitle,inspectionKindText(row.inspectionKind),row.siteName,row.location,row.workType,row.title,row.owner].some(text=>String(text||'').normalize('NFC').toLocaleLowerCase('ko-KR').includes(q)));
  }).sort((a,b)=>rank[globalActionPhase(a,today)]-rank[globalActionPhase(b,today)]
   ||a.dueDate.localeCompare(b.dueDate)||a.inspectionId.localeCompare(b.inspectionId)||a.actionId.localeCompare(b.actionId));
 }
@@ -48,9 +48,9 @@ export function globalActionCounts(rows:readonly GlobalActionRow[],today:string)
 }
 /** CSV exports loaded records ONLY. All untrusted text is cell-escaped against Excel formulas. */
 export function buildGlobalActionRegisterCsv(rows:readonly GlobalActionRow[],today:string){
- const cols=['점검번호','점검버전','점검명','현장','위치','공종','조치ID','조치내용','담당자','약정기한','기한 단계','기존 조치 상태','최초 기한 근거','현장 재점검 시각','조회 범위'];
+ const cols=['점검번호','점검버전','점검명','점검 유형','현장','위치','공종','조치ID','조치내용','담당자','약정기한','기한 단계','기존 조치 상태','최초 기한 근거','현장 재점검 시각','조회 범위'];
  const body=rows.map(row=>[
-  row.inspectionId,row.inspectionRevision,row.inspectionTitle,row.siteName,row.location,row.workType,
+  row.inspectionId,row.inspectionRevision,row.inspectionTitle,inspectionKindText(row.inspectionKind),row.siteName,row.location,row.workType,
   row.actionId,row.title,row.owner,row.dueDate,globalActionPhase(row,today),
   row.status==='verified'?'현장 재점검 확인':row.status==='review-requested'?'재점검 대기':'이행 검토 중',
   row.scheduleContext,row.verifiedAt,'사용자가 불러온 점검 범위만 · 현장 승인 아님'

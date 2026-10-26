@@ -28,8 +28,9 @@ export function parseVisionImport(raw: string | unknown, inspectionId: string, p
 }
 export function validateDocument(value: unknown, inspectionId: string, evidence: Evidence[]): InspectionDocument {
     if (new TextEncoder().encode(JSON.stringify(value) || '').length > 480000) fail('점검 내용이 너무 큽니다. 사진별 분석 내용을 줄여 주세요.');
-    exact(value, ['title','siteName','location','workType','eventAt','notes','urgent','ocrResults','photoIds','analyses','reviews','actions','confirmationAnswers','photoNotes','apiEnabled','materialCompletion']);
+    exact(value, ['title','siteName','location','workType','eventAt','notes','urgent','ocrResults','photoIds','analyses','reviews','actions','confirmationAnswers','photoNotes','apiEnabled','materialCompletion','inspectionKind']);
     const doc = value as InspectionDocument;
+    if(doc.inspectionKind!==undefined && !['spot','regular','consulting','other'].includes(doc.inspectionKind))fail('점검 유형을 다시 선택해 주세요.');
     text(doc.title, 200, 1); text(doc.siteName, 200); text(doc.location, 200); text(doc.workType, 100); text(doc.notes, 8000);
     text(doc.eventAt, 32, 1);
     if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(doc.eventAt) || !Number.isFinite(Date.parse(doc.eventAt)) || new Date(doc.eventAt).toISOString() !== doc.eventAt || typeof doc.urgent !== 'boolean') fail();
