@@ -19,6 +19,7 @@ import { buildPsiExportFileName } from '../utils/exportFileNaming';
 import { createEducationSceneManifest, createEducationWorkflowSvg } from '../utils/educationVisualExports';
 import EducationPreview30 from '../components/tbm/EducationPreview30';
 import MultilingualEducationAuditPanel from '../components/tbm/MultilingualEducationAuditPanel';
+import LayaOfflineBenchmarkPanel from '../components/tbm/LayaOfflineBenchmarkPanel';
 import { buildEducationLanguageAudit } from '../utils/multilingualEducationAudit';
 import { captureReportCanvas, saveCanvasAsA4Pdf } from '../utils/pdfCapture';
 import {
@@ -1962,6 +1963,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                     </section>
 
                     <EducationPreview30 draft={draft} />
+                    {isDeveloperExperience && <LayaOfflineBenchmarkPanel />}
 
                     <section className="rounded-2xl border border-indigo-200 bg-indigo-50/80 p-5 dark:border-indigo-500/30 dark:bg-indigo-500/10" aria-label="오프라인 교육 제작 패키지">
                         <div className="flex flex-wrap items-start justify-between gap-3">
