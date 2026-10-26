@@ -206,6 +206,35 @@ export const LayaExtendedReviewPanel: React.FC = () => {
                         위험 오경보 {result.falsePositive}건 ·
                         유형 오류 {result.wrongType}건
                     </p>
+                    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="위험 판정 오류 우선순위">
+                        <div className="rounded-xl bg-red-100 p-3 text-red-950 dark:bg-red-950/50 dark:text-red-100">
+                            <p className="text-[11px] font-bold">1순위 · 위험 미탐지</p>
+                            <p className="mt-1 text-2xl font-black tabular-nums">{result.falseNegative}건</p>
+                            <p className="text-[10px]">실제 위험을 위험 없음으로 분류</p>
+                        </div>
+                        <div className="rounded-xl bg-orange-100 p-3 text-orange-950 dark:bg-orange-950/40 dark:text-orange-100">
+                            <p className="text-[11px] font-bold">2순위 · 위험 유형 오류</p>
+                            <p className="mt-1 text-2xl font-black tabular-nums">{result.wrongType}건</p>
+                            <p className="text-[10px]">위험은 감지했으나 유형 오분류</p>
+                        </div>
+                        <div className="rounded-xl bg-amber-100 p-3 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100">
+                            <p className="text-[11px] font-bold">3순위 · 예측 누락</p>
+                            <p className="mt-1 text-2xl font-black tabular-nums">{result.noPrediction}건</p>
+                            <p className="text-[10px]">검수됐으나 결과 없는 문장</p>
+                        </div>
+                        <div className="rounded-xl bg-slate-100 p-3 text-slate-950 dark:bg-slate-800 dark:text-slate-100">
+                            <p className="text-[11px] font-bold">4순위 · 위험 오경보</p>
+                            <p className="mt-1 text-2xl font-black tabular-nums">{result.falsePositive}건</p>
+                            <p className="text-[10px]">위험 미기재 문장을 위험으로 분류</p>
+                        </div>
+                    </div>
+                    <p className="mt-3 rounded-xl border border-red-300 bg-white/80 p-3 text-xs font-bold leading-5 text-red-950 dark:border-red-700 dark:bg-red-950/30 dark:text-red-100">
+                        {result.falseNegative > 0
+                            ? '위험 미탐지가 확인됐습니다. 오분류 원문을 사람이 재검토하기 전까지 모델을 현장 안전판정에 사용하지 마세요.'
+                            : result.predicted < result.casesTotal
+                                ? '위험 미탐지 0건이라도 미검수·미예측 문장이 남아 있습니다. 전체 언어 안전성 검증을 의미하지 않습니다.'
+                                : '가상 시험에서 위험 미탐지가 관찰되지 않았습니다. 실제 현장 안전성·모델 출처 검증은 여전히 필요합니다.'}
+                    </p>
                     <p className="mt-1 text-xs font-semibold text-amber-950 dark:text-amber-100">
                         이 수치는 가져온 JSON 기반입니다. 모델 실행 및 검수자 인증을 별도로 증명하지 못하며 PSI 운영 자동판정은 금지됩니다.
                     </p>
