@@ -94,7 +94,8 @@ export const findNextPendingLayaLanguage = (
     pack: LayaV2Pack,
     current: TrainingLanguageCode,
 ): TrainingLanguageCode | null => {
-    const languages = CURRENT_SITE_TRAINING_LANGUAGE_CODES.filter(
+    // Widen this filtered list deliberately: "current" can be ko-KR.
+    const languages: readonly TrainingLanguageCode[] = CURRENT_SITE_TRAINING_LANGUAGE_CODES.filter(
         code => code !== 'ko-KR',
     );
     const start = languages.indexOf(current);
