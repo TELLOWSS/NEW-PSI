@@ -142,7 +142,7 @@ describe('ATLAS P0 first implementation: safety evidence and missing-score integ
         expect(ui).toContain('data-psi-risk-evidence');
         expect(ui).toContain('과거 기록의 중지 신호');
         expect(ui).toContain('중지 신호는 기록상 표식');
-        expect(ui).toContain('인스펙터 서버·현장 이슈·교육의 미결 상태는 이 카드에서 조회하지 않습니다.');
+        expect(ui).toContain('인스펙터 서버·브라우저 현장 이슈 및 교육의 미결 상태는 이 카드에서 조회하지 않습니다.');
         expect(ui).toContain("'자료 없음'");
         expect(ui).toContain("'safety-inspector'");
         expect(ui).not.toContain('전체 지표가 우수하게 유지 중입니다');

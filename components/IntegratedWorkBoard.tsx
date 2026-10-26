@@ -394,7 +394,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                 <p className="mt-3 text-[11px] leading-5 text-sky-900 dark:text-sky-200">
                     분석 범위: 현재 불러온 위험성평가 {operatorEvidence.loadedSourceRecords}건 중 근로자 작성 {operatorEvidence.operationalSourceRecords}건을 기준으로 최신 기록을 선별합니다.
                     중지 신호는 기록상 표식으로 실제 통제·작업재개 여부를 인증하지 않습니다.
-                    인스펙터 서버·현장 이슈·교육의 미결 상태는 이 카드에서 조회하지 않습니다.
+                    인스펙터 서버·브라우저 현장 이슈 및 교육의 미결 상태는 이 카드에서 조회하지 않습니다.
                 </p>
             </section>
 
