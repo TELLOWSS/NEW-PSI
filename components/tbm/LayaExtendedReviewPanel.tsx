@@ -9,6 +9,7 @@ import {
     type LayaV2Report,
 } from '../../utils/layaExtendedSafetyBenchmark';
 import { CURRENT_SITE_TRAINING_LANGUAGE_CODES, TRAINING_LANGUAGE_LABELS, type TrainingLanguageCode } from '../../utils/constructionTrainingTranslation';
+import { inspectLayaReviewReadiness, verifyLayaRunMatchesCurrentPack } from '../../utils/layaReviewReadiness';
 
 const exportJson = (name: string, value: unknown) => {
     const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -41,11 +42,9 @@ export const LayaExtendedReviewPanel: React.FC = () => {
     const filePicker = useRef<HTMLInputElement>(null);
     const resultPicker = useRef<HTMLInputElement>(null);
     const languageCases = useMemo(()=>pack.cases.filter(c=>c.language===selected),[pack,selected]);
-    const totals = useMemo(()=>{
-        const completed = pack.cases.filter(c=>c.translationReview==='reviewed').length;
-        const completedForeign = pack.cases.filter(c=>c.language!=='ko-KR'&&c.translationReview==='reviewed').length;
-        return {completed,completedForeign};
-    },[pack]);
+    const readiness = useMemo(() => inspectLayaReviewReadiness(pack), [pack]);
+    const foreignReviewed = readiness.reviewed - LAYA_V2_CASES_PER_LANGUAGE;
+    const currentLanguage = readiness.rows.find(row => row.language === selected);
     const updateSentence = (id:string,text:string) => {
         setPack(current=>({...current,cases:current.cases.map(c=>c.id===id?{
             ...c,text,translationReview:'pending',reviewerCode:'',reviewedAt:null,
@@ -76,6 +75,7 @@ export const LayaExtendedReviewPanel: React.FC = () => {
                 setResult(null);
                 setFeedback('확장 검수표 132건을 이 브라우저에 불러왔습니다. 로컬에 저장한 원본 파일은 별도로 보관하세요.');
             } else {
+                verifyLayaRunMatchesCurrentPack(data, pack);
                 const report = evaluateLayaExtendedRun(data);
                 setResult(report);
                 setFeedback('오프라인 분류 결과의 숫자만 집계했습니다. 실제 모델 실행·검수자 신원은 독립 인증하지 않습니다.');
@@ -97,20 +97,29 @@ export const LayaExtendedReviewPanel: React.FC = () => {
                 </div>
                 <span className="rounded-full bg-sky-100 px-3 py-1.5 text-[11px] font-black text-sky-800 dark:bg-sky-900 dark:text-sky-100">개발자 전용 · 무료 함수 추가 없음</span>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <div className="rounded-xl bg-slate-100 p-3 dark:bg-slate-800">
                     <p className="text-[11px] font-bold text-slate-600 dark:text-slate-200">외국어 검수 기록</p>
-                    <p className="mt-1 text-xl font-black tabular-nums">{totals.completedForeign} / 120</p>
+                    <p className="mt-1 text-xl font-black tabular-nums">{foreignReviewed} / 120</p>
                 </div>
                 <div className="rounded-xl bg-slate-100 p-3 dark:bg-slate-800">
                     <p className="text-[11px] font-bold text-slate-600 dark:text-slate-200">검수 대상 언어</p>
-                    <p className="mt-1 text-xl font-black tabular-nums">10개 외국어</p>
+                    <p className="mt-1 text-xl font-black tabular-nums">{Math.max(0, readiness.languagesComplete - 1)} / 10</p>
                 </div>
-                <div className="col-span-2 rounded-xl bg-slate-100 p-3 dark:bg-slate-800 sm:col-span-1">
-                    <p className="text-[11px] font-bold text-slate-600 dark:text-slate-200">현재 확장 검수표</p>
-                    <p className="mt-1 text-xl font-black tabular-nums">v2 · 132건</p>
+                <div className="rounded-xl bg-slate-100 p-3 dark:bg-slate-800">
+                    <p className="text-[11px] font-bold text-slate-600 dark:text-slate-200">미검수 문장</p>
+                    <p className="mt-1 text-xl font-black tabular-nums">{readiness.awaiting}</p>
+                </div>
+                <div className="rounded-xl bg-slate-100 p-3 dark:bg-slate-800">
+                    <p className="text-[11px] font-bold text-slate-600 dark:text-slate-200">동일 문구 반복 경고</p>
+                    <p className="mt-1 text-xl font-black tabular-nums">{readiness.possibleCopyPasteCases}</p>
                 </div>
             </div>
+            <p className="mt-3 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs font-semibold leading-5 text-sky-950 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200">
+                {readiness.awaiting > 0 ? '미검수 문장이 남아 있어 전체 11개 언어 평가 준비가 완료되지 않았습니다. ' : '132건 검수 기록이 존재합니다. '}
+                {readiness.possibleCopyPasteCases > 0 ? '같은 언어의 서로 다른 상황에 동일한 번역문이 사용됐습니다. 작업 지시 의미를 다시 대조하세요. ' : ''}
+                검수 기록은 신원 인증이나 의미 검증 증명서가 아닙니다. 실제 모델 평가 및 현장 도입은 별도입니다.
+            </p>
             <div className="mt-4 flex flex-wrap gap-2">
                 <button type="button" className="min-h-11 rounded-xl bg-sky-700 px-4 py-2 text-xs font-black text-white"
                     onClick={()=>{try {exportJson('PSI_Laya_V2_11lang_132cases.json',validateLayaExtendedPack(pack));setFeedback('현 기기의 시험 검수표를 JSON으로 저장했습니다.');}catch(e){setFeedback(e instanceof Error?e.message:'검수표 저장 오류');}}}>
@@ -146,6 +155,10 @@ export const LayaExtendedReviewPanel: React.FC = () => {
                         placeholder="예: VI-REVIEWER-A" autoComplete="off"/>
                 </label>
             </div>
+            <p className="mt-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+                현재 언어: 검수 {currentLanguage?.reviewed ?? 0} / 12건 · 미검수 {currentLanguage?.missing ?? 0}건
+                {(currentLanguage?.suspiciousDuplicates ?? 0) > 0 ? ' · 동일 번역문 반복: 수동 확인 필요' : ''}
+            </p>
             <div className="mt-3 grid gap-3">
                 {languageCases.map(item=>
                     <article key={item.id} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
