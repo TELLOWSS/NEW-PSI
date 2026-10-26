@@ -73,12 +73,14 @@ export const LayaOfflineBenchmarkPanel: React.FC = () => {
             {error && <p role="alert" className="mt-3 rounded-xl border border-rose-300 bg-rose-50 p-3 text-xs font-bold text-rose-900 dark:bg-rose-950/30 dark:text-rose-200">{error}</p>}
             {report && (
                 <div className="mt-4" role="status">
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                         {[
                             ['평가된 예측', String(report.predicted)],
                             ['위험 누락', String(report.missedHazard)],
+                            ['위험 오경보', String(report.falsePositive)],
                             ['예측 누락', String(report.unmatched)],
                             ['일치율', report.accuracy === null ? '측정 불가' : (report.accuracy * 100).toFixed(1) + '%'],
+                            ['전 언어 예측 완료', report.fullyPredictedLanguages + ' / 11'],
                         ].map(([label, value]) => (
                             <div key={label} className="rounded-xl bg-slate-100 p-3 dark:bg-slate-800">
                                 <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{label}</p>
@@ -86,10 +88,15 @@ export const LayaOfflineBenchmarkPanel: React.FC = () => {
                             </div>
                         ))}
                     </div>
+                    <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-950 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
+                        검토 완료 언어 {report.fullyReviewedLanguages}/11개 · 고정 시험문장 검토율 {(report.fixtureReviewCoverage * 100).toFixed(1)}% · 전체 33건 기준 예측률 {(report.fixturePredictionCoverage * 100).toFixed(1)}%.
+                        {report.fullyPredictedLanguages !== 11 && ' 11개 언어 전체 검증이 완료되지 않았습니다.'}
+                        이 결과는 JSON 내용의 통계일 뿐 실제 Laya 실행 또는 통역자의 검증 사실을 인증하지 않습니다.
+                    </p>
                     <div className="mt-4 max-h-72 overflow-auto rounded-xl border border-slate-200 dark:border-slate-700">
-                        <table className="w-full text-left text-xs">
+                        <table className="min-w-[650px] w-full text-left text-xs">
                             <thead className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                                <tr><th className="p-2">언어</th><th className="p-2">검토 문장</th><th className="p-2">예측</th><th className="p-2">위험 누락</th></tr>
+                                <tr><th className="p-2">언어</th><th className="p-2">검토 문장</th><th className="p-2">예측</th><th className="p-2">정답</th><th className="p-2">위험 누락</th><th className="p-2">위험 오경보</th><th className="p-2">예측 누락</th></tr>
                             </thead>
                             <tbody>
                                 {report.languageMetrics.map(row => (
@@ -97,7 +104,10 @@ export const LayaOfflineBenchmarkPanel: React.FC = () => {
                                         <td className="p-2 font-bold">{row.name}</td>
                                         <td className="p-2">{row.eligible}</td>
                                         <td className="p-2">{row.predicted}</td>
+                                        <td className="p-2">{row.correct}</td>
                                         <td className="p-2 font-bold text-rose-700 dark:text-rose-300">{row.missedHazard}</td>
+                                        <td className="p-2 font-bold text-orange-700 dark:text-orange-300">{row.falsePositive}</td>
+                                        <td className="p-2">{row.unmatched}</td>
                                     </tr>
                                 ))}
                             </tbody>
