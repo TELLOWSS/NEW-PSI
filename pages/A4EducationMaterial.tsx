@@ -16,6 +16,7 @@ import {
 import type { WorkerRecord } from '../types';
 import { ensureHtml2Canvas, ensureJsPdfConstructor } from '../utils/externalScripts';
 import { buildPsiExportFileName } from '../utils/exportFileNaming';
+import { createEducationSceneManifest, createEducationWorkflowSvg } from '../utils/educationVisualExports';
 import { captureReportCanvas, saveCanvasAsA4Pdf } from '../utils/pdfCapture';
 import {
     buildMonthlyEducationPackageText,
@@ -1628,6 +1629,34 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         }
     };
 
+    const exportLocalEducationArtifact = (format: 'json' | 'svg') => {
+        try {
+            const isSceneManifest = format === 'json';
+            const content = isSceneManifest
+                ? JSON.stringify(createEducationSceneManifest(draft), null, 2)
+                : createEducationWorkflowSvg(draft);
+            const blob = new Blob([content], {
+                type: isSceneManifest ? 'application/json;charset=utf-8' : 'image/svg+xml;charset=utf-8',
+            });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = buildPsiExportFileName({
+                tokens: [isSceneManifest ? 'PSI_5분영상_제작장면표' : 'PSI_5단계교육_흐름도', educationMonth, workType],
+                extension: format,
+            });
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+            setNotice(isSceneManifest
+                ? '영상 제작용 장면표를 이 기기에 저장했습니다. 렌더링은 실행하지 않았습니다. 외부 제작에 사용하기 전 개인정보와 저작권을 확인하세요.'
+                : '5단계 교육 흐름도 SVG를 이 기기에 저장했습니다. 교육 적용 전 관리자가 내용을 검토하세요.');
+        } catch (error) {
+            setNotice(error instanceof Error ? error.message : '교육 제작 파일을 저장하지 못했습니다.');
+        }
+    };
+
     const exportAllImages = async () => {
         if (translationNeedsRefresh) {
             setNotice('수정된 한국어 원문 기준으로 다국어를 먼저 갱신해야 일괄 저장할 수 있습니다.');
@@ -1920,6 +1949,32 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                 </div>
                             )}
                         </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-indigo-200 bg-indigo-50/80 p-5 dark:border-indigo-500/30 dark:bg-indigo-500/10" aria-label="오프라인 교육 제작 패키지">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <h3 className="text-lg font-black text-indigo-950 dark:text-indigo-100">오프라인 교육 제작 패키지</h3>
+                                <p className="mt-1 max-w-3xl text-xs font-semibold leading-5 text-indigo-800 dark:text-indigo-200">
+                                    현재 검수한 내용을 5분 영상 장면표(JSON) 또는 독립형 5단계 흐름도(SVG)로 저장합니다. 서버 전송·유료 API·자동 영상 렌더링 없이 기기에서만 파일을 만듭니다.
+                                </p>
+                            </div>
+                            <span className="rounded-full bg-indigo-100 px-3 py-1.5 text-[11px] font-black text-indigo-900 dark:bg-indigo-900 dark:text-indigo-100">개발단계 · 로컬 내보내기</span>
+                        </div>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                            <button type="button" onClick={() => exportLocalEducationArtifact('json')}
+                                disabled={videoDuration !== 300}
+                                className="min-h-11 rounded-xl bg-indigo-700 px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">
+                                5분 영상 장면표 저장 (JSON)
+                            </button>
+                            <button type="button" onClick={() => exportLocalEducationArtifact('svg')}
+                                className="min-h-11 rounded-xl border border-indigo-300 bg-white px-4 py-2 text-sm font-black text-indigo-800 hover:bg-indigo-100 dark:bg-slate-900 dark:text-indigo-200">
+                                5단계 교육 흐름도 저장 (SVG)
+                            </button>
+                        </div>
+                        <p className="mt-3 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">
+                            장면표는 총 300초이며 각 장면의 시간·내레이션·화면 지시를 입력해야 합니다. 다운로드 자료를 외부 제작 도구에 업로드하기 전 이름·사진·사고사례 등 개인정보, 음원·영상 저작권 및 안전조치 정확성을 담당자가 확인하세요.
+                        </p>
                     </section>
 
                     <section className="grid gap-4 lg:grid-cols-2">
