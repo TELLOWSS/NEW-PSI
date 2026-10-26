@@ -101,5 +101,6 @@
     "api/gateway.ts": {
       "maxDuration": 240
     }
-  }
+  },
+  "fluid": true
 }
