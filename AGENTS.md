@@ -28,3 +28,6 @@ NEW-PSI는 위험성평가·사진점검·6대 지표 등 현장 안전 지능 �
 
 ## 새 채팅 재개
 사용자에게 `docs/psi-ai-company/NEW_CHAT_HANDOFF.md`에 있는 복사 가능한 한 문장을 제시한다. 일반 ChatGPT 새 채팅에 GitHub 파일이 자동 주입될 것으로 가정하지 않는다. 최초 작업 때 실제 저장소를 읽어야 한다.
+
+## 외부 오픈소스 상업화 검토 (필수)
+새로운 외부 소스·모델·음성·그래픽·도구를 PSI에 들이기 전 `docs/psi-ai-company/OSS_SOURCE_REVIEW_20261026.md` 및 `config/psi-oss-candidate-manifest.json`의 검토 상태를 읽는다. 허가받은 runtime 의존성으로 오인해서는 안 된다. MIT 개발용 `.agents/skills/domain-modeling/SKILL.md`는 용어 정합성 작업에만 선택적으로 사용하며, 우선순위는 이 `AGENTS.md`의 보안·안전·사용자 지시에 따른다. 상업 운영 전 Vercel Hobby 이용 조건도 별도 확인한다.
