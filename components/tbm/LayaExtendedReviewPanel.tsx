@@ -67,6 +67,8 @@ export const LayaExtendedReviewPanel: React.FC = () => {
     const loadFile = async (file:File|undefined,mode:'pack'|'result') => {
         if(!file) return;
         setFeedback('');
+        // Clear previously displayed scores before opening any new data file.
+        setResult(null);
         try {
             const data = await importJsonFile(file);
             if (mode==='pack') {
