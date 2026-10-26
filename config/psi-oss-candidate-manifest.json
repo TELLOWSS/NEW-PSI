@@ -1,0 +1,79 @@
+{
+  "schema": "psi-open-source-candidate-review-v1",
+  "auditedAt": "2026-10-26",
+  "notice": "Review gate, NOT blanket commercial/legal approval. See docs/psi-ai-company/OSS_SOURCE_REVIEW_20261026.md.",
+  "reviewedSources": [
+    {
+      "repository": "debpalash/VoiceStudio",
+      "upstream": "https://github.com/debpalash/VoiceStudio",
+      "license": "AGPL-3.0-only",
+      "stage": "HOLD",
+      "reason": "Closed-source PSI embedding disallowed before independent commercial license/legal review; default OmniVoice pretrained weights CC-BY-NC, voice consent required.",
+      "productionDependency": false
+    },
+    {
+      "repository": "heygen-com/hyperframes",
+      "upstream": "https://github.com/heygen-com/hyperframes",
+      "license": "Apache-2.0",
+      "stage": "EVALUATE_OFFLINE",
+      "reason": "Batch educational videos only; Node 22+, Chrome/FFmpeg outside Vercel Hobby runtime; audit codecs, audio, fonts, video.",
+      "productionDependency": false
+    },
+    {
+      "repository": "mattpocock/skills",
+      "upstream": "https://github.com/mattpocock/skills",
+      "license": "MIT",
+      "stage": "ADOPT_DEV_ONLY",
+      "reason": "Pinned domain-modeling engineering skill only; no runtime package, network, models or user-facing changes.",
+      "productionDependency": false
+    },
+    {
+      "repository": "NandhaKishorM/laya",
+      "upstream": "https://github.com/NandhaKishorM/laya",
+      "license": "Apache-2.0",
+      "stage": "BENCHMARK_ONLY",
+      "reason": "Model checkpoint Apache-2.0 separately verified; multilingual false-negative safety and resource impact must be tested; no automated site-stop decision.",
+      "productionDependency": false
+    },
+    {
+      "repository": "shader-effects-inc/shaders",
+      "upstream": "https://github.com/shader-effects-inc/shaders",
+      "license": "MIT",
+      "stage": "EVALUATE_OFFLINE",
+      "reason": "GitHub/npm MIT engine only; website presets/sections governed by different content license. WebGPU fallback, telemetry review.",
+      "productionDependency": false
+    },
+    {
+      "repository": "morluto/rea",
+      "upstream": "https://github.com/morluto/rea",
+      "license": "MIT",
+      "stage": "MANUAL_QA_ONLY",
+      "reason": "Inspect PSI-owned artifacts only; do not reverse-engineer third-party apps or record secrets/user data without rights.",
+      "productionDependency": false
+    },
+    {
+      "repository": "cathrynlavery/diagram-design",
+      "upstream": "https://github.com/cathrynlavery/diagram-design",
+      "license": "MIT",
+      "stage": "DESIGN_REVIEW_ONLY",
+      "reason": "Internal diagrams only pending offline font loading/privacy, asset/license inventory, brand-appropriate templates.",
+      "productionDependency": false
+    }
+  ],
+  "permittedVendoredSource": {
+    "repository": "mattpocock/skills",
+    "upstreamCommit": "5beb35b040e3de97e54fa9e386d7e42d15c295c2",
+    "package": "engineering/domain-modeling",
+    "license": "MIT",
+    "scope": "development-only",
+    "directory": ".agents/skills/domain-modeling",
+    "preservation": "Files copied verbatim with upstream MIT LICENSE and provenance. No production imports."
+  },
+  "blockers": [
+    "No AGPL application embedding without legal review/commercial grant.",
+    "No CC-BY-NC or unresolved model-weight commercial use.",
+    "No paid/site preset asset copied under GitHub repository license alone.",
+    "No commercial Vercel Hobby deployment.",
+    "No remote transfer of inspection photos, worker personal data or credentials to unreviewed services."
+  ]
+}
