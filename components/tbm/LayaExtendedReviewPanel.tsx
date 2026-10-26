@@ -11,7 +11,8 @@ import {
 import { CURRENT_SITE_TRAINING_LANGUAGE_CODES, TRAINING_LANGUAGE_LABELS, type TrainingLanguageCode } from '../../utils/constructionTrainingTranslation';
 import { inspectLayaReviewReadiness, verifyLayaRunMatchesCurrentPack } from '../../utils/layaReviewReadiness';
 import { advanceLayaReviewCursor, findNextUnreviewedLayaCase, getLayaReviewQueue, resolveLayaReviewCursor } from '../../utils/layaReviewWorkflow';
-import { buildLayaReviewHandoff, findNextPendingLayaLanguage, restoreLayaReviewHandoff } from '../../utils/layaReviewHandoff';
+import { buildLayaReviewHandoff, findNextPendingLayaLanguage } from '../../utils/layaReviewHandoff';
+import { compareLayaReviewImport, stageLayaReviewImport, type StagedLayaReviewImport } from '../../utils/layaReviewImportSafety';
 
 const exportJson = (name: string, value: unknown) => {
     const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -46,6 +47,8 @@ export const LayaExtendedReviewPanel: React.FC = () => {
     const [requestedCaseId,setRequestedCaseId] = useState('');
     const [needsSave,setNeedsSave] = useState(false);
     const [saveRequested,setSaveRequested] = useState(false);
+    const [stagedImport,setStagedImport] = useState<StagedLayaReviewImport|null>(null);
+    const [reviewLossAcknowledged,setReviewLossAcknowledged] = useState(false);
     const filePicker = useRef<HTMLInputElement>(null);
     const resultPicker = useRef<HTMLInputElement>(null);
     const languageCases = useMemo(()=>pack.cases.filter(c=>c.language===selected),[pack,selected]);
@@ -53,6 +56,8 @@ export const LayaExtendedReviewPanel: React.FC = () => {
     const foreignReviewed = readiness.reviewed - LAYA_V2_CASES_PER_LANGUAGE;
     const currentLanguage = readiness.rows.find(row => row.language === selected);
     const nextPendingLanguage = useMemo(()=>findNextPendingLayaLanguage(pack,selected),[pack,selected]);
+    const stagedDifference = useMemo(()=>stagedImport ? compareLayaReviewImport(pack,stagedImport.restored.pack) : null,[pack,stagedImport]);
+    const importHasOverwriteRisk = Boolean(stagedDifference && (stagedDifference.reviewsLostOnReplace>0 || stagedDifference.conflictingReviewedCases>0));
     const queue = useMemo(()=>getLayaReviewQueue(pack,selected,pendingOnly),[pack,selected,pendingOnly]);
     const cursor = useMemo(()=>resolveLayaReviewCursor(queue,requestedCaseId),[queue,requestedCaseId]);
     const visibleCases = useMemo(()=>focusedMode ? queue.filter(row=>row.id===cursor.id) : queue,[focusedMode,queue,cursor.id]);
@@ -90,28 +95,41 @@ export const LayaExtendedReviewPanel: React.FC = () => {
         if (focusedMode && nextUnreviewed) setRequestedCaseId(nextUnreviewed);
         setFeedback('검수 기록을 이 기기에 반영했습니다. JSON 파일 저장 전에는 작업이 보존되지 않습니다.');
     };
+    const applyStagedImport = () => {
+        if(!stagedImport || needsSave || (importHasOverwriteRisk && !reviewLossAcknowledged)) return;
+        const {restored}=stagedImport;
+        setPack(restored.pack);
+        setResult(null);
+        setNeedsSave(false);
+        setSaveRequested(false);
+        setStagedImport(null);
+        setReviewLossAcknowledged(false);
+        setSelected(restored.session?.selectedLanguage ?? 'vi-VN');
+        setRequestedCaseId(restored.session?.selectedCaseId ?? '');
+        setFocusedMode(restored.session?.focusedMode ?? true);
+        setPendingOnly(restored.session?.pendingOnly ?? false);
+        setFeedback(restored.ignoredSession
+            ? '검수표 교체 완료. 이전 화면 위치 정보가 유효하지 않아 첫 화면으로 열었습니다.'
+            : restored.session
+            ? '검수표 교체 완료. 마지막 언어·문장 위치를 복원했습니다.'
+            : '검수표 교체 완료. 마지막 위치 정보가 없어 첫 문장부터 표시합니다.');
+    };
     const loadFile = async (file:File|undefined,mode:'pack'|'result') => {
         if(!file) return;
         setFeedback('');
-        // Clear previously displayed scores before opening any new data file.
-        setResult(null);
+        if(mode==='pack'){
+            // File selection only stages an import. It NEVER replaces current edits.
+            setStagedImport(null);
+            setReviewLossAcknowledged(false);
+        }else{
+            setResult(null);
+        }
         try {
             const data = await importJsonFile(file);
             if (mode==='pack') {
-                const restored = restoreLayaReviewHandoff(data);
-                setPack(restored.pack);
-                setResult(null);
-                setNeedsSave(false);
-                setSaveRequested(false);
-                setSelected(restored.session?.selectedLanguage ?? 'vi-VN');
-                setRequestedCaseId(restored.session?.selectedCaseId ?? '');
-                setFocusedMode(restored.session?.focusedMode ?? true);
-                setPendingOnly(restored.session?.pendingOnly ?? false);
-                setFeedback(restored.ignoredSession
-                    ? '132건 검수표는 복원했지만 이전 화면 위치 정보가 유효하지 않아 초기 화면으로 열었습니다.'
-                    : restored.session
-                    ? '132건 검수표와 마지막 검수 위치를 복원했습니다. 실제 현지어 의미 검증은 별도입니다.'
-                    : '기존 132건 검수표를 불러왔습니다. 마지막 위치 정보가 없어 첫 문장부터 표시합니다.');
+                const staged=stageLayaReviewImport(pack,data);
+                setStagedImport(staged);
+                setFeedback('검수표 132건을 검증했습니다. 현재 작업은 그대로 유지됩니다. 차이를 확인하고 교체 여부를 선택하세요.');
             } else {
                 verifyLayaRunMatchesCurrentPack(data, pack);
                 const report = evaluateLayaExtendedRun(data);
@@ -188,6 +206,47 @@ export const LayaExtendedReviewPanel: React.FC = () => {
                 <input ref={resultPicker} type="file" className="hidden" accept=".json,application/json" aria-label="Laya v2 예측 결과 가져오기"
                     onChange={e=>{void loadFile(e.target.files?.[0],'result');e.target.value='';}}/>
             </div>
+            {stagedImport && stagedDifference && <section role="region" aria-label="검수표 불러오기 비교 확인"
+                className="mt-4 rounded-xl border-2 border-amber-400 bg-amber-50 p-4 dark:border-amber-500 dark:bg-amber-500/10">
+                <h4 className="text-sm font-black text-amber-950 dark:text-amber-100">검수표를 바꾸기 전에 확인하세요</h4>
+                <p className="mt-2 text-xs font-semibold leading-5 text-amber-950 dark:text-amber-100">
+                    파일은 검사만 했으며 현재 검수표는 아직 교체하지 않았습니다. 가져올 파일의 검수 기록
+                    {stagedDifference.incomingReviewed}/132건, 현재 검수 기록 {stagedDifference.existingReviewed}/132건,
+                    다른 문장·검수기록 {stagedDifference.changedCases}건입니다.
+                </p>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-bold text-amber-950 dark:text-amber-100">
+                    <span>교체 시 검수→미검수 {stagedDifference.reviewsLostOnReplace}건</span>
+                    <span>교체 시 미검수→검수 {stagedDifference.reviewsAddedOnReplace}건</span>
+                    <span>검수 기록 내용 변경 {stagedDifference.conflictingReviewedCases}건</span>
+                    <span>새 파일의 미검수 외국어 {stagedDifference.pendingLanguagesAfter}개</span>
+                </div>
+                {stagedDifference.changedLanguages.length>0 && <p className="mt-2 text-xs text-amber-950 dark:text-amber-100">
+                    차이가 있는 언어: {stagedDifference.changedLanguages.map(item=>item.label+' '+item.changed+'건').join(' · ')}
+                </p>}
+                {needsSave && <p role="alert" className="mt-3 rounded-lg bg-white p-3 text-xs font-black text-rose-800 dark:bg-slate-900 dark:text-rose-200">
+                    현재 수정 중인 자료가 저장되지 않았습니다. 위의 「검수표·이어하기 저장」으로 백업을 요청하고,
+                    실제 다운로드 파일을 확인한 후에만 교체할 수 있습니다.
+                </p>}
+                {importHasOverwriteRisk && <label className="mt-3 flex items-start gap-2 text-xs font-black text-amber-950 dark:text-amber-100">
+                    <input type="checkbox" className="mt-1 size-4" checked={reviewLossAcknowledged}
+                        onChange={e=>setReviewLossAcknowledged(e.target.checked)}/>
+                    교체 시 기존의 일부 검수 완료 기록이 없어지거나 다른 내용으로 바뀌는 것을 확인했습니다.
+                </label>}
+                <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" onClick={applyStagedImport}
+                        disabled={needsSave || (importHasOverwriteRisk && !reviewLossAcknowledged)}
+                        className="min-h-11 rounded-xl bg-amber-800 px-4 py-2 text-xs font-black text-white disabled:opacity-40">
+                        확인 후 이 파일로 교체
+                    </button>
+                    <button type="button" onClick={()=>{setStagedImport(null);setReviewLossAcknowledged(false);setFeedback('불러오기를 취소했습니다. 기존 검수자료를 유지했습니다.');}}
+                        className="min-h-11 rounded-xl border border-amber-500 px-4 py-2 text-xs font-black text-amber-950 dark:text-amber-100">
+                        취소 · 기존 자료 유지
+                    </button>
+                </div>
+                <p className="mt-2 text-[11px] font-semibold text-amber-900 dark:text-amber-200">
+                    이 비교는 문장·검수자 코드·시각의 차이이며, 실제 번역 의미나 검수자 신원을 인증하지 않습니다.
+                </p>
+            </section>}
             <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                 <label className="text-xs font-black text-slate-700 dark:text-slate-200">
                     검수할 언어
