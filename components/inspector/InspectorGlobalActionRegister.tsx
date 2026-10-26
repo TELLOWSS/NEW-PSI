@@ -1,9 +1,8 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {inspectionKindText} from '../../lib/inspector/types';
 import {postAdminJson} from '../../utils/adminApiClient';
-import {actionDeadlineText} from '../../lib/inspector/workQueue';
 import {koreanDay} from '../../lib/inspector/workQueue';
-import {buildGlobalActionRegisterCsv,filterGlobalActions,globalActionCounts,globalActionPhase,registerFilterLabel,type RegisterFilter,type GlobalActionRow} from '../../lib/inspector/globalActionRegister';
+import {buildGlobalActionRegisterCsv,filterGlobalActions,globalActionCounts,globalActionDimensions,globalActionStatusText,globalActionNextStep,registerFilterLabel,type RegisterFilter,type GlobalActionRow} from '../../lib/inspector/globalActionRegister';
 import './inspector-global-register.css';
 type Cursor={before:string;beforeId:string};
 type Response={ok:boolean;rows:GlobalActionRow[];inspectionCount:number;hasMore:boolean;nextCursor:Cursor|null};
@@ -48,16 +47,18 @@ export default function InspectorGlobalActionRegister({onOpenAction,blocked=fals
     <div className="si-global-register-stats" aria-label="불러온 점검의 조치현황">
      {([['unresolved',counts.unresolved],['scheduled',counts.scheduled],['today',counts.today],['overdue',counts.overdue],['reinspection',counts.reinspection],['verified',counts.verified]] as const).map(([kind,n])=><button type="button" key={kind} aria-pressed={filter===kind} className={filter===kind?'is-active':''} onClick={()=>setFilter(kind)}><b>{n}</b><span>{registerFilterLabel[kind]}</span></button>)}
     </div>
+    {counts.overlappingOverdueReinspection>0&&<p className="si-global-register-overlap" role="status">기한 초과이면서 재점검 대기인 조치 {counts.overlappingOverdueReinspection}건이 양쪽에 포함됩니다. 초과 건수와 재점검 대기 건수를 더해 미결 건수로 계산하지 마세요.</p>}
     <div className="si-global-register-controls">
      <label>대상 검색<input type="search" aria-label="통합 조치 검색" maxLength={100} placeholder="점검명·현장·공종·담당·조치" value={search} onChange={e=>setSearch(e.target.value)}/></label>
      <label>목록 보기<select aria-label="통합 조치 필터" value={filter} onChange={e=>setFilter(e.target.value as RegisterFilter)}>{Object.entries(registerFilterLabel).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
     </div>
     <div className="si-global-register-list" aria-live="polite">
      {!filtered.length?<p className="si-caption">현재 불러온 범위에 일치하는 조치가 없습니다. 이전 점검은 ‘더 보기’로 추가 조회할 수 있습니다.</p>:filtered.map(row=>{
-      const phase=globalActionPhase(row,today);
-      return <article key={row.inspectionId+':'+row.actionId} className="si-global-register-entry" data-global-action-id={row.actionId}>
+      const dimension=globalActionDimensions(row,today);
+      return <article key={row.inspectionId+':'+row.actionId} className="si-global-register-entry" data-global-action-id={row.actionId} data-deadline-passed={dimension.overdue?'yes':'no'} data-reinspection-pending={dimension.reinspection?'yes':'no'}>
        <div><b>{row.title}</b><p>{inspectionKindText(row.inspectionKind)} · {row.inspectionTitle} · {row.siteName||'현장 미입력'} · {row.location||'위치 미입력'} · {row.workType||'공종 미입력'}</p>
-        <p>담당 {row.owner} · 약정기한 {row.dueDate} · <strong>{actionDeadlineText({status:row.status,dueDate:row.dueDate} as import('../../lib/inspector/types').InspectorAction,today)}</strong></p>
+        <p>담당 {row.owner?.trim()||'미지정'} · 약정기한 {row.dueDate||'미지정'} · <strong>{globalActionStatusText(row,today)}</strong></p>
+        <p className="si-global-register-next"><b>다음 확인:</b> {globalActionNextStep(row,today)}</p>
         {row.scheduleContext&&<p>기한 설정 근거: {row.scheduleContext}</p>}
         {row.urgent&&<p className="si-global-register-urgent">원점검에 긴급 검토 표시 · 기한과 별개로 현장 통제 필요성 확인</p>}
        </div>
@@ -66,7 +67,7 @@ export default function InspectorGlobalActionRegister({onOpenAction,blocked=fals
      })}
     </div>
     {more&&cursor&&<button type="button" className="si-btn" disabled={loading} onClick={()=>void fetchPage(cursor,false)}>이전 점검 20건 더 보기</button>}
-    <p className="si-caption">사진·회신의 실제 이행, 삭제 중 자료, 작업재개·법 위반 여부를 이 목록만으로 확정하지 않습니다. 기한 전이라도 필요한 임시 보호조치를 현장 관리자가 확인하세요. CSV는 조회한 조치만 포함합니다.</p>
+    <p className="si-caption">사진·회신의 실제 이행, 삭제 중 자료, 작업재개·법 위반 여부를 이 목록만으로 확정하지 않습니다. 완료 검토 요청은 현장 재점검 확인이 아니며, 약정기한이 경과했다는 사실만으로 기한 내 조치 여부를 확정할 수 없습니다. 기한 전이라도 필요한 임시 보호조치를 현장 관리자가 확인하세요. CSV는 조회한 조치만 포함합니다.</p>
    </>}
   </div>
  </details>;

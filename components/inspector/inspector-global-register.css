@@ -17,3 +17,11 @@
 @media(max-width:560px){.si-global-register>summary{display:block}.si-global-register>summary span{display:block;margin-top:4px}.si-global-register-controls{grid-template-columns:1fr}.si-global-register-entry{flex-direction:column;align-items:stretch}.si-global-register-entry button{width:100%}.si-global-register-stats span{font-size:10px}}
 @media(prefers-color-scheme:dark){.si-global-register{background:#0f172a;color:#e2e8f0}.si-global-register>summary span{color:#cbd5e1}.si-global-register-entry,.si-global-register-stats button{background:#1e293b;color:#f1f5f9;border-color:#334155}.si-global-register-entry p{color:#cbd5e1}.si-global-register-controls input,.si-global-register-controls select{background:#1e293b;color:#f1f5f9;border-color:#475569}}
 @media print{.si-global-register{display:none!important}}
+
+/* Two independent axes: date deadline and human verification. */
+.si-global-register-overlap{margin:0;padding:12px 14px;border:1px solid #f59e0b;border-radius:12px;background:#fffbeb;color:#78350f;font-size:12px;line-height:1.6}
+.si-global-register-entry[data-deadline-passed="yes"]{border-inline-start:4px solid #dc6a44}
+.si-global-register-entry[data-reinspection-pending="yes"] .si-global-register-next{border-inline-start:3px solid #3b82f6;padding-inline-start:10px}
+.si-global-register-entry p.si-global-register-next{font-size:12px;line-height:1.6;color:#1d4ed8}
+.si-global-register-entry .si-global-register-next b{font-size:12px}
+@media(prefers-color-scheme:dark){.si-global-register-overlap{background:#451a03;color:#fde68a;border-color:#92400e}.si-global-register-entry p.si-global-register-next{color:#bfdbfe}}
