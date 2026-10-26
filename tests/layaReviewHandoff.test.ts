@@ -108,7 +108,9 @@ describe('ATLAS 9th iteration portable 132-case review and handoff QA', () => {
         const panel=readFileSync('components/tbm/LayaExtendedReviewPanel.tsx','utf8');
         expect(panel).toContain('setSaveRequested(needsSave)');
         expect(panel).toContain('다운로드 파일 확인 완료');
-        expect(panel).toContain('restoreLayaReviewHandoff(data)');
+        expect(panel).toContain('stageLayaReviewImport(pack,data)');
+        const importer=readFileSync('utils/layaReviewImportSafety.ts','utf8');
+        expect(importer).toContain('restoreLayaReviewHandoff(rawFile)');
         expect(panel).toContain('findNextPendingLayaLanguage');
         expect(panel).toContain('beforeunload');
         expect(panel).not.toMatch(/localStorage|sessionStorage|indexedDB|fetch\s*\(|XMLHttpRequest|sendBeacon|WebSocket|\/api\//i);
