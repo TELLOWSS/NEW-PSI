@@ -1,3 +1,4 @@
+import {inspectionKindText} from './types.js';
 import type {InspectionReport,VisionImport} from './types.js';
 import {actionPhotoSummary} from './actionFollowup.js';
 export const DEFAULT_REVIEW_NOTE='점검자가 사진·설명과 분석을 대조하여 확인함';
@@ -21,5 +22,5 @@ export function buildActionRequest(description:string,analysis:VisionImport|null
 
 export function buildReportActionRequests(report:InspectionReport){
     const doc=report.snapshot.inspection.document;
-    return ['[현장점검 전달 요약]',`점검명: ${doc.title}`,...(doc.actions.length?['','[보고서 작성 당시 등록 조치]',...doc.actions.flatMap((a,n)=>[`${n+1}. ${a.title}`,`담당: ${a.owner} / 기한: ${a.dueDate} / 상태: ${a.status==='verified'?'현장 재점검 확인':a.status==='review-requested'?'완료 검토 요청':'미조치'}`,...actionPhotoSummary(a,report.snapshot.evidence.map(p=>p.id)),a.note]),'','[사진별 검토 참고 · 등록 조치와 구분]']:[]),...report.snapshot.evidence.flatMap((photo,n)=>['',`사진 ${n+1}`,buildActionRequest(doc.photoNotes?.[photo.id]||'',doc.analyses[photo.id],doc.reviews[photo.id]).split('\n').slice(1).join('\n')])].join('\n');
+    return ['[현장점검 전달 요약]',`점검명: ${doc.title}`,`점검 유형: ${inspectionKindText(doc.inspectionKind)}`,...(doc.actions.length?['','[보고서 작성 당시 등록 조치]',...doc.actions.flatMap((a,n)=>[`${n+1}. ${a.title}`,`담당: ${a.owner} / 기한: ${a.dueDate} / 상태: ${a.status==='verified'?'현장 재점검 확인':a.status==='review-requested'?'완료 검토 요청':'미조치'}`,...actionPhotoSummary(a,report.snapshot.evidence.map(p=>p.id)),a.note]),'','[사진별 검토 참고 · 등록 조치와 구분]']:[]),...report.snapshot.evidence.flatMap((photo,n)=>['',`사진 ${n+1}`,buildActionRequest(doc.photoNotes?.[photo.id]||'',doc.analyses[photo.id],doc.reviews[photo.id]).split('\n').slice(1).join('\n')])].join('\n');
 }

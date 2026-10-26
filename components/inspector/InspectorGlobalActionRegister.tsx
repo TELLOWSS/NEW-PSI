@@ -1,4 +1,5 @@
 import React,{useEffect,useRef,useState} from 'react';
+import {inspectionKindText} from '../../lib/inspector/types';
 import {postAdminJson} from '../../utils/adminApiClient';
 import {actionDeadlineText} from '../../lib/inspector/workQueue';
 import {koreanDay} from '../../lib/inspector/workQueue';
@@ -36,6 +37,7 @@ export default function InspectorGlobalActionRegister({onOpenAction,blocked=fals
  return <details className="si-global-register" data-global-register="loaded-pages-only" onToggle={e=>{if(e.currentTarget.open&&!loaded&&!inflight.current)void fetchPage(null,true);}}>
   <summary>전체 점검 통합 조치대장 <span>정기·컨설팅 점검의 약정기한 모아보기</span></summary>
   <div className="si-global-register-body">
+   <p className="si-caption">정기·컨설팅점검은 합의된 개선기한을 추적하고 현장 재점검으로 완료를 확인합니다. 급박한 위험의 접근통제·작업중지 필요성은 기한과 별개로 판단합니다.</p>
    <p className="si-caption">관리자가 직접 열었을 때만 서버의 최근 점검을 20건씩 조회합니다. 사진 파일은 내려받지 않습니다. 집계는 불러온 점검 범위만이며, 실제 현장 전체의 미결·무위험을 확정하지 않습니다.</p>
    <div className="si-global-register-toolbar">
     <button type="button" className="si-btn" disabled={loading} onClick={()=>void fetchPage(null,true)}>{loading?'조회 중…':loaded?'최신 저장 조치 새로고침':'조치대장 불러오기'}</button>
@@ -54,7 +56,7 @@ export default function InspectorGlobalActionRegister({onOpenAction,blocked=fals
      {!filtered.length?<p className="si-caption">현재 불러온 범위에 일치하는 조치가 없습니다. 이전 점검은 ‘더 보기’로 추가 조회할 수 있습니다.</p>:filtered.map(row=>{
       const phase=globalActionPhase(row,today);
       return <article key={row.inspectionId+':'+row.actionId} className="si-global-register-entry" data-global-action-id={row.actionId}>
-       <div><b>{row.title}</b><p>{row.inspectionTitle} · {row.siteName||'현장 미입력'} · {row.location||'위치 미입력'} · {row.workType||'공종 미입력'}</p>
+       <div><b>{row.title}</b><p>{inspectionKindText(row.inspectionKind)} · {row.inspectionTitle} · {row.siteName||'현장 미입력'} · {row.location||'위치 미입력'} · {row.workType||'공종 미입력'}</p>
         <p>담당 {row.owner} · 약정기한 {row.dueDate} · <strong>{actionDeadlineText({status:row.status,dueDate:row.dueDate} as import('../../lib/inspector/types').InspectorAction,today)}</strong></p>
         {row.scheduleContext&&<p>기한 설정 근거: {row.scheduleContext}</p>}
         {row.urgent&&<p className="si-global-register-urgent">원점검에 긴급 검토 표시 · 기한과 별개로 현장 통제 필요성 확인</p>}

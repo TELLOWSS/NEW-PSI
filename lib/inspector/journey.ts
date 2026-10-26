@@ -1,3 +1,4 @@
+import {inspectionKindText} from './types.js';
 import type {InspectionDocument, InspectionReport} from './types.js';
 import {DEFAULT_REVIEW_NOTE} from './expertReview.js';
 import {actionPhotoSummary} from './actionFollowup.js';
@@ -20,7 +21,7 @@ export function inspectionProgress(doc:InspectionDocument) {
 }
 export function buildInspectionBrief(report:InspectionReport) {
     const {inspection,evidence}=report.snapshot,doc=inspection.document;
-    const lines=['현장점검 검토 요약',`점검명: ${doc.title}`,`현장·위치: ${[doc.siteName,doc.location].filter(Boolean).join(' / ')||'미입력'}`,`공종: ${doc.workType||'미입력'}`,`점검시점: ${formatInspectionTimestamp(doc.eventAt)}`,`보고서 사진: ${evidence.length}장`];
+    const lines=['현장점검 검토 요약',`점검명: ${doc.title}`,`점검 유형: ${inspectionKindText(doc.inspectionKind)}`,`현장·위치: ${[doc.siteName,doc.location].filter(Boolean).join(' / ')||'미입력'}`,`공종: ${doc.workType||'미입력'}`,`점검시점: ${formatInspectionTimestamp(doc.eventAt)}`,`보고서 사진: ${evidence.length}장`];
     if(doc.urgent)lines.push('긴급 검토 요청: 접근통제·작업중지 필요성을 현장 책임자가 우선 검토하세요.');
     if(doc.notes)lines.push(`점검자 진술: ${doc.notes}`);
     evidence.forEach((photo,n)=>{

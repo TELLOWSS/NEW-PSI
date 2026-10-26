@@ -9,6 +9,9 @@ export type VisionImport = {
     risk_findings?: {observation_index:'0'|'1'|'2'|'3'|'4'|'5';problem:string;risk:string;action:string;priority:'immediate'|'soon'|'routine'}[];
     law_candidate_keywords: string[]; limitations: string[];
 };
+export type InspectionKind='spot'|'regular'|'consulting'|'other';
+export const inspectionKindLabel:Record<InspectionKind,string>={spot:'수시점검',regular:'정기점검',consulting:'컨설팅점검',other:'기타 점검'};
+export const inspectionKindText=(kind?:InspectionKind):string=>kind?inspectionKindLabel[kind]:'유형 미지정(기존 기록)';
 export type InspectorAction = { id: string; title: string; owner: string; dueDate: string;
     status: 'open' | 'review-requested' | 'verified'; completionPhotoId: string; note: string; verifiedAt?: string;
     /** Optional for legacy records; new actions explicitly link the original scope. */
@@ -22,6 +25,7 @@ export type OptimizationReceipt = { version: 'browser-jpeg-v2'; source_kind: 'op
 export type MaterialCompletion = { revision: number; completedAt: string; photoIds: string[] };
 export type InspectionDocument = {
     photoNotes?: Record<string,string>; apiEnabled?: boolean; materialCompletion?: MaterialCompletion;
+    inspectionKind?: InspectionKind; // Optional; legacy records remain valid and are never auto-classified.
     title: string; siteName: string; location: string; workType: string; eventAt: string;
     notes: string; urgent: boolean; ocrResults: Record<string, OcrResult>; photoIds: string[]; analyses: Record<string, VisionImport>;
     reviews: Record<string, { decision: 'accepted' | 'rejected'; note: string; confirmedAt?: string; actor?: 'dedicated-admin' }>;
