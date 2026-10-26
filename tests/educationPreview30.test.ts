@@ -50,7 +50,7 @@ describe('local 30-second education preview', () => {
         const component=readFileSync('components/tbm/EducationPreview30.tsx','utf8');
         const helper=readFileSync('utils/educationPreview30.ts','utf8');
         for (const source of [component,helper]) {
-            expect(source).not.toMatch(/\\bfetch\\s*\\(|XMLHttpRequest|WebSocket|sendBeacon|\/api\//);
+            expect(source).not.toMatch(/fetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon|\/api\//);
         }
     });
 });
