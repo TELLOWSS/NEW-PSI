@@ -11,6 +11,7 @@ import {
 import { CURRENT_SITE_TRAINING_LANGUAGE_CODES, TRAINING_LANGUAGE_LABELS, type TrainingLanguageCode } from '../../utils/constructionTrainingTranslation';
 import { inspectLayaReviewReadiness, verifyLayaRunMatchesCurrentPack } from '../../utils/layaReviewReadiness';
 import { advanceLayaReviewCursor, findNextUnreviewedLayaCase, getLayaReviewQueue, resolveLayaReviewCursor } from '../../utils/layaReviewWorkflow';
+import { buildLayaReviewHandoff, findNextPendingLayaLanguage, restoreLayaReviewHandoff } from '../../utils/layaReviewHandoff';
 
 const exportJson = (name: string, value: unknown) => {
     const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -44,12 +45,14 @@ export const LayaExtendedReviewPanel: React.FC = () => {
     const [pendingOnly,setPendingOnly] = useState(false);
     const [requestedCaseId,setRequestedCaseId] = useState('');
     const [needsSave,setNeedsSave] = useState(false);
+    const [saveRequested,setSaveRequested] = useState(false);
     const filePicker = useRef<HTMLInputElement>(null);
     const resultPicker = useRef<HTMLInputElement>(null);
     const languageCases = useMemo(()=>pack.cases.filter(c=>c.language===selected),[pack,selected]);
     const readiness = useMemo(() => inspectLayaReviewReadiness(pack), [pack]);
     const foreignReviewed = readiness.reviewed - LAYA_V2_CASES_PER_LANGUAGE;
     const currentLanguage = readiness.rows.find(row => row.language === selected);
+    const nextPendingLanguage = useMemo(()=>findNextPendingLayaLanguage(pack,selected),[pack,selected]);
     const queue = useMemo(()=>getLayaReviewQueue(pack,selected,pendingOnly),[pack,selected,pendingOnly]);
     const cursor = useMemo(()=>resolveLayaReviewCursor(queue,requestedCaseId),[queue,requestedCaseId]);
     const visibleCases = useMemo(()=>focusedMode ? queue.filter(row=>row.id===cursor.id) : queue,[focusedMode,queue,cursor.id]);
@@ -68,6 +71,7 @@ export const LayaExtendedReviewPanel: React.FC = () => {
         }:c)}));
         setResult(null);
         setNeedsSave(true);
+        setSaveRequested(false);
     };
     const markReviewed = (id:string) => {
         const item = pack.cases.find(c=>c.id===id);
@@ -81,6 +85,7 @@ export const LayaExtendedReviewPanel: React.FC = () => {
         }:c)}));
         setResult(null);
         setNeedsSave(true);
+        setSaveRequested(false);
         const nextUnreviewed = findNextUnreviewedLayaCase(pack,selected,id);
         if (focusedMode && nextUnreviewed) setRequestedCaseId(nextUnreviewed);
         setFeedback('검수 기록을 이 기기에 반영했습니다. JSON 파일 저장 전에는 작업이 보존되지 않습니다.');
@@ -93,12 +98,20 @@ export const LayaExtendedReviewPanel: React.FC = () => {
         try {
             const data = await importJsonFile(file);
             if (mode==='pack') {
-                const valid = validateLayaExtendedPack(data);
-                setPack(valid);
+                const restored = restoreLayaReviewHandoff(data);
+                setPack(restored.pack);
                 setResult(null);
                 setNeedsSave(false);
-                setRequestedCaseId('');
-                setFeedback('확장 검수표 132건을 이 브라우저에 불러왔습니다. 로컬에 저장한 원본 파일은 별도로 보관하세요.');
+                setSaveRequested(false);
+                setSelected(restored.session?.selectedLanguage ?? 'vi-VN');
+                setRequestedCaseId(restored.session?.selectedCaseId ?? '');
+                setFocusedMode(restored.session?.focusedMode ?? true);
+                setPendingOnly(restored.session?.pendingOnly ?? false);
+                setFeedback(restored.ignoredSession
+                    ? '132건 검수표는 복원했지만 이전 화면 위치 정보가 유효하지 않아 초기 화면으로 열었습니다.'
+                    : restored.session
+                    ? '132건 검수표와 마지막 검수 위치를 복원했습니다. 실제 현지어 의미 검증은 별도입니다.'
+                    : '기존 132건 검수표를 불러왔습니다. 마지막 위치 정보가 없어 첫 문장부터 표시합니다.');
             } else {
                 verifyLayaRunMatchesCurrentPack(data, pack);
                 const report = evaluateLayaExtendedRun(data);
@@ -147,8 +160,15 @@ export const LayaExtendedReviewPanel: React.FC = () => {
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
                 <button type="button" className="min-h-11 rounded-xl bg-sky-700 px-4 py-2 text-xs font-black text-white"
-                    onClick={()=>{try {exportJson('PSI_Laya_V2_11lang_132cases.json',validateLayaExtendedPack(pack));setNeedsSave(false);setFeedback('JSON 저장을 요청했습니다. 다운로드 폴더에 파일이 생성됐는지 확인해 주세요.');}catch(e){setFeedback(e instanceof Error?e.message:'검수표 저장 오류');}}}>
-                    검수표 저장 (132건 JSON)
+                    onClick={()=>{try {
+                        const handoff = buildLayaReviewHandoff(pack,{
+                            selectedLanguage:selected,selectedCaseId:cursor.id||'',focusedMode,pendingOnly,
+                        });
+                        exportJson('PSI_Laya_V2_132cases_Resume.json',handoff);
+                        setSaveRequested(needsSave);
+                        setFeedback('JSON 다운로드를 요청했습니다. 다운로드 폴더에 파일이 있는지 확인해 주세요. 저장 완료를 자동으로 확정하지 않습니다.');
+                    }catch(e){setFeedback(e instanceof Error?e.message:'검수표 저장 오류');}}}>
+                    검수표·이어하기 저장
                 </button>
                 <button type="button" onClick={()=>filePicker.current?.click()}
                     className="min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-xs font-black dark:border-slate-600">
@@ -158,6 +178,11 @@ export const LayaExtendedReviewPanel: React.FC = () => {
                     className="min-h-11 rounded-xl border border-sky-300 px-4 py-2 text-xs font-black text-sky-800 dark:border-sky-600 dark:text-sky-200">
                     오프라인 실험 결과 평가
                 </button>
+                {needsSave && saveRequested && <button type="button"
+                    onClick={()=>{setNeedsSave(false);setSaveRequested(false);setFeedback('사용자가 다운로드된 JSON 파일을 확인한 것으로 기록했습니다. 별도 서버 저장은 하지 않습니다.');}}
+                    className="min-h-11 rounded-xl border border-emerald-500 px-4 py-2 text-xs font-black text-emerald-800 dark:text-emerald-200">
+                    다운로드 파일 확인 완료
+                </button>}
                 <input ref={filePicker} type="file" className="hidden" accept=".json,application/json" aria-label="132건 검수표 가져오기"
                     onChange={e=>{void loadFile(e.target.files?.[0],'pack');e.target.value='';}}/>
                 <input ref={resultPicker} type="file" className="hidden" accept=".json,application/json" aria-label="Laya v2 예측 결과 가져오기"
@@ -180,6 +205,14 @@ export const LayaExtendedReviewPanel: React.FC = () => {
                         placeholder="예: VI-REVIEWER-A" autoComplete="off"/>
                 </label>
             </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-200">검수가 필요한 다른 언어로 이어가기</span>
+                <button type="button" disabled={!nextPendingLanguage}
+                    onClick={()=>{if(nextPendingLanguage){setSelected(nextPendingLanguage);setRequestedCaseId('');setPendingOnly(true);setFocusedMode(true);}}}
+                    className="min-h-11 rounded-xl bg-sky-700 px-4 py-2 text-xs font-black text-white disabled:opacity-40">
+                    {nextPendingLanguage ? TRAINING_LANGUAGE_LABELS[nextPendingLanguage]+' 검수로 이동' : '미검수 외국어 없음'}
+                </button>
+            </div>
             <p className="mt-2 text-xs font-bold text-slate-600 dark:text-slate-300">
                 현재 언어: 검수 {currentLanguage?.reviewed ?? 0} / 12건 · 미검수 {currentLanguage?.missing ?? 0}건
                 {(currentLanguage?.suspiciousDuplicates ?? 0) > 0 ? ' · 동일 번역문 반복: 수동 확인 필요' : ''}
@@ -201,7 +234,10 @@ export const LayaExtendedReviewPanel: React.FC = () => {
                     </div>
                 </div>
                 <p className="mt-2 text-xs font-semibold text-sky-900 dark:text-sky-100">
-                    {needsSave ? '변경사항이 있습니다. 다른 화면으로 이동하기 전에 반드시 검수표 JSON을 저장하세요.' : '현재 화면에서 변경된 미저장 검수 기록은 없습니다.'}
+                    {needsSave ? (saveRequested
+                        ? '다운로드를 요청했습니다. 실제 JSON 파일을 확인한 뒤 「다운로드 파일 확인 완료」를 눌러 주세요.'
+                        : '미저장 변경사항이 있습니다. 검수표·이어하기 JSON을 저장해 주세요.')
+                        : '미저장 변경사항 없음 · 기기를 바꿀 때는 검수표 JSON을 직접 보관하세요.'}
                 </p>
                 {focusedMode && cursor.id && (
                     <nav className="mt-3 flex items-center justify-between gap-2" aria-label="검수 문장 탐색">
