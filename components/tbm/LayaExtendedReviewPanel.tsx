@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     LAYA_EXTENDED_SCHEMA,
     LAYA_V2_CASES_PER_LANGUAGE,
@@ -10,6 +10,7 @@ import {
 } from '../../utils/layaExtendedSafetyBenchmark';
 import { CURRENT_SITE_TRAINING_LANGUAGE_CODES, TRAINING_LANGUAGE_LABELS, type TrainingLanguageCode } from '../../utils/constructionTrainingTranslation';
 import { inspectLayaReviewReadiness, verifyLayaRunMatchesCurrentPack } from '../../utils/layaReviewReadiness';
+import { advanceLayaReviewCursor, findNextUnreviewedLayaCase, getLayaReviewQueue, resolveLayaReviewCursor } from '../../utils/layaReviewWorkflow';
 
 const exportJson = (name: string, value: unknown) => {
     const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -39,17 +40,34 @@ export const LayaExtendedReviewPanel: React.FC = () => {
     const [reviewerCode,setReviewerCode] = useState('');
     const [result,setResult] = useState<LayaV2Report|null>(null);
     const [feedback,setFeedback] = useState('');
+    const [focusedMode,setFocusedMode] = useState(true);
+    const [pendingOnly,setPendingOnly] = useState(false);
+    const [requestedCaseId,setRequestedCaseId] = useState('');
+    const [needsSave,setNeedsSave] = useState(false);
     const filePicker = useRef<HTMLInputElement>(null);
     const resultPicker = useRef<HTMLInputElement>(null);
     const languageCases = useMemo(()=>pack.cases.filter(c=>c.language===selected),[pack,selected]);
     const readiness = useMemo(() => inspectLayaReviewReadiness(pack), [pack]);
     const foreignReviewed = readiness.reviewed - LAYA_V2_CASES_PER_LANGUAGE;
     const currentLanguage = readiness.rows.find(row => row.language === selected);
+    const queue = useMemo(()=>getLayaReviewQueue(pack,selected,pendingOnly),[pack,selected,pendingOnly]);
+    const cursor = useMemo(()=>resolveLayaReviewCursor(queue,requestedCaseId),[queue,requestedCaseId]);
+    const visibleCases = useMemo(()=>focusedMode ? queue.filter(row=>row.id===cursor.id) : queue,[focusedMode,queue,cursor.id]);
+    useEffect(()=>{
+        if(!needsSave) return;
+        const warnUnsaved = (event:BeforeUnloadEvent) => {
+            event.preventDefault();
+            event.returnValue = '';
+        };
+        window.addEventListener('beforeunload',warnUnsaved);
+        return ()=>window.removeEventListener('beforeunload',warnUnsaved);
+    },[needsSave]);
     const updateSentence = (id:string,text:string) => {
         setPack(current=>({...current,cases:current.cases.map(c=>c.id===id?{
             ...c,text,translationReview:'pending',reviewerCode:'',reviewedAt:null,
         }:c)}));
         setResult(null);
+        setNeedsSave(true);
     };
     const markReviewed = (id:string) => {
         const item = pack.cases.find(c=>c.id===id);
@@ -62,7 +80,10 @@ export const LayaExtendedReviewPanel: React.FC = () => {
             ...c,translationReview:'reviewed',reviewerCode:reviewerCode.trim(),reviewedAt:new Date().toISOString(),
         }:c)}));
         setResult(null);
-        setFeedback('검수 기록을 이 기기에 반영했습니다. 파일을 저장해야 보존되며, 신원·전문성 인증은 아닙니다.');
+        setNeedsSave(true);
+        const nextUnreviewed = findNextUnreviewedLayaCase(pack,selected,id);
+        if (focusedMode && nextUnreviewed) setRequestedCaseId(nextUnreviewed);
+        setFeedback('검수 기록을 이 기기에 반영했습니다. JSON 파일 저장 전에는 작업이 보존되지 않습니다.');
     };
     const loadFile = async (file:File|undefined,mode:'pack'|'result') => {
         if(!file) return;
@@ -75,6 +96,8 @@ export const LayaExtendedReviewPanel: React.FC = () => {
                 const valid = validateLayaExtendedPack(data);
                 setPack(valid);
                 setResult(null);
+                setNeedsSave(false);
+                setRequestedCaseId('');
                 setFeedback('확장 검수표 132건을 이 브라우저에 불러왔습니다. 로컬에 저장한 원본 파일은 별도로 보관하세요.');
             } else {
                 verifyLayaRunMatchesCurrentPack(data, pack);
@@ -124,7 +147,7 @@ export const LayaExtendedReviewPanel: React.FC = () => {
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
                 <button type="button" className="min-h-11 rounded-xl bg-sky-700 px-4 py-2 text-xs font-black text-white"
-                    onClick={()=>{try {exportJson('PSI_Laya_V2_11lang_132cases.json',validateLayaExtendedPack(pack));setFeedback('현 기기의 시험 검수표를 JSON으로 저장했습니다.');}catch(e){setFeedback(e instanceof Error?e.message:'검수표 저장 오류');}}}>
+                    onClick={()=>{try {exportJson('PSI_Laya_V2_11lang_132cases.json',validateLayaExtendedPack(pack));setNeedsSave(false);setFeedback('JSON 저장을 요청했습니다. 다운로드 폴더에 파일이 생성됐는지 확인해 주세요.');}catch(e){setFeedback(e instanceof Error?e.message:'검수표 저장 오류');}}}>
                     검수표 저장 (132건 JSON)
                 </button>
                 <button type="button" onClick={()=>filePicker.current?.click()}
@@ -144,7 +167,7 @@ export const LayaExtendedReviewPanel: React.FC = () => {
                 <label className="text-xs font-black text-slate-700 dark:text-slate-200">
                     검수할 언어
                     <select className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white p-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
-                        value={selected} onChange={e=>setSelected(e.target.value as TrainingLanguageCode)}>
+                        value={selected} onChange={e=>{setSelected(e.target.value as TrainingLanguageCode);setRequestedCaseId('');}}>
                         {CURRENT_SITE_TRAINING_LANGUAGE_CODES.map(code=>
                             <option key={code} value={code}>{TRAINING_LANGUAGE_LABELS[code]}</option>
                         )}
@@ -161,8 +184,54 @@ export const LayaExtendedReviewPanel: React.FC = () => {
                 현재 언어: 검수 {currentLanguage?.reviewed ?? 0} / 12건 · 미검수 {currentLanguage?.missing ?? 0}건
                 {(currentLanguage?.suspiciousDuplicates ?? 0) > 0 ? ' · 동일 번역문 반복: 수동 확인 필요' : ''}
             </p>
+            <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-3 dark:border-sky-500/30 dark:bg-sky-500/10">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-black text-sky-950 dark:text-sky-100">
+                        {focusedMode ? '한 건씩 집중 검수' : '12건 전체 검수'} · {cursor.total>0 ? cursor.position+' / '+cursor.total : '표시할 항목 없음'}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                        <button type="button" aria-pressed={focusedMode} onClick={()=>setFocusedMode(current=>!current)}
+                            className="min-h-10 rounded-lg border border-sky-300 bg-white px-3 py-2 text-xs font-black text-sky-900 dark:border-sky-700 dark:bg-slate-800 dark:text-sky-100">
+                            {focusedMode ? '12건 한꺼번에 보기' : '한 건씩 보기'}
+                        </button>
+                        <button type="button" aria-pressed={pendingOnly} onClick={()=>{setPendingOnly(current=>!current);setRequestedCaseId('');}}
+                            className="min-h-10 rounded-lg border border-sky-300 bg-white px-3 py-2 text-xs font-black text-sky-900 dark:border-sky-700 dark:bg-slate-800 dark:text-sky-100">
+                            {pendingOnly ? '전체 보기' : '미검수만 보기'}
+                        </button>
+                    </div>
+                </div>
+                <p className="mt-2 text-xs font-semibold text-sky-900 dark:text-sky-100">
+                    {needsSave ? '변경사항이 있습니다. 다른 화면으로 이동하기 전에 반드시 검수표 JSON을 저장하세요.' : '현재 화면에서 변경된 미저장 검수 기록은 없습니다.'}
+                </p>
+                {focusedMode && cursor.id && (
+                    <nav className="mt-3 flex items-center justify-between gap-2" aria-label="검수 문장 탐색">
+                        <button type="button" disabled={cursor.position<=1}
+                            onClick={()=>setRequestedCaseId(advanceLayaReviewCursor(queue,cursor.id!,-1)||'')}
+                            className="min-h-11 rounded-xl bg-white px-4 py-2 text-xs font-black text-sky-900 disabled:opacity-40 dark:bg-slate-800 dark:text-sky-100">이전 문장</button>
+                        <span className="text-xs font-bold tabular-nums text-sky-900 dark:text-sky-100">{cursor.position} / {cursor.total}</span>
+                        <button type="button" disabled={cursor.position>=cursor.total}
+                            onClick={()=>setRequestedCaseId(advanceLayaReviewCursor(queue,cursor.id!,1)||'')}
+                            className="min-h-11 rounded-xl bg-white px-4 py-2 text-xs font-black text-sky-900 disabled:opacity-40 dark:bg-slate-800 dark:text-sky-100">다음 문장</button>
+                    </nav>
+                )}
+                {focusedMode && <div className="mt-3 grid grid-cols-6 gap-1 sm:grid-cols-12" aria-label="12개 안전상황 바로가기">
+                    {languageCases.map((item,index)=><button type="button" key={item.id}
+                        onClick={()=>{if(pendingOnly && item.translationReview==='reviewed') setPendingOnly(false);setRequestedCaseId(item.id);}}
+                        aria-current={cursor.id===item.id?'step':undefined}
+                        aria-label={String(index+1)+'번 '+LABELS[item.expectedLabel]+' '+(item.translationReview==='reviewed'?'검수 기록':'미검수')}
+                        className={['min-h-10 rounded-lg border text-xs font-black',
+                          cursor.id===item.id ? 'border-sky-700 bg-sky-700 text-white' :
+                          item.translationReview==='reviewed' ? 'border-emerald-300 bg-emerald-100 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-100' :
+                          'border-sky-200 bg-white text-sky-900 dark:bg-slate-800 dark:text-white'].join(' ')}>
+                        {index+1}
+                    </button>)}
+                </div>}
+            </div>
             <div className="mt-3 grid gap-3">
-                {languageCases.map(item=>
+                {queue.length===0 && <p role="status" className="rounded-xl border border-emerald-300 p-4 text-sm font-bold text-emerald-900 dark:text-emerald-200">
+                    {pendingOnly?'현재 언어에 미검수 문장이 없습니다. 검수표 JSON을 저장해 주세요.':'표시할 검수 문장이 없습니다.'}
+                </p>}
+                {visibleCases.map(item=>
                     <article key={item.id} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <span className="text-xs font-black text-slate-900 dark:text-white">{LABELS[item.expectedLabel]} · {item.id.split(':').slice(1).join(':')}</span>
