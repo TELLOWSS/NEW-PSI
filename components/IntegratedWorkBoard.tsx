@@ -385,7 +385,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                                 ? '최신 평가에 작업중지 신호가 있습니다. 현장 접근통제·작업중지 필요성을 우선 검토하세요.'
                                 : '과거 평가에 작업중지 신호가 있습니다. 해제·조치 완료 여부는 이 화면에서 확인되지 않습니다.'}
                         </p>
-                        <button type="button" onClick={()=>setCurrentPage(operatorEvidence.latestCriticalStopSignals > 0 ? 'safety-compliance-hub' : 'ocr-analysis')}
+                        <button type="button" onClick={()=>setCurrentPage(operatorEvidence.latestCriticalStopSignals > 0 ? nextTask.page : 'ocr-analysis')}
                             className="min-h-11 rounded-lg border border-rose-600 bg-white px-3 py-2 text-xs font-black text-rose-900 dark:bg-slate-900 dark:text-rose-200">
                             {operatorEvidence.latestCriticalStopSignals > 0 ? '보호조치 근거 확인' : '과거 기록 확인'}
                         </button>
