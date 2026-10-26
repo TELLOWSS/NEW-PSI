@@ -150,7 +150,7 @@ describe('ATLAS v2 132-case 11-language 6-hazard offline quality gates',()=>{
         }
         expect(totalMisses).toBeGreaterThan(0);
         expect(totalFalseAlarms).toBeGreaterThan(0);
-    });
+    },30000); // Vercel Hobby shared CPU may exceed the generic 5s threshold for 2,000 full evaluations.
     it('250 case and prediction ordering changes never modify language-level metrics',()=>{
         const original=predict(makeReviewed(),(label,id)=>id.endsWith('fire-welding')?'none':label);
         const baseline=evaluateLayaExtendedRun(original);

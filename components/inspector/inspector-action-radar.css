@@ -45,3 +45,25 @@
 .dark .si-evidence-integrity{background:#1c3b35;color:#d8f5e5;border-color:#487c6d}
 .dark .si-evidence-integrity.is-attention{background:#42301e;color:#ffebc9;border-color:#97714b}
 @media print{.si-action-handoff .si-btn{display:none!important}}
+
+
+/* Read-only, inspection-scoped schedule; action progression stays in saved planner. */
+.si-correction-schedule{margin:14px 0;padding:12px;border:1px solid #cbd5e1;border-radius:14px;background:rgba(255,255,255,.72)}
+.si-correction-schedule>summary{cursor:pointer;font-weight:800;min-height:44px;display:list-item;padding:10px 4px;overflow-wrap:anywhere}
+.si-correction-schedule-list{list-style:none;display:grid;gap:10px;padding:0;margin:12px 0 0}
+.si-correction-schedule-list>li{border:1px solid #cbd5e1;border-radius:12px;padding:12px;background:white;overflow-wrap:anywhere}
+.si-correction-schedule-list p{margin:7px 0;color:#334155;line-height:1.6;font-size:12px}
+.si-correction-schedule-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.si-correction-schedule-head>b{font-size:14px;flex:1;min-width:0}
+.si-correction-schedule-head>span{font-size:11px;font-weight:800;color:#854d0e}
+.si-correction-schedule-list>li[data-correction-kind="deadline-passed"]{border-color:#e59a87}
+.si-correction-schedule-list>li[data-correction-kind="reinspection"]{border-color:#86b1e9}
+.si-correction-schedule-list .si-btn{min-height:44px}
+@media (prefers-color-scheme:dark){
+.si-correction-schedule{background:#0f172a;border-color:#475569;color:#f8fafc}
+.si-correction-schedule-list>li{background:#1e293b;border-color:#475569}
+.si-correction-schedule-list p{color:#cbd5e1}
+.si-correction-schedule-head>span{color:#fcd34d}
+}
+@media(max-width:560px){.si-correction-schedule-list .si-btn{width:100%}}
+@media print{.si-correction-schedule{display:none!important}}

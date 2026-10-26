@@ -3,6 +3,7 @@ import type {InspectorAction,InspectionDocument} from '../../lib/inspector/types
 import {buildNextCycleHandoffDraft} from '../../lib/inspector/educationHandoff';
 import {copyInspectorShareText,shareCopyResultMessage} from '../../lib/inspector/sharing';
 import {selectPriorityAction,summarizeActionRadar} from '../../lib/inspector/actionRadar';
+import {scheduledCorrectionRows,scheduledCorrectionTotals} from '../../lib/inspector/actionSchedule';
 import {useInspectionDay} from './useInspectionDay';
 import './inspector-action-radar.css';
 
@@ -11,6 +12,8 @@ export default function InspectorActionRadar({actions,document:doc,disabled=fals
     const today=useInspectionDay();
     const summary=summarizeActionRadar(actions,today);
     const priority=selectPriorityAction(actions,today);
+    const schedule=scheduledCorrectionRows(actions,today);
+    const scheduleCounts=scheduledCorrectionTotals(schedule);
     const handoff=doc?buildNextCycleHandoffDraft(doc,today):'';
     return <section className="si-action-radar" role="region" aria-label="조치 관리 우선순위" data-action-radar="saved-only">
         <div className="si-action-radar-header">
@@ -27,6 +30,24 @@ export default function InspectorActionRadar({actions,document:doc,disabled=fals
                 {label:'재점검 확인',value:summary.verified,key:'verified'},
             ].map(row=><div key={row.key} className={'si-action-radar-metric is-'+row.key}><dt>{row.label}</dt><dd>{row.value}<small>건</small></dd></div>)}
         </dl>
+        {schedule.length>0&&<details className="si-correction-schedule" data-psi-correction-schedule="saved-only">
+            <summary>기한부 개선조치 일정 보기 · 미결 {scheduleCounts.unresolved}건</summary>
+            <p className="si-caption">정기·컨설팅점검의 개선기한은 즉시조치 명령이 아닙니다. 개선사진 제출과 현장 재점검은 다른 단계입니다. 아래 상태는 저장한 현재 점검의 조치만 표시하며 실제 전송·시정·작업재개 여부는 확인하지 않습니다.</p>
+            {scheduleCounts.overlappingPastDueReinspection>0&&<p className="si-caption" role="status">
+                기한 경과와 재점검 대기가 함께 표시된 조치 {scheduleCounts.overlappingPastDueReinspection}건이 있습니다. 서로 다른 기준이므로 단순 합산하지 마세요. 사진의 실제 제출시점과 이행기한 준수 여부도 이 일정표만으로 판단할 수 없습니다.
+            </p>}
+            <ol className="si-correction-schedule-list">
+                {schedule.map((row,index)=><li key={row.actionId} data-correction-kind={row.kind}>
+                    <div className="si-correction-schedule-head">
+                        <b>{index+1}. {row.title}</b>
+                        <span>{row.deadlineLabel}</span>
+                    </div>
+                    <p>담당: {row.owner?.trim()||'미지정'} · 약정기한: {row.dueDate||'미지정'}</p>
+                    <p><strong>{row.statusLabel}</strong> · {row.nextStep}</p>
+                    {onOpenPriorityAction&&<button type="button" className="si-btn" disabled={disabled} onClick={()=>onOpenPriorityAction(row.actionId)}>이 조치 열기</button>}
+                </li>)}
+            </ol>
+        </details>}
         {(summary.dueToday>0||summary.missingAssignment>0)&&<p className="si-action-radar-detail">
             {summary.dueToday>0&&<span>오늘 기한 {summary.dueToday}건 · 기한 초과 아님</span>}
             {summary.missingAssignment>0&&<span>담당·기한 확인 필요 {summary.missingAssignment}건</span>}
