@@ -14,6 +14,7 @@ import '../components/inspector/inspector-standalone.css';
 export default function InspectorStandalone(){
     const [status,setStatus]=useState<'checking'|'locked'|'unlocked'>('checking');
     const [error,setError]=useState(''),[submitting,setSubmitting]=useState(false);
+    const [unsaved,setUnsaved]=useState(false);
     useEffect(()=>{
         let active=true;
         void refreshAdminAuthentication().then(ok=>{if(active)setStatus(ok?'unlocked':'locked');})
@@ -28,6 +29,7 @@ export default function InspectorStandalone(){
         finally{setSubmitting(false);}
     };
     const logout=async()=>{
+        if(unsaved&&!window.confirm('저장 전 입력이 있습니다. 로그아웃하면 사진·설명·조치 입력이 사라집니다. 로그아웃할까요?'))return;
         setSubmitting(true);setError('');
         try{await logoutAdmin();}
         catch{setError('로그아웃 응답을 확인하지 못했습니다. 다시 접속하기 전 인증 상태를 확인하세요.');}
@@ -46,13 +48,13 @@ export default function InspectorStandalone(){
         <header className="inspector-standalone-header">
             <div className="inspector-standalone-brand"><small>FIELD SAFETY · PSI INSPECTOR</small><strong>사진점검 전용 작업공간</strong>
             <p>사진 한 장 → 위험 검토 → 현장 조치 → 재점검 → 보고서</p><p aria-label="실행 코드 버전">{currentReleaseLabel()}</p></div>
-            <nav aria-label="독립 사진점검 탐색">
+            <details className="inspector-standalone-navigation"><summary>사용 안내 · 이동 · 로그아웃</summary><nav aria-label="독립 사진점검 탐색">
                 <a href="/product">사용 안내</a>
                 <a href="/">PSI 전체로 이동</a>
                 <button type="button" disabled={submitting} onClick={()=>void logout()}>사진점검에서 로그아웃</button>
-            </nav>
+            </nav></details>
         </header>
-        <main id="inspector-standalone-main"><SafetyInspector/></main>
+        <main id="inspector-standalone-main"><SafetyInspector onUnsavedChange={setUnsaved}/></main>
         <footer className="inspector-standalone-footer">
             별도 접속 화면이지만 인증·저장은 현재 NEW-PSI 점검 서비스와 공유합니다. 협력사 안전관리비·안전시설비·신호수 인건비는 이 화면에서 집계하거나 처리하지 않습니다.
         </footer>

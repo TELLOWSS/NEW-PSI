@@ -19,7 +19,7 @@ export function parseReviewPosition(raw:string|null):ReviewPosition|null{
  try{const value=JSON.parse(raw);return value&&Object.keys(value).length===2&&uuid(value.inspectionId)&&uuid(value.photoId)?{inspectionId:value.inspectionId,photoId:value.photoId}:null;}catch{return null;}
 }
 export function photoWorkUnsaved(item:Inspection|null,photo:Evidence|null,localId:string|undefined,note:string,title:string,review:ExpertReview){
- if(!photo)return !!localId;
+ if(!photo)return !!localId||!!note.trim()||(title.trim()||'사진 현장점검')!==(item?.document.title||'사진 현장점검');
  if(!item||!item.document.photoIds.includes(photo.id)||localId&&localId!==photo.id)return true;
  return (item.document.photoNotes?.[photo.id]||'')!==note||item.document.title!==(title.trim()||'사진 현장점검')||!!item.document.analyses[photo.id]&&!reviewIsSaved(item,photo.id,review);
 }

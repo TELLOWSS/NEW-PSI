@@ -53,12 +53,15 @@ jobs:
         run: PSI_QA_BUILT=1 node scripts/verify-inspector-friendly-recovery.mjs
       - name: Official source review states and admin candidate controls
         run: node scripts/verify-inspector-sources.mjs
+      - name: Capture, manual inspection, draft protection and saved-record resume
+        run: node scripts/verify-inspector-mobile-ux.mjs
       - name: Upload synthetic-only QA evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: inspector-mobile-qa-evidence
           path: |
+            artifacts/audit/inspector-mobile-ux/
             artifacts/audit/inspector-sources/
             artifacts/audit/inspector-camera/
             artifacts/audit/action-share/

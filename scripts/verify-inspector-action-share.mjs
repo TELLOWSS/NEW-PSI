@@ -41,6 +41,7 @@ async function verifyStandaloneInspectorEntry(){
     await page.getByLabel('관리자 비밀번호').fill('synthetic-inspector-password');
     await page.getByRole('button',{name:'관리자 모드 진입'}).click();
     await page.getByRole('heading',{name:'사진만 찍어도 점검을 시작할 수 있습니다'}).waitFor();
+    await page.locator('.inspector-standalone-navigation summary').click();
     await page.getByRole('navigation',{name:'독립 사진점검 탐색'}).waitFor();
     assert.equal(await page.locator('.psi-sidebar').count(),0,'Standalone must not load PSI global sidebar');
     assert.equal(await page.locator('.inspector-standalone').count(),1);
