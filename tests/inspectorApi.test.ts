@@ -32,6 +32,10 @@ describe('server authenticated dedicated inspector boundary',()=>{
         for(const [base64,uploadConfirmed,code] of [['not base64',true,413],[Buffer.from('not image').toString('base64'),true,400],['aaaa',false,400]] as const){queue.push({data:row(),error:null});const res=response();await inspector(req({op:'upload',id,photoId,base64,uploadConfirmed}),res);expect(res.code).toBe(code);}expect(db.storage.from).not.toHaveBeenCalled();
     });
     it('does not expose another inspection photo by guessed photo ID',async()=>{queue.push({data:row(),error:null},{data:null,error:null},{data:null,error:null});const res=response();await inspector(req({op:'photo',id,photoId}),res);expect(res.code).toBe(404);expect(calls[2].operations).toContainEqual(['eq','inspection_id',id]);expect(db.storage.from).not.toHaveBeenCalled();});
+    it('reads legacy reports with their original source version and hash without adding current metadata',async()=>{
+        const legacy={id:photoId,inspection_id:id,inspection_revision:1,snapshot:{inspection:row(),evidence:[],legalStatus:'UNVERIFIED',reportStatus:'DRAFT',generatedAt:'2026-10-19T00:00:00Z',legalReference:{version:'legacy-v1',reviewedAt:'2026-10-19',dateStatus:'reference-date',cards:[]}},snapshot_sha256:'b'.repeat(64)};
+        const before=JSON.stringify(legacy);queue.push({data:row(),error:null},{data:legacy,error:null});const res=response();await inspector(req({op:'read-report',id,reportId:photoId}),res);expect(res.code).toBe(200);expect(JSON.stringify(res.body.report)).toBe(before);expect(res.body.report.snapshot.legalReference).not.toHaveProperty('catalogVersion');expect(res.body.report.snapshot_sha256).toBe(legacy.snapshot_sha256);
+    });
     it('requires submitted improvement evidence before administrator verification',async()=>{queue.push({data:row(),error:null});const res=response();await inspector(req({op:'verify-action',id,actionId:photoId,expectedRevision:1,verificationNote:'I verified on site'}),res);expect(res.code).toBe(409);expect(calls.some(c=>c.operations.some((x:any)=>x[0]==='update'))).toBe(false);});
     it('freezes report data with unverified law state instead of approving unresolved actions',async()=>{queue.push({data:row(),error:null},{data:[],error:null},{data:{id:photoId},error:null});const res=response();await inspector(req({op:'report',id,expectedRevision:1}),res);expect(res.code).toBe(201);const insert=calls[2].operations.find((x:any)=>x[0]==='insert')[1];expect(insert.snapshot).toMatchObject({legalStatus:'UNVERIFIED',reportStatus:'DRAFT',inspection:{revision:1}});expect(insert.snapshot_sha256).toMatch(/^[a-f0-9]{64}$/);});
     it('freezes official legal references server-side without trusting client fine fields',async()=>{
@@ -39,8 +43,9 @@ describe('server authenticated dedicated inspector boundary',()=>{
         queue.push({data:row(document),error:null},{data:[],error:null},{data:{id:photoId},error:null});
         const res=response();await inspector(req({op:'report',id,expectedRevision:1}),res);expect(res.code).toBe(201);
         const inserted=calls[2].operations.find((x:any)=>x[0]==='insert')[1];
-        expect(inserted.snapshot.legalReference).toMatchObject({version:'kr-osh-2026-10-24-v5-dust-context',reviewedAt:'2026-10-20',cards:[{id:'opening',sanctions:[{fineMaxKRW:50_000_000,kind:'criminal'}]}]});
+        expect(inserted.snapshot.legalReference).toMatchObject({version:'kr-osh-2026-10-27-v6-source-review',catalogVersion:1,reviewedAt:'2026-10-20',cards:[{id:'opening',sanctions:[{fineMaxKRW:50_000_000,kind:'criminal'}]}]});
         expect(inserted.snapshot.legalReference.inspectionCases).toHaveLength(4);
+        expect(inserted.snapshot.legalReference.cards[0].sourceReview).toMatchObject({status:'legacy',publishedAt:null,checkedAt:null});
         const stable=JSON.stringify(inserted.snapshot);document.notes='감전';expect(JSON.stringify(inserted.snapshot.legalReference)).toContain('opening');expect(stable).toContain('제43조');
         queue.push({data:row(),error:null});const rejected=response();await inspector(req({op:'report',id,expectedRevision:1,legalReference:{amount:1}}),rejected);expect(rejected.code).toBe(400);
     });

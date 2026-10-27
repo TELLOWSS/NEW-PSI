@@ -1,0 +1,575 @@
+{
+  "schemaVersion": 1,
+  "version": 1,
+  "records": [
+    {
+      "key": "legal:opening",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0043&lsiSeq=273603&urlMode=lsScJoRltInfoR",
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0013&lsiSeq=273603&urlMode=lsScJoRltInfoR",
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0168&lsiSeq=283449&urlMode=lsScJoRltInfoR"
+          ],
+          "publishedAt": null,
+          "checkedAt": null,
+          "reviewedAt": "2026-10-20",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "881e03ce3f54c91832077f74046baf94884f6543b5730da5f6b207bc4a9aa286",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "legal:rebar-puncture",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.law.go.kr/LSW/admRulLsInfoP.do?admRulSeq=2100000268994"
+          ],
+          "publishedAt": null,
+          "checkedAt": null,
+          "reviewedAt": "2026-10-23",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "57bb500412be2ab5a765f0a1930915458580c74e9e6486a62196d0e4201257a7",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "legal:fall",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0042&lsiSeq=273603&urlMode=lsScJoRltInfoR",
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0168&lsiSeq=283449&urlMode=lsScJoRltInfoR"
+          ],
+          "publishedAt": null,
+          "checkedAt": null,
+          "reviewedAt": "2026-10-20",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "d14959eb77b152f3da18124f4b473c1639d44c11f6cffd32ecf2a538b6982f93",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "legal:scaffold",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0056&lsiSeq=273603&urlMode=lsScJoRltInfoR",
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0168&lsiSeq=283449&urlMode=lsScJoRltInfoR"
+          ],
+          "publishedAt": null,
+          "checkedAt": null,
+          "reviewedAt": "2026-10-20",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "db4e01fad09066da59825e91781317ee96665ee0ec432e74dc23abc895755e62",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "legal:falling-object",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0014&lsiSeq=273603&urlMode=lsScJoRltInfoR",
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0168&lsiSeq=283449&urlMode=lsScJoRltInfoR"
+          ],
+          "publishedAt": null,
+          "checkedAt": null,
+          "reviewedAt": "2026-10-20",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "581d1991c6dabbce8ec9f970e36c3446f4cc675d78c417c7520f184c78732182",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "legal:electric",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0301&lsiSeq=273603&urlMode=lsScJoRltInfoR",
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0168&lsiSeq=283449&urlMode=lsScJoRltInfoR"
+          ],
+          "publishedAt": null,
+          "checkedAt": null,
+          "reviewedAt": "2026-10-20",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "5eefc3a47ac5876b54d072767db014727a23ca3a54a4f64e58d1533ef8c24290",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "legal:formwork",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0332&lsiSeq=273603&urlMode=lsScJoRltInfoR",
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0168&lsiSeq=283449&urlMode=lsScJoRltInfoR"
+          ],
+          "publishedAt": null,
+          "checkedAt": null,
+          "reviewedAt": "2026-10-20",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "4644ede08b0dc89317caebeaddb5b7a4e8cba51a12d37ff691dcab9c9a37ad1d",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "legal:excavation",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0338&lsiSeq=273603&urlMode=lsScJoRltInfoR",
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0340&lsiSeq=273603&urlMode=lsScJoRltInfoR",
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0168&lsiSeq=283449&urlMode=lsScJoRltInfoR"
+          ],
+          "publishedAt": null,
+          "checkedAt": null,
+          "reviewedAt": "2026-10-20",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "37242e723c49641ed24f8ca5c12da6d07403a72bb6a3ad8afc5c98b9000d315d",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "legal:fire",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0241&lsiSeq=273603&urlMode=lsScJoRltInfoR",
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0168&lsiSeq=283449&urlMode=lsScJoRltInfoR"
+          ],
+          "publishedAt": null,
+          "checkedAt": null,
+          "reviewedAt": "2026-10-20",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "17f4fc7c98bab78226538d232374bbd113dd54aa2746c6e916418032e3170f47",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "legal:housekeeping",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0003&lsiSeq=273603&urlMode=lsScJoRltInfoR",
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0168&lsiSeq=283449&urlMode=lsScJoRltInfoR"
+          ],
+          "publishedAt": null,
+          "checkedAt": null,
+          "reviewedAt": "2026-10-20",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "391e133c9599ab80f93bae96416dac133cfa8e5b39e8a61090d02e0beef10acc",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "legal:ppe",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0032&lsiSeq=273603&urlMode=lsScJoRltInfoR",
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0040&lsiSeq=283449&urlMode=lsScJoRltInfoR",
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0168&lsiSeq=283449&urlMode=lsScJoRltInfoR",
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0175&lsiSeq=283449&urlMode=lsScJoRltInfoR"
+          ],
+          "publishedAt": null,
+          "checkedAt": null,
+          "reviewedAt": "2026-10-20",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "a160b4ae9fb7a81f05fb5859244de1965fef40fd0f793f175a1c20d56f1d085f",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "legal:posting",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0034&lsiSeq=283449&urlMode=lsScJoRltInfoR",
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0175&lsiSeq=283449&urlMode=lsScJoRltInfoR"
+          ],
+          "publishedAt": null,
+          "checkedAt": null,
+          "reviewedAt": "2026-10-20",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "071f1220dad79c74e2ffaea0d4e1435ede89d287fe91d8fd945e957bc428b2e1",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "legal:education",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0029&lsiSeq=283449&urlMode=lsScJoRltInfoR",
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0175&lsiSeq=283449&urlMode=lsScJoRltInfoR"
+          ],
+          "publishedAt": null,
+          "checkedAt": null,
+          "reviewedAt": "2026-10-20",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "858f799310a2d78f90548b399ba641c43d1b425d115f74ebd803e0717299037b",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "legal:signs",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0037&lsiSeq=283449&urlMode=lsScJoRltInfoR",
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0175&lsiSeq=283449&urlMode=lsScJoRltInfoR"
+          ],
+          "publishedAt": null,
+          "checkedAt": null,
+          "reviewedAt": "2026-10-20",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "0c385ee149ea84f1a06db84522b71ba218a7e93e08f695c06ae79b86bccec623",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "legal:dust",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=02&joNo=0004&lsiSeq=273603&urlMode=lsScJoRltInfoR"
+          ],
+          "publishedAt": null,
+          "checkedAt": null,
+          "reviewedAt": "2026-10-24",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "570abeaa18fbca9f2f46db8ff1947d79b9fb9b1c05ad1fe75f9c7b304090e39f",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "legal:msds",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0114&lsiSeq=283449&urlMode=lsScJoRltInfoR",
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0115&lsiSeq=283449&urlMode=lsScJoRltInfoR",
+            "https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0175&lsiSeq=283449&urlMode=lsScJoRltInfoR"
+          ],
+          "publishedAt": null,
+          "checkedAt": null,
+          "reviewedAt": "2026-10-20",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "881571f7bed61de33e599d346233e4e80f043ac307c3197b9bdcda42a66f5947",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "case:moel-15224",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.moel.go.kr/news/enews/report/enewsView.do?news_seq=15224"
+          ],
+          "publishedAt": "2023-07-05",
+          "checkedAt": null,
+          "reviewedAt": "2026-10-23",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "31872845e05432cbc4b289f43530d8e994ad00f9970c5e4e60c662c8e1b2abe4",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "case:moel-20032",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.moel.go.kr/news/enews/report/enewsView.do?news_seq=20032"
+          ],
+          "publishedAt": "2026-10-01",
+          "checkedAt": null,
+          "reviewedAt": "2026-10-22",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "336520c1728443df7ad3b0f1bc2bde351bf0d4b8916edabbcb3fa07b9c10367a",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "case:moel-19976",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.moel.go.kr/news/enews/report/enewsView.do?news_seq=19976"
+          ],
+          "publishedAt": "2026-09-20",
+          "checkedAt": null,
+          "reviewedAt": "2026-10-22",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "b46fb3d9913bf49b18c75777ffa66b8d204257c862db2afd525d1daaf85cb128",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "case:moel-18869",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "pending",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.moel.go.kr/news/enews/report/enewsView.do?news_seq=18869"
+          ],
+          "publishedAt": "2026-01-20",
+          "checkedAt": "2026-10-27",
+          "reviewedAt": "2026-10-27",
+          "reviewDueAt": "2027-01-25",
+          "reviewer": "Codex 공식 원문 대조 / 2026-10-27",
+          "evidence": "2026-10-27 공식 게시물 HTML 본문·등록일을 직접 확인. 관리자 PR 검토 후 반영.",
+          "contentSha256": "26afcfcc5344f0cb4238aac6ded6dedd2ee7319973c6be3b278a4f3cf5743d59",
+          "legalEditions": [],
+          "note": "공식 원문은 확인했습니다. 원문의 과태료 부과 표현과 기존 카드의 예정 표현이 달라 내용 보완 검토가 필요합니다. 기존 보고서와 원문은 자동으로 바꾸지 않습니다."
+        }
+      ]
+    },
+    {
+      "key": "case:moel-14286",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.moel.go.kr/news/enews/report/enewsView.do?news_seq=14286"
+          ],
+          "publishedAt": "2022-11-28",
+          "checkedAt": null,
+          "reviewedAt": "2026-10-22",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "c96b3f160655546d37beacabbdd711033eea4ad5ca3e4267e2baa82a2ac45345",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "case:moel-13420",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.moel.go.kr/news/enews/report/enewsView.do?news_seq=13420"
+          ],
+          "publishedAt": "2022-04-12",
+          "checkedAt": null,
+          "reviewedAt": "2026-10-22",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "51b27c1f085c5b85c118929c67d5088ff3cac839334890c7562c5a7db4861075",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "trend:concrete-guide-2025-78",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.moel.go.kr/common/downloadFile.do?bbs_id=12&bbs_seq=18672&file_ext=pdf&file_seq=20251200155"
+          ],
+          "publishedAt": "2025-12-01",
+          "checkedAt": null,
+          "reviewedAt": "2026-10-22",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "a35db388741f298235fe2b9b2adf2becf89d80f5498b17bd15894bac61cabf66",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    },
+    {
+      "key": "trend:moel-20117",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "reviewed",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.moel.go.kr/news/enews/report/enewsView.do?news_seq=20117"
+          ],
+          "publishedAt": "2026-10-20",
+          "checkedAt": "2026-10-27",
+          "reviewedAt": "2026-10-27",
+          "reviewDueAt": "2027-01-25",
+          "reviewer": "Codex 공식 원문 대조 / 2026-10-27",
+          "evidence": "2026-10-27 공식 게시물 HTML 본문·등록일을 직접 확인. 관리자 PR 검토 후 반영.",
+          "contentSha256": "fb81f61fa98231f4566ff6ef879a664e19b81e73ad4d504e13466566aae95c1a",
+          "legalEditions": [],
+          "note": "원문 기재 내용 대조 기록이며 현장 적용·법 위반의 확정이 아닙니다."
+        }
+      ]
+    },
+    {
+      "key": "trend:moel-18880",
+      "revisions": [
+        {
+          "revision": 1,
+          "status": "legacy",
+          "publisher": "고용노동부",
+          "urls": [
+            "https://www.moel.go.kr/news/enews/report/enewsView.do?news_seq=18880"
+          ],
+          "publishedAt": "2026-01-22",
+          "checkedAt": null,
+          "reviewedAt": "2026-10-22",
+          "reviewDueAt": null,
+          "reviewer": null,
+          "evidence": "",
+          "contentSha256": "1413c8558f4eb981f32fe3fbb40d17484e1ca703b49d5918913ce0869123b5bf",
+          "legalEditions": [],
+          "note": "기존 정적 검토자료를 이전했습니다. 원문 확인일·검토자·공개일·시행본 등 추가 메타데이터는 확인 후 새 이력으로 기록하세요."
+        }
+      ]
+    }
+  ]
+}

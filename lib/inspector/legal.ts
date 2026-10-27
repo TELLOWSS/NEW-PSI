@@ -1,15 +1,17 @@
+import {reviewForSource,sourceCatalog} from './sourceReviewRegistry.js';
+import type {SourceReview} from './sourceReview.js';
 import {casesForTopics,CASES_REVIEWED_AT,type InspectionCase} from './inspectionCases.js';
 import {trendsForTopics,TRENDS_REVIEWED_AT,type SafetyTrend} from './safetyTrends.js';
 import type {InspectionDocument,VisionImport} from './types.js';
 
 /** Curated references, not an LLM answer or a live statute synchronization service. */
-export const LEGAL_VERSION='kr-osh-2026-10-24-v5-dust-context';
+export const LEGAL_VERSION='kr-osh-2026-10-27-v6-source-review';
 export const LEGAL_REVIEWED_AT='2026-10-20';
 const source=(article:number,rules=false)=>`https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=${String(article).padStart(4,'0')}&lsiSeq=${rules?'273603':'283449'}&urlMode=lsScJoRltInfoR`;
 export type LegalDuty={label:string;summary:string;url:string};
 export type LegalSanction={kind:'criminal'|'administrative';actor:string;condition:string;fineMaxKRW:number;prisonYears?:number;basis:string;url:string};
-export type LegalCard={id:string;title:string;keywords:string[];duties:LegalDuty[];actions:string[];scope:string;sanctions:LegalSanction[];sanctionNote?:string;reviewedAt?:string};
-export type LegalReference={version:string;reviewedAt:string;dateStatus:'reference-date'|'outside-reviewed-period';cards:LegalCard[];inspectionCases?:InspectionCase[];casesReviewedAt?:string;recentTrends?:SafetyTrend[];trendsReviewedAt?:string};
+export type LegalCard={sourceReview?:SourceReview;id:string;title:string;keywords:string[];duties:LegalDuty[];actions:string[];scope:string;sanctions:LegalSanction[];sanctionNote?:string;reviewedAt?:string};
+export type LegalReference={catalogVersion?:number;eventAt?:string;unmatchedTopicIds?:string[];version:string;reviewedAt:string;dateStatus:'reference-date'|'outside-reviewed-period';cards:LegalCard[];inspectionCases?:InspectionCase[];casesReviewedAt?:string;recentTrends?:SafetyTrend[];trendsReviewedAt?:string};
 const duty=(article:number,summary:string,rules=true):LegalDuty=>({label:`${rules?'산업안전보건기준에 관한 규칙':'산업안전보건법'} 제${article}조`,summary,url:source(article,rules)});
 const safety:LegalSanction={kind:'criminal',actor:'사업주',condition:'법 제38조제1항~제3항의 안전조치 의무 위반이 성립하는 경우',fineMaxKRW:50_000_000,prisonYears:5,basis:'산업안전보건법 제168조제1호',url:source(168)};
 const admin=(fineMaxKRW:number,basis:string,condition:string,actor='사업주'):LegalSanction=>({kind:'administrative',actor,condition,fineMaxKRW,basis:`산업안전보건법 제175조${basis}`,url:source(175)});
@@ -32,16 +34,19 @@ export const LEGAL_CARDS:LegalCard[]=[
     {id:'dust',title:'분진 비산·노출 확인',reviewedAt:'2026-10-24',keywords:['분진','먼지 비산','가루 비산','가루 흡입'],duties:[{label:'산업안전보건기준에 관한 규칙 제4조의2',summary:'분진이 심하게 흩날리는 작업장에는 물을 뿌리는 등 비산 방지에 필요한 조치를 합니다. 제품 특성과 작업 방법에 맞는 조치를 선정해야 합니다.',url:'https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=02&joNo=0004&lsiSeq=273603&urlMode=lsScJoRltInfoR'}],actions:['실제 취급·혼합·청소 여부와 분진 발생·근로자 노출 상태를 확인합니다.','제품 MSDS와 작업 조건에 맞는 밀폐·집진·청소 방법 등 비산 방지 조치를 검토합니다.','제품 특성을 확인하지 않고 물을 뿌리거나 압축공기로 분진을 날리지 않습니다.'],scope:'개봉 포대·바닥 가루만으로 심한 비산이나 유해 성분을 확정하지 않습니다. 실제 작업·물질·발생 상태를 확인하고 MSDS 게시·교육·표시 의무와 구분합니다. 링크는 검토한 법령 버전이며 사건 당시 시행본은 별도 대조합니다.',sanctions:[],sanctionNote:'사진만으로 보건조치 의무 위반과 처벌 적용을 확정하지 않으며 다른 위험의 안전조치 벌금·MSDS 과태료를 대신 붙이지 않습니다.'},
     {id:'msds',title:'MSDS·화학물질 경고표시',keywords:['msds','물질안전보건자료','화학물질','용기표시','용기 표시'],duties:[duty(114,'대상 물질을 취급하는 사업장은 근로자가 쉽게 볼 수 있는 곳에 MSDS를 게시·비치하고, 공정별 관리요령 게시와 근로자 교육을 실시합니다.',false),duty(115,'대상 물질의 용기·포장에는 공급자 및 취급 사업주의 경고표시 의무가 적용됩니다. 조문상 예외를 확인합니다.',false)],actions:['취급 물질의 MSDS와 실제 용기 경고표시를 대조합니다.','근로자가 자료를 볼 수 있도록 하고 필요한 취급 교육을 보완합니다.'],scope:'MSDS 대상 물질 여부, 공급·취급 주체와 표시 예외를 구분합니다.',sanctions:[admin(5_000_000,'제5항제3호','법 제114조제1항 MSDS 게시·비치 의무 위반이 성립하는 경우'),admin(3_000_000,'제6항제10호','법 제114조제3항 교육 의무 위반이 성립하는 경우'),admin(3_000_000,'제6항제11호','법 제115조제1항·제2항 경고표시 의무 위반이 성립하는 경우')]},
 ];
+for(const card of LEGAL_CARDS)card.sourceReview=reviewForSource('legal',card.id);
 export function sanctionText(s:LegalSanction) {
     const amount=`${new Intl.NumberFormat('ko-KR').format(s.fineMaxKRW/10000)}만원`;
     return s.kind==='criminal'?`${s.prisonYears}년 이하 징역 또는 ${amount} 이하 벌금`:`${amount} 이하 과태료 (법정상한)`;
 }
 /** A material's end is not necessarily a floor edge; an electrical cover is not a hole cover. */
 function keywordScore(card:LegalCard,text:string){
-    const compact=text.toLowerCase().replace(/\s+/g,'');
+    const compact=text.normalize('NFKC').toLowerCase().replace(/\s+/g,'');
+    if(card.id==='opening'&&/(슬래브|작업발판|바닥)끝단/.test(compact))return 12;
     if(card.id==='rebar-puncture')return /(?:철근(?:의|이)?(?:돌출|노출|단부|끝단|끝부분|상단부|하단부|절단부|말단부|방호캡|보호캡)|(?:돌출|노출)(?:된)?(?:수평|수직)?철근|철근.{0,12}(?:찔|관통)|(?:찔|관통).{0,12}철근)/.test(compact)?20:0;
     const edgeText=compact.replace(/(?:철근|전선|배관|파이프|호스|철선|강선|철물|부재|패널|자재)(?:의)?(?:상|하|절|말|노출|돌출)?(?:단부|끝단)|상단부|하단부/g,'');
     return card.keywords.reduce((sum,word)=>{
+        if(card.id==='housekeeping'&&word==='전도'&&/(크레인|굴착기|지게차|고소작업대|거푸집|동바리|철근)/.test(compact))return sum;
         if(card.id==='opening'&&word==='단부')return sum+(edgeText.includes('단부')?2:0);
         if(card.id==='opening'&&word==='덮개'&&!/(개구부|구멍|추락)/.test(compact))return sum;
         return sum+(compact.includes(word.replace(/\s+/g,''))?Math.min(word.length,12):0);
@@ -50,8 +55,8 @@ function keywordScore(card:LegalCard,text:string){
 export function legalForTopics(ids:string[],eventAt?:string):LegalReference {
     const date=eventAt?new Date(eventAt):null;
     const day=date&&Number.isFinite(date.getTime())?new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(date):LEGAL_REVIEWED_AT;
-    const cards=ids.flatMap(id=>{const card=LEGAL_CARDS.find(c=>c.id===id);return card?[structuredClone(card)]:[];}).filter((card,index,all)=>all.findIndex(c=>c.id===card.id)===index);
-    return {version:LEGAL_VERSION,reviewedAt:LEGAL_REVIEWED_AT,dateStatus:day>LEGAL_REVIEWED_AT||day<'2026-08-01'?'outside-reviewed-period':'reference-date',cards,inspectionCases:casesForTopics(cards.map(c=>c.id)),casesReviewedAt:CASES_REVIEWED_AT,recentTrends:trendsForTopics(cards.map(c=>c.id)),trendsReviewedAt:TRENDS_REVIEWED_AT};
+    const cards=ids.flatMap(id=>{const card=LEGAL_CARDS.find(c=>c.id===id);return card&&card.sourceReview?.status!=='withdrawn'?[structuredClone(card)]:[];}).filter((card,index,all)=>all.findIndex(c=>c.id===card.id)===index);
+    return {catalogVersion:sourceCatalog.version,...(eventAt?{eventAt}:{}),unmatchedTopicIds:[...new Set(ids.filter(id=>!cards.some(card=>card.id===id)))],version:LEGAL_VERSION,reviewedAt:LEGAL_REVIEWED_AT,dateStatus:day>LEGAL_REVIEWED_AT||day<'2026-08-01'?'outside-reviewed-period':'reference-date',cards,inspectionCases:casesForTopics(cards.map(c=>c.id)),casesReviewedAt:CASES_REVIEWED_AT,recentTrends:cards.length?trendsForTopics(cards.map(c=>c.id)):[],trendsReviewedAt:TRENDS_REVIEWED_AT};
 }
 export function legalForText(text:string,eventAt?:string):LegalReference {
     const matches=LEGAL_CARDS.map((card,index)=>({card,index,score:keywordScore(card,text)})).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||a.index-b.index);
