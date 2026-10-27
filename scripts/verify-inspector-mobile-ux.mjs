@@ -59,6 +59,7 @@ try{
   failSave=false;await page.locator('.si-quick-start').click();await page.locator('.si-quick-result').waitFor();
   assert.equal(ops.filter(x=>x==='upload').length,1,'retry must not duplicate photo');assert.equal(ops.includes('analyze-photo'),false);assert.equal(item.document.apiEnabled,false);assert.equal(item.document.photoNotes[photo.id],'직접 확인한 개구부 덮개 누락');
   await page.getByRole('tab',{name:'법령·금액',exact:true}).click();const status=page.locator('.si-legal-focus .si-source-status summary');await status.waitFor();assert.match(await status.innerText(),/공개일:.*검토일:/);assert.equal(await page.locator('.si-legal-focus .si-source-status').getAttribute('open'),null);
+  await page.locator('.si-topic-manual summary').click();await page.getByLabel('직접 대조할 기준',{exact:true}).selectOption('electric');assert.equal(await page.getByLabel('직접 대조할 기준',{exact:true}).inputValue(),'electric');assert.equal(await page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;}),true);
   await page.locator('.si-legal-focus').screenshot({path:`${out}/source-${width}.png`});
   await page.getByRole('tab',{name:/^사례·동향/}).click();await page.locator('.si-case-trends').waitFor();
   await page.getByRole('region',{name:'점검 다음 단계'}).getByRole('button',{name:'직접 확인한 조치 작성',exact:true}).click();
@@ -69,9 +70,10 @@ try{
   await draft.getByLabel('선택한 사진의 실제 위치·상태와 조치 적용 범위를 확인했습니다.',{exact:true}).check();
   await draft.locator('.si-action-timing').screenshot({path:`${out}/action-timing-${width}.png`});
   failSave=true;await draft.getByRole('button',{name:'확인한 조치 저장',exact:true}).click();await page.getByRole('alert').waitFor();assert.equal(await owner.inputValue(),'합성 형틀반장');
-  failSave=false;await draft.getByRole('button',{name:'확인한 조치 저장',exact:true}).click();await page.getByText('조치를 미조치 상태로 저장했습니다.',{exact:false}).waitFor();assert.equal(item.document.actions.length,1);assert.equal(item.document.actions[0].status,'open');
-  await page.getByRole('button',{name:'모은 자료로 보고서 완성',exact:true}).last().click();await page.locator('.si-report').waitFor();assert.match(await page.locator('.si-report').innerText(),/직접 확인한 개구부 덮개 누락/);assert.match(await page.locator('.si-report').innerText(),/합성 형틀반장/);
+  failSave=false;await draft.getByRole('button',{name:'확인한 조치 저장',exact:true}).click();await page.getByText('조치를 미조치 상태로 저장했습니다.',{exact:false}).waitFor();assert.equal(item.document.actions.length,1);assert.equal(item.document.actions[0].status,'open');assert.equal(item.document.photoRiskTopics[photo.id],'electric');
+  await page.getByRole('button',{name:'모은 자료로 보고서 완성',exact:true}).last().click();await page.locator('.si-report').waitFor();assert.match(await page.locator('.si-report').innerText(),/직접 확인한 개구부 덮개 누락/);assert.match(await page.locator('.si-report').innerText(),/합성 형틀반장/);assert.match(await page.locator('.si-report').innerText(),/점검자 선택 위험:.*AI 판정 아님/);
   await page.reload({waitUntil:'domcontentloaded'});const resume=page.getByRole('button',{name:'이전 점검 이어하기',exact:true});await resume.waitFor();await page.evaluate(()=>scrollTo(0,0));const resumeBox=await resume.boundingBox();assert.ok(resumeBox.y+resumeBox.height<=844);await resume.click();await page.locator('.si-storage-manager').waitFor();assert.equal(item.document.photoIds[0],photo.id);assert.equal(ops.filter(x=>x==='create').length,1);assert.equal(ops.filter(x=>x==='report').length,1);
+  await page.locator('.si-photo-collection').getByRole('button',{name:'열어 검토',exact:true}).first().click();await page.getByRole('tab',{name:'법령·금액',exact:true}).click();await page.locator('.si-topic-manual summary').click();assert.equal(await page.getByLabel('직접 대조할 기준',{exact:true}).inputValue(),'electric');
   assert.deepEqual(errors,[]);results.push({width,camera:initialCamera,records,ops,passed:true});await context.close();
  }
  await writeFile(out+`/${baseline?'before':'results'}.json`,JSON.stringify(results,null,2)+'\n');console.log(JSON.stringify(results));

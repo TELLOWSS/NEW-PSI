@@ -38,6 +38,12 @@ describe('server authenticated dedicated inspector boundary',()=>{
     });
     it('requires submitted improvement evidence before administrator verification',async()=>{queue.push({data:row(),error:null});const res=response();await inspector(req({op:'verify-action',id,actionId:photoId,expectedRevision:1,verificationNote:'I verified on site'}),res);expect(res.code).toBe(409);expect(calls.some(c=>c.operations.some((x:any)=>x[0]==='update'))).toBe(false);});
     it('freezes report data with unverified law state instead of approving unresolved actions',async()=>{queue.push({data:row(),error:null},{data:[],error:null},{data:{id:photoId},error:null});const res=response();await inspector(req({op:'report',id,expectedRevision:1}),res);expect(res.code).toBe(201);const insert=calls[2].operations.find((x:any)=>x[0]==='insert')[1];expect(insert.snapshot).toMatchObject({legalStatus:'UNVERIFIED',reportStatus:'DRAFT',inspection:{revision:1}});expect(insert.snapshot_sha256).toMatch(/^[a-f0-9]{64}$/);});
+    it('freezes the saved inspector risk statement and its server-derived law references independently of AI',async()=>{
+        const document={...newInspectionDocument(),photoIds:[photoId],photoNotes:{[photoId]:'개구부 덮개 없음'},photoRiskTopics:{[photoId]:'electric'}};
+        const evidence={id:photoId,inspection_id:id,sha256:'a'.repeat(64),mime_type:'image/jpeg',byte_size:100,created_at:'2026-10-27T00:00:00Z'};
+        queue.push({data:row(document),error:null},{data:[evidence],error:null},{data:{id:photoId},error:null});const res=response();await inspector(req({op:'report',id,expectedRevision:1}),res);expect(res.code).toBe(201);
+        const inserted=calls[2].operations.find((x:any)=>x[0]==='insert')[1];expect(inserted.snapshot.inspection.document.photoRiskTopics).toEqual({[photoId]:'electric'});expect(inserted.snapshot.legalReference.cards[0].id).toBe('electric');expect(inserted.snapshot.legalReference.cards.map((c:any)=>c.id)).toContain('opening');expect(inserted.snapshot.inspection.document.analyses).toEqual({});
+    });
     it('freezes official legal references server-side without trusting client fine fields',async()=>{
         const document={...newInspectionDocument(),notes:'개구부 덮개 없음',eventAt:'2026-10-20T00:00:00Z'};
         queue.push({data:row(document),error:null},{data:[],error:null},{data:{id:photoId},error:null});

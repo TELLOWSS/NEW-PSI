@@ -55,12 +55,18 @@ jobs:
         run: node scripts/verify-inspector-sources.mjs
       - name: Capture, manual inspection, draft protection and saved-record resume
         run: node scripts/verify-inspector-mobile-ux.mjs
+      - name: Assignment changes and corrective photo reinspection recovery
+        run: PSI_QA_BUILT=1 PSI_QUICK_OUT=artifacts/audit/inspector-selection-followup PSI_QA_SCENARIOS=action-assignment,action-assignment-failed,action-assignment-response,action-assignment-conflict,action-assignment-deleted,action-assignment-cancel,action-followup-file,action-followup-camera,action-followup-paste,action-followup-retry,action-followup-response,action-followup-legacy,action-followup-resume,action-followup-pending,delete-retry,delete-resume,delete-files node scripts/verify-inspector-quick.mjs
+      - name: Reply inbox triage and unsaved assignments
+        run: PSI_INBOX_DIST=dist node scripts/verify-inspector-reply-inbox.mjs
       - name: Upload synthetic-only QA evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: inspector-mobile-qa-evidence
           path: |
+            artifacts/audit/inspector-selection-followup/
+            artifacts/audit/reply-inbox/
             artifacts/audit/inspector-mobile-ux/
             artifacts/audit/inspector-sources/
             artifacts/audit/inspector-camera/
