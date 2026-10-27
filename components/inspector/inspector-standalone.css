@@ -1,6 +1,8 @@
 
 .inspector-standalone{min-height:100vh;background:#f3f7f8;color:#14343d;font-family:'Pretendard','Noto Sans KR',system-ui,sans-serif}
 .inspector-standalone *{box-sizing:border-box}
+.inspector-standalone-navigation>summary{min-height:44px;padding:12px 0;font-size:12px;font-weight:750;cursor:pointer}
+.inspector-standalone-navigation[open]>nav{padding-bottom:8px}
 .inspector-standalone-skip{position:absolute;left:12px;top:-100px;z-index:1000;background:white;padding:9px 16px;border:2px solid #196f6a}
 .inspector-standalone-skip:focus{top:8px}
 .inspector-standalone-header{position:relative;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;max-width:1380px;margin:auto;padding:15px 22px;border-bottom:1px solid #d0e1df}

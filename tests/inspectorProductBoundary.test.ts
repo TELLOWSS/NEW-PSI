@@ -24,7 +24,8 @@ describe('ATLAS product boundary: independent contractor cost and dual-entry Ins
     });
     it('enforces server-validated admin auth on standalone while reusing Inspector rather than another API',()=>{
         const standalone=read('pages/InspectorStandalone.tsx');
-        for(const marker of ['refreshAdminAuthentication','loginAdmin','logoutAdmin',"<SafetyInspector/>",'사진점검에서 로그아웃'])expect(standalone).toContain(marker);
+        for(const marker of ['refreshAdminAuthentication','loginAdmin','logoutAdmin',"<SafetyInspector onUnsavedChange={setUnsaved}/>",'사진점검에서 로그아웃'])expect(standalone).toContain(marker);
+        expect(standalone).toContain('if(unsaved&&!window.confirm(');
         expect(standalone).not.toMatch(/localStorage\.getItem\(.+isAdminAuthenticated/);
         expect(standalone).not.toContain('psi_inspector_share_adopt');
     });

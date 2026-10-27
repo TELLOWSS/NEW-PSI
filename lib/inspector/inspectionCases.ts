@@ -1,6 +1,8 @@
+import {reviewForSource} from './sourceReviewRegistry.js';
+import type {SourceReview} from './sourceReview.js';
 /** Official published inspection results, manually checked 2026-10-22. Not a live case search. Rebar accident/inspection announcement added from official release 2026-10-23. */
 export const CASES_REVIEWED_AT='2026-10-22';
-export type InspectionCase={id:string;title:string;publishedAt:string;agency:string;topics:string[];finding:string;response:string;lesson:string;url:string;industry?:string;focus?:Record<string,{finding:string;lesson:string}>;kind?:'사고 발표·감독 예고';reviewedAt?:string};
+export type InspectionCase={sourceReview?:SourceReview;id:string;title:string;publishedAt:string;agency:string;topics:string[];finding:string;response:string;lesson:string;url:string;industry?:string;focus?:Record<string,{finding:string;lesson:string}>;kind?:'사고 발표·감독 예고';reviewedAt?:string};
 export const INSPECTION_CASES:InspectionCase[]=[
  {id:'moel-15224',title:'철근 찔림 사망사고 후 전국 시공현장 감독 예고',publishedAt:'2023-07-05',reviewedAt:'2026-10-23',agency:'고용노동부',industry:'건설업 · 단순 통행 접촉과 사고 경로가 다름',kind:'사고 발표·감독 예고',topics:['rebar-puncture'],finding:'콘크리트 타설 장비 배관 인상 중 슬래브 파손과 장비 전도로 근로자가 깔리며 철근에 머리를 찔린 사고를 발표했습니다.',response:'발표 당시 사고 현장 작업중지와 법 위반 여부 수사, 7월 전국 시공현장 일제감독 계획을 알렸습니다. 이 발표는 감독 결과·확정 판결이나 철근캡 한 건의 처벌액이 아닙니다.',lesson:'이 사고는 장비 전도·슬래브 파손이 함께 발생한 사례입니다. 현재 사진의 통행 중 돌출 철근 접촉과 구분하고, 공통된 철근 접촉·관통 경로와 사람의 접근 가능성을 대조하세요.',url:'https://www.moel.go.kr/news/enews/report/enewsView.do?news_seq=15224'},
  {id:'moel-20032',title:'한화에어로스페이스 대전사업장 특별감독',publishedAt:'2026-10-01',agency:'고용노동부',industry:'제조업 · 건설현장 동일 사건 아님',topics:['opening','fall','electric','fire','msds','education','signs'],finding:'방폭기기·누출경보·단부난간·접지·교육·MSDS·표지 위반 등을 공개했습니다.',response:'473건 중 189건 사법처리, 284건 약 5억원 과태료 예정. 전체 총액이며 개별 부과액·확정 판결이 아닙니다.',lesson:'시설 외관과 함께 실제 기능·작업절차·교육 및 관리 기록의 이행을 대조하세요.',url:'https://www.moel.go.kr/news/enews/report/enewsView.do?news_seq=20032',focus:{
@@ -16,4 +18,5 @@ export const INSPECTION_CASES:InspectionCase[]=[
  {id:'moel-14286',title:'31개 건설현장 감독: 단부·개구부와 비계',publishedAt:'2022-11-28',agency:'고용노동부',topics:['opening','fall','scaffold','formwork','excavation','education'],finding:'단부 난간·개구부 덮개 등 추락조치 13건, 거푸집·굴착면 붕괴조치 7건, 벽이음 등 비계조치 6건을 적발했습니다.',response:'안전조치 위반 35건에 즉각 시정 및 사법절차 진행. 관리 사항 107건 과태료 2억6천만원은 전체 합계이며 개별 위반 금액은 아닙니다.',lesson:'보호구만 볼 것이 아니라 단부 방호, 비계 연결, 조립도와 시공 상태를 함께 확인하세요.',url:'https://www.moel.go.kr/news/enews/report/enewsView.do?news_seq=14286'},
  {id:'moel-13420',title:'36개 건설현장 감독: 개선 확인 후 작업 재개',publishedAt:'2022-04-12',agency:'고용노동부',topics:['opening','fall','scaffold','housekeeping','formwork'],finding:'추락·전도 방지조치 59건과 손상 거푸집·조립기준 등 붕괴예방조치 6건을 적발했습니다.',response:'20개 현장이 사법조치 대상. 중대한 위험이 있는 1개 현장은 작업중지명령 후 개선을 확인하고 해제했습니다.',lesson:'개선 전후 같은 위치를 촬영하고 방호시설의 고정·사용 가능 상태를 확인한 뒤 재개를 검토하세요.',url:'https://www.moel.go.kr/news/enews/report/enewsView.do?news_seq=13420'}
 ];
-export function casesForTopics(ids:string[]){return structuredClone(INSPECTION_CASES.filter(c=>c.topics.some(id=>ids.includes(id))));}
+for(const item of INSPECTION_CASES)item.sourceReview=reviewForSource('case',item.id);
+export function casesForTopics(ids:string[]){return structuredClone(INSPECTION_CASES.filter(c=>c.sourceReview?.status!=='withdrawn'&&c.topics.some(id=>ids.includes(id))));}

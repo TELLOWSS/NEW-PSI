@@ -1,10 +1,11 @@
+import InspectorSourceStatus from './InspectorSourceStatus';
 import React from 'react';
 import {sanctionText,type LegalCard,type LegalReference} from '../../lib/inspector/legal';
 import {legalApplication} from '../../lib/inspector/legalApplication';
 export default function InspectorLegalFocus({card,reference,evidence}:{card:LegalCard;reference:LegalReference;evidence?:string}){
     const lens=legalApplication(card);
     return <section className="si-legal-focus" aria-label="관련 법령 요지와 금액">
-        <h3>{card.title}</h3><p className="si-source-freshness">검토 자료 연결 · 사진 분석 중 실시간 법령 검색 아님 · 적용일·개정 내용은 공식 원문에서 대조하세요.</p><p className="si-caption">관련 기준 대조 · 위반 확정 아님 · 원문 대조 {card.reviewedAt||reference.reviewedAt}</p>
+        <h3>{card.title}</h3><InspectorSourceStatus review={card.sourceReview} eventAt={reference.eventAt} legal/><p className="si-source-freshness">검토 자료 연결 · 사진 분석 중 실시간 법령 검색 아님 · 적용일·개정 내용은 공식 원문에서 대조하세요.</p><p className="si-caption">관련 기준 대조 · 위반 확정 아님 · 기존 수록 검토일 {card.reviewedAt||reference.reviewedAt}</p>
         <dl className="si-standard-compare"><div><dt>먼저 대조할 기준</dt><dd>{lens.standard}</dd></div></dl>
         <div className="si-compact-sanctions">{card.sanctions.map((s,n)=><div className={`si-sanction si-sanction-${s.kind}`} key={n}><span>{s.kind==='criminal'?'형사벌칙':'행정 과태료'} · {s.actor}</span><strong>{sanctionText(s)}</strong><p>{s.condition}</p><a href={s.url} target="_blank" rel="noopener noreferrer">{s.basis} ↗</a></div>)}</div>
         {card.sanctionNote&&<p className="si-notice">금액 자동 산정 안 함 · {card.sanctionNote}</p>}

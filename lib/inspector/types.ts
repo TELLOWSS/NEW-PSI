@@ -25,6 +25,8 @@ export type OptimizationReceipt = { version: 'browser-jpeg-v2'; source_kind: 'op
 export type MaterialCompletion = { revision: number; completedAt: string; photoIds: string[] };
 export type InspectionDocument = {
     photoNotes?: Record<string,string>; apiEnabled?: boolean; materialCompletion?: MaterialCompletion;
+    /** Optional per-photo inspector statement; never an AI classification. */
+    photoRiskTopics?: Record<string,string>;
     inspectionKind?: InspectionKind; // Optional; legacy records remain valid and are never auto-classified.
     title: string; siteName: string; location: string; workType: string; eventAt: string;
     notes: string; urgent: boolean; ocrResults: Record<string, OcrResult>; photoIds: string[]; analyses: Record<string, VisionImport>;
