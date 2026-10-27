@@ -46,7 +46,7 @@ try{
   assert.equal(await camera.count(),1);assert.ok(initialCamera.height>=44&&records.height>=44);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
   // The existing control is visible without opening cost/operator settings.
-  const mode=page.getByRole('switch');await mode.scrollIntoViewIfNeeded();assert.equal(await mode.count(),1);await mode.click();await mode.getByText('AI 없는 점검', {exact:false}).waitFor();
+  const mode=page.getByRole('switch');await mode.scrollIntoViewIfNeeded();assert.equal(await mode.count(),1);assert.equal(await mode.getAttribute('aria-checked'),'false');await mode.getByText('AI 없는 점검', {exact:false}).waitFor();assert.equal(ops.includes('ai-status'),false,'manual default must not check AI');
   await page.locator('.si-photo-hint summary').click();const note=page.locator('#si-quick-note');await note.fill('직접 확인한 개구부 덮개 누락');
   const dismiss=async dialog=>dialog.dismiss();page.on('dialog',dismiss);
   await page.getByRole('button',{name:'저장 기록 · 상세 관리',exact:true}).click();assert.equal(await note.inputValue(),'직접 확인한 개구부 덮개 누락');
@@ -54,12 +54,20 @@ try{
   await page.getByRole('button',{name:'사진점검에서 로그아웃',exact:true}).click();assert.equal(await note.inputValue(),'직접 확인한 개구부 덮개 누락');
   await page.locator('.inspector-standalone-navigation summary').click();page.off('dialog',dismiss);
   const source=Buffer.from(await page.evaluate(()=>{const c=document.createElement('canvas');c.width=640;c.height=480;c.getContext('2d').fillRect(0,0,640,480);return c.toDataURL('image/jpeg').split(',')[1];}),'base64');
-  await page.getByLabel('현장사진 선택',{exact:true}).setInputFiles({name:'synthetic.jpg',mimeType:'image/jpeg',buffer:source});await page.locator('.si-quick-consent input').check();
+  await page.getByLabel('현장사진 선택',{exact:true}).setInputFiles({name:'synthetic.jpg',mimeType:'image/jpeg',buffer:source});const work=page.getByLabel('공종',{exact:true}),risk=page.getByLabel('직접 확인한 위험유형',{exact:true});
+  await work.selectOption('철근');assert.equal(await risk.inputValue(),'','trade must not infer a hazard');await work.selectOption('시스템비계');await risk.selectOption('electric');
+  await page.locator('.si-manual-context').screenshot({path:`${out}/manual-input-${width}.png`});await page.getByText('선택한 위험의 법령·사례·동향 확인',{exact:true}).click();await page.locator('.si-manual-context .si-legal-result').waitFor();assert.equal(await page.getByRole('region',{name:'관련 법령 요지와 금액'}).count(),1);
+  for(const control of [work,risk]){const box=await control.boundingBox();assert.ok(box.height>=44,'manual choices must be touch sized');}
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'manual choices must fit viewport');
+  await page.locator('.si-quick-consent input').check();
   failSave=true;await page.locator('.si-quick-start').click();await page.getByRole('alert').waitFor();assert.equal(await note.inputValue(),'직접 확인한 개구부 덮개 누락');
   failSave=false;await page.locator('.si-quick-start').click();await page.locator('.si-quick-result').waitFor();
-  assert.equal(ops.filter(x=>x==='upload').length,1,'retry must not duplicate photo');assert.equal(ops.includes('analyze-photo'),false);assert.equal(item.document.apiEnabled,false);assert.equal(item.document.photoNotes[photo.id],'직접 확인한 개구부 덮개 누락');
+  assert.equal(ops.filter(x=>x==='upload').length,1,'retry must not duplicate photo');assert.equal(ops.includes('analyze-photo'),false);assert.equal(item.document.apiEnabled,false);assert.equal(item.document.photoNotes[photo.id],'직접 확인한 개구부 덮개 누락');assert.equal(item.document.workType,'시스템비계');assert.equal(item.document.photoRiskTopics[photo.id],'electric');assert.equal(ops.includes('ai-status'),false);
+  await page.getByRole('button',{name:'사진·설명 수정',exact:true}).click();await work.selectOption('해체작업');assert.equal(await page.evaluate(()=>{const e=new Event('beforeunload',{cancelable:true});window.dispatchEvent(e);return e.defaultPrevented;}),true,'work type change must be protected');
+  assert.equal(await page.getByLabel('직접 확인한 위험유형',{exact:true}).count(),0,'existing result selector owns saved photo risk');await work.selectOption('시스템비계');await page.getByRole('button',{name:'입력 접기',exact:true}).click();
   await page.getByRole('tab',{name:'법령·금액',exact:true}).click();const status=page.locator('.si-legal-focus .si-source-status summary');await status.waitFor();assert.match(await status.innerText(),/공개일:.*검토일:/);assert.equal(await page.locator('.si-legal-focus .si-source-status').getAttribute('open'),null);
-  await page.locator('.si-topic-manual summary').click();await page.getByLabel('직접 대조할 기준',{exact:true}).selectOption('electric');assert.equal(await page.getByLabel('직접 대조할 기준',{exact:true}).inputValue(),'electric');assert.equal(await page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;}),true);
+  await page.locator('.si-topic-manual summary').click();await page.getByLabel('직접 대조할 기준',{exact:true}).selectOption('opening');assert.equal(await page.getByLabel('직접 대조할 기준',{exact:true}).inputValue(),'opening');assert.equal(await page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;}),true);
+  await page.getByLabel('직접 대조할 기준',{exact:true}).selectOption('electric');
   await page.locator('.si-legal-focus').screenshot({path:`${out}/source-${width}.png`});
   await page.getByRole('tab',{name:/^사례·동향/}).click();await page.locator('.si-case-trends').waitFor();
   await page.getByRole('region',{name:'점검 다음 단계'}).getByRole('button',{name:'직접 확인한 조치 작성',exact:true}).click();
@@ -74,6 +82,9 @@ try{
   await page.getByRole('button',{name:'모은 자료로 보고서 완성',exact:true}).last().click();await page.locator('.si-report').waitFor();assert.match(await page.locator('.si-report').innerText(),/직접 확인한 개구부 덮개 누락/);assert.match(await page.locator('.si-report').innerText(),/합성 형틀반장/);assert.match(await page.locator('.si-report').innerText(),/점검자 선택 위험:.*AI 판정 아님/);
   await page.reload({waitUntil:'domcontentloaded'});const resume=page.getByRole('button',{name:'이전 점검 이어하기',exact:true});await resume.waitFor();await page.evaluate(()=>scrollTo(0,0));const resumeBox=await resume.boundingBox();assert.ok(resumeBox.y+resumeBox.height<=844);await resume.click();await page.locator('.si-storage-manager').waitFor();assert.equal(item.document.photoIds[0],photo.id);assert.equal(ops.filter(x=>x==='create').length,1);assert.equal(ops.filter(x=>x==='report').length,1);
   await page.locator('.si-photo-collection').getByRole('button',{name:'열어 검토',exact:true}).first().click();await page.getByRole('tab',{name:'법령·금액',exact:true}).click();await page.locator('.si-topic-manual summary').click();assert.equal(await page.getByLabel('직접 대조할 기준',{exact:true}).inputValue(),'electric');
+  assert.equal(ops.includes('ai-status'),false,'complete manual flow and resume must make zero AI status requests');
+  await page.getByRole('button',{name:'사진·설명 수정',exact:true}).click();await mode.click();await page.waitForFunction(()=>document.querySelector('[aria-label="AI 정밀점검 사용"]')?.getAttribute('aria-checked')==='true');await page.getByText('AI 사진 분석 사용 가능',{exact:true}).waitFor();assert.equal(ops.filter(op=>op==='ai-status').length,1);assert.equal(item.document.apiEnabled,true);
+  await page.reload({waitUntil:'domcontentloaded'});await page.getByRole('button',{name:'이전 점검 이어하기',exact:true}).click();await page.getByRole('switch',{name:'AI 정밀점검 사용',exact:true}).waitFor();await page.waitForFunction(()=>document.querySelector('[aria-label="AI 정밀점검 사용"]')?.getAttribute('aria-checked')==='true');await page.getByText('AI 사진 분석 사용 가능',{exact:true}).waitFor();assert.equal(ops.filter(op=>op==='ai-status').length,2);assert.equal(ops.includes('analyze-photo'),false);assert.equal(item.document.workType,'시스템비계');
   assert.deepEqual(errors,[]);results.push({width,camera:initialCamera,records,ops,passed:true});await context.close();
  }
  await writeFile(out+`/${baseline?'before':'results'}.json`,JSON.stringify(results,null,2)+'\n');console.log(JSON.stringify(results));

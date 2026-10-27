@@ -40,7 +40,7 @@ for(const scenario of ['blocked','unavailable','retry','quota','settings','unkno
   }else throw new Error('Unexpected fixture operation: '+b.op);
   await r.fulfill({json:result});
  });
- await page.goto(base+'/?mode=photo-inspector',{waitUntil:'domcontentloaded'});
+ await page.goto(base+'/?mode=photo-inspector',{waitUntil:'domcontentloaded'});await page.locator('.si-quick').waitFor();await page.getByRole('switch',{name:'AI 정밀점검 사용',exact:true}).click();
  await page.locator('.si-quick').waitFor();if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}
  const source=Buffer.from(await page.evaluate(()=>{const c=document.createElement('canvas');c.width=640;c.height=480;c.getContext('2d').fillRect(0,0,640,480);return c.toDataURL('image/jpeg').split(',')[1];}),'base64');
  await page.locator('.si-quick input[type=file]').first().setInputFiles({name:'synthetic.jpg',mimeType:'image/jpeg',buffer:source});

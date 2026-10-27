@@ -308,3 +308,4 @@
 /* Present the real report and its print action after lazy loading, clear of mobile header. */
 .si-quick-print,.si-report{scroll-margin-top:84px}
 .si-report:focus{outline:2px solid var(--si-teal);outline-offset:3px}
+.si-manual-context{min-width:0;margin:14px 0;padding:14px;border:1px solid var(--si-line);border-radius:12px}.si-manual-context legend{padding:0 6px;font-size:14px;font-weight:700}.si-manual-context .si-topic-select{align-items:flex-start;flex-direction:column;gap:6px}.si-manual-context .si-topic-select select{box-sizing:border-box;width:100%;max-width:none;flex:auto}.si-manual-context details>summary{min-height:44px;display:flex;align-items:center;font-size:13px;cursor:pointer}
