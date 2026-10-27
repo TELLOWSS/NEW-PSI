@@ -75,7 +75,9 @@ export function legalForPhoto(analysis:VisionImport|null|undefined,note:string,e
     return legalForText([note,...(analysis?.observed_facts.map(f=>f.text)||[]),...(analysis?.law_candidate_keywords||[])].join('\n'),eventAt);
 }
 export function legalForInspection(doc:InspectionDocument,photoIds=doc.photoIds):LegalReference {
+    const statements=photoIds.flatMap(id=>doc.photoRiskTopics?.[id]?[doc.photoRiskTopics[id]]:[]);
     const references=[legalForText([doc.workType,doc.notes].join(' '),doc.eventAt),...photoIds.flatMap(id=>doc.reviews[id]?.decision==='rejected'?[legalForText([doc.photoNotes?.[id]||'',doc.reviews[id].note].join(' '),doc.eventAt)]:[legalForPhoto(doc.analyses[id],'',doc.eventAt),legalForText(doc.photoNotes?.[id]||'',doc.eventAt)])];
     // Inspector statements remain report material independently of AI. Frozen references are never rewritten.
-    return legalForTopics(references.flatMap(r=>r.cards.map(c=>c.id)),doc.eventAt);
+    return legalForTopics([...statements,...references.flatMap(r=>r.cards.map(c=>c.id))],doc.eventAt);
 }
+export const legalTopicTitle=(id:string)=>LEGAL_CARDS.find(card=>card.id===id)?.title||id;

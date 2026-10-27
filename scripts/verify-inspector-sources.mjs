@@ -26,7 +26,7 @@ try{
  });
  await page.goto(base+'/inspector',{waitUntil:'domcontentloaded'});
  await page.getByRole('heading',{name:'사진만 찍어도 점검을 시작할 수 있습니다',exact:true}).waitFor();
- await page.getByRole('button',{name:'산업안전보건법령 요지 게시',exact:true}).click();
+ await page.locator('.si-quick-topics summary').click();await page.getByRole('button',{name:'산업안전보건법령 요지 게시',exact:true}).click();
  await page.getByRole('tab',{name:'법령·금액',exact:true}).click();
  await page.locator('.si-legal-focus .si-source-status summary').click();
  await page.getByText('기존 자료 · 검토 이력 보완 필요',{exact:true}).waitFor();

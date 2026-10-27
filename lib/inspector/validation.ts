@@ -1,5 +1,6 @@
 import validateSchema from './visionValidator.generated.js';
 import type { Evidence, InspectionDocument, VisionImport } from './types.js';
+import {LEGAL_CARDS} from './legal.js';
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export class InspectorInputError extends Error {}
 function fail(message = '입력 형식과 필수 항목을 확인해 주세요.'): never { throw new InspectorInputError(message); }
@@ -28,7 +29,7 @@ export function parseVisionImport(raw: string | unknown, inspectionId: string, p
 }
 export function validateDocument(value: unknown, inspectionId: string, evidence: Evidence[]): InspectionDocument {
     if (new TextEncoder().encode(JSON.stringify(value) || '').length > 480000) fail('점검 내용이 너무 큽니다. 사진별 분석 내용을 줄여 주세요.');
-    exact(value, ['title','siteName','location','workType','eventAt','notes','urgent','ocrResults','photoIds','analyses','reviews','actions','confirmationAnswers','photoNotes','apiEnabled','materialCompletion','inspectionKind']);
+    exact(value, ['title','siteName','location','workType','eventAt','notes','urgent','ocrResults','photoIds','analyses','reviews','actions','confirmationAnswers','photoNotes','photoRiskTopics','apiEnabled','materialCompletion','inspectionKind']);
     const doc = value as InspectionDocument;
     if(doc.inspectionKind!==undefined && !['spot','regular','consulting','other'].includes(doc.inspectionKind))fail('점검 유형을 다시 선택해 주세요.');
     text(doc.title, 200, 1); text(doc.siteName, 200); text(doc.location, 200); text(doc.workType, 100); text(doc.notes, 8000);
@@ -39,6 +40,10 @@ export function validateDocument(value: unknown, inspectionId: string, evidence:
     if (doc.photoIds.some(id => typeof id !== 'string' || !UUID.test(id) || !byId.has(id))) fail('사진 원본이 저장되지 않았거나 다른 점검의 사진입니다.');
     if(doc.apiEnabled!==undefined && typeof doc.apiEnabled!=='boolean') fail();
     if(doc.photoNotes!==undefined) {if(!object(doc.photoNotes) || Object.keys(doc.photoNotes).length>20)fail();for(const [id,note] of Object.entries(doc.photoNotes)){if(!doc.photoIds.includes(id))fail();text(note,4000);}}
+    if(doc.photoRiskTopics!==undefined){
+        if(!object(doc.photoRiskTopics)||Object.keys(doc.photoRiskTopics).length>20)fail('사진별 점검자 위험 선택을 확인해 주세요.');
+        for(const [id,topic] of Object.entries(doc.photoRiskTopics))if(!doc.photoIds.includes(id)||typeof topic!=='string'||!LEGAL_CARDS.some(card=>card.id===topic))fail('저장된 사진과 수록된 위험유형을 선택해 주세요.');
+    }
     if(doc.materialCompletion!==undefined){const m=doc.materialCompletion;exact(m,['revision','completedAt','photoIds']);if(!Number.isSafeInteger(m.revision)||m.revision<1||!Number.isFinite(Date.parse(m.completedAt))||!Array.isArray(m.photoIds)||m.photoIds.length===0||new Set(m.photoIds).size!==m.photoIds.length||m.photoIds.some(id=>!doc.photoIds.includes(id)||doc.reviews[id]?.decision!=='accepted'))fail('보고서 자료 완료 상태를 다시 확인해 주세요.');}
     if (!object(doc.ocrResults) || Object.keys(doc.ocrResults).length > 20) fail();
     for (const [id, result] of Object.entries(doc.ocrResults)) {

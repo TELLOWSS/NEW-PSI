@@ -31,6 +31,9 @@ describe('explicit photo review persistence',()=>{
  it('warns for pending local photos, changed source/description/title or unsaved review but permits saved read-only views',()=>{
   const before=make(),after=saved(before);
   expect(photoWorkUnsaved(null,null,pid,'','',review)).toBe(true);expect(photoWorkUnsaved(null,null,undefined,'','',review)).toBe(false);
+  expect(photoWorkUnsaved(null,null,undefined,'사진 선택 전 작성한 설명','사진 현장점검',review)).toBe(true);
+  expect(photoWorkUnsaved(after,null,undefined,'','새 제목',review)).toBe(true);
+  expect(photoWorkUnsaved(after,null,undefined,'',after.document.title,review)).toBe(false);
   expect(photoWorkUnsaved(before,photo,pid,'작업 동선','현장',review)).toBe(true);expect(photoWorkUnsaved(after,photo,pid,'작업 동선','현장',review)).toBe(false);
   expect(photoWorkUnsaved(after,photo,'other','작업 동선','현장',review)).toBe(true);expect(photoWorkUnsaved(after,photo,pid,'수정 설명','현장',review)).toBe(true);expect(photoWorkUnsaved(after,photo,pid,'작업 동선','새 제목',review)).toBe(true);expect(photoWorkUnsaved(after,photo,pid,'작업 동선','현장',{...review,note:'추가 조치 의견'})).toBe(true);
  });

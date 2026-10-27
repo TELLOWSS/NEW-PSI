@@ -37,7 +37,7 @@ const readBase64=(file:File)=>new Promise<string>((resolve,reject)=>{const r=new
 const toLocalDateTime=(value:string)=>{const d=new Date(value);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);};
 function downloadJson(value:unknown,name:string) {const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 
-export default function InspectorAdvancedWorkspace({onQuick,onResume}:{onQuick:()=>void;onResume?:(entry:RecordResumeEntry)=>void}) {
+export default function InspectorAdvancedWorkspace({onQuick,onResume,onUnsavedChange}:{onQuick:()=>void;onResume?:(entry:RecordResumeEntry)=>void;onUnsavedChange?:(dirty:boolean)=>void}) {
     const [analyzePhoto]=useState(()=>createInspectorAnalysisClient());
     const [analysisFailure,setAnalysisFailure]=useState<AnalysisFailure|null>(null);
     const [items,setItems]=useState<InspectionSummary[]>([]),[hasMore,setHasMore]=useState(false),[loaded,setLoaded]=useState(false);
@@ -87,6 +87,7 @@ export default function InspectorAdvancedWorkspace({onQuick,onResume}:{onQuick:(
         try{await work();}catch(cause){if(alive.current && ticket.current===n)setError(inspectionErrorMessage(cause));}
         finally{if(alive.current && ticket.current===n){setBusy(false);inflight.current=false;}}};
     useEffect(()=>{const nav=tabsRef.current,active=nav?.querySelector<HTMLElement>('[aria-current=step]');if(nav && active && nav.scrollWidth>nav.clientWidth){const left=nav.scrollLeft+active.getBoundingClientRect().left-nav.getBoundingClientRect().left-(nav.clientWidth-active.clientWidth)/2;nav.scrollTo({left,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});}},[tab]);
+    useEffect(()=>{onUnsavedChange?.(dirty);return()=>onUnsavedChange?.(false);},[dirty,onUnsavedChange]);
     useEffect(()=>{if(!dirty)return;const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue='';};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[dirty]);
     useEffect(()=>{if(!item)return;const frame=requestAnimationFrame(()=>{const title=workRef.current?.querySelector<HTMLElement>('[data-step-title]');title?.focus({preventScroll:true});title?.scrollIntoView({block:'start',behavior:'instant'});});return()=>cancelAnimationFrame(frame);},[item?.id,tab]);
     useEffect(()=>{photoFocusRef.current=photoId;},[photoId]);
