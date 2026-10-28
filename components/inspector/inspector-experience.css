@@ -271,4 +271,29 @@
 @media(max-width:380px){.si-camera-simple-steps{gap:4px}.si-camera-simple-steps li{font-size:11px;padding:7px 3px}}
 @media print{.si-camera-simple-steps,.si-camera-recovery{display:none!important}}
 
+/* Camera-first hierarchy: the live frame and capture action lead the task. */
+.si-camera-dialog{border:1px solid #d7e3e2;border-radius:24px;box-shadow:0 28px 90px #061d2c66}
+.si-camera-heading{border-bottom:0;padding-bottom:4px}
+.si-camera-heading .si-eyebrow{color:#227a6c;font-size:10px;letter-spacing:.13em;font-weight:800}
+.si-camera-heading h2{margin:5px 0 3px;letter-spacing:-.035em}
+.si-camera-heading .si-btn{border-radius:14px}
+.si-camera-intro{margin:4px 0 12px;color:#5b6f7c;font-size:13px}
+.si-camera-stage{margin:8px 0 10px;border-radius:18px;box-shadow:0 8px 24px #0b25301c}
+.si-camera-frame-status{margin:8px 2px;color:#416960;font-size:12px}
+.si-camera-actions{gap:10px;margin:8px 0 14px;padding:12px 0;background:var(--si-camera-surface)}
+.si-camera-dialog .si-camera-shutter{flex:2 1 180px;min-height:60px;border-radius:16px;gap:12px;justify-content:center;font-weight:800;letter-spacing:-.02em;background:#146c5e;color:#fff;border-color:#146c5e}
+.si-camera-shutter-mark{display:grid;place-items:center;width:36px;height:36px;border:1px solid #ffffff99;border-radius:50%;background:#ffffff20}
+.si-camera-shutter-mark svg{width:18px;height:18px}
+.si-camera-dialog .si-camera-flip{flex:1 1 120px;min-height:60px;border-radius:16px;background:#f3f7f6;border-color:#d9e5e2;color:#254c49;font-weight:700}
+.si-camera-dialog .si-camera-shutter:disabled{opacity:.55}
+.si-camera-reference-controls{padding:12px 14px;border:1px solid #cfe5de;border-radius:15px;background:#f1f8f5;color:#214b43}
+.si-camera-reference-controls strong{font-size:13px;letter-spacing:-.02em}
+.si-camera-reference-controls label{flex:1 1 150px;white-space:nowrap}.si-camera-reference-controls select{min-width:76px;width:auto;flex:1}
+.si-camera-reference-controls p{color:#4c6a62}
+.si-camera-direction-options summary{color:#315a55}
+.dark .si-camera-intro{color:#b5c8ce}.dark .si-camera-heading .si-eyebrow{color:#8bd0b8}.dark .si-camera-frame-status{color:#b0d8c8}
+.dark .si-camera-reference-controls{background:#173b36;border-color:#356c5e;color:#e0f3eb}.dark .si-camera-reference-controls p,.dark .si-camera-direction-options summary{color:#b8d9cc}
+.dark .si-camera-dialog .si-camera-flip{background:#1b3540;border-color:#3e5b63;color:#e1f0ef}
+@media(orientation:landscape) and (max-height:520px){.si-camera-dialog:has(video) .si-camera-stage{margin:0}.si-camera-dialog:has(video) .si-camera-actions{padding:0}.si-camera-dialog:has(video) .si-camera-shutter,.si-camera-dialog:has(video) .si-camera-flip{min-height:52px}.si-camera-shutter-mark{width:28px;height:28px}}
+
 .si-camera-simple-steps li.is-complete{background:#e7f1ef;color:#24675a;font-weight:600}
