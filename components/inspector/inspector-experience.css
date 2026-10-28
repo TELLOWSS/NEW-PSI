@@ -286,6 +286,13 @@
 .si-camera-shutter-mark svg{width:18px;height:18px}
 .si-camera-dialog .si-camera-flip{flex:1 1 120px;min-height:60px;border-radius:16px;background:#f3f7f6;border-color:#d9e5e2;color:#254c49;font-weight:700}
 .si-camera-dialog .si-camera-shutter:disabled{opacity:.55}
+.si-camera-grid{position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(to right,transparent calc(33.333% - .5px),#ffffff99 33.333%,transparent calc(33.333% + .5px),transparent calc(66.666% - .5px),#ffffff99 66.666%,transparent calc(66.666% + .5px)),linear-gradient(to bottom,transparent calc(33.333% - .5px),#ffffff99 33.333%,transparent calc(33.333% + .5px),transparent calc(66.666% - .5px),#ffffff99 66.666%,transparent calc(66.666% + .5px))}
+.si-camera-guide-options{margin:8px 0;border:1px solid #cfe5de;border-radius:14px;padding:0 14px}
+.si-camera-guide-options summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:700;color:#315a55}
+.si-camera-guide-content{display:grid;gap:10px;padding:0 0 14px;font-size:13px;line-height:1.5}
+.si-camera-guide-content label{display:flex;align-items:center;gap:10px;min-height:44px}.si-camera-guide-content select{min-height:44px;max-width:100%;flex:1}.si-camera-grid-choice input{width:20px;height:20px;accent-color:#146c5e}.si-camera-guide-content p{margin:0}
+.dark .si-camera-guide-options{border-color:#356c5e}.dark .si-camera-guide-options summary{color:#b8d9cc}
+@media(orientation:landscape) and (max-height:520px){.si-camera-dialog:has(video) .si-camera-guide-options{grid-column:1/-1;grid-row:7}}
 .si-camera-reference-controls{padding:12px 14px;border:1px solid #cfe5de;border-radius:15px;background:#f1f8f5;color:#214b43}
 .si-camera-reference-controls strong{font-size:13px;letter-spacing:-.02em}
 .si-camera-reference-controls label{flex:1 1 150px;white-space:nowrap}.si-camera-reference-controls select{min-width:76px;width:auto;flex:1}
