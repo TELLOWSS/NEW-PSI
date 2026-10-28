@@ -147,6 +147,21 @@
   .si-quick .si-quick-photo{min-height:200px;padding:20px 16px}
 }
 @media(max-width:360px){.si-quick .si-quick-heading{grid-template-columns:1fr}.si-quick .si-quick-heading>.si-btn{justify-self:start}}
+
+/* After capture, keep the photo state and the next decision easy to scan. */
+.si-quick .si-quick-input[data-photo-ready="true"] .si-quick-photo{justify-content:flex-start;gap:12px;padding:22px}
+.si-quick .si-photo-preview-label{align-self:flex-start;max-width:none;margin:0;color:#c2e8dc;font-size:11px;font-weight:800;letter-spacing:.04em}
+.si-quick .si-quick-input[data-photo-ready="true"] .si-quick-photo img{background:#081e2c;border:1px solid #ffffff20;border-radius:14px}
+.si-quick .si-quick-input[data-photo-ready="true"] .si-quick-context{gap:12px}
+.si-quick .si-quick-input[data-photo-ready="true"] .si-inspection-mode{background:var(--si-soft);border-radius:14px}
+.si-quick .si-quick-input[data-photo-ready="true"] .si-discovery-start{margin:0;padding:4px 2px;border:0;background:transparent}
+.si-quick .si-quick-input[data-photo-ready="true"] .si-discovery-start p{margin:5px 0 0}
+.si-quick .si-quick-input[data-photo-ready="true"] .si-manual-context{margin:0;padding:14px;border:1px solid var(--si-line);border-radius:15px;background:var(--si-surface)}
+.si-quick .si-quick-input[data-photo-ready="true"] .si-manual-context legend{color:var(--si-teal);font-weight:800}
+.si-quick .si-quick-input[data-photo-ready="true"] .si-photo-hint{margin:0;border-radius:14px;background:var(--si-surface)}
+.si-quick .si-quick-input[data-photo-ready="true"] .si-novice-analysis-status{margin:0}
+.si-quick .si-quick-input[data-photo-ready="true"] .si-quick-start{min-height:56px}
+@media(max-width:700px){.si-quick .si-quick-input[data-photo-ready="true"] .si-quick-photo{padding:16px;min-height:0}.si-quick .si-quick-input[data-photo-ready="true"] .si-quick-photo img{height:220px}.si-quick .si-quick-input[data-photo-ready="true"] .si-quick-context{padding:18px 16px}}
 @media print{
   .si-quick .si-quick-heading,.si-quick .si-quick-consent,.si-quick .si-start-guide{display:none!important}
 }
