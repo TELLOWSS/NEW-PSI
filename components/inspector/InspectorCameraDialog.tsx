@@ -12,6 +12,8 @@ export default function InspectorCameraDialog({onClose, onUse, reference}: {onCl
     const [photo,setPhoto]=useState<File|null>(null), [preview,setPreview]=useState(''), [decoded,setDecoded]=useState(false);
     const [error,setError]=useState('');
     const [overlayVisible,setOverlayVisible]=useState(true),[overlayOpacity,setOverlayOpacity]=useState(50),[overlayFailed,setOverlayFailed]=useState(false);
+    const [grid,setGrid]=useState(()=>{try{return sessionStorage.getItem('psi.inspector.camera.grid.v1')==='on';}catch{return false;}});
+    const [guide,setGuide]=useState('');
     useEffect(()=>setOverlayFailed(false),[reference?.url]);
     const stop=()=>{streamRef.current?.getTracks().forEach(track=>track.stop());streamRef.current=null;if(videoRef.current)videoRef.current.srcObject=null;};
 
@@ -86,6 +88,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference}: {onCl
 
             {photo?(preview&&<img src={preview} alt="등록 전 촬영 사진 미리보기" onLoad={e=>{setDecoded(true);setFrame({width:e.currentTarget.naturalWidth,height:e.currentTarget.naturalHeight});}} onError={()=>{setDecoded(false);setError('사진 미리보기를 읽지 못했습니다. 다시 촬영해 주세요.');}}/>):<video ref={videoRef} autoPlay playsInline muted aria-label="실시간 카메라 화면" onLoadedData={refreshFrame} onResize={refreshFrame}/>}
             {!photo&&ready&&reference?.url&&overlayVisible&&!overlayFailed&&<img className="si-camera-reference" src={reference.url} alt="" aria-hidden="true" style={{opacity:overlayOpacity/100}} onError={()=>setOverlayFailed(true)}/>}
+            {!photo&&ready&&grid&&<div className="si-camera-grid" aria-hidden="true"/>}
             {!photo && !ready && <span className="si-camera-wait" role="status">{error?'카메라 연결을 확인해 주세요':'카메라 연결 중…'}</span>}
         </div>
         {!photo&&reference&&<section className="si-camera-reference-controls" aria-label="전후 맞춤 렌즈">
@@ -104,6 +107,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference}: {onCl
             {error&&<button className="si-btn" onClick={retry}>카메라 다시 연결</button>}
         </>}</div>
         {!photo&&(reference?<details className="si-camera-direction-options"><summary>촬영 방향 · {mode==='landscape'?'가로':'세로'}</summary>{directionControls}</details>:directionControls)}
+        {!photo&&<details className="si-camera-guide-options"><summary>촬영 가이드 · {grid?'격자 켜짐':'격자 꺼짐'}</summary><div className="si-camera-guide-content"><label className="si-camera-grid-choice"><input type="checkbox" checked={grid} onChange={e=>{const enabled=e.target.checked;setGrid(enabled);try{sessionStorage.setItem('psi.inspector.camera.grid.v1',enabled?'on':'off');}catch{/* The setting still applies in this window. */}}}/> 화면 격자 표시</label><label>촬영할 대상 <select value={guide} onChange={e=>setGuide(e.target.value)}><option value="">선택 안 함</option><option value="scaffold">시스템비계</option><option value="opening">개구부</option><option value="lifting">양중</option></select></label>{guide&&<p>{guide==='scaffold'?'발판과 지지부, 주변 상황을 함께 담아 보세요.':guide==='opening'?'개구부와 주변 동선, 방호 상태를 함께 담아 보세요.':'양중 대상과 주변 작업 공간을 함께 담아 보세요.'}</p>}<p>가이드와 격자는 화면에만 표시되며 촬영 사진에 들어가지 않습니다. 안전한 위치에서 촬영하고 현장 상태는 직접 확인하세요.</p></div></details>}
         {!photo&&<><label className="si-camera-native si-btn">기기 카메라로 촬영<input aria-label="기기 카메라로 촬영" type="file" accept="image/jpeg,image/png,image/webp" capture={facing} disabled={capturing} onClick={()=>{++generation.current;stop();setReady(false);setError('기기 촬영을 취소했다면 카메라 다시 연결을 누르세요.');}} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file){setError('');setPhoto(file);}}}/></label>{reference&&<p className="si-caption">기기 카메라로 전환하면 기준 사진 겹침이 표시되지 않습니다.</p>}</>}
         <p className="si-caption">사용 전 사진은 이 창의 임시 메모리에만 있습니다. 원본이 필요하면 ‘촬영 사진 기기에 저장’으로 다운로드하세요. 사진 앱에 자동 저장되지는 않습니다.</p>
     </dialog>;
