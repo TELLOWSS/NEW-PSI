@@ -12,5 +12,9 @@ try{
  assert.equal(await page.evaluate(()=>{const e=new Event('beforeunload',{cancelable:true});window.dispatchEvent(e);return e.defaultPrevented;}),true);
  const download=page.waitForEvent('download');await page.getByRole('link',{name:'사진 기기에 저장'}).click();const file=await download;assert.match(file.suggestedFilename(),/^PSI-camera-.*\.jpg$/);
  await page.getByRole('button',{name:'사진 공유'}).click();await page.getByText('공유 앱에 전달했습니다.',{exact:false}).waitFor();assert.ok((await page.evaluate(()=>window.__shared.size))>0);assert.equal(await page.getByRole('link',{name:'Inspector 열기 →'}).getAttribute('href'),'/inspector');
+ for(const width of [320,390,768,1440]){await page.setViewportSize({width,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`layout fits ${width}px`);}
+ page.once('dialog',dialog=>dialog.dismiss());await page.getByRole('link',{name:'Inspector 열기 →'}).click();assert.equal(new URL(page.url()).pathname,'/camera');assert.equal(await page.getByAltText('선택한 현장 사진 미리보기').count(),1);
+ page.once('dialog',dialog=>dialog.dismiss());await page.getByRole('button',{name:'다음 사진 촬영'}).click();assert.equal(await page.getByAltText('선택한 현장 사진 미리보기').count(),1);
+ await page.evaluate(()=>{Object.defineProperty(navigator,'share',{configurable:true,value:undefined});});await page.getByRole('button',{name:'사진 공유'}).click();await page.getByText('이 브라우저는 공유창을 지원하지 않습니다.',{exact:false}).waitFor();assert.equal(await page.getByRole('link',{name:'사진 기기에 저장'}).count(),1);
  assert.deepEqual(api,[],'local camera must not call an API');assert.deepEqual(errors,[]);await context.close();console.log('PASS local camera capture, download, share handoff, unload guard and no API calls');
 }finally{await Promise.race([browser.close(),new Promise(resolve=>setTimeout(resolve,3000))]);server.httpServer?.closeAllConnections();await Promise.race([server.close(),new Promise(resolve=>setTimeout(resolve,3000))]);}
