@@ -82,7 +82,7 @@ export default function InspectorActionFollowup({item,action,evidence,busy,loadP
             {choosing&&<p role="status">기기에서 개선사진 최적화 중…</p>}{error&&<p role="alert" className="si-notice si-error">{error}</p>}
             <p className="si-caption">기록 주체는 전용 설치 관리자이며 개인 전자서명은 아닙니다. 이미 만든 보고서는 변경하지 않으므로 재점검 후 새 보고서를 작성하세요.</p>
         </>}
-        {camera&&<InspectorCameraDialog onClose={()=>setCamera(false)} onUse={file=>{setCamera(false);void choose(file);}}/>}
+        {camera&&<InspectorCameraDialog reference={{url:before.url,label:selectedBefore?`조치 전 · 사진 ${item.document.photoIds.indexOf(selectedBefore)+1}`:'기준 사진 없음',failed:before.failed,missing:!selectedBefore}} onClose={()=>setCamera(false)} onUse={file=>{setCamera(false);void choose(file);}}/>}
         {zoom&&<InspectorPhotoDialog src={zoom} caption="점검에 연결된 사본입니다. 개선 이행은 현장에서 직접 대조하세요." onClose={()=>setZoom('')}/>}
     </details>;
 }

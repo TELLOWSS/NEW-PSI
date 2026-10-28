@@ -231,6 +231,9 @@
 .si-camera-stage-landscape:not(.si-camera-stage-photo){aspect-ratio:16/9}
 .si-camera-stage-portrait:not(.si-camera-stage-photo){aspect-ratio:3/4;width:min(100%,32dvh);margin-inline:auto}
 .si-camera-stage:not(.si-camera-stage-photo) video{position:absolute;inset:0;width:100%;height:100%;max-height:none;object-fit:contain}
+.si-camera-stage:not(.si-camera-stage-photo) .si-camera-reference{position:absolute;inset:0;width:100%;height:100%;max-height:none;object-fit:contain;pointer-events:none}
+.si-camera-reference-controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:10px 0}.si-camera-reference-controls strong,.si-camera-reference-controls p{flex-basis:100%}.si-camera-reference-controls p{margin:0;font-size:.85rem;line-height:1.45}.si-camera-reference-controls label{display:flex;align-items:center;gap:8px}.si-camera-reference-controls select{min-height:44px}
+.si-camera-direction-options summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}
 .si-camera-actions{position:sticky;bottom:-24px;z-index:2;background:var(--si-camera-surface);padding:12px 0;border-top:1px solid #7894b433}
 .si-camera-dialog .si-btn:focus-visible{outline:3px solid #146b63;outline-offset:3px}
 .dark .si-camera-dialog{--si-camera-surface:#102435}
@@ -245,12 +248,14 @@
  .si-camera-dialog:has(video) .si-camera-heading h2{font-size:18px;margin:0}
  .si-camera-dialog:has(video) .si-camera-stage{grid-column:1;grid-row:2/5;aspect-ratio:auto;width:100%;height:calc(100dvh - 150px);margin:0;align-self:stretch}
  .si-camera-dialog:has(video) .si-camera-modes{grid-column:2;grid-row:2;margin:0;align-self:start;gap:6px}
+ .si-camera-dialog:has(video) .si-camera-direction-options{grid-column:2;grid-row:2;align-self:start}
  .si-camera-dialog:has(video) .si-camera-modes .si-btn{min-height:48px;gap:6px;font-size:12px;padding:6px}
  .si-camera-dialog:has(video) .si-camera-modes small{font-size:9px}
  .si-camera-dialog:has(video) .si-camera-actions{grid-column:2;grid-row:3;position:static;margin:0;padding:0;border:0;align-self:center;gap:6px}
  .si-camera-dialog:has(video) .si-camera-actions .si-btn{flex:1;padding:8px 4px;font-size:12px;justify-content:center;gap:5px}
  .si-camera-dialog:has(video) .si-camera-native{grid-column:2;grid-row:4;margin:0;align-self:start;justify-content:center;font-size:12px}
  .si-camera-dialog:has(video) .si-camera-frame-status{grid-column:1/-1;grid-row:5;margin:0}
+ .si-camera-dialog:has(video) .si-camera-reference-controls{grid-column:1/-1;grid-row:6}
  .si-camera-dialog:has(video)>.si-camera-direction-guide{grid-column:1/-1;order:6;margin:4px 0}
  .si-camera-dialog:has(video)>p.si-caption,.si-camera-dialog:has(video)>p.si-notice{grid-column:1/-1;order:7;font-size:11px;line-height:1.6;margin:2px 0}
 }
