@@ -49,7 +49,7 @@ for(const scenario of ['review','short-opinion','rejected','changed-input','prin
  await page.locator('.si-quick').waitFor();await page.getByRole('switch',{name:'AI 정밀점검 사용',exact:true}).click();await page.evaluate(()=>{window.__printCalls=0;window.__confirmCalls=0;window.print=()=>{window.__printCalls++};window.confirm=()=>{window.__confirmCalls++;return false};});if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}
  const source=Buffer.from(await page.evaluate(()=>{const c=document.createElement('canvas');c.width=640;c.height=480;c.getContext('2d').fillRect(0,0,640,480);return c.toDataURL('image/jpeg').split(',')[1];}),'base64');
  await page.locator('.si-quick input[type=file]').first().setInputFiles({name:'synthetic.jpg',mimeType:'image/jpeg',buffer:source});
- await page.locator('.si-consent-cue').getByText('다음 단계 · 사진 보관 안내 확인').waitFor();
+ await page.locator('.si-consent-cue').getByText('다음 단계 · 이 사진의 보관 안내 확인').waitFor();
  assert.equal(await page.locator('.si-quick-start').isDisabled(),true,'Consent must not be implicitly accepted');
  assert.equal(await page.locator('.si-quick-start').innerText(),'먼저 사진 보관 안내 확인');
  await page.waitForFunction(()=>document.activeElement?.classList.contains('si-consent-input'));
