@@ -120,6 +120,33 @@
 @media(prefers-reduced-motion:reduce){
   .si-quick .si-quick-consent{transition:none}
 }
+
+/* The camera is the first task; the workspace heading stays informative but quiet. */
+.si-quick .si-quick-heading{
+  display:flex;align-items:center;gap:18px;margin:0 0 14px;padding:10px 4px 14px;
+  border:0;border-bottom:1px solid var(--si-line);border-radius:0;background:none;box-shadow:none;
+}
+.si-quick .si-quick-heading::after,.si-quick .si-quick-heading .si-eyebrow::before{display:none}
+.si-quick .si-quick-heading .si-eyebrow{color:#1c786b;letter-spacing:.11em}
+.si-quick .si-quick-heading h1{margin:5px 0 4px;color:var(--si-navy);font-size:clamp(20px,2vw,26px);line-height:1.35}
+.si-quick .si-quick-heading p:not(.si-eyebrow){color:var(--si-muted);font-size:12px}
+.si-quick .si-quick-heading>.si-btn{color:var(--si-navy);background:var(--si-surface);border:1px solid var(--si-line);border-radius:12px;backdrop-filter:none}
+.si-quick .si-quick-heading>.si-btn:hover:not(:disabled){background:var(--si-soft);border-color:#80b9a9;color:var(--si-navy)}
+.si-quick .si-quick-photo{background:radial-gradient(ellipse at 20% 0%,#28776b 0%,transparent 65%),linear-gradient(145deg,#102b3c,#15464a)}
+.si-quick .si-quick-photo .si-novice-main-camera{min-height:56px;border-radius:14px;background:#d8f4e7;border-color:#d8f4e7;color:#103f35;box-shadow:0 8px 24px #06282455}
+.si-quick .si-quick-photo .si-novice-main-camera:hover:not(:disabled){background:#ecfff6;border-color:#ecfff6;color:#103f35}
+.si-quick .si-resume{border-radius:16px;border:1px solid #b8d9ce;background:var(--si-surface);box-shadow:0 5px 18px #0d334a0d}
+.dark .si-quick .si-quick-heading .si-eyebrow{color:#91d9bd}
+.dark .si-quick .si-quick-photo .si-novice-main-camera{background:#c8eedb;border-color:#c8eedb;color:#103f35}
+.dark .si-quick .si-resume{border-color:#3a6d5d}
+@media(max-width:700px){
+  .si-quick .si-quick-heading{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 10px;padding:8px 2px 12px;margin-bottom:12px}
+  .si-quick .si-quick-heading h1{font-size:18px;margin:4px 0;letter-spacing:-.04em}
+  .si-quick .si-quick-heading p:not(.si-eyebrow){font-size:11px;line-height:1.45}
+  .si-quick .si-quick-heading>.si-btn{width:auto;min-height:44px;padding:8px 10px;font-size:11px}
+  .si-quick .si-quick-photo{min-height:200px;padding:20px 16px}
+}
+@media(max-width:360px){.si-quick .si-quick-heading{grid-template-columns:1fr}.si-quick .si-quick-heading>.si-btn{justify-self:start}}
 @media print{
   .si-quick .si-quick-heading,.si-quick .si-quick-consent,.si-quick .si-start-guide{display:none!important}
 }
