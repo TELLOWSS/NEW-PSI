@@ -1,0 +1,16 @@
+import {createServer} from 'vite';
+import {chromium} from 'playwright';
+import assert from 'node:assert/strict';
+const server=await createServer({server:{port:0,host:'127.0.0.1'}});await server.listen();
+const base=`http://127.0.0.1:${server.httpServer.address().port}`,browser=await chromium.launch({headless:true});
+try{
+ const context=await browser.newContext({viewport:{width:390,height:844}}),page=await context.newPage(),api=[],errors=[];
+ page.on('request',request=>{if(new URL(request.url()).pathname.startsWith('/api/'))api.push(request.url());});page.on('pageerror',error=>errors.push(error.message));
+ await page.addInitScript(()=>{Object.defineProperty(navigator.mediaDevices,'getUserMedia',{configurable:true,value:async()=>{const c=document.createElement('canvas');c.width=640;c.height=480;c.getContext('2d').fillRect(0,0,640,480);return c.captureStream(10);}});Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>true});Object.defineProperty(navigator,'share',{configurable:true,value:async data=>{window.__shared={name:data.files[0].name,size:data.files[0].size};}});});
+ await page.goto(base+'/camera');await page.getByRole('heading',{name:'현장 사진을 간편하게'}).waitFor();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+ await page.getByRole('button',{name:'사진 촬영하기'}).click();const dialog=page.getByRole('dialog');await dialog.getByRole('button',{name:'지금 촬영'}).click();await dialog.getByRole('button',{name:'이 사진 사용'}).click();await page.getByAltText('선택한 현장 사진 미리보기').waitFor();
+ assert.equal(await page.evaluate(()=>{const e=new Event('beforeunload',{cancelable:true});window.dispatchEvent(e);return e.defaultPrevented;}),true);
+ const download=page.waitForEvent('download');await page.getByRole('link',{name:'사진 기기에 저장'}).click();const file=await download;assert.match(file.suggestedFilename(),/^PSI-camera-.*\.jpg$/);
+ await page.getByRole('button',{name:'사진 공유'}).click();await page.getByText('공유 앱에 전달했습니다.',{exact:false}).waitFor();assert.ok((await page.evaluate(()=>window.__shared.size))>0);assert.equal(await page.getByRole('link',{name:'Inspector 열기 →'}).getAttribute('href'),'/inspector');
+ assert.deepEqual(api,[],'local camera must not call an API');assert.deepEqual(errors,[]);await context.close();console.log('PASS local camera capture, download, share handoff, unload guard and no API calls');
+}finally{await Promise.race([browser.close(),new Promise(resolve=>setTimeout(resolve,3000))]);server.httpServer?.closeAllConnections();await Promise.race([server.close(),new Promise(resolve=>setTimeout(resolve,3000))]);}

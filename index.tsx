@@ -4,6 +4,7 @@ const OperationalApp = React.lazy(() => import('./pages/OperationalApp'));
 const InspectorReply = React.lazy(() => import('./pages/InspectorReply'));
 const InspectorProduct = React.lazy(() => import('./pages/InspectorProduct'));
 const InspectorStandalone = React.lazy(() => import('./pages/InspectorStandalone'));
+const FieldCamera = React.lazy(() => import('./pages/FieldCamera'));
 const TenantAccess = React.lazy(() => import('./pages/TenantAccess'));
 const WorkerTenantEducation = React.lazy(() => import('./pages/WorkerTenantEducation'));
 
@@ -130,6 +131,8 @@ try {
     <React.StrictMode>
       {window.location.pathname.replace(/\/$/, '') === '/inspection-reply' ? (<React.Suspense fallback={<p role="status">조치 회신 화면 준비 중…</p>}><InspectorReply/></React.Suspense>) : window.location.pathname.replace(/\/$/, '') === '/product' ? (
         <React.Suspense fallback={<p role="status">NEW-PSI 제품 체험을 준비합니다…</p>}><InspectorProduct/></React.Suspense>
+      ) : window.location.pathname.replace(/\/$/, '') === '/camera' ? (
+        <React.Suspense fallback={<p role="status">현장 카메라를 준비합니다…</p>}><FieldCamera/></React.Suspense>
       ) : window.location.pathname.replace(/\/$/, '') === '/inspector' ? (
         <React.Suspense fallback={<p role="status">독립 사진점검 화면을 준비합니다…</p>}><InspectorStandalone/></React.Suspense>
       ) : window.location.pathname === '/saas/education' ? (

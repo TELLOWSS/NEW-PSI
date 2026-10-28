@@ -39,6 +39,7 @@ export default function InspectorStandalone(){
     if(status==='locked')return <div className="inspector-standalone-auth">
         <div className="inspector-standalone-login"><strong>PSI INSPECTOR · 독립 사진점검</strong>
             <p>사진·조치·재점검만 이용하는 전용 접속 화면입니다. 기존 PSI와 같은 관리자 인증 및 점검 보관영역을 사용합니다.</p>
+            <a href="/camera">로그인 없이 현장 카메라 사용</a>{' · '}
             <a href="/product">로그인 없이 예시 체험 보기</a>
         </div>
         <AdminLockScreen onUnlock={unlock} errorMessage={error} isSubmitting={submitting}/>
