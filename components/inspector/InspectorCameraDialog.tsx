@@ -107,19 +107,24 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
     return <dialog ref={dialogRef} className={`si-camera-dialog si-camera-immersive ${photo?'si-camera-review':'si-camera-live'}`} aria-labelledby="si-camera-title" onCancel={e=>{e.preventDefault();if(nativePending.current){nativePending.current=false;retry();return;}if(e.target===e.currentTarget)close();}} onClick={e=>{if(e.target===e.currentTarget)close();}}>
         <div className="si-camera-heading"><div className="si-camera-heading-title"><p className="si-eyebrow">PSI INSPECTOR / {reference?'BEFORE & AFTER':'FIELD CAMERA'}</p><h2 id="si-camera-title">{photo?'촬영 사진 바로 확인':'카메라로 바로 촬영'}</h2></div><div className="si-camera-header-tools">
         {!photo&&<details ref={guidePanelRef} className="si-camera-guide-options" data-active={Boolean(guide)}><summary aria-label="구도 선택"><span className="si-camera-guide-summary-icon" aria-hidden="true">✧</span><span className="si-camera-guide-summary-text">구도</span></summary><div className="si-camera-guide-content">
-          <p className="si-camera-guide-headline">어떤 장면을 촬영하나요?</p>
+<div className="si-camera-guide-dock-head"><strong>촬영 구도 선택</strong><button type="button" onClick={()=>{if(guidePanelRef.current)guidePanelRef.current.open=false;}} aria-label="구도 선택 닫기">닫기 ×</button></div>
+          <p className="si-camera-guide-headline">사진에 담을 대상을 선택하세요</p>
           <div className="si-camera-guide-picks" role="group" aria-label="촬영할 대상">
             {(['scaffold','opening','lifting'] as const).map((option)=><button type="button" key={option} className="si-camera-guide-pick" aria-pressed={guide===option} onClick={()=>{setGuide(option);setGuideActivation(n=>n+1);if(guidePanelRef.current)guidePanelRef.current.open=false;}}>
               <span className={`si-camera-guide-pictogram si-camera-guide-pictogram-${option}`} aria-hidden="true">{option==='scaffold'?'▦':option==='opening'?'□':'⌁'}</span>
               <span className="si-camera-guide-pick-title">{CAMERA_GUIDES[option].label}</span>
             </button>)}
           </div>
-          {guide&&<p className="si-camera-guide-tip">{CAMERA_GUIDES[guide].hint}</p>}
-          <button type="button" className="si-camera-guide-clear" disabled={!guide} onClick={()=>{setGuide('');if(guidePanelRef.current)guidePanelRef.current.open=false;}}>구도 표시 끄기</button>
-          <label className="si-camera-grid-choice"><input type="checkbox" checked={grid} onChange={e=>{const enabled=e.target.checked;setGrid(enabled);try{sessionStorage.setItem('psi.inspector.camera.grid.v1',enabled?'on':'off');}catch{/* The setting still applies in this window. */}}}/> 3×3 격자 표시</label>
-          {frame&&<details className="si-camera-frame-details"><summary>{directionMismatch?'영상 방향 확인 필요':'영상 정보'}</summary><p className="si-camera-frame-status" role="status">{photo?'촬영본':'현재 영상'} · {actualDirection} {frame.width} × {frame.height}{!photo&&directionMismatch&&<span>선택한 방향과 실제 영상 비율이 다릅니다. 기기를 돌리거나 기기 카메라를 이용하세요.</span>}</p></details>}
-          <p className="si-camera-guide-disclaimer">실제 위험 자동 판정이 아닌 촬영 구도 참고입니다. 가이드선은 사진에 저장되지 않습니다.</p>
-        </div></details>}
+          <div className="si-camera-guide-dock-actions">
+            <label className="si-camera-grid-choice"><input type="checkbox" checked={grid} onChange={e=>{const enabled=e.target.checked;setGrid(enabled);try{sessionStorage.setItem('psi.inspector.camera.grid.v1',enabled?'on':'off');}catch{/* The setting still applies in this window. */}}}/> 3×3 격자</label>
+            <button type="button" className="si-camera-guide-clear" disabled={!guide} onClick={()=>{setGuide('');if(guidePanelRef.current)guidePanelRef.current.open=false;}}>구도 끄기</button>
+          </div>
+          <details className="si-camera-guide-more"><summary>촬영 요령 · 영상 정보</summary><div className="si-camera-guide-extra">
+            {guide&&<p className="si-camera-guide-tip">{CAMERA_GUIDES[guide].hint}</p>}
+            {frame&&<details className="si-camera-frame-details"><summary>{directionMismatch?'영상 방향 확인 필요':'영상 정보'}</summary><p className="si-camera-frame-status" role="status">{photo?'촬영본':'현재 영상'} · {actualDirection} {frame.width} × {frame.height}{!photo&&directionMismatch&&<span>선택한 방향과 실제 영상 비율이 다릅니다. 기기를 돌리거나 기기 카메라를 이용하세요.</span>}</p></details>}
+            <p className="si-camera-guide-disclaimer">구도만 참고로 표시합니다. 실제 위험 자동 판정이 아니며 가이드선은 촬영 파일에 저장되지 않습니다.</p>
+          </div></details>
+                  </div></details>}
         <button className="si-btn" autoFocus onClick={close}><InspectorIcon name="close"/>닫기</button>
         </div></div>
         <p className="si-caption si-camera-intro">{photo?'사진에서 위치와 주변 상태를 확인한 뒤 사용하세요.':reference?'조치 전 사진을 보며 같은 위치를 직접 맞춰 촬영하세요.':'카메라를 허용하고 촬영하세요. 소리는 녹음하지 않습니다.'}</p>
