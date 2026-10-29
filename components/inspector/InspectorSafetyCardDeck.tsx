@@ -34,6 +34,8 @@ export default function InspectorSafetyCardDeck({
     onFindingChange,onComposeCard,onSeePhoto,onSeeDetails,onCopy,copyDone=false,disabled=false
 }:Props){
     const [panel,setPanel]=useState<DeckPanel>('risk'),id=useId();
+    const [largeText,setLargeText]=useState(()=>{try{return sessionStorage.getItem('psi.inspector.cards.large-text.v1')==='on';}catch{return false;}});
+    const toggleText=()=>setLargeText(was=>{const next=!was;try{sessionStorage.setItem('psi.inspector.cards.large-text.v1',next?'on':'off');}catch{}return next;});
     const cardRef=useRef<HTMLElement>(null),exportInFlight=useRef(false);
     const [exporting,setExporting]=useState(false),[exportMessage,setExportMessage]=useState('');
     const shareOrDownloadCard=async()=>{
@@ -97,11 +99,12 @@ export default function InspectorSafetyCardDeck({
        <div><span>FIELD PHOTO · SOURCE</span><strong>이 사진을 기준으로 작성한 점검 카드</strong><small>사진 자체를 수정하거나 위험 위치를 자동 판정하지 않습니다.</small></div>
        {onSeePhoto&&<button type="button" data-card-exclude="true" onClick={onSeePhoto} aria-label="점검 사진 확대"><InspectorIcon name="expand"/></button>}
     </div>;
-    return <section className="si-safety-deck" aria-label="PSI 안전 분석 카드" data-psi-safety-deck="v1">
+    return <section className={'si-safety-deck'+(largeText?' si-safety-deck-large':'')} aria-label="PSI 안전 분석 카드" data-psi-safety-deck="v1">
         <header className="si-safety-deck-heading">
             <div><span className="si-safety-deck-kicker">PSI INSPECTOR · SAFETY CARDS</span><h3>한 장씩 읽는 안전점검</h3><p>위험 제안부터 조치·근거·전달까지 필요한 내용만 확인합니다.</p></div>
             <span className="si-safety-deck-index" aria-hidden="true">{guideCount(PANELS.findIndex(v=>v.id===panel)+1)} <span>/ {guideCount(PANELS.length)}</span></span>
         </header>
+        <div className="si-safety-deck-tools"><div className="si-safety-deck-progress" role="progressbar" aria-label="안전카드 읽기 진행" aria-valuemin={1} aria-valuemax={PANELS.length} aria-valuenow={panelIndex+1}><span style={{width:((panelIndex+1)/PANELS.length)*100+'%'}}/></div><button type="button" className="si-safety-deck-text-toggle" aria-pressed={largeText} onClick={toggleText}>{largeText?'기본 글씨':'가독성 크게'}</button></div>
         <nav className="si-safety-deck-nav" aria-label="안전카드 종류">
             {PANELS.map((v,n)=><button key={v.id} type="button" className={panel===v.id?'is-active':''} aria-current={panel===v.id?'page':undefined} aria-label={v.title} onClick={()=>setPanel(v.id)}><span className="si-safety-deck-nav-ornament" aria-hidden="true"><InspectorIcon name={v.icon}/></span><span className="si-safety-deck-nav-copy"><strong>{v.short}</strong><small>{v.subtitle}</small></span><span className="si-safety-deck-nav-number" aria-hidden="true">{guideCount(n+1)}</span></button>)}
         </nav>
@@ -120,6 +123,11 @@ export default function InspectorSafetyCardDeck({
                     {photoUrl?<img src={photoUrl} alt="점검 사진 원본 또는 보관된 점검용 사진 미리보기 · 카드 효과가 적용되지 않은 사진" loading="lazy"/>:<div className="si-safety-card-no-photo">사진 미리보기 없음</div>}
                     <div className="si-safety-card-photo-hint">점검 사진 · 카드 효과는 저장되지 않음</div>
                     {photoUrl&&onSeePhoto&&<button type="button" className="si-safety-card-zoom" data-card-exclude="true" onClick={onSeePhoto}>사진 크게 확인</button>}
+                </div>
+                <div className="si-safety-card-essential" aria-label="점검 카드 핵심 3항목">
+                    <div><span>01 · 사진 관찰 제안</span><p>{valueOr(observation?.text,'사진에서 확인할 사실을 현장에서 대조하세요.')}</p></div>
+                    <div><span>02 · 추가 현장 확인</span><p>{analysis.requires_confirmation[0]?.question||'사진 바깥의 방호·작업 상황은 현장에서 확인해야 합니다.'}</p></div>
+                    <div><span>03 · 조치 참고</span><p>{rejected?'AI 제안은 승인된 조치가 아닙니다. 전문가 의견에 따라 현장 대조와 안전조치를 결정하세요.':valueOr(finding?.action,analysis.recommended_controls[0]?.action||'확인 결과에 따라 안전조치를 계획하세요.')}</p></div>
                 </div>
                 <div className="si-safety-card-risk-footer">
                     <div><span>검토 우선순위</span><strong>{rejected?'전문가 재검토':finding?PRIORITY[priority]:'추가 확인 필요'}</strong></div>

@@ -1,5 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {InspectorIcon} from './InspectorGraphics';
+import {rotateInspectionPhoto} from '../../lib/inspector/photoRotation';
 
 const CAMERA_GUIDES = {
   scaffold:{label:'시스템비계',short:'발판 · 지지부 · 주변',hint:'발판·지지부와 주변 작업구역을 함께 담으세요.'},
@@ -9,7 +10,7 @@ const CAMERA_GUIDES = {
 type CameraGuide = keyof typeof CAMERA_GUIDES | '';
 
 /** Photos stay local until onUse passes the selected frame to the existing optimizer. */
-export default function InspectorCameraDialog({onClose, onUse, reference, onSaveAndContinue, storedCount}: {onClose:()=>void; onUse:(file:File)=>void; reference?:{url?:string;label:string;failed?:boolean;missing?:boolean};onSaveAndContinue?:(file:File)=>Promise<boolean>;storedCount?:number}) {
+export default function InspectorCameraDialog({onClose, onUse, reference, onSaveAndContinue, storedCount,onHome}: {onClose:()=>void; onUse:(file:File)=>void;onHome?:()=>void; reference?:{url?:string;label:string;failed?:boolean;missing?:boolean};onSaveAndContinue?:(file:File)=>Promise<boolean>;storedCount?:number}) {
     const dialogRef=useRef<HTMLDialogElement>(null), videoRef=useRef<HTMLVideoElement>(null), guidePanelRef=useRef<HTMLDetailsElement>(null);
     const streamRef=useRef<MediaStream|null>(null), generation=useRef(0), encoding=useRef(false), nativePending=useRef(false);
     const [mode,setMode]=useState<'landscape'|'portrait'>(()=>{const physical=window.innerHeight>window.innerWidth?'portrait':'landscape';try{const saved=sessionStorage.getItem('psi.inspector.camera.mode.v1');return saved===physical?saved:physical;}catch{return physical;}});
@@ -30,6 +31,8 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
     const [facing,setFacing]=useState<'environment'|'user'>('environment');
     const [attempt,setAttempt]=useState(0), [ready,setReady]=useState(false), [capturing,setCapturing]=useState(false);
     const [photo,setPhoto]=useState<File|null>(null), [preview,setPreview]=useState(''), [decoded,setDecoded]=useState(false);
+    const originalCapture=useRef<File|null>(null),rotateToken=useRef(0);
+    const [rotation,setRotation]=useState(0),[rotating,setRotating]=useState(false);
     const [error,setError]=useState('');
     const [sequenceSaving,setSequenceSaving]=useState(false),[sequenceError,setSequenceError]=useState('');
     const [overlayVisible,setOverlayVisible]=useState(true),[overlayOpacity,setOverlayOpacity]=useState(50),[overlayFailed,setOverlayFailed]=useState(false);
@@ -96,12 +99,26 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
             if(generation.current!==token)return;
             setCapturing(false);
             if(!blob){setError('사진을 만들지 못했습니다. 다시 촬영해 주세요.');return;}
-            stop();setReady(false);setPhoto(new File([blob],`PSI-camera-${Date.now()}.jpg`,{type:'image/jpeg'}));
+            stop();setReady(false);const next=new File([blob],`PSI-camera-${Date.now()}.jpg`,{type:'image/jpeg'});originalCapture.current=next;setRotation(0);setPhoto(next);
         },'image/jpeg',.95);
     };
-    const retry=()=>{setSequenceError('');encoding.current=false;setCapturing(false);setDecoded(false);setPhoto(null);setAttempt(n=>n+1);};
-    const close=()=>{if(sequenceSaving)return;if(photo&&!window.confirm('촬영한 사진은 아직 등록되지 않았습니다. 사진을 버리고 닫을까요?'))return;onClose();};
-    const saveAndContinue=async()=>{if(!photo||!decoded||!onSaveAndContinue||sequenceSaving)return;setSequenceSaving(true);setSequenceError('');try{if(await onSaveAndContinue(photo))retry();else setSequenceError('사진을 보관하지 못했습니다. 이 사진을 기기에 저장하거나 다시 시도하세요.');}catch{setSequenceError('사진을 보관하지 못했습니다. 이 사진을 기기에 저장하거나 다시 시도하세요.');}finally{setSequenceSaving(false);}};
+    const retry=()=>{++rotateToken.current;originalCapture.current=null;setRotation(0);setRotating(false);setSequenceError('');encoding.current=false;setCapturing(false);setDecoded(false);setPhoto(null);setAttempt(n=>n+1);};
+    const turnPhoto=async(delta:number)=>{
+      if(!photo||!decoded||rotating||sequenceSaving)return;
+      const original=originalCapture.current||photo,turns=((rotation+delta)%4+4)%4,token=++rotateToken.current;
+      setRotating(true);setDecoded(false);setError('');setSequenceError('');
+      try{
+        const rotated=await rotateInspectionPhoto(original,turns);
+        if(token!==rotateToken.current)return;
+        setRotation(turns);setPhoto(rotated);
+      }catch(cause){
+        if(token===rotateToken.current){setError(cause instanceof Error?cause.message:'사진 회전에 실패했습니다. 원본은 유지됩니다.');setDecoded(true);}
+      }finally{if(token===rotateToken.current)setRotating(false);}
+    };
+    const close=()=>{if(sequenceSaving||rotating)return;if(photo&&!window.confirm('촬영한 사진은 아직 등록되지 않았습니다. 사진을 버리고 닫을까요?'))return;onClose();};
+    const goHome=()=>{if(sequenceSaving||rotating)return;if(photo&&!window.confirm('등록하지 않은 촬영 사진을 버리고 첫 화면으로 이동할까요?'))return;(onHome||onClose)();};
+    const goBack=()=>{if(sequenceSaving||rotating)return;if(photo){if(!window.confirm('아직 등록되지 않은 사진을 버리고 촬영 화면으로 돌아갈까요?'))return;retry();return;}onClose();};
+    const saveAndContinue=async()=>{if(!photo||!decoded||!onSaveAndContinue||sequenceSaving||rotating)return;setSequenceSaving(true);setSequenceError('');try{if(await onSaveAndContinue(photo))retry();else setSequenceError('사진을 보관하지 못했습니다. 이 사진을 기기에 저장하거나 다시 시도하세요.');}catch{setSequenceError('사진을 보관하지 못했습니다. 이 사진을 기기에 저장하거나 다시 시도하세요.');}finally{setSequenceSaving(false);}};
     const directionControls=<><div className="si-camera-modes" role="group" aria-label="촬영 방향"><button type="button" className="si-btn" aria-pressed={mode==='landscape'} disabled={capturing} onClick={()=>changeMode('landscape')}><span className="si-frame-icon si-frame-landscape" aria-hidden="true"/><span>가로 <small>현장 전경 · 기본</small></span></button><button type="button" className="si-btn" aria-pressed={mode==='portrait'} disabled={capturing} onClick={()=>changeMode('portrait')}><span className="si-frame-icon si-frame-portrait" aria-hidden="true"/><span>세로 <small>높이·설비</small></span></button></div><p className="si-camera-direction-guide">{mode==='landscape'?'현장 전경은 가로 촬영을 권장합니다. 휴대폰을 가로로 돌려 대상과 주변 동선을 함께 담으세요.':'세로로 긴 설비나 높이를 확인할 때 사용하세요. 휴대폰을 세로로 들고 대상의 위아래를 함께 담으세요.'}</p></>;
 
     return <dialog ref={dialogRef} className={`si-camera-dialog si-camera-immersive ${photo?'si-camera-review':'si-camera-live'}`} aria-labelledby="si-camera-title" onCancel={e=>{e.preventDefault();if(nativePending.current){nativePending.current=false;retry();return;}if(e.target===e.currentTarget)close();}} onClick={e=>{if(e.target===e.currentTarget)close();}}>
@@ -125,6 +142,8 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
             <p className="si-camera-guide-disclaimer">구도만 참고로 표시합니다. 실제 위험 자동 판정이 아니며 가이드선은 촬영 파일에 저장되지 않습니다.</p>
           </div></details>
                   </div></details>}
+        <button type="button" className="si-btn si-camera-nav-back" onClick={goBack} disabled={sequenceSaving||rotating}>← 이전</button>
+        <button type="button" className="si-btn si-camera-nav-home" onClick={goHome} disabled={sequenceSaving||rotating}>첫 화면</button>
         <button className="si-btn si-camera-close" aria-label="닫기" autoFocus onClick={close}><InspectorIcon name="close"/><span>닫기</span></button>
         </div></div>
         <p className="si-caption si-camera-intro">{photo?'사진에서 위치와 주변 상태를 확인한 뒤 사용하세요.':reference?'조치 전 사진을 보며 같은 위치를 직접 맞춰 촬영하세요.':'카메라를 허용하고 촬영하세요. 소리는 녹음하지 않습니다.'}</p>
@@ -169,11 +188,20 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
         </section>}
         
         {error&&<div className="si-camera-recovery" role="alert"><strong>카메라 연결을 확인해 주세요</strong><p>{error}</p><p>연결이 안 되면 아래 <b>기기 카메라로 촬영</b>을 누르거나 창을 닫고 <b>사진첩·파일에서 선택</b>할 수 있습니다. 사진이 없는 상태에서 점검이 자동 등록되지는 않습니다.</p></div>}
-        <div className="si-camera-actions">{photo?<>
+        {photo&&<section className="si-camera-photo-editor" aria-label="촬영 사진 회전 편집">
+           <div className="si-camera-photo-editor-heading"><strong>촬영 사진 방향</strong><span role="status">{rotating?'회전 중…':rotation===0?'원래 촬영 방향':`원래 사진 기준 ${rotation*90}° 회전 · 별도 편집본`}</span></div>
+           <div className="si-camera-photo-editor-tools">
+             <button type="button" className="si-btn" disabled={!decoded||rotating||sequenceSaving} onClick={()=>void turnPhoto(-1)}>↶ 왼쪽 90°</button>
+             <button type="button" className="si-btn" disabled={!decoded||rotating||sequenceSaving} onClick={()=>void turnPhoto(1)}>↷ 오른쪽 90°</button>
+             <button type="button" className="si-btn" disabled={rotation===0||rotating||sequenceSaving} onClick={()=>void turnPhoto(-rotation)}>원래 방향</button>
+           </div>
+           <p>사진을 확인한 뒤 사용하세요. 회전한 사진은 새 사본으로 등록되며 최초 촬영본은 이 화면에서 복원할 수 있습니다.</p>
+         </section>}
+         <div className="si-camera-actions">{photo?<>
             <button className="si-btn" disabled={sequenceSaving} onClick={()=>{if(onSaveAndContinue&&!window.confirm('아직 보관하지 않은 이 사진을 버리고 다시 촬영할까요?'))return;retry();}}>다시 촬영</button>
-            {preview&&<a className="si-btn" href={preview} download={photo.name}>촬영 사진 기기에 저장</a>}
-            {onSaveAndContinue&&<button className="si-btn si-primary" disabled={!decoded||sequenceSaving} onClick={()=>void saveAndContinue()}>{sequenceSaving?'사진 보관 중…':'보관하고 계속 촬영'}</button>}
-            <button className="si-btn si-primary" disabled={!decoded||sequenceSaving} onClick={()=>{if(decoded)onUse(photo);}}>이 사진 사용</button>
+            {preview&&<a className="si-btn" href={preview} download={photo.name} aria-disabled={rotating||!decoded} onClick={e=>{if(rotating||!decoded)e.preventDefault();}}>촬영 사진 기기에 저장</a>}
+            {onSaveAndContinue&&<button className="si-btn si-primary" disabled={!decoded||sequenceSaving||rotating} onClick={()=>void saveAndContinue()}>{sequenceSaving?'사진 보관 중…':'보관하고 계속 촬영'}</button>}
+            <button className="si-btn si-primary" disabled={!decoded||sequenceSaving||rotating} onClick={()=>{if(decoded&&!rotating)onUse(photo);}}>이 사진 사용</button>
         </>:<>
             <button className="si-btn si-primary si-camera-shutter" disabled={!ready || capturing} onClick={capture}><span className="si-camera-shutter-mark"><InspectorIcon name="camera"/></span><span>{capturing?'사진 처리 중…':'지금 촬영'}</span></button>
             <button className="si-btn si-camera-flip" disabled={capturing} onClick={()=>{setFacing(value=>value==='environment'?'user':'environment');}}>전면·후면 전환</button>
@@ -182,7 +210,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
         {sequenceError&&<p role="alert">{sequenceError}</p>}
         {photo&&frame&&<details className="si-camera-frame-details"><summary>{directionMismatch?'영상 방향 확인 필요':'영상 정보'}</summary><p className="si-camera-frame-status" role="status">{photo?'촬영본':'현재 영상'} · {actualDirection} {frame.width} × {frame.height}{!photo&&directionMismatch&&<span>선택한 방향과 실제 영상 비율이 다릅니다. 기기를 돌리거나 기기 카메라를 이용하세요.</span>}</p></details>}
         {!photo&&(reference?<details className="si-camera-direction-options"><summary>촬영 방향 · {mode==='landscape'?'가로':'세로'}</summary>{directionControls}</details>:directionControls)}
-        {!photo&&<><label className="si-camera-native si-btn">기기 카메라로 촬영<input aria-label="기기 카메라로 촬영" type="file" accept="image/jpeg,image/png,image/webp" capture={facing} disabled={capturing} onClick={()=>{nativePending.current=true;++generation.current;stop();setReady(false);setError('기기 촬영을 취소했다면 카메라 다시 연결을 누르세요.');}} onChange={e=>{nativePending.current=false;const file=e.target.files?.[0];e.target.value='';if(file){setError('');setPhoto(file);}else retry();}}/></label>{reference&&<p className="si-caption">기기 카메라로 전환하면 기준 사진 겹침이 표시되지 않습니다.</p>}</>}
+        {!photo&&<><label className="si-camera-native si-btn">기기 카메라로 촬영<input aria-label="기기 카메라로 촬영" type="file" accept="image/jpeg,image/png,image/webp" capture={facing} disabled={capturing} onClick={()=>{nativePending.current=true;++generation.current;stop();setReady(false);setError('기기 촬영을 취소했다면 카메라 다시 연결을 누르세요.');}} onChange={e=>{nativePending.current=false;const file=e.target.files?.[0];e.target.value='';if(file){originalCapture.current=file;setRotation(0);setError('');setPhoto(file);}else retry();}}/></label>{reference&&<p className="si-caption">기기 카메라로 전환하면 기준 사진 겹침이 표시되지 않습니다.</p>}</>}
         <p className="si-caption">사용 전 사진은 이 창의 임시 메모리에만 있습니다. 원본이 필요하면 ‘촬영 사진 기기에 저장’으로 다운로드하세요. 사진 앱에 자동 저장되지는 않습니다.</p>
     </dialog>;
 }
