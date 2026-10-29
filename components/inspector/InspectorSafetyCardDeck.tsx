@@ -21,7 +21,7 @@ const valueOr=(text:string|undefined,otherwise:string)=>text?.trim()||otherwise;
 const guideCount=(value:number)=>String(value).padStart(2,'0');
 
 type Props={
-    analysis:VisionImport;reference:LegalReference;review:ExpertReview;reviewSaved:boolean;
+    analysis:VisionImport;reference:LegalReference;review?:ExpertReview;reviewSaved:boolean;
     photoUrl?:string;note:string;photoId?:string;selectedFinding:number;
     onFindingChange:(value:number)=>void;onComposeCard?:()=>void;
     onSeePhoto?:()=>void;onSeeDetails?:()=>void;
@@ -114,7 +114,7 @@ export default function InspectorSafetyCardDeck({
                 <div className="si-safety-card-title">
                     <div className="si-safety-card-status">{rejected?'원래 AI 제안 · 미수용':finding?'AI 위험 단서 · 현장 판단 필요':'AI 관찰 제안 · 현장 판단 필요'}</div>
                     <h4>{displayedTitle}</h4>
-                    <p>{rejected?valueOr(review.note,'전문가가 AI 해석을 수용하지 않았습니다. 원래 제안을 검토 자료로만 참고하세요.'):finding?valueOr(finding.risk,'구체적인 위험은 현장 확인이 필요합니다.'):valueOr(observation?.text,'사진만으로 구체적인 위험을 좁히지 못했습니다.')}</p>
+                    <p>{rejected?valueOr(review?.note,'전문가가 AI 해석을 수용하지 않았습니다. 원래 제안을 검토 자료로만 참고하세요.'):finding?valueOr(finding.risk,'구체적인 위험은 현장 확인이 필요합니다.'):valueOr(observation?.text,'사진만으로 구체적인 위험을 좁히지 못했습니다.')}</p>
                 </div>
                 <div className={'si-safety-card-media'+(photoUrl?' has-photo':'')}>
                     {photoUrl?<img src={photoUrl} alt="점검 사진 원본 또는 보관된 점검용 사진 미리보기 · 카드 효과가 적용되지 않은 사진" loading="lazy"/>:<div className="si-safety-card-no-photo">사진 미리보기 없음</div>}
@@ -135,7 +135,7 @@ export default function InspectorSafetyCardDeck({
                 <p className="si-safety-card-eyebrow">PRIORITY ACTION / {finding?PRIORITY[priority]:'검토 필요'}</p>
                 <h4>{rejected?'전문가 조치 의견 확인':'우선 확인할 조치'}</h4>
                 {photoUrl&&<div className="si-safety-card-context"><img src={photoUrl} alt="조치 검토에 사용한 현장 사진 미리보기" loading="lazy"/><div><span>FIELD PHOTO / REVIEW</span><strong>사진을 보면서 조치 내용을 대조하세요</strong><small>카드에 위험부위가 자동 표시된 것은 아닙니다.</small></div>{onSeePhoto&&<button type="button" data-card-exclude="true" onClick={onSeePhoto} aria-label="검토 사진 크게 보기"><InspectorIcon name="expand"/></button>}</div>}
-                <div className="si-safety-card-feature"><span className="si-safety-card-feature-number">01</span><p>{rejected?valueOr(review.note,'AI 제안을 수용하지 않았습니다. 현장 담당자가 필요한 조치를 작성·확정해 주세요.'):valueOr(finding?.action,analysis.recommended_controls[0]?.action||'촬영 대상과 주변 작업 상태를 안전한 위치에서 확인해 주세요.')}</p></div>
+                <div className="si-safety-card-feature"><span className="si-safety-card-feature-number">01</span><p>{rejected?valueOr(review?.note,'AI 제안을 수용하지 않았습니다. 현장 담당자가 필요한 조치를 작성·확정해 주세요.'):valueOr(finding?.action,analysis.recommended_controls[0]?.action||'촬영 대상과 주변 작업 상태를 안전한 위치에서 확인해 주세요.')}</p></div>
                 {!rejected&&analysis.recommended_controls.length>0&&<div className="si-safety-card-mini-list"><h5>추가 조치 제안</h5>{analysis.recommended_controls.slice(0,3).map((c,n)=><div key={n}><span>{guideCount(n+2)}</span><p>{c.action}</p></div>)}</div>}
                 <p className="si-safety-card-disclaimer">실제 작업중지·접근통제 필요성, 담당자와 조치기한은 현장에서 판단해 기록해야 합니다.</p>
             </div>}
