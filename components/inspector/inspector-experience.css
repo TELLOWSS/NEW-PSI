@@ -1169,3 +1169,18 @@
     max-height:calc(100dvh - 135px)!important;
   }
 }
+
+
+/* PSI_CAMERA_REFERENCE_BOUNDS_FIX_20261029
+   CSS width must INCLUDE padding/borders on 320px phones, not overflow by 20px. */
+@media(max-width:1199px){
+ .si-camera-dialog.si-camera-immersive .si-camera-reference-controls{
+   box-sizing:border-box!important;
+   width:min(340px,calc(100vw - 20px))!important;
+   max-width:calc(100vw - 20px)!important;
+   overflow-wrap:anywhere!important;
+ }
+ .si-camera-dialog.si-camera-immersive .si-camera-reference-controls *{
+   min-width:0;
+ }
+}
