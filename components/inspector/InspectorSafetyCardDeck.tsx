@@ -43,7 +43,7 @@ export default function InspectorSafetyCardDeck({
         // Prevent a card claiming to include evidence when the preview cannot be decoded.
         // The photo URL is displayed as supplied; it is never rewritten or painted on the source file.
         if(photoUrl){
-          const images=Array.from(cardRef.current.querySelectorAll('img'));
+          const images=Array.from(cardRef.current.querySelectorAll<HTMLImageElement>('img'));
           if(!images.length)throw new Error('Missing inspection preview');
           await Promise.all(images.map(async image=>{
             if(!image.complete||image.naturalWidth===0)await image.decode();
