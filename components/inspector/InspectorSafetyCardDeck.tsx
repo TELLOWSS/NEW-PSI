@@ -153,6 +153,7 @@ export default function InspectorSafetyCardDeck({
                 <div className="si-safety-card-feature"><span className="si-safety-card-feature-number">01</span><p>{rejected?valueOr(review?.note,'AI 제안을 수용하지 않았습니다. 현장 담당자가 필요한 조치를 작성·확정해 주세요.'):valueOr(finding?.action,analysis.recommended_controls[0]?.action||'촬영 대상과 주변 작업 상태를 안전한 위치에서 확인해 주세요.')}</p></div>
                 {!rejected&&analysis.recommended_controls.length>0&&<div className="si-safety-card-mini-list"><h5>추가 조치 제안</h5>{analysis.recommended_controls.slice(0,3).map((c,n)=><div key={n}><span>{guideCount(n+2)}</span><p>{c.action}</p></div>)}</div>}
                 <p className="si-safety-card-disclaimer">실제 작업중지·접근통제 필요성, 담당자와 조치기한은 현장에서 판단해 기록해야 합니다.</p>
+                {onSeeDetails&&<div className="si-safety-card-cta" data-card-exclude="true"><button type="button" onClick={onSeeDetails} disabled={disabled}>상세 점검에서 조치 확인·등록</button></div>}
             </div>}
             {panel==='evidence'&&<div className="si-safety-card-body">
                 {photoStrip}
