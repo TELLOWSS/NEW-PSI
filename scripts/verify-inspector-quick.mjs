@@ -15,7 +15,7 @@ let proxy;if(externalBase&&(process.env.HTTPS_PROXY||process.env.HTTP_PROXY)){co
 const browser=await chromium.launch({executablePath:process.env.PSI_CHROMIUM_PATH,headless:true,...(proxy?{proxy}:{}),args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});
 const results=[];await mkdir(out,{recursive:true});
 try{
- for(const scenario of ['cost-expiry-registration','cost-expiry-pricing','cost-reader-failed','api-resumed-retry','api-lost-context','api-lost-deleted','api-auth-failed','api-lost-result','ai-diagnostic-cost-race','ai-diagnostic','ai-diagnostic-failed','ai-diagnostic-blocked','cost-register','context-product-only','cost-race','cost-blocked','cost-paid','context-msds','context-unclear','video-prefill','video-draft-report','video-progress','selected-action','selected-generic','selected-expert','selected-rejected','selected-failed','selected-save-review','selected-cancel','action-assignment','action-assignment-failed','action-assignment-response','action-assignment-conflict','action-assignment-deleted','action-assignment-cancel','review-save','review-save-finish','review-save-failed','review-save-response','review-save-stale','review-save-deleted','review-save-storage','review-save-rejected','review-save-short','review-save-resume-missing','result-focus','result-copy-denied','camera-ai','paste-ai','ai-off','api-unavailable','api-retry','report-retry','no-findings','finish-between','expert-correction','resume-review','resume-pending','multi-photo','stored-result-recovery','delete-retry','delete-resume','delete-files','action-group','action-save-retry','action-save-failed','action-manual','share-native','action-followup-file','action-followup-camera','action-followup-paste','action-followup-retry','action-followup-response','action-followup-legacy','action-followup-resume','action-followup-pending','direct-action','direct-manual','direct-rejected','direct-review-failed','direct-cap','discovery-photo','discovery-unclear','discovery-no-api','discovery-api-off','discovery-mismatch','card-selected','card-edited','card-rejected','card-manual','card-unclear','card-render-failed','card-long','card-low','link-rebar','link-multi','link-unsupported','link-missing-keywords','link-resume','link-rejected','text-only']){
+ for(const scenario of ['cost-expiry-registration','cost-expiry-pricing','cost-reader-failed','api-resumed-retry','api-lost-context','api-lost-deleted','api-auth-failed','api-lost-result','ai-diagnostic-cost-race','ai-diagnostic','ai-diagnostic-failed','ai-diagnostic-blocked','cost-register','context-product-only','cost-race','cost-blocked','cost-paid','context-msds','context-unclear','video-prefill','video-draft-report','video-progress','selected-action','selected-generic','selected-expert','selected-rejected','selected-failed','selected-save-review','selected-cancel','action-assignment','action-assignment-failed','action-assignment-response','action-assignment-conflict','action-assignment-deleted','action-assignment-cancel','review-save','review-save-finish','review-save-failed','review-save-response','review-save-stale','review-save-deleted','review-save-storage','review-save-rejected','review-save-short','review-save-resume-missing','result-focus','result-copy-denied','camera-ai','gallery-rotate','paste-ai','ai-off','api-unavailable','api-retry','report-retry','no-findings','finish-between','expert-correction','resume-review','resume-pending','multi-photo','stored-result-recovery','delete-retry','delete-resume','delete-files','action-group','action-save-retry','action-save-failed','action-manual','share-native','action-followup-file','action-followup-camera','action-followup-paste','action-followup-retry','action-followup-response','action-followup-legacy','action-followup-resume','action-followup-pending','direct-action','direct-manual','direct-rejected','direct-review-failed','direct-cap','discovery-photo','discovery-unclear','discovery-no-api','discovery-api-off','discovery-mismatch','card-selected','card-edited','card-rejected','card-manual','card-unclear','card-render-failed','card-long','card-low','link-rebar','link-multi','link-unsupported','link-missing-keywords','link-resume','link-rejected','text-only']){
     if(process.env.PSI_QA_SCENARIOS&&!process.env.PSI_QA_SCENARIOS.split(',').includes(scenario))continue;
     console.log('START '+scenario);
     const context=await browser.newContext({viewport:{width:390,height:900},permissions:['clipboard-read','clipboard-write'],ignoreHTTPSErrors:!!externalBase}),page=await context.newPage();const ops=[],errors=[],attempts=[],images=new Map();let actionSaves=0,followupSaves=0,reviewAttempts=0,assignmentSaves=0;let freeRegistered=false;let item,evidence=[],reports=[],analyzeCalls=0,reportCalls=0,deleteCalls=0,deletionState='active',deletionMode=null,verifyAfter=null;
@@ -85,6 +85,50 @@ try{
         else if(scenario==='paste-ai')await page.evaluate(b64=>{const bytes=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));const dt=new DataTransfer();dt.items.add(new File([bytes],'clipboard.jpg',{type:'image/jpeg'}));document.querySelector('.si-quick').dispatchEvent(new ClipboardEvent('paste',{bubbles:true,clipboardData:dt}));},source.toString('base64'));
         else await page.getByLabel('현장사진 선택').setInputFiles({name:'synthetic.jpg',mimeType:'image/jpeg',buffer:source});
         await page.getByAltText('분석할 현장사진').waitFor();if(!scenario.startsWith('link-')&&(!scenario.startsWith('discovery-')||scenario==='discovery-mismatch'))await fillHint('3층 개구부 덮개 없음');else{assert.equal(await page.getByLabel('어떤 상황인가요?',{exact:false}).isVisible(),false);assert.notEqual(await page.evaluate(()=>document.activeElement?.tagName),'TEXTAREA');}assert.equal(ops.filter(op=>['create','upload','analyze-photo'].includes(op)).length,0);
+
+         if(scenario==='gallery-rotate'){
+           const image=page.getByAltText('분석할 현장사진');
+           const measure=()=>image.evaluate(img=>{
+             const canvas=document.createElement('canvas');canvas.width=100;canvas.height=100;const g=canvas.getContext('2d');g.drawImage(img,0,0,100,100);
+             const sample=g.getImageData(20,20,1,1).data;
+             return {width:img.naturalWidth,height:img.naturalHeight,r:sample[0],g:sample[1],b:sample[2]};
+           });
+           const before=await measure();
+           assert.ok(before.r>before.b,'original upper-left quadrant is red');
+           await page.getByRole('button',{name:'↷ 오른쪽 90°'}).click();
+           await page.getByText('원본 기준 90° 회전 · 별도 사본').waitFor();
+           await page.waitForFunction(({w,h})=>{const img=document.querySelector('img[alt="분석할 현장사진"]');return img?.naturalWidth===h&&img?.naturalHeight===w;},{w:before.width,h:before.height});
+           const right=await measure();
+           assert.ok(right.b>right.r,'90-degree clockwise output has blue upper-left quadrant');
+           await page.getByRole('button',{name:'원래 방향'}).click();
+           await page.getByText('원래 방향',{exact:true}).waitFor();
+           const restored=await measure();
+           assert.deepEqual([restored.width,restored.height],[before.width,before.height]);
+           assert.ok(restored.r>restored.b,'original image pixels restored');
+           await page.getByRole('button',{name:'↶ 왼쪽 90°'}).click();
+           await page.getByText('원본 기준 270° 회전 · 별도 사본').waitFor();
+           await page.waitForFunction(({w,h})=>{const img=document.querySelector('img[alt="분석할 현장사진"]');return img?.naturalWidth===h&&img?.naturalHeight===w;},{w:before.width,h:before.height});
+           const left=await measure();
+           assert.ok(left.g>left.r&&left.g>left.b,'counterclockwise output has green upper-left quadrant');
+           for(const width of [320,390,844]){
+             await page.setViewportSize({width,height:900});
+             assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'gallery editor viewport overflow at '+width);
+           }
+           await page.setViewportSize({width:390,height:900});
+           await page.screenshot({path:out+'/gallery-rotate-mobile.png',fullPage:true});
+           assert.equal(ops.filter(op=>['create','upload'].includes(op)).length,0,'rotation must not automatically save');
+           await page.locator('.si-quick-consent input').check();
+           await page.locator('.si-quick-start').click();
+           await page.getByRole('region',{name:'사진점검 결과'}).waitFor();
+           assert.equal(ops.filter(op=>op==='upload').length,1,'only one rotated copy is uploaded');
+           assert.ok(evidence[0].optimization_receipt.uploaded_height>evidence[0].optimization_receipt.uploaded_width,'rotated portrait dimensions persisted in upload receipt');
+           assert.deepEqual(errors,[]);
+           results.push({scenario,status:'PASS',ops});
+           console.log('PASS '+scenario);
+           await context.close();
+           continue;
+         }
+
         if(['ai-off','action-manual','direct-manual','discovery-api-off','card-manual'].includes(scenario))await page.getByRole('switch').click();
         if(['cost-blocked','cost-paid','cost-reader-failed'].includes(scenario)){
             if(scenario==='cost-reader-failed'){const notice=page.getByRole('region',{name:'AI 무료 사용 보호',exact:true});await notice.getByText('확인 방식: 청구 조회 실패 · 분석 차단',{exact:true}).waitFor();assert.equal(await notice.getByText('무료 프로젝트 최초 등록 · 운영자',{exact:true}).count(),0);}
