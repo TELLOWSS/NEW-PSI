@@ -110,6 +110,47 @@ try{
  assert.ok(png.readUInt32BE(16)>=390&&png.readUInt32BE(20)>300,'PNG has meaningful card dimensions');
  assert.ok(png.byteLength>5000,'PNG has nontrivial image content');
  assert.equal(await deck.getByText('현재 카드 PNG 저장을 요청했습니다.',{exact:false}).count(),1);
+
+ // Every card must export a real PNG when a photo belongs to this inspection.
+ // Previously evidence/reference/handoff cards had zero images and rejected export.
+ for(const [label,slug] of [['조치 제안','ACTION'],['현장 대조','EVIDENCE'],['법령·사례','REFERENCE'],['보고·공유','HANDOFF']]){
+   await deck.getByRole('button',{name:label}).click();
+   const imgs=deck.locator('.si-safety-card img');
+   assert.ok(await imgs.count()>0,label+' must retain a visible source-photo reference');
+   assert.equal(await imgs.first().evaluate(image=>image.complete&&image.naturalWidth>0),true,label+' source photo loaded');
+   const nextDownload=page.waitForEvent('download',{timeout:20000});
+   await deck.getByRole('button',{name:'카드 저장·공유'}).click();
+   const cardFile=await nextDownload;
+   assert.match(cardFile.suggestedFilename(),new RegExp('^PSI_SAFETY_'+slug+'_.*\\.png
+  assert.deepEqual(requests,[],'card presentation must not initiate network API calls');
+ // Do not hide a broken photo behind a visually attractive (but misleading) card.
+ await page.locator('#toggle-photo').click();
+ await page.locator('#toggle-photo').click();
+ await deck.locator('.si-safety-card-media img').evaluate(img=>img.src='data:image/png;base64,not-a-real-photo');
+ await deck.getByRole('button',{name:'카드 저장·공유'}).click();
+ await deck.getByText('카드 이미지 생성에 실패했습니다.',{exact:false}).waitFor();
+ assert.deepEqual(errors,[],'no browser runtime errors');
+ await context.close();
+ console.log('PASS PSI safety cards: five panels, real status boundaries, inspector rejection, share handoff and responsive viewports');
+}finally{
+ await Promise.race([browser.close(),new Promise(resolve=>setTimeout(resolve,3000))]);
+ server.httpServer?.closeAllConnections();
+ await Promise.race([server.close(),new Promise(resolve=>setTimeout(resolve,3000))]);
+}
+),label+' card filename');
+   const bytes=await readFile(await cardFile.path());
+   assert.equal(bytes.subarray(0,8).toString('hex'),'89504e470d0a1a0a',label+' is a PNG');
+   assert.ok(bytes.length>5000,label+' has meaningful content');
+ }
+ // One-handed next/previous controls follow the same card selection as the tabs.
+ assert.equal(await deck.getByRole('button',{name:'다음 카드'}).isDisabled(),true,'final card has no next');
+ await deck.getByRole('button',{name:'이전 카드'}).click();
+ assert.equal(await deck.locator('.si-safety-card').getAttribute('data-panel'),'reference');
+ await deck.getByRole('button',{name:'다음 카드'}).click();
+ assert.equal(await deck.locator('.si-safety-card').getAttribute('data-panel'),'handoff');
+ await deck.getByRole('button',{name:'위험 요약'}).click();
+ assert.equal(await deck.getByRole('button',{name:'이전 카드'}).isDisabled(),true,'first card has no previous');
+ 
   assert.deepEqual(requests,[],'card presentation must not initiate network API calls');
  // Do not hide a broken photo behind a visually attractive (but misleading) card.
  await page.locator('#toggle-photo').click();
