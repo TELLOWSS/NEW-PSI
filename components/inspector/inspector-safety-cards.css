@@ -243,6 +243,9 @@
 .si-safety-card-action .si-safety-card-mini-list h5{color:#336b57}
 .si-safety-card-action .si-safety-card-mini-list>div span{color:#24825e}
 .si-safety-card-action .si-safety-card-mini-list>div p{color:#263f39}
+.si-safety-card-action .si-safety-card-cta button.is-secondary{
+  color:#15594c;background:#fff;border-color:#629b87;
+}
 .si-safety-card-action .si-safety-card-disclaimer,.si-safety-card-reference .si-safety-card-disclaimer,.si-safety-card-handoff .si-safety-card-disclaimer{
   color:#657e76;
 }
