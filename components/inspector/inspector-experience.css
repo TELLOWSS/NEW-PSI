@@ -1145,3 +1145,27 @@
     width:68px!important;min-width:68px!important;max-width:68px!important;
   }
 }
+
+
+/* PSI_CAMERA_DOCK_COLLISION_FIX_20261029
+   The fixed dock must sit ABOVE both the shutter and before/after reference controls.
+   During selection, hide (do not modify) the reference settings; restore on collapse. */
+.si-camera-dialog.si-camera-immersive:has(.si-camera-guide-options[open]) .si-camera-heading {
+  z-index:34!important;
+}
+.si-camera-dialog.si-camera-immersive:has(.si-camera-guide-options[open]) .si-camera-reference-controls{
+  visibility:hidden!important;opacity:0!important;pointer-events:none!important;
+}
+@media(max-width:1199px) {
+  .si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-guide-options[open]>.si-camera-guide-content{
+    bottom:calc(env(safe-area-inset-bottom) + 124px)!important;
+    z-index:41!important;
+    max-height:min(238px,calc(100dvh - 180px))!important;
+  }
+}
+@media(max-width:1199px) and (orientation:landscape) and (max-height:520px) {
+  .si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-guide-options[open]>.si-camera-guide-content{
+    bottom:calc(env(safe-area-inset-bottom) + 88px)!important;
+    max-height:calc(100dvh - 135px)!important;
+  }
+}
