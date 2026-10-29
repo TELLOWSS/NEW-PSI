@@ -18,6 +18,7 @@ import {inspectionKindLabel,inspectionKindText,type InspectionKind,type Evidence
 import InspectorCameraDialog from './InspectorCameraDialog';
 import InspectorLegalResult from './InspectorLegalResult';
 import InspectorAnswer from './InspectorAnswer';
+import InspectorSafetyCardDeck from './InspectorSafetyCardDeck';
 import {InspectorIcon,InspectorScene} from './InspectorGraphics';
 const InspectorReport=lazy(()=>import('./InspectorReport'));
 const InspectorGlobalActionRegister=lazy(()=>import('./InspectorGlobalActionRegister'));
@@ -459,6 +460,15 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
             {photo&&!analyzedResult&&item?.document.analyses[photo.id]&&(item.document.photoNotes?.[photo.id]||'')===note&&<button className="si-btn" disabled={busy} onClick={viewStoredResult}>저장된 분석 결과 보기</button>}
             {resultNote!==note&&<p className="si-notice">설명이 변경되었습니다. 분석 또는 기준 조회를 다시 실행해 주세요.</p>}
             {analysis&&review.decision==='rejected'&&<p className="si-notice">전문가 의견 우선 · AI 해석을 수용하지 않은 상태입니다. 아래 원래 제안은 대조용입니다.</p>}
+            {analysis&&photo&&resultNote===note&&<InspectorSafetyCardDeck
+                analysis={analysis} reference={effectiveReference!} review={review} reviewSaved={reviewSaved}
+                photoUrl={preview||undefined} note={resultNote} photoId={photo.id}
+                selectedFinding={selectedFinding} onFindingChange={setSelectedFinding}
+                disabled={busy||storageBusy||storageLocked}
+                onSeePhoto={preview?()=>{setZoomFocus('');setZoom(true);}:undefined}
+                onSeeDetails={()=>{const section=document.querySelector('.si-quick-result .si-answer');section?.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});}}
+                onComposeCard={!busy&&(local?.file||storedPhoto)&&item?()=>setFieldCard({photo:(local?.file||storedPhoto)!,seed:seedFieldCard(analysis,review,resultNote,selectedFinding),source:`사진 ${item.document.photoIds.indexOf(photo.id)+1} · 자료 ${photo.id.slice(0,8)}`}):undefined}
+                onCopy={()=>void navigator.clipboard.writeText(brief()).then(()=>setCopied(true)).catch(()=>setError('복사하지 못했습니다. 화면 내용을 선택해 주세요.'))} copyDone={copied}/>}
             <InspectorAnswer statementTopic={riskTopic} selectionDisabled={busy||storageBusy} onStatementTopicChange={!analysis&&photo&&!item?.document.analyses[photo.id]?value=>{setRiskTopic(value);setReport(null);setCopied(false);}:undefined} onClarifyContext={()=>{setEditInput(true);setHintOpen(true);requestAnimationFrame(()=>{noteRef.current?.focus();noteRef.current?.scrollIntoView({block:"center",behavior:"instant"});});}} photoBlob={local?.file||storedPhoto||undefined} onAmendPhotoNote={text=>{setNote(previous=>[previous,`[점검자 대조 제품 정보] ${text}`].filter(Boolean).join("\n").slice(0,4000));setHintOpen(true);setEditInput(true);requestAnimationFrame(()=>{noteRef.current?.focus();noteRef.current?.scrollIntoView({block:"center",behavior:"instant"});});}} key={`${resultKey}:${review.decision}`} analysis={analysis&&resultNote===note?analysis:null} reference={effectiveReference!} note={resultNote} selectedFinding={selectedFinding} onFindingChange={setSelectedFinding} onDraftAction={!busy&&!storageBusy&&photo&&resultNote===note&&analysis?()=>draftPhotoAction(true):undefined} hasPhoto={!!photo} rejected={review.decision==='rejected'} onViewPhoto={preview?location=>{setZoomFocus(location.length>180?location.slice(0,180)+'…(요약)':location);setZoom(true);}:undefined} onComposeCard={!busy&&photo&&(local?.file||storedPhoto)&&resultNote===note&&(!item?.document.analyses[photo.id]||analyzedResult)?index=>setFieldCard({photo:local?.file||storedPhoto!,seed:seedFieldCard(analysis,review,resultNote,index),source:`사진 ${item!.document.photoIds.indexOf(photo.id)+1} · 자료 ${photo.id.slice(0,8)}`}):undefined}/>
             {analysis&&resultNote===note&&<InspectorExpertReview key={resultKey} value={review} editRequest={reviewEditRequest} busy={busy} saved={reviewSaved} notice={reviewNotice} onSave={saveReviewOnly} onChange={value=>{if(value.decision!==review.decision)setSelectedFinding(0);setReviewNotice('');setReview(value);setReport(null);setCopied(false);setActionCopied(false);}}/>}
             {journey&&!analysisFailed&&<InspectorResultJourney journey={journey} busy={busy||storageBusy||storageLocked} onAction={handleJourney}/>}
