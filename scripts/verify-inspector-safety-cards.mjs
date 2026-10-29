@@ -41,6 +41,8 @@ try{
  assert.equal(await deck.locator('.si-safety-card').getAttribute('data-panel'),'action','return to card heading retains selected action');
  const actionColor=await deck.locator('.si-safety-card').evaluate(el=>getComputedStyle(el).backgroundColor);
  assert.equal(actionColor,'rgb(248, 251, 249)','action card uses deliberately light professional theme');
+ await deck.getByRole('button',{name:'검토 저장 · 이 위험 조치 작성'}).click();
+ assert.equal(await page.locator('#action-count').innerText(),'1','action card invokes reviewed action entry');
  await deck.getByRole('button',{name:'상세 점검 내용 확인'}).click();
  assert.equal(await page.locator('#details-count').innerText(),'1','action card opens the existing details destination');
  const actionPhotoButton=deck.getByRole('button',{name:'검토 사진 크게 보기'});
