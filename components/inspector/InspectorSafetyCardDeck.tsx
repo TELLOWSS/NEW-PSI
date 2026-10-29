@@ -76,7 +76,7 @@ export default function InspectorSafetyCardDeck({
     const finding=findings[index];
     const observed=analysis.observed_facts||[];
     const observation=finding?observed[Number(finding.observation_index)]:observed[0];
-    const rejected=review.decision==='rejected';
+    const rejected=review?.decision==='rejected';
     const priority=finding?.priority||'routine';
     const reviewLabel=rejected?'AI 해석 미수용':reviewSaved?'전문가 검토 저장':'전문가 검토 저장 전';
     const sourceCount=reference.cards.length;
