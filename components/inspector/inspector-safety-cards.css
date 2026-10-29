@@ -1,0 +1,104 @@
+/* PSI SAFETY CARDS — unique industrial safety-report design.
+   No copied game artwork, layouts, terms or decorative trade dress. */
+.si-safety-deck{--sc-ink:#e4faf6;--sc-muted:#97b4b8;--sc-line:rgba(150,221,206,.28);--sc-accent:#8eebd0;--sc-gold:#d8b973;margin:18px 0 24px;font-family:inherit;color:#183934;min-width:0}
+.si-safety-deck *{box-sizing:border-box}
+.si-safety-deck-heading{display:flex;justify-content:space-between;align-items:flex-end;gap:15px;margin:0 0 13px}
+.si-safety-deck-kicker{display:block;font-weight:800;letter-spacing:.12em;font-size:10px;color:#248474}
+.si-safety-deck-heading h3{font-size:clamp(18px,2vw,24px)!important;line-height:1.25;margin:3px 0 4px!important;letter-spacing:-.045em;color:#153c37}
+.si-safety-deck-heading p{font-size:12px;line-height:1.5;color:#5c716e;margin:0!important;word-break:keep-all}
+.si-safety-deck-index{white-space:nowrap;font-size:25px;font-weight:850;letter-spacing:-.04em;color:#235e52;line-height:1}.si-safety-deck-index span{font-size:13px;color:#7f9691}
+.si-safety-deck-nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin-bottom:12px}
+.si-safety-deck-nav button{display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;min-width:0;padding:8px 5px;background:#eaf3f0;border:1px solid #d3e5df;border-radius:12px;color:#355d55;cursor:pointer;font:inherit;font-weight:750;font-size:12px;letter-spacing:-.015em;white-space:nowrap}
+.si-safety-deck-nav button.is-active{background:#15443e;color:#f7fffd;border-color:#15443e;box-shadow:0 5px 12px #16483d20}
+.si-safety-deck-nav button:focus-visible,.si-safety-card button:focus-visible,.si-safety-card a:focus-visible,.si-safety-deck-bottom button:focus-visible{outline:3px solid #ebbd5b;outline-offset:3px}
+.si-safety-deck-nav-number{opacity:.65;font-size:10px;letter-spacing:0}
+.si-safety-card{position:relative;isolation:isolate;overflow:hidden;border:1px solid #477b75;border-radius:22px;background:#0c2831;color:var(--sc-ink);box-shadow:0 19px 44px #113b3726,0 3px 8px #113b3710;min-height:355px;animation:si-card-appear .3s ease-out}
+.si-safety-card:before{content:"";position:absolute;pointer-events:none;inset:0;background:radial-gradient(circle at 100% -6%,#55b69f39,transparent 45%),linear-gradient(135deg,transparent 48%,#a0eed308 49%,transparent 54%);z-index:-1}
+.si-safety-card-bar,.si-safety-card-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 17px;font-size:10px;font-weight:850;letter-spacing:.1em}
+.si-safety-card-bar{border-bottom:1px solid var(--sc-line);color:var(--sc-accent)}
+.si-safety-card-mark{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.si-safety-card-phase{color:var(--sc-gold);white-space:nowrap;font-size:9px}
+.si-safety-card-title{padding:18px 20px 13px;min-width:0}
+.si-safety-card-status{display:inline-flex;align-items:center;border:1px solid #a5ddcd55;border-radius:999px;background:#15534a;padding:5px 10px;color:#c1f2df;font-size:11px;font-weight:750;line-height:1.3}
+.si-safety-card-title h4,.si-safety-card-body h4{font-size:clamp(20px,4.2vw,30px)!important;font-weight:850;line-height:1.25;letter-spacing:-.045em;margin:13px 0 9px!important;color:#fff;word-break:keep-all;overflow-wrap:anywhere}
+.si-safety-card-title p{font-size:13px;line-height:1.6;margin:0!important;color:#d0e3e1;word-break:keep-all;overflow-wrap:anywhere}
+.si-safety-card-media{position:relative;width:calc(100% - 40px);margin:4px 20px 12px;min-height:155px;height:clamp(165px,34vw,280px);border-radius:13px;background:#04151d;border:1px solid #5a85775e;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.si-safety-card-media img{display:block;width:100%;height:100%;object-fit:contain;object-position:center}
+.si-safety-card-no-photo{font-size:12px;color:#aec8c6}
+.si-safety-card-photo-hint{position:absolute;bottom:8px;left:8px;max-width:calc(100% - 16px);padding:5px 7px;border-radius:6px;background:#081a1fe3;color:#d0e3de;font-size:10px;line-height:1.3}
+.si-safety-card-zoom{position:absolute;top:8px;right:8px;min-height:35px;padding:6px 11px;border-radius:8px;border:1px solid #9cd6c8;background:#103e3beb;color:#fff;cursor:pointer;font-size:11px;font-weight:750}
+.si-safety-card-risk-footer{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:0 20px 12px}
+.si-safety-card-risk-footer>div{display:flex;flex-direction:column;gap:5px;min-width:0;padding:11px 12px;border-radius:9px;background:#183c3e;border:1px solid #6aa5994a}
+.si-safety-card-risk-footer span{font-size:10px;color:#a6c0bd}
+.si-safety-card-risk-footer strong{font-size:13px;line-height:1.35;color:#ecfff9;word-break:keep-all}
+.si-safety-card-finding-select{display:flex;gap:6px;flex-wrap:wrap;margin:0 20px 12px}
+.si-safety-card-finding-select button{min-height:34px;padding:6px 10px;background:#10333b;border:1px solid #5e9286;border-radius:8px;color:#d2ebe4;font-size:11px;cursor:pointer}
+.si-safety-card-finding-select button[aria-pressed=true]{background:#c1ecd9;color:#124034;border-color:#c1ecd9;font-weight:800}
+.si-safety-card-disclaimer{margin:0 20px 18px!important;color:#b2cfca;font-size:11px;line-height:1.55;word-break:keep-all}
+.si-safety-card-foot{border-top:1px solid var(--sc-line);color:#9bb6b4;font-size:9px;letter-spacing:.055em;min-height:42px}
+.si-safety-card-body{padding:18px 20px 22px}
+.si-safety-card-body h4{margin-top:7px!important;margin-bottom:16px!important}
+.si-safety-card-eyebrow{font-size:11px!important;color:#86e2c8!important;font-weight:850;letter-spacing:.08em;margin:0!important}
+.si-safety-card-feature{display:flex;gap:14px;align-items:flex-start;border:1px solid #96e2c570;border-radius:13px;background:#23574e;padding:15px;margin-bottom:15px}
+.si-safety-card-feature-number{font-weight:900;font-size:24px;color:#d2f8e8;line-height:1;flex:0 0 auto}
+.si-safety-card-feature p{font-size:15px;line-height:1.55;font-weight:750;color:#effefa;margin:0!important;word-break:keep-all}
+.si-safety-card-mini-list{display:grid;gap:8px;margin-bottom:14px}
+.si-safety-card-mini-list h5{margin:0!important;font-size:12px;color:#9ecbc0}
+.si-safety-card-mini-list>div,.si-safety-card-checks>div{display:flex;align-items:flex-start;gap:13px;background:#133b3f;padding:10px 12px;border:1px solid #658c813c;border-radius:10px}
+.si-safety-card-mini-list>div span,.si-safety-card-checks>div span{color:#b3e6d4;font-weight:850;font-size:12px;flex:0 0 auto}
+.si-safety-card-mini-list p,.si-safety-card-checks p{margin:0!important;font-size:12px;line-height:1.6;color:#e4f0ed;word-break:keep-all}
+.si-safety-card-evidence-block{border-left:3px solid #89dcca;padding:6px 11px 7px;margin-bottom:12px;background:#173a4077;border-radius:0 8px 8px 0}
+.si-safety-card-evidence-block span{display:block;font-size:11px;color:#9fe4ce;margin-bottom:6px;font-weight:800}
+.si-safety-card-evidence-block p{font-size:13px;line-height:1.6;color:#edf6f2;margin:0 0 6px!important;white-space:pre-wrap;overflow-wrap:anywhere;word-break:keep-all}
+.si-safety-card-evidence-block p small{font-size:10px;color:#c4d4ca;white-space:nowrap}
+.si-safety-card-lead{font-size:12px;line-height:1.6;color:#cbe3db;margin:0 0 15px!important}
+.si-safety-card-source{display:grid;gap:7px;padding:13px 14px;border-radius:12px;margin-bottom:9px;background:#173e41;border:1px solid #77aa9763}
+.si-safety-card-source strong{font-size:14px;line-height:1.4;color:#f4fff9;word-break:keep-all}
+.si-safety-card-source span{font-size:11px;line-height:1.5;color:#d4e6df}
+.si-safety-card-source a{font-size:12px;font-weight:750;color:#b9efcd;text-underline-offset:3px;min-height:30px;display:inline-flex;align-items:center}
+.si-safety-card-checks{display:grid;gap:8px;margin-bottom:18px}
+.si-safety-card-cta{display:flex;flex-wrap:wrap;gap:9px;margin:10px 0 18px}
+.si-safety-card-cta button{min-height:44px;padding:9px 14px;border:1px solid #a9e5ce;border-radius:10px;background:#bcecd9;color:#143b32;font:inherit;font-size:12px;font-weight:800;cursor:pointer}
+.si-safety-card-cta button.is-secondary{background:transparent;color:#d3f5e6;border-color:#669f8c}
+.si-safety-card-cta button:disabled,.si-safety-card-finding-select button:disabled{opacity:.52;cursor:not-allowed}
+.si-safety-deck-bottom{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0 0}
+.si-safety-deck-bottom p{font-size:11px;line-height:1.5;color:#607d73;margin:0!important}
+.si-safety-deck-bottom button{flex:0 0 auto;min-height:42px;background:#edf7f2;border:1px solid #c0ddd1;border-radius:11px;padding:8px 12px;font:inherit;font-size:12px;font-weight:800;color:#22584b;cursor:pointer}
+.si-safety-deck-bottom button:disabled{opacity:.6}
+@keyframes si-card-appear{from{opacity:.6;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:600px){
+ .si-safety-deck{margin:16px 0 20px}
+ .si-safety-deck-nav{gap:5px}
+ .si-safety-deck-nav button{flex-direction:column;gap:3px;font-size:11px;padding:6px 2px;min-height:52px}
+ .si-safety-deck-nav-number{font-size:9px}
+ .si-safety-deck-heading h3{font-size:20px!important}
+ .si-safety-deck-heading p{font-size:11px}
+ .si-safety-card{border-radius:17px;min-height:310px}
+ .si-safety-card-bar,.si-safety-card-foot{padding:11px 13px}
+ .si-safety-card-bar{font-size:9px}
+ .si-safety-card-title{padding:15px 15px 10px}
+ .si-safety-card-title h4,.si-safety-card-body h4{font-size:21px!important}
+ .si-safety-card-title p{font-size:12px}
+ .si-safety-card-media{width:calc(100% - 30px);margin:4px 15px 11px;height:clamp(170px,48vw,245px)}
+ .si-safety-card-risk-footer{margin:0 15px 12px;gap:6px}
+ .si-safety-card-risk-footer>div{padding:10px}
+ .si-safety-card-risk-footer strong{font-size:12px}
+ .si-safety-card-finding-select{margin:0 15px 10px}
+ .si-safety-card-disclaimer{margin:0 15px 15px!important}
+ .si-safety-card-body{padding:17px 15px}
+ .si-safety-deck-bottom{align-items:stretch;flex-direction:column}
+ .si-safety-deck-bottom button{width:100%}
+}
+@media(max-width:350px){
+ .si-safety-card-mark{font-size:8px}
+ .si-safety-card-phase{font-size:8px}
+ .si-safety-deck-index{font-size:20px}
+ .si-safety-deck-nav button{font-size:10px}
+ .si-safety-card-cta button{width:100%}
+}
+.dark .si-safety-deck-heading h3{color:#e3f5ef}
+.dark .si-safety-deck-heading p,.dark .si-safety-deck-bottom p{color:#b4cec3}
+.dark .si-safety-deck-nav button:not(.is-active){background:#153e3a;color:#d1eee2;border-color:#357266}
+.dark .si-safety-deck-bottom button{background:#1e4a3e;color:#e4fff4;border-color:#518c78}
+@media(prefers-reduced-motion:reduce){.si-safety-card{animation:none!important}}
+@media print{.si-safety-deck-nav,.si-safety-deck-bottom,.si-safety-card-zoom,.si-safety-card-cta,.si-safety-card-finding-select{display:none!important}.si-safety-card{box-shadow:none;border-color:#555;background:#fff;color:#222}.si-safety-card *{color:#222!important;text-shadow:none!important}.si-safety-card:before{display:none}.si-safety-card-media{background:#fff}}
