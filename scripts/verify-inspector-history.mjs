@@ -58,6 +58,9 @@ try{
   const dialog=page.getByRole('dialog',{name:'선택한 기록 삭제'});
   const start=async()=>{await dialog.getByLabel('이 점검에 포함된 자료가 삭제되고 되돌릴 수 없음을 확인했습니다.').check();await dialog.getByRole('button',{name:'선택 범위 삭제 시작',exact:true}).click();};
   await enter();
+  const recordTitleSize=await list.locator('.si-record strong').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
+  const recordStateSize=await list.locator('.si-record-state').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
+  assert.ok(recordTitleSize>=15&&recordStateSize>=12,'record titles and status stay readable');
   if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}
   if(bulkMode){
     await list.getByRole('button',{name:'여러 건 선택'}).click();
