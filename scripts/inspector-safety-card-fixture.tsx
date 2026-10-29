@@ -23,7 +23,7 @@ const reference:LegalReference={
 };
 function Fixture(){
     const [reviewSaved,setSaved]=useState(false),[rejected,setRejected]=useState(false),[selected,setSelected]=useState(0),[compose,setCompose]=useState(0),[details,setDetails]=useState(0);
-    return <main style={{width:'min(900px,100%)',margin:'0 auto',padding:12}}>
+    return <main style={{width:'min(900px,100%)',boxSizing:'border-box',margin:'0 auto',padding:12}}>
         <div style={{display:'flex',gap:8}}>
             <button id="toggle-rejected" onClick={()=>setRejected(v=>!v)}>합성 전문가 의견 반전</button>
             <button id="toggle-saved" onClick={()=>setSaved(v=>!v)}>합성 저장 상태 반전</button>
