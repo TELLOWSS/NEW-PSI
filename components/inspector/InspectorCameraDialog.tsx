@@ -33,7 +33,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
     const [attempt,setAttempt]=useState(0), [ready,setReady]=useState(false), [capturing,setCapturing]=useState(false);
     const [photo,setPhoto]=useState<File|null>(null), [preview,setPreview]=useState(''), [decoded,setDecoded]=useState(false);
     const originalCapture=useRef<File|null>(null),rotateToken=useRef(0);
-    const [rotation,setRotation]=useState(0),[rotating,setRotating]=useState(false);
+    const [rotation,setRotation]=useState(0),[rotating,setRotating]=useState(false),[originalPreview,setOriginalPreview]=useState('');
     const [error,setError]=useState('');
     const [sequenceSaving,setSequenceSaving]=useState(false),[sequenceError,setSequenceError]=useState('');
     const [overlayVisible,setOverlayVisible]=useState(true),[overlayOpacity,setOverlayOpacity]=useState(50),[overlayFailed,setOverlayFailed]=useState(false);
@@ -53,6 +53,11 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
         const url=URL.createObjectURL(photo);setDecoded(false);setPreview(url);
         return()=>URL.revokeObjectURL(url);
     },[photo]);
+    useEffect(()=>{
+        if(!photo||rotation===0||!originalCapture.current){setOriginalPreview('');return;}
+        const url=URL.createObjectURL(originalCapture.current);setOriginalPreview(url);
+        return()=>URL.revokeObjectURL(url);
+    },[photo,rotation]);
     useEffect(()=>{
         if(!photo)return;
         const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue='';};
@@ -196,11 +201,12 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
              <button type="button" className="si-btn" disabled={!decoded||rotating||sequenceSaving} onClick={()=>void turnPhoto(1)}>↷ 오른쪽 90°</button>
              <button type="button" className="si-btn" disabled={rotation===0||rotating||sequenceSaving} onClick={()=>void turnPhoto(-rotation)}>원래 방향</button>
            </div>
-           <p>사진을 확인한 뒤 사용하세요. 회전한 사진은 새 사본으로 등록되며 최초 촬영본은 이 화면에서 복원할 수 있습니다.</p>
+           <p>회전한 사진은 별도 사본입니다. 최초 촬영 파일이 필요하면 이 창을 닫기 전에 기기에 저장하세요.</p>
+           {rotation!==0&&originalPreview&&<a className="si-btn" href={originalPreview} download={originalCapture.current?.name||'PSI-original.jpg'} aria-disabled={rotating||sequenceSaving} onClick={e=>{if(rotating||sequenceSaving)e.preventDefault();}}>최초 촬영 파일 기기에 저장</a>}
          </section>}
          <div className="si-camera-actions">{photo?<>
             <button className="si-btn" disabled={sequenceSaving||rotating} onClick={()=>{if(!window.confirm('아직 등록하지 않은 이 사진을 버리고 다시 촬영할까요?'))return;retry();}}>다시 촬영</button>
-            {preview&&<a className="si-btn" href={preview} download={photo.name} aria-disabled={rotating||!decoded} onClick={e=>{if(rotating||!decoded)e.preventDefault();}}>촬영 사진 기기에 저장</a>}
+            {preview&&<a className="si-btn" href={preview} download={photo.name} aria-disabled={rotating||!decoded} onClick={e=>{if(rotating||!decoded)e.preventDefault();}}>{rotation?'회전한 사본 기기에 저장':'촬영 사진 기기에 저장'}</a>}
             {onSaveAndContinue&&<button className="si-btn si-primary" disabled={!decoded||sequenceSaving||rotating} onClick={()=>void saveAndContinue()}>{sequenceSaving?'사진 보관 중…':'보관하고 계속 촬영'}</button>}
             <button className="si-btn si-primary" disabled={!decoded||sequenceSaving||rotating} onClick={()=>{if(decoded&&!rotating)onUse(photo);}}>이 사진 사용</button>
         </>:<>
