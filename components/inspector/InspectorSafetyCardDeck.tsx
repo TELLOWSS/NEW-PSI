@@ -3,15 +3,16 @@ import {sourceReviewState} from '../../lib/inspector/sourceReview';
 import type {VisionImport} from '../../lib/inspector/types';
 import type {LegalReference} from '../../lib/inspector/legal';
 import type {ExpertReview} from '../../lib/inspector/expertReview';
+import {InspectorIcon,type InspectorIconName} from './InspectorGraphics';
 import './inspector-safety-cards.css';
 
 type DeckPanel='risk'|'action'|'evidence'|'reference'|'handoff';
-const PANELS:{id:DeckPanel;title:string;short:string}[]=[
-    {id:'risk',title:'위험 요약',short:'위험'},
-    {id:'action',title:'조치 제안',short:'조치'},
-    {id:'evidence',title:'현장 대조',short:'확인'},
-    {id:'reference',title:'법령·사례',short:'근거'},
-    {id:'handoff',title:'보고·공유',short:'전달'}
+const PANELS:{id:DeckPanel;title:string;short:string;icon:InspectorIconName;subtitle:string}[]=[
+    {id:'risk',title:'위험 요약',short:'위험',icon:'alert',subtitle:'위험의 핵심'},
+    {id:'action',title:'조치 제안',short:'조치',icon:'check',subtitle:'현장 실천'},
+    {id:'evidence',title:'현장 대조',short:'확인',icon:'search',subtitle:'사실과 판단'},
+    {id:'reference',title:'법령·사례',short:'근거',icon:'document',subtitle:'검토할 자료'},
+    {id:'handoff',title:'보고·공유',short:'전달',icon:'upload',subtitle:'업무 연결'}
 ];
 const PRIORITY={immediate:'우선 통제 검토',soon:'빠른 개선 검토',routine:'관리 상태 확인'} as const;
 const confidence={high:'높음',medium:'중간',low:'낮음'} as const;
@@ -45,18 +46,19 @@ export default function InspectorSafetyCardDeck({
     useEffect(()=>{setPanel('risk');},[analysis.photo_id]);
     const displayedTitle=rejected?'전문가 의견을 우선 확인하세요':valueOr(finding?.problem,observed.length?'사진 관찰 내용을 대조하세요':'구체적 위험 특정 전');
     const key=panel+'-'+index;
+    const currentPanel=PANELS.find(v=>v.id===panel)!;
     return <section className="si-safety-deck" aria-label="PSI 안전 분석 카드" data-psi-safety-deck="v1">
         <header className="si-safety-deck-heading">
             <div><span className="si-safety-deck-kicker">PSI INSPECTOR · SAFETY CARDS</span><h3>한 장씩 읽는 안전점검</h3><p>위험 제안부터 조치·근거·전달까지 필요한 내용만 확인합니다.</p></div>
             <span className="si-safety-deck-index" aria-hidden="true">{guideCount(PANELS.findIndex(v=>v.id===panel)+1)} <span>/ {guideCount(PANELS.length)}</span></span>
         </header>
         <nav className="si-safety-deck-nav" aria-label="안전카드 종류">
-            {PANELS.map((v,n)=><button key={v.id} type="button" className={panel===v.id?'is-active':''} aria-current={panel===v.id?'page':undefined} aria-label={v.title} onClick={()=>setPanel(v.id)}><span className="si-safety-deck-nav-number">{guideCount(n+1)}</span><span>{v.short}</span></button>)}
+            {PANELS.map((v,n)=><button key={v.id} type="button" className={panel===v.id?'is-active':''} aria-current={panel===v.id?'page':undefined} aria-label={v.title} onClick={()=>setPanel(v.id)}><span className="si-safety-deck-nav-ornament" aria-hidden="true"><InspectorIcon name={v.icon}/></span><span className="si-safety-deck-nav-copy"><strong>{v.short}</strong><small>{v.subtitle}</small></span><span className="si-safety-deck-nav-number" aria-hidden="true">{guideCount(n+1)}</span></button>)}
         </nav>
-        <article key={key} className={'si-safety-card si-safety-card-'+panel+(rejected?' is-rejected':'')} aria-label={PANELS.find(v=>v.id===panel)?.title}>
+        <article key={key} className={'si-safety-card si-safety-card-'+panel+(rejected?' is-rejected':'')} data-panel={panel} data-priority={finding?.priority||'unclassified'} aria-label={currentPanel.title}>
             <div className="si-safety-card-bar">
                 <span className="si-safety-card-mark" aria-hidden="true">PSI / FIELD INTELLIGENCE</span>
-                <span className="si-safety-card-phase">{panel==='risk'?'RISK SIGNAL':panel==='action'?'ACTION PATH':panel==='evidence'?'EVIDENCE REVIEW':panel==='reference'?'SOURCE TRACE':'FIELD HANDOFF'}</span>
+                <span className="si-safety-card-phase"><span className="si-safety-card-phase-pip" aria-hidden="true"/>{panel==='risk'?'RISK SIGNAL':panel==='action'?'ACTION PATH':panel==='evidence'?'EVIDENCE REVIEW':panel==='reference'?'SOURCE TRACE':'FIELD HANDOFF'}</span>
             </div>
             {panel==='risk'&&<>
                 <div className="si-safety-card-title">
@@ -76,11 +78,13 @@ export default function InspectorSafetyCardDeck({
                 {findings.length>1&&<div className="si-safety-card-finding-select" role="group" aria-label="위험 단서 전환">
                     {findings.map((v,n)=><button type="button" key={n} disabled={disabled} aria-pressed={n===index} onClick={()=>onFindingChange(n)}>위험 {n+1}</button>)}
                 </div>}
+                <button className="si-safety-card-advance" type="button" onClick={()=>setPanel('action')}><span>이 위험에 필요한 조치 살펴보기</span><InspectorIcon name="arrow"/></button>
                 <p className="si-safety-card-disclaimer">AI 결과는 위험·법 위반 확정이나 조치 완료를 뜻하지 않습니다. 현장에서 직접 대조해 주세요.</p>
             </>}
             {panel==='action'&&<div className="si-safety-card-body">
                 <p className="si-safety-card-eyebrow">PRIORITY ACTION / {finding?PRIORITY[priority]:'검토 필요'}</p>
                 <h4>{rejected?'전문가 조치 의견 확인':'우선 확인할 조치'}</h4>
+                {photoUrl&&<div className="si-safety-card-context"><img src={photoUrl} alt="조치 검토에 사용한 현장 사진 미리보기" loading="lazy"/><div><span>FIELD PHOTO / REVIEW</span><strong>사진을 보면서 조치 내용을 대조하세요</strong><small>카드에 위험부위가 자동 표시된 것은 아닙니다.</small></div>{onSeePhoto&&<button type="button" onClick={onSeePhoto} aria-label="검토 사진 크게 보기"><InspectorIcon name="expand"/></button>}</div>}
                 <div className="si-safety-card-feature"><span className="si-safety-card-feature-number">01</span><p>{rejected?valueOr(review.note,'AI 제안을 수용하지 않았습니다. 현장 담당자가 필요한 조치를 작성·확정해 주세요.'):valueOr(finding?.action,analysis.recommended_controls[0]?.action||'촬영 대상과 주변 작업 상태를 안전한 위치에서 확인해 주세요.')}</p></div>
                 {!rejected&&analysis.recommended_controls.length>0&&<div className="si-safety-card-mini-list"><h5>추가 조치 제안</h5>{analysis.recommended_controls.slice(0,3).map((c,n)=><div key={n}><span>{guideCount(n+2)}</span><p>{c.action}</p></div>)}</div>}
                 <p className="si-safety-card-disclaimer">실제 작업중지·접근통제 필요성, 담당자와 조치기한은 현장에서 판단해 기록해야 합니다.</p>
@@ -116,7 +120,7 @@ export default function InspectorSafetyCardDeck({
                 </div>
                 <p className="si-safety-card-disclaimer">전달 이미지는 별도 가공본입니다. 원본·검토·보고서의 저장 상태는 아래에서 확인하세요.</p>
             </div>}
-            <footer className="si-safety-card-foot"><span>FIELD RECORD / {photoId?photoId.slice(0,8).toUpperCase():'UNLINKED'}</span><span>{PANELS.find(v=>v.id===panel)?.title} · {guideCount(PANELS.findIndex(v=>v.id===panel)+1)}/{guideCount(PANELS.length)}</span></footer>
+            <footer className="si-safety-card-foot"><span>FIELD RECORD / {photoId?photoId.slice(0,8).toUpperCase():'UNLINKED'}</span><span>{currentPanel.title} · {guideCount(PANELS.findIndex(v=>v.id===panel)+1)}/{guideCount(PANELS.length)}</span></footer>
         </article>
         <div className="si-safety-deck-bottom"><p id={id+'-notice'}>시각화 카드 · 검토용 AI 제안입니다. 상세 근거와 최종 조치 기록은 아래에서 확인할 수 있습니다.</p><button type="button" onClick={onSeeDetails} disabled={!onSeeDetails}>전체 점검 내용 보기</button></div>
     </section>;
