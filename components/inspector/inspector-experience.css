@@ -860,3 +860,117 @@
   .si-camera-stage .si-camera-target-activate{display:none!important}
   .si-camera-stage .si-camera-target-overlay::before{opacity:.09!important}
 }
+
+
+/* PSI_CAMERA_HEADER_COMPOSITION_ANCHOR_20261029
+   Camera guide now LIVES IN THE HEADER beside Close.
+   This supersedes former free-floating viewport placements entirely. */
+.si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-heading-title {
+  min-width:0;flex:1 1 auto;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-header-tools {
+  display:flex;flex:0 0 auto;align-items:center;justify-content:flex-end;
+  gap:7px;min-width:0;margin-left:auto;position:relative;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-header-tools > .si-btn {
+  margin:0!important;flex:0 0 auto;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-header-tools > .si-camera-guide-options {
+  position:relative!important;inset:auto!important;top:auto!important;
+  right:auto!important;bottom:auto!important;left:auto!important;
+  transform:none!important;z-index:2!important;
+  display:block!important;flex:0 0 auto;
+  width:76px!important;max-width:76px!important;min-width:76px!important;
+  height:44px!important;min-height:44px!important;max-height:none!important;
+  padding:0!important;margin:0!important;
+  border:0!important;border-radius:0!important;box-shadow:none!important;
+  background:transparent!important;overflow:visible!important;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-header-tools > .si-camera-guide-options > summary {
+  height:44px!important;min-height:44px!important;max-height:44px!important;
+  min-width:0!important;display:flex!important;
+  align-items:center!important;justify-content:center!important;gap:5px!important;
+  padding:0 8px!important;margin:0!important;
+  border:1px solid #9ddacfa8!important;border-radius:12px!important;
+  background:#143341ef!important;color:#effff9!important;
+  box-sizing:border-box!important;cursor:pointer;
+  font-size:12px!important;font-weight:800!important;line-height:1!important;
+  white-space:nowrap!important;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-header-tools > .si-camera-guide-options[data-active="true"] > summary {
+  border-color:#8ce7d0!important;background:#235d50f2!important;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-guide-summary-icon {
+  width:16px!important;height:16px!important;flex-basis:16px!important;
+  font-size:14px!important;line-height:1!important;
+  border-radius:5px!important;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-guide-summary-text {
+  display:block!important;min-width:0!important;
+  width:auto!important;overflow:visible!important;
+  font-size:12px!important;font-weight:800!important;text-overflow:clip!important;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-guide-options:not([open]) > .si-camera-guide-content {
+  display:none!important;
+}
+/* Full sheet opens only on demand; no lingering viewport pill. */
+.si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-guide-options[open] > .si-camera-guide-content {
+  position:fixed!important;z-index:30!important;
+  bottom:calc(env(safe-area-inset-bottom) + 96px)!important;
+  top:auto!important;right:auto!important;left:50%!important;
+  transform:translateX(-50%)!important;
+  display:grid!important;
+  width:min(400px,calc(100vw - 24px))!important;
+  max-width:calc(100vw - 24px)!important;
+  max-height:min(440px,calc(100dvh - 185px))!important;
+  min-width:0!important;overflow-y:auto!important;overscroll-behavior:contain!important;
+  box-sizing:border-box!important;
+  margin:0!important;padding:14px 14px 12px!important;
+  border:1px solid #a2dfc9b0!important;border-radius:20px!important;
+  box-shadow:0 18px 46px #000a!important;
+  background:#0a2b37f5!important;
+  color:#eafff7!important;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-guide-options[open] > .si-camera-guide-content .si-camera-guide-headline {
+  color:#ecfff6!important;font-size:13px!important;font-weight:850!important;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-guide-options[open] > .si-camera-guide-content .si-camera-grid-choice {
+  color:#e8fff8!important;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-guide-options[open] > .si-camera-guide-content .si-camera-guide-disclaimer {
+  color:#b7d5cf!important;
+}
+@media(max-width:1199px) {
+  .si-camera-dialog.si-camera-immersive .si-camera-heading {
+    gap:6px!important;
+  }
+  .si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-heading-title h2 {
+    font-size:14px!important;white-space:nowrap!important;overflow:hidden!important;
+    text-overflow:ellipsis!important;margin:0!important;
+  }
+  .si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-header-tools {
+    gap:6px!important;
+  }
+  .si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-header-tools > .si-btn {
+    min-height:44px!important;min-width:57px!important;padding:7px 9px!important;
+  }
+}
+@media(max-width:360px) {
+  .si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-header-tools > .si-camera-guide-options {
+    width:68px!important;max-width:68px!important;min-width:68px!important;
+  }
+  .si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-guide-options > summary {
+    gap:3px!important;padding:0 5px!important;font-size:11px!important;
+  }
+  .si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-header-tools > .si-btn {
+    min-width:53px!important;padding:7px!important;
+  }
+}
+@media(max-width:1199px) and (orientation:landscape) and (max-height:520px) {
+  .si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-guide-options[open] > .si-camera-guide-content {
+    bottom:calc(env(safe-area-inset-bottom) + 65px)!important;
+    max-height:calc(100dvh - 120px)!important;
+    width:min(360px,calc(100vw - 24px))!important;
+    padding:10px!important;
+  }
+}
