@@ -191,7 +191,7 @@ export default function InspectorSafetyCardDeck({
                     {onCopy&&<button type="button" className="is-secondary" onClick={onCopy} disabled={disabled}>{copyDone?'결과 복사 완료':'결과 내용 복사'}</button>}
                     {onSeeDetails&&<button type="button" className="is-secondary" onClick={onSeeDetails}>상세 점검·보고서 단계로 이동</button>}
                 </div>
-                <p className="si-safety-card-disclaimer">전달 이미지는 별도 가공본입니다. 원본·검토·보고서의 저장 상태는 아래에서 확인하세요.</p>
+                <p className="si-safety-card-disclaimer">전달 이미지는 별도 가공본입니다. 원본·검토·보고서의 저장 상태는 점검 기록에서 확인하세요.</p>
             </div>}
             <footer className="si-safety-card-foot"><span>FIELD RECORD / {photoId?photoId.slice(0,8).toUpperCase():'UNLINKED'}</span><span>{currentPanel.title} · {guideCount(PANELS.findIndex(v=>v.id===panel)+1)}/{guideCount(PANELS.length)}</span></footer>
         </article>
