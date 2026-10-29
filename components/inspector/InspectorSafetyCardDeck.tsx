@@ -63,7 +63,7 @@ export default function InspectorSafetyCardDeck({
         if(!blob)throw new Error('Card export failed');
         const file=new File([blob],`PSI_SAFETY_${panel.toUpperCase()}_${(photoId||'field').replace(/[^A-Za-z0-9_-]/g,'').slice(0,12)}.png`,{type:'image/png'});
         if(navigator.share&&navigator.canShare?.({files:[file]})){
-          try{await navigator.share({files:[file],text:'PSI 안전점검 카드 · AI 제안 및 현장 확인이 필요한 자료입니다.'});setExportMessage('기기 공유창으로 카드를 전달했습니다.');}
+          try{await navigator.share({files:[file],text:'PSI 안전점검 카드 · AI 제안 및 현장 확인이 필요한 자료입니다.'});setExportMessage('기기 공유창에서 선택을 마쳤습니다. 상대방에게 전달되었는지는 공유한 앱에서 확인해 주세요.');}
           catch(error){if((error as Error)?.name==='AbortError')setExportMessage('카드 공유를 취소했습니다.');else throw error;}
         }else{
           const url=URL.createObjectURL(blob);
@@ -102,8 +102,8 @@ export default function InspectorSafetyCardDeck({
     // All exported cards retain a visible evidence-photo reference when provided.
     // This is a non-annotated preview, not AI-detected evidence.
     const photoStrip=photoUrl&&<div className="si-safety-card-photo-strip">
-       <img src={photoUrl} alt="해당 점검의 사진 미리보기, 위험 표시가 추가되지 않은 원래 구도" loading="eager"/>
-       <div><span>FIELD PHOTO · SOURCE</span><strong>이 사진을 기준으로 작성한 점검 카드</strong><small>사진 자체를 수정하거나 위험 위치를 자동 판정하지 않습니다.</small></div>
+       <img src={photoUrl} alt="해당 점검의 사진 미리보기, 위험 위치 표시 없음" loading="eager"/>
+       <div><span>FIELD PHOTO · PREVIEW</span><strong>이 사진을 기준으로 작성한 점검 카드</strong><small>점검에 사용한 사진 미리보기입니다. 위험 위치를 자동 판정하지 않습니다.</small></div>
        {onSeePhoto&&<button type="button" data-card-exclude="true" onClick={onSeePhoto} aria-label="점검 사진 확대"><InspectorIcon name="expand"/></button>}
     </div>;
     return <section ref={deckRootRef} className={'si-safety-deck'+(largeText?' si-safety-deck-large':'')} aria-label="PSI 안전 분석 카드" data-psi-safety-deck="v1">
@@ -128,7 +128,7 @@ export default function InspectorSafetyCardDeck({
                 </div>
                 <div className={'si-safety-card-media'+(photoUrl?' has-photo':'')}>
                     {photoUrl?<img src={photoUrl} alt="점검 사진 원본 또는 보관된 점검용 사진 미리보기 · 카드 효과가 적용되지 않은 사진" loading="lazy"/>:<div className="si-safety-card-no-photo">사진 미리보기 없음</div>}
-                    <div className="si-safety-card-photo-hint">점검 사진 · 카드 효과는 저장되지 않음</div>
+                    <div className="si-safety-card-photo-hint">점검용 사진 미리보기 · 원본 저장 여부는 점검 기록에서 확인</div>
                     {photoUrl&&onSeePhoto&&<button type="button" className="si-safety-card-zoom" data-card-exclude="true" onClick={onSeePhoto}>사진 크게 확인</button>}
                 </div>
                 <div className="si-safety-card-essential" aria-label="점검 카드 핵심 3항목">
@@ -196,7 +196,7 @@ export default function InspectorSafetyCardDeck({
             <button type="button" disabled={panelIndex===PANELS.length-1} onClick={()=>goPanel(1)} aria-label="다음 카드">다음 <InspectorIcon name="arrow"/></button>
         </div>
         <div className="si-safety-deck-export">
-            <div><strong>현재 카드 이미지</strong><p>카드 한 장을 별도 PNG로 공유·저장합니다. 증빙 원본은 바뀌지 않습니다.</p></div>
+            <div><strong>현재 카드 이미지</strong><p>현재 화면의 카드 한 장을 별도 PNG로 만듭니다. 사진이 있으면 이미지에 포함됩니다. 공유 전 내용을 확인하세요.</p></div>
             <button type="button" onClick={()=>void shareOrDownloadCard()} disabled={exporting||disabled} aria-busy={exporting}><InspectorIcon name="upload"/>{exporting?'이미지 제작 중…':'카드 저장·공유'}</button>
         </div>
         <p className="si-safety-deck-export-message" role="status" aria-live="polite">{exportMessage}</p>
