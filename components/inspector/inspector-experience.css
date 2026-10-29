@@ -685,3 +685,15 @@
 @media(prefers-reduced-motion:reduce){
   .si-camera-target-frame svg,.si-camera-target-corner{animation:none!important}
 }
+
+/* PSI_CAMERA_GUIDE_DIAGNOSTICS_FIX_20261029 */
+@media (max-width:1199px) {
+  .si-camera-dialog.si-camera-immersive.si-camera-live .si-camera-guide-options .si-camera-frame-status {
+    position:static!important;top:auto!important;left:auto!important;
+    right:auto!important;bottom:auto!important;transform:none!important;
+    z-index:auto!important;max-width:100%!important;
+    margin:0!important;padding:8px 10px!important;
+    border-radius:0;background:transparent!important;
+    font-size:11px!important;line-height:1.5!important;
+  }
+}
