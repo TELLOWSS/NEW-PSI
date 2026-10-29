@@ -1,0 +1,43 @@
+name: PSI inspector composition dock QA
+
+on:
+  pull_request:
+    paths:
+      - 'components/inspector/InspectorCameraDialog.tsx'
+      - 'components/inspector/inspector-experience.css'
+      - 'scripts/verify-inspector-lens.mjs'
+      - '.github/workflows/inspector-camera-composition.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: inspector-composition-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  composition:
+    name: responsive-camera-guide-and-photo-evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Composition dock never covers shutter, user hints and original pixels
+        run: node scripts/verify-inspector-lens.mjs
+      - name: Synthetic-only screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inspector-camera-composition-evidence
+          path: artifacts/audit/inspector-lens/
+          if-no-files-found: ignore
+          retention-days: 7
