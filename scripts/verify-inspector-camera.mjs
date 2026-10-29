@@ -2,6 +2,7 @@ import {preview} from 'vite';
 import {chromium} from 'playwright';
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 const external=process.env.PSI_CAMERA_BASE,base=external||'http://127.0.0.1:3036',out=process.env.PSI_CAMERA_OUT||'artifacts/audit/inspector-camera';
 const config=JSON.parse(await readFile('vercel.json','utf8')),headers=Object.fromEntries(config.headers.find(r=>r.source==='/(.*)').headers.map(h=>[h.key,h.value]));
 const server=external?null:await preview({build:{outDir:process.env.PSI_CAMERA_DIST||'dist'},preview:{port:3036,host:'127.0.0.1',strictPort:true,headers}});
@@ -67,10 +68,17 @@ try{
   }
   const captured=page.getByRole('dialog',{name:'촬영 사진 바로 확인',exact:true});await captured.getByAltText('등록 전 촬영 사진 미리보기').waitFor();await page.waitForFunction(()=>!document.querySelector('.si-camera-actions .si-primary').disabled);const size=await captured.locator('img').evaluate(i=>({width:i.naturalWidth,height:i.naturalHeight}));assert.deepEqual(size,scenario==='landscape'||scenario==='unsupported'?{width:1280,height:720}:{width:720,height:960});
   // Rotate capture without changing server evidence and recover exact source dimensions.
+  const sourceBytes=await captured.getByAltText('등록 전 촬영 사진 미리보기').evaluate(async img=>Array.from(new Uint8Array(await (await fetch(img.src)).arrayBuffer())));
+  const sourceHash=createHash('sha256').update(Buffer.from(sourceBytes)).digest('hex');
   const before=await captured.getByAltText('등록 전 촬영 사진 미리보기').evaluate(i=>({w:i.naturalWidth,h:i.naturalHeight}));
   await captured.getByRole('button',{name:'오른쪽 90°'}).click();
   await page.waitForFunction(({w,h})=>{const i=document.querySelector('img[alt="등록 전 촬영 사진 미리보기"]');return i?.naturalWidth===h&&i?.naturalHeight===w;},before);
   assert.match(await captured.locator('.si-camera-photo-editor-heading').innerText(),/90° 회전/);
+  const originalDownload=page.waitForEvent('download');
+  await captured.getByRole('link',{name:'최초 촬영 파일 기기에 저장'}).click();
+  const downloaded=await originalDownload;
+  assert.equal(createHash('sha256').update(await readFile(await downloaded.path())).digest('hex'),sourceHash,'original download matches first captured file byte-for-byte');
+  assert.equal(await captured.getByRole('link',{name:'회전한 사본 기기에 저장'}).count(),1,'edited copy is clearly labelled');
   await captured.getByRole('button',{name:'원래 방향'}).click();
   await page.waitForFunction(({w,h})=>{const i=document.querySelector('img[alt="등록 전 촬영 사진 미리보기"]');return i?.naturalWidth===w&&i?.naturalHeight===h;},before);
   page.once('dialog',d=>d.dismiss());
