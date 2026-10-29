@@ -37,6 +37,13 @@ try{
  assert.equal(await deck.locator('.si-safety-card').getAttribute('data-panel'),'action','summary connects directly to action');
  const actionColor=await deck.locator('.si-safety-card').evaluate(el=>getComputedStyle(el).backgroundColor);
  assert.equal(actionColor,'rgb(248, 251, 249)','action card uses deliberately light professional theme');
+ await deck.getByRole('button',{name:'상세 점검 내용 확인'}).click();
+ assert.equal(await page.locator('#details-count').innerText(),'1','action card opens the existing details destination');
+ const actionPhotoButton=deck.getByRole('button',{name:'검토 사진 크게 보기'});
+ if(await actionPhotoButton.count()){
+   const box=await actionPhotoButton.boundingBox();
+   assert.ok(box&&box.width>=44&&box.height>=44,'photo expand control has a usable touch target');
+ }
  await deck.getByRole('button',{name:'조치 제안'}).click();
  await deck.getByText('현장에서 이격 상태를 확인하세요.',{exact:false}).waitFor();
  await deck.getByRole('button',{name:'현장 대조'}).click();
@@ -52,7 +59,7 @@ try{
  await deck.getByRole('button',{name:'사진·조치 전달 카드 만들기'}).click();
  assert.equal(await page.locator('#compose-count').innerText(),'1');
  await deck.getByRole('button',{name:'상세 점검·보고서 단계로 이동'}).click();
- assert.equal(await page.locator('#details-count').innerText(),'1');
+ assert.equal(await page.locator('#details-count').innerText(),'2');
  await page.locator('#toggle-rejected').click();
  await deck.getByRole('button',{name:'위험 요약'}).click();
  await deck.getByText('전문가 의견을 우선 확인하세요').waitFor();
