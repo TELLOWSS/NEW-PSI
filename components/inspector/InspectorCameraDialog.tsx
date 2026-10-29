@@ -35,6 +35,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
     const [overlayVisible,setOverlayVisible]=useState(true),[overlayOpacity,setOverlayOpacity]=useState(50),[overlayFailed,setOverlayFailed]=useState(false);
     const [grid,setGrid]=useState(()=>{try{return sessionStorage.getItem('psi.inspector.camera.grid.v1')==='on';}catch{return false;}});
     const [guide,setGuide]=useState<CameraGuide>('');
+    const [guideActivation,setGuideActivation]=useState(0);
     useEffect(()=>setOverlayFailed(false),[reference?.url]);
     const stop=()=>{streamRef.current?.getTracks().forEach(track=>track.stop());streamRef.current=null;if(videoRef.current)videoRef.current.srcObject=null;};
 
@@ -112,8 +113,9 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
             {photo?(preview&&<img src={preview} alt="등록 전 촬영 사진 미리보기" onLoad={e=>{setDecoded(true);setFrame({width:e.currentTarget.naturalWidth,height:e.currentTarget.naturalHeight});}} onError={()=>{setDecoded(false);setError('사진 미리보기를 읽지 못했습니다. 다시 촬영해 주세요.');}}/>):<video ref={videoRef} autoPlay playsInline muted aria-label="실시간 카메라 화면" onLoadedData={refreshFrame} onResize={refreshFrame}/>}
             {!photo&&ready&&reference?.url&&overlayVisible&&!overlayFailed&&<img className="si-camera-reference" src={reference.url} alt="" aria-hidden="true" style={{opacity:overlayOpacity/100}} onError={()=>setOverlayFailed(true)}/>}
             {!photo&&ready&&grid&&<div className="si-camera-grid" aria-hidden="true"/>}
-            {!photo&&ready&&guide&&<div className={`si-camera-target-overlay si-camera-target-${guide}`} aria-hidden="true">
+            {!photo&&ready&&guide&&<div key={`${guide}-${guideActivation}`} className={`si-camera-target-overlay si-camera-target-${guide}`} aria-hidden="true">
               <div className="si-camera-target-frame">
+                <span className="si-camera-target-sweep"/>
                 <i className="si-camera-target-corner si-camera-target-tl"/><i className="si-camera-target-corner si-camera-target-tr"/>
                 <i className="si-camera-target-corner si-camera-target-bl"/><i className="si-camera-target-corner si-camera-target-br"/>
                 <svg viewBox="0 0 320 218" fill="none" aria-hidden="true">
@@ -134,7 +136,9 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
                 </svg>
               </div>
               <span className="si-camera-target-tag">{CAMERA_GUIDES[guide].label} 구도 참고</span>
+              <span className="si-camera-target-activate">구도 가이드 활성화 · {CAMERA_GUIDES[guide].label}</span>
             </div>}
+            {!photo&&guide&&<span className="si-camera-screenreader" role="status">{CAMERA_GUIDES[guide].label} 촬영 구도 가이드가 적용됐습니다. 실제 위험을 분석하는 기능은 아닙니다.</span>}
             {!photo&&landscapeRequested&&<div className="si-camera-rotate-hint" role="status">가로 촬영을 선택했습니다. 휴대폰을 가로로 돌리면 넓은 화면으로 전환됩니다. 현재는 잘림 없는 세로 미리보기를 유지합니다. 회전이 안 되면 화면 회전 잠금을 확인해 주세요.</div>}
             {!photo && !ready && <span className="si-camera-wait" role="status">{error?'카메라 연결을 확인해 주세요':'카메라 연결 중…'}</span>}
         </div>
@@ -160,7 +164,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
         {!photo&&<details ref={guidePanelRef} className="si-camera-guide-options"><summary><span className="si-camera-guide-summary-icon" aria-hidden="true">✧</span><span className="si-camera-guide-summary-text">구도 {guide?'· '+CAMERA_GUIDES[guide].label:'선택'}</span></summary><div className="si-camera-guide-content">
           <p className="si-camera-guide-headline">어떤 장면을 촬영하나요?</p>
           <div className="si-camera-guide-picks" role="group" aria-label="촬영할 대상">
-            {(['scaffold','opening','lifting'] as const).map((option)=><button type="button" key={option} className="si-camera-guide-pick" aria-pressed={guide===option} onClick={()=>{setGuide(option);if(guidePanelRef.current)guidePanelRef.current.open=false;}}>
+            {(['scaffold','opening','lifting'] as const).map((option)=><button type="button" key={option} className="si-camera-guide-pick" aria-pressed={guide===option} onClick={()=>{setGuide(option);setGuideActivation(n=>n+1);if(guidePanelRef.current)guidePanelRef.current.open=false;}}>
               <span className={`si-camera-guide-pictogram si-camera-guide-pictogram-${option}`} aria-hidden="true">{option==='scaffold'?'▦':option==='opening'?'□':'⌁'}</span>
               <span className="si-camera-guide-pick-title">{CAMERA_GUIDES[option].label}</span>
             </button>)}
@@ -169,7 +173,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
           <button type="button" className="si-camera-guide-clear" disabled={!guide} onClick={()=>{setGuide('');if(guidePanelRef.current)guidePanelRef.current.open=false;}}>구도 표시 끄기</button>
           <label className="si-camera-grid-choice"><input type="checkbox" checked={grid} onChange={e=>{const enabled=e.target.checked;setGrid(enabled);try{sessionStorage.setItem('psi.inspector.camera.grid.v1',enabled?'on':'off');}catch{/* The setting still applies in this window. */}}}/> 3×3 격자 표시</label>
           {frame&&<details className="si-camera-frame-details"><summary>{directionMismatch?'영상 방향 확인 필요':'영상 정보'}</summary><p className="si-camera-frame-status" role="status">{photo?'촬영본':'현재 영상'} · {actualDirection} {frame.width} × {frame.height}{!photo&&directionMismatch&&<span>선택한 방향과 실제 영상 비율이 다릅니다. 기기를 돌리거나 기기 카메라를 이용하세요.</span>}</p></details>}
-          <p className="si-camera-guide-disclaimer">화면의 선은 촬영 구도 참고용입니다. 자동 위험 감지가 아니며 사진에 기록되지 않습니다.</p>
+          <p className="si-camera-guide-disclaimer">실제 위험 자동 판정이 아닌 촬영 구도 참고입니다. 가이드선은 사진에 저장되지 않습니다.</p>
         </div></details>}
         {!photo&&<><label className="si-camera-native si-btn">기기 카메라로 촬영<input aria-label="기기 카메라로 촬영" type="file" accept="image/jpeg,image/png,image/webp" capture={facing} disabled={capturing} onClick={()=>{nativePending.current=true;++generation.current;stop();setReady(false);setError('기기 촬영을 취소했다면 카메라 다시 연결을 누르세요.');}} onChange={e=>{nativePending.current=false;const file=e.target.files?.[0];e.target.value='';if(file){setError('');setPhoto(file);}else retry();}}/></label>{reference&&<p className="si-caption">기기 카메라로 전환하면 기준 사진 겹침이 표시되지 않습니다.</p>}</>}
         <p className="si-caption">사용 전 사진은 이 창의 임시 메모리에만 있습니다. 원본이 필요하면 ‘촬영 사진 기기에 저장’으로 다운로드하세요. 사진 앱에 자동 저장되지는 않습니다.</p>
