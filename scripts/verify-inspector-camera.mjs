@@ -68,8 +68,10 @@ try{
   }
   const captured=page.getByRole('dialog',{name:'촬영 사진 바로 확인',exact:true});await captured.getByAltText('등록 전 촬영 사진 미리보기').waitFor();await page.waitForFunction(()=>!document.querySelector('.si-camera-actions .si-primary').disabled);const size=await captured.locator('img').evaluate(i=>({width:i.naturalWidth,height:i.naturalHeight}));assert.deepEqual(size,scenario==='landscape'||scenario==='unsupported'?{width:1280,height:720}:{width:720,height:960});
   // Rotate capture without changing server evidence and recover exact source dimensions.
-  const sourceBytes=await captured.getByAltText('등록 전 촬영 사진 미리보기').evaluate(async img=>Array.from(new Uint8Array(await (await fetch(img.src)).arrayBuffer())));
-  const sourceHash=createHash('sha256').update(Buffer.from(sourceBytes)).digest('hex');
+  const initialDownload=page.waitForEvent('download');
+  await captured.getByRole('link',{name:'촬영 사진 기기에 저장',exact:true}).click();
+  const initialFile=await initialDownload;
+  const sourceHash=createHash('sha256').update(await readFile(await initialFile.path())).digest('hex');
   const before=await captured.getByAltText('등록 전 촬영 사진 미리보기').evaluate(i=>({w:i.naturalWidth,h:i.naturalHeight}));
   await captured.getByRole('button',{name:'오른쪽 90°'}).click();
   await page.waitForFunction(({w,h})=>{const i=document.querySelector('img[alt="등록 전 촬영 사진 미리보기"]');return i?.naturalWidth===h&&i?.naturalHeight===w;},before);
