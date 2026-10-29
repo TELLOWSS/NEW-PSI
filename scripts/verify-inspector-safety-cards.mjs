@@ -58,7 +58,7 @@ try{
  await page.locator('#toggle-saved').click();
  await deck.getByText('AI 해석 미수용',{exact:true}).first().waitFor();
  await page.locator('#toggle-rejected').click();
- await deck.getByText('전문가 검토 저장',{exact:true}).waitFor();
+ await deck.locator('.si-safety-card').getByText('전문가 검토 저장',{exact:true}).waitFor();
  for(const viewport of [{width:320,height:740},{width:390,height:844},{width:844,height:390},{width:768,height:1024},{width:1440,height:900}]){
     await page.setViewportSize(viewport);
     const over=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+1);
