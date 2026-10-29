@@ -92,12 +92,21 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
     const [analyzedResult,setAnalyzedResult]=useState(false),[analysisFailed,setAnalysisFailed]=useState(false);
     const [analyzePhoto]=useState(()=>createInspectorAnalysisClient());
     const [report,setReport]=useState<InspectionReport|null>(null),[printPhotoStatus,setPrintPhotoStatus]=useState<ReportPhotoLoadState>('loading'),[copied,setCopied]=useState(false);
+    const focusConsentPending=useRef(false);
     const inflight=useRef(false),alive=useRef(true),createId=useRef(crypto.randomUUID()),latest=useRef<Inspection|null>(null),uploaded=useRef<Evidence|null>(null),noteRef=useRef<HTMLTextAreaElement>(null),consentRef=useRef<HTMLInputElement>(null),startRef=useRef<HTMLButtonElement>(null),resultRef=useRef<HTMLElement>(null),errorRef=useRef<HTMLParagraphElement>(null);
     const analysis=analyzedResult&&item&&photo?item.document.analyses[photo.id]:null;
     const pendingPhoto=item?pendingReviewQueue(item.document)[0]?.id:undefined;
     useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
     useEffect(()=>{if(!apiEnabled)return;let active=true;void request({op:'ai-status'}).then(r=>{if(active&&alive.current){setReady(r.ready);setCost(normalizeAiCost(r.cost));setConnection({provider:r.provider,model:r.model});}}).catch(()=>{if(active&&alive.current)setReady(false);});return()=>{active=false;};},[apiEnabled]);
     useEffect(()=>{const file=local?.file||storedPhoto;if(!file){setPreview('');return;}const url=URL.createObjectURL(file);setPreview(url);return()=>URL.revokeObjectURL(url);},[local,storedPhoto]);
+    useEffect(()=>{
+        if(!focusConsentPending.current||!local||busy)return;
+        const frame=requestAnimationFrame(()=>{
+            const next=consentRef.current;
+            if(next&&!next.disabled){focusConsentPending.current=false;next.focus({preventScroll:true});next.scrollIntoView({block:'center',behavior:'instant'});}
+        });
+        return()=>cancelAnimationFrame(frame);
+    },[local,busy]);
     useEffect(()=>{if(reference)resultRef.current?.focus({preventScroll:true});},[reference]);
     useEffect(()=>{if(error){errorRef.current?.focus({preventScroll:true});errorRef.current?.scrollIntoView({block:'center',behavior:'smooth'});}},[error]);
     const readOnlyPreset=!item&&!local&&!photo&&lookupPreset===note&&reportTitle==='사진 현장점검'&&!workType&&!riskTopic;
@@ -111,7 +120,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
         const signed=await request({op:'photo',id:current.id,photoId}),response=await fetch(signed.url,{cache:'no-store'});if(!response.ok)throw new Error('사진을 불러오지 못했습니다.');
         const blob=await response.blob();if(await assetHash(blob)!==registered.sha256)throw new Error('사진 무결성 검사 실패');return blob;
     },[evidence]);
-    const choose=(file:File)=>void run(async()=>{if(photo)throw new Error('현재 결과를 확인하고 ‘다음 사진’을 눌러 주세요.');setActivity('기기에서 사진 최적화 중');const optimized=await optimizePhoto(file);if(!alive.current)return;sourcePhoto.current=file;sourceTurns.current=0;setPhotoTurns(0);setConsent(false);setStoredPhoto(null);setRiskTopic('');setReview({decision:'accepted',note:''});setActionCopied(false);setLocal({...optimized,id:crypto.randomUUID()});setReference(null);setReport(null);setResultNote('');setHintOpen(!!note.trim());requestAnimationFrame(()=>{const next=consentRef.current;if(next){next.focus({preventScroll:true});next.scrollIntoView({block:'center',behavior:'instant'});}else startRef.current?.focus({preventScroll:true});});});
+    const choose=(file:File)=>void run(async()=>{if(photo)throw new Error('현재 결과를 확인하고 ‘다음 사진’을 눌러 주세요.');setActivity('기기에서 사진 최적화 중');const optimized=await optimizePhoto(file);if(!alive.current)return;sourcePhoto.current=file;sourceTurns.current=0;setPhotoTurns(0);setConsent(false);setStoredPhoto(null);setRiskTopic('');setReview({decision:'accepted',note:''});setActionCopied(false);focusConsentPending.current=true;setLocal({...optimized,id:crypto.randomUUID()});setReference(null);setReport(null);setResultNote('');setHintOpen(!!note.trim());});
     const rotateLocalPhoto=(delta:number)=>void run(async()=>{
         const source=sourcePhoto.current;
         if(!source||!local||photo||uploaded.current||storageLocked)throw new Error('아직 보관하지 않은 사진만 회전할 수 있습니다. 저장된 사진의 원본은 변경되지 않습니다.');
