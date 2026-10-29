@@ -21,6 +21,7 @@ import InspectorLegalResult from './InspectorLegalResult';
 import InspectorAnswer from './InspectorAnswer';
 import InspectorSafetyCardDeck from './InspectorSafetyCardDeck';
 import {InspectorIcon,InspectorScene} from './InspectorGraphics';
+import './inspector-field-entry.css';
 const InspectorReport=lazy(()=>import('./InspectorReport'));
 const InspectorGlobalActionRegister=lazy(()=>import('./InspectorGlobalActionRegister'));
 const InspectorFieldCardDialog=lazy(()=>import('./InspectorFieldCardDialog'));
@@ -418,7 +419,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
         {item&&!storageLocked&&(item.document.photoIds.length>0||item.document.actions.length>0)&&<InspectorActionPlanner key={`${item.id}:${actionEntry?.token||''}`} item={item} active={!!(local||photo)} busy={busy} onSave={saveAction} onReassign={reassignAction} onDirty={setActionDraftDirty} onOpen={openSavedPhoto} evidence={evidence} loadPhoto={loadEvidencePhoto} onSubmitImprovement={submitImprovement} onVerify={verifyAction} onAdoptShare={adoptShare} inboxRequest={inboxRequest} draftRequest={draftRequest} priorityFocus={priorityFocus} initialPhotoId={actionEntry?.photoId} initialSelection={actionEntry?.selection} initialRegistered={entryIntent==='actions'&&!actionEntry} onCloseEntry={closeActionEntry}/>}
         {reference&&<div className="si-input-recap">{preview&&<button className="si-preview-open" aria-label="점검 사진 크게 보기" onClick={()=>{setZoomFocus('');setZoom(true);}}><img src={preview} alt="점검 사진 미리보기"/></button>}<div><b>{analysis?'사진 분석 결과 준비됨':photo&&item?.document.photoIds.includes(photo.id)?'사진 보관 완료 · 직접 점검':photo?'사진 보관 확인 필요':'설명으로 기준 조회됨'}</b><p>{resultNote||(photo?(riskTopic?`점검자 선택 위험: ${legalTopicTitle(riskTopic)}`:'위험유형은 아직 선택하지 않았습니다. 필요하면 직접 선택하세요.'):'설명을 입력해 관련 기준을 확인하세요.')}</p></div><button className="si-btn" disabled={busy} aria-expanded={editInput} aria-controls="si-quick-input" onClick={()=>{if(note.trim())setHintOpen(true);setEditInput(v=>!v);}}>{editInput?'입력 접기':'사진·설명 수정'}</button></div>}
         <section id="si-quick-input" hidden={!!reference&&!editInput} className="si-quick-input" data-photo-ready={!!preview} aria-label="사진과 설명 입력">
-            <div className="si-quick-photo">{preview?<><p className="si-photo-preview-label">{photo&&item?.document.photoIds.includes(photo.id)?'보관된 점검 사진':'선택한 사진 · 저장 전'}</p><img src={preview} alt="분석할 현장사진"/>{local&&!photo&&<div className="si-quick-photo-rotation" role="group" aria-label="점검 사진 방향 편집">
+            <div className={'si-quick-photo'+(!preview?' si-field-entry':'')}>{preview?<><p className="si-photo-preview-label">{photo&&item?.document.photoIds.includes(photo.id)?'보관된 점검 사진':'선택한 사진 · 저장 전'}</p><img src={preview} alt="분석할 현장사진"/>{local&&!photo&&<div className="si-quick-photo-rotation" role="group" aria-label="점검 사진 방향 편집">
               <div className="si-quick-photo-rotation-title"><strong>사진 방향 맞추기</strong><span role="status">{photoTurns===0?'원래 방향':`원본 기준 ${photoTurns*90}° 회전 · 별도 사본`}</span></div>
               <div className="si-quick-photo-rotation-actions">
                 <button type="button" className="si-btn" disabled={busy||storageBusy} onClick={()=>rotateLocalPhoto(-1)}>↶ 왼쪽 90°</button>
