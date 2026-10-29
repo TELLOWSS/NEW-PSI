@@ -133,6 +133,7 @@ try{
    const expand=card.getByRole('button',{name:'긴 내용 전체 보기'});
    assert.equal(await expand.getAttribute('aria-expanded'),'false',label+' starts in compact mode');
    const compactBox=await card.boundingBox();
+   await card.screenshot({path:path.join(screenshotDir,'screen-long-compact-'+slug+'.png')});
    await expand.click();
    const collapse=card.getByRole('button',{name:'내용 접기'});
    assert.equal(await collapse.getAttribute('aria-expanded'),'true',label+' can expand');
