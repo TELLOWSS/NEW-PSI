@@ -541,3 +541,147 @@
     pointer-events:none;box-shadow:0 5px 20px #0007;
   }
 }
+
+
+/* PSI_CAMERA_COMPOSITION_GUIDES_20261029 */
+/* Composition overlays are only visible during live preview; never rasterized. */
+.si-camera-stage .si-camera-target-overlay{
+  --guide-color:#a8f1d4;
+  position:absolute;inset:0;z-index:2;pointer-events:none;
+  color:var(--guide-color);
+  display:grid;place-items:center;isolation:isolate;
+}
+.si-camera-stage .si-camera-target-opening{--guide-color:#f7d992}
+.si-camera-stage .si-camera-target-lifting{--guide-color:#adddfa}
+.si-camera-target-frame{
+  position:relative;width:70%;height:68%;max-width:430px;max-height:270px;
+  display:grid;place-items:center;filter:drop-shadow(0 0 8px #001b2480);
+}
+.si-camera-target-frame:before{
+  content:"";position:absolute;inset:7%;border:1px solid currentColor;
+  border-radius:14px;opacity:.16;
+}
+.si-camera-target-frame svg{width:100%;height:100%;max-width:100%;max-height:100%;opacity:.8;animation:si-guide-enter .45s ease-out both}
+.si-camera-target-corner{
+  position:absolute;width:23px;height:23px;border:0 solid currentColor;
+  opacity:.92;animation:si-guide-corner 3s ease-in-out infinite;
+}
+.si-camera-target-tl{top:0;left:0;border-top-width:3px;border-left-width:3px;border-top-left-radius:5px}
+.si-camera-target-tr{top:0;right:0;border-top-width:3px;border-right-width:3px;border-top-right-radius:5px}
+.si-camera-target-bl{bottom:0;left:0;border-bottom-width:3px;border-left-width:3px;border-bottom-left-radius:5px}
+.si-camera-target-br{bottom:0;right:0;border-bottom-width:3px;border-right-width:3px;border-bottom-right-radius:5px}
+.si-camera-target-tag{
+  position:absolute;top:8px;right:8px;max-width:calc(100% - 16px);
+  font-size:10px;font-weight:750;letter-spacing:-.01em;
+  border:1px solid currentColor;padding:5px 9px;border-radius:999px;
+  color:var(--guide-color);background:#071b24d9;
+  white-space:nowrap;
+}
+@keyframes si-guide-corner{0%,100%{opacity:.55}50%{opacity:1}}
+@keyframes si-guide-enter{from{opacity:0;transform:scale(.93)}to{opacity:.8;transform:scale(1)}}
+.si-camera-guide-options .si-camera-guide-summary-icon{
+  display:inline-grid;place-items:center;width:26px;height:26px;
+  border-radius:9px;background:#bcecdc;color:#0e5b4c;font-size:20px;
+  flex:0 0 26px;line-height:1;
+}
+.si-camera-guide-options>summary{
+  gap:8px;justify-content:flex-start;white-space:nowrap;min-width:0;
+  letter-spacing:-.03em;
+}
+.si-camera-guide-summary-text{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.si-camera-guide-options .si-camera-guide-content{
+  display:grid;grid-template-columns:minmax(0,1fr);gap:10px;
+  padding:3px 0 12px;font-size:12px;min-width:0;
+}
+.si-camera-guide-headline{
+  font-size:12px;font-weight:750;line-height:1.4;margin:3px 0!important;
+  white-space:normal;overflow-wrap:normal;word-break:keep-all;
+}
+.si-camera-guide-picks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;min-width:0}
+.si-camera-guide-pick{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  min-width:0;min-height:72px;padding:9px 3px;border-radius:12px;
+  border:1px solid #b9d7d0;background:#f4faf7;color:#164e46;
+  font:inherit;cursor:pointer;line-height:1.2;
+}
+.si-camera-guide-pick[aria-pressed="true"]{
+  border-color:#19a58c;background:#e0f8ef;
+  box-shadow:inset 0 0 0 1px #19a58c;
+}
+.si-camera-guide-pick-title{font-size:11px;font-weight:850;white-space:nowrap;letter-spacing:-.055em}
+.si-camera-guide-pictogram{font-size:27px;line-height:1;font-family:system-ui,sans-serif}
+.si-camera-guide-pictogram-lifting{font-size:31px}
+.si-camera-guide-tip{
+  padding:9px 10px;border:1px solid #8cbeb1;border-radius:10px;
+  background:#e8f8f2;color:#174e47;line-height:1.5;
+  font-weight:650;word-break:keep-all;overflow-wrap:anywhere;
+}
+.si-camera-guide-clear{
+  min-height:40px;padding:8px 10px;border:1px solid #a8c8bf;
+  border-radius:10px;background:#f2f8f6;color:#19584c;
+  font-size:12px;font-weight:700;cursor:pointer;
+}
+.si-camera-guide-clear:disabled{opacity:.48;cursor:default}
+.si-camera-guide-options .si-camera-grid-choice{
+  border-top:1px solid #c7ddd6;padding-top:8px;
+  font-size:12px;white-space:nowrap;
+}
+.si-camera-guide-disclaimer{
+  font-size:11px;line-height:1.5;word-break:keep-all;overflow-wrap:anywhere;
+  color:#426e63;
+}
+.si-camera-frame-details{
+  margin:0;padding:0;border:1px solid #c6e0d4;border-radius:10px;
+  background:#f4f9f7;font-size:11px;
+}
+.si-camera-frame-details>summary{min-height:40px!important;padding:8px 10px;cursor:pointer;font-weight:700}
+.si-camera-frame-details .si-camera-frame-status{padding:7px 10px;margin:0!important;font-size:11px;line-height:1.5}
+.si-camera-frame-details .si-camera-frame-status>span{display:block;color:#bf6e2d;margin-top:5px}
+.si-camera-dialog.si-camera-immersive.si-camera-review>.si-camera-frame-details{
+  position:absolute;top:calc(env(safe-area-inset-top) + 65px);right:10px;
+  max-width:170px;z-index:12;color:#e5f7f3;background:#0f303bdc;border-color:#7aa59b80;
+}
+@media(max-width:1199px){
+  .si-camera-dialog.si-camera-immersive .si-camera-guide-options{
+    right:10px!important;width:min(298px,calc(100vw - 20px))!important;
+    max-height:min(440px,calc(100dvh - 196px))!important;
+    box-shadow:0 12px 34px #0006!important;
+  }
+  .si-camera-dialog.si-camera-immersive .si-camera-guide-options>summary{
+    padding:0 1px;min-height:40px;color:#e9fff7!important;font-size:12px;
+  }
+  .si-camera-dialog.si-camera-immersive .si-camera-guide-content{
+    color:#eaf9f4!important;
+  }
+  .si-camera-dialog.si-camera-immersive .si-camera-guide-headline{color:#f3fff9!important}
+  .si-camera-dialog.si-camera-immersive .si-camera-guide-disclaimer{color:#d2e5df!important}
+  .si-camera-dialog.si-camera-immersive .si-camera-guide-options .si-camera-guide-tip{
+    color:#12453c!important;background:#d4f4e8!important;
+  }
+  .si-camera-dialog.si-camera-immersive .si-camera-guide-options .si-camera-grid-choice{
+    color:#f2fff9!important;
+  }
+  .si-camera-dialog.si-camera-immersive .si-camera-guide-options .si-camera-frame-details{
+    background:#193c3b;color:#e7f9ef;border-color:#527c72;
+  }
+  .si-camera-dialog.si-camera-immersive .si-camera-guide-options .si-camera-frame-status{
+    color:#d9f0e8!important;background:transparent!important;
+  }
+}
+@media(max-width:1199px) and (orientation:landscape) and (max-height:520px){
+  .si-camera-dialog.si-camera-immersive .si-camera-guide-options{
+    top:calc(env(safe-area-inset-top) + 80px)!important;
+    right:8px!important;width:min(262px,calc(100vw - 20px))!important;
+    max-height:calc(100dvh - 145px)!important;
+  }
+  .si-camera-guide-pick{min-height:62px}
+  .si-camera-target-tag{font-size:9px;top:5px;right:5px}
+}
+.dark .si-camera-guide-pick{background:#194339;color:#e6fff5;border-color:#4f8273}
+.dark .si-camera-guide-pick[aria-pressed="true"]{background:#286654;color:#fff;border-color:#8cdec1}
+.dark .si-camera-guide-tip{background:#20483e;color:#ecfff6;border-color:#5e9281}
+.dark .si-camera-guide-clear{background:#183e35;color:#e7fbf4;border-color:#4e8373}
+.dark .si-camera-frame-details{background:#1b3832;color:#e8fff7;border-color:#477666}
+@media(prefers-reduced-motion:reduce){
+  .si-camera-target-frame svg,.si-camera-target-corner{animation:none!important}
+}
