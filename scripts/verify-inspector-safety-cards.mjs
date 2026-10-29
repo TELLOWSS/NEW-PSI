@@ -130,9 +130,17 @@ try{
  for(const [label,slug] of [['위험 요약','risk'],['조치 제안','action'],['현장 대조','evidence']]){
    await deck.getByRole('button',{name:label}).click();
    const card=deck.locator('.si-safety-card');
+   const expand=card.getByRole('button',{name:'긴 내용 전체 보기'});
+   assert.equal(await expand.getAttribute('aria-expanded'),'false',label+' starts in compact mode');
+   const compactBox=await card.boundingBox();
+   await expand.click();
+   const collapse=card.getByRole('button',{name:'내용 접기'});
+   assert.equal(await collapse.getAttribute('aria-expanded'),'true',label+' can expand');
    const cardBox=await card.boundingBox();
+   assert.ok(compactBox&&cardBox&&cardBox.height>compactBox.height,label+' reveals the full long content');
    const essential=slug==='risk'?card.locator('.si-safety-card-essential'):slug==='action'?card.locator('.si-safety-card-feature'):card.locator('.si-safety-card-evidence-block').last();
    const essentialBox=await essential.boundingBox();
+   await collapse.click();
    assert.ok(cardBox&&essentialBox,'long content must have a measurable layout');
    const pendingLong=page.waitForEvent('download',{timeout:30000});
    await deck.getByRole('button',{name:'카드 저장·공유'}).click();
