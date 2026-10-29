@@ -1,0 +1,44 @@
+/* FIELD INTELLIGENCE — share review, scoped to the share dialog. */
+.si-share-dialog.si-workspace {
+  --field-ink: #193943;
+  --field-teal: #0f6b60;
+  --field-mint: #bceedb;
+  --field-paper: #f5f8f6;
+}
+.si-share-dialog.si-workspace .si-share-review {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 16px 0 10px;
+  padding: 14px 16px;
+  border: 1px solid #c2ddd1;
+  border-radius: 14px;
+  color: var(--field-ink);
+  background: var(--field-paper);
+}
+.si-share-dialog.si-workspace .si-share-review strong {font-size: 14px; line-height: 1.5}
+.si-share-dialog.si-workspace .si-share-review span {font-size: 13px; line-height: 1.55; overflow-wrap: anywhere}
+.si-share-dialog.si-workspace .si-share-actions {display: flex; flex-wrap: wrap; gap: 8px}
+.si-share-dialog.si-workspace .si-share-actions .si-btn {min-height: 48px; line-height: 1.4}
+.si-share-dialog.si-workspace .si-share-actions .si-primary {
+  background: var(--field-teal);
+  border-color: var(--field-teal);
+  color: #fff;
+  font-weight: 800;
+}
+.si-share-dialog.si-workspace .si-share-actions .si-btn:focus-visible {
+  outline: 3px solid #d9b77b;
+  outline-offset: 2px;
+}
+@media (max-width: 600px) {
+  .si-share-dialog.si-workspace .si-share-actions {display: grid; grid-template-columns: 1fr 1fr}
+  .si-share-dialog.si-workspace .si-share-actions .si-primary {grid-column: 1 / -1; min-height: 52px}
+  .si-share-dialog.si-workspace .si-share-review {padding: 12px}
+}
+.dark .si-share-dialog.si-workspace .si-share-review {
+  color: #eafbf5;
+  background: #173d38;
+  border-color: #487d6e;
+}
