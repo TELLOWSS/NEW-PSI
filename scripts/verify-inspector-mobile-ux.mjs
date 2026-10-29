@@ -55,6 +55,11 @@ try{
   await page.locator('.inspector-standalone-navigation summary').click();page.off('dialog',dismiss);
   const source=Buffer.from(await page.evaluate(()=>{const c=document.createElement('canvas');c.width=640;c.height=480;c.getContext('2d').fillRect(0,0,640,480);return c.toDataURL('image/jpeg').split(',')[1];}),'base64');
   await page.getByLabel('현장사진 선택',{exact:true}).setInputFiles({name:'synthetic.jpg',mimeType:'image/jpeg',buffer:source});const work=page.getByLabel('공종',{exact:true}),risk=page.getByLabel('직접 확인한 위험유형',{exact:true});
+  await page.getByAltText('분석할 현장사진').waitFor();
+  page.once('dialog',dialog=>dialog.dismiss());
+  await page.getByRole('button',{name:'다른 사진 선택',exact:true}).click();
+  assert.equal(await page.getByAltText('분석할 현장사진').isVisible(),true,'cancelled photo replacement keeps the unregistered photo');
+  assert.equal(await note.inputValue(),'직접 확인한 개구부 덮개 누락','photo replacement does not discard the note');
   await work.selectOption('철근');assert.equal(await risk.inputValue(),'','trade must not infer a hazard');await work.selectOption('시스템비계');await risk.selectOption('electric');
   await page.locator('.si-manual-context').screenshot({path:`${out}/manual-input-${width}.png`});await page.getByText('선택한 위험의 법령·사례·동향 확인',{exact:true}).click();await page.locator('.si-manual-context .si-legal-result').waitFor();assert.equal(await page.getByRole('region',{name:'관련 법령 요지와 금액'}).count(),1);
   for(const control of [work,risk]){const box=await control.boundingBox();assert.ok(box.height>=44,'manual choices must be touch sized');}
