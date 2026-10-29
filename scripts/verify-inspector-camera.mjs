@@ -78,6 +78,10 @@ try{
   assert.equal(await captured.getByAltText('등록 전 촬영 사진 미리보기').isVisible(),true,'cancelling home retains the photo');
   assert.equal(await page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;}),true);page.once('dialog',d=>d.dismiss());await captured.getByRole('button',{name:'닫기',exact:true}).click();assert.equal(await captured.getByAltText('등록 전 촬영 사진 미리보기').isVisible(),true);
   assert.equal(await page.evaluate(()=>window.__streams.every(s=>s.getTracks().every(t=>t.readyState==='ended'))),true);assert.equal(ops.filter(op=>op!=='ai-status').length,0);
+  page.once('dialog',d=>d.dismiss());
+  await captured.getByRole('button',{name:'다시 촬영',exact:true}).click();
+  assert.equal(await captured.getByAltText('등록 전 촬영 사진 미리보기').isVisible(),true,'cancelling retake retains the unregistered photo');
+  page.once('dialog',d=>d.accept());
   await captured.getByRole('button',{name:'다시 촬영',exact:true}).click();await page.getByRole('dialog',{name:'카메라로 바로 촬영',exact:true}).waitFor();assert.equal(await portrait.getAttribute('aria-pressed'),scenario==='landscape'?'false':'true');
   await page.getByRole('dialog').getByRole('button',{name:'닫기',exact:true}).click();await page.waitForFunction(()=>window.__streams.every(s=>s.getTracks().every(t=>t.readyState==='ended')));
   if(scenario!=='storage-blocked'){

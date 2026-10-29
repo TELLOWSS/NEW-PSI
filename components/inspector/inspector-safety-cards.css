@@ -225,7 +225,7 @@
 .si-safety-card-context>div strong{font-size:12px;line-height:1.45;color:#163f36;word-break:keep-all}
 .si-safety-card-context>div small{font-size:10px;line-height:1.4;color:#6c8880;word-break:keep-all}
 .si-safety-card-context button{
-  display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;
+  display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;
   background:#e3f3ec;color:#1a6552;border:1px solid #b8dac8;
   border-radius:8px;cursor:pointer;
 }
@@ -316,7 +316,7 @@
   .si-safety-card-context img{width:76px;height:65px;flex-basis:76px}
   .si-safety-card-context>div strong{font-size:11px}
   .si-safety-card-context>div small{font-size:9px}
-  .si-safety-card-context button{flex-basis:30px;width:30px;height:30px}
+  .si-safety-card-context button{flex-basis:44px;width:44px;height:44px}
   .si-safety-card-evidence .si-safety-card-evidence-block:nth-of-type(n){margin-left:0}
 }
 @media(max-width:350px){
@@ -383,8 +383,8 @@
 .si-safety-card-photo-strip>div strong{font-size:12px;line-height:1.4;overflow-wrap:anywhere;word-break:keep-all}
 .si-safety-card-photo-strip>div small{font-size:10px;line-height:1.4;word-break:keep-all;color:#c0dad1}
 .si-safety-card-photo-strip>button{
-  display:grid;place-items:center;flex:0 0 34px;
-  height:34px;width:34px;border-radius:9px;border:1px solid #8dc7b5;
+  display:grid;place-items:center;flex:0 0 44px;
+  height:44px;width:44px;border-radius:9px;border:1px solid #8dc7b5;
   color:inherit;background:#27534f;cursor:pointer;
 }
 .si-safety-card-reference .si-safety-card-photo-strip,
@@ -420,7 +420,7 @@
   .si-safety-card-photo-strip img{flex-basis:66px;width:66px;height:60px}
   .si-safety-card-photo-strip>div strong{font-size:11px}
   .si-safety-card-photo-strip>div small{font-size:9px}
-  .si-safety-card-photo-strip>button{flex-basis:30px;width:30px;height:30px}
+  .si-safety-card-photo-strip>button{flex-basis:44px;width:44px;height:44px}
   .si-safety-deck-pagination{gap:5px;grid-template-columns:72px minmax(0,1fr) 72px}
   .si-safety-deck-pagination button{font-size:11px}
   .si-safety-deck-pagination>span{font-size:11px}
@@ -479,15 +479,15 @@
 .si-safety-card-essential>div{padding:12px 14px;border-radius:11px;border:1px solid #64998a6b;background:#193e42}
 .si-safety-card-essential>div:nth-child(2){background:#234247;border-color:#749e985e}
 .si-safety-card-essential>div:nth-child(3){background:#31453f;border-color:#c0a9786d}
-.si-safety-card-essential span{display:block;color:#c9ead9;font-size:11px;font-weight:850;letter-spacing:.015em}
-.si-safety-card-essential p{margin:5px 0 0!important;color:#f1fff8;font-size:13px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere;word-break:keep-all}
+.si-safety-card-essential span{display:block;color:#c9ead9;font-size:12px;font-weight:850;letter-spacing:.015em}
+.si-safety-card-essential p{margin:5px 0 0!important;color:#f1fff8;font-size:15px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere;word-break:keep-all}
 .si-safety-deck-large .si-safety-card-title h4{font-size:clamp(22px,5.5vw,29px)!important;line-height:1.4}
 .si-safety-deck-large .si-safety-card-title p,
 .si-safety-deck-large .si-safety-card-feature p{font-size:17px!important;line-height:1.75}
 .si-safety-deck-large .si-safety-card-essential p,
 .si-safety-deck-large .si-safety-card-mini-list p,
 .si-safety-deck-large .si-safety-card-evidence-block p,
-.si-safety-deck-large .si-safety-card-checks p{font-size:16px!important;line-height:1.75}
+.si-safety-deck-large .si-safety-card-checks p{font-size:18px!important;line-height:1.75}
 .si-safety-deck-large .si-safety-card-source strong{font-size:17px!important}
 .si-safety-deck-large .si-safety-card-source span,
 .si-safety-deck-large .si-safety-card-disclaimer,
@@ -499,7 +499,7 @@
  .si-safety-deck-tools{gap:8px}
  .si-safety-card-essential{padding:0 14px 13px}
  .si-safety-card-essential>div{padding:11px 12px}
- .si-safety-card-essential p{font-size:13px}
+ .si-safety-card-essential p{font-size:15px}
 }
 @media(prefers-reduced-motion:reduce){.si-safety-deck-progress>span{transition:none}}
 @media print{.si-safety-deck-tools{display:none!important}}

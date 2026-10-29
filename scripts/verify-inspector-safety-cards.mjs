@@ -22,10 +22,12 @@ try{
  await deck.getByText('02 · 추가 현장 확인').waitFor();
  await deck.getByText('03 · 조치 참고').waitFor();
  assert.equal(await deck.getByRole('progressbar',{name:'안전카드 읽기 진행'}).getAttribute('aria-valuenow'),'1');
+ const basicSummary=await deck.locator('.si-safety-card-essential p').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
+ assert.ok(basicSummary>=15,'summary text remains readable at the smallest viewport');
  await deck.getByRole('button',{name:'가독성 크게'}).click();
  assert.equal(await deck.evaluate(el=>el.classList.contains('si-safety-deck-large')),true,'large-text mode enabled');
  const fontSize=await deck.locator('.si-safety-card-essential p').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
- assert.ok(fontSize>=16,'large-text summary is >=16px');
+ assert.ok(fontSize>=18,'large-text summary is >=18px');
  await deck.getByRole('button',{name:'기본 글씨'}).click();
  assert.equal(await deck.evaluate(el=>el.classList.contains('si-safety-deck-large')),false,'large-text mode reverses');
 
@@ -37,6 +39,13 @@ try{
  assert.equal(await deck.locator('.si-safety-card').getAttribute('data-panel'),'action','summary connects directly to action');
  const actionColor=await deck.locator('.si-safety-card').evaluate(el=>getComputedStyle(el).backgroundColor);
  assert.equal(actionColor,'rgb(248, 251, 249)','action card uses deliberately light professional theme');
+ await deck.getByRole('button',{name:'상세 점검 내용 확인'}).click();
+ assert.equal(await page.locator('#details-count').innerText(),'1','action card opens the existing details destination');
+ const actionPhotoButton=deck.getByRole('button',{name:'검토 사진 크게 보기'});
+ if(await actionPhotoButton.count()){
+   const box=await actionPhotoButton.boundingBox();
+   assert.ok(box&&box.width>=44&&box.height>=44,'photo expand control has a usable touch target');
+ }
  await deck.getByRole('button',{name:'조치 제안'}).click();
  await deck.getByText('현장에서 이격 상태를 확인하세요.',{exact:false}).waitFor();
  await deck.getByRole('button',{name:'현장 대조'}).click();
@@ -52,7 +61,7 @@ try{
  await deck.getByRole('button',{name:'사진·조치 전달 카드 만들기'}).click();
  assert.equal(await page.locator('#compose-count').innerText(),'1');
  await deck.getByRole('button',{name:'상세 점검·보고서 단계로 이동'}).click();
- assert.equal(await page.locator('#details-count').innerText(),'1');
+ assert.equal(await page.locator('#details-count').innerText(),'2');
  await page.locator('#toggle-rejected').click();
  await deck.getByRole('button',{name:'위험 요약'}).click();
  await deck.getByText('전문가 의견을 우선 확인하세요').waitFor();

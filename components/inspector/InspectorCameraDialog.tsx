@@ -1,5 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {InspectorIcon} from './InspectorGraphics';
+import './inspector-camera-field.css';
 import {rotateInspectionPhoto} from '../../lib/inspector/photoRotation';
 
 const CAMERA_GUIDES = {
@@ -78,7 +79,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
             });
             }
         }
-        const hide=()=>{if(document.hidden && !photo){++generation.current;stop();setReady(false);setError('화면을 벗어나 카메라를 중지했습니다. 다시 연결해 주세요.');}};
+        const hide=()=>{if(document.hidden && !photo){++generation.current;stop();setReady(false);setCapturing(false);setError('화면을 벗어나 카메라를 중지했습니다. 다시 연결해 주세요.');}};
         document.addEventListener('visibilitychange',hide);
         return()=>{++generation.current;stop();document.removeEventListener('visibilitychange',hide);};
     },[facing,attempt,photo,mode]);
@@ -198,7 +199,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
            <p>사진을 확인한 뒤 사용하세요. 회전한 사진은 새 사본으로 등록되며 최초 촬영본은 이 화면에서 복원할 수 있습니다.</p>
          </section>}
          <div className="si-camera-actions">{photo?<>
-            <button className="si-btn" disabled={sequenceSaving} onClick={()=>{if(onSaveAndContinue&&!window.confirm('아직 보관하지 않은 이 사진을 버리고 다시 촬영할까요?'))return;retry();}}>다시 촬영</button>
+            <button className="si-btn" disabled={sequenceSaving||rotating} onClick={()=>{if(!window.confirm('아직 등록하지 않은 이 사진을 버리고 다시 촬영할까요?'))return;retry();}}>다시 촬영</button>
             {preview&&<a className="si-btn" href={preview} download={photo.name} aria-disabled={rotating||!decoded} onClick={e=>{if(rotating||!decoded)e.preventDefault();}}>촬영 사진 기기에 저장</a>}
             {onSaveAndContinue&&<button className="si-btn si-primary" disabled={!decoded||sequenceSaving||rotating} onClick={()=>void saveAndContinue()}>{sequenceSaving?'사진 보관 중…':'보관하고 계속 촬영'}</button>}
             <button className="si-btn si-primary" disabled={!decoded||sequenceSaving||rotating} onClick={()=>{if(decoded&&!rotating)onUse(photo);}}>이 사진 사용</button>

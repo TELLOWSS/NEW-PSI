@@ -1,0 +1,96 @@
+/* FIELD INTELLIGENCE — scoped to the empty inspection-photo entry.
+   The image preview, camera stream and stored evidence are not styled here. */
+.si-quick .si-quick-photo.si-field-entry {
+  --field-navy: #102832;
+  --field-teal: #0f6b60;
+  --field-mint: #bceedb;
+  --field-gold: #d9b77b;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 10px;
+  min-height: 0;
+  padding: 24px;
+  text-align: left;
+  color: #f5fbf8;
+  background: radial-gradient(ellipse at 90% 0%, #23675e 0%, transparent 52%), linear-gradient(145deg, #102832, #173e44);
+}
+.si-quick .si-field-entry::before {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  border: 1px solid rgba(188, 238, 219, .18);
+  border-radius: 14px;
+  pointer-events: none;
+  z-index: -1;
+}
+.si-quick .si-field-entry .si-capture-label {
+  display: inline-flex;
+  align-items: center;
+  color: var(--field-mint);
+  border-color: rgba(188, 238, 219, .4);
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+.si-quick .si-field-entry h2 {
+  max-width: 25ch;
+  margin: 0;
+  color: #fff;
+  font-size: clamp(21px, 2vw, 27px);
+  line-height: 1.36;
+  letter-spacing: -.035em;
+  word-break: keep-all;
+}
+.si-quick .si-field-entry > p {
+  max-width: 34ch;
+  margin: 0;
+  color: #d6ebe4;
+  font-size: 14px;
+  line-height: 1.55;
+  word-break: keep-all;
+}
+.si-quick .si-field-entry .si-quick-buttons {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+}
+.si-quick .si-field-entry .si-quick-buttons .si-novice-main-camera {
+  min-height: 56px;
+  width: 100%;
+  border: 1px solid var(--field-mint);
+  border-radius: 12px;
+  background: var(--field-mint);
+  color: #102e2a;
+  font-size: 16px;
+  font-weight: 800;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .15);
+}
+.si-quick .si-field-entry .si-quick-buttons .si-novice-photo-choice {
+  min-height: 48px;
+  width: 100%;
+  border: 1px solid rgba(188, 238, 219, .5);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .07);
+  color: #f5fbf8;
+  font-size: 14px;
+  font-weight: 700;
+}
+.si-quick .si-field-entry .si-quick-buttons .si-btn:focus-visible,
+.si-quick .si-field-entry .si-quick-buttons label:focus-within {
+  outline: 3px solid var(--field-gold);
+  outline-offset: 3px;
+}
+.si-quick .si-field-entry .si-quick-buttons .si-btn:disabled {opacity: .6}
+@media (max-width: 340px) {
+  .si-quick .si-quick-photo.si-field-entry {padding: 20px 16px; gap: 8px}
+  .si-quick .si-field-entry h2 {font-size: 20px}
+}
+@media (prefers-reduced-motion: reduce) {
+  .si-quick .si-field-entry .si-btn {transition: none}
+}
