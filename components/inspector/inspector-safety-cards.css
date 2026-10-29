@@ -428,3 +428,41 @@
 .dark .si-safety-deck-pagination>span{color:#c0ded3}
 .dark .si-safety-deck-pagination button{border-color:#427965}
 @media print{.si-safety-deck-pagination,.si-safety-card-photo-strip>button{display:none!important}}
+
+
+/* PSI_CARD_READABILITY_REVIEW_20261029
+   Visual review of real 390px Chromium screenshots: prioritize outdoor legibility. */
+.si-safety-deck-heading p{font-size:13px;line-height:1.55}
+.si-safety-card-mark{font-size:10px}
+.si-safety-card-phase{font-size:10px}
+.si-safety-card-title p{font-size:14px;line-height:1.62}
+.si-safety-card-risk-footer span{font-size:12px}
+.si-safety-card-risk-footer strong{font-size:14px;line-height:1.45}
+.si-safety-card-evidence .si-safety-card-evidence-block p{font-size:14px;line-height:1.65}
+.si-safety-card-evidence .si-safety-card-evidence-block p small{font-size:11px;line-height:1.5}
+.si-safety-card-action .si-safety-card-mini-list>div p{font-size:13px;line-height:1.65}
+.si-safety-card-source span{font-size:12px;line-height:1.55}
+.si-safety-card-source strong{line-height:1.5}
+.si-safety-card-lead{font-size:13px;line-height:1.6}
+.si-safety-card-disclaimer{font-size:12px;line-height:1.6}
+.si-safety-card-foot{font-size:10px;line-height:1.45}
+.si-safety-card-photo-hint{font-size:11px}
+.si-safety-card-checks p{font-size:13px;line-height:1.6}
+.si-safety-deck-export p,.si-safety-deck-bottom p{font-size:12px;line-height:1.6}
+.si-safety-card-photo-strip>div strong{font-size:13px}
+.si-safety-card-photo-strip>div small{font-size:11px}
+@media(max-width:600px){
+ .si-safety-deck-heading p{font-size:12px;line-height:1.6}
+ .si-safety-deck-nav button{min-height:64px}
+ .si-safety-deck-nav-copy strong{font-size:12px}
+ .si-safety-card-title p{font-size:13px;line-height:1.65}
+ .si-safety-card-risk-footer span{font-size:11px}
+ .si-safety-card-risk-footer strong{font-size:13px}
+ .si-safety-card-evidence .si-safety-card-evidence-block p{font-size:13px}
+ .si-safety-card-action .si-safety-card-mini-list>div p{font-size:13px}
+ .si-safety-card-photo-strip>div strong{font-size:12px}
+ .si-safety-card-photo-strip>div small{font-size:10px}
+ .si-safety-card-disclaimer{font-size:12px}
+ .si-safety-card-source span{font-size:12px}
+ .si-safety-card-foot{font-size:10px}
+}
