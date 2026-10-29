@@ -62,6 +62,7 @@ try{
  await deck.getByText('합성 법령 검토 후보 · 실제 법령 아님').waitFor();
  await deck.getByText('기존 자료 · 검토 이력 보완 필요').waitFor();
  await deck.getByRole('button',{name:'보고·공유'}).click();
+ await deck.getByText('전달 이미지는 별도 가공본입니다. 원본·검토·보고서의 저장 상태는 점검 기록에서 확인하세요.').waitFor();
  await deck.getByRole('button',{name:'사진·조치 전달 카드 만들기'}).click();
  assert.equal(await page.locator('#compose-count').innerText(),'1');
  await deck.getByRole('button',{name:'상세 점검·보고서 단계로 이동'}).click();
