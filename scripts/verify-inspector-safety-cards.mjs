@@ -16,6 +16,16 @@ try{
  const deck=page.locator('[data-psi-safety-deck="v1"]');
  await deck.waitFor();
  assert.equal(await deck.getByRole('navigation',{name:'안전카드 종류'}).locator('button').count(),5);
+ // Field readability is user-selectable without changing analysis content or making API requests.
+ const large=deck.getByRole('button',{name:'가독성 확대'});
+ assert.equal(await deck.getAttribute('data-reading-size'),'normal');
+ await large.click();
+ assert.equal(await deck.getAttribute('data-reading-size'),'large');
+ const font=await deck.locator('.si-safety-card-title h4').evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
+ assert.ok(font>=20,'large reading mode significantly increases risk title');
+ await deck.getByRole('button',{name:'기본 글씨'}).click();
+ assert.equal(await deck.getAttribute('data-reading-size'),'normal');
+ await deck.getByText('현재 위험 요약 카드').waitFor();
  await deck.getByText('합성 위험 단서 1').waitFor();
  await deck.getByRole('button',{name:'위험 2'}).click();
  await deck.getByText('합성 위험 단서 2').waitFor();
