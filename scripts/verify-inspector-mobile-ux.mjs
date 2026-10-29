@@ -56,6 +56,13 @@ try{
   const source=Buffer.from(await page.evaluate(()=>{const c=document.createElement('canvas');c.width=640;c.height=480;c.getContext('2d').fillRect(0,0,640,480);return c.toDataURL('image/jpeg').split(',')[1];}),'base64');
   await page.getByLabel('현장사진 선택',{exact:true}).setInputFiles({name:'synthetic.jpg',mimeType:'image/jpeg',buffer:source});const work=page.getByLabel('공종',{exact:true}),risk=page.getByLabel('직접 확인한 위험유형',{exact:true});
   await page.getByAltText('분석할 현장사진').waitFor();
+  await page.waitForFunction(()=>document.activeElement?.classList.contains('si-consent-input'));
+  const consentOnScreen=await page.locator('.si-consent-input').evaluate(el=>{
+    const rect=el.getBoundingClientRect();return rect.top>=0&&rect.bottom<=innerHeight;
+  });
+  assert.equal(consentOnScreen,true,'photo selection brings the storage notice into view');
+  assert.equal(await page.locator('.si-consent-input').isChecked(),false,'scrolling never grants consent');
+  assert.equal(ops.filter(x=>x==='upload').length,0,'opening the notice does not upload the photo');
   page.once('dialog',dialog=>dialog.dismiss());
   await page.getByRole('button',{name:'다른 사진 선택',exact:true}).click();
   assert.equal(await page.getByAltText('분석할 현장사진').isVisible(),true,'cancelled photo replacement keeps the unregistered photo');
