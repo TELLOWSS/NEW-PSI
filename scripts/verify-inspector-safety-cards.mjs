@@ -22,10 +22,12 @@ try{
  await deck.getByText('02 · 추가 현장 확인').waitFor();
  await deck.getByText('03 · 조치 참고').waitFor();
  assert.equal(await deck.getByRole('progressbar',{name:'안전카드 읽기 진행'}).getAttribute('aria-valuenow'),'1');
+ const basicSummary=await deck.locator('.si-safety-card-essential p').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
+ assert.ok(basicSummary>=15,'summary text remains readable at the smallest viewport');
  await deck.getByRole('button',{name:'가독성 크게'}).click();
  assert.equal(await deck.evaluate(el=>el.classList.contains('si-safety-deck-large')),true,'large-text mode enabled');
  const fontSize=await deck.locator('.si-safety-card-essential p').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
- assert.ok(fontSize>=16,'large-text summary is >=16px');
+ assert.ok(fontSize>=18,'large-text summary is >=18px');
  await deck.getByRole('button',{name:'기본 글씨'}).click();
  assert.equal(await deck.evaluate(el=>el.classList.contains('si-safety-deck-large')),false,'large-text mode reverses');
 
