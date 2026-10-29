@@ -155,9 +155,11 @@ export default function InspectorSafetyCardDeck({
                 </div>
                 <div className={'si-safety-card-media'+(photoUrl?' has-photo':'')}>
                     {photoUrl?<img src={photoUrl} alt="점검 사진 원본 또는 보관된 점검용 사진 미리보기 · 카드 효과가 적용되지 않은 사진" loading="lazy"/>:<div className="si-safety-card-no-photo">사진 미리보기 없음</div>}
+                </div>
+                <div className="si-safety-card-photo-caption">
+                    <p className="si-safety-card-photo-hint">점검용 사진 미리보기 · 원본 저장 여부는 점검 기록에서 확인</p>
                     {photoUrl&&onSeePhoto&&<button type="button" className="si-safety-card-zoom" data-card-exclude="true" onClick={onSeePhoto}>사진 크게 확인</button>}
                 </div>
-                <p className="si-safety-card-photo-hint">점검용 사진 미리보기 · 원본 저장 여부는 점검 기록에서 확인</p>
                 <div className="si-safety-card-essential" aria-label="점검 카드 핵심 3항목">
                     <div><span>01 · 사진 관찰 제안</span><p>{valueOr(observation?.text,'사진에서 확인할 사실을 현장에서 대조하세요.')}</p></div>
                     <div><span>02 · 추가 현장 확인</span><p>{analysis.requires_confirmation[0]?.question||'사진 바깥의 방호·작업 상황은 현장에서 확인해야 합니다.'}</p></div>
