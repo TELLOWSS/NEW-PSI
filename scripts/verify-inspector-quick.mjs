@@ -101,7 +101,8 @@ try{
            const right=await measure();
            assert.ok(right.b>right.r,'90-degree clockwise output has blue upper-left quadrant');
            await page.getByRole('button',{name:'원래 방향'}).click();
-           await page.getByText('원래 방향',{exact:true}).waitFor();
+           await page.locator('.si-quick-photo-rotation-title span').getByText('원래 방향',{exact:true}).waitFor();
+           await page.waitForFunction(({w,h})=>{const img=document.querySelector('img[alt="분석할 현장사진"]');return img?.naturalWidth===w&&img?.naturalHeight===h;},{w:before.width,h:before.height});
            const restored=await measure();
            assert.deepEqual([restored.width,restored.height],[before.width,before.height]);
            assert.ok(restored.r>restored.b,'original image pixels restored');
