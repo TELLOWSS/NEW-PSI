@@ -1215,3 +1215,44 @@
    display:none!important;
  }
 }
+
+
+/* PSI_CAMERA_ROTATE_AND_ROUTE_NAV_V3_20261029 */
+.si-inspector-route-actions,.si-quick-route-nav{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:4px 0 10px}
+.si-inspector-route-actions>.si-btn,.si-quick-route-nav>.si-btn{min-height:44px;padding:9px 13px;font-size:12px;font-weight:800;white-space:normal}
+.si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-back{
+  display:inline-flex!important;align-items:center;justify-content:center;min-height:44px;
+  padding:8px 10px!important;color:#e6fbf3!important;background:#184348d9!important;
+  border:1px solid #72c6a5!important;border-radius:11px!important;font-size:12px!important;font-weight:850;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-header-tools{gap:7px!important}
+.si-camera-dialog.si-camera-immersive .si-camera-review-rotate{
+  display:grid;gap:9px;position:relative;z-index:2;
+  border:1px solid #88bcac77;border-radius:15px;
+  padding:12px;margin:8px 0 6px;background:linear-gradient(130deg,#0f343e,#1a4d4b);
+  color:#ebfff8;box-shadow:0 9px 18px #061f2855;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-rotate-title{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.si-camera-dialog.si-camera-immersive .si-camera-rotate-title strong{font-size:14px;font-weight:850}
+.si-camera-dialog.si-camera-immersive .si-camera-rotate-title span{font-size:12px;color:#a5e7d0;font-variant-numeric:tabular-nums}
+.si-camera-dialog.si-camera-immersive .si-camera-rotate-buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.si-camera-dialog.si-camera-immersive .si-camera-rotate-buttons>.si-btn{
+  display:flex;align-items:center;justify-content:center;min-height:48px!important;
+  padding:8px 3px!important;border-radius:10px!important;font-size:12px!important;
+  background:#275750!important;color:#f5fff9!important;border:1px solid #67978a!important;
+  word-break:keep-all;white-space:normal!important;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-rotate-buttons>.si-btn:disabled{opacity:.43!important}
+.si-camera-dialog.si-camera-immersive .si-camera-review-rotate>p{margin:0!important;color:#b7d9d0;font-size:11px;line-height:1.55;word-break:keep-all}
+.si-camera-dialog.si-camera-immersive .si-camera-stage-photo img{object-fit:contain!important}
+@media(max-width:390px){
+ .si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-header-tools{gap:4px!important}
+ .si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-back{padding:7px!important;min-width:47px!important}
+ .si-camera-dialog.si-camera-immersive .si-camera-rotate-buttons{gap:5px}
+ .si-camera-dialog.si-camera-immersive .si-camera-rotate-buttons>.si-btn{font-size:11px!important;padding:6px 2px!important}
+}
+@media(orientation:landscape) and (max-height:520px){
+ .si-camera-dialog.si-camera-immersive.si-camera-review .si-camera-review-rotate{padding:8px;margin:2px 0;gap:5px}
+ .si-camera-dialog.si-camera-immersive.si-camera-review .si-camera-rotate-buttons>.si-btn{min-height:44px!important}
+}
+@media print{.si-camera-review-rotate,.si-quick-route-nav,.si-inspector-route-actions{display:none!important}}

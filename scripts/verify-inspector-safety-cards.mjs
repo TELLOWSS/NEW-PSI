@@ -16,6 +16,16 @@ try{
  const deck=page.locator('[data-psi-safety-deck="v1"]');
  await deck.waitFor();
  assert.equal(await deck.getByRole('navigation',{name:'안전카드 종류'}).locator('button').count(),5);
+ // Field readability is user-selectable without changing analysis content or making API requests.
+ const large=deck.getByRole('button',{name:'가독성 확대'});
+ assert.equal(await deck.getAttribute('data-reading-size'),'normal');
+ await large.click();
+ assert.equal(await deck.getAttribute('data-reading-size'),'large');
+ const font=await deck.locator('.si-safety-card-title h4').evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
+ assert.ok(font>=20,'large reading mode significantly increases risk title');
+ await deck.getByRole('button',{name:'기본 글씨'}).click();
+ assert.equal(await deck.getAttribute('data-reading-size'),'normal');
+ await deck.getByText('현재 위험 요약 카드').waitFor();
  await deck.getByText('합성 위험 단서 1').waitFor();
  await deck.getByRole('button',{name:'위험 2'}).click();
  await deck.getByText('합성 위험 단서 2').waitFor();
@@ -48,7 +58,7 @@ try{
  await page.locator('#toggle-saved').click();
  await deck.getByText('AI 해석 미수용',{exact:true}).first().waitFor();
  await page.locator('#toggle-rejected').click();
- await deck.getByText('전문가 검토 저장',{exact:true}).waitFor();
+ await deck.locator('.si-safety-card').getByText('전문가 검토 저장',{exact:true}).waitFor();
  for(const viewport of [{width:320,height:740},{width:390,height:844},{width:844,height:390},{width:768,height:1024},{width:1440,height:900}]){
     await page.setViewportSize(viewport);
     const over=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+1);
