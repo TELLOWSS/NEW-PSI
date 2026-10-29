@@ -1,0 +1,57 @@
+/* FIELD INTELLIGENCE camera skin: visual treatment only; layout and image pixels are unchanged. */
+.si-camera-dialog.si-camera-immersive {
+  --field-navy: #102832;
+  --field-mint: #bceedb;
+  --field-gold: #d9b77b;
+  --field-teal: #0f6b60;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-heading-title .si-eyebrow {
+  color: var(--field-mint);
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-heading-title h2 {
+  letter-spacing: -.025em;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-shutter {
+  background: var(--field-mint);
+  border-color: var(--field-mint);
+  color: #102e2a;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-shutter-mark {
+  border-color: #307a68;
+  background: rgba(15,107,96,.12);
+  color: #124b40;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-shutter:disabled {
+  opacity: .62;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-photo-editor {
+  border-color: #c7ded4;
+  background: #f5f8f6;
+  color: #193943;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-photo-editor-heading strong {
+  color: #193943;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-photo-editor-tools .si-btn {
+  border-color: #a5cbbd;
+  color: #0f6254;
+  background: #fff;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-photo-editor-tools .si-btn:focus-visible,
+.si-camera-dialog.si-camera-immersive .si-camera-shutter:focus-visible {
+  outline: 3px solid var(--field-gold);
+  outline-offset: 3px;
+}
+.dark .si-camera-dialog.si-camera-immersive .si-camera-photo-editor {
+  background: #173b37;
+  border-color: #4b8876;
+  color: #e8fcef;
+}
+.dark .si-camera-dialog.si-camera-immersive .si-camera-photo-editor-heading strong {
+  color: #edfff5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .si-camera-dialog.si-camera-immersive .si-camera-shutter {transition: none}
+}

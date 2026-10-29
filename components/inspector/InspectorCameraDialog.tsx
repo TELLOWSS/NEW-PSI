@@ -1,5 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {InspectorIcon} from './InspectorGraphics';
+import './inspector-camera-field.css';
 import {rotateInspectionPhoto} from '../../lib/inspector/photoRotation';
 
 const CAMERA_GUIDES = {
