@@ -1300,3 +1300,35 @@
 }
 .dark .si-inspector-return-nav .si-btn{background:#244d42;color:#e6fff2;border-color:#569580}
 .dark .si-inspector-return-nav .si-btn:nth-child(2){background:#b5dfcb;color:#173b32}
+
+
+/* PSI_PHOTO_REVIEW_TOUCH_LAYER_FIX_20261029
+   Real Playwright hit testing found full-screen photo intercepting rotation clicks.
+   The photo has no interactions; keep it visually underneath the editor/control dock. */
+.si-camera-dialog.si-camera-immersive.si-camera-review .si-camera-stage-photo{
+  pointer-events:none!important;z-index:1!important;
+}
+.si-camera-dialog.si-camera-immersive.si-camera-review .si-camera-stage-photo img{
+  pointer-events:none!important;
+}
+.si-camera-dialog.si-camera-immersive.si-camera-review .si-camera-photo-editor{
+  position:relative!important;isolation:isolate;z-index:25!important;
+}
+@media(max-width:1199px){
+ .si-camera-dialog.si-camera-immersive.si-camera-review .si-camera-photo-editor{
+   position:absolute!important;z-index:28!important;
+   left:50%!important;right:auto!important;bottom:calc(env(safe-area-inset-bottom) + 112px)!important;
+   transform:translateX(-50%)!important;width:min(570px,calc(100vw - 18px))!important;
+   max-height:140px;overflow-y:auto;overscroll-behavior:contain;
+   margin:0!important;background:#f0faf5f7;
+ }
+ .si-camera-dialog.si-camera-immersive.si-camera-review .si-camera-actions{
+   z-index:30!important;
+ }
+}
+@media(max-width:1199px) and (orientation:landscape) and (max-height:520px){
+ .si-camera-dialog.si-camera-immersive.si-camera-review .si-camera-photo-editor{
+   bottom:calc(env(safe-area-inset-bottom) + 92px)!important;
+   max-width:calc(100vw - 16px)!important;max-height:125px;
+ }
+}
