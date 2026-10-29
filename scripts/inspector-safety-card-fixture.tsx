@@ -33,7 +33,7 @@ function Fixture(){
             <button id="toggle-long" onClick={()=>{setVariant(v=>v==='long'?'normal':'long');setSelected(0);}}>긴 분석 전환</button>
             <button id="toggle-photo" onClick={()=>setHasPhoto(v=>!v)}>사진 포함 전환</button>
         </div>
-        <InspectorSafetyCardDeck analysis={data} reference={reference} review={{decision:rejected?'rejected':'accepted',note:rejected?'합성 전문가 판단: 사진만으로 상태 확정 불가':''}} reviewSaved={reviewSaved} note="점검자 설명: 시공 중 발판 주변 확인" photoUrl={hasPhoto?exampleImage:undefined} photoId="synthetic-photo-id" selectedFinding={selected} onFindingChange={setSelected} onComposeCard={()=>setCompose(v=>v+1)} onDraftAction={()=>setAction(v=>v+1)} onCopy={()=>{}} onSeeDetails={()=>setDetails(v=>v+1)}/>
+        <InspectorSafetyCardDeck analysis={data} reference={reference} review={{decision:rejected?'rejected':'accepted',note:rejected?'합성 전문가 판단: 사진만으로 상태 확정 불가':''}} reviewSaved={reviewSaved} note="점검자 설명: 시공 중 발판 주변 확인" photoUrl={hasPhoto?exampleImage:undefined} photoId="synthetic-photo-id" selectedFinding={selected} onFindingChange={setSelected} onComposeCard={()=>setCompose(v=>v+1)} onDraftAction={()=>setAction(v=>v+1)} onSeePhoto={()=>{}} onCopy={()=>{}} onSeeDetails={()=>setDetails(v=>v+1)}/>
         <output id="action-count">{action}</output><output id="compose-count">{compose}</output><output id="details-count">{details}</output>
     </main>;
 }
