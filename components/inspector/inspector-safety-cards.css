@@ -503,3 +503,30 @@
 }
 @media(prefers-reduced-motion:reduce){.si-safety-deck-progress>span{transition:none}}
 @media print{.si-safety-deck-tools{display:none!important}}
+
+/* Long inspection text stays available; the exported card uses the full text. */
+.si-safety-card-compact .si-safety-card-title h4,
+.si-safety-card-compact .si-safety-card-title p,
+.si-safety-card-compact .si-safety-card-essential p,
+.si-safety-card-compact .si-safety-card-feature p,
+.si-safety-card-compact .si-safety-card-mini-list p,
+.si-safety-card-compact .si-safety-card-evidence-block p{
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:3;
+  overflow:hidden;
+}
+.si-safety-card-compact .si-safety-card-title h4{-webkit-line-clamp:2}
+.si-safety-card-expand{
+  display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;
+  margin:0 16px 16px;padding:12px;
+  border:1px solid #8bbcac;border-radius:12px;
+  background:#e8f5ef;color:#244f42;
+}
+.si-safety-card-expand button{
+  min-height:44px;padding:8px 14px;border:1px solid #0f6b60;
+  border-radius:10px;background:#0f6b60;color:#fff;
+  font:inherit;font-size:13px;font-weight:800;cursor:pointer;
+}
+.si-safety-card-expand button:focus-visible{outline:3px solid #d9b77b;outline-offset:2px}
+.si-safety-card-expand span{flex:1 1 180px;font-size:12px;line-height:1.5;word-break:keep-all}
