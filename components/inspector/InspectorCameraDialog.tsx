@@ -125,7 +125,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
             <p className="si-camera-guide-disclaimer">구도만 참고로 표시합니다. 실제 위험 자동 판정이 아니며 가이드선은 촬영 파일에 저장되지 않습니다.</p>
           </div></details>
                   </div></details>}
-        <button className="si-btn" autoFocus onClick={close}><InspectorIcon name="close"/>닫기</button>
+        <button className="si-btn si-camera-close" aria-label="닫기" autoFocus onClick={close}><InspectorIcon name="close"/><span>닫기</span></button>
         </div></div>
         <p className="si-caption si-camera-intro">{photo?'사진에서 위치와 주변 상태를 확인한 뒤 사용하세요.':reference?'조치 전 사진을 보며 같은 위치를 직접 맞춰 촬영하세요.':'카메라를 허용하고 촬영하세요. 소리는 녹음하지 않습니다.'}</p>
         {onSaveAndContinue&&<p className="si-camera-count" role="status">이 브라우저에 보관된 사진 {storedCount||0}장</p>}
