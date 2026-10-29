@@ -5,9 +5,20 @@ import {InspectorIcon} from './InspectorGraphics';
 export default function InspectorCameraDialog({onClose, onUse, reference, onSaveAndContinue, storedCount}: {onClose:()=>void; onUse:(file:File)=>void; reference?:{url?:string;label:string;failed?:boolean;missing?:boolean};onSaveAndContinue?:(file:File)=>Promise<boolean>;storedCount?:number}) {
     const dialogRef=useRef<HTMLDialogElement>(null), videoRef=useRef<HTMLVideoElement>(null);
     const streamRef=useRef<MediaStream|null>(null), generation=useRef(0), encoding=useRef(false), nativePending=useRef(false);
-    const [mode,setMode]=useState<'landscape'|'portrait'>(()=>{try{const saved=sessionStorage.getItem('psi.inspector.camera.mode.v1');return saved==='portrait'||saved==='landscape'?saved:(window.innerHeight>window.innerWidth?'portrait':'landscape');}catch{return 'landscape';}});
+    const [mode,setMode]=useState<'landscape'|'portrait'>(()=>{const physical=window.innerHeight>window.innerWidth?'portrait':'landscape';try{const saved=sessionStorage.getItem('psi.inspector.camera.mode.v1');return saved===physical?saved:physical;}catch{return physical;}});
+    const [landscapeRequested,setLandscapeRequested]=useState(false);
     const manualOrientation=useRef(false);
-    useEffect(()=>{const followDevice=()=>{if(manualOrientation.current)return;try{const saved=sessionStorage.getItem('psi.inspector.camera.mode.v1');if(saved==='portrait'||saved==='landscape')return;}catch{return;}setMode(window.innerHeight>window.innerWidth?'portrait':'landscape');};window.addEventListener('resize',followDevice);return()=>window.removeEventListener('resize',followDevice);},[]);
+    useEffect(()=>{const followDevice=()=>{
+      const physical=window.innerWidth>window.innerHeight?'landscape':'portrait';
+      if(landscapeRequested&&physical==='landscape'){
+        setLandscapeRequested(false);manualOrientation.current=true;
+        setMode('landscape');
+        try{sessionStorage.setItem('psi.inspector.camera.mode.v1','landscape');}catch{/* Keep in-memory direction. */}
+        return;
+      }
+      if(manualOrientation.current)return;
+      setMode(physical);
+    };window.addEventListener('resize',followDevice);window.addEventListener('orientationchange',followDevice);return()=>{window.removeEventListener('resize',followDevice);window.removeEventListener('orientationchange',followDevice);};},[landscapeRequested]);
     const [frame,setFrame]=useState<{width:number;height:number}|null>(null);
     const [facing,setFacing]=useState<'environment'|'user'>('environment');
     const [attempt,setAttempt]=useState(0), [ready,setReady]=useState(false), [capturing,setCapturing]=useState(false);
@@ -61,7 +72,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
         return()=>{++generation.current;stop();document.removeEventListener('visibilitychange',hide);};
     },[facing,attempt,photo,mode]);
 
-    const changeMode=(next:'landscape'|'portrait')=>{if(capturing||next===mode)return;manualOrientation.current=true;++generation.current;stop();setReady(false);setFrame(null);setMode(next);try{sessionStorage.setItem('psi.inspector.camera.mode.v1',next);}catch{/* In-memory mode remains available. */}};
+    const changeMode=(next:'landscape'|'portrait')=>{if(capturing)return;if(next==='landscape'&&window.innerHeight>window.innerWidth){setLandscapeRequested(true);return;}setLandscapeRequested(false);if(next===mode)return;manualOrientation.current=true;++generation.current;stop();setReady(false);setFrame(null);setMode(next);try{sessionStorage.setItem('psi.inspector.camera.mode.v1',next);}catch{/* In-memory mode remains available. */}};
     const refreshFrame=()=>{const video=videoRef.current;if(streamRef.current&&video?.videoWidth&&video.videoHeight){setFrame({width:video.videoWidth,height:video.videoHeight});setReady(true);}};
     const actualDirection=frame?(frame.width===frame.height?'정방형':frame.width>frame.height?'가로':'세로'):'';
     const directionMismatch=!!frame&&(mode==='landscape'?frame.width<=frame.height:frame.height<=frame.width);
@@ -94,6 +105,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
             {photo?(preview&&<img src={preview} alt="등록 전 촬영 사진 미리보기" onLoad={e=>{setDecoded(true);setFrame({width:e.currentTarget.naturalWidth,height:e.currentTarget.naturalHeight});}} onError={()=>{setDecoded(false);setError('사진 미리보기를 읽지 못했습니다. 다시 촬영해 주세요.');}}/>):<video ref={videoRef} autoPlay playsInline muted aria-label="실시간 카메라 화면" onLoadedData={refreshFrame} onResize={refreshFrame}/>}
             {!photo&&ready&&reference?.url&&overlayVisible&&!overlayFailed&&<img className="si-camera-reference" src={reference.url} alt="" aria-hidden="true" style={{opacity:overlayOpacity/100}} onError={()=>setOverlayFailed(true)}/>}
             {!photo&&ready&&grid&&<div className="si-camera-grid" aria-hidden="true"/>}
+            {!photo&&landscapeRequested&&<div className="si-camera-rotate-hint" role="status">가로 촬영을 선택했습니다. 휴대폰을 가로로 돌리면 넓은 화면으로 전환됩니다. 현재는 잘림 없는 세로 미리보기를 유지합니다. 회전이 안 되면 화면 회전 잠금을 확인해 주세요.</div>}
             {!photo && !ready && <span className="si-camera-wait" role="status">{error?'카메라 연결을 확인해 주세요':'카메라 연결 중…'}</span>}
         </div>
         {!photo&&reference&&<section className="si-camera-reference-controls" aria-label="전후 맞춤 렌즈">
