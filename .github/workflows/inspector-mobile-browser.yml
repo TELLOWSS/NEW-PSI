@@ -8,6 +8,8 @@ on:
       - 'lib/inspector/**'
       - 'scripts/verify-inspector-camera.mjs'
       - 'scripts/verify-inspector-safety-cards.mjs'
+      - 'scripts/verify-inspector-history.mjs'
+      - 'pages/InspectorAdvancedWorkspace.tsx'
       - 'scripts/verify-inspector-action-share.mjs'
       - 'scripts/verify-inspector-result-journey.mjs'
       - 'scripts/verify-inspector-queue.mjs'
@@ -46,6 +48,8 @@ jobs:
         run: node scripts/verify-inspector-camera.mjs
       - name: Safety card deck, evidence boundaries, five views and mobile layouts
         run: node scripts/verify-inspector-safety-cards.mjs
+      - name: Stored-record selection, verified deletion, and conflict recovery
+        run: node scripts/verify-inspector-history.mjs
       - name: Sharing, reply, denied/revoked links and handoff
         run: node scripts/verify-inspector-action-share.mjs
       - name: First-use photo to expert review and printable report
@@ -75,6 +79,7 @@ jobs:
             artifacts/audit/inspector-camera/
             artifacts/audit/action-share/
             artifacts/audit/inspector-safety-cards/
+            artifacts/audit/inspector-history/
             artifacts/audit/inspector-result-journey-built/
             artifacts/audit/inspector-queue/
             artifacts/audit/inspector-friendly-recovery-built/
