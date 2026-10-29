@@ -17,12 +17,21 @@ try{
  await deck.getByText('합성 위험 단서 1').waitFor();
  await deck.getByRole('button',{name:'위험 2'}).click();
  await deck.getByText('합성 위험 단서 2').waitFor();
+ const riskTheme=await deck.locator('.si-safety-card').evaluate(el=>getComputedStyle(el).backgroundImage);
+ assert.match(riskTheme,/linear-gradient/,'risk card has premium dark atmosphere');
+ await deck.getByRole('button',{name:'이 위험에 필요한 조치 살펴보기'}).click();
+ assert.equal(await deck.locator('.si-safety-card').getAttribute('data-panel'),'action','summary connects directly to action');
+ const actionColor=await deck.locator('.si-safety-card').evaluate(el=>getComputedStyle(el).backgroundColor);
+ assert.equal(actionColor,'rgb(248, 251, 249)','action card uses deliberately light professional theme');
  await deck.getByRole('button',{name:'조치 제안'}).click();
  await deck.getByText('현장에서 이격 상태를 확인하세요.',{exact:false}).waitFor();
  await deck.getByRole('button',{name:'현장 대조'}).click();
+ assert.equal(await deck.locator('.si-safety-card').getAttribute('data-panel'),'evidence');
  await deck.getByText('점검자 진술 · AI 판독 아님').waitFor();
  await deck.getByText('추정 · 확인된 사실 아님').waitFor();
  await deck.getByRole('button',{name:'법령·사례'}).click();
+ const legalColor=await deck.locator('.si-safety-card').evaluate(el=>getComputedStyle(el).backgroundColor);
+ assert.equal(legalColor,'rgb(248, 251, 249)','legal card is light and readable');
  await deck.getByText('합성 법령 검토 후보 · 실제 법령 아님').waitFor();
  await deck.getByText('기존 자료 · 검토 이력 보완 필요').waitFor();
  await deck.getByRole('button',{name:'보고·공유'}).click();
@@ -45,7 +54,12 @@ try{
     const rect=await deck.locator('.si-safety-card').boundingBox();
     assert.ok(rect&&rect.width<=viewport.width,'card exceeds screen width');
  }
- assert.deepEqual(requests,[],'card presentation must not initiate network API calls');
+ const download=page.waitForEvent('download',{timeout:20000});
+ await deck.getByRole('button',{name:'카드 저장·공유'}).click();
+ const saved=await download;
+ assert.match(saved.suggestedFilename(),/^PSI_SAFETY_RISK_.*\.png$/,'the current selected card has an exportable PNG');
+ assert.equal(await deck.getByText('현재 카드 PNG 저장을 요청했습니다.',{exact:false}).count(),1);
+  assert.deepEqual(requests,[],'card presentation must not initiate network API calls');
  assert.deepEqual(errors,[],'no browser runtime errors');
  await context.close();
  console.log('PASS PSI safety cards: five panels, real status boundaries, inspector rejection, share handoff and responsive viewports');
