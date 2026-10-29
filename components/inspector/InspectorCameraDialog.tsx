@@ -218,6 +218,6 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
         {photo&&frame&&<details className="si-camera-frame-details"><summary>{directionMismatch?'영상 방향 확인 필요':'영상 정보'}</summary><p className="si-camera-frame-status" role="status">{photo?'촬영본':'현재 영상'} · {actualDirection} {frame.width} × {frame.height}{!photo&&directionMismatch&&<span>선택한 방향과 실제 영상 비율이 다릅니다. 기기를 돌리거나 기기 카메라를 이용하세요.</span>}</p></details>}
         {!photo&&(reference?<details className="si-camera-direction-options"><summary>촬영 방향 · {mode==='landscape'?'가로':'세로'}</summary>{directionControls}</details>:directionControls)}
         {!photo&&<><label className="si-camera-native si-btn">기기 카메라로 촬영<input aria-label="기기 카메라로 촬영" type="file" accept="image/jpeg,image/png,image/webp" capture={facing} disabled={capturing} onClick={()=>{nativePending.current=true;++generation.current;stop();setReady(false);setError('기기 촬영을 취소했다면 카메라 다시 연결을 누르세요.');}} onChange={e=>{nativePending.current=false;const file=e.target.files?.[0];e.target.value='';if(file){originalCapture.current=file;setRotation(0);setError('');setPhoto(file);}else retry();}}/></label>{reference&&<p className="si-caption">기기 카메라로 전환하면 기준 사진 겹침이 표시되지 않습니다.</p>}</>}
-        <p className="si-caption">사용 전 사진은 이 창의 임시 메모리에만 있습니다. 원본이 필요하면 ‘촬영 사진 기기에 저장’으로 다운로드하세요. 사진 앱에 자동 저장되지는 않습니다.</p>
+        <p className="si-caption">사용 전 사진은 이 창의 임시 메모리에만 있습니다. 최초 촬영 파일이 필요하면 이 창을 닫기 전에 기기에 저장하세요. 사진 앱에 자동 저장되지는 않습니다.</p>
     </dialog>;
 }
