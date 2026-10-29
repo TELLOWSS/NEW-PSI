@@ -34,6 +34,8 @@ export default function InspectorSafetyCardDeck({
     onFindingChange,onComposeCard,onSeePhoto,onSeeDetails,onCopy,copyDone=false,disabled=false
 }:Props){
     const [panel,setPanel]=useState<DeckPanel>('risk'),id=useId();
+    const [largeText,setLargeText]=useState<boolean>(()=>{try{return sessionStorage.getItem('psi.inspector.card.large-text.v1')==='on';}catch{return false;}});
+    const toggleReading=()=>setLargeText(previous=>{const next=!previous;try{sessionStorage.setItem('psi.inspector.card.large-text.v1',next?'on':'off');}catch{}return next;});
     const cardRef=useRef<HTMLElement>(null),exportInFlight=useRef(false);
     const [exporting,setExporting]=useState(false),[exportMessage,setExportMessage]=useState('');
     const shareOrDownloadCard=async()=>{
@@ -97,14 +99,15 @@ export default function InspectorSafetyCardDeck({
        <div><span>FIELD PHOTO · SOURCE</span><strong>이 사진을 기준으로 작성한 점검 카드</strong><small>사진 자체를 수정하거나 위험 위치를 자동 판정하지 않습니다.</small></div>
        {onSeePhoto&&<button type="button" data-card-exclude="true" onClick={onSeePhoto} aria-label="점검 사진 확대"><InspectorIcon name="expand"/></button>}
     </div>;
-    return <section className="si-safety-deck" aria-label="PSI 안전 분석 카드" data-psi-safety-deck="v1">
+    return <section className="si-safety-deck" aria-label="PSI 안전 분석 카드" data-psi-safety-deck="v1" data-reading-size={largeText?'large':'normal'}>
         <header className="si-safety-deck-heading">
             <div><span className="si-safety-deck-kicker">PSI INSPECTOR · SAFETY CARDS</span><h3>한 장씩 읽는 안전점검</h3><p>위험 제안부터 조치·근거·전달까지 필요한 내용만 확인합니다.</p></div>
-            <span className="si-safety-deck-index" aria-hidden="true">{guideCount(PANELS.findIndex(v=>v.id===panel)+1)} <span>/ {guideCount(PANELS.length)}</span></span>
+            <div className="si-safety-deck-header-right"><button type="button" className="si-safety-deck-read-toggle" aria-pressed={largeText} onClick={toggleReading}>{largeText?'기본 글씨':'가독성 확대'}</button><span className="si-safety-deck-index" aria-hidden="true">{guideCount(PANELS.findIndex(v=>v.id===panel)+1)} <span>/ {guideCount(PANELS.length)}</span></span></div>
         </header>
         <nav className="si-safety-deck-nav" aria-label="안전카드 종류">
             {PANELS.map((v,n)=><button key={v.id} type="button" className={panel===v.id?'is-active':''} aria-current={panel===v.id?'page':undefined} aria-label={v.title} onClick={()=>setPanel(v.id)}><span className="si-safety-deck-nav-ornament" aria-hidden="true"><InspectorIcon name={v.icon}/></span><span className="si-safety-deck-nav-copy"><strong>{v.short}</strong><small>{v.subtitle}</small></span><span className="si-safety-deck-nav-number" aria-hidden="true">{guideCount(n+1)}</span></button>)}
         </nav>
+        <div className="si-safety-deck-current" role="status"><span>현재 {currentPanel.title} 카드</span><strong>{reviewLabel}</strong><small>사진 근거와 전문가 확인은 구분해 표시합니다.</small></div>
         <article ref={cardRef} key={key} className={'si-safety-card si-safety-card-'+panel+(rejected?' is-rejected':'')} data-panel={panel} data-priority={finding?.priority||'unclassified'} aria-label={currentPanel.title}>
             <div className="si-safety-card-bar">
                 <span className="si-safety-card-mark" aria-hidden="true">PSI / FIELD INTELLIGENCE</span>
