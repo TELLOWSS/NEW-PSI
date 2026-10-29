@@ -31,6 +31,13 @@ try{
  await deck.getByRole('button',{name:'기본 글씨'}).click();
  assert.equal(await deck.evaluate(el=>el.classList.contains('si-safety-deck-large')),false,'large-text mode reverses');
 
+ const imageBounds=await deck.locator('.si-safety-card-media').boundingBox();
+ const photoCaptionBounds=await deck.locator('.si-safety-card-photo-hint').boundingBox();
+ assert.ok(imageBounds&&photoCaptionBounds&&photoCaptionBounds.y>=imageBounds.y+imageBounds.height-1,'photo caption must not obscure the evidence image');
+ for(const name of ['사진 크게 확인','위험 2']){
+   const box=await deck.getByRole('button',{name,exact:true}).boundingBox();
+   assert.ok(box&&box.height>=44,name+' meets the minimum touch height');
+ }
  await deck.getByRole('button',{name:'위험 2'}).click();
  await deck.getByText('합성 위험 단서 2').waitFor();
  const riskTheme=await deck.locator('.si-safety-card').evaluate(el=>getComputedStyle(el).backgroundImage);
