@@ -1184,3 +1184,23 @@
    min-width:0;
  }
 }
+
+
+/* PSI_CAMERA_LANDSCAPE_CLOSE_FIT_20261029
+   Header overflow on 844x390 was caused by the 57px Close button containing 72px of text+icon. */
+.si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-header-tools>.si-camera-close{
+ box-sizing:border-box!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;
+ min-width:76px!important;width:76px!important;max-width:76px!important;
+ flex:0 0 76px!important;gap:4px!important;
+ padding:6px 5px!important;white-space:nowrap!important;
+}
+.si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-header-tools>.si-camera-close .si-icon{
+ width:17px!important;height:17px!important;flex-shrink:0!important;
+}
+@media(max-width:1199px) and (orientation:landscape) and (max-height:520px){
+ .si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-header-tools>.si-camera-close{
+   min-width:46px!important;width:46px!important;max-width:46px!important;
+   flex-basis:46px!important;padding:6px!important;
+ }
+ .si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-header-tools>.si-camera-close>span{display:none!important}
+}
