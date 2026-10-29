@@ -5,7 +5,9 @@ import {InspectorIcon} from './InspectorGraphics';
 export default function InspectorCameraDialog({onClose, onUse, reference, onSaveAndContinue, storedCount}: {onClose:()=>void; onUse:(file:File)=>void; reference?:{url?:string;label:string;failed?:boolean;missing?:boolean};onSaveAndContinue?:(file:File)=>Promise<boolean>;storedCount?:number}) {
     const dialogRef=useRef<HTMLDialogElement>(null), videoRef=useRef<HTMLVideoElement>(null);
     const streamRef=useRef<MediaStream|null>(null), generation=useRef(0), encoding=useRef(false), nativePending=useRef(false);
-    const [mode,setMode]=useState<'landscape'|'portrait'>(()=>{try{return sessionStorage.getItem('psi.inspector.camera.mode.v1')==='portrait'?'portrait':'landscape';}catch{return 'landscape';}});
+    const [mode,setMode]=useState<'landscape'|'portrait'>(()=>{try{const saved=sessionStorage.getItem('psi.inspector.camera.mode.v1');return saved==='portrait'||saved==='landscape'?saved:(window.innerHeight>window.innerWidth?'portrait':'landscape');}catch{return 'landscape';}});
+    const manualOrientation=useRef(false);
+    useEffect(()=>{const followDevice=()=>{if(manualOrientation.current)return;try{const saved=sessionStorage.getItem('psi.inspector.camera.mode.v1');if(saved==='portrait'||saved==='landscape')return;}catch{return;}setMode(window.innerHeight>window.innerWidth?'portrait':'landscape');};window.addEventListener('resize',followDevice);return()=>window.removeEventListener('resize',followDevice);},[]);
     const [frame,setFrame]=useState<{width:number;height:number}|null>(null);
     const [facing,setFacing]=useState<'environment'|'user'>('environment');
     const [attempt,setAttempt]=useState(0), [ready,setReady]=useState(false), [capturing,setCapturing]=useState(false);
@@ -59,7 +61,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
         return()=>{++generation.current;stop();document.removeEventListener('visibilitychange',hide);};
     },[facing,attempt,photo,mode]);
 
-    const changeMode=(next:'landscape'|'portrait')=>{if(capturing||next===mode)return;++generation.current;stop();setReady(false);setFrame(null);setMode(next);try{sessionStorage.setItem('psi.inspector.camera.mode.v1',next);}catch{/* In-memory mode remains available. */}};
+    const changeMode=(next:'landscape'|'portrait')=>{if(capturing||next===mode)return;manualOrientation.current=true;++generation.current;stop();setReady(false);setFrame(null);setMode(next);try{sessionStorage.setItem('psi.inspector.camera.mode.v1',next);}catch{/* In-memory mode remains available. */}};
     const refreshFrame=()=>{const video=videoRef.current;if(streamRef.current&&video?.videoWidth&&video.videoHeight){setFrame({width:video.videoWidth,height:video.videoHeight});setReady(true);}};
     const actualDirection=frame?(frame.width===frame.height?'정방형':frame.width>frame.height?'가로':'세로'):'';
     const directionMismatch=!!frame&&(mode==='landscape'?frame.width<=frame.height:frame.height<=frame.width);
@@ -83,7 +85,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
     const saveAndContinue=async()=>{if(!photo||!decoded||!onSaveAndContinue||sequenceSaving)return;setSequenceSaving(true);setSequenceError('');try{if(await onSaveAndContinue(photo))retry();else setSequenceError('사진을 보관하지 못했습니다. 이 사진을 기기에 저장하거나 다시 시도하세요.');}catch{setSequenceError('사진을 보관하지 못했습니다. 이 사진을 기기에 저장하거나 다시 시도하세요.');}finally{setSequenceSaving(false);}};
     const directionControls=<><div className="si-camera-modes" role="group" aria-label="촬영 방향"><button type="button" className="si-btn" aria-pressed={mode==='landscape'} disabled={capturing} onClick={()=>changeMode('landscape')}><span className="si-frame-icon si-frame-landscape" aria-hidden="true"/><span>가로 <small>현장 전경 · 기본</small></span></button><button type="button" className="si-btn" aria-pressed={mode==='portrait'} disabled={capturing} onClick={()=>changeMode('portrait')}><span className="si-frame-icon si-frame-portrait" aria-hidden="true"/><span>세로 <small>높이·설비</small></span></button></div><p className="si-camera-direction-guide">{mode==='landscape'?'현장 전경은 가로 촬영을 권장합니다. 휴대폰을 가로로 돌려 대상과 주변 동선을 함께 담으세요.':'세로로 긴 설비나 높이를 확인할 때 사용하세요. 휴대폰을 세로로 들고 대상의 위아래를 함께 담으세요.'}</p></>;
 
-    return <dialog ref={dialogRef} className="si-camera-dialog" aria-labelledby="si-camera-title" onCancel={e=>{e.preventDefault();if(nativePending.current){nativePending.current=false;retry();return;}if(e.target===e.currentTarget)close();}} onClick={e=>{if(e.target===e.currentTarget)close();}}>
+    return <dialog ref={dialogRef} className={`si-camera-dialog si-camera-immersive ${photo?'si-camera-review':'si-camera-live'}`} aria-labelledby="si-camera-title" onCancel={e=>{e.preventDefault();if(nativePending.current){nativePending.current=false;retry();return;}if(e.target===e.currentTarget)close();}} onClick={e=>{if(e.target===e.currentTarget)close();}}>
         <div className="si-camera-heading"><div><p className="si-eyebrow">PSI INSPECTOR / {reference?'BEFORE & AFTER':'FIELD CAMERA'}</p><h2 id="si-camera-title">{photo?'촬영 사진 바로 확인':'카메라로 바로 촬영'}</h2></div><button className="si-btn" autoFocus onClick={close}><InspectorIcon name="close"/>닫기</button></div>
         <p className="si-caption si-camera-intro">{photo?'사진에서 위치와 주변 상태를 확인한 뒤 사용하세요.':reference?'조치 전 사진을 보며 같은 위치를 직접 맞춰 촬영하세요.':'카메라를 허용하고 촬영하세요. 소리는 녹음하지 않습니다.'}</p>
         {onSaveAndContinue&&<p className="si-camera-count" role="status">이 브라우저에 보관된 사진 {storedCount||0}장</p>}
