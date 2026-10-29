@@ -81,6 +81,9 @@ try{
     assert.equal(deleteCalls,count);
     assert.equal(await list.locator('.si-record-row').count(),scenario==='bulk-all'?0:scenario==='bulk-conflict'?2:1);
     if(scenario==='bulk-conflict'){
+      // Each record is processed sequentially; the successful record can render
+      // before the conflicting record's status request and failed badge complete.
+      await modal.locator('.si-bulk-record.is-failed').waitFor({state:'visible'});
       assert.equal(await modal.locator('.si-bulk-record.is-failed').count(),1);
       assert.notEqual(await page.evaluate(()=>sessionStorage.getItem('psi.inspector.record-deletions.v1')),null);
     }else assert.equal(await page.evaluate(()=>sessionStorage.getItem('psi.inspector.record-deletions.v1')),null);
