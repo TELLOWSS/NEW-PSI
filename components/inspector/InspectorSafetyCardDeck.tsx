@@ -127,7 +127,7 @@ export default function InspectorSafetyCardDeck({
                 <div className="si-safety-card-essential" aria-label="점검 카드 핵심 3항목">
                     <div><span>01 · 사진 관찰 제안</span><p>{valueOr(observation?.text,'사진에서 확인할 사실을 현장에서 대조하세요.')}</p></div>
                     <div><span>02 · 추가 현장 확인</span><p>{analysis.requires_confirmation[0]?.question||'사진 바깥의 방호·작업 상황은 현장에서 확인해야 합니다.'}</p></div>
-                    <div><span>03 · 조치 참고</span><p>{rejected?valueOr(review?.note,'전문가 판단을 우선 확인한 뒤 필요한 조치를 정하세요.'):valueOr(finding?.action,analysis.recommended_controls[0]?.action||'확인 결과에 따라 안전조치를 계획하세요.')}</p></div>
+                    <div><span>03 · 조치 참고</span><p>{rejected?'AI 제안은 승인된 조치가 아닙니다. 전문가 의견에 따라 현장 대조와 안전조치를 결정하세요.':valueOr(finding?.action,analysis.recommended_controls[0]?.action||'확인 결과에 따라 안전조치를 계획하세요.')}</p></div>
                 </div>
                 <div className="si-safety-card-risk-footer">
                     <div><span>검토 우선순위</span><strong>{rejected?'전문가 재검토':finding?PRIORITY[priority]:'추가 확인 필요'}</strong></div>
