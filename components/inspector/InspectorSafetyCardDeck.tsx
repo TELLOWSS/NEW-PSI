@@ -57,7 +57,7 @@ export default function InspectorSafetyCardDeck({
         const width=cardRef.current.getBoundingClientRect().width;
         if(!width||!deckRootRef.current)throw new Error('Card layout unavailable');
         const stage=document.createElement('div');
-        stage.setAttribute('aria-hidden','true');
+        stage.setAttribute('aria-hidden','true');stage.dataset.psiCardExportStage='true';
         stage.style.cssText='position:fixed;left:-100000px;top:0;pointer-events:none;z-index:-1';
         if(cardRef.current.closest('.dark'))stage.classList.add('dark');
         const deck=document.createElement('div');
