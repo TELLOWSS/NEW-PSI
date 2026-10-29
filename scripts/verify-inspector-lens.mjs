@@ -24,6 +24,7 @@ await page.screenshot({path:'artifacts/audit/inspector-lens/dock-open-320.png'})
 assert.ok(sheet.y>=100&&sheet.height<=260,'dock sits in the lower control zone, not as a full-height floating overlay');
 const shutter=await dialog.locator('.si-camera-actions').boundingBox();
 assert.ok(shutter&&sheet.y+sheet.height<=shutter.y+3,'guide dock stops before shutter controls');
+assert.equal(await dialog.locator('.si-camera-reference-controls').isVisible(),false,'reference settings are hidden only while choosing a composition');
 for(const size of [{width:390,height:844},{width:844,height:390}]){
   await page.setViewportSize(size);
   const dock=await dialog.locator('.si-camera-guide-content').boundingBox();
@@ -40,6 +41,7 @@ const sweep=await dialog.locator('.si-camera-target-sweep').evaluate(el=>({name:
 assert.match(sweep.name,/si-target-scan-pass/,'dramatic scan plays on selection');assert.ok(sweep.area>10);
 assert.equal(await dialog.locator('.si-camera-target-overlay').getAttribute('aria-hidden'),'true');
 assert.equal(await dialog.locator('.si-camera-guide-options').getAttribute('open'),null,'guide choices close to return to camera');
+assert.equal(await dialog.locator('.si-camera-reference-controls').isVisible(),true,'reference settings return after guide selection');
 await guideButton.locator(':scope > summary').click();await dialog.locator('.si-camera-guide-more>summary').click();await dialog.getByText('발판·지지부와 주변', {exact:false}).waitFor();
 await dialog.getByRole('group',{name:'촬영할 대상'}).getByRole('button',{name:'개구부'}).click();await dialog.locator('.si-camera-target-opening').waitFor();
 await guideButton.locator(':scope > summary').click();
