@@ -1204,3 +1204,14 @@
  }
  .si-camera-dialog.si-camera-immersive .si-camera-heading .si-camera-header-tools>.si-camera-close>span{display:none!important}
 }
+
+
+/* PSI_CAMERA_FIELD_CAPTION_CLEANUP_20261029
+   In immersive mode, native-camera warnings and temporary-photo notes were
+   being laid across the header as stray captions. Keep controls, hide only
+   these redundant inline notes until the camera is closed. */
+@media(max-width:1199px){
+ .si-camera-dialog.si-camera-immersive.si-camera-live>p.si-caption{
+   display:none!important;
+ }
+}
