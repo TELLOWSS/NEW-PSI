@@ -76,6 +76,10 @@ try{
  }
  await page.setViewportSize({width:390,height:844});
  await deck.getByRole('button',{name:'위험 요약'}).click();
+ const legibility=await deck.locator('.si-safety-card-disclaimer').evaluate(el=>Number.parseFloat(getComputedStyle(el).fontSize));
+ assert.ok(legibility>=12,'mobile proof/disclaimer text is readable at >=12px');
+ const navHeight=await deck.getByRole('button',{name:'위험 요약'}).evaluate(el=>el.getBoundingClientRect().height);
+ assert.ok(navHeight>=60,'mobile navigation has comfortable touch surface');
  await page.locator('#toggle-photo').click();
  await deck.getByText('사진 미리보기 없음').waitFor();
  assert.equal(await deck.locator('.si-safety-card-media img').count(),0,'missing photo is explicit');
