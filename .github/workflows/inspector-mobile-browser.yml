@@ -7,6 +7,7 @@ on:
       - 'pages/InspectorReply.tsx'
       - 'lib/inspector/**'
       - 'scripts/verify-inspector-camera.mjs'
+      - 'scripts/verify-inspector-quick.mjs'
       - 'scripts/verify-inspector-safety-cards.mjs'
       - 'scripts/verify-inspector-history.mjs'
       - 'pages/InspectorAdvancedWorkspace.tsx'
@@ -48,6 +49,8 @@ jobs:
         run: node scripts/verify-inspector-camera.mjs
       - name: Safety card deck, evidence boundaries, five views and mobile layouts
         run: node scripts/verify-inspector-safety-cards.mjs
+      - name: Gallery photo rotation pixels, original restore and uploaded copy
+        run: PSI_QA_BUILT=1 PSI_QUICK_OUT=artifacts/audit/inspector-gallery-rotate PSI_QA_SCENARIOS=gallery-rotate node scripts/verify-inspector-quick.mjs
       - name: Stored-record selection, verified deletion, and conflict recovery
         run: node scripts/verify-inspector-history.mjs
       - name: Sharing, reply, denied/revoked links and handoff
@@ -79,6 +82,7 @@ jobs:
             artifacts/audit/inspector-camera/
             artifacts/audit/action-share/
             artifacts/audit/inspector-safety-cards/
+            artifacts/audit/inspector-gallery-rotate/
             artifacts/audit/inspector-history/
             artifacts/audit/inspector-result-journey-built/
             artifacts/audit/inspector-queue/
