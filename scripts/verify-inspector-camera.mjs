@@ -66,6 +66,16 @@ try{
    await page.setViewportSize({width:390,height:900});await dialog.getByRole('button',{name:'지금 촬영',exact:true}).click();
   }
   const captured=page.getByRole('dialog',{name:'촬영 사진 바로 확인',exact:true});await captured.getByAltText('등록 전 촬영 사진 미리보기').waitFor();await page.waitForFunction(()=>!document.querySelector('.si-camera-actions .si-primary').disabled);const size=await captured.locator('img').evaluate(i=>({width:i.naturalWidth,height:i.naturalHeight}));assert.deepEqual(size,scenario==='landscape'||scenario==='unsupported'?{width:1280,height:720}:{width:720,height:960});
+  // Rotate capture without changing server evidence and recover exact source dimensions.
+  const before=await captured.getByAltText('등록 전 촬영 사진 미리보기').evaluate(i=>({w:i.naturalWidth,h:i.naturalHeight}));
+  await captured.getByRole('button',{name:'오른쪽 90°'}).click();
+  await page.waitForFunction(({w,h})=>{const i=document.querySelector('img[alt="등록 전 촬영 사진 미리보기"]');return i?.naturalWidth===h&&i?.naturalHeight===w;},before);
+  assert.match(await captured.locator('.si-camera-photo-editor-heading').innerText(),/90° 회전/);
+  await captured.getByRole('button',{name:'원래 방향'}).click();
+  await page.waitForFunction(({w,h})=>{const i=document.querySelector('img[alt="등록 전 촬영 사진 미리보기"]');return i?.naturalWidth===w&&i?.naturalHeight===h;},before);
+  page.once('dialog',d=>d.dismiss());
+  await captured.getByRole('button',{name:'첫 화면'}).click();
+  assert.equal(await captured.getByAltText('등록 전 촬영 사진 미리보기').isVisible(),true,'cancelling home retains the photo');
   assert.equal(await page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;}),true);page.once('dialog',d=>d.dismiss());await captured.getByRole('button',{name:'닫기',exact:true}).click();assert.equal(await captured.getByAltText('등록 전 촬영 사진 미리보기').isVisible(),true);
   assert.equal(await page.evaluate(()=>window.__streams.every(s=>s.getTracks().every(t=>t.readyState==='ended'))),true);assert.equal(ops.filter(op=>op!=='ai-status').length,0);
   await captured.getByRole('button',{name:'다시 촬영',exact:true}).click();await page.getByRole('dialog',{name:'카메라로 바로 촬영',exact:true}).waitFor();assert.equal(await portrait.getAttribute('aria-pressed'),scenario==='landscape'?'false':'true');
