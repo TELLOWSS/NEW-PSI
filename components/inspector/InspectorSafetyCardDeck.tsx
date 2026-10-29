@@ -52,14 +52,34 @@ export default function InspectorSafetyCardDeck({
             if(image.naturalWidth===0)throw new Error('Inspection preview failed to load');
           }));
         }
-        const rect=cardRef.current.getBoundingClientRect();
-        const pixelRatio=Math.max(1,Math.min(2,Math.sqrt(14000000/Math.max(1,rect.width*rect.height))));
-        const {toBlob}=await import('html-to-image');
-        const isDark=panel==='risk'||panel==='evidence';
-        const blob=await toBlob(cardRef.current,{
-          backgroundColor:isDark?'#102c37':'#f8fbf9',pixelRatio,cacheBust:false,
-          filter:node=>!(node instanceof HTMLElement&&node.dataset.cardExclude==='true')
-        });
+        // Measure a separate export layout after removing controls. Measuring the
+        // live card first leaves large empty areas in PNGs when controls are filtered.
+        const width=cardRef.current.getBoundingClientRect().width;
+        if(!width||!deckRootRef.current)throw new Error('Card layout unavailable');
+        const stage=document.createElement('div');
+        stage.setAttribute('aria-hidden','true');
+        stage.style.cssText='position:fixed;left:-100000px;top:0;pointer-events:none;z-index:-1';
+        if(cardRef.current.closest('.dark'))stage.classList.add('dark');
+        const deck=document.createElement('div');
+        deck.className=deckRootRef.current.className;
+        deck.style.width=width+'px';
+        const card=cardRef.current.cloneNode(true) as HTMLElement;
+        card.querySelectorAll('[data-card-exclude="true"]').forEach(node=>node.remove());
+        card.style.animation='none';
+        deck.appendChild(card);stage.appendChild(deck);document.body.appendChild(stage);
+        let blob:Blob|null=null;
+        try{
+          const images=Array.from(card.querySelectorAll('img')) as HTMLImageElement[];
+          await Promise.all(images.map(async image=>{
+            if(!image.complete||image.naturalWidth===0)await image.decode();
+            if(!image.naturalWidth)throw new Error('Export photo failed to load');
+          }));
+          const rect=card.getBoundingClientRect();
+          const pixelRatio=Math.max(1,Math.min(2,Math.sqrt(14000000/Math.max(1,rect.width*rect.height))));
+          const {toBlob}=await import('html-to-image');
+          const isDark=panel==='risk'||panel==='evidence';
+          blob=await toBlob(card,{backgroundColor:isDark?'#102c37':'#f8fbf9',pixelRatio,cacheBust:false});
+        }finally{stage.remove();}
         if(!blob)throw new Error('Card export failed');
         const file=new File([blob],`PSI_SAFETY_${panel.toUpperCase()}_${(photoId||'field').replace(/[^A-Za-z0-9_-]/g,'').slice(0,12)}.png`,{type:'image/png'});
         if(navigator.share&&navigator.canShare?.({files:[file]})){
