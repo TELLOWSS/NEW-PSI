@@ -25,8 +25,9 @@
 .si-safety-card-media{position:relative;width:calc(100% - 40px);margin:4px 20px 12px;min-height:155px;height:clamp(165px,34vw,280px);border-radius:13px;background:#04151d;border:1px solid #5a85775e;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .si-safety-card-media img{display:block;width:100%;height:100%;object-fit:contain;object-position:center}
 .si-safety-card-no-photo{font-size:12px;color:#aec8c6}
-.si-safety-card-photo-hint{margin:0 20px 14px!important;color:#c1d9d3;font-size:12px;line-height:1.5;word-break:keep-all}
-.si-safety-card-zoom{position:absolute;top:8px;right:8px;min-height:44px;padding:6px 11px;border-radius:8px;border:1px solid #9cd6c8;background:#103e3beb;color:#fff;cursor:pointer;font-size:11px;font-weight:750}
+.si-safety-card-photo-caption{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0 20px 14px}
+.si-safety-card-photo-hint{flex:1 1 150px;margin:0!important;color:#c1d9d3;font-size:12px;line-height:1.5;word-break:keep-all}
+.si-safety-card-zoom{position:static;flex:0 0 auto;min-height:44px;padding:6px 11px;border-radius:8px;border:1px solid #9cd6c8;background:#103e3beb;color:#fff;cursor:pointer;font-size:11px;font-weight:750}
 .si-safety-card-risk-footer{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:0 20px 12px}
 .si-safety-card-risk-footer>div{display:flex;flex-direction:column;gap:5px;min-width:0;padding:11px 12px;border-radius:9px;background:#183c3e;border:1px solid #6aa5994a}
 .si-safety-card-risk-footer span{font-size:10px;color:#a6c0bd}
@@ -80,7 +81,7 @@
  .si-safety-card-title h4,.si-safety-card-body h4{font-size:21px!important}
  .si-safety-card-title p{font-size:12px}
  .si-safety-card-media{width:calc(100% - 30px);margin:4px 15px 11px;height:clamp(170px,48vw,245px)}
- .si-safety-card-photo-hint{margin:0 15px 14px!important}
+ .si-safety-card-photo-caption{margin:0 15px 14px}
  .si-safety-card-risk-footer{margin:0 15px 12px;gap:6px}
  .si-safety-card-risk-footer>div{padding:10px}
  .si-safety-card-risk-footer strong{font-size:12px}
