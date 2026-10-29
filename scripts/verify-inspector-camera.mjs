@@ -66,6 +66,32 @@ try{
    await page.setViewportSize({width:390,height:900});await dialog.getByRole('button',{name:'지금 촬영',exact:true}).click();
   }
   const captured=page.getByRole('dialog',{name:'촬영 사진 바로 확인',exact:true});await captured.getByAltText('등록 전 촬영 사진 미리보기').waitFor();await page.waitForFunction(()=>!document.querySelector('.si-camera-actions .si-primary').disabled);const size=await captured.locator('img').evaluate(i=>({width:i.naturalWidth,height:i.naturalHeight}));assert.deepEqual(size,scenario==='landscape'||scenario==='unsupported'?{width:1280,height:720}:{width:720,height:960});
+  // Rotate a captured or native-selected photograph using the original bytes.
+  const originalSize=size;
+  await captured.getByRole('button',{name:'↷ 오른쪽 90°'}).click();
+  await page.waitForFunction(({width,height})=>{
+    const image=document.querySelector('img[alt="등록 전 촬영 사진 미리보기"]');
+    return image&&image.naturalWidth===height&&image.naturalHeight===width&&!document.querySelector('.si-camera-review-rotate button:disabled:not(:last-child)');
+  },{width:originalSize.width,height:originalSize.height});
+  await captured.getByText('원본 대비 90° 회전').waitFor();
+  await captured.getByRole('button',{name:'원본 방향'}).click();
+  await page.waitForFunction(({width,height})=>{
+    const image=document.querySelector('img[alt="등록 전 촬영 사진 미리보기"]');
+    return image&&image.naturalWidth===width&&image.naturalHeight===height;
+  },{width:originalSize.width,height:originalSize.height});
+  await captured.getByText('촬영 원본 방향').waitFor();
+  await captured.getByRole('button',{name:'↶ 왼쪽 90°'}).click();
+  await page.waitForFunction(({width,height})=>{
+    const image=document.querySelector('img[alt="등록 전 촬영 사진 미리보기"]');
+    return image&&image.naturalWidth===height&&image.naturalHeight===width;
+  },{width:originalSize.width,height:originalSize.height});
+  await captured.getByText('원본 대비 270° 회전').waitFor();
+  await captured.getByRole('button',{name:'원본 방향'}).click();
+  await page.waitForFunction(({width,height})=>{
+    const image=document.querySelector('img[alt="등록 전 촬영 사진 미리보기"]');
+    return image&&image.naturalWidth===width&&image.naturalHeight===height;
+  },{width:originalSize.width,height:originalSize.height});
+
   assert.equal(await page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;}),true);page.once('dialog',d=>d.dismiss());await captured.getByRole('button',{name:'닫기',exact:true}).click();assert.equal(await captured.getByAltText('등록 전 촬영 사진 미리보기').isVisible(),true);
   assert.equal(await page.evaluate(()=>window.__streams.every(s=>s.getTracks().every(t=>t.readyState==='ended'))),true);assert.equal(ops.filter(op=>op!=='ai-status').length,0);
   await captured.getByRole('button',{name:'다시 촬영',exact:true}).click();await page.getByRole('dialog',{name:'카메라로 바로 촬영',exact:true}).waitFor();assert.equal(await portrait.getAttribute('aria-pressed'),scenario==='landscape'?'false':'true');
