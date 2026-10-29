@@ -14,7 +14,7 @@ for(const viewport of [{width:320,height:740},{width:390,height:844}]){
 await page.setViewportSize({width:320,height:740});
 await dialog.getByText('구도 선택',{exact:true}).click();
 assert.equal(await portraitPill.getAttribute('open'),'','guide opens on demand');
-const sheet=await portraitPill.boundingBox();assert.ok(sheet&&sheet.width<=300&&sheet.right<=320,'open guide panel fits narrow phone');
+const sheet=await portraitPill.boundingBox();assert.ok(sheet&&sheet.width<=300&&sheet.x+sheet.width<=321,'open guide panel fits narrow phone');
 await dialog.getByLabel('3×3 격자 표시').check();assert.equal(await dialog.locator('.si-camera-grid').count(),1);
 const guideGroup=dialog.getByRole('group',{name:'촬영할 대상'});
 await guideGroup.getByRole('button',{name:'시스템비계'}).click();await dialog.locator('.si-camera-target-scaffold').waitFor();
