@@ -490,6 +490,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
                 analysis={analysis} reference={effectiveReference!} review={review} reviewSaved={reviewSaved}
                 photoUrl={preview||undefined} note={resultNote} photoId={photo.id}
                 selectedFinding={selectedFinding} onFindingChange={setSelectedFinding}
+                onDraftAction={()=>draftPhotoAction(!!analysis.risk_findings?.length)}
                 disabled={busy||storageBusy||storageLocked}
                 onSeePhoto={preview?()=>{setZoomFocus('');setZoom(true);}:undefined}
                 onSeeDetails={()=>{const section=document.querySelector('.si-quick-result .si-answer');section?.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});}}
