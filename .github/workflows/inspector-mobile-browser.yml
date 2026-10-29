@@ -7,6 +7,7 @@ on:
       - 'pages/InspectorReply.tsx'
       - 'lib/inspector/**'
       - 'scripts/verify-inspector-camera.mjs'
+      - 'scripts/verify-inspector-safety-cards.mjs'
       - 'scripts/verify-inspector-action-share.mjs'
       - 'scripts/verify-inspector-result-journey.mjs'
       - 'scripts/verify-inspector-queue.mjs'
@@ -43,6 +44,8 @@ jobs:
         run: npm run build
       - name: Camera permission, rotation, fallback and narrow viewports
         run: node scripts/verify-inspector-camera.mjs
+      - name: Safety card deck, evidence boundaries, five views and mobile layouts
+        run: node scripts/verify-inspector-safety-cards.mjs
       - name: Sharing, reply, denied/revoked links and handoff
         run: node scripts/verify-inspector-action-share.mjs
       - name: First-use photo to expert review and printable report
