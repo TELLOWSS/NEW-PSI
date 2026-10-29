@@ -148,6 +148,7 @@ try{
    const imgs=deck.locator('.si-safety-card img');
    assert.ok(await imgs.count()>0,label+' includes inspection photo thumbnail');
    assert.equal(await imgs.first().evaluate(img=>img.complete&&img.naturalWidth>0),true,label+' image loaded');
+   const liveBounds=await deck.locator('.si-safety-card').boundingBox();
    const pending=page.waitForEvent('download',{timeout:20000});
    await deck.getByRole('button',{name:'카드 저장·공유'}).click();
    const savedCard=await pending;
@@ -156,6 +157,11 @@ try{
    const bytes=await readFile(await savedCard.path());
    assert.equal(bytes.subarray(0,8).toString('hex'),'89504e470d0a1a0a',label+' valid PNG');
    assert.ok(bytes.length>5000,label+' image not empty');
+   if(slug==='ACTION'){
+     const pngWidth=bytes.readUInt32BE(16),pngHeight=bytes.readUInt32BE(20);
+     assert.ok(liveBounds&&pngHeight/pngWidth < (liveBounds.height-12)/liveBounds.width,'export removes control-only whitespace');
+   }
+   assert.equal(await page.locator('[data-psi-card-export-stage]').count(),0,'temporary export stage is removed');
  }
  assert.equal(await deck.getByRole('button',{name:'다음 카드'}).isDisabled(),true,'last card boundary');
  await deck.getByRole('button',{name:'이전 카드'}).click();
