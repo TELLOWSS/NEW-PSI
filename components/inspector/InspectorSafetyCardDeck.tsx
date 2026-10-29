@@ -1,4 +1,4 @@
-import React,{useEffect,useId,useState} from 'react';
+import React,{useEffect,useId,useRef,useState} from 'react';
 import {sourceReviewState} from '../../lib/inspector/sourceReview';
 import type {VisionImport} from '../../lib/inspector/types';
 import type {LegalReference} from '../../lib/inspector/legal';
@@ -34,6 +34,31 @@ export default function InspectorSafetyCardDeck({
     onFindingChange,onComposeCard,onSeePhoto,onSeeDetails,onCopy,copyDone=false,disabled=false
 }:Props){
     const [panel,setPanel]=useState<DeckPanel>('risk'),id=useId();
+    const cardRef=useRef<HTMLElement>(null),exportInFlight=useRef(false);
+    const [exporting,setExporting]=useState(false),[exportMessage,setExportMessage]=useState('');
+    const shareOrDownloadCard=async()=>{
+      if(exportInFlight.current||!cardRef.current)return;
+      exportInFlight.current=true;setExporting(true);setExportMessage('');
+      try{
+        const {toBlob}=await import('html-to-image');
+        const isDark=panel==='risk'||panel==='evidence';
+        const blob=await toBlob(cardRef.current,{
+          backgroundColor:isDark?'#102c37':'#f8fbf9',pixelRatio:2,cacheBust:false,
+          filter:node=>!(node instanceof HTMLElement&&node.dataset.cardExclude==='true')
+        });
+        if(!blob)throw new Error('Card export failed');
+        const file=new File([blob],`PSI_SAFETY_${panel.toUpperCase()}_${(photoId||'field').replace(/[^A-Za-z0-9_-]/g,'').slice(0,12)}.png`,{type:'image/png'});
+        if(navigator.share&&navigator.canShare?.({files:[file]})){
+          try{await navigator.share({files:[file],text:'PSI 안전점검 카드 · AI 제안 및 현장 확인이 필요한 자료입니다.'});setExportMessage('기기 공유창으로 카드를 전달했습니다.');}
+          catch(error){if((error as Error)?.name==='AbortError')setExportMessage('카드 공유를 취소했습니다.');else throw error;}
+        }else{
+          const url=URL.createObjectURL(blob);
+          try{const a=document.createElement('a');a.href=url;a.download=file.name;a.style.display='none';document.body.appendChild(a);a.click();a.remove();setExportMessage('현재 카드 PNG 저장을 요청했습니다. 기기 다운로드 위치를 확인하세요.');}
+          finally{window.setTimeout(()=>URL.revokeObjectURL(url),60000);}
+        }
+      }catch{setExportMessage('카드 이미지 생성에 실패했습니다. 사진 권한·저장공간을 확인하거나 기존 전달 카드 기능을 이용해 주세요.');}
+      finally{exportInFlight.current=false;setExporting(false);}
+    };
     const findings=analysis.risk_findings||[];
     const index=Math.min(Math.max(0,selectedFinding),Math.max(0,findings.length-1));
     const finding=findings[index];
@@ -43,7 +68,8 @@ export default function InspectorSafetyCardDeck({
     const priority=finding?.priority||'routine';
     const reviewLabel=rejected?'AI 해석 미수용':reviewSaved?'전문가 검토 저장':'전문가 검토 저장 전';
     const sourceCount=reference.cards.length;
-    useEffect(()=>{setPanel('risk');},[analysis.photo_id]);
+    useEffect(()=>{setPanel('risk');setExportMessage('');},[analysis.photo_id]);
+    useEffect(()=>{setExportMessage('');},[panel,index]);
     const displayedTitle=rejected?'전문가 의견을 우선 확인하세요':valueOr(finding?.problem,observed.length?'사진 관찰 내용을 대조하세요':'구체적 위험 특정 전');
     const key=panel+'-'+index;
     const currentPanel=PANELS.find(v=>v.id===panel)!;
@@ -55,7 +81,7 @@ export default function InspectorSafetyCardDeck({
         <nav className="si-safety-deck-nav" aria-label="안전카드 종류">
             {PANELS.map((v,n)=><button key={v.id} type="button" className={panel===v.id?'is-active':''} aria-current={panel===v.id?'page':undefined} aria-label={v.title} onClick={()=>setPanel(v.id)}><span className="si-safety-deck-nav-ornament" aria-hidden="true"><InspectorIcon name={v.icon}/></span><span className="si-safety-deck-nav-copy"><strong>{v.short}</strong><small>{v.subtitle}</small></span><span className="si-safety-deck-nav-number" aria-hidden="true">{guideCount(n+1)}</span></button>)}
         </nav>
-        <article key={key} className={'si-safety-card si-safety-card-'+panel+(rejected?' is-rejected':'')} data-panel={panel} data-priority={finding?.priority||'unclassified'} aria-label={currentPanel.title}>
+        <article ref={cardRef} key={key} className={'si-safety-card si-safety-card-'+panel+(rejected?' is-rejected':'')} data-panel={panel} data-priority={finding?.priority||'unclassified'} aria-label={currentPanel.title}>
             <div className="si-safety-card-bar">
                 <span className="si-safety-card-mark" aria-hidden="true">PSI / FIELD INTELLIGENCE</span>
                 <span className="si-safety-card-phase"><span className="si-safety-card-phase-pip" aria-hidden="true"/>{panel==='risk'?'RISK SIGNAL':panel==='action'?'ACTION PATH':panel==='evidence'?'EVIDENCE REVIEW':panel==='reference'?'SOURCE TRACE':'FIELD HANDOFF'}</span>
@@ -69,22 +95,22 @@ export default function InspectorSafetyCardDeck({
                 <div className={'si-safety-card-media'+(photoUrl?' has-photo':'')}>
                     {photoUrl?<img src={photoUrl} alt="점검 사진 원본 또는 보관된 점검용 사진 미리보기 · 카드 효과가 적용되지 않은 사진" loading="lazy"/>:<div className="si-safety-card-no-photo">사진 미리보기 없음</div>}
                     <div className="si-safety-card-photo-hint">점검 사진 · 카드 효과는 저장되지 않음</div>
-                    {photoUrl&&onSeePhoto&&<button type="button" className="si-safety-card-zoom" onClick={onSeePhoto}>사진 크게 확인</button>}
+                    {photoUrl&&onSeePhoto&&<button type="button" className="si-safety-card-zoom" data-card-exclude="true" onClick={onSeePhoto}>사진 크게 확인</button>}
                 </div>
                 <div className="si-safety-card-risk-footer">
                     <div><span>검토 우선순위</span><strong>{rejected?'전문가 재검토':finding?PRIORITY[priority]:'추가 확인 필요'}</strong></div>
                     <div><span>현장 검토</span><strong>{reviewLabel}</strong></div>
                 </div>
-                {findings.length>1&&<div className="si-safety-card-finding-select" role="group" aria-label="위험 단서 전환">
+                {findings.length>1&&<div className="si-safety-card-finding-select" data-card-exclude="true" role="group" aria-label="위험 단서 전환">
                     {findings.map((v,n)=><button type="button" key={n} disabled={disabled} aria-pressed={n===index} onClick={()=>onFindingChange(n)}>위험 {n+1}</button>)}
                 </div>}
-                <button className="si-safety-card-advance" type="button" onClick={()=>setPanel('action')}><span>이 위험에 필요한 조치 살펴보기</span><InspectorIcon name="arrow"/></button>
+                <button className="si-safety-card-advance" data-card-exclude="true" type="button" onClick={()=>setPanel('action')}><span>이 위험에 필요한 조치 살펴보기</span><InspectorIcon name="arrow"/></button>
                 <p className="si-safety-card-disclaimer">AI 결과는 위험·법 위반 확정이나 조치 완료를 뜻하지 않습니다. 현장에서 직접 대조해 주세요.</p>
             </>}
             {panel==='action'&&<div className="si-safety-card-body">
                 <p className="si-safety-card-eyebrow">PRIORITY ACTION / {finding?PRIORITY[priority]:'검토 필요'}</p>
                 <h4>{rejected?'전문가 조치 의견 확인':'우선 확인할 조치'}</h4>
-                {photoUrl&&<div className="si-safety-card-context"><img src={photoUrl} alt="조치 검토에 사용한 현장 사진 미리보기" loading="lazy"/><div><span>FIELD PHOTO / REVIEW</span><strong>사진을 보면서 조치 내용을 대조하세요</strong><small>카드에 위험부위가 자동 표시된 것은 아닙니다.</small></div>{onSeePhoto&&<button type="button" onClick={onSeePhoto} aria-label="검토 사진 크게 보기"><InspectorIcon name="expand"/></button>}</div>}
+                {photoUrl&&<div className="si-safety-card-context"><img src={photoUrl} alt="조치 검토에 사용한 현장 사진 미리보기" loading="lazy"/><div><span>FIELD PHOTO / REVIEW</span><strong>사진을 보면서 조치 내용을 대조하세요</strong><small>카드에 위험부위가 자동 표시된 것은 아닙니다.</small></div>{onSeePhoto&&<button type="button" data-card-exclude="true" onClick={onSeePhoto} aria-label="검토 사진 크게 보기"><InspectorIcon name="expand"/></button>}</div>}
                 <div className="si-safety-card-feature"><span className="si-safety-card-feature-number">01</span><p>{rejected?valueOr(review.note,'AI 제안을 수용하지 않았습니다. 현장 담당자가 필요한 조치를 작성·확정해 주세요.'):valueOr(finding?.action,analysis.recommended_controls[0]?.action||'촬영 대상과 주변 작업 상태를 안전한 위치에서 확인해 주세요.')}</p></div>
                 {!rejected&&analysis.recommended_controls.length>0&&<div className="si-safety-card-mini-list"><h5>추가 조치 제안</h5>{analysis.recommended_controls.slice(0,3).map((c,n)=><div key={n}><span>{guideCount(n+2)}</span><p>{c.action}</p></div>)}</div>}
                 <p className="si-safety-card-disclaimer">실제 작업중지·접근통제 필요성, 담당자와 조치기한은 현장에서 판단해 기록해야 합니다.</p>
@@ -101,8 +127,8 @@ export default function InspectorSafetyCardDeck({
                 <p className="si-safety-card-eyebrow">OFFICIAL SOURCE REVIEW</p>
                 <h4>연결된 법령·사례 자료</h4>
                 <p className="si-safety-card-lead">관련 자료 {sourceCount}건 · 실제 적용 조항과 사건 당시 시행본은 별도 확인해야 합니다.</p>
-                {sourceCount?reference.cards.slice(0,3).map(c=>{const url=withHttps(c.duties.find(d=>withHttps(d.url))?.url);const status=sourceReviewState(c.sourceReview);return <section className="si-safety-card-source" key={c.id}><strong>{c.title}</strong><span>{status.label}</span>{url&&<a href={url} target="_blank" rel="noopener noreferrer">공식 근거 열기</a>}</section>}):<div className="si-safety-card-source"><strong>관련 기준이 자동 연결되지 않았습니다.</strong><span>법적 의무가 없다는 뜻이 아니므로 작업 내용과 실제 시설을 확인하세요.</span></div>}
-                {(reference.inspectionCases||[]).length>0&&<div className="si-safety-card-cases"><h5>공개 감독·사고사례 참고 후보</h5><p>현재 현장의 발생 사실이나 동일 사고로 판단한 자료가 아닙니다.</p>{reference.inspectionCases!.slice(0,2).map(c=><section className="si-safety-card-source" key={c.id}><strong>{c.title}</strong><span>{c.agency} · {c.publishedAt} · {sourceReviewState(c.sourceReview).label}</span><span>{c.lesson}</span>{withHttps(c.url)&&<a href={c.url} target="_blank" rel="noopener noreferrer">공개 사례 원문 확인</a>}</section>)}</div>}
+                {sourceCount?reference.cards.slice(0,3).map(c=>{const url=withHttps(c.duties.find(d=>withHttps(d.url))?.url);const status=sourceReviewState(c.sourceReview);return <section className="si-safety-card-source" key={c.id}><strong>{c.title}</strong><span>{status.label}</span>{url&&<a href={url} target="_blank" rel="noopener noreferrer" data-card-exclude="true">공식 근거 열기</a>}</section>}):<div className="si-safety-card-source"><strong>관련 기준이 자동 연결되지 않았습니다.</strong><span>법적 의무가 없다는 뜻이 아니므로 작업 내용과 실제 시설을 확인하세요.</span></div>}
+                {(reference.inspectionCases||[]).length>0&&<div className="si-safety-card-cases"><h5>공개 감독·사고사례 참고 후보</h5><p>현재 현장의 발생 사실이나 동일 사고로 판단한 자료가 아닙니다.</p>{reference.inspectionCases!.slice(0,2).map(c=><section className="si-safety-card-source" key={c.id}><strong>{c.title}</strong><span>{c.agency} · {c.publishedAt} · {sourceReviewState(c.sourceReview).label}</span><span>{c.lesson}</span>{withHttps(c.url)&&<a href={c.url} target="_blank" rel="noopener noreferrer" data-card-exclude="true">공개 사례 원문 확인</a>}</section>)}</div>}
                 <p className="si-safety-card-disclaimer">자동 연결은 법 위반 판정이 아닙니다. 벌금·과태료는 적용조건과 처분 주체에 따라 달라집니다.</p>
             </div>}
             {panel==='handoff'&&<div className="si-safety-card-body">
@@ -113,7 +139,7 @@ export default function InspectorSafetyCardDeck({
                     <div><span>02</span><p>전문가 검토를 {reviewSaved?'저장했습니다.':'저장해야 합니다.'}</p></div>
                     <div><span>03</span><p>필요한 조치를 등록하고 개선 후 사진을 재점검합니다.</p></div>
                 </div>
-                <div className="si-safety-card-cta">
+                <div className="si-safety-card-cta" data-card-exclude="true">
                     {onComposeCard&&<button type="button" onClick={onComposeCard} disabled={disabled}>사진·조치 전달 카드 만들기</button>}
                     {onCopy&&<button type="button" className="is-secondary" onClick={onCopy} disabled={disabled}>{copyDone?'결과 복사 완료':'결과 내용 복사'}</button>}
                     {onSeeDetails&&<button type="button" className="is-secondary" onClick={onSeeDetails}>상세 점검·보고서 단계로 이동</button>}
@@ -122,6 +148,11 @@ export default function InspectorSafetyCardDeck({
             </div>}
             <footer className="si-safety-card-foot"><span>FIELD RECORD / {photoId?photoId.slice(0,8).toUpperCase():'UNLINKED'}</span><span>{currentPanel.title} · {guideCount(PANELS.findIndex(v=>v.id===panel)+1)}/{guideCount(PANELS.length)}</span></footer>
         </article>
+        <div className="si-safety-deck-export">
+            <div><strong>현재 카드 이미지</strong><p>카드 한 장을 별도 PNG로 공유·저장합니다. 증빙 원본은 바뀌지 않습니다.</p></div>
+            <button type="button" onClick={()=>void shareOrDownloadCard()} disabled={exporting||disabled} aria-busy={exporting}><InspectorIcon name="upload"/>{exporting?'이미지 제작 중…':'카드 저장·공유'}</button>
+        </div>
+        <p className="si-safety-deck-export-message" role="status" aria-live="polite">{exportMessage}</p>
         <div className="si-safety-deck-bottom"><p id={id+'-notice'}>시각화 카드 · 검토용 AI 제안입니다. 상세 근거와 최종 조치 기록은 아래에서 확인할 수 있습니다.</p><button type="button" onClick={onSeeDetails} disabled={!onSeeDetails}>전체 점검 내용 보기</button></div>
     </section>;
 }
