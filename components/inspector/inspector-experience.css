@@ -530,3 +530,14 @@
     transform:translateX(-50%)!important;
   }
 }
+
+/* LANDSCAPE_ROTATION_HINT_20261029 */
+@media (max-width:1199px) {
+  .si-camera-dialog.si-camera-immersive .si-camera-rotate-hint {
+    position:absolute;z-index:11;left:50%;bottom:18px;transform:translateX(-50%);
+    width:min(350px,calc(100% - 28px));margin:0;padding:10px 12px;
+    border-radius:12px;background:#071d2ee8;border:1px solid #b9efe4a6;
+    color:#f3fffc;font-size:12px;font-weight:700;line-height:1.55;text-align:center;
+    pointer-events:none;box-shadow:0 5px 20px #0007;
+  }
+}
