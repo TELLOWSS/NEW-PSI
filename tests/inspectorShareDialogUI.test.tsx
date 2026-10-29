@@ -10,6 +10,8 @@ describe('novice inspector share fallback',()=>{
         }));
         expect(html).toContain('문구만 공유창 열기');
         expect(html).toContain('문구 복사');
+        expect(html).toContain('공유할 내용 확인');
+        expect(html).toContain('문구만 보내기');
         expect(html).toContain('실제 메시지 전송 완료를 뜻하지 않습니다');
         expect(html).toContain('카카오톡');
         expect(html).toContain('공유한 사본');
