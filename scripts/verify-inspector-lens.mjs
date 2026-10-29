@@ -15,7 +15,7 @@ for(const viewport of [{width:320,height:568},{width:320,height:740},{width:390,
  assert.equal(await dialog.locator('.si-camera-guide-content').isVisible(),false,'closed guide sheet is hidden');
 }
 await page.setViewportSize({width:320,height:740});
-await guideButton.locator('summary').click();
+await guideButton.locator(':scope > summary').click();
 assert.equal(await guideButton.getAttribute('open'),'','guide opens on demand');
 const sheet=await dialog.locator('.si-camera-guide-content').boundingBox();
 assert.ok(sheet&&sheet.width<=320&&sheet.x>=0&&sheet.x+sheet.width<=321,'on-demand guide sheet fits narrow phone');
@@ -40,14 +40,14 @@ const sweep=await dialog.locator('.si-camera-target-sweep').evaluate(el=>({name:
 assert.match(sweep.name,/si-target-scan-pass/,'dramatic scan plays on selection');assert.ok(sweep.area>10);
 assert.equal(await dialog.locator('.si-camera-target-overlay').getAttribute('aria-hidden'),'true');
 assert.equal(await dialog.locator('.si-camera-guide-options').getAttribute('open'),null,'guide choices close to return to camera');
-await guideButton.locator('summary').click();await dialog.locator('.si-camera-guide-more>summary').click();await dialog.getByText('발판·지지부와 주변', {exact:false}).waitFor();
+await guideButton.locator(':scope > summary').click();await dialog.locator('.si-camera-guide-more>summary').click();await dialog.getByText('발판·지지부와 주변', {exact:false}).waitFor();
 await dialog.getByRole('group',{name:'촬영할 대상'}).getByRole('button',{name:'개구부'}).click();await dialog.locator('.si-camera-target-opening').waitFor();
-await guideButton.locator('summary').click();
+await guideButton.locator(':scope > summary').click();
 await dialog.getByRole('group',{name:'촬영할 대상'}).getByRole('button',{name:'양중'}).click();await dialog.locator('.si-camera-target-lifting').waitFor();
 await page.reload();await page.waitForFunction(()=>!document.querySelector('.si-camera-actions .si-primary')?.disabled);
 assert.equal(await dialog.locator('.si-camera-grid').count(),1,'grid setting is remembered in this session');
 assert.equal(await dialog.locator('.si-camera-target-overlay').count(),0,'guide does not carry into a new camera session');
-await guideButton.locator('summary').click();
+await guideButton.locator(':scope > summary').click();
 assert.equal(await dialog.getByRole('group',{name:'촬영할 대상'}).getByRole('button',{name:'시스템비계'}).getAttribute('aria-pressed'),'false');
 await dialog.getByRole('group',{name:'촬영할 대상'}).getByRole('button',{name:'시스템비계'}).click();
 await dialog.locator('.si-camera-target-scaffold').waitFor();
