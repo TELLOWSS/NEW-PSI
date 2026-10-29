@@ -155,7 +155,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
             {error&&<button className="si-btn" onClick={retry}>카메라 다시 연결</button>}
         </>}</div>
         {sequenceError&&<p role="alert">{sequenceError}</p>}
-        {photo&&{frame&&<details className="si-camera-frame-details"><summary>{directionMismatch?'영상 방향 확인 필요':'영상 정보'}</summary><p className="si-camera-frame-status" role="status">{photo?'촬영본':'현재 영상'} · {actualDirection} {frame.width} × {frame.height}{!photo&&directionMismatch&&<span>선택한 방향과 실제 영상 비율이 다릅니다. 기기를 돌리거나 기기 카메라를 이용하세요.</span>}</p></details>}}
+        {photo&&frame&&<details className="si-camera-frame-details"><summary>{directionMismatch?'영상 방향 확인 필요':'영상 정보'}</summary><p className="si-camera-frame-status" role="status">{photo?'촬영본':'현재 영상'} · {actualDirection} {frame.width} × {frame.height}{!photo&&directionMismatch&&<span>선택한 방향과 실제 영상 비율이 다릅니다. 기기를 돌리거나 기기 카메라를 이용하세요.</span>}</p></details>}
         {!photo&&(reference?<details className="si-camera-direction-options"><summary>촬영 방향 · {mode==='landscape'?'가로':'세로'}</summary>{directionControls}</details>:directionControls)}
         {!photo&&<details ref={guidePanelRef} className="si-camera-guide-options"><summary><span className="si-camera-guide-summary-icon" aria-hidden="true">✧</span><span className="si-camera-guide-summary-text">구도 {guide?'· '+CAMERA_GUIDES[guide].label:'선택'}</span></summary><div className="si-camera-guide-content">
           <p className="si-camera-guide-headline">어떤 장면을 촬영하나요?</p>
