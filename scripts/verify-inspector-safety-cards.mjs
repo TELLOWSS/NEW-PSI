@@ -23,11 +23,11 @@ try{
  await deck.getByText('03 · 조치 참고').waitFor();
  assert.equal(await deck.getByRole('progressbar',{name:'안전카드 읽기 진행'}).getAttribute('aria-valuenow'),'1');
  await deck.getByRole('button',{name:'가독성 크게'}).click();
- assert.equal(await deck.locator('.si-safety-deck-large').count(),1,'large-text mode enabled');
+ assert.equal(await deck.evaluate(el=>el.classList.contains('si-safety-deck-large')),true,'large-text mode enabled');
  const fontSize=await deck.locator('.si-safety-card-essential p').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
  assert.ok(fontSize>=16,'large-text summary is >=16px');
  await deck.getByRole('button',{name:'기본 글씨'}).click();
- assert.equal(await deck.locator('.si-safety-deck-large').count(),0,'large-text mode reverses');
+ assert.equal(await deck.evaluate(el=>el.classList.contains('si-safety-deck-large')),false,'large-text mode reverses');
 
  await deck.getByRole('button',{name:'위험 2'}).click();
  await deck.getByText('합성 위험 단서 2').waitFor();
