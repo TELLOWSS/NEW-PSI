@@ -74,6 +74,7 @@ jobs:
             artifacts/audit/inspector-sources/
             artifacts/audit/inspector-camera/
             artifacts/audit/action-share/
+            artifacts/audit/inspector-safety-cards/
             artifacts/audit/inspector-result-journey-built/
             artifacts/audit/inspector-queue/
             artifacts/audit/inspector-friendly-recovery-built/
