@@ -43,6 +43,16 @@ try{
  assert.equal(actionColor,'rgb(248, 251, 249)','action card uses deliberately light professional theme');
  await deck.getByRole('button',{name:'검토 저장 · 이 위험 조치 작성'}).click();
  assert.equal(await page.locator('#action-count').innerText(),'1','action card invokes reviewed action entry');
+ const secondaryContrast=await deck.getByRole('button',{name:'상세 점검 내용 확인'}).evaluate(el=>{
+   const colors=[getComputedStyle(el).color,getComputedStyle(el).backgroundColor].map(value=>{
+     const rgb=value.match(/[\\d.]+/g)?.slice(0,3).map(Number);
+     if(!rgb||rgb.length!==3)return 0;
+     const channels=rgb.map(n=>{const c=n/255;return c<=.04045?c/12.92:((c+.055)/1.055)**2.4;});
+     return .2126*channels[0]+.7152*channels[1]+.0722*channels[2];
+   });
+   return (Math.max(...colors)+.05)/(Math.min(...colors)+.05);
+ });
+ assert.ok(secondaryContrast>=4.5,'action secondary text contrast is at least 4.5:1');
  await deck.getByRole('button',{name:'상세 점검 내용 확인'}).click();
  assert.equal(await page.locator('#details-count').innerText(),'1','action card opens the existing details destination');
  const actionPhotoButton=deck.getByRole('button',{name:'검토 사진 크게 보기'});
