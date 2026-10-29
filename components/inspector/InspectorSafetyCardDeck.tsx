@@ -34,6 +34,7 @@ export default function InspectorSafetyCardDeck({
     onFindingChange,onComposeCard,onDraftAction,onSeePhoto,onSeeDetails,onCopy,copyDone=false,disabled=false
 }:Props){
     const [panel,setPanel]=useState<DeckPanel>('risk'),id=useId();
+    const [expanded,setExpanded]=useState(false);
     const [largeText,setLargeText]=useState(()=>{try{return sessionStorage.getItem('psi.inspector.cards.large-text.v1')==='on';}catch{return false;}});
     const toggleText=()=>setLargeText(was=>{const next=!was;try{sessionStorage.setItem('psi.inspector.cards.large-text.v1',next?'on':'off');}catch{}return next;});
     const cardRef=useRef<HTMLElement>(null),deckRootRef=useRef<HTMLElement>(null),exportInFlight=useRef(false);
@@ -64,6 +65,7 @@ export default function InspectorSafetyCardDeck({
         deck.className=deckRootRef.current.className;
         deck.style.width=width+'px';
         const card=cardRef.current.cloneNode(true) as HTMLElement;
+        card.classList.remove('si-safety-card-compact');
         card.querySelectorAll('[data-card-exclude="true"]').forEach(node=>node.remove());
         card.style.animation='none';
         deck.appendChild(card);stage.appendChild(deck);document.body.appendChild(stage);
@@ -106,6 +108,11 @@ export default function InspectorSafetyCardDeck({
     useEffect(()=>{setExportMessage('');},[panel,index]);
     const displayedTitle=rejected?'전문가 의견을 우선 확인하세요':valueOr(finding?.problem,observed.length?'사진 관찰 내용을 대조하세요':'구체적 위험 특정 전');
     const key=panel+'-'+index;
+    const longTexts=panel==='risk'?[displayedTitle,finding?.risk,observation?.text,analysis.requires_confirmation[0]?.question,finding?.action]:
+      panel==='action'?[finding?.action,review?.note,...analysis.recommended_controls.slice(0,3).map(c=>c.action)]:
+      panel==='evidence'?[note,...observed.slice(0,3).map(o=>o.text),...analysis.ai_hypotheses.slice(0,2).map(h=>h.text),...analysis.requires_confirmation.slice(0,2).map(q=>q.question),...analysis.limitations.slice(0,1)]:[];
+    const hasLongText=longTexts.some(value=>typeof value==='string'&&value.length>120);
+    useEffect(()=>{setExpanded(false);},[panel,index,analysis.photo_id]);
     const currentPanel=PANELS.find(v=>v.id===panel)!;
     const panelIndex=PANELS.findIndex(v=>v.id===panel);
     const goPanel=(offset:number)=>{
@@ -135,7 +142,7 @@ export default function InspectorSafetyCardDeck({
         <nav className="si-safety-deck-nav" aria-label="안전카드 종류">
             {PANELS.map((v,n)=><button key={v.id} type="button" className={panel===v.id?'is-active':''} aria-current={panel===v.id?'page':undefined} aria-label={v.title} onClick={()=>setPanel(v.id)}><span className="si-safety-deck-nav-ornament" aria-hidden="true"><InspectorIcon name={v.icon}/></span><span className="si-safety-deck-nav-copy"><strong>{v.short}</strong><small>{v.subtitle}</small></span><span className="si-safety-deck-nav-number" aria-hidden="true">{guideCount(n+1)}</span></button>)}
         </nav>
-        <article ref={cardRef} key={key} className={'si-safety-card si-safety-card-'+panel+(rejected?' is-rejected':'')} data-panel={panel} data-priority={finding?.priority||'unclassified'} aria-label={currentPanel.title}>
+        <article ref={cardRef} key={key} className={'si-safety-card si-safety-card-'+panel+(rejected?' is-rejected':'')+(hasLongText&&!expanded?' si-safety-card-compact':'')} data-panel={panel} data-priority={finding?.priority||'unclassified'} aria-label={currentPanel.title}>
             <div className="si-safety-card-bar">
                 <span className="si-safety-card-mark" aria-hidden="true">PSI / FIELD INTELLIGENCE</span>
                 <span className="si-safety-card-phase"><span className="si-safety-card-phase-pip" aria-hidden="true"/>{panel==='risk'?'RISK SIGNAL':panel==='action'?'ACTION PATH':panel==='evidence'?'EVIDENCE REVIEW':panel==='reference'?'SOURCE TRACE':'FIELD HANDOFF'}</span>
@@ -213,6 +220,7 @@ export default function InspectorSafetyCardDeck({
                 </div>
                 <p className="si-safety-card-disclaimer">전달 이미지는 별도 가공본입니다. 원본·검토·보고서의 저장 상태는 점검 기록에서 확인하세요.</p>
             </div>}
+            {hasLongText&&<div className="si-safety-card-expand" data-card-exclude="true"><button type="button" aria-expanded={expanded} onClick={()=>setExpanded(v=>!v)}>{expanded?'내용 접기':'긴 내용 전체 보기'}</button><span>{expanded?'전체 내용을 표시 중입니다.':'긴 내용 일부를 접었습니다. 저장하는 카드에는 전체 내용이 담깁니다.'}</span></div>}
             <footer className="si-safety-card-foot"><span>FIELD RECORD / {photoId?photoId.slice(0,8).toUpperCase():'UNLINKED'}</span><span>{currentPanel.title} · {guideCount(PANELS.findIndex(v=>v.id===panel)+1)}/{guideCount(PANELS.length)}</span></footer>
         </article>
         <div className="si-safety-deck-pagination" role="group" aria-label="안전카드 페이지 넘기기">
