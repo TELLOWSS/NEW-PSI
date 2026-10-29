@@ -466,3 +466,43 @@
  .si-safety-card-source span{font-size:12px}
  .si-safety-card-foot{font-size:10px}
 }
+
+
+/* PSI_FIELD_CARD_READABILITY_V3_20261029 */
+.si-safety-deck-header-right{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.si-safety-deck-read-toggle{
+  min-height:44px;border:1px solid #62ad93;border-radius:10px;
+  background:#1b574b;color:#f0fff8;padding:8px 10px;
+  font:inherit;font-size:12px;font-weight:850;cursor:pointer;white-space:nowrap;
+}
+.si-safety-deck-read-toggle[aria-pressed="true"]{background:#f1d89e;color:#352917;border-color:#b48d4c}
+.si-safety-deck-current{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:10px 12px;margin:2px 0 13px;
+  border:1px solid #b8d9ca;border-radius:11px;
+  background:#ebf5ee;color:#295c4a;
+}
+.si-safety-deck-current span{font-size:12px;font-weight:850}
+.si-safety-deck-current strong{font-size:11px;color:#116c51}
+.si-safety-deck-current small{font-size:11px;color:#507b6c}
+.si-safety-deck[data-reading-size="large"] .si-safety-card-title h4{font-size:clamp(21px,4.7vw,28px)!important;line-height:1.4!important;word-break:keep-all}
+.si-safety-deck[data-reading-size="large"] .si-safety-card-title p{font-size:16px!important;line-height:1.7!important}
+.si-safety-deck[data-reading-size="large"] .si-safety-card-body>h4{font-size:19px!important;line-height:1.5!important}
+.si-safety-deck[data-reading-size="large"] .si-safety-card-body p,
+.si-safety-deck[data-reading-size="large"] .si-safety-card-evidence-block p,
+.si-safety-deck[data-reading-size="large"] .si-safety-card-source span,
+.si-safety-deck[data-reading-size="large"] .si-safety-card-mini-list p,
+.si-safety-deck[data-reading-size="large"] .si-safety-card-checks p{
+  font-size:15px!important;line-height:1.75!important;overflow-wrap:anywhere
+}
+.si-safety-deck[data-reading-size="large"] .si-safety-card-disclaimer,
+.si-safety-deck[data-reading-size="large"] .si-safety-card-photo-strip small{font-size:13px!important;line-height:1.65!important}
+.si-safety-deck[data-reading-size="large"] .si-safety-card-photo-strip strong{font-size:14px!important}
+.si-safety-deck[data-reading-size="large"] .si-safety-card-feature p{font-size:17px!important;line-height:1.65!important}
+.si-safety-deck[data-reading-size="large"] .si-safety-card{letter-spacing:-.01em}
+@media(max-width:420px){
+ .si-safety-deck-header-right{gap:5px;flex-direction:column-reverse;align-items:flex-end}
+ .si-safety-deck-read-toggle{font-size:11px;min-height:42px;padding:7px 8px}
+ .si-safety-deck-current small{flex-basis:100%}
+}
+@media print{.si-safety-deck-read-toggle{display:none!important}}
