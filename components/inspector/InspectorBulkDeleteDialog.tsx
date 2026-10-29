@@ -13,7 +13,7 @@ export default function InspectorBulkDeleteDialog({records,onClose,onWorking,onS
  const [ack,setAck]=useState(false),[started,setStarted]=useState(false),[running,setRunning]=useState(false),[now,setNow]=useState(Date.now());
  const [entries,setEntries]=useState<Record<string,Entry>>(()=>Object.fromEntries(records.map(r=>[r.id,{state:'ready',note:'삭제 요청 전'}])));
  useEffect(()=>{const dialog=ref.current;if(!dialog)return;dialog.showModal();return()=>{mounted.current=false;dialog.close();};},[]);
- const update=(id:string,entry:Entry)=>{if(mounted.current)setEntries(prev=>({...prev,[id]:entry]}));};
+ const update=(id:string,entry:Entry)=>{if(mounted.current)setEntries(prev=>({...prev,[id]:entry}));};
  const finish=(record:BulkRecord,s:ServerStatus)=>{
    if(completed.current.has(record.id))return;
    if(!verifiedAll(s))throw new Error('서버에서 전체 삭제·잔여 0건을 확인하지 못했습니다.');
