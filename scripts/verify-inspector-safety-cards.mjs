@@ -130,6 +130,7 @@ try{
  await deck.getByRole('button',{name:'카드 저장·공유'}).click();
  const saved=await download;
  assert.match(saved.suggestedFilename(),/^PSI_SAFETY_RISK_.*\.png$/,'the current selected card has an exportable PNG');
+ await saved.saveAs(path.join(screenshotDir,'export-risk.png'));
  const png=await readFile(await saved.path());
  assert.equal(png.subarray(0,8).toString('hex'),'89504e470d0a1a0a','export is real PNG');
  assert.ok(png.readUInt32BE(16)>=390&&png.readUInt32BE(20)>300,'PNG has meaningful card dimensions');
@@ -146,6 +147,7 @@ try{
    await deck.getByRole('button',{name:'카드 저장·공유'}).click();
    const savedCard=await pending;
    assert.match(savedCard.suggestedFilename(),new RegExp('^PSI_SAFETY_'+slug+'_.*\\.png$'),label+' PNG filename');
+   await savedCard.saveAs(path.join(screenshotDir,'export-'+slug.toLowerCase()+'.png'));
    const bytes=await readFile(await savedCard.path());
    assert.equal(bytes.subarray(0,8).toString('hex'),'89504e470d0a1a0a',label+' valid PNG');
    assert.ok(bytes.length>5000,label+' image not empty');
