@@ -126,6 +126,25 @@ try{
      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+1),false,'long text overflow in '+label+' at '+viewport.width);
    }
  }
+ await page.setViewportSize({width:390,height:844});
+ for(const [label,slug] of [['위험 요약','risk'],['조치 제안','action'],['현장 대조','evidence']]){
+   await deck.getByRole('button',{name:label}).click();
+   const card=deck.locator('.si-safety-card');
+   const cardBox=await card.boundingBox();
+   const essential=slug==='risk'?card.locator('.si-safety-card-essential'):slug==='action'?card.locator('.si-safety-card-feature'):card.locator('.si-safety-card-evidence-block').last();
+   const essentialBox=await essential.boundingBox();
+   assert.ok(cardBox&&essentialBox,'long content must have a measurable layout');
+   const pendingLong=page.waitForEvent('download',{timeout:30000});
+   await deck.getByRole('button',{name:'카드 저장·공유'}).click();
+   const longDownload=await pendingLong;
+   await longDownload.saveAs(path.join(screenshotDir,'export-long-'+slug+'.png'));
+   const longPng=await readFile(await longDownload.path());
+   assert.equal(longPng.subarray(0,8).toString('hex'),'89504e470d0a1a0a',label+' long-text export is PNG');
+   const pngWidth=longPng.readUInt32BE(16),pngHeight=longPng.readUInt32BE(20);
+   const contentBottom=(essentialBox.y+essentialBox.height-cardBox.y)/cardBox.width;
+   assert.ok(pngHeight/pngWidth>=contentBottom-.02,label+' long content fits within exported PNG');
+   assert.equal(await page.locator('[data-psi-card-export-stage]').count(),0,'temporary export stage cleaned');
+ }
  await page.locator('#toggle-long').click();
  await deck.getByRole('button',{name:'위험 요약'}).click();
  await page.setViewportSize({width:390,height:844});
