@@ -98,6 +98,7 @@ export default function InspectorSafetyCardDeck({
                 <h4>연결된 법령·사례 자료</h4>
                 <p className="si-safety-card-lead">관련 자료 {sourceCount}건 · 실제 적용 조항과 사건 당시 시행본은 별도 확인해야 합니다.</p>
                 {sourceCount?reference.cards.slice(0,3).map(c=>{const url=withHttps(c.duties.find(d=>withHttps(d.url))?.url);const status=sourceReviewState(c.sourceReview);return <section className="si-safety-card-source" key={c.id}><strong>{c.title}</strong><span>{status.label}</span>{url&&<a href={url} target="_blank" rel="noopener noreferrer">공식 근거 열기</a>}</section>}):<div className="si-safety-card-source"><strong>관련 기준이 자동 연결되지 않았습니다.</strong><span>법적 의무가 없다는 뜻이 아니므로 작업 내용과 실제 시설을 확인하세요.</span></div>}
+                {(reference.inspectionCases||[]).length>0&&<div className="si-safety-card-cases"><h5>공개 감독·사고사례 참고 후보</h5><p>현재 현장의 발생 사실이나 동일 사고로 판단한 자료가 아닙니다.</p>{reference.inspectionCases!.slice(0,2).map(c=><section className="si-safety-card-source" key={c.id}><strong>{c.title}</strong><span>{c.agency} · {c.publishedAt} · {sourceReviewState(c.sourceReview).label}</span><span>{c.lesson}</span>{withHttps(c.url)&&<a href={c.url} target="_blank" rel="noopener noreferrer">공개 사례 원문 확인</a>}</section>)}</div>}
                 <p className="si-safety-card-disclaimer">자동 연결은 법 위반 판정이 아닙니다. 벌금·과태료는 적용조건과 처분 주체에 따라 달라집니다.</p>
             </div>}
             {panel==='handoff'&&<div className="si-safety-card-body">
