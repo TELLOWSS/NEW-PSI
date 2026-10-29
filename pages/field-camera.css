@@ -8,3 +8,32 @@
 .field-camera-list label,.field-camera-list button{white-space:nowrap}
 .field-camera-hash{overflow-wrap:anywhere;word-break:break-all}
 .dark .field-camera{color:#e6f2ee;background:#102723}.dark .field-camera header span{color:#9fe3c7}.dark .field-camera p,.dark .field-camera-status{color:#b8d3c8}.dark .field-camera-card,.dark .field-camera-next{background:#193731;border-color:#355e51}.dark .field-camera-placeholder,.dark .field-camera-list button[aria-pressed=true]{background:#31594c;color:#e6f2ee}.dark .field-camera-actions button,.dark .field-camera-actions a:not(.field-camera-primary),.dark .field-camera-actions label,.dark .field-camera-list button,.dark .field-camera-details button{background:#24473c;border-color:#507b6c;color:#e6f2ee}.dark .field-camera-actions .field-camera-primary{background:#b8e9d2;color:#103c30;border-color:#b8e9d2}.dark .field-camera-details,.dark .field-camera-list li{border-color:#507b6c}.dark .field-camera-details summary,.dark .field-camera-details label{color:#d1eadd}.dark .field-camera-details input,.dark .field-camera-details textarea{color:#e6f2ee;background:#102723;border-color:#507b6c}.dark .field-camera-next a{color:#a9e8cd}.dark .field-camera-pending{background:#473821;border-color:#b88d50;color:#fff0d4}.dark .field-camera-pending p{color:#fff0d4}
+
+/* Keep the capture and photo-selection journey ahead of secondary tools. */
+.field-camera{display:flex;flex-direction:column;gap:14px;padding-top:24px;padding-bottom:max(28px,env(safe-area-inset-bottom));background:#edf5f1}
+.field-camera>header{padding:4px 2px 6px}
+.field-camera>header span{display:inline-block;padding:6px 10px;border-radius:999px;background:#dceee5;color:#176c5a;letter-spacing:.08em}
+.field-camera>header h1{margin:12px 0 6px;line-height:1.18}
+.field-camera>header p{margin:0;max-width:34rem;font-size:14px}
+.field-camera>.field-camera-card{padding:22px}
+.field-camera-card,.field-camera-next{border-radius:20px;box-shadow:0 8px 24px rgba(20,72,55,.055)}
+.field-camera-next{margin-top:0}
+.field-camera-next h2{margin-top:0}
+.field-camera-next p{font-size:14px;line-height:1.6}
+.field-camera-placeholder{width:60px;height:60px;margin:0 auto 14px;border-radius:19px;font-size:36px}
+.field-camera-card h2{margin:8px 0}
+.field-camera-card>p{margin:8px 0}
+.field-camera-actions{gap:8px;margin-top:16px}
+.field-camera-active-actions button:first-child{background:#176c5a;border-color:#176c5a;color:#fff;font-weight:800}
+.field-camera-active-actions .field-camera-primary{background:#f7fbf9;border-color:#c8ded5;color:#174a40}
+.field-camera-list li{background:#f8fbf9}
+.field-camera-list label{flex:1;cursor:pointer}
+.field-camera-list input{accent-color:#176c5a}
+.field-camera-inspector{padding:20px 24px}
+.field-camera-foot{margin:0;font-size:12px}
+.dark .field-camera{background:#102723}
+.dark .field-camera>header span{background:#31594c;color:#b8e9d2}
+.dark .field-camera-list li{background:#203e35}
+.dark .field-camera-active-actions button:first-child{background:#b8e9d2;border-color:#b8e9d2;color:#103c30}
+.dark .field-camera-active-actions .field-camera-primary{background:#24473c;border-color:#507b6c;color:#e6f2ee}
+@media(max-width:400px){.field-camera{padding:18px 14px max(24px,env(safe-area-inset-bottom));gap:12px}.field-camera>.field-camera-card,.field-camera-next{padding:20px 16px}.field-camera-inspector{padding:18px 16px}}
