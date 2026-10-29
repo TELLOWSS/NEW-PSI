@@ -40,10 +40,22 @@ export default function InspectorSafetyCardDeck({
       if(exportInFlight.current||!cardRef.current)return;
       exportInFlight.current=true;setExporting(true);setExportMessage('');
       try{
+        // Prevent a card claiming to include evidence when the preview cannot be decoded.
+        // The photo URL is displayed as supplied; it is never rewritten or painted on the source file.
+        if(photoUrl){
+          const images=Array.from(cardRef.current.querySelectorAll('img'));
+          if(!images.length)throw new Error('Missing inspection preview');
+          await Promise.all(images.map(async image=>{
+            if(!image.complete||image.naturalWidth===0)await image.decode();
+            if(image.naturalWidth===0)throw new Error('Inspection preview failed to load');
+          }));
+        }
+        const rect=cardRef.current.getBoundingClientRect();
+        const pixelRatio=Math.max(1,Math.min(2,Math.sqrt(14000000/Math.max(1,rect.width*rect.height))));
         const {toBlob}=await import('html-to-image');
         const isDark=panel==='risk'||panel==='evidence';
         const blob=await toBlob(cardRef.current,{
-          backgroundColor:isDark?'#102c37':'#f8fbf9',pixelRatio:2,cacheBust:false,
+          backgroundColor:isDark?'#102c37':'#f8fbf9',pixelRatio,cacheBust:false,
           filter:node=>!(node instanceof HTMLElement&&node.dataset.cardExclude==='true')
         });
         if(!blob)throw new Error('Card export failed');
