@@ -316,7 +316,7 @@
   .si-safety-card-context img{width:76px;height:65px;flex-basis:76px}
   .si-safety-card-context>div strong{font-size:11px}
   .si-safety-card-context>div small{font-size:9px}
-  .si-safety-card-context button{flex-basis:30px;width:30px;height:30px}
+  .si-safety-card-context button{flex-basis:44px;width:44px;height:44px}
   .si-safety-card-evidence .si-safety-card-evidence-block:nth-of-type(n){margin-left:0}
 }
 @media(max-width:350px){
@@ -383,8 +383,8 @@
 .si-safety-card-photo-strip>div strong{font-size:12px;line-height:1.4;overflow-wrap:anywhere;word-break:keep-all}
 .si-safety-card-photo-strip>div small{font-size:10px;line-height:1.4;word-break:keep-all;color:#c0dad1}
 .si-safety-card-photo-strip>button{
-  display:grid;place-items:center;flex:0 0 34px;
-  height:34px;width:34px;border-radius:9px;border:1px solid #8dc7b5;
+  display:grid;place-items:center;flex:0 0 44px;
+  height:44px;width:44px;border-radius:9px;border:1px solid #8dc7b5;
   color:inherit;background:#27534f;cursor:pointer;
 }
 .si-safety-card-reference .si-safety-card-photo-strip,
@@ -420,7 +420,7 @@
   .si-safety-card-photo-strip img{flex-basis:66px;width:66px;height:60px}
   .si-safety-card-photo-strip>div strong{font-size:11px}
   .si-safety-card-photo-strip>div small{font-size:9px}
-  .si-safety-card-photo-strip>button{flex-basis:30px;width:30px;height:30px}
+  .si-safety-card-photo-strip>button{flex-basis:44px;width:44px;height:44px}
   .si-safety-deck-pagination{gap:5px;grid-template-columns:72px minmax(0,1fr) 72px}
   .si-safety-deck-pagination button{font-size:11px}
   .si-safety-deck-pagination>span{font-size:11px}
