@@ -1276,3 +1276,27 @@
 .dark .si-camera-dialog.si-camera-immersive .si-camera-photo-editor-heading strong{color:#edfff5}
 .dark .si-camera-dialog.si-camera-immersive .si-camera-photo-editor-heading span,
 .dark .si-camera-dialog.si-camera-immersive .si-camera-photo-editor p{color:#bfddce}
+
+
+/* PSI_INSPECTOR_BACK_HOME_WORKFLOW_20261029 */
+.si-inspector-return-nav{
+  display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:7px;
+}
+.si-inspector-return-nav .si-btn{
+  min-height:44px;padding:9px 13px;border-radius:10px;
+  border:1px solid #b7d8cc;background:#f1f8f4;color:#1c5847;
+  font-size:12px;font-weight:800;line-height:1.4;
+}
+.si-inspector-return-nav .si-btn:nth-child(2),
+.si-quick-return.si-inspector-return-nav .si-btn:last-child{
+  background:#1c6955;color:#fff;border-color:#1c6955;
+}
+.si-inspector-return-nav .si-btn:focus-visible{outline:3px solid #efd184;outline-offset:3px}
+@media(max-width:600px){
+ .si-quick-heading .si-inspector-return-nav{width:100%;justify-content:stretch}
+ .si-quick-heading .si-inspector-return-nav .si-btn{flex:1 1 34%;min-width:0;padding:9px 7px}
+ .si-quick-return.si-inspector-return-nav{display:flex;justify-content:stretch;gap:8px}
+ .si-quick-return.si-inspector-return-nav .si-btn{flex:1 1 50%}
+}
+.dark .si-inspector-return-nav .si-btn{background:#244d42;color:#e6fff2;border-color:#569580}
+.dark .si-inspector-return-nav .si-btn:nth-child(2){background:#b5dfcb;color:#173b32}
