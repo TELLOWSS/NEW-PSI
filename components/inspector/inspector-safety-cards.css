@@ -1,0 +1,468 @@
+/* PSI SAFETY CARDS — unique industrial safety-report design.
+   No copied game artwork, layouts, terms or decorative trade dress. */
+.si-safety-deck{--sc-ink:#e4faf6;--sc-muted:#97b4b8;--sc-line:rgba(150,221,206,.28);--sc-accent:#8eebd0;--sc-gold:#d8b973;margin:18px 0 24px;font-family:inherit;color:#183934;min-width:0}
+.si-safety-deck *{box-sizing:border-box}
+.si-safety-deck-heading{display:flex;justify-content:space-between;align-items:flex-end;gap:15px;margin:0 0 13px}
+.si-safety-deck-kicker{display:block;font-weight:800;letter-spacing:.12em;font-size:10px;color:#248474}
+.si-safety-deck-heading h3{font-size:clamp(18px,2vw,24px)!important;line-height:1.25;margin:3px 0 4px!important;letter-spacing:-.045em;color:#153c37}
+.si-safety-deck-heading p{font-size:12px;line-height:1.5;color:#5c716e;margin:0!important;word-break:keep-all}
+.si-safety-deck-index{white-space:nowrap;font-size:25px;font-weight:850;letter-spacing:-.04em;color:#235e52;line-height:1}.si-safety-deck-index span{font-size:13px;color:#7f9691}
+.si-safety-deck-nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin-bottom:12px}
+.si-safety-deck-nav button{display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;min-width:0;padding:8px 5px;background:#eaf3f0;border:1px solid #d3e5df;border-radius:12px;color:#355d55;cursor:pointer;font:inherit;font-weight:750;font-size:12px;letter-spacing:-.015em;white-space:nowrap}
+.si-safety-deck-nav button.is-active{background:#15443e;color:#f7fffd;border-color:#15443e;box-shadow:0 5px 12px #16483d20}
+.si-safety-deck-nav button:focus-visible,.si-safety-card button:focus-visible,.si-safety-card a:focus-visible,.si-safety-deck-bottom button:focus-visible{outline:3px solid #ebbd5b;outline-offset:3px}
+.si-safety-deck-nav-number{opacity:.65;font-size:10px;letter-spacing:0}
+.si-safety-card{position:relative;isolation:isolate;overflow:hidden;border:1px solid #477b75;border-radius:22px;background:#0c2831;color:var(--sc-ink);box-shadow:0 19px 44px #113b3726,0 3px 8px #113b3710;min-height:355px;animation:si-card-appear .3s ease-out}
+.si-safety-card:before{content:"";position:absolute;pointer-events:none;inset:0;background:radial-gradient(circle at 100% -6%,#55b69f39,transparent 45%),linear-gradient(135deg,transparent 48%,#a0eed308 49%,transparent 54%);z-index:-1}
+.si-safety-card-bar,.si-safety-card-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 17px;font-size:10px;font-weight:850;letter-spacing:.1em}
+.si-safety-card-bar{border-bottom:1px solid var(--sc-line);color:var(--sc-accent)}
+.si-safety-card-mark{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.si-safety-card-phase{color:var(--sc-gold);white-space:nowrap;font-size:9px}
+.si-safety-card-title{padding:18px 20px 13px;min-width:0}
+.si-safety-card-status{display:inline-flex;align-items:center;border:1px solid #a5ddcd55;border-radius:999px;background:#15534a;padding:5px 10px;color:#c1f2df;font-size:11px;font-weight:750;line-height:1.3}
+.si-safety-card-title h4,.si-safety-card-body h4{font-size:clamp(20px,4.2vw,30px)!important;font-weight:850;line-height:1.25;letter-spacing:-.045em;margin:13px 0 9px!important;color:#fff;word-break:keep-all;overflow-wrap:anywhere}
+.si-safety-card-title p{font-size:13px;line-height:1.6;margin:0!important;color:#d0e3e1;word-break:keep-all;overflow-wrap:anywhere}
+.si-safety-card-media{position:relative;width:calc(100% - 40px);margin:4px 20px 12px;min-height:155px;height:clamp(165px,34vw,280px);border-radius:13px;background:#04151d;border:1px solid #5a85775e;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.si-safety-card-media img{display:block;width:100%;height:100%;object-fit:contain;object-position:center}
+.si-safety-card-no-photo{font-size:12px;color:#aec8c6}
+.si-safety-card-photo-hint{position:absolute;bottom:8px;left:8px;max-width:calc(100% - 16px);padding:5px 7px;border-radius:6px;background:#081a1fe3;color:#d0e3de;font-size:10px;line-height:1.3}
+.si-safety-card-zoom{position:absolute;top:8px;right:8px;min-height:35px;padding:6px 11px;border-radius:8px;border:1px solid #9cd6c8;background:#103e3beb;color:#fff;cursor:pointer;font-size:11px;font-weight:750}
+.si-safety-card-risk-footer{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:0 20px 12px}
+.si-safety-card-risk-footer>div{display:flex;flex-direction:column;gap:5px;min-width:0;padding:11px 12px;border-radius:9px;background:#183c3e;border:1px solid #6aa5994a}
+.si-safety-card-risk-footer span{font-size:10px;color:#a6c0bd}
+.si-safety-card-risk-footer strong{font-size:13px;line-height:1.35;color:#ecfff9;word-break:keep-all}
+.si-safety-card-finding-select{display:flex;gap:6px;flex-wrap:wrap;margin:0 20px 12px}
+.si-safety-card-finding-select button{min-height:34px;padding:6px 10px;background:#10333b;border:1px solid #5e9286;border-radius:8px;color:#d2ebe4;font-size:11px;cursor:pointer}
+.si-safety-card-finding-select button[aria-pressed=true]{background:#c1ecd9;color:#124034;border-color:#c1ecd9;font-weight:800}
+.si-safety-card-disclaimer{margin:0 20px 18px!important;color:#b2cfca;font-size:11px;line-height:1.55;word-break:keep-all}
+.si-safety-card-foot{border-top:1px solid var(--sc-line);color:#9bb6b4;font-size:9px;letter-spacing:.055em;min-height:42px}
+.si-safety-card-body{padding:18px 20px 22px}
+.si-safety-card-body h4{margin-top:7px!important;margin-bottom:16px!important}
+.si-safety-card-eyebrow{font-size:11px!important;color:#86e2c8!important;font-weight:850;letter-spacing:.08em;margin:0!important}
+.si-safety-card-feature{display:flex;gap:14px;align-items:flex-start;border:1px solid #96e2c570;border-radius:13px;background:#23574e;padding:15px;margin-bottom:15px}
+.si-safety-card-feature-number{font-weight:900;font-size:24px;color:#d2f8e8;line-height:1;flex:0 0 auto}
+.si-safety-card-feature p{font-size:15px;line-height:1.55;font-weight:750;color:#effefa;margin:0!important;word-break:keep-all}
+.si-safety-card-mini-list{display:grid;gap:8px;margin-bottom:14px}
+.si-safety-card-mini-list h5{margin:0!important;font-size:12px;color:#9ecbc0}
+.si-safety-card-mini-list>div,.si-safety-card-checks>div{display:flex;align-items:flex-start;gap:13px;background:#133b3f;padding:10px 12px;border:1px solid #658c813c;border-radius:10px}
+.si-safety-card-mini-list>div span,.si-safety-card-checks>div span{color:#b3e6d4;font-weight:850;font-size:12px;flex:0 0 auto}
+.si-safety-card-mini-list p,.si-safety-card-checks p{margin:0!important;font-size:12px;line-height:1.6;color:#e4f0ed;word-break:keep-all}
+.si-safety-card-evidence-block{border-left:3px solid #89dcca;padding:6px 11px 7px;margin-bottom:12px;background:#173a4077;border-radius:0 8px 8px 0}
+.si-safety-card-evidence-block span{display:block;font-size:11px;color:#9fe4ce;margin-bottom:6px;font-weight:800}
+.si-safety-card-evidence-block p{font-size:13px;line-height:1.6;color:#edf6f2;margin:0 0 6px!important;white-space:pre-wrap;overflow-wrap:anywhere;word-break:keep-all}
+.si-safety-card-evidence-block p small{font-size:10px;color:#c4d4ca;white-space:nowrap}
+.si-safety-card-lead{font-size:12px;line-height:1.6;color:#cbe3db;margin:0 0 15px!important}
+.si-safety-card-source{display:grid;gap:7px;padding:13px 14px;border-radius:12px;margin-bottom:9px;background:#173e41;border:1px solid #77aa9763}
+.si-safety-card-source strong{font-size:14px;line-height:1.4;color:#f4fff9;word-break:keep-all}
+.si-safety-card-source span{font-size:11px;line-height:1.5;color:#d4e6df}
+.si-safety-card-source a{font-size:12px;font-weight:750;color:#b9efcd;text-underline-offset:3px;min-height:30px;display:inline-flex;align-items:center}
+.si-safety-card-checks{display:grid;gap:8px;margin-bottom:18px}
+.si-safety-card-cta{display:flex;flex-wrap:wrap;gap:9px;margin:10px 0 18px}
+.si-safety-card-cta button{min-height:44px;padding:9px 14px;border:1px solid #a9e5ce;border-radius:10px;background:#bcecd9;color:#143b32;font:inherit;font-size:12px;font-weight:800;cursor:pointer}
+.si-safety-card-cta button.is-secondary{background:transparent;color:#d3f5e6;border-color:#669f8c}
+.si-safety-card-cta button:disabled,.si-safety-card-finding-select button:disabled{opacity:.52;cursor:not-allowed}
+.si-safety-deck-bottom{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0 0}
+.si-safety-deck-bottom p{font-size:11px;line-height:1.5;color:#607d73;margin:0!important}
+.si-safety-deck-bottom button{flex:0 0 auto;min-height:42px;background:#edf7f2;border:1px solid #c0ddd1;border-radius:11px;padding:8px 12px;font:inherit;font-size:12px;font-weight:800;color:#22584b;cursor:pointer}
+.si-safety-deck-bottom button:disabled{opacity:.6}
+@keyframes si-card-appear{from{opacity:.6;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:600px){
+ .si-safety-deck{margin:16px 0 20px}
+ .si-safety-deck-nav{gap:5px}
+ .si-safety-deck-nav button{flex-direction:column;gap:3px;font-size:11px;padding:6px 2px;min-height:52px}
+ .si-safety-deck-nav-number{font-size:9px}
+ .si-safety-deck-heading h3{font-size:20px!important}
+ .si-safety-deck-heading p{font-size:11px}
+ .si-safety-card{border-radius:17px;min-height:310px}
+ .si-safety-card-bar,.si-safety-card-foot{padding:11px 13px}
+ .si-safety-card-bar{font-size:9px}
+ .si-safety-card-title{padding:15px 15px 10px}
+ .si-safety-card-title h4,.si-safety-card-body h4{font-size:21px!important}
+ .si-safety-card-title p{font-size:12px}
+ .si-safety-card-media{width:calc(100% - 30px);margin:4px 15px 11px;height:clamp(170px,48vw,245px)}
+ .si-safety-card-risk-footer{margin:0 15px 12px;gap:6px}
+ .si-safety-card-risk-footer>div{padding:10px}
+ .si-safety-card-risk-footer strong{font-size:12px}
+ .si-safety-card-finding-select{margin:0 15px 10px}
+ .si-safety-card-disclaimer{margin:0 15px 15px!important}
+ .si-safety-card-body{padding:17px 15px}
+ .si-safety-deck-bottom{align-items:stretch;flex-direction:column}
+ .si-safety-deck-bottom button{width:100%}
+}
+@media(max-width:350px){
+ .si-safety-card-mark{font-size:8px}
+ .si-safety-card-phase{font-size:8px}
+ .si-safety-deck-index{font-size:20px}
+ .si-safety-deck-nav button{font-size:10px}
+ .si-safety-card-cta button{width:100%}
+}
+.dark .si-safety-deck-heading h3{color:#e3f5ef}
+.dark .si-safety-deck-heading p,.dark .si-safety-deck-bottom p{color:#b4cec3}
+.dark .si-safety-deck-nav button:not(.is-active){background:#153e3a;color:#d1eee2;border-color:#357266}
+.dark .si-safety-deck-bottom button{background:#1e4a3e;color:#e4fff4;border-color:#518c78}
+@media(prefers-reduced-motion:reduce){.si-safety-card{animation:none!important}}
+@media print{.si-safety-deck-nav,.si-safety-deck-bottom,.si-safety-card-zoom,.si-safety-card-cta,.si-safety-card-finding-select{display:none!important}.si-safety-card{box-shadow:none;border-color:#555;background:#fff;color:#222}.si-safety-card *{color:#222!important;text-shadow:none!important}.si-safety-card:before{display:none}.si-safety-card-media{background:#fff}}
+
+
+/* PSI_SAFETY_CARD_HYBRID_DESIGN_V2_20261029
+  One PSI identity, four genuine visual grammars.
+  Risk = cinematic dark; action = light field workflow;
+  evidence = stacked verification; references = trustworthy library;
+  handoff = clean communication. No game IP or fabricated risk overlays. */
+.si-safety-deck{
+  --psi-card-font:-apple-system,BlinkMacSystemFont,"Pretendard","Noto Sans KR",system-ui,sans-serif;
+  font-family:var(--psi-card-font);
+}
+.si-safety-deck-heading{margin-bottom:16px;align-items:center}
+.si-safety-deck-heading h3{font-weight:850!important;letter-spacing:-.06em}
+.si-safety-deck-kicker{letter-spacing:.13em}
+.si-safety-deck-index{font-variant-numeric:tabular-nums}
+.si-safety-deck-nav{gap:7px;margin-bottom:14px}
+.si-safety-deck-nav button{
+  position:relative;min-height:68px;padding:11px 8px 10px;
+  flex-direction:column;gap:5px;
+  overflow:hidden;border-radius:14px;
+  transition:transform .18s ease,background .18s ease,border-color .18s ease;
+}
+.si-safety-deck-nav button:hover{transform:translateY(-2px)}
+.si-safety-deck-nav button.is-active{
+  background:linear-gradient(135deg,#0d453e,#1b6759);
+  box-shadow:0 7px 19px #194a3a32;
+}
+.si-safety-deck-nav-ornament{display:grid;place-items:center;width:22px;height:22px;color:inherit}
+.si-safety-deck-nav-ornament .si-icon{width:19px;height:19px}
+.si-safety-deck-nav-copy{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;gap:1px;line-height:1.3}
+.si-safety-deck-nav-copy strong{font-size:12px;font-weight:850;white-space:nowrap}
+.si-safety-deck-nav-copy small{font-size:10px;font-weight:600;opacity:.72;white-space:nowrap}
+.si-safety-deck-nav-number{
+  position:absolute;top:4px;right:8px;
+  font-variant-numeric:tabular-nums;font-size:9px;
+}
+.si-safety-card{
+  --psi-card-text:#e4faf6;--psi-card-accent:#8eebd0;
+  border:1px solid #446e69;border-radius:23px;
+  box-shadow:0 22px 46px #122e2930,0 5px 12px #122e2916;
+}
+.si-safety-card-bar{padding:14px 18px;letter-spacing:.07em}
+.si-safety-card-phase{display:inline-flex;align-items:center;gap:6px}
+.si-safety-card-phase-pip{
+  display:inline-block;width:5px;height:5px;border-radius:100%;
+  background:currentColor;box-shadow:0 0 8px currentColor;
+}
+.si-safety-card-risk{
+  background:linear-gradient(148deg,#122e39 0%,#081d2a 60%,#082529 100%);
+  border-color:#a18d5d75;
+}
+.si-safety-card-risk:before{
+  background:radial-gradient(ellipse at 96% 6%,#4bbda634,transparent 49%),
+             repeating-linear-gradient(136deg,transparent 0,transparent 30px,#b7e6dd07 31px,transparent 32px);
+}
+.si-safety-card-risk .si-safety-card-bar{border-bottom-color:#ac9e6747}
+.si-safety-card-risk .si-safety-card-phase{color:#efcb7f}
+.si-safety-card-risk .si-safety-card-title h4{font-weight:900;letter-spacing:-.055em}
+.si-safety-card-risk .si-safety-card-status{
+  background:#174e4d;border-color:#9bd0bb80;color:#ddfff4;
+}
+.si-safety-card-risk[data-priority="immediate"] .si-safety-card-status{
+  background:#5d3729;border-color:#dfa06f;color:#ffe3c1;
+}
+.si-safety-card-risk .si-safety-card-media{
+  border:1px solid #c3ad737c;
+  box-shadow:inset 0 0 0 1px #173d3f,0 14px 30px #0005;
+}
+.si-safety-card-risk .si-safety-card-media:after{
+  content:"";position:absolute;inset:8px;pointer-events:none;
+  border:1px solid #bcebdc4d;border-radius:9px;
+  background:linear-gradient(to right,#c6f9df 0 17px,transparent 17px) 0 0/42px 2px no-repeat,
+             linear-gradient(to bottom,#c6f9df 0 17px,transparent 17px) 0 0/2px 42px no-repeat,
+             linear-gradient(to left,#c6f9df 0 17px,transparent 17px) 100% 100%/42px 2px no-repeat,
+             linear-gradient(to top,#c6f9df 0 17px,transparent 17px) 100% 100%/2px 42px no-repeat;
+}
+.si-safety-card-risk .si-safety-card-risk-footer>div{background:#19383d}
+.si-safety-card-advance{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  width:calc(100% - 40px);min-height:47px;margin:0 20px 14px;
+  padding:10px 14px;border-radius:11px;border:1px solid #d9bc7e;
+  background:linear-gradient(120deg,#f5dda4,#d7b36b);
+  color:#3b321d;font:inherit;font-size:13px;font-weight:850;
+  cursor:pointer;line-height:1.4;
+}
+.si-safety-card-advance .si-icon{flex:0 0 18px;width:18px;height:18px}
+.si-safety-card-advance:hover{filter:brightness(1.05)}
+/* A clear, document-like action card — no loss of provenance labels. */
+.si-safety-card-action,.si-safety-card-reference,.si-safety-card-handoff{
+  color:#203d39;background:#f8fbf9;border-color:#c9ded5;
+  --psi-card-accent:#14775a;
+  box-shadow:0 16px 36px #123f3423;
+}
+.si-safety-card-action:before,.si-safety-card-reference:before,.si-safety-card-handoff:before{
+  background:radial-gradient(ellipse at 100% 0%,#b5eddc69,transparent 53%);
+}
+.si-safety-card-action .si-safety-card-bar,.si-safety-card-reference .si-safety-card-bar,.si-safety-card-handoff .si-safety-card-bar{
+  background:#eaf5ef;color:#226e59;border-bottom:1px solid #d1e8db;
+}
+.si-safety-card-action .si-safety-card-phase,.si-safety-card-reference .si-safety-card-phase,.si-safety-card-handoff .si-safety-card-phase{color:#357d6c}
+.si-safety-card-action .si-safety-card-eyebrow,.si-safety-card-reference .si-safety-card-eyebrow,.si-safety-card-handoff .si-safety-card-eyebrow{
+  color:#258069!important;
+}
+.si-safety-card-action h4,.si-safety-card-reference h4,.si-safety-card-handoff h4{color:#143d36!important}
+.si-safety-card-action .si-safety-card-foot,.si-safety-card-reference .si-safety-card-foot,.si-safety-card-handoff .si-safety-card-foot{
+  border-top-color:#dce8e2;color:#67877e;
+}
+.si-safety-card-action .si-safety-card-context{
+  display:flex;align-items:center;gap:11px;
+  padding:9px;margin:0 0 15px;
+  border:1px solid #d5e6e0;border-radius:13px;
+  background:linear-gradient(110deg,#edf5f1,#fff);
+}
+.si-safety-card-context img{
+  display:block;width:92px;height:72px;max-width:35%;
+  object-fit:contain;object-position:center;flex:0 0 92px;
+  border-radius:9px;background:#123039;border:1px solid #b2d2c5;
+}
+.si-safety-card-context>div{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.si-safety-card-context>div span{font-size:9px;font-weight:800;letter-spacing:.08em;color:#338b75}
+.si-safety-card-context>div strong{font-size:12px;line-height:1.45;color:#163f36;word-break:keep-all}
+.si-safety-card-context>div small{font-size:10px;line-height:1.4;color:#6c8880;word-break:keep-all}
+.si-safety-card-context button{
+  display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;
+  background:#e3f3ec;color:#1a6552;border:1px solid #b8dac8;
+  border-radius:8px;cursor:pointer;
+}
+.si-safety-card-context button .si-icon{width:17px;height:17px}
+.si-safety-card-action .si-safety-card-feature{
+  background:linear-gradient(138deg,#eef9f5,#dff2e8);
+  border-color:#abd7c7;border-left:4px solid #1a9673;
+  box-shadow:0 4px 12px #176e4520;
+}
+.si-safety-card-action .si-safety-card-feature-number{color:#187c5f}
+.si-safety-card-action .si-safety-card-feature p{color:#174138;font-size:15px}
+.si-safety-card-action .si-safety-card-mini-list>div{
+  background:#f0f5f3;border-color:#dce6e1;
+}
+.si-safety-card-action .si-safety-card-mini-list h5{color:#336b57}
+.si-safety-card-action .si-safety-card-mini-list>div span{color:#24825e}
+.si-safety-card-action .si-safety-card-mini-list>div p{color:#263f39}
+.si-safety-card-action .si-safety-card-disclaimer,.si-safety-card-reference .si-safety-card-disclaimer,.si-safety-card-handoff .si-safety-card-disclaimer{
+  color:#657e76;
+}
+/* Evidence is visually stacked and classified, never treated as verified fact. */
+.si-safety-card-evidence{
+  background:linear-gradient(150deg,#193e4d,#0c2531 75%);
+  border-color:#7399a180;
+}
+.si-safety-card-evidence:before{
+  background:radial-gradient(circle at 100% 0%,#6ccabe32,transparent 48%);
+}
+.si-safety-card-evidence .si-safety-card-body{position:relative}
+.si-safety-card-evidence .si-safety-card-evidence-block{
+  position:relative;border:1px solid #749f9c58;border-left:4px solid #91d7c2;
+  border-radius:12px;background:#f3f9f7;
+  box-shadow:0 6px 14px #0002;
+  margin-bottom:10px;padding:12px 13px;
+}
+.si-safety-card-evidence .si-safety-card-evidence-block:nth-of-type(2){margin-left:4px;border-left-color:#64bde2;background:#eef8fc}
+.si-safety-card-evidence .si-safety-card-evidence-block:nth-of-type(3){margin-left:8px;border-left-color:#e3b76c;background:#fff7e9}
+.si-safety-card-evidence .si-safety-card-evidence-block:nth-of-type(4){margin-left:12px;border-left-color:#e49a96;background:#fff1ed}
+.si-safety-card-evidence .si-safety-card-evidence-block span{color:#2d675a;font-size:12px}
+.si-safety-card-evidence .si-safety-card-evidence-block:nth-of-type(2) span{color:#286b89}
+.si-safety-card-evidence .si-safety-card-evidence-block:nth-of-type(3) span{color:#9a6424}
+.si-safety-card-evidence .si-safety-card-evidence-block:nth-of-type(4) span{color:#a44443}
+.si-safety-card-evidence .si-safety-card-evidence-block p{color:#203b3d;font-size:13px}
+.si-safety-card-evidence .si-safety-card-evidence-block p small{color:#5d7977}
+/* Verified-status labeling gets more prominence than decorative glamour. */
+.si-safety-card-reference .si-safety-card-source{
+  background:#f5faf7;border:1px solid #d8e6df;
+  border-left:4px solid #55ad92;
+  padding:14px 15px;
+}
+.si-safety-card-reference .si-safety-card-source:nth-of-type(2){
+  background:#fff8ee;border-color:#eee0cb;border-left-color:#c3a16d;
+}
+.si-safety-card-reference .si-safety-card-source:nth-of-type(3){
+  background:#f1f6fb;border-color:#d8e4f1;border-left-color:#7aa3cb;
+}
+.si-safety-card-reference .si-safety-card-source strong{color:#244239;font-size:14px}
+.si-safety-card-reference .si-safety-card-source span{color:#53766d}
+.si-safety-card-reference .si-safety-card-source a{color:#1a705d}
+.si-safety-card-reference .si-safety-card-lead{color:#597a71}
+.si-safety-card-reference .si-safety-card-cases{
+  border-top:1px solid #cfe5d8;margin-top:14px;padding-top:13px
+}
+.si-safety-card-reference .si-safety-card-cases h5{color:#20574d;font-size:13px;margin:0 0 6px}
+.si-safety-card-reference .si-safety-card-cases>p{color:#607f75;font-size:11px;margin:0 0 10px;line-height:1.55}
+.si-safety-card-handoff .si-safety-card-checks>div{
+  background:#eff6f3;border-color:#d4e8dd;
+}
+.si-safety-card-handoff .si-safety-card-checks>div span{color:#137d61}
+.si-safety-card-handoff .si-safety-card-checks p{color:#294941}
+.si-safety-card-handoff .si-safety-card-cta button{
+  background:linear-gradient(120deg,#0c6c58,#168969);
+  color:#fff;border-color:#08705a;box-shadow:0 5px 14px #0e7c5b22;
+}
+.si-safety-card-handoff .si-safety-card-cta button.is-secondary{
+  background:#fff;color:#226b56;border-color:#b0d7c5;box-shadow:none;
+}
+@media(max-width:600px){
+  .si-safety-deck-nav{gap:5px}
+  .si-safety-deck-nav button{min-height:59px;padding:10px 2px 8px;gap:3px;border-radius:10px}
+  .si-safety-deck-nav-ornament{width:18px;height:18px}
+  .si-safety-deck-nav-ornament .si-icon{width:16px;height:16px}
+  .si-safety-deck-nav-copy strong{font-size:11px}
+  .si-safety-deck-nav-copy small{display:none}
+  .si-safety-deck-nav-number{top:3px;right:4px;font-size:8px}
+  .si-safety-card-advance{width:calc(100% - 30px);margin:0 15px 13px}
+  .si-safety-card-action .si-safety-card-context{gap:8px}
+  .si-safety-card-context img{width:76px;height:65px;flex-basis:76px}
+  .si-safety-card-context>div strong{font-size:11px}
+  .si-safety-card-context>div small{font-size:9px}
+  .si-safety-card-context button{flex-basis:30px;width:30px;height:30px}
+  .si-safety-card-evidence .si-safety-card-evidence-block:nth-of-type(n){margin-left:0}
+}
+@media(max-width:350px){
+  .si-safety-card-context img{width:63px;height:58px;flex-basis:63px}
+  .si-safety-card-context>div small{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+  .si-safety-deck-nav button{transition:none!important}
+  .si-safety-deck-nav button:hover{transform:none}
+}
+@media print{
+  .si-safety-card-action,.si-safety-card-reference,.si-safety-card-handoff,.si-safety-card-evidence{
+    background:#fff!important;color:#222!important;
+  }
+  .si-safety-card-evidence .si-safety-card-evidence-block{
+    box-shadow:none!important;
+  }
+}
+
+/* PSI_SAFETY_CARD_CLIENT_SHARE_V2_20261029 */
+.si-safety-deck-export{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  border:1px solid #cae3d7;background:linear-gradient(115deg,#eaf6ef,#f7fbf9);
+  border-radius:14px;padding:12px 14px;margin:12px 0 5px;
+}
+.si-safety-deck-export>div{min-width:0;flex:1 1 auto}
+.si-safety-deck-export strong{color:#24584a;font-size:13px;font-weight:850}
+.si-safety-deck-export p{font-size:11px;color:#537769;line-height:1.5;margin:4px 0 0!important;word-break:keep-all}
+.si-safety-deck-export button{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  flex:0 0 auto;min-height:44px;padding:8px 14px;
+  border:1px solid #176c58;border-radius:11px;background:#116b55;color:#fff;
+  font:inherit;font-size:12px;font-weight:850;cursor:pointer;
+}
+.si-safety-deck-export button .si-icon{width:17px;height:17px}
+.si-safety-deck-export button:disabled{opacity:.55;cursor:wait}
+.si-safety-deck-export button:focus-visible{outline:3px solid #e8b95d;outline-offset:2px}
+.si-safety-deck-export-message{font-size:11px;color:#426d60;line-height:1.45;margin:0 2px!important}
+.si-safety-deck-export-message:empty{display:none}
+.dark .si-safety-deck-export{background:#153d37;border-color:#336c57}
+.dark .si-safety-deck-export strong{color:#d8f8e6}
+.dark .si-safety-deck-export p,.dark .si-safety-deck-export-message{color:#bddbcb}
+.dark .si-safety-deck-export button{background:#b8ead7;color:#113e35;border-color:#b8ead7}
+@media(max-width:600px){
+  .si-safety-deck-export{flex-direction:column;align-items:stretch;padding:12px}
+  .si-safety-deck-export button{width:100%}
+}
+@media print{.si-safety-deck-export,.si-safety-deck-export-message{display:none!important}}
+
+
+/* PSI safety cards: continuous photo provenance and one-handed browsing */
+.si-safety-card-photo-strip{
+  display:flex;align-items:center;gap:10px;
+  margin:0 0 16px;padding:10px;
+  border:1px solid #62857a65;border-radius:13px;
+  background:#16373f;color:#e6faf5;
+}
+.si-safety-card-photo-strip img{
+  display:block;flex:0 0 84px;width:84px;height:72px;object-fit:contain;
+  border:1px solid #80ab9b66;border-radius:9px;background:#0c2630;
+}
+.si-safety-card-photo-strip>div{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+.si-safety-card-photo-strip>div span{font-size:9px;font-weight:800;letter-spacing:.07em;color:#87d4bd}
+.si-safety-card-photo-strip>div strong{font-size:12px;line-height:1.4;overflow-wrap:anywhere;word-break:keep-all}
+.si-safety-card-photo-strip>div small{font-size:10px;line-height:1.4;word-break:keep-all;color:#c0dad1}
+.si-safety-card-photo-strip>button{
+  display:grid;place-items:center;flex:0 0 34px;
+  height:34px;width:34px;border-radius:9px;border:1px solid #8dc7b5;
+  color:inherit;background:#27534f;cursor:pointer;
+}
+.si-safety-card-reference .si-safety-card-photo-strip,
+.si-safety-card-handoff .si-safety-card-photo-strip{
+  background:#e9f4ef;color:#173b35;border-color:#cbded4;
+}
+.si-safety-card-reference .si-safety-card-photo-strip>div strong,
+.si-safety-card-handoff .si-safety-card-photo-strip>div strong{color:#173b35}
+.si-safety-card-reference .si-safety-card-photo-strip>div small,
+.si-safety-card-handoff .si-safety-card-photo-strip>div small{color:#59796d}
+.si-safety-card-reference .si-safety-card-photo-strip>button,
+.si-safety-card-handoff .si-safety-card-photo-strip>button{background:#d9ede3;color:#206351;border-color:#a7cbbb}
+.si-safety-deck-pagination{
+  display:grid;grid-template-columns:minmax(75px,1fr) minmax(100px,1.5fr) minmax(75px,1fr);
+  align-items:center;gap:8px;margin-top:12px;
+  font-variant-numeric:tabular-nums;
+}
+.si-safety-deck-pagination button{
+  min-height:44px;display:flex;align-items:center;justify-content:center;gap:8px;
+  border:1px solid #bad9ce;border-radius:11px;background:#eaf6f0;
+  color:#215c4e;font:inherit;font-size:12px;font-weight:800;cursor:pointer;
+}
+.si-safety-deck-pagination button:last-child{background:#146b55;color:#fff;border-color:#146b55}
+.si-safety-deck-pagination button:disabled{opacity:.37;cursor:default}
+.si-safety-deck-pagination button .si-icon{width:15px;height:15px}
+.si-safety-deck-pagination button:first-child .si-icon{transform:rotate(180deg)}
+.si-safety-deck-pagination>span{text-align:center;color:#456b60;font-size:12px;font-weight:800;word-break:keep-all}
+.si-safety-deck-pagination button:focus-visible,.si-safety-card-photo-strip>button:focus-visible{
+  outline:3px solid #e8ba63;outline-offset:2px;
+}
+@media(max-width:380px){
+  .si-safety-card-photo-strip{gap:8px;padding:7px}
+  .si-safety-card-photo-strip img{flex-basis:66px;width:66px;height:60px}
+  .si-safety-card-photo-strip>div strong{font-size:11px}
+  .si-safety-card-photo-strip>div small{font-size:9px}
+  .si-safety-card-photo-strip>button{flex-basis:30px;width:30px;height:30px}
+  .si-safety-deck-pagination{gap:5px;grid-template-columns:72px minmax(0,1fr) 72px}
+  .si-safety-deck-pagination button{font-size:11px}
+  .si-safety-deck-pagination>span{font-size:11px}
+}
+.dark .si-safety-deck-pagination>span{color:#c0ded3}
+.dark .si-safety-deck-pagination button{border-color:#427965}
+@media print{.si-safety-deck-pagination,.si-safety-card-photo-strip>button{display:none!important}}
+
+
+/* PSI_CARD_READABILITY_REVIEW_20261029
+   Visual review of real 390px Chromium screenshots: prioritize outdoor legibility. */
+.si-safety-deck-heading p{font-size:13px;line-height:1.55}
+.si-safety-card-mark{font-size:10px}
+.si-safety-card-phase{font-size:10px}
+.si-safety-card-title p{font-size:14px;line-height:1.62}
+.si-safety-card-risk-footer span{font-size:12px}
+.si-safety-card-risk-footer strong{font-size:14px;line-height:1.45}
+.si-safety-card-evidence .si-safety-card-evidence-block p{font-size:14px;line-height:1.65}
+.si-safety-card-evidence .si-safety-card-evidence-block p small{font-size:11px;line-height:1.5}
+.si-safety-card-action .si-safety-card-mini-list>div p{font-size:13px;line-height:1.65}
+.si-safety-card-source span{font-size:12px;line-height:1.55}
+.si-safety-card-source strong{line-height:1.5}
+.si-safety-card-lead{font-size:13px;line-height:1.6}
+.si-safety-card-disclaimer{font-size:12px;line-height:1.6}
+.si-safety-card-foot{font-size:10px;line-height:1.45}
+.si-safety-card-photo-hint{font-size:11px}
+.si-safety-card-checks p{font-size:13px;line-height:1.6}
+.si-safety-deck-export p,.si-safety-deck-bottom p{font-size:12px;line-height:1.6}
+.si-safety-card-photo-strip>div strong{font-size:13px}
+.si-safety-card-photo-strip>div small{font-size:11px}
+@media(max-width:600px){
+ .si-safety-deck-heading p{font-size:12px;line-height:1.6}
+ .si-safety-deck-nav button{min-height:64px}
+ .si-safety-deck-nav-copy strong{font-size:12px}
+ .si-safety-card-title p{font-size:13px;line-height:1.65}
+ .si-safety-card-risk-footer span{font-size:11px}
+ .si-safety-card-risk-footer strong{font-size:13px}
+ .si-safety-card-evidence .si-safety-card-evidence-block p{font-size:13px}
+ .si-safety-card-action .si-safety-card-mini-list>div p{font-size:13px}
+ .si-safety-card-photo-strip>div strong{font-size:12px}
+ .si-safety-card-photo-strip>div small{font-size:10px}
+ .si-safety-card-disclaimer{font-size:12px}
+ .si-safety-card-source span{font-size:12px}
+ .si-safety-card-foot{font-size:10px}
+}
