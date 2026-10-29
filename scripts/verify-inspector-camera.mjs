@@ -12,7 +12,7 @@ try{
  for(const scenario of ['landscape','portrait','unsupported','late-stream','native-fallback','storage-blocked']){
   if(process.env.PSI_CAMERA_SCENARIOS&&!process.env.PSI_CAMERA_SCENARIOS.split(',').includes(scenario))continue;
   console.log('START '+scenario);
-  const context=await browser.newContext({viewport:{width:390,height:900},ignoreHTTPSErrors:!!external,reducedMotion:'reduce'}),page=await context.newPage(),ops=[],errors=[];
+  const context=await browser.newContext({viewport:scenario==='landscape'?{width:844,height:390}:{width:390,height:900},ignoreHTTPSErrors:!!external,reducedMotion:'reduce'}),page=await context.newPage(),ops=[],errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/api/admin/auth',r=>r.fulfill({json:{ok:true,authenticated:true}}));
   await page.route('**/api/admin/inspector',r=>{const b=r.request().postDataJSON();ops.push(b.op);assert.equal(b.op,'ai-status','Capture must not create, upload or analyze');return r.fulfill({json:{ok:true,ready:true,provider:'gemini',model:'fixture'}});});
@@ -33,23 +33,35 @@ try{
   await page.goto(base+'/?mode=photo-inspector',{waitUntil:'domcontentloaded'});await page.getByRole('heading',{name:'사진만 찍어도 점검을 시작할 수 있습니다'}).waitFor();
   if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','가로 촬영'));}
   await page.getByRole('button',{name:'사진 찍고 점검하기',exact:true}).click();const dialog=page.getByRole('dialog',{name:'카메라로 바로 촬영',exact:true});await dialog.waitFor();
-  const modes=dialog.getByRole('group',{name:'촬영 방향',exact:true}),landscape=modes.getByRole('button',{name:'가로',exact:false}),portrait=modes.getByRole('button',{name:'세로',exact:false});assert.equal(await landscape.getAttribute('aria-pressed'),'true');
+  const modes=dialog.getByRole('group',{name:'촬영 방향',exact:true}),landscape=modes.getByRole('button',{name:'가로',exact:false}),portrait=modes.getByRole('button',{name:'세로',exact:false});assert.equal(await landscape.getAttribute('aria-pressed'),scenario==='landscape'?'true':'false');
   if(scenario==='native-fallback'){
    await dialog.getByRole('alert').waitFor();assert.equal(await dialog.getByRole('button',{name:'지금 촬영',exact:true}).isDisabled(),true);await portrait.click();await dialog.getByRole('alert').waitFor();
    const input=dialog.getByLabel('기기 카메라로 촬영',{exact:true});assert.equal(await input.getAttribute('capture'),'environment');const source=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=720;c.height=960;c.getContext('2d').fillRect(0,0,720,960);return c.toDataURL('image/jpeg').split(',')[1];});await input.setInputFiles({name:'native-portrait.jpg',mimeType:'image/jpeg',buffer:Buffer.from(source,'base64')});
   }else{
-   if(['portrait','unsupported','storage-blocked','late-stream'].includes(scenario)){if(scenario==='portrait'){await portrait.focus();await page.keyboard.press('Enter');}else await portrait.click();await page.waitForFunction(()=>window.__cameraRequests.length>=2);}
+   if(scenario==='landscape'){
+    await portrait.click();
+    await page.waitForFunction(()=>window.__cameraRequests.at(-1)?.video?.aspectRatio?.ideal===3/4);
+    await landscape.click();
+    await page.waitForFunction(()=>window.__cameraRequests.at(-1)?.video?.aspectRatio?.ideal===16/9);
+   }
+   if(['portrait','unsupported','storage-blocked','late-stream'].includes(scenario)){
+    await page.setViewportSize({width:844,height:390});
+    await page.waitForFunction(()=>window.__cameraRequests.at(-1)?.video?.aspectRatio?.ideal===16/9);
+    if(scenario==='portrait'){await portrait.focus();await page.keyboard.press('Enter');}else await portrait.click();
+    await page.waitForFunction(()=>window.__cameraRequests.at(-1)?.video?.aspectRatio?.ideal===3/4);
+    await page.setViewportSize({width:390,height:900});
+   }
    await page.waitForFunction(()=>document.querySelector('.si-camera-actions .si-primary')?.disabled===false);
    if(scenario==='late-stream'){await page.evaluate(()=>window.__releaseFirst());await page.waitForFunction(()=>window.__streams[0].getTracks().every(t=>t.readyState==='ended'));}
    const request=await page.evaluate(()=>window.__cameraRequests.at(-1));assert.equal(request.audio,false);assert.equal(request.video.facingMode.ideal,'environment');assert.equal(request.video.resizeMode.ideal,'none');assert.equal(request.video.aspectRatio.ideal,['landscape'].includes(scenario)?16/9:3/4);assert.ok(!JSON.stringify(request).includes('exact'));
    const actual=await dialog.locator('video').evaluate(v=>({width:v.videoWidth,height:v.videoHeight}));assert.deepEqual(actual,scenario==='landscape'||scenario==='unsupported'?{width:1280,height:720}:{width:720,height:960});
-   if(scenario==='unsupported')assert.match(await dialog.locator('.si-camera-frame-status').innerText(),/선택 방향과 다릅니다/);
+   if(scenario==='unsupported')assert.match((await dialog.locator('.si-camera-frame-status').textContent())||'',/선택한 방향과 실제 영상 비율이 다릅니다/);
    else assert.equal(await dialog.locator('.si-camera-frame-status>span').count(),0);
    if(scenario==='portrait'){
     await dialog.getByRole('button',{name:'전면·후면 전환',exact:true}).click();await page.waitForFunction(()=>window.__cameraRequests.at(-1)?.video.facingMode.ideal==='user'&&!document.querySelector('.si-camera-actions .si-primary').disabled);assert.equal(await portrait.getAttribute('aria-pressed'),'true');
    }
-   if(scenario==='landscape'){const input=dialog.getByLabel('기기 카메라로 촬영',{exact:true});const chooser=page.waitForEvent('filechooser');await input.click();await chooser;await input.dispatchEvent('cancel',{bubbles:true});await page.waitForFunction(()=>window.__cameraRequests.length>=2&&!document.querySelector('.si-camera-actions .si-primary').disabled);await dialog.getByRole('heading',{name:'카메라로 바로 촬영'}).waitFor();await dialog.getByText('촬영 가이드 · 격자 꺼짐').click();await dialog.getByText('위험을 자동 판정하지는 않습니다.',{exact:false}).waitFor();}
-   for(const viewport of [{width:320,height:740},{width:390,height:900},{width:844,height:390}]){await page.setViewportSize(viewport);assert.ok(await dialog.evaluate(d=>d.scrollWidth<=d.clientWidth+1));await dialog.getByRole('button',{name:'지금 촬영',exact:true}).scrollIntoViewIfNeeded();const button=await dialog.getByRole('button',{name:'지금 촬영',exact:true}).boundingBox();assert.ok(button.y>=0&&button.y+button.height<=viewport.height);if(viewport.width===844&&['landscape','portrait'].includes(scenario)){const box=await dialog.locator('.si-camera-stage').boundingBox();assert.ok(Math.abs(box.width/box.height-(scenario==='landscape'?16/9:3/4))<0.03,'camera stage must retain selected aspect ratio');}if(['landscape','portrait'].includes(scenario))await page.screenshot({path:out+'/'+scenario+'-'+viewport.width+'.png'});}
+   if(scenario==='landscape'){const input=dialog.getByLabel('기기 카메라로 촬영',{exact:true});const chooser=page.waitForEvent('filechooser');await input.click();await chooser;await input.dispatchEvent('cancel',{bubbles:true});await page.waitForFunction(()=>window.__cameraRequests.length>=2&&!document.querySelector('.si-camera-actions .si-primary').disabled);await dialog.getByRole('heading',{name:'카메라로 바로 촬영'}).waitFor();await dialog.locator('.si-camera-heading .si-camera-guide-options > summary').click();await dialog.getByText('실제 위험 자동 판정이 아닌 촬영 구도 참고입니다.',{exact:false}).waitFor();}
+   for(const viewport of [{width:320,height:740},{width:390,height:900},{width:844,height:390}]){await page.setViewportSize(viewport);const shell=await dialog.boundingBox();assert.ok(shell&&Math.abs(shell.width-viewport.width)<3&&Math.abs(shell.height-viewport.height)<3,'mobile capture dialog must fill viewport');assert.ok(await dialog.evaluate(d=>d.scrollWidth<=d.clientWidth+1));await dialog.getByRole('button',{name:'지금 촬영',exact:true}).scrollIntoViewIfNeeded();const button=await dialog.getByRole('button',{name:'지금 촬영',exact:true}).boundingBox();assert.ok(button.y>=0&&button.y+button.height<=viewport.height);if(viewport.width===844&&['landscape','portrait'].includes(scenario)){const box=await dialog.locator('.si-camera-stage').boundingBox();assert.ok(Math.abs(box.width/box.height-(scenario==='landscape'?16/9:3/4))<0.03,'camera stage must retain selected aspect ratio');}if(['landscape','portrait'].includes(scenario))await page.screenshot({path:out+'/'+scenario+'-'+viewport.width+'.png'});}
    if(scenario==='landscape'){await page.evaluate(()=>document.documentElement.classList.add('dark'));await page.waitForTimeout(250);await page.screenshot({path:out+'/landscape-dark.png'});await page.evaluate(()=>document.documentElement.classList.remove('dark'));await page.waitForTimeout(250);}
    await page.setViewportSize({width:390,height:900});await dialog.getByRole('button',{name:'지금 촬영',exact:true}).click();
   }
@@ -59,7 +71,7 @@ try{
   await captured.getByRole('button',{name:'다시 촬영',exact:true}).click();await page.getByRole('dialog',{name:'카메라로 바로 촬영',exact:true}).waitFor();assert.equal(await portrait.getAttribute('aria-pressed'),scenario==='landscape'?'false':'true');
   await page.getByRole('dialog').getByRole('button',{name:'닫기',exact:true}).click();await page.waitForFunction(()=>window.__streams.every(s=>s.getTracks().every(t=>t.readyState==='ended')));
   if(scenario!=='storage-blocked'){
-   await page.getByRole('button',{name:'사진 찍고 점검하기',exact:true}).click();await page.getByRole('group',{name:'촬영 방향',exact:true}).waitFor();assert.equal(await page.getByRole('group',{name:'촬영 방향'}).getByRole('button',{name:'세로',exact:false}).getAttribute('aria-pressed'),scenario==='landscape'?'false':'true');await page.getByRole('dialog').getByRole('button',{name:'닫기',exact:true}).click();await page.waitForFunction(()=>window.__streams.every(s=>s.getTracks().every(t=>t.readyState==='ended')));
+   await page.getByRole('button',{name:'사진 찍고 점검하기',exact:true}).click();await page.getByRole('group',{name:'촬영 방향',exact:true}).waitFor();assert.equal(await page.getByRole('group',{name:'촬영 방향'}).getByRole('button',{name:'세로',exact:false}).getAttribute('aria-pressed'),'true','portrait phone must open in full-height preview');await page.getByRole('dialog').getByRole('button',{name:'닫기',exact:true}).click();await page.waitForFunction(()=>window.__streams.every(s=>s.getTracks().every(t=>t.readyState==='ended')));
   }
   assert.deepEqual(errors,[]);assert.equal(ops.filter(op=>op!=='ai-status').length,0);results.push({scenario,status:'PASS',captured:size,businessWrites:0,paidAI:0,allStreamsStopped:true});console.log('PASS '+scenario);await context.close();
  }
