@@ -143,7 +143,7 @@ export default function InspectorSafetyCardDeck({
                 {findings.length>1&&<div className="si-safety-card-finding-select" data-card-exclude="true" role="group" aria-label="위험 단서 전환">
                     {findings.map((v,n)=><button type="button" key={n} disabled={disabled} aria-pressed={n===index} onClick={()=>onFindingChange(n)}>위험 {n+1}</button>)}
                 </div>}
-                <button className="si-safety-card-advance" data-card-exclude="true" type="button" onClick={()=>setPanel('action')}><span>이 위험에 필요한 조치 살펴보기</span><InspectorIcon name="arrow"/></button>
+                <button className="si-safety-card-advance" data-card-exclude="true" type="button" onClick={()=>goPanel(1)}><span>이 위험에 필요한 조치 살펴보기</span><InspectorIcon name="arrow"/></button>
                 <p className="si-safety-card-disclaimer">AI 결과는 위험·법 위반 확정이나 조치 완료를 뜻하지 않습니다. 현장에서 직접 대조해 주세요.</p>
             </>}
             {panel==='action'&&<div className="si-safety-card-body">
