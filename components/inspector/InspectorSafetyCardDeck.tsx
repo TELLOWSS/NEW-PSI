@@ -85,6 +85,18 @@ export default function InspectorSafetyCardDeck({
     const displayedTitle=rejected?'전문가 의견을 우선 확인하세요':valueOr(finding?.problem,observed.length?'사진 관찰 내용을 대조하세요':'구체적 위험 특정 전');
     const key=panel+'-'+index;
     const currentPanel=PANELS.find(v=>v.id===panel)!;
+    const panelIndex=PANELS.findIndex(v=>v.id===panel);
+    const goPanel=(offset:number)=>{
+      const next=PANELS[panelIndex+offset];
+      if(next)setPanel(next.id);
+    };
+    // All exported cards retain a visible evidence-photo reference when provided.
+    // This is a non-annotated preview, not AI-detected evidence.
+    const photoStrip=photoUrl&&<div className="si-safety-card-photo-strip">
+       <img src={photoUrl} alt="해당 점검의 사진 미리보기, 위험 표시가 추가되지 않은 원래 구도" loading="eager"/>
+       <div><span>FIELD PHOTO · SOURCE</span><strong>이 사진을 기준으로 작성한 점검 카드</strong><small>사진 자체를 수정하거나 위험 위치를 자동 판정하지 않습니다.</small></div>
+       {onSeePhoto&&<button type="button" data-card-exclude="true" onClick={onSeePhoto} aria-label="점검 사진 확대"><InspectorIcon name="expand"/></button>}
+    </div>;
     return <section className="si-safety-deck" aria-label="PSI 안전 분석 카드" data-psi-safety-deck="v1">
         <header className="si-safety-deck-heading">
             <div><span className="si-safety-deck-kicker">PSI INSPECTOR · SAFETY CARDS</span><h3>한 장씩 읽는 안전점검</h3><p>위험 제안부터 조치·근거·전달까지 필요한 내용만 확인합니다.</p></div>
@@ -128,6 +140,7 @@ export default function InspectorSafetyCardDeck({
                 <p className="si-safety-card-disclaimer">실제 작업중지·접근통제 필요성, 담당자와 조치기한은 현장에서 판단해 기록해야 합니다.</p>
             </div>}
             {panel==='evidence'&&<div className="si-safety-card-body">
+                {photoStrip}
                 <p className="si-safety-card-eyebrow">FACT / STATEMENT / INFERENCE</p>
                 <h4>사진으로 확인할 사항</h4>
                 {note.trim()&&<section className="si-safety-card-evidence-block"><span>점검자 진술 · AI 판독 아님</span><p>{note.trim()}</p></section>}
@@ -136,6 +149,7 @@ export default function InspectorSafetyCardDeck({
                 {(analysis.requires_confirmation.length>0||analysis.limitations.length>0)&&<section className="si-safety-card-evidence-block"><span>추가 확인·판단 한계</span>{analysis.requires_confirmation.slice(0,2).map((q,n)=><p key={n}>{q.question}</p>)}{analysis.limitations.slice(0,1).map((l,n)=><p key={'limit-'+n}>{l}</p>)}</section>}
             </div>}
             {panel==='reference'&&<div className="si-safety-card-body">
+                {photoStrip}
                 <p className="si-safety-card-eyebrow">OFFICIAL SOURCE REVIEW</p>
                 <h4>연결된 법령·사례 자료</h4>
                 <p className="si-safety-card-lead">관련 자료 {sourceCount}건 · 실제 적용 조항과 사건 당시 시행본은 별도 확인해야 합니다.</p>
@@ -144,6 +158,7 @@ export default function InspectorSafetyCardDeck({
                 <p className="si-safety-card-disclaimer">자동 연결은 법 위반 판정이 아닙니다. 벌금·과태료는 적용조건과 처분 주체에 따라 달라집니다.</p>
             </div>}
             {panel==='handoff'&&<div className="si-safety-card-body">
+                {photoStrip}
                 <p className="si-safety-card-eyebrow">REVIEW · ACTION · REPORT</p>
                 <h4>이제 현장 판단과 전달을 연결하세요</h4>
                 <div className="si-safety-card-checks">
@@ -160,6 +175,11 @@ export default function InspectorSafetyCardDeck({
             </div>}
             <footer className="si-safety-card-foot"><span>FIELD RECORD / {photoId?photoId.slice(0,8).toUpperCase():'UNLINKED'}</span><span>{currentPanel.title} · {guideCount(PANELS.findIndex(v=>v.id===panel)+1)}/{guideCount(PANELS.length)}</span></footer>
         </article>
+        <div className="si-safety-deck-pagination" role="group" aria-label="안전카드 페이지 넘기기">
+            <button type="button" disabled={panelIndex===0} onClick={()=>goPanel(-1)} aria-label="이전 카드"><InspectorIcon name="arrow"/> 이전</button>
+            <span aria-live="polite">{currentPanel.title} · {panelIndex+1}/{PANELS.length}</span>
+            <button type="button" disabled={panelIndex===PANELS.length-1} onClick={()=>goPanel(1)} aria-label="다음 카드">다음 <InspectorIcon name="arrow"/></button>
+        </div>
         <div className="si-safety-deck-export">
             <div><strong>현재 카드 이미지</strong><p>카드 한 장을 별도 PNG로 공유·저장합니다. 증빙 원본은 바뀌지 않습니다.</p></div>
             <button type="button" onClick={()=>void shareOrDownloadCard()} disabled={exporting||disabled} aria-busy={exporting}><InspectorIcon name="upload"/>{exporting?'이미지 제작 중…':'카드 저장·공유'}</button>
