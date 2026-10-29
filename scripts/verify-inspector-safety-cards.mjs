@@ -37,6 +37,8 @@ try{
  assert.match(riskTheme,/linear-gradient/,'risk card has premium dark atmosphere');
  await deck.getByRole('button',{name:'이 위험에 필요한 조치 살펴보기'}).click();
  assert.equal(await deck.locator('.si-safety-card').getAttribute('data-panel'),'action','summary connects directly to action');
+ await page.waitForFunction(()=>{const el=document.querySelector('[data-psi-safety-deck="v1"]');return !!el&&el.getBoundingClientRect().top>=-2;});
+ assert.equal(await deck.locator('.si-safety-card').getAttribute('data-panel'),'action','return to card heading retains selected action');
  const actionColor=await deck.locator('.si-safety-card').evaluate(el=>getComputedStyle(el).backgroundColor);
  assert.equal(actionColor,'rgb(248, 251, 249)','action card uses deliberately light professional theme');
  await deck.getByRole('button',{name:'상세 점검 내용 확인'}).click();
