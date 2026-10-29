@@ -12,14 +12,13 @@ try{
  for(const scenario of ['landscape','portrait','unsupported','late-stream','native-fallback','storage-blocked']){
   if(process.env.PSI_CAMERA_SCENARIOS&&!process.env.PSI_CAMERA_SCENARIOS.split(',').includes(scenario))continue;
   console.log('START '+scenario);
-  const context=await browser.newContext({viewport:{width:390,height:900},ignoreHTTPSErrors:!!external,reducedMotion:'reduce'}),page=await context.newPage(),ops=[],errors=[];
+  const context=await browser.newContext({viewport:scenario==='landscape'?{width:844,height:390}:{width:390,height:900},ignoreHTTPSErrors:!!external,reducedMotion:'reduce'}),page=await context.newPage(),ops=[],errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/api/admin/auth',r=>r.fulfill({json:{ok:true,authenticated:true}}));
   await page.route('**/api/admin/inspector',r=>{const b=r.request().postDataJSON();ops.push(b.op);assert.equal(b.op,'ai-status','Capture must not create, upload or analyze');return r.fulfill({json:{ok:true,ready:true,provider:'gemini',model:'fixture'}});});
   await page.route('https://fonts.googleapis.com/**',r=>r.fulfill({body:'',contentType:'text/css'}));await page.route('https://cdn.jsdelivr.net/**',r=>r.fulfill({body:'',contentType:'text/css'}));
   if(process.env.PSI_QA_KOREAN_FONT)await page.route('**/__qa-korean.otf',async r=>r.fulfill({body:await readFile(process.env.PSI_QA_KOREAN_FONT),contentType:'font/otf'}));
   await page.addInitScript(scenario=>{
-   if(scenario!=='storage-blocked')sessionStorage.setItem('psi.inspector.camera.mode.v1','landscape');
    window.__cameraRequests=[];window.__streams=[];window.__stops=0;
    if(scenario==='storage-blocked'){const get=Storage.prototype.getItem,set=Storage.prototype.setItem;Object.defineProperty(Storage.prototype,'getItem',{value:function(key){if(key==='psi.inspector.camera.mode.v1')throw new DOMException('blocked','SecurityError');return get.call(this,key);}});Object.defineProperty(Storage.prototype,'setItem',{value:function(key,value){if(key==='psi.inspector.camera.mode.v1')throw new DOMException('blocked','SecurityError');return set.call(this,key,value);}});}
    Object.defineProperty(navigator.mediaDevices,'getUserMedia',{configurable:true,value:async constraints=>{
@@ -34,12 +33,24 @@ try{
   await page.goto(base+'/?mode=photo-inspector',{waitUntil:'domcontentloaded'});await page.getByRole('heading',{name:'사진만 찍어도 점검을 시작할 수 있습니다'}).waitFor();
   if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','가로 촬영'));}
   await page.getByRole('button',{name:'사진 찍고 점검하기',exact:true}).click();const dialog=page.getByRole('dialog',{name:'카메라로 바로 촬영',exact:true});await dialog.waitFor();
-  const modes=dialog.getByRole('group',{name:'촬영 방향',exact:true}),landscape=modes.getByRole('button',{name:'가로',exact:false}),portrait=modes.getByRole('button',{name:'세로',exact:false});assert.equal(await landscape.getAttribute('aria-pressed'),'true');
+  const modes=dialog.getByRole('group',{name:'촬영 방향',exact:true}),landscape=modes.getByRole('button',{name:'가로',exact:false}),portrait=modes.getByRole('button',{name:'세로',exact:false});assert.equal(await landscape.getAttribute('aria-pressed'),scenario==='landscape'?'true':'false');
   if(scenario==='native-fallback'){
    await dialog.getByRole('alert').waitFor();assert.equal(await dialog.getByRole('button',{name:'지금 촬영',exact:true}).isDisabled(),true);await portrait.click();await dialog.getByRole('alert').waitFor();
    const input=dialog.getByLabel('기기 카메라로 촬영',{exact:true});assert.equal(await input.getAttribute('capture'),'environment');const source=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=720;c.height=960;c.getContext('2d').fillRect(0,0,720,960);return c.toDataURL('image/jpeg').split(',')[1];});await input.setInputFiles({name:'native-portrait.jpg',mimeType:'image/jpeg',buffer:Buffer.from(source,'base64')});
   }else{
-   if(['portrait','unsupported','storage-blocked','late-stream'].includes(scenario)){if(scenario==='portrait'){await portrait.focus();await page.keyboard.press('Enter');}else await portrait.click();await page.waitForFunction(()=>window.__cameraRequests.length>=2);}
+   if(scenario==='landscape'){
+    await portrait.click();
+    await page.waitForFunction(()=>window.__cameraRequests.at(-1)?.video?.aspectRatio?.ideal===3/4);
+    await landscape.click();
+    await page.waitForFunction(()=>window.__cameraRequests.at(-1)?.video?.aspectRatio?.ideal===16/9);
+   }
+   if(['portrait','unsupported','storage-blocked','late-stream'].includes(scenario)){
+    await page.setViewportSize({width:844,height:390});
+    await page.waitForFunction(()=>window.__cameraRequests.at(-1)?.video?.aspectRatio?.ideal===16/9);
+    if(scenario==='portrait'){await portrait.focus();await page.keyboard.press('Enter');}else await portrait.click();
+    await page.waitForFunction(()=>window.__cameraRequests.at(-1)?.video?.aspectRatio?.ideal===3/4);
+    await page.setViewportSize({width:390,height:900});
+   }
    await page.waitForFunction(()=>document.querySelector('.si-camera-actions .si-primary')?.disabled===false);
    if(scenario==='late-stream'){await page.evaluate(()=>window.__releaseFirst());await page.waitForFunction(()=>window.__streams[0].getTracks().every(t=>t.readyState==='ended'));}
    const request=await page.evaluate(()=>window.__cameraRequests.at(-1));assert.equal(request.audio,false);assert.equal(request.video.facingMode.ideal,'environment');assert.equal(request.video.resizeMode.ideal,'none');assert.equal(request.video.aspectRatio.ideal,['landscape'].includes(scenario)?16/9:3/4);assert.ok(!JSON.stringify(request).includes('exact'));
@@ -60,7 +71,7 @@ try{
   await captured.getByRole('button',{name:'다시 촬영',exact:true}).click();await page.getByRole('dialog',{name:'카메라로 바로 촬영',exact:true}).waitFor();assert.equal(await portrait.getAttribute('aria-pressed'),scenario==='landscape'?'false':'true');
   await page.getByRole('dialog').getByRole('button',{name:'닫기',exact:true}).click();await page.waitForFunction(()=>window.__streams.every(s=>s.getTracks().every(t=>t.readyState==='ended')));
   if(scenario!=='storage-blocked'){
-   await page.getByRole('button',{name:'사진 찍고 점검하기',exact:true}).click();await page.getByRole('group',{name:'촬영 방향',exact:true}).waitFor();assert.equal(await page.getByRole('group',{name:'촬영 방향'}).getByRole('button',{name:'세로',exact:false}).getAttribute('aria-pressed'),scenario==='landscape'?'false':'true');await page.getByRole('dialog').getByRole('button',{name:'닫기',exact:true}).click();await page.waitForFunction(()=>window.__streams.every(s=>s.getTracks().every(t=>t.readyState==='ended')));
+   await page.getByRole('button',{name:'사진 찍고 점검하기',exact:true}).click();await page.getByRole('group',{name:'촬영 방향',exact:true}).waitFor();assert.equal(await page.getByRole('group',{name:'촬영 방향'}).getByRole('button',{name:'세로',exact:false}).getAttribute('aria-pressed'),'true','portrait phone must open in full-height preview');await page.getByRole('dialog').getByRole('button',{name:'닫기',exact:true}).click();await page.waitForFunction(()=>window.__streams.every(s=>s.getTracks().every(t=>t.readyState==='ended')));
   }
   assert.deepEqual(errors,[]);assert.equal(ops.filter(op=>op!=='ai-status').length,0);results.push({scenario,status:'PASS',captured:size,businessWrites:0,paidAI:0,allStreamsStopped:true});console.log('PASS '+scenario);await context.close();
  }
