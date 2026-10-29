@@ -10,7 +10,7 @@ let proxy;if(externalBase&&(process.env.HTTPS_PROXY||process.env.HTTP_PROXY)){co
 const browser=await chromium.launch({executablePath:process.env.PSI_CHROMIUM_PATH,headless:true,...(proxy?{proxy}:{}),args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu']});
 const results=[];await mkdir(out,{recursive:true});
 try{
- for(const scenario of ['browse','cancel','all-busy','resume','files-all','conflict','status-failed','response-lost','dirty','active-all','active-files','active-other']){
+ for(const scenario of ['browse','cancel','all-busy','resume','files-all','conflict','status-failed','response-lost','dirty','active-all','active-files','active-other','bulk-pick','bulk-all','bulk-conflict']){
   console.log('START '+scenario);
   const context=await browser.newContext({viewport:{width:390,height:900},ignoreHTTPSErrors:!!externalBase,reducedMotion:'reduce'}),page=await context.newPage();
   await page.clock.install({time:new Date('2026-10-23T05:00:00Z')});
@@ -18,6 +18,7 @@ try{
   const ids=Array.from({length:4},()=>randomUUID()),key='psi.inspector.record-deletions.v1';
   const row=(i)=>({id:ids[i],revision:3,title:`합성 점검 ${i+1}`,work_type:i===1?'철근':'형틀',location:`합성 구역 ${i+1}`,urgent:i===1,open_actions:i===2?2:0,needs_review:i===0,created_at:`2026-10-${23-i}T00:00:00Z`,updated_at:`2026-10-${20+i}T00:00:00Z`});
   let rows=ids.map((_,i)=>row(i)),state='active',mode=null,verified=false,verifyAfter=null,failStatus=scenario==='status-failed',lost=false,deleteCalls=0,release;
+  const bulkMode=scenario.startsWith('bulk-'),bulkDeleted=new Set();
   const status=()=>({state,mode,verified,verifyAfter,remainingFiles:state==='active'?1:0,remainingBytes:state==='active'?120000:0,remainingRecords:{inspections:state==='purged'?0:1,evidence:state==='purged'?0:1,reports:state==='purged'?0:1,events:state==='purged'?0:3,operations:0},pendingOperations:0,checkedAt:new Date().toISOString(),receipt:verified?{mode,managedResidualFiles:0}:null});
   const doc={title:rows[0].title,siteName:'',location:'',workType:'',eventAt:'2026-10-23T00:00:00Z',notes:'合成 QA',urgent:false,photoIds:[],analyses:{},reviews:{},actions:[],ocrResults:{}};
   const item={id:ids[0],revision:3,document:doc,created_at:rows[0].created_at,updated_at:rows[0].updated_at};
@@ -32,13 +33,15 @@ try{
    if(b.op==='detail')return r.fulfill({json:{ok:true,item:{...item,id:b.id,document:{...doc,title:row(ids.indexOf(b.id)).title}},evidence:[],reports:[{id:randomUUID(),inspection_revision:3,created_at:item.created_at}],events:[],control:{state:'active'}}});
    if(b.op==='ai-status')return r.fulfill({json:{ok:true,ready:false,provider:'',model:''}});
    if(b.op==='usage')return r.fulfill({json:{ok:true,usage:{projectBytes:500000,databaseBytes:100000}}});
-   assert.equal(b.id,ids[0]);
+   if(!bulkMode)assert.equal(b.id,ids[0]);
    if(b.op==='deletion-status'){
+     if(bulkMode){const ok=bulkDeleted.has(b.id);return r.fulfill({json:{ok:true,status:{...status(),state:ok?'purged':'active',mode:ok?'all':null,verified:ok,remainingFiles:ok?0:1,remainingRecords:{inspections:ok?0:1,evidence:ok?0:1,reports:ok?0:1,events:ok?0:3,operations:0}}}});}
     if(failStatus||lost)return r.fulfill({status:503,json:{ok:false,message:'삭제 상태 연결 실패 · 완료 아님'}});
     return r.fulfill({json:{ok:true,status:status()}});
    }
    if(b.op==='delete-inspection'){
-    deleteCalls++;assert.equal(b.confirmation,ids[0]);assert.equal(b.expectedRevision,3);
+    deleteCalls++;assert.equal(b.confirmation,bulkMode?b.id:ids[0]);assert.equal(b.expectedRevision,3);
+     if(bulkMode){if(scenario==='bulk-conflict'&&b.id===ids[1])return r.fulfill({status:409,json:{ok:false,message:'기록 버전 변경'}});bulkDeleted.add(b.id);rows=rows.filter(x=>x.id!==b.id);return r.fulfill({json:{ok:true,status:{...status(),state:'purged',mode:'all',verified:true,remainingFiles:0,remainingRecords:{inspections:0,evidence:0,reports:0,events:0,operations:0}}}});}
     if(scenario==='conflict')return r.fulfill({status:409,json:{ok:false,message:'다른 변경사항이 있습니다. 목록을 새로고침하세요.'}});
     if(scenario==='all-busy')await new Promise(resolve=>{release=resolve;});
     mode=b.mode;
@@ -56,7 +59,33 @@ try{
   const start=async()=>{await dialog.getByLabel('이 점검에 포함된 자료가 삭제되고 되돌릴 수 없음을 확인했습니다.').check();await dialog.getByRole('button',{name:'선택 범위 삭제 시작',exact:true}).click();};
   await enter();
   if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}
-  if(scenario==='browse'){
+  if(bulkMode){
+    await list.getByRole('button',{name:'여러 건 선택'}).click();
+    if(scenario==='bulk-all'){
+      await list.getByRole('button',{name:'전체 보관기록 불러와 선택'}).click();
+      await list.getByRole('button',{name:'선택 4건 삭제'}).waitFor();
+      assert.equal(await list.locator('.si-record-row').count(),4);
+    }else{
+      await list.getByLabel('합성 점검 1 선택').check();
+      await list.getByLabel('합성 점검 2 선택').check();
+    }
+    const count=scenario==='bulk-all'?4:2;
+    await list.getByRole('button',{name:'선택 '+count+'건 삭제'}).click();
+    const modal=page.getByRole('dialog',{name:'선택 기록 일괄 정리'});
+    await modal.waitFor();
+    assert.equal(deleteCalls,0,'selection is harmless');
+    assert.equal(await modal.getByRole('button',{name:'선택한 '+count+'건 전체 삭제 시작'}).isDisabled(),true);
+    await modal.locator('input[type=checkbox]').check();
+    await modal.getByRole('button',{name:'선택한 '+count+'건 전체 삭제 시작'}).click();
+    await page.waitForFunction(({count,conflict})=>document.querySelectorAll('.si-bulk-record.is-done').length>=(conflict?count-1:count),{count,conflict:scenario==='bulk-conflict'});
+    assert.equal(deleteCalls,count);
+    assert.equal(await list.locator('.si-record-row').count(),scenario==='bulk-all'?0:scenario==='bulk-conflict'?2:1);
+    if(scenario==='bulk-conflict'){
+      assert.equal(await modal.locator('.si-bulk-record.is-failed').count(),1);
+      assert.notEqual(await page.evaluate(()=>sessionStorage.getItem('psi.inspector.record-deletions.v1')),null);
+    }else assert.equal(await page.evaluate(()=>sessionStorage.getItem('psi.inspector.record-deletions.v1')),null);
+    await modal.getByRole('button',{name:'닫기',exact:true}).click();
+   }else if(scenario==='browse'){
    assert.equal(await list.locator('.si-record-row').count(),3);assert.equal(ops.filter(x=>x==='list').length,1);
    await page.getByLabel('점검 기록 정렬').selectOption('attention');assert.match(await list.locator('.si-record strong').first().innerText(),/점검 2/);
    await page.getByLabel('불러온 점검 검색').fill('철근');assert.equal(await list.locator('.si-record-row').count(),1);
