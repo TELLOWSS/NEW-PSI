@@ -22,21 +22,51 @@ try{
  await deck.getByText('02 · 추가 현장 확인').waitFor();
  await deck.getByText('03 · 조치 참고').waitFor();
  assert.equal(await deck.getByRole('progressbar',{name:'안전카드 읽기 진행'}).getAttribute('aria-valuenow'),'1');
+ const basicSummary=await deck.locator('.si-safety-card-essential p').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
+ assert.ok(basicSummary>=15,'summary text remains readable at the smallest viewport');
  await deck.getByRole('button',{name:'가독성 크게'}).click();
  assert.equal(await deck.evaluate(el=>el.classList.contains('si-safety-deck-large')),true,'large-text mode enabled');
  const fontSize=await deck.locator('.si-safety-card-essential p').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
- assert.ok(fontSize>=16,'large-text summary is >=16px');
+ assert.ok(fontSize>=18,'large-text summary is >=18px');
  await deck.getByRole('button',{name:'기본 글씨'}).click();
  assert.equal(await deck.evaluate(el=>el.classList.contains('si-safety-deck-large')),false,'large-text mode reverses');
 
+ const imageBounds=await deck.locator('.si-safety-card-media').boundingBox();
+ const photoCaptionBounds=await deck.locator('.si-safety-card-photo-hint').boundingBox();
+ assert.ok(imageBounds&&photoCaptionBounds&&photoCaptionBounds.y>=imageBounds.y+imageBounds.height-1,'photo caption must not obscure the evidence image');
+ for(const name of ['사진 크게 확인','위험 2']){
+   const box=await deck.getByRole('button',{name,exact:true}).boundingBox();
+   assert.ok(box&&box.height>=44,name+' meets the minimum touch height');
+ }
  await deck.getByRole('button',{name:'위험 2'}).click();
  await deck.getByText('합성 위험 단서 2').waitFor();
  const riskTheme=await deck.locator('.si-safety-card').evaluate(el=>getComputedStyle(el).backgroundImage);
  assert.match(riskTheme,/linear-gradient/,'risk card has premium dark atmosphere');
  await deck.getByRole('button',{name:'이 위험에 필요한 조치 살펴보기'}).click();
  assert.equal(await deck.locator('.si-safety-card').getAttribute('data-panel'),'action','summary connects directly to action');
+ await page.waitForFunction(()=>{const el=document.querySelector('[data-psi-safety-deck="v1"]');return !!el&&el.getBoundingClientRect().top>=-2;});
+ assert.equal(await deck.locator('.si-safety-card').getAttribute('data-panel'),'action','return to card heading retains selected action');
  const actionColor=await deck.locator('.si-safety-card').evaluate(el=>getComputedStyle(el).backgroundColor);
  assert.equal(actionColor,'rgb(248, 251, 249)','action card uses deliberately light professional theme');
+ await deck.getByRole('button',{name:'검토 저장 · 이 위험 조치 작성'}).click();
+ assert.equal(await page.locator('#action-count').innerText(),'1','action card invokes reviewed action entry');
+ const secondaryContrast=await deck.getByRole('button',{name:'상세 점검 내용 확인'}).evaluate(el=>{
+   const colors=[getComputedStyle(el).color,getComputedStyle(el).backgroundColor].map(value=>{
+     const rgb=value.match(/[0-9.]+/g)?.slice(0,3).map(Number);
+     if(!rgb||rgb.length!==3)return 0;
+     const channels=rgb.map(n=>{const c=n/255;return c<=.04045?c/12.92:((c+.055)/1.055)**2.4;});
+     return .2126*channels[0]+.7152*channels[1]+.0722*channels[2];
+   });
+   return (Math.max(...colors)+.05)/(Math.min(...colors)+.05);
+ });
+ assert.ok(secondaryContrast>=4.5,'action secondary text contrast is at least 4.5:1');
+ await deck.getByRole('button',{name:'상세 점검 내용 확인'}).click();
+ assert.equal(await page.locator('#details-count').innerText(),'1','action card opens the existing details destination');
+ const actionPhotoButton=deck.getByRole('button',{name:'검토 사진 크게 보기'});
+ if(await actionPhotoButton.count()){
+   const box=await actionPhotoButton.boundingBox();
+   assert.ok(box&&box.width>=44&&box.height>=44,'photo expand control has a usable touch target');
+ }
  await deck.getByRole('button',{name:'조치 제안'}).click();
  await deck.getByText('현장에서 이격 상태를 확인하세요.',{exact:false}).waitFor();
  await deck.getByRole('button',{name:'현장 대조'}).click();
@@ -49,10 +79,11 @@ try{
  await deck.getByText('합성 법령 검토 후보 · 실제 법령 아님').waitFor();
  await deck.getByText('기존 자료 · 검토 이력 보완 필요').waitFor();
  await deck.getByRole('button',{name:'보고·공유'}).click();
+ await deck.getByText('전달 이미지는 별도 가공본입니다. 원본·검토·보고서의 저장 상태는 점검 기록에서 확인하세요.').waitFor();
  await deck.getByRole('button',{name:'사진·조치 전달 카드 만들기'}).click();
  assert.equal(await page.locator('#compose-count').innerText(),'1');
  await deck.getByRole('button',{name:'상세 점검·보고서 단계로 이동'}).click();
- assert.equal(await page.locator('#details-count').innerText(),'1');
+ assert.equal(await page.locator('#details-count').innerText(),'2');
  await page.locator('#toggle-rejected').click();
  await deck.getByRole('button',{name:'위험 요약'}).click();
  await deck.getByText('전문가 의견을 우선 확인하세요').waitFor();
@@ -112,6 +143,34 @@ try{
      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+1),false,'long text overflow in '+label+' at '+viewport.width);
    }
  }
+ await page.setViewportSize({width:390,height:844});
+ for(const [label,slug] of [['위험 요약','risk'],['조치 제안','action'],['현장 대조','evidence']]){
+   await deck.getByRole('button',{name:label}).click();
+   const card=deck.locator('.si-safety-card');
+   const expand=card.getByRole('button',{name:'긴 내용 전체 보기'});
+   assert.equal(await expand.getAttribute('aria-expanded'),'false',label+' starts in compact mode');
+   const compactBox=await card.boundingBox();
+   await card.screenshot({path:path.join(screenshotDir,'screen-long-compact-'+slug+'.png')});
+   await expand.click();
+   const collapse=card.getByRole('button',{name:'내용 접기'});
+   assert.equal(await collapse.getAttribute('aria-expanded'),'true',label+' can expand');
+   const cardBox=await card.boundingBox();
+   assert.ok(compactBox&&cardBox&&cardBox.height>compactBox.height,label+' reveals the full long content');
+   const essential=slug==='risk'?card.locator('.si-safety-card-essential'):slug==='action'?card.locator('.si-safety-card-feature'):card.locator('.si-safety-card-evidence-block').last();
+   const essentialBox=await essential.boundingBox();
+   await collapse.click();
+   assert.ok(cardBox&&essentialBox,'long content must have a measurable layout');
+   const pendingLong=page.waitForEvent('download',{timeout:30000});
+   await deck.getByRole('button',{name:'카드 저장·공유'}).click();
+   const longDownload=await pendingLong;
+   await longDownload.saveAs(path.join(screenshotDir,'export-long-'+slug+'.png'));
+   const longPng=await readFile(await longDownload.path());
+   assert.equal(longPng.subarray(0,8).toString('hex'),'89504e470d0a1a0a',label+' long-text export is PNG');
+   const pngWidth=longPng.readUInt32BE(16),pngHeight=longPng.readUInt32BE(20);
+   const contentBottom=(essentialBox.y+essentialBox.height-cardBox.y)/cardBox.width;
+   assert.ok(pngHeight/pngWidth>=contentBottom-.02,label+' long content fits within exported PNG');
+   assert.equal(await page.locator('[data-psi-card-export-stage]').count(),0,'temporary export stage cleaned');
+ }
  await page.locator('#toggle-long').click();
  await deck.getByRole('button',{name:'위험 요약'}).click();
  await page.setViewportSize({width:390,height:844});
@@ -121,6 +180,7 @@ try{
  await deck.getByRole('button',{name:'카드 저장·공유'}).click();
  const saved=await download;
  assert.match(saved.suggestedFilename(),/^PSI_SAFETY_RISK_.*\.png$/,'the current selected card has an exportable PNG');
+ await saved.saveAs(path.join(screenshotDir,'export-risk.png'));
  const png=await readFile(await saved.path());
  assert.equal(png.subarray(0,8).toString('hex'),'89504e470d0a1a0a','export is real PNG');
  assert.ok(png.readUInt32BE(16)>=390&&png.readUInt32BE(20)>300,'PNG has meaningful card dimensions');
@@ -133,13 +193,20 @@ try{
    const imgs=deck.locator('.si-safety-card img');
    assert.ok(await imgs.count()>0,label+' includes inspection photo thumbnail');
    assert.equal(await imgs.first().evaluate(img=>img.complete&&img.naturalWidth>0),true,label+' image loaded');
+   const liveBounds=await deck.locator('.si-safety-card').boundingBox();
    const pending=page.waitForEvent('download',{timeout:20000});
    await deck.getByRole('button',{name:'카드 저장·공유'}).click();
    const savedCard=await pending;
    assert.match(savedCard.suggestedFilename(),new RegExp('^PSI_SAFETY_'+slug+'_.*\\.png$'),label+' PNG filename');
+   await savedCard.saveAs(path.join(screenshotDir,'export-'+slug.toLowerCase()+'.png'));
    const bytes=await readFile(await savedCard.path());
    assert.equal(bytes.subarray(0,8).toString('hex'),'89504e470d0a1a0a',label+' valid PNG');
    assert.ok(bytes.length>5000,label+' image not empty');
+   if(slug==='ACTION'){
+     const pngWidth=bytes.readUInt32BE(16),pngHeight=bytes.readUInt32BE(20);
+     assert.ok(liveBounds&&pngHeight/pngWidth < (liveBounds.height-12)/liveBounds.width,'export removes control-only whitespace');
+   }
+   assert.equal(await page.locator('[data-psi-card-export-stage]').count(),0,'temporary export stage is removed');
  }
  assert.equal(await deck.getByRole('button',{name:'다음 카드'}).isDisabled(),true,'last card boundary');
  await deck.getByRole('button',{name:'이전 카드'}).click();

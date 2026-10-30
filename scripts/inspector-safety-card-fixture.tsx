@@ -23,7 +23,7 @@ const reference:LegalReference={
     inspectionCases:[]
 };
 function Fixture(){
-    const [reviewSaved,setSaved]=useState(false),[rejected,setRejected]=useState(false),[selected,setSelected]=useState(0),[compose,setCompose]=useState(0),[details,setDetails]=useState(0),[variant,setVariant]=useState<'normal'|'empty'|'long'>('normal'),[hasPhoto,setHasPhoto]=useState(true);
+    const [reviewSaved,setSaved]=useState(false),[rejected,setRejected]=useState(false),[selected,setSelected]=useState(0),[compose,setCompose]=useState(0),[details,setDetails]=useState(0),[action,setAction]=useState(0),[variant,setVariant]=useState<'normal'|'empty'|'long'>('normal'),[hasPhoto,setHasPhoto]=useState(true);
     const data:VisionImport=variant==='empty'?{...analysis,risk_findings:[],observed_facts:[],ai_hypotheses:[],recommended_controls:[],requires_confirmation:[],limitations:[]}:variant==='long'?{...analysis,risk_findings:analysis.risk_findings.map(x=>({...x,problem:x.problem+' 긴 설명'.repeat(20),risk:x.risk+' 추가 확인 권고'.repeat(15),action:x.action+' 현장 작업 안전관리'.repeat(22)})),observed_facts:analysis.observed_facts.map(x=>({...x,text:x.text+' 현장 대조가 필요합니다.'.repeat(40)}))}:analysis;
     return <main style={{width:'min(900px,100%)',boxSizing:'border-box',margin:'0 auto',padding:12}}>
         <div style={{display:'flex',gap:8}}>
@@ -33,8 +33,8 @@ function Fixture(){
             <button id="toggle-long" onClick={()=>{setVariant(v=>v==='long'?'normal':'long');setSelected(0);}}>긴 분석 전환</button>
             <button id="toggle-photo" onClick={()=>setHasPhoto(v=>!v)}>사진 포함 전환</button>
         </div>
-        <InspectorSafetyCardDeck analysis={data} reference={reference} review={{decision:rejected?'rejected':'accepted',note:rejected?'합성 전문가 판단: 사진만으로 상태 확정 불가':''}} reviewSaved={reviewSaved} note="점검자 설명: 시공 중 발판 주변 확인" photoUrl={hasPhoto?exampleImage:undefined} photoId="synthetic-photo-id" selectedFinding={selected} onFindingChange={setSelected} onComposeCard={()=>setCompose(v=>v+1)} onCopy={()=>{}} onSeeDetails={()=>setDetails(v=>v+1)}/>
-        <output id="compose-count">{compose}</output><output id="details-count">{details}</output>
+        <InspectorSafetyCardDeck analysis={data} reference={reference} review={{decision:rejected?'rejected':'accepted',note:rejected?'합성 전문가 판단: 사진만으로 상태 확정 불가':''}} reviewSaved={reviewSaved} note="점검자 설명: 시공 중 발판 주변 확인" photoUrl={hasPhoto?exampleImage:undefined} photoId="synthetic-photo-id" selectedFinding={selected} onFindingChange={setSelected} onComposeCard={()=>setCompose(v=>v+1)} onDraftAction={()=>setAction(v=>v+1)} onSeePhoto={()=>{}} onCopy={()=>{}} onSeeDetails={()=>setDetails(v=>v+1)}/>
+        <output id="action-count">{action}</output><output id="compose-count">{compose}</output><output id="details-count">{details}</output>
     </main>;
 }
 createRoot(document.getElementById('root')!).render(<Fixture/>);

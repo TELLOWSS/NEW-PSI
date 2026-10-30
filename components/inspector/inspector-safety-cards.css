@@ -25,14 +25,15 @@
 .si-safety-card-media{position:relative;width:calc(100% - 40px);margin:4px 20px 12px;min-height:155px;height:clamp(165px,34vw,280px);border-radius:13px;background:#04151d;border:1px solid #5a85775e;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .si-safety-card-media img{display:block;width:100%;height:100%;object-fit:contain;object-position:center}
 .si-safety-card-no-photo{font-size:12px;color:#aec8c6}
-.si-safety-card-photo-hint{position:absolute;bottom:8px;left:8px;max-width:calc(100% - 16px);padding:5px 7px;border-radius:6px;background:#081a1fe3;color:#d0e3de;font-size:10px;line-height:1.3}
-.si-safety-card-zoom{position:absolute;top:8px;right:8px;min-height:35px;padding:6px 11px;border-radius:8px;border:1px solid #9cd6c8;background:#103e3beb;color:#fff;cursor:pointer;font-size:11px;font-weight:750}
+.si-safety-card-photo-caption{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0 20px 14px}
+.si-safety-card-photo-hint{flex:1 1 150px;margin:0!important;color:#c1d9d3;font-size:12px;line-height:1.5;word-break:keep-all}
+.si-safety-card-zoom{position:static;flex:0 0 auto;min-height:44px;padding:6px 11px;border-radius:8px;border:1px solid #9cd6c8;background:#103e3beb;color:#fff;cursor:pointer;font-size:11px;font-weight:750}
 .si-safety-card-risk-footer{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:0 20px 12px}
 .si-safety-card-risk-footer>div{display:flex;flex-direction:column;gap:5px;min-width:0;padding:11px 12px;border-radius:9px;background:#183c3e;border:1px solid #6aa5994a}
 .si-safety-card-risk-footer span{font-size:10px;color:#a6c0bd}
 .si-safety-card-risk-footer strong{font-size:13px;line-height:1.35;color:#ecfff9;word-break:keep-all}
 .si-safety-card-finding-select{display:flex;gap:6px;flex-wrap:wrap;margin:0 20px 12px}
-.si-safety-card-finding-select button{min-height:34px;padding:6px 10px;background:#10333b;border:1px solid #5e9286;border-radius:8px;color:#d2ebe4;font-size:11px;cursor:pointer}
+.si-safety-card-finding-select button{min-height:44px;padding:6px 10px;background:#10333b;border:1px solid #5e9286;border-radius:8px;color:#d2ebe4;font-size:11px;cursor:pointer}
 .si-safety-card-finding-select button[aria-pressed=true]{background:#c1ecd9;color:#124034;border-color:#c1ecd9;font-weight:800}
 .si-safety-card-disclaimer{margin:0 20px 18px!important;color:#b2cfca;font-size:11px;line-height:1.55;word-break:keep-all}
 .si-safety-card-foot{border-top:1px solid var(--sc-line);color:#9bb6b4;font-size:9px;letter-spacing:.055em;min-height:42px}
@@ -80,6 +81,7 @@
  .si-safety-card-title h4,.si-safety-card-body h4{font-size:21px!important}
  .si-safety-card-title p{font-size:12px}
  .si-safety-card-media{width:calc(100% - 30px);margin:4px 15px 11px;height:clamp(170px,48vw,245px)}
+ .si-safety-card-photo-caption{margin:0 15px 14px}
  .si-safety-card-risk-footer{margin:0 15px 12px;gap:6px}
  .si-safety-card-risk-footer>div{padding:10px}
  .si-safety-card-risk-footer strong{font-size:12px}
@@ -225,7 +227,7 @@
 .si-safety-card-context>div strong{font-size:12px;line-height:1.45;color:#163f36;word-break:keep-all}
 .si-safety-card-context>div small{font-size:10px;line-height:1.4;color:#6c8880;word-break:keep-all}
 .si-safety-card-context button{
-  display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;
+  display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;
   background:#e3f3ec;color:#1a6552;border:1px solid #b8dac8;
   border-radius:8px;cursor:pointer;
 }
@@ -243,6 +245,9 @@
 .si-safety-card-action .si-safety-card-mini-list h5{color:#336b57}
 .si-safety-card-action .si-safety-card-mini-list>div span{color:#24825e}
 .si-safety-card-action .si-safety-card-mini-list>div p{color:#263f39}
+.si-safety-card-action .si-safety-card-cta button.is-secondary{
+  color:#15594c;background:#fff;border-color:#629b87;
+}
 .si-safety-card-action .si-safety-card-disclaimer,.si-safety-card-reference .si-safety-card-disclaimer,.si-safety-card-handoff .si-safety-card-disclaimer{
   color:#657e76;
 }
@@ -316,7 +321,7 @@
   .si-safety-card-context img{width:76px;height:65px;flex-basis:76px}
   .si-safety-card-context>div strong{font-size:11px}
   .si-safety-card-context>div small{font-size:9px}
-  .si-safety-card-context button{flex-basis:30px;width:30px;height:30px}
+  .si-safety-card-context button{flex-basis:44px;width:44px;height:44px}
   .si-safety-card-evidence .si-safety-card-evidence-block:nth-of-type(n){margin-left:0}
 }
 @media(max-width:350px){
@@ -383,8 +388,8 @@
 .si-safety-card-photo-strip>div strong{font-size:12px;line-height:1.4;overflow-wrap:anywhere;word-break:keep-all}
 .si-safety-card-photo-strip>div small{font-size:10px;line-height:1.4;word-break:keep-all;color:#c0dad1}
 .si-safety-card-photo-strip>button{
-  display:grid;place-items:center;flex:0 0 34px;
-  height:34px;width:34px;border-radius:9px;border:1px solid #8dc7b5;
+  display:grid;place-items:center;flex:0 0 44px;
+  height:44px;width:44px;border-radius:9px;border:1px solid #8dc7b5;
   color:inherit;background:#27534f;cursor:pointer;
 }
 .si-safety-card-reference .si-safety-card-photo-strip,
@@ -420,7 +425,7 @@
   .si-safety-card-photo-strip img{flex-basis:66px;width:66px;height:60px}
   .si-safety-card-photo-strip>div strong{font-size:11px}
   .si-safety-card-photo-strip>div small{font-size:9px}
-  .si-safety-card-photo-strip>button{flex-basis:30px;width:30px;height:30px}
+  .si-safety-card-photo-strip>button{flex-basis:44px;width:44px;height:44px}
   .si-safety-deck-pagination{gap:5px;grid-template-columns:72px minmax(0,1fr) 72px}
   .si-safety-deck-pagination button{font-size:11px}
   .si-safety-deck-pagination>span{font-size:11px}
@@ -446,7 +451,7 @@
 .si-safety-card-lead{font-size:13px;line-height:1.6}
 .si-safety-card-disclaimer{font-size:12px;line-height:1.6}
 .si-safety-card-foot{font-size:10px;line-height:1.45}
-.si-safety-card-photo-hint{font-size:11px}
+.si-safety-card-photo-hint{font-size:12px}
 .si-safety-card-checks p{font-size:13px;line-height:1.6}
 .si-safety-deck-export p,.si-safety-deck-bottom p{font-size:12px;line-height:1.6}
 .si-safety-card-photo-strip>div strong{font-size:13px}
@@ -479,15 +484,15 @@
 .si-safety-card-essential>div{padding:12px 14px;border-radius:11px;border:1px solid #64998a6b;background:#193e42}
 .si-safety-card-essential>div:nth-child(2){background:#234247;border-color:#749e985e}
 .si-safety-card-essential>div:nth-child(3){background:#31453f;border-color:#c0a9786d}
-.si-safety-card-essential span{display:block;color:#c9ead9;font-size:11px;font-weight:850;letter-spacing:.015em}
-.si-safety-card-essential p{margin:5px 0 0!important;color:#f1fff8;font-size:13px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere;word-break:keep-all}
+.si-safety-card-essential span{display:block;color:#c9ead9;font-size:12px;font-weight:850;letter-spacing:.015em}
+.si-safety-card-essential p{margin:5px 0 0!important;color:#f1fff8;font-size:15px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere;word-break:keep-all}
 .si-safety-deck-large .si-safety-card-title h4{font-size:clamp(22px,5.5vw,29px)!important;line-height:1.4}
 .si-safety-deck-large .si-safety-card-title p,
 .si-safety-deck-large .si-safety-card-feature p{font-size:17px!important;line-height:1.75}
 .si-safety-deck-large .si-safety-card-essential p,
 .si-safety-deck-large .si-safety-card-mini-list p,
 .si-safety-deck-large .si-safety-card-evidence-block p,
-.si-safety-deck-large .si-safety-card-checks p{font-size:16px!important;line-height:1.75}
+.si-safety-deck-large .si-safety-card-checks p{font-size:18px!important;line-height:1.75}
 .si-safety-deck-large .si-safety-card-source strong{font-size:17px!important}
 .si-safety-deck-large .si-safety-card-source span,
 .si-safety-deck-large .si-safety-card-disclaimer,
@@ -499,7 +504,34 @@
  .si-safety-deck-tools{gap:8px}
  .si-safety-card-essential{padding:0 14px 13px}
  .si-safety-card-essential>div{padding:11px 12px}
- .si-safety-card-essential p{font-size:13px}
+ .si-safety-card-essential p{font-size:15px}
 }
 @media(prefers-reduced-motion:reduce){.si-safety-deck-progress>span{transition:none}}
 @media print{.si-safety-deck-tools{display:none!important}}
+
+/* Long inspection text stays available; the exported card uses the full text. */
+.si-safety-card-compact .si-safety-card-title h4,
+.si-safety-card-compact .si-safety-card-title p,
+.si-safety-card-compact .si-safety-card-essential p,
+.si-safety-card-compact .si-safety-card-feature p,
+.si-safety-card-compact .si-safety-card-mini-list p,
+.si-safety-card-compact .si-safety-card-evidence-block p{
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:3;
+  overflow:hidden;
+}
+.si-safety-card-compact .si-safety-card-title h4{-webkit-line-clamp:2}
+.si-safety-card-expand{
+  display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;
+  margin:0 16px 16px;padding:12px;
+  border:1px solid #8bbcac;border-radius:12px;
+  background:#e8f5ef;color:#244f42;
+}
+.si-safety-card-expand button{
+  min-height:44px;padding:8px 14px;border:1px solid #0f6b60;
+  border-radius:10px;background:#0f6b60;color:#fff;
+  font:inherit;font-size:13px;font-weight:800;cursor:pointer;
+}
+.si-safety-card-expand button:focus-visible{outline:3px solid #d9b77b;outline-offset:2px}
+.si-safety-card-expand span{flex:1 1 180px;font-size:12px;line-height:1.5;word-break:keep-all}

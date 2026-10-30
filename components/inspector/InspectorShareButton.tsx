@@ -1,5 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
+import './inspector-share-review.css';
 import {shareInspectorPacket,shareResultMessage,copyInspectorShareText,shareCopyResultMessage} from '../../lib/inspector/sharing';
 
 export function ShareDialog({title,text,prepareFiles,onClose}:{title:string;text:string;prepareFiles?:()=>Promise<File[]>;onClose:()=>void}){
@@ -34,6 +35,7 @@ export function ShareDialog({title,text,prepareFiles,onClose}:{title:string;text
         <label className="si-label" htmlFor="si-share-body">보낼 문구</label><textarea id="si-share-body" rows={7} maxLength={50000} value={body} disabled={sharing} onChange={e=>setBody(e.target.value)}/>
         {loading&&<p role="status">보관 사진을 공유용 파일로 준비 중…</p>}{fileError&&<p role="status">{fileError}</p>}
         {files.length>0&&<fieldset className="si-share-files" disabled={sharing}><legend>함께 보낼 사진 {selected.length} / {files.length}장</legend><p className="si-caption">선택한 사진만 공유창에 전달됩니다. 이름·얼굴·연락처 등의 포함 여부를 먼저 확인해 주세요.</p><button type="button" className="si-btn" disabled={sharing} onClick={()=>{setSelected(selected.length===files.length?[]:files.map((_,n)=>n));setMessage('');}}>{selected.length===files.length?'사진 선택 모두 해제':'사진 전체 선택'}</button>{files.map((file,n)=><div key={file.name+'-'+n}><label><input type="checkbox" checked={selected.includes(n)} onChange={e=>setSelected(old=>e.target.checked?[...old,n]:old.filter(i=>i!==n))}/>{previews[n]&&<img src={previews[n]} alt={`공유할 사진 ${n+1}`}/>}<span>사진 {n+1} · {(file.size/1048576).toFixed(2)}MB</span></label><button type="button" className="si-btn" onClick={()=>download(file)}>사진 {n+1} 다운로드</button></div>)}</fieldset>}
+        <div className="si-share-review" role="status" aria-live="polite"><strong>공유할 내용 확인</strong><span>{loading?'사진 준비 중':selected.length?`사진 ${selected.length}장과 문구`:'문구만 보내기'}</span></div>
         <div className="si-share-actions"><button type="button" className="si-btn si-primary" disabled={sharing||loading||!body.trim()} onClick={()=>void share(true)}>{sharing?'공유창 처리 중…':selected.length?'사진·문구 공유창 열기':'문구 공유창 열기'}</button><button type="button" className="si-btn" disabled={sharing||!body.trim()} onClick={()=>void share(false)}>문구만 공유창 열기</button><button type="button" className="si-btn" disabled={sharing||!body.trim()} onClick={()=>void copyText()}>문구 복사</button></div>
         {message&&<p role="status" className="si-notice">{message}</p>}
         <p className="si-caption">공유창으로 넘기는 것은 실제 메시지 전송 완료를 뜻하지 않습니다. 받는 사람과 전송 여부를 앱에서 확인하세요. {prepareFiles?'선택한 최적화 사진 사본만 보낼 수 있으며, 실패하면 문구와 사진을 따로 전달하세요.':'문구만 공유합니다.'} 공유한 사본은 이 점검을 삭제해도 상대방 기기에서 삭제되지 않습니다.</p>

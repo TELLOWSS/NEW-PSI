@@ -9,13 +9,11 @@ try{
  page.on('request',request=>{if(new URL(request.url()).pathname.startsWith('/api/'))api.push(request.url());});page.on('pageerror',error=>errors.push(error.message));
  await page.addInitScript(()=>{Object.defineProperty(navigator.mediaDevices,'getUserMedia',{configurable:true,value:async()=>{const c=document.createElement('canvas');c.width=640;c.height=480;c.getContext('2d').fillRect(0,0,640,480);return c.captureStream(10);}});Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>true});Object.defineProperty(navigator,'share',{configurable:true,value:async data=>{window.__shared={name:data.files[0].name,size:data.files[0].size,text:data.text};}});});
  await page.goto(base+'/camera');await page.getByRole('heading',{name:'현장 사진을 간편하게'}).waitFor();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
- await page.getByRole('button',{name:'사진 촬영하기'}).click();const dialog=page.getByRole('dialog');const orientation=dialog.getByRole('group',{name:'촬영 방향'});assert.equal(await orientation.getByRole('button',{name:'세로',exact:false}).getAttribute('aria-pressed'),'true','portrait phone should open in portrait mode');
- await orientation.getByRole('button',{name:'가로',exact:false}).click();
- await dialog.getByText('가로 촬영을 선택했습니다.',{exact:false}).waitFor();
- assert.equal(await orientation.getByRole('button',{name:'세로',exact:false}).getAttribute('aria-pressed'),'true','keep tall portrait preview until physical rotation');
- const upright=await dialog.locator('.si-camera-stage').boundingBox();assert.ok(upright&&upright.height>350,'landscape request must not shrink upright preview');
+ await page.getByRole('button',{name:'사진 촬영하기'}).click();const dialog=page.getByRole('dialog');
+ assert.match(await dialog.locator('.si-camera-auto-direction').innerText(),/세로/,'portrait phone starts upright');
+ const upright=await dialog.locator('.si-camera-stage').boundingBox();assert.ok(upright&&upright.height>350,'upright preview remains tall');
  await page.setViewportSize({width:844,height:390});
- await page.waitForFunction(()=>document.querySelector('.si-camera-modes button[aria-pressed=true]')?.textContent?.includes('가로'));
+ await page.waitForFunction(()=>document.querySelector('.si-camera-stage-landscape'));
  await page.waitForFunction(()=>document.querySelector('.si-camera-actions .si-camera-shutter')?.disabled===false);
  const turned=await dialog.locator('.si-camera-stage').boundingBox();assert.ok(turned&&turned.width>600&&Math.abs(turned.width/turned.height-16/9)<.03,'physical rotation expands to real 16:9 preview');
  await dialog.getByRole('button',{name:'지금 촬영'}).click();await page.setViewportSize({width:390,height:844});await dialog.getByRole('button',{name:'이 사진 사용'}).click();await page.getByAltText('선택한 현장 사진 미리보기').waitFor();
