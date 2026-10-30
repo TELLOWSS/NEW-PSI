@@ -1,0 +1,27 @@
+import {preview} from 'vite';import {chromium} from 'playwright';import assert from 'node:assert/strict';
+const server=await preview({preview:{port:3048,host:'127.0.0.1',strictPort:true}}),base='http://127.0.0.1:3048';
+const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+try{
+ const context=await browser.newContext({viewport:{width:390,height:844}});let page=await context.newPage(),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(base+'/field-local/',{waitUntil:'networkidle'});
+ await page.getByRole('button',{name:'이 기기 오프라인 준비'}).click();
+ await page.getByText('이 기기의 오프라인 점검 준비가 확인됐습니다.',{exact:false}).waitFor({timeout:30000});
+ await page.getByText('통신 없이 기기에서 직접 점검',{exact:true}).click();
+ let panel=page.getByRole('region',{name:'기기 직접 점검'});
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a8sAAAAASUVORK5CYII=','base64');
+ await panel.getByLabel('기기 점검 사진 선택').setInputFiles({name:'fixture.png',mimeType:'image/png',buffer:png});
+ await panel.getByLabel('직접 확인한 내용').fill('합성 현장 개구부 확인');
+ await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
+ await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
+ const cacheKeys=await page.evaluate(async()=>{const keys=await caches.keys(),cache=await caches.open(keys.find(k=>k.startsWith('psi-local-shell-')));return (await cache.keys()).map(r=>new URL(r.url).pathname);});
+ assert.ok(cacheKeys.includes('/field-local/index.html'));assert.ok(!cacheKeys.some(k=>k.startsWith('/api/')||k.includes('inspection-reply')),'no private responses cached');
+ await page.close();await context.setOffline(true);page=await context.newPage();const requests=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push(r.url()));
+ await page.goto(base+'/field-local/',{waitUntil:'domcontentloaded'});await page.getByRole('heading',{name:'PSI 기기 점검'}).waitFor();
+ await page.getByText('통신 없이 기기에서 직접 점검',{exact:true}).click();panel=page.getByRole('region',{name:'기기 직접 점검'});
+ await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();await panel.getByText('합성 현장 개구부 확인',{exact:false}).waitFor();
+ await panel.getByLabel('기기 점검 사진 선택').setInputFiles({name:'second.png',mimeType:'image/png',buffer:png});await panel.getByLabel('직접 확인한 내용').fill('오프라인 재실행 후 점검');
+ await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();await panel.getByText('이 브라우저에 보관된 점검 2건').waitFor();
+ assert.ok(!requests.some(url=>new URL(url).pathname.startsWith('/api/')||new URL(url).origin!==base),'offline local flow must not contact APIs or external hosts');assert.deepEqual(errors,[]);
+ console.log('PASS offline prepared entry, page close and offline restart, existing record and new save');await context.close();
+}finally{await browser.close();await server.close();}
