@@ -66,6 +66,15 @@ try{
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:backupBytes});
  await panel.getByText('백업을 이 기기에 복원했습니다.',{exact:false}).waitFor();
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
+ // File pickers can return unsupported formats despite their accept hint. Never
+ // advertise a backup which the restore validator will necessarily reject.
+ await panel.getByLabel('기기 점검 사진 선택').setInputFiles({name:'unsupported.heic',mimeType:'image/heic',buffer:Buffer.from('synthetic file')});
+ await panel.getByLabel('직접 확인한 내용').fill('지원하지 않는 사진 형식 백업 시험');
+ await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
+ const unsupported=panel.locator('article').filter({hasText:'지원하지 않는 사진 형식 백업 시험'});
+ await unsupported.waitFor();
+ await unsupported.getByRole('button',{name:'사진과 기록 함께 백업'}).click();
+ await panel.getByText('이 사진 형식은 함께 백업하여 복원할 수 없습니다.',{exact:false}).waitFor();
  assert.deepEqual(requests,[],'offline local operations must not initiate HTTP requests');
  assert.deepEqual(errors,[]);
  console.log('PASS local camera, local save, rule lookup, export, quota failure and retry without HTTP requests');
