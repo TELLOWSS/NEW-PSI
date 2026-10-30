@@ -18,6 +18,7 @@ try{
  assert.ok(cacheKeys.includes('/field-local/index.html'));assert.ok(!cacheKeys.some(k=>k.startsWith('/api/')||k.includes('inspection-reply')),'no private responses cached');
  await page.close();await context.setOffline(true);page=await context.newPage();const requests=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push(r.url()));
  await page.goto(base+'/field-local/',{waitUntil:'domcontentloaded'});await page.getByRole('heading',{name:'PSI 기기 점검'}).waitFor();
+ await page.getByText('이 기기의 오프라인 점검 준비가 확인됐습니다.',{exact:false}).waitFor();
  await page.getByText('통신 없이 기기에서 직접 점검',{exact:true}).click();panel=page.getByRole('region',{name:'기기 직접 점검'});
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();await panel.getByText('합성 현장 개구부 확인',{exact:false}).waitFor();
  await panel.getByRole('button',{name:'기기 점검 사진 촬영'}).click();
