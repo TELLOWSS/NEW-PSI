@@ -10,7 +10,7 @@ let proxy;if(externalBase&&(process.env.HTTPS_PROXY||process.env.HTTP_PROXY)){co
 const browser=await chromium.launch({executablePath:process.env.PSI_CHROMIUM_PATH,headless:true,...(proxy?{proxy}:{}),args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu']});
 const results=[];await mkdir(out,{recursive:true});
 try{
- for(const scenario of ['browse','cancel','all-busy','resume','files-all','conflict','status-failed','response-lost','dirty','active-all','active-files','active-other','bulk-pick','bulk-all','bulk-conflict']){
+ for(const scenario of ['browse','cancel','all-busy','resume','files-all','conflict','status-failed','response-lost','dirty','active-all','active-files','active-other','bulk-pick','bulk-all','bulk-conflict','bulk-pending']){
   console.log('START '+scenario);
   const context=await browser.newContext({viewport:{width:390,height:900},ignoreHTTPSErrors:!!externalBase,reducedMotion:'reduce'}),page=await context.newPage();
   await page.clock.install({time:new Date('2026-10-23T05:00:00Z')});
@@ -35,13 +35,13 @@ try{
    if(b.op==='usage')return r.fulfill({json:{ok:true,usage:{projectBytes:500000,databaseBytes:100000}}});
    if(!bulkMode)assert.equal(b.id,ids[0]);
    if(b.op==='deletion-status'){
-     if(bulkMode){const ok=bulkDeleted.has(b.id);return r.fulfill({json:{ok:true,status:{...status(),state:ok?'purged':'active',mode:ok?'all':null,verified:ok,remainingFiles:ok?0:1,remainingRecords:{inspections:ok?0:1,evidence:ok?0:1,reports:ok?0:1,events:ok?0:3,operations:0}}}});}
+     if(bulkMode){if(scenario==='bulk-pending'&&b.id===ids[1])return r.fulfill({json:{ok:true,status:{...status(),state:'deleting',mode:'all',verifyAfter:'2026-10-23T05:02:00Z',pendingOperations:1,oldestPendingAt:'2026-10-22T05:00:00Z'}}});const ok=bulkDeleted.has(b.id);return r.fulfill({json:{ok:true,status:{...status(),state:ok?'purged':'active',mode:ok?'all':null,verified:ok,remainingFiles:ok?0:1,remainingRecords:{inspections:ok?0:1,evidence:ok?0:1,reports:ok?0:1,events:ok?0:3,operations:0}}}});}
     if(failStatus||lost)return r.fulfill({status:503,json:{ok:false,message:'삭제 상태 연결 실패 · 완료 아님'}});
     return r.fulfill({json:{ok:true,status:status()}});
    }
    if(b.op==='delete-inspection'){
     deleteCalls++;assert.equal(b.confirmation,bulkMode?b.id:ids[0]);assert.equal(b.expectedRevision,3);
-     if(bulkMode){if(scenario==='bulk-conflict'&&b.id===ids[1])return r.fulfill({status:409,json:{ok:false,message:'기록 버전 변경'}});bulkDeleted.add(b.id);rows=rows.filter(x=>x.id!==b.id);return r.fulfill({json:{ok:true,status:{...status(),state:'purged',mode:'all',verified:true,remainingFiles:0,remainingRecords:{inspections:0,evidence:0,reports:0,events:0,operations:0}}}});}
+     if(bulkMode){if(scenario==='bulk-pending'&&b.id===ids[1])return r.fulfill({status:409,json:{ok:false,message:'진행 중 업로드가 있습니다.'}});if(scenario==='bulk-conflict'&&b.id===ids[1])return r.fulfill({status:409,json:{ok:false,message:'기록 버전 변경'}});bulkDeleted.add(b.id);rows=rows.filter(x=>x.id!==b.id);return r.fulfill({json:{ok:true,status:{...status(),state:'purged',mode:'all',verified:true,remainingFiles:0,remainingRecords:{inspections:0,evidence:0,reports:0,events:0,operations:0}}}});}
     if(scenario==='conflict')return r.fulfill({status:409,json:{ok:false,message:'다른 변경사항이 있습니다. 목록을 새로고침하세요.'}});
     if(scenario==='all-busy')await new Promise(resolve=>{release=resolve;});
     mode=b.mode;
@@ -80,10 +80,11 @@ try{
     assert.equal(await modal.getByRole('button',{name:'선택한 '+count+'건 전체 삭제 시작'}).isDisabled(),true);
     await modal.locator('input[type=checkbox]').check();
     await modal.getByRole('button',{name:'선택한 '+count+'건 전체 삭제 시작'}).click();
-    await page.waitForFunction(({count,conflict})=>document.querySelectorAll('.si-bulk-record.is-done').length>=(conflict?count-1:count),{count,conflict:scenario==='bulk-conflict'});
+    await page.waitForFunction(({count,conflict})=>document.querySelectorAll('.si-bulk-record.is-done').length>=(conflict?count-1:count),{count,conflict:scenario==='bulk-conflict'||scenario==='bulk-pending'});
     assert.equal(deleteCalls,count);
-    assert.equal(await list.locator('.si-record-row').count(),scenario==='bulk-all'?0:scenario==='bulk-conflict'?2:1);
-    if(scenario==='bulk-conflict'){
+    assert.equal(await list.locator('.si-record-row').count(),scenario==='bulk-all'?0:scenario==='bulk-conflict'||scenario==='bulk-pending'?2:1);
+    if(scenario==='bulk-conflict'||scenario==='bulk-pending'){
+      if(scenario==='bulk-pending')await modal.getByText('업로드·분석이 끝나지 않아 삭제 미완료',{exact:false}).waitFor();
       // Each record is processed sequentially; the successful record can render
       // before the conflicting record's status request and failed badge complete.
       await modal.locator('.si-bulk-record.is-failed').waitFor({state:'visible'});
