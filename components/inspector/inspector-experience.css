@@ -1360,3 +1360,7 @@
 .dark .si-quick-photo-rotation>p{color:#c9e8db!important}
 @media(max-width:340px){.si-quick-photo-rotation{padding:9px}.si-quick-photo-rotation-actions{gap:5px}.si-quick-photo-rotation-actions .si-btn{font-size:11px;padding:8px 3px}}
 @media print{.si-quick-photo-rotation{display:none!important}}
+
+/* Preserve readable record text even when the standalone entry changes bundle ordering. */
+.si-workspace .si-record strong{font-size:15px}
+.si-workspace .si-record .si-record-state{font-size:12px}
