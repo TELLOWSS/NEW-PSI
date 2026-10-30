@@ -18,10 +18,11 @@ function openRecords():Promise<IDBDatabase>{
 async function runStore<T>(mode:IDBTransactionMode,work:(store:IDBObjectStore,set:(value:T)=>void)=>void):Promise<T>{
  const db=await openRecords();
  return new Promise((resolve,reject)=>{
-  let tx:IDBTransaction,value:T;
+  let tx:IDBTransaction,value:T,requestError:DOMException|null=null;
   try{tx=db.transaction(STORE,mode);work(tx.objectStore(STORE),result=>{value=result;});}catch(error){db.close();reject(error);return;}
   tx.oncomplete=()=>{db.close();resolve(value);};
-  tx.onabort=tx.onerror=()=>{db.close();reject(tx.error||new Error('기기 저장이 중단됐습니다.'));};
+  tx.onerror=event=>{requestError=(event.target as IDBRequest).error;};
+  tx.onabort=()=>{db.close();reject(tx.error||requestError||new Error('기기 저장이 중단됐습니다.'));};
  });
 }
 async function hash(file:File):Promise<string|null>{
