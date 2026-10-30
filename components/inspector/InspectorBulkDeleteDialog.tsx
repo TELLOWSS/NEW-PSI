@@ -3,7 +3,7 @@ import {postAdminJson} from '../../utils/adminApiClient';
 import type {DeletionPointer} from '../../lib/inspector/recordHistory';
 
 export type BulkRecord=DeletionPointer&{title:string};
-type ServerStatus={state:string;mode:'all'|'files'|null;verified:boolean;verifyAfter:string|null;pendingOperations:number;remainingFiles:number;remainingRecords:Record<string,number>};
+type ServerStatus={state:string;mode:'all'|'files'|null;verified:boolean;verifyAfter:string|null;pendingOperations:number;oldestPendingAt?:string|null;remainingFiles:number;remainingRecords:Record<string,number>};
 type Entry={state:'ready'|'running'|'waiting'|'done'|'failed';note:string;verifyAfter?:string|null};
 const request=(body:unknown,timeoutMs=15000)=>postAdminJson<any>('/api/admin/inspector',body,{timeoutMs,fallbackMessage:'기록 삭제 상태를 확인하지 못했습니다. 완료로 처리하지 않았습니다.'});
 const verifiedAll=(s:ServerStatus)=>s.verified===true&&s.state==='purged'&&s.mode==='all'&&s.remainingFiles===0&&['inspections','evidence','reports','events'].every(key=>s.remainingRecords?.[key]===0);
@@ -32,6 +32,11 @@ export default function InspectorBulkDeleteDialog({records,onClose,onWorking,onS
      catch{update(record.id,{state:'failed',note:'상태 확인 실패 · 삭제 완료 아님'});return;}
    }
    if(verifiedAll(status)){finish(record,status);return;}
+   if(status.pendingOperations>0){
+     const started=status.oldestPendingAt?Date.parse(status.oldestPendingAt):NaN;
+     const detail=Number.isFinite(started)?` (가장 오래된 작업 시작: ${new Date(started).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})})`:'';
+     update(record.id,{state:'failed',note:'업로드·분석이 끝나지 않아 삭제 미완료'+detail+' · 작업 종료 후 다시 확인하세요. 오래 지속되면 관리자에게 문의하세요.'});return;
+   }
    if(status.state==='deleting'&&status.mode==='all'&&status.verifyAfter){
      const due=Date.parse(status.verifyAfter);
      if(Number.isFinite(due)&&due>Date.now()){update(record.id,{state:'waiting',note:'사진 링크 만료 대기 후 서버 검증',verifyAfter:status.verifyAfter});return;}
