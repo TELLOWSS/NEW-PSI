@@ -33,11 +33,15 @@ const list=()=>runStore<LocalRecord[]>('readonly',(store,set)=>{const request=st
 function download(blob:Blob,name:string){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 
 const BACKUP_LIMIT=20*1024*1024;
+function backupIssue(photo:File):string|null{
+ if(photo.size>BACKUP_LIMIT)return '사진이 20MB를 넘어 백업할 수 없습니다. 사진을 별도로 내려받으세요.';
+ if(!['image/jpeg','image/png','image/webp'].includes(photo.type))return '이 사진 형식은 함께 백업하여 복원할 수 없습니다. 사진과 점검 내용을 각각 내려받으세요.';
+ if(!photo.size)return '사진이 비어 있어 함께 백업할 수 없습니다. 사진과 점검 내용을 각각 확인하세요.';
+ if((photo.name||'PSI-photo').length>255)return '사진 이름이 길어 함께 백업할 수 없습니다. 사진과 점검 내용을 각각 내려받으세요.';
+ return null;
+}
 async function packRecord(row:LocalRecord):Promise<Blob>{
- if(row.photo.size>BACKUP_LIMIT)throw new Error('사진이 20MB를 넘어 백업할 수 없습니다. 사진을 별도로 내려받으세요.');
- if(!['image/jpeg','image/png','image/webp'].includes(row.photo.type))throw new Error('이 사진 형식은 함께 백업하여 복원할 수 없습니다. 사진과 점검 내용을 각각 내려받으세요.');
- if(!row.photo.size)throw new Error('사진이 비어 있어 함께 백업할 수 없습니다. 사진과 점검 내용을 각각 확인하세요.');
- if((row.photo.name||'PSI-photo').length>255)throw new Error('사진 이름이 길어 함께 백업할 수 없습니다. 사진과 점검 내용을 각각 내려받으세요.');
+ const issue=backupIssue(row.photo);if(issue)throw new Error(issue);
  const digest=await hash(row.photo);
  if(!digest)throw new Error('무결성을 확인할 수 없어 백업하지 못했습니다. 다시 시도하세요.');
  if(row.sha256&&row.sha256!==digest)throw new Error('저장된 사진의 해시가 달라 백업을 중단했습니다. 사진을 별도로 확인하세요.');
@@ -96,7 +100,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    const current=await runStore<LocalRecord|undefined>('readonly',(store,set)=>{const request=store.get(id);request.onsuccess=()=>set(request.result as LocalRecord|undefined);});
    let result:string;
    if(!current)result='기록을 찾지 못했습니다. 목록을 다시 확인하세요.';
-   else if(!current.sha256)result='저장 당시 비교값이 없어 변경 여부를 확인할 수 없습니다. 원본을 별도로 보관하세요.';
+   else if(!current.sha256)result='보관된 비교값이 없어 변경 여부를 확인할 수 없습니다. 원본을 별도로 보관하세요.';
    else {const digest=await hash(current.photo);result=!digest?'사진을 읽거나 비교값을 계산하지 못했습니다. 다시 시도하세요.':digest===current.sha256?'확인 시점의 사진이 저장된 비교값과 일치합니다.':'사진이 저장된 비교값과 다릅니다. 원본을 별도로 확인하세요.';}
    setChecks(prev=>({...prev,[id]:result}));
   }catch{setChecks(prev=>({...prev,[id]:'기기 기록을 읽지 못했습니다. 다시 시도하세요.'}));}
@@ -110,7 +114,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    <h2>사진과 점검 내용을 이 기기에 보관</h2>
    <p>사진을 자동 분석하지 않습니다. 직접 확인한 내용으로 관련 기준을 찾아보는 기능입니다. 서버 업로드와 유료 AI 호출은 하지 않습니다.</p>
    <p>{offlineEntry?'사전에 오프라인 준비를 마친 기기에서는 이 주소로 인터넷 없이 다시 열 수 있습니다.':'인터넷이 끊기기 전 기기 점검 전용 화면에서 오프라인 준비가 필요합니다.'} 브라우저 데이터 삭제나 기기 분실 시 기록이 사라질 수 있으니 별도로 내려받으세요.</p>{!offlineEntry&&<p><a href="/field-local/">오프라인 재실행 준비 화면 열기</a></p>}
-   {photo?<>{url&&<img src={url} alt="기기 점검에 선택한 사진" style={{display:'block',maxWidth:'100%',maxHeight:260,objectFit:'contain'}}/>}<p>{photo.name} · {Math.ceil(photo.size/1024)} KB</p><button type="button" className="si-btn" disabled={busy} onClick={()=>download(photo,photo.name)}>선택 사진 내려받기</button></>:<p>사진을 촬영하거나 선택해 주세요.</p>}
+   {photo?<>{url&&<img src={url} alt="기기 점검에 선택한 사진" style={{display:'block',maxWidth:'100%',maxHeight:260,objectFit:'contain'}}/>}<p>{photo.name} · {Math.ceil(photo.size/1024)} KB</p>{backupIssue(photo)&&<p role="alert">저장 전 백업 안내: {backupIssue(photo)} 점검은 기기에 저장할 수 있습니다.</p>}<button type="button" className="si-btn" disabled={busy} onClick={()=>download(photo,photo.name)}>선택 사진 내려받기</button></>:<p>사진을 촬영하거나 선택해 주세요.</p>}
    <div><button type="button" className="si-btn" disabled={busy} onClick={()=>setCamera(true)}>기기 점검 사진 촬영</button> <label className="si-btn">기기 점검 사진 선택<input aria-label="기기 점검 사진 선택" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)choose(file);}}/></label></div>
    <label>직접 확인한 내용<textarea aria-label="직접 확인한 내용" maxLength={4000} value={note} disabled={busy} onChange={e=>setNote(e.target.value)} placeholder="예: 시스템비계 발판 사이가 벌어져 보여 실측이 필요함"/></label>
    <label>현장 조치·확인 계획<textarea aria-label="현장 조치·확인 계획" maxLength={4000} value={action} disabled={busy} onChange={e=>setAction(e.target.value)} placeholder="예: 접근을 통제하고 담당자와 발판 상태 확인"/></label>
@@ -123,7 +127,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    <p>백업에는 사진과 점검 내용이 모두 들어 있으며 암호화되지 않습니다. 안전한 장소에 보관하세요. 한 파일당 사진 20MB까지 지원합니다.</p>
    <label className="si-btn">백업 파일 복원<input type="file" accept="application/json,.json" aria-label="백업 파일 복원" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void restore(file);}}/></label>
    {readState==='ready'&&rows.map(row=><article key={row.id}><p>{new Date(row.createdAt).toLocaleString('ko-KR')} · {row.note}</p><p>조치 계획: {row.action||'미작성'} · 파일 무결성 기록: {row.sha256?'SHA-256 기록됨':'미확인'}</p><button type="button" className="si-btn" disabled={busy} onClick={()=>void verifyPhoto(row.id)}>사진 변경 확인</button> {checks[row.id]&&<p role="status">{checks[row.id]}</p>} <button type="button" className="si-btn" onClick={()=>download(row.photo,row.photo.name||'PSI-photo.jpg')}>사진 내려받기</button> <button type="button" className="si-btn" onClick={()=>{const {photo:stored,...data}=row;download(new Blob([JSON.stringify({...data,photoName:stored.name,photoType:stored.type},null,2)],{type:'application/json'}),'PSI-local-record-'+row.id+'.json');}}>점검 내용 내려받기</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void backup(row)}>사진과 기록 함께 백업</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void remove(row.id)}>이 기기 기록 삭제</button></article>)}
-   <p>사진 변경 확인은 저장된 사진과 저장 당시 비교값만 대조합니다. 점검 내용의 변경이나 촬영 시각·장소·안전 여부는 증명하지 않습니다.</p>
+   <p>사진 변경 확인은 저장된 사진과 기록된 비교값만 대조합니다. 백업에서 복원한 기록의 비교값은 백업 당시 생성됐을 수 있습니다. 점검 내용의 변경이나 촬영 시각·장소·안전 여부는 증명하지 않습니다.</p>
   </section>
   {camera&&<InspectorCameraDialog onClose={()=>setCamera(false)} onUse={file=>{setCamera(false);choose(file);}}/>}
  </details>;
