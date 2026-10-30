@@ -107,7 +107,7 @@ function AdditionalActions({row,busy,onUpdate}:{row:LocalRecord;busy:boolean;onU
  const actions=row.additionalActions||[];
  const add=async()=>{if(!title.trim()||actions.length>=20)return;if(await onUpdate(row,[...actions,{id:crypto.randomUUID(),title:title.trim()}]))setTitle('');};
  return <section aria-label="추가 조치 항목"><h4>추가 조치 항목 {actions.length}건</h4><p>각 항목을 따로 관리합니다. 조치 후 사진은 현재 점검 전체에 연결됩니다.</p>
-  {actions.map(item=><div key={item.id}><h5>{item.title}</h5><FollowupEditor row={{...row,followup:item.followup}} busy={busy} onSave={async(_id,value)=>{if(value.history.length>50)return false;return onUpdate(row,actions.map(entry=>entry.id===item.id?{...entry,followup:value}:entry));}}/></div>)}
+  {actions.map(item=><div key={item.id}><h5>{item.title}</h5><FollowupEditor row={{...row,followup:item.followup}} busy={busy} onSave={async(_id,value)=>onUpdate(row,actions.map(entry=>entry.id===item.id?{...entry,followup:value}:entry))}/></div>)}
   <label>추가할 조치 내용<input value={title} maxLength={200} disabled={busy||actions.length>=20} onChange={e=>setTitle(e.target.value)} placeholder="예: 개구부 덮개 고정"/></label>
   <button type="button" className="si-btn" disabled={busy||!title.trim()||actions.length>=20} onClick={()=>void add()}>조치 항목 추가</button>
   {actions.length>=20&&<p>한 점검에 추가 조치 항목을 20개까지 기록할 수 있습니다.</p>}
