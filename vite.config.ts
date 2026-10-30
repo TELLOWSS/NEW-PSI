@@ -60,14 +60,15 @@ export default defineConfig(({ mode }) => {
           visit(localEntry.fileName);
           const offlineHtml=await readFile(path.join(directory,'field-local/index.html'),'utf8');
           const urls=['/field-local/index.html',...Array.from(localAssets).sort().map(file=>'/'+file)];
-          const version=createHash('sha256').update(offlineHtml+JSON.stringify(urls)).digest('hex').slice(0,16);
-          const worker=`
-const CACHE='psi-local-shell-${version}', URLS=${JSON.stringify(urls)};
+          const workerTemplate=`
+const CACHE='psi-local-shell-__WORKER_VERSION__', URLS=${JSON.stringify(urls)};
 self.addEventListener('install',event=>event.waitUntil((async()=>{const cache=await caches.open(CACHE);try{await cache.addAll(URLS);}catch(error){await caches.delete(CACHE);throw error;}})()));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{for(const name of await caches.keys())if(name.startsWith('psi-local-shell-')&&name!==CACHE)await caches.delete(name);})()));
 self.addEventListener('message',event=>{if(event.data?.type==='VERIFY_LOCAL_ASSETS'&&event.ports[0])event.waitUntil((async()=>{const cache=await caches.open(CACHE);const all=await Promise.all(URLS.map(url=>cache.match(url)));event.ports[0].postMessage({ok:all.every(Boolean)});})());});
 self.addEventListener('fetch',event=>{const request=event.request,url=new URL(request.url);if(request.method!=='GET'||url.origin!==self.location.origin)return;if(request.mode==='navigate'&&(url.pathname==='/field-local/'||url.pathname==='/field-local/index.html')){event.respondWith(caches.open(CACHE).then(cache=>cache.match('/field-local/index.html')).then(response=>response||fetch(request)));return;}if(URLS.includes(url.pathname)&&url.pathname!=='/field-local/index.html')event.respondWith(caches.open(CACHE).then(cache=>cache.match(url.pathname)).then(response=>response||fetch(request)));});
 `;
+          const version=createHash('sha256').update(offlineHtml+JSON.stringify(urls)+workerTemplate).digest('hex').slice(0,16);
+          const worker=workerTemplate.replace('__WORKER_VERSION__',version);
           await writeFile(path.join(directory,'field-local/sw.js'),worker);
 
         },
