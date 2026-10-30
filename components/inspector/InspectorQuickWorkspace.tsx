@@ -1,3 +1,4 @@
+import InspectorLocalDraft from './InspectorLocalDraft';
 import {sourceReviewState} from '../../lib/inspector/sourceReview';
 import InspectorResultJourney from './InspectorResultJourney';
 import {resultJourney,type ResultAction} from '../../lib/inspector/resultJourney';
@@ -414,6 +415,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
             <button type="button" className="si-btn" disabled={busy||storageBusy} onClick={()=>{if((unsavedPhoto||actionDraftDirty)&&!window.confirm('저장하지 않은 사진·설명·검토·조치 입력이 사라질 수 있습니다. 첫 화면으로 돌아갈까요?'))return;startNew(true);}}>⌂ 첫 화면</button>
             <button type="button" className="si-btn" disabled={busy||storageBusy} onClick={()=>{if(!unsavedPhoto&&!actionDraftDirty||window.confirm('상세 관리로 이동합니다. 저장 전 사진·설명·검토·작성 중인 조치는 이 화면을 닫으면 사라집니다. 이동할까요?'))onAdvanced();}}>저장 기록 · 상세 관리</button>
           </nav></header>
+        <a className="si-btn" href="#si-local-inspection">통신 없이 기기에서 직접 점검 ↓</a>
         {(item||deletedResumeId)&&<InspectorStorageManager key={item?.id||deletedResumeId} id={item?.id||deletedResumeId} revision={item?.revision||0} title={item?.document.title||'이 탭의 이전 점검 · 삭제 결과'} initialOpen={!!deletedResumeId} disabled={busy||!!local&&!photo} onWorking={setStorageBusy} onLocked={()=>{setStorageLocked(true);clearActive();}} onComplete={()=>startNew()}/>}
         {storageLocked&&<p className="si-notice" role="alert">삭제 중이거나 사진이 삭제된 점검입니다. 위 보관·삭제 관리에서 검증 결과를 확인하세요.</p>}
         <fieldset className="si-work-area" hidden={storageLocked} disabled={storageBusy}>
@@ -518,6 +520,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
         {!busy&&!analysisFailed&&!storageLocked&&item&&item.document.photoIds.length>0&&!report&&!editInput&&(!local||photo)&&createPortal(<div className={`si-workspace si-dock-scope si-quick-dock${editingField?' is-editing-field':''}`} ><div className="si-quick-finish" aria-label="결과 확인과 저장"><p>{busy?activity||'처리 중…':`${item.document.photoIds.length}장 보관 · ${item.document.photoIds.filter(id=>!!item.document.reviews[id]).length}장 검토 기록`}</p>{photo?<button className="si-btn" disabled={busy||storageBusy||resultNote!==note||!!analysis&&!reviewSaved||actionDraftDirty} onClick={()=>nextPhoto(!apiEnabled)}>확인하고 다음 사진</button>:<button className="si-btn" disabled={busy||storageBusy} onClick={()=>setCamera(true)}>다음 사진 촬영</button>}<button className="si-btn si-primary" disabled={busy||storageBusy} onClick={photo&&journey?()=>handleJourney(journey.action):!photo&&actionDraftDirty?()=>{setReportBlocked(true);setDraftRequest(n=>n+1);}:!photo&&pendingPhoto?()=>openSavedPhoto(pendingPhoto):finish}>{photo&&journey?journey.label:!photo&&actionDraftDirty?'작성 중인 입력 계속하기':photo?'확인 · 보고서 저장':pendingPhoto?'검토 대기 사진 이어보기':'모은 자료로 보고서 완성'}</button></div></div>,document.body)}
         {zoom&&preview&&<InspectorPhotoDialog src={preview} onClose={()=>setZoom(false)} caption={(zoomFocus?`AI 관찰 위치: ${zoomFocus} · `:'')+(local||photo?.optimization_receipt?'점검용 최적화 사본입니다. 고화질 원본은 기기에 별도로 보관하세요.':'보관한 점검 사진입니다. 기기 원본 보관 상태는 별도로 확인하세요.')}/>}
         </fieldset>
+        <InspectorLocalDraft/>
         {camera&&<InspectorCameraDialog onClose={()=>setCamera(false)} onHome={()=>{setCamera(false);startNew();}} onUse={file=>{setCamera(false);choose(file);}}/>}
     </div>;
 }

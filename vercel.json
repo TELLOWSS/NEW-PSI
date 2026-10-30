@@ -13,6 +13,14 @@
       "destination": "/api/$1"
     },
     {
+      "source": "/field-local/",
+      "destination": "/field-local/index.html"
+    },
+    {
+      "source": "/field-local",
+      "destination": "/field-local/index.html"
+    },
+    {
       "source": "/product",
       "destination": "/product/index.html"
     },
@@ -87,6 +95,15 @@
         {
           "key": "Referrer-Policy",
           "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/field-local/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
         }
       ]
     }
