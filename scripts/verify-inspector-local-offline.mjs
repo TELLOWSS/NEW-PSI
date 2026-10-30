@@ -27,8 +27,8 @@ try{
  globalThis.__testPhase='input';
  await panel.getByLabel('직접 확인한 내용').fill('시스템비계 발판 사이가 벌어져 실측이 필요함');
  await panel.getByLabel('현장 조치·확인 계획').fill('접근을 통제하고 담당자와 확인');
- await panel.getByText('비계·작업발판',{exact:true}).first().waitFor();
- await panel.getByText('기존 자료 · 검토 이력 보완 필요',{exact:true}).first().waitFor();
+ await panel.getByText('현재 입력에 대해 검토 이력과 검토 기한이 확인된 기준을 찾지 못했습니다.',{exact:false}).waitFor();
+ assert.equal(await panel.getByText('비계·작업발판',{exact:true}).count(),0,'legacy guidance must not appear as verified local guidance');
  await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
  await panel.getByText('기기에 저장했습니다. 서버에는 전송하지 않았습니다.').waitFor();
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
