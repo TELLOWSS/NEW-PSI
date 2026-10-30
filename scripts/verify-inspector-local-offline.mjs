@@ -1,6 +1,7 @@
 import {preview} from 'vite';
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 const server=await preview({preview:{port:3047,host:'127.0.0.1',strictPort:true}});
 const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});
 try{
@@ -34,6 +35,14 @@ try{
  const saved=await page.evaluate(()=>new Promise((resolve,reject)=>{const open=indexedDB.open('psi-inspector-local-records',1);open.onerror=()=>reject(open.error);open.onsuccess=()=>{const db=open.result,tx=db.transaction('records','readonly'),request=tx.objectStore('records').getAll();request.onsuccess=()=>{resolve(request.result.map(r=>({note:r.note,action:r.action,size:r.photo.size,sha:r.sha256,version:r.legalVersion})));};tx.oncomplete=()=>db.close();};}));
  assert.equal(saved.length,1);assert.match(saved[0].note,/시스템비계/);assert.ok(saved[0].size>0);assert.match(saved[0].sha,/^[a-f0-9]{64}$/);assert.ok(saved[0].version);
  globalThis.__testPhase='download';
+ const backupEvent=page.waitForEvent('download');await panel.getByRole('button',{name:'사진과 기록 함께 백업'}).click();
+ const backup=await backupEvent,backupBytes=await readFile(await backup.path()),parsed=JSON.parse(backupBytes.toString());
+ assert.equal(parsed.record.sha256,saved[0].sha,'backup photo hash must match stored photo');
+ await panel.getByLabel('백업 파일 복원').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:backupBytes});
+ await panel.getByText('같은 점검이 이미 이 기기에 있습니다.',{exact:false}).waitFor();
+ const altered=JSON.parse(backupBytes.toString());altered.record.sha256='0'.repeat(64);
+ await panel.getByLabel('백업 파일 복원').setInputFiles({name:'corrupt.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(altered))});
+ await panel.getByText('백업 사진의 무결성이 확인되지 않아 복원을 중단했습니다.').waitFor();
  const download=page.waitForEvent('download');await panel.getByRole('button',{name:'점검 내용 내려받기'}).click();assert.match((await download).suggestedFilename(),/^PSI-local-record-/);
  globalThis.__testPhase='retry';
  await panel.getByLabel('기기 점검 사진 선택').setInputFiles({name:'failure.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a8sAAAAASUVORK5CYII=','base64')});
@@ -49,6 +58,13 @@ try{
  page.once('dialog',d=>d.dismiss());await panel.getByRole('button',{name:'이 기기 기록 삭제'}).first().click();
  await panel.getByText('이 브라우저에 보관된 점검 2건').waitFor();
  page.once('dialog',d=>d.accept());await panel.getByRole('button',{name:'이 기기 기록 삭제'}).first().click();
+ await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
+ // Original backup is still rejected while its record remains. Remove only that record and restore it.
+ const sourceRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
+ page.once('dialog',d=>d.accept());await sourceRow.getByRole('button',{name:'이 기기 기록 삭제'}).click();
+ await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
+ await panel.getByLabel('백업 파일 복원').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:backupBytes});
+ await panel.getByText('백업을 이 기기에 복원했습니다.',{exact:false}).waitFor();
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
  assert.deepEqual(requests,[],'offline local operations must not initiate HTTP requests');
  assert.deepEqual(errors,[]);
