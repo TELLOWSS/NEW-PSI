@@ -1,4 +1,4 @@
-import {preview} from 'vite';import {chromium} from 'playwright';import assert from 'node:assert/strict';
+import {readFile,writeFile} from 'node:fs/promises';import {preview} from 'vite';import {chromium} from 'playwright';import assert from 'node:assert/strict';
 const server=await preview({preview:{port:3048,host:'127.0.0.1',strictPort:true}}),base='http://127.0.0.1:3048';
 const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});
 try{
@@ -16,6 +16,26 @@ try{
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
  const cacheKeys=await page.evaluate(async()=>{const keys=await caches.keys(),cache=await caches.open(keys.find(k=>k.startsWith('psi-local-shell-')));return (await cache.keys()).map(r=>new URL(r.url).pathname);});
  assert.ok(cacheKeys.includes('/field-local/index.html'));assert.ok(!cacheKeys.some(k=>k.startsWith('/api/')||k.includes('inspection-reply')),'no private responses cached');
+ // Simulate a new version whose required static file cannot be fetched.
+ // Always restore the production build bytes before any later regression.
+ const workerPath='dist/field-local/sw.js',workerBytes=await readFile(workerPath,'utf8');
+ try{
+  const broken=workerBytes.replace("const CACHE='psi-local-shell-","const CACHE='psi-local-shell-broken-").replace("self.addEventListener('install'","URLS.push('http://127.0.0.1:1/unavailable');self.addEventListener('install'");
+  assert.notEqual(broken,workerBytes);
+  await writeFile(workerPath,broken);
+  const result=await page.evaluate(async()=>{
+   const registration=await navigator.serviceWorker.getRegistration('/field-local/');
+   const prior=registration.active.scriptURL;
+   try{await registration.update();}catch{/* A rejected update must preserve the active version. */}
+   const candidate=registration.installing;
+   if(candidate&&candidate.state!=='redundant')await new Promise(resolve=>{const done=()=>{if(candidate.state==='redundant')resolve();};candidate.addEventListener('statechange',done);setTimeout(resolve,10000);});
+   return {active:registration.active?.scriptURL===prior,waiting:!!registration.waiting,keys:await caches.keys()};
+  });
+  assert.equal(result.active,true,'failed update must retain active worker');
+  assert.equal(result.waiting,false,'failed update must not be ready for activation');
+  assert.ok(result.keys.some(k=>k.startsWith('psi-local-shell-')&&!k.includes('-broken-')),'old offline assets remain');
+  assert.ok(!result.keys.some(k=>k.includes('-broken-')),'failed partial cache is discarded');
+ }finally{await writeFile(workerPath,workerBytes);}
  await page.close();await context.setOffline(true);page=await context.newPage();const requests=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push(r.url()));
  await page.goto(base+'/field-local/',{waitUntil:'domcontentloaded'});await page.getByRole('heading',{name:'PSI 기기 점검'}).waitFor();
  await page.getByText('이 기기의 오프라인 점검 준비가 확인됐습니다.',{exact:false}).waitFor();
