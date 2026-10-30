@@ -102,6 +102,20 @@ try{
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
  await panel.getByText('조치 후 사진: synthetic-after.png').waitFor();
  await panel.getByText('조치 진행 중',{exact:true}).waitFor();
+ // Revisit the same issue with the camera and preserve a cancelled replacement.
+ const restoredRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
+ await restoredRow.getByRole('button',{name:'조치 후 사진 촬영'}).click();
+ const afterDialog=page.getByRole('dialog',{name:'카메라로 바로 촬영'});
+ await afterDialog.getByRole('button',{name:'기준 사진 끄기'}).waitFor();
+ await page.waitForFunction(()=>!document.querySelector('.si-camera-shutter')?.disabled);
+ await afterDialog.getByRole('button',{name:'지금 촬영'}).click();
+ await page.getByRole('dialog',{name:'촬영 사진 바로 확인'}).getByRole('button',{name:'이 사진 사용'}).click();
+ await panel.getByText('촬영한 조치 후 사진이 아직 저장되지 않았습니다.',{exact:false}).waitFor();
+ page.once('dialog',d=>d.dismiss());await panel.getByRole('button',{name:'촬영 사진 연결'}).click();
+ await panel.getByText('촬영한 조치 후 사진이 아직 저장되지 않았습니다.',{exact:false}).waitFor();
+ page.once('dialog',d=>d.accept());await panel.getByRole('button',{name:'촬영 사진 연결'}).click();
+ await panel.getByText('조치 후 사진을 이 기기에 연결했습니다.',{exact:false}).waitFor();
+ assert.equal(await panel.getByText('촬영한 조치 후 사진이 아직 저장되지 않았습니다.',{exact:false}).count(),0);
  // File pickers can return unsupported formats despite their accept hint. Never
  // advertise a backup which the restore validator will necessarily reject.
  await panel.getByLabel('기기 점검 사진 선택').setInputFiles({name:'unsupported.heic',mimeType:'image/heic',buffer:Buffer.from('synthetic file')});
