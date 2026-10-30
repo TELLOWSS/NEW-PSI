@@ -38,6 +38,23 @@ try{
  const backupEvent=page.waitForEvent('download');await panel.getByRole('button',{name:'사진과 기록 함께 백업'}).click();
  const backup=await backupEvent,backupBytes=await readFile(await backup.path()),parsed=JSON.parse(backupBytes.toString());
  assert.equal(parsed.record.sha256,saved[0].sha,'backup photo hash must match stored photo');
+ const savedRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
+ await savedRow.getByRole('button',{name:'사진 변경 확인'}).click();
+ await savedRow.getByText('확인 시점의 사진이 저장된 비교값과 일치합니다.').waitFor();
+ // Alter only synthetic IndexedDB fixtures. Verification must read current
+ // storage, rather than compare the in-memory list captured at render time.
+ await page.evaluate(async id=>{const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('psi-inspector-local-records',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
+  const tx=db.transaction('records','readwrite'),store=tx.objectStore('records'),req=store.get(id);
+  req.onsuccess=()=>{window.__integrityFixture=req.result;store.put({...req.result,photo:new File(['changed'],'changed.png',{type:'image/png'})});};
+  await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);});db.close();
+ },parsed.record.id);
+ await savedRow.getByRole('button',{name:'사진 변경 확인'}).click();
+ await savedRow.getByText('사진이 저장된 비교값과 다릅니다.',{exact:false}).waitFor();
+ await page.evaluate(async id=>{const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('psi-inspector-local-records',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});const tx=db.transaction('records','readwrite');tx.objectStore('records').put({...window.__integrityFixture,sha256:null});await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);});db.close();},parsed.record.id);
+ await savedRow.getByRole('button',{name:'사진 변경 확인'}).click();
+ await savedRow.getByText('저장 당시 비교값이 없어 변경 여부를 확인할 수 없습니다.',{exact:false}).waitFor();
+ await page.evaluate(async()=>{const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('psi-inspector-local-records',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});const tx=db.transaction('records','readwrite');tx.objectStore('records').put(window.__integrityFixture);await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);});db.close();});
+
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:backupBytes});
  await panel.getByText('같은 점검이 이미 이 기기에 있습니다.',{exact:false}).waitFor();
  const altered=JSON.parse(backupBytes.toString());altered.record.sha256='0'.repeat(64);
