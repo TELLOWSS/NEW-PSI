@@ -14,7 +14,8 @@ try{
  await page.getByText('통신 없이 기기에서 직접 점검',{exact:true}).click();
  const panel=page.getByRole('region',{name:'기기 직접 점검'});
  await context.setOffline(true);
- page.on('request',request=>{if(/^https?:/.test(request.url()))requests.push(request.url());});
+ page.on('request',request=>{if(/^https?:/.test(request.url()))requests.push({url:request.url(),type:request.resourceType(),method:request.method(),phase:globalThis.__testPhase});});
+ globalThis.__testPhase='camera';
  await panel.getByRole('button',{name:'기기 점검 사진 촬영'}).click();
  const dialog=page.getByRole('dialog',{name:'카메라로 바로 촬영'});
  await dialog.getByRole('button',{name:'지금 촬영'}).waitFor();
@@ -22,6 +23,7 @@ try{
  await dialog.getByRole('button',{name:'지금 촬영'}).click();
  const review=page.getByRole('dialog',{name:'촬영 사진 바로 확인'});
  await review.getByRole('button',{name:'이 사진 사용'}).click();
+ globalThis.__testPhase='input';
  await panel.getByLabel('직접 확인한 내용').fill('시스템비계 발판 사이가 벌어져 실측이 필요함');
  await panel.getByLabel('현장 조치·확인 계획').fill('접근을 통제하고 담당자와 확인');
  await panel.getByText('비계·작업발판',{exact:true}).first().waitFor();
@@ -30,7 +32,9 @@ try{
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
  const saved=await page.evaluate(()=>new Promise((resolve,reject)=>{const open=indexedDB.open('psi-inspector-local-records',1);open.onerror=()=>reject(open.error);open.onsuccess=()=>{const db=open.result,tx=db.transaction('records','readonly'),request=tx.objectStore('records').getAll();request.onsuccess=()=>{resolve(request.result.map(r=>({note:r.note,action:r.action,size:r.photo.size,sha:r.sha256,version:r.legalVersion})));};tx.oncomplete=()=>db.close();};}));
  assert.equal(saved.length,1);assert.match(saved[0].note,/시스템비계/);assert.ok(saved[0].size>0);assert.match(saved[0].sha,/^[a-f0-9]{64}$/);assert.ok(saved[0].version);
+ globalThis.__testPhase='download';
  const download=page.waitForEvent('download');await panel.getByRole('button',{name:'점검 내용 내려받기'}).click();assert.match((await download).suggestedFilename(),/^PSI-local-record-/);
+ globalThis.__testPhase='retry';
  await panel.getByLabel('기기 점검 사진 선택').setInputFiles({name:'failure.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a8sAAAAASUVORK5CYII=','base64')});
  await panel.getByLabel('직접 확인한 내용').fill('저장 실패 시 보존 시험');
  await page.evaluate(()=>{window.__originalAdd=IDBObjectStore.prototype.add;IDBObjectStore.prototype.add=function(){throw new DOMException('full','QuotaExceededError');};});
