@@ -196,13 +196,13 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
         {error&&<div className="si-camera-recovery" role="alert"><strong>카메라 연결을 확인해 주세요</strong><p>{error}</p><p>연결이 안 되면 아래 <b>기기 카메라로 촬영</b>을 누르거나 창을 닫고 <b>사진첩·파일에서 선택</b>할 수 있습니다. 사진이 없는 상태에서 점검이 자동 등록되지는 않습니다.</p></div>}
         {photo&&<section className="si-camera-photo-editor" aria-label="촬영 사진 회전 편집">
            <div className="si-camera-photo-editor-heading"><strong>촬영 사진 방향</strong><span role="status">{rotating?'회전 중…':rotation===0?'원래 촬영 방향':`원래 사진 기준 ${rotation*90}° 회전 · 별도 편집본`}</span></div>
+           {rotation!==0&&originalPreview&&<a className="si-btn" href={originalPreview} download={originalCapture.current?.name||'PSI-original.jpg'} aria-disabled={rotating||sequenceSaving} onClick={e=>{if(rotating||sequenceSaving)e.preventDefault();}}>최초 촬영 파일 기기에 저장</a>}
            <div className="si-camera-photo-editor-tools">
              <button type="button" className="si-btn" disabled={!decoded||rotating||sequenceSaving} onClick={()=>void turnPhoto(-1)}>↶ 왼쪽 90°</button>
              <button type="button" className="si-btn" disabled={!decoded||rotating||sequenceSaving} onClick={()=>void turnPhoto(1)}>↷ 오른쪽 90°</button>
              <button type="button" className="si-btn" disabled={rotation===0||rotating||sequenceSaving} onClick={()=>void turnPhoto(-rotation)}>원래 방향</button>
            </div>
            <p>회전한 사진은 별도 사본입니다. 최초 촬영 파일이 필요하면 이 창을 닫기 전에 기기에 저장하세요.</p>
-           {rotation!==0&&originalPreview&&<a className="si-btn" href={originalPreview} download={originalCapture.current?.name||'PSI-original.jpg'} aria-disabled={rotating||sequenceSaving} onClick={e=>{if(rotating||sequenceSaving)e.preventDefault();}}>최초 촬영 파일 기기에 저장</a>}
          </section>}
          <div className="si-camera-actions">{photo?<>
             <button className="si-btn" disabled={sequenceSaving||rotating} onClick={()=>{if(!window.confirm('아직 등록하지 않은 이 사진을 버리고 다시 촬영할까요?'))return;retry();}}>다시 촬영</button>
