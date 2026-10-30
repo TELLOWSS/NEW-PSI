@@ -1,11 +1,22 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import InspectorLocalDraft from '../components/inspector/InspectorLocalDraft';
 import '../components/inspector/inspector-experience.css';
 import '../components/inspector/inspector-field-entry.css';
 
+async function verifyWorker(worker:ServiceWorker):Promise<boolean>{
+ return new Promise<boolean>((resolve,reject)=>{const channel=new MessageChannel(),timer=setTimeout(()=>{channel.port1.close();reject(new Error('오프라인 준비 확인 시간이 초과됐습니다.'));},10000);channel.port1.onmessage=e=>{clearTimeout(timer);channel.port1.close();resolve(e.data?.ok===true);};worker.postMessage({type:'VERIFY_LOCAL_ASSETS'},[channel.port2]);});
+}
 function LocalEntry(){
  const [status,setStatus]=useState('이 기기에서 오프라인으로 열려면 온라인에서 먼저 준비해 주세요.');
+ useEffect(()=>{let active=true;void (async()=>{
+  if(!('serviceWorker' in navigator))return;
+  try{const registration=await navigator.serviceWorker.getRegistration('/field-local/');
+   if(!registration?.active)return;
+   const verified=await verifyWorker(registration.active);
+   if(active)setStatus(verified?'이 기기의 오프라인 점검 준비가 확인됐습니다. 이 주소를 즐겨찾기에 저장하세요.':'오프라인 준비 파일이 부족합니다. 인터넷 연결 후 다시 준비해 주세요.');
+  }catch{if(active)setStatus('오프라인 준비 상태를 확인하지 못했습니다. 인터넷 연결 후 다시 준비해 주세요.');}
+ })();return()=>{active=false;};},[]);
  const prepare=async()=>{
   try{
    if(!('serviceWorker' in navigator))throw new Error('이 브라우저는 오프라인 준비를 지원하지 않습니다.');
@@ -15,7 +26,7 @@ function LocalEntry(){
    await Promise.race([navigator.serviceWorker.ready,new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error('오프라인 준비에 실패했거나 시간이 초과됐습니다. 연결을 확인하고 다시 시도해 주세요.')),15000))]);
    const worker=registration.active;
    if(!worker)throw new Error('오프라인 파일이 아직 활성화되지 않았습니다.');
-   const verified=await new Promise<boolean>((resolve,reject)=>{const channel=new MessageChannel(),timer=setTimeout(()=>reject(new Error('오프라인 준비 확인 시간이 초과됐습니다.')),10000);channel.port1.onmessage=e=>{clearTimeout(timer);resolve(e.data?.ok===true);};worker.postMessage({type:'VERIFY_LOCAL_ASSETS'},[channel.port2]);});
+   const verified=await verifyWorker(worker);
    if(!verified)throw new Error('필요한 오프라인 파일이 빠져 있습니다. 인터넷 연결 후 다시 준비해 주세요.');
    setStatus('이 기기의 오프라인 점검 준비가 확인됐습니다. 이 주소를 즐겨찾기에 저장하세요.');
   }catch(error){setStatus(error instanceof Error?error.message:'오프라인 준비에 실패했습니다.');}
