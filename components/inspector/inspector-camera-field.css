@@ -142,3 +142,10 @@
 @media (prefers-reduced-motion: reduce) {
   .si-camera-dialog.si-camera-immersive.si-camera-live .si-camera-shutter {transition:none!important}
 }
+
+@media (max-width:1199px) and (orientation:portrait) {
+  .si-camera-dialog.si-camera-immersive.si-camera-live .si-camera-heading .si-camera-guide-options[open] > .si-camera-guide-content {
+    bottom:calc(env(safe-area-inset-bottom) + 160px)!important;
+    max-height:min(238px,calc(100dvh - 215px))!important;
+  }
+}
