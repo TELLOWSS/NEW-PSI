@@ -14,20 +14,14 @@ type CameraGuide = keyof typeof CAMERA_GUIDES | '';
 export default function InspectorCameraDialog({onClose, onUse, reference, onSaveAndContinue, storedCount,onHome}: {onClose:()=>void; onUse:(file:File)=>void;onHome?:()=>void; reference?:{url?:string;label:string;failed?:boolean;missing?:boolean};onSaveAndContinue?:(file:File)=>Promise<boolean>;storedCount?:number}) {
     const dialogRef=useRef<HTMLDialogElement>(null), videoRef=useRef<HTMLVideoElement>(null), guidePanelRef=useRef<HTMLDetailsElement>(null);
     const streamRef=useRef<MediaStream|null>(null), generation=useRef(0), encoding=useRef(false), nativePending=useRef(false);
-    const [mode,setMode]=useState<'landscape'|'portrait'>(()=>{const physical=window.innerHeight>window.innerWidth?'portrait':'landscape';try{const saved=sessionStorage.getItem('psi.inspector.camera.mode.v1');return saved===physical?saved:physical;}catch{return physical;}});
-    const [landscapeRequested,setLandscapeRequested]=useState(false);
-    const manualOrientation=useRef(false);
-    useEffect(()=>{const followDevice=()=>{
-      const physical=window.innerWidth>window.innerHeight?'landscape':'portrait';
-      if(landscapeRequested&&physical==='landscape'){
-        setLandscapeRequested(false);manualOrientation.current=true;
-        setMode('landscape');
-        try{sessionStorage.setItem('psi.inspector.camera.mode.v1','landscape');}catch{/* Keep in-memory direction. */}
-        return;
-      }
-      if(manualOrientation.current)return;
-      setMode(physical);
-    };window.addEventListener('resize',followDevice);window.addEventListener('orientationchange',followDevice);return()=>{window.removeEventListener('resize',followDevice);window.removeEventListener('orientationchange',followDevice);};},[landscapeRequested]);
+    // Follow the browser's displayed orientation on every turn; no manual mode lock.
+    const [mode,setMode]=useState<'landscape'|'portrait'>(()=>window.innerWidth>window.innerHeight?'landscape':'portrait');
+    useEffect(()=>{
+      const followDevice=()=>setMode(window.innerWidth>window.innerHeight?'landscape':'portrait');
+      window.addEventListener('resize',followDevice);
+      window.addEventListener('orientationchange',followDevice);
+      return()=>{window.removeEventListener('resize',followDevice);window.removeEventListener('orientationchange',followDevice);};
+    },[]);
     const [frame,setFrame]=useState<{width:number;height:number}|null>(null);
     const [facing,setFacing]=useState<'environment'|'user'>('environment');
     const [attempt,setAttempt]=useState(0), [ready,setReady]=useState(false), [capturing,setCapturing]=useState(false);
@@ -66,7 +60,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
     },[photo]);
     useEffect(()=>{
         const token=++generation.current;
-        setReady(false);setFrame(null);setError('');
+        setReady(false);setCapturing(false);setFrame(null);setError('');
         if(!photo){
             if(!navigator.mediaDevices?.getUserMedia)setError('이 브라우저에서는 실시간 카메라를 열 수 없습니다. 아래 기기 카메라를 이용하거나 사진 선택으로 돌아가세요.');
             else {
@@ -89,7 +83,6 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
         return()=>{++generation.current;stop();document.removeEventListener('visibilitychange',hide);};
     },[facing,attempt,photo,mode]);
 
-    const changeMode=(next:'landscape'|'portrait')=>{if(capturing)return;if(next==='landscape'&&window.innerHeight>window.innerWidth){setLandscapeRequested(true);return;}setLandscapeRequested(false);if(next===mode)return;manualOrientation.current=true;++generation.current;stop();setReady(false);setFrame(null);setMode(next);try{sessionStorage.setItem('psi.inspector.camera.mode.v1',next);}catch{/* In-memory mode remains available. */}};
     const refreshFrame=()=>{const video=videoRef.current;if(streamRef.current&&video?.videoWidth&&video.videoHeight){setFrame({width:video.videoWidth,height:video.videoHeight});setReady(true);}};
     const actualDirection=frame?(frame.width===frame.height?'정방형':frame.width>frame.height?'가로':'세로'):'';
     const directionMismatch=!!frame&&(mode==='landscape'?frame.width<=frame.height:frame.height<=frame.width);
@@ -125,7 +118,6 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
     const goHome=()=>{if(sequenceSaving||rotating)return;if(photo&&!window.confirm('등록하지 않은 촬영 사진을 버리고 첫 화면으로 이동할까요?'))return;(onHome||onClose)();};
     const goBack=()=>{if(sequenceSaving||rotating)return;if(photo){if(!window.confirm('아직 등록되지 않은 사진을 버리고 촬영 화면으로 돌아갈까요?'))return;retry();return;}onClose();};
     const saveAndContinue=async()=>{if(!photo||!decoded||!onSaveAndContinue||sequenceSaving||rotating)return;setSequenceSaving(true);setSequenceError('');try{if(await onSaveAndContinue(photo))retry();else setSequenceError('사진을 보관하지 못했습니다. 이 사진을 기기에 저장하거나 다시 시도하세요.');}catch{setSequenceError('사진을 보관하지 못했습니다. 이 사진을 기기에 저장하거나 다시 시도하세요.');}finally{setSequenceSaving(false);}};
-    const directionControls=<><div className="si-camera-modes" role="group" aria-label="촬영 방향"><button type="button" className="si-btn" aria-pressed={mode==='landscape'} disabled={capturing} onClick={()=>changeMode('landscape')}><span className="si-frame-icon si-frame-landscape" aria-hidden="true"/><span>가로 <small>현장 전경 · 기본</small></span></button><button type="button" className="si-btn" aria-pressed={mode==='portrait'} disabled={capturing} onClick={()=>changeMode('portrait')}><span className="si-frame-icon si-frame-portrait" aria-hidden="true"/><span>세로 <small>높이·설비</small></span></button></div><p className="si-camera-direction-guide">{mode==='landscape'?'현장 전경은 가로 촬영을 권장합니다. 휴대폰을 가로로 돌려 대상과 주변 동선을 함께 담으세요.':'세로로 긴 설비나 높이를 확인할 때 사용하세요. 휴대폰을 세로로 들고 대상의 위아래를 함께 담으세요.'}</p></>;
 
     return <dialog ref={dialogRef} className={`si-camera-dialog si-camera-immersive ${photo?'si-camera-review':'si-camera-live'}`} aria-labelledby="si-camera-title" onCancel={e=>{e.preventDefault();if(nativePending.current){nativePending.current=false;retry();return;}if(e.target===e.currentTarget)close();}} onClick={e=>{if(e.target===e.currentTarget)close();}}>
         <div className="si-camera-heading"><div className="si-camera-heading-title"><p className="si-eyebrow">PSI INSPECTOR / {reference?'BEFORE & AFTER':'FIELD CAMERA'}</p><h2 id="si-camera-title">{photo?'촬영 사진 바로 확인':'카메라로 바로 촬영'}</h2></div><div className="si-camera-header-tools">
@@ -144,7 +136,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
           </div>
           <details className="si-camera-guide-more"><summary>촬영 요령 · 영상 정보</summary><div className="si-camera-guide-extra">
             {guide&&<p className="si-camera-guide-tip">{CAMERA_GUIDES[guide].hint}</p>}
-            {frame&&<details className="si-camera-frame-details"><summary>{directionMismatch?'영상 방향 확인 필요':'영상 정보'}</summary><p className="si-camera-frame-status" role="status">{photo?'촬영본':'현재 영상'} · {actualDirection} {frame.width} × {frame.height}{!photo&&directionMismatch&&<span>선택한 방향과 실제 영상 비율이 다릅니다. 기기를 돌리거나 기기 카메라를 이용하세요.</span>}</p></details>}
+            {frame&&<details className="si-camera-frame-details"><summary>{directionMismatch?'영상 방향 확인 필요':'영상 정보'}</summary><p className="si-camera-frame-status" role="status">{photo?'촬영본':'현재 영상'} · {actualDirection} {frame.width} × {frame.height}{!photo&&directionMismatch&&<span>화면 방향과 카메라 영상 비율이 다릅니다. 화면 회전 설정을 확인하거나 기기 카메라를 이용하세요.</span>}</p></details>}
             <p className="si-camera-guide-disclaimer">구도만 참고로 표시합니다. 실제 위험 자동 판정이 아니며 가이드선은 촬영 파일에 저장되지 않습니다.</p>
           </div></details>
                   </div></details>}
@@ -185,7 +177,6 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
               <span className="si-camera-target-activate">구도 가이드 활성화 · {CAMERA_GUIDES[guide].label}</span>
             </div>}
             {!photo&&guide&&<span className="si-camera-screenreader" role="status">{CAMERA_GUIDES[guide].label} 촬영 구도 가이드가 적용됐습니다. 실제 위험을 분석하는 기능은 아닙니다.</span>}
-            {!photo&&landscapeRequested&&<div className="si-camera-rotate-hint" role="status">가로 촬영을 선택했습니다. 휴대폰을 가로로 돌리면 넓은 화면으로 전환됩니다. 현재는 잘림 없는 세로 미리보기를 유지합니다. 회전이 안 되면 화면 회전 잠금을 확인해 주세요.</div>}
             {!photo && !ready && <span className="si-camera-wait" role="status">{error?'카메라 연결을 확인해 주세요':'카메라 연결 중…'}</span>}
         </div>
         {!photo&&reference&&<section className="si-camera-reference-controls" aria-label="전후 맞춤 렌즈">
@@ -215,8 +206,8 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
             {error&&<button className="si-btn" onClick={retry}>카메라 다시 연결</button>}
         </>}</div>
         {sequenceError&&<p role="alert">{sequenceError}</p>}
-        {photo&&frame&&<details className="si-camera-frame-details"><summary>{directionMismatch?'영상 방향 확인 필요':'영상 정보'}</summary><p className="si-camera-frame-status" role="status">{photo?'촬영본':'현재 영상'} · {actualDirection} {frame.width} × {frame.height}{!photo&&directionMismatch&&<span>선택한 방향과 실제 영상 비율이 다릅니다. 기기를 돌리거나 기기 카메라를 이용하세요.</span>}</p></details>}
-        {!photo&&(reference?<details className="si-camera-direction-options"><summary>촬영 방향 · {mode==='landscape'?'가로':'세로'}</summary>{directionControls}</details>:directionControls)}
+        {photo&&frame&&<details className="si-camera-frame-details"><summary>{directionMismatch?'영상 방향 확인 필요':'영상 정보'}</summary><p className="si-camera-frame-status" role="status">{photo?'촬영본':'현재 영상'} · {actualDirection} {frame.width} × {frame.height}{!photo&&directionMismatch&&<span>화면 방향과 카메라 영상 비율이 다릅니다. 화면 회전 설정을 확인하거나 기기 카메라를 이용하세요.</span>}</p></details>}
+        {!photo&&<p className="si-camera-auto-direction" role="status">화면 방향 자동 · {mode==='landscape'?'가로':'세로'}</p>}
         {!photo&&<><label className="si-camera-native si-btn">기기 카메라로 촬영<input aria-label="기기 카메라로 촬영" type="file" accept="image/jpeg,image/png,image/webp" capture={facing} disabled={capturing} onClick={()=>{nativePending.current=true;++generation.current;stop();setReady(false);setError('기기 촬영을 취소했다면 카메라 다시 연결을 누르세요.');}} onChange={e=>{nativePending.current=false;const file=e.target.files?.[0];e.target.value='';if(file){originalCapture.current=file;setRotation(0);setError('');setPhoto(file);}else retry();}}/></label>{reference&&<p className="si-caption">기기 카메라로 전환하면 기준 사진 겹침이 표시되지 않습니다.</p>}</>}
         <p className="si-caption">사용 전 사진은 이 창의 임시 메모리에만 있습니다. 최초 촬영 파일이 필요하면 이 창을 닫기 전에 기기에 저장하세요. 사진 앱에 자동 저장되지는 않습니다.</p>
     </dialog>;
