@@ -211,7 +211,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
             <button className="si-btn si-primary" disabled={!decoded||sequenceSaving||rotating} onClick={()=>{if(decoded&&!rotating)onUse(photo);}}>이 사진 사용</button>
         </>:<>
             <button className="si-btn si-primary si-camera-shutter" disabled={!ready || capturing} onClick={capture}><span className="si-camera-shutter-mark"><InspectorIcon name="camera"/></span><span>{capturing?'사진 처리 중…':'지금 촬영'}</span></button>
-            <button className="si-btn si-camera-flip" disabled={capturing} onClick={()=>{setFacing(value=>value==='environment'?'user':'environment');}}>전면·후면 전환</button>
+            <button className="si-btn si-camera-flip" disabled={capturing} onClick={()=>{setFacing(value=>value==='environment'?'user':'environment');}}><span className="si-camera-flip-symbol" aria-hidden="true">⟳</span><span>전면·후면 전환</span></button>
             {error&&<button className="si-btn" onClick={retry}>카메라 다시 연결</button>}
         </>}</div>
         {sequenceError&&<p role="alert">{sequenceError}</p>}
