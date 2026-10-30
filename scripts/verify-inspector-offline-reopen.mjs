@@ -14,6 +14,12 @@ try{
  await panel.getByLabel('직접 확인한 내용').fill('합성 현장 개구부 확인');
  await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
+ const readiness=await page.evaluate(async()=>{
+  const reg=await navigator.serviceWorker.getRegistration('/field-local/'),key=(await caches.keys()).find(k=>k.startsWith('psi-local-shell-')),cache=await caches.open(key),entries=await cache.keys(),request=entries.find(r=>new URL(r.url).pathname.startsWith('/assets/')),response=await cache.match(request);
+  const verify=()=>new Promise(resolve=>{const channel=new MessageChannel();channel.port1.onmessage=e=>resolve(e.data.ok);reg.active.postMessage({type:'VERIFY_LOCAL_ASSETS'},[channel.port2]);});
+  const before=await verify();await cache.delete(request);const missing=await verify();await cache.put(request,response);const restored=await verify();return {before,missing,restored};
+ });
+ assert.deepEqual(readiness,{before:true,missing:false,restored:true},'readiness detects missing required cache assets');
  const cacheKeys=await page.evaluate(async()=>{const keys=await caches.keys(),cache=await caches.open(keys.find(k=>k.startsWith('psi-local-shell-')));return (await cache.keys()).map(r=>new URL(r.url).pathname);});
  assert.ok(cacheKeys.includes('/field-local/index.html'));assert.ok(!cacheKeys.some(k=>k.startsWith('/api/')||k.includes('inspection-reply')),'no private responses cached');
  // Simulate a new version whose required static file cannot be fetched.
