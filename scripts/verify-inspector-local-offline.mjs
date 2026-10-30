@@ -27,6 +27,7 @@ try{
  await panel.getByLabel('직접 확인한 내용').fill('시스템비계 발판 사이가 벌어져 실측이 필요함');
  await panel.getByLabel('현장 조치·확인 계획').fill('접근을 통제하고 담당자와 확인');
  await panel.getByText('비계·작업발판',{exact:true}).first().waitFor();
+ await panel.getByText('기존 자료 · 검토 이력 보완 필요',{exact:true}).first().waitFor();
  await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
  await panel.getByText('기기에 저장했습니다. 서버에는 전송하지 않았습니다.').waitFor();
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
@@ -45,6 +46,10 @@ try{
  await page.evaluate(()=>{IDBObjectStore.prototype.add=window.__originalAdd;});
  await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
  await panel.getByText('이 브라우저에 보관된 점검 2건').waitFor();
+ page.once('dialog',d=>d.dismiss());await panel.getByRole('button',{name:'이 기기 기록 삭제'}).first().click();
+ await panel.getByText('이 브라우저에 보관된 점검 2건').waitFor();
+ page.once('dialog',d=>d.accept());await panel.getByRole('button',{name:'이 기기 기록 삭제'}).first().click();
+ await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
  assert.deepEqual(requests,[],'offline local operations must not initiate HTTP requests');
  assert.deepEqual(errors,[]);
  console.log('PASS local camera, local save, rule lookup, export, quota failure and retry without HTTP requests');
