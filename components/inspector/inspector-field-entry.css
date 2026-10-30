@@ -94,3 +94,16 @@
 @media (prefers-reduced-motion: reduce) {
   .si-quick .si-field-entry .si-btn {transition: none}
 }
+
+.si-quick .si-local-inspection{margin:14px 0;border:1px solid #bad8ce;border-radius:15px;background:#f2faf6;color:#173d35}
+.si-quick .si-local-inspection>summary{cursor:pointer;padding:15px;font-size:15px;font-weight:800;color:#145a4d}
+.si-quick .si-local-inspection>section{display:grid;gap:12px;padding:0 15px 16px;line-height:1.55}
+.si-quick .si-local-inspection h2,.si-quick .si-local-inspection h3,.si-quick .si-local-inspection p{margin:0}
+.si-quick .si-local-inspection label:not(.si-btn){display:grid;gap:5px;font-weight:700}
+.si-quick .si-local-inspection textarea{width:100%;min-height:80px;box-sizing:border-box;padding:10px;border:1px solid #97bcb0;border-radius:9px;background:#fff;color:#193d35;font:inherit}
+.si-quick .si-local-inspection article,.si-quick .si-local-inspection [aria-label="입력 내용으로 찾은 기준"]{padding:12px;border:1px solid #c6ded5;border-radius:10px;background:#fff}
+.si-quick .si-local-inspection article p{margin:6px 0}
+.si-quick .si-local-inspection .si-btn{min-height:44px}
+.dark .si-quick .si-local-inspection{background:#153b35;color:#edf9f3;border-color:#4b8876}
+.dark .si-quick .si-local-inspection>summary{color:#d4f7e8}
+.dark .si-quick .si-local-inspection article,.dark .si-quick .si-local-inspection [aria-label="입력 내용으로 찾은 기준"]{background:#193f39;border-color:#4b8876;color:#edf9f3}
