@@ -35,6 +35,9 @@ function download(blob:Blob,name:string){const url=URL.createObjectURL(blob),a=d
 const BACKUP_LIMIT=20*1024*1024;
 async function packRecord(row:LocalRecord):Promise<Blob>{
  if(row.photo.size>BACKUP_LIMIT)throw new Error('사진이 20MB를 넘어 백업할 수 없습니다. 사진을 별도로 내려받으세요.');
+ if(!['image/jpeg','image/png','image/webp'].includes(row.photo.type))throw new Error('이 사진 형식은 함께 백업하여 복원할 수 없습니다. 사진과 점검 내용을 각각 내려받으세요.');
+ if(!row.photo.size)throw new Error('사진이 비어 있어 함께 백업할 수 없습니다. 사진과 점검 내용을 각각 확인하세요.');
+ if((row.photo.name||'PSI-photo').length>255)throw new Error('사진 이름이 길어 함께 백업할 수 없습니다. 사진과 점검 내용을 각각 내려받으세요.');
  const digest=await hash(row.photo);
  if(!digest)throw new Error('무결성을 확인할 수 없어 백업하지 못했습니다. 다시 시도하세요.');
  if(row.sha256&&row.sha256!==digest)throw new Error('저장된 사진의 해시가 달라 백업을 중단했습니다. 사진을 별도로 확인하세요.');
@@ -84,7 +87,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   catch{setMessage('기록을 삭제하지 못했습니다. 다시 확인해 주세요.');}
   finally{setBusy(false);}
  };
- const backup=async(row:LocalRecord)=>{if(flight.current)return;flight.current=true;setBusy(true);setMessage('');try{download(await packRecord(row),'PSI-backup-'+row.id+'.json');setMessage('사진과 점검 내용이 포함된 백업 파일을 만들었습니다. 안전한 장소에 보관하세요.');}catch(error){setMessage(error instanceof Error?error.message:'백업하지 못했습니다.');}finally{flight.current=false;setBusy(false);}};
+ const backup=async(row:LocalRecord)=>{if(flight.current)return;flight.current=true;setBusy(true);setMessage('');try{download(await packRecord(row),'PSI-backup-'+row.id+'.json');setMessage('백업 파일 내려받기를 요청했습니다. 저장된 파일을 확인하고 안전한 장소에 보관하세요.');}catch(error){setMessage(error instanceof Error?error.message:'백업하지 못했습니다.');}finally{flight.current=false;setBusy(false);}};
  const restore=async(file:File)=>{if(flight.current)return;flight.current=true;setBusy(true);setMessage('');try{const record=await unpackRecord(file);await runStore<void>('readwrite',store=>{store.add(record);});await refresh();setMessage('백업을 이 기기에 복원했습니다. 서버에는 전송하지 않았습니다.');}catch(error){setMessage(error instanceof DOMException&&error.name==='ConstraintError'?'같은 점검이 이미 이 기기에 있습니다. 기존 기록은 변경하지 않았습니다.':error instanceof Error?error.message:'복원하지 못했습니다.');}finally{flight.current=false;setBusy(false);}};
  return <details id="si-local-inspection" className="si-local-inspection" onToggle={e=>{if(e.currentTarget.open)void refresh();}}>
   <summary>통신 없이 기기에서 직접 점검</summary>
