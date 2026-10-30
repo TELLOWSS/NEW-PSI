@@ -7,6 +7,7 @@ on:
       - 'pages/InspectorReply.tsx'
       - 'lib/inspector/**'
       - 'scripts/verify-inspector-camera.mjs'
+      - 'scripts/verify-inspector-local-offline.mjs'
       - 'scripts/verify-inspector-quick.mjs'
       - 'scripts/verify-inspector-safety-cards.mjs'
       - 'scripts/verify-inspector-history.mjs'
@@ -45,6 +46,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Build once for field-browser QA
         run: npm run build
+      - name: Offline local capture, manual record and storage failure recovery
+        run: node scripts/verify-inspector-local-offline.mjs
       - name: Camera permission, rotation, fallback and narrow viewports
         run: node scripts/verify-inspector-camera.mjs
       - name: Safety card deck, evidence boundaries, five views and mobile layouts
