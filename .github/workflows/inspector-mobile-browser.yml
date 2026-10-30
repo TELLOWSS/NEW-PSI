@@ -8,6 +8,9 @@ on:
       - 'lib/inspector/**'
       - 'scripts/verify-inspector-camera.mjs'
       - 'scripts/verify-inspector-local-offline.mjs'
+      - 'scripts/verify-inspector-offline-reopen.mjs'
+      - 'field-local/**'
+      - 'vite.config.ts'
       - 'scripts/verify-inspector-quick.mjs'
       - 'scripts/verify-inspector-safety-cards.mjs'
       - 'scripts/verify-inspector-history.mjs'
@@ -46,6 +49,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Build once for field-browser QA
         run: npm run build
+      - name: Prepared offline app restart and local records
+        run: node scripts/verify-inspector-offline-reopen.mjs
       - name: Offline local capture, manual record and storage failure recovery
         run: node scripts/verify-inspector-local-offline.mjs
       - name: Camera permission, rotation, fallback and narrow viewports
