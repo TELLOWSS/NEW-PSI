@@ -53,7 +53,7 @@ export default defineConfig(({ mode }) => {
           await mkdir(path.join(directory,'product'),{recursive:true});
           await writeFile(path.join(directory,'product/index.html'),product);
           // Cache only the dedicated local page and its own build dependencies.
-          const localEntry=Object.values(bundle).find(item=>item.type==='chunk'&&item.isEntry&&item.facadeModuleId?.replace(/\\\\/g,'/').endsWith('/field-local/main.tsx'));
+          const localEntry=Object.values(bundle).find(item=>item.type==='chunk'&&item.isEntry&&(item.name==='fieldLocal'||item.facadeModuleId?.replace(/\\\\/g,'/').includes('/field-local/')));
           if(!localEntry || localEntry.type!=='chunk')throw new Error('Local inspection entry missing');
           const localAssets=new Set<string>();
           const visit=(file:string)=>{if(localAssets.has(file))return;const item=bundle[file];if(!item||item.type!=='chunk')throw new Error('Missing offline chunk '+file);localAssets.add(file);for(const css of item.viteMetadata?.importedCss||[])localAssets.add(css);for(const dep of [...item.imports,...item.dynamicImports])visit(dep);};
