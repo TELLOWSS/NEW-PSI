@@ -123,7 +123,7 @@
     position:absolute;top:calc(100% + 7px);left:50%;transform:translateX(-50%);
     color:#e7efec;font-size:10px;font-weight:700;white-space:nowrap;
   }
-  .si-camera-dialog.si-camera-immersive.si-camera-live > .si-camera-native {
+  .si-camera-dialog.si-camera-immersive.si-camera-live[open] > .si-camera-native {
     left:max(12px,calc((100vw - 420px) / 2 + 12px))!important;
     bottom:calc(env(safe-area-inset-bottom) + 48px)!important;
     width:82px;min-height:48px!important;z-index:17!important;justify-content:center;text-align:center;
@@ -135,7 +135,7 @@
   }
   .si-camera-dialog.si-camera-immersive.si-camera-live .si-camera-actions .si-camera-shutter:focus-visible,
   .si-camera-dialog.si-camera-immersive.si-camera-live .si-camera-actions .si-camera-flip:focus-visible,
-  .si-camera-dialog.si-camera-immersive.si-camera-live > .si-camera-native:focus-within {
+  .si-camera-dialog.si-camera-immersive.si-camera-live[open] > .si-camera-native:focus-within {
     outline:3px solid #ffdc8c!important;outline-offset:5px!important;
   }
 }
