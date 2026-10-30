@@ -76,6 +76,15 @@ try{
   await captured.getByRole('button',{name:'오른쪽 90°'}).click();
   await page.waitForFunction(({w,h})=>{const i=document.querySelector('img[alt="등록 전 촬영 사진 미리보기"]');return i?.naturalWidth===h&&i?.naturalHeight===w;},before);
   assert.match(await captured.locator('.si-camera-photo-editor-heading').innerText(),/90° 회전/);
+  // Original download must be discoverable without scrolling the compact mobile editor.
+  for(const viewport of [{width:320,height:740},{width:390,height:900},{width:844,height:390}]){
+   await page.setViewportSize(viewport);
+   const editor=captured.locator('.si-camera-photo-editor'),original=captured.getByRole('link',{name:'최초 촬영 파일 기기에 저장'});
+   await editor.evaluate(element=>{element.scrollTop=0;});
+   const bounds=await original.evaluate(element=>{const button=element.getBoundingClientRect(),panel=element.closest('.si-camera-photo-editor').getBoundingClientRect();return {top:button.top,bottom:button.bottom,panelTop:panel.top,panelBottom:panel.bottom};});
+   assert.ok(bounds.top>=bounds.panelTop&&bounds.bottom<=bounds.panelBottom&&bounds.top>=0&&bounds.bottom<=viewport.height,'original download is visible without scrolling at '+viewport.width+'x'+viewport.height);
+  }
+  await page.setViewportSize({width:390,height:900});
   const originalDownload=page.waitForEvent('download');
   await captured.getByRole('link',{name:'최초 촬영 파일 기기에 저장'}).click();
   const downloaded=await originalDownload;
