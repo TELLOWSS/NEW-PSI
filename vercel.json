@@ -5,6 +5,14 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/field-local/",
+      "destination": "/field-local/index.html"
+    },
+    {
+      "source": "/field-local",
+      "destination": "/field-local/index.html"
+    },
+    {
       "source": "/api/admin/:endpoint",
       "destination": "/api/admin?endpoint=:endpoint"
     },
@@ -87,6 +95,15 @@
         {
           "key": "Referrer-Policy",
           "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/field-local/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
         }
       ]
     }
