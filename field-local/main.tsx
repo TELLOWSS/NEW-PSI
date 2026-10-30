@@ -12,7 +12,7 @@ function LocalEntry(){
    if(!navigator.onLine)throw new Error('인터넷에 연결한 뒤 준비해 주세요.');
    setStatus('오프라인 파일을 준비하고 있습니다…');
    const registration=await navigator.serviceWorker.register('/field-local/sw.js',{scope:'/field-local/',updateViaCache:'none'});
-   await navigator.serviceWorker.ready;
+   await Promise.race([navigator.serviceWorker.ready,new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error('오프라인 준비에 실패했거나 시간이 초과됐습니다. 연결을 확인하고 다시 시도해 주세요.')),15000))]);
    const worker=registration.active;
    if(!worker)throw new Error('오프라인 파일이 아직 활성화되지 않았습니다.');
    const verified=await new Promise<boolean>((resolve,reject)=>{const channel=new MessageChannel(),timer=setTimeout(()=>reject(new Error('오프라인 준비 확인 시간이 초과됐습니다.')),10000);channel.port1.onmessage=e=>{clearTimeout(timer);resolve(e.data?.ok===true);};worker.postMessage({type:'VERIFY_LOCAL_ASSETS'},[channel.port2]);});
