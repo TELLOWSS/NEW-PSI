@@ -52,7 +52,7 @@ try{
  await savedRow.getByText('사진이 저장된 비교값과 다릅니다.',{exact:false}).waitFor();
  await page.evaluate(async id=>{const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('psi-inspector-local-records',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});const tx=db.transaction('records','readwrite');tx.objectStore('records').put({...window.__integrityFixture,sha256:null});await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);});db.close();},parsed.record.id);
  await savedRow.getByRole('button',{name:'사진 변경 확인'}).click();
- await savedRow.getByText('저장 당시 비교값이 없어 변경 여부를 확인할 수 없습니다.',{exact:false}).waitFor();
+ await savedRow.getByText('보관된 비교값이 없어 변경 여부를 확인할 수 없습니다.',{exact:false}).waitFor();
  await page.evaluate(async()=>{const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('psi-inspector-local-records',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});const tx=db.transaction('records','readwrite');tx.objectStore('records').put(window.__integrityFixture);await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);});db.close();});
 
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:backupBytes});
@@ -86,6 +86,8 @@ try{
  // File pickers can return unsupported formats despite their accept hint. Never
  // advertise a backup which the restore validator will necessarily reject.
  await panel.getByLabel('기기 점검 사진 선택').setInputFiles({name:'unsupported.heic',mimeType:'image/heic',buffer:Buffer.from('synthetic file')});
+ await panel.getByRole('alert').filter({hasText:'저장 전 백업 안내:'}).waitFor();
+ assert.match(await panel.getByRole('alert').innerText(),/점검은 기기에 저장할 수 있습니다/);
  await panel.getByLabel('직접 확인한 내용').fill('지원하지 않는 사진 형식 백업 시험');
  await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
  const unsupported=panel.locator('article').filter({hasText:'지원하지 않는 사진 형식 백업 시험'});
