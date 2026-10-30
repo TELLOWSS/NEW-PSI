@@ -92,6 +92,13 @@ try{
  const altered=JSON.parse(backupBytes.toString());altered.record.sha256='0'.repeat(64);
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'corrupt.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(altered))});
  await panel.getByText('백업 사진의 무결성이 확인되지 않아 복원을 중단했습니다.').waitFor();
+ const alteredAfter=JSON.parse(backupBytes.toString());alteredAfter.record.afterPhoto.sha256='0'.repeat(64);
+ await panel.getByLabel('백업 파일 복원').setInputFiles({name:'corrupt-after.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(alteredAfter))});
+ await panel.getByText('조치 후 사진의 무결성이 확인되지 않아 복원을 중단했습니다.').waitFor();
+ const alteredActions=JSON.parse(backupBytes.toString());alteredActions.record.additionalActions[0].followup.status='invalid';
+ await panel.getByLabel('백업 파일 복원').setInputFiles({name:'corrupt-actions.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(alteredActions))});
+ await panel.getByText('추가 조치 기록이 손상되어 복원하지 못했습니다.').waitFor();
+
  const download=page.waitForEvent('download');await panel.getByRole('button',{name:'점검 내용 내려받기'}).click();assert.match((await download).suggestedFilename(),/^PSI-local-record-/);
  globalThis.__testPhase='retry';
  await panel.getByLabel('기기 점검 사진 선택').setInputFiles({name:'failure.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a8sAAAAASUVORK5CYII=','base64')});
