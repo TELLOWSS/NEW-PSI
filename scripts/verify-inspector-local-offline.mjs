@@ -46,6 +46,10 @@ try{
  await actionRow.getByLabel('조치 후 사진 연결').setInputFiles({name:'synthetic-after.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a8sAAAAASUVORK5CYII=','base64')});
  await panel.getByText('조치 후 사진을 이 기기에 연결했습니다.',{exact:false}).waitFor();
  await actionRow.getByText('조치 후 사진: synthetic-after.png').waitFor();
+ await panel.getByLabel('후속 조치 모아보기').selectOption('unassigned');
+ assert.equal(await actionRow.count(),0);
+ await panel.getByLabel('후속 조치 모아보기').selectOption('all');
+ await actionRow.waitFor();
  globalThis.__testPhase='download';
  const backupEvent=page.waitForEvent('download');await panel.getByRole('button',{name:'사진과 기록 함께 백업'}).click();
  const backup=await backupEvent,backupBytes=await readFile(await backup.path()),parsed=JSON.parse(backupBytes.toString());
