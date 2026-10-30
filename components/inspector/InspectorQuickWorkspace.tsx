@@ -1,3 +1,4 @@
+import InspectorLocalDraft from './InspectorLocalDraft';
 import {sourceReviewState} from '../../lib/inspector/sourceReview';
 import InspectorResultJourney from './InspectorResultJourney';
 import {resultJourney,type ResultAction} from '../../lib/inspector/resultJourney';
@@ -414,6 +415,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
             <button type="button" className="si-btn" disabled={busy||storageBusy} onClick={()=>{if((unsavedPhoto||actionDraftDirty)&&!window.confirm('저장하지 않은 사진·설명·검토·조치 입력이 사라질 수 있습니다. 첫 화면으로 돌아갈까요?'))return;startNew(true);}}>⌂ 첫 화면</button>
             <button type="button" className="si-btn" disabled={busy||storageBusy} onClick={()=>{if(!unsavedPhoto&&!actionDraftDirty||window.confirm('상세 관리로 이동합니다. 저장 전 사진·설명·검토·작성 중인 조치는 이 화면을 닫으면 사라집니다. 이동할까요?'))onAdvanced();}}>저장 기록 · 상세 관리</button>
           </nav></header>
+        <InspectorLocalDraft/>
         {(item||deletedResumeId)&&<InspectorStorageManager key={item?.id||deletedResumeId} id={item?.id||deletedResumeId} revision={item?.revision||0} title={item?.document.title||'이 탭의 이전 점검 · 삭제 결과'} initialOpen={!!deletedResumeId} disabled={busy||!!local&&!photo} onWorking={setStorageBusy} onLocked={()=>{setStorageLocked(true);clearActive();}} onComplete={()=>startNew()}/>}
         {storageLocked&&<p className="si-notice" role="alert">삭제 중이거나 사진이 삭제된 점검입니다. 위 보관·삭제 관리에서 검증 결과를 확인하세요.</p>}
         <fieldset className="si-work-area" hidden={storageLocked} disabled={storageBusy}>
