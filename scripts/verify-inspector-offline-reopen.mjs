@@ -26,11 +26,15 @@ try{
   const result=await page.evaluate(async()=>{
    const registration=await navigator.serviceWorker.getRegistration('/field-local/');
    const prior=registration.active.scriptURL;
+   let candidate=null;
+   registration.addEventListener('updatefound',()=>{candidate=registration.installing;},{once:true});
    try{await registration.update();}catch{/* A rejected update must preserve the active version. */}
-   const candidate=registration.installing;
+   if(!candidate)await new Promise(resolve=>setTimeout(resolve,1000));
    if(candidate&&candidate.state!=='redundant')await new Promise(resolve=>{const done=()=>{if(candidate.state==='redundant')resolve();};candidate.addEventListener('statechange',done);setTimeout(resolve,10000);});
-   return {active:registration.active?.scriptURL===prior,waiting:!!registration.waiting,keys:await caches.keys()};
+   return {sawUpdate:!!candidate,candidateState:candidate?.state,active:registration.active?.scriptURL===prior,waiting:!!registration.waiting,keys:await caches.keys()};
   });
+  assert.equal(result.sawUpdate,true,'the broken update must actually be installed');
+  assert.equal(result.candidateState,'redundant','the new worker must fail installation');
   assert.equal(result.active,true,'failed update must retain active worker');
   assert.equal(result.waiting,false,'failed update must not be ready for activation');
   assert.ok(result.keys.some(k=>k.startsWith('psi-local-shell-')&&!k.includes('-broken-')),'old offline assets remain');
