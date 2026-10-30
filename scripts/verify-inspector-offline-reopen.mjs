@@ -5,6 +5,20 @@ try{
  const context=await browser.newContext({viewport:{width:390,height:844},permissions:['camera']});let page=await context.newPage(),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
  await page.goto(base+'/field-local/',{waitUntil:'networkidle'});
+ // Deterministic browser storage responses: approval is never inferred from a request.
+ await page.evaluate(()=>{
+  Object.defineProperty(navigator.storage,'estimate',{configurable:true,value:async()=>({usage:2*1024*1024,quota:100*1024*1024})});
+  Object.defineProperty(navigator.storage,'persisted',{configurable:true,value:async()=>false});
+  Object.defineProperty(navigator.storage,'persist',{configurable:true,value:async()=>false});
+ });
+ await page.getByRole('button',{name:'저장 공간 확인'}).click();
+ await page.getByText('이 사이트의 사용량 약 2MB / 브라우저가 추정한 한도 약 100MB.',{exact:false}).waitFor();
+ await page.getByRole('button',{name:'기록 지속 보관 요청'}).click();
+ await page.getByText('브라우저가 지속 보관 요청을 허용하지 않았습니다.',{exact:false}).waitFor();
+ await page.evaluate(()=>Object.defineProperty(navigator.storage,'persist',{configurable:true,value:async()=>true}));
+ await page.getByRole('button',{name:'기록 지속 보관 요청'}).click();
+ await page.getByText('브라우저가 지속 보관 요청을 허용했습니다.',{exact:false}).waitFor();
+ await page.getByText('사용자의 데이터 삭제나 기기 분실을 막지 못합니다.',{exact:false}).waitFor();
  await page.getByRole('button',{name:'이 기기 오프라인 준비'}).click();
  await page.getByText('이 기기의 오프라인 점검 준비가 확인됐습니다.',{exact:false}).waitFor({timeout:30000});
  await page.getByText('통신 없이 기기에서 직접 점검',{exact:true}).click();
