@@ -86,8 +86,8 @@ try{
  // File pickers can return unsupported formats despite their accept hint. Never
  // advertise a backup which the restore validator will necessarily reject.
  await panel.getByLabel('기기 점검 사진 선택').setInputFiles({name:'unsupported.heic',mimeType:'image/heic',buffer:Buffer.from('synthetic file')});
- await panel.getByRole('alert').getByText('저장 전 백업 안내:',{exact:false}).waitFor();
- await panel.getByRole('alert').getByText('점검은 기기에 저장할 수 있습니다.',{exact:false}).waitFor();
+ await panel.getByRole('alert').filter({hasText:'저장 전 백업 안내:'}).waitFor();
+ assert.match(await panel.getByRole('alert').innerText(),/점검은 기기에 저장할 수 있습니다/);
  await panel.getByLabel('직접 확인한 내용').fill('지원하지 않는 사진 형식 백업 시험');
  await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
  const unsupported=panel.locator('article').filter({hasText:'지원하지 않는 사진 형식 백업 시험'});
