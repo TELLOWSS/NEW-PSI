@@ -62,6 +62,8 @@ const getLatestBundlePathFromHtml = (html: string): string | null => {
 
 const checkVersionMismatchAndReload = async () => {
   if (typeof window === 'undefined') return;
+  // Do not initiate a version check after the browser has gone offline.
+  if (!navigator.onLine) return;
   if (window.sessionStorage.getItem(VERSION_MISMATCH_RELOAD_KEY) === '1') return;
 
   const currentBundlePath = getCurrentBundlePath();
