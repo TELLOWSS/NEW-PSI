@@ -75,6 +75,17 @@ try{
  await unsupported.waitFor();
  await unsupported.getByRole('button',{name:'사진과 기록 함께 백업'}).click();
  await panel.getByText('이 사진 형식은 함께 백업하여 복원할 수 없습니다.',{exact:false}).waitFor();
+ // An unreadable database must never be presented as zero records, and retry
+ // must reveal the same saved records without any write or network request.
+ await page.evaluate(()=>{window.__originalGetAll=IDBObjectStore.prototype.getAll;IDBObjectStore.prototype.getAll=function(){throw new DOMException('blocked','UnknownError');};});
+ await page.getByText('통신 없이 기기에서 직접 점검',{exact:true}).click();
+ await page.getByText('통신 없이 기기에서 직접 점검',{exact:true}).click();
+ await panel.getByRole('alert').getByText('기기 기록을 불러오지 못해 보관 건수를 확인할 수 없습니다.',{exact:false}).waitFor();
+ assert.equal(await panel.getByText('이 브라우저에 보관된 점검 0건').count(),0);
+ await page.evaluate(()=>{IDBObjectStore.prototype.getAll=window.__originalGetAll;});
+ await panel.getByRole('button',{name:'기기 기록 다시 확인'}).click();
+ await panel.getByText('이 브라우저에 보관된 점검 2건').waitFor();
+ await panel.getByText('지원하지 않는 사진 형식 백업 시험',{exact:false}).waitFor();
  assert.deepEqual(requests,[],'offline local operations must not initiate HTTP requests');
  assert.deepEqual(errors,[]);
  console.log('PASS local camera, local save, rule lookup, export, quota failure and retry without HTTP requests');
