@@ -111,5 +111,6 @@ describe('PSI manager Q1-Q5 report full-route regression', () => {
         const fullCapture = pageSource.match(/captureReportCanvases\(reportRef\.current, html2canvas/g) || [];
         expect(fullCapture).toHaveLength(2); // manager PDF + manager ZIP
         expect(qnaSource.indexOf('eyebrow="원문 비교 검수"')).toBeLessThan(qnaSource.indexOf('data-psi-field-followup-tools="true"'));
+        expect(qnaSource).toContain('onOpenReport(latestPersistedRecordRef.current || record)');
     });
 });
