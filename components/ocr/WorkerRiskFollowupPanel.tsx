@@ -219,11 +219,12 @@ export const WorkerRiskFollowupPanel: React.FC<WorkerRiskFollowupPanelProps> = (
                     <label className="text-xs font-bold text-slate-700">사진 첨부 (선택 · 자동 압축, 한 건당 1장)
                         <input type="file" accept="image/jpeg,image/png,image/webp" className="mt-1 block w-full max-w-sm text-xs"
                             onChange={async e => {
-                                const file = e.currentTarget.files?.[0];
+                                const input = e.currentTarget;
+                                const file = input.files?.[0];
                                 if (!file) return;
                                 try { setPhoto(await prepareEvidenceImage(file)); setMessage('사진 압축 준비 완료 · 저장 버튼을 눌러야 기록에 반영됩니다.'); }
                                 catch (error) { setPhoto(''); setMessage(error instanceof Error ? error.message : '이미지 처리 실패'); }
-                                e.currentTarget.value = '';
+                                input.value = '';
                             }} />
                     </label>
                     {photo ? <div className="flex items-center gap-2"><img src={photo} alt="등록 전 확인할 증빙 사진 미리보기" className="h-14 w-14 rounded-lg object-cover border" /><button type="button" onClick={() => setPhoto('')} className="text-xs font-bold text-red-700">첨부 취소</button></div> : null}
