@@ -126,8 +126,8 @@ describe('worker report language policy', () => {
 
         expect(individualReportSource).toContain('includeAdminAppendix={true}');
         expect(individualReportSource).toContain("querySelector<HTMLElement>('[data-report-page=\"true\"]')");
-        expect((individualReportSource.match(/captureReportCanvases\\(workerCertificatePage\\(\\), html2canvas/g)||[])).toHaveLength(2);
-        expect((individualReportSource.match(/captureReportCanvases\\(reportRef\\.current, html2canvas/g)||[])).toHaveLength(2);
+        expect(individualReportSource.split('captureReportCanvases(workerCertificatePage(), html2canvas').length - 1).toBe(2);
+        expect(individualReportSource.split('captureReportCanvases(reportRef.current, html2canvas').length - 1).toBe(2);
         expect(workerManagementSource).toContain('includeAdminAppendix={false}');
         expect(managerReportSource).not.toContain('includeAdminAppendix={false}');
     });
