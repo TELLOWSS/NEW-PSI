@@ -86,9 +86,11 @@ try{
  await actionRow.getByLabel('조치 상태').selectOption('in_progress');
  await actionRow.getByLabel('담당자').fill('합성 담당자');
  await actionRow.getByLabel('목표 기한').fill('2030-01-02');
+ await actionRow.getByLabel('임시 안전조치 (최종 완료와 별개)').fill('위험 구역 출입 통제 및 안내 표지 유지');
  await actionRow.getByLabel('진행·확인 내용').fill('임시 출입 통제 후 발판 설치 예정');
  await actionRow.getByRole('button',{name:'후속 기록 저장'}).click();
  await panel.getByText('후속 조치를 이 기기에 저장했습니다.',{exact:false}).waitFor();
+ await actionRow.getByText('현재 기록된 임시 안전조치: 위험 구역 출입 통제 및 안내 표지 유지',{exact:false}).waitFor();
  await actionRow.getByLabel('조치 후 사진 연결').setInputFiles({name:'synthetic-after.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a8sAAAAASUVORK5CYII=','base64')});
  await panel.getByText('조치 후 사진을 이 기기에 연결했습니다.',{exact:false}).waitFor();
  await actionRow.getByText('조치 후 사진: synthetic-after.png').waitFor();
@@ -155,7 +157,7 @@ try{
  const backup=await backupEvent,backupBytes=await readFile(await backup.path()),parsed=JSON.parse(backupBytes.toString());
  assert.equal(parsed.record.primaryHistory[0].sha256,saved[0].sha,'backup must preserve the previous primary photo');assert.notEqual(parsed.record.sha256,saved[0].sha);assert.equal(parsed.record.photoName,'replacement-primary.jpg');
  assert.equal(parsed.record.action,'다른 탭에서 갱신한 합성 조치 계획','backup must read the current stored record');
- assert.equal(parsed.version,12);assert.equal(parsed.record.primaryHistory.length,1);assert.equal(parsed.record.additionalActions[0].photoHistory.length,1);assert.equal(parsed.record.additionalActions[0].photoHistory[0].name,'action-one.png');assert.equal(parsed.record.afterHistory.length,1);assert.equal(parsed.record.afterHistory[0].name,'synthetic-after.png');assert.equal(parsed.record.contextHistory.length,1);assert.equal(parsed.record.contextHistory[0].name,contextName);assert.equal(parsed.record.contextHistory[0].sha256,detached.record.contextPhoto.sha256);assert.equal(parsed.record.contextDetached,false);assert.equal(parsed.record.contextFirst,true);assert.equal(parsed.record.photoRole,'overview');assert.equal(parsed.record.contextPhoto.role,'detail');assert.equal(parsed.record.contextPhoto.name,replacementName);assert.equal(parsed.record.additionalActions[0].photo.name,'action-one-v2.png');assert.equal(parsed.record.additionalActions[1].photo.name,'action-two.jpg');assert.equal(parsed.record.additionalActions.length,2);assert.equal(parsed.record.additionalActions[0].followup.status,'verified');assert.equal(parsed.record.additionalActions[1].followup,undefined);assert.equal(parsed.record.followup.status,'in_progress');assert.equal(parsed.record.followup.assignee,'합성 담당자');assert.equal(parsed.record.afterPhoto.name,'synthetic-after-v2.png');assert.match(parsed.record.afterPhoto.sha256,/^[a-f0-9]{64}$/);
+ assert.equal(parsed.version,12);assert.equal(parsed.record.primaryHistory.length,1);assert.equal(parsed.record.additionalActions[0].photoHistory.length,1);assert.equal(parsed.record.additionalActions[0].photoHistory[0].name,'action-one.png');assert.equal(parsed.record.afterHistory.length,1);assert.equal(parsed.record.afterHistory[0].name,'synthetic-after.png');assert.equal(parsed.record.contextHistory.length,1);assert.equal(parsed.record.contextHistory[0].name,contextName);assert.equal(parsed.record.contextHistory[0].sha256,detached.record.contextPhoto.sha256);assert.equal(parsed.record.contextDetached,false);assert.equal(parsed.record.contextFirst,true);assert.equal(parsed.record.photoRole,'overview');assert.equal(parsed.record.contextPhoto.role,'detail');assert.equal(parsed.record.contextPhoto.name,replacementName);assert.equal(parsed.record.additionalActions[0].photo.name,'action-one-v2.png');assert.equal(parsed.record.additionalActions[1].photo.name,'action-two.jpg');assert.equal(parsed.record.additionalActions.length,2);assert.equal(parsed.record.additionalActions[0].followup.status,'verified');assert.equal(parsed.record.additionalActions[1].followup,undefined);assert.equal(parsed.record.followup.status,'in_progress');assert.equal(parsed.record.followup.assignee,'합성 담당자');assert.equal(parsed.record.followup.temporaryMeasure,'위험 구역 출입 통제 및 안내 표지 유지');assert.equal(parsed.record.followup.history[0].temporaryMeasure,'위험 구역 출입 통제 및 안내 표지 유지');assert.equal(parsed.record.afterPhoto.name,'synthetic-after-v2.png');assert.match(parsed.record.afterPhoto.sha256,/^[a-f0-9]{64}$/);
  const savedRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
  await savedRow.getByRole('button',{name:'사진 변경 확인'}).click();
  await savedRow.getByText('확인 시점의 사진이 저장된 비교값과 일치합니다.').waitFor();
@@ -181,6 +183,9 @@ try{
  const alteredAfter=JSON.parse(backupBytes.toString());alteredAfter.record.afterPhoto.sha256='0'.repeat(64);
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'corrupt-after.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(alteredAfter))});
  await panel.getByText('조치 후 사진의 무결성이 확인되지 않아 복원을 중단했습니다.').waitFor();
+ const alteredMeasure=JSON.parse(backupBytes.toString());alteredMeasure.record.followup.temporaryMeasure='x'.repeat(1001);
+ await panel.getByLabel('백업 파일 복원').setInputFiles({name:'invalid-temporary-measure.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(alteredMeasure))});
+ await panel.getByText('후속 조치 기록이 손상되어 복원하지 못했습니다.').waitFor();
  const alteredActions=JSON.parse(backupBytes.toString());alteredActions.record.additionalActions[0].followup.status='invalid';
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'corrupt-actions.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(alteredActions))});
  await panel.getByText('추가 조치 기록이 손상되어 복원하지 못했습니다.').waitFor();
@@ -274,6 +279,7 @@ try{
  await panel.getByText('이전 현장 사진 1장').waitFor();
  assert.deepEqual(await panel.locator('[aria-label="현장 사진 표시 순서"] img').evaluateAll(nodes=>nodes.map(n=>n.alt)),['추가 현장 사진','기본 사진']);
  await panel.getByText('조치 진행 중',{exact:true}).waitFor();
+ await panel.getByText('현재 기록된 임시 안전조치: 위험 구역 출입 통제 및 안내 표지 유지',{exact:false}).waitFor();
  await panel.getByRole('heading',{name:'합성 출입 통제'}).waitFor();
  await panel.getByText('이 조치의 사진: action-one-v2.png').waitFor();
  await panel.getByText('이 조치의 이전 사진 1장').waitFor();
