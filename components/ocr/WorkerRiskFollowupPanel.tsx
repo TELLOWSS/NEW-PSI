@@ -137,6 +137,10 @@ export const WorkerRiskFollowupPanel: React.FC<WorkerRiskFollowupPanelProps> = (
             setPhoto('');
             setCaseId('');
             setStatus('open');
+            setQuestion(2);
+            setOwner('');
+            setDueDate('');
+            setInterimControl('');
         } catch (error) {
             setMessage(error instanceof Error ? error.message : '기록 저장 과정에서 문제가 발생했습니다.');
         } finally {
