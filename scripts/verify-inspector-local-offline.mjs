@@ -69,6 +69,16 @@ try{
  await photoSet.getByRole('button',{name:'추가 사진 다시 연결'}).click();
  await photoSet.getByText('추가 사진: 위험 부위 · '+contextName,{exact:false}).waitFor();
  assert.deepEqual(await displayOrder.evaluateAll(nodes=>nodes.map(n=>n.alt)),['추가 현장 사진','기본 사진']);
+ const replacementName='synthetic-replacement.png';
+ await photoSet.getByRole('button',{name:'추가 사진 교체'}).click();
+ await photoSet.getByLabel('현장 사진 추가').setInputFiles({name:replacementName,mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a8sAAAAASUVORK5CYII=','base64')});
+ await photoSet.getByRole('button',{name:'현장 사진 연결'}).click();
+ await photoSet.getByText('추가 사진: 위험 부위 · '+replacementName,{exact:false}).waitFor();
+ await photoSet.getByText('이전 현장 사진 1장').click();
+ await photoSet.getByText(contextName,{exact:false}).waitFor();
+ const oldPhotoDownload=page.waitForEvent('download');await photoSet.getByRole('button',{name:'이전 사진 내려받기'}).click();
+ assert.equal((await oldPhotoDownload).suggestedFilename(),contextName);
+
 
 
 
@@ -117,7 +127,7 @@ try{
  const backup=await backupEvent,backupBytes=await readFile(await backup.path()),parsed=JSON.parse(backupBytes.toString());
  assert.equal(parsed.record.sha256,saved[0].sha,'backup photo hash must match stored photo');
  assert.equal(parsed.record.action,'다른 탭에서 갱신한 합성 조치 계획','backup must read the current stored record');
- assert.equal(parsed.version,8);assert.equal(parsed.record.contextDetached,false);assert.equal(parsed.record.contextFirst,true);assert.equal(parsed.record.photoRole,'overview');assert.equal(parsed.record.contextPhoto.role,'detail');assert.equal(parsed.record.contextPhoto.name,contextName);assert.equal(parsed.record.additionalActions[0].photo.name,'action-one.png');assert.equal(parsed.record.additionalActions[1].photo.name,'action-two.jpg');assert.equal(parsed.record.additionalActions.length,2);assert.equal(parsed.record.additionalActions[0].followup.status,'verified');assert.equal(parsed.record.additionalActions[1].followup,undefined);assert.equal(parsed.record.followup.status,'in_progress');assert.equal(parsed.record.followup.assignee,'합성 담당자');assert.equal(parsed.record.afterPhoto.name,'synthetic-after.png');assert.match(parsed.record.afterPhoto.sha256,/^[a-f0-9]{64}$/);
+ assert.equal(parsed.version,9);assert.equal(parsed.record.contextHistory.length,1);assert.equal(parsed.record.contextHistory[0].name,contextName);assert.equal(parsed.record.contextHistory[0].sha256,detached.record.contextPhoto.sha256);assert.equal(parsed.record.contextDetached,false);assert.equal(parsed.record.contextFirst,true);assert.equal(parsed.record.photoRole,'overview');assert.equal(parsed.record.contextPhoto.role,'detail');assert.equal(parsed.record.contextPhoto.name,replacementName);assert.equal(parsed.record.additionalActions[0].photo.name,'action-one.png');assert.equal(parsed.record.additionalActions[1].photo.name,'action-two.jpg');assert.equal(parsed.record.additionalActions.length,2);assert.equal(parsed.record.additionalActions[0].followup.status,'verified');assert.equal(parsed.record.additionalActions[1].followup,undefined);assert.equal(parsed.record.followup.status,'in_progress');assert.equal(parsed.record.followup.assignee,'합성 담당자');assert.equal(parsed.record.afterPhoto.name,'synthetic-after.png');assert.match(parsed.record.afterPhoto.sha256,/^[a-f0-9]{64}$/);
  const savedRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
  await savedRow.getByRole('button',{name:'사진 변경 확인'}).click();
  await savedRow.getByText('확인 시점의 사진이 저장된 비교값과 일치합니다.').waitFor();
@@ -148,10 +158,13 @@ try{
  await panel.getByText('추가 조치 기록이 손상되어 복원하지 못했습니다.').waitFor();
  const invalidOrder=JSON.parse(backupBytes.toString());invalidOrder.record.contextFirst='yes';
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'bad-order.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(invalidOrder))});
- await panel.getByText('사진 연결 상태가 손상되었습니다.').waitFor();
+ await panel.getByText('이전 사진 이력이 손상되었습니다.').waitFor();
  const invalidLink=JSON.parse(backupBytes.toString());invalidLink.record.contextDetached='yes';
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'bad-link.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(invalidLink))});
- await panel.getByText('사진 연결 상태가 손상되었습니다.').waitFor();
+ await panel.getByText('이전 사진 이력이 손상되었습니다.').waitFor();
+ const badOldPhoto=JSON.parse(backupBytes.toString());badOldPhoto.record.contextHistory[0].sha256='0'.repeat(64);
+ await panel.getByLabel('백업 파일 복원').setInputFiles({name:'bad-old-photo.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(badOldPhoto))});
+ await panel.getByText('이전 사진의 무결성이 확인되지 않아 복원을 중단했습니다.').waitFor();
  const badContext=JSON.parse(backupBytes.toString());badContext.record.contextPhoto.sha256='0'.repeat(64);
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'bad-context.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(badContext))});
  await panel.getByText('추가 현장 사진의 무결성이 확인되지 않아 복원을 중단했습니다.').waitFor();
@@ -189,8 +202,8 @@ try{
  page.once('dialog',d=>d.accept());await detachedRow.getByRole('button',{name:'이 기기 기록 삭제'}).click();
  await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
  // Previous formats remain restorable after upgrading; synthetic records only.
- for(const version of [1,2,3,4,5,6,7]){
-  const legacy=JSON.parse(backupBytes.toString());legacy.version=version;delete legacy.record.contextDetached;if(version<7)delete legacy.record.contextFirst;if(version<6){delete legacy.record.photoRole;delete legacy.record.contextPhoto;}if(version<4)delete legacy.record.additionalActions;else if(version===4)legacy.record.additionalActions.forEach(item=>delete item.photo);
+ for(const version of [1,2,3,4,5,6,7,8]){
+  const legacy=JSON.parse(backupBytes.toString());legacy.version=version;delete legacy.record.contextHistory;if(version<8)delete legacy.record.contextDetached;if(version<7)delete legacy.record.contextFirst;if(version<6){delete legacy.record.photoRole;delete legacy.record.contextPhoto;}if(version<4)delete legacy.record.additionalActions;else if(version===4)legacy.record.additionalActions.forEach(item=>delete item.photo);
   if(version===1)delete legacy.record.followup;
   if(version<3)delete legacy.record.afterPhoto;
   await panel.getByLabel('백업 파일 복원').setInputFiles({name:`legacy-${version}.json`,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(legacy))});
@@ -204,7 +217,8 @@ try{
  await panel.getByText('백업을 이 기기에 복원했습니다.',{exact:false}).waitFor();
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
  await panel.getByText('조치 후 사진: synthetic-after.png').waitFor();
- await panel.getByText('추가 사진: 위험 부위 · '+contextName,{exact:false}).waitFor();
+ await panel.getByText('추가 사진: 위험 부위 · '+replacementName,{exact:false}).waitFor();
+ await panel.getByText('이전 현장 사진 1장').waitFor();
  assert.deepEqual(await panel.locator('[aria-label="현장 사진 표시 순서"] img').evaluateAll(nodes=>nodes.map(n=>n.alt)),['추가 현장 사진','기본 사진']);
  await panel.getByText('조치 진행 중',{exact:true}).waitFor();
  await panel.getByRole('heading',{name:'합성 출입 통제'}).waitFor();
