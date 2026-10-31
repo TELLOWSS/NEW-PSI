@@ -8,7 +8,7 @@ import { WorkerInterpretationAppendix } from '../components/report/WorkerInterpr
 import { WorkerRiskFollowupAppendix } from '../components/report/WorkerRiskFollowupAppendix';
 import { WorkerPracticeVerificationAppendix } from '../components/report/WorkerPracticeVerificationAppendix';
 import { buildWorkerInterpretationNote } from '../utils/workerInterpretationNote';
-import { appendWorkerRiskFollowupEvent } from '../utils/workerRiskFollowup';
+import { appendWorkerRiskFollowupEvent, getSeoulFollowupDay } from '../utils/workerRiskFollowup';
 import { appendPracticeVerificationEvent, buildPracticeVerificationSummary } from '../utils/practiceVerification';
 import { buildMonthlyFieldFollowupSummary } from '../utils/monthlyFieldFollowup';
 
@@ -95,6 +95,11 @@ describe('PSI manager Q1-Q5 report full-route regression', () => {
         expect(summary.fieldPositiveObservation).toBe(0);
         expect(summary.needsFieldRecheck).toBe(1);
         expect(summary.overdueFieldRecheck).toBe(1);
+    });
+
+    it('uses Korea local calendar day across midnight for corrective action deadlines', () => {
+        expect(getSeoulFollowupDay(new Date('2026-10-31T21:30:00.000Z'))).toBe('2026-11-01');
+        expect(getSeoulFollowupDay(new Date('2026-10-31T14:30:00.000Z'))).toBe('2026-10-31');
     });
 
     it('protects worker image/MMS from manager-only annexes and keeps source review first', () => {
