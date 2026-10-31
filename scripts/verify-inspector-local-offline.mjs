@@ -34,10 +34,51 @@ try{
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
  const saved=await page.evaluate(()=>new Promise((resolve,reject)=>{const open=indexedDB.open('psi-inspector-local-records',1);open.onerror=()=>reject(open.error);open.onsuccess=()=>{const db=open.result,tx=db.transaction('records','readonly'),request=tx.objectStore('records').getAll();request.onsuccess=()=>{resolve(request.result.map(r=>({note:r.note,action:r.action,size:r.photo.size,sha:r.sha256,version:r.legalVersion})));};tx.oncomplete=()=>db.close();};}));
  assert.equal(saved.length,1);assert.match(saved[0].note,/시스템비계/);assert.ok(saved[0].size>0);assert.match(saved[0].sha,/^[a-f0-9]{64}$/);assert.ok(saved[0].version);
+ // A deferred action can be recorded and its after photo attached later while offline.
+ const actionRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
+ await actionRow.getByRole('button',{name:'후속 조치 기록'}).click();
+ await actionRow.getByLabel('조치 상태').selectOption('in_progress');
+ await actionRow.getByLabel('담당자').fill('합성 담당자');
+ await actionRow.getByLabel('목표 기한').fill('2030-01-02');
+ await actionRow.getByLabel('진행·확인 내용').fill('임시 출입 통제 후 발판 설치 예정');
+ await actionRow.getByRole('button',{name:'후속 기록 저장'}).click();
+ await panel.getByText('후속 조치를 이 기기에 저장했습니다.',{exact:false}).waitFor();
+ await actionRow.getByLabel('조치 후 사진 연결').setInputFiles({name:'synthetic-after.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a8sAAAAASUVORK5CYII=','base64')});
+ await panel.getByText('조치 후 사진을 이 기기에 연결했습니다.',{exact:false}).waitFor();
+ await actionRow.getByText('조치 후 사진: synthetic-after.png').waitFor();
+ const actions=actionRow.getByRole('region',{name:'추가 조치 항목'});
+ await actions.getByLabel('추가할 조치 내용').fill('합성 개구부 덮개 고정');
+ await actions.getByRole('button',{name:'조치 항목 추가'}).click();
+ await actions.getByRole('heading',{name:'합성 개구부 덮개 고정'}).waitFor();
+ await actions.getByLabel('추가할 조치 내용').fill('합성 출입 통제');
+ await actions.getByRole('button',{name:'조치 항목 추가'}).click();
+ const firstAction=actions.locator('div').filter({hasText:'합성 개구부 덮개 고정'}).first();
+ await firstAction.getByRole('button',{name:'후속 조치 기록'}).click();
+ await firstAction.getByLabel('조치 상태').selectOption('verified');
+ await firstAction.getByLabel('진행·확인 내용').fill('현장 재확인 완료');
+ await firstAction.getByRole('button',{name:'후속 기록 저장'}).click();
+ await actions.getByText('확인 완료',{exact:true}).waitFor();
+ const item1=actions.locator('div').filter({hasText:'합성 개구부 덮개 고정'}).first();
+ await item1.getByLabel('이 조치 사진 선택').setInputFiles({name:'action-one.png',mimeType:'image/png',buffer:Buffer.from('synthetic first photo')});
+ await item1.getByRole('button',{name:'이 조치에 사진 저장'}).click();
+ await panel.getByText('조치별 사진을 이 기기에 저장했습니다.').waitFor();
+ const item2=actions.locator('div').filter({hasText:'합성 출입 통제'}).first();
+ await item2.getByLabel('이 조치 사진 선택').setInputFiles({name:'action-two.jpg',mimeType:'image/jpeg',buffer:Buffer.from('synthetic second photo')});
+ await item2.getByRole('button',{name:'이 조치에 사진 저장'}).click();
+ await item2.getByText('이 조치의 사진: action-two.jpg').waitFor();
+
+
+ await panel.getByLabel('후속 조치 모아보기').selectOption('unassigned');
+ assert.equal(await actionRow.count(),1);
+ await panel.getByLabel('후속 조치 모아보기').selectOption('review');
+ assert.equal(await actionRow.count(),0);
+ await panel.getByLabel('후속 조치 모아보기').selectOption('all');
+ await actionRow.waitFor();
  globalThis.__testPhase='download';
  const backupEvent=page.waitForEvent('download');await panel.getByRole('button',{name:'사진과 기록 함께 백업'}).click();
  const backup=await backupEvent,backupBytes=await readFile(await backup.path()),parsed=JSON.parse(backupBytes.toString());
  assert.equal(parsed.record.sha256,saved[0].sha,'backup photo hash must match stored photo');
+ assert.equal(parsed.version,5);assert.equal(parsed.record.additionalActions[0].photo.name,'action-one.png');assert.equal(parsed.record.additionalActions[1].photo.name,'action-two.jpg');assert.equal(parsed.record.additionalActions.length,2);assert.equal(parsed.record.additionalActions[0].followup.status,'verified');assert.equal(parsed.record.additionalActions[1].followup,undefined);assert.equal(parsed.record.followup.status,'in_progress');assert.equal(parsed.record.followup.assignee,'합성 담당자');assert.equal(parsed.record.afterPhoto.name,'synthetic-after.png');assert.match(parsed.record.afterPhoto.sha256,/^[a-f0-9]{64}$/);
  const savedRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
  await savedRow.getByRole('button',{name:'사진 변경 확인'}).click();
  await savedRow.getByText('확인 시점의 사진이 저장된 비교값과 일치합니다.').waitFor();
@@ -60,6 +101,16 @@ try{
  const altered=JSON.parse(backupBytes.toString());altered.record.sha256='0'.repeat(64);
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'corrupt.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(altered))});
  await panel.getByText('백업 사진의 무결성이 확인되지 않아 복원을 중단했습니다.').waitFor();
+ const alteredAfter=JSON.parse(backupBytes.toString());alteredAfter.record.afterPhoto.sha256='0'.repeat(64);
+ await panel.getByLabel('백업 파일 복원').setInputFiles({name:'corrupt-after.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(alteredAfter))});
+ await panel.getByText('조치 후 사진의 무결성이 확인되지 않아 복원을 중단했습니다.').waitFor();
+ const alteredActions=JSON.parse(backupBytes.toString());alteredActions.record.additionalActions[0].followup.status='invalid';
+ await panel.getByLabel('백업 파일 복원').setInputFiles({name:'corrupt-actions.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(alteredActions))});
+ await panel.getByText('추가 조치 기록이 손상되어 복원하지 못했습니다.').waitFor();
+ const badItemPhoto=JSON.parse(backupBytes.toString());badItemPhoto.record.additionalActions[0].photo.sha256='0'.repeat(64);
+ await panel.getByLabel('백업 파일 복원').setInputFiles({name:'bad-item-photo.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(badItemPhoto))});
+ await panel.getByText('조치별 사진의 무결성이 확인되지 않아 복원을 중단했습니다.').waitFor();
+
  const download=page.waitForEvent('download');await panel.getByRole('button',{name:'점검 내용 내려받기'}).click();assert.match((await download).suggestedFilename(),/^PSI-local-record-/);
  globalThis.__testPhase='retry';
  await panel.getByLabel('기기 점검 사진 선택').setInputFiles({name:'failure.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a8sAAAAASUVORK5CYII=','base64')});
@@ -80,9 +131,41 @@ try{
  const sourceRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
  page.once('dialog',d=>d.accept());await sourceRow.getByRole('button',{name:'이 기기 기록 삭제'}).click();
  await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
+ // Previous formats remain restorable after upgrading; synthetic records only.
+ for(const version of [1,2,3,4]){
+  const legacy=JSON.parse(backupBytes.toString());legacy.version=version;if(version<4)delete legacy.record.additionalActions;else legacy.record.additionalActions.forEach(item=>delete item.photo);
+  if(version===1)delete legacy.record.followup;
+  if(version<3)delete legacy.record.afterPhoto;
+  await panel.getByLabel('백업 파일 복원').setInputFiles({name:`legacy-${version}.json`,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(legacy))});
+  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
+  if(version>=2)await panel.getByText('조치 진행 중',{exact:true}).waitFor();
+  if(version===3)await panel.getByText('조치 후 사진: synthetic-after.png').waitFor();
+  page.once('dialog',d=>d.accept());await panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'}).getByRole('button',{name:'이 기기 기록 삭제'}).click();
+  await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
+ }
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:backupBytes});
  await panel.getByText('백업을 이 기기에 복원했습니다.',{exact:false}).waitFor();
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
+ await panel.getByText('조치 후 사진: synthetic-after.png').waitFor();
+ await panel.getByText('조치 진행 중',{exact:true}).waitFor();
+ await panel.getByRole('heading',{name:'합성 출입 통제'}).waitFor();
+ await panel.getByText('이 조치의 사진: action-one.png').waitFor();
+ await panel.getByText('이 조치의 사진: action-two.jpg').waitFor();
+ await panel.getByText('확인 완료',{exact:true}).waitFor();
+ // Revisit the same issue with the camera and preserve a cancelled replacement.
+ const restoredRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
+ await restoredRow.getByRole('button',{name:'조치 후 사진 촬영'}).click();
+ const afterDialog=page.getByRole('dialog',{name:'카메라로 바로 촬영'});
+ await afterDialog.getByRole('button',{name:'기준 사진 끄기'}).waitFor();
+ await page.waitForFunction(()=>!document.querySelector('.si-camera-shutter')?.disabled);
+ await afterDialog.getByRole('button',{name:'지금 촬영'}).click();
+ await page.getByRole('dialog',{name:'촬영 사진 바로 확인'}).getByRole('button',{name:'이 사진 사용'}).click();
+ await panel.getByText('촬영한 조치 후 사진이 아직 저장되지 않았습니다.',{exact:false}).waitFor();
+ page.once('dialog',d=>d.dismiss());await panel.getByRole('button',{name:'촬영 사진 연결'}).click();
+ await panel.getByText('촬영한 조치 후 사진이 아직 저장되지 않았습니다.',{exact:false}).waitFor();
+ page.once('dialog',d=>d.accept());await panel.getByRole('button',{name:'촬영 사진 연결'}).click();
+ await panel.getByText('조치 후 사진을 이 기기에 연결했습니다.',{exact:false}).waitFor();
+ assert.equal(await panel.getByText('촬영한 조치 후 사진이 아직 저장되지 않았습니다.',{exact:false}).count(),0);
  // File pickers can return unsupported formats despite their accept hint. Never
  // advertise a backup which the restore validator will necessarily reject.
  await panel.getByLabel('기기 점검 사진 선택').setInputFiles({name:'unsupported.heic',mimeType:'image/heic',buffer:Buffer.from('synthetic file')});
