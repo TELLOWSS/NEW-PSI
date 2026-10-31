@@ -374,7 +374,9 @@ try{
  await panel.getByRole('button',{name:'선택한 정상 기록 복원'}).click();
  await panel.getByText('묶음 복원 결과: 1건 저장 / 0건 실패.',{exact:false}).waitFor();
  await panel.getByText('이 브라우저에 보관된 점검 3건').waitFor();
- await page.reload();
+ // This synthetic route is not the pre-cached offline entry. Reopen its local
+ // panel to force a fresh IndexedDB read without requesting the root document.
+ await page.getByText('통신 없이 기기에서 직접 점검',{exact:true}).click();
  await page.getByText('통신 없이 기기에서 직접 점검',{exact:true}).click();
  const reopened=page.getByRole('region',{name:'기기 직접 점검'});
  await reopened.getByText('이 브라우저에 보관된 점검 3건').waitFor();
