@@ -119,6 +119,18 @@ try{
  const sourceRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
  page.once('dialog',d=>d.accept());await sourceRow.getByRole('button',{name:'이 기기 기록 삭제'}).click();
  await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
+ // Previous formats remain restorable after upgrading; synthetic records only.
+ for(const version of [1,2,3]){
+  const legacy=JSON.parse(backupBytes.toString());legacy.version=version;delete legacy.record.additionalActions;
+  if(version===1)delete legacy.record.followup;
+  if(version<3)delete legacy.record.afterPhoto;
+  await panel.getByLabel('백업 파일 복원').setInputFiles({name:`legacy-${version}.json`,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(legacy))});
+  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
+  if(version>=2)await panel.getByText('조치 진행 중',{exact:true}).waitFor();
+  if(version===3)await panel.getByText('조치 후 사진: synthetic-after.png').waitFor();
+  page.once('dialog',d=>d.accept());await panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'}).getByRole('button',{name:'이 기기 기록 삭제'}).click();
+  await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
+ }
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:backupBytes});
  await panel.getByText('백업을 이 기기에 복원했습니다.',{exact:false}).waitFor();
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
