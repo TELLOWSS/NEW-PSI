@@ -287,13 +287,16 @@ try{
  await afterDialog.getByRole('button',{name:'기준 사진 끄기'}).waitFor();
  // The connected overview/detail photo can be chosen as a visual aid only.
  const beforeChoice=afterDialog.getByLabel('겹쳐 볼 조치 전 사진');
- const primaryOverlay=await afterDialog.locator('.si-camera-reference').getAttribute('src');
+ // The restored synthetic primary is deliberately undecodable. Switching to
+ // the valid connected image must recover the overlay without changing files.
+ await afterDialog.getByText('기준 사진을 불러오지 못했습니다.',{exact:false}).waitFor();
  await beforeChoice.selectOption('context');
- await page.waitForFunction(previous=>{const el=document.querySelector('.si-camera-reference');return el&&el.getAttribute('src')!==previous;},primaryOverlay);
+ await afterDialog.locator('.si-camera-reference').waitFor();
  await afterDialog.getByText('겹침 기준은 촬영 보조용이며 점검에 별도로 저장되지 않습니다.').waitFor();
  await beforeChoice.selectOption('primary');
- await page.waitForFunction(previous=>document.querySelector('.si-camera-reference')?.getAttribute('src')===previous,primaryOverlay);
-
+ await afterDialog.getByText('기준 사진을 불러오지 못했습니다.',{exact:false}).waitFor();
+ await beforeChoice.selectOption('context');
+ await afterDialog.locator('.si-camera-reference').waitFor();
  await page.waitForFunction(()=>!document.querySelector('.si-camera-shutter')?.disabled);
  await afterDialog.getByRole('button',{name:'지금 촬영'}).click();
  await page.getByRole('dialog',{name:'촬영 사진 바로 확인'}).getByRole('button',{name:'이 사진 사용'}).click();
