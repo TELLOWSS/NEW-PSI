@@ -303,7 +303,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [sequence,setSequence]=useState(false),[draft,setDraft]=useState<PhotoSetDraft|null>(null),[draftState,setDraftState]=useState<'loading'|'ready'|'error'>('loading');
  const draftRef=useRef<PhotoSetDraft|null>(null);
  const [rows,setRows]=useState<LocalRecord[]>([]),[camera,setCamera]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
- const [afterCamera,setAfterCamera]=useState<LocalRecord|null>(null),[afterReference,setAfterReference]=useState('');
+ const [afterCamera,setAfterCamera]=useState<LocalRecord|null>(null),[afterReferences,setAfterReferences]=useState<{primary:string;context:string}>({primary:'',context:''}),[afterReferenceChoice,setAfterReferenceChoice]=useState<'primary'|'context'>('primary');
  const [capturedAfter,setCapturedAfter]=useState<{row:LocalRecord;file:File}|null>(null);
  const flight=useRef(false),readSequence=useRef(0);
  const [readState,setReadState]=useState<'loading'|'ready'|'error'>('loading');
@@ -322,7 +322,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  useEffect(()=>{void loadDraft();},[]);
 
  useEffect(()=>{if(!photo){setUrl('');return;}const next=URL.createObjectURL(photo);setUrl(next);return()=>URL.revokeObjectURL(next);},[photo]);
- useEffect(()=>{if(!afterCamera){setAfterReference('');return;}const next=URL.createObjectURL(afterCamera.photo);setAfterReference(next);return()=>URL.revokeObjectURL(next);},[afterCamera]);
+ useEffect(()=>{setAfterReferenceChoice('primary');if(!afterCamera){setAfterReferences({primary:'',context:''});return;}const primary=URL.createObjectURL(afterCamera.photo),context=afterCamera.contextPhoto&&!afterCamera.contextDetached?URL.createObjectURL(afterCamera.contextPhoto):'';setAfterReferences({primary,context});return()=>{URL.revokeObjectURL(primary);if(context)URL.revokeObjectURL(context);};},[afterCamera]);
  useEffect(()=>{if(!photo&&!note&&!action&&!capturedAfter)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[photo,note,action,capturedAfter]);
  const reference=legalForText(note,new Date().toISOString());
  // Do not present legacy, unreviewed, expired, or withdrawn material as guidance.
@@ -516,6 +516,6 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    <p>사진 변경 확인은 저장된 사진과 기록된 비교값만 대조합니다. 백업에서 복원한 기록의 비교값은 백업 당시 생성됐을 수 있습니다. 점검 내용의 변경이나 촬영 시각·장소·안전 여부는 증명하지 않습니다.</p>
   </section>
   {camera&&<InspectorCameraDialog onClose={()=>{setCamera(false);setSequence(false);}} onSaveAndContinue={sequence?stagePhoto:undefined} storedCount={draft?.photos.length||0} onUse={file=>{if(!sequence){setCamera(false);choose(file);return;}void stagePhoto(file).then(ok=>{if(ok){setCamera(false);setSequence(false);}else window.alert('사진을 기기에 보관하지 못했습니다. 사진을 내려받거나 다시 시도하세요.');});}}/>}
-  {afterCamera&&<InspectorCameraDialog reference={{url:afterReference,label:'조치 전 사진'}} onClose={()=>setAfterCamera(null)} onUse={file=>{setCapturedAfter({row:afterCamera,file});setAfterCamera(null);setMessage('촬영 사진을 확인한 뒤 점검에 연결하세요.');}}/>}
+  {afterCamera&&<InspectorCameraDialog reference={{url:afterReferenceChoice==='context'?afterReferences.context:afterReferences.primary,label:'조치 전 사진',...(afterReferences.context?{selection:{value:afterReferenceChoice,options:[{value:'primary',label:`기본 사진 · ${afterCamera.photoRole==='overview'?'현장 전체':afterCamera.photoRole==='detail'?'위험 부위':'역할 미지정'}`},{value:'context',label:`추가 사진 · ${afterCamera.contextRole==='overview'?'현장 전체':'위험 부위'}`}],onChange:(value:string)=>setAfterReferenceChoice(value==='context'?'context':'primary')}}:{})}} onClose={()=>setAfterCamera(null)} onUse={file=>{setCapturedAfter({row:afterCamera,file});setAfterCamera(null);setMessage('촬영 사진을 확인한 뒤 점검에 연결하세요.');}}/>}
  </details>;
 }

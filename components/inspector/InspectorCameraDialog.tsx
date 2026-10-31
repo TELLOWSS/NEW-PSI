@@ -15,7 +15,7 @@ const CAMERA_GUIDES = {
 type CameraGuide = keyof typeof CAMERA_GUIDES | '';
 
 /** Photos stay local until onUse passes the selected frame to the existing optimizer. */
-export default function InspectorCameraDialog({onClose, onUse, reference, onSaveAndContinue, storedCount,onHome}: {onClose:()=>void; onUse:(file:File)=>void;onHome?:()=>void; reference?:{url?:string;label:string;failed?:boolean;missing?:boolean};onSaveAndContinue?:(file:File)=>Promise<boolean>;storedCount?:number}) {
+export default function InspectorCameraDialog({onClose, onUse, reference, onSaveAndContinue, storedCount,onHome}: {onClose:()=>void; onUse:(file:File)=>void;onHome?:()=>void; reference?:{url?:string;label:string;failed?:boolean;missing?:boolean;selection?:{value:string;options:{value:string;label:string}[];onChange:(value:string)=>void}};onSaveAndContinue?:(file:File)=>Promise<boolean>;storedCount?:number}) {
     const dialogRef=useRef<HTMLDialogElement>(null), videoRef=useRef<HTMLVideoElement>(null), guidePanelRef=useRef<HTMLDetailsElement>(null);
     const streamRef=useRef<MediaStream|null>(null), generation=useRef(0), encoding=useRef(false), nativePending=useRef(false);
     // Follow the browser's displayed orientation on every turn; no manual mode lock.
@@ -207,6 +207,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
         </div>
         {!photo&&reference&&<section className="si-camera-reference-controls" aria-label="전후 맞춤 렌즈">
             <strong>전후 맞춤 · {reference.label}</strong>
+            {reference.selection&&<><label>겹쳐 볼 조치 전 사진 <select aria-label="겹쳐 볼 조치 전 사진" value={reference.selection.value} onChange={e=>reference.selection?.onChange(e.target.value)}>{reference.selection.options.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label><p>겹침 기준은 촬영 보조용이며 점검에 별도로 저장되지 않습니다.</p></>}
             {reference.failed||overlayFailed?<p role="status">기준 사진을 불러오지 못했습니다. 겹침 없이 촬영하거나 창을 닫고 사진을 다시 확인하세요.</p>:!reference.url?<p role="status">{reference.missing?'조치 전 사진을 선택하면 촬영 화면에 겹쳐 볼 수 있습니다.':'기준 사진을 불러오는 중입니다.'}</p>:<><button type="button" className="si-btn" aria-pressed={overlayVisible} onClick={()=>setOverlayVisible(value=>!value)}>기준 사진 {overlayVisible?'끄기':'켜기'}</button>{overlayVisible&&<label>겹침 투명도 <select aria-label="기준 사진 겹침 투명도" value={overlayOpacity} onChange={e=>setOverlayOpacity(Number(e.target.value))}><option value={25}>25%</option><option value={50}>50%</option><option value={75}>75%</option></select></label>}<p>사진의 비율이 다르면 위치가 달라 보일 수 있습니다. 같은 장소와 조치 결과는 현장에서 직접 확인하세요. 겹침은 촬영 사진에 저장되지 않습니다.</p></>}
         </section>}
         
