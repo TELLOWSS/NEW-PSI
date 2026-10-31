@@ -671,7 +671,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     <label>현장명<input aria-label="현장명" value={siteContextInput.site} maxLength={100} disabled={busy} placeholder="예: 용인 현장" onChange={e=>setSiteContextInput(old=>({...old,site:e.target.value}))}/></label>
     <label>동<input aria-label="동" value={siteContextInput.building} maxLength={40} disabled={busy} placeholder="예: 2001동" onChange={e=>setSiteContextInput(old=>({...old,building:e.target.value}))}/></label>
     <label>층<input aria-label="층" value={siteContextInput.level} maxLength={40} disabled={busy} placeholder="예: 지상 16층 / 옥탑" onChange={e=>setSiteContextInput(old=>({...old,level:e.target.value}))}/></label>
-    <label>공종<input aria-label="공종" value={siteContextInput.trade} maxLength={60} disabled={busy} placeholder="예: 형틀 / 철근" onChange={e=>setSiteContextInput(old=>({...old,trade:e.target.value}))}/></label>
+    <label>공종<input aria-label="점검 현장 공종" value={siteContextInput.trade} maxLength={60} disabled={busy} placeholder="예: 형틀 / 철근" onChange={e=>setSiteContextInput(old=>({...old,trade:e.target.value}))}/></label>
     <p>저장 시 해당 점검의 기본·추가·조치 후 사진과 후속 이력에 같은 현장정보가 연결됩니다. 기존 점검에는 임의로 채우지 않습니다.</p>
    </fieldset>
    <label>기본 사진 역할<select aria-label="기본 사진 역할" value={photoRole} onChange={e=>setPhotoRole(e.target.value as PhotoRole)}><option value="unspecified">지정하지 않음</option><option value="overview">현장 전체</option><option value="detail">위험 부위</option></select></label>
