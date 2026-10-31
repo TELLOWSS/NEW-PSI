@@ -22,6 +22,11 @@ function photoSlotHashes(row:LocalRecord):Record<string,string>{
  (row.additionalActions||[]).forEach(item=>add('action:'+item.id,item.photoSha256,item.photoHistory||[]));
  return out;
 }
+function requirePhotoEditBudget(existing:PhotoEdits|undefined,added:PhotoEdit|undefined):void{
+ if(!added)return;
+ const prior=Object.values(existing||{}).reduce((n,item)=>n+item.originalFile.size,0);
+ if(prior+added.originalFile.size>20*1024*1024)throw new Error('이 점검의 편집 전 사진 합계가 20MB를 초과합니다. 새로운 점검을 작성하거나 사진을 별도 보관하세요.');
+}
 function validPhotoEdits(value:unknown,row:LocalRecord):value is PhotoEdits{
  if(!value||typeof value!=='object'||Array.isArray(value))return false;
  const items=value as Record<string,unknown>,hashes=photoSlotHashes(row);
@@ -664,6 +669,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     }
    }else if(singlePhotoSource&&primaryDigest){sources['primary:0']=photoInput(singlePhotoSource,primaryDigest);}
    const edited=staged?staged.edits:(singlePhotoEdit?{'primary:0':await makePhotoEdit(primary,singlePhotoEdit)}:undefined);
+    if(edited&&Object.values(edited).reduce((sum,item)=>sum+(item?.originalFile?.size||0),0)>BACKUP_LIMIT)throw new Error('편집 전 사진 합계가 20MB를 넘습니다. 새 점검을 작성하거나 사진을 별도로 내려받으세요.');
     const record:LocalRecord={photoEdits:edited&&Object.keys(edited).length?edited:undefined,photoInputs:Object.keys(sources).length?sources:undefined,siteContext,photoRole:primaryRole==='unspecified'?undefined:primaryRole,id:crypto.randomUUID(),createdAt:new Date().toISOString(),note:note.trim(),action:action.trim(),photo:primary,sha256:primaryDigest,legalVersion:reference.version,reviewedAt:reference.reviewedAt,...(secondary?{contextPhoto:secondary,contextSha256:contextDigest!,contextRole:primaryRole==='overview'?'detail' as const:'overview' as const}:{})};
    if(record.photoEdits&&!validPhotoEdits(record.photoEdits,record))throw new Error('편집 전 사진과 회전 사진의 연결 정보를 확인하지 못했습니다.');
     await runStore<void>('readwrite',store=>{if(!staged){store.add(record);return;}const request=store.get(DRAFT_KEY);request.onsuccess=()=>{if(request.result?.revision!==staged.revision){request.transaction?.abort();return;}store.add(record);store.delete(DRAFT_KEY);};});
@@ -717,6 +723,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    const digest=await hash(file);if(!digest)throw new Error('새 사진의 비교값을 만들지 못했습니다.');
    const history=row.primaryHistory||[];
    const newEdit=await makePhotoEdit(file,edit);
+   requirePhotoEditBudget(row.photoEdits,newEdit);
    if(history.length>=5||history.reduce((n,item)=>n+item.photo.size,0)+row.photo.size>BACKUP_LIMIT)throw new Error('이전 기본 사진 보관 한도(5장·합계 20MB)에 도달했습니다. 새 점검으로 기록하세요.');
    if(!row.sha256||await hash(row.photo)!==row.sha256)throw new Error('기존 기본 사진의 무결성을 확인하지 못해 교체하지 않았습니다.');
    await runStore<void>('readwrite',store=>{const request=store.get(row.id);request.onsuccess=()=>{const current=request.result as LocalRecord|undefined;if(!current||current.sha256!==row.sha256||JSON.stringify(current.primaryHistory||[])!==JSON.stringify(history)){request.transaction?.abort();return;}store.put({...current,photo:file,sha256:digest,primaryHistory:[...history,{photo:row.photo,sha256:row.sha256!,replacedAt:new Date().toISOString()}],photoEdits:newEdit?{...(current.photoEdits||{}),['primary:'+(history.length+1)]:newEdit}:current.photoEdits,photoInputs:{...(current.photoInputs||{}),['primary:'+(history.length+1)]:photoInput(source,digest)}});};});
@@ -733,6 +740,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    const digest=await hash(file);if(!digest)throw new Error('사진의 비교값을 만들지 못했습니다.');
    const history=row.contextHistory||[];
    const newEdit=await makePhotoEdit(file,edit);
+   requirePhotoEditBudget(row.photoEdits,newEdit);
    if(row.contextPhoto){
     if(row.contextDetached||role!==row.contextRole)throw new Error('사진 연결 상태를 확인한 뒤 다시 시도하세요.');
     if(history.length>=5||history.reduce((n,item)=>n+item.photo.size,0)+row.contextPhoto.size>BACKUP_LIMIT)throw new Error('이전 사진 보관 한도(5장·합계 20MB)에 도달했습니다. 새 점검으로 기록하세요. 기존 사진은 유지됩니다.');
@@ -789,6 +797,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    const digest=await hash(file);if(!digest)throw new Error('사진의 비교값을 만들지 못했습니다. 다시 시도하세요.');
    const history=row.afterHistory||[];
    const newEdit=await makePhotoEdit(file,edit);
+   requirePhotoEditBudget(row.photoEdits,newEdit);
    if(row.afterPhoto){
     if(history.length>=5||history.reduce((n,item)=>n+item.photo.size,0)+row.afterPhoto.size>BACKUP_LIMIT)throw new Error('이전 조치 후 사진 보관 한도(5장·합계 20MB)에 도달했습니다. 새 점검으로 기록하세요.');
     if(!row.afterSha256||await hash(row.afterPhoto)!==row.afterSha256)throw new Error('이전 조치 후 사진의 무결성을 확인하지 못해 교체하지 않았습니다.');
