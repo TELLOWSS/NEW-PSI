@@ -74,10 +74,13 @@ try{
  assert.equal(await actionRow.count(),0);
  await panel.getByLabel('후속 조치 모아보기').selectOption('all');
  await actionRow.waitFor();
+ // Simulate an update in another tab while the rendered list is stale.
+ await page.evaluate(async()=>{const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('psi-inspector-local-records',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});const tx=db.transaction('records','readwrite'),store=tx.objectStore('records'),req=store.getAll();req.onsuccess=()=>store.put({...req.result[0],action:'다른 탭에서 갱신한 합성 조치 계획'});await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);});db.close();});
  globalThis.__testPhase='download';
  const backupEvent=page.waitForEvent('download');await panel.getByRole('button',{name:'사진과 기록 함께 백업'}).click();
  const backup=await backupEvent,backupBytes=await readFile(await backup.path()),parsed=JSON.parse(backupBytes.toString());
  assert.equal(parsed.record.sha256,saved[0].sha,'backup photo hash must match stored photo');
+ assert.equal(parsed.record.action,'다른 탭에서 갱신한 합성 조치 계획','backup must read the current stored record');
  assert.equal(parsed.version,5);assert.equal(parsed.record.additionalActions[0].photo.name,'action-one.png');assert.equal(parsed.record.additionalActions[1].photo.name,'action-two.jpg');assert.equal(parsed.record.additionalActions.length,2);assert.equal(parsed.record.additionalActions[0].followup.status,'verified');assert.equal(parsed.record.additionalActions[1].followup,undefined);assert.equal(parsed.record.followup.status,'in_progress');assert.equal(parsed.record.followup.assignee,'합성 담당자');assert.equal(parsed.record.afterPhoto.name,'synthetic-after.png');assert.match(parsed.record.afterPhoto.sha256,/^[a-f0-9]{64}$/);
  const savedRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
  await savedRow.getByRole('button',{name:'사진 변경 확인'}).click();
