@@ -1,6 +1,9 @@
 import React, { useMemo } from 'react';
 import type { Page, WorkerRecord } from '../types';
 import { buildEducationReturnSummary } from '../utils/educationReturnSummary';
+import { buildPracticeVerificationSummary } from '../utils/practiceVerification';
+import { getKoreanCalendarDay } from '../utils/monthlyFieldFollowup';
+import { resolveAssessmentPeriod } from '../utils/assessmentCycle';
 import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
 import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
@@ -170,6 +173,10 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
     const { mode: operationalMode } = useOperationalMode();
     const isDeveloperExperience = isDevMode && operationalMode === 'developer';
     const summary = useMemo(() => buildEducationReturnSummary(workerRecords, cycle), [cycle, workerRecords]);
+    const practice = useMemo(() => buildPracticeVerificationSummary(workerRecords, {
+        asOfDate: getKoreanCalendarDay(),
+        periodStartDate: resolveAssessmentPeriod(new Date(), cycle).startDate,
+    }), [workerRecords, cycle]);
     const trendPrefix = summary.periodTrendPct > 0 ? '+' : '';
     const riskText = summary.topRisks.join(' · ') || '위험 키워드 자료 없음';
     const repeatedRiskText = summary.repeatedRiskKeywords.slice(0, 3).join(' · ');
@@ -201,6 +208,39 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                         <StepItem number="3" title="환류한다" desc={`보호 리포트·교육자료·${cycleCopy.shortLabel} 추적`} tone="green" icon={<EducationIcon />} />
                     </div>
                 </div>
+            </section>
+
+            <section data-education-return="practice-verification" className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm sm:p-7">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <p className="psi-eyebrow text-emerald-700">교육 → 실천 확인 → 재점검</p>
+                        <h3 className="psi-section-title mt-1">관리자 확인 근거 기반 실천 환류</h3>
+                        <p className="psi-small-note mt-1">운영주기 {practice.periodStartDate || '전체'} ~ {practice.asOfDate} · 기록된 확인 횟수이며 교육 대상자 전원의 이수율이 아닙니다.</p>
+                    </div>
+                    <button type="button" onClick={() => onNavigateToPage('ocr-analysis')} className="min-h-11 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-bold text-white">
+                        근로자 기록에서 확인·등록
+                    </button>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-5">
+                    {[
+                        ['교육 전달', practice.educationDelivered, '회'],
+                        ['이해 확인', practice.understandingConfirmed, '회'],
+                        ['현장 관찰', practice.fieldObserved, '회'],
+                        ['재확인 필요', practice.needsFieldRecheck, '건'],
+                        ['기한 초과', practice.overdueFieldRecheck, '건'],
+                    ].map(([label, count, unit]) => (
+                        <div key={label} className="rounded-xl bg-slate-50 p-3">
+                            <p className="psi-meta-label">{label}</p>
+                            <p className="mt-1 text-xl font-black text-slate-900">{count}{unit}</p>
+                        </div>
+                    ))}
+                </div>
+                {practice.educationFocus.length ? (
+                    <div className="mt-3 space-y-2">
+                        {practice.educationFocus.map(line => <p key={line} className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-900">{line}</p>)}
+                    </div>
+                ) : <p className="psi-small-note mt-3">별도 등록된 실천 확인 미해소 기록이 없습니다. 현장 위험이 없다는 뜻은 아닙니다.</p>}
+                <p className="psi-small-note mt-3">교육 이수·이해 답변과 작업 중 실제 안전행동 관찰은 별개입니다. 위험조치의 완료 여부는 현장 조치 기록에서 담당자·증빙을 확인해야 합니다.</p>
             </section>
 
             <section data-education-return="outputs" className="grid gap-4 xl:grid-cols-3">
