@@ -260,7 +260,7 @@ try{
  const badOrigin=JSON.parse(backupBytes.toString());badOrigin.record.photoInputs['primary:1'].source='camera-dialog';
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'bad-origin.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(badOrigin))});
  await panel.getByText('사진 출처 기록 비교값이 일치하지 않아 복원을 중단했습니다.',{exact:false}).waitFor();
- const badOriginVersion=JSON.parse(backupBytes.toString());badOriginVersion.version=14;
+ const badOriginVersion=JSON.parse(backupBytes.toString());badOriginVersion.version=14;delete badOriginVersion.record.rechecks;delete badOriginVersion.record.recheckSha256;for(const action of badOriginVersion.record.additionalActions||[])delete action.rechecks;
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'bad-origin-downgrade.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(badOriginVersion))});
  await panel.getByText('이전 백업 형식에 사진 출처 기록이 포함되어 있습니다.',{exact:false}).waitFor();
  const badOldPhoto=JSON.parse(backupBytes.toString());badOldPhoto.record.contextHistory[0].sha256='0'.repeat(64);
