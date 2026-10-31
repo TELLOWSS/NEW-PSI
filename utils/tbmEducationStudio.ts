@@ -387,7 +387,7 @@ export const buildTbmEducationDraft = (options: {
     const highGradeRiskNames = new Set(risks.map((item) => item.risk));
     const followupFocus = options.sources
         .filter(source => source.kind === 'field-record')
-        .flatMap(source => source.text.split('\n').filter(line => /^Q[1-5] (?:확인사항|실천 확인 미해소) ·/.test(line)))
+        .flatMap(source => source.text.split('\n').filter(line => /^Q[1-5] (?:확인사항 ·|실천 확인 미해소 )/.test(line)))
         .slice(0, 3);
     const focusPoints = [
         ...followupFocus,
