@@ -334,6 +334,56 @@ try{
  await panel.getByRole('button',{name:'기기 기록 다시 확인'}).click();
  await panel.getByText('이 브라우저에 보관된 점검 2건').waitFor();
  await panel.getByText('지원하지 않는 사진 형식 백업 시험',{exact:false}).waitFor();
+ // F08: choose three records for a batch; unsupported HEIC must be excluded
+ // explicitly rather than silently exported in a backup that cannot restore.
+ await panel.getByLabel('기기 점검 사진 선택').setInputFiles({name:'batch-valid.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a8sAAAAASUVORK5CYII=','base64')});
+ await panel.getByLabel('직접 확인한 내용').fill('묶음 합성 점검');
+ await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
+ await panel.getByText('이 브라우저에 보관된 점검 3건').waitFor();
+ const batchFirst=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
+ const batchSecond=panel.locator('article').filter({hasText:'묶음 합성 점검'});
+ const batchUnsupported=panel.locator('article').filter({hasText:'지원하지 않는 사진 형식 백업 시험'});
+ await batchFirst.getByLabel('묶음 백업에 선택').check();
+ await batchSecond.getByLabel('묶음 백업에 선택').check();
+ await batchUnsupported.getByLabel('묶음 백업에 선택').check();
+ const batchDownload=page.waitForEvent('download');
+ await panel.getByRole('button',{name:'선택 기록 묶음 백업 (3건)'}).click();
+ const batchBytes=await readFile(await (await batchDownload).path());
+ const batchData=JSON.parse(batchBytes.toString());
+ assert.equal(batchData.format,'psi-local-inspection-batch');
+ assert.equal(batchData.version,1);
+ assert.equal(batchData.records.length,2);
+ assert.ok(batchData.records.some(r=>r.record.followup?.temporaryMeasure==='위험 구역 출입 통제 및 안내 표지 유지'));
+ await panel.getByText('백업 제외 1건:',{exact:false}).waitFor();
+ page.once('dialog',d=>d.accept());await batchFirst.getByRole('button',{name:'이 기기 기록 삭제'}).click();
+ await panel.getByText('이 브라우저에 보관된 점검 2건').waitFor();
+ page.once('dialog',d=>d.accept());await batchSecond.getByRole('button',{name:'이 기기 기록 삭제'}).click();
+ await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
+ const brokenBatch=JSON.parse(batchBytes.toString());brokenBatch.records[1].record.sha256='0'.repeat(64);
+ await panel.getByLabel('묶음 백업 파일 미리보기').setInputFiles({name:'batch-corrupt.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(brokenBatch))});
+ await panel.getByText('묶음 복원 미리보기 완료: 복원 가능 1건 / 중복 0건 / 손상 1건.',{exact:false}).waitFor();
+ assert.equal(await panel.getByRole('checkbox',{name:'복원 기록 2 선택'}).isDisabled(),true);
+ await panel.getByLabel('묶음 백업 파일 미리보기').setInputFiles({name:'batch-valid.json',mimeType:'application/json',buffer:batchBytes});
+ await panel.getByText('묶음 복원 미리보기 완료: 복원 가능 2건 / 중복 0건 / 손상 0건.',{exact:false}).waitFor();
+ // A single failed add must not roll back or overwrite successfully restored records.
+ await page.evaluate(()=>{window.__batchOriginalAdd=IDBObjectStore.prototype.add;window.__batchFailNext=true;IDBObjectStore.prototype.add=function(...args){if(window.__batchFailNext){window.__batchFailNext=false;throw new DOMException('full','QuotaExceededError');}return window.__batchOriginalAdd.apply(this,args);};});
+ await panel.getByRole('button',{name:'선택한 정상 기록 복원'}).click();
+ await panel.getByText('묶음 복원 결과: 1건 저장 / 1건 실패.',{exact:false}).waitFor();
+ await panel.getByText('이 브라우저에 보관된 점검 2건').waitFor();
+ await page.evaluate(()=>{IDBObjectStore.prototype.add=window.__batchOriginalAdd;});
+ await panel.getByRole('button',{name:'선택한 정상 기록 복원'}).click();
+ await panel.getByText('묶음 복원 결과: 1건 저장 / 0건 실패.',{exact:false}).waitFor();
+ await panel.getByText('이 브라우저에 보관된 점검 3건').waitFor();
+ // This synthetic route is not the pre-cached offline entry. Reopen its local
+ // panel to force a fresh IndexedDB read without requesting the root document.
+ await page.getByText('통신 없이 기기에서 직접 점검',{exact:true}).click();
+ await page.getByText('통신 없이 기기에서 직접 점검',{exact:true}).click();
+ const reopened=page.getByRole('region',{name:'기기 직접 점검'});
+ await reopened.getByText('이 브라우저에 보관된 점검 3건').waitFor();
+ await reopened.getByText('현재 기록된 임시 안전조치: 위험 구역 출입 통제 및 안내 표지 유지',{exact:false}).waitFor();
+ await reopened.getByLabel('묶음 백업 파일 미리보기').setInputFiles({name:'batch-duplicate.json',mimeType:'application/json',buffer:batchBytes});
+ await reopened.getByText('묶음 복원 미리보기 완료: 복원 가능 0건 / 중복 2건 / 손상 0건.',{exact:false}).waitFor();
+ assert.equal(await reopened.getByRole('button',{name:'선택한 정상 기록 복원'}).isDisabled(),true);
  assert.deepEqual(requests,[],'offline local operations must not initiate HTTP requests');
  assert.deepEqual(errors,[]);
  console.log('PASS local camera, local save, rule lookup, export, quota failure and retry without HTTP requests');

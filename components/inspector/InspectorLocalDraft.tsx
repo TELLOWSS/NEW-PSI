@@ -40,6 +40,9 @@ const list=()=>runStore<LocalRecord[]>('readonly',(store,set)=>{const request=st
 function download(blob:Blob,name:string){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 
 const BACKUP_LIMIT=20*1024*1024;
+const BATCH_LIMIT=50*1024*1024;
+const BATCH_COUNT_LIMIT=10;
+type BatchPreviewEntry={index:number;status:'ready'|'duplicate'|'invalid';summary:string;message:string;record?:LocalRecord;selected:boolean};
 function backupIssue(photo:File):string|null{
  if(photo.size>BACKUP_LIMIT)return '사진이 20MB를 넘어 백업할 수 없습니다. 사진을 별도로 내려받으세요.';
  if(!['image/jpeg','image/png','image/webp'].includes(photo.type))return '이 사진 형식은 함께 백업하여 복원할 수 없습니다. 사진과 점검 내용을 각각 내려받으세요.';
@@ -312,6 +315,8 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [readState,setReadState]=useState<'loading'|'ready'|'error'>('loading');
  const [checks,setChecks]=useState<Record<string,string>>({});
  const [filter,setFilter]=useState('all');
+ const [backupIds,setBackupIds]=useState<string[]>([]);
+ const [batchPreview,setBatchPreview]=useState<BatchPreviewEntry[]|null>(null);
  const visibleRows=rows.filter(row=>{const items=[row.followup,...(row.additionalActions||[]).map(item=>item.followup)];return filter==='all'||items.some(item=>filter==='unassigned'?!item?.assignee:filter==='no_due'?!item?.dueDate:filter==='overdue'?!!item&&overdue(item):filter==='review'?item?.status==='review_requested':false);});
  const refresh=async()=>{const sequence=++readSequence.current;setChecks({});setReadState(previous=>previous==='ready'?'ready':'loading');try{const found=await list();if(sequence===readSequence.current){setRows(found);setReadState('ready');}}catch{if(sequence===readSequence.current)setReadState('error');}};
  useEffect(()=>{void refresh();},[]);
@@ -490,6 +495,84 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   finally{flight.current=false;setBusy(false);}
  };
  const backup=async(row:LocalRecord)=>{if(flight.current)return;flight.current=true;setBusy(true);setMessage('');try{const current=await runStore<LocalRecord|undefined>('readonly',(store,set)=>{const request=store.get(row.id);request.onsuccess=()=>set(request.result as LocalRecord|undefined);});if(!current)throw new Error('해당 점검을 찾을 수 없어 백업하지 않았습니다. 목록을 다시 확인하세요.');download(await packRecord(current),'PSI-backup-'+current.id+'.json');setMessage('백업 파일 내려받기를 요청했습니다. 저장된 파일을 확인하고 안전한 장소에 보관하세요.');}catch(error){setMessage(error instanceof Error?error.message:'백업하지 못했습니다.');}finally{flight.current=false;setBusy(false);}};
+ const backupSelected=async()=>{
+  if(flight.current||!backupIds.length)return;
+  flight.current=true;setBusy(true);setMessage('');
+  try{
+   if(backupIds.length>BATCH_COUNT_LIMIT)throw new Error('한 번에 최대 10건을 백업할 수 있습니다. 나누어 선택하세요.');
+   const latest=await list();
+   const found=new Map(latest.map(row=>[row.id,row]));
+   const packed:unknown[]=[],issues:string[]=[];
+   let bytes=0;
+   for(const id of backupIds){
+    const selectedRecord=found.get(id);
+    if(!selectedRecord){issues.push('선택 기록을 현재 기기에서 찾지 못함');continue;}
+    try{
+     const blob=await packRecord(selectedRecord);
+     const next=await blob.text();
+     const nextBytes=new Blob([next]).size;
+     if(bytes+nextBytes>BATCH_LIMIT)throw new Error('전체 백업 용량이 50MB를 넘습니다. 기록을 나누어 백업하세요.');
+     bytes+=nextBytes;
+     packed.push(JSON.parse(next));
+    }catch(error){issues.push(selectedRecord.note.slice(0,32)+': '+(error instanceof Error?error.message:'백업 실패'));}
+   }
+   if(!packed.length)throw new Error('백업 가능한 기록이 없습니다. '+issues.join(' / '));
+   const payload=new Blob([JSON.stringify({format:'psi-local-inspection-batch',version:1,exportedAt:new Date().toISOString(),records:packed})],{type:'application/json'});
+   if(payload.size>BATCH_LIMIT)throw new Error('전체 백업 파일이 50MB를 넘습니다. 기록을 나누어 선택하세요.');
+   download(payload,'PSI-local-inspections-batch-'+new Date().toISOString().slice(0,10)+'.json');
+   setMessage('묶음 백업 파일 내려받기 요청: '+packed.length+'건. '+(issues.length?'백업 제외 '+issues.length+'건: '+issues.join(' / '):'제외 기록 없음.')+' 파일 저장을 확인하세요. 암호화되지 않았습니다.');
+  }catch(error){setMessage(error instanceof Error?error.message:'묶음 백업을 생성하지 못했습니다.');}
+  finally{flight.current=false;setBusy(false);}
+ };
+ const previewBatch=async(file:File)=>{
+  if(flight.current)return;
+  flight.current=true;setBusy(true);setBatchPreview(null);setMessage('');
+  try{
+   if(file.size>BATCH_LIMIT)throw new Error('묶음 백업 파일은 50MB 이하여야 합니다. 파일을 나누어 복원하세요.');
+   const data=JSON.parse(await file.text());
+   if(data?.format!=='psi-local-inspection-batch'||data.version!==1||!Array.isArray(data.records)||!data.records.length||data.records.length>BATCH_COUNT_LIMIT)throw new Error('지원하지 않거나 손상된 묶음 백업 파일입니다. 최대 10건만 지원합니다.');
+   const current=await list(),existing=new Set(current.map(item=>item.id)),seen=new Set<string>();
+   const previews:BatchPreviewEntry[]=[];
+   for(let i=0;i<data.records.length;i++){
+    try{
+     const raw=JSON.stringify(data.records[i]);
+     if(!raw||new Blob([raw]).size>BATCH_LIMIT)throw new Error('개별 기록 크기가 허용 범위를 초과합니다.');
+     const record=await unpackRecord(new File([raw],'batch-entry.json',{type:'application/json'}));
+     const summary=record.note.slice(0,90);
+     if(existing.has(record.id)||seen.has(record.id)){
+      previews.push({index:i,status:'duplicate',summary,message:'같은 기록 ID가 이미 기기 또는 묶음에 있어 덮어쓰지 않습니다.',selected:false});
+     }else{
+      seen.add(record.id);
+      previews.push({index:i,status:'ready',summary,message:'사진 무결성 확인됨 · 복원 가능',record,selected:true});
+     }
+    }catch(error){previews.push({index:i,status:'invalid',summary:'검증 실패한 기록',message:error instanceof Error?error.message:'기록을 검사하지 못했습니다.',selected:false});}
+   }
+   setBatchPreview(previews);
+   setMessage('묶음 복원 미리보기 완료: 복원 가능 '+previews.filter(item=>item.status==='ready').length+'건 / 중복 '+previews.filter(item=>item.status==='duplicate').length+'건 / 손상 '+previews.filter(item=>item.status==='invalid').length+'건. 실제 복원은 아직 시작하지 않았습니다.');
+  }catch(error){setMessage(error instanceof Error?error.message:'묶음 백업을 열지 못했습니다.');}
+  finally{flight.current=false;setBusy(false);}
+ };
+ const restoreSelectedBatch=async()=>{
+  if(flight.current||!batchPreview)return;
+  const selected=batchPreview.filter(item=>item.status==='ready'&&item.selected&&item.record);
+  if(!selected.length)return;
+  flight.current=true;setBusy(true);setMessage('');
+  let success=0;const errors:string[]=[],restored=new Set<number>();
+  try{
+   for(const item of selected){
+    try{
+     await runStore<void>('readwrite',store=>{store.add(item.record!);});
+     success++;restored.add(item.index);
+    }catch(error){
+     const isDuplicate=error instanceof DOMException&&error.name==='ConstraintError';
+     errors.push('기록 '+(item.index+1)+': '+(isDuplicate?'동일 ID 존재, 덮어쓰기 방지':'기기 저장 실패 · 저장 공간 또는 다른 탭 확인'));
+    }
+   }
+   setBatchPreview(previous=>previous?.map(item=>restored.has(item.index)?{...item,status:'duplicate' as const,message:'이번 복원에서 저장 완료 · 다시 가져오지 않음',record:undefined,selected:false}:item)||null);
+   await refresh();
+   setMessage('묶음 복원 결과: '+success+'건 저장 / '+errors.length+'건 실패. '+(errors.length?errors.join(' / ')+' 실패 항목은 원본 백업 파일에서 다시 시도하세요.':'저장된 기록을 확인하세요.')+' 서버에는 전송하지 않았습니다.');
+  }finally{flight.current=false;setBusy(false);}
+ };
  const restore=async(file:File)=>{if(flight.current)return;flight.current=true;setBusy(true);setMessage('');try{const record=await unpackRecord(file);await runStore<void>('readwrite',store=>{store.add(record);});await refresh();setMessage('백업을 이 기기에 복원했습니다. 서버에는 전송하지 않았습니다.');}catch(error){setMessage(error instanceof DOMException&&error.name==='ConstraintError'?'같은 점검이 이미 이 기기에 있습니다. 기존 기록은 변경하지 않았습니다.':error instanceof Error?error.message:'복원하지 못했습니다.');}finally{flight.current=false;setBusy(false);}};
  return <details id="si-local-inspection" className="si-local-inspection" onToggle={e=>{if(e.currentTarget.open)void refresh();}}>
   <summary>통신 없이 기기에서 직접 점검</summary>
@@ -512,9 +595,20 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    {readState==='loading'&&<p role="status">기기 기록을 확인하고 있습니다…</p>}
    {readState==='error'&&<div role="alert"><p>기기 기록을 불러오지 못해 보관 건수를 확인할 수 없습니다. 기록이 없다는 뜻은 아닙니다. 브라우저 저장 설정과 남은 공간을 확인한 뒤 다시 시도하세요.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>void refresh()}>기기 기록 다시 확인</button></div>}
    <p>백업에는 사진과 점검 내용이 모두 들어 있으며 암호화되지 않습니다. 안전한 장소에 보관하세요. 사진은 각각 20MB까지 지원합니다.</p>
+   <section aria-label="여러 점검 백업·복원">
+    <h4>여러 점검 함께 백업·복원</h4>
+    <p>아래 점검의 '묶음 백업에 선택'으로 원하는 기록을 선택하세요. 한 번에 최대 10건, 파일 50MB까지 지원합니다. 암호화되지 않은 백업 파일이므로 접근 권한이 제한된 위치에 보관하세요.</p>
+    <button type="button" className="si-btn" disabled={busy||!backupIds.length||backupIds.length>BATCH_COUNT_LIMIT||readState!=='ready'} onClick={()=>void backupSelected()}>선택 기록 묶음 백업 ({backupIds.length}건)</button>
+    {backupIds.length>BATCH_COUNT_LIMIT&&<p role="alert">10건을 초과했습니다. 나누어 선택하세요.</p>}
+    <label>묶음 백업 파일 미리보기<input type="file" accept="application/json,.json" aria-label="묶음 백업 파일 미리보기" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void previewBatch(file);}}/></label>
+    {batchPreview&&<div aria-label="묶음 복원 미리보기"><p>미리보기의 선택 항목만 가져옵니다. 기존 기록은 덮어쓰지 않으며, 일부 항목이 실패해도 성공한 항목은 유지됩니다.</p>
+     {batchPreview.map(entry=><div key={entry.index}><label><input type="checkbox" aria-label={`복원 기록 ${entry.index+1} 선택`} checked={entry.selected} disabled={busy||entry.status!=='ready'} onChange={e=>setBatchPreview(previous=>previous?.map(item=>item.index===entry.index?{...item,selected:e.target.checked}:item)||null)}/> {entry.index+1}번 · {entry.summary}</label><p>{entry.status==='ready'?'복원 가능':entry.status==='duplicate'?'중복 건너뜀':'손상 건너뜀'} · {entry.message}</p></div>)}
+     <button type="button" className="si-btn" disabled={busy||!batchPreview.some(item=>item.status==='ready'&&item.selected)} onClick={()=>void restoreSelectedBatch()}>선택한 정상 기록 복원</button>
+    </div>}
+   </section>
    <label className="si-btn">백업 파일 복원<input type="file" accept="application/json,.json" aria-label="백업 파일 복원" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void restore(file);}}/></label>
    {readState==='ready'&&<label>후속 조치 모아보기<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">전체</option><option value="unassigned">담당 미지정</option><option value="no_due">기한 미정</option><option value="overdue">기한 초과</option><option value="review">확인 요청</option></select> · {visibleRows.length}건</label>}
-   {readState==='ready'&&visibleRows.map(row=><article key={row.id}><p>{new Date(row.createdAt).toLocaleString('ko-KR')} · {row.note}</p><p>조치 계획: {row.action||'미작성'} · 파일 무결성 기록: {row.sha256?'SHA-256 기록됨':'미확인'}</p><PrimaryPhotoEditor row={row} busy={busy} onSave={savePrimaryPhoto}/><ContextPhotoEditor row={row} busy={busy} onSave={saveContextPhoto} onOrder={changePhotoOrder} onLink={changeContextLink}/><FollowupEditor row={row} busy={busy} onSave={saveFollowup}/><AdditionalActions row={row} busy={busy} onUpdate={updateAdditionalActions} onPhoto={saveActionPhoto}/><div><p>조치 후 사진: {row.afterPhoto?row.afterPhoto.name:'아직 없음'}</p><button type="button" className="si-btn" disabled={busy} onClick={()=>{if(capturedAfter&&!window.confirm('아직 저장하지 않은 조치 후 사진을 버리고 다시 촬영할까요?'))return;setCapturedAfter(null);setAfterCamera(row);}}>조치 후 사진 촬영</button> <label className="si-btn">조치 후 사진 {row.afterPhoto?'변경':'연결'}<input aria-label="조치 후 사진 연결" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file&&(!capturedAfter||window.confirm('저장하지 않은 촬영 사진을 버리고 선택한 사진을 연결할까요?')))void saveAfterPhoto(row,file);}}/></label> {row.afterPhoto&&<button type="button" className="si-btn" onClick={()=>download(row.afterPhoto!,row.afterPhoto!.name||'PSI-after.jpg')}>조치 후 사진 내려받기</button>}<p>사진 연결만으로 조치 완료나 안전을 증명하지 않습니다.</p>{!!row.afterHistory?.length&&<details><summary>이전 조치 후 사진 {row.afterHistory.length}장</summary><p>교체 시각은 기기 시각이며 촬영 시각과 다를 수 있습니다.</p>{row.afterHistory.map((entry,i)=><p key={i}>{entry.photo.name} · {new Date(entry.replacedAt).toLocaleString('ko-KR')} <button type="button" className="si-btn" onClick={()=>download(entry.photo,entry.photo.name)}>이전 조치 후 사진 내려받기</button></p>)}</details>}</div><button type="button" className="si-btn" disabled={busy} onClick={()=>void verifyPhoto(row.id)}>사진 변경 확인</button> {checks[row.id]&&<p role="status">{checks[row.id]}</p>} <button type="button" className="si-btn" onClick={()=>download(row.photo,row.photo.name||'PSI-photo.jpg')}>사진 내려받기</button> <button type="button" className="si-btn" onClick={()=>{const {photo:stored,...data}=row;download(new Blob([JSON.stringify({...data,photoName:stored.name,photoType:stored.type},null,2)],{type:'application/json'}),'PSI-local-record-'+row.id+'.json');}}>점검 내용 내려받기</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void backup(row)}>사진과 기록 함께 백업</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void remove(row.id)}>이 기기 기록 삭제</button></article>)}
+   {readState==='ready'&&visibleRows.map(row=><article key={row.id}><label><input type="checkbox" aria-label="묶음 백업에 선택" checked={backupIds.includes(row.id)} disabled={busy} onChange={e=>setBackupIds(prev=>e.target.checked?[...prev.filter(id=>id!==row.id),row.id]:prev.filter(id=>id!==row.id))}/> 묶음 백업에 선택</label><p>{new Date(row.createdAt).toLocaleString('ko-KR')} · {row.note}</p><p>조치 계획: {row.action||'미작성'} · 파일 무결성 기록: {row.sha256?'SHA-256 기록됨':'미확인'}</p><PrimaryPhotoEditor row={row} busy={busy} onSave={savePrimaryPhoto}/><ContextPhotoEditor row={row} busy={busy} onSave={saveContextPhoto} onOrder={changePhotoOrder} onLink={changeContextLink}/><FollowupEditor row={row} busy={busy} onSave={saveFollowup}/><AdditionalActions row={row} busy={busy} onUpdate={updateAdditionalActions} onPhoto={saveActionPhoto}/><div><p>조치 후 사진: {row.afterPhoto?row.afterPhoto.name:'아직 없음'}</p><button type="button" className="si-btn" disabled={busy} onClick={()=>{if(capturedAfter&&!window.confirm('아직 저장하지 않은 조치 후 사진을 버리고 다시 촬영할까요?'))return;setCapturedAfter(null);setAfterCamera(row);}}>조치 후 사진 촬영</button> <label className="si-btn">조치 후 사진 {row.afterPhoto?'변경':'연결'}<input aria-label="조치 후 사진 연결" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file&&(!capturedAfter||window.confirm('저장하지 않은 촬영 사진을 버리고 선택한 사진을 연결할까요?')))void saveAfterPhoto(row,file);}}/></label> {row.afterPhoto&&<button type="button" className="si-btn" onClick={()=>download(row.afterPhoto!,row.afterPhoto!.name||'PSI-after.jpg')}>조치 후 사진 내려받기</button>}<p>사진 연결만으로 조치 완료나 안전을 증명하지 않습니다.</p>{!!row.afterHistory?.length&&<details><summary>이전 조치 후 사진 {row.afterHistory.length}장</summary><p>교체 시각은 기기 시각이며 촬영 시각과 다를 수 있습니다.</p>{row.afterHistory.map((entry,i)=><p key={i}>{entry.photo.name} · {new Date(entry.replacedAt).toLocaleString('ko-KR')} <button type="button" className="si-btn" onClick={()=>download(entry.photo,entry.photo.name)}>이전 조치 후 사진 내려받기</button></p>)}</details>}</div><button type="button" className="si-btn" disabled={busy} onClick={()=>void verifyPhoto(row.id)}>사진 변경 확인</button> {checks[row.id]&&<p role="status">{checks[row.id]}</p>} <button type="button" className="si-btn" onClick={()=>download(row.photo,row.photo.name||'PSI-photo.jpg')}>사진 내려받기</button> <button type="button" className="si-btn" onClick={()=>{const {photo:stored,...data}=row;download(new Blob([JSON.stringify({...data,photoName:stored.name,photoType:stored.type},null,2)],{type:'application/json'}),'PSI-local-record-'+row.id+'.json');}}>점검 내용 내려받기</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void backup(row)}>사진과 기록 함께 백업</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void remove(row.id)}>이 기기 기록 삭제</button></article>)}
    {capturedAfter&&<div role="status"><p>촬영한 조치 후 사진이 아직 저장되지 않았습니다. 연결할 점검: {capturedAfter.row.note}</p><button type="button" className="si-btn" disabled={busy} onClick={()=>void saveAfterPhoto(capturedAfter.row,capturedAfter.file)}>촬영 사진 연결{busy?' 중…':''}</button> <button type="button" className="si-btn" onClick={()=>download(capturedAfter.file,capturedAfter.file.name||'PSI-after.jpg')}>촬영 사진 내려받기</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>{if(window.confirm('저장하지 않은 조치 후 사진을 버릴까요?'))setCapturedAfter(null);}}>촬영 사진 버리기</button></div>}
    <p>사진 변경 확인은 저장된 사진과 기록된 비교값만 대조합니다. 백업에서 복원한 기록의 비교값은 백업 당시 생성됐을 수 있습니다. 점검 내용의 변경이나 촬영 시각·장소·안전 여부는 증명하지 않습니다.</p>
   </section>
