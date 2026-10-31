@@ -1200,8 +1200,12 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         [sourceRecords],
     );
     const fieldSource = useMemo(
-        () => buildFieldRecordSource(sourceRecords, workType, cycleCopy.nextCycleLabel),
-        [cycleCopy.nextCycleLabel, sourceRecords, workType],
+        () => buildFieldRecordSource(sourceRecords, workType, cycleCopy.nextCycleLabel, {
+            followupRecords: workerRecords,
+            asOfDate: sourcePeriod.endDate,
+            periodStartDate: sourcePeriod.startDate,
+        }),
+        [cycleCopy.nextCycleLabel, sourceRecords, workType, workerRecords, sourcePeriod.endDate, sourcePeriod.startDate],
     );
     const allSources = useMemo(
         () => fieldSource ? [fieldSource, ...sources] : sources,
