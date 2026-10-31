@@ -405,6 +405,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const { mode: operationalMode } = useOperationalMode();
     const isDeveloperExperience = isDevMode && operationalMode === 'developer';
     const [record, setRecord] = useState<WorkerRecord>(initialRecord);
+    const latestPersistedRecordRef = useRef<WorkerRecord | null>(null);
     const [activeTab, setActiveTab] = useState<'info' | 'analysis' | 'qna'>('info');
     const [hasChanges, setHasChanges] = useState(false);
     const [isUpdatingAnalysis, setIsUpdatingAnalysis] = useState(false);
@@ -504,6 +505,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             autoAdvanceTimerRef.current = null;
         }
         setRecord(getConsistentRecord(initialRecord)); 
+        latestPersistedRecordRef.current = null;
         setHasChanges(false); 
         setScoreReasonCode('');
         setScoreReasonDetail('');
@@ -1097,6 +1099,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const persistRecordSilently = async (nextRecord: WorkerRecord): Promise<WorkerRecord | null> => {
         const consistentRecord = getConsistentRecord(nextRecord, initialRecord);
         if (!await persistRecord(consistentRecord)) return null;
+        latestPersistedRecordRef.current = consistentRecord;
         setRecord(consistentRecord);
         setHasChanges(false);
         return consistentRecord;
@@ -1255,6 +1258,10 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         if (hasChanges) {
             const saved = await handleSave();
             if (!saved) return;
+            // React state may not have committed yet after the awaited save.
+            // Open the just-persisted OCR/translation, not the previous render.
+            onOpenReport(latestPersistedRecordRef.current || record);
+            return;
         }
         onOpenReport(record);
     };
