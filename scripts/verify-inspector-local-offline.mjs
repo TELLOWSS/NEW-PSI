@@ -384,6 +384,36 @@ try{
  await reopened.getByLabel('묶음 백업 파일 미리보기').setInputFiles({name:'batch-duplicate.json',mimeType:'application/json',buffer:batchBytes});
  await reopened.getByText('묶음 복원 미리보기 완료: 복원 가능 0건 / 중복 2건 / 손상 0건.',{exact:false}).waitFor();
  assert.equal(await reopened.getByRole('button',{name:'선택한 정상 기록 복원'}).isDisabled(),true);
+ // Storage diagnostics must be user-triggered, work offline, and never imply
+ // that a browser retention grant protects against manual clearing or device loss.
+ const health=reopened.getByRole('region',{name:'기기 저장 안정성 확인'});
+ await page.evaluate(()=>{
+  window.__storageFixture={granted:false,usage:90*1048576,quota:100*1048576};
+  Object.defineProperty(navigator,'storage',{configurable:true,value:{
+   estimate:async()=>({usage:window.__storageFixture.usage,quota:window.__storageFixture.quota}),
+   persisted:async()=>window.__storageFixture.granted,
+   persist:async()=>{window.__storageFixture.granted=true;return true;}
+  }});
+ });
+ await health.getByRole('button',{name:'기기 저장공간 확인'}).click();
+ await health.getByText('약 90% 사용',{exact:false}).waitFor();
+ await health.getByText('저장 유지 요청: 승인 상태가 아님').waitFor();
+ await health.getByText('추가 저장에 실패할 수 있으므로',{exact:false}).waitFor();
+ await health.getByRole('button',{name:'브라우저 저장 유지 요청'}).click();
+ await health.getByText('저장 유지 요청: 브라우저에서 승인 상태로 확인됨').waitFor();
+ await health.getByText('브라우저가 저장 유지 요청을 승인했습니다.',{exact:false}).waitFor();
+ await page.evaluate(()=>{Object.defineProperty(navigator,'storage',{configurable:true,value:{
+  estimate:async()=>{throw new Error('synthetic storage estimate failure');},
+  persist:async()=>false
+ }});});
+ await health.getByRole('button',{name:'기기 저장공간 확인'}).click();
+ await health.getByText('기기 저장공간 조회에 실패했습니다.',{exact:false}).waitFor();
+ await page.evaluate(()=>{Object.defineProperty(navigator,'storage',{configurable:true,value:undefined});});
+ await health.getByRole('button',{name:'기기 저장공간 확인'}).click();
+ await health.getByText('이 브라우저에서는 저장공간 상태를 조회할 수 없습니다.',{exact:false}).waitFor();
+ await health.getByRole('button',{name:'브라우저 저장 유지 요청'}).click();
+ await health.getByText('이 브라우저에서는 저장 유지 요청을 지원하지 않습니다.',{exact:false}).waitFor();
+ await reopened.getByText('이 브라우저에 보관된 점검 3건').waitFor();
  assert.deepEqual(requests,[],'offline local operations must not initiate HTTP requests');
  assert.deepEqual(errors,[]);
  console.log('PASS local camera, local save, rule lookup, export, quota failure and retry without HTTP requests');
