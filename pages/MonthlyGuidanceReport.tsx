@@ -4,6 +4,7 @@ import type { MonthlyGuidanceReport as GuidanceData, SixMetricBreakdown, WorkerR
 import { FieldRadarChart } from '../components/charts/FieldRadarChart';
 import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
 import { buildMonthlyFieldFollowupSummary, formatMonthlyFollowupEducationLines, getKoreanCalendarDay } from '../utils/monthlyFieldFollowup';
+import { buildPracticeVerificationSummary, formatPracticeVerificationEducationLines } from '../utils/practiceVerification';
 import {
     groupRecordsByAssessmentPeriod,
     resolveAssessmentPeriod,
@@ -279,6 +280,10 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
         asOfDate: selectedGroup?.period.endDate || getKoreanCalendarDay(),
         periodStartDate: selectedGroup?.period.startDate,
     }), [workerRecords, selectedGroup?.period.endDate, selectedGroup?.period.startDate]);
+    const practice = useMemo(() => buildPracticeVerificationSummary(workerRecords, {
+        asOfDate: selectedGroup?.period.endDate || getKoreanCalendarDay(),
+        periodStartDate: selectedGroup?.period.startDate,
+    }), [workerRecords, selectedGroup?.period.endDate, selectedGroup?.period.startDate]);
     const monthlyChartPoints = useMemo<ChartPoint[]>(() => (
         [...periodGroups]
             .reverse()
@@ -312,7 +317,7 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
     const monthlyDelta = Number((currentScore - previousScore).toFixed(1));
     const weakest = metrics.map((metric) => ({ ...metric, value: report.sixMetricTrends[`${metric.key}Avg` as keyof GuidanceData['sixMetricTrends']] })).sort((a, b) => a.value / a.max - b.value / b.max)[0];
     const downloadOutline = () => {
-        const text = [`[PSI ${cycleCopy.reportLabel}] ${assessmentPeriodLabel}`, `기준자료: ${assessmentPeriodLabel}`, '', report.overallSummary, '', '위험요소 TOP5', ...report.topRiskFactors.map((r, i) => `${i + 1}. ${r.riskName} (${r.count}건) - ${r.guidanceMessage}`), '', `${cycleCopy.nextCycleLabel} 실천행동`, ...report.nextMonthEducationFocus.map((v) => `- ${v}`), '', '', ...formatMonthlyFollowupEducationLines(monthlyFollowup), '', '※ 개인 실명·점수·순위는 교육자료에 포함하지 않습니다.'].join('\n');
+        const text = [`[PSI ${cycleCopy.reportLabel}] ${assessmentPeriodLabel}`, `기준자료: ${assessmentPeriodLabel}`, '', report.overallSummary, '', '위험요소 TOP5', ...report.topRiskFactors.map((r, i) => `${i + 1}. ${r.riskName} (${r.count}건) - ${r.guidanceMessage}`), '', `${cycleCopy.nextCycleLabel} 실천행동`, ...report.nextMonthEducationFocus.map((v) => `- ${v}`), '', '', ...formatMonthlyFollowupEducationLines(monthlyFollowup), '', ...formatPracticeVerificationEducationLines(practice), '', '※ 개인 실명·점수·순위는 교육자료에 포함하지 않습니다.'].join('\n');
         const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
         const link = document.createElement('a'); link.href = url; link.download = `PSI_${selectedGroup?.period.startDate || 'period'}_PPT브리핑개요.txt`; link.click(); URL.revokeObjectURL(url);
     };
@@ -413,6 +418,31 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
                     </div>
                 ) : <p className="psi-small-note mt-3">현재 기준일에 등록된 미완료·재개방 확인항목이 없습니다. 이는 위험이 없거나 실제 조치가 모두 완료되었다는 증명이 아닙니다.</p>}
                 <p className="psi-small-note mt-3">위 수치는 근로자 자기기입이 아니라 관리자가 별도로 기록한 조치 이력에 근거합니다. 재개방은 반복 위반 판정이 아닙니다. 담당자·임시통제·완료 증빙은 현장 관리 기록에서 확인하세요.</p>
+            </section>
+            <section data-monthly-guidance="practice-verification" className="rounded-2xl border border-emerald-200 bg-white p-5">
+                <p className="psi-eyebrow text-emerald-700">교육 후 실천 확인 기록 · 계도용 익명 집계</p>
+                <h3 className="psi-section-title mt-1">교육과 현장 실천 관찰은 별도로 확인합니다</h3>
+                <p className="psi-small-note mt-1">집계 기준일 {practice.asOfDate} · 교육 전달 또는 이해 확인만으로 보호구 착용·조치 완료를 인정하지 않습니다.</p>
+                <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-5">
+                    {[
+                        ['교육 전달', practice.educationDelivered, '회'],
+                        ['이해 확인', practice.understandingConfirmed, '회'],
+                        ['현장 관찰', practice.fieldObserved, '회'],
+                        ['재확인 필요', practice.needsFieldRecheck, '건'],
+                        ['기한 초과', practice.overdueFieldRecheck, '건'],
+                    ].map(([label, value, unit]) => (
+                        <div key={label} className="rounded-xl bg-emerald-50/40 p-3">
+                            <p className="psi-meta-label">{label}</p>
+                            <p className="mt-1 text-xl font-black text-slate-900">{value}{unit}</p>
+                        </div>
+                    ))}
+                </div>
+                {practice.educationFocus.length > 0 ? (
+                    <div className="mt-3 grid gap-2 lg:grid-cols-3">
+                        {practice.educationFocus.map(line => <p key={line} className="rounded-xl border border-amber-100 bg-amber-50/40 p-3 text-xs font-bold leading-5 text-amber-900">{line}</p>)}
+                    </div>
+                ) : <p className="psi-small-note mt-3">별도 등록된 미해소 관찰 건이 없습니다. 미확인 근로자를 안전하다고 추정하지 않습니다.</p>}
+                <p className="psi-small-note mt-3">재확인 필요는 현장 행동 관찰에서 파생된 신호입니다. 실제 현장 조치 완료·공식 위험등급과는 별개의 자료입니다.</p>
             </section>
             <TrackingAnalysisPanel report={report} monthlyPoints={monthlyChartPoints} delta={monthlyDelta} cycleCopy={cycleCopy} />
             <section data-monthly-guidance="group-radar" className="rounded-2xl border border-indigo-100 bg-white p-5">
