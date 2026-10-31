@@ -159,6 +159,24 @@ try{
  assert.equal(parsed.record.action,'다른 탭에서 갱신한 합성 조치 계획','backup must read the current stored record');
  assert.equal(parsed.version,12);assert.equal(parsed.record.primaryHistory.length,1);assert.equal(parsed.record.additionalActions[0].photoHistory.length,1);assert.equal(parsed.record.additionalActions[0].photoHistory[0].name,'action-one.png');assert.equal(parsed.record.afterHistory.length,1);assert.equal(parsed.record.afterHistory[0].name,'synthetic-after.png');assert.equal(parsed.record.contextHistory.length,1);assert.equal(parsed.record.contextHistory[0].name,contextName);assert.equal(parsed.record.contextHistory[0].sha256,detached.record.contextPhoto.sha256);assert.equal(parsed.record.contextDetached,false);assert.equal(parsed.record.contextFirst,true);assert.equal(parsed.record.photoRole,'overview');assert.equal(parsed.record.contextPhoto.role,'detail');assert.equal(parsed.record.contextPhoto.name,replacementName);assert.equal(parsed.record.additionalActions[0].photo.name,'action-one-v2.png');assert.equal(parsed.record.additionalActions[1].photo.name,'action-two.jpg');assert.equal(parsed.record.additionalActions.length,2);assert.equal(parsed.record.additionalActions[0].followup.status,'verified');assert.equal(parsed.record.additionalActions[1].followup,undefined);assert.equal(parsed.record.followup.status,'in_progress');assert.equal(parsed.record.followup.assignee,'합성 담당자');assert.equal(parsed.record.followup.temporaryMeasure,'위험 구역 출입 통제 및 안내 표지 유지');assert.equal(parsed.record.followup.history[0].temporaryMeasure,'위험 구역 출입 통제 및 안내 표지 유지');assert.equal(parsed.record.afterPhoto.name,'synthetic-after-v2.png');assert.match(parsed.record.afterPhoto.sha256,/^[a-f0-9]{64}$/);
  const savedRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
+ const photoAudit=savedRow.getByRole('region',{name:'사진 증빙 검증'});
+ await photoAudit.getByRole('button',{name:'사진 증빙 전체 검증'}).click();
+ await photoAudit.getByText('증빙 검사 결과: 총 9개 · 일치 9개 · 불일치 0개',{exact:false}).waitFor();
+ await photoAudit.getByText('최초 받아 저장한 사진이 편집본일 수도 있습니다.',{exact:false}).waitFor();
+ const evidenceDownload=page.waitForEvent('download');
+ await photoAudit.getByRole('button',{name:'증빙 검증 목록 JSON 내려받기'}).click();
+ const evidence=JSON.parse((await readFile(await (await evidenceDownload).path())).toString());
+ assert.equal(evidence.format,'psi-local-photo-evidence-manifest');
+ assert.equal(evidence.version,1);
+ assert.deepEqual(evidence.checks,{matched:9,mismatch:0,unrecorded:0,unavailable:0,total:9});
+ assert.equal(evidence.inspectionId,parsed.record.id);
+ assert.equal(evidence.photos.length,9);
+ assert.equal(evidence.photos.find(x=>x.role==='기본 사진'&&x.stage==='archived').expectedSha256,saved[0].sha);
+ assert.equal(evidence.photos.find(x=>x.role==='기본 사진'&&x.stage==='current').previousSha256,saved[0].sha);
+ assert.equal(evidence.photos.find(x=>x.role==='추가 현장 사진'&&x.stage==='archived').filename,contextName);
+ assert.equal(evidence.photos.find(x=>x.role==='조치 후 사진'&&x.stage==='archived').filename,'synthetic-after.png');
+ assert.equal(evidence.photos.filter(x=>x.role.startsWith('조치별 사진')).length,3);
+ assert.equal(evidence.photos.some(x=>x.data!==undefined),false,'manifest must not export photo bytes');
  await savedRow.getByRole('button',{name:'사진 변경 확인'}).click();
  await savedRow.getByText('확인 시점의 사진이 저장된 비교값과 일치합니다.').waitFor();
  // Alter only synthetic IndexedDB fixtures. Verification must read current
@@ -170,6 +188,9 @@ try{
  },parsed.record.id);
  await savedRow.getByRole('button',{name:'사진 변경 확인'}).click();
  await savedRow.getByText('사진이 저장된 비교값과 다릅니다.',{exact:false}).waitFor();
+ await photoAudit.getByRole('button',{name:'사진 증빙 전체 검증'}).click();
+ await photoAudit.getByText('증빙 검사 결과: 총 9개 · 일치 8개 · 불일치 1개',{exact:false}).waitFor();
+ await photoAudit.getByText('일치하지 않거나 검증되지 않은 사진이 있습니다.',{exact:false}).waitFor();
  await page.evaluate(async id=>{const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('psi-inspector-local-records',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});const tx=db.transaction('records','readwrite');tx.objectStore('records').put({...window.__integrityFixture,sha256:null});await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);});db.close();},parsed.record.id);
  await savedRow.getByRole('button',{name:'사진 변경 확인'}).click();
  await savedRow.getByText('보관된 비교값이 없어 변경 여부를 확인할 수 없습니다.',{exact:false}).waitFor();
