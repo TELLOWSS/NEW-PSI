@@ -119,12 +119,15 @@ describe('worker report language policy', () => {
         expect(workerFacingSource).not.toContain('font-serif');
     });
 
-    it('separates one-page worker delivery from the two-page manager analysis', () => {
+    it('separates worker certificate-only messages from manager detailed PDF and annexes', () => {
         const individualReportSource = readFileSync('pages/IndividualReport.tsx', 'utf8');
         const workerManagementSource = readFileSync('pages/WorkerManagement.tsx', 'utf8');
         const managerReportSource = readFileSync('pages/Reports.tsx', 'utf8');
 
-        expect(individualReportSource).toContain('includeAdminAppendix={false}');
+        expect(individualReportSource).toContain('includeAdminAppendix={true}');
+        expect(individualReportSource).toContain("querySelector<HTMLElement>('[data-report-page=\"true\"]')");
+        expect((individualReportSource.match(/captureReportCanvases\\(workerCertificatePage\\(\\), html2canvas/g)||[])).toHaveLength(2);
+        expect((individualReportSource.match(/captureReportCanvases\\(reportRef\\.current, html2canvas/g)||[])).toHaveLength(2);
         expect(workerManagementSource).toContain('includeAdminAppendix={false}');
         expect(managerReportSource).not.toContain('includeAdminAppendix={false}');
     });
