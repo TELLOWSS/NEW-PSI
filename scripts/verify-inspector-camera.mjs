@@ -52,7 +52,7 @@ try{
    if(scenario==='late-stream'){await page.evaluate(()=>window.__releaseFirst());await page.waitForFunction(()=>window.__streams[0].getTracks().every(t=>t.readyState==='ended'));}
    const request=await page.evaluate(()=>window.__cameraRequests.at(-1));assert.equal(request.audio,false);assert.equal(request.video.facingMode.ideal,'environment');assert.equal(request.video.resizeMode.ideal,'none');assert.equal(request.video.aspectRatio.ideal,['landscape'].includes(scenario)?16/9:3/4);assert.ok(!JSON.stringify(request).includes('exact'));
    const actual=await dialog.locator('video').evaluate(v=>({width:v.videoWidth,height:v.videoHeight}));assert.deepEqual(actual,scenario==='landscape'||scenario==='unsupported'?{width:1280,height:720}:{width:720,height:960});
-   if(scenario==='unsupported')assert.match((await dialog.locator('.si-camera-frame-status').textContent())||'',/화면 방향과 카메라 영상 비율이 다릅니다/);
+   if(scenario==='unsupported'){assert.match((await dialog.locator('.si-camera-frame-status').textContent())||'',/화면 방향과 카메라 영상 비율이 다릅니다/);assert.equal(await dialog.locator('.si-camera-torch').count(),0,'unsupported devices must not show a torch control');}
    else assert.equal(await dialog.locator('.si-camera-frame-status>span').count(),0);
    if(scenario==='portrait'){
     const light=dialog.getByRole('button',{name:'기기 조명 켜기'});await light.waitFor();await light.click();
@@ -61,7 +61,7 @@ try{
     await dialog.getByText('기기 조명을 변경하지 못했습니다.',{exact:false}).waitFor();assert.equal(await dialog.getByRole('button',{name:'기기 조명 끄기'}).getAttribute('aria-pressed'),'true');
     await page.evaluate(()=>window.__torchFail=false);await dialog.getByRole('button',{name:'기기 조명 끄기'}).click();
     assert.deepEqual(await page.evaluate(()=>window.__torchCalls),[true,false,false]);
-    await dialog.getByRole('button',{name:'전면·후면 전환',exact:true}).click();await page.waitForFunction(()=>window.__cameraRequests.at(-1)?.video.facingMode.ideal==='user'&&!document.querySelector('.si-camera-actions .si-primary').disabled);assert.match(await dialog.locator('.si-camera-auto-direction').innerText(),/세로/);
+    await dialog.getByRole('button',{name:'전면·후면 전환',exact:true}).click();await page.waitForFunction(()=>window.__cameraRequests.at(-1)?.video.facingMode.ideal==='user'&&!document.querySelector('.si-camera-actions .si-primary').disabled);assert.match(await dialog.locator('.si-camera-auto-direction').innerText(),/세로/);assert.equal(await dialog.getByRole('button',{name:'기기 조명 켜기'}).getAttribute('aria-pressed'),'false','switching cameras resets the light state');
    }
    if(scenario==='landscape'){const input=dialog.getByLabel('기기 카메라로 촬영',{exact:true});const chooser=page.waitForEvent('filechooser');await input.click();await chooser;await input.dispatchEvent('cancel',{bubbles:true});await page.waitForFunction(()=>window.__cameraRequests.length>=2&&!document.querySelector('.si-camera-actions .si-primary').disabled);await dialog.getByRole('heading',{name:'카메라로 바로 촬영'}).waitFor();await dialog.locator('.si-camera-heading .si-camera-guide-options > summary').click();await dialog.locator('.si-camera-guide-more>summary').click();await dialog.getByText('구도만 참고로 표시합니다.',{exact:false}).waitFor();await dialog.getByRole('button',{name:'구도 선택 닫기'}).click();}
    if(scenario==='portrait'){
