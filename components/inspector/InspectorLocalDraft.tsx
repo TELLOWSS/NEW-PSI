@@ -69,6 +69,38 @@ async function hash(file:File):Promise<string|null>{
  try{return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await file.arrayBuffer()))).map(v=>v.toString(16).padStart(2,'0')).join('');}
  catch{return null;}
 }
+type EvidenceManifestItem={
+ role:string;stage:'current'|'archived';order:number;filename:string;mime:string;bytes:number;
+ expectedSha256:string|null;actualSha256:string|null;previousSha256:string|null;
+ replacedAt:string|null;check:'match'|'mismatch'|'unrecorded'|'unavailable';
+};
+type EvidenceManifest={
+ format:'psi-local-photo-evidence-manifest';version:1;inspectionId:string;generatedAt:string;
+ timeSource:'device-clock';scope:'stored-files-only';photos:EvidenceManifestItem[];
+ checks:{matched:number;mismatch:number;unrecorded:number;unavailable:number;total:number};
+};
+async function buildEvidenceManifest(inspection:LocalRecord):Promise<EvidenceManifest>{
+ const candidates:{role:string;photo:File;recorded:string|null;stage:'current'|'archived';order:number;previous:string|null;replacedAt:string|null}[]=[];
+ const pushChain=(role:string,latest:File|undefined,latestSha:string|null|undefined,history:{photo:File;sha256:string;replacedAt:string}[])=>{
+  let previous:string|null=null;
+  for(const [index,entry] of history.entries()){
+   candidates.push({role,photo:entry.photo,recorded:entry.sha256||null,stage:'archived',order:index+1,previous,replacedAt:entry.replacedAt});
+   previous=entry.sha256||null;
+  }
+  if(latest)candidates.push({role,photo:latest,recorded:latestSha||null,stage:'current',order:history.length+1,previous,replacedAt:null});
+ };
+ pushChain('기본 사진',inspection.photo,inspection.sha256,inspection.primaryHistory||[]);
+ pushChain('추가 현장 사진'+(inspection.contextDetached?' (연결 해제 상태)':''),inspection.contextPhoto,inspection.contextSha256,inspection.contextHistory||[]);
+ pushChain('조치 후 사진',inspection.afterPhoto,inspection.afterSha256,inspection.afterHistory||[]);
+ (inspection.additionalActions||[]).forEach((action,index)=>pushChain('조치별 사진 '+(index+1),action.photo,action.photoSha256,action.photoHistory||[]));
+ const photos:EvidenceManifestItem[]=[];
+ for(const candidate of candidates){
+  const actualSha256=await hash(candidate.photo);
+  const check:EvidenceManifestItem['check']=!actualSha256?'unavailable':!candidate.recorded?'unrecorded':actualSha256===candidate.recorded?'match':'mismatch';
+  photos.push({role:candidate.role,stage:candidate.stage,order:candidate.order,filename:candidate.photo.name,mime:candidate.photo.type,bytes:candidate.photo.size,expectedSha256:candidate.recorded,actualSha256,previousSha256:candidate.previous,replacedAt:candidate.replacedAt,check});
+ }
+ return {format:'psi-local-photo-evidence-manifest',version:1,inspectionId:inspection.id,generatedAt:new Date().toISOString(),timeSource:'device-clock',scope:'stored-files-only',photos,checks:{matched:photos.filter(v=>v.check==='match').length,mismatch:photos.filter(v=>v.check==='mismatch').length,unrecorded:photos.filter(v=>v.check==='unrecorded').length,unavailable:photos.filter(v=>v.check==='unavailable').length,total:photos.length}};
+}
 const list=()=>runStore<LocalRecord[]>('readonly',(store,set)=>{const request=store.getAll();request.onsuccess=()=>set((request.result as LocalRecord[]).filter(item=>item.id!==DRAFT_KEY).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));});
 function download(blob:Blob,name:string){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 
@@ -325,6 +357,35 @@ function FieldContextEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSa
    {history.map((entry,index)=><p key={index}>{index+1}. {new Date(entry.at).toLocaleString('ko-KR')} (이 기기 시각) · 이전: {entry.before?fieldContextLabel(entry.before):'미확인'} → 변경: {entry.after?fieldContextLabel(entry.after):'미확인'} · 사유: {entry.reason} · 입력: 기기 사용자(개인 신원 확인 아님)</p>)}
   </details>}
  </details>;
+}
+function LocalEvidenceAudit({inspectionId,busy}:{inspectionId:string;busy:boolean}){
+ const [audit,setAudit]=useState<EvidenceManifest|null>(null),[running,setRunning]=useState(false),[errorText,setErrorText]=useState('');
+ const assess=async(saveFile:boolean)=>{
+  if(busy||running)return;
+  setRunning(true);setErrorText('');setAudit(null);
+  try{
+   const fresh=await runStore<LocalRecord|undefined>('readonly',(store,set)=>{const req=store.get(inspectionId);req.onsuccess=()=>set(req.result as LocalRecord|undefined);});
+   if(!fresh)throw new Error('점검 기록을 찾지 못했습니다. 목록을 새로 확인하세요.');
+   const manifest=await buildEvidenceManifest(fresh);
+   setAudit(manifest);
+   if(saveFile)download(new Blob([JSON.stringify(manifest,null,2)],{type:'application/json'}),'PSI-evidence-manifest-'+inspectionId+'.json');
+  }catch(err){setErrorText(err instanceof Error?err.message:'사진 증빙 검증을 완료하지 못했습니다.');}
+  finally{setRunning(false);}
+ };
+ return <section aria-label="사진 증빙 검증">
+  <h4>사진 증빙·교체 이력 검사</h4>
+  <p>현재 저장된 기본·추가·조치 후·조치별 사진과 각각의 이전 버전을 한꺼번에 확인합니다. 사진을 수정하거나 서버에 업로드하지 않습니다.</p>
+  <button type="button" className="si-btn" disabled={busy||running} onClick={()=>void assess(false)}>사진 증빙 전체 검증</button>{' '}
+  <button type="button" className="si-btn" disabled={busy||running} onClick={()=>void assess(true)}>증빙 검증 목록 JSON 내려받기</button>
+  {running&&<p role="status">저장된 모든 사진의 비교값을 확인하고 있습니다…</p>}
+  {errorText&&<p role="alert">{errorText}</p>}
+  {audit&&<div aria-label="사진 증빙 검증 결과"><p role="status">증빙 검사 결과: 총 {audit.checks.total}개 · 일치 {audit.checks.matched}개 · 불일치 {audit.checks.mismatch}개 · 기록된 비교값 없음 {audit.checks.unrecorded}개 · 계산 불가 {audit.checks.unavailable}개</p>
+   {audit.photos.map((entry,index)=><p key={index}>{entry.role} · {entry.stage==='archived'?'이전 보관본 '+entry.order:'현재 보관본'} · {entry.filename} · {entry.check==='match'?'SHA-256 일치':entry.check==='mismatch'?'SHA-256 불일치':entry.check==='unrecorded'?'비교값 미기록':'검사 불가'}{entry.previousSha256?' · 이전 버전과 연결됨':''}</p>)}
+   <p>검사 시각은 이 기기 시각입니다. 파일명·기록상 교체 시각·해시 관계는 실제 촬영 장소·시각·원본 여부·신원·안전조치 완료를 증명하지 않습니다. 최초 받아 저장한 사진이 편집본일 수도 있습니다. EXIF와 실제 촬영 경로는 별도 검증되지 않았습니다.</p>
+   {audit.checks.mismatch+audit.checks.unrecorded+audit.checks.unavailable>0&&<p role="alert">일치하지 않거나 검증되지 않은 사진이 있습니다. 원본을 별도로 확인해 주세요. 검증 목록은 참고용이며 인증서가 아닙니다.</p>}
+  </div>}
+  <p>내려받는 JSON은 사진 원본이 아닌 파일명·크기·SHA-256 검사값·교체 관계의 요약입니다. 암호화되지 않았으며 파일명에 개인정보가 들어 있을 수 있습니다. 사진 파일은 기존 백업 기능으로 별도 보관하세요.</p>
+ </section>;
 }
 function FollowupEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSave:(id:string,value:Followup)=>Promise<boolean>}){
  const current=row.followup;
@@ -773,7 +834,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    </section>
    <label className="si-btn">백업 파일 복원<input type="file" accept="application/json,.json" aria-label="백업 파일 복원" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void restore(file);}}/></label>
    {readState==='ready'&&<label>후속 조치 모아보기<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">전체</option><option value="unassigned">담당 미지정</option><option value="no_due">기한 미정</option><option value="overdue">기한 초과</option><option value="review">확인 요청</option></select> · {visibleRows.length}건</label>}
-   {readState==='ready'&&visibleRows.map(row=><article key={row.id}><label><input type="checkbox" aria-label="묶음 백업에 선택" checked={backupIds.includes(row.id)} disabled={busy} onChange={e=>setBackupIds(prev=>e.target.checked?[...prev.filter(id=>id!==row.id),row.id]:prev.filter(id=>id!==row.id))}/> 묶음 백업에 선택</label><p>{new Date(row.createdAt).toLocaleString('ko-KR')} · {row.note}</p><p>점검 현장정보: {row.siteContext?fieldContextLabel(row.siteContext):'미기록 (기존 기록 포함)'} · 위치는 점검자 입력이며 자동 검증된 사실이 아닙니다.</p><FieldContextEditor row={row} busy={busy} onSave={saveFieldContext}/><p>조치 계획: {row.action||'미작성'} · 파일 무결성 기록: {row.sha256?'SHA-256 기록됨':'미확인'}</p><PrimaryPhotoEditor row={row} busy={busy} onSave={savePrimaryPhoto}/><ContextPhotoEditor row={row} busy={busy} onSave={saveContextPhoto} onOrder={changePhotoOrder} onLink={changeContextLink}/><FollowupEditor row={row} busy={busy} onSave={saveFollowup}/><AdditionalActions row={row} busy={busy} onUpdate={updateAdditionalActions} onPhoto={saveActionPhoto}/><div><p>조치 후 사진: {row.afterPhoto?row.afterPhoto.name:'아직 없음'}</p><p>이 점검의 조치 후 사진은 위에 표시된 점검 현장정보를 공유합니다. 사진 자체의 촬영 위치를 입증하지는 않습니다.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>{if(capturedAfter&&!window.confirm('아직 저장하지 않은 조치 후 사진을 버리고 다시 촬영할까요?'))return;setCapturedAfter(null);setAfterCamera(row);}}>조치 후 사진 촬영</button> <label className="si-btn">조치 후 사진 {row.afterPhoto?'변경':'연결'}<input aria-label="조치 후 사진 연결" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file&&(!capturedAfter||window.confirm('저장하지 않은 촬영 사진을 버리고 선택한 사진을 연결할까요?')))void saveAfterPhoto(row,file);}}/></label> {row.afterPhoto&&<button type="button" className="si-btn" onClick={()=>download(row.afterPhoto!,row.afterPhoto!.name||'PSI-after.jpg')}>조치 후 사진 내려받기</button>}<p>사진 연결만으로 조치 완료나 안전을 증명하지 않습니다.</p>{!!row.afterHistory?.length&&<details><summary>이전 조치 후 사진 {row.afterHistory.length}장</summary><p>교체 시각은 기기 시각이며 촬영 시각과 다를 수 있습니다.</p>{row.afterHistory.map((entry,i)=><p key={i}>{entry.photo.name} · {new Date(entry.replacedAt).toLocaleString('ko-KR')} <button type="button" className="si-btn" onClick={()=>download(entry.photo,entry.photo.name)}>이전 조치 후 사진 내려받기</button></p>)}</details>}</div><button type="button" className="si-btn" disabled={busy} onClick={()=>void verifyPhoto(row.id)}>사진 변경 확인</button> {checks[row.id]&&<p role="status">{checks[row.id]}</p>} <button type="button" className="si-btn" onClick={()=>download(row.photo,row.photo.name||'PSI-photo.jpg')}>사진 내려받기</button> <button type="button" className="si-btn" onClick={()=>{const {photo:stored,...data}=row;download(new Blob([JSON.stringify({...data,photoName:stored.name,photoType:stored.type},null,2)],{type:'application/json'}),'PSI-local-record-'+row.id+'.json');}}>점검 내용 내려받기</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void backup(row)}>사진과 기록 함께 백업</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void remove(row.id)}>이 기기 기록 삭제</button></article>)}
+   {readState==='ready'&&visibleRows.map(row=><article key={row.id}><label><input type="checkbox" aria-label="묶음 백업에 선택" checked={backupIds.includes(row.id)} disabled={busy} onChange={e=>setBackupIds(prev=>e.target.checked?[...prev.filter(id=>id!==row.id),row.id]:prev.filter(id=>id!==row.id))}/> 묶음 백업에 선택</label><p>{new Date(row.createdAt).toLocaleString('ko-KR')} · {row.note}</p><p>점검 현장정보: {row.siteContext?fieldContextLabel(row.siteContext):'미기록 (기존 기록 포함)'} · 위치는 점검자 입력이며 자동 검증된 사실이 아닙니다.</p><FieldContextEditor row={row} busy={busy} onSave={saveFieldContext}/><LocalEvidenceAudit inspectionId={row.id} busy={busy}/><p>조치 계획: {row.action||'미작성'} · 파일 무결성 기록: {row.sha256?'SHA-256 기록됨':'미확인'}</p><PrimaryPhotoEditor row={row} busy={busy} onSave={savePrimaryPhoto}/><ContextPhotoEditor row={row} busy={busy} onSave={saveContextPhoto} onOrder={changePhotoOrder} onLink={changeContextLink}/><FollowupEditor row={row} busy={busy} onSave={saveFollowup}/><AdditionalActions row={row} busy={busy} onUpdate={updateAdditionalActions} onPhoto={saveActionPhoto}/><div><p>조치 후 사진: {row.afterPhoto?row.afterPhoto.name:'아직 없음'}</p><p>이 점검의 조치 후 사진은 위에 표시된 점검 현장정보를 공유합니다. 사진 자체의 촬영 위치를 입증하지는 않습니다.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>{if(capturedAfter&&!window.confirm('아직 저장하지 않은 조치 후 사진을 버리고 다시 촬영할까요?'))return;setCapturedAfter(null);setAfterCamera(row);}}>조치 후 사진 촬영</button> <label className="si-btn">조치 후 사진 {row.afterPhoto?'변경':'연결'}<input aria-label="조치 후 사진 연결" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file&&(!capturedAfter||window.confirm('저장하지 않은 촬영 사진을 버리고 선택한 사진을 연결할까요?')))void saveAfterPhoto(row,file);}}/></label> {row.afterPhoto&&<button type="button" className="si-btn" onClick={()=>download(row.afterPhoto!,row.afterPhoto!.name||'PSI-after.jpg')}>조치 후 사진 내려받기</button>}<p>사진 연결만으로 조치 완료나 안전을 증명하지 않습니다.</p>{!!row.afterHistory?.length&&<details><summary>이전 조치 후 사진 {row.afterHistory.length}장</summary><p>교체 시각은 기기 시각이며 촬영 시각과 다를 수 있습니다.</p>{row.afterHistory.map((entry,i)=><p key={i}>{entry.photo.name} · {new Date(entry.replacedAt).toLocaleString('ko-KR')} <button type="button" className="si-btn" onClick={()=>download(entry.photo,entry.photo.name)}>이전 조치 후 사진 내려받기</button></p>)}</details>}</div><button type="button" className="si-btn" disabled={busy} onClick={()=>void verifyPhoto(row.id)}>사진 변경 확인</button> {checks[row.id]&&<p role="status">{checks[row.id]}</p>} <button type="button" className="si-btn" onClick={()=>download(row.photo,row.photo.name||'PSI-photo.jpg')}>사진 내려받기</button> <button type="button" className="si-btn" onClick={()=>{const {photo:stored,...data}=row;download(new Blob([JSON.stringify({...data,photoName:stored.name,photoType:stored.type},null,2)],{type:'application/json'}),'PSI-local-record-'+row.id+'.json');}}>점검 내용 내려받기</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void backup(row)}>사진과 기록 함께 백업</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void remove(row.id)}>이 기기 기록 삭제</button></article>)}
    {capturedAfter&&<div role="status"><p>촬영한 조치 후 사진이 아직 저장되지 않았습니다. 연결할 점검: {capturedAfter.row.note}</p><button type="button" className="si-btn" disabled={busy} onClick={()=>void saveAfterPhoto(capturedAfter.row,capturedAfter.file)}>촬영 사진 연결{busy?' 중…':''}</button> <button type="button" className="si-btn" onClick={()=>download(capturedAfter.file,capturedAfter.file.name||'PSI-after.jpg')}>촬영 사진 내려받기</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>{if(window.confirm('저장하지 않은 조치 후 사진을 버릴까요?'))setCapturedAfter(null);}}>촬영 사진 버리기</button></div>}
    <p>사진 변경 확인은 저장된 사진과 기록된 비교값만 대조합니다. 백업에서 복원한 기록의 비교값은 백업 당시 생성됐을 수 있습니다. 점검 내용의 변경이나 촬영 시각·장소·안전 여부는 증명하지 않습니다.</p>
   </section>
