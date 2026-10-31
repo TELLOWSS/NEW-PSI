@@ -6,7 +6,11 @@ import {rotateInspectionPhoto} from '../../lib/inspector/photoRotation';
 const CAMERA_GUIDES = {
   scaffold:{label:'시스템비계',short:'발판 · 지지부 · 주변',hint:'발판·지지부와 주변 작업구역을 함께 담으세요.'},
   opening:{label:'개구부',short:'가장자리 · 방호 · 동선',hint:'개구부의 경계, 주변 방호 상태와 이동 동선을 함께 담으세요.'},
-  lifting:{label:'양중',short:'하중 · 경로 · 통제',hint:'양중물과 이동 경로, 통제구역을 안전한 거리에서 촬영하세요.'}
+  lifting:{label:'양중',short:'하중 · 경로 · 통제',hint:'양중물과 이동 경로, 통제구역을 안전한 거리에서 촬영하세요.'},
+  gangform:{label:'갱폼',short:'연결부 · 인양 경로 · 통제',hint:'안전한 위치에서 갱폼과 연결부, 인양 경로와 주변 통제 상황을 담을 수 있는지 확인하세요.'},
+  formwork:{label:'거푸집·동바리',short:'받침 · 지지 · 주변',hint:'안전한 위치에서 동바리의 받침과 지지 상태, 주변 작업 상황을 담을 수 있는지 확인하세요.'},
+  rebar:{label:'철근',short:'배근 · 단부 · 주변',hint:'안전한 위치에서 철근 배근과 돌출 단부, 주변 이동 공간을 함께 담을 수 있는지 확인하세요.'},
+  equipment:{label:'장비',short:'장비 · 동선 · 주변',hint:'안전한 위치에서 장비와 작업 범위, 주변 보행 동선을 함께 담을 수 있는지 확인하세요.'}
 } as const;
 type CameraGuide = keyof typeof CAMERA_GUIDES | '';
 
@@ -125,11 +129,12 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
 <div className="si-camera-guide-dock-head"><strong>촬영 구도 선택</strong><button type="button" onClick={()=>{if(guidePanelRef.current)guidePanelRef.current.open=false;}} aria-label="구도 선택 닫기">닫기 ×</button></div>
           <p className="si-camera-guide-headline">사진에 담을 대상을 선택하세요</p>
           <div className="si-camera-guide-picks" role="group" aria-label="촬영할 대상">
-            {(['scaffold','opening','lifting'] as const).map((option)=><button type="button" key={option} className="si-camera-guide-pick" aria-pressed={guide===option} onClick={()=>{setGuide(option);setGuideActivation(n=>n+1);if(guidePanelRef.current)guidePanelRef.current.open=false;}}>
-              <span className={`si-camera-guide-pictogram si-camera-guide-pictogram-${option}`} aria-hidden="true">{option==='scaffold'?'▦':option==='opening'?'□':'⌁'}</span>
+            {(['scaffold','opening','lifting','gangform','formwork','rebar','equipment'] as const).map((option)=><button type="button" key={option} className="si-camera-guide-pick" aria-pressed={guide===option} onClick={()=>{setGuide(option);setGuideActivation(n=>n+1);if(guidePanelRef.current)guidePanelRef.current.open=false;}}>
+              <span className={`si-camera-guide-pictogram si-camera-guide-pictogram-${option}`} aria-hidden="true">{option==='scaffold'?'▦':option==='opening'?'□':option==='lifting'?'⌁':option==='gangform'?'▥':option==='formwork'?'╫':option==='rebar'?'╬':'◇'}</span>
               <span className="si-camera-guide-pick-title">{CAMERA_GUIDES[option].label}</span>
             </button>)}
           </div>
+          <p className="si-camera-guide-review-note">참고 질문 초안 · 현장 안전 담당자 검토 필요. 안전한 위치에서 촬영하세요.</p>
           <div className="si-camera-guide-dock-actions">
             <label className="si-camera-grid-choice"><input type="checkbox" checked={grid} onChange={e=>{const enabled=e.target.checked;setGrid(enabled);try{sessionStorage.setItem('psi.inspector.camera.grid.v1',enabled?'on':'off');}catch{/* The setting still applies in this window. */}}}/> 3×3 격자</label>
             <button type="button" className="si-camera-guide-clear" disabled={!guide} onClick={()=>{setGuide('');if(guidePanelRef.current)guidePanelRef.current.open=false;}}>구도 끄기</button>
@@ -166,6 +171,10 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
                     <path d="M112 103H208M112 117H208" strokeWidth="2.5" opacity=".55"/>
                     <circle cx="160" cy="111" r="27" strokeWidth="2" strokeDasharray="4 8" opacity=".48"/>
                   </g>}
+                  {guide==='gangform'&&<g stroke="currentColor" strokeWidth="3" opacity=".7"><path d="M91 38H229V176H91ZM116 38V176M160 38V176M204 38V176M91 84H229M91 130H229" strokeDasharray="8 7"/></g>}
+                  {guide==='formwork'&&<g stroke="currentColor" strokeWidth="3" opacity=".7"><path d="M65 58H255M78 67V174M132 67V174M188 67V174M242 67V174M64 176H256" strokeDasharray="8 7"/></g>}
+                  {guide==='rebar'&&<g stroke="currentColor" strokeWidth="3" opacity=".7"><path d="M85 47V173M122 47V173M159 47V173M196 47V173M233 47V173M65 72H255M65 110H255M65 148H255" strokeDasharray="8 7"/></g>}
+                  {guide==='equipment'&&<g stroke="currentColor" strokeWidth="3" strokeLinejoin="round" opacity=".7"><path d="M85 97H196L224 125V157H85ZM103 97V75H174V97M95 174H220" strokeDasharray="8 7"/><circle cx="112" cy="157" r="15"/><circle cx="196" cy="157" r="15"/></g>}
                   {guide==='lifting'&&<g stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M160 32V80M147 80H173M147 80V101Q160 119 173 101V95" strokeWidth="4" opacity=".9"/>
                     <path d="M107 122L160 106L213 122V172H107Z" strokeWidth="3" strokeDasharray="9 7" opacity=".72"/>

@@ -58,6 +58,26 @@ try{
     await dialog.getByRole('button',{name:'전면·후면 전환',exact:true}).click();await page.waitForFunction(()=>window.__cameraRequests.at(-1)?.video.facingMode.ideal==='user'&&!document.querySelector('.si-camera-actions .si-primary').disabled);assert.match(await dialog.locator('.si-camera-auto-direction').innerText(),/세로/);
    }
    if(scenario==='landscape'){const input=dialog.getByLabel('기기 카메라로 촬영',{exact:true});const chooser=page.waitForEvent('filechooser');await input.click();await chooser;await input.dispatchEvent('cancel',{bubbles:true});await page.waitForFunction(()=>window.__cameraRequests.length>=2&&!document.querySelector('.si-camera-actions .si-primary').disabled);await dialog.getByRole('heading',{name:'카메라로 바로 촬영'}).waitFor();await dialog.locator('.si-camera-heading .si-camera-guide-options > summary').click();await dialog.locator('.si-camera-guide-more>summary').click();await dialog.getByText('구도만 참고로 표시합니다.',{exact:false}).waitFor();await dialog.getByRole('button',{name:'구도 선택 닫기'}).click();}
+   if(scenario==='portrait'){
+    // New framing questions are selectable in narrow portrait and landscape.
+    // They remain guidance, do not claim detection, and do not require a request.
+    for(const viewport of [{width:320,height:740},{width:844,height:390}]){
+     await page.setViewportSize(viewport);await page.waitForFunction(()=>!document.querySelector('.si-camera-shutter')?.disabled);
+     for(const label of ['갱폼','거푸집·동바리','철근','장비']){
+      await dialog.getByLabel('구도 선택',{exact:true}).click();
+      await dialog.getByText('참고 질문 초안',{exact:false}).waitFor();
+      await dialog.getByRole('button',{name:label,exact:true}).click();
+      await dialog.getByRole('status').filter({hasText:label+' 촬영 구도 가이드가 적용됐습니다.'}).waitFor();
+      await dialog.getByLabel('구도 선택',{exact:true}).click();
+      assert.equal(await dialog.getByRole('button',{name:label,exact:true}).getAttribute('aria-pressed'),'true');
+      const content=dialog.locator('.si-camera-guide-content');assert.ok(await content.evaluate(e=>e.scrollWidth<=e.clientWidth+1),'guide panel must not overflow horizontally');
+      if(!await dialog.locator('.si-camera-guide-more').evaluate(e=>e.open))await dialog.locator('.si-camera-guide-more>summary').click();
+      await dialog.getByText('안전한 위치에서',{exact:false}).last().waitFor();
+      await dialog.getByRole('button',{name:'구도 선택 닫기'}).click();
+     }
+    }
+    await dialog.getByLabel('구도 선택',{exact:true}).click();await dialog.getByRole('button',{name:'구도 끄기'}).click();
+   }
    for(const viewport of [{width:320,height:740},{width:390,height:900},{width:844,height:390}]){await page.setViewportSize(viewport);await page.waitForFunction(()=>!document.querySelector('.si-camera-actions .si-primary')?.disabled);const shell=await dialog.boundingBox();assert.ok(shell&&Math.abs(shell.width-viewport.width)<3&&Math.abs(shell.height-viewport.height)<3,'mobile capture dialog must fill viewport');assert.ok(await dialog.evaluate(d=>d.scrollWidth<=d.clientWidth+1));await dialog.getByRole('button',{name:'지금 촬영',exact:true}).scrollIntoViewIfNeeded();const button=await dialog.getByRole('button',{name:'지금 촬영',exact:true}).boundingBox();assert.ok(button.y>=0&&button.y+button.height<=viewport.height);if(viewport.width===844&&['landscape','portrait'].includes(scenario)){const box=await dialog.locator('.si-camera-stage').boundingBox();assert.ok(Math.abs(box.width/box.height-(16/9))<0.03,'camera stage must retain selected aspect ratio');}if(scenario==='portrait'&&viewport.width<viewport.height){const stage=await dialog.locator('.si-camera-stage').boundingBox(),shutter=await dialog.getByRole('button',{name:'지금 촬영',exact:true}).boundingBox(),flip=await dialog.getByRole('button',{name:'전면·후면 전환',exact:true}).boundingBox();assert.ok(stage&&shutter&&flip&&stage.y+stage.height<=shutter.y,'preview must stay above the shutter');assert.ok(shutter.width>=70&&Math.abs(shutter.width-shutter.height)<2,'shutter must be a large circle');const shutterStyle=await dialog.getByRole('button',{name:'지금 촬영',exact:true}).evaluate(el=>({radius:getComputedStyle(el).borderTopLeftRadius,background:getComputedStyle(el).backgroundColor}));assert.equal(shutterStyle.radius,'50%','shutter must render round');assert.equal(shutterStyle.background,'rgb(245, 250, 248)','shutter must render in the camera color');assert.ok(flip.width>=48&&flip.height>=48,'camera switch touch target must be usable');}
    if(['landscape','portrait'].includes(scenario))await page.screenshot({path:out+'/'+scenario+'-'+viewport.width+'.png'});}
    if(scenario==='landscape'){await page.evaluate(()=>document.documentElement.classList.add('dark'));await page.waitForTimeout(250);await page.screenshot({path:out+'/landscape-dark.png'});await page.evaluate(()=>document.documentElement.classList.remove('dark'));await page.waitForTimeout(250);}
