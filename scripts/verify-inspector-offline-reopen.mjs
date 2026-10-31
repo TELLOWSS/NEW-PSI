@@ -71,6 +71,38 @@ try{
  await page.getByRole('dialog',{name:'촬영 사진 바로 확인'}).getByRole('button',{name:'이 사진 사용'}).click();
  await panel.getByLabel('직접 확인한 내용').fill('오프라인 재실행 후 점검');
  await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();await panel.getByText('이 브라우저에 보관된 점검 2건').waitFor();
+ // Two staged photos survive a fully offline page restart and do not count as an inspection.
+ await panel.getByRole('button',{name:'전체·위험 부위 연속 촬영'}).click();
+ await page.waitForFunction(()=>document.querySelector('.si-camera-shutter')&&!document.querySelector('.si-camera-shutter').disabled);
+ await page.getByRole('button',{name:'지금 촬영'}).click();
+ await page.getByRole('dialog',{name:'촬영 사진 바로 확인'}).getByRole('button',{name:'보관하고 계속 촬영'}).click();
+ await page.getByText('이 브라우저에 보관된 사진 1장',{exact:false}).waitFor();
+ await page.waitForFunction(()=>document.querySelector('.si-camera-shutter')&&!document.querySelector('.si-camera-shutter').disabled);
+ await page.getByRole('button',{name:'지금 촬영'}).click();
+ await page.getByRole('dialog',{name:'촬영 사진 바로 확인'}).getByRole('button',{name:'이 사진 사용'}).click();
+ await panel.getByText('이 기기에 임시 보관된 촬영 사진 2장',{exact:false}).waitFor();
+ await panel.getByText('이 브라우저에 보관된 점검 2건').waitFor();
+ await page.close();page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push(r.url()));
+ await page.goto(base+'/field-local/',{waitUntil:'domcontentloaded'});
+ await page.getByText('통신 없이 기기에서 직접 점검',{exact:true}).click();panel=page.getByRole('region',{name:'기기 직접 점검'});
+ await panel.getByText('이 기기에 임시 보관된 촬영 사진 2장',{exact:false}).waitFor();
+ await panel.getByText('이 브라우저에 보관된 점검 2건').waitFor();
+ await panel.getByLabel('직접 확인한 내용').fill('오프라인 연속 촬영 점검');
+ // Abort after both write requests are queued: neither the new record nor the
+ // draft deletion may commit. Restore the original API and retry.
+ await page.evaluate(()=>{window.__sequenceDelete=IDBObjectStore.prototype.delete;IDBObjectStore.prototype.delete=function(key){const request=window.__sequenceDelete.call(this,key);if(key==='psi-photo-set-draft-v1')this.transaction.abort();return request;};});
+ await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
+ await panel.getByRole('status').filter({hasText:/기기에 저장하지 못했습니다|기기 저장이 중단됐습니다/}).waitFor();
+ await panel.getByText('이 기기에 임시 보관된 촬영 사진 2장',{exact:false}).waitFor();
+ assert.equal(await panel.getByLabel('직접 확인한 내용').inputValue(),'오프라인 연속 촬영 점검');
+ await page.evaluate(()=>{IDBObjectStore.prototype.delete=window.__sequenceDelete;});
+ await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
+ await panel.getByText('이 브라우저에 보관된 점검 3건').waitFor();
+ const sequenceState=await page.evaluate(()=>new Promise((resolve,reject)=>{const req=indexedDB.open('psi-inspector-local-records',1);req.onerror=()=>reject(req.error);req.onsuccess=()=>{const db=req.result,tx=db.transaction('records','readonly'),read=tx.objectStore('records').getAll();read.onsuccess=()=>resolve(read.result.map(r=>({id:r.id,note:r.note,photoRole:r.photoRole,contextRole:r.contextRole,hasPhoto:!!r.photo,hasContext:!!r.contextPhoto,sha256:r.sha256,contextSha256:r.contextSha256})));tx.oncomplete=()=>db.close();};}));
+ assert.ok(!sequenceState.some(r=>r.id==='psi-photo-set-draft-v1'),'committed draft must be removed');
+ const sequenceRecord=sequenceState.find(r=>r.note==='오프라인 연속 촬영 점검');
+ assert.ok(sequenceRecord?.hasPhoto&&sequenceRecord.hasContext&&sequenceRecord.sha256&&sequenceRecord.contextSha256);
+ assert.equal(sequenceRecord.photoRole,'overview');assert.equal(sequenceRecord.contextRole,'detail');
  assert.ok(!requests.some(url=>new URL(url).pathname.startsWith('/api/')||new URL(url).origin!==base),'offline local flow must not contact APIs or external hosts');assert.deepEqual(errors,[]);
  console.log('PASS offline prepared entry, page close and offline restart, existing record and new save');await context.close();
  // An installed update must wait for the controlled page to close, then preserve
