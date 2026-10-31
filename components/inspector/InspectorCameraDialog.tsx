@@ -225,7 +225,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
              <button type="button" className="si-btn" disabled={!decoded||rotating||sequenceSaving} onClick={()=>void turnPhoto(1)}>↷ 오른쪽 90°</button>
              <button type="button" className="si-btn" disabled={rotation===0||rotating||sequenceSaving} onClick={()=>void turnPhoto(-rotation)}>원래 방향</button>
            </div>
-           <p>회전한 사진은 별도 사본입니다. 최초 촬영 파일이 필요하면 이 창을 닫기 전에 기기에 저장하세요.</p>
+           <p>회전본을 점검에 저장하면 편집 전 파일도 함께 연결해 보관합니다. 저장 전에는 미등록 상태이므로 필요하면 별도 다운로드하세요. 보관·백업 가능 용량은 기기 상태에 따라 제한됩니다.</p>
          </section>}
          <div className="si-camera-actions">{photo?<>
             <button className="si-btn" disabled={sequenceSaving||rotating} onClick={()=>{if(!window.confirm('아직 등록하지 않은 이 사진을 버리고 다시 촬영할까요?'))return;retry();}}>다시 촬영</button>
