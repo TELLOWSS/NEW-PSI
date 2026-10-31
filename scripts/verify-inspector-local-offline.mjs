@@ -319,7 +319,7 @@ try{
  await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
  // Previous formats remain restorable after upgrading; synthetic records only.
  for(const version of [1,2,3,4,5,6,7,8,9,10,11]){
-  const legacy=JSON.parse(backupBytes.toString());legacy.version=version;delete legacy.record.photoInputs;delete legacy.record.photoInputsSha256;delete legacy.record.primaryHistory;if(version<11&&legacy.record.additionalActions)legacy.record.additionalActions.forEach(item=>delete item.photoHistory);if(version<10)delete legacy.record.afterHistory;if(version<9)delete legacy.record.contextHistory;if(version<8)delete legacy.record.contextDetached;if(version<7)delete legacy.record.contextFirst;if(version<6){delete legacy.record.photoRole;delete legacy.record.contextPhoto;}if(version<4)delete legacy.record.additionalActions;else if(version===4)legacy.record.additionalActions.forEach(item=>delete item.photo);
+  const legacy=JSON.parse(backupBytes.toString());legacy.version=version;delete legacy.record.photoInputs;delete legacy.record.photoInputsSha256;delete legacy.record.rechecks;delete legacy.record.recheckSha256;for(const action of legacy.record.additionalActions||[])delete action.rechecks;delete legacy.record.primaryHistory;if(version<11&&legacy.record.additionalActions)legacy.record.additionalActions.forEach(item=>delete item.photoHistory);if(version<10)delete legacy.record.afterHistory;if(version<9)delete legacy.record.contextHistory;if(version<8)delete legacy.record.contextDetached;if(version<7)delete legacy.record.contextFirst;if(version<6){delete legacy.record.photoRole;delete legacy.record.contextPhoto;}if(version<4)delete legacy.record.additionalActions;else if(version===4)legacy.record.additionalActions.forEach(item=>delete item.photo);
   if(version===1)delete legacy.record.followup;
   if(version<3)delete legacy.record.afterPhoto;
   await panel.getByLabel('백업 파일 복원').setInputFiles({name:`legacy-${version}.json`,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(legacy))});
@@ -339,6 +339,8 @@ try{
  assert.deepEqual(await panel.locator('[aria-label="현장 사진 표시 순서"] img').evaluateAll(nodes=>nodes.map(n=>n.alt)),['추가 현장 사진','기본 사진']);
  await panel.getByText('조치 진행 중',{exact:true}).waitFor();
  await panel.getByText('현재 기록된 임시 안전조치: 위험 구역 출입 통제 및 안내 표지 유지',{exact:false}).waitFor();
+ await panel.getByRole('region',{name:'점검 전체 재점검·지연 사유'}).getByText('재점검 1건',{exact:false}).waitFor();
+ await panel.getByRole('region',{name:'조치별 재점검·지연 사유'}).first().getByText('재점검 1건',{exact:false}).waitFor();
  await panel.getByRole('heading',{name:'합성 출입 통제'}).waitFor();
  await panel.getByText('이 조치의 사진: action-one-v2.png').waitFor();
  await panel.getByText('이 조치의 이전 사진 1장').waitFor();
