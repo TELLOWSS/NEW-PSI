@@ -312,7 +312,7 @@ function FieldContextEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSa
   <summary>현장정보 정정 · 이전 기록 {history.length}건</summary>
   <p>현장정보는 점검자가 작성한 진술입니다. 기기 입력은 실제 사진 촬영 위치를 증명하지 않습니다. 수정 시 이전 내용과 사유를 이력에 남기며 원본 사진은 변경하지 않습니다.</p>
   <fieldset disabled={busy} style={{display:'grid',gap:6}}>
-   <label>현장명 정정<input aria-label="기록 현장명 정정" maxLength={100} value={next.site} onChange={e=>setNext(v=>({...v,site:e.target.value}))}/></label>
+   <label>현장명 정정<input aria-label="기록 현장 이름 수정" maxLength={100} value={next.site} onChange={e=>setNext(v=>({...v,site:e.target.value}))}/></label>
    <label>동 정정<input aria-label="기록 동 정정" maxLength={40} value={next.building} onChange={e=>setNext(v=>({...v,building:e.target.value}))}/></label>
    <label>층 정정<input aria-label="기록 층 정정" maxLength={40} value={next.level} onChange={e=>setNext(v=>({...v,level:e.target.value}))}/></label>
    <label>공종 정정<input aria-label="기록 공종 정정" maxLength={60} value={next.trade} onChange={e=>setNext(v=>({...v,trade:e.target.value}))}/></label>
