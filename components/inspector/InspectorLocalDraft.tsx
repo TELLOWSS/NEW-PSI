@@ -577,23 +577,51 @@ function FollowupEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSave:(
   {!!current?.history.length&&<details><summary>조치 이력 {current.history.length}건</summary>{current.history.map((entry,i)=><p key={i}>{new Date(entry.at).toLocaleString('ko-KR')} · {FOLLOWUP_LABELS[entry.status]} · {entry.note} {entry.temporaryMeasure?'· 당시 임시 안전조치: '+entry.temporaryMeasure:''} · 담당 {entry.assignee||'미지정'} · 기한 {entry.dueDate||'미정'}</p>)}</details>}
  </section>;
 }
-function ActionItem({row,item,busy,onUpdate,onPhoto}:{key?:string;row:LocalRecord;item:AdditionalAction;busy:boolean;onUpdate:(row:LocalRecord,actions:AdditionalAction[])=>Promise<boolean>;onPhoto:(row:LocalRecord,item:AdditionalAction,file:File)=>Promise<boolean>}){
+function RecheckEditor({row,action,busy,onSave}:{row:LocalRecord;action?:AdditionalAction;busy:boolean;onSave:(row:LocalRecord,actionId:string|null,entry:Recheck)=>Promise<boolean>}){
+ const [opened,setOpened]=useState(false),[result,setResult]=useState<Recheck['result']>('delayed'),[reason,setReason]=useState(''),[note,setNote]=useState(''),[nextCheckDate,setNextCheckDate]=useState('');
+ const history=action?.rechecks||(!action?row.rechecks:undefined)||[];
+ const hashes=evidencePhotoHashes(row,action),latestPhoto=action?action.photoSha256||null:row.afterSha256||null;
+ const targetLabel=action?'조치별':'점검 전체';
+ const submit=async()=>{
+  const entry:Recheck={id:crypto.randomUUID(),result,reason:reason.trim(),note:note.trim(),nextCheckDate,at:new Date().toISOString(),photoSha256:latestPhoto,followupStatus:(action?.followup||row.followup)?.status||'unrecorded'};
+  if(!validRechecks([entry],hashes,1))return;
+  if(await onSave(row,action?.id||null,entry)){setOpened(false);setReason('');setNote('');setNextCheckDate('');}
+ };
+ return <section aria-label={targetLabel+' 재점검·지연 사유'}>
+  <h5>{targetLabel} 지연 조치·재점검 기록</h5>
+  <p>재점검 {history.length}건 · {history.length?RECHECK_LABELS[history[history.length-1].result]:'재점검 기록 없음'} · 현재 연결 가능 증빙: {latestPhoto?'조치 후 사진 SHA-256':'사진 없음'}</p>
+  <p>즉시 조치가 불가능해도 지연 사유와 임시 통제 상태를 남길 수 있습니다. 이 기록은 자동으로 '확인 완료'를 지정하거나 담당자에게 통보하지 않습니다.</p>
+  <button type="button" className="si-btn" disabled={busy||history.length>=(action?50:100)} onClick={()=>setOpened(v=>!v)}>{opened?'재점검 입력 닫기':'지연 사유·재점검 추가'}</button>
+  {opened&&<div>
+   <label>재점검 결과<select aria-label={targetLabel+' 재점검 결과'} value={result} onChange={e=>setResult(e.target.value as Recheck['result'])}>{(Object.keys(RECHECK_LABELS) as Recheck['result'][]).map(key=><option key={key} value={key}>{RECHECK_LABELS[key]}</option>)}</select></label>
+   <label>지연·재점검 사유<textarea aria-label={targetLabel+' 지연·재점검 사유'} maxLength={500} value={reason} onChange={e=>setReason(e.target.value)} placeholder="예: 자재 입고 지연으로 보수 불가, 출입 통제 유지"/></label>
+   <label>현장 확인·임시조치 내용<textarea aria-label={targetLabel+' 현장 확인·임시조치 내용'} maxLength={2000} value={note} onChange={e=>setNote(e.target.value)} placeholder="예: 통제선과 경고 표지는 확인, 본 조치는 미완료"/></label>
+   <label>다음 확인 예정일 (미정 가능)<input aria-label={targetLabel+' 다음 확인 예정일'} type="date" value={nextCheckDate} onChange={e=>setNextCheckDate(e.target.value)}/></label>
+   <p>저장 시 연결 사진: {latestPhoto?'현재 조치 사진의 SHA-256 기록':'없음 (사진 미확인)'}. 이후 사진을 교체해도 당시 연결 해시는 유지됩니다. 촬영 위치·시각·조치 효과는 별도 확인해야 합니다.</p>
+   <button type="button" className="si-btn" disabled={busy||reason.trim().length<5||note.trim().length<5||!validRecheckDate(nextCheckDate)} onClick={()=>void submit()}>재점검 이력 저장</button>
+  </div>}
+  {history.length>0&&<details><summary>재점검·지연 이력 {history.length}건</summary>
+   {history.map((entry,i)=><p key={entry.id}>{i+1}. {new Date(entry.at).toLocaleString('ko-KR')} (기기 시각) · {RECHECK_LABELS[entry.result]} · 사유: {entry.reason} · 확인: {entry.note} · 다음 확인: {entry.nextCheckDate||'미정'} · 당시 후속 상태: {FOLLOWUP_LABELS[entry.followupStatus]||'미기록'} · 사진: {entry.photoSha256?'SHA-256 '+entry.photoSha256.slice(0,12)+'…':'연결 없음'}</p>)}
+  </details>}
+ </section>;
+}
+function ActionItem({row,item,busy,onUpdate,onPhoto}:{key?:string;row:LocalRecord;item:AdditionalAction;busy:boolean;onUpdate:(row:LocalRecord,actions:AdditionalAction[])=>Promise<boolean>;onPhoto:(row:LocalRecord,item:AdditionalAction,file:File)=>Promise<boolean>;onRecheck:(row:LocalRecord,actionId:string|null,entry:Recheck)=>Promise<boolean>}){
  const [pending,setPending]=useState<File|null>(null);
  const actions=row.additionalActions||[];
  useEffect(()=>{if(!pending)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[pending]);
- return <div><h5>{item.title}</h5><FollowupEditor row={{...row,followup:item.followup}} busy={busy} onSave={async(_id,value)=>onUpdate(row,actions.map(entry=>entry.id===item.id?{...entry,followup:value}:entry))}/>
+ return <div><h5>{item.title}</h5><FollowupEditor row={{...row,followup:item.followup}} busy={busy} onSave={async(_id,value)=>onUpdate(row,actions.map(entry=>entry.id===item.id?{...entry,followup:value}:entry))}/><RecheckEditor row={row} action={item} busy={busy} onSave={onRecheck}/>
   <p>이 조치의 사진: {item.photo?.name||'없음'}</p><label>이 조치 사진 선택<input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f&&(!pending||window.confirm('저장하지 않은 사진을 바꿀까요?')))setPending(f);}}/></label>
   {pending&&<div><p>저장 전 사진: {pending.name}</p><button type="button" className="si-btn" disabled={busy} onClick={async()=>{if(await onPhoto(row,item,pending))setPending(null);}}>이 조치에 사진 저장</button> <button type="button" className="si-btn" onClick={()=>download(pending,pending.name)}>저장 전 사진 내려받기</button></div>}
   {item.photo&&<button type="button" className="si-btn" onClick={()=>download(item.photo!,item.photo!.name)}>이 조치 사진 내려받기</button>}
   {!!item.photoHistory?.length&&<details><summary>이 조치의 이전 사진 {item.photoHistory.length}장</summary><p>교체 시각은 기기 시각이며 촬영 시각과 다를 수 있습니다.</p>{item.photoHistory.map((entry,i)=><p key={i}>{entry.photo.name} · {new Date(entry.replacedAt).toLocaleString('ko-KR')} <button type="button" className="si-btn" onClick={()=>download(entry.photo,entry.photo.name)}>이 조치의 이전 사진 내려받기</button></p>)}</details>}
  </div>;
 }
-function AdditionalActions({row,busy,onUpdate,onPhoto}:{row:LocalRecord;busy:boolean;onUpdate:(row:LocalRecord,actions:AdditionalAction[])=>Promise<boolean>;onPhoto:(row:LocalRecord,item:AdditionalAction,file:File)=>Promise<boolean>}){
+function AdditionalActions({row,busy,onUpdate,onPhoto}:{row:LocalRecord;busy:boolean;onUpdate:(row:LocalRecord,actions:AdditionalAction[])=>Promise<boolean>;onPhoto:(row:LocalRecord,item:AdditionalAction,file:File)=>Promise<boolean>;onRecheck:(row:LocalRecord,actionId:string|null,entry:Recheck)=>Promise<boolean>}){
  const [title,setTitle]=useState('');
  const actions=row.additionalActions||[];
  const add=async()=>{if(!title.trim()||actions.length>=20)return;if(await onUpdate(row,[...actions,{id:crypto.randomUUID(),title:title.trim()}]))setTitle('');};
  return <section aria-label="추가 조치 항목"><h4>추가 조치 항목 {actions.length}건</h4><p>각 조치를 따로 관리합니다. 조치별 사진은 합계 20MB까지 저장할 수 있습니다.</p>
-  {actions.map(item=><ActionItem key={item.id} row={row} item={item} busy={busy} onUpdate={onUpdate} onPhoto={onPhoto}/>)}
+  {actions.map(item=><ActionItem key={item.id} row={row} item={item} busy={busy} onUpdate={onUpdate} onPhoto={onPhoto} onRecheck={onRecheck}/>)}
   <label>추가할 조치 내용<input value={title} maxLength={200} disabled={busy||actions.length>=20} onChange={e=>setTitle(e.target.value)} placeholder="예: 개구부 덮개 고정"/></label>
   <button type="button" className="si-btn" disabled={busy||!title.trim()||actions.length>=20} onClick={()=>void add()}>조치 항목 추가</button>
   {actions.length>=20&&<p>한 점검에 추가 조치 항목을 20개까지 기록할 수 있습니다.</p>}
