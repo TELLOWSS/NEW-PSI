@@ -421,7 +421,7 @@ try{
  await panel.getByLabel('현장명').fill('용인 합성 현장');
  await panel.getByLabel('동',{exact:true}).fill('2003동');
  await panel.getByLabel('층',{exact:true}).fill('23F 옥탑');
- await panel.getByLabel('공종').fill('갱폼 해체');
+ await panel.getByLabel('점검 현장 공종').fill('갱폼 해체');
  await panel.getByLabel('기기 점검 사진 선택').setInputFiles({name:'f07-before.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a8sAAAAASUVORK5CYII=','base64')});
  await panel.getByLabel('직접 확인한 내용').fill('F07 합성 현장정보 점검');
  await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
