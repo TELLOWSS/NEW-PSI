@@ -6,6 +6,7 @@ import { deriveCompetencyProfile } from '../utils/evidenceUtils';
 import { getSafetyLevelDisplayLabel, getSafetyLevelThresholds } from '../utils/safetyLevelUtils';
 import { BrandPhilosophyLogo } from './shared/BrandPhilosophyLogo';
 import { WorkerInterpretationAppendix } from './report/WorkerInterpretationAppendix';
+import { WorkerRiskFollowupAppendix } from './report/WorkerRiskFollowupAppendix';
 import { NextActionChecklist } from './shared/NextActionChecklist';
 import { StatusBadge } from './shared/StatusBadge';
 import { PSI_APP_VERSION } from '../lib/appInfo';
@@ -1805,6 +1806,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
             </div>}
             {includeAdminAppendix && record.handwrittenAnswers?.some(answer => Boolean(String(answer.answerText || '').trim())) && (
                 <WorkerInterpretationAppendix record={record} />
+            )}
+            {includeAdminAppendix && Boolean(record.riskFollowupEvents?.length) && (
+                <WorkerRiskFollowupAppendix record={record} />
             )}
         </div>
     );

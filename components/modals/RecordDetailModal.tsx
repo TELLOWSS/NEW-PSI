@@ -29,6 +29,7 @@ import { SummaryMetricGrid } from '../shared/SummaryMetricGrid';
 import { WhyThisResultPanel } from '../shared/WhyThisResultPanel';
 import { CollapsibleSection } from '../shared/CollapsibleSection';
 import { getLowConfidenceOcrFields } from '../../utils/ocrDocumentValidation';
+import { WorkerRiskFollowupPanel } from '../ocr/WorkerRiskFollowupPanel';
 import { updateAnalysisBasedOnEdits } from '../../services/geminiService';
 import {
     approveHarnessRecord,
@@ -3517,6 +3518,13 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
                                 {activeTab === 'qna' && (
                                     <div className="space-y-4 pb-4">
+                                        {record.handwrittenAnswers?.some(answer => Boolean(String(answer.answerText || '').trim())) && (
+                                            <WorkerRiskFollowupPanel
+                                                record={record}
+                                                hasPendingEdits={hasChanges}
+                                                onPersist={async nextRecord => Boolean(await persistRecordSilently(nextRecord))}
+                                            />
+                                        )}
                                         <SectionPanelCard
                                             variant="whiteSoft"
                                             eyebrow="원문 비교 검수"

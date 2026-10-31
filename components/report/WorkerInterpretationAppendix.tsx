@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import type { WorkerRecord } from '../../types';
 import { buildWorkerInterpretationNote } from '../../utils/workerInterpretationNote';
+import { FOLLOWUP_STATUS_LABELS, getWorkerRiskFollowupSummary } from '../../utils/workerRiskFollowup';
 
 interface WorkerInterpretationAppendixProps {
     record: WorkerRecord;
@@ -12,6 +13,7 @@ interface WorkerInterpretationAppendixProps {
  */
 export const WorkerInterpretationAppendix: React.FC<WorkerInterpretationAppendixProps> = ({ record }) => {
     const note = useMemo(() => buildWorkerInterpretationNote(record), [record]);
+    const followup = useMemo(() => getWorkerRiskFollowupSummary(record.riskFollowupEvents || []), [record.riskFollowupEvents]);
     const isNonKorean = !/^(?:ko|ko-KR)$/i.test(String(record.language || ''));
 
     return (
@@ -73,12 +75,19 @@ export const WorkerInterpretationAppendix: React.FC<WorkerInterpretationAppendix
                     <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
                         <div className="flex justify-between items-center gap-2">
                             <h3 className="text-[11px] font-black text-amber-900">현장 관리자 확인 · 환류 기록</h3>
-                            <span className="text-[9px] font-black text-amber-800">조치상태: 확인 전</span>
+                            <span className="text-[9px] font-black text-amber-800">{followup.total ? `진행 ${followup.unresolved} · 완료확인 ${followup.completed} · 기한초과 ${followup.overdue}` : '조치상태: 확인 전'}</span>
                         </div>
                         <p className="mt-1 text-[9px] text-amber-950 leading-relaxed">
                             확인할 사항: Q1 작업구역·고소작업 조건 / Q2 위험별 통제 상태 / Q4 보호구 착용·체결 / Q5 작업 전 확인 및 소통
                         </p>
-                        <p className="mt-1 text-[9px] text-amber-900">□ 확인 전　□ 임시통제 중　□ 조치 예정　□ 현장 확인 완료 (완료 증빙 필요)</p>
+                        {followup.total ? (
+                            <div className="mt-1 text-[8.6px] text-amber-900 space-y-0.5">
+                                {followup.cases.slice(0, 3).map(item => <p key={item.caseId}>Q{item.opened.questionNumber} · {FOLLOWUP_STATUS_LABELS[item.latest.status]} · 담당 {item.latest.owner} · 기한 {item.latest.dueDate || '미지정'}</p>)}
+                                {followup.total > 3 && <p>나머지 {followup.total - 3}건은 조치관리 부록을 참조하세요.</p>}
+                            </div>
+                        ) : (
+                            <p className="mt-1 text-[9px] text-amber-900">□ 확인 전　□ 임시통제 중　□ 조치 예정　□ 현장 확인 완료 (완료 증빙 필요)</p>
+                        )}
                         <p className="mt-1 text-[9px] text-slate-700">담당자: __________　확인일: __________　기한: __________　증빙 위치: __________________</p>
                     </div>
                     <div className="flex justify-between gap-3 border-t border-slate-200 pt-2">

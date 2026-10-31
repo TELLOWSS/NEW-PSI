@@ -337,6 +337,36 @@ export interface MonthlyTrendDashboard {
     nextEducationFocus: string[];
 }
 
+/** 현장 환류 상태. 근로자 자필과 독립된 관리자 실측/확인 이벤트입니다. */
+export type WorkerRiskFollowupStatus =
+    | 'open'
+    | 'interim_control'
+    | 'scheduled'
+    | 'completed'
+    | 'reopened';
+
+/**
+ * 불변·추가기록 형태의 Q1~Q5 현장 환류 이벤트.
+ * 사진은 크기 제한된 JPEG data URL, 경로/식별자는 evidenceReference에 보존.
+ * 'completed'도 작업재개 허가나 법적 적합성 판정과 같지 않습니다.
+ */
+export interface WorkerRiskFollowupEvent {
+    id: string;
+    caseId: string;
+    questionNumber: 1 | 2 | 3 | 4 | 5;
+    status: WorkerRiskFollowupStatus;
+    timestamp: string;
+    actor: string;
+    owner: string;
+    actionDetail: string;
+    dueDate?: string;
+    interimControl?: string;
+    evidenceReference?: string;
+    evidenceNote?: string;
+    evidencePhoto?: string;
+    verifiedBy?: string;
+}
+
 export interface ActionEntry {
     timestamp: string;
     actor: string;
@@ -460,6 +490,8 @@ export interface WorkerRecord {
     correctionHistory?: CorrectionEntry[];
     scoreAdjustmentHistory?: ScoreAdjustmentEntry[];
     actionHistory?: ActionEntry[];
+    /** 근로자 위험성평가 Q1~Q5와 연결된 불변 현장 환류 기록 */
+    riskFollowupEvents?: WorkerRiskFollowupEvent[];
     approvalHistory?: ApprovalEntry[];
     auditTrail?: AuditTrailEntry[];
     evidenceHash?: string;
