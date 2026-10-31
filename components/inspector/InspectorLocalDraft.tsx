@@ -5,7 +5,46 @@ import {sourceReviewState} from '../../lib/inspector/sourceReview';
 import {FOLLOWUP_STATES, FOLLOWUP_LABELS, validateFollowup, validateAdditionalActions, overdue} from '../../lib/inspector/localFollowup.mjs';
 
 type Followup={status:string;assignee:string;dueDate:string;temporaryMeasure?:string;history:{status:string;assignee:string;dueDate:string;temporaryMeasure?:string;note:string;at:string}[]};
-type AdditionalAction={id:string;title:string;followup?:Followup;photo?:File;photoSha256?:string;photoHistory?:AfterHistory[]};
+type Recheck={id:string;result:'delayed'|'temporary_checked'|'needs_more'|'review_requested';reason:string;note:string;nextCheckDate:string;at:string;photoSha256:string|null;followupStatus:string};
+type AdditionalAction={id:string;title:string;followup?:Followup;rechecks?:Recheck[];photo?:File;photoSha256?:string;photoHistory?:AfterHistory[]};
+const RECHECK_LABELS:Record<Recheck['result'],string>={delayed:'조치 지연·미완료',temporary_checked:'임시 안전조치 현장 확인',needs_more:'재점검 후 보완 필요',review_requested:'완료 여부 확인 요청'};
+function validRecheckDate(value:string):boolean{
+ if(value==='')return true;
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
+ const d=new Date(value+'T00:00:00Z');return !Number.isNaN(d.getTime())&&d.toISOString().slice(0,10)===value;
+}
+function evidencePhotoHashes(row:LocalRecord,action?:AdditionalAction):string[]{
+ return action?[...(action.photoHistory||[]).map(p=>p.sha256),action.photoSha256].filter((x):x is string=>Boolean(x)):
+ [...(row.afterHistory||[]).map(p=>p.sha256),row.afterSha256].filter((x):x is string=>Boolean(x));
+}
+function validRechecks(value:unknown,hashes:string[],max:number):value is Recheck[]{
+ if(!Array.isArray(value)||!value.length||value.length>max)return false;
+ const seen=new Set<string>();
+ return value.every(raw=>{
+  if(!raw||typeof raw!=='object'||Array.isArray(raw))return false;
+  const e=raw as Record<string,unknown>;
+  if(Object.keys(e).length!==8||!['id','result','reason','note','nextCheckDate','at','photoSha256','followupStatus'].every(k=>Object.hasOwn(e,k)))return false;
+  if(typeof e.id!=='string'||!/^[-a-f0-9]{36}$/i.test(e.id)||seen.has(e.id))return false;
+  seen.add(e.id);
+  return typeof e.result==='string'&&Object.hasOwn(RECHECK_LABELS,e.result)
+   &&typeof e.reason==='string'&&e.reason===e.reason.trim()&&e.reason.length>=5&&e.reason.length<=500
+   &&typeof e.note==='string'&&e.note===e.note.trim()&&e.note.length>=5&&e.note.length<=2000
+   &&typeof e.nextCheckDate==='string'&&validRecheckDate(e.nextCheckDate)
+   &&typeof e.at==='string'&&Number.isFinite(Date.parse(e.at))
+   &&(e.photoSha256===null||(typeof e.photoSha256==='string'&&hashes.includes(e.photoSha256)))
+   &&typeof e.followupStatus==='string'&&(e.followupStatus==='unrecorded'||FOLLOWUP_STATES.includes(e.followupStatus));
+ });
+}
+function recheckPayload(row:LocalRecord){
+ return {main:row.rechecks||[],actions:(row.additionalActions||[]).map(action=>({id:action.id,records:action.rechecks||[]}))};
+}
+function hasRechecks(row:LocalRecord):boolean{
+ return Boolean(row.rechecks?.length||(row.additionalActions||[]).some(a=>a.rechecks?.length));
+}
+function validateRecheckPayload(row:LocalRecord):boolean{
+ if(row.rechecks!==undefined&&!validRechecks(row.rechecks,evidencePhotoHashes(row),100))return false;
+ return (row.additionalActions||[]).every(a=>a.rechecks===undefined||validRechecks(a.rechecks,evidencePhotoHashes(row,a),50));
+}
 type PhotoRole='overview'|'detail'|'unspecified';
 type PhotoInput={source:'camera-dialog'|'file-picker';recordedAt:string;sha256:string};
 type PhotoEdit={originalFile:File;originalSha256:string;derivedSha256:string;rotationDegrees:90|180|270;processedAt:string};
@@ -113,7 +152,7 @@ function fieldContextLabel(context:FieldContext):string{
 }
 type AfterHistory={photo:File;sha256:string;replacedAt:string};
 type ContextHistory={photo:File;sha256:string;role:'overview'|'detail';replacedAt:string};
-type LocalRecord={photoEdits?:PhotoEdits;photoInputs?:PhotoInputs;siteContextHistory?:SiteContextChange[];siteContext?:FieldContext;primaryHistory?:AfterHistory[];afterHistory?:AfterHistory[];contextHistory?:ContextHistory[];contextDetached?:boolean;contextFirst?:boolean;photoRole?:PhotoRole;contextPhoto?:File;contextSha256?:string;contextRole?:'overview'|'detail';additionalActions?:AdditionalAction[];afterPhoto?:File;afterSha256?:string;followup?:Followup;id:string;createdAt:string;note:string;action:string;photo:File;sha256:string|null;legalVersion:string;reviewedAt:string};
+type LocalRecord={rechecks?:Recheck[];photoEdits?:PhotoEdits;photoInputs?:PhotoInputs;siteContextHistory?:SiteContextChange[];siteContext?:FieldContext;primaryHistory?:AfterHistory[];afterHistory?:AfterHistory[];contextHistory?:ContextHistory[];contextDetached?:boolean;contextFirst?:boolean;photoRole?:PhotoRole;contextPhoto?:File;contextSha256?:string;contextRole?:'overview'|'detail';additionalActions?:AdditionalAction[];afterPhoto?:File;afterSha256?:string;followup?:Followup;id:string;createdAt:string;note:string;action:string;photo:File;sha256:string|null;legalVersion:string;reviewedAt:string};
 type PhotoSetDraft={id:string;kind:'photo-set-draft';revision:string;photos:File[];sources?:PhotoInput[];edits?:PhotoEdits};
 const DB='psi-inspector-local-records', STORE='records', DRAFT_KEY='psi-photo-set-draft-v1';
 function openRecords():Promise<IDBDatabase>{
