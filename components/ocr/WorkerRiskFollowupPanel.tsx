@@ -5,6 +5,7 @@ import {
     collectWorkerRiskFollowupCases,
     FOLLOWUP_STATUS_LABELS,
     getWorkerRiskFollowupSummary,
+    getSeoulFollowupDay,
     MAX_FOLLOWUP_PHOTO_DATA_URL_LENGTH,
 } from '../../utils/workerRiskFollowup';
 
@@ -14,7 +15,7 @@ interface WorkerRiskFollowupPanelProps {
     hasPendingEdits?: boolean;
 }
 
-const DATE_TODAY = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+const DATE_TODAY = getSeoulFollowupDay;
 const uniqueId = () => typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
     : 'risk-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
