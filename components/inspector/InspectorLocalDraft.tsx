@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import InspectorCameraDialog from './InspectorCameraDialog';
+import InspectorCameraDialog, {type CameraEditEvidence} from './InspectorCameraDialog';
 import {legalForText} from '../../lib/inspector/legal';
 import {sourceReviewState} from '../../lib/inspector/sourceReview';
 import {FOLLOWUP_STATES, FOLLOWUP_LABELS, validateFollowup, validateAdditionalActions, overdue} from '../../lib/inspector/localFollowup.mjs';
@@ -8,6 +8,46 @@ type Followup={status:string;assignee:string;dueDate:string;temporaryMeasure?:st
 type AdditionalAction={id:string;title:string;followup?:Followup;photo?:File;photoSha256?:string;photoHistory?:AfterHistory[]};
 type PhotoRole='overview'|'detail'|'unspecified';
 type PhotoInput={source:'camera-dialog'|'file-picker';recordedAt:string;sha256:string};
+type PhotoEdit={originalFile:File;originalSha256:string;derivedSha256:string;rotationDegrees:90|180|270;processedAt:string};
+type PhotoEdits=Record<string,PhotoEdit>;
+function photoSlotHashes(row:LocalRecord):Record<string,string>{
+ const out:Record<string,string>={};
+ const add=(key:string,now:string|null|undefined,history:{sha256:string}[])=>{
+  history.forEach((item,i)=>{out[key+':'+i]=item.sha256;});
+  if(now)out[key+':'+history.length]=now;
+ };
+ add('primary',row.sha256,row.primaryHistory||[]);
+ add('context',row.contextSha256,row.contextHistory||[]);
+ add('after',row.afterSha256,row.afterHistory||[]);
+ (row.additionalActions||[]).forEach(item=>add('action:'+item.id,item.photoSha256,item.photoHistory||[]));
+ return out;
+}
+function validPhotoEdits(value:unknown,row:LocalRecord):value is PhotoEdits{
+ if(!value||typeof value!=='object'||Array.isArray(value))return false;
+ const items=value as Record<string,unknown>,hashes=photoSlotHashes(row);
+ if(!Object.keys(items).length||Object.keys(items).length>70)return false;
+ return Object.entries(items).every(([slot,item])=>{
+  if(!Object.hasOwn(hashes,slot)||!row.photoInputs||row.photoInputs[slot]?.source!=='camera-dialog'||!item||typeof item!=='object'||Array.isArray(item))return false;
+  const e=item as Record<string,unknown>;
+  return Object.keys(e).length===5&&['originalFile','originalSha256','derivedSha256','rotationDegrees','processedAt'].every(k=>Object.hasOwn(e,k))
+   &&e.originalFile instanceof File&&e.originalFile.size>0&&e.originalFile.size<=20*1024*1024
+   &&['image/jpeg','image/png','image/webp'].includes(e.originalFile.type)&&e.originalFile.name.length<=255
+   &&typeof e.originalSha256==='string'&&/^[a-f0-9]{64}$/.test(e.originalSha256)
+   &&e.derivedSha256===hashes[slot]&&e.derivedSha256===row.photoInputs[slot].sha256
+   &&[90,180,270].includes(e.rotationDegrees as number)
+   &&typeof e.processedAt==='string'&&Number.isFinite(Date.parse(e.processedAt));
+ });
+}
+async function makePhotoEdit(derived:File,evidence?:CameraEditEvidence):Promise<PhotoEdit|undefined>{
+ if(!evidence)return undefined;
+ if(![90,180,270].includes(evidence.rotationDegrees))throw new Error('사진 회전 기록이 올바르지 않습니다.');
+ const originalIssue=backupIssue(evidence.initialFile);
+ if(originalIssue)throw new Error('편집 전 사진: '+originalIssue);
+ const originalSha256=await hash(evidence.initialFile),derivedSha256=await hash(derived);
+ if(!originalSha256||!derivedSha256)throw new Error('사진 원본과 회전본의 비교값을 확인할 수 없습니다.');
+ return {originalFile:evidence.initialFile,originalSha256,derivedSha256,rotationDegrees:evidence.rotationDegrees,processedAt:evidence.recordedAt};
+}
+
 type PhotoInputs=Record<string,PhotoInput>;
 const photoInputLabel=(input:PhotoInput|undefined)=>input?.source==='camera-dialog'?'앱 카메라 촬영 화면':input?.source==='file-picker'?'기기 파일 선택 경로':'출처 미확인 (이전 기록 포함)';
 const photoInput=(source:PhotoInput['source'],sha256:string):PhotoInput=>({source,sha256,recordedAt:new Date().toISOString()});
@@ -68,8 +108,8 @@ function fieldContextLabel(context:FieldContext):string{
 }
 type AfterHistory={photo:File;sha256:string;replacedAt:string};
 type ContextHistory={photo:File;sha256:string;role:'overview'|'detail';replacedAt:string};
-type LocalRecord={photoInputs?:PhotoInputs;siteContextHistory?:SiteContextChange[];siteContext?:FieldContext;primaryHistory?:AfterHistory[];afterHistory?:AfterHistory[];contextHistory?:ContextHistory[];contextDetached?:boolean;contextFirst?:boolean;photoRole?:PhotoRole;contextPhoto?:File;contextSha256?:string;contextRole?:'overview'|'detail';additionalActions?:AdditionalAction[];afterPhoto?:File;afterSha256?:string;followup?:Followup;id:string;createdAt:string;note:string;action:string;photo:File;sha256:string|null;legalVersion:string;reviewedAt:string};
-type PhotoSetDraft={id:string;kind:'photo-set-draft';revision:string;photos:File[];sources?:PhotoInput[]};
+type LocalRecord={photoEdits?:PhotoEdits;photoInputs?:PhotoInputs;siteContextHistory?:SiteContextChange[];siteContext?:FieldContext;primaryHistory?:AfterHistory[];afterHistory?:AfterHistory[];contextHistory?:ContextHistory[];contextDetached?:boolean;contextFirst?:boolean;photoRole?:PhotoRole;contextPhoto?:File;contextSha256?:string;contextRole?:'overview'|'detail';additionalActions?:AdditionalAction[];afterPhoto?:File;afterSha256?:string;followup?:Followup;id:string;createdAt:string;note:string;action:string;photo:File;sha256:string|null;legalVersion:string;reviewedAt:string};
+type PhotoSetDraft={id:string;kind:'photo-set-draft';revision:string;photos:File[];sources?:PhotoInput[];edits?:PhotoEdits};
 const DB='psi-inspector-local-records', STORE='records', DRAFT_KEY='psi-photo-set-draft-v1';
 function openRecords():Promise<IDBDatabase>{
  return new Promise((resolve,reject)=>{
