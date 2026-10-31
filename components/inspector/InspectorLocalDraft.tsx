@@ -264,6 +264,9 @@ async function packRecord(row:LocalRecord):Promise<Blob>{
    photoEditsData[slot]={name:entry.originalFile.name,type:entry.originalFile.type,originalSha256:entry.originalSha256,derivedSha256:entry.derivedSha256,rotationDegrees:entry.rotationDegrees,processedAt:entry.processedAt,data:await toData(entry.originalFile)};
   }
  }
+ if(hasRechecks(row)&&!validateRecheckPayload(row))throw new Error('재점검 이력과 연결된 사진 정보가 일치하지 않아 백업을 중단했습니다.');
+ const recheckSha256=hasRechecks(row)?await hash(new File([JSON.stringify(recheckPayload(row))],'recheck-history.json',{type:'application/json'})):undefined;
+ if(hasRechecks(row)&&!recheckSha256)throw new Error('재점검 이력의 비교값을 만들 수 없어 백업하지 못했습니다.');
  if(row.photoEdits&&!validPhotoEdits(row.photoEdits,row))throw new Error('편집 전·회전본 사진 연결 정보가 올바르지 않아 백업을 중단했습니다.');
  if(row.photoInputs&&!validPhotoInputs(row.photoInputs,row))throw new Error('사진 입력 출처 기록과 파일 버전이 일치하지 않아 백업하지 못했습니다.');
  const photoInputsSha256=row.photoInputs?await hash(new File([JSON.stringify(row.photoInputs)],'photo-inputs.json',{type:'application/json'})):undefined;
@@ -332,13 +335,14 @@ async function packRecord(row:LocalRecord):Promise<Blob>{
  }));
  if((typeof row.contextFirst==='boolean'||typeof row.contextDetached==='boolean')&&!row.contextPhoto)throw new Error('사진 순서를 확인할 수 없어 백업하지 못했습니다.');
  const photoSet=!!row.contextPhoto||!!row.photoRole&&row.photoRole!=='unspecified';
- return new Blob([JSON.stringify({format:'psi-local-inspection',version:row.photoEdits?16:row.photoInputs?15:siteContextHistory?14:row.siteContext?13:primaryHistory.length?12:actionHistory.length?11:afterHistory.length?10:history.length?9:typeof row.contextDetached==='boolean'?8:typeof row.contextFirst==='boolean'?7:photoSet?6:actionPhotos.length?5:row.additionalActions?.length?4:row.afterPhoto?3:row.followup?2:1,record:{primaryHistory:primaryHistory.length?primaryHistoryData:undefined,afterHistory:afterHistory.length?afterHistoryData:undefined,contextHistory:history.length?historyData:undefined,contextDetached:row.contextDetached,contextFirst:row.contextFirst,photoRole:photoSet||!!row.photoInputs||!!row.siteContext||!!siteContextHistory||afterHistory.length||actionHistory.length||primaryHistory.length?(row.photoRole||'unspecified'):undefined,contextPhoto:contextPhotoData,additionalActions:photoSet||!!row.photoInputs||!!row.siteContext||!!siteContextHistory||afterHistory.length||actionHistory.length||primaryHistory.length?actionsForBackup:row.additionalActions?.length?actionsForBackup:undefined,afterPhoto:afterPhotoData,followup:row.followup,siteContext:siteContextValue,siteContextSha256,siteContextHistory,siteContextHistorySha256,photoInputs:row.photoInputs,photoInputsSha256,photoEdits:photoEditsData,id:row.id,createdAt:row.createdAt,note:row.note,action:row.action,legalVersion:row.legalVersion,reviewedAt:row.reviewedAt,photoName:row.photo.name||'PSI-photo',photoType:row.photo.type,sha256:digest,photoData:dataUrl}})],{type:'application/json'});
+ return new Blob([JSON.stringify({format:'psi-local-inspection',version:hasRechecks(row)?17:row.photoEdits?16:row.photoInputs?15:siteContextHistory?14:row.siteContext?13:primaryHistory.length?12:actionHistory.length?11:afterHistory.length?10:history.length?9:typeof row.contextDetached==='boolean'?8:typeof row.contextFirst==='boolean'?7:photoSet?6:actionPhotos.length?5:row.additionalActions?.length?4:row.afterPhoto?3:row.followup?2:1,record:{primaryHistory:primaryHistory.length?primaryHistoryData:undefined,afterHistory:afterHistory.length?afterHistoryData:undefined,contextHistory:history.length?historyData:undefined,contextDetached:row.contextDetached,contextFirst:row.contextFirst,photoRole:photoSet||hasRechecks(row)||!!row.photoInputs||!!row.siteContext||!!siteContextHistory||afterHistory.length||actionHistory.length||primaryHistory.length?(row.photoRole||'unspecified'):undefined,contextPhoto:contextPhotoData,additionalActions:photoSet||hasRechecks(row)||!!row.photoInputs||!!row.siteContext||!!siteContextHistory||afterHistory.length||actionHistory.length||primaryHistory.length?actionsForBackup:row.additionalActions?.length?actionsForBackup:undefined,afterPhoto:afterPhotoData,followup:row.followup,siteContext:siteContextValue,siteContextSha256,siteContextHistory,siteContextHistorySha256,photoInputs:row.photoInputs,photoInputsSha256,photoEdits:photoEditsData,rechecks:row.rechecks,recheckSha256,id:row.id,createdAt:row.createdAt,note:row.note,action:row.action,legalVersion:row.legalVersion,reviewedAt:row.reviewedAt,photoName:row.photo.name||'PSI-photo',photoType:row.photo.type,sha256:digest,photoData:dataUrl}})],{type:'application/json'});
 }
 async function unpackRecord(file:File):Promise<LocalRecord>{
  if(file.size>Math.ceil(BACKUP_LIMIT*11.2)+25000000)throw new Error('백업 파일이 허용 크기를 초과합니다.');
  let data:any;try{data=JSON.parse(await file.text());}catch{throw new Error('백업 파일을 읽을 수 없습니다.');}
  const r=data?.record;
- if(data?.format!=='psi-local-inspection'||![1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16].includes(data?.version)||!r||typeof r!=='object'||!/^[-a-f0-9]{36}$/i.test(r.id)||typeof r.createdAt!=='string'||!Number.isFinite(Date.parse(r.createdAt))||typeof r.note!=='string'||!r.note.trim()||r.note.length>4000||typeof r.action!=='string'||r.action.length>4000||typeof r.legalVersion!=='string'||r.legalVersion.length>200||typeof r.reviewedAt!=='string'||r.reviewedAt.length>50||typeof r.photoName!=='string'||r.photoName.length>255||!['image/jpeg','image/png','image/webp'].includes(r.photoType)||!/^[a-f0-9]{64}$/.test(r.sha256)||typeof r.photoData!=='string'||r.photoData.length>Math.ceil(BACKUP_LIMIT*4/3)+8||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(r.photoData))throw new Error('지원하지 않거나 손상된 백업 파일입니다.');
+ if(data?.format!=='psi-local-inspection'||![1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17].includes(data?.version)||!r||typeof r!=='object'||!/^[-a-f0-9]{36}$/i.test(r.id)||typeof r.createdAt!=='string'||!Number.isFinite(Date.parse(r.createdAt))||typeof r.note!=='string'||!r.note.trim()||r.note.length>4000||typeof r.action!=='string'||r.action.length>4000||typeof r.legalVersion!=='string'||r.legalVersion.length>200||typeof r.reviewedAt!=='string'||r.reviewedAt.length>50||typeof r.photoName!=='string'||r.photoName.length>255||!['image/jpeg','image/png','image/webp'].includes(r.photoType)||!/^[a-f0-9]{64}$/.test(r.sha256)||typeof r.photoData!=='string'||r.photoData.length>Math.ceil(BACKUP_LIMIT*4/3)+8||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(r.photoData))throw new Error('지원하지 않거나 손상된 백업 파일입니다.');
+ if(data.version<17&&(r.rechecks!==undefined||r.recheckSha256!==undefined||(r.additionalActions||[]).some((a:AdditionalAction)=>a.rechecks!==undefined)))throw new Error('이전 백업 형식에 재점검 이력이 포함되어 있습니다.');
  if(data.version<16&&r.photoEdits!==undefined)throw new Error('이전 백업에 예상하지 않은 편집 전 사진이 포함됐습니다.');
  if(data.version<15&&(r.photoInputs!==undefined||r.photoInputsSha256!==undefined))throw new Error('이전 백업 형식에 사진 출처 기록이 포함되어 있습니다.');
  if(data.version<13&&(r.siteContext!==undefined||r.siteContextSha256!==undefined||r.siteContextHistory!==undefined||r.siteContextHistorySha256!==undefined))throw new Error('이전 백업 형식에 예상하지 않은 현장정보가 포함됐습니다.');
@@ -464,13 +468,13 @@ async function unpackRecord(file:File):Promise<LocalRecord>{
   }
  }
  const restored:LocalRecord={siteContext,siteContextHistory,primaryHistory:primaryHistory.length?primaryHistory:undefined,afterHistory:afterHistory.length?afterHistory:undefined,contextHistory:contextHistory.length?contextHistory:undefined,contextDetached:data.version>=8?r.contextDetached:undefined,contextFirst:data.version>=7?r.contextFirst:undefined,photoRole:data.version>=6?r.photoRole:undefined,contextPhoto,contextSha256,contextRole,additionalActions,afterPhoto,afterSha256,followup:data.version>=2?r.followup:undefined,id:r.id,createdAt:r.createdAt,note:r.note,action:r.action,legalVersion:r.legalVersion,reviewedAt:r.reviewedAt,photo,sha256:r.sha256};
- if(data.version>=15){
+ if(data.version===15||data.version===16||data.version===17&&r.photoInputs!==undefined){
   if(!validPhotoInputs(r.photoInputs,restored)||typeof r.photoInputsSha256!=='string'||!/^[0-9a-f]{64}$/.test(r.photoInputsSha256))throw new Error('사진 출처 기록이 손상되어 복원하지 못했습니다.');
   const digest=await hash(new File([JSON.stringify(r.photoInputs)],'photo-inputs.json',{type:'application/json'}));
   if(!digest||digest!==r.photoInputsSha256)throw new Error('사진 출처 기록 비교값이 일치하지 않아 복원을 중단했습니다.');
   restored.photoInputs=r.photoInputs as PhotoInputs;
  }
- if(data.version===16){
+ if(data.version===16||data.version===17&&r.photoEdits!==undefined){
   if(!r.photoEdits||typeof r.photoEdits!=='object'||Array.isArray(r.photoEdits)||!Object.keys(r.photoEdits).length||Object.keys(r.photoEdits).length>70)throw new Error('편집 전 사진 이력이 손상됐습니다.');
   let totalOriginalBytes=0;
   const parsedEdits:PhotoEdits={};
@@ -484,6 +488,12 @@ async function unpackRecord(file:File):Promise<LocalRecord>{
   }
   if(!validPhotoEdits(parsedEdits,restored))throw new Error('편집 전 사진과 회전본의 연결 정보를 확인할 수 없어 복원을 중단했습니다.');
   restored.photoEdits=parsedEdits;
+ }
+ if(data.version===17){
+  restored.rechecks=r.rechecks;
+  if(!hasRechecks(restored)||!validateRecheckPayload(restored)||typeof r.recheckSha256!=='string'||!/^[a-f0-9]{64}$/.test(r.recheckSha256))throw new Error('재점검 이력이나 사진 연결 정보가 손상되어 복원하지 못했습니다.');
+  const digest=await hash(new File([JSON.stringify(recheckPayload(restored))],'recheck-history.json',{type:'application/json'}));
+  if(!digest||digest!==r.recheckSha256)throw new Error('재점검 이력의 비교값이 일치하지 않아 복원을 중단했습니다.');
  }
  return restored;
 }
