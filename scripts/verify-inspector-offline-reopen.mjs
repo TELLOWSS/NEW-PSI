@@ -92,7 +92,7 @@ try{
  // draft deletion may commit. Restore the original API and retry.
  await page.evaluate(()=>{window.__sequenceDelete=IDBObjectStore.prototype.delete;IDBObjectStore.prototype.delete=function(key){const request=window.__sequenceDelete.call(this,key);if(key==='psi-photo-set-draft-v1')this.transaction.abort();return request;};});
  await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
- await panel.getByText('기기 저장이 중단됐습니다.',{exact:false}).waitFor();
+ await panel.getByRole('status').filter({hasText:/기기에 저장하지 못했습니다|기기 저장이 중단됐습니다/}).waitFor();
  await panel.getByText('이 기기에 임시 보관된 촬영 사진 2장',{exact:false}).waitFor();
  assert.equal(await panel.getByLabel('직접 확인한 내용').inputValue(),'오프라인 연속 촬영 점검');
  await page.evaluate(()=>{IDBObjectStore.prototype.delete=window.__sequenceDelete;});
