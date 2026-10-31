@@ -52,7 +52,7 @@ try{
  await actions.getByRole('heading',{name:'합성 개구부 덮개 고정'}).waitFor();
  await actions.getByLabel('추가할 조치 내용').fill('합성 출입 통제');
  await actions.getByRole('button',{name:'조치 항목 추가'}).click();
- const firstAction=actions.locator('div').filter({has:actions.getByRole('heading',{name:'합성 개구부 덮개 고정'})}).first();
+ const firstAction=actions.locator('div').filter({hasText:'합성 개구부 덮개 고정'}).first();
  await firstAction.getByRole('button',{name:'후속 조치 기록'}).click();
  await firstAction.getByLabel('조치 상태').selectOption('verified');
  await firstAction.getByLabel('진행·확인 내용').fill('현장 재확인 완료');
