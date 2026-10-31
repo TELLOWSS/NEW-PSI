@@ -416,6 +416,54 @@ try{
  await health.getByRole('button',{name:'브라우저 저장 유지 요청'}).click();
  await health.getByText('이 브라우저에서는 저장 유지 요청을 지원하지 않습니다.',{exact:false}).waitFor();
  await reopened.getByText('이 브라우저에 보관된 점검 3건').waitFor();
+ // F07: user-supplied site/building/floor/trade stay attached to the same
+ // inspection, including a later corrective photo and v13 backup/restore.
+ await panel.getByLabel('현장명').fill('용인 합성 현장');
+ await panel.getByLabel('동',{exact:true}).fill('2003동');
+ await panel.getByLabel('층',{exact:true}).fill('23F 옥탑');
+ await panel.getByLabel('점검 현장 공종').fill('갱폼 해체');
+ await panel.getByLabel('기기 점검 사진 선택').setInputFiles({name:'f07-before.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a8sAAAAASUVORK5CYII=','base64')});
+ await panel.getByLabel('직접 확인한 내용').fill('F07 합성 현장정보 점검');
+ await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
+ await panel.getByText('이 브라우저에 보관된 점검 4건').waitFor();
+ const f07Row=panel.locator('article').filter({hasText:'F07 합성 현장정보 점검'});
+ await f07Row.getByText('점검 현장정보: 현장 용인 합성 현장 · 동 2003동 · 층 23F 옥탑 · 공종 갱폼 해체',{exact:false}).waitFor();
+ assert.equal(await panel.getByLabel('현장명').inputValue(),'','successful save must reset metadata input');
+ assert.equal(await panel.getByLabel('동',{exact:true}).inputValue(),'');
+ await f07Row.getByLabel('조치 후 사진 연결').setInputFiles({name:'f07-after.png',mimeType:'image/png',buffer:Buffer.from('synthetic after evidence')});
+ await f07Row.getByText('조치 후 사진: f07-after.png').waitFor();
+ const f07Download=page.waitForEvent('download');await f07Row.getByRole('button',{name:'사진과 기록 함께 백업'}).click();
+ const f07Bytes=await readFile(await (await f07Download).path()),f07=JSON.parse(f07Bytes.toString());
+ assert.equal(f07.version,13);
+ assert.deepEqual(f07.record.siteContext,{site:'용인 합성 현장',building:'2003동',level:'23F 옥탑',trade:'갱폼 해체'});
+ assert.match(f07.record.siteContextSha256,/^[0-9a-f]{64}$/);
+ assert.equal(f07.record.afterPhoto.name,'f07-after.png');
+ const f07Tampered=JSON.parse(f07Bytes.toString());f07Tampered.record.siteContext.level='22F 옥탑';
+ await panel.getByLabel('백업 파일 복원').setInputFiles({name:'f07-bad-context.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(f07Tampered))});
+ await panel.getByText('현장정보 비교값이 일치하지 않아 복원을 중단했습니다.',{exact:false}).waitFor();
+ const f07Malformed=JSON.parse(f07Bytes.toString());f07Malformed.record.siteContext.trade='x'.repeat(61);
+ await panel.getByLabel('백업 파일 복원').setInputFiles({name:'f07-overlong.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(f07Malformed))});
+ await panel.getByText('현장정보가 손상되어 복원하지 못했습니다.',{exact:false}).waitFor();
+ // A legacy version must not silently accept a new-format context.
+ const f07Downgrade=JSON.parse(f07Bytes.toString());f07Downgrade.version=12;
+ await panel.getByLabel('백업 파일 복원').setInputFiles({name:'f07-forged-old.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(f07Downgrade))});
+ await panel.getByText('이전 백업 형식에 예상하지 않은 현장정보가 포함됐습니다.',{exact:false}).waitFor();
+ page.once('dialog',d=>d.accept());await f07Row.getByRole('button',{name:'이 기기 기록 삭제'}).click();
+ await panel.getByText('이 브라우저에 보관된 점검 3건').waitFor();
+ await panel.getByLabel('백업 파일 복원').setInputFiles({name:'f07-valid.json',mimeType:'application/json',buffer:f07Bytes});
+ await panel.getByText('이 브라우저에 보관된 점검 4건').waitFor();
+ const restoredF07=panel.locator('article').filter({hasText:'F07 합성 현장정보 점검'});
+ await restoredF07.getByText('점검 현장정보: 현장 용인 합성 현장 · 동 2003동 · 층 23F 옥탑 · 공종 갱폼 해체',{exact:false}).waitFor();
+ await restoredF07.getByText('조치 후 사진: f07-after.png').waitFor();
+ // F07 must also survive the F08 multi-record container, with no overwrite.
+ for(const check of await panel.getByLabel('묶음 백업에 선택').all())await check.uncheck();
+ await restoredF07.getByLabel('묶음 백업에 선택').check();
+ const f07BatchEvent=page.waitForEvent('download');
+ await panel.getByRole('button',{name:'선택 기록 묶음 백업 (1건)'}).click();
+ const f07Batch=JSON.parse((await readFile(await (await f07BatchEvent).path())).toString());
+ assert.equal(f07Batch.records.length,1);
+ assert.equal(f07Batch.records[0].version,13);
+ assert.deepEqual(f07Batch.records[0].record.siteContext,f07.record.siteContext);
  assert.deepEqual(requests,[],'offline local operations must not initiate HTTP requests');
  assert.deepEqual(errors,[]);
  console.log('PASS local camera, local save, rule lookup, export, quota failure and retry without HTTP requests');
