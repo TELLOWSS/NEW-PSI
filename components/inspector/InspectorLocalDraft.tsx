@@ -205,6 +205,18 @@ async function packRecord(row:LocalRecord):Promise<Blob>{
  if(row.sha256&&row.sha256!==digest)throw new Error('저장된 사진의 해시가 달라 백업을 중단했습니다. 사진을 별도로 확인하세요.');
  const toData=async(photo:File)=>new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>typeof reader.result==='string'?resolve(reader.result.split(',')[1]):reject(new Error('사진을 읽지 못했습니다.'));reader.onerror=()=>reject(reader.error);reader.readAsDataURL(photo);});
  const dataUrl=await toData(row.photo);
+ let photoEditsData:Record<string,unknown>|undefined;
+ if(row.photoEdits){
+  const edits=Object.entries(row.photoEdits);
+  if(edits.reduce((sum,[,entry])=>sum+entry.originalFile.size,0)>BACKUP_LIMIT)throw new Error('편집 전 사진 전체가 백업 한도 20MB를 초과합니다. 별도로 내려받거나 점검을 나눠 주세요.');
+  photoEditsData={};
+  for(const [slot,entry] of edits){
+   const originalIssue=backupIssue(entry.originalFile);if(originalIssue)throw new Error('편집 전 사진 '+originalIssue);
+   if(await hash(entry.originalFile)!==entry.originalSha256)throw new Error('편집 전 사진이 변경되어 백업을 중단했습니다.');
+   photoEditsData[slot]={name:entry.originalFile.name,type:entry.originalFile.type,originalSha256:entry.originalSha256,derivedSha256:entry.derivedSha256,rotationDegrees:entry.rotationDegrees,processedAt:entry.processedAt,data:await toData(entry.originalFile)};
+  }
+ }
+ if(row.photoEdits&&!validPhotoEdits(row.photoEdits,row))throw new Error('편집 전·회전본 사진 연결 정보가 올바르지 않아 백업을 중단했습니다.');
  if(row.photoInputs&&!validPhotoInputs(row.photoInputs,row))throw new Error('사진 입력 출처 기록과 파일 버전이 일치하지 않아 백업하지 못했습니다.');
  const photoInputsSha256=row.photoInputs?await hash(new File([JSON.stringify(row.photoInputs)],'photo-inputs.json',{type:'application/json'})):undefined;
  if(row.photoInputs&&!photoInputsSha256)throw new Error('사진 출처 기록의 무결성 정보를 만들지 못했습니다.');
@@ -272,17 +284,18 @@ async function packRecord(row:LocalRecord):Promise<Blob>{
  }));
  if((typeof row.contextFirst==='boolean'||typeof row.contextDetached==='boolean')&&!row.contextPhoto)throw new Error('사진 순서를 확인할 수 없어 백업하지 못했습니다.');
  const photoSet=!!row.contextPhoto||!!row.photoRole&&row.photoRole!=='unspecified';
- return new Blob([JSON.stringify({format:'psi-local-inspection',version:row.photoInputs?15:siteContextHistory?14:row.siteContext?13:primaryHistory.length?12:actionHistory.length?11:afterHistory.length?10:history.length?9:typeof row.contextDetached==='boolean'?8:typeof row.contextFirst==='boolean'?7:photoSet?6:actionPhotos.length?5:row.additionalActions?.length?4:row.afterPhoto?3:row.followup?2:1,record:{primaryHistory:primaryHistory.length?primaryHistoryData:undefined,afterHistory:afterHistory.length?afterHistoryData:undefined,contextHistory:history.length?historyData:undefined,contextDetached:row.contextDetached,contextFirst:row.contextFirst,photoRole:photoSet||!!row.photoInputs||!!row.siteContext||!!siteContextHistory||afterHistory.length||actionHistory.length||primaryHistory.length?(row.photoRole||'unspecified'):undefined,contextPhoto:contextPhotoData,additionalActions:photoSet||!!row.photoInputs||!!row.siteContext||!!siteContextHistory||afterHistory.length||actionHistory.length||primaryHistory.length?actionsForBackup:row.additionalActions?.length?actionsForBackup:undefined,afterPhoto:afterPhotoData,followup:row.followup,siteContext:siteContextValue,siteContextSha256,siteContextHistory,siteContextHistorySha256,photoInputs:row.photoInputs,photoInputsSha256,id:row.id,createdAt:row.createdAt,note:row.note,action:row.action,legalVersion:row.legalVersion,reviewedAt:row.reviewedAt,photoName:row.photo.name||'PSI-photo',photoType:row.photo.type,sha256:digest,photoData:dataUrl}})],{type:'application/json'});
+ return new Blob([JSON.stringify({format:'psi-local-inspection',version:row.photoEdits?16:row.photoInputs?15:siteContextHistory?14:row.siteContext?13:primaryHistory.length?12:actionHistory.length?11:afterHistory.length?10:history.length?9:typeof row.contextDetached==='boolean'?8:typeof row.contextFirst==='boolean'?7:photoSet?6:actionPhotos.length?5:row.additionalActions?.length?4:row.afterPhoto?3:row.followup?2:1,record:{primaryHistory:primaryHistory.length?primaryHistoryData:undefined,afterHistory:afterHistory.length?afterHistoryData:undefined,contextHistory:history.length?historyData:undefined,contextDetached:row.contextDetached,contextFirst:row.contextFirst,photoRole:photoSet||!!row.photoInputs||!!row.siteContext||!!siteContextHistory||afterHistory.length||actionHistory.length||primaryHistory.length?(row.photoRole||'unspecified'):undefined,contextPhoto:contextPhotoData,additionalActions:photoSet||!!row.photoInputs||!!row.siteContext||!!siteContextHistory||afterHistory.length||actionHistory.length||primaryHistory.length?actionsForBackup:row.additionalActions?.length?actionsForBackup:undefined,afterPhoto:afterPhotoData,followup:row.followup,siteContext:siteContextValue,siteContextSha256,siteContextHistory,siteContextHistorySha256,photoInputs:row.photoInputs,photoInputsSha256,photoEdits:photoEditsData,id:row.id,createdAt:row.createdAt,note:row.note,action:row.action,legalVersion:row.legalVersion,reviewedAt:row.reviewedAt,photoName:row.photo.name||'PSI-photo',photoType:row.photo.type,sha256:digest,photoData:dataUrl}})],{type:'application/json'});
 }
 async function unpackRecord(file:File):Promise<LocalRecord>{
  if(file.size>Math.ceil(BACKUP_LIMIT*11.2)+25000000)throw new Error('백업 파일이 허용 크기를 초과합니다.');
  let data:any;try{data=JSON.parse(await file.text());}catch{throw new Error('백업 파일을 읽을 수 없습니다.');}
  const r=data?.record;
- if(data?.format!=='psi-local-inspection'||![1,2,3,4,5,6,7,8,9,10,11,12,13,14,15].includes(data?.version)||!r||typeof r!=='object'||!/^[-a-f0-9]{36}$/i.test(r.id)||typeof r.createdAt!=='string'||!Number.isFinite(Date.parse(r.createdAt))||typeof r.note!=='string'||!r.note.trim()||r.note.length>4000||typeof r.action!=='string'||r.action.length>4000||typeof r.legalVersion!=='string'||r.legalVersion.length>200||typeof r.reviewedAt!=='string'||r.reviewedAt.length>50||typeof r.photoName!=='string'||r.photoName.length>255||!['image/jpeg','image/png','image/webp'].includes(r.photoType)||!/^[a-f0-9]{64}$/.test(r.sha256)||typeof r.photoData!=='string'||r.photoData.length>Math.ceil(BACKUP_LIMIT*4/3)+8||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(r.photoData))throw new Error('지원하지 않거나 손상된 백업 파일입니다.');
+ if(data?.format!=='psi-local-inspection'||![1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16].includes(data?.version)||!r||typeof r!=='object'||!/^[-a-f0-9]{36}$/i.test(r.id)||typeof r.createdAt!=='string'||!Number.isFinite(Date.parse(r.createdAt))||typeof r.note!=='string'||!r.note.trim()||r.note.length>4000||typeof r.action!=='string'||r.action.length>4000||typeof r.legalVersion!=='string'||r.legalVersion.length>200||typeof r.reviewedAt!=='string'||r.reviewedAt.length>50||typeof r.photoName!=='string'||r.photoName.length>255||!['image/jpeg','image/png','image/webp'].includes(r.photoType)||!/^[a-f0-9]{64}$/.test(r.sha256)||typeof r.photoData!=='string'||r.photoData.length>Math.ceil(BACKUP_LIMIT*4/3)+8||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(r.photoData))throw new Error('지원하지 않거나 손상된 백업 파일입니다.');
+ if(data.version<16&&r.photoEdits!==undefined)throw new Error('이전 백업에 예상하지 않은 편집 전 사진이 포함됐습니다.');
  if(data.version<15&&(r.photoInputs!==undefined||r.photoInputsSha256!==undefined))throw new Error('이전 백업 형식에 사진 출처 기록이 포함되어 있습니다.');
  if(data.version<13&&(r.siteContext!==undefined||r.siteContextSha256!==undefined||r.siteContextHistory!==undefined||r.siteContextHistorySha256!==undefined))throw new Error('이전 백업 형식에 예상하지 않은 현장정보가 포함됐습니다.');
  let siteContext:FieldContext|undefined;
- if(data.version===13||data.version===14||data.version===15&&r.siteContext!==undefined){
+ if(data.version===13||data.version===14||data.version>=15&&r.siteContext!==undefined){
   if((data.version===13||r.siteContext!==null)&&!validFieldContext(r.siteContext)||typeof r.siteContextSha256!=='string'||!/^[a-f0-9]{64}$/.test(r.siteContextSha256))throw new Error('현장정보가 손상되어 복원하지 못했습니다.');
   const canonical:FieldContext|null=r.siteContext===null?null:{site:r.siteContext.site,building:r.siteContext.building,level:r.siteContext.level,trade:r.siteContext.trade};
   const digest=await hash(new File([JSON.stringify(canonical)],'site-context.json',{type:'application/json'}));
@@ -291,7 +304,7 @@ async function unpackRecord(file:File):Promise<LocalRecord>{
  }
  let siteContextHistory:SiteContextChange[]|undefined;
  if(data.version===13&&(r.siteContextHistory!==undefined||r.siteContextHistorySha256!==undefined))throw new Error('이전 백업 형식에 변경 이력이 포함되어 있습니다.');
- if(data.version===14||data.version===15&&r.siteContextHistory!==undefined){
+ if(data.version===14||data.version>=15&&r.siteContextHistory!==undefined){
   if(!validSiteContextHistory(r.siteContextHistory,siteContext||null)||typeof r.siteContextHistorySha256!=='string'||!/^[a-f0-9]{64}$/.test(r.siteContextHistorySha256))throw new Error('현장정보 변경 이력이 손상되어 복원을 중단했습니다.');
   const digest=await hash(new File([JSON.stringify(r.siteContextHistory)],'site-context-history.json',{type:'application/json'}));
   if(!digest||digest!==r.siteContextHistorySha256)throw new Error('현장정보 변경 이력 비교값이 일치하지 않아 복원을 중단했습니다.');
@@ -403,11 +416,26 @@ async function unpackRecord(file:File):Promise<LocalRecord>{
   }
  }
  const restored:LocalRecord={siteContext,siteContextHistory,primaryHistory:primaryHistory.length?primaryHistory:undefined,afterHistory:afterHistory.length?afterHistory:undefined,contextHistory:contextHistory.length?contextHistory:undefined,contextDetached:data.version>=8?r.contextDetached:undefined,contextFirst:data.version>=7?r.contextFirst:undefined,photoRole:data.version>=6?r.photoRole:undefined,contextPhoto,contextSha256,contextRole,additionalActions,afterPhoto,afterSha256,followup:data.version>=2?r.followup:undefined,id:r.id,createdAt:r.createdAt,note:r.note,action:r.action,legalVersion:r.legalVersion,reviewedAt:r.reviewedAt,photo,sha256:r.sha256};
- if(data.version===15){
+ if(data.version>=15){
   if(!validPhotoInputs(r.photoInputs,restored)||typeof r.photoInputsSha256!=='string'||!/^[0-9a-f]{64}$/.test(r.photoInputsSha256))throw new Error('사진 출처 기록이 손상되어 복원하지 못했습니다.');
   const digest=await hash(new File([JSON.stringify(r.photoInputs)],'photo-inputs.json',{type:'application/json'}));
   if(!digest||digest!==r.photoInputsSha256)throw new Error('사진 출처 기록 비교값이 일치하지 않아 복원을 중단했습니다.');
   restored.photoInputs=r.photoInputs as PhotoInputs;
+ }
+ if(data.version===16){
+  if(!r.photoEdits||typeof r.photoEdits!=='object'||Array.isArray(r.photoEdits)||!Object.keys(r.photoEdits).length||Object.keys(r.photoEdits).length>70)throw new Error('편집 전 사진 이력이 손상됐습니다.');
+  let totalOriginalBytes=0;
+  const parsedEdits:PhotoEdits={};
+  for(const [slot,entry] of Object.entries(r.photoEdits as Record<string,any>)){
+   if(!entry||typeof entry!=='object'||Array.isArray(entry)||Object.keys(entry).length!==7||typeof entry.name!=='string'||entry.name.length>255||!['image/jpeg','image/png','image/webp'].includes(entry.type)||typeof entry.originalSha256!=='string'||!/^[a-f0-9]{64}$/.test(entry.originalSha256)||typeof entry.derivedSha256!=='string'||!/^[a-f0-9]{64}$/.test(entry.derivedSha256)||![90,180,270].includes(entry.rotationDegrees)||typeof entry.processedAt!=='string'||!Number.isFinite(Date.parse(entry.processedAt))||typeof entry.data!=='string'||entry.data.length>Math.ceil(BACKUP_LIMIT*4/3)+8||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(entry.data))throw new Error('편집 전 사진 백업이 손상됐습니다.');
+   let bytes:string;try{bytes=atob(entry.data);}catch{throw new Error('편집 전 사진을 읽을 수 없습니다.');}
+   totalOriginalBytes+=bytes.length;if(!bytes.length||totalOriginalBytes>BACKUP_LIMIT)throw new Error('편집 전 사진 백업 크기가 허용 범위를 초과합니다.');
+   const originalFile=new File([Uint8Array.from(bytes,ch=>ch.charCodeAt(0))],entry.name,{type:entry.type});
+   if(await hash(originalFile)!==entry.originalSha256)throw new Error('편집 전 사진의 SHA-256 비교값이 일치하지 않아 복원을 중단했습니다.');
+   parsedEdits[slot]={originalFile,originalSha256:entry.originalSha256,derivedSha256:entry.derivedSha256,rotationDegrees:entry.rotationDegrees,processedAt:entry.processedAt};
+  }
+  if(!validPhotoEdits(parsedEdits,restored))throw new Error('편집 전 사진과 회전본의 연결 정보를 확인할 수 없어 복원을 중단했습니다.');
+  restored.photoEdits=parsedEdits;
  }
  return restored;
 }
