@@ -4,7 +4,7 @@ import {legalForText} from '../../lib/inspector/legal';
 import {sourceReviewState} from '../../lib/inspector/sourceReview';
 import {FOLLOWUP_STATES, FOLLOWUP_LABELS, validateFollowup, validateAdditionalActions, overdue} from '../../lib/inspector/localFollowup.mjs';
 
-type Followup={status:string;assignee:string;dueDate:string;history:{status:string;assignee:string;dueDate:string;note:string;at:string}[]};
+type Followup={status:string;assignee:string;dueDate:string;temporaryMeasure?:string;history:{status:string;assignee:string;dueDate:string;temporaryMeasure?:string;note:string;at:string}[]};
 type AdditionalAction={id:string;title:string;followup?:Followup;photo?:File;photoSha256?:string;photoHistory?:AfterHistory[]};
 type PhotoRole='overview'|'detail'|'unspecified';
 type AfterHistory={photo:File;sha256:string;replacedAt:string};
@@ -226,23 +226,26 @@ async function unpackRecord(file:File):Promise<LocalRecord>{
 }
 function FollowupEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSave:(id:string,value:Followup)=>Promise<boolean>}){
  const current=row.followup;
- const [status,setStatus]=useState(current?.status||'pending'),[assignee,setAssignee]=useState(current?.assignee||''),[dueDate,setDueDate]=useState(current?.dueDate||''),[note,setNote]=useState('');
+ const [status,setStatus]=useState(current?.status||'pending'),[assignee,setAssignee]=useState(current?.assignee||''),[dueDate,setDueDate]=useState(current?.dueDate||''),[temporaryMeasure,setTemporaryMeasure]=useState(current?.temporaryMeasure||''),[note,setNote]=useState('');
  const [editing,setEditing]=useState(false);
  const save=async()=>{
   if(!note.trim())return;
-  const history=[...(current?.history||[]),{status,assignee:assignee.trim(),dueDate,note:note.trim(),at:new Date().toISOString()}];
-  const value={status,assignee:assignee.trim(),dueDate,history};
+  const measure=temporaryMeasure.trim();
+  const history=[...(current?.history||[]),{status,assignee:assignee.trim(),dueDate,temporaryMeasure:measure,note:note.trim(),at:new Date().toISOString()}];
+  const value={status,assignee:assignee.trim(),dueDate,temporaryMeasure:measure,history};
   if(await onSave(row.id,value)){setNote('');setEditing(false);}
  };
  return <section aria-label="후속 조치 관리"><p><strong>{current?FOLLOWUP_LABELS[current.status]:'상태 미기록'}</strong> · 담당: {current?.assignee||'미지정'} · 기한: {current?.dueDate||'미정'} {current&&overdue(current)?'· 기한 초과':''}</p>
+  <p>{current?.temporaryMeasure?'현재 기록된 임시 안전조치: '+current.temporaryMeasure:'임시 안전조치 미기록'} · 임시 안전조치 기록만으로 위험 제거 또는 최종 완료가 확인된 것은 아닙니다.</p>
   <p>기기에만 저장됩니다. 담당자에게 자동 전달되지 않으며, 조치 확인은 사람이 직접 합니다.</p>
   <button type="button" className="si-btn" disabled={busy} onClick={()=>setEditing(!editing)}>{editing?'닫기':'후속 조치 기록'}</button>
   {editing&&<div><label>조치 상태<select value={status} onChange={e=>setStatus(e.target.value)}>{FOLLOWUP_STATES.map(key=><option key={key} value={key}>{FOLLOWUP_LABELS[key]}</option>)}</select></label>
    <label>담당자<input value={assignee} maxLength={100} onChange={e=>setAssignee(e.target.value)} placeholder="미지정 가능"/></label>
    <label>목표 기한<input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/></label>
+   <label>임시 안전조치 (최종 완료와 별개)<textarea value={temporaryMeasure} maxLength={1000} onChange={e=>setTemporaryMeasure(e.target.value)} placeholder="예: 위험 구역 출입 통제·표지 설치. 미실시라면 비워 두세요."/></label>
    <label>진행·확인 내용<textarea value={note} maxLength={2000} onChange={e=>setNote(e.target.value)} placeholder="임시 조치, 진행 상황 또는 확인 내용을 입력"/></label>
    <button type="button" className="si-btn" disabled={busy||!note.trim()} onClick={()=>void save()}>후속 기록 저장</button></div>}
-  {!!current?.history.length&&<details><summary>조치 이력 {current.history.length}건</summary>{current.history.map((entry,i)=><p key={i}>{new Date(entry.at).toLocaleString('ko-KR')} · {FOLLOWUP_LABELS[entry.status]} · {entry.note} · 담당 {entry.assignee||'미지정'} · 기한 {entry.dueDate||'미정'}</p>)}</details>}
+  {!!current?.history.length&&<details><summary>조치 이력 {current.history.length}건</summary>{current.history.map((entry,i)=><p key={i}>{new Date(entry.at).toLocaleString('ko-KR')} · {FOLLOWUP_LABELS[entry.status]} · {entry.note} {entry.temporaryMeasure?'· 당시 임시 안전조치: '+entry.temporaryMeasure:''} · 담당 {entry.assignee||'미지정'} · 기한 {entry.dueDate||'미정'}</p>)}</details>}
  </section>;
 }
 function ActionItem({row,item,busy,onUpdate,onPhoto}:{key?:string;row:LocalRecord;item:AdditionalAction;busy:boolean;onUpdate:(row:LocalRecord,actions:AdditionalAction[])=>Promise<boolean>;onPhoto:(row:LocalRecord,item:AdditionalAction,file:File)=>Promise<boolean>}){
