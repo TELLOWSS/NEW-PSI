@@ -1,5 +1,6 @@
 import type { WorkerRecord } from '../types';
 import { buildMonthlyFieldFollowupSummary, formatMonthlyFollowupEducationLines } from './monthlyFieldFollowup';
+import { buildPracticeVerificationSummary, formatPracticeVerificationEducationLines } from './practiceVerification';
 import type { EducationPosterTranslationMap } from './educationPosterTranslation';
 
 export type TbmSourceKind = 'field-record' | 'document' | 'manual';
@@ -269,7 +270,7 @@ export const buildFieldRecordSource = (
     workerRecords: WorkerRecord[],
     workType: string,
     targetCycleLabel = '다음 달',
-    options?: { followupRecords?: WorkerRecord[]; asOfDate?: string; periodStartDate?: string },
+    options?: { followupRecords?: WorkerRecord[]; practiceRecords?: WorkerRecord[]; asOfDate?: string; periodStartDate?: string },
 ): TbmEvidenceSource | null => {
     const targetRecords = workType === '전체 공종'
         ? workerRecords
@@ -281,7 +282,15 @@ export const buildFieldRecordSource = (
             workType,
         })
         : null;
-    if (!targetRecords.length && !followup?.totalCases) return null;
+    const practice = options?.asOfDate && options.practiceRecords
+        ? buildPracticeVerificationSummary(options.practiceRecords, {
+            asOfDate: options.asOfDate,
+            periodStartDate: options.periodStartDate,
+            workType,
+        })
+        : null;
+    const practiceLines = practice ? formatPracticeVerificationEducationLines(practice) : [];
+    if (!targetRecords.length && !followup?.totalCases && !practiceLines.length) return null;
 
     const focusLines = collectFieldRecordFocusPoints(targetRecords);
     const followupLines = followup ? formatMonthlyFollowupEducationLines(followup) : [];
@@ -291,6 +300,7 @@ export const buildFieldRecordSource = (
         `상등급 공유 항목은 ${targetCycleLabel} 위험성평가 회의자료(PPT/PDF/문서)에 명시된 상등급에서만 추출합니다.`,
         ...(focusLines.length ? focusLines : ['반복 위험 또는 개선 요청이 확인되면 여기에 중점관리 포인트로 정리합니다.']),
         ...followupLines,
+        ...practiceLines,
     ];
 
     return {
@@ -377,7 +387,7 @@ export const buildTbmEducationDraft = (options: {
     const highGradeRiskNames = new Set(risks.map((item) => item.risk));
     const followupFocus = options.sources
         .filter(source => source.kind === 'field-record')
-        .flatMap(source => source.text.split('\n').filter(line => /^Q[1-5] 확인사항 ·/.test(line)))
+        .flatMap(source => source.text.split('\n').filter(line => /^Q[1-5] (?:확인사항|실천 확인 미해소) ·/.test(line)))
         .slice(0, 3);
     const focusPoints = [
         ...followupFocus,
@@ -472,6 +482,7 @@ export const buildTbmEducationDraft = (options: {
             ...(followupFocus.length ? [
                 '미완료 현장 조치의 담당자, 임시통제 방법, 재확인 기한은 무엇입니까?',
                 '작업 중 같은 위험이 다시 발견되면 누구에게 보고하고 어떻게 작업을 중지합니까?',
+                '교육 후 실제 작업에서 안전행동을 누가 어떤 근거로 확인했습니까?',
             ] : []),
         ],
         closingCommitment: '작업 조건이 교육 내용과 다르면 즉시 작업을 멈추고 관리자와 위험성평가를 다시 확인한다.',
