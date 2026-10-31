@@ -7,6 +7,7 @@ import { getSafetyLevelDisplayLabel, getSafetyLevelThresholds } from '../utils/s
 import { BrandPhilosophyLogo } from './shared/BrandPhilosophyLogo';
 import { WorkerInterpretationAppendix } from './report/WorkerInterpretationAppendix';
 import { WorkerRiskFollowupAppendix } from './report/WorkerRiskFollowupAppendix';
+import { WorkerPracticeVerificationAppendix } from './report/WorkerPracticeVerificationAppendix';
 import { NextActionChecklist } from './shared/NextActionChecklist';
 import { StatusBadge } from './shared/StatusBadge';
 import { PSI_APP_VERSION } from '../lib/appInfo';
@@ -1809,6 +1810,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
             )}
             {includeAdminAppendix && Boolean(record.riskFollowupEvents?.length) && (
                 <WorkerRiskFollowupAppendix record={record} />
+            )}
+            {includeAdminAppendix && Boolean(record.practiceVerificationEvents?.length) && (
+                <WorkerPracticeVerificationAppendix record={record} />
             )}
         </div>
     );

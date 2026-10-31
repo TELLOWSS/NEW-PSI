@@ -539,6 +539,14 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         } catch (err) { console.error('Share failed:', err); }
     };
 
+    // Only the first certificate page may be sent or shared to workers.
+    // The administrator annex includes personal field evidence.
+    const workerCertificatePage = (): HTMLElement => {
+        const firstPage = reportRef.current?.querySelector<HTMLElement>('[data-report-page="true"]');
+        if (!firstPage) throw new Error('근로자 전달용 인증서 페이지를 찾을 수 없습니다.');
+        return firstPage;
+    };
+
     const buildReportImageFiles = async () => {
         if (!reportRef.current) throw new Error('리포트가 아직 렌더링되지 않았습니다.');
 
@@ -547,7 +555,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             throw new Error('이미지 라이브러리가 로드되지 않았습니다. 다시 시도해 주세요.');
         }
 
-        const canvases = await captureReportCanvases(reportRef.current, html2canvas, { scale: 3 });
+        const canvases = await captureReportCanvases(workerCertificatePage(), html2canvas, { scale: 3 });
         const files = await Promise.all(canvases.map(async (canvas, index) => {
             const blob = await canvasToBlob(canvas, 'image/jpeg', 0.9);
             return new File([blob], `PSI_Report_${record.name}_p${index + 1}.jpg`, { type: 'image/jpeg' });
@@ -564,7 +572,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             throw new Error('이미지 라이브러리가 로드되지 않았습니다. 다시 시도해 주세요.');
         }
 
-        const canvases = await captureReportCanvases(reportRef.current, html2canvas, { scale: 2 });
+        const canvases = await captureReportCanvases(workerCertificatePage(), html2canvas, { scale: 2 });
         return Promise.all(canvases.map((canvas, index) => buildMmsImagePayload(canvas, index)));
     };
 
@@ -693,7 +701,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         try {
             updateGenerationProgress(15, '데이터 수집 중');
             const canvases = await captureReportCanvases(reportRef.current, html2canvas, { scale: 3 });
-            updateGenerationProgress(65, '근로자 전달용 인증서 변환 중');
+            updateGenerationProgress(65, '관리자 상세 보고서 전체 페이지 변환 중');
             updateGenerationProgress(82, 'PDF 문서 구성 중');
             saveCanvasesAsA4Pdf(canvases, PDFCtor as new (orientation: string, unit: string, format: string) => {
                 addImage: (...args: unknown[]) => void;
@@ -729,7 +737,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         try {
             updateGenerationProgress(20, '데이터 수집 중');
             const canvases = await captureReportCanvases(reportRef.current, html2canvas, { scale: 3 });
-            updateGenerationProgress(72, '모국어 인증서 이미지 변환 중');
+            updateGenerationProgress(72, '관리자 상세 보고서 이미지 변환 중');
             const zip = new JSZip();
             const pageBlobs = await Promise.all(canvases.map((canvas) => canvasToBlob(canvas, 'image/jpeg', 0.9)));
             pageBlobs.forEach((blob, index) => {
@@ -784,16 +792,16 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                 <div className="hidden sm:flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span><p className="text-xs font-bold text-slate-800">PSI 관리자용 개인 작성 경향 분석</p></div>
                 <div className="flex flex-wrap justify-end gap-2 w-full sm:w-auto">
                     <button onClick={handleDownloadImage} disabled={isGenerating} className="bg-emerald-600 px-2 sm:px-5 py-2 rounded-xl sm:rounded-full text-[11px] sm:text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-1 transition-all">
-                        {isGeneratingImage ? '생성 중...' : '관리자 보관 이미지'}
+                        {isGeneratingImage ? '생성 중...' : '관리자 전체 보고서 이미지'}
                     </button>
                     <button onClick={handleDownloadPDF} disabled={isGenerating} className="bg-slate-900 px-2 sm:px-5 py-2 rounded-xl sm:rounded-full text-[11px] sm:text-xs font-bold text-white hover:bg-black disabled:opacity-60 disabled:cursor-not-allowed transition-all">
-                        {isGeneratingPdf ? '생성 중...' : '관리자 보관 PDF'}
+                        {isGeneratingPdf ? '생성 중...' : '관리자 전체 보고서 PDF'}
                     </button>
                 </div>
             </ReportActionBar>
 
             <div className="w-full max-w-[210mm] rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-bold leading-6 text-indigo-950">
-                <strong>관리자용 분석 자료:</strong> 개인별 작성 경향과 월별 개선이행 확인에만 사용합니다. 교육 현장에는 실명·개인별 수치·순위·감점 내역을 공개하지 않으며, 익명화된 월별 계도 리포트를 별도로 공유합니다.
+                <strong>관리자 상세 보고서:</strong> PDF·이미지 저장에는 자필 원문·번역 해석노트와 실제 등록된 현장 조치 이력이 포함됩니다. <strong>근로자에게 이미지·문자/MMS로 전달하는 내용은 첫 번째 인증서 페이지로 제한됩니다.</strong> 개인별 분석·후속조치 이력은 관리자 업무에서만 열람하며, 교육 현장에는 익명 계도자료를 사용합니다.
             </div>
             <section className="w-full max-w-[210mm] rounded-2xl border border-slate-200 bg-white p-5 font-sans shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -990,7 +998,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                     <div className="mx-auto flex min-w-fit justify-center">
                         <div className="min-w-[210mm] bg-white">
                             <Suspense fallback={<ReportTemplateFallback />}>
-                                <ReportTemplate record={record} history={history} onPhotoClick={startCamera} includeAdminAppendix={false} ref={reportRef} />
+                                <ReportTemplate record={record} history={history} onPhotoClick={startCamera} includeAdminAppendix={true} ref={reportRef} />
                             </Suspense>
                         </div>
                     </div>

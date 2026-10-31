@@ -1,6 +1,15 @@
 import type { WorkerRiskFollowupEvent, WorkerRiskFollowupStatus } from '../types';
 
 export const WORKER_FOLLOWUP_VERSION = 'psi-worker-followup-v1';
+/** Calendar date for site management; UTC would lag KST before 09:00. */
+export const getSeoulFollowupDay = (date: Date = new Date()): string => {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(date);
+    const part = (type: string): string => parts.find(item => item.type === type)?.value || '';
+    return part('year') + '-' + part('month') + '-' + part('day');
+};
+
 export const MAX_FOLLOWUP_EVENTS = 100;
 export const MAX_FOLLOWUP_PHOTOS = 12;
 export const MAX_FOLLOWUP_PHOTO_DATA_URL_LENGTH = 420_000;
@@ -55,7 +64,7 @@ export const collectWorkerRiskFollowupCases = (events: readonly WorkerRiskFollow
 
 export const getWorkerRiskFollowupSummary = (
     events: readonly WorkerRiskFollowupEvent[] = [],
-    today: string = new Date().toISOString().slice(0, 10),
+    today: string = getSeoulFollowupDay(),
 ) => {
     const cases = collectWorkerRiskFollowupCases(events);
     const unresolved = cases.filter(item => item.latest.status !== 'completed');
