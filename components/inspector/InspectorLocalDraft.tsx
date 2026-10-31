@@ -7,6 +7,32 @@ import {FOLLOWUP_STATES, FOLLOWUP_LABELS, validateFollowup, validateAdditionalAc
 type Followup={status:string;assignee:string;dueDate:string;temporaryMeasure?:string;history:{status:string;assignee:string;dueDate:string;temporaryMeasure?:string;note:string;at:string}[]};
 type AdditionalAction={id:string;title:string;followup?:Followup;photo?:File;photoSha256?:string;photoHistory?:AfterHistory[]};
 type PhotoRole='overview'|'detail'|'unspecified';
+type PhotoInput={source:'camera-dialog'|'file-picker';recordedAt:string;sha256:string};
+type PhotoInputs=Record<string,PhotoInput>;
+const photoInputLabel=(input:PhotoInput|undefined)=>input?.source==='camera-dialog'?'앱 카메라 촬영 화면':input?.source==='file-picker'?'기기 파일 선택 경로':'출처 미확인 (이전 기록 포함)';
+const photoInput=(source:PhotoInput['source'],sha256:string):PhotoInput=>({source,sha256,recordedAt:new Date().toISOString()});
+function validPhotoInputs(value:unknown,record:LocalRecord):value is PhotoInputs{
+ if(!value||typeof value!=='object'||Array.isArray(value))return false;
+ const sources=value as Record<string,unknown>;
+ if(Object.keys(sources).length<1||Object.keys(sources).length>160)return false;
+ const expected:Record<string,string>={};
+ const index=(slot:string,sha:string|null|undefined,hist:{sha256:string}[])=>{
+  hist.forEach((item,i)=>{expected[slot+':'+i]=item.sha256;});
+  if(sha)expected[slot+':'+hist.length]=sha;
+ };
+ index('primary',record.sha256,record.primaryHistory||[]);
+ index('context',record.contextSha256,record.contextHistory||[]);
+ index('after',record.afterSha256,record.afterHistory||[]);
+ (record.additionalActions||[]).forEach(a=>index('action:'+a.id,a.photoSha256,a.photoHistory||[]));
+ return Object.entries(sources).every(([key,item])=>{
+  if(!Object.hasOwn(expected,key)||!item||typeof item!=='object'||Array.isArray(item))return false;
+  const data=item as Record<string,unknown>;
+  return Object.keys(data).length===3&&['source','recordedAt','sha256'].every(k=>Object.hasOwn(data,k))
+   &&(data.source==='camera-dialog'||data.source==='file-picker')
+   &&typeof data.recordedAt==='string'&&Number.isFinite(Date.parse(data.recordedAt))
+   &&typeof data.sha256==='string'&&/^[0-9a-f]{64}$/.test(data.sha256)&&data.sha256===expected[key];
+ });
+}
 type FieldContext={site:string;building:string;level:string;trade:string};
 type SiteContextChange={before:FieldContext|null;after:FieldContext|null;reason:string;at:string;actor:'device-user'};
 function validSiteContextHistory(value:unknown,current:FieldContext|null):value is SiteContextChange[]{
@@ -42,8 +68,8 @@ function fieldContextLabel(context:FieldContext):string{
 }
 type AfterHistory={photo:File;sha256:string;replacedAt:string};
 type ContextHistory={photo:File;sha256:string;role:'overview'|'detail';replacedAt:string};
-type LocalRecord={siteContextHistory?:SiteContextChange[];siteContext?:FieldContext;primaryHistory?:AfterHistory[];afterHistory?:AfterHistory[];contextHistory?:ContextHistory[];contextDetached?:boolean;contextFirst?:boolean;photoRole?:PhotoRole;contextPhoto?:File;contextSha256?:string;contextRole?:'overview'|'detail';additionalActions?:AdditionalAction[];afterPhoto?:File;afterSha256?:string;followup?:Followup;id:string;createdAt:string;note:string;action:string;photo:File;sha256:string|null;legalVersion:string;reviewedAt:string};
-type PhotoSetDraft={id:string;kind:'photo-set-draft';revision:string;photos:File[]};
+type LocalRecord={photoInputs?:PhotoInputs;siteContextHistory?:SiteContextChange[];siteContext?:FieldContext;primaryHistory?:AfterHistory[];afterHistory?:AfterHistory[];contextHistory?:ContextHistory[];contextDetached?:boolean;contextFirst?:boolean;photoRole?:PhotoRole;contextPhoto?:File;contextSha256?:string;contextRole?:'overview'|'detail';additionalActions?:AdditionalAction[];afterPhoto?:File;afterSha256?:string;followup?:Followup;id:string;createdAt:string;note:string;action:string;photo:File;sha256:string|null;legalVersion:string;reviewedAt:string};
+type PhotoSetDraft={id:string;kind:'photo-set-draft';revision:string;photos:File[];sources?:PhotoInput[]};
 const DB='psi-inspector-local-records', STORE='records', DRAFT_KEY='psi-photo-set-draft-v1';
 function openRecords():Promise<IDBDatabase>{
  return new Promise((resolve,reject)=>{
@@ -70,36 +96,38 @@ async function hash(file:File):Promise<string|null>{
  catch{return null;}
 }
 type EvidenceManifestItem={
- role:string;stage:'current'|'archived';order:number;filename:string;mime:string;bytes:number;
+ sourceMethod:'camera-dialog'|'file-picker'|'unknown';sourceRecordedAt:string|null;role:string;stage:'current'|'archived';order:number;filename:string;mime:string;bytes:number;
  expectedSha256:string|null;actualSha256:string|null;previousSha256:string|null;
  replacedAt:string|null;check:'match'|'mismatch'|'unrecorded'|'unavailable';
 };
 type EvidenceManifest={
- format:'psi-local-photo-evidence-manifest';version:1;inspectionId:string;generatedAt:string;
+ format:'psi-local-photo-evidence-manifest';version:2;inspectionId:string;generatedAt:string;
  timeSource:'device-clock';scope:'stored-files-only';photos:EvidenceManifestItem[];
  checks:{matched:number;mismatch:number;unrecorded:number;unavailable:number;total:number};
 };
 async function buildEvidenceManifest(inspection:LocalRecord):Promise<EvidenceManifest>{
- const candidates:{role:string;photo:File;recorded:string|null;stage:'current'|'archived';order:number;previous:string|null;replacedAt:string|null}[]=[];
- const pushChain=(role:string,latest:File|undefined,latestSha:string|null|undefined,history:{photo:File;sha256:string;replacedAt:string}[])=>{
+ const candidates:{key:string;role:string;photo:File;recorded:string|null;stage:'current'|'archived';order:number;previous:string|null;replacedAt:string|null}[]=[];
+ const pushChain=(key:string,role:string,latest:File|undefined,latestSha:string|null|undefined,history:{photo:File;sha256:string;replacedAt:string}[])=>{
   let previous:string|null=null;
   for(const [index,entry] of history.entries()){
-   candidates.push({role,photo:entry.photo,recorded:entry.sha256||null,stage:'archived',order:index+1,previous,replacedAt:entry.replacedAt});
+   candidates.push({key:key+':'+index,role,photo:entry.photo,recorded:entry.sha256||null,stage:'archived',order:index+1,previous,replacedAt:entry.replacedAt});
    previous=entry.sha256||null;
   }
-  if(latest)candidates.push({role,photo:latest,recorded:latestSha||null,stage:'current',order:history.length+1,previous,replacedAt:null});
+  if(latest)candidates.push({key:key+':'+history.length,role,photo:latest,recorded:latestSha||null,stage:'current',order:history.length+1,previous,replacedAt:null});
  };
- pushChain('기본 사진',inspection.photo,inspection.sha256,inspection.primaryHistory||[]);
- pushChain('추가 현장 사진'+(inspection.contextDetached?' (연결 해제 상태)':''),inspection.contextPhoto,inspection.contextSha256,inspection.contextHistory||[]);
- pushChain('조치 후 사진',inspection.afterPhoto,inspection.afterSha256,inspection.afterHistory||[]);
- (inspection.additionalActions||[]).forEach((action,index)=>pushChain('조치별 사진 '+(index+1),action.photo,action.photoSha256,action.photoHistory||[]));
+ pushChain('primary','기본 사진',inspection.photo,inspection.sha256,inspection.primaryHistory||[]);
+ pushChain('context','추가 현장 사진'+(inspection.contextDetached?' (연결 해제 상태)':''),inspection.contextPhoto,inspection.contextSha256,inspection.contextHistory||[]);
+ pushChain('after','조치 후 사진',inspection.afterPhoto,inspection.afterSha256,inspection.afterHistory||[]);
+ (inspection.additionalActions||[]).forEach((action,index)=>pushChain('action:'+action.id,'조치별 사진 '+(index+1),action.photo,action.photoSha256,action.photoHistory||[]));
+ if(inspection.photoInputs&&!validPhotoInputs(inspection.photoInputs,inspection))throw new Error('사진 출처 기록의 비교값과 사진 버전이 일치하지 않습니다.');
  const photos:EvidenceManifestItem[]=[];
  for(const candidate of candidates){
   const actualSha256=await hash(candidate.photo);
   const check:EvidenceManifestItem['check']=!actualSha256?'unavailable':!candidate.recorded?'unrecorded':actualSha256===candidate.recorded?'match':'mismatch';
-  photos.push({role:candidate.role,stage:candidate.stage,order:candidate.order,filename:candidate.photo.name,mime:candidate.photo.type,bytes:candidate.photo.size,expectedSha256:candidate.recorded,actualSha256,previousSha256:candidate.previous,replacedAt:candidate.replacedAt,check});
+  const source=inspection.photoInputs?.[candidate.key];
+  photos.push({sourceMethod:source?.source||'unknown',sourceRecordedAt:source?.recordedAt||null,role:candidate.role,stage:candidate.stage,order:candidate.order,filename:candidate.photo.name,mime:candidate.photo.type,bytes:candidate.photo.size,expectedSha256:candidate.recorded,actualSha256,previousSha256:candidate.previous,replacedAt:candidate.replacedAt,check});
  }
- return {format:'psi-local-photo-evidence-manifest',version:1,inspectionId:inspection.id,generatedAt:new Date().toISOString(),timeSource:'device-clock',scope:'stored-files-only',photos,checks:{matched:photos.filter(v=>v.check==='match').length,mismatch:photos.filter(v=>v.check==='mismatch').length,unrecorded:photos.filter(v=>v.check==='unrecorded').length,unavailable:photos.filter(v=>v.check==='unavailable').length,total:photos.length}};
+ return {format:'psi-local-photo-evidence-manifest',version:2,inspectionId:inspection.id,generatedAt:new Date().toISOString(),timeSource:'device-clock',scope:'stored-files-only',photos,checks:{matched:photos.filter(v=>v.check==='match').length,mismatch:photos.filter(v=>v.check==='mismatch').length,unrecorded:photos.filter(v=>v.check==='unrecorded').length,unavailable:photos.filter(v=>v.check==='unavailable').length,total:photos.length}};
 }
 const list=()=>runStore<LocalRecord[]>('readonly',(store,set)=>{const request=store.getAll();request.onsuccess=()=>set((request.result as LocalRecord[]).filter(item=>item.id!==DRAFT_KEY).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));});
 function download(blob:Blob,name:string){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
@@ -380,8 +408,8 @@ function LocalEvidenceAudit({inspectionId,busy}:{inspectionId:string;busy:boolea
   {running&&<p role="status">저장된 모든 사진의 비교값을 확인하고 있습니다…</p>}
   {errorText&&<p role="alert">{errorText}</p>}
   {audit&&<div aria-label="사진 증빙 검증 결과"><p role="status">증빙 검사 결과: 총 {audit.checks.total}개 · 일치 {audit.checks.matched}개 · 불일치 {audit.checks.mismatch}개 · 기록된 비교값 없음 {audit.checks.unrecorded}개 · 계산 불가 {audit.checks.unavailable}개</p>
-   {audit.photos.map((entry,index)=><p key={index}>{entry.role} · {entry.stage==='archived'?'이전 보관본 '+entry.order:'현재 보관본'} · {entry.filename} · {entry.check==='match'?'SHA-256 일치':entry.check==='mismatch'?'SHA-256 불일치':entry.check==='unrecorded'?'비교값 미기록':'검사 불가'}{entry.previousSha256?' · 이전 버전과 연결됨':''}</p>)}
-   <p>검사 시각은 이 기기 시각입니다. 파일명·기록상 교체 시각·해시 관계는 실제 촬영 장소·시각·원본 여부·신원·안전조치 완료를 증명하지 않습니다. 최초 받아 저장한 사진이 편집본일 수도 있습니다. EXIF와 실제 촬영 경로는 별도 검증되지 않았습니다.</p>
+   {audit.photos.map((entry,index)=><p key={index}>{entry.role} · {entry.stage==='archived'?'이전 보관본 '+entry.order:'현재 보관본'} · {entry.filename} · {entry.check==='match'?'SHA-256 일치':entry.check==='mismatch'?'SHA-256 불일치':entry.check==='unrecorded'?'비교값 미기록':'검사 불가'}{entry.previousSha256?' · 이전 버전과 연결됨':''} · 입력 출처: {photoInputLabel(entry.sourceMethod==='unknown'?undefined:{source:entry.sourceMethod,recordedAt:entry.sourceRecordedAt||'',sha256:entry.expectedSha256||''})}</p>)}
+   <p>검사 시각은 이 기기 시각입니다. 파일명·기록상 교체 시각·해시 관계는 실제 촬영 장소·시각·원본 여부·신원·안전조치 완료를 증명하지 않습니다. 최초 받아 저장한 사진이 편집본일 수도 있습니다. 파일 선택 버튼은 OS 카메라 촬영으로 이어질 수도 있으므로 사진첩 사진으로 확정하지 않습니다. 출처 기록은 앱 입력 경로만 나타내며 EXIF·실제 촬영 장소·기기 시각 정확성은 별도 검증되지 않았습니다.</p>
    {audit.checks.mismatch+audit.checks.unrecorded+audit.checks.unavailable>0&&<p role="alert">일치하지 않거나 검증되지 않은 사진이 있습니다. 원본을 별도로 확인해 주세요. 검증 목록은 참고용이며 인증서가 아닙니다.</p>}
   </div>}
   <p>내려받는 JSON은 사진 원본이 아닌 파일명·크기·SHA-256 검사값·교체 관계의 요약입니다. 암호화되지 않았으며 파일명에 개인정보가 들어 있을 수 있습니다. 사진 파일은 기존 백업 기능으로 별도 보관하세요.</p>
