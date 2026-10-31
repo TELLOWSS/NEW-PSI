@@ -34,6 +34,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
     const [rotation,setRotation]=useState(0),[rotating,setRotating]=useState(false),[originalPreview,setOriginalPreview]=useState('');
     const [error,setError]=useState('');
     const [sequenceSaving,setSequenceSaving]=useState(false),[sequenceError,setSequenceError]=useState('');
+    const [torchSupported,setTorchSupported]=useState(false),[torchOn,setTorchOn]=useState(false),[torchBusy,setTorchBusy]=useState(false),[torchMessage,setTorchMessage]=useState('');
     const [overlayVisible,setOverlayVisible]=useState(true),[overlayOpacity,setOverlayOpacity]=useState(50),[overlayFailed,setOverlayFailed]=useState(false);
     const [grid,setGrid]=useState(()=>{try{return sessionStorage.getItem('psi.inspector.camera.grid.v1')==='on';}catch{return false;}});
     const [guide,setGuide]=useState<CameraGuide>('');
@@ -64,7 +65,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
     },[photo]);
     useEffect(()=>{
         const token=++generation.current;
-        setReady(false);setCapturing(false);setFrame(null);setError('');
+        setReady(false);setCapturing(false);setFrame(null);setError('');setTorchSupported(false);setTorchOn(false);setTorchBusy(false);setTorchMessage('');
         if(!photo){
             if(!navigator.mediaDevices?.getUserMedia)setError('이 브라우저에서는 실시간 카메라를 열 수 없습니다. 아래 기기 카메라를 이용하거나 사진 선택으로 돌아가세요.');
             else {
@@ -73,6 +74,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
                 void navigator.mediaDevices.getUserMedia({audio:false,video}).then(async stream=>{
                 if(generation.current!==token){stream.getTracks().forEach(track=>track.stop());return;}
                 streamRef.current=stream;
+                try{const track=stream.getVideoTracks()[0],capabilities=track?.getCapabilities?.() as (MediaTrackCapabilities & {torch?:boolean})|undefined;setTorchSupported(capabilities?.torch===true);const settings=track?.getSettings?.() as (MediaTrackSettings & {torch?:boolean})|undefined;setTorchOn(settings?.torch===true);}catch{setTorchSupported(false);}
                 const video=videoRef.current;
                 if(video){video.srcObject=stream;await video.play();}
             }).catch(cause=>{
@@ -87,6 +89,19 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
         return()=>{++generation.current;stop();document.removeEventListener('visibilitychange',hide);};
     },[facing,attempt,photo,mode]);
 
+    const toggleTorch=async()=>{
+        const stream=streamRef.current,track=stream?.getVideoTracks()[0],token=generation.current;
+        if(!track||!torchSupported||torchBusy)return;
+        const next=!torchOn;setTorchBusy(true);setTorchMessage('');
+        try{
+          await track.applyConstraints({advanced:[{torch:next} as MediaTrackConstraintSet]});
+          if(token!==generation.current||streamRef.current!==stream)return;
+          const settings=track.getSettings?.() as (MediaTrackSettings & {torch?:boolean})|undefined;
+          if(typeof settings?.torch==='boolean'&&settings.torch!==next){setTorchOn(settings.torch);setTorchMessage('기기 조명 상태를 변경하지 못했습니다. 현장 조명을 확인하세요.');return;}
+          setTorchOn(next);setTorchMessage('기기 조명 '+(next?'켜기':'끄기')+' 요청을 적용했습니다.');
+        }catch{if(token===generation.current)setTorchMessage('기기 조명을 변경하지 못했습니다. 현장 조명을 확보하거나 기기 카메라를 이용하세요.');}
+        finally{if(token===generation.current)setTorchBusy(false);}
+    };
     const refreshFrame=()=>{const video=videoRef.current;if(streamRef.current&&video?.videoWidth&&video.videoHeight){setFrame({width:video.videoWidth,height:video.videoHeight});setReady(true);}};
     const actualDirection=frame?(frame.width===frame.height?'정방형':frame.width>frame.height?'가로':'세로'):'';
     const directionMismatch=!!frame&&(mode==='landscape'?frame.width<=frame.height:frame.height<=frame.width);
@@ -142,9 +157,11 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
           <details className="si-camera-guide-more"><summary>촬영 요령 · 영상 정보</summary><div className="si-camera-guide-extra">
             {guide&&<p className="si-camera-guide-tip">{CAMERA_GUIDES[guide].hint}</p>}
             {frame&&<details className="si-camera-frame-details"><summary>{directionMismatch?'영상 방향 확인 필요':'영상 정보'}</summary><p className="si-camera-frame-status" role="status">{photo?'촬영본':'현재 영상'} · {actualDirection} {frame.width} × {frame.height}{!photo&&directionMismatch&&<span>화면 방향과 카메라 영상 비율이 다릅니다. 화면 회전 설정을 확인하거나 기기 카메라를 이용하세요.</span>}</p></details>}
+            <p>어둡거나 역광이면 안전한 곳에서 현장 조명을 확보하거나 기기 카메라로 촬영하세요. 기기 조명은 지원되는 경우에만 표시됩니다.</p>
             <p className="si-camera-guide-disclaimer">구도만 참고로 표시합니다. 실제 위험 자동 판정이 아니며 가이드선은 촬영 파일에 저장되지 않습니다.</p>
           </div></details>
                   </div></details>}
+        {!photo&&torchSupported&&<button type="button" className="si-btn si-camera-torch" aria-pressed={torchOn} disabled={!ready||torchBusy} onClick={()=>void toggleTorch()}>기기 조명 {torchOn?'끄기':'켜기'}</button>}
         <button type="button" className="si-btn si-camera-nav-back" onClick={goBack} disabled={sequenceSaving||rotating}>← 이전</button>
         <button type="button" className="si-btn si-camera-nav-home" onClick={goHome} disabled={sequenceSaving||rotating}>첫 화면</button>
         <button className="si-btn si-camera-close" aria-label="닫기" autoFocus onClick={close}><InspectorIcon name="close"/><span>닫기</span></button>
@@ -193,6 +210,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
             {reference.failed||overlayFailed?<p role="status">기준 사진을 불러오지 못했습니다. 겹침 없이 촬영하거나 창을 닫고 사진을 다시 확인하세요.</p>:!reference.url?<p role="status">{reference.missing?'조치 전 사진을 선택하면 촬영 화면에 겹쳐 볼 수 있습니다.':'기준 사진을 불러오는 중입니다.'}</p>:<><button type="button" className="si-btn" aria-pressed={overlayVisible} onClick={()=>setOverlayVisible(value=>!value)}>기준 사진 {overlayVisible?'끄기':'켜기'}</button>{overlayVisible&&<label>겹침 투명도 <select aria-label="기준 사진 겹침 투명도" value={overlayOpacity} onChange={e=>setOverlayOpacity(Number(e.target.value))}><option value={25}>25%</option><option value={50}>50%</option><option value={75}>75%</option></select></label>}<p>사진의 비율이 다르면 위치가 달라 보일 수 있습니다. 같은 장소와 조치 결과는 현장에서 직접 확인하세요. 겹침은 촬영 사진에 저장되지 않습니다.</p></>}
         </section>}
         
+        {torchMessage&&!photo&&<p className="si-camera-torch-message" role="status">{torchMessage}</p>}
         {error&&<div className="si-camera-recovery" role="alert"><strong>카메라 연결을 확인해 주세요</strong><p>{error}</p><p>연결이 안 되면 아래 <b>기기 카메라로 촬영</b>을 누르거나 창을 닫고 <b>사진첩·파일에서 선택</b>할 수 있습니다. 사진이 없는 상태에서 점검이 자동 등록되지는 않습니다.</p></div>}
         {photo&&<section className="si-camera-photo-editor" aria-label="촬영 사진 회전 편집">
            <div className="si-camera-photo-editor-heading"><strong>촬영 사진 방향</strong><span role="status">{rotating?'회전 중…':rotation===0?'원래 촬영 방향':`원래 사진 기준 ${rotation*90}° 회전 · 별도 편집본`}</span></div>

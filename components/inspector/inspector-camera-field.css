@@ -161,3 +161,7 @@
 @media(max-width:1199px) and (orientation:landscape) and (max-height:520px){
  .si-camera-dialog.si-camera-immersive.si-camera-live>.si-camera-auto-direction{top:50px;left:auto;right:10px}
 }
+
+.si-camera-dialog.si-camera-immersive .si-camera-torch{min-height:44px;white-space:nowrap}
+.si-camera-dialog.si-camera-immersive .si-camera-torch-message{position:absolute;z-index:15;left:12px;right:12px;bottom:160px;margin:0;padding:8px 10px;border-radius:9px;background:#162c32ed;color:#fff;font-size:12px;pointer-events:none}
+@media(max-width:1199px) and (orientation:landscape){.si-camera-dialog.si-camera-immersive .si-camera-torch-message{bottom:65px;left:12px;right:auto;max-width:60%}}

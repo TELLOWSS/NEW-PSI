@@ -20,13 +20,13 @@ try{
   await page.route('https://fonts.googleapis.com/**',r=>r.fulfill({body:'',contentType:'text/css'}));await page.route('https://cdn.jsdelivr.net/**',r=>r.fulfill({body:'',contentType:'text/css'}));
   if(process.env.PSI_QA_KOREAN_FONT)await page.route('**/__qa-korean.otf',async r=>r.fulfill({body:await readFile(process.env.PSI_QA_KOREAN_FONT),contentType:'font/otf'}));
   await page.addInitScript(scenario=>{
-   window.__cameraRequests=[];window.__streams=[];window.__stops=0;
+   window.__cameraRequests=[];window.__streams=[];window.__stops=0;window.__torchCalls=[];window.__torchFail=false;
    if(scenario==='storage-blocked'){const get=Storage.prototype.getItem,set=Storage.prototype.setItem;Object.defineProperty(Storage.prototype,'getItem',{value:function(key){if(key==='psi.inspector.camera.mode.v1')throw new DOMException('blocked','SecurityError');return get.call(this,key);}});Object.defineProperty(Storage.prototype,'setItem',{value:function(key,value){if(key==='psi.inspector.camera.mode.v1')throw new DOMException('blocked','SecurityError');return set.call(this,key,value);}});}
    Object.defineProperty(navigator.mediaDevices,'getUserMedia',{configurable:true,value:async constraints=>{
     window.__cameraRequests.push(constraints);
     if(scenario==='native-fallback')throw new DOMException('denied','NotAllowedError');
     const portrait=constraints.video.aspectRatio.ideal<1&&scenario!=='unsupported',c=document.createElement('canvas');c.width=portrait?720:1280;c.height=portrait?960:720;
-    const g=c.getContext('2d');const paint=()=>{g.fillStyle='#214f60';g.fillRect(0,0,c.width,c.height);g.fillStyle='#67b7a5';g.fillRect(0,0,c.width/3,c.height);g.fillStyle='#e4b971';g.fillRect(c.width*2/3,0,c.width/3,c.height);g.fillStyle='white';g.font='30px sans-serif';g.fillText('SYNTHETIC CAMERA',30,80);};paint();const stream=c.captureStream(10),track=stream.getVideoTracks()[0],timer=setInterval(paint,100),stop=track.stop.bind(track);track.stop=()=>{clearInterval(timer);window.__stops++;stop();};window.__streams.push(stream);
+    const g=c.getContext('2d');const paint=()=>{g.fillStyle='#214f60';g.fillRect(0,0,c.width,c.height);g.fillStyle='#67b7a5';g.fillRect(0,0,c.width/3,c.height);g.fillStyle='#e4b971';g.fillRect(c.width*2/3,0,c.width/3,c.height);g.fillStyle='white';g.font='30px sans-serif';g.fillText('SYNTHETIC CAMERA',30,80);};paint();const stream=c.captureStream(10),track=stream.getVideoTracks()[0],timer=setInterval(paint,100),stop=track.stop.bind(track);track.stop=()=>{clearInterval(timer);window.__stops++;stop();};if(scenario==='portrait'){let torch=false;const settings=track.getSettings.bind(track);track.getCapabilities=()=>({torch:true});track.getSettings=()=>({...settings(),torch});track.applyConstraints=async constraints=>{window.__torchCalls.push(constraints.advanced[0].torch);if(window.__torchFail)throw new DOMException('blocked','NotAllowedError');torch=constraints.advanced[0].torch;};}window.__streams.push(stream);
     if(scenario==='late-stream'&&window.__cameraRequests.length===1)return new Promise(resolve=>{window.__releaseFirst=()=>resolve(stream);});
     return stream;
    }});
@@ -52,10 +52,16 @@ try{
    if(scenario==='late-stream'){await page.evaluate(()=>window.__releaseFirst());await page.waitForFunction(()=>window.__streams[0].getTracks().every(t=>t.readyState==='ended'));}
    const request=await page.evaluate(()=>window.__cameraRequests.at(-1));assert.equal(request.audio,false);assert.equal(request.video.facingMode.ideal,'environment');assert.equal(request.video.resizeMode.ideal,'none');assert.equal(request.video.aspectRatio.ideal,['landscape'].includes(scenario)?16/9:3/4);assert.ok(!JSON.stringify(request).includes('exact'));
    const actual=await dialog.locator('video').evaluate(v=>({width:v.videoWidth,height:v.videoHeight}));assert.deepEqual(actual,scenario==='landscape'||scenario==='unsupported'?{width:1280,height:720}:{width:720,height:960});
-   if(scenario==='unsupported')assert.match((await dialog.locator('.si-camera-frame-status').textContent())||'',/화면 방향과 카메라 영상 비율이 다릅니다/);
+   if(scenario==='unsupported'){assert.match((await dialog.locator('.si-camera-frame-status').textContent())||'',/화면 방향과 카메라 영상 비율이 다릅니다/);assert.equal(await dialog.locator('.si-camera-torch').count(),0,'unsupported devices must not show a torch control');}
    else assert.equal(await dialog.locator('.si-camera-frame-status>span').count(),0);
    if(scenario==='portrait'){
-    await dialog.getByRole('button',{name:'전면·후면 전환',exact:true}).click();await page.waitForFunction(()=>window.__cameraRequests.at(-1)?.video.facingMode.ideal==='user'&&!document.querySelector('.si-camera-actions .si-primary').disabled);assert.match(await dialog.locator('.si-camera-auto-direction').innerText(),/세로/);
+    const light=dialog.getByRole('button',{name:'기기 조명 켜기'});await light.waitFor();await light.click();
+    assert.equal(await dialog.getByRole('button',{name:'기기 조명 끄기'}).getAttribute('aria-pressed'),'true');
+    await page.evaluate(()=>window.__torchFail=true);await dialog.getByRole('button',{name:'기기 조명 끄기'}).click();
+    await dialog.getByText('기기 조명을 변경하지 못했습니다.',{exact:false}).waitFor();assert.equal(await dialog.getByRole('button',{name:'기기 조명 끄기'}).getAttribute('aria-pressed'),'true');
+    await page.evaluate(()=>window.__torchFail=false);await dialog.getByRole('button',{name:'기기 조명 끄기'}).click();
+    assert.deepEqual(await page.evaluate(()=>window.__torchCalls),[true,false,false]);
+    await dialog.getByRole('button',{name:'전면·후면 전환',exact:true}).click();await page.waitForFunction(()=>window.__cameraRequests.at(-1)?.video.facingMode.ideal==='user'&&!document.querySelector('.si-camera-actions .si-primary').disabled);assert.match(await dialog.locator('.si-camera-auto-direction').innerText(),/세로/);assert.equal(await dialog.getByRole('button',{name:'기기 조명 켜기'}).getAttribute('aria-pressed'),'false','switching cameras resets the light state');
    }
    if(scenario==='landscape'){const input=dialog.getByLabel('기기 카메라로 촬영',{exact:true});const chooser=page.waitForEvent('filechooser');await input.click();await chooser;await input.dispatchEvent('cancel',{bubbles:true});await page.waitForFunction(()=>window.__cameraRequests.length>=2&&!document.querySelector('.si-camera-actions .si-primary').disabled);await dialog.getByRole('heading',{name:'카메라로 바로 촬영'}).waitFor();await dialog.locator('.si-camera-heading .si-camera-guide-options > summary').click();await dialog.locator('.si-camera-guide-more>summary').click();await dialog.getByText('구도만 참고로 표시합니다.',{exact:false}).waitFor();await dialog.getByRole('button',{name:'구도 선택 닫기'}).click();}
    if(scenario==='portrait'){
