@@ -30,6 +30,7 @@ import { WhyThisResultPanel } from '../shared/WhyThisResultPanel';
 import { CollapsibleSection } from '../shared/CollapsibleSection';
 import { getLowConfidenceOcrFields } from '../../utils/ocrDocumentValidation';
 import { WorkerRiskFollowupPanel } from '../ocr/WorkerRiskFollowupPanel';
+import { WorkerPracticeVerificationPanel } from '../ocr/WorkerPracticeVerificationPanel';
 import { updateAnalysisBasedOnEdits } from '../../services/geminiService';
 import {
     approveHarnessRecord,
@@ -3520,6 +3521,13 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                     <div className="space-y-4 pb-4">
                                         {record.handwrittenAnswers?.some(answer => Boolean(String(answer.answerText || '').trim())) && (
                                             <WorkerRiskFollowupPanel
+                                                record={record}
+                                                hasPendingEdits={hasChanges}
+                                                onPersist={async nextRecord => Boolean(await persistRecordSilently(nextRecord))}
+                                            />
+                                        )}
+                                        {record.handwrittenAnswers?.some(answer => Boolean(String(answer.answerText || '').trim())) && (
+                                            <WorkerPracticeVerificationPanel
                                                 record={record}
                                                 hasPendingEdits={hasChanges}
                                                 onPersist={async nextRecord => Boolean(await persistRecordSilently(nextRecord))}
