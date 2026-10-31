@@ -367,6 +367,30 @@ export interface WorkerRiskFollowupEvent {
     verifiedBy?: string;
 }
 
+/** PSI 자체 기록: SMART TBM 또는 법정 교육이수 자동확인이 아닙니다. */
+export type WorkerPracticeStage = 'education' | 'understanding' | 'field_check' | 'recheck';
+export type WorkerPracticeResult =
+    | 'delivered'
+    | 'understood'
+    | 'needs_explanation'
+    | 'observed_safe'
+    | 'correction_required'
+    | 'unable_to_verify';
+
+export interface WorkerPracticeVerificationEvent {
+    id: string;
+    timestamp: string;
+    questionNumber: 1 | 2 | 3 | 4 | 5;
+    stage: WorkerPracticeStage;
+    result: WorkerPracticeResult;
+    actor: string;
+    evidenceNote: string;
+    sessionReference?: string;
+    relatedFollowupCaseId?: string;
+    nextCheckDueDate?: string;
+    evidenceReference?: string;
+}
+
 export interface ActionEntry {
     timestamp: string;
     actor: string;
@@ -492,6 +516,8 @@ export interface WorkerRecord {
     actionHistory?: ActionEntry[];
     /** 근로자 위험성평가 Q1~Q5와 연결된 불변 현장 환류 기록 */
     riskFollowupEvents?: WorkerRiskFollowupEvent[];
+    /** 교육전달/이해/현장 관찰/재점검을 혼동하지 않는 추가형 증빙 이력 */
+    practiceVerificationEvents?: WorkerPracticeVerificationEvent[];
     approvalHistory?: ApprovalEntry[];
     auditTrail?: AuditTrailEntry[];
     evidenceHash?: string;
