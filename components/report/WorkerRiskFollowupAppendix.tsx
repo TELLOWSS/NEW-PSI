@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { WorkerRecord } from '../../types';
-import { FOLLOWUP_STATUS_LABELS, getWorkerRiskFollowupSummary } from '../../utils/workerRiskFollowup';
+import { FOLLOWUP_STATUS_LABELS, getWorkerRiskFollowupSummary, type WorkerRiskFollowupCase } from '../../utils/workerRiskFollowup';
 
 interface WorkerRiskFollowupAppendixProps { record: WorkerRecord }
 
@@ -13,7 +13,7 @@ const chunks = <T,>(items: T[], size: number): T[][] => {
 export const WorkerRiskFollowupAppendix: React.FC<WorkerRiskFollowupAppendixProps> = ({ record }) => {
     const summary = useMemo(() => getWorkerRiskFollowupSummary(record.riskFollowupEvents || []), [record.riskFollowupEvents]);
     if (!summary.total) return null;
-    const pages = chunks(summary.cases, 5);
+    const pages: WorkerRiskFollowupCase[][] = chunks<WorkerRiskFollowupCase>(summary.cases, 5);
 
     return (
         <>
