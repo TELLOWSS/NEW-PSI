@@ -10,6 +10,12 @@ on:
       - 'scripts/verify-inspector-local-offline.mjs'
       - 'scripts/verify-inspector-offline-reopen.mjs'
       - 'field-local/**'
+      - 'pages/InspectorProduct.tsx'
+      - 'pages/InspectorStandalone.tsx'
+      - 'pages/FieldCamera.tsx'
+      - 'scripts/verify-inspector-product.mjs'
+      - 'scripts/verify-field-camera.mjs'
+      - 'scripts/verify-field-camera-local-route.mjs'
       - 'vite.config.ts'
       - 'scripts/verify-inspector-quick.mjs'
       - 'scripts/verify-inspector-safety-cards.mjs'
@@ -49,6 +55,10 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Build once for field-browser QA
         run: npm run build
+      - name: Public product routes local visitors away from admin/cloud and uses zero API
+        run: node scripts/verify-inspector-product.mjs
+      - name: Simple camera storage and default local follow-up route
+        run: node scripts/verify-field-camera-local-route.mjs
       - name: Prepared offline app restart and local records
         run: node scripts/verify-inspector-offline-reopen.mjs
       - name: Offline local capture, manual record and storage failure recovery
@@ -83,6 +93,7 @@ jobs:
         with:
           name: inspector-mobile-qa-evidence
           path: |
+            artifacts/audit/inspector-product/
             artifacts/audit/inspector-selection-followup/
             artifacts/audit/reply-inbox/
             artifacts/audit/inspector-mobile-ux/

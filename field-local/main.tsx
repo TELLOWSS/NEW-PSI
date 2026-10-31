@@ -53,7 +53,7 @@ function LocalEntry(){
   }catch(error){setStatus(error instanceof Error?error.message:'오프라인 준비에 실패했습니다.');}
  };
  return <main className="si-workspace si-quick" style={{maxWidth:820,margin:'auto',padding:16}}>
-  <h1>PSI 기기 점검</h1><p>이 화면은 이 브라우저에 저장한 직접 점검만 엽니다. 서버 기록과 동기화되거나 로그인된 상태를 뜻하지 않습니다. 이 기기를 사용하는 다른 사람도 기록을 볼 수 있습니다.</p>
+  <h1>PSI 기기 점검</h1><p><strong>체험·직접 점검 · 이 기기 저장</strong></p><p>이 화면은 이 브라우저에 저장한 직접 점검만 엽니다. 관리자 클라우드 기록과 자동 동기화되지 않으며 유료 AI 분석을 호출하지 않습니다. 같은 브라우저 프로필을 공유하는 사람도 기록을 볼 수 있습니다. 휴대전화 사진첩에는 자동 저장되지 않습니다.</p><nav aria-label="점검 방식 이동"><a href="/camera">간편 현장 카메라</a> · <a href="/product">샘플 체험</a> · <a href="/inspector">관리자 클라우드 로그인</a></nav>
   <button type="button" className="si-btn si-primary" onClick={()=>void prepare()}>이 기기 오프라인 준비</button><p role="status">{status}</p>
   <p>최초 준비는 인터넷이 필요합니다. 브라우저 데이터 삭제·기기 분실 시 기록과 준비 파일이 사라질 수 있으므로 백업하세요.</p>
   <div aria-label="기기 저장 상태"><button type="button" className="si-btn" onClick={()=>void inspectStorage(false)}>저장 공간 확인</button> <button type="button" className="si-btn" onClick={()=>void inspectStorage(true)}>기록 지속 보관 요청</button>{storageStatus&&<p role="status">{storageStatus}</p>}</div>

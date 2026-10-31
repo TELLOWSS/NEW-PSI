@@ -38,8 +38,8 @@ export default function InspectorStandalone(){
     if(status==='checking')return <div className="inspector-standalone-auth" role="status">사진점검 관리자 인증 상태를 확인하고 있습니다…</div>;
     if(status==='locked')return <div className="inspector-standalone-auth">
         <div className="inspector-standalone-login"><strong>PSI INSPECTOR · 독립 사진점검</strong>
-            <p>사진·조치·재점검만 이용하는 전용 접속 화면입니다. 기존 PSI와 같은 관리자 인증 및 점검 보관영역을 사용합니다.</p>
-            <a href="/camera">로그인 없이 현장 카메라 사용</a>{' · '}
+            <p>이 화면은 운영자용 클라우드 점검입니다. 서버 인증 뒤 사진·조치·재점검 자료를 중앙에 보관합니다. 일반 체험자는 아래 기기 점검을 이용하세요.</p>
+            <a href="/field-local/">로그인 없이 기기 점검 · 기록은 내 브라우저에</a>{' · '}<a href="/camera">간편 현장 카메라</a>{' · '}
             <a href="/product">로그인 없이 예시 체험 보기</a>
         </div>
         <AdminLockScreen onUnlock={unlock} errorMessage={error} isSubmitting={submitting}/>

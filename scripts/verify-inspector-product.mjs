@@ -86,7 +86,18 @@ await page.getByRole('button',{name:'샘플 요약 복사',exact:true}).click();
     await tab('검토 저장').click();await page.getByLabel('샘플 전문가 의견',{exact:false}).fill('새로고침 후 보관하지 않는 샘플');
     await page.goto(base+'/product/',{waitUntil:'networkidle'});await page.getByRole('heading',{name:/무엇이 문제인지 몰라도,.*사진 한 장에서 시작/}).waitFor();assert.equal(apiRequests.length,0);
     await tab('검토 저장').click();assert.equal(await page.getByLabel('샘플 전문가 의견',{exact:false}).inputValue(),'');await page.getByText('샘플 검토 저장 전',{exact:true}).waitFor();
-    await page.getByRole('link',{name:'내 사진으로 시작',exact:true}).click();await page.getByRole('button',{name:'관리자 모드 진입',exact:true}).waitFor();assert.equal(await page.getByRole('heading',{name:'사진 한 장, 필요한 답을 한눈에'}).count(),0);await page.getByRole('link',{name:'처음이라면 · 사진점검 제품 체험'}).waitFor();if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body{font-family:PSIQA,system-ui!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}await page.getByRole('link',{name:'처음이라면 · 사진점검 제품 체험'}).scrollIntoViewIfNeeded();await page.screenshot({path:out+'/login-sample-entry.png',fullPage:false});
+    // Visitors who actually try the product must land in device-local mode, not admin/cloud.
+    assert.equal(await page.getByRole('link',{name:'관리자 클라우드 로그인',exact:true}).first().getAttribute('href'),'/inspector');
+    assert.equal(await page.getByRole('link',{name:'기기에 점검 저장하기',exact:false}).getAttribute('href'),'/field-local/');
+    await page.getByRole('link',{name:'내 사진으로 시작',exact:true}).click();
+    await page.getByRole('heading',{name:'PSI 기기 점검'}).waitFor();
+    await page.getByText('체험·직접 점검 · 이 기기 저장').waitFor();
+    await page.getByText('휴대전화 사진첩에는 자동 저장되지 않습니다.',{exact:false}).waitFor();
+    assert.equal(apiRequests.length,0,'local visit must not authenticate or access cloud');
+    assert.equal(await page.locator('a[href="/inspector"]').count()>0,true,'admin access remains a distinct explicit link');
+    await page.goto(base+'/inspector',{waitUntil:'networkidle'});
+    await page.getByText('PSI INSPECTOR · 독립 사진점검',{exact:true}).waitFor();
+    await page.getByRole('link',{name:'로그인 없이 기기 점검 · 기록은 내 브라우저에'}).waitFor();if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body{font-family:PSIQA,system-ui!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}await page.getByRole('link',{name:'로그인 없이 기기 점검 · 기록은 내 브라우저에'}).scrollIntoViewIfNeeded();await page.screenshot({path:out+'/login-sample-entry.png',fullPage:false});
     for(const [path,heading] of [['/saas/access','기업 계정 확인'],['/saas/education','NEW-PSI 개인 교육']]){
         await page.goto(base+path,{waitUntil:'networkidle'});await page.getByRole('heading',{name:heading,exact:true}).waitFor();
         assert.ok(await page.locator('link[rel="stylesheet"][href*="/assets/styles-"]').count()>0,'separate account routes retain operational CSS');
