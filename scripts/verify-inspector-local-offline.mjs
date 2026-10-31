@@ -408,6 +408,8 @@ try{
  }});});
  await health.getByRole('button',{name:'기기 저장공간 확인'}).click();
  await health.getByText('기기 저장공간 조회에 실패했습니다.',{exact:false}).waitFor();
+ await health.getByRole('button',{name:'브라우저 저장 유지 요청'}).click();
+ await health.getByText('브라우저가 저장 유지 요청을 승인하지 않았습니다.',{exact:false}).waitFor();
  await page.evaluate(()=>{Object.defineProperty(navigator,'storage',{configurable:true,value:undefined});});
  await health.getByRole('button',{name:'기기 저장공간 확인'}).click();
  await health.getByText('이 브라우저에서는 저장공간 상태를 조회할 수 없습니다.',{exact:false}).waitFor();
