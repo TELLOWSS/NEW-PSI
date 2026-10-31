@@ -3519,20 +3519,6 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
                                 {activeTab === 'qna' && (
                                     <div className="space-y-4 pb-4">
-                                        {record.handwrittenAnswers?.some(answer => Boolean(String(answer.answerText || '').trim())) && (
-                                            <WorkerRiskFollowupPanel
-                                                record={record}
-                                                hasPendingEdits={hasChanges}
-                                                onPersist={async nextRecord => Boolean(await persistRecordSilently(nextRecord))}
-                                            />
-                                        )}
-                                        {record.handwrittenAnswers?.some(answer => Boolean(String(answer.answerText || '').trim())) && (
-                                            <WorkerPracticeVerificationPanel
-                                                record={record}
-                                                hasPendingEdits={hasChanges}
-                                                onPersist={async nextRecord => Boolean(await persistRecordSilently(nextRecord))}
-                                            />
-                                        )}
                                         <SectionPanelCard
                                             variant="whiteSoft"
                                             eyebrow="원문 비교 검수"
@@ -3684,6 +3670,26 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 />
                                             );
                                         })}
+                                        {record.handwrittenAnswers?.some(answer => Boolean(String(answer.answerText || '').trim())) && (
+                                            <details data-psi-field-followup-tools="true" className="group rounded-2xl border border-emerald-200 bg-emerald-50/40">
+                                                <summary className="cursor-pointer list-none rounded-2xl px-4 py-4 text-sm font-black text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600 sm:px-5">
+                                                    <span className="inline-flex items-center gap-2">현장 조치·교육 후 실천 확인 등록 <span className="text-xs text-emerald-800">(눌러서 열기)</span></span>
+                                                    <p className="mt-1 text-xs font-medium leading-5 text-slate-600">위의 자필 원문과 한국어 번역을 먼저 검수한 뒤, 실제 확인한 사항만 기록하세요.</p>
+                                                </summary>
+                                                <div className="space-y-4 px-2 pb-3 sm:px-3">
+                                                    <WorkerRiskFollowupPanel
+                                                        record={record}
+                                                        hasPendingEdits={hasChanges}
+                                                        onPersist={async nextRecord => Boolean(await persistRecordSilently(nextRecord))}
+                                                    />
+                                                    <WorkerPracticeVerificationPanel
+                                                        record={record}
+                                                        hasPendingEdits={hasChanges}
+                                                        onPersist={async nextRecord => Boolean(await persistRecordSilently(nextRecord))}
+                                                    />
+                                                </div>
+                                            </details>
+                                        )}
                                     </div>
                                 )}
                             </div>
