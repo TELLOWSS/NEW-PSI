@@ -170,12 +170,14 @@ function AdditionalActions({row,busy,onUpdate,onPhoto}:{row:LocalRecord;busy:boo
 }
 function ContextPhotoEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSave:(row:LocalRecord,file:File,role:'overview'|'detail')=>Promise<boolean>}){
  const [pending,setPending]=useState<File|null>(null),[role,setRole]=useState<'overview'|'detail'>(row.photoRole==='overview'?'detail':'overview');
+ const [camera,setCamera]=useState(false);
  useEffect(()=>{if(!pending)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[pending]);
  return <section aria-label="현장 사진 묶음"><p>기본 사진: {row.photoRole==='overview'?'현장 전체':row.photoRole==='detail'?'위험 부위':'역할 미지정'} · 추가 사진: {row.contextPhoto?(row.contextRole==='overview'?'현장 전체':'위험 부위')+' · '+row.contextPhoto.name:'없음'}</p>
   <p>사진 한 장으로도 점검을 저장할 수 있습니다. 추가 사진은 나중에 연결할 수 있습니다.</p>
-  {!row.contextPhoto&&<><label>추가 사진 역할<select value={role} onChange={e=>setRole(e.target.value as 'overview'|'detail')}><option value="overview">현장 전체</option><option value="detail">위험 부위</option></select></label><label>현장 사진 추가<input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f&&(!pending||window.confirm('저장하지 않은 추가 사진을 바꿀까요?')))setPending(f);}}/></label></>}
+  {!row.contextPhoto&&<><label>추가 사진 역할<select value={role} onChange={e=>setRole(e.target.value as 'overview'|'detail')}><option value="overview">현장 전체</option><option value="detail">위험 부위</option></select></label><button type="button" className="si-btn" disabled={busy} onClick={()=>{if(pending&&!window.confirm('저장하지 않은 추가 사진을 버리고 다시 촬영할까요?'))return;setCamera(true);}}>추가 현장 사진 촬영</button> <label>현장 사진 추가<input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f&&(!pending||window.confirm('저장하지 않은 추가 사진을 바꿀까요?')))setPending(f);}}/></label></>}
   {pending&&<div><p>저장 전 사진: {pending.name}</p><button type="button" className="si-btn" disabled={busy} onClick={async()=>{if(await onSave(row,pending,role))setPending(null);}}>현장 사진 연결</button> <button type="button" className="si-btn" onClick={()=>download(pending,pending.name)}>추가 사진 내려받기</button></div>}
   {row.contextPhoto&&<button type="button" className="si-btn" onClick={()=>download(row.contextPhoto!,row.contextPhoto!.name)}>연결된 현장 사진 내려받기</button>}
+  {camera&&<InspectorCameraDialog onClose={()=>setCamera(false)} onUse={file=>{setPending(file);setCamera(false);}}/>}
  </section>;
 }
 /** Local-only manual inspection. No server sync or image inference. */
