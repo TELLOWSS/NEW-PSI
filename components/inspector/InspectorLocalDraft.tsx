@@ -136,12 +136,13 @@ async function hash(file:File):Promise<string|null>{
  catch{return null;}
 }
 type EvidenceManifestItem={
+ slot:string;derivativeStatus:'not-recorded'|'match'|'mismatch'|'unavailable';originalFilename:string|null;originalExpectedSha256:string|null;originalActualSha256:string|null;rotationDegrees:number|null;processedAt:string|null;
  sourceMethod:'camera-dialog'|'file-picker'|'unknown';sourceRecordedAt:string|null;role:string;stage:'current'|'archived';order:number;filename:string;mime:string;bytes:number;
  expectedSha256:string|null;actualSha256:string|null;previousSha256:string|null;
  replacedAt:string|null;check:'match'|'mismatch'|'unrecorded'|'unavailable';
 };
 type EvidenceManifest={
- format:'psi-local-photo-evidence-manifest';version:2;inspectionId:string;generatedAt:string;
+ format:'psi-local-photo-evidence-manifest';version:3;inspectionId:string;generatedAt:string;
  timeSource:'device-clock';scope:'stored-files-only';photos:EvidenceManifestItem[];
  checks:{matched:number;mismatch:number;unrecorded:number;unavailable:number;total:number};
 };
@@ -159,15 +160,18 @@ async function buildEvidenceManifest(inspection:LocalRecord):Promise<EvidenceMan
  pushChain('context','추가 현장 사진'+(inspection.contextDetached?' (연결 해제 상태)':''),inspection.contextPhoto,inspection.contextSha256,inspection.contextHistory||[]);
  pushChain('after','조치 후 사진',inspection.afterPhoto,inspection.afterSha256,inspection.afterHistory||[]);
  (inspection.additionalActions||[]).forEach((action,index)=>pushChain('action:'+action.id,'조치별 사진 '+(index+1),action.photo,action.photoSha256,action.photoHistory||[]));
+ if(inspection.photoEdits&&!validPhotoEdits(inspection.photoEdits,inspection))throw new Error('편집 전 사진과 회전본 기록이 일치하지 않습니다.');
  if(inspection.photoInputs&&!validPhotoInputs(inspection.photoInputs,inspection))throw new Error('사진 출처 기록의 비교값과 사진 버전이 일치하지 않습니다.');
  const photos:EvidenceManifestItem[]=[];
  for(const candidate of candidates){
   const actualSha256=await hash(candidate.photo);
   const check:EvidenceManifestItem['check']=!actualSha256?'unavailable':!candidate.recorded?'unrecorded':actualSha256===candidate.recorded?'match':'mismatch';
-  const source=inspection.photoInputs?.[candidate.key];
-  photos.push({sourceMethod:source?.source||'unknown',sourceRecordedAt:source?.recordedAt||null,role:candidate.role,stage:candidate.stage,order:candidate.order,filename:candidate.photo.name,mime:candidate.photo.type,bytes:candidate.photo.size,expectedSha256:candidate.recorded,actualSha256,previousSha256:candidate.previous,replacedAt:candidate.replacedAt,check});
+  const source=inspection.photoInputs?.[candidate.key],edit=inspection.photoEdits?.[candidate.key];
+  const originalActualSha256=edit?await hash(edit.originalFile):null;
+  const derivativeStatus:EvidenceManifestItem['derivativeStatus']=!edit?'not-recorded':!originalActualSha256?'unavailable':originalActualSha256===edit.originalSha256&&actualSha256===edit.derivedSha256?'match':'mismatch';
+  photos.push({slot:candidate.key,derivativeStatus,originalFilename:edit?.originalFile.name||null,originalExpectedSha256:edit?.originalSha256||null,originalActualSha256,rotationDegrees:edit?.rotationDegrees||null,processedAt:edit?.processedAt||null,sourceMethod:source?.source||'unknown',sourceRecordedAt:source?.recordedAt||null,role:candidate.role,stage:candidate.stage,order:candidate.order,filename:candidate.photo.name,mime:candidate.photo.type,bytes:candidate.photo.size,expectedSha256:candidate.recorded,actualSha256,previousSha256:candidate.previous,replacedAt:candidate.replacedAt,check});
  }
- return {format:'psi-local-photo-evidence-manifest',version:2,inspectionId:inspection.id,generatedAt:new Date().toISOString(),timeSource:'device-clock',scope:'stored-files-only',photos,checks:{matched:photos.filter(v=>v.check==='match').length,mismatch:photos.filter(v=>v.check==='mismatch').length,unrecorded:photos.filter(v=>v.check==='unrecorded').length,unavailable:photos.filter(v=>v.check==='unavailable').length,total:photos.length}};
+ return {format:'psi-local-photo-evidence-manifest',version:3,inspectionId:inspection.id,generatedAt:new Date().toISOString(),timeSource:'device-clock',scope:'stored-files-only',photos,checks:{matched:photos.filter(v=>v.check==='match').length,mismatch:photos.filter(v=>v.check==='mismatch').length,unrecorded:photos.filter(v=>v.check==='unrecorded').length,unavailable:photos.filter(v=>v.check==='unavailable').length,total:photos.length}};
 }
 const list=()=>runStore<LocalRecord[]>('readonly',(store,set)=>{const request=store.getAll();request.onsuccess=()=>set((request.result as LocalRecord[]).filter(item=>item.id!==DRAFT_KEY).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));});
 function download(blob:Blob,name:string){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
@@ -487,8 +491,9 @@ function LocalEvidenceAudit({inspectionId,busy}:{inspectionId:string;busy:boolea
   {running&&<p role="status">저장된 모든 사진의 비교값을 확인하고 있습니다…</p>}
   {errorText&&<p role="alert">{errorText}</p>}
   {audit&&<div aria-label="사진 증빙 검증 결과"><p role="status">증빙 검사 결과: 총 {audit.checks.total}개 · 일치 {audit.checks.matched}개 · 불일치 {audit.checks.mismatch}개 · 기록된 비교값 없음 {audit.checks.unrecorded}개 · 계산 불가 {audit.checks.unavailable}개</p>
-   {audit.photos.map((entry,index)=><p key={index}>{entry.role} · {entry.stage==='archived'?'이전 보관본 '+entry.order:'현재 보관본'} · {entry.filename} · {entry.check==='match'?'SHA-256 일치':entry.check==='mismatch'?'SHA-256 불일치':entry.check==='unrecorded'?'비교값 미기록':'검사 불가'}{entry.previousSha256?' · 이전 버전과 연결됨':''} · 입력 출처: {photoInputLabel(entry.sourceMethod==='unknown'?undefined:{source:entry.sourceMethod,recordedAt:entry.sourceRecordedAt||'',sha256:entry.expectedSha256||''})}</p>)}
+   {audit.photos.map((entry,index)=><p key={index}>{entry.role} · {entry.stage==='archived'?'이전 보관본 '+entry.order:'현재 보관본'} · {entry.filename} · {entry.check==='match'?'SHA-256 일치':entry.check==='mismatch'?'SHA-256 불일치':entry.check==='unrecorded'?'비교값 미기록':'검사 불가'}{entry.previousSha256?' · 이전 버전과 연결됨':''} · 회전 이력: {entry.derivativeStatus==='not-recorded'?'별도 기록 없음':entry.derivativeStatus==='match'?entry.rotationDegrees+'° 회전 · 편집 전/후 파일 일치':entry.derivativeStatus==='mismatch'?'편집 전 사진 검증 불일치':'편집 전 사진 검사 불가'} · 입력 출처: {photoInputLabel(entry.sourceMethod==='unknown'?undefined:{source:entry.sourceMethod,recordedAt:entry.sourceRecordedAt||'',sha256:entry.expectedSha256||''})}</p>)}
    <p>검사 시각은 이 기기 시각입니다. 파일명·기록상 교체 시각·해시 관계는 실제 촬영 장소·시각·원본 여부·신원·안전조치 완료를 증명하지 않습니다. 최초 받아 저장한 사진이 편집본일 수도 있습니다. 파일 선택 버튼은 OS 카메라 촬영으로 이어질 수도 있으므로 사진첩 사진으로 확정하지 않습니다. 출처 기록은 앱 입력 경로만 나타내며 EXIF·실제 촬영 장소·기기 시각 정확성은 별도 검증되지 않았습니다.</p>
+   {audit.photos.some(item=>item.derivativeStatus==='mismatch'||item.derivativeStatus==='unavailable')&&<p role="alert">편집 전 사진 비교값 불일치 또는 확인 불가입니다. 해당 증빙의 원본·가공본 관계를 별도로 확인하세요.</p>}
    {audit.checks.mismatch+audit.checks.unrecorded+audit.checks.unavailable>0&&<p role="alert">일치하지 않거나 검증되지 않은 사진이 있습니다. 원본을 별도로 확인해 주세요. 검증 목록은 참고용이며 인증서가 아닙니다.</p>}
   </div>}
   <p>내려받는 JSON은 사진 원본이 아닌 파일명·크기·SHA-256 검사값·교체 관계의 요약입니다. 암호화되지 않았으며 파일명에 개인정보가 들어 있을 수 있습니다. 사진 파일은 기존 백업 기능으로 별도 보관하세요.</p>
