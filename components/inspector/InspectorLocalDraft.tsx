@@ -300,6 +300,32 @@ async function unpackRecord(file:File):Promise<LocalRecord>{
  }
  return {siteContext,siteContextHistory,primaryHistory:primaryHistory.length?primaryHistory:undefined,afterHistory:afterHistory.length?afterHistory:undefined,contextHistory:contextHistory.length?contextHistory:undefined,contextDetached:data.version>=8?r.contextDetached:undefined,contextFirst:data.version>=7?r.contextFirst:undefined,photoRole:data.version>=6?r.photoRole:undefined,contextPhoto,contextSha256,contextRole,additionalActions,afterPhoto,afterSha256,followup:data.version>=2?r.followup:undefined,id:r.id,createdAt:r.createdAt,note:r.note,action:r.action,legalVersion:r.legalVersion,reviewedAt:r.reviewedAt,photo,sha256:r.sha256};
 }
+function FieldContextEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSave:(row:LocalRecord,next:FieldContext|null,reason:string)=>Promise<boolean>}){
+ const [next,setNext]=useState<FieldContext>(row.siteContext||EMPTY_FIELD_CONTEXT),[reason,setReason]=useState('');
+ const [editing,setEditing]=useState(false);
+ const savedContext=JSON.stringify(row.siteContext||null);
+ useEffect(()=>{setNext(row.siteContext||EMPTY_FIELD_CONTEXT);setReason('');},[savedContext]);
+ const target=cleanFieldContext(next)||null,changed=JSON.stringify(target)!==savedContext;
+ const save=async()=>{if(!changed||reason.trim().length<5||busy)return;if(await onSave(row,target,reason.trim())){setReason('');setEditing(false);}};
+ const history=row.siteContextHistory||[];
+ return <details aria-label="현장정보 정정 및 이력" open={editing} onToggle={event=>setEditing(event.currentTarget.open)}>
+  <summary>현장정보 정정 · 이전 기록 {history.length}건</summary>
+  <p>현장정보는 점검자가 작성한 진술입니다. 기기 입력은 실제 사진 촬영 위치를 증명하지 않습니다. 수정 시 이전 내용과 사유를 이력에 남기며 원본 사진은 변경하지 않습니다.</p>
+  <fieldset disabled={busy} style={{display:'grid',gap:6}}>
+   <label>현장명 정정<input aria-label="기록 현장명 정정" maxLength={100} value={next.site} onChange={e=>setNext(v=>({...v,site:e.target.value}))}/></label>
+   <label>동 정정<input aria-label="기록 동 정정" maxLength={40} value={next.building} onChange={e=>setNext(v=>({...v,building:e.target.value}))}/></label>
+   <label>층 정정<input aria-label="기록 층 정정" maxLength={40} value={next.level} onChange={e=>setNext(v=>({...v,level:e.target.value}))}/></label>
+   <label>공종 정정<input aria-label="기록 공종 정정" maxLength={60} value={next.trade} onChange={e=>setNext(v=>({...v,trade:e.target.value}))}/></label>
+   <label>변경 사유 (5~200자)<textarea aria-label="현장정보 변경 사유" maxLength={200} value={reason} onChange={e=>setReason(e.target.value)} placeholder="예: 작업반장 확인 후 실제 층을 수정함"/></label>
+  </fieldset>
+  {!target&&<p>모든 정보를 지우면 '현장정보 미확인'으로 기록되며 이력은 계속 보존됩니다.</p>}
+  <button type="button" className="si-btn" disabled={busy||!changed||reason.trim().length<5||history.length>=100} onClick={()=>void save()}>현장정보 정정 저장</button>
+  {history.length>=100&&<p role="alert">변경 이력이 100건에 도달했습니다. 기존 이력을 지우지 않고 새 점검 기록을 작성하세요.</p>}
+  {history.length>0&&<details><summary>이전 현장정보 변경 이력 {history.length}건</summary>
+   {history.map((entry,index)=><p key={index}>{index+1}. {new Date(entry.at).toLocaleString('ko-KR')} (이 기기 시각) · 이전: {entry.before?fieldContextLabel(entry.before):'미확인'} → 변경: {entry.after?fieldContextLabel(entry.after):'미확인'} · 사유: {entry.reason} · 입력: 기기 사용자(개인 신원 확인 아님)</p>)}
+  </details>}
+ </details>;
+}
 function FollowupEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSave:(id:string,value:Followup)=>Promise<boolean>}){
  const current=row.followup;
  const [status,setStatus]=useState(current?.status||'pending'),[assignee,setAssignee]=useState(current?.assignee||''),[dueDate,setDueDate]=useState(current?.dueDate||''),[temporaryMeasure,setTemporaryMeasure]=useState(current?.temporaryMeasure||''),[note,setNote]=useState('');
@@ -447,6 +473,25 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    draftRef.current=null;setDraft(null);setPhoto(null);setPhotoRole('unspecified');setSiteContextInput(EMPTY_FIELD_CONTEXT);setNote('');setAction('');setMessage(record.sha256?'기기에 저장했습니다. 서버에는 전송하지 않았습니다.':'기기에 저장했습니다. 파일 해시는 확인하지 못했습니다.');
    await refresh();
   }catch(error){setMessage(error instanceof DOMException&&error.name==='QuotaExceededError'?'저장 공간이 부족합니다. 사진을 내려받거나 공간을 확보한 뒤 다시 시도하세요.':error instanceof Error&&!(error instanceof DOMException)&&error.message?error.message:'기기에 저장하지 못했습니다. 입력과 사진을 유지합니다. 다시 시도하거나 사진을 내려받으세요.');}
+  finally{flight.current=false;setBusy(false);}
+ };
+ const saveFieldContext=async(row:LocalRecord,next:FieldContext|null,reason:string):Promise<boolean>=>{
+  if(flight.current||reason.length<5||reason.length>200||reason.trim()!==reason||(next&&!validFieldContext(next)))return false;
+  const previous=row.siteContext||null,history=row.siteContextHistory||[];
+  if(JSON.stringify(previous)===JSON.stringify(next)){setMessage('현장정보가 변경되지 않았습니다.');return false;}
+  if(history.length>=100){setMessage('정정 이력 100건에 도달했습니다. 새 점검을 작성하세요.');return false;}
+  flight.current=true;setBusy(true);setMessage('');
+  try{
+   const entry:SiteContextChange={before:previous,after:next,reason,actor:'device-user',at:new Date().toISOString()};
+   const updated=[...history,entry];
+   if(!validSiteContextHistory(updated,next))throw new Error('변경 이력을 검증하지 못했습니다.');
+   await runStore<void>('readwrite',store=>{const request=store.get(row.id);request.onsuccess=()=>{
+    const current=request.result as LocalRecord|undefined;
+    if(!current||JSON.stringify(current.siteContext||null)!==JSON.stringify(previous)||JSON.stringify(current.siteContextHistory||[])!==JSON.stringify(history)){request.transaction?.abort();return;}
+    store.put({...current,siteContext:next||undefined,siteContextHistory:updated});
+   };});
+   await refresh();setMessage('현장정보 수정과 이전 내용을 이 기기에 함께 보관했습니다. 백업 파일에도 변경 이력이 포함됩니다.');return true;
+  }catch{setMessage('현장정보를 수정하지 못했습니다. 다른 탭에서 변경한 기록이 있는지 확인하고 다시 시도하세요.');return false;}
   finally{flight.current=false;setBusy(false);}
  };
  const changeContextLink=async(row:LocalRecord):Promise<void>=>{
@@ -728,7 +773,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    </section>
    <label className="si-btn">백업 파일 복원<input type="file" accept="application/json,.json" aria-label="백업 파일 복원" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void restore(file);}}/></label>
    {readState==='ready'&&<label>후속 조치 모아보기<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">전체</option><option value="unassigned">담당 미지정</option><option value="no_due">기한 미정</option><option value="overdue">기한 초과</option><option value="review">확인 요청</option></select> · {visibleRows.length}건</label>}
-   {readState==='ready'&&visibleRows.map(row=><article key={row.id}><label><input type="checkbox" aria-label="묶음 백업에 선택" checked={backupIds.includes(row.id)} disabled={busy} onChange={e=>setBackupIds(prev=>e.target.checked?[...prev.filter(id=>id!==row.id),row.id]:prev.filter(id=>id!==row.id))}/> 묶음 백업에 선택</label><p>{new Date(row.createdAt).toLocaleString('ko-KR')} · {row.note}</p><p>점검 현장정보: {row.siteContext?fieldContextLabel(row.siteContext):'미기록 (기존 기록 포함)'} · 위치는 점검자 입력이며 자동 검증된 사실이 아닙니다.</p><p>조치 계획: {row.action||'미작성'} · 파일 무결성 기록: {row.sha256?'SHA-256 기록됨':'미확인'}</p><PrimaryPhotoEditor row={row} busy={busy} onSave={savePrimaryPhoto}/><ContextPhotoEditor row={row} busy={busy} onSave={saveContextPhoto} onOrder={changePhotoOrder} onLink={changeContextLink}/><FollowupEditor row={row} busy={busy} onSave={saveFollowup}/><AdditionalActions row={row} busy={busy} onUpdate={updateAdditionalActions} onPhoto={saveActionPhoto}/><div><p>조치 후 사진: {row.afterPhoto?row.afterPhoto.name:'아직 없음'}</p><p>이 점검의 조치 후 사진은 위에 표시된 점검 현장정보를 공유합니다. 사진 자체의 촬영 위치를 입증하지는 않습니다.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>{if(capturedAfter&&!window.confirm('아직 저장하지 않은 조치 후 사진을 버리고 다시 촬영할까요?'))return;setCapturedAfter(null);setAfterCamera(row);}}>조치 후 사진 촬영</button> <label className="si-btn">조치 후 사진 {row.afterPhoto?'변경':'연결'}<input aria-label="조치 후 사진 연결" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file&&(!capturedAfter||window.confirm('저장하지 않은 촬영 사진을 버리고 선택한 사진을 연결할까요?')))void saveAfterPhoto(row,file);}}/></label> {row.afterPhoto&&<button type="button" className="si-btn" onClick={()=>download(row.afterPhoto!,row.afterPhoto!.name||'PSI-after.jpg')}>조치 후 사진 내려받기</button>}<p>사진 연결만으로 조치 완료나 안전을 증명하지 않습니다.</p>{!!row.afterHistory?.length&&<details><summary>이전 조치 후 사진 {row.afterHistory.length}장</summary><p>교체 시각은 기기 시각이며 촬영 시각과 다를 수 있습니다.</p>{row.afterHistory.map((entry,i)=><p key={i}>{entry.photo.name} · {new Date(entry.replacedAt).toLocaleString('ko-KR')} <button type="button" className="si-btn" onClick={()=>download(entry.photo,entry.photo.name)}>이전 조치 후 사진 내려받기</button></p>)}</details>}</div><button type="button" className="si-btn" disabled={busy} onClick={()=>void verifyPhoto(row.id)}>사진 변경 확인</button> {checks[row.id]&&<p role="status">{checks[row.id]}</p>} <button type="button" className="si-btn" onClick={()=>download(row.photo,row.photo.name||'PSI-photo.jpg')}>사진 내려받기</button> <button type="button" className="si-btn" onClick={()=>{const {photo:stored,...data}=row;download(new Blob([JSON.stringify({...data,photoName:stored.name,photoType:stored.type},null,2)],{type:'application/json'}),'PSI-local-record-'+row.id+'.json');}}>점검 내용 내려받기</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void backup(row)}>사진과 기록 함께 백업</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void remove(row.id)}>이 기기 기록 삭제</button></article>)}
+   {readState==='ready'&&visibleRows.map(row=><article key={row.id}><label><input type="checkbox" aria-label="묶음 백업에 선택" checked={backupIds.includes(row.id)} disabled={busy} onChange={e=>setBackupIds(prev=>e.target.checked?[...prev.filter(id=>id!==row.id),row.id]:prev.filter(id=>id!==row.id))}/> 묶음 백업에 선택</label><p>{new Date(row.createdAt).toLocaleString('ko-KR')} · {row.note}</p><p>점검 현장정보: {row.siteContext?fieldContextLabel(row.siteContext):'미기록 (기존 기록 포함)'} · 위치는 점검자 입력이며 자동 검증된 사실이 아닙니다.</p><FieldContextEditor row={row} busy={busy} onSave={saveFieldContext}/><p>조치 계획: {row.action||'미작성'} · 파일 무결성 기록: {row.sha256?'SHA-256 기록됨':'미확인'}</p><PrimaryPhotoEditor row={row} busy={busy} onSave={savePrimaryPhoto}/><ContextPhotoEditor row={row} busy={busy} onSave={saveContextPhoto} onOrder={changePhotoOrder} onLink={changeContextLink}/><FollowupEditor row={row} busy={busy} onSave={saveFollowup}/><AdditionalActions row={row} busy={busy} onUpdate={updateAdditionalActions} onPhoto={saveActionPhoto}/><div><p>조치 후 사진: {row.afterPhoto?row.afterPhoto.name:'아직 없음'}</p><p>이 점검의 조치 후 사진은 위에 표시된 점검 현장정보를 공유합니다. 사진 자체의 촬영 위치를 입증하지는 않습니다.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>{if(capturedAfter&&!window.confirm('아직 저장하지 않은 조치 후 사진을 버리고 다시 촬영할까요?'))return;setCapturedAfter(null);setAfterCamera(row);}}>조치 후 사진 촬영</button> <label className="si-btn">조치 후 사진 {row.afterPhoto?'변경':'연결'}<input aria-label="조치 후 사진 연결" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file&&(!capturedAfter||window.confirm('저장하지 않은 촬영 사진을 버리고 선택한 사진을 연결할까요?')))void saveAfterPhoto(row,file);}}/></label> {row.afterPhoto&&<button type="button" className="si-btn" onClick={()=>download(row.afterPhoto!,row.afterPhoto!.name||'PSI-after.jpg')}>조치 후 사진 내려받기</button>}<p>사진 연결만으로 조치 완료나 안전을 증명하지 않습니다.</p>{!!row.afterHistory?.length&&<details><summary>이전 조치 후 사진 {row.afterHistory.length}장</summary><p>교체 시각은 기기 시각이며 촬영 시각과 다를 수 있습니다.</p>{row.afterHistory.map((entry,i)=><p key={i}>{entry.photo.name} · {new Date(entry.replacedAt).toLocaleString('ko-KR')} <button type="button" className="si-btn" onClick={()=>download(entry.photo,entry.photo.name)}>이전 조치 후 사진 내려받기</button></p>)}</details>}</div><button type="button" className="si-btn" disabled={busy} onClick={()=>void verifyPhoto(row.id)}>사진 변경 확인</button> {checks[row.id]&&<p role="status">{checks[row.id]}</p>} <button type="button" className="si-btn" onClick={()=>download(row.photo,row.photo.name||'PSI-photo.jpg')}>사진 내려받기</button> <button type="button" className="si-btn" onClick={()=>{const {photo:stored,...data}=row;download(new Blob([JSON.stringify({...data,photoName:stored.name,photoType:stored.type},null,2)],{type:'application/json'}),'PSI-local-record-'+row.id+'.json');}}>점검 내용 내려받기</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void backup(row)}>사진과 기록 함께 백업</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void remove(row.id)}>이 기기 기록 삭제</button></article>)}
    {capturedAfter&&<div role="status"><p>촬영한 조치 후 사진이 아직 저장되지 않았습니다. 연결할 점검: {capturedAfter.row.note}</p><button type="button" className="si-btn" disabled={busy} onClick={()=>void saveAfterPhoto(capturedAfter.row,capturedAfter.file)}>촬영 사진 연결{busy?' 중…':''}</button> <button type="button" className="si-btn" onClick={()=>download(capturedAfter.file,capturedAfter.file.name||'PSI-after.jpg')}>촬영 사진 내려받기</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>{if(window.confirm('저장하지 않은 조치 후 사진을 버릴까요?'))setCapturedAfter(null);}}>촬영 사진 버리기</button></div>}
    <p>사진 변경 확인은 저장된 사진과 기록된 비교값만 대조합니다. 백업에서 복원한 기록의 비교값은 백업 당시 생성됐을 수 있습니다. 점검 내용의 변경이나 촬영 시각·장소·안전 여부는 증명하지 않습니다.</p>
   </section>
