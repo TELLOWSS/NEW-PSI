@@ -471,6 +471,16 @@ function FieldContextEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSa
 }
 function LocalEvidenceAudit({inspectionId,busy}:{inspectionId:string;busy:boolean}){
  const [audit,setAudit]=useState<EvidenceManifest|null>(null),[running,setRunning]=useState(false),[errorText,setErrorText]=useState('');
+ const downloadOriginal=async(slot:string)=>{
+  if(busy||running)return;
+  setErrorText('');
+  try{
+   const fresh=await runStore<LocalRecord|undefined>('readonly',(store,set)=>{const req=store.get(inspectionId);req.onsuccess=()=>set(req.result as LocalRecord|undefined);});
+   const entry=fresh?.photoEdits?.[slot];
+   if(!fresh||!entry||!validPhotoEdits(fresh.photoEdits,fresh)||await hash(entry.originalFile)!==entry.originalSha256)throw new Error('편집 전 사진 파일의 무결성을 확인하지 못했습니다. 다른 기기 백업을 확인하세요.');
+   download(entry.originalFile,entry.originalFile.name);
+  }catch(error){setErrorText(error instanceof Error?error.message:'편집 전 사진을 내려받을 수 없습니다.');}
+ };
  const assess=async(saveFile:boolean)=>{
   if(busy||running)return;
   setRunning(true);setErrorText('');setAudit(null);
@@ -491,7 +501,7 @@ function LocalEvidenceAudit({inspectionId,busy}:{inspectionId:string;busy:boolea
   {running&&<p role="status">저장된 모든 사진의 비교값을 확인하고 있습니다…</p>}
   {errorText&&<p role="alert">{errorText}</p>}
   {audit&&<div aria-label="사진 증빙 검증 결과"><p role="status">증빙 검사 결과: 총 {audit.checks.total}개 · 일치 {audit.checks.matched}개 · 불일치 {audit.checks.mismatch}개 · 기록된 비교값 없음 {audit.checks.unrecorded}개 · 계산 불가 {audit.checks.unavailable}개</p>
-   {audit.photos.map((entry,index)=><p key={index}>{entry.role} · {entry.stage==='archived'?'이전 보관본 '+entry.order:'현재 보관본'} · {entry.filename} · {entry.check==='match'?'SHA-256 일치':entry.check==='mismatch'?'SHA-256 불일치':entry.check==='unrecorded'?'비교값 미기록':'검사 불가'}{entry.previousSha256?' · 이전 버전과 연결됨':''} · 회전 이력: {entry.derivativeStatus==='not-recorded'?'별도 기록 없음':entry.derivativeStatus==='match'?entry.rotationDegrees+'° 회전 · 편집 전/후 파일 일치':entry.derivativeStatus==='mismatch'?'편집 전 사진 검증 불일치':'편집 전 사진 검사 불가'} · 입력 출처: {photoInputLabel(entry.sourceMethod==='unknown'?undefined:{source:entry.sourceMethod,recordedAt:entry.sourceRecordedAt||'',sha256:entry.expectedSha256||''})}</p>)}
+   {audit.photos.map((entry,index)=><div key={index}><p>{entry.role} · {entry.stage==='archived'?'이전 보관본 '+entry.order:'현재 보관본'} · {entry.filename} · {entry.check==='match'?'SHA-256 일치':entry.check==='mismatch'?'SHA-256 불일치':entry.check==='unrecorded'?'비교값 미기록':'검사 불가'}{entry.previousSha256?' · 이전 버전과 연결됨':''} · 회전 이력: {entry.derivativeStatus==='not-recorded'?'별도 기록 없음':entry.derivativeStatus==='match'?entry.rotationDegrees+'° 회전 · 편집 전/후 파일 일치':entry.derivativeStatus==='mismatch'?'편집 전 사진 검증 불일치':'편집 전 사진 검사 불가'} · 입력 출처: {photoInputLabel(entry.sourceMethod==='unknown'?undefined:{source:entry.sourceMethod,recordedAt:entry.sourceRecordedAt||'',sha256:entry.expectedSha256||''})}</p>{entry.originalFilename&&<button type="button" className="si-btn" disabled={busy||running||entry.derivativeStatus!=='match'} onClick={()=>void downloadOriginal(entry.slot)}>편집 전 사진 내려받기 ({entry.role} · {entry.order}번)</button>}</div>)}
    <p>검사 시각은 이 기기 시각입니다. 파일명·기록상 교체 시각·해시 관계는 실제 촬영 장소·시각·원본 여부·신원·안전조치 완료를 증명하지 않습니다. 최초 받아 저장한 사진이 편집본일 수도 있습니다. 파일 선택 버튼은 OS 카메라 촬영으로 이어질 수도 있으므로 사진첩 사진으로 확정하지 않습니다. 출처 기록은 앱 입력 경로만 나타내며 EXIF·실제 촬영 장소·기기 시각 정확성은 별도 검증되지 않았습니다.</p>
    {audit.photos.some(item=>item.derivativeStatus==='mismatch'||item.derivativeStatus==='unavailable')&&<p role="alert">편집 전 사진 비교값 불일치 또는 확인 불가입니다. 해당 증빙의 원본·가공본 관계를 별도로 확인하세요.</p>}
    {audit.checks.mismatch+audit.checks.unrecorded+audit.checks.unavailable>0&&<p role="alert">일치하지 않거나 검증되지 않은 사진이 있습니다. 원본을 별도로 확인해 주세요. 검증 목록은 참고용이며 인증서가 아닙니다.</p>}
