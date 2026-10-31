@@ -43,6 +43,21 @@ const BACKUP_LIMIT=20*1024*1024;
 const BATCH_LIMIT=50*1024*1024;
 const BATCH_COUNT_LIMIT=10;
 type BatchPreviewEntry={index:number;status:'ready'|'duplicate'|'invalid';summary:string;message:string;record?:LocalRecord;selected:boolean};
+type StorageStatus={kind:'normal'|'near-limit'|'unavailable'|'failed';retention:'granted'|'not-granted'|'unknown';description:string};
+async function readStorageStatus():Promise<StorageStatus>{
+ const storage=navigator.storage;
+ if(!storage||typeof storage.estimate!=='function')return {kind:'unavailable',retention:'unknown',description:'이 브라우저에서는 저장공간 상태를 조회할 수 없습니다. 저장 기록이 없다는 뜻은 아닙니다.'};
+ try{
+  const estimate=await storage.estimate();
+  const usage=estimate.usage,quota=estimate.quota;
+  let retention:StorageStatus['retention']='unknown';
+  try{if(typeof storage.persisted==='function')retention=await storage.persisted()?'granted':'not-granted';}catch{/* Browser storage policy unavailable; never infer approval. */}
+  if(typeof usage!=='number'||typeof quota!=='number'||!Number.isFinite(usage)||!Number.isFinite(quota)||usage<0||quota<=0)return {kind:'unavailable',retention,description:'브라우저에서 저장공간 사용량을 제공하지 않았습니다. 실제 저장 가능 용량은 확인할 수 없습니다.'};
+  const ratio=usage/quota;
+  const description='이 사이트의 브라우저 추정 저장공간: '+(usage/1048576).toFixed(1)+'MB / '+(quota/1048576).toFixed(1)+'MB (약 '+Math.round(ratio*100)+'% 사용).';
+  return {kind:ratio>=0.8?'near-limit':'normal',retention,description};
+ }catch{return {kind:'failed',retention:'unknown',description:'기기 저장공간 조회에 실패했습니다. 점검 기록이 삭제됐다는 의미는 아닙니다.'};}
+}
 function backupIssue(photo:File):string|null{
  if(photo.size>BACKUP_LIMIT)return '사진이 20MB를 넘어 백업할 수 없습니다. 사진을 별도로 내려받으세요.';
  if(!['image/jpeg','image/png','image/webp'].includes(photo.type))return '이 사진 형식은 함께 백업하여 복원할 수 없습니다. 사진과 점검 내용을 각각 내려받으세요.';
@@ -317,6 +332,9 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [filter,setFilter]=useState('all');
  const [backupIds,setBackupIds]=useState<string[]>([]);
  const [batchPreview,setBatchPreview]=useState<BatchPreviewEntry[]|null>(null);
+ const [storageStatus,setStorageStatus]=useState<StorageStatus|null>(null);
+ const [storageMessage,setStorageMessage]=useState('');
+ const [storageBusy,setStorageBusy]=useState(false);
  const visibleRows=rows.filter(row=>{const items=[row.followup,...(row.additionalActions||[]).map(item=>item.followup)];return filter==='all'||items.some(item=>filter==='unassigned'?!item?.assignee:filter==='no_due'?!item?.dueDate:filter==='overdue'?!!item&&overdue(item):filter==='review'?item?.status==='review_requested':false);});
  const refresh=async()=>{const sequence=++readSequence.current;setChecks({});setReadState(previous=>previous==='ready'?'ready':'loading');try{const found=await list();if(sequence===readSequence.current){setRows(found);setReadState('ready');}}catch{if(sequence===readSequence.current)setReadState('error');}};
  useEffect(()=>{void refresh();},[]);
@@ -494,6 +512,29 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   }catch{setChecks(prev=>({...prev,[id]:'기기 기록을 읽지 못했습니다. 다시 시도하세요.'}));}
   finally{flight.current=false;setBusy(false);}
  };
+ const inspectStorage=async()=>{
+  if(storageBusy)return;
+  setStorageBusy(true);setStorageMessage('');
+  try{setStorageStatus(await readStorageStatus());}
+  finally{setStorageBusy(false);}
+ };
+ const requestStorageRetention=async()=>{
+  if(storageBusy)return;
+  setStorageBusy(true);setStorageMessage('');
+  try{
+   if(!navigator.storage||typeof navigator.storage.persist!=='function'){
+    setStorageMessage('이 브라우저에서는 저장 유지 요청을 지원하지 않습니다. 백업 파일을 별도 보관해 주세요.');
+   }else{
+    const granted=await navigator.storage.persist();
+    setStorageMessage(granted?'브라우저가 저장 유지 요청을 승인했습니다. 데이터 직접 삭제나 기기 분실까지 막지는 못합니다.':'브라우저가 저장 유지 요청을 승인하지 않았습니다. 백업 파일을 별도로 보관해 주세요.');
+   }
+  }catch{
+   setStorageMessage('저장 유지 요청을 확인하지 못했습니다. 백업 파일을 별도로 보관해 주세요.');
+  }finally{
+   setStorageStatus(await readStorageStatus());
+   setStorageBusy(false);
+  }
+ };
  const backup=async(row:LocalRecord)=>{if(flight.current)return;flight.current=true;setBusy(true);setMessage('');try{const current=await runStore<LocalRecord|undefined>('readonly',(store,set)=>{const request=store.get(row.id);request.onsuccess=()=>set(request.result as LocalRecord|undefined);});if(!current)throw new Error('해당 점검을 찾을 수 없어 백업하지 않았습니다. 목록을 다시 확인하세요.');download(await packRecord(current),'PSI-backup-'+current.id+'.json');setMessage('백업 파일 내려받기를 요청했습니다. 저장된 파일을 확인하고 안전한 장소에 보관하세요.');}catch(error){setMessage(error instanceof Error?error.message:'백업하지 못했습니다.');}finally{flight.current=false;setBusy(false);}};
  const backupSelected=async()=>{
   if(flight.current||!backupIds.length)return;
@@ -580,6 +621,15 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    <h2>사진과 점검 내용을 이 기기에 보관</h2>
    <p>사진을 자동 분석하지 않습니다. 직접 확인한 내용으로 관련 기준을 찾아보는 기능입니다. 서버 업로드와 유료 AI 호출은 하지 않습니다.</p>
    <p>{offlineEntry?'사전에 오프라인 준비를 마친 기기에서는 이 주소로 인터넷 없이 다시 열 수 있습니다.':'인터넷이 끊기기 전 기기 점검 전용 화면에서 오프라인 준비가 필요합니다.'} 브라우저 데이터 삭제나 기기 분실 시 기록이 사라질 수 있으니 별도로 내려받으세요.</p>{!offlineEntry&&<p><a href="/field-local/">오프라인 재실행 준비 화면 열기</a></p>}
+   <section aria-label="기기 저장 안정성 확인">
+    <h3>기기 저장상태 확인</h3>
+    <p>촬영 전후 저장 상태를 확인할 수 있습니다. 조회는 현재 기기의 브라우저에서만 수행하며 서버로 전송하지 않습니다.</p>
+    <button type="button" className="si-btn" disabled={storageBusy} onClick={()=>void inspectStorage()}>{storageBusy?'저장상태 확인 중…':'기기 저장공간 확인'}</button>{' '}
+    <button type="button" className="si-btn" disabled={storageBusy} onClick={()=>void requestStorageRetention()}>브라우저 저장 유지 요청</button>
+    {storageStatus&&<div role="status"><p>{storageStatus.description}</p><p>{storageStatus.retention==='granted'?'저장 유지 요청: 브라우저에서 승인 상태로 확인됨':storageStatus.retention==='not-granted'?'저장 유지 요청: 승인 상태가 아님':'저장 유지 요청: 브라우저에서 상태를 확인할 수 없음'}</p>{storageStatus.kind==='near-limit'&&<p>사용량이 높게 보고됐습니다. 추가 저장에 실패할 수 있으므로 점검 사진과 기록을 먼저 별도 백업하고 파일 저장 여부를 확인해 주세요.</p>}</div>}
+    {storageMessage&&<p role="status">{storageMessage}</p>}
+    <p>표시 용량은 사이트 전체의 브라우저 추정치이며 실제 기기 여유 공간이나 향후 저장 성공을 보장하지 않습니다. 저장 유지 요청이 승인되어도 브라우저 데이터 직접 삭제·기기 교체·분실 시 기록이 사라질 수 있습니다. 반드시 백업 파일을 내려받아 다른 안전한 장소에서 열리는지 확인하세요.</p>
+   </section>
    {photo?<>{url&&<img src={url} alt="기기 점검에 선택한 사진" style={{display:'block',maxWidth:'100%',maxHeight:260,objectFit:'contain'}}/>}<p>{photo.name} · {Math.ceil(photo.size/1024)} KB</p>{backupIssue(photo)&&<p role="alert">저장 전 백업 안내: {backupIssue(photo)} 점검은 기기에 저장할 수 있습니다.</p>}<button type="button" className="si-btn" disabled={busy} onClick={()=>download(photo,photo.name)}>선택 사진 내려받기</button></>:<p>사진을 촬영하거나 선택해 주세요.</p>}
    <div><button type="button" className="si-btn" disabled={busy||!!draft||draftState!=='ready'} onClick={()=>{setSequence(false);setCamera(true);}}>기기 점검 사진 촬영</button> <button type="button" className="si-btn" disabled={busy||!!photo||draftState!=='ready'||(draft?.photos.length||0)>=2} onClick={()=>{setSequence(true);setCamera(true);}}>전체·위험 부위 연속 촬영</button> <label className="si-btn">기기 점검 사진 선택<input aria-label="기기 점검 사진 선택" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy||!!draft||draftState!=='ready'} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)choose(file);}}/></label></div>
    {draftState==='loading'&&<p role="status">임시 촬영 사진을 확인하고 있습니다…</p>}
