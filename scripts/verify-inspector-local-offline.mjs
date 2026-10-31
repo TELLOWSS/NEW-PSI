@@ -116,6 +116,13 @@ try{
  await item1.getByLabel('이 조치 사진 선택').setInputFiles({name:'action-one.png',mimeType:'image/png',buffer:Buffer.from('synthetic first photo')});
  await item1.getByRole('button',{name:'이 조치에 사진 저장'}).click();
  await panel.getByText('조치별 사진을 이 기기에 저장했습니다.').waitFor();
+ await item1.getByLabel('이 조치 사진 선택').setInputFiles({name:'action-one-v2.png',mimeType:'image/png',buffer:Buffer.from('synthetic replacement action photo')});
+ page.once('dialog',d=>d.accept());await item1.getByRole('button',{name:'이 조치에 사진 저장'}).click();
+ await item1.getByText('이 조치의 사진: action-one-v2.png').waitFor();
+ await item1.getByText('이 조치의 이전 사진 1장').click();
+ const oldActionDownload=page.waitForEvent('download');await item1.getByRole('button',{name:'이 조치의 이전 사진 내려받기'}).click();
+ assert.equal((await oldActionDownload).suggestedFilename(),'action-one.png');
+
  const item2=actions.locator('div').filter({hasText:'합성 출입 통제'}).first();
  await item2.getByLabel('이 조치 사진 선택').setInputFiles({name:'action-two.jpg',mimeType:'image/jpeg',buffer:Buffer.from('synthetic second photo')});
  await item2.getByRole('button',{name:'이 조치에 사진 저장'}).click();
@@ -135,7 +142,7 @@ try{
  const backup=await backupEvent,backupBytes=await readFile(await backup.path()),parsed=JSON.parse(backupBytes.toString());
  assert.equal(parsed.record.sha256,saved[0].sha,'backup photo hash must match stored photo');
  assert.equal(parsed.record.action,'다른 탭에서 갱신한 합성 조치 계획','backup must read the current stored record');
- assert.equal(parsed.version,10);assert.equal(parsed.record.afterHistory.length,1);assert.equal(parsed.record.afterHistory[0].name,'synthetic-after.png');assert.equal(parsed.record.contextHistory.length,1);assert.equal(parsed.record.contextHistory[0].name,contextName);assert.equal(parsed.record.contextHistory[0].sha256,detached.record.contextPhoto.sha256);assert.equal(parsed.record.contextDetached,false);assert.equal(parsed.record.contextFirst,true);assert.equal(parsed.record.photoRole,'overview');assert.equal(parsed.record.contextPhoto.role,'detail');assert.equal(parsed.record.contextPhoto.name,replacementName);assert.equal(parsed.record.additionalActions[0].photo.name,'action-one.png');assert.equal(parsed.record.additionalActions[1].photo.name,'action-two.jpg');assert.equal(parsed.record.additionalActions.length,2);assert.equal(parsed.record.additionalActions[0].followup.status,'verified');assert.equal(parsed.record.additionalActions[1].followup,undefined);assert.equal(parsed.record.followup.status,'in_progress');assert.equal(parsed.record.followup.assignee,'합성 담당자');assert.equal(parsed.record.afterPhoto.name,'synthetic-after-v2.png');assert.match(parsed.record.afterPhoto.sha256,/^[a-f0-9]{64}$/);
+ assert.equal(parsed.version,11);assert.equal(parsed.record.additionalActions[0].photoHistory.length,1);assert.equal(parsed.record.additionalActions[0].photoHistory[0].name,'action-one.png');assert.equal(parsed.record.afterHistory.length,1);assert.equal(parsed.record.afterHistory[0].name,'synthetic-after.png');assert.equal(parsed.record.contextHistory.length,1);assert.equal(parsed.record.contextHistory[0].name,contextName);assert.equal(parsed.record.contextHistory[0].sha256,detached.record.contextPhoto.sha256);assert.equal(parsed.record.contextDetached,false);assert.equal(parsed.record.contextFirst,true);assert.equal(parsed.record.photoRole,'overview');assert.equal(parsed.record.contextPhoto.role,'detail');assert.equal(parsed.record.contextPhoto.name,replacementName);assert.equal(parsed.record.additionalActions[0].photo.name,'action-one-v2.png');assert.equal(parsed.record.additionalActions[1].photo.name,'action-two.jpg');assert.equal(parsed.record.additionalActions.length,2);assert.equal(parsed.record.additionalActions[0].followup.status,'verified');assert.equal(parsed.record.additionalActions[1].followup,undefined);assert.equal(parsed.record.followup.status,'in_progress');assert.equal(parsed.record.followup.assignee,'합성 담당자');assert.equal(parsed.record.afterPhoto.name,'synthetic-after-v2.png');assert.match(parsed.record.afterPhoto.sha256,/^[a-f0-9]{64}$/);
  const savedRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
  await savedRow.getByRole('button',{name:'사진 변경 확인'}).click();
  await savedRow.getByText('확인 시점의 사진이 저장된 비교값과 일치합니다.').waitFor();
@@ -166,10 +173,13 @@ try{
  await panel.getByText('추가 조치 기록이 손상되어 복원하지 못했습니다.').waitFor();
  const invalidOrder=JSON.parse(backupBytes.toString());invalidOrder.record.contextFirst='yes';
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'bad-order.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(invalidOrder))});
- await panel.getByText('이전 조치 후 사진 이력이 손상되었습니다.').waitFor();
+ await panel.getByText('사진 이력이 손상되었습니다.').waitFor();
  const invalidLink=JSON.parse(backupBytes.toString());invalidLink.record.contextDetached='yes';
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'bad-link.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(invalidLink))});
- await panel.getByText('이전 조치 후 사진 이력이 손상되었습니다.').waitFor();
+ await panel.getByText('사진 이력이 손상되었습니다.').waitFor();
+ const badOldAction=JSON.parse(backupBytes.toString());badOldAction.record.additionalActions[0].photoHistory[0].sha256='0'.repeat(64);
+ await panel.getByLabel('백업 파일 복원').setInputFiles({name:'bad-old-action.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(badOldAction))});
+ await panel.getByText('이전 조치별 사진의 무결성이 확인되지 않아 복원을 중단했습니다.').waitFor();
  const badOldAfter=JSON.parse(backupBytes.toString());badOldAfter.record.afterHistory[0].sha256='0'.repeat(64);
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'bad-old-after.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(badOldAfter))});
  await panel.getByText('이전 조치 후 사진의 무결성이 확인되지 않아 복원을 중단했습니다.').waitFor();
@@ -228,8 +238,8 @@ try{
  page.once('dialog',d=>d.accept());await detachedRow.getByRole('button',{name:'이 기기 기록 삭제'}).click();
  await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
  // Previous formats remain restorable after upgrading; synthetic records only.
- for(const version of [1,2,3,4,5,6,7,8,9]){
-  const legacy=JSON.parse(backupBytes.toString());legacy.version=version;delete legacy.record.afterHistory;if(version<9)delete legacy.record.contextHistory;if(version<8)delete legacy.record.contextDetached;if(version<7)delete legacy.record.contextFirst;if(version<6){delete legacy.record.photoRole;delete legacy.record.contextPhoto;}if(version<4)delete legacy.record.additionalActions;else if(version===4)legacy.record.additionalActions.forEach(item=>delete item.photo);
+ for(const version of [1,2,3,4,5,6,7,8,9,10]){
+  const legacy=JSON.parse(backupBytes.toString());legacy.version=version;if(legacy.record.additionalActions)legacy.record.additionalActions.forEach(item=>delete item.photoHistory);if(version<10)delete legacy.record.afterHistory;if(version<9)delete legacy.record.contextHistory;if(version<8)delete legacy.record.contextDetached;if(version<7)delete legacy.record.contextFirst;if(version<6){delete legacy.record.photoRole;delete legacy.record.contextPhoto;}if(version<4)delete legacy.record.additionalActions;else if(version===4)legacy.record.additionalActions.forEach(item=>delete item.photo);
   if(version===1)delete legacy.record.followup;
   if(version<3)delete legacy.record.afterPhoto;
   await panel.getByLabel('백업 파일 복원').setInputFiles({name:`legacy-${version}.json`,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(legacy))});
@@ -249,7 +259,8 @@ try{
  assert.deepEqual(await panel.locator('[aria-label="현장 사진 표시 순서"] img').evaluateAll(nodes=>nodes.map(n=>n.alt)),['추가 현장 사진','기본 사진']);
  await panel.getByText('조치 진행 중',{exact:true}).waitFor();
  await panel.getByRole('heading',{name:'합성 출입 통제'}).waitFor();
- await panel.getByText('이 조치의 사진: action-one.png').waitFor();
+ await panel.getByText('이 조치의 사진: action-one-v2.png').waitFor();
+ await panel.getByText('이 조치의 이전 사진 1장').waitFor();
  await panel.getByText('이 조치의 사진: action-two.jpg').waitFor();
  await panel.getByText('확인 완료',{exact:true}).waitFor();
  // Revisit the same issue with the camera and preserve a cancelled replacement.

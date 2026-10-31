@@ -5,7 +5,7 @@ import {sourceReviewState} from '../../lib/inspector/sourceReview';
 import {FOLLOWUP_STATES, FOLLOWUP_LABELS, validateFollowup, validateAdditionalActions, overdue} from '../../lib/inspector/localFollowup.mjs';
 
 type Followup={status:string;assignee:string;dueDate:string;history:{status:string;assignee:string;dueDate:string;note:string;at:string}[]};
-type AdditionalAction={id:string;title:string;followup?:Followup;photo?:File;photoSha256?:string};
+type AdditionalAction={id:string;title:string;followup?:Followup;photo?:File;photoSha256?:string;photoHistory?:AfterHistory[]};
 type PhotoRole='overview'|'detail'|'unspecified';
 type AfterHistory={photo:File;sha256:string;replacedAt:string};
 type ContextHistory={photo:File;sha256:string;role:'overview'|'detail';replacedAt:string};
@@ -69,12 +69,20 @@ async function packRecord(row:LocalRecord):Promise<Blob>{
  }));
  const actionPhotos=(row.additionalActions||[]).filter(item=>item.photo);
  if(actionPhotos.reduce((n,item)=>n+(item.photo?.size||0),0)>BACKUP_LIMIT)throw new Error('조치별 사진 합계가 20MB를 넘어 백업할 수 없습니다.');
+ const actionHistory=(row.additionalActions||[]).flatMap(item=>item.photoHistory||[]);
+ if(actionHistory.length&&(!(row.additionalActions||[]).every(item=>(item.photoHistory||[]).length<=5)||actionHistory.reduce((n,item)=>n+item.photo.size,0)>BACKUP_LIMIT))throw new Error('이전 조치별 사진 이력이 백업 허용 범위를 초과합니다.');
  const actionsForBackup=await Promise.all((row.additionalActions||[]).map(async item=>{
-  const {photo,photoSha256,...data}=item;
-  if(!photo)return data;
+  const {photo,photoSha256,photoHistory,...data}=item;
+  const oldPhotos=await Promise.all((photoHistory||[]).map(async old=>{
+   const issue=backupIssue(old.photo);if(issue)throw new Error('이전 조치별 사진 '+issue);
+   const digest=await hash(old.photo);if(!digest||digest!==old.sha256)throw new Error('이전 조치별 사진의 무결성을 확인할 수 없습니다.');
+   if(!Number.isFinite(Date.parse(old.replacedAt)))throw new Error('이전 조치별 사진 이력을 확인할 수 없습니다.');
+   return {name:old.photo.name,type:old.photo.type,sha256:digest,replacedAt:old.replacedAt,data:await toData(old.photo)};
+  }));
+  if(!photo){if(oldPhotos.length)throw new Error('조치별 현재 사진을 확인할 수 없습니다.');return data;}
   const issue=backupIssue(photo);if(issue)throw new Error('조치별 '+issue);
   const digest=await hash(photo);if(!digest||digest!==photoSha256)throw new Error('조치별 사진의 무결성을 확인할 수 없습니다.');
-  return {...data,photo:{name:photo.name,type:photo.type,sha256:digest,data:await toData(photo)}};
+  return {...data,photo:{name:photo.name,type:photo.type,sha256:digest,data:await toData(photo)},photoHistory:oldPhotos.length?oldPhotos:undefined};
  }));
  let contextPhotoData:Record<string,string>|undefined;
  if(row.contextPhoto){
@@ -93,15 +101,16 @@ async function packRecord(row:LocalRecord):Promise<Blob>{
  }));
  if((typeof row.contextFirst==='boolean'||typeof row.contextDetached==='boolean')&&!row.contextPhoto)throw new Error('사진 순서를 확인할 수 없어 백업하지 못했습니다.');
  const photoSet=!!row.contextPhoto||!!row.photoRole&&row.photoRole!=='unspecified';
- return new Blob([JSON.stringify({format:'psi-local-inspection',version:afterHistory.length?10:history.length?9:typeof row.contextDetached==='boolean'?8:typeof row.contextFirst==='boolean'?7:photoSet?6:actionPhotos.length?5:row.additionalActions?.length?4:row.afterPhoto?3:row.followup?2:1,record:{afterHistory:afterHistory.length?afterHistoryData:undefined,contextHistory:history.length?historyData:undefined,contextDetached:row.contextDetached,contextFirst:row.contextFirst,photoRole:photoSet||afterHistory.length?(row.photoRole||'unspecified'):undefined,contextPhoto:contextPhotoData,additionalActions:photoSet||afterHistory.length?actionsForBackup:row.additionalActions?.length?actionsForBackup:undefined,afterPhoto:afterPhotoData,followup:row.followup,id:row.id,createdAt:row.createdAt,note:row.note,action:row.action,legalVersion:row.legalVersion,reviewedAt:row.reviewedAt,photoName:row.photo.name||'PSI-photo',photoType:row.photo.type,sha256:digest,photoData:dataUrl}})],{type:'application/json'});
+ return new Blob([JSON.stringify({format:'psi-local-inspection',version:actionHistory.length?11:afterHistory.length?10:history.length?9:typeof row.contextDetached==='boolean'?8:typeof row.contextFirst==='boolean'?7:photoSet?6:actionPhotos.length?5:row.additionalActions?.length?4:row.afterPhoto?3:row.followup?2:1,record:{afterHistory:afterHistory.length?afterHistoryData:undefined,contextHistory:history.length?historyData:undefined,contextDetached:row.contextDetached,contextFirst:row.contextFirst,photoRole:photoSet||afterHistory.length||actionHistory.length?(row.photoRole||'unspecified'):undefined,contextPhoto:contextPhotoData,additionalActions:photoSet||afterHistory.length||actionHistory.length?actionsForBackup:row.additionalActions?.length?actionsForBackup:undefined,afterPhoto:afterPhotoData,followup:row.followup,id:row.id,createdAt:row.createdAt,note:row.note,action:row.action,legalVersion:row.legalVersion,reviewedAt:row.reviewedAt,photoName:row.photo.name||'PSI-photo',photoType:row.photo.type,sha256:digest,photoData:dataUrl}})],{type:'application/json'});
 }
 async function unpackRecord(file:File):Promise<LocalRecord>{
- if(file.size>Math.ceil(BACKUP_LIMIT*8.4)+25000000)throw new Error('백업 파일이 허용 크기를 초과합니다.');
+ if(file.size>Math.ceil(BACKUP_LIMIT*9.8)+25000000)throw new Error('백업 파일이 허용 크기를 초과합니다.');
  let data:any;try{data=JSON.parse(await file.text());}catch{throw new Error('백업 파일을 읽을 수 없습니다.');}
  const r=data?.record;
- if(data?.format!=='psi-local-inspection'||![1,2,3,4,5,6,7,8,9,10].includes(data?.version)||!r||typeof r!=='object'||!/^[-a-f0-9]{36}$/i.test(r.id)||typeof r.createdAt!=='string'||!Number.isFinite(Date.parse(r.createdAt))||typeof r.note!=='string'||!r.note.trim()||r.note.length>4000||typeof r.action!=='string'||r.action.length>4000||typeof r.legalVersion!=='string'||r.legalVersion.length>200||typeof r.reviewedAt!=='string'||r.reviewedAt.length>50||typeof r.photoName!=='string'||r.photoName.length>255||!['image/jpeg','image/png','image/webp'].includes(r.photoType)||!/^[a-f0-9]{64}$/.test(r.sha256)||typeof r.photoData!=='string'||r.photoData.length>Math.ceil(BACKUP_LIMIT*4/3)+8||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(r.photoData))throw new Error('지원하지 않거나 손상된 백업 파일입니다.');
+ if(data?.format!=='psi-local-inspection'||![1,2,3,4,5,6,7,8,9,10,11].includes(data?.version)||!r||typeof r!=='object'||!/^[-a-f0-9]{36}$/i.test(r.id)||typeof r.createdAt!=='string'||!Number.isFinite(Date.parse(r.createdAt))||typeof r.note!=='string'||!r.note.trim()||r.note.length>4000||typeof r.action!=='string'||r.action.length>4000||typeof r.legalVersion!=='string'||r.legalVersion.length>200||typeof r.reviewedAt!=='string'||r.reviewedAt.length>50||typeof r.photoName!=='string'||r.photoName.length>255||!['image/jpeg','image/png','image/webp'].includes(r.photoType)||!/^[a-f0-9]{64}$/.test(r.sha256)||typeof r.photoData!=='string'||r.photoData.length>Math.ceil(BACKUP_LIMIT*4/3)+8||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(r.photoData))throw new Error('지원하지 않거나 손상된 백업 파일입니다.');
  if((data.version===2||data.version>=3&&r.followup!==undefined)&&!validateFollowup(r.followup))throw new Error('후속 조치 기록이 손상되어 복원하지 못했습니다.');
  if(data.version>=4&&!validateAdditionalActions(r.additionalActions))throw new Error('추가 조치 기록이 손상되어 복원하지 못했습니다.');
+ if(data.version>=4&&data.version<11&&r.additionalActions.some((item:AdditionalAction)=>item.photoHistory!==undefined))throw new Error('이전 형식의 조치별 사진 이력은 복원할 수 없습니다.');
  if(data.version===4&&r.additionalActions.some((item:AdditionalAction)=>item.photo!==undefined||item.photoSha256!==undefined))throw new Error('이전 형식의 추가 조치 사진은 복원할 수 없습니다.');
  let raw:string;try{raw=atob(r.photoData);}catch{throw new Error('백업 사진을 읽을 수 없습니다.');}
  if(!raw.length||raw.length>BACKUP_LIMIT)throw new Error('사진 크기가 올바르지 않습니다.');
@@ -130,6 +139,26 @@ async function unpackRecord(file:File):Promise<LocalRecord>{
    if(await hash(image)!==a.sha256)throw new Error('조치별 사진의 무결성이 확인되지 않아 복원을 중단했습니다.');
    item.photo=image;item.photoSha256=a.sha256;
   }
+ }
+ if(data.version===11){
+  let total=0,count=0;
+  for(const item of additionalActions||[]){
+   const histories=item.photoHistory as unknown as {name:string;type:string;sha256:string;replacedAt:string;data:string}[]|undefined;
+   if(histories===undefined)continue;
+   if(!item.photo||!Array.isArray(histories)||!histories.length||histories.length>5)throw new Error('이전 조치별 사진 이력이 손상되었습니다.');
+   const restored:AfterHistory[]=[];
+   for(const h of histories){
+    if(!h||typeof h.name!=='string'||h.name.length>255||!['image/jpeg','image/png','image/webp'].includes(h.type)||typeof h.sha256!=='string'||!/^[a-f0-9]{64}$/.test(h.sha256)||typeof h.replacedAt!=='string'||!Number.isFinite(Date.parse(h.replacedAt))||typeof h.data!=='string'||h.data.length>Math.ceil(BACKUP_LIMIT*4/3)+8||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(h.data))throw new Error('이전 조치별 사진 이력이 손상되었습니다.');
+    let raw:string;try{raw=atob(h.data);}catch{throw new Error('이전 조치별 사진을 읽지 못했습니다.');}
+    total+=raw.length;count++;if(!raw.length||total>BACKUP_LIMIT)throw new Error('이전 조치별 사진 크기가 허용 범위를 초과합니다.');
+    const previous=new File([Uint8Array.from(raw,ch=>ch.charCodeAt(0))],h.name,{type:h.type});
+    if(await hash(previous)!==h.sha256)throw new Error('이전 조치별 사진의 무결성이 확인되지 않아 복원을 중단했습니다.');
+    restored.push({photo:previous,sha256:h.sha256,replacedAt:h.replacedAt});
+   }
+   item.photoHistory=restored;
+  }
+  if(!count)throw new Error('이전 조치별 사진 이력이 손상되었습니다.');
+  if((r.afterHistory!==undefined&&(!r.afterPhoto||!Array.isArray(r.afterHistory)||!r.afterHistory.length||r.afterHistory.length>5))||(r.contextHistory!==undefined&&(!r.contextPhoto||!Array.isArray(r.contextHistory)||!r.contextHistory.length||r.contextHistory.length>5))||(r.contextDetached!==undefined&&typeof r.contextDetached!=='boolean')||(r.contextFirst!==undefined&&typeof r.contextFirst!=='boolean')||((r.contextDetached!==undefined||r.contextFirst!==undefined)&&!r.contextPhoto))throw new Error('사진 이력이 손상되었습니다.');
  }
  let contextPhoto:File|undefined;let contextSha256:string|undefined;let contextRole:'overview'|'detail'|undefined;
  if(data.version===7&&(typeof r.contextFirst!=='boolean'||!r.contextPhoto))throw new Error('사진 순서 기록이 손상되었습니다.');
@@ -160,7 +189,7 @@ async function unpackRecord(file:File):Promise<LocalRecord>{
   }
  }
  const afterHistory:AfterHistory[]=[];
- if(data.version===10){
+ if(data.version>=10&&r.afterHistory!==undefined){
   let total=0;
   for(const h of r.afterHistory){
    if(!h||typeof h.name!=='string'||h.name.length>255||!['image/jpeg','image/png','image/webp'].includes(h.type)||typeof h.sha256!=='string'||!/^[a-f0-9]{64}$/.test(h.sha256)||typeof h.replacedAt!=='string'||!Number.isFinite(Date.parse(h.replacedAt))||typeof h.data!=='string'||h.data.length>Math.ceil(BACKUP_LIMIT*4/3)+8||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(h.data))throw new Error('이전 조치 후 사진 이력이 손상되었습니다.');
@@ -202,6 +231,7 @@ function ActionItem({row,item,busy,onUpdate,onPhoto}:{key?:string;row:LocalRecor
   <p>이 조치의 사진: {item.photo?.name||'없음'}</p><label>이 조치 사진 선택<input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f&&(!pending||window.confirm('저장하지 않은 사진을 바꿀까요?')))setPending(f);}}/></label>
   {pending&&<div><p>저장 전 사진: {pending.name}</p><button type="button" className="si-btn" disabled={busy} onClick={async()=>{if(await onPhoto(row,item,pending))setPending(null);}}>이 조치에 사진 저장</button> <button type="button" className="si-btn" onClick={()=>download(pending,pending.name)}>저장 전 사진 내려받기</button></div>}
   {item.photo&&<button type="button" className="si-btn" onClick={()=>download(item.photo!,item.photo!.name)}>이 조치 사진 내려받기</button>}
+  {!!item.photoHistory?.length&&<details><summary>이 조치의 이전 사진 {item.photoHistory.length}장</summary><p>교체 시각은 기기 시각이며 촬영 시각과 다를 수 있습니다.</p>{item.photoHistory.map((entry,i)=><p key={i}>{entry.photo.name} · {new Date(entry.replacedAt).toLocaleString('ko-KR')} <button type="button" className="si-btn" onClick={()=>download(entry.photo,entry.photo.name)}>이 조치의 이전 사진 내려받기</button></p>)}</details>}
  </div>;
 }
 function AdditionalActions({row,busy,onUpdate,onPhoto}:{row:LocalRecord;busy:boolean;onUpdate:(row:LocalRecord,actions:AdditionalAction[])=>Promise<boolean>;onPhoto:(row:LocalRecord,item:AdditionalAction,file:File)=>Promise<boolean>}){
@@ -325,13 +355,18 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   const issue=backupIssue(file);if(issue){setMessage('조치별 '+issue);return false;}
   const other=(row.additionalActions||[]).filter(action=>action.id!==item.id).reduce((n,action)=>n+(action.photo?.size||0),0);
   if(other+file.size>BACKUP_LIMIT){setMessage('조치별 사진의 합계가 20MB를 넘습니다.');return false;}
-  if(item.photo&&!window.confirm('기존 조치 사진을 바꿀까요? 필요한 사진은 먼저 내려받으세요.'))return false;
+  if(item.photo&&!window.confirm('기존 조치 사진은 이력에 보관됩니다. 사진을 바꿀까요?'))return false;
   flight.current=true;setBusy(true);setMessage('');
   try{
    const digest=await hash(file);if(!digest)throw new Error('사진의 비교값을 만들지 못했습니다.');
-   await runStore<void>('readwrite',store=>{const request=store.get(row.id);request.onsuccess=()=>{if(!request.result||JSON.stringify(request.result.additionalActions||[])!==JSON.stringify(row.additionalActions||[])){request.transaction?.abort();return;}store.put({...request.result,additionalActions:request.result.additionalActions.map((action:AdditionalAction)=>action.id===item.id?{...action,photo:file,photoSha256:digest}:action)});};});
+   const oldPhotos=(row.additionalActions||[]).flatMap(action=>action.photoHistory||[]);
+   if(item.photo){
+    if((item.photoHistory||[]).length>=5||oldPhotos.reduce((n,old)=>n+old.photo.size,0)+item.photo.size>BACKUP_LIMIT)throw new Error('이전 조치별 사진 보관 한도(항목당 5장·점검당 합계 20MB)에 도달했습니다. 새 점검으로 기록하세요.');
+    if(!item.photoSha256||await hash(item.photo)!==item.photoSha256)throw new Error('이전 조치별 사진의 무결성을 확인하지 못해 교체하지 않았습니다.');
+   }
+   await runStore<void>('readwrite',store=>{const request=store.get(row.id);request.onsuccess=()=>{if(!request.result||JSON.stringify(request.result.additionalActions||[])!==JSON.stringify(row.additionalActions||[])){request.transaction?.abort();return;}store.put({...request.result,additionalActions:request.result.additionalActions.map((action:AdditionalAction)=>action.id===item.id?{...action,photo:file,photoSha256:digest,photoHistory:item.photo?[...(item.photoHistory||[]),{photo:item.photo,sha256:item.photoSha256!,replacedAt:new Date().toISOString()}]:item.photoHistory}:action)});};});
    await refresh();setMessage('조치별 사진을 이 기기에 저장했습니다.');return true;
-  }catch{setMessage('조치별 사진을 저장하지 못했습니다. 사진을 유지합니다. 다시 시도하세요.');return false;}
+  }catch(error){setMessage(error instanceof Error&&!(error instanceof DOMException)&&error.message?error.message:'조치별 사진을 저장하지 못했습니다. 사진을 유지합니다. 다시 시도하세요.');return false;}
   finally{flight.current=false;setBusy(false);}
  };
  const saveAfterPhoto=async(row:LocalRecord,file:File)=>{
