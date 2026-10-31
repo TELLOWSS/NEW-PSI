@@ -8,6 +8,24 @@ type Followup={status:string;assignee:string;dueDate:string;temporaryMeasure?:st
 type AdditionalAction={id:string;title:string;followup?:Followup;photo?:File;photoSha256?:string;photoHistory?:AfterHistory[]};
 type PhotoRole='overview'|'detail'|'unspecified';
 type FieldContext={site:string;building:string;level:string;trade:string};
+type SiteContextChange={before:FieldContext|null;after:FieldContext|null;reason:string;at:string;actor:'device-user'};
+function validSiteContextHistory(value:unknown,current:FieldContext|null):value is SiteContextChange[]{
+ if(!Array.isArray(value)||!value.length||value.length>100)return false;
+ let prior:FieldContext|null=null;
+ for(const [index,item] of value.entries()){
+  if(!item||typeof item!=='object'||Array.isArray(item))return false;
+  const change=item as Record<string,unknown>;
+  if(Object.keys(change).length!==5||!['before','after','reason','at','actor'].every(k=>Object.hasOwn(change,k)))return false;
+  if((change.before!==null&&!validFieldContext(change.before))||(change.after!==null&&!validFieldContext(change.after)))return false;
+  if(typeof change.reason!=='string'||change.reason.trim()!==change.reason||change.reason.length<5||change.reason.length>200)return false;
+  if(typeof change.at!=='string'||!Number.isFinite(Date.parse(change.at))||change.actor!=='device-user')return false;
+  if(index>0&&JSON.stringify(prior)!==JSON.stringify(change.before))return false;
+  if(JSON.stringify(change.before)===JSON.stringify(change.after))return false;
+  prior=change.after as FieldContext|null;
+ }
+ return JSON.stringify(prior)===JSON.stringify(current);
+}
+
 const EMPTY_FIELD_CONTEXT:FieldContext={site:'',building:'',level:'',trade:''};
 function cleanFieldContext(value:FieldContext):FieldContext|undefined{
  const context={site:value.site.trim(),building:value.building.trim(),level:value.level.trim(),trade:value.trade.trim()};
@@ -24,7 +42,7 @@ function fieldContextLabel(context:FieldContext):string{
 }
 type AfterHistory={photo:File;sha256:string;replacedAt:string};
 type ContextHistory={photo:File;sha256:string;role:'overview'|'detail';replacedAt:string};
-type LocalRecord={siteContext?:FieldContext;primaryHistory?:AfterHistory[];afterHistory?:AfterHistory[];contextHistory?:ContextHistory[];contextDetached?:boolean;contextFirst?:boolean;photoRole?:PhotoRole;contextPhoto?:File;contextSha256?:string;contextRole?:'overview'|'detail';additionalActions?:AdditionalAction[];afterPhoto?:File;afterSha256?:string;followup?:Followup;id:string;createdAt:string;note:string;action:string;photo:File;sha256:string|null;legalVersion:string;reviewedAt:string};
+type LocalRecord={siteContextHistory?:SiteContextChange[];siteContext?:FieldContext;primaryHistory?:AfterHistory[];afterHistory?:AfterHistory[];contextHistory?:ContextHistory[];contextDetached?:boolean;contextFirst?:boolean;photoRole?:PhotoRole;contextPhoto?:File;contextSha256?:string;contextRole?:'overview'|'detail';additionalActions?:AdditionalAction[];afterPhoto?:File;afterSha256?:string;followup?:Followup;id:string;createdAt:string;note:string;action:string;photo:File;sha256:string|null;legalVersion:string;reviewedAt:string};
 type PhotoSetDraft={id:string;kind:'photo-set-draft';revision:string;photos:File[]};
 const DB='psi-inspector-local-records', STORE='records', DRAFT_KEY='psi-photo-set-draft-v1';
 function openRecords():Promise<IDBDatabase>{
@@ -88,8 +106,13 @@ async function packRecord(row:LocalRecord):Promise<Blob>{
  const toData=async(photo:File)=>new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>typeof reader.result==='string'?resolve(reader.result.split(',')[1]):reject(new Error('사진을 읽지 못했습니다.'));reader.onerror=()=>reject(reader.error);reader.readAsDataURL(photo);});
  const dataUrl=await toData(row.photo);
  if(row.siteContext&&!validFieldContext(row.siteContext))throw new Error('점검 현장정보를 확인할 수 없어 백업하지 못했습니다.');
- const siteContextSha256=row.siteContext?await hash(new File([JSON.stringify(row.siteContext)],'site-context.json',{type:'application/json'})):undefined;
- if(row.siteContext&&!siteContextSha256)throw new Error('현장정보의 비교값을 만들지 못해 백업하지 못했습니다.');
+ const siteContextHistory=row.siteContextHistory;
+ if(siteContextHistory&&!validSiteContextHistory(siteContextHistory,row.siteContext||null))throw new Error('현장정보 변경 이력이 올바르지 않아 백업하지 못했습니다.');
+ const siteContextValue=siteContextHistory?row.siteContext||null:row.siteContext;
+ const siteContextSha256=siteContextValue!==undefined?await hash(new File([JSON.stringify(siteContextValue)],'site-context.json',{type:'application/json'})):undefined;
+ if(siteContextValue!==undefined&&!siteContextSha256)throw new Error('현장정보의 비교값을 만들지 못해 백업하지 못했습니다.');
+ const siteContextHistorySha256=siteContextHistory?await hash(new File([JSON.stringify(siteContextHistory)],'site-context-history.json',{type:'application/json'})):undefined;
+ if(siteContextHistory&&!siteContextHistorySha256)throw new Error('현장정보 변경 이력의 비교값을 만들지 못했습니다.');
  let afterPhotoData:Record<string,string>|undefined;
  if(row.afterPhoto){
   const issue=backupIssue(row.afterPhoto);if(issue)throw new Error('조치 후 '+issue);
@@ -146,21 +169,29 @@ async function packRecord(row:LocalRecord):Promise<Blob>{
  }));
  if((typeof row.contextFirst==='boolean'||typeof row.contextDetached==='boolean')&&!row.contextPhoto)throw new Error('사진 순서를 확인할 수 없어 백업하지 못했습니다.');
  const photoSet=!!row.contextPhoto||!!row.photoRole&&row.photoRole!=='unspecified';
- return new Blob([JSON.stringify({format:'psi-local-inspection',version:row.siteContext?13:primaryHistory.length?12:actionHistory.length?11:afterHistory.length?10:history.length?9:typeof row.contextDetached==='boolean'?8:typeof row.contextFirst==='boolean'?7:photoSet?6:actionPhotos.length?5:row.additionalActions?.length?4:row.afterPhoto?3:row.followup?2:1,record:{primaryHistory:primaryHistory.length?primaryHistoryData:undefined,afterHistory:afterHistory.length?afterHistoryData:undefined,contextHistory:history.length?historyData:undefined,contextDetached:row.contextDetached,contextFirst:row.contextFirst,photoRole:photoSet||!!row.siteContext||afterHistory.length||actionHistory.length||primaryHistory.length?(row.photoRole||'unspecified'):undefined,contextPhoto:contextPhotoData,additionalActions:photoSet||!!row.siteContext||afterHistory.length||actionHistory.length||primaryHistory.length?actionsForBackup:row.additionalActions?.length?actionsForBackup:undefined,afterPhoto:afterPhotoData,followup:row.followup,siteContext:row.siteContext,siteContextSha256,id:row.id,createdAt:row.createdAt,note:row.note,action:row.action,legalVersion:row.legalVersion,reviewedAt:row.reviewedAt,photoName:row.photo.name||'PSI-photo',photoType:row.photo.type,sha256:digest,photoData:dataUrl}})],{type:'application/json'});
+ return new Blob([JSON.stringify({format:'psi-local-inspection',version:siteContextHistory?14:row.siteContext?13:primaryHistory.length?12:actionHistory.length?11:afterHistory.length?10:history.length?9:typeof row.contextDetached==='boolean'?8:typeof row.contextFirst==='boolean'?7:photoSet?6:actionPhotos.length?5:row.additionalActions?.length?4:row.afterPhoto?3:row.followup?2:1,record:{primaryHistory:primaryHistory.length?primaryHistoryData:undefined,afterHistory:afterHistory.length?afterHistoryData:undefined,contextHistory:history.length?historyData:undefined,contextDetached:row.contextDetached,contextFirst:row.contextFirst,photoRole:photoSet||!!row.siteContext||!!siteContextHistory||afterHistory.length||actionHistory.length||primaryHistory.length?(row.photoRole||'unspecified'):undefined,contextPhoto:contextPhotoData,additionalActions:photoSet||!!row.siteContext||!!siteContextHistory||afterHistory.length||actionHistory.length||primaryHistory.length?actionsForBackup:row.additionalActions?.length?actionsForBackup:undefined,afterPhoto:afterPhotoData,followup:row.followup,siteContext:siteContextValue,siteContextSha256,siteContextHistory,siteContextHistorySha256,id:row.id,createdAt:row.createdAt,note:row.note,action:row.action,legalVersion:row.legalVersion,reviewedAt:row.reviewedAt,photoName:row.photo.name||'PSI-photo',photoType:row.photo.type,sha256:digest,photoData:dataUrl}})],{type:'application/json'});
 }
 async function unpackRecord(file:File):Promise<LocalRecord>{
  if(file.size>Math.ceil(BACKUP_LIMIT*11.2)+25000000)throw new Error('백업 파일이 허용 크기를 초과합니다.');
  let data:any;try{data=JSON.parse(await file.text());}catch{throw new Error('백업 파일을 읽을 수 없습니다.');}
  const r=data?.record;
- if(data?.format!=='psi-local-inspection'||![1,2,3,4,5,6,7,8,9,10,11,12,13].includes(data?.version)||!r||typeof r!=='object'||!/^[-a-f0-9]{36}$/i.test(r.id)||typeof r.createdAt!=='string'||!Number.isFinite(Date.parse(r.createdAt))||typeof r.note!=='string'||!r.note.trim()||r.note.length>4000||typeof r.action!=='string'||r.action.length>4000||typeof r.legalVersion!=='string'||r.legalVersion.length>200||typeof r.reviewedAt!=='string'||r.reviewedAt.length>50||typeof r.photoName!=='string'||r.photoName.length>255||!['image/jpeg','image/png','image/webp'].includes(r.photoType)||!/^[a-f0-9]{64}$/.test(r.sha256)||typeof r.photoData!=='string'||r.photoData.length>Math.ceil(BACKUP_LIMIT*4/3)+8||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(r.photoData))throw new Error('지원하지 않거나 손상된 백업 파일입니다.');
- if(data.version<13&&(r.siteContext!==undefined||r.siteContextSha256!==undefined))throw new Error('이전 백업 형식에 예상하지 않은 현장정보가 포함됐습니다.');
+ if(data?.format!=='psi-local-inspection'||![1,2,3,4,5,6,7,8,9,10,11,12,13,14].includes(data?.version)||!r||typeof r!=='object'||!/^[-a-f0-9]{36}$/i.test(r.id)||typeof r.createdAt!=='string'||!Number.isFinite(Date.parse(r.createdAt))||typeof r.note!=='string'||!r.note.trim()||r.note.length>4000||typeof r.action!=='string'||r.action.length>4000||typeof r.legalVersion!=='string'||r.legalVersion.length>200||typeof r.reviewedAt!=='string'||r.reviewedAt.length>50||typeof r.photoName!=='string'||r.photoName.length>255||!['image/jpeg','image/png','image/webp'].includes(r.photoType)||!/^[a-f0-9]{64}$/.test(r.sha256)||typeof r.photoData!=='string'||r.photoData.length>Math.ceil(BACKUP_LIMIT*4/3)+8||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(r.photoData))throw new Error('지원하지 않거나 손상된 백업 파일입니다.');
+ if(data.version<13&&(r.siteContext!==undefined||r.siteContextSha256!==undefined||r.siteContextHistory!==undefined||r.siteContextHistorySha256!==undefined))throw new Error('이전 백업 형식에 예상하지 않은 현장정보가 포함됐습니다.');
  let siteContext:FieldContext|undefined;
- if(data.version===13){
-  if(!validFieldContext(r.siteContext)||typeof r.siteContextSha256!=='string'||!/^[a-f0-9]{64}$/.test(r.siteContextSha256))throw new Error('현장정보가 손상되어 복원하지 못했습니다.');
-  const canonical:FieldContext={site:r.siteContext.site,building:r.siteContext.building,level:r.siteContext.level,trade:r.siteContext.trade};
+ if(data.version===13||data.version===14){
+  if((data.version===13||r.siteContext!==null)&&!validFieldContext(r.siteContext)||typeof r.siteContextSha256!=='string'||!/^[a-f0-9]{64}$/.test(r.siteContextSha256))throw new Error('현장정보가 손상되어 복원하지 못했습니다.');
+  const canonical:FieldContext|null=r.siteContext===null?null:{site:r.siteContext.site,building:r.siteContext.building,level:r.siteContext.level,trade:r.siteContext.trade};
   const digest=await hash(new File([JSON.stringify(canonical)],'site-context.json',{type:'application/json'}));
   if(!digest||digest!==r.siteContextSha256)throw new Error('현장정보 비교값이 일치하지 않아 복원을 중단했습니다.');
-  siteContext=canonical;
+  siteContext=canonical||undefined;
+ }
+ let siteContextHistory:SiteContextChange[]|undefined;
+ if(data.version===13&&(r.siteContextHistory!==undefined||r.siteContextHistorySha256!==undefined))throw new Error('이전 백업 형식에 변경 이력이 포함되어 있습니다.');
+ if(data.version===14){
+  if(!validSiteContextHistory(r.siteContextHistory,siteContext||null)||typeof r.siteContextHistorySha256!=='string'||!/^[a-f0-9]{64}$/.test(r.siteContextHistorySha256))throw new Error('현장정보 변경 이력이 손상되어 복원을 중단했습니다.');
+  const digest=await hash(new File([JSON.stringify(r.siteContextHistory)],'site-context-history.json',{type:'application/json'}));
+  if(!digest||digest!==r.siteContextHistorySha256)throw new Error('현장정보 변경 이력 비교값이 일치하지 않아 복원을 중단했습니다.');
+  siteContextHistory=r.siteContextHistory.map((item:SiteContextChange)=>({before:item.before,after:item.after,reason:item.reason,at:item.at,actor:item.actor}));
  }
  if((data.version===2||data.version>=3&&r.followup!==undefined)&&!validateFollowup(r.followup))throw new Error('후속 조치 기록이 손상되어 복원하지 못했습니다.');
  if(data.version>=4&&!validateAdditionalActions(r.additionalActions))throw new Error('추가 조치 기록이 손상되어 복원하지 못했습니다.');
@@ -255,7 +286,7 @@ async function unpackRecord(file:File):Promise<LocalRecord>{
   }
  }
  const primaryHistory:AfterHistory[]=[];
- if(data.version===12||data.version===13&&r.primaryHistory!==undefined){
+ if(data.version===12||data.version>=13&&r.primaryHistory!==undefined){
   if(!Array.isArray(r.primaryHistory)||!r.primaryHistory.length||r.primaryHistory.length>5)throw new Error('이전 기본 사진 이력이 손상되었습니다.');
   let total=0;
   for(const h of r.primaryHistory){
@@ -267,7 +298,33 @@ async function unpackRecord(file:File):Promise<LocalRecord>{
    primaryHistory.push({photo:previous,sha256:h.sha256,replacedAt:h.replacedAt});
   }
  }
- return {siteContext,primaryHistory:primaryHistory.length?primaryHistory:undefined,afterHistory:afterHistory.length?afterHistory:undefined,contextHistory:contextHistory.length?contextHistory:undefined,contextDetached:data.version>=8?r.contextDetached:undefined,contextFirst:data.version>=7?r.contextFirst:undefined,photoRole:data.version>=6?r.photoRole:undefined,contextPhoto,contextSha256,contextRole,additionalActions,afterPhoto,afterSha256,followup:data.version>=2?r.followup:undefined,id:r.id,createdAt:r.createdAt,note:r.note,action:r.action,legalVersion:r.legalVersion,reviewedAt:r.reviewedAt,photo,sha256:r.sha256};
+ return {siteContext,siteContextHistory,primaryHistory:primaryHistory.length?primaryHistory:undefined,afterHistory:afterHistory.length?afterHistory:undefined,contextHistory:contextHistory.length?contextHistory:undefined,contextDetached:data.version>=8?r.contextDetached:undefined,contextFirst:data.version>=7?r.contextFirst:undefined,photoRole:data.version>=6?r.photoRole:undefined,contextPhoto,contextSha256,contextRole,additionalActions,afterPhoto,afterSha256,followup:data.version>=2?r.followup:undefined,id:r.id,createdAt:r.createdAt,note:r.note,action:r.action,legalVersion:r.legalVersion,reviewedAt:r.reviewedAt,photo,sha256:r.sha256};
+}
+function FieldContextEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSave:(row:LocalRecord,next:FieldContext|null,reason:string)=>Promise<boolean>}){
+ const [next,setNext]=useState<FieldContext>(row.siteContext||EMPTY_FIELD_CONTEXT),[reason,setReason]=useState('');
+ const [editing,setEditing]=useState(false);
+ const savedContext=JSON.stringify(row.siteContext||null);
+ useEffect(()=>{setNext(row.siteContext||EMPTY_FIELD_CONTEXT);setReason('');},[savedContext]);
+ const target=cleanFieldContext(next)||null,changed=JSON.stringify(target)!==savedContext;
+ const save=async()=>{if(!changed||reason.trim().length<5||busy)return;if(await onSave(row,target,reason.trim())){setReason('');setEditing(false);}};
+ const history=row.siteContextHistory||[];
+ return <details aria-label="현장정보 정정 및 이력" open={editing} onToggle={event=>setEditing(event.currentTarget.open)}>
+  <summary>현장정보 정정 · 이전 기록 {history.length}건</summary>
+  <p>현장정보는 점검자가 작성한 진술입니다. 기기 입력은 실제 사진 촬영 위치를 증명하지 않습니다. 수정 시 이전 내용과 사유를 이력에 남기며 원본 사진은 변경하지 않습니다.</p>
+  <fieldset disabled={busy} style={{display:'grid',gap:6}}>
+   <label>현장명 정정<input aria-label="기록 현장 이름 수정" maxLength={100} value={next.site} onChange={e=>setNext(v=>({...v,site:e.target.value}))}/></label>
+   <label>동 정정<input aria-label="기록 동 정정" maxLength={40} value={next.building} onChange={e=>setNext(v=>({...v,building:e.target.value}))}/></label>
+   <label>층 정정<input aria-label="기록 층 정정" maxLength={40} value={next.level} onChange={e=>setNext(v=>({...v,level:e.target.value}))}/></label>
+   <label>공종 정정<input aria-label="기록 공종 정정" maxLength={60} value={next.trade} onChange={e=>setNext(v=>({...v,trade:e.target.value}))}/></label>
+   <label>변경 사유 (5~200자)<textarea aria-label="현장정보 변경 사유" maxLength={200} value={reason} onChange={e=>setReason(e.target.value)} placeholder="예: 작업반장 확인 후 실제 층을 수정함"/></label>
+  </fieldset>
+  {!target&&<p>모든 정보를 지우면 '현장정보 미확인'으로 기록되며 이력은 계속 보존됩니다.</p>}
+  <button type="button" className="si-btn" disabled={busy||!changed||reason.trim().length<5||history.length>=100} onClick={()=>void save()}>현장정보 정정 저장</button>
+  {history.length>=100&&<p role="alert">변경 이력이 100건에 도달했습니다. 기존 이력을 지우지 않고 새 점검 기록을 작성하세요.</p>}
+  {history.length>0&&<details><summary>이전 현장정보 변경 이력 {history.length}건</summary>
+   {history.map((entry,index)=><p key={index}>{index+1}. {new Date(entry.at).toLocaleString('ko-KR')} (이 기기 시각) · 이전: {entry.before?fieldContextLabel(entry.before):'미확인'} → 변경: {entry.after?fieldContextLabel(entry.after):'미확인'} · 사유: {entry.reason} · 입력: 기기 사용자(개인 신원 확인 아님)</p>)}
+  </details>}
+ </details>;
 }
 function FollowupEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSave:(id:string,value:Followup)=>Promise<boolean>}){
  const current=row.followup;
@@ -416,6 +473,25 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    draftRef.current=null;setDraft(null);setPhoto(null);setPhotoRole('unspecified');setSiteContextInput(EMPTY_FIELD_CONTEXT);setNote('');setAction('');setMessage(record.sha256?'기기에 저장했습니다. 서버에는 전송하지 않았습니다.':'기기에 저장했습니다. 파일 해시는 확인하지 못했습니다.');
    await refresh();
   }catch(error){setMessage(error instanceof DOMException&&error.name==='QuotaExceededError'?'저장 공간이 부족합니다. 사진을 내려받거나 공간을 확보한 뒤 다시 시도하세요.':error instanceof Error&&!(error instanceof DOMException)&&error.message?error.message:'기기에 저장하지 못했습니다. 입력과 사진을 유지합니다. 다시 시도하거나 사진을 내려받으세요.');}
+  finally{flight.current=false;setBusy(false);}
+ };
+ const saveFieldContext=async(row:LocalRecord,next:FieldContext|null,reason:string):Promise<boolean>=>{
+  if(flight.current||reason.length<5||reason.length>200||reason.trim()!==reason||(next&&!validFieldContext(next)))return false;
+  const previous=row.siteContext||null,history=row.siteContextHistory||[];
+  if(JSON.stringify(previous)===JSON.stringify(next)){setMessage('현장정보가 변경되지 않았습니다.');return false;}
+  if(history.length>=100){setMessage('정정 이력 100건에 도달했습니다. 새 점검을 작성하세요.');return false;}
+  flight.current=true;setBusy(true);setMessage('');
+  try{
+   const entry:SiteContextChange={before:previous,after:next,reason,actor:'device-user',at:new Date().toISOString()};
+   const updated=[...history,entry];
+   if(!validSiteContextHistory(updated,next))throw new Error('변경 이력을 검증하지 못했습니다.');
+   await runStore<void>('readwrite',store=>{const request=store.get(row.id);request.onsuccess=()=>{
+    const current=request.result as LocalRecord|undefined;
+    if(!current||JSON.stringify(current.siteContext||null)!==JSON.stringify(previous)||JSON.stringify(current.siteContextHistory||[])!==JSON.stringify(history)){request.transaction?.abort();return;}
+    store.put({...current,siteContext:next||undefined,siteContextHistory:updated});
+   };});
+   await refresh();setMessage('현장정보 수정과 이전 내용을 이 기기에 함께 보관했습니다. 백업 파일에도 변경 이력이 포함됩니다.');return true;
+  }catch{setMessage('현장정보를 수정하지 못했습니다. 다른 탭에서 변경한 기록이 있는지 확인하고 다시 시도하세요.');return false;}
   finally{flight.current=false;setBusy(false);}
  };
  const changeContextLink=async(row:LocalRecord):Promise<void>=>{
@@ -697,7 +773,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    </section>
    <label className="si-btn">백업 파일 복원<input type="file" accept="application/json,.json" aria-label="백업 파일 복원" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void restore(file);}}/></label>
    {readState==='ready'&&<label>후속 조치 모아보기<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">전체</option><option value="unassigned">담당 미지정</option><option value="no_due">기한 미정</option><option value="overdue">기한 초과</option><option value="review">확인 요청</option></select> · {visibleRows.length}건</label>}
-   {readState==='ready'&&visibleRows.map(row=><article key={row.id}><label><input type="checkbox" aria-label="묶음 백업에 선택" checked={backupIds.includes(row.id)} disabled={busy} onChange={e=>setBackupIds(prev=>e.target.checked?[...prev.filter(id=>id!==row.id),row.id]:prev.filter(id=>id!==row.id))}/> 묶음 백업에 선택</label><p>{new Date(row.createdAt).toLocaleString('ko-KR')} · {row.note}</p><p>점검 현장정보: {row.siteContext?fieldContextLabel(row.siteContext):'미기록 (기존 기록 포함)'} · 위치는 점검자 입력이며 자동 검증된 사실이 아닙니다.</p><p>조치 계획: {row.action||'미작성'} · 파일 무결성 기록: {row.sha256?'SHA-256 기록됨':'미확인'}</p><PrimaryPhotoEditor row={row} busy={busy} onSave={savePrimaryPhoto}/><ContextPhotoEditor row={row} busy={busy} onSave={saveContextPhoto} onOrder={changePhotoOrder} onLink={changeContextLink}/><FollowupEditor row={row} busy={busy} onSave={saveFollowup}/><AdditionalActions row={row} busy={busy} onUpdate={updateAdditionalActions} onPhoto={saveActionPhoto}/><div><p>조치 후 사진: {row.afterPhoto?row.afterPhoto.name:'아직 없음'}</p><p>이 점검의 조치 후 사진은 위에 표시된 점검 현장정보를 공유합니다. 사진 자체의 촬영 위치를 입증하지는 않습니다.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>{if(capturedAfter&&!window.confirm('아직 저장하지 않은 조치 후 사진을 버리고 다시 촬영할까요?'))return;setCapturedAfter(null);setAfterCamera(row);}}>조치 후 사진 촬영</button> <label className="si-btn">조치 후 사진 {row.afterPhoto?'변경':'연결'}<input aria-label="조치 후 사진 연결" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file&&(!capturedAfter||window.confirm('저장하지 않은 촬영 사진을 버리고 선택한 사진을 연결할까요?')))void saveAfterPhoto(row,file);}}/></label> {row.afterPhoto&&<button type="button" className="si-btn" onClick={()=>download(row.afterPhoto!,row.afterPhoto!.name||'PSI-after.jpg')}>조치 후 사진 내려받기</button>}<p>사진 연결만으로 조치 완료나 안전을 증명하지 않습니다.</p>{!!row.afterHistory?.length&&<details><summary>이전 조치 후 사진 {row.afterHistory.length}장</summary><p>교체 시각은 기기 시각이며 촬영 시각과 다를 수 있습니다.</p>{row.afterHistory.map((entry,i)=><p key={i}>{entry.photo.name} · {new Date(entry.replacedAt).toLocaleString('ko-KR')} <button type="button" className="si-btn" onClick={()=>download(entry.photo,entry.photo.name)}>이전 조치 후 사진 내려받기</button></p>)}</details>}</div><button type="button" className="si-btn" disabled={busy} onClick={()=>void verifyPhoto(row.id)}>사진 변경 확인</button> {checks[row.id]&&<p role="status">{checks[row.id]}</p>} <button type="button" className="si-btn" onClick={()=>download(row.photo,row.photo.name||'PSI-photo.jpg')}>사진 내려받기</button> <button type="button" className="si-btn" onClick={()=>{const {photo:stored,...data}=row;download(new Blob([JSON.stringify({...data,photoName:stored.name,photoType:stored.type},null,2)],{type:'application/json'}),'PSI-local-record-'+row.id+'.json');}}>점검 내용 내려받기</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void backup(row)}>사진과 기록 함께 백업</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void remove(row.id)}>이 기기 기록 삭제</button></article>)}
+   {readState==='ready'&&visibleRows.map(row=><article key={row.id}><label><input type="checkbox" aria-label="묶음 백업에 선택" checked={backupIds.includes(row.id)} disabled={busy} onChange={e=>setBackupIds(prev=>e.target.checked?[...prev.filter(id=>id!==row.id),row.id]:prev.filter(id=>id!==row.id))}/> 묶음 백업에 선택</label><p>{new Date(row.createdAt).toLocaleString('ko-KR')} · {row.note}</p><p>점검 현장정보: {row.siteContext?fieldContextLabel(row.siteContext):'미기록 (기존 기록 포함)'} · 위치는 점검자 입력이며 자동 검증된 사실이 아닙니다.</p><FieldContextEditor row={row} busy={busy} onSave={saveFieldContext}/><p>조치 계획: {row.action||'미작성'} · 파일 무결성 기록: {row.sha256?'SHA-256 기록됨':'미확인'}</p><PrimaryPhotoEditor row={row} busy={busy} onSave={savePrimaryPhoto}/><ContextPhotoEditor row={row} busy={busy} onSave={saveContextPhoto} onOrder={changePhotoOrder} onLink={changeContextLink}/><FollowupEditor row={row} busy={busy} onSave={saveFollowup}/><AdditionalActions row={row} busy={busy} onUpdate={updateAdditionalActions} onPhoto={saveActionPhoto}/><div><p>조치 후 사진: {row.afterPhoto?row.afterPhoto.name:'아직 없음'}</p><p>이 점검의 조치 후 사진은 위에 표시된 점검 현장정보를 공유합니다. 사진 자체의 촬영 위치를 입증하지는 않습니다.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>{if(capturedAfter&&!window.confirm('아직 저장하지 않은 조치 후 사진을 버리고 다시 촬영할까요?'))return;setCapturedAfter(null);setAfterCamera(row);}}>조치 후 사진 촬영</button> <label className="si-btn">조치 후 사진 {row.afterPhoto?'변경':'연결'}<input aria-label="조치 후 사진 연결" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file&&(!capturedAfter||window.confirm('저장하지 않은 촬영 사진을 버리고 선택한 사진을 연결할까요?')))void saveAfterPhoto(row,file);}}/></label> {row.afterPhoto&&<button type="button" className="si-btn" onClick={()=>download(row.afterPhoto!,row.afterPhoto!.name||'PSI-after.jpg')}>조치 후 사진 내려받기</button>}<p>사진 연결만으로 조치 완료나 안전을 증명하지 않습니다.</p>{!!row.afterHistory?.length&&<details><summary>이전 조치 후 사진 {row.afterHistory.length}장</summary><p>교체 시각은 기기 시각이며 촬영 시각과 다를 수 있습니다.</p>{row.afterHistory.map((entry,i)=><p key={i}>{entry.photo.name} · {new Date(entry.replacedAt).toLocaleString('ko-KR')} <button type="button" className="si-btn" onClick={()=>download(entry.photo,entry.photo.name)}>이전 조치 후 사진 내려받기</button></p>)}</details>}</div><button type="button" className="si-btn" disabled={busy} onClick={()=>void verifyPhoto(row.id)}>사진 변경 확인</button> {checks[row.id]&&<p role="status">{checks[row.id]}</p>} <button type="button" className="si-btn" onClick={()=>download(row.photo,row.photo.name||'PSI-photo.jpg')}>사진 내려받기</button> <button type="button" className="si-btn" onClick={()=>{const {photo:stored,...data}=row;download(new Blob([JSON.stringify({...data,photoName:stored.name,photoType:stored.type},null,2)],{type:'application/json'}),'PSI-local-record-'+row.id+'.json');}}>점검 내용 내려받기</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void backup(row)}>사진과 기록 함께 백업</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void remove(row.id)}>이 기기 기록 삭제</button></article>)}
    {capturedAfter&&<div role="status"><p>촬영한 조치 후 사진이 아직 저장되지 않았습니다. 연결할 점검: {capturedAfter.row.note}</p><button type="button" className="si-btn" disabled={busy} onClick={()=>void saveAfterPhoto(capturedAfter.row,capturedAfter.file)}>촬영 사진 연결{busy?' 중…':''}</button> <button type="button" className="si-btn" onClick={()=>download(capturedAfter.file,capturedAfter.file.name||'PSI-after.jpg')}>촬영 사진 내려받기</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>{if(window.confirm('저장하지 않은 조치 후 사진을 버릴까요?'))setCapturedAfter(null);}}>촬영 사진 버리기</button></div>}
    <p>사진 변경 확인은 저장된 사진과 기록된 비교값만 대조합니다. 백업에서 복원한 기록의 비교값은 백업 당시 생성됐을 수 있습니다. 점검 내용의 변경이나 촬영 시각·장소·안전 여부는 증명하지 않습니다.</p>
   </section>
