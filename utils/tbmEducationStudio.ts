@@ -1,4 +1,5 @@
 import type { WorkerRecord } from '../types';
+import { buildMonthlyFieldFollowupSummary, formatMonthlyFollowupEducationLines } from './monthlyFieldFollowup';
 import type { EducationPosterTranslationMap } from './educationPosterTranslation';
 
 export type TbmSourceKind = 'field-record' | 'document' | 'manual';
@@ -268,18 +269,28 @@ export const buildFieldRecordSource = (
     workerRecords: WorkerRecord[],
     workType: string,
     targetCycleLabel = '다음 달',
+    options?: { followupRecords?: WorkerRecord[]; asOfDate?: string; periodStartDate?: string },
 ): TbmEvidenceSource | null => {
     const targetRecords = workType === '전체 공종'
         ? workerRecords
         : workerRecords.filter((record) => record.jobField === workType);
-    if (!targetRecords.length) return null;
+    const followup = options?.asOfDate && options.followupRecords
+        ? buildMonthlyFieldFollowupSummary(options.followupRecords, {
+            asOfDate: options.asOfDate,
+            periodStartDate: options.periodStartDate,
+            workType,
+        })
+        : null;
+    if (!targetRecords.length && !followup?.totalCases) return null;
 
     const focusLines = collectFieldRecordFocusPoints(targetRecords);
+    const followupLines = followup ? formatMonthlyFollowupEducationLines(followup) : [];
     const lines = [
         '[현장중점관리 참고]',
         `근로자 위험성평가 기록은 ${targetCycleLabel} 교육의 중점관리 포인트로만 사용합니다.`,
         `상등급 공유 항목은 ${targetCycleLabel} 위험성평가 회의자료(PPT/PDF/문서)에 명시된 상등급에서만 추출합니다.`,
         ...(focusLines.length ? focusLines : ['반복 위험 또는 개선 요청이 확인되면 여기에 중점관리 포인트로 정리합니다.']),
+        ...followupLines,
     ];
 
     return {
@@ -364,7 +375,12 @@ export const buildTbmEducationDraft = (options: {
             ? `${workType} 작업자는 작업 시작 전 ${firstRisk} 위험과 안전조치를 함께 확인하고, 조건이 달라지면 즉시 작업을 멈춘다.`
             : `${workType} 작업자는 이번 자료에서 회의자료로 확정된 상등급 공유 위험이 없더라도 근로자 기록과 현장 조건을 바탕으로 작업중지 기준을 함께 확인한다.`);
     const highGradeRiskNames = new Set(risks.map((item) => item.risk));
+    const followupFocus = options.sources
+        .filter(source => source.kind === 'field-record')
+        .flatMap(source => source.text.split('\n').filter(line => /^Q[1-5] 확인사항 ·/.test(line)))
+        .slice(0, 3);
     const focusPoints = [
+        ...followupFocus,
         ...collectFieldRecordFocusPoints(targetRecords),
         ...collectSourceFocusPoints(sourceTexts, highGradeRiskNames),
     ].filter((point, index, array) => point && array.indexOf(point) === index).slice(0, 6);
@@ -451,7 +467,13 @@ export const buildTbmEducationDraft = (options: {
             '안전시설, 장비, 보호구 상태를 직접 확인했는가?',
             '작업 조건이 바뀌면 즉시 멈추고 관리자에게 알리는가?',
         ],
-        confirmationQuestions: risks.map((item) => `${item.risk} 위험을 줄이기 위해 작업 전에 무엇을 확인해야 합니까?`),
+        confirmationQuestions: [
+            ...risks.map((item) => `${item.risk} 위험을 줄이기 위해 작업 전에 무엇을 확인해야 합니까?`),
+            ...(followupFocus.length ? [
+                '미완료 현장 조치의 담당자, 임시통제 방법, 재확인 기한은 무엇입니까?',
+                '작업 중 같은 위험이 다시 발견되면 누구에게 보고하고 어떻게 작업을 중지합니까?',
+            ] : []),
+        ],
         closingCommitment: '작업 조건이 교육 내용과 다르면 즉시 작업을 멈추고 관리자와 위험성평가를 다시 확인한다.',
         sourceCount: options.sources.length + (targetRecords.length ? 1 : 0),
         generatedAt: new Date().toISOString(),

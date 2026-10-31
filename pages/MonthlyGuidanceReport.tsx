@@ -3,6 +3,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import type { MonthlyGuidanceReport as GuidanceData, SixMetricBreakdown, WorkerRecord, Page } from '../types';
 import { FieldRadarChart } from '../components/charts/FieldRadarChart';
 import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
+import { buildMonthlyFieldFollowupSummary, formatMonthlyFollowupEducationLines, getKoreanCalendarDay } from '../utils/monthlyFieldFollowup';
 import {
     groupRecordsByAssessmentPeriod,
     resolveAssessmentPeriod,
@@ -274,6 +275,10 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
         () => createReport(records, previous, assessmentPeriodLabel, cycleCopy, siteName),
         [assessmentPeriodLabel, cycleCopy, previous, records, siteName],
     );
+    const monthlyFollowup = useMemo(() => buildMonthlyFieldFollowupSummary(workerRecords, {
+        asOfDate: selectedGroup?.period.endDate || getKoreanCalendarDay(),
+        periodStartDate: selectedGroup?.period.startDate,
+    }), [workerRecords, selectedGroup?.period.endDate, selectedGroup?.period.startDate]);
     const monthlyChartPoints = useMemo<ChartPoint[]>(() => (
         [...periodGroups]
             .reverse()
@@ -307,7 +312,7 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
     const monthlyDelta = Number((currentScore - previousScore).toFixed(1));
     const weakest = metrics.map((metric) => ({ ...metric, value: report.sixMetricTrends[`${metric.key}Avg` as keyof GuidanceData['sixMetricTrends']] })).sort((a, b) => a.value / a.max - b.value / b.max)[0];
     const downloadOutline = () => {
-        const text = [`[PSI ${cycleCopy.reportLabel}] ${assessmentPeriodLabel}`, `기준자료: ${assessmentPeriodLabel}`, '', report.overallSummary, '', '위험요소 TOP5', ...report.topRiskFactors.map((r, i) => `${i + 1}. ${r.riskName} (${r.count}건) - ${r.guidanceMessage}`), '', `${cycleCopy.nextCycleLabel} 실천행동`, ...report.nextMonthEducationFocus.map((v) => `- ${v}`), '', '※ 개인 실명·점수·순위는 교육자료에 포함하지 않습니다.'].join('\n');
+        const text = [`[PSI ${cycleCopy.reportLabel}] ${assessmentPeriodLabel}`, `기준자료: ${assessmentPeriodLabel}`, '', report.overallSummary, '', '위험요소 TOP5', ...report.topRiskFactors.map((r, i) => `${i + 1}. ${r.riskName} (${r.count}건) - ${r.guidanceMessage}`), '', `${cycleCopy.nextCycleLabel} 실천행동`, ...report.nextMonthEducationFocus.map((v) => `- ${v}`), '', '', ...formatMonthlyFollowupEducationLines(monthlyFollowup), '', '※ 개인 실명·점수·순위는 교육자료에 포함하지 않습니다.'].join('\n');
         const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
         const link = document.createElement('a'); link.href = url; link.download = `PSI_${selectedGroup?.period.startDate || 'period'}_PPT브리핑개요.txt`; link.click(); URL.revokeObjectURL(url);
     };
@@ -373,6 +378,42 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
                 </section>
             )}
             <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[['분석 건수', `${report.analyzedRecords}건`], ['참여 인원', `${report.totalWorkers}명`], ['가장 많이 나온 위험', report.topRiskFactors[0]?.riskName || '분석자료 없음'], ['가장 약한 지표', weakest?.label || '분석자료 없음']].map(([k, v]) => <div key={k} className="rounded-2xl border border-slate-200 bg-white p-4"><p className="psi-meta-label">{k}</p><p className="psi-card-title mt-2">{v}</p></div>)}</section>
+
+            <section data-monthly-guidance="field-followup" className="rounded-2xl border border-amber-200 bg-white p-5">
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div>
+                        <p className="psi-eyebrow text-amber-700">실제 조치 기록 기반 · 월간 환류</p>
+                        <h3 className="psi-section-title mt-1">미완료 조치·재확인 → 다음 교육 중점사항</h3>
+                        <p className="psi-small-note mt-1">집계 기준일 {monthlyFollowup.asOfDate}. 선택한 평가기간 이전의 미완료 건도 이월해 확인합니다. 교육용 익명 집계로 개인별 제재·공식 위험등급에 사용하지 않습니다.</p>
+                    </div>
+                    <span className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">현장 확인 자료 · 공식 상등급과 별개</span>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-5">
+                    {[
+                        ['후속조치 등록', monthlyFollowup.totalCases],
+                        ['미완료', monthlyFollowup.unresolved],
+                        ['기한 초과', monthlyFollowup.overdue],
+                        ['재개방 이력', monthlyFollowup.reopened],
+                        ['이전 주기 이월', monthlyFollowup.carriedOver],
+                    ].map(([label, count]) => (
+                        <div key={label} className="rounded-xl bg-slate-50 p-3">
+                            <p className="psi-meta-label">{label}</p>
+                            <p className="mt-1 text-xl font-black text-slate-900">{count}건</p>
+                        </div>
+                    ))}
+                </div>
+                {monthlyFollowup.educationFocus.length ? (
+                    <div className="mt-4 grid gap-2 lg:grid-cols-3">
+                        {monthlyFollowup.educationFocus.map((line, index) => (
+                            <article key={line} className="rounded-xl border border-amber-100 bg-amber-50/40 p-3">
+                                <p className="text-[11px] font-black text-amber-800">다음 교육 확인사항 {index + 1}</p>
+                                <p className="mt-1 text-sm font-semibold leading-6 text-slate-800">{line}</p>
+                            </article>
+                        ))}
+                    </div>
+                ) : <p className="psi-small-note mt-3">현재 기준일에 등록된 미완료·재개방 확인항목이 없습니다. 이는 위험이 없거나 실제 조치가 모두 완료되었다는 증명이 아닙니다.</p>}
+                <p className="psi-small-note mt-3">위 수치는 근로자 자기기입이 아니라 관리자가 별도로 기록한 조치 이력에 근거합니다. 재개방은 반복 위반 판정이 아닙니다. 담당자·임시통제·완료 증빙은 현장 관리 기록에서 확인하세요.</p>
+            </section>
             <TrackingAnalysisPanel report={report} monthlyPoints={monthlyChartPoints} delta={monthlyDelta} cycleCopy={cycleCopy} />
             <section data-monthly-guidance="group-radar" className="rounded-2xl border border-indigo-100 bg-white p-5">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
