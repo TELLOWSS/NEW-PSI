@@ -505,16 +505,16 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    const packed:unknown[]=[],issues:string[]=[];
    let bytes=0;
    for(const id of backupIds){
-    const row=found.get(id);
-    if(!row){issues.push('선택 기록을 현재 기기에서 찾지 못함');continue;}
+    const selectedRecord=found.get(id);
+    if(!selectedRecord){issues.push('선택 기록을 현재 기기에서 찾지 못함');continue;}
     try{
-     const blob=await packRecord(row);
+     const blob=await packRecord(selectedRecord);
      const next=await blob.text();
      const nextBytes=new Blob([next]).size;
      if(bytes+nextBytes>BATCH_LIMIT)throw new Error('전체 백업 용량이 50MB를 넘습니다. 기록을 나누어 백업하세요.');
      bytes+=nextBytes;
      packed.push(JSON.parse(next));
-    }catch(error){issues.push(row.note.slice(0,32)+': '+(error instanceof Error?error.message:'백업 실패'));}
+    }catch(error){issues.push(selectedRecord.note.slice(0,32)+': '+(error instanceof Error?error.message:'백업 실패'));}
    }
    if(!packed.length)throw new Error('백업 가능한 기록이 없습니다. '+issues.join(' / '));
    const payload=new Blob([JSON.stringify({format:'psi-local-inspection-batch',version:1,exportedAt:new Date().toISOString(),records:packed})],{type:'application/json'});
