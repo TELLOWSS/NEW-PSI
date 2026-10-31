@@ -668,7 +668,8 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
      sources[index===0?'primary:0':'context:0']=entry;
     }
    }else if(singlePhotoSource&&primaryDigest){sources['primary:0']=photoInput(singlePhotoSource,primaryDigest);}
-   const edited=staged?staged.edits:(singlePhotoEdit?{'primary:0':await makePhotoEdit(primary,singlePhotoEdit)}:undefined);
+   const initialPhotoEdit=staged?undefined:await makePhotoEdit(primary,singlePhotoEdit);
+    const edited:PhotoEdits|undefined=staged?staged.edits:initialPhotoEdit?{'primary:0':initialPhotoEdit}:undefined;
     if(edited&&Object.values(edited).reduce((sum,item)=>sum+(item?.originalFile?.size||0),0)>BACKUP_LIMIT)throw new Error('편집 전 사진 합계가 20MB를 넘습니다. 새 점검을 작성하거나 사진을 별도로 내려받으세요.');
     const record:LocalRecord={photoEdits:edited&&Object.keys(edited).length?edited:undefined,photoInputs:Object.keys(sources).length?sources:undefined,siteContext,photoRole:primaryRole==='unspecified'?undefined:primaryRole,id:crypto.randomUUID(),createdAt:new Date().toISOString(),note:note.trim(),action:action.trim(),photo:primary,sha256:primaryDigest,legalVersion:reference.version,reviewedAt:reference.reviewedAt,...(secondary?{contextPhoto:secondary,contextSha256:contextDigest!,contextRole:primaryRole==='overview'?'detail' as const:'overview' as const}:{})};
    if(record.photoEdits&&!validPhotoEdits(record.photoEdits,record))throw new Error('편집 전 사진과 회전 사진의 연결 정보를 확인하지 못했습니다.');
