@@ -40,9 +40,21 @@ try{
  const photoSet=actionRow.getByRole('region',{name:'현장 사진 묶음'});
  await photoSet.getByText('기본 사진: 현장 전체',{exact:false}).waitFor();
  await photoSet.getByLabel('추가 사진 역할').selectOption('detail');
- await photoSet.getByLabel('현장 사진 추가').setInputFiles({name:'synthetic-detail.jpg',mimeType:'image/jpeg',buffer:Buffer.from('synthetic detail photo')});
+ await photoSet.getByRole('button',{name:'추가 현장 사진 촬영'}).click();
+ const contextCamera=page.getByRole('dialog',{name:'카메라로 바로 촬영'});
+ await page.waitForFunction(()=>!document.querySelector('.si-camera-shutter')?.disabled);
+ await contextCamera.getByRole('button',{name:'지금 촬영'}).click();
+ await page.getByRole('dialog',{name:'촬영 사진 바로 확인'}).getByRole('button',{name:'이 사진 사용'}).click();
+ const pendingText=await photoSet.getByText('저장 전 사진:',{exact:false}).innerText();
+ const contextName=pendingText.replace('저장 전 사진: ','');assert.ok(contextName);
+ // Simulate local storage failure without discarding the selected camera frame.
+ await page.evaluate(()=>{window.__originalTransaction=IDBDatabase.prototype.transaction;IDBDatabase.prototype.transaction=function(){throw new DOMException('full','QuotaExceededError');};});
  await photoSet.getByRole('button',{name:'현장 사진 연결'}).click();
- await photoSet.getByText('추가 사진: 위험 부위 · synthetic-detail.jpg',{exact:false}).waitFor();
+ await panel.getByText('추가 현장 사진을 저장하지 못했습니다.',{exact:false}).waitFor();
+ await photoSet.getByText('저장 전 사진:',{exact:false}).waitFor();
+ await page.evaluate(()=>{IDBDatabase.prototype.transaction=window.__originalTransaction;});
+ await photoSet.getByRole('button',{name:'현장 사진 연결'}).click();
+ await photoSet.getByText('추가 사진: 위험 부위 · '+contextName,{exact:false}).waitFor();
 
  await actionRow.getByRole('button',{name:'후속 조치 기록'}).click();
  await actionRow.getByLabel('조치 상태').selectOption('in_progress');
@@ -89,7 +101,7 @@ try{
  const backup=await backupEvent,backupBytes=await readFile(await backup.path()),parsed=JSON.parse(backupBytes.toString());
  assert.equal(parsed.record.sha256,saved[0].sha,'backup photo hash must match stored photo');
  assert.equal(parsed.record.action,'다른 탭에서 갱신한 합성 조치 계획','backup must read the current stored record');
- assert.equal(parsed.version,6);assert.equal(parsed.record.photoRole,'overview');assert.equal(parsed.record.contextPhoto.role,'detail');assert.equal(parsed.record.contextPhoto.name,'synthetic-detail.jpg');assert.equal(parsed.record.additionalActions[0].photo.name,'action-one.png');assert.equal(parsed.record.additionalActions[1].photo.name,'action-two.jpg');assert.equal(parsed.record.additionalActions.length,2);assert.equal(parsed.record.additionalActions[0].followup.status,'verified');assert.equal(parsed.record.additionalActions[1].followup,undefined);assert.equal(parsed.record.followup.status,'in_progress');assert.equal(parsed.record.followup.assignee,'합성 담당자');assert.equal(parsed.record.afterPhoto.name,'synthetic-after.png');assert.match(parsed.record.afterPhoto.sha256,/^[a-f0-9]{64}$/);
+ assert.equal(parsed.version,6);assert.equal(parsed.record.photoRole,'overview');assert.equal(parsed.record.contextPhoto.role,'detail');assert.equal(parsed.record.contextPhoto.name,contextName);assert.equal(parsed.record.additionalActions[0].photo.name,'action-one.png');assert.equal(parsed.record.additionalActions[1].photo.name,'action-two.jpg');assert.equal(parsed.record.additionalActions.length,2);assert.equal(parsed.record.additionalActions[0].followup.status,'verified');assert.equal(parsed.record.additionalActions[1].followup,undefined);assert.equal(parsed.record.followup.status,'in_progress');assert.equal(parsed.record.followup.assignee,'합성 담당자');assert.equal(parsed.record.afterPhoto.name,'synthetic-after.png');assert.match(parsed.record.afterPhoto.sha256,/^[a-f0-9]{64}$/);
  const savedRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
  await savedRow.getByRole('button',{name:'사진 변경 확인'}).click();
  await savedRow.getByText('확인 시점의 사진이 저장된 비교값과 일치합니다.').waitFor();
@@ -161,7 +173,7 @@ try{
  await panel.getByText('백업을 이 기기에 복원했습니다.',{exact:false}).waitFor();
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
  await panel.getByText('조치 후 사진: synthetic-after.png').waitFor();
- await panel.getByText('추가 사진: 위험 부위 · synthetic-detail.jpg',{exact:false}).waitFor();
+ await panel.getByText('추가 사진: 위험 부위 · '+contextName,{exact:false}).waitFor();
  await panel.getByText('조치 진행 중',{exact:true}).waitFor();
  await panel.getByRole('heading',{name:'합성 출입 통제'}).waitFor();
  await panel.getByText('이 조치의 사진: action-one.png').waitFor();
