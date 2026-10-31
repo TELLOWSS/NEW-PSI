@@ -510,8 +510,9 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     try{
      const blob=await packRecord(row);
      const next=await blob.text();
-     bytes+=new Blob([next]).size;
-     if(bytes>BATCH_LIMIT)throw new Error('전체 백업 용량이 50MB를 넘습니다. 기록을 나누어 백업하세요.');
+     const nextBytes=new Blob([next]).size;
+     if(bytes+nextBytes>BATCH_LIMIT)throw new Error('전체 백업 용량이 50MB를 넘습니다. 기록을 나누어 백업하세요.');
+     bytes+=nextBytes;
      packed.push(JSON.parse(next));
     }catch(error){issues.push(row.note.slice(0,32)+': '+(error instanceof Error?error.message:'백업 실패'));}
    }
