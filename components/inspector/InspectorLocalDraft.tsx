@@ -615,7 +615,7 @@ function RecheckEditor({row,action,busy,onSave}:{row:LocalRecord;action?:Additio
   </details>}
  </section>;
 }
-function ActionItem({row,item,busy,onUpdate,onPhoto}:{key?:string;row:LocalRecord;item:AdditionalAction;busy:boolean;onUpdate:(row:LocalRecord,actions:AdditionalAction[])=>Promise<boolean>;onPhoto:(row:LocalRecord,item:AdditionalAction,file:File)=>Promise<boolean>;onRecheck:(row:LocalRecord,actionId:string|null,entry:Recheck)=>Promise<boolean>}){
+function ActionItem({row,item,busy,onUpdate,onPhoto,onRecheck}:{key?:string;row:LocalRecord;item:AdditionalAction;busy:boolean;onUpdate:(row:LocalRecord,actions:AdditionalAction[])=>Promise<boolean>;onPhoto:(row:LocalRecord,item:AdditionalAction,file:File)=>Promise<boolean>;onRecheck:(row:LocalRecord,actionId:string|null,entry:Recheck)=>Promise<boolean>}){
  const [pending,setPending]=useState<File|null>(null);
  const actions=row.additionalActions||[];
  useEffect(()=>{if(!pending)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[pending]);
@@ -626,7 +626,7 @@ function ActionItem({row,item,busy,onUpdate,onPhoto}:{key?:string;row:LocalRecor
   {!!item.photoHistory?.length&&<details><summary>이 조치의 이전 사진 {item.photoHistory.length}장</summary><p>교체 시각은 기기 시각이며 촬영 시각과 다를 수 있습니다.</p>{item.photoHistory.map((entry,i)=><p key={i}>{entry.photo.name} · {new Date(entry.replacedAt).toLocaleString('ko-KR')} <button type="button" className="si-btn" onClick={()=>download(entry.photo,entry.photo.name)}>이 조치의 이전 사진 내려받기</button></p>)}</details>}
  </div>;
 }
-function AdditionalActions({row,busy,onUpdate,onPhoto}:{row:LocalRecord;busy:boolean;onUpdate:(row:LocalRecord,actions:AdditionalAction[])=>Promise<boolean>;onPhoto:(row:LocalRecord,item:AdditionalAction,file:File)=>Promise<boolean>;onRecheck:(row:LocalRecord,actionId:string|null,entry:Recheck)=>Promise<boolean>}){
+function AdditionalActions({row,busy,onUpdate,onPhoto,onRecheck}:{row:LocalRecord;busy:boolean;onUpdate:(row:LocalRecord,actions:AdditionalAction[])=>Promise<boolean>;onPhoto:(row:LocalRecord,item:AdditionalAction,file:File)=>Promise<boolean>;onRecheck:(row:LocalRecord,actionId:string|null,entry:Recheck)=>Promise<boolean>}){
  const [title,setTitle]=useState('');
  const actions=row.additionalActions||[];
  const add=async()=>{if(!title.trim()||actions.length>=20)return;if(await onUpdate(row,[...actions,{id:crypto.randomUUID(),title:title.trim()}]))setTitle('');};
