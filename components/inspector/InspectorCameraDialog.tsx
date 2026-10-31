@@ -14,8 +14,12 @@ const CAMERA_GUIDES = {
 } as const;
 type CameraGuide = keyof typeof CAMERA_GUIDES | '';
 
+/** The first camera frame/file is retained for edited images; 0° captures use the same file. */
+export type CameraEditEvidence={initialFile:File;rotationDegrees:90|180|270;recordedAt:string};
+const cameraEditEvidence=(initial:File|null,turns:number):CameraEditEvidence|undefined=>
+  initial&&turns>0?{initialFile:initial,rotationDegrees:(turns*90) as 90|180|270,recordedAt:new Date().toISOString()}:undefined;
 /** Photos stay local until onUse passes the selected frame to the existing optimizer. */
-export default function InspectorCameraDialog({onClose, onUse, reference, onSaveAndContinue, storedCount,onHome}: {onClose:()=>void; onUse:(file:File)=>void;onHome?:()=>void; reference?:{url?:string;label:string;failed?:boolean;missing?:boolean;selection?:{value:string;options:{value:string;label:string}[];onChange:(value:string)=>void}};onSaveAndContinue?:(file:File)=>Promise<boolean>;storedCount?:number}) {
+export default function InspectorCameraDialog({onClose, onUse, reference, onSaveAndContinue, storedCount,onHome}: {onClose:()=>void; onUse:(file:File,evidence?:CameraEditEvidence)=>void;onHome?:()=>void; reference?:{url?:string;label:string;failed?:boolean;missing?:boolean;selection?:{value:string;options:{value:string;label:string}[];onChange:(value:string)=>void}};onSaveAndContinue?:(file:File,evidence?:CameraEditEvidence)=>Promise<boolean>;storedCount?:number}) {
     const dialogRef=useRef<HTMLDialogElement>(null), videoRef=useRef<HTMLVideoElement>(null), guidePanelRef=useRef<HTMLDetailsElement>(null);
     const streamRef=useRef<MediaStream|null>(null), generation=useRef(0), encoding=useRef(false), nativePending=useRef(false);
     // Follow the browser's displayed orientation on every turn; no manual mode lock.
@@ -136,7 +140,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
     const close=()=>{if(sequenceSaving||rotating)return;if(photo&&!window.confirm('촬영한 사진은 아직 등록되지 않았습니다. 사진을 버리고 닫을까요?'))return;onClose();};
     const goHome=()=>{if(sequenceSaving||rotating)return;if(photo&&!window.confirm('등록하지 않은 촬영 사진을 버리고 첫 화면으로 이동할까요?'))return;(onHome||onClose)();};
     const goBack=()=>{if(sequenceSaving||rotating)return;if(photo){if(!window.confirm('아직 등록되지 않은 사진을 버리고 촬영 화면으로 돌아갈까요?'))return;retry();return;}onClose();};
-    const saveAndContinue=async()=>{if(!photo||!decoded||!onSaveAndContinue||sequenceSaving||rotating)return;setSequenceSaving(true);setSequenceError('');try{if(await onSaveAndContinue(photo))retry();else setSequenceError('사진을 보관하지 못했습니다. 이 사진을 기기에 저장하거나 다시 시도하세요.');}catch{setSequenceError('사진을 보관하지 못했습니다. 이 사진을 기기에 저장하거나 다시 시도하세요.');}finally{setSequenceSaving(false);}};
+    const saveAndContinue=async()=>{if(!photo||!decoded||!onSaveAndContinue||sequenceSaving||rotating)return;setSequenceSaving(true);setSequenceError('');try{if(await onSaveAndContinue(photo,cameraEditEvidence(originalCapture.current,rotation)))retry();else setSequenceError('사진을 보관하지 못했습니다. 이 사진을 기기에 저장하거나 다시 시도하세요.');}catch{setSequenceError('사진을 보관하지 못했습니다. 이 사진을 기기에 저장하거나 다시 시도하세요.');}finally{setSequenceSaving(false);}};
 
     return <dialog ref={dialogRef} className={`si-camera-dialog si-camera-immersive ${photo?'si-camera-review':'si-camera-live'}`} aria-labelledby="si-camera-title" onCancel={e=>{e.preventDefault();if(nativePending.current){nativePending.current=false;retry();return;}if(e.target===e.currentTarget)close();}} onClick={e=>{if(e.target===e.currentTarget)close();}}>
         <div className="si-camera-heading"><div className="si-camera-heading-title"><p className="si-eyebrow">PSI INSPECTOR / {reference?'BEFORE & AFTER':'FIELD CAMERA'}</p><h2 id="si-camera-title">{photo?'촬영 사진 바로 확인':'카메라로 바로 촬영'}</h2></div><div className="si-camera-header-tools">
@@ -227,7 +231,7 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
             <button className="si-btn" disabled={sequenceSaving||rotating} onClick={()=>{if(!window.confirm('아직 등록하지 않은 이 사진을 버리고 다시 촬영할까요?'))return;retry();}}>다시 촬영</button>
             {preview&&<a className="si-btn" href={preview} download={photo.name} aria-disabled={rotating||!decoded} onClick={e=>{if(rotating||!decoded)e.preventDefault();}}>{rotation?'회전한 사본 기기에 저장':'촬영 사진 기기에 저장'}</a>}
             {onSaveAndContinue&&<button className="si-btn si-primary" disabled={!decoded||sequenceSaving||rotating} onClick={()=>void saveAndContinue()}>{sequenceSaving?'사진 보관 중…':'보관하고 계속 촬영'}</button>}
-            <button className="si-btn si-primary" disabled={!decoded||sequenceSaving||rotating} onClick={()=>{if(decoded&&!rotating)onUse(photo);}}>이 사진 사용</button>
+            <button className="si-btn si-primary" disabled={!decoded||sequenceSaving||rotating} onClick={()=>{if(decoded&&!rotating)onUse(photo,cameraEditEvidence(originalCapture.current,rotation));}}>이 사진 사용</button>
         </>:<>
             <button className="si-btn si-primary si-camera-shutter" disabled={!ready || capturing} onClick={capture}><span className="si-camera-shutter-mark"><InspectorIcon name="camera"/></span><span>{capturing?'사진 처리 중…':'지금 촬영'}</span></button>
             <button className="si-btn si-camera-flip" disabled={capturing} onClick={()=>{setFacing(value=>value==='environment'?'user':'environment');}}><span className="si-camera-flip-symbol" aria-hidden="true">⟳</span><span>전면·후면 전환</span></button>
@@ -237,6 +241,6 @@ export default function InspectorCameraDialog({onClose, onUse, reference, onSave
         {photo&&frame&&<details className="si-camera-frame-details"><summary>{directionMismatch?'영상 방향 확인 필요':'영상 정보'}</summary><p className="si-camera-frame-status" role="status">{photo?'촬영본':'현재 영상'} · {actualDirection} {frame.width} × {frame.height}{!photo&&directionMismatch&&<span>화면 방향과 카메라 영상 비율이 다릅니다. 화면 회전 설정을 확인하거나 기기 카메라를 이용하세요.</span>}</p></details>}
         {!photo&&<p className="si-camera-auto-direction" role="status">화면 방향 자동 · {mode==='landscape'?'가로':'세로'}</p>}
         {!photo&&<><label className="si-camera-native si-btn">기기 카메라로 촬영<input aria-label="기기 카메라로 촬영" type="file" accept="image/jpeg,image/png,image/webp" capture={facing} disabled={capturing} onClick={()=>{nativePending.current=true;++generation.current;stop();setReady(false);setError('기기 촬영을 취소했다면 카메라 다시 연결을 누르세요.');}} onChange={e=>{nativePending.current=false;const file=e.target.files?.[0];e.target.value='';if(file){originalCapture.current=file;setRotation(0);setError('');setPhoto(file);}else retry();}}/></label>{reference&&<p className="si-caption">기기 카메라로 전환하면 기준 사진 겹침이 표시되지 않습니다.</p>}</>}
-        <p className="si-caption">사용 전 사진은 이 창의 임시 메모리에만 있습니다. 최초 촬영 파일이 필요하면 이 창을 닫기 전에 기기에 저장하세요. 사진 앱에 자동 저장되지는 않습니다.</p>
+        <p className="si-caption">편집 전 촬영 파일은 사진 회전 시 점검 기록에 함께 저장·백업되도록 전달됩니다. 저장 전에는 임시 메모리에만 있으며 사진첩에 자동 저장되지 않습니다. 기기 저장공간과 백업 한도를 확인하세요.</p>
     </dialog>;
 }
