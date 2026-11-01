@@ -93,6 +93,7 @@ export const downloadPsiEvidenceArchive = async (
 export interface EvidencePackageVerification {
     verified: boolean;
     checkedFiles: number;
+    fileInventory: EvidenceManifest['fileHashes'];
     zipSha256: string;
     externallyAnchored: boolean;
     errors: string[];
@@ -128,6 +129,14 @@ export const verifyPsiEvidenceArchive = async (input: Blob, expectedZipSha256 = 
         if (!match || expectedLines.has(match[2])) { errors.push('손상된 해시 목록 또는 중복 경로'); continue; }
         expectedLines.set(match[2], match[1]);
     }
+    const allowedEvidencePath = /^(?:record\/(?:snapshot\.json|timeline\.txt)|assets\/[a-zA-Z0-9_.-]+\.(?:png|jpg|jpeg|webp))$/;
+    for (const entry of manifest.fileHashes) {
+        if (!entry || typeof entry.path !== 'string' || !allowedEvidencePath.test(entry.path)
+            || typeof entry.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(entry.sha256)
+            || !Number.isSafeInteger(entry.bytes) || entry.bytes < 0) {
+            errors.push('매니페스트의 파일 경로나 검사값이 유효하지 않습니다.');
+        }
+    }
     const expectedNames = ['manifest.json', ...manifest.fileHashes.map(item => item.path)];
     if (new Set(expectedNames).size !== expectedNames.length) errors.push('매니페스트에 중복 파일명이 있습니다.');
     for (const path of expectedNames) {
@@ -146,6 +155,7 @@ export const verifyPsiEvidenceArchive = async (input: Blob, expectedZipSha256 = 
     return {
         verified: errors.length === 0,
         checkedFiles: expectedNames.length,
+        fileInventory: errors.length ? [] : manifest.fileHashes.map(file => ({...file})),
         zipSha256,
         externallyAnchored: Boolean(expected),
         errors,
