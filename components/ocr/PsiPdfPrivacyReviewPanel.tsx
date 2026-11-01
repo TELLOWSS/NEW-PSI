@@ -22,6 +22,7 @@ export const PsiPdfPrivacyReviewPanel:React.FC<{hasPendingEdits:boolean}>=({hasP
     const [notice,setNotice]=useState('');
     const [doneHash,setDoneHash]=useState('');
     const [zoom,setZoom]=useState<100|150|200>(100);
+    const [gestureMode,setGestureMode]=useState<'move'|'mask'>('move');
     const canvas=useRef<HTMLCanvasElement|null>(null);
     const originalPixels=useRef<ImageData|null>(null);
     const documentRef=useRef<any>(null);
@@ -87,7 +88,7 @@ export const PsiPdfPrivacyReviewPanel:React.FC<{hasPendingEdits:boolean}>=({hasP
     };
     const loadFile=async(file:File|null)=>{
         closeDocument();setSource(null);setSourceHash('');setPageCount(0);
-        setCurrent(1);setMasksByPage({});setReviewed([]);setDoneHash('');setNotice('');setZoom(100);
+        setCurrent(1);setMasksByPage({});setReviewed([]);setDoneHash('');setNotice('');setZoom(100);setGestureMode('move');
         if(!file)return;
         setLoading(true);
         try{
@@ -117,7 +118,8 @@ export const PsiPdfPrivacyReviewPanel:React.FC<{hasPendingEdits:boolean}>=({hasP
     };
     const commit=(end:Pointer)=>{
         const candidate=makeRect(end);dragStart.current=null;setDraft(null);
-        if(!candidate||loading||!originalPixels.current)return;
+        if(loading||!originalPixels.current)return;
+        if(!candidate){setNotice('가림 영역이 너무 작거나 지정되지 않았습니다. 이름·서명이 충분히 덮이도록 드래그하세요.');return;}
         if(activeMasks.length>=40){setNotice('페이지별 가림 영역은 최대 40개입니다.');return;}
         setMasksByPage(prev=>({...prev,[current]:[...(prev[current]||[]),candidate]}));
         setReviewed(prev=>prev.filter(page=>page!==current));setDoneHash('');
@@ -143,7 +145,7 @@ export const PsiPdfPrivacyReviewPanel:React.FC<{hasPendingEdits:boolean}>=({hasP
         }finally{setLoading(false);}
     };
     return <section data-psi-pdf-review="true" className="mt-3 rounded-xl border border-slate-300 bg-white p-3 sm:p-4">
-        <h4 className="text-sm font-black text-slate-900">PDF 페이지 개인정보 직접 가림 (17차)</h4>
+        <h4 className="text-sm font-black text-slate-900">PDF 페이지 개인정보 직접 가림 · 19차 현장 검토</h4>
         <p className="mt-2 text-xs leading-5 text-slate-700">
             로컬 PDF를 선택해 모든 페이지를 직접 확인합니다. 선택한 영역을 검정 픽셀로 덮은
             <strong> 이미지 기반 새 PDF</strong>만 만듭니다. 원본 텍스트·첨부파일·주석을
@@ -169,23 +171,49 @@ export const PsiPdfPrivacyReviewPanel:React.FC<{hasPendingEdits:boolean}>=({hasP
                             'border-slate-300 bg-white text-slate-800')}>
                     {level}%
                 </button>)}
-            <span className="text-[11px] text-slate-600">확대 후 좌우로 이동하며 작은 식별정보도 확인하세요.</span>
+            <span className="text-[11px] text-slate-600">확대 후 작은 이름·서명·연락처까지 확인하세요.</span>
+        </div>}
+        {pageCount>0&&<div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 p-2.5">
+            <div role="group" aria-label="PDF 화면 조작 모드" className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-slate-800">손가락 조작</span>
+                <button type="button" data-psi-pdf-mode="move"
+                    disabled={loading} aria-pressed={gestureMode==='move'}
+                    onClick={()=>{dragStart.current=null;setDraft(null);setGestureMode('move');}}
+                    className={'min-h-11 rounded-lg border px-3 text-xs font-bold '+
+                        (gestureMode==='move'?'border-indigo-800 bg-indigo-900 text-white':
+                            'border-slate-300 bg-white text-slate-900')}>
+                    화면 이동
+                </button>
+                <button type="button" data-psi-pdf-mode="mask"
+                    disabled={loading||hasPendingEdits} aria-pressed={gestureMode==='mask'}
+                    onClick={()=>{dragStart.current=null;setDraft(null);setGestureMode('mask');}}
+                    className={'min-h-11 rounded-lg border px-3 text-xs font-bold '+
+                        (gestureMode==='mask'?'border-indigo-800 bg-indigo-900 text-white':
+                            'border-slate-300 bg-white text-slate-900')}>
+                    개인정보 가림
+                </button>
+            </div>
+            <p role="status" className="mt-2 text-xs leading-5 text-slate-700">
+                {gestureMode==='move'
+                    ?'이동 모드: 손가락으로 페이지를 위아래·좌우로 이동합니다. 검정 영역은 생성되지 않습니다.'
+                    :'가림 모드: 감출 영역의 한쪽 끝에서 반대쪽 끝까지 드래그합니다. 이동할 때는 화면 이동을 다시 선택하세요.'}
+            </p>
         </div>}
         <div className={pageCount?'mt-2 max-h-[65vh] w-full overflow-auto rounded-lg border border-slate-300 bg-slate-100':'hidden'}
             data-psi-pdf-zoom-scroll="true">
         <canvas ref={canvas} aria-label="PDF 페이지 픽셀 가림 미리보기"
-            className="block h-auto cursor-crosshair touch-none bg-white"
-            style={{touchAction:'none',width:zoom+'%',maxWidth:'none'}}
+            className={'block h-auto bg-white '+(gestureMode==='mask'?'cursor-crosshair':'cursor-grab')}
+            style={{touchAction:gestureMode==='mask'?'none':'auto',width:zoom+'%',maxWidth:'none'}}
             onPointerDown={e=>{
-                if(loading||hasPendingEdits||!originalPixels.current)return;
+                if(gestureMode!=='mask'||loading||hasPendingEdits||!originalPixels.current)return;
                 e.currentTarget.setPointerCapture(e.pointerId);
                 dragStart.current={clientX:e.clientX,clientY:e.clientY};setDraft(null);
             }}
             onPointerMove={e=>{
-                if(!dragStart.current)return;
+                if(gestureMode!=='mask'||!dragStart.current)return;
                 setDraft(makeRect({clientX:e.clientX,clientY:e.clientY}));
             }}
-            onPointerUp={e=>commit({clientX:e.clientX,clientY:e.clientY})}
+            onPointerUp={e=>{if(gestureMode==='mask')commit({clientX:e.clientX,clientY:e.clientY});}}
             onPointerCancel={()=>{dragStart.current=null;setDraft(null);}}/>
         </div>
         {pageCount>0&&<>
@@ -200,7 +228,7 @@ export const PsiPdfPrivacyReviewPanel:React.FC<{hasPendingEdits:boolean}>=({hasP
                     </button>)}
             </div>
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span>{current}/{pageCount}페이지 · 검정 가림 {activeMasks.length}개</span>
+                <span>{current}/{pageCount}페이지 · 검정 가림 {activeMasks.length}개 · {gestureMode==='move'?'이동 중':'가림 지정 중'}</span>
                 <button type="button" disabled={loading||!activeMasks.length}
                     onClick={removeMask}
                     className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 font-bold">

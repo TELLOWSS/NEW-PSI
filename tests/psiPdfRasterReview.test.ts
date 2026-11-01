@@ -17,6 +17,13 @@ describe('PSI independent PDF privacy review fail-closed input',()=>{
             pageNumber:2,manuallyReviewed:false as true,masks:[],
         }])).toThrow('검토하지 않은');
     });
+    it('accepts all ten separately acknowledged pages but rejects an eleventh',()=>{
+        const ten=Array.from({length:10},(_,i)=>reviewed(i+1));
+        expect(MAX_PSI_PDF_PAGES).toBe(10);
+        expect(()=>validatePsiPdfReviewPlan(10,ten)).not.toThrow();
+        expect(()=>validatePsiPdfReviewPlan(11,[...ten,reviewed(11)])).toThrow();
+        expect(()=>validatePsiPdfReviewPlan(10,ten.slice(0,-1))).toThrow('모든 페이지');
+    });
     it('rejects missing data, malformed masks, large page counts and pixel bombs',()=>{
         expect(()=>validatePsiPdfReviewPlan(0,[])).toThrow();
         expect(()=>validatePsiPdfReviewPlan(MAX_PSI_PDF_PAGES+1,[])).toThrow();
