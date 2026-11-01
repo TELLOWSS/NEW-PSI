@@ -74,6 +74,8 @@ jobs:
         run: node scripts/verify-psi-company-browser.mjs
       - name: Test genuine synthetic PDF rendering and privacy postflight in desktop/mobile Chromium
         run: node scripts/verify-psi-pdf-privacy-browser.mjs
+      - name: Simulate local field camera share and ZIP preflight, including stealth IndexedDB tampering
+        run: node scripts/verify-field-camera-delivery-preflight.mjs
       - name: Upload synthetic-only cross-department evidence
         if: always()
         uses: actions/upload-artifact@v4
