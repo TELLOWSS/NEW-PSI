@@ -102,7 +102,9 @@ export const readPsiLocalPdf=async(file:File)=>{
     }finally{await task.destroy();}
 };
 
-export const verifyPsiRasterPdfHasNoExtractableContent=async(bytes:Uint8Array,pageCount:number)=>{
+export const verifyPsiRasterPdfHasNoExtractableContent=async(
+    bytes:Uint8Array,pageCount:number,plans:readonly PsiPdfPageReview[]=[],
+)=>{
     const pdfjs=await loadPsiPdfRenderer();
     const task=pdfjs.getDocument({data:Uint8Array.from(bytes),stopAtErrors:true,enableXfa:false});
     try{
@@ -122,6 +124,46 @@ export const verifyPsiRasterPdfHasNoExtractableContent=async(bytes:Uint8Array,pa
             throw new Error('가림 PDF에 첨부파일이 남아 있습니다.');
         if(fields&&Object.keys(fields).length)
             throw new Error('가림 PDF에 양식 필드가 남아 있습니다.');
+        // Final-file postflight: rasterize the EXPORTED PDF itself, not only
+        // the intermediate canvas. This catches masks lost at PDF encoding.
+        if(plans.length){
+            validatePsiPdfReviewPlan(pageCount,plans);
+            if(typeof document==='undefined')throw new Error('출력 PDF 픽셀 검증이 지원되지 않습니다.');
+            for(const plan of plans){
+                if(!plan.masks.length)continue;
+                const page=await pdf.getPage(plan.pageNumber);
+                const viewport=page.getViewport({scale:choosePsiPdfRenderScale(
+                    page.getViewport({scale:1}).width,page.getViewport({scale:1}).height,
+                )});
+                const canvas=document.createElement('canvas');
+                canvas.width=Math.ceil(viewport.width);
+                canvas.height=Math.ceil(viewport.height);
+                const ctx=canvas.getContext('2d',{willReadFrequently:true});
+                if(!ctx)throw new Error('PDF 출력물 픽셀 검증을 시작할 수 없습니다.');
+                try{
+                    ctx.fillStyle='#fff';
+                    ctx.fillRect(0,0,canvas.width,canvas.height);
+                    await page.render({canvas,canvasContext:ctx,viewport}).promise;
+                    const rectangles=validatePsiPhotoMasks(plan.masks,canvas.width,canvas.height);
+                    for(const rect of rectangles){
+                        // Sample inside each blackout region, away from edges
+                        // where rasterizer interpolation can blend neighboring pixels.
+                        for(const fx of [0.25,0.5,0.75]){
+                            for(const fy of [0.25,0.5,0.75]){
+                                const x=Math.min(canvas.width-1,rect.x+Math.floor((rect.width-1)*fx));
+                                const y=Math.min(canvas.height-1,rect.y+Math.floor((rect.height-1)*fy));
+                                const pixel=ctx.getImageData(x,y,1,1).data;
+                                if(pixel[0]>16||pixel[1]>16||pixel[2]>16||pixel[3]!==255)
+                                    throw new Error('완성된 PDF에 검은 가림 픽셀이 반영되지 않았습니다. 저장을 중단합니다.');
+                            }
+                        }
+                    }
+                }finally{
+                    canvas.width=0;canvas.height=0;
+                    page.cleanup();
+                }
+            }
+        }
     }finally{await task.destroy();}
 };
 
@@ -201,7 +243,7 @@ export const buildPsiRasterPdfReview=async(
         const pdfBytes=new Uint8Array(output!.output('arraybuffer'));
         if(!pdfBytes.length||pdfBytes.length>40*1024*1024)
             throw new Error('가림 PDF 출력 크기가 허용 한도를 초과했습니다.');
-        await verifyPsiRasterPdfHasNoExtractableContent(pdfBytes,original.pageCount);
+        await verifyPsiRasterPdfHasNoExtractableContent(pdfBytes,original.pageCount,plans);
         const maskedHash=await digest(pdfBytes);
         const manifest:PsiPdfReviewManifest={
             schema:PSI_FLATTENED_PDF_REVIEW_SCHEMA,
