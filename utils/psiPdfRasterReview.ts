@@ -294,16 +294,51 @@ export const validatePsiPdfComparedPages=(pageCount:number,pages:readonly number
     return [...unique].sort((a,b)=>a-b);
 };
 
+/** Fail closed if the prepared output or its immutable original no longer matches the review. */
+export const verifyPsiPreparedPdfIntegrity=async(
+    prepared:Awaited<ReturnType<typeof buildPsiRasterPdfReview>>,
+    originalFile:File,
+):Promise<void>=>{
+    const manifest=prepared?.manifest;
+    if(!prepared?.blob||!manifest||!originalFile||
+        manifest.schema!==PSI_FLATTENED_PDF_REVIEW_SCHEMA||
+        manifest.status!=='INTERNAL_RASTER_PDF_REVIEW_NOT_APPROVED'||
+        manifest.disclosureApproved!==false||
+        manifest.recipientDeliveryRecorded!==false||
+        manifest.humanReviewRequired!==true||
+        manifest.originalDocumentEmbedded!==false||
+        manifest.selectableOriginalText!==false||
+        manifest.originalAttachmentsCopied!==false||
+        manifest.originalAnnotationsCopied!==false||
+        manifest.originalMetadataCopied!==false||
+        !Array.isArray(manifest.pageSummaries)||
+        manifest.pageSummaries.length!==manifest.pageCount||
+        manifest.pageSummaries.some((page,i)=>page.pageNumber!==i+1||page.reviewedByUser!==true)||
+        !/^[a-f0-9]{64}$/.test(manifest.originalSha256||'')||
+        !/^[a-f0-9]{64}$/.test(manifest.rasterPdfSha256||'')||
+        manifest.originalSha256===manifest.rasterPdfSha256||
+        prepared.blob.type!=='application/pdf'||
+        prepared.blob.size<64||prepared.blob.size>40*1024*1024||
+        originalFile.size<64||originalFile.size>MAX_PSI_PDF_BYTES)
+        throw new Error('내부 검토용 PDF의 원본·사본 검증 상태가 유효하지 않습니다.');
+    // Re-read the exact bytes about to be saved, not an earlier preview or draft hash.
+    const [originalBytes,outputBytes]=await Promise.all([
+        originalFile.arrayBuffer(),prepared.blob.arrayBuffer(),
+    ]);
+    const [originalHash,outputHash]=await Promise.all([
+        digest(new Uint8Array(originalBytes)),digest(new Uint8Array(outputBytes)),
+    ]);
+    if(originalHash!==manifest.originalSha256||outputHash!==manifest.rasterPdfSha256)
+        throw new Error('원본 또는 최종 PDF의 SHA-256이 검토 기록과 달라 저장을 중단했습니다.');
+};
+
 export const downloadPreparedPsiRasterPdfReview=async(
     prepared:Awaited<ReturnType<typeof buildPsiRasterPdfReview>>,
     comparedPages:readonly number[],
+    originalFile:File,
 ):Promise<PsiPdfReviewManifest>=>{
-    if(!prepared?.blob||!prepared?.manifest||
-        prepared.manifest.disclosureApproved!==false||
-        prepared.manifest.recipientDeliveryRecorded!==false||
-        prepared.manifest.originalSha256===prepared.manifest.rasterPdfSha256)
-        throw new Error('원본과 구분되는 유효한 내부 검토용 PDF만 저장할 수 있습니다.');
-    const sortedPages=validatePsiPdfComparedPages(prepared.manifest.pageCount,comparedPages);
+    const sortedPages=validatePsiPdfComparedPages(prepared?.manifest?.pageCount,comparedPages);
+    await verifyPsiPreparedPdfIntegrity(prepared,originalFile);
     const manifest:PsiPdfReviewManifest={
         ...prepared.manifest,
         finalComparison:{
