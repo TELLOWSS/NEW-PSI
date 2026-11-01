@@ -221,15 +221,15 @@ async function buildEvidenceManifest(inspection:LocalRecord):Promise<EvidenceMan
 }
 const list=()=>runStore<LocalRecord[]>('readonly',(store,set)=>{const request=store.getAll();request.onsuccess=()=>set((request.result as LocalRecord[]).filter(item=>item.id!==DRAFT_KEY).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));});
 function download(blob:Blob,name:string){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
-function useReportDownloadUrl(blob:Blob|null){
+function useReportDownloadUrl(reportAssetBlob:Blob|null){
  const [current,setCurrent]=useState<{blob:Blob;url:string}|null>(null);
  useEffect(()=>{
-  if(!blob){setCurrent(null);return;}
-  const url=URL.createObjectURL(blob);
-  setCurrent({blob,url});
+  if(!reportAssetBlob){setCurrent(null);return;}
+  const url=URL.createObjectURL(reportAssetBlob);
+  setCurrent({blob:reportAssetBlob,url});
   return ()=>URL.revokeObjectURL(url);
- },[blob]);
- return current?.blob===blob?current.url:'';
+ },[reportAssetBlob]);
+ return current?.blob===reportAssetBlob?current.url:'';
 }
 
 const BACKUP_LIMIT=20*1024*1024;
