@@ -3,12 +3,16 @@ import type { WorkerRecord } from '../../types';
 import { ensureFileSaver } from '../../utils/externalScripts';
 import { verifyPsiEvidenceArchive, type EvidencePackageVerification } from '../../utils/psiEvidenceArchive';
 import { buildPsiHandoffReviewDraft } from '../../utils/psiHandoffReview';
+import { downloadPsiMinimizedReviewArchive } from '../../utils/psiMinimizedReviewArchive';
 
 export const PsiEvidenceHandoffReviewPanel: React.FC<{ record: WorkerRecord; hasPendingEdits?: boolean }> = ({
     record, hasPendingEdits = false,
 }) => {
     const [busy, setBusy] = useState(false);
     const [originalName, setOriginalName] = useState('');
+    const [sourceZip, setSourceZip] = useState<File | null>(null);
+    const [reviewedContents, setReviewedContents] = useState(false);
+    const [subsetHash, setSubsetHash] = useState('');
     const [expectedHash, setExpectedHash] = useState('');
     const [verification, setVerification] = useState<EvidencePackageVerification | null>(null);
     const [selected, setSelected] = useState<string[]>([]);
@@ -28,6 +32,9 @@ export const PsiEvidenceHandoffReviewPanel: React.FC<{ record: WorkerRecord; has
         setVerification(null);
         setSelected([]);
         setOriginalName('');
+        setSourceZip(null);
+        setReviewedContents(false);
+        setSubsetHash('');
         setNotice('');
         try {
             const result = await verifyPsiEvidenceArchive(file, expectedHash);
@@ -35,7 +42,12 @@ export const PsiEvidenceHandoffReviewPanel: React.FC<{ record: WorkerRecord; has
                 setNotice(result.description + (result.errors.length ? '\n' + result.errors.join('\n') : '\n독립 보관 SHA-256 입력 후 다시 확인하세요.'));
                 return;
             }
+            if (result.recordId !== record.id) {
+                setNotice('이 ZIP은 현재 열어 둔 근로자 기록의 증빙이 아닙니다.');
+                return;
+            }
             setVerification(result);
+            setSourceZip(file);
             setOriginalName(file.name);
             setNotice('ZIP 내부 파일과 별도 보관 SHA-256 대조 성공. 이 결과는 제출 승인이 아닙니다.');
         } catch (error) {
@@ -43,6 +55,23 @@ export const PsiEvidenceHandoffReviewPanel: React.FC<{ record: WorkerRecord; has
         } finally { setBusy(false); }
     };
 
+    const prepareSubset = async () => {
+        if (!verified || !sourceZip || !verification || !selected.length ||
+            !reviewedContents || hasPendingEdits || busy) return;
+        setBusy(true);
+        setNotice('');
+        setSubsetHash('');
+        try {
+            const result = await downloadPsiMinimizedReviewArchive(
+                sourceZip, verification, selected, record.id);
+            setSubsetHash(result.zipSha256);
+            setNotice('선택한 ' + result.selectedCount
+                + '개 원본 파일만 복제한 내부 검토용 ZIP 저장 요청을 보냈습니다. '
+                + '이 파일은 비식별화·결재·외부 제출 완료가 아닙니다.');
+        } catch (error) {
+            setNotice(error instanceof Error ? error.message : '선택본을 생성하지 못했습니다.');
+        } finally { setBusy(false); }
+    };
     const prepareReview = async () => {
         if (!verified || busy || hasPendingEdits || !verification) return;
         setBusy(true);
@@ -87,7 +116,11 @@ export const PsiEvidenceHandoffReviewPanel: React.FC<{ record: WorkerRecord; has
         <label className="mt-4 block text-xs font-bold text-slate-800">
             외부에 별도로 보관한 원본 ZIP SHA-256
             <input type="text" value={expectedHash} maxLength={64} spellCheck={false} autoComplete="off"
-                onChange={value => { setExpectedHash(value.target.value);setVerification(null);setSelected([]); }}
+                onChange={value => {
+                    setExpectedHash(value.target.value);
+                    setVerification(null); setSelected([]);
+                    setSourceZip(null); setReviewedContents(false); setSubsetHash('');
+                }}
                 placeholder="64자리 SHA-256" className="mt-1 w-full rounded-xl border border-slate-300 p-3 font-mono text-xs" />
         </label>
         <label className="mt-3 flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-indigo-300 bg-indigo-50 p-3 text-xs font-black text-indigo-900">
@@ -109,12 +142,41 @@ export const PsiEvidenceHandoffReviewPanel: React.FC<{ record: WorkerRecord; has
                 <legend className="px-1 text-xs font-black text-slate-900">제출 후보 파일 선택 — 실제 ZIP 내용을 수정하지 않음</legend>
                 {verification.fileInventory.map(file => <label key={file.path} className="flex items-start gap-2 text-xs text-slate-700">
                     <input type="checkbox" className="mt-0.5" checked={selected.includes(file.path)}
-                        onChange={event => setSelected(current => event.target.checked ?
-                            [...current, file.path] : current.filter(path => path !== file.path))} />
+                        onChange={event => {
+                            setReviewedContents(false);
+                            setSubsetHash('');
+                            setSelected(current => event.target.checked ?
+                                [...current, file.path] : current.filter(path => path !== file.path));
+                        }} />
                     <span className="break-all">{file.path} ({file.bytes.toLocaleString()} bytes)</span>
                 </label>)}
             </fieldset>
         </>}
+        {verified && verification && <div data-psi-minimized-review="true"
+            className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50/50 p-3">
+            <h4 className="text-sm font-black text-slate-900">선택한 원본만 복제한 내부 검토용 ZIP</h4>
+            <p className="mt-2 text-xs leading-5 text-slate-700">
+                선택하지 않은 원본 파일은 새 ZIP에서 제외합니다. 선택한 파일의
+                <strong> 내용은 수정·마스킹·익명화하지 않습니다.</strong>
+                자필 양식·사진·JSON·타임라인에 개인정보가 남아 있을 수 있습니다.
+                승인 전 외부 제공하지 마세요.
+            </p>
+            <label className="mt-3 flex items-start gap-2 text-xs font-medium text-slate-900">
+                <input type="checkbox" className="mt-1" checked={reviewedContents}
+                    onChange={event => setReviewedContents(event.target.checked)} />
+                <span>선택한 파일에 개인정보가 포함될 수 있고, 새 ZIP은 내부 검토용이며
+                실제 비식별화·반출 승인·발송이 아니라는 점을 확인했습니다.</span>
+            </label>
+            <button type="button" onClick={() => void prepareSubset()}
+                disabled={busy || hasPendingEdits || !selected.length || !reviewedContents || !sourceZip}
+                className="mt-3 min-h-11 w-full rounded-xl bg-indigo-950 p-3 text-sm font-black text-white disabled:opacity-40">
+                {busy ? '생성 중...' : '선택 파일만 담은 내부 검토용 ZIP 생성'}
+            </button>
+            {subsetHash && <div className="mt-2 rounded-lg bg-white p-3">
+                <p className="text-xs font-bold text-slate-900">새 검토용 ZIP 전체 SHA-256 (별도 기록)</p>
+                <p className="mt-1 break-all font-mono text-[11px] text-slate-800">{subsetHash}</p>
+            </div>}
+        </div>}
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {([
                 ['제출 목적·요청 내용', purpose, setPurpose, '예: ○○ 사고 조사에 따른 사실관계 확인'],
