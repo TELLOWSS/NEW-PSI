@@ -696,6 +696,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [filter,setFilter]=useState('all');
  const [reportScope,setReportScope]=useState<'visible'|'all'>('visible');
  const [handoffScope,setHandoffScope]=useState<'visible'|'all'>('all');
+ const handoffGeneration=useRef(0);
  const [handoffPending,setHandoffPending]=useState(false);
  const [handoffMessage,setHandoffMessage]=useState('');
  const [handoffPrepared,setHandoffPrepared]=useState<{html:Blob;text:string;count:number;at:string}|null>(null);
@@ -714,7 +715,10 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [storageBusy,setStorageBusy]=useState(false);
  useEffect(()=>{setReportFiles(null);setReportMessage('');},
   [rows,filter,reportScope,reportIncludeAssignees,reportIncludeDetails]);
- useEffect(()=>{setHandoffPrepared(null);setHandoffMessage('');},[rows,filter,handoffScope]);
+ useEffect(()=>{
+  handoffGeneration.current++;
+  setHandoffPrepared(null);setHandoffMessage('');
+ },[rows,filter,handoffScope]);
  const recheckQueue=buildLocalRecheckQueue(rows);
  const recheckSummary=summarizeLocalRecheckQueue(recheckQueue);
  const recheckFilter=filter.startsWith('recheck:')?filter.slice('recheck:'.length):null;
@@ -736,6 +740,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const prepareHandoff=async()=>{
   if(handoffPending||busy||readState!=='ready')return;
   setHandoffPending(true);setHandoffPrepared(null);setHandoffMessage('');
+  const generation=handoffGeneration.current;
   try{
    const now=new Date();
    const beforeSnapshot=handoffSourceSnapshot(rows);
@@ -746,12 +751,14 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    if(beforeSnapshot!==handoffSourceSnapshot(fresh))
     throw new Error('다른 탭에서 점검 기록이 변경됐습니다. 기기 기록 다시 조회 후 인계 내용을 준비하세요.');
    const confirmed=buildLocalHandoffPlan(fresh,now,filter,handoffScope);
-   if(JSON.stringify(first)!==JSON.stringify(confirmed))
-    throw new Error('인계 대상 상태가 달라졌습니다. 목록을 다시 확인하세요.');
+   if(JSON.stringify(first)!==JSON.stringify(confirmed)||generation!==handoffGeneration.current)
+    throw new Error('인계 대상 또는 화면 선택이 변경됐습니다. 새로 조회한 뒤 다시 준비하세요.');
    const text=formatLocalHandoffMessage(confirmed);
    const html=formatLocalHandoffHtml(confirmed);
    if(text.length>95000||html.length>150000)
     throw new Error('인계 문서가 너무 큽니다. 상태별 필터로 나누어 준비하세요.');
+   if(generation!==handoffGeneration.current)
+    throw new Error('인계 목록이 바뀌어 이전 문서를 사용하지 않았습니다. 다시 준비하세요.');
    setHandoffPrepared({
     html:new Blob([html],{type:'text/html;charset=utf-8'}),
     text,count:confirmed.entries.length,at:confirmed.localDate,
