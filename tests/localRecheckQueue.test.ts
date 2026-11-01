@@ -64,12 +64,11 @@ describe('F10 offline reinspection priority without automatic safety decisions',
   expect(items[0].followupStatus).toBe('verified');
  });
  it('does not accuse a newer human verification of conflicting with older unfinished recheck',()=>{
-  const manual=followup('verified','2026-11-05');
-  manual.history=[{
+  const manual={...followup('verified','2026-11-05'),history:[{
    status:'verified',assignee:'점검 확인자',dueDate:'2026-11-05',
    temporaryMeasure:'접근 통제 유지',note:'추후 검토로 직접 확인함',
    at:'2026-11-01T03:00:00.000Z',
-  }];
+  }]};
   const record=row('resolved',{
    followup:manual,
    rechecks:[recheck('needs_more','2026-11-03',{at:'2026-10-30T02:00:00.000Z'})],
