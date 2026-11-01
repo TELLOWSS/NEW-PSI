@@ -1,27 +1,95 @@
-# PSI 현장 안전 운영 플랫폼
+# NEW-PSI | 건설현장 스마트 안전관리 플랫폼
 
-PSI는 위험성평가 기록을 분석하고, 관리자 검증·안전조치·근로자 교육 환류까지 연결하는 현장 안전 운영 프로그램입니다.
+**NEW-PSI**는 위험성평가, PSI 안전지능 분석, 사진 기반 안전점검, 관리자 검토, 안전조치, 재점검, 근로자 교육 및 보고를 연결하는 **건설현장 안전관리 지원 플랫폼**입니다.
 
-## 로컬 실행
+> **안전관리의 핵심은 '발견'에서 끝나지 않고 '조치·인계·재확인'으로 이어지는 기록입니다.**  
+> AI·OCR 분석 결과는 점검과 판단을 보조합니다. 실제 위험 여부, 법규 적용, 작업중지·재개 및 조치 완료 판단은 권한 있는 현장 담당자가 확인해야 합니다.
 
-1. Node.js 22.13 이상을 설치합니다.
-2. `npm install`을 실행합니다.
-3. `.env.local`에 필요한 환경변수를 설정합니다.
-4. `npm run dev`로 실행합니다.
+[운영 서비스](https://new-psi-eta.vercel.app) · [관리자 운영 안내](ADMIN_OPERATION_GUIDE.md) · [검증 절차](VERIFICATION.md) · [배포 환경 점검](DEPLOYMENT_ENV_CHECKLIST.md)
 
-배포 전에는 `npm run verify:release`로 형식 검사, 자동 테스트, 제품 기준 검사와 빌드를 확인합니다.
+## 무엇을 하는 시스템인가요?
 
-## 현재 기준 문서
+| 업무 영역 | 주요 목적 |
+| --- | --- |
+| 위험성평가·PSI | 근로자 위험 인식·평가 기록 수집, 검토, 피드백과 개선 흐름 지원 |
+| AI·OCR 분석 | 문서·사진에서 확인 가능한 정보를 정리하고 검토가 필요한 부분을 구분 |
+| 현장 사진점검(Inspector) | 관찰 사실, 점검자 진술, 추정, 확인 불가 항목을 구분해 점검 기록 작성 |
+| 조치·재점검 | 즉시 조치가 어려운 사항도 임시 안전조치, 기한, 변경 이유, 인계, 재확인 이력으로 추적 |
+| 교육·소통 | QR 기반 근로자 교육·응답, 다국어 전달 및 관리자 환류 지원 |
+| 보고·증빙 | 점검·교육·조치 내역을 현장 검토와 보고에 활용할 수 있는 형태로 정리 |
 
-- 제품 가치·디자인·출시 기준: [docs/PSI_PRODUCT_VALUE_AND_DESIGN_BLUEPRINT_2026-08-21.md](docs/PSI_PRODUCT_VALUE_AND_DESIGN_BLUEPRINT_2026-08-21.md)
-- 운영: [ADMIN_OPERATION_GUIDE.md](ADMIN_OPERATION_GUIDE.md)
-- 배포 환경: [DEPLOYMENT_ENV_CHECKLIST.md](DEPLOYMENT_ENV_CHECKLIST.md)
-- 검증: [VERIFICATION.md](VERIFICATION.md)
-- OCR 운영 확인: [OCR_ANALYSIS_VERIFICATION.md](OCR_ANALYSIS_VERIFICATION.md)
-- 문자·MMS 설정: [SMS_MMS_SETUP.md](SMS_MMS_SETUP.md)
-- 브랜드 문구: [PSI_BRAND_VOICE_GUIDE.md](PSI_BRAND_VOICE_GUIDE.md)
-- 역할별 UX 문구: [PSI_ROLE_BASED_UX_COPY_GUIDE.md](PSI_ROLE_BASED_UX_COPY_GUIDE.md)
-- 제품화 이전 실행계획: [docs/PSI_보강사항_검증_실행계획_2026-07-14.md](docs/PSI_보강사항_검증_실행계획_2026-07-14.md)
-- 개발 원칙: [docs/PSI_DEVELOPMENT_GUARDRAILS.md](docs/PSI_DEVELOPMENT_GUARDRAILS.md)
+세부 기능의 **코드 존재 여부**, **자동검증 통과 여부**, **실제 기기 검증**, **공식 운영 배포**는 서로 다른 상태입니다. README의 기능 소개가 모든 기능의 현장 실증·배포 완료를 의미하지 않습니다.
 
-과거 계획, 완료 보고, 회차별 인계 문서는 [docs/archive/root-history](docs/archive/root-history)에 보존합니다. 특허, 감사, 마이그레이션, 운영 보고 자료는 기존 전용 폴더에서 관리합니다.
+## 사진점검 프로그램: F01–F10 고도화
+
+현장 안전점검은 촬영 직후 모든 위험요인이 해소된다는 가정을 두지 않습니다. 조치가 지연되는 실제 현장 운영을 고려하여 다음의 업무 흐름을 지향합니다.
+
+**사진·점검 내용 기록 → 위험 확인과 관리자 검토 → 즉시 조치 또는 임시통제·기한 설정 → 담당자 인계 → 재점검 → 조치 결과 확인 → 보고**
+
+- **사진과 기록:** 촬영·첨부·검토·내보내기 과정에서 원본 구분 및 무결성 검사를 지원하도록 개발하고 있습니다.
+- **미조치 관리:** 임시통제, 조치기한, 일정 미정, 기한 초과 등은 '조치 완료'와 별도로 표현합니다.
+- **변경 이력:** 조치기한·임시통제 변경 전후 정보와 사유를 남기고, 재점검 결과를 시간순으로 연결합니다.
+- **인계·보고:** 개인정보 최소화 원칙을 적용한 인계 문구, CSV·A4 보고와 변경사항 검토를 지원하는 방향으로 고도화하고 있습니다.
+
+**중요:** SHA-256 등의 파일 지문은 파일의 변경 여부를 검사하는 기술적 수단입니다. 사진의 촬영 경위·법적 진본성, 실제 안전조치 이행이나 현장 위험 해소를 자동으로 인증하지 않습니다.
+
+### 2026-11-01 릴리스 현황 (조회 시점 스냅샷)
+
+| 구분 | 상태 |
+| --- | --- |
+| 25~32차 사진점검 통합 개발 후보 | [PR #208](https://github.com/TELLOWSS/NEW-PSI/pull/208), **Draft / 미병합** |
+| 32차 후보 자동검증 | 릴리스·제품 전체·Inspector 모바일 브라우저 CI 3종 성공(해당 후보 커밋 기준) |
+| Vercel 배포 검사 | 배포 횟수 제한으로 실패 — **운영 반영 NO-GO** |
+| Android·Samsung Internet 실기기 현장 검증 | 미실시 |
+| 공식 운영 서비스 | 기존 Production 유지, **25~32차 통합본 미반영** |
+
+위 표는 **2026년 11월 1일 시점 기록**이며, 최신 상태는 PR과 배포 기록을 다시 확인해야 합니다. PR #208을 병합하거나 운영에 배포하기 전에는 Vercel 제한, CI, 실기기 사용성, 기존 기록 보존 및 운영 커밋 일치 여부를 별도로 확인합니다.
+
+상세 검증·출시 조건: [32차 통합 릴리스 문서](https://github.com/TELLOWSS/NEW-PSI/blob/release/psi-field-camera-integrated-32-20261101/docs/safety-inspector/FIELD_CAMERA_INTEGRATED_RELEASE_32_20261101.md)
+
+## 시작하기 (개발자용)
+
+필수 환경: **Node.js 22.x**. 실행 환경과 연결 키는 운영 정책에 따라 별도로 설정합니다.
+
+```bash
+npm install
+npm run dev
+```
+
+프로젝트별 환경변수는 `.env.local`에서 관리하며, **API 키·비밀번호·개인정보를 GitHub 저장소에 커밋하지 않습니다.**
+
+```bash
+npm run check:types   # 타입 검사
+npm run test          # 자동 테스트
+npm run verify:release # 릴리스 통합 검사·빌드
+```
+
+실제 운영 환경은 GitHub의 코드 최신화만으로 자동 승인되지 않습니다. 운영 배포 전에 [배포 환경 점검표](DEPLOYMENT_ENV_CHECKLIST.md)와 [검증 체크리스트](VERIFICATION.md)를 확인합니다.
+
+## 안전·개인정보·운영 원칙
+
+1. **관찰 사실 / 점검자 진술 / 추정 / 확인 불가**를 구분하고, 사진 외부의 위험 상태나 법규 위반을 단정하지 않습니다.
+2. 긴급 위험은 현장 접근 통제 및 작업중지 필요성을 담당자가 우선 검토합니다.
+3. 미조치·임시통제 상태를 완료로 표시하지 않고, 기한 변경과 인계·재점검을 추적합니다.
+4. AI 판단, 벌금·법령 관련 참고 정보, 자동검증 결과는 현장 확인이나 법적 판단을 대체하지 않습니다.
+5. 근로자 개인정보·사진·원본 기록을 공유하거나 내보내기 전에 권한·범위·보존·동의를 확인합니다.
+6. 개발 브랜치, 자동검증, Preview, Production, 실기기 검증을 구분해 상태를 보고합니다.
+
+## 참고 문서
+
+- [제품 가치·디자인·출시 기준](docs/PSI_PRODUCT_VALUE_AND_DESIGN_BLUEPRINT_2026-08-21.md)
+- [관리자 운영 매뉴얼](ADMIN_OPERATION_GUIDE.md)
+- [OCR 분석·운영 확인](OCR_ANALYSIS_VERIFICATION.md)
+- [문자·MMS 설정](SMS_MMS_SETUP.md)
+- [브랜드 문구](PSI_BRAND_VOICE_GUIDE.md)
+- [역할별 UX 문구](PSI_ROLE_BASED_UX_COPY_GUIDE.md)
+- [개발 원칙](docs/PSI_DEVELOPMENT_GUARDRAILS.md)
+- [과거 인계·변경 기록](docs/archive/root-history)
+
+---
+
+**GitHub 저장소 상단 About 소개 문구 제안**
+
+> 건설현장 스마트 안전관리 플랫폼 NEW-PSI | 위험성평가·PSI 안전지능·AI 사진점검·안전조치·재점검·교육·보고 통합 지원
+
+About 설정은 README 파일과 별도인 **저장소 메타데이터**입니다. 이 README 수정만으로 상단 About 문구가 자동 변경되지는 않습니다.
