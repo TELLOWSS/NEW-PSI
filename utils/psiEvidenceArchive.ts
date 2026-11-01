@@ -38,7 +38,7 @@ const META_WARNING =
 export const buildPsiEvidenceArchive = async (
     record: WorkerRecord,
     options: { cutoffIso?: string | null; exportedAt?: string } = {},
-): Promise<{ blob: Blob; manifest: EvidenceManifest; fileName: string }> => {
+): Promise<{ blob: Blob; manifest: EvidenceManifest; fileName: string; zipSha256: string }> => {
     const JSZipCtor = await ensureJsZip() as (new () => EvidenceArchive) | null;
     if (!JSZipCtor) throw new Error('ZIP 생성 모듈을 불러오지 못했습니다.');
     const exportedAt = options.exportedAt || new Date().toISOString();
@@ -75,29 +75,35 @@ export const buildPsiEvidenceArchive = async (
     const blob = await zip.generateAsync({ type:'blob', compression:'DEFLATE', compressionOptions:{level:6} });
     const safeRecordId = String(record.id || 'record').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 42);
     const fileName = 'PSI_evidence_' + safeRecordId + '_' + exportedAt.slice(0,10) + '.zip';
-    return { blob, manifest, fileName };
+    const zipSha256 = hex(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer()));
+    return { blob, manifest, fileName, zipSha256 };
 };
 
 export const downloadPsiEvidenceArchive = async (
     record: WorkerRecord,
     options: { cutoffIso?: string | null } = {},
-): Promise<{ name: string; count: number }> => {
-    const { blob, manifest, fileName } = await buildPsiEvidenceArchive(record, options);
+): Promise<{ name: string; count: number; zipSha256: string }> => {
+    const { blob, manifest, fileName, zipSha256 } = await buildPsiEvidenceArchive(record, options);
     const saveAs = await ensureFileSaver();
     if (!saveAs) throw new Error('브라우저 저장 기능을 불러올 수 없습니다.');
     saveAs(blob, fileName);
-    return { name: fileName, count: manifest.fileHashes.length + 1 };
+    return { name: fileName, count: manifest.fileHashes.length + 1, zipSha256 };
 };
 
 export interface EvidencePackageVerification {
     verified: boolean;
     checkedFiles: number;
+    zipSha256: string;
+    externallyAnchored: boolean;
     errors: string[];
     description: string;
 }
 
-export const verifyPsiEvidenceArchive = async (input: Blob): Promise<EvidencePackageVerification> => {
+export const verifyPsiEvidenceArchive = async (input: Blob, expectedZipSha256 = ''): Promise<EvidencePackageVerification> => {
     if (input.size > 65 * 1024 * 1024) throw new Error('검증 가능한 증빙 패키지는 65MB 이하입니다.');
+    const zipSha256 = hex(await crypto.subtle.digest('SHA-256', await input.arrayBuffer()));
+    const expected = expectedZipSha256.trim().toLowerCase();
+    if (expected && !/^[a-f0-9]{64}$/.test(expected)) throw new Error('별도 보관한 SHA-256 값은 64자리 16진수여야 합니다.');
     const JSZipCtor = await ensureJsZip() as (new () => {
         loadAsync: (blob: Blob) => Promise<{
             files: Record<string, { dir: boolean; async: (format: 'string' | 'uint8array') => Promise<string | Uint8Array> }>;
@@ -134,14 +140,19 @@ export const verifyPsiEvidenceArchive = async (input: Blob): Promise<EvidencePac
         const descriptor = manifest.fileHashes.find(item => item.path === path);
         if (descriptor && (descriptor.sha256 !== actualHash || descriptor.bytes !== bytes.length)) errors.push(path + ': 매니페스트 불일치');
     }
+    if (expected && expected !== zipSha256) errors.push('독립 보관된 ZIP SHA-256 값과 불일치합니다.');
     const extra = Object.keys(zip.files).filter(path => !zip.files[path].dir && path !== 'SHA256SUMS.txt' && !expectedNames.includes(path));
     if (extra.length || expectedLines.size !== expectedNames.length) errors.push('확인 목록 외 파일이 추가되었거나 목록에 오류가 있습니다.');
     return {
         verified: errors.length === 0,
         checkedFiles: expectedNames.length,
+        zipSha256,
+        externallyAnchored: Boolean(expected),
         errors,
         description: errors.length
             ? '파일 무결성 검증에 문제가 있습니다. 원본 ZIP과 내보내기 기록을 다시 확인하세요.'
-            : '내보낸 패키지 내부의 파일·해시 목록이 서로 일치합니다. 이것만으로 과거시점·진정성·법적 증거능력이 보증되지는 않습니다.',
+            : (expected
+                ? 'ZIP 전체 해시가 별도 보관한 값과 일치하며 내부 파일도 일치합니다. 해당 해시의 독립 보관시점과 출처는 별도 확인이 필요합니다.'
+                : 'ZIP 내부의 파일·해시 목록이 일치합니다. 외부에 보관한 ZIP 해시를 입력하지 않아 이후 변조 여부를 독립적으로 검증한 것은 아닙니다.'),
     };
 };
