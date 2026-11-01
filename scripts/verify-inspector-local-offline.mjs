@@ -787,6 +787,38 @@ try{
   'old change reason must remain excluded unless detailed notes are selected');
  await f10Report.getByLabel('보고서에 F10 경과 연결 이력 포함').uncheck();
  await csvLink.waitFor({state:'detached'});
+ // 31차 release guard: another browser tab changes ONLY an earlier follow-up
+ // snapshot, without touching current status/date. The current screen stays
+ // stale. A fresh IDB read must reject the opt-in history report.
+ const previousHistoryDate=traceSaved.record.followup.history[0].dueDate;
+ const staleRecordId=traceSaved.record.id;
+ const rewriteLocalHistory=async(targetDate)=>page.evaluate(({id,date})=>new Promise((resolve,reject)=>{
+  const open=indexedDB.open('psi-inspector-local-records',1);
+  open.onerror=()=>reject(open.error);
+  open.onsuccess=()=>{
+   const db=open.result,tx=db.transaction('records','readwrite'),
+    store=tx.objectStore('records'),read=store.get(id);
+   read.onerror=()=>reject(read.error);
+   read.onsuccess=()=>{
+    const saved=read.result;
+    if(!saved?.followup?.history?.length){tx.abort();reject(new Error('missing synthetic prior followup'));return;}
+    saved.followup.history[0].dueDate=date;
+    store.put(saved);
+   };
+   tx.oncomplete=()=>{db.close();resolve(true);};
+   tx.onerror=()=>{db.close();reject(tx.error);};
+   tx.onabort=()=>{db.close();reject(tx.error||new Error('transaction aborted'));};
+  };
+ }),{id:staleRecordId,date:targetDate});
+ await rewriteLocalHistory('2030-01-09');
+ await f10Report.getByLabel('보고서에 F10 경과 연결 이력 포함').check();
+ await f10Report.getByRole('button',{name:'CSV·인쇄용 보고서 준비'}).click();
+ await f10Report.getByText('점검 기록이 다른 탭에서 변경됐습니다.',{exact:false}).waitFor();
+ assert.equal(await csvLink.count(),0,'stale F10 history must not become a downloadable CSV');
+ assert.equal(await htmlLink.count(),0,'stale F10 history must not become printable HTML');
+ await rewriteLocalHistory(previousHistoryDate);
+ await f10Report.getByLabel('보고서에 F10 경과 연결 이력 포함').uncheck();
+ // Stale rejection should not cause an external request or wipe the photos.
 
  assert.deepEqual(requests,[],'offline local operations must not initiate HTTP requests');
  assert.deepEqual(errors,[]);
