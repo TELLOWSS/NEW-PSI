@@ -1262,6 +1262,20 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     <h4>F10 · 지연 조치와 재점검 예정 관리</h4>
     <p>기기 날짜 {localCalendarDate()} 기준 · 재점검/조치 대상 {recheckSummary.total}건. 하나의 점검에 여러 조치 대상이 포함될 수 있습니다.</p>
     <p>기한 도래는 재점검 필요성을 알리는 <strong>조회용 분류</strong>입니다. 실제 통보·안전 확인·조치 완료·작업 재개 승인이 아닙니다.</p>
+    {(recheckSummary.conflict+recheckSummary.overdue+recheckSummary.today)>0&&<p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-amber-950">
+     관리상 우선 확인: 기록 상충 {recheckSummary.conflict}건 · 기한 초과 {recheckSummary.overdue}건 · 오늘 확인 {recheckSummary.today}건.
+     아래 상태별 버튼으로 점검 대상을 확인하세요. 이 집계는 실제 위험의 크기나 작업 재개 가능 여부를 자동 판정하지 않습니다.
+    </p>}
+    <details className="rounded-lg border border-slate-200 p-2">
+     <summary>조치를 바로 끝낼 수 없을 때 · 기록 순서 보기</summary>
+     <ol className="list-decimal pl-5">
+      <li>급박한 위험은 현장 책임자와 작업중지·접근통제 필요성을 먼저 검토합니다.</li>
+      <li>임시 안전조치 내용과 확인 수준, 담당자 및 조치 목표 기한을 별도로 기록합니다.</li>
+      <li>지연 사유와 다음 재점검일을 남기고, 일정·임시조치를 변경하면 변경 사유도 기록합니다.</li>
+      <li>재점검 결과와 조치 완료 확인은 각각 기록하며, 자동으로 완료 또는 작업 재개 승인 처리하지 않습니다.</li>
+     </ol>
+     <p>기기의 기록은 담당자에게 자동 통보되지 않습니다. 인계·수신·현장 확인은 사람이 별도로 해야 합니다.</p>
+    </details>
     <div role="group" aria-label="재점검 상태별 바로 보기" className="flex flex-wrap gap-2">
      {LOCAL_RECHECK_BUCKETS.map(bucket=><button type="button" key={bucket}
       className="si-btn" aria-pressed={filter==='recheck:'+bucket}
