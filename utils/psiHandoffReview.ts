@@ -30,7 +30,7 @@ export interface PsiHandoffReviewDraft {
     checkedPackage: {
         filename: string;
         sha256: string;
-        independentlyComparedSha256: true;
+        userSuppliedSha256Matched: true;
         separatelyStoredHashReference: string;
         sourceFiles: HandoffFile[];
         proposedFiles: HandoffFile[];
@@ -43,6 +43,7 @@ export interface PsiHandoffReviewDraft {
         sentToRecipient: false;
         storedInServerAuditLog: false;
         digitallySigned: false;
+        externalHashCustodyAuthenticated: false;
         originalZipModified: false;
         legalEvidenceCertified: false;
     };
@@ -104,7 +105,7 @@ export const buildPsiHandoffReviewDraft = (
         checkedPackage: {
             filename,
             sha256: verification.zipSha256,
-            independentlyComparedSha256: true,
+            userSuppliedSha256Matched: true,
             separatelyStoredHashReference: storageReference,
             sourceFiles: inventory.map(file => ({...file})),
             proposedFiles: selected.map(file => ({...file})),
@@ -116,11 +117,13 @@ export const buildPsiHandoffReviewDraft = (
             sentToRecipient: false,
             storedInServerAuditLog: false,
             digitallySigned: false,
+            externalHashCustodyAuthenticated: false,
             originalZipModified: false,
             legalEvidenceCertified: false,
         },
         warnings: [
             '이 문서는 브라우저에서 작성된 제출 검토 초안입니다. 인증된 승인·서버 감사로그·실제 전송 기록이 아닙니다.',
+            'SHA-256은 사용자가 입력한 값과 ZIP이 일치하는지만 확인합니다. 별도 해시 보관대장의 최초 작성 시점·출처·독립성은 인증하지 않습니다.',
             '선택한 파일 목록은 검토 후보입니다. 실제 원본 ZIP은 전체 자료를 포함하고 있으며 선택 결과대로 삭제하거나 가려지지 않습니다.',
             '개인 식별 및 현장 사진이 포함될 수 있습니다. 외부 제출 전에 별도 승인, 필요 자료 최소화, 비식별 조치, 법적 요청 범위를 확인하세요.',
             '서버 수신시각/원본 최초 생성시각/법적 진정성은 현행 ZIP 해시 검증만으로 증명하지 못합니다.',
