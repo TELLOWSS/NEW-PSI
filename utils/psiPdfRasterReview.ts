@@ -139,7 +139,13 @@ export const buildPsiRasterPdfReview=async(
         data:Uint8Array.from(original.source),stopAtErrors:true,enableXfa:false,
         maxImageSize:MAX_PAGE_PIXELS,disableAutoFetch:true,disableStream:true,
     });
-    let output:InstanceType<NonNullable<Awaited<ReturnType<typeof ensureJsPdfConstructor>>>>|null=null;
+    type RasterPdfWriter={
+        addPage:(format:[number,number],orientation:'p'|'l')=>void;
+        addImage:(bytes:Uint8Array,format:'PNG',x:number,y:number,w:number,h:number,
+            alias?:string,compression?:string)=>void;
+        output:(format:'arraybuffer')=>ArrayBuffer;
+    };
+    let output:RasterPdfWriter|null=null;
     const pageSummaries:PsiPdfReviewManifest['pageSummaries']=[];
     try{
         const pdf=await loading.promise;
@@ -178,24 +184,21 @@ export const buildPsiRasterPdfReview=async(
             if(i===1){
                 output=new (Constructor as unknown as new (opts:{
                     orientation:'p'|'l';unit:'pt';format:[number,number];compress:boolean;
-                })=>typeof output & {addImage:(...args:unknown[])=>void})({
+                })=>RasterPdfWriter)({
                     orientation:portrait?'p':'l',unit:'pt',
                     format:[pointsWidth,pointsHeight],compress:true,
-                }) as NonNullable<typeof output>;
+                });
             }else{
-                (output as unknown as {addPage:(format:[number,number],orientation:'p'|'l')=>void})
-                    .addPage([pointsWidth,pointsHeight],portrait?'p':'l');
+                output!.addPage([pointsWidth,pointsHeight],portrait?'p':'l');
             }
-            (output as unknown as {addImage:(...args:unknown[])=>void}).addImage(
-                cleanPng,'PNG',0,0,pointsWidth,pointsHeight,undefined,'NONE');
+            output!.addImage(cleanPng,'PNG',0,0,pointsWidth,pointsHeight,undefined,'NONE');
             pageSummaries.push({pageNumber:i,maskedAreas:plan.masks.length,
                 rasterWidth:width,rasterHeight:height,reviewedByUser:true});
             canvas.width=0;canvas.height=0;
             page.cleanup();
         }
         if(!output)throw new Error('PDF가 비어 있습니다.');
-        const pdfBytes=new Uint8Array((output as unknown as {output:(type:'arraybuffer')=>ArrayBuffer})
-            .output('arraybuffer'));
+        const pdfBytes=new Uint8Array(output!.output('arraybuffer'));
         if(!pdfBytes.length||pdfBytes.length>40*1024*1024)
             throw new Error('가림 PDF 출력 크기가 허용 한도를 초과했습니다.');
         await verifyPsiRasterPdfHasNoExtractableContent(pdfBytes,original.pageCount);
