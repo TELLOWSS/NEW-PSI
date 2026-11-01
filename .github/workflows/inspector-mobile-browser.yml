@@ -38,7 +38,7 @@ concurrency:
 jobs:
   inspector-mobile:
     name: synthetic-camera-and-sharing
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
       CI: 'true'
