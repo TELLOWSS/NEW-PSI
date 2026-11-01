@@ -1,6 +1,7 @@
 import {chromium} from 'playwright';
 import {createServer} from 'vite';
 import {mkdir,writeFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
 
 const outDir='artifacts/audit/psi-pdf';
 await mkdir(outDir,{recursive:true});
@@ -23,11 +24,16 @@ try{
         });
         const page=await context.newPage();
         try{
+            // Test an actual JSZip-compressed archive from the pinned npm lockfile.
+            // No real records or network CDN are required.
+            await page.addInitScript({content:"window.__psiTestOnly=true;"});
             await page.goto('http://127.0.0.1:4198/',{waitUntil:'domcontentloaded'});
+            await page.addScriptTag({path:resolve('node_modules/jszip/dist/jszip.min.js')});
             const result=await page.evaluate(async()=>{
                 const {
                     readPsiLocalPdf,verifyPsiRasterPdfHasNoExtractableContent,
                     loadPsiPdfRenderer,choosePsiPdfRenderScale,
+                    downloadPreparedPsiRasterPdfReview,
                 }=await import('/utils/psiPdfRasterReview.ts');
                 const {psiMaskFromDrag,applyOpaquePsiPhotoMasks}=await import('/utils/psiPhotoMaskGeometry.ts');
 
@@ -124,6 +130,79 @@ try{
                 catch(e){textBlocked=String(e).includes('원문')||String(e).includes('주석');}
                 if(!textBlocked)throw new Error('Selectable text was accepted');
                 pass('actual-selectable-text-rejected');
+
+                // Full browser persistence path: real JSZip compression, decode
+                // the downloaded Blob, re-open embedded PDF with PDF.js.
+                // In-memory saveAs stub avoids writing outside the CI sandbox.
+                const sourceBytes=makePdf(1,'text');
+                const blackBytes=makePdf(1,'black');
+                const toHash=async bytes=>{
+                    const digest=await crypto.subtle.digest('SHA-256',bytes);
+                    return [...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
+                };
+                const originalHash=await toHash(sourceBytes);
+                const outputHash=await toHash(blackBytes);
+                const originalFile=new File([sourceBytes],'synthetic-original.pdf',{type:'application/pdf'});
+                const maskedPdf=new Blob([blackBytes],{type:'application/pdf'});
+                const audit={
+                    schema:'psi-pdf-raster-review-v1',
+                    status:'INTERNAL_RASTER_PDF_REVIEW_NOT_APPROVED',
+                    preparedAt:'2026-11-01T00:00:00.000Z',
+                    originalSha256:originalHash,
+                    rasterPdfSha256:outputHash,
+                    pageCount:1,
+                    pageSummaries:[{
+                        pageNumber:1,maskedAreas:1,rasterWidth:1200,
+                        rasterHeight:1600,reviewedByUser:true,
+                    }],
+                    originalDocumentEmbedded:false,selectableOriginalText:false,
+                    originalAttachmentsCopied:false,originalAnnotationsCopied:false,
+                    originalMetadataCopied:false,humanReviewRequired:true,
+                    disclosureApproved:false,recipientDeliveryRecorded:false,
+                    warning:'Synthetic data: never approve external disclosure.',
+                };
+                const prepared={blob:maskedPdf,fileName:'synthetic-final.pdf',manifest:audit};
+                const writes=[];
+                window.saveAs=(blob,name)=>writes.push({blob,name});
+                const reviewed=await downloadPreparedPsiRasterPdfReview(prepared,[1],originalFile);
+                if(writes.length!==1||!writes[0].name.endsWith('.zip')||
+                    writes[0].blob.type!=='application/zip')
+                    throw new Error('Expected precisely one local ZIP download');
+                pass('single-download-using-real-jszip');
+
+                const archive=await window.JSZip.loadAsync(writes[0].blob);
+                const zipNames=Object.keys(archive.files).sort();
+                const required=['PSI_MASKED_REVIEW.pdf','REVIEW_MANIFEST.json','SHA256SUMS.txt'];
+                if(zipNames.join('|')!==required.sort().join('|'))
+                    throw new Error('Unexpected ZIP content or unprotected extra entry');
+                const pdfBytes=await archive.file('PSI_MASKED_REVIEW.pdf').async('uint8array');
+                const json=await archive.file('REVIEW_MANIFEST.json').async('string');
+                const sums=await archive.file('SHA256SUMS.txt').async('string');
+                if(await toHash(pdfBytes)!==outputHash||
+                    await toHash(new TextEncoder().encode(json))===outputHash)
+                    throw new Error('Reopened ZIP contains unexpected PDF or JSON bytes');
+                const record=JSON.parse(json);
+                if(record.rasterPdfSha256!==outputHash||
+                    record.originalSha256!==originalHash||
+                    record.finalComparison?.comparedPages?.join(',')!=='1'||
+                    record.disclosureApproved!==false||
+                    record.finalComparison?.independentlyApproved!==false)
+                    throw new Error('ZIP manifest was altered or falsely approved');
+                if(sums!==outputHash+'  PSI_MASKED_REVIEW.pdf\n'
+                    +(await toHash(new TextEncoder().encode(json)))+'  REVIEW_MANIFEST.json\n')
+                    throw new Error('ZIP internal checksum file mismatch');
+                pass('unzip-and-verify-three-real-entries');
+
+                await verifyPsiRasterPdfHasNoExtractableContent(pdfBytes,1,plan);
+                pass('reopen-downloaded-pdf-and-verify-blackout');
+
+                const corruptedFile=new File([makePdf(1,'empty')],'swapped.pdf',{type:'application/pdf'});
+                let tamperingBlocked=false;
+                try{await downloadPreparedPsiRasterPdfReview(prepared,[1],corruptedFile);}
+                catch(e){tamperingBlocked=String(e).includes('SHA-256');}
+                if(!tamperingBlocked||writes.length!==1)
+                    throw new Error('Tampered input unexpectedly triggered download');
+                pass('no-download-after-original-tamper');
 
                 return {status:'PASS',cases,syntheticOnly:true,realWorkerRecords:false,paidAiCalls:0};
             });

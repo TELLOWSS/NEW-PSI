@@ -1,8 +1,9 @@
 import {afterEach,describe,expect,it,vi} from 'vitest';
 
-const {saved,archiveFiles,FakeZip}=vi.hoisted(()=>{
+const {saved,archiveFiles,setCorruptZip,FakeZip}=vi.hoisted(()=>{
     const saved=vi.fn();
     let last=new Map<string,Uint8Array>();
+    let corruptZip=false;
     const encode=(data:Uint8Array|string)=>typeof data==='string'?
         new TextEncoder().encode(data):Uint8Array.from(data);
     class FakeZip {
@@ -18,10 +19,11 @@ const {saved,archiveFiles,FakeZip}=vi.hoisted(()=>{
         }
         async loadAsync(_data:Blob){
             this.entries=new Map(last);
+            if(corruptZip)this.entries.set('PSI_MASKED_REVIEW.pdf',encode('corrupt synthetic PDF'));
             return this;
         }
     }
-    return {saved,archiveFiles:()=>last,FakeZip};
+    return {saved,archiveFiles:()=>last,setCorruptZip:(value:boolean)=>{corruptZip=value;},FakeZip};
 });
 vi.mock('../utils/externalScripts',()=>({
     ensureJsPdfConstructor:vi.fn(),
@@ -63,7 +65,7 @@ const fixture=async()=>{
     };
     return {original,pdf:{manifest,blob,fileName:'PSI_TEST_ONLY.pdf'}};
 };
-afterEach(()=>{saved.mockReset();});
+afterEach(()=>{saved.mockReset();setCorruptZip(false);});
 describe('PSI 21st source + final output integrity gate',()=>{
     it('requires exactly one acknowledgement for every page',()=>{
         expect(validatePsiPdfComparedPages(2,[2,1])).toEqual([1,2]);
@@ -114,6 +116,13 @@ describe('PSI 21st source + final output integrity gate',()=>{
         const mutated={...pdf,blob:new Blob(['%PDF-1.4\n'+'y'.repeat(100)],{type:'application/pdf'})};
         await expect(downloadPreparedPsiRasterPdfReview(mutated,[1,2],original))
             .rejects.toThrow('SHA-256');
+        expect(saved).not.toHaveBeenCalled();
+    });
+    it('refuses to download a ZIP if decompressed contents differ from the reviewed PDF',async()=>{
+        const {original,pdf}=await fixture();
+        setCorruptZip(true);
+        await expect(downloadPreparedPsiRasterPdfReview(pdf,[1,2],original))
+            .rejects.toThrow('ZIP 내부');
         expect(saved).not.toHaveBeenCalled();
     });
     it('rejects invalid record status, matching hashes, and unapproved disclosures',async()=>{
