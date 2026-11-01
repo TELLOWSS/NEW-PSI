@@ -3,6 +3,7 @@ import InspectorCameraDialog, {type CameraEditEvidence} from './InspectorCameraD
 import {legalForText} from '../../lib/inspector/legal';
 import {sourceReviewState} from '../../lib/inspector/sourceReview';
 import {FOLLOWUP_STATES, FOLLOWUP_LABELS, validateFollowup, validateAdditionalActions, overdue} from '../../lib/inspector/localFollowup.mjs';
+import {prepareFollowupChange,analyzeFollowupChangeTrace,TEMPORARY_CONTROL_REVIEWS} from '../../lib/inspector/localFollowupChangeTrace.mjs';
 import {buildLocalRecheckQueue,summarizeLocalRecheckQueue,LOCAL_RECHECK_BUCKETS,LOCAL_RECHECK_LABELS,localCalendarDate} from '../../lib/inspector/localRecheckQueue.mjs';
 import {buildLocalRecheckReport,selectLocalRecheckReportTargets,formatLocalRecheckCsv,formatLocalRecheckPrintHtml,F10_LOCAL_REPORT_LIMIT} from '../../lib/inspector/localRecheckReport.mjs';
 import {buildLocalHandoffPlan,selectLocalHandoffTargets,formatLocalHandoffMessage,formatLocalHandoffHtml,handoffSourceSnapshot,F10_HANDOFF_MAX_ITEMS} from '../../lib/inspector/localRecheckHandoff.mjs';
@@ -579,25 +580,66 @@ function LocalEvidenceAudit({inspectionId,busy}:{inspectionId:string;busy:boolea
 function FollowupEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSave:(id:string,value:Followup)=>Promise<boolean>}){
  const current=row.followup;
  const [status,setStatus]=useState(current?.status||'pending'),[assignee,setAssignee]=useState(current?.assignee||''),[dueDate,setDueDate]=useState(current?.dueDate||''),[temporaryMeasure,setTemporaryMeasure]=useState(current?.temporaryMeasure||''),[note,setNote]=useState('');
+ const [dueReason,setDueReason]=useState(''),[controlReason,setControlReason]=useState('');
+ const [controlReview,setControlReview]=useState<keyof typeof TEMPORARY_CONTROL_REVIEWS>('unchecked');
+ const [formError,setFormError]=useState('');
  const [editing,setEditing]=useState(false);
+ const trace=analyzeFollowupChangeTrace(current);
+ const dueChanged=!!current&&dueDate!==current.dueDate;
+ const controlChanged=!!current&&temporaryMeasure.trim()!==(current.temporaryMeasure||'');
+ const openEditor=()=>{
+  if(editing){setEditing(false);return;}
+  setStatus(current?.status||'pending');setAssignee(current?.assignee||'');
+  setDueDate(current?.dueDate||'');setTemporaryMeasure(current?.temporaryMeasure||'');
+  setNote('');setDueReason('');setControlReason('');setControlReview('unchecked');setFormError('');
+  setEditing(true);
+ };
  const save=async()=>{
-  if(!note.trim())return;
-  const measure=temporaryMeasure.trim();
-  const history=[...(current?.history||[]),{status,assignee:assignee.trim(),dueDate,temporaryMeasure:measure,note:note.trim(),at:new Date().toISOString()}];
-  const value={status,assignee:assignee.trim(),dueDate,temporaryMeasure:measure,history};
-  if(await onSave(row.id,value)){setNote('');setEditing(false);}
+  setFormError('');
+  try{
+   const value=prepareFollowupChange(current,{
+    status,assignee,dueDate,temporaryMeasure,note,
+    dueChangeReason:dueReason,temporaryChangeReason:controlReason,controlReview,
+   }) as Followup;
+   if(await onSave(row.id,value)){
+    setNote('');setDueReason('');setControlReason('');setEditing(false);
+   }
+  }catch(error){
+   setFormError(error instanceof Error?error.message:'후속 조치 입력을 다시 확인해 주세요.');
+  }
  };
  return <section aria-label="후속 조치 관리"><p><strong>{current?FOLLOWUP_LABELS[current.status]:'상태 미기록'}</strong> · 담당: {current?.assignee||'미지정'} · 기한: {current?.dueDate||'미정'} {current&&overdue(current)?'· 기한 초과':''}</p>
   <p>{current?.temporaryMeasure?'현재 기록된 임시 안전조치: '+current.temporaryMeasure:'임시 안전조치 미기록'} · 임시 안전조치 기록만으로 위험 제거 또는 최종 완료가 확인된 것은 아닙니다.</p>
+  <p>기한 변경 {trace.dueChangeCount}건 · 임시조치 변경·해제 {trace.controlChangeCount}건 · 최근 기록된 확인 수준: {trace.latestControlReview}. 모든 상태는 점검자 기기 입력이며 현장 조치가 자동 검증된 것은 아닙니다.</p>
+  {trace.inconsistent&&<p role="alert">현재 후속 조치 상태와 마지막 이력의 내용이 다릅니다. 점검자가 기록을 다시 확인해야 합니다.</p>}
+  <p>목표 기한과 재점검의 다음 확인 예정일은 서로 다릅니다. 목표 기한을 바꾸어도 기존 재점검 일정은 자동으로 바뀌지 않습니다.</p>
   <p>기기에만 저장됩니다. 담당자에게 자동 전달되지 않으며, 조치 확인은 사람이 직접 합니다.</p>
-  <button type="button" className="si-btn" disabled={busy} onClick={()=>setEditing(!editing)}>{editing?'닫기':'후속 조치 기록'}</button>
+  <button type="button" className="si-btn" disabled={busy} onClick={openEditor}>{editing?'닫기':'후속 조치 기록'}</button>
   {editing&&<div><label>조치 상태<select value={status} onChange={e=>setStatus(e.target.value)}>{FOLLOWUP_STATES.map(key=><option key={key} value={key}>{FOLLOWUP_LABELS[key]}</option>)}</select></label>
    <label>담당자<input value={assignee} maxLength={100} onChange={e=>setAssignee(e.target.value)} placeholder="미지정 가능"/></label>
    <label>목표 기한<input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/></label>
+   {dueChanged&&<label>목표 기한 변경 사유 (필수)<textarea aria-label="목표 기한 변경 사유" value={dueReason} maxLength={500} onChange={e=>setDueReason(e.target.value)} placeholder="예: 자재 반입 일정 변경으로 목표 기한 재조정"/></label>}
    <label>임시 안전조치 (최종 완료와 별개)<textarea value={temporaryMeasure} maxLength={1000} onChange={e=>setTemporaryMeasure(e.target.value)} placeholder="예: 위험 구역 출입 통제·표지 설치. 미실시라면 비워 두세요."/></label>
-   <label>진행·확인 내용<textarea value={note} maxLength={2000} onChange={e=>setNote(e.target.value)} placeholder="임시 조치, 진행 상황 또는 확인 내용을 입력"/></label>
-   <button type="button" className="si-btn" disabled={busy||!note.trim()} onClick={()=>void save()}>후속 기록 저장</button></div>}
+   {controlChanged&&<label>임시조치 변경·해제 사유 (필수)<textarea aria-label="임시조치 변경·해제 사유" value={controlReason} maxLength={500} onChange={e=>setControlReason(e.target.value)} placeholder="예: 출입통제 범위 조정, 통제선 상태 변경"/></label>}
+   <label>임시조치 현장 확인 수준 (점검자 직접 입력)
+    <select aria-label="임시조치 현장 확인 수준" value={controlReview} onChange={e=>setControlReview(e.target.value as keyof typeof TEMPORARY_CONTROL_REVIEWS)}>
+     {(Object.entries(TEMPORARY_CONTROL_REVIEWS) as [keyof typeof TEMPORARY_CONTROL_REVIEWS,string][]).map(([key,label])=><option key={key} value={key}>{label}</option>)}
+    </select>
+   </label>
+   <p>현장 확인을 선택하더라도 기록만으로 통제 효과나 위험 해소를 입증하지 않습니다. 통제가 미확인 상태라면 재점검 또는 접근통제 필요성을 현장에서 검토하세요.</p>
+   <label>진행·확인 내용<textarea value={note} maxLength={1600} onChange={e=>setNote(e.target.value)} placeholder="5자 이상: 임시 조치, 진행 상황 또는 확인 내용을 입력"/></label>
+   {formError&&<p role="alert">{formError}</p>}
+   <button type="button" className="si-btn" disabled={busy||note.trim().length<5||(dueChanged&&dueReason.trim().length<5)||(controlChanged&&controlReason.trim().length<5)} onClick={()=>void save()}>후속 기록 저장</button></div>}
   {!!current?.history.length&&<details><summary>조치 이력 {current.history.length}건</summary>{current.history.map((entry,i)=><p key={i}>{new Date(entry.at).toLocaleString('ko-KR')} · {FOLLOWUP_LABELS[entry.status]} · {entry.note} {entry.temporaryMeasure?'· 당시 임시 안전조치: '+entry.temporaryMeasure:''} · 담당 {entry.assignee||'미지정'} · 기한 {entry.dueDate||'미정'}</p>)}</details>}
+  {trace.entries.some(event=>event.dueChanged||event.controlChanged)&&<details><summary>기한·임시통제 변경 전후 확인 ({trace.dueChangeCount+trace.controlChangeCount}건)</summary>
+   <p>아래는 기기에 저장된 이력의 비교입니다. 이전 백업 기록은 변경 사유가 없을 수 있습니다.</p>
+   {trace.entries.filter(event=>event.dueChanged||event.controlChanged).map((event,i)=><p key={i}>
+    {new Date(event.at).toLocaleString('ko-KR')} (기기 시각)
+    {event.dueChanged?' · 목표 기한 '+event.beforeDate+' → '+event.afterDate+' · 변경 사유: '+(event.dueReason||'사유 확인 불가 (이전 기록)'):''}
+    {event.controlChanged?' · 임시조치 변경: '+(event.beforeControl||'미기록')+' → '+(event.afterControl||'미기록')+' · 변경·해제 사유: '+(event.controlReason||'사유 확인 불가 (이전 기록)'):''}
+    {' · 점검자 확인 기록: '+event.controlReview}
+   </p>)}
+  </details>}
  </section>;
 }
 function RecheckEditor({row,action,busy,onSave}:{row:LocalRecord;action?:AdditionalAction;busy:boolean;onSave:(row:LocalRecord,actionId:string|null,entry:Recheck)=>Promise<boolean>}){
@@ -957,7 +999,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   if(flight.current||!validateFollowup(value))return false;
   flight.current=true;setBusy(true);setMessage('');
   try{
-   await runStore<void>('readwrite',store=>{const request=store.get(id);request.onsuccess=()=>{if(!request.result||(request.result.followup?.history?.length||0)!==value.history.length-1){request.transaction?.abort();return;}store.put({...request.result,followup:value});};});
+   await runStore<void>('readwrite',store=>{const request=store.get(id);request.onsuccess=()=>{if(!request.result||JSON.stringify(request.result.followup||null)!==JSON.stringify({...value,history:value.history.slice(0,-1),status:request.result.followup?.status??value.status,assignee:request.result.followup?.assignee??value.assignee,dueDate:request.result.followup?.dueDate??value.dueDate,temporaryMeasure:request.result.followup?.temporaryMeasure??value.temporaryMeasure})){request.transaction?.abort();return;}store.put({...request.result,followup:value});};});
    await refresh();setMessage('후속 조치를 이 기기에 저장했습니다. 서버에는 전송하지 않았습니다.');return true;
   }catch{setMessage('후속 조치를 저장하지 못했습니다. 입력 내용을 확인하고 다시 시도하세요.');return false;}
   finally{flight.current=false;setBusy(false);}
