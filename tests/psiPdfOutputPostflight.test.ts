@@ -5,6 +5,9 @@ const pdfMock=vi.hoisted(()=>({
     black:true,
     extraText:false,
     extraAnnotation:false,
+    extraAttachment:false,
+    extraField:false,
+    corruptInterior:false,
 }));
 vi.mock('pdfjs-dist/legacy/build/pdf.mjs',()=>({
     GlobalWorkerOptions:{workerSrc:''},
@@ -27,12 +30,25 @@ const bytes=new Uint8Array([37,80,68,70,45,49,46,55]);
 
 const setup=()=>{
     pdfMock.black=true;pdfMock.extraText=false;pdfMock.extraAnnotation=false;
+    pdfMock.extraAttachment=false;pdfMock.extraField=false;pdfMock.corruptInterior=false;
     const ctx={
         fillStyle:'#fff',
         fillRect:vi.fn(),
-        getImageData:vi.fn(()=>({
-            data:new Uint8ClampedArray(pdfMock.black?[0,0,0,255]:[255,255,255,255]),
-        })),
+        getImageData:vi.fn((_x:number,_y:number,width:number,height:number)=>{
+            const data=new Uint8ClampedArray(width*height*4);
+            for(let i=0;i<data.length;i+=4){
+                data[i]=pdfMock.black?0:255;
+                data[i+1]=pdfMock.black?0:255;
+                data[i+2]=pdfMock.black?0:255;
+                data[i+3]=255;
+            }
+            if(pdfMock.corruptInterior){
+                // A single unmasked pixel far from legacy nine sample points.
+                const index=(Math.floor(height/3)*width+Math.floor(width/7))*4;
+                data[index]=255;
+            }
+            return {data};
+        }),
     };
     vi.stubGlobal('document',{
         createElement:vi.fn(()=>({
@@ -50,8 +66,8 @@ const setup=()=>{
     const pdf={
         numPages:1,
         getPage:vi.fn(async()=>page),
-        getAttachments:vi.fn(async()=>null),
-        getFieldObjects:vi.fn(async()=>null),
+        getAttachments:vi.fn(async()=>pdfMock.extraAttachment?{'private.txt':{content:'secret'}}:null),
+        getFieldObjects:vi.fn(async()=>pdfMock.extraField?{'person.name':[]}:null),
     };
     const destroy=vi.fn(async()=>undefined);
     pdfMock.getDocument.mockReturnValue({promise:Promise.resolve(pdf),destroy});
@@ -59,11 +75,12 @@ const setup=()=>{
 };
 afterEach(()=>{vi.unstubAllGlobals();vi.clearAllMocks();});
 
-describe('PSI 18th final-PDF postflight verifies actual output page',()=>{
-    it('rerenders output PDF and samples black pixels within the masked area',async()=>{
+describe('PSI 19th full-interior PDF blackout postflight',()=>{
+    it('rerenders the exported PDF and checks each interior pixel in bounded chunks',async()=>{
         const {page,ctx,destroy}=setup();
         await verifyPsiRasterPdfHasNoExtractableContent(bytes,1,plan);
-        expect(ctx.getImageData).toHaveBeenCalledTimes(9);
+        expect(ctx.getImageData).toHaveBeenCalledTimes(6);
+        expect(ctx.getImageData).toHaveBeenCalledWith(expect.any(Number),expect.any(Number),118,expect.any(Number));
         expect(page.render).toHaveBeenCalledTimes(1);
         expect(page.cleanup).toHaveBeenCalled();
         expect(destroy).toHaveBeenCalled();
@@ -74,6 +91,11 @@ describe('PSI 18th final-PDF postflight verifies actual output page',()=>{
         await expect(verifyPsiRasterPdfHasNoExtractableContent(bytes,1,plan))
             .rejects.toThrow('완성된 PDF');
         expect(destroy).toHaveBeenCalled();
+    });
+    it('detects one nonblack pixel in the interior, not just nine selected samples',async()=>{
+        setup();pdfMock.corruptInterior=true;
+        await expect(verifyPsiRasterPdfHasNoExtractableContent(bytes,1,plan))
+            .rejects.toThrow('완성된 PDF');
     });
     it('blocks selectable text even if blackout pixels look valid',async()=>{
         setup();pdfMock.extraText=true;
@@ -87,5 +109,13 @@ describe('PSI 18th final-PDF postflight verifies actual output page',()=>{
         setup();
         await expect(verifyPsiRasterPdfHasNoExtractableContent(bytes,2,plan))
             .rejects.toThrow('페이지 수');
+    });
+    it('blocks attachments and form fields in the output PDF',async()=>{
+        setup();pdfMock.extraAttachment=true;
+        await expect(verifyPsiRasterPdfHasNoExtractableContent(bytes,1,plan))
+            .rejects.toThrow('첨부파일');
+        setup();pdfMock.extraField=true;
+        await expect(verifyPsiRasterPdfHasNoExtractableContent(bytes,1,plan))
+            .rejects.toThrow('양식 필드');
     });
 });
