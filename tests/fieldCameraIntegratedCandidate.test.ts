@@ -43,9 +43,11 @@ describe('32nd source-only F01–F10 integration release candidate',()=>{
  it('fails closed on missing stage or unsafe relative paths',()=>{
   expect(()=>assembleSourceCandidate({stages:RELEASE_CANDIDATE_STAGES.slice(0,-1)}))
    .toThrow('25~32차');
-  expect(()=>assembleSourceCandidate({
-   commonFiles:[...RELEASE_CANDIDATE_COMMON_FILES,'../../.env'],
-  })).toThrow('경로 형식');
+  for(const unsafe of ['../../.env','../../package.json','private/keys','artifacts/audit/file.json']){
+   expect(()=>assembleSourceCandidate({
+    commonFiles:[...RELEASE_CANDIDATE_COMMON_FILES,unsafe],
+   })).toThrow('경로 형식');
+  }
  });
  it('fails closed if verified build or registered offline QA gate is removed',()=>{
   expect(()=>assembleSourceCandidate({
