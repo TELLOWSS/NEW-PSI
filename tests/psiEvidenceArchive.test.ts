@@ -51,7 +51,7 @@ describe('evidence ZIP SHA-256 and external custody check', () => {
         const {blob} = await buildPsiEvidenceArchive(record(), {exportedAt:'2026-11-01T00:00:00Z'});
         const result = await verifyPsiEvidenceArchive(blob, '0'.repeat(64));
         expect(result.verified).toBe(false);
-        expect(result.errors.join(' ')).toContain('별도 보관된 ZIP SHA-256');
+        expect(result.errors.join(' ')).toContain('독립 보관된 ZIP SHA-256');
     });
 
     it('detects tampering with one file while retaining original checksum listings', async () => {
