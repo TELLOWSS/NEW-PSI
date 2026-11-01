@@ -76,8 +76,8 @@ export const PsiPdfFinalComparePanel:React.FC<Props>=({
         if(!loaded)return;
         const original=originalCanvas.current,output=outputCanvas.current;
         if(!original||!output)return;
-        const source=sourceDoc.current,redacted=outputDoc.current;
-        if(!source||!redacted)return;
+        const originalPdf=sourceDoc.current,redacted=outputDoc.current;
+        if(!originalPdf||!redacted)return;
         let cancelled=false;
         const tasks:any[]=[];
         setReadyPage(0);
@@ -99,7 +99,7 @@ export const PsiPdfFinalComparePanel:React.FC<Props>=({
             tasks.push(task);
             try{await task.promise;}finally{item.cleanup();}
         };
-        void Promise.all([draw(source,original),draw(redacted,output)])
+        void Promise.all([draw(originalPdf,original),draw(redacted,output)])
             .then(()=>{if(!cancelled)setReadyPage(page);})
             .catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:'PDF 비교 렌더링 실패');});
         return ()=>{cancelled=true;for(const task of tasks)task.cancel();};
