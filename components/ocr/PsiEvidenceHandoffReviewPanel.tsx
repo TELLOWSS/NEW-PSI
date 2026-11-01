@@ -20,7 +20,8 @@ export const PsiEvidenceHandoffReviewPanel: React.FC<{ record: WorkerRecord; has
     const [notes, setNotes] = useState('');
     const [notice, setNotice] = useState('');
 
-    const verified = Boolean(verification?.verified && verification.externallyAnchored && verification.fileInventory.length);
+    const verified = Boolean(verification?.verified && verification.externallyAnchored
+        && verification.recordId === record.id && verification.fileInventory.length);
     const inspectFile = async (file: File | null) => {
         if (!file || busy) return;
         setBusy(true);
