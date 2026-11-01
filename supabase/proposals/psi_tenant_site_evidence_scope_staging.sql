@@ -27,7 +27,7 @@ alter table public.psi_tenant_disclosure_requests
 alter table public.psi_tenant_disclosure_decisions
  add constraint psi_decision_same_site_fk foreign key(tenant_id,site_id,request_id)
  references public.psi_tenant_disclosure_requests(tenant_id,site_id,id);
-create policy psi_evidence_site_select as restrictive on public.psi_tenant_evidence_receipts
+create policy psi_evidence_site_select on public.psi_tenant_evidence_receipts as restrictive
 for select to authenticated using(
  exists(select 1 from public.psi_tenant_site_memberships sm
    join public.psi_tenant_sites s on s.tenant_id=sm.tenant_id and s.id=sm.site_id
@@ -36,7 +36,7 @@ for select to authenticated using(
      and sm.user_id=(select auth.uid()) and sm.status='active'
      and s.active and m.status='active')
 );
-create policy psi_evidence_site_insert as restrictive on public.psi_tenant_evidence_receipts
+create policy psi_evidence_site_insert on public.psi_tenant_evidence_receipts as restrictive
 for insert to authenticated with check(
  exists(select 1 from public.psi_tenant_site_memberships sm
    join public.psi_tenant_sites s on s.tenant_id=sm.tenant_id and s.id=sm.site_id
@@ -48,7 +48,7 @@ for insert to authenticated with check(
  where wa.tenant_id=psi_tenant_evidence_receipts.tenant_id and wa.site_id=psi_tenant_evidence_receipts.site_id
  and wa.worker_id=psi_tenant_evidence_receipts.worker_id and wa.active)
 );
-create policy psi_disclosure_site_select as restrictive on public.psi_tenant_disclosure_requests
+create policy psi_disclosure_site_select on public.psi_tenant_disclosure_requests as restrictive
 for select to authenticated using(
  exists(select 1 from public.psi_tenant_site_memberships sm
    join public.psi_tenant_sites s on s.tenant_id=sm.tenant_id and s.id=sm.site_id
@@ -57,7 +57,7 @@ for select to authenticated using(
      and sm.user_id=(select auth.uid()) and sm.status='active'
      and s.active and m.status='active')
 );
-create policy psi_disclosure_site_insert as restrictive on public.psi_tenant_disclosure_requests
+create policy psi_disclosure_site_insert on public.psi_tenant_disclosure_requests as restrictive
 for insert to authenticated with check(
  exists(select 1 from public.psi_tenant_site_memberships sm
    join public.psi_tenant_sites s on s.tenant_id=sm.tenant_id and s.id=sm.site_id
@@ -66,7 +66,7 @@ for insert to authenticated with check(
      and sm.user_id=(select auth.uid()) and sm.status='active'
      and s.active and m.status='active')
 );
-create policy psi_decision_site_select as restrictive on public.psi_tenant_disclosure_decisions
+create policy psi_decision_site_select on public.psi_tenant_disclosure_decisions as restrictive
 for select to authenticated using(
  exists(select 1 from public.psi_tenant_site_memberships sm
    join public.psi_tenant_sites s on s.tenant_id=sm.tenant_id and s.id=sm.site_id
@@ -75,7 +75,7 @@ for select to authenticated using(
      and sm.user_id=(select auth.uid()) and sm.status='active'
      and s.active and m.status='active')
 );
-create policy psi_decision_site_insert as restrictive on public.psi_tenant_disclosure_decisions
+create policy psi_decision_site_insert on public.psi_tenant_disclosure_decisions as restrictive
 for insert to authenticated with check(
  exists(select 1 from public.psi_tenant_site_memberships sm
    join public.psi_tenant_sites s on s.tenant_id=sm.tenant_id and s.id=sm.site_id
