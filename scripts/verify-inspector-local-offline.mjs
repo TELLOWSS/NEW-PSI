@@ -139,6 +139,104 @@ try{
  await itemRecheck.getByRole('button',{name:'재점검 이력 저장'}).click();
  await itemRecheck.getByText('재점검 1건',{exact:false}).waitFor();
  assert.equal(await item1.getByText('확인 완료',{exact:true}).count()>0,true,'recheck must not update prior followup status');
+ const priority=panel.getByRole('region',{name:'기한별 재점검 관리 현황'});
+ await priority.getByRole('button',{name:'상태 불일치 · 확인 필요 1건'}).waitFor();
+ await priority.getByRole('button',{name:'이후 예정 1건'}).waitFor();
+ await priority.getByText('재점검/조치 대상 2건',{exact:false}).waitFor();
+ await priority.getByText('확인 우선순위 · 전체 대상 보기 (2건)').click();
+ await priority.getByText('완료 상태와 최신 미완료 재점검 이력이 상충해 전문가 재확인 필요',{exact:false}).waitFor();
+ // A manually entered "verified" status never silently clears a delayed/temporary recheck.
+ await panel.getByLabel('후속 조치 모아보기').selectOption('recheck:conflict');
+ assert.equal(await actionRow.count(),1,'conflicting target must be findable');
+
+ const f10Handoff=priority.getByRole('group',{name:'F10 오늘 현장 인계 준비'});
+ await f10Handoff.getByText('인계 대상 1건 / 최대 40건',{exact:false}).waitFor();
+ await f10Handoff.getByRole('button',{name:'인계 문구·A4 인계표 준비'}).click();
+ const directCopy=f10Handoff.getByLabel('F10 인계 문구 직접 복사');
+ await directCopy.waitFor();
+ const handoffText=await directCopy.inputValue();
+ assert.match(handoffText,/상태 불일치 · 확인 필요/);
+ assert.match(handoffText,/담당자 기록 확인/);
+ assert.doesNotMatch(handoffText,/합성 담당자|자재 공급이 늦어져|iVBORw0KGgo/);
+ const handoffLink=f10Handoff.getByRole('link',{name:'A4 인계표 기기에 저장'});
+ const handoffDownload=page.waitForEvent('download');
+ await handoffLink.click();
+ const handoffHtml=await readFile(await (await handoffDownload).path(),'utf8');
+ assert.match(handoffHtml,/default-src 'none'/);
+ assert.match(handoffHtml,/상태 불일치 · 확인 필요/);
+ assert.doesNotMatch(handoffHtml,/합성 담당자|자재 공급이 늦어져|<script|iVBORw0KGgo/);
+ await page.evaluate(()=>{
+  Object.defineProperty(navigator,'clipboard',{configurable:true,value:{
+   writeText:async value=>{window.__syntheticHandoffCopied=value;},
+  }});
+ });
+ await f10Handoff.getByRole('button',{name:'인계 문구 복사 (자동 전송 없음)'}).click();
+ await f10Handoff.getByText('인계 문구를 기기 클립보드에 복사했습니다.',{exact:false}).waitFor();
+ assert.equal(await page.evaluate(()=>window.__syntheticHandoffCopied),handoffText);
+ await f10Handoff.getByLabel('F10 인계 대상 범위').selectOption('visible');
+ await directCopy.waitFor({state:'detached'});
+ await f10Handoff.getByText('인계 대상 1건 / 최대 40건',{exact:false}).waitFor();
+ // No automatic handover to outside services is made at any step.
+
+ const f10Report=priority.getByRole('group',{name:'재점검 관리 보고서 만들기'});
+ await f10Report.getByText('보고 대상 1건 / 최대 500건',{exact:false}).waitFor();
+ await f10Report.getByRole('button',{name:'CSV·인쇄용 보고서 준비'}).click();
+ const csvLink=f10Report.getByRole('link',{name:'CSV 대장 기기에 저장'});
+ const htmlLink=f10Report.getByRole('link',{name:'A4 인쇄용 HTML 기기에 저장'});
+ await csvLink.waitFor();await htmlLink.waitFor();
+ const firstCsvDownload=page.waitForEvent('download');await csvLink.click();
+ const firstCsv=await readFile(await (await firstCsvDownload).path(),'utf8');
+ assert.match(firstCsv,/"조치 대상","1","점검 기록","1"/);
+ assert.match(firstCsv,/상태 불일치 · 확인 필요/);
+ assert.doesNotMatch(firstCsv,/합성 담당자|자재 공급이 늦어져/,'default CSV must omit personal details');
+ assert.doesNotMatch(firstCsv,/iVBORw0KGgo/,'report must not contain photo bytes');
+ const firstHtmlDownload=page.waitForEvent('download');await htmlLink.click();
+ const firstHtml=await readFile(await (await firstHtmlDownload).path(),'utf8');
+ assert.match(firstHtml,/default-src 'none'/,'inert print HTML CSP required');
+ assert.match(firstHtml,/상태 불일치 · 확인 필요/);
+ assert.doesNotMatch(firstHtml,/합성 담당자|자재 공급이 늦어져|<script/);
+ assert.doesNotMatch(firstCsv,/F10 경과 연계 이력/,'existing report defaults must remain minimal');
+ // History is a separate opt-in and must remain sanitized without free text.
+ await f10Report.getByLabel('보고서에 F10 경과 연결 이력 포함').check();
+ await f10Report.getByRole('button',{name:'CSV·인쇄용 보고서 준비'}).click();
+ await csvLink.waitFor();
+ const timelineCsvDownload=page.waitForEvent('download');await csvLink.click();
+ const timelineCsv=await readFile(await (await timelineCsvDownload).path(),'utf8');
+ assert.match(timelineCsv,/F10 경과 연계 이력/);
+ assert.match(timelineCsv,/재점검/);
+ assert.doesNotMatch(timelineCsv,/합성 담당자|자재 공급이 늦어져|iVBORw0KGgo/,
+  'opt-in structure alone must not include free notes or photo bytes');
+ const timelineHtmlDownload=page.waitForEvent('download');await htmlLink.click();
+ const timelineHtml=await readFile(await (await timelineHtmlDownload).path(),'utf8');
+ assert.match(timelineHtml,/F10 경과 연계 이력/);
+ assert.match(timelineHtml,/default-src 'none'/);
+ assert.doesNotMatch(timelineHtml,/합성 담당자|자재 공급이 늦어져|<script/);
+ await f10Report.getByLabel('보고서에 F10 경과 연결 이력 포함').uncheck();
+ await csvLink.waitFor({state:'detached'});
+ // The user explicitly opts in to names/free-text; all targets are included.
+ await f10Report.getByLabel('재점검 보고 범위').selectOption('all');
+ await f10Report.getByLabel('보고서에 담당자 이름 포함').check();
+ await f10Report.getByLabel('보고서에 상세 자유기입 포함').check();
+ await f10Report.getByText('보고 대상 2건 / 최대 500건',{exact:false}).waitFor();
+ await f10Report.getByRole('button',{name:'CSV·인쇄용 보고서 준비'}).click();
+ await csvLink.waitFor();
+ const detailedCsvDownload=page.waitForEvent('download');await csvLink.click();
+ const detailedCsv=await readFile(await (await detailedCsvDownload).path(),'utf8');
+ assert.match(detailedCsv,/"조치 대상","2","점검 기록","1"/);
+ assert.match(detailedCsv,/합성 담당자/,'optional assignee must be present only when requested');
+ assert.match(detailedCsv,/자재 공급이 늦어져/,'optional delay reason must be present only when requested');
+ assert.doesNotMatch(detailedCsv,/iVBORw0KGgo/);
+ // Reset selection and release the intentionally sensitive report URL.
+ await f10Report.getByLabel('보고서에 상세 자유기입 포함').uncheck();
+ await f10Report.getByLabel('보고서에 담당자 이름 포함').uncheck();
+ await f10Report.getByLabel('재점검 보고 범위').selectOption('visible');
+ await csvLink.waitFor({state:'detached'});
+
+ await panel.getByLabel('후속 조치 모아보기').selectOption('recheck:today');
+ assert.equal(await actionRow.count(),0,'no invented same-day task');
+ await panel.getByLabel('후속 조치 모아보기').selectOption('recheck:scheduled');
+ assert.equal(await actionRow.count(),1,'2030 future recheck must remain scheduled');
+ await panel.getByLabel('후속 조치 모아보기').selectOption('all');
 
  await item1.getByLabel('이 조치 사진 선택').setInputFiles({name:'action-one-v2.png',mimeType:'image/png',buffer:Buffer.from('synthetic replacement action photo')});
  page.once('dialog',d=>d.accept());await item1.getByRole('button',{name:'이 조치에 사진 저장'}).click();
@@ -341,6 +439,11 @@ try{
  await panel.getByText('현재 기록된 임시 안전조치: 위험 구역 출입 통제 및 안내 표지 유지',{exact:false}).waitFor();
  await panel.getByRole('region',{name:'점검 전체 재점검·지연 사유'}).getByText('재점검 1건',{exact:false}).waitFor();
  await panel.getByRole('region',{name:'조치별 재점검·지연 사유'}).first().getByText('재점검 1건',{exact:false}).waitFor();
+ // Prioritized views must remain intact after v17 backup restore.
+ const restoredPriority=panel.getByRole('region',{name:'기한별 재점검 관리 현황'});
+ await restoredPriority.getByText('재점검/조치 대상 2건',{exact:false}).waitFor();
+ await restoredPriority.getByRole('button',{name:'상태 불일치 · 확인 필요 1건'}).waitFor();
+ await restoredPriority.getByRole('button',{name:'이후 예정 1건'}).waitFor();
  await panel.getByRole('heading',{name:'합성 출입 통제'}).waitFor();
  await panel.getByText('이 조치의 사진: action-one-v2.png').waitFor();
  await panel.getByText('이 조치의 이전 사진 1장').waitFor();
@@ -619,6 +722,104 @@ try{
  const f06Batch=JSON.parse((await readFile(await (await f06BatchDownload).path())).toString());
  assert.equal(f06Batch.records[0].version,16);
  assert.equal(f06Batch.records[0].record.photoEdits['primary:0'].originalSha256,originalDigest);
+ // F10 29th: the existing v17 record retains both old and new dates.
+ const traceRecord=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
+ const traceEditor=traceRecord.getByRole('region',{name:'후속 조치 관리'}).first();
+ await traceEditor.getByRole('button',{name:'후속 조치 기록'}).click();
+ await traceEditor.getByLabel('목표 기한').fill('2030-02-05');
+ await traceEditor.getByLabel('임시 안전조치 (최종 완료와 별개)').fill('위험 구역 출입 통제선 확대 및 안내 표지 유지');
+ await traceEditor.getByLabel('진행·확인 내용').fill('변경된 통제선의 유지 상태를 현장에서 직접 확인');
+ const traceSave=traceEditor.getByRole('button',{name:'후속 기록 저장'});
+ assert.equal(await traceSave.isDisabled(),true,'changing due date and control requires separate reasons');
+ await traceEditor.getByLabel('목표 기한 변경 사유').fill('자재 반입 일정 변경으로 목표 완료일을 재조정함');
+ await traceEditor.getByLabel('임시조치 변경·해제 사유').fill('상부 작업 간섭으로 통제 범위를 확대함');
+ await traceEditor.getByLabel('임시조치 현장 확인 수준').selectOption('site_checked');
+ assert.equal(await traceSave.isDisabled(),false);
+ await traceSave.click();
+ await traceEditor.getByText('기한 변경 1건 · 임시조치 변경·해제 1건',{exact:false}).waitFor();
+ await traceEditor.getByText('기한·임시통제 변경 전후 확인 (2건)').click();
+ await traceEditor.getByText('2030-01-02 → 2030-02-05',{exact:false}).waitFor();
+ await traceEditor.locator('details').filter({hasText:'기한·임시통제 변경 전후 확인 (2건)'})
+  .getByText('자재 반입 일정 변경으로 목표 완료일을 재조정함',{exact:false}).waitFor();
+ const traceBackupEvent=page.waitForEvent('download');
+ await traceRecord.getByRole('button',{name:'사진과 기록 함께 백업'}).click();
+ const traceBytes=await readFile(await (await traceBackupEvent).path());
+ const traceSaved=JSON.parse(traceBytes.toString());
+ assert.equal(traceSaved.version,17,'existing backup schema must be preserved');
+ assert.equal(traceSaved.record.followup.dueDate,'2030-02-05');
+ assert.equal(traceSaved.record.followup.history.length,2);
+ assert.equal(traceSaved.record.followup.history[0].dueDate,'2030-01-02');
+ assert.equal(traceSaved.record.followup.history[1].dueDate,'2030-02-05');
+ assert.match(traceSaved.record.followup.history[1].note,/기한 변경 사유: 자재 반입 일정 변경/);
+ assert.match(traceSaved.record.followup.history[1].note,/임시조치 변경·해제 사유: 상부 작업 간섭/);
+ assert.match(traceSaved.record.followup.history[1].note,/점검자가 현장 유지 상태 직접 확인했다고 기록/);
+ assert.equal(traceSaved.record.rechecks[0].nextCheckDate,'2030-01-03',
+  'changing completion target must not alter separate reinspection schedule');
+ page.once('dialog',dialog=>dialog.accept());
+ await traceRecord.getByRole('button',{name:'이 기기 기록 삭제'}).click();
+ await panel.getByLabel('백업 파일 복원').setInputFiles({
+  name:'f10-29-trace-valid-v17.json',mimeType:'application/json',buffer:traceBytes,
+ });
+ const restoredTrace=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
+ const restoredEditor=restoredTrace.getByRole('region',{name:'후속 조치 관리'}).first();
+ await restoredEditor.getByText('기한 변경 1건 · 임시조치 변경·해제 1건',{exact:false}).waitFor();
+ await restoredEditor.getByText('기한: 2030-02-05',{exact:false}).waitFor();
+ await restoredTrace.getByRole('region',{name:'점검 전체 재점검·지연 사유'})
+  .getByText('재점검 1건',{exact:false}).waitFor();
+ // F10 30th: three separate event types form a single read-only chronology.
+ const connected=panel.getByRole('group',{name:'F10 경과 통합 타임라인'});
+ await connected.getByText('30차 · 목표 기한·임시통제·재점검 경과 연결 보기',{exact:false}).click();
+ await connected.locator('summary').filter({hasText:'점검 전체 · 후속 2건 / 재점검 1건'}).click();
+ await connected.getByText('현재 조치 목표 기한: 2030-02-05 · 최신 재점검 다음 확인일: 2030-01-03',{exact:false}).waitFor();
+ await connected.getByText('2030-01-02 → 2030-02-05',{exact:false}).waitFor();
+ await connected.getByText('임시통제 확인 기록: 점검자가 현장 유지 상태 직접 확인했다고 기록',{exact:false}).waitFor();
+ await f10Report.getByLabel('재점검 보고 범위').selectOption('all');
+ await f10Report.getByLabel('보고서에 F10 경과 연결 이력 포함').check();
+ await f10Report.getByRole('button',{name:'CSV·인쇄용 보고서 준비'}).click();
+ await csvLink.waitFor();
+ const finalTimelineDownload=page.waitForEvent('download');await csvLink.click();
+ const finalTimeline=await readFile(await (await finalTimelineDownload).path(),'utf8');
+ assert.match(finalTimeline,/F10 경과 연계 이력/);
+ assert.match(finalTimeline,/2030-01-02/);
+ assert.match(finalTimeline,/2030-02-05/);
+ assert.match(finalTimeline,/2030-01-03/);
+ assert.doesNotMatch(finalTimeline,/자재 반입 일정 변경으로 목표 완료일을 재조정함/,
+  'old change reason must remain excluded unless detailed notes are selected');
+ await f10Report.getByLabel('보고서에 F10 경과 연결 이력 포함').uncheck();
+ await csvLink.waitFor({state:'detached'});
+ // 31차 release guard: another browser tab changes ONLY an earlier follow-up
+ // snapshot, without touching current status/date. The current screen stays
+ // stale. A fresh IDB read must reject the opt-in history report.
+ const previousHistoryDate=traceSaved.record.followup.history[0].dueDate;
+ const staleRecordId=traceSaved.record.id;
+ const rewriteLocalHistory=async(targetDate)=>page.evaluate(({id,date})=>new Promise((resolve,reject)=>{
+  const open=indexedDB.open('psi-inspector-local-records',1);
+  open.onerror=()=>reject(open.error);
+  open.onsuccess=()=>{
+   const db=open.result,tx=db.transaction('records','readwrite'),
+    store=tx.objectStore('records'),read=store.get(id);
+   read.onerror=()=>reject(read.error);
+   read.onsuccess=()=>{
+    const saved=read.result;
+    if(!saved?.followup?.history?.length){tx.abort();reject(new Error('missing synthetic prior followup'));return;}
+    saved.followup.history[0].dueDate=date;
+    store.put(saved);
+   };
+   tx.oncomplete=()=>{db.close();resolve(true);};
+   tx.onerror=()=>{db.close();reject(tx.error);};
+   tx.onabort=()=>{db.close();reject(tx.error||new Error('transaction aborted'));};
+  };
+ }),{id:staleRecordId,date:targetDate});
+ await rewriteLocalHistory('2030-01-09');
+ await f10Report.getByLabel('보고서에 F10 경과 연결 이력 포함').check();
+ await f10Report.getByRole('button',{name:'CSV·인쇄용 보고서 준비'}).click();
+ await f10Report.getByText('점검 기록이 다른 탭에서 변경됐습니다.',{exact:false}).waitFor();
+ assert.equal(await csvLink.count(),0,'stale F10 history must not become a downloadable CSV');
+ assert.equal(await htmlLink.count(),0,'stale F10 history must not become printable HTML');
+ await rewriteLocalHistory(previousHistoryDate);
+ await f10Report.getByLabel('보고서에 F10 경과 연결 이력 포함').uncheck();
+ // Stale rejection should not cause an external request or wipe the photos.
+
  assert.deepEqual(requests,[],'offline local operations must not initiate HTTP requests');
  assert.deepEqual(errors,[]);
  console.log('PASS local camera, local save, rule lookup, export, quota failure and retry without HTTP requests');

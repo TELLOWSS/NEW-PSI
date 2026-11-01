@@ -3,6 +3,11 @@ import InspectorCameraDialog, {type CameraEditEvidence} from './InspectorCameraD
 import {legalForText} from '../../lib/inspector/legal';
 import {sourceReviewState} from '../../lib/inspector/sourceReview';
 import {FOLLOWUP_STATES, FOLLOWUP_LABELS, validateFollowup, validateAdditionalActions, overdue} from '../../lib/inspector/localFollowup.mjs';
+import {prepareFollowupChange,analyzeFollowupChangeTrace,TEMPORARY_CONTROL_REVIEWS} from '../../lib/inspector/localFollowupChangeTrace.mjs';
+import {buildLocalRecheckQueue,summarizeLocalRecheckQueue,LOCAL_RECHECK_BUCKETS,LOCAL_RECHECK_LABELS,localCalendarDate} from '../../lib/inspector/localRecheckQueue.mjs';
+import {buildLocalRecheckReport,selectLocalRecheckReportTargets,formatLocalRecheckCsv,formatLocalRecheckPrintHtml,F10_LOCAL_REPORT_LIMIT} from '../../lib/inspector/localRecheckReport.mjs';
+import {buildLocalRecheckProgress} from '../../lib/inspector/localRecheckProgress.mjs';
+import {buildLocalHandoffPlan,selectLocalHandoffTargets,formatLocalHandoffMessage,formatLocalHandoffHtml,handoffSourceSnapshot,F10_HANDOFF_MAX_ITEMS} from '../../lib/inspector/localRecheckHandoff.mjs';
 
 type Followup={status:string;assignee:string;dueDate:string;temporaryMeasure?:string;history:{status:string;assignee:string;dueDate:string;temporaryMeasure?:string;note:string;at:string}[]};
 type Recheck={id:string;result:'delayed'|'temporary_checked'|'needs_more'|'review_requested';reason:string;note:string;nextCheckDate:string;at:string;photoSha256:string|null;followupStatus:string};
@@ -219,6 +224,16 @@ async function buildEvidenceManifest(inspection:LocalRecord):Promise<EvidenceMan
 }
 const list=()=>runStore<LocalRecord[]>('readonly',(store,set)=>{const request=store.getAll();request.onsuccess=()=>set((request.result as LocalRecord[]).filter(item=>item.id!==DRAFT_KEY).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));});
 function download(blob:Blob,name:string){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+function useReportDownloadUrl(reportAssetBlob:Blob|null){
+ const [current,setCurrent]=useState<{blob:Blob;url:string}|null>(null);
+ useEffect(()=>{
+  if(!reportAssetBlob){setCurrent(null);return;}
+  const url=URL.createObjectURL(reportAssetBlob);
+  setCurrent({blob:reportAssetBlob,url});
+  return ()=>URL.revokeObjectURL(url);
+ },[reportAssetBlob]);
+ return current?.blob===reportAssetBlob?current.url:'';
+}
 
 const BACKUP_LIMIT=20*1024*1024;
 const BATCH_LIMIT=50*1024*1024;
@@ -563,28 +578,69 @@ function LocalEvidenceAudit({inspectionId,busy}:{inspectionId:string;busy:boolea
   <p>내려받는 JSON은 사진 원본이 아닌 파일명·크기·SHA-256 검사값·교체 관계의 요약입니다. 암호화되지 않았으며 파일명에 개인정보가 들어 있을 수 있습니다. 사진 파일은 기존 백업 기능으로 별도 보관하세요.</p>
  </section>;
 }
-function FollowupEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSave:(id:string,value:Followup)=>Promise<boolean>}){
+function FollowupEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSave:(id:string,value:Followup,expected?:Followup)=>Promise<boolean>}){
  const current=row.followup;
  const [status,setStatus]=useState(current?.status||'pending'),[assignee,setAssignee]=useState(current?.assignee||''),[dueDate,setDueDate]=useState(current?.dueDate||''),[temporaryMeasure,setTemporaryMeasure]=useState(current?.temporaryMeasure||''),[note,setNote]=useState('');
+ const [dueReason,setDueReason]=useState(''),[controlReason,setControlReason]=useState('');
+ const [controlReview,setControlReview]=useState<keyof typeof TEMPORARY_CONTROL_REVIEWS>('unchecked');
+ const [formError,setFormError]=useState('');
  const [editing,setEditing]=useState(false);
+ const trace=analyzeFollowupChangeTrace(current);
+ const dueChanged=!!current&&dueDate!==current.dueDate;
+ const controlChanged=!!current&&temporaryMeasure.trim()!==(current.temporaryMeasure||'');
+ const openEditor=()=>{
+  if(editing){setEditing(false);return;}
+  setStatus(current?.status||'pending');setAssignee(current?.assignee||'');
+  setDueDate(current?.dueDate||'');setTemporaryMeasure(current?.temporaryMeasure||'');
+  setNote('');setDueReason('');setControlReason('');setControlReview('unchecked');setFormError('');
+  setEditing(true);
+ };
  const save=async()=>{
-  if(!note.trim())return;
-  const measure=temporaryMeasure.trim();
-  const history=[...(current?.history||[]),{status,assignee:assignee.trim(),dueDate,temporaryMeasure:measure,note:note.trim(),at:new Date().toISOString()}];
-  const value={status,assignee:assignee.trim(),dueDate,temporaryMeasure:measure,history};
-  if(await onSave(row.id,value)){setNote('');setEditing(false);}
+  setFormError('');
+  try{
+   const value=prepareFollowupChange(current,{
+    status,assignee,dueDate,temporaryMeasure,note,
+    dueChangeReason:dueReason,temporaryChangeReason:controlReason,controlReview,
+   }) as Followup;
+   if(await onSave(row.id,value,current)){
+    setNote('');setDueReason('');setControlReason('');setEditing(false);
+   }
+  }catch(error){
+   setFormError(error instanceof Error?error.message:'후속 조치 입력을 다시 확인해 주세요.');
+  }
  };
  return <section aria-label="후속 조치 관리"><p><strong>{current?FOLLOWUP_LABELS[current.status]:'상태 미기록'}</strong> · 담당: {current?.assignee||'미지정'} · 기한: {current?.dueDate||'미정'} {current&&overdue(current)?'· 기한 초과':''}</p>
   <p>{current?.temporaryMeasure?'현재 기록된 임시 안전조치: '+current.temporaryMeasure:'임시 안전조치 미기록'} · 임시 안전조치 기록만으로 위험 제거 또는 최종 완료가 확인된 것은 아닙니다.</p>
+  <p>기한 변경 {trace.dueChangeCount}건 · 임시조치 변경·해제 {trace.controlChangeCount}건 · 최근 기록된 확인 수준: {trace.latestControlReview}. 모든 상태는 점검자 기기 입력이며 현장 조치가 자동 검증된 것은 아닙니다.</p>
+  {trace.inconsistent&&<p role="alert">현재 후속 조치 상태와 마지막 이력의 내용이 다릅니다. 점검자가 기록을 다시 확인해야 합니다.</p>}
+  <p>목표 기한과 재점검의 다음 확인 예정일은 서로 다릅니다. 목표 기한을 바꾸어도 기존 재점검 일정은 자동으로 바뀌지 않습니다.</p>
   <p>기기에만 저장됩니다. 담당자에게 자동 전달되지 않으며, 조치 확인은 사람이 직접 합니다.</p>
-  <button type="button" className="si-btn" disabled={busy} onClick={()=>setEditing(!editing)}>{editing?'닫기':'후속 조치 기록'}</button>
+  <button type="button" className="si-btn" disabled={busy} onClick={openEditor}>{editing?'닫기':'후속 조치 기록'}</button>
   {editing&&<div><label>조치 상태<select value={status} onChange={e=>setStatus(e.target.value)}>{FOLLOWUP_STATES.map(key=><option key={key} value={key}>{FOLLOWUP_LABELS[key]}</option>)}</select></label>
    <label>담당자<input value={assignee} maxLength={100} onChange={e=>setAssignee(e.target.value)} placeholder="미지정 가능"/></label>
    <label>목표 기한<input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/></label>
+   {dueChanged&&<label>목표 기한 변경 사유 (필수)<textarea aria-label="목표 기한 변경 사유" value={dueReason} maxLength={500} onChange={e=>setDueReason(e.target.value)} placeholder="예: 자재 반입 일정 변경으로 목표 기한 재조정"/></label>}
    <label>임시 안전조치 (최종 완료와 별개)<textarea value={temporaryMeasure} maxLength={1000} onChange={e=>setTemporaryMeasure(e.target.value)} placeholder="예: 위험 구역 출입 통제·표지 설치. 미실시라면 비워 두세요."/></label>
-   <label>진행·확인 내용<textarea value={note} maxLength={2000} onChange={e=>setNote(e.target.value)} placeholder="임시 조치, 진행 상황 또는 확인 내용을 입력"/></label>
-   <button type="button" className="si-btn" disabled={busy||!note.trim()} onClick={()=>void save()}>후속 기록 저장</button></div>}
+   {controlChanged&&<label>임시조치 변경·해제 사유 (필수)<textarea aria-label="임시조치 변경·해제 사유" value={controlReason} maxLength={500} onChange={e=>setControlReason(e.target.value)} placeholder="예: 출입통제 범위 조정, 통제선 상태 변경"/></label>}
+   <label>임시조치 현장 확인 수준 (점검자 직접 입력)
+    <select aria-label="임시조치 현장 확인 수준" value={controlReview} onChange={e=>setControlReview(e.target.value as keyof typeof TEMPORARY_CONTROL_REVIEWS)}>
+     {(Object.entries(TEMPORARY_CONTROL_REVIEWS) as [keyof typeof TEMPORARY_CONTROL_REVIEWS,string][]).map(([key,label])=><option key={key} value={key}>{label}</option>)}
+    </select>
+   </label>
+   <p>현장 확인을 선택하더라도 기록만으로 통제 효과나 위험 해소를 입증하지 않습니다. 통제가 미확인 상태라면 재점검 또는 접근통제 필요성을 현장에서 검토하세요.</p>
+   <label>진행·확인 내용<textarea value={note} maxLength={1600} onChange={e=>setNote(e.target.value)} placeholder="5자 이상: 임시 조치, 진행 상황 또는 확인 내용을 입력"/></label>
+   {formError&&<p role="alert">{formError}</p>}
+   <button type="button" className="si-btn" disabled={busy||note.trim().length<5||(dueChanged&&dueReason.trim().length<5)||(controlChanged&&controlReason.trim().length<5)} onClick={()=>void save()}>후속 기록 저장</button></div>}
   {!!current?.history.length&&<details><summary>조치 이력 {current.history.length}건</summary>{current.history.map((entry,i)=><p key={i}>{new Date(entry.at).toLocaleString('ko-KR')} · {FOLLOWUP_LABELS[entry.status]} · {entry.note} {entry.temporaryMeasure?'· 당시 임시 안전조치: '+entry.temporaryMeasure:''} · 담당 {entry.assignee||'미지정'} · 기한 {entry.dueDate||'미정'}</p>)}</details>}
+  {trace.entries.some(event=>event.dueChanged||event.controlChanged)&&<details><summary>기한·임시통제 변경 전후 확인 ({trace.dueChangeCount+trace.controlChangeCount}건)</summary>
+   <p>아래는 기기에 저장된 이력의 비교입니다. 이전 백업 기록은 변경 사유가 없을 수 있습니다.</p>
+   {trace.entries.filter(event=>event.dueChanged||event.controlChanged).map((event,i)=><p key={i}>
+    {new Date(event.at).toLocaleString('ko-KR')} (기기 시각)
+    {event.dueChanged?' · 목표 기한 '+event.beforeDate+' → '+event.afterDate+' · 변경 사유: '+(event.dueReason||'사유 확인 불가 (이전 기록)'):''}
+    {event.controlChanged?' · 임시조치 변경: '+(event.beforeControl||'미기록')+' → '+(event.afterControl||'미기록')+' · 변경·해제 사유: '+(event.controlReason||'사유 확인 불가 (이전 기록)'):''}
+    {' · 점검자 확인 기록: '+event.controlReview}
+   </p>)}
+  </details>}
  </section>;
 }
 function RecheckEditor({row,action,busy,onSave}:{row:LocalRecord;action?:AdditionalAction;busy:boolean;onSave:(row:LocalRecord,actionId:string|null,entry:Recheck)=>Promise<boolean>}){
@@ -681,12 +737,130 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [readState,setReadState]=useState<'loading'|'ready'|'error'>('loading');
  const [checks,setChecks]=useState<Record<string,string>>({});
  const [filter,setFilter]=useState('all');
+ const [reportScope,setReportScope]=useState<'visible'|'all'>('visible');
+ const [handoffScope,setHandoffScope]=useState<'visible'|'all'>('all');
+ const handoffGeneration=useRef(0);
+ const [handoffPending,setHandoffPending]=useState(false);
+ const [handoffMessage,setHandoffMessage]=useState('');
+ const [handoffPrepared,setHandoffPrepared]=useState<{html:Blob;text:string;count:number;at:string}|null>(null);
+ const handoffHtmlUrl=useReportDownloadUrl(handoffPrepared?.html||null);
+ const [reportIncludeAssignees,setReportIncludeAssignees]=useState(false);
+ const [reportIncludeDetails,setReportIncludeDetails]=useState(false);
+ const [reportIncludeProgress,setReportIncludeProgress]=useState(false);
+ const reportGeneration=useRef(0);
+ const [reportBusy,setReportBusy]=useState(false);
+ const [reportMessage,setReportMessage]=useState('');
+ const [reportFiles,setReportFiles]=useState<{csv:Blob;html:Blob;at:string;count:number}|null>(null);
+ const reportCsvUrl=useReportDownloadUrl(reportFiles?.csv||null);
+ const reportHtmlUrl=useReportDownloadUrl(reportFiles?.html||null);
  const [backupIds,setBackupIds]=useState<string[]>([]);
  const [batchPreview,setBatchPreview]=useState<BatchPreviewEntry[]|null>(null);
  const [storageStatus,setStorageStatus]=useState<StorageStatus|null>(null);
  const [storageMessage,setStorageMessage]=useState('');
  const [storageBusy,setStorageBusy]=useState(false);
- const visibleRows=rows.filter(row=>{const items=[row.followup,...(row.additionalActions||[]).map(item=>item.followup)];return filter==='all'||items.some(item=>filter==='unassigned'?!item?.assignee:filter==='no_due'?!item?.dueDate:filter==='overdue'?!!item&&overdue(item):filter==='review'?item?.status==='review_requested':false);});
+ useEffect(()=>{reportGeneration.current++;setReportFiles(null);setReportMessage('');},
+  [rows,filter,reportScope,reportIncludeAssignees,reportIncludeDetails,reportIncludeProgress]);
+ useEffect(()=>{
+  handoffGeneration.current++;
+  setHandoffPrepared(null);setHandoffMessage('');
+ },[rows,filter,handoffScope]);
+ const recheckQueue=buildLocalRecheckQueue(rows);
+ const recheckSummary=summarizeLocalRecheckQueue(recheckQueue);
+ const recheckFilter=filter.startsWith('recheck:')?filter.slice('recheck:'.length):null;
+ const recheckRecordIds=new Set(recheckQueue.filter(item=>item.bucket===recheckFilter).map(item=>item.recordId));
+ const visibleRows=rows.filter(row=>{
+  if(recheckFilter)return recheckRecordIds.has(row.id);
+  const items=[row.followup,...(row.additionalActions||[]).map(item=>item.followup)];
+  return filter==='all'||items.some(item=>filter==='unassigned'?!item?.assignee:filter==='no_due'?!item?.dueDate:filter==='overdue'?!!item&&overdue(item):filter==='review'?item?.status==='review_requested':false);
+ });
+ const reportTargetQueue=selectLocalRecheckReportTargets(rows,recheckQueue,filter,reportScope==='visible'?'visible':'all');
+ const handoffTargetQueue=selectLocalHandoffTargets(
+  selectLocalRecheckReportTargets(rows,recheckQueue,filter,handoffScope));
+ const reportScopeLabel=reportScope==='all'?'전체 재점검 대상':
+  filter.startsWith('recheck:')?('현재 상태 · '+(LOCAL_RECHECK_LABELS[recheckFilter]||'미확인')):
+  filter==='all'?'현재 화면 · 전체':
+  filter==='unassigned'?'현재 화면 · 담당 미지정':
+  filter==='no_due'?'현재 화면 · 기한 미정':
+  filter==='overdue'?'현재 화면 · 조치 기한 초과':'현재 화면 · 완료 확인 요청';
+ const prepareHandoff=async()=>{
+  if(handoffPending||busy||readState!=='ready')return;
+  setHandoffPending(true);setHandoffPrepared(null);setHandoffMessage('');
+  const generation=handoffGeneration.current;
+  try{
+   const now=new Date();
+   const beforeSnapshot=handoffSourceSnapshot(rows);
+   const first=buildLocalHandoffPlan(rows,now,filter,handoffScope);
+   // A different tab may update an action after this component rendered.
+   // Verify the actual persisted records before creating copyable material.
+   const fresh=await list();
+   if(beforeSnapshot!==handoffSourceSnapshot(fresh))
+    throw new Error('다른 탭에서 점검 기록이 변경됐습니다. 기기 기록 다시 조회 후 인계 내용을 준비하세요.');
+   const confirmed=buildLocalHandoffPlan(fresh,now,filter,handoffScope);
+   if(JSON.stringify(first)!==JSON.stringify(confirmed)||generation!==handoffGeneration.current)
+    throw new Error('인계 대상 또는 화면 선택이 변경됐습니다. 새로 조회한 뒤 다시 준비하세요.');
+   const text=formatLocalHandoffMessage(confirmed);
+   const html=formatLocalHandoffHtml(confirmed);
+   if(text.length>95000||html.length>150000)
+    throw new Error('인계 문서가 너무 큽니다. 상태별 필터로 나누어 준비하세요.');
+   if(generation!==handoffGeneration.current)
+    throw new Error('인계 목록이 바뀌어 이전 문서를 사용하지 않았습니다. 다시 준비하세요.');
+   setHandoffPrepared({
+    html:new Blob([html],{type:'text/html;charset=utf-8'}),
+    text,count:confirmed.entries.length,at:confirmed.localDate,
+   });
+   setHandoffMessage('기기 원본 기록과 인계 목록을 대조했습니다. 아래 인계 문구는 직접 검토·복사하고, 담당자 전달은 별도로 진행하세요.');
+  }catch(error){
+   setHandoffMessage(error instanceof Error?error.message:'인계 내용을 준비하지 못했습니다. 기록을 다시 확인하세요.');
+  }finally{setHandoffPending(false);}
+ };
+ const copyHandoff=async()=>{
+  if(!handoffPrepared)return;
+  try{
+   if(!navigator.clipboard?.writeText)throw new Error('클립보드를 사용할 수 없습니다.');
+   await navigator.clipboard.writeText(handoffPrepared.text);
+   setHandoffMessage('인계 문구를 기기 클립보드에 복사했습니다. 담당자에게 전송하거나 확인받은 것은 아닙니다.');
+  }catch{
+   setHandoffMessage('자동 복사가 제한된 브라우저입니다. 아래 인계 문구를 길게 눌러 직접 복사하세요.');
+  }
+ };
+ const prepareRecheckReport=async()=>{
+  if(reportBusy||busy||readState!=='ready')return;
+  setReportBusy(true);setReportFiles(null);setReportMessage('');
+  const reportToken=reportGeneration.current;
+  try{
+   const generatedAt=new Date();
+   const oldQueue=buildLocalRecheckQueue(rows,generatedAt);
+   const oldSelection=selectLocalRecheckReportTargets(rows,oldQueue,filter,reportScope,generatedAt);
+   const options={generatedAt,scopeLabel:reportScopeLabel,
+    includeAssignees:reportIncludeAssignees,includeDetails:reportIncludeDetails,includeProgress:reportIncludeProgress};
+   const oldReport=buildLocalRecheckReport(oldSelection,rows,options);
+   // Re-open the actual IndexedDB immediately before building the export.
+   // Never export a stale UI snapshot after another tab edited the record.
+   const freshRows=await list();
+   const freshQueue=buildLocalRecheckQueue(freshRows,generatedAt);
+   const freshSelection=selectLocalRecheckReportTargets(freshRows,freshQueue,filter,reportScope,generatedAt);
+   const verifiedReport=buildLocalRecheckReport(freshSelection,freshRows,options);
+   if(reportToken!==reportGeneration.current||
+      JSON.stringify(oldReport.entries)!==JSON.stringify(verifiedReport.entries)||
+      JSON.stringify(oldReport.summary)!==JSON.stringify(verifiedReport.summary)||
+      JSON.stringify(oldReport.progress)!==JSON.stringify(verifiedReport.progress))
+    throw new Error('점검 기록이 다른 탭에서 변경됐습니다. 기기 기록 다시 조회를 눌러 확인한 후 보고서를 준비하세요.');
+   const csv=formatLocalRecheckCsv(verifiedReport);
+   const html=formatLocalRecheckPrintHtml(verifiedReport);
+   if(csv.length>2*1024*1024||html.length>3*1024*1024)
+    throw new Error('보고서 크기가 너무 큽니다. 상태 필터로 대상을 나누어 저장하세요.');
+   if(reportToken!==reportGeneration.current)
+    throw new Error('보고서 선택이 변경됐습니다. 기기 기록을 다시 확인해 주세요.');
+   setReportFiles({
+    csv:new Blob([csv],{type:'text/csv;charset=utf-8'}),
+    html:new Blob([html],{type:'text/html;charset=utf-8'}),
+    at:verifiedReport.localDate,count:verifiedReport.entries.length,
+   });
+   setReportMessage('실제 기기 저장 기록을 다시 확인했습니다. 아래 파일 링크를 눌러 저장하세요. 실제 저장 완료 여부는 기기에서 확인해야 합니다.');
+  }catch(error){
+   setReportMessage(error instanceof Error?error.message:'기기 보고서를 준비하지 못했습니다. 기록을 다시 확인하세요.');
+  }finally{setReportBusy(false);}
+ };
  const refresh=async()=>{const sequence=++readSequence.current;setChecks({});setReadState(previous=>previous==='ready'?'ready':'loading');try{const found=await list();if(sequence===readSequence.current){setRows(found);setReadState('ready');}}catch{if(sequence===readSequence.current)setReadState('error');}};
  useEffect(()=>{void refresh();},[]);
  const loadDraft=async()=>{
@@ -829,11 +1003,11 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   }catch(error){setMessage(error instanceof Error&&!(error instanceof DOMException)&&error.message?error.message:'추가 현장 사진을 저장하지 못했습니다. 사진을 유지합니다. 다시 확인하세요.');return false;}
   finally{flight.current=false;setBusy(false);}
  };
- const saveFollowup=async(id:string,value:Followup):Promise<boolean>=>{
+ const saveFollowup=async(id:string,value:Followup,expected?:Followup):Promise<boolean>=>{
   if(flight.current||!validateFollowup(value))return false;
   flight.current=true;setBusy(true);setMessage('');
   try{
-   await runStore<void>('readwrite',store=>{const request=store.get(id);request.onsuccess=()=>{if(!request.result||(request.result.followup?.history?.length||0)!==value.history.length-1){request.transaction?.abort();return;}store.put({...request.result,followup:value});};});
+   await runStore<void>('readwrite',store=>{const request=store.get(id);request.onsuccess=()=>{if(!request.result||JSON.stringify(request.result.followup||null)!==JSON.stringify(expected||null)){request.transaction?.abort();return;}store.put({...request.result,followup:value});};});
    await refresh();setMessage('후속 조치를 이 기기에 저장했습니다. 서버에는 전송하지 않았습니다.');return true;
   }catch{setMessage('후속 조치를 저장하지 못했습니다. 입력 내용을 확인하고 다시 시도하세요.');return false;}
   finally{flight.current=false;setBusy(false);}
@@ -1084,7 +1258,114 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     </div>}
    </section>
    <label className="si-btn">백업 파일 복원<input type="file" accept="application/json,.json" aria-label="백업 파일 복원" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void restore(file);}}/></label>
-   {readState==='ready'&&<label>후속 조치 모아보기<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">전체</option><option value="unassigned">담당 미지정</option><option value="no_due">기한 미정</option><option value="overdue">기한 초과</option><option value="review">확인 요청</option></select> · {visibleRows.length}건</label>}
+   {readState==='ready'&&<section aria-label="기한별 재점검 관리 현황" className="rounded-xl border border-slate-300 p-3">
+    <h4>F10 · 지연 조치와 재점검 예정 관리</h4>
+    <p>기기 날짜 {localCalendarDate()} 기준 · 재점검/조치 대상 {recheckSummary.total}건. 하나의 점검에 여러 조치 대상이 포함될 수 있습니다.</p>
+    <p>기한 도래는 재점검 필요성을 알리는 <strong>조회용 분류</strong>입니다. 실제 통보·안전 확인·조치 완료·작업 재개 승인이 아닙니다.</p>
+    <div role="group" aria-label="재점검 상태별 바로 보기" className="flex flex-wrap gap-2">
+     {LOCAL_RECHECK_BUCKETS.map(bucket=><button type="button" key={bucket}
+      className="si-btn" aria-pressed={filter==='recheck:'+bucket}
+      onClick={()=>setFilter(previous=>previous==='recheck:'+bucket?'all':'recheck:'+bucket)}>
+      {LOCAL_RECHECK_LABELS[bucket]} {recheckSummary[bucket]}건
+     </button>)}
+    </div>
+    <p>위 버튼을 선택하면 아래 점검 목록이 해당 상태로 좁혀집니다. 담당자 연락은 별도로 수행하고, 재점검 결과는 각 점검의 이력에 직접 저장하세요.</p>
+    {recheckQueue.length>0&&<details>
+     <summary>확인 우선순위 · 전체 대상 보기 ({recheckQueue.length}건)</summary>
+     <ol>{recheckQueue.map(item=><li key={item.id}>
+      <strong>{LOCAL_RECHECK_LABELS[item.bucket]}</strong> · {item.label}
+      {' · '}{item.recordText||'점검 메모 미기록'}
+      {' · '}{item.date?item.dateSource+' '+item.date:'다음 확인 예정일 미정'}
+      {!item.hasAssignee?' · 담당자 미지정':''}
+      {!item.hasTemporaryMeasure&&item.bucket!=='verified'?' · 임시조치 기록 없음':''}
+      {item.bucket==='conflict'?' · 완료 상태와 최신 미완료 재점검 이력이 상충해 전문가 재확인 필요':''}
+     </li>)}</ol>
+    </details>}
+    <div role="group" aria-label="F10 경과 통합 타임라인" className="mt-3 rounded-lg border border-slate-300 p-3">
+     <details>
+      <summary>30차 · 목표 기한·임시통제·재점검 경과 연결 보기 ({recheckFilter?recheckQueue.filter(item=>item.bucket===recheckFilter).length:recheckQueue.length}개 대상)</summary>
+      <p>점검자 기기 이력을 시각순으로 연결합니다. 서로 다른 조치 목표 기한과 재점검 예정일을 구분하고, 임시통제 확인은 점검자 입력으로만 표시합니다. 실제 작업 완료·위험 해소·작업 재개 승인이 아닙니다.</p>
+      <p>한 화면에는 우선순위 순서로 최대 30개 대상의 경과를 표시합니다. 30개를 초과하면 상태별 필터로 좁히거나 아래 CSV·인쇄용 보고서에서 전체 경과를 선택해 저장하세요. 표시하지 않은 항목을 자동 완료 처리하지 않습니다.</p>
+      <ol>{recheckQueue.filter(item=>recheckFilter?item.bucket===recheckFilter:true).slice(0,30).map(item=>{
+       const original=rows.find(row=>row.id===item.recordId);
+       if(!original)return null;
+       const progress=buildLocalRecheckProgress(original,item.actionId);
+       return <li key={item.id}>
+        <details><summary>{LOCAL_RECHECK_LABELS[item.bucket]} · {item.label} · 후속 {progress.followupCount}건 / 재점검 {progress.recheckCount}건</summary>
+         <p>현재 조치 목표 기한: {progress.currentDueDate||'미정'} · 최신 재점검 다음 확인일: {progress.nextCheckDate===null?'재점검 이력 없음':(progress.nextCheckDate||'미정')}</p>
+         <p>기한 변경 {progress.dueChangeCount}건 · 임시조치 변경 {progress.temporaryChangeCount}건 · 최근 임시조치 확인 기록: {progress.lastControlReview}</p>
+         {progress.inconsistentFollowup&&<p role="alert">현재 조치 상태와 마지막 이력이 상충합니다. 점검자 재확인이 필요합니다.</p>}
+         {progress.total===0?<p>후속 조치 및 재점검 이력이 아직 없습니다.</p>:
+          <ol>{progress.events.map(event=><li key={event.id}>
+           {event.at?new Date(event.at).toLocaleString('ko-KR'):'기기 시각 미확인'} · {event.title}
+           {event.dueBefore!==null?' · 목표 기한 '+event.dueBefore+' → '+event.dueAfter:''}
+           {event.dueDate!==null?' · 당시 목표 기한 '+(event.dueDate||'미정'):''}
+           {event.nextCheckDate!==null?' · 당시 다음 확인일 '+(event.nextCheckDate||'미정'):''}
+           {' · '+event.status}
+           {event.controlReview?' · 임시통제 확인 기록: '+event.controlReview:''}
+           {event.evidenceLinked?' · 당시 사진 해시 연결 기록 있음':''}
+          </li>)}</ol>}
+        </details>
+       </li>;
+      })}</ol>
+     </details>
+    </div>
+    <div role="group" aria-label="F10 오늘 현장 인계 준비" className="mt-3 rounded-xl border border-slate-300 p-3">
+     <h5>28차 · 지연 조치 현장 인계 준비</h5>
+     <p>즉시 조치가 어려운 항목을 확인하도록 인계 초안을 만듭니다. 상태 불일치·기한 초과·오늘·3일 이내·다음 확인일 미정, 그리고 이후 예정 중 담당 미기록 항목을 포함합니다. 분류는 안전 위험등급이 아닌 업무 확인 순서입니다.</p>
+     <label>인계 대상 범위
+      <select aria-label="F10 인계 대상 범위" value={handoffScope} disabled={handoffPending||busy} onChange={e=>setHandoffScope(e.target.value as 'visible'|'all')}>
+       <option value="all">전체 점검의 인계 대상</option><option value="visible">현재 상태 필터의 인계 대상</option>
+      </select>
+     </label>
+     <p>인계 대상 {handoffTargetQueue.length}건 / 최대 {F10_HANDOFF_MAX_ITEMS}건. 담당자 미기록 {handoffTargetQueue.filter(item=>!item.hasAssignee).length}건, 임시조치 미기록 {handoffTargetQueue.filter(item=>!item.hasTemporaryMeasure).length}건.</p>
+     <p>이 인계 문구에는 담당자 실명·개인 연락처·사진 원본·자유기입 지연 사유를 자동 포함하지 않습니다. 미기록은 실제 조치가 없었다는 판정이 아닙니다.</p>
+     <button type="button" className="si-btn" disabled={busy||handoffPending||!handoffTargetQueue.length||handoffTargetQueue.length>F10_HANDOFF_MAX_ITEMS}
+      onClick={()=>void prepareHandoff()}>{handoffPending?'기기 인계 기록 대조 중…':'인계 문구·A4 인계표 준비'}</button>
+     {handoffTargetQueue.length>F10_HANDOFF_MAX_ITEMS&&<p role="alert">인계 대상이 40건을 초과했습니다. 현재 상태 필터로 나누어 준비하고 전체 관리대장도 확인하세요. 대상을 조용히 생략하지 않습니다.</p>}
+     {handoffMessage&&<p role="status">{handoffMessage}</p>}
+     {handoffPrepared&&<div aria-label="준비된 F10 인계 자료">
+      <p>기기 기준일 {handoffPrepared.at} · 인계 대상 {handoffPrepared.count}건. 작성 당시의 기기 기록으로만 준비했습니다.</p>
+      <button type="button" className="si-btn" onClick={()=>void copyHandoff()}>인계 문구 복사 (자동 전송 없음)</button>
+      {' '}
+      {handoffHtmlUrl&&<a className="si-btn" href={handoffHtmlUrl} download={'PSI_F10_handoff_'+handoffPrepared.at+'.html'}>A4 인계표 기기에 저장</a>}
+      <label>인계 문구 직접 확인·복사
+       <textarea aria-label="F10 인계 문구 직접 복사" readOnly rows={6} value={handoffPrepared.text}/>
+      </label>
+     </div>}
+     <p>인계표는 내부 관리용이며 통보·수신 확인 또는 위험 해소·작업 재개 승인서가 아닙니다. 현장 위험이 급박하면 인계 예정일을 기다리지 말고 접근통제·작업중지 필요성을 먼저 검토하세요.</p>
+    </div>
+    <div role="group" aria-label="재점검 관리 보고서 만들기" className="mt-3 rounded-lg border border-slate-300 p-3">
+     <h5>30차 · F10 현장 관리·경과 연결 보고서</h5>
+     <p>기기 저장 기록으로 CSV 대장과 A4 가로 인쇄용 HTML을 준비합니다. 서버 업로드·자동 발송 없이 기기에서만 처리합니다. HTML 파일을 연 뒤 인쇄 기능에서 PDF로 저장할 수 있습니다.</p>
+     <label>보고 대상 범위
+      <select aria-label="재점검 보고 범위" value={reportScope} disabled={reportBusy||busy} onChange={e=>setReportScope(e.target.value as 'visible'|'all')}>
+       <option value="visible">현재 상태 필터 기준</option><option value="all">전체 재점검 대상</option>
+      </select>
+     </label>
+     <p>선택 범위: {reportScopeLabel} · 보고 대상 {reportTargetQueue.length}건 / 최대 {F10_LOCAL_REPORT_LIMIT}건. 점검 기록 수와 조치 대상 수는 다를 수 있습니다.</p>
+     <label><input type="checkbox" aria-label="보고서에 담당자 이름 포함" checked={reportIncludeAssignees} disabled={reportBusy} onChange={e=>setReportIncludeAssignees(e.target.checked)}/> 담당자 이름 포함 (선택)</label>
+     <label><input type="checkbox" aria-label="보고서에 상세 자유기입 포함" checked={reportIncludeDetails} disabled={reportBusy} onChange={e=>setReportIncludeDetails(e.target.checked)}/> 지연 사유·임시조치·점검 내용 상세 포함 (선택)</label>
+     <label><input type="checkbox" aria-label="보고서에 F10 경과 연결 이력 포함" checked={reportIncludeProgress} disabled={reportBusy} onChange={e=>setReportIncludeProgress(e.target.checked)}/> 조치기한 변경·임시통제 기록·재점검 경과 연결 포함 (선택)</label>
+     <p>경과 연결을 선택하면 과거 기기 입력 시각·변경 전후 기한·최신 재점검 예정일이 CSV와 A4 문서에 함께 표시됩니다. 과거 자유기입 사유는 ‘상세 자유기입 포함’을 별도로 선택해야 출력됩니다. 1,500개 이력 초과 시 파일 생성을 중단합니다.</p>
+     {(reportIncludeAssignees||reportIncludeDetails)&&<p role="note">선택한 상세 정보에는 근로자 이름·연락처 등 개인정보가 들어 있을 수 있습니다. 저장·공유 전 내용을 직접 확인하세요.</p>}
+     <p>기본 보고서에는 사진 파일·전체 SHA-256·담당자 실명·자유기입 상세를 넣지 않습니다. 현장정보는 점검자 입력값 그대로 표시하며 실제 현장 확인을 대신하지 않습니다.</p>
+     <button type="button" className="si-btn si-primary"
+      disabled={busy||reportBusy||!reportTargetQueue.length||reportTargetQueue.length>F10_LOCAL_REPORT_LIMIT}
+      onClick={()=>void prepareRecheckReport()}>{reportBusy?'기기 기록 재확인 중…':'CSV·인쇄용 보고서 준비'}</button>
+     {reportMessage&&<p role="status">{reportMessage}</p>}
+     {reportFiles&&<div aria-label="준비된 재점검 보고서">
+      <p>준비된 보고: {reportFiles.count}개 조치 대상 · 기기 날짜 {reportFiles.at}. 기기 기록이나 대상 선택이 바뀌면 새로 준비해야 합니다.</p>
+      {reportCsvUrl&&<a className="si-btn" href={reportCsvUrl} download={'PSI_F10_recheck_'+reportFiles.at+'.csv'}>CSV 대장 기기에 저장</a>}
+      {' '}
+      {reportHtmlUrl&&<a className="si-btn" href={reportHtmlUrl} download={'PSI_F10_recheck_'+reportFiles.at+'.html'}>A4 인쇄용 HTML 기기에 저장</a>}
+     </div>}
+     <p>두 파일은 암호화되지 않습니다. 외부 제출 전에 내용·개인정보를 검토하고 적절한 접근권한으로 보관하세요. 보고서를 준비하거나 저장해도 조치 완료가 승인되지 않습니다.</p>
+    </div>
+    <button type="button" className="si-btn" disabled={busy} onClick={()=>void refresh()}>기기 기록 다시 조회</button>
+    <p>급박한 추락·낙하·붕괴 등 위험은 다음 확인일까지 기다리지 말고 접근통제·작업중지 필요성을 현장에서 먼저 검토하세요.</p>
+   </section>}
+   {readState==='ready'&&<label>후속 조치 모아보기<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">전체</option><option value="unassigned">담당 미지정</option><option value="no_due">기한 미정</option><option value="overdue">기한 초과</option><option value="review">확인 요청</option>{LOCAL_RECHECK_BUCKETS.map(bucket=><option value={'recheck:'+bucket} key={bucket}>재점검 · {LOCAL_RECHECK_LABELS[bucket]}</option>)}</select> · 표시 점검 {visibleRows.length}건</label>}
    {readState==='ready'&&visibleRows.map(row=><article key={row.id}><label><input type="checkbox" aria-label="묶음 백업에 선택" checked={backupIds.includes(row.id)} disabled={busy} onChange={e=>setBackupIds(prev=>e.target.checked?[...prev.filter(id=>id!==row.id),row.id]:prev.filter(id=>id!==row.id))}/> 묶음 백업에 선택</label><p>{new Date(row.createdAt).toLocaleString('ko-KR')} · {row.note}</p><p>점검 현장정보: {row.siteContext?fieldContextLabel(row.siteContext):'미기록 (기존 기록 포함)'} · 위치는 점검자 입력이며 자동 검증된 사실이 아닙니다.</p><FieldContextEditor row={row} busy={busy} onSave={saveFieldContext}/><LocalEvidenceAudit inspectionId={row.id} busy={busy}/><p>조치 계획: {row.action||'미작성'} · 파일 무결성 기록: {row.sha256?'SHA-256 기록됨':'미확인'}</p><PrimaryPhotoEditor row={row} busy={busy} onSave={savePrimaryPhoto}/><ContextPhotoEditor row={row} busy={busy} onSave={saveContextPhoto} onOrder={changePhotoOrder} onLink={changeContextLink}/><FollowupEditor row={row} busy={busy} onSave={saveFollowup}/><RecheckEditor row={row} busy={busy} onSave={saveRecheck}/><AdditionalActions row={row} busy={busy} onUpdate={updateAdditionalActions} onPhoto={saveActionPhoto} onRecheck={saveRecheck}/><div><p>조치 후 사진: {row.afterPhoto?row.afterPhoto.name:'아직 없음'}</p><p>이 점검의 조치 후 사진은 위에 표시된 점검 현장정보를 공유합니다. 사진 자체의 촬영 위치를 입증하지는 않습니다.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>{if(capturedAfter&&!window.confirm('아직 저장하지 않은 조치 후 사진을 버리고 다시 촬영할까요?'))return;setCapturedAfter(null);setAfterCamera(row);}}>조치 후 사진 촬영</button> <label className="si-btn">조치 후 사진 {row.afterPhoto?'변경':'연결'}<input aria-label="조치 후 사진 연결" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file&&(!capturedAfter||window.confirm('저장하지 않은 촬영 사진을 버리고 선택한 사진을 연결할까요?')))void saveAfterPhoto(row,file,'file-picker');}}/></label> {row.afterPhoto&&<button type="button" className="si-btn" onClick={()=>download(row.afterPhoto!,row.afterPhoto!.name||'PSI-after.jpg')}>조치 후 사진 내려받기</button>}<p>사진 연결만으로 조치 완료나 안전을 증명하지 않습니다.</p>{!!row.afterHistory?.length&&<details><summary>이전 조치 후 사진 {row.afterHistory.length}장</summary><p>교체 시각은 기기 시각이며 촬영 시각과 다를 수 있습니다.</p>{row.afterHistory.map((entry,i)=><p key={i}>{entry.photo.name} · {new Date(entry.replacedAt).toLocaleString('ko-KR')} <button type="button" className="si-btn" onClick={()=>download(entry.photo,entry.photo.name)}>이전 조치 후 사진 내려받기</button></p>)}</details>}</div><button type="button" className="si-btn" disabled={busy} onClick={()=>void verifyPhoto(row.id)}>사진 변경 확인</button> {checks[row.id]&&<p role="status">{checks[row.id]}</p>} <button type="button" className="si-btn" onClick={()=>download(row.photo,row.photo.name||'PSI-photo.jpg')}>사진 내려받기</button> <button type="button" className="si-btn" onClick={()=>{const {photo:stored,...data}=row;download(new Blob([JSON.stringify({...data,photoName:stored.name,photoType:stored.type},null,2)],{type:'application/json'}),'PSI-local-record-'+row.id+'.json');}}>점검 내용 내려받기</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void backup(row)}>사진과 기록 함께 백업</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>void remove(row.id)}>이 기기 기록 삭제</button></article>)}
    {capturedAfter&&<div role="status"><p>촬영한 조치 후 사진이 아직 저장되지 않았습니다. 연결할 점검: {capturedAfter.row.note}</p><button type="button" className="si-btn" disabled={busy} onClick={()=>void saveAfterPhoto(capturedAfter.row,capturedAfter.file,'camera-dialog',capturedAfter.edit)}>촬영 사진 연결{busy?' 중…':''}</button> <button type="button" className="si-btn" onClick={()=>download(capturedAfter.file,capturedAfter.file.name||'PSI-after.jpg')}>촬영 사진 내려받기</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>{if(window.confirm('저장하지 않은 조치 후 사진을 버릴까요?'))setCapturedAfter(null);}}>촬영 사진 버리기</button></div>}
    <p>사진 변경 확인은 저장된 사진과 기록된 비교값만 대조합니다. 백업에서 복원한 기록의 비교값은 백업 당시 생성됐을 수 있습니다. 점검 내용의 변경이나 촬영 시각·장소·안전 여부는 증명하지 않습니다.</p>
