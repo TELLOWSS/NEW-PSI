@@ -43,6 +43,14 @@ describe('F10 local-only safety handover',()=>{
   ]);
   expect(selected.find((e:any)=>e.recordId==='verified')).toBeUndefined();
  });
+ it('keeps earliest overdue deadline first within the same priority group',()=>{
+  const queue=buildLocalRecheckQueue([
+   record('recent',{followup:follow('pending','2026-10-31','','')}),
+   record('oldest',{followup:follow('pending','2026-10-11','','')}),
+  ],NOW);
+  expect(selectLocalHandoffTargets(queue).map((item:any)=>item.recordId))
+   .toEqual(['oldest','recent']);
+ });
  it('summarizes work without copying names, detail notes, photos or full hashes',()=>{
   const plan=buildLocalHandoffPlan(records,NOW);
   expect(plan.summary).toMatchObject({
