@@ -89,3 +89,19 @@
 이번 작업 근거: `utils/psiHandoffReview.ts`, `components/ocr/PsiEvidenceHandoffReviewPanel.tsx`, `tests/psiHandoffReview.test.ts`, `docs/PSI_EVIDENCE_HANDOFF_REVIEW_SCOPE_20261101.md`.
 
 **완료 판정:** 검토서 작성 코드가 있다고 해서 결재·반출 원장이 구축된 것이 아니다. 선정된 파일 목록만으로 원본 ZIP의 개인정보가 제거되지 않는다.
+
+## 12차 진행 갱신 — 독립 승인과 자료 반출의 분리 (2026-11-01)
+
+| 코드 | 현 상태 | 확인 범위·남은 일 |
+|---|---|---|
+| P00 배포 | **차단 유지** | Vercel READY 최신 SHA `849c29ca`(7차). 8~11차 GitHub main 병합만 완료. Vercel 빌드 한도 해제 및 운영 SHA 일치 필요 |
+| P12 제출 전 검토서 | **11차 코드 병합** | PR #185 → `da86e75b`; 검토 목적·기관·파일 선택·해시 대조 로컬 JSON. 아직 운영 미배포 |
+| P12 독립 결재 | **12차 SQL 시범 / 운영 미적용** | `psi_tenant_disclosure_requests`와 `psi_tenant_disclosure_decisions`에 신청자≠승인자, 활동 역할, 기업 RLS, 서버시각, 수정금지·중복결정 차단을 시범 설계·검증 |
+| P12 실제 자료 최소화 | **미구현** | 실제 비식별화/선택된 파일만으로 재패키징, 승인된 발송 절차 필요 |
+| P12 실제 반출·수신 감사 | **미구현** | 별도 승인 후 전송·다운로드·인수·철회·폐기 로그, 제출본 해시 기록 필요 |
+| P05 현장별 권한 | **미구현** | 기업 단위 격리와 별개인 `site_id` 기반 접근 제한, 다기기 사용자 검증 |
+| P03/P04 서버 원본 | **10차 시범 / 운영 DB 미적용** | 신규 원본 수신 시간/불변 수신 원장 staging proposal. 실제 Supabase migration과 서명/독립 시점 불변 증명 없음 |
+
+**12차 단계의 완료기준**: 격리 DB 보안 테스트와 CI 통과. 운영 DB 변경 없음, 실제 제출 자동 전송 없음. 작성자·검토자를 구분해도 외부 전송 권한을 자동 부여하지 않는다.
+
+상세 근거: `docs/PSI_TENANT_DISCLOSURE_APPROVAL_FOUNDATION_20261101.md`.
