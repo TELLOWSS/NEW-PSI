@@ -36,6 +36,7 @@ try{
                     downloadPreparedPsiRasterPdfReview,
                 }=await import('/utils/psiPdfRasterReview.ts');
                 const {psiMaskFromDrag,applyOpaquePsiPhotoMasks}=await import('/utils/psiPhotoMaskGeometry.ts');
+                const {verifyPsiSavedReviewZipLocally}=await import('/utils/psiPdfLocalArchiveVerifier.ts');
 
                 // A genuine PDF with xref/trailer, but synthetic-only text and no personal data.
                 const makePdf=(count,mode='text')=>{
@@ -192,6 +193,35 @@ try{
                     +(await toHash(new TextEncoder().encode(json)))+'  REVIEW_MANIFEST.json\n')
                     throw new Error('ZIP internal checksum file mismatch');
                 pass('unzip-and-verify-three-real-entries');
+
+                // A user may later select the ZIP from a phone download folder.
+                const downloaded=new File([writes[0].blob],'saved-psi-review.zip',{type:'application/zip'});
+                const local=await verifyPsiSavedReviewZipLocally(downloaded,originalHash);
+                if(!local.verified||!local.boundToOpenSource||local.pageCount!==1||
+                    local.rasterPdfSha256!==outputHash||local.disclosureApproved!==false)
+                    throw new Error('Downloaded ZIP local re-import verification failed');
+                pass('reimport-real-downloaded-zip-with-source-binding');
+
+                const alteredZip=await window.JSZip.loadAsync(writes[0].blob);
+                alteredZip.file('PSI_MASKED_REVIEW.pdf',makePdf(1,'empty'));
+                let mutatedRejected=false;
+                try{
+                    const altered=await alteredZip.generateAsync({type:'blob'});
+                    await verifyPsiSavedReviewZipLocally(new File([altered],'tampered.zip'));
+                }catch(e){mutatedRejected=String(e).includes('SHA-256');}
+                if(!mutatedRejected)throw new Error('Tampered ZIP content reimport was accepted');
+                pass('tampered-zip-reimport-rejected');
+
+                const extraZip=await window.JSZip.loadAsync(writes[0].blob);
+                extraZip.file('UNMASKED_ORIGINAL.pdf',sourceBytes);
+                let extraRejected=false;
+                try{
+                    const extraFile=await extraZip.generateAsync({type:'blob'});
+                    await verifyPsiSavedReviewZipLocally(new File([extraFile],'extra.zip'));
+                }catch(e){extraRejected=String(e).includes('허용되지 않은');}
+                if(!extraRejected)throw new Error('ZIP with original/unreviewed files was accepted');
+                pass('unreviewed-zip-attachment-rejected');
+
 
                 await verifyPsiRasterPdfHasNoExtractableContent(pdfBytes,1,plan);
                 pass('reopen-downloaded-pdf-and-verify-blackout');

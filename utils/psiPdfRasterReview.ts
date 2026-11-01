@@ -394,15 +394,3 @@ export const downloadPreparedPsiRasterPdfReview=async(
     return manifest;
 };
 
-export const downloadPsiRasterPdfReview=async(
-    file:File,sourceHash:string,plans:readonly PsiPdfPageReview[],
-)=>{
-    const result=await buildPsiRasterPdfReview(file,sourceHash,plans);
-    const save=await ensureFileSaver();
-    if(!save)throw new Error('파일 다운로드 기능을 사용할 수 없습니다.');
-    save(result.blob,result.fileName);
-    // Save a separate review manifest, not embedded in output PDF.
-    save(new Blob([JSON.stringify(result.manifest,null,2)+'\n'],
-        {type:'application/json;charset=utf-8'}),'PSI_PDF_REVIEW_MANIFEST_'+result.manifest.preparedAt.slice(0,10)+'.json');
-    return result.manifest;
-};
