@@ -70,6 +70,9 @@ export const buildPsiHandoffReviewDraft = (
     }
     if (!Number.isFinite(Date.parse(input.generatedAt))) throw new Error('검토서 작성시각이 올바르지 않습니다.');
     const workerRecordId = id(input.workerRecordId);
+    if (verification.recordId !== workerRecordId) {
+        throw new Error('선택한 ZIP의 원본 기록 ID가 현재 검토 중인 근로자 기록과 일치하지 않습니다.');
+    }
     const filename = restrictedText(input.packageName, 240);
     const purpose = restrictedText(input.purpose, 300, 10);
     const recipient = restrictedText(input.recipientOrganization, 160, 2);
