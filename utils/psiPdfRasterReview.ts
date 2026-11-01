@@ -317,7 +317,7 @@ export const downloadPreparedPsiRasterPdfReview=async(
     if(!save)throw new Error('파일 다운로드 기능을 사용할 수 없습니다.');
     // This is a locally prepared image-based PDF, not an approved disclosure.
     save(prepared.blob,prepared.fileName);
-    save(new Blob([JSON.stringify(manifest,null,2)+'\\n'],
+    save(new Blob([JSON.stringify(manifest,null,2)+'\n'],
         {type:'application/json;charset=utf-8'}),
         'PSI_PDF_REVIEW_MANIFEST_'+manifest.preparedAt.slice(0,10)+'.json');
     return manifest;
