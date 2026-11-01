@@ -4,6 +4,7 @@ import {legalForText} from '../../lib/inspector/legal';
 import {sourceReviewState} from '../../lib/inspector/sourceReview';
 import {FOLLOWUP_STATES, FOLLOWUP_LABELS, validateFollowup, validateAdditionalActions, overdue} from '../../lib/inspector/localFollowup.mjs';
 import {buildLocalRecheckQueue,summarizeLocalRecheckQueue,LOCAL_RECHECK_BUCKETS,LOCAL_RECHECK_LABELS,localCalendarDate} from '../../lib/inspector/localRecheckQueue.mjs';
+import {buildLocalRecheckReport,selectLocalRecheckReportTargets,formatLocalRecheckCsv,formatLocalRecheckPrintHtml,F10_LOCAL_REPORT_LIMIT} from '../../lib/inspector/localRecheckReport.mjs';
 
 type Followup={status:string;assignee:string;dueDate:string;temporaryMeasure?:string;history:{status:string;assignee:string;dueDate:string;temporaryMeasure?:string;note:string;at:string}[]};
 type Recheck={id:string;result:'delayed'|'temporary_checked'|'needs_more'|'review_requested';reason:string;note:string;nextCheckDate:string;at:string;photoSha256:string|null;followupStatus:string};
@@ -220,6 +221,16 @@ async function buildEvidenceManifest(inspection:LocalRecord):Promise<EvidenceMan
 }
 const list=()=>runStore<LocalRecord[]>('readonly',(store,set)=>{const request=store.getAll();request.onsuccess=()=>set((request.result as LocalRecord[]).filter(item=>item.id!==DRAFT_KEY).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));});
 function download(blob:Blob,name:string){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+function useReportDownloadUrl(blob:Blob|null){
+ const [current,setCurrent]=useState<{blob:Blob;url:string}|null>(null);
+ useEffect(()=>{
+  if(!blob){setCurrent(null);return;}
+  const url=URL.createObjectURL(blob);
+  setCurrent({blob,url});
+  return ()=>URL.revokeObjectURL(url);
+ },[blob]);
+ return current?.blob===blob?current.url:'';
+}
 
 const BACKUP_LIMIT=20*1024*1024;
 const BATCH_LIMIT=50*1024*1024;
@@ -682,11 +693,21 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [readState,setReadState]=useState<'loading'|'ready'|'error'>('loading');
  const [checks,setChecks]=useState<Record<string,string>>({});
  const [filter,setFilter]=useState('all');
+ const [reportScope,setReportScope]=useState<'visible'|'all'>('visible');
+ const [reportIncludeAssignees,setReportIncludeAssignees]=useState(false);
+ const [reportIncludeDetails,setReportIncludeDetails]=useState(false);
+ const [reportBusy,setReportBusy]=useState(false);
+ const [reportMessage,setReportMessage]=useState('');
+ const [reportFiles,setReportFiles]=useState<{csv:Blob;html:Blob;at:string;count:number}|null>(null);
+ const reportCsvUrl=useReportDownloadUrl(reportFiles?.csv||null);
+ const reportHtmlUrl=useReportDownloadUrl(reportFiles?.html||null);
  const [backupIds,setBackupIds]=useState<string[]>([]);
  const [batchPreview,setBatchPreview]=useState<BatchPreviewEntry[]|null>(null);
  const [storageStatus,setStorageStatus]=useState<StorageStatus|null>(null);
  const [storageMessage,setStorageMessage]=useState('');
  const [storageBusy,setStorageBusy]=useState(false);
+ useEffect(()=>{setReportFiles(null);setReportMessage('');},
+  [rows,filter,reportScope,reportIncludeAssignees,reportIncludeDetails]);
  const recheckQueue=buildLocalRecheckQueue(rows);
  const recheckSummary=summarizeLocalRecheckQueue(recheckQueue);
  const recheckFilter=filter.startsWith('recheck:')?filter.slice('recheck:'.length):null;
@@ -696,6 +717,46 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   const items=[row.followup,...(row.additionalActions||[]).map(item=>item.followup)];
   return filter==='all'||items.some(item=>filter==='unassigned'?!item?.assignee:filter==='no_due'?!item?.dueDate:filter==='overdue'?!!item&&overdue(item):filter==='review'?item?.status==='review_requested':false);
  });
+ const reportTargetQueue=selectLocalRecheckReportTargets(rows,recheckQueue,filter,reportScope==='visible'?'visible':'all');
+ const reportScopeLabel=reportScope==='all'?'전체 재점검 대상':
+  filter.startsWith('recheck:')?('현재 상태 · '+(LOCAL_RECHECK_LABELS[recheckFilter]||'미확인')):
+  filter==='all'?'현재 화면 · 전체':
+  filter==='unassigned'?'현재 화면 · 담당 미지정':
+  filter==='no_due'?'현재 화면 · 기한 미정':
+  filter==='overdue'?'현재 화면 · 조치 기한 초과':'현재 화면 · 완료 확인 요청';
+ const prepareRecheckReport=async()=>{
+  if(reportBusy||busy||readState!=='ready')return;
+  setReportBusy(true);setReportFiles(null);setReportMessage('');
+  try{
+   const generatedAt=new Date();
+   const oldQueue=buildLocalRecheckQueue(rows,generatedAt);
+   const oldSelection=selectLocalRecheckReportTargets(rows,oldQueue,filter,reportScope,generatedAt);
+   const options={generatedAt,scopeLabel:reportScopeLabel,
+    includeAssignees:reportIncludeAssignees,includeDetails:reportIncludeDetails};
+   const oldReport=buildLocalRecheckReport(oldSelection,rows,options);
+   // Re-open the actual IndexedDB immediately before building the export.
+   // Never export a stale UI snapshot after another tab edited the record.
+   const freshRows=await list();
+   const freshQueue=buildLocalRecheckQueue(freshRows,generatedAt);
+   const freshSelection=selectLocalRecheckReportTargets(freshRows,freshQueue,filter,reportScope,generatedAt);
+   const verifiedReport=buildLocalRecheckReport(freshSelection,freshRows,options);
+   if(JSON.stringify(oldReport.entries)!==JSON.stringify(verifiedReport.entries)||
+      JSON.stringify(oldReport.summary)!==JSON.stringify(verifiedReport.summary))
+    throw new Error('점검 기록이 다른 탭에서 변경됐습니다. 기기 기록 다시 조회를 눌러 확인한 후 보고서를 준비하세요.');
+   const csv=formatLocalRecheckCsv(verifiedReport);
+   const html=formatLocalRecheckPrintHtml(verifiedReport);
+   if(csv.length>2*1024*1024||html.length>3*1024*1024)
+    throw new Error('보고서 크기가 너무 큽니다. 상태 필터로 대상을 나누어 저장하세요.');
+   setReportFiles({
+    csv:new Blob([csv],{type:'text/csv;charset=utf-8'}),
+    html:new Blob([html],{type:'text/html;charset=utf-8'}),
+    at:verifiedReport.localDate,count:verifiedReport.entries.length,
+   });
+   setReportMessage('실제 기기 저장 기록을 다시 확인했습니다. 아래 파일 링크를 눌러 저장하세요. 실제 저장 완료 여부는 기기에서 확인해야 합니다.');
+  }catch(error){
+   setReportMessage(error instanceof Error?error.message:'기기 보고서를 준비하지 못했습니다. 기록을 다시 확인하세요.');
+  }finally{setReportBusy(false);}
+ };
  const refresh=async()=>{const sequence=++readSequence.current;setChecks({});setReadState(previous=>previous==='ready'?'ready':'loading');try{const found=await list();if(sequence===readSequence.current){setRows(found);setReadState('ready');}}catch{if(sequence===readSequence.current)setReadState('error');}};
  useEffect(()=>{void refresh();},[]);
  const loadDraft=async()=>{
@@ -1116,6 +1177,31 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
       {item.bucket==='conflict'?' · 완료 상태와 최신 미완료 재점검 이력이 상충해 전문가 재확인 필요':''}
      </li>)}</ol>
     </details>}
+    <div aria-label="재점검 관리 보고서 만들기" className="mt-3 rounded-lg border border-slate-300 p-3">
+     <h5>27차 · 현장 관리 보고서 만들기</h5>
+     <p>기기 저장 기록으로 CSV 대장과 A4 가로 인쇄용 HTML을 준비합니다. 서버 업로드·자동 발송 없이 기기에서만 처리합니다. HTML 파일을 연 뒤 인쇄 기능에서 PDF로 저장할 수 있습니다.</p>
+     <label>보고 대상 범위
+      <select aria-label="재점검 보고 범위" value={reportScope} disabled={reportBusy||busy} onChange={e=>setReportScope(e.target.value as 'visible'|'all')}>
+       <option value="visible">현재 상태 필터 기준</option><option value="all">전체 재점검 대상</option>
+      </select>
+     </label>
+     <p>선택 범위: {reportScopeLabel} · 보고 대상 {reportTargetQueue.length}건 / 최대 {F10_LOCAL_REPORT_LIMIT}건. 점검 기록 수와 조치 대상 수는 다를 수 있습니다.</p>
+     <label><input type="checkbox" aria-label="보고서에 담당자 이름 포함" checked={reportIncludeAssignees} disabled={reportBusy} onChange={e=>setReportIncludeAssignees(e.target.checked)}/> 담당자 이름 포함 (선택)</label>
+     <label><input type="checkbox" aria-label="보고서에 상세 자유기입 포함" checked={reportIncludeDetails} disabled={reportBusy} onChange={e=>setReportIncludeDetails(e.target.checked)}/> 지연 사유·임시조치·점검 내용 상세 포함 (선택)</label>
+     {(reportIncludeAssignees||reportIncludeDetails)&&<p role="note">선택한 상세 정보에는 근로자 이름·연락처 등 개인정보가 들어 있을 수 있습니다. 저장·공유 전 내용을 직접 확인하세요.</p>}
+     <p>기본 보고서에는 사진 파일·전체 SHA-256·담당자 실명·자유기입 상세를 넣지 않습니다. 현장정보는 점검자 입력값 그대로 표시하며 실제 현장 확인을 대신하지 않습니다.</p>
+     <button type="button" className="si-btn si-primary"
+      disabled={busy||reportBusy||!reportTargetQueue.length||reportTargetQueue.length>F10_LOCAL_REPORT_LIMIT}
+      onClick={()=>void prepareRecheckReport()}>{reportBusy?'기기 기록 재확인 중…':'CSV·인쇄용 보고서 준비'}</button>
+     {reportMessage&&<p role="status">{reportMessage}</p>}
+     {reportFiles&&<div aria-label="준비된 재점검 보고서">
+      <p>준비된 보고: {reportFiles.count}개 조치 대상 · 기기 날짜 {reportFiles.at}. 기기 기록이나 대상 선택이 바뀌면 새로 준비해야 합니다.</p>
+      {reportCsvUrl&&<a className="si-btn" href={reportCsvUrl} download={'PSI_F10_recheck_'+reportFiles.at+'.csv'}>CSV 대장 기기에 저장</a>}
+      {' '}
+      {reportHtmlUrl&&<a className="si-btn" href={reportHtmlUrl} download={'PSI_F10_recheck_'+reportFiles.at+'.html'}>A4 인쇄용 HTML 기기에 저장</a>}
+     </div>}
+     <p>두 파일은 암호화되지 않습니다. 외부 제출 전에 내용·개인정보를 검토하고 적절한 접근권한으로 보관하세요. 보고서를 준비하거나 저장해도 조치 완료가 승인되지 않습니다.</p>
+    </div>
     <button type="button" className="si-btn" disabled={busy} onClick={()=>void refresh()}>기기 기록 다시 조회</button>
     <p>급박한 추락·낙하·붕괴 등 위험은 다음 확인일까지 기다리지 말고 접근통제·작업중지 필요성을 현장에서 먼저 검토하세요.</p>
    </section>}
