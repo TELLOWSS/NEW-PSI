@@ -1,6 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import InspectorCameraDialog from '../components/inspector/InspectorCameraDialog';
-import {shareInspectorPacket,shareResultMessage,copyInspectorShareText,shareCopyResultMessage} from '../lib/inspector/sharing';
+import {shareInspectorPacket,shareResultMessage,copyInspectorShareText,shareCopyResultMessage,type InspectorSharePacket} from '../lib/inspector/sharing';
 import {addFieldPhoto,getFieldPhoto,listFieldPhotos,localPhotoError,removeFieldPhotos,type FieldPhoto} from '../lib/inspector/fieldPhotoStore';
 import {assetHash} from '../lib/inspector/photoAssets';
 import {verifyFieldPhotosForDelivery,FieldPhotoDeliveryError} from '../lib/inspector/fieldPhotoDelivery';
@@ -20,6 +20,7 @@ export default function FieldCamera(){
  const [invalidPhotos,setInvalidPhotos]=useState<string[]>([]);const invalidRef=useRef<Set<string>>(new Set());
  const [archive,setArchive]=useState<Blob|null>(null),[packing,setPacking]=useState(false);
  const [transferring,setTransferring]=useState(false);
+ const [shareRetry,setShareRetry]=useState<{packet:InspectorSharePacket;selection:string;activeId:string}|null>(null);
  const transferRef=useRef(false);
  const beginTransfer=()=>{
   if(transferRef.current||busy||checkingHash||!!pending)return false;
@@ -27,6 +28,7 @@ export default function FieldCamera(){
  };
  const endTransfer=()=>{transferRef.current=false;setTransferring(false);};
  const reportDeliveryError=(error:unknown)=>{
+  setShareRetry(null);
   if(error instanceof FieldPhotoDeliveryError&&error.affectedIds.length){
    error.affectedIds.forEach(id=>invalidRef.current.add(id));
    setInvalidPhotos([...invalidRef.current]);
@@ -37,6 +39,7 @@ export default function FieldCamera(){
  const archiveSelection=useRef('');archiveSelection.current=selected.join('|');
  const archiveUrl=usePhotoUrl(archive);
  useEffect(()=>{setArchive(null);},[selected,photos]);
+ useEffect(()=>{setShareRetry(null);},[selected,photos,activeId,site,location]);
  const active=photos.find(row=>row.id===activeId)||null,activeUrl=usePhotoUrl(active?.blob||null),pendingUrl=usePhotoUrl(pending);
  const size=async()=>{try{const result=await navigator.storage?.estimate();if(result?.usage!==undefined&&result.quota!==undefined)setUsage(`이 사이트 사용량 약 ${(result.usage/1048576).toFixed(1)} MB / 할당량 약 ${(result.quota/1048576).toFixed(0)} MB`);}catch{setUsage('');}};
  useEffect(()=>{let alive=true;void listFieldPhotos().then(rows=>{if(!alive)return;setPhotos(rows);setActiveId(rows.at(-1)?.id||'');setAvailable(true);}).catch(error=>{if(alive)setMessage(localPhotoError(error));}).finally(()=>{if(alive)setBusy(false);});void size();return()=>{alive=false;};},[]);
@@ -55,7 +58,10 @@ export default function FieldCamera(){
    const checked=await verifyFieldPhotosForDelivery(photos,[active.id]);
    const fresh=checked[0];
    const file=new File([fresh.blob],fresh.name,{type:fresh.type});
-   const result=await shareInspectorPacket({title:'현장 사진',text:caption,files:[file]});
+   const packet:InspectorSharePacket={title:'현장 사진',text:caption,files:[file]};
+   const result=await shareInspectorPacket(packet);
+   if(result==='failed')setShareRetry({packet,selection:archiveSelection.current,activeId:active.id});
+   else setShareRetry(null);
    setMessage(shareResultMessage[result]);
   }catch(error){reportDeliveryError(error);}
   finally{endTransfer();}
@@ -69,10 +75,28 @@ export default function FieldCamera(){
    if(archiveSelection.current!==selection||checked.some(row=>invalidRef.current.has(row.id)))
     throw new FieldPhotoDeliveryError('사진 선택이 변경됐습니다. 다시 확인해 주세요.',[],'selection');
    const files=checked.map(row=>new File([row.blob],row.name,{type:row.type}));
-   const result=await shareInspectorPacket({title:'현장 사진',text:'선택한 현장 사진',files});
+   const packet:InspectorSharePacket={title:'현장 사진',text:'선택한 현장 사진',files};
+   const result=await shareInspectorPacket(packet);
+   if(result==='failed')setShareRetry({packet,selection,activeId});
+   else setShareRetry(null);
    setMessage(shareResultMessage[result]);
   }catch(error){reportDeliveryError(error);}
   finally{endTransfer();}
+ };
+ /** Reopen a blocked OS share sheet directly from a fresh tap, using the already hash-verified File objects. */
+ const retryShare=()=>{
+  if(!shareRetry||transferRef.current||busy||checkingHash||!!pending)return;
+  if(archiveSelection.current!==shareRetry.selection||activeId!==shareRetry.activeId||
+      shareRetry.packet.files?.some(file=>!file.size)){
+   setShareRetry(null);setMessage('사진 선택이 변경됐습니다. 다시 검증하고 공유하세요.');return;
+  }
+  transferRef.current=true;setTransferring(true);
+  // Must be invoked synchronously from the button event; no async preflight
+  // between this explicit tap and navigator.share().
+  void shareInspectorPacket(shareRetry.packet).then(result=>{
+   setMessage(shareResultMessage[result]);
+   if(result!=='failed')setShareRetry(null);
+  }).finally(endTransfer);
  };
  const prepareArchive=async()=>{
   if(selected.some(id=>invalidRef.current.has(id))||!selected.length||!beginTransfer())return;
@@ -97,6 +121,13 @@ export default function FieldCamera(){
    {pending&&pendingUrl&&<div className="field-camera-pending"><strong>{busy?'사진 보관 중':'사진 보관을 확인하지 못했습니다'}</strong><img src={pendingUrl} alt="보관 대기 중인 사진"/><p>이 사진은 아직 임시 상태입니다. 기기에 내려받거나 보관을 다시 시도하세요. 기존 사진은 그대로 있습니다.</p><div className="field-camera-actions"><a href={pendingUrl} download={pending.name}>대기 사진 기기에 저장</a><button type="button" disabled={busy} onClick={()=>void save(pending)}>보관 다시 시도</button><button type="button" disabled={busy} onClick={()=>{if(window.confirm('보관되지 않은 사진을 버릴까요?'))setPending(null);}}>대기 사진 버리기</button></div></div>}
    {active&&activeUrl?<><img src={activeUrl} alt="선택한 현장 사진 미리보기"/><div className="field-camera-status">{invalidPhotos.includes(active.id)?"보관 상태 불일치 · 이전 미리보기 사본":"이 브라우저에 보관됨 · 사진첩에는 자동 저장되지 않음"}</div><details className="field-camera-details"><summary>현장 정보 덧붙이기 (선택)</summary><label>현장명<input value={site} maxLength={100} onChange={e=>setSite(e.target.value)} placeholder="예: ○○ 현장"/></label><label>위치<input value={location} maxLength={100} onChange={e=>setLocation(e.target.value)} placeholder="예: 2동 3층"/></label><p>직접 입력한 정보는 저장되지 않으며 사진 파일에 기록되지 않습니다. 공유 앱에 따라 문구가 제외될 수 있습니다.</p><label>전달 문구<textarea readOnly rows={3} value={caption}/></label><button type="button" onClick={()=>void copy()}>문구 복사</button></details><div className="field-camera-actions field-camera-active-actions"><button type="button" disabled={busy||!!pending||transferring} onClick={newPhoto}>다음 사진 촬영</button>{!checkingHash&&(invalidPhotos.includes(active.id)?<a href={activeUrl} download={`이전-미리보기-${active.name}`}>이전 미리보기 사본 저장</a>:<a href={activeUrl} download={active.name} className="field-camera-primary">사진 기기에 저장</a>)}<button type="button" disabled={busy||checkingHash||transferring||invalidPhotos.includes(active.id)} onClick={()=>void share()}>{transferring?'보관 파일 검증 중…':'사진 공유'}</button></div></>:<><div className="field-camera-placeholder" aria-hidden="true">◎</div><h2>현장을 사진으로 남겨보세요</h2><p>사진은 서버로 전송되지 않습니다.</p><div className="field-camera-actions"><button type="button" className="field-camera-primary" disabled={busy||!!pending} onClick={newPhoto}>사진 촬영하기</button><label>사진첩에서 선택<input type="file" aria-label="사진첩에서 선택" accept="image/jpeg,image/png,image/webp" disabled={busy||!!pending} onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)choose(f);}}/></label></div></>}
    {message&&<p role="status">{message}</p>}
+   {shareRetry&&<div className="field-camera-pending" role="group" aria-label="공유창 재시도">
+    <p>사진 파일 검증은 통과했습니다. 일부 모바일 브라우저에서는 검증 시간이 길면 공유창이 차단될 수 있습니다.
+    아래 버튼을 직접 누르면 검증된 동일 파일로 공유창을 다시 엽니다. 실제 전송 여부는 공유 앱에서 확인하세요.</p>
+    <div className="field-camera-actions"><button type="button" className="field-camera-primary"
+     disabled={busy||transferring||checkingHash||shareRetry.selection!==archiveSelection.current||shareRetry.activeId!==activeId}
+     onClick={retryShare}>검증 완료 · 공유창 다시 열기</button></div>
+   </div>}
   </section>
   {active&&<details className="field-camera-next"><summary>보관 파일 정보</summary><p>{active.sha256?<>보관 시 계산한 SHA-256: <code className="field-camera-hash">{active.sha256}</code></>:'이 사진의 보관 시 해시는 기록되지 않았습니다.'}</p>{active.sha256&&<div className="field-camera-actions"><button type="button" disabled={checkingHash||transferring} onClick={()=>void verifyHash()}>보관 파일 다시 확인</button></div>}{hashCheck?.id===active.id&&<p role="status">{hashCheck.text}</p>}{invalidPhotos.includes(active.id)&&<p>일반 공유와 ZIP이 차단되었습니다. 화면의 사진은 이전에 불러온 사본이며 현재 보관 파일과 다를 수 있습니다.</p>}<p>브라우저에 보관한 파일의 해시입니다. 일치해도 카메라 센서 원본이나 촬영 시각·현장 상태를 증명하지 않습니다.</p></details>}
   <section className="field-camera-next" aria-label="브라우저 사진함"><h2>{available?`이 브라우저의 사진 ${photos.length}장`:busy?'사진함 확인 중':'사진함 확인 필요'}</h2><p>브라우저 데이터 삭제, 비공개 모드 종료 또는 저장공간 정리로 사진이 사라질 수 있습니다. 중요한 사진은 기기에도 저장하세요.</p>{usage&&<p>{usage} · 브라우저 정책에 따라 달라질 수 있습니다.</p>}{invalidPhotos.length>0&&<p role="status">이 화면에서 확인된 불일치 사진은 공유·ZIP 선택에서 제외하세요. 해당 사진을 열어 보관 파일 정보를 확인할 수 있습니다.</p>}{!available&&!busy&&<p>사진함을 열지 못했습니다. 이 상태에서는 보관 여부를 확인할 수 없습니다.</p>}{photos.length>0&&<><ul className="field-camera-list">{photos.map((row,index)=><li key={row.id}><PhotoThumb blob={row.blob}/><label><input aria-label={`사진 ${index+1} 선택`} type="checkbox" disabled={transferring} checked={selected.includes(row.id)} onChange={e=>{const checked=e.target.checked;setSelected(previous=>checked?[...previous,row.id]:previous.filter(id=>id!==row.id));}}/> 사진 {index+1}</label><button type="button" aria-label={`사진 ${index+1} 보기`} aria-pressed={row.id===activeId} disabled={busy||!!pending||transferring} onClick={()=>chooseStored(row.id)}>{row.id===activeId?'보는 중':'보기'}</button></li>)}</ul><div className="field-camera-actions"><button type="button" disabled={busy||checkingHash||transferring||!selected.length||selected.some(id=>invalidPhotos.includes(id))} onClick={()=>void shareSelected()}>선택 사진 공유 ({selected.length})</button><button type="button" disabled={busy||checkingHash||transferring||!selected.length} onClick={()=>void remove(selected)}>선택 사진 삭제 ({selected.length})</button><button type="button" disabled={busy||checkingHash||transferring} onClick={()=>void remove(photos.map(row=>row.id))}>전체 사진 삭제</button></div><p>여러 장 공유가 지원되지 않으면 각 사진을 열어 기기에 저장하거나 개별 공유하세요.</p></>}</section>
