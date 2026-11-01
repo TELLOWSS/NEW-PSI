@@ -5,6 +5,7 @@ import { verifyPsiEvidenceArchive, type EvidencePackageVerification } from '../.
 import { buildPsiHandoffReviewDraft } from '../../utils/psiHandoffReview';
 import { downloadPsiMinimizedReviewArchive } from '../../utils/psiMinimizedReviewArchive';
 import { downloadPsiTextRedactedReviewArchive } from '../../utils/psiTextRedactedArchive';
+import { PsiPhotoPrivacyReviewPanel } from './PsiPhotoPrivacyReviewPanel';
 
 export const PsiEvidenceHandoffReviewPanel: React.FC<{ record: WorkerRecord; hasPendingEdits?: boolean }> = ({
     record, hasPendingEdits = false,
@@ -244,6 +245,13 @@ export const PsiEvidenceHandoffReviewPanel: React.FC<{ record: WorkerRecord; has
                 새 가림 검토용 ZIP SHA-256: {redactedHash}
             </p>}
         </div>}
+        {verified && verification && sourceZip && <PsiPhotoPrivacyReviewPanel
+            key={record.id + ':' + verification.zipSha256}
+            sourceZip={sourceZip}
+            verification={verification}
+            recordId={record.id}
+            hasPendingEdits={hasPendingEdits || busy}
+        />}
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {([
                 ['제출 목적·요청 내용', purpose, setPurpose, '예: ○○ 사고 조사에 따른 사실관계 확인'],
