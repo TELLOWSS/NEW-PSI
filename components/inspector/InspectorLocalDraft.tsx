@@ -6,6 +6,7 @@ import {FOLLOWUP_STATES, FOLLOWUP_LABELS, validateFollowup, validateAdditionalAc
 import {prepareFollowupChange,analyzeFollowupChangeTrace,TEMPORARY_CONTROL_REVIEWS} from '../../lib/inspector/localFollowupChangeTrace.mjs';
 import {buildLocalRecheckQueue,summarizeLocalRecheckQueue,LOCAL_RECHECK_BUCKETS,LOCAL_RECHECK_LABELS,localCalendarDate} from '../../lib/inspector/localRecheckQueue.mjs';
 import {buildLocalRecheckReport,selectLocalRecheckReportTargets,formatLocalRecheckCsv,formatLocalRecheckPrintHtml,F10_LOCAL_REPORT_LIMIT} from '../../lib/inspector/localRecheckReport.mjs';
+import {buildLocalRecheckProgress} from '../../lib/inspector/localRecheckProgress.mjs';
 import {buildLocalHandoffPlan,selectLocalHandoffTargets,formatLocalHandoffMessage,formatLocalHandoffHtml,handoffSourceSnapshot,F10_HANDOFF_MAX_ITEMS} from '../../lib/inspector/localRecheckHandoff.mjs';
 
 type Followup={status:string;assignee:string;dueDate:string;temporaryMeasure?:string;history:{status:string;assignee:string;dueDate:string;temporaryMeasure?:string;note:string;at:string}[]};
@@ -745,6 +746,8 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const handoffHtmlUrl=useReportDownloadUrl(handoffPrepared?.html||null);
  const [reportIncludeAssignees,setReportIncludeAssignees]=useState(false);
  const [reportIncludeDetails,setReportIncludeDetails]=useState(false);
+ const [reportIncludeProgress,setReportIncludeProgress]=useState(false);
+ const reportGeneration=useRef(0);
  const [reportBusy,setReportBusy]=useState(false);
  const [reportMessage,setReportMessage]=useState('');
  const [reportFiles,setReportFiles]=useState<{csv:Blob;html:Blob;at:string;count:number}|null>(null);
@@ -755,8 +758,8 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [storageStatus,setStorageStatus]=useState<StorageStatus|null>(null);
  const [storageMessage,setStorageMessage]=useState('');
  const [storageBusy,setStorageBusy]=useState(false);
- useEffect(()=>{setReportFiles(null);setReportMessage('');},
-  [rows,filter,reportScope,reportIncludeAssignees,reportIncludeDetails]);
+ useEffect(()=>{reportGeneration.current++;setReportFiles(null);setReportMessage('');},
+  [rows,filter,reportScope,reportIncludeAssignees,reportIncludeDetails,reportIncludeProgress]);
  useEffect(()=>{
   handoffGeneration.current++;
   setHandoffPrepared(null);setHandoffMessage('');
@@ -823,12 +826,13 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const prepareRecheckReport=async()=>{
   if(reportBusy||busy||readState!=='ready')return;
   setReportBusy(true);setReportFiles(null);setReportMessage('');
+  const reportToken=reportGeneration.current;
   try{
    const generatedAt=new Date();
    const oldQueue=buildLocalRecheckQueue(rows,generatedAt);
    const oldSelection=selectLocalRecheckReportTargets(rows,oldQueue,filter,reportScope,generatedAt);
    const options={generatedAt,scopeLabel:reportScopeLabel,
-    includeAssignees:reportIncludeAssignees,includeDetails:reportIncludeDetails};
+    includeAssignees:reportIncludeAssignees,includeDetails:reportIncludeDetails,includeProgress:reportIncludeProgress};
    const oldReport=buildLocalRecheckReport(oldSelection,rows,options);
    // Re-open the actual IndexedDB immediately before building the export.
    // Never export a stale UI snapshot after another tab edited the record.
@@ -836,13 +840,17 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    const freshQueue=buildLocalRecheckQueue(freshRows,generatedAt);
    const freshSelection=selectLocalRecheckReportTargets(freshRows,freshQueue,filter,reportScope,generatedAt);
    const verifiedReport=buildLocalRecheckReport(freshSelection,freshRows,options);
-   if(JSON.stringify(oldReport.entries)!==JSON.stringify(verifiedReport.entries)||
-      JSON.stringify(oldReport.summary)!==JSON.stringify(verifiedReport.summary))
+   if(reportToken!==reportGeneration.current||
+      JSON.stringify(oldReport.entries)!==JSON.stringify(verifiedReport.entries)||
+      JSON.stringify(oldReport.summary)!==JSON.stringify(verifiedReport.summary)||
+      JSON.stringify(oldReport.progress)!==JSON.stringify(verifiedReport.progress))
     throw new Error('점검 기록이 다른 탭에서 변경됐습니다. 기기 기록 다시 조회를 눌러 확인한 후 보고서를 준비하세요.');
    const csv=formatLocalRecheckCsv(verifiedReport);
    const html=formatLocalRecheckPrintHtml(verifiedReport);
    if(csv.length>2*1024*1024||html.length>3*1024*1024)
     throw new Error('보고서 크기가 너무 큽니다. 상태 필터로 대상을 나누어 저장하세요.');
+   if(reportToken!==reportGeneration.current)
+    throw new Error('보고서 선택이 변경됐습니다. 기기 기록을 다시 확인해 주세요.');
    setReportFiles({
     csv:new Blob([csv],{type:'text/csv;charset=utf-8'}),
     html:new Blob([html],{type:'text/html;charset=utf-8'}),
@@ -1273,6 +1281,35 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
       {item.bucket==='conflict'?' · 완료 상태와 최신 미완료 재점검 이력이 상충해 전문가 재확인 필요':''}
      </li>)}</ol>
     </details>}
+    <div role="group" aria-label="F10 경과 통합 타임라인" className="mt-3 rounded-lg border border-slate-300 p-3">
+     <details>
+      <summary>30차 · 목표 기한·임시통제·재점검 경과 연결 보기 ({recheckFilter?recheckQueue.filter(item=>item.bucket===recheckFilter).length:recheckQueue.length}개 대상)</summary>
+      <p>점검자 기기 이력을 시각순으로 연결합니다. 서로 다른 조치 목표 기한과 재점검 예정일을 구분하고, 임시통제 확인은 점검자 입력으로만 표시합니다. 실제 작업 완료·위험 해소·작업 재개 승인이 아닙니다.</p>
+      <p>한 화면에는 우선순위 순서로 최대 30개 대상의 경과를 표시합니다. 30개를 초과하면 상태별 필터로 좁히거나 아래 CSV·인쇄용 보고서에서 전체 경과를 선택해 저장하세요. 표시하지 않은 항목을 자동 완료 처리하지 않습니다.</p>
+      <ol>{recheckQueue.filter(item=>recheckFilter?item.bucket===recheckFilter:true).slice(0,30).map(item=>{
+       const original=rows.find(row=>row.id===item.recordId);
+       if(!original)return null;
+       const progress=buildLocalRecheckProgress(original,item.actionId);
+       return <li key={item.id}>
+        <details><summary>{LOCAL_RECHECK_LABELS[item.bucket]} · {item.label} · 후속 {progress.followupCount}건 / 재점검 {progress.recheckCount}건</summary>
+         <p>현재 조치 목표 기한: {progress.currentDueDate||'미정'} · 최신 재점검 다음 확인일: {progress.nextCheckDate===null?'재점검 이력 없음':(progress.nextCheckDate||'미정')}</p>
+         <p>기한 변경 {progress.dueChangeCount}건 · 임시조치 변경 {progress.temporaryChangeCount}건 · 최근 임시조치 확인 기록: {progress.lastControlReview}</p>
+         {progress.inconsistentFollowup&&<p role="alert">현재 조치 상태와 마지막 이력이 상충합니다. 점검자 재확인이 필요합니다.</p>}
+         {progress.total===0?<p>후속 조치 및 재점검 이력이 아직 없습니다.</p>:
+          <ol>{progress.events.map(event=><li key={event.id}>
+           {event.at?new Date(event.at).toLocaleString('ko-KR'):'기기 시각 미확인'} · {event.title}
+           {event.dueBefore!==null?' · 목표 기한 '+event.dueBefore+' → '+event.dueAfter:''}
+           {event.dueDate!==null?' · 당시 목표 기한 '+(event.dueDate||'미정'):''}
+           {event.nextCheckDate!==null?' · 당시 다음 확인일 '+(event.nextCheckDate||'미정'):''}
+           {' · '+event.status}
+           {event.controlReview?' · 임시통제 확인 기록: '+event.controlReview:''}
+           {event.evidenceLinked?' · 당시 사진 해시 연결 기록 있음':''}
+          </li>)}</ol>}
+        </details>
+       </li>;
+      })}</ol>
+     </details>
+    </div>
     <div role="group" aria-label="F10 오늘 현장 인계 준비" className="mt-3 rounded-xl border border-slate-300 p-3">
      <h5>28차 · 지연 조치 현장 인계 준비</h5>
      <p>즉시 조치가 어려운 항목을 확인하도록 인계 초안을 만듭니다. 상태 불일치·기한 초과·오늘·3일 이내·다음 확인일 미정, 그리고 이후 예정 중 담당 미기록 항목을 포함합니다. 분류는 안전 위험등급이 아닌 업무 확인 순서입니다.</p>
@@ -1299,7 +1336,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
      <p>인계표는 내부 관리용이며 통보·수신 확인 또는 위험 해소·작업 재개 승인서가 아닙니다. 현장 위험이 급박하면 인계 예정일을 기다리지 말고 접근통제·작업중지 필요성을 먼저 검토하세요.</p>
     </div>
     <div role="group" aria-label="재점검 관리 보고서 만들기" className="mt-3 rounded-lg border border-slate-300 p-3">
-     <h5>27차 · 현장 관리 보고서 만들기</h5>
+     <h5>30차 · F10 현장 관리·경과 연결 보고서</h5>
      <p>기기 저장 기록으로 CSV 대장과 A4 가로 인쇄용 HTML을 준비합니다. 서버 업로드·자동 발송 없이 기기에서만 처리합니다. HTML 파일을 연 뒤 인쇄 기능에서 PDF로 저장할 수 있습니다.</p>
      <label>보고 대상 범위
       <select aria-label="재점검 보고 범위" value={reportScope} disabled={reportBusy||busy} onChange={e=>setReportScope(e.target.value as 'visible'|'all')}>
@@ -1309,6 +1346,8 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
      <p>선택 범위: {reportScopeLabel} · 보고 대상 {reportTargetQueue.length}건 / 최대 {F10_LOCAL_REPORT_LIMIT}건. 점검 기록 수와 조치 대상 수는 다를 수 있습니다.</p>
      <label><input type="checkbox" aria-label="보고서에 담당자 이름 포함" checked={reportIncludeAssignees} disabled={reportBusy} onChange={e=>setReportIncludeAssignees(e.target.checked)}/> 담당자 이름 포함 (선택)</label>
      <label><input type="checkbox" aria-label="보고서에 상세 자유기입 포함" checked={reportIncludeDetails} disabled={reportBusy} onChange={e=>setReportIncludeDetails(e.target.checked)}/> 지연 사유·임시조치·점검 내용 상세 포함 (선택)</label>
+     <label><input type="checkbox" aria-label="보고서에 F10 경과 연결 이력 포함" checked={reportIncludeProgress} disabled={reportBusy} onChange={e=>setReportIncludeProgress(e.target.checked)}/> 조치기한 변경·임시통제 기록·재점검 경과 연결 포함 (선택)</label>
+     <p>경과 연결을 선택하면 과거 기기 입력 시각·변경 전후 기한·최신 재점검 예정일이 CSV와 A4 문서에 함께 표시됩니다. 과거 자유기입 사유는 ‘상세 자유기입 포함’을 별도로 선택해야 출력됩니다. 1,500개 이력 초과 시 파일 생성을 중단합니다.</p>
      {(reportIncludeAssignees||reportIncludeDetails)&&<p role="note">선택한 상세 정보에는 근로자 이름·연락처 등 개인정보가 들어 있을 수 있습니다. 저장·공유 전 내용을 직접 확인하세요.</p>}
      <p>기본 보고서에는 사진 파일·전체 SHA-256·담당자 실명·자유기입 상세를 넣지 않습니다. 현장정보는 점검자 입력값 그대로 표시하며 실제 현장 확인을 대신하지 않습니다.</p>
      <button type="button" className="si-btn si-primary"
