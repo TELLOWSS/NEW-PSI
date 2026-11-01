@@ -21,6 +21,7 @@ export const PsiPdfPrivacyReviewPanel:React.FC<{hasPendingEdits:boolean}>=({hasP
     const [loading,setLoading]=useState(false);
     const [notice,setNotice]=useState('');
     const [doneHash,setDoneHash]=useState('');
+    const [zoom,setZoom]=useState<100|150|200>(100);
     const canvas=useRef<HTMLCanvasElement|null>(null);
     const originalPixels=useRef<ImageData|null>(null);
     const documentRef=useRef<any>(null);
@@ -86,7 +87,7 @@ export const PsiPdfPrivacyReviewPanel:React.FC<{hasPendingEdits:boolean}>=({hasP
     };
     const loadFile=async(file:File|null)=>{
         closeDocument();setSource(null);setSourceHash('');setPageCount(0);
-        setCurrent(1);setMasksByPage({});setReviewed([]);setDoneHash('');setNotice('');
+        setCurrent(1);setMasksByPage({});setReviewed([]);setDoneHash('');setNotice('');setZoom(100);
         if(!file)return;
         setLoading(true);
         try{
@@ -158,9 +159,23 @@ export const PsiPdfPrivacyReviewPanel:React.FC<{hasPendingEdits:boolean}>=({hasP
         {sourceHash&&<p className="mt-2 break-all rounded-lg bg-slate-50 p-2 font-mono text-[11px]">
             선택한 PDF SHA-256: {sourceHash}
         </p>}
+        {pageCount>0&&<div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold text-slate-800">문서 확대</span>
+            {([100,150,200] as const).map(level=>
+                <button key={level} type="button" disabled={loading}
+                    aria-pressed={zoom===level} onClick={()=>setZoom(level)}
+                    className={'min-h-10 rounded-lg border px-3 text-xs font-bold '+
+                        (zoom===level?'border-indigo-800 bg-indigo-900 text-white':
+                            'border-slate-300 bg-white text-slate-800')}>
+                    {level}%
+                </button>)}
+            <span className="text-[11px] text-slate-600">확대 후 좌우로 이동하며 작은 식별정보도 확인하세요.</span>
+        </div>}
+        <div className={pageCount?'mt-2 max-h-[65vh] w-full overflow-auto rounded-lg border border-slate-300 bg-slate-100':'hidden'}
+            data-psi-pdf-zoom-scroll="true">
         <canvas ref={canvas} aria-label="PDF 페이지 픽셀 가림 미리보기"
-            className={pageCount?'mt-3 block h-auto w-full touch-none rounded-lg border border-slate-300':'hidden'}
-            style={{touchAction:'none'}}
+            className="block h-auto cursor-crosshair touch-none bg-white"
+            style={{touchAction:'none',width:zoom+'%',maxWidth:'none'}}
             onPointerDown={e=>{
                 if(loading||hasPendingEdits||!originalPixels.current)return;
                 e.currentTarget.setPointerCapture(e.pointerId);
@@ -172,6 +187,7 @@ export const PsiPdfPrivacyReviewPanel:React.FC<{hasPendingEdits:boolean}>=({hasP
             }}
             onPointerUp={e=>commit({clientX:e.clientX,clientY:e.clientY})}
             onPointerCancel={()=>{dragStart.current=null;setDraft(null);}}/>
+        </div>
         {pageCount>0&&<>
             <div className="mt-3 flex flex-wrap gap-2">
                 {Array.from({length:pageCount},(_,index)=>index+1).map(number=>
