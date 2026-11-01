@@ -72,7 +72,7 @@ describe('F10 30th opt-in report timeline',()=>{
   const report=make({includeProgress:true,includeDetails:true});
   const csv=formatLocalRecheckCsv(report);
   const html=formatLocalRecheckPrintHtml(report);
-  expect(csv).toContain("'=HYPERLINK");
+  expect(csv).toContain('기한 변경: =HYPERLINK');
   expect(csv).toContain('설치할 자재를 이동');
   expect(csv).toContain('개인 연락처 추가메모');
   expect(html).toContain('&quot;https://example.invalid');
