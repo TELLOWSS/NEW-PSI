@@ -118,8 +118,13 @@ describe('F10 30th integrated local progress',()=>{
   expect(result.items).toHaveLength(2);
   expect(result.totalEvents).toBe(5);
   expect(JSON.stringify(synthetic)).toBe(source);
-  const many=Array(F10_PROGRESS_EXPORT_LIMIT).fill(queue[0]);
-  expect(()=>buildLocalRecheckProgressForTargets([synthetic],many))
+  const whole=queue.find((item:any)=>item.actionId===null);
+  expect(whole).toBeDefined();
+  const atLimit=Array(F10_PROGRESS_EXPORT_LIMIT/4).fill(whole);
+  expect(buildLocalRecheckProgressForTargets([synthetic],atLimit).totalEvents)
+   .toBe(F10_PROGRESS_EXPORT_LIMIT);
+  const beyond=[...atLimit,whole];
+  expect(()=>buildLocalRecheckProgressForTargets([synthetic],beyond))
    .toThrow('1,500건');
  });
 });
