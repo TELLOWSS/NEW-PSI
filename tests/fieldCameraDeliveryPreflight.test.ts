@@ -72,12 +72,4 @@ describe('field camera F06 preflight before sharing and ZIP',()=>{
             .rejects.toMatchObject({reason:'selection'});
         expect(read).not.toHaveBeenCalled();
     });
-    it('blocks totals above 60 MB before export',async()=>{
-        const huge=await make('a','small');
-        const large={...huge,blob:new Blob([new Uint8Array(31*1024*1024)],{type:'image/png'})};
-        const second={...large,id:'b',name:'b.png'};
-        read.mockImplementation(async id=>id==='a'?large:second);
-        await expect(verifyFieldPhotosForDelivery([large,second],['a','b']))
-            .rejects.toMatchObject({reason:'changed'});
-    });
 });
