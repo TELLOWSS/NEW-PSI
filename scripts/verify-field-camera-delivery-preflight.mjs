@@ -25,6 +25,11 @@ try{
     window.__deliveries=[];
     Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>true});
     Object.defineProperty(navigator,'share',{configurable:true,value:async data=>{
+     if(window.__failOnceShare){
+      window.__failOnceShare=false;
+      const error=new Error('Synthetic mobile user activation expired');
+      error.name='NotAllowedError';throw error;
+     }
      window.__deliveries.push({size:data.files[0].size,name:data.files[0].name});
     }});
    });
@@ -38,6 +43,16 @@ try{
    await page.getByText('공유 앱에 전달했습니다.',{exact:false}).waitFor();
    assert.equal(await page.evaluate(()=>window.__deliveries.length),1);
    results.push({view:viewport.width,case:'verified-single-share',status:'PASS'});
+   // Synthetic OS sharing refusal after async hashing. The second tap must
+   // invoke navigator.share directly without another hash/IDB wait.
+   await page.evaluate(()=>{window.__failOnceShare=true;});
+   await page.getByRole('button',{name:'사진 공유',exact:true}).click();
+   const reopen=page.getByRole('button',{name:'검증 완료 · 공유창 다시 열기'});
+   await reopen.waitFor();
+   await reopen.click();
+   await page.waitForFunction(()=>window.__deliveries.length===2);
+   assert.equal(await reopen.count(),0);
+   results.push({view:viewport.width,case:'mobile-share-activation-recovery',status:'PASS'});
    await page.getByLabel('사진 1 선택').check();
    await page.getByRole('button',{name:'선택 사진 ZIP 준비 (1)'}).click();
    const link=page.getByRole('link',{name:'ZIP 기기에 저장'});
@@ -72,7 +87,7 @@ try{
    });
    await page.getByRole('button',{name:'선택 사진 공유 (1)'}).click();
    await page.getByText('기기 사진함의 실제 파일 해시가 달라 공유를 중단했습니다.',{exact:true}).waitFor();
-   assert.equal(await page.evaluate(()=>window.__deliveries.length),1,
+   assert.equal(await page.evaluate(()=>window.__deliveries.length),2,
     'changed photo must not be sent through OS share');
    assert.equal(await page.getByRole('link',{name:'ZIP 기기에 저장'}).count(),0,
     'archive generated before detecting tampering must be invalidated');
