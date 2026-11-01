@@ -148,6 +148,43 @@ try{
  // A manually entered "verified" status never silently clears a delayed/temporary recheck.
  await panel.getByLabel('후속 조치 모아보기').selectOption('recheck:conflict');
  assert.equal(await actionRow.count(),1,'conflicting target must be findable');
+
+ const f10Report=priority.getByRole('group',{name:'재점검 관리 보고서 만들기'});
+ await f10Report.getByText('보고 대상 1건 / 최대 500건',{exact:false}).waitFor();
+ await f10Report.getByRole('button',{name:'CSV·인쇄용 보고서 준비'}).click();
+ const csvLink=f10Report.getByRole('link',{name:'CSV 대장 기기에 저장'});
+ const htmlLink=f10Report.getByRole('link',{name:'A4 인쇄용 HTML 기기에 저장'});
+ await csvLink.waitFor();await htmlLink.waitFor();
+ const firstCsvDownload=page.waitForEvent('download');await csvLink.click();
+ const firstCsv=await readFile(await (await firstCsvDownload).path(),'utf8');
+ assert.match(firstCsv,/"조치 대상","1","점검 기록","1"/);
+ assert.match(firstCsv,/상태 불일치 · 확인 필요/);
+ assert.doesNotMatch(firstCsv,/합성 담당자|자재 공급이 늦어져/,'default CSV must omit personal details');
+ assert.doesNotMatch(firstCsv,/iVBORw0KGgo/,'report must not contain photo bytes');
+ const firstHtmlDownload=page.waitForEvent('download');await htmlLink.click();
+ const firstHtml=await readFile(await (await firstHtmlDownload).path(),'utf8');
+ assert.match(firstHtml,/default-src 'none'/,'inert print HTML CSP required');
+ assert.match(firstHtml,/상태 불일치 · 확인 필요/);
+ assert.doesNotMatch(firstHtml,/합성 담당자|자재 공급이 늦어져|<script/);
+ // The user explicitly opts in to names/free-text; all targets are included.
+ await f10Report.getByLabel('재점검 보고 범위').selectOption('all');
+ await f10Report.getByLabel('보고서에 담당자 이름 포함').check();
+ await f10Report.getByLabel('보고서에 상세 자유기입 포함').check();
+ await f10Report.getByText('보고 대상 2건 / 최대 500건',{exact:false}).waitFor();
+ await f10Report.getByRole('button',{name:'CSV·인쇄용 보고서 준비'}).click();
+ await csvLink.waitFor();
+ const detailedCsvDownload=page.waitForEvent('download');await csvLink.click();
+ const detailedCsv=await readFile(await (await detailedCsvDownload).path(),'utf8');
+ assert.match(detailedCsv,/"조치 대상","2","점검 기록","1"/);
+ assert.match(detailedCsv,/합성 담당자/,'optional assignee must be present only when requested');
+ assert.match(detailedCsv,/자재 공급이 늦어져/,'optional delay reason must be present only when requested');
+ assert.doesNotMatch(detailedCsv,/iVBORw0KGgo/);
+ // Reset selection and release the intentionally sensitive report URL.
+ await f10Report.getByLabel('보고서에 상세 자유기입 포함').uncheck();
+ await f10Report.getByLabel('보고서에 담당자 이름 포함').uncheck();
+ await f10Report.getByLabel('재점검 보고 범위').selectOption('visible');
+ await csvLink.waitFor({state:'detached'});
+
  await panel.getByLabel('후속 조치 모아보기').selectOption('recheck:today');
  assert.equal(await actionRow.count(),0,'no invented same-day task');
  await panel.getByLabel('후속 조치 모아보기').selectOption('recheck:scheduled');
