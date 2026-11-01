@@ -92,6 +92,10 @@ export const stripPsiCanvasPngMetadata = (source:Uint8Array):Uint8Array => {
             seenIHDR=true;
             const w=view.getUint32(offset+8,false),h=view.getUint32(offset+12,false);
             if(w<1||h<1||w*h>20_000_000)throw new Error('PNG 픽셀 크기 제한');
+            // Reject palette or alpha-key formats whose ancillary transparency
+            // information could be lost when metadata chunks are discarded.
+            if(source[offset+16]!==8||![2,6].includes(source[offset+17]))
+                throw new Error('캔버스 PNG 색상 형식이 지원되지 않습니다.');
         }
         if(name==='IDAT')seenIDAT=true;
         if(name==='IEND'){
