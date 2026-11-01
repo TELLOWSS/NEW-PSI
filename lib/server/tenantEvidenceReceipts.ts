@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { requireTenantContext, sendTenantError, TenantAccessError, type TenantContext } from './tenantAuth.js';
 
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_BYTES = 2 * 1024 * 1024;
 const MAX_BODY_BYTES = 2_900_000;
 const allowedRoles = ['owner','admin','reviewer'] as const;
