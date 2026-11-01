@@ -149,6 +149,35 @@ try{
  await panel.getByLabel('후속 조치 모아보기').selectOption('recheck:conflict');
  assert.equal(await actionRow.count(),1,'conflicting target must be findable');
 
+ const f10Handoff=priority.getByRole('group',{name:'F10 오늘 현장 인계 준비'});
+ await f10Handoff.getByText('인계 대상 1건 / 최대 40건',{exact:false}).waitFor();
+ await f10Handoff.getByRole('button',{name:'인계 문구·A4 인계표 준비'}).click();
+ const directCopy=f10Handoff.getByLabel('F10 인계 문구 직접 복사');
+ await directCopy.waitFor();
+ const handoffText=await directCopy.inputValue();
+ assert.match(handoffText,/상태 불일치 · 확인 필요/);
+ assert.match(handoffText,/담당자 기록 확인/);
+ assert.doesNotMatch(handoffText,/합성 담당자|자재 공급이 늦어져|iVBORw0KGgo/);
+ const handoffLink=f10Handoff.getByRole('link',{name:'A4 인계표 기기에 저장'});
+ const handoffDownload=page.waitForEvent('download');
+ await handoffLink.click();
+ const handoffHtml=await readFile(await (await handoffDownload).path(),'utf8');
+ assert.match(handoffHtml,/default-src 'none'/);
+ assert.match(handoffHtml,/상태 불일치 · 확인 필요/);
+ assert.doesNotMatch(handoffHtml,/합성 담당자|자재 공급이 늦어져|<script|iVBORw0KGgo/);
+ await page.evaluate(()=>{
+  Object.defineProperty(navigator,'clipboard',{configurable:true,value:{
+   writeText:async value=>{window.__syntheticHandoffCopied=value;},
+  }});
+ });
+ await f10Handoff.getByRole('button',{name:'인계 문구 복사 (자동 전송 없음)'}).click();
+ await f10Handoff.getByText('인계 문구를 기기 클립보드에 복사했습니다.',{exact:false}).waitFor();
+ assert.equal(await page.evaluate(()=>window.__syntheticHandoffCopied),handoffText);
+ await f10Handoff.getByLabel('F10 인계 대상 범위').selectOption('visible');
+ await directCopy.waitFor({state:'detached'});
+ await f10Handoff.getByText('인계 대상 1건 / 최대 40건',{exact:false}).waitFor();
+ // No automatic handover to outside services is made at any step.
+
  const f10Report=priority.getByRole('group',{name:'재점검 관리 보고서 만들기'});
  await f10Report.getByText('보고 대상 1건 / 최대 500건',{exact:false}).waitFor();
  await f10Report.getByRole('button',{name:'CSV·인쇄용 보고서 준비'}).click();
