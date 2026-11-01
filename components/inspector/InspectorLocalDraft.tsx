@@ -747,6 +747,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [reportIncludeAssignees,setReportIncludeAssignees]=useState(false);
  const [reportIncludeDetails,setReportIncludeDetails]=useState(false);
  const [reportIncludeProgress,setReportIncludeProgress]=useState(false);
+ const reportGeneration=useRef(0);
  const [reportBusy,setReportBusy]=useState(false);
  const [reportMessage,setReportMessage]=useState('');
  const [reportFiles,setReportFiles]=useState<{csv:Blob;html:Blob;at:string;count:number}|null>(null);
@@ -757,7 +758,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [storageStatus,setStorageStatus]=useState<StorageStatus|null>(null);
  const [storageMessage,setStorageMessage]=useState('');
  const [storageBusy,setStorageBusy]=useState(false);
- useEffect(()=>{setReportFiles(null);setReportMessage('');},
+ useEffect(()=>{reportGeneration.current++;setReportFiles(null);setReportMessage('');},
   [rows,filter,reportScope,reportIncludeAssignees,reportIncludeDetails,reportIncludeProgress]);
  useEffect(()=>{
   handoffGeneration.current++;
@@ -825,6 +826,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const prepareRecheckReport=async()=>{
   if(reportBusy||busy||readState!=='ready')return;
   setReportBusy(true);setReportFiles(null);setReportMessage('');
+  const reportToken=reportGeneration.current;
   try{
    const generatedAt=new Date();
    const oldQueue=buildLocalRecheckQueue(rows,generatedAt);
@@ -838,13 +840,17 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    const freshQueue=buildLocalRecheckQueue(freshRows,generatedAt);
    const freshSelection=selectLocalRecheckReportTargets(freshRows,freshQueue,filter,reportScope,generatedAt);
    const verifiedReport=buildLocalRecheckReport(freshSelection,freshRows,options);
-   if(JSON.stringify(oldReport.entries)!==JSON.stringify(verifiedReport.entries)||
-      JSON.stringify(oldReport.summary)!==JSON.stringify(verifiedReport.summary))
+   if(reportToken!==reportGeneration.current||
+      JSON.stringify(oldReport.entries)!==JSON.stringify(verifiedReport.entries)||
+      JSON.stringify(oldReport.summary)!==JSON.stringify(verifiedReport.summary)||
+      JSON.stringify(oldReport.progress)!==JSON.stringify(verifiedReport.progress))
     throw new Error('점검 기록이 다른 탭에서 변경됐습니다. 기기 기록 다시 조회를 눌러 확인한 후 보고서를 준비하세요.');
    const csv=formatLocalRecheckCsv(verifiedReport);
    const html=formatLocalRecheckPrintHtml(verifiedReport);
    if(csv.length>2*1024*1024||html.length>3*1024*1024)
     throw new Error('보고서 크기가 너무 큽니다. 상태 필터로 대상을 나누어 저장하세요.');
+   if(reportToken!==reportGeneration.current)
+    throw new Error('보고서 선택이 변경됐습니다. 기기 기록을 다시 확인해 주세요.');
    setReportFiles({
     csv:new Blob([csv],{type:'text/csv;charset=utf-8'}),
     html:new Blob([html],{type:'text/html;charset=utf-8'}),
