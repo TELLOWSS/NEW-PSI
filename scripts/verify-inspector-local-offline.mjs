@@ -721,7 +721,8 @@ try{
  await traceEditor.getByText('기한 변경 1건 · 임시조치 변경·해제 1건',{exact:false}).waitFor();
  await traceEditor.getByText('기한·임시통제 변경 전후 확인 (2건)').click();
  await traceEditor.getByText('2030-01-02 → 2030-02-05',{exact:false}).waitFor();
- await traceEditor.getByText('자재 반입 일정 변경으로 목표 완료일을 재조정함',{exact:false}).first().waitFor();
+ await traceEditor.locator('details').filter({hasText:'기한·임시통제 변경 전후 확인 (2건)'})
+  .getByText('자재 반입 일정 변경으로 목표 완료일을 재조정함',{exact:false}).waitFor();
  const traceBackupEvent=page.waitForEvent('download');
  await traceRecord.getByRole('button',{name:'사진과 기록 함께 백업'}).click();
  const traceBytes=await readFile(await (await traceBackupEvent).path());
