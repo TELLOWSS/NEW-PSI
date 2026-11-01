@@ -26,8 +26,9 @@ function parseBody(req:any): Record<string,unknown> {
 function bytesFromBase64(value:unknown):Buffer {
     if (typeof value !== 'string' || value.length < 4 || value.length > 2_800_000
         || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) invalid();
-    const bytes = Buffer.from(value,'base64');
-    if (!bytes.length || bytes.length > MAX_BYTES || bytes.toString('base64') !== value) invalid();
+    const safeBase64 = value as string;
+    const bytes = Buffer.from(safeBase64,'base64');
+    if (!bytes.length || bytes.length > MAX_BYTES || bytes.toString('base64') !== safeBase64) invalid();
     return bytes;
 }
 
@@ -62,13 +63,13 @@ async function createReceipt(context:TenantContext,req:any) {
         ||typeof body.sourceKind!=='string'||!types.has(body.sourceKind)
         ||typeof body.mediaType!=='string'||!media.has(body.mediaType)) invalid();
     const original=bytesFromBase64(body.base64);
-    validateMedia(original,body.mediaType);
+    validateMedia(original,body.mediaType as string);
     let clientRecordedAt:string|null=null;
     if (body.clientRecordedAt!==undefined && body.clientRecordedAt!==null) {
         if (typeof body.clientRecordedAt!=='string'
           ||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d\d:\d\d)$/.test(body.clientRecordedAt)
           || !Number.isFinite(Date.parse(body.clientRecordedAt))) invalid();
-        clientRecordedAt=body.clientRecordedAt;
+        clientRecordedAt=body.clientRecordedAt as string;
     }
     const {data,error}=await context.client.from('psi_tenant_evidence_receipts').insert({
         tenant_id:context.tenantId,request_id:body.requestId,worker_id:body.workerId,
