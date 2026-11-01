@@ -105,13 +105,13 @@ export const PsiPdfFinalComparePanel:React.FC<Props>=({
         return ()=>{cancelled=true;for(const task of tasks)task.cancel();};
     },[loaded,page]);
 
-    const complete=confirmed.length===count&&readyPage===page;
+    const complete=confirmed.length===count&&readyPage===page&&!error&&loaded;
     const save=async()=>{
         if(saving||saved||disabled||!complete)return;
         setSaving(true);
         setError('');
         try{
-            const manifest=await downloadPreparedPsiRasterPdfReview(prepared,confirmed);
+            const manifest=await downloadPreparedPsiRasterPdfReview(prepared,confirmed,source);
             setSaved(true);
             onDownloaded(manifest.rasterPdfSha256);
         }catch(e){
@@ -121,7 +121,7 @@ export const PsiPdfFinalComparePanel:React.FC<Props>=({
 
     return <section data-psi-pdf-final-compare="true"
         className="mt-4 rounded-xl border-2 border-indigo-300 bg-indigo-50/40 p-3 sm:p-4">
-        <h5 className="text-sm font-black text-slate-900">20차 · 최종 출력 PDF 원본 비교</h5>
+        <h5 className="text-sm font-black text-slate-900">21차 · 최종 출력 PDF 원본 비교·무결성 검증</h5>
         <p className="mt-2 text-xs leading-5 text-slate-700">
             검정 가림 처리 후 생성한 <strong>실제 PDF 출력물</strong>을 다시 열었습니다.
             각 페이지에서 원본과 결과를 대조하고, 이름·서명·전화번호·식별번호 등
@@ -187,7 +187,7 @@ export const PsiPdfFinalComparePanel:React.FC<Props>=({
                 '모든 페이지 비교 확인 후 PDF + JSON 내려받기'}
         </button>
         <p className="mt-2 text-xs leading-5 text-slate-600">
-            최종 PDF와 SHA-256 비교 이력이 담긴 JSON은 로컬 파일로만 저장합니다.
+            저장 직전 원본·최종 PDF의 SHA-256을 다시 대조합니다. 최종 PDF와 비교 이력이 담긴 JSON은 로컬 파일로만 저장합니다.
             외부 반출, 서버 승인 및 수신자 전달 기록은 수행하지 않습니다.
         </p>
         {error&&<p role="alert" className="mt-2 rounded-lg bg-rose-50 p-2 text-xs text-rose-900">{error}</p>}

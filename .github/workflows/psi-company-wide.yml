@@ -72,6 +72,8 @@ jobs:
         run: npm run build
       - name: Independently verify seven product and transparency journeys
         run: node scripts/verify-psi-company-browser.mjs
+      - name: Test genuine synthetic PDF rendering and privacy postflight in desktop/mobile Chromium
+        run: node scripts/verify-psi-pdf-privacy-browser.mjs
       - name: Upload synthetic-only cross-department evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -82,5 +84,6 @@ jobs:
             artifacts/audit/psi-company/department-audit.json
             artifacts/audit/psi-company/department-audit.md
             artifacts/audit/browser/
+            artifacts/audit/psi-pdf/
           if-no-files-found: ignore
           retention-days: 7
