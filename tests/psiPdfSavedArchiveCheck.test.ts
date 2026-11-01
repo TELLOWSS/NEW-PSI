@@ -1,6 +1,6 @@
 import {afterEach,describe,expect,it,vi} from 'vitest';
 
-const {records,setRecords,openedReads,extractCalls,pdfPostflight}=vi.hoisted(()=>{
+const {setRecords,openedReads,pdfPostflight,FakeZip}=vi.hoisted(()=>{
     let records=new Map<string,Uint8Array>();
     let extractCalls=0;
     const openedReads=()=>extractCalls;
