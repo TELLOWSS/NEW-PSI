@@ -32,6 +32,7 @@ import { getLowConfidenceOcrFields } from '../../utils/ocrDocumentValidation';
 import { WorkerRiskFollowupPanel } from '../ocr/WorkerRiskFollowupPanel';
 import { WorkerPracticeVerificationPanel } from '../ocr/WorkerPracticeVerificationPanel';
 import { PsiEvidencePackagePanel } from '../ocr/PsiEvidencePackagePanel';
+import { PsiEvidenceHandoffReviewPanel } from '../ocr/PsiEvidenceHandoffReviewPanel';
 import { updateAnalysisBasedOnEdits } from '../../services/geminiService';
 import {
     approveHarnessRecord,
@@ -3696,6 +3697,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                         onPersist={async nextRecord => Boolean(await persistRecordSilently(nextRecord))}
                                                     />
                                                     <PsiEvidencePackagePanel record={record} hasPendingEdits={hasChanges} />
+                                                    <PsiEvidenceHandoffReviewPanel record={record} hasPendingEdits={hasChanges} />
                                                 </div>
                                             </details>
                                         )}

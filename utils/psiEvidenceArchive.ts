@@ -93,6 +93,8 @@ export const downloadPsiEvidenceArchive = async (
 export interface EvidencePackageVerification {
     verified: boolean;
     checkedFiles: number;
+    fileInventory: EvidenceManifest['fileHashes'];
+    recordId: string | null;
     zipSha256: string;
     externallyAnchored: boolean;
     errors: string[];
@@ -128,6 +130,14 @@ export const verifyPsiEvidenceArchive = async (input: Blob, expectedZipSha256 = 
         if (!match || expectedLines.has(match[2])) { errors.push('손상된 해시 목록 또는 중복 경로'); continue; }
         expectedLines.set(match[2], match[1]);
     }
+    const allowedEvidencePath = /^(?:record\/(?:snapshot\.json|timeline\.txt)|assets\/[a-zA-Z0-9_.-]+\.(?:png|jpg|jpeg|webp))$/;
+    for (const entry of manifest.fileHashes) {
+        if (!entry || typeof entry.path !== 'string' || !allowedEvidencePath.test(entry.path)
+            || typeof entry.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(entry.sha256)
+            || !Number.isSafeInteger(entry.bytes) || entry.bytes < 0) {
+            errors.push('매니페스트의 파일 경로나 검사값이 유효하지 않습니다.');
+        }
+    }
     const expectedNames = ['manifest.json', ...manifest.fileHashes.map(item => item.path)];
     if (new Set(expectedNames).size !== expectedNames.length) errors.push('매니페스트에 중복 파일명이 있습니다.');
     for (const path of expectedNames) {
@@ -140,12 +150,31 @@ export const verifyPsiEvidenceArchive = async (input: Blob, expectedZipSha256 = 
         const descriptor = manifest.fileHashes.find(item => item.path === path);
         if (descriptor && (descriptor.sha256 !== actualHash || descriptor.bytes !== bytes.length)) errors.push(path + ': 매니페스트 불일치');
     }
+    let recordId: string | null = null;
+    try {
+        const snapshotFile = zip.file('record/snapshot.json');
+        if (!snapshotFile) throw new Error('snapshot missing');
+        const source = await snapshotFile.async('string') as string;
+        if (source.length > 4 * 1024 * 1024) throw new Error('snapshot too large');
+        const snapshot = JSON.parse(source) as { schema?: string; record?: { id?: unknown } };
+        if (snapshot.schema !== PSI_EVIDENCE_PACKAGE_VERSION
+            || typeof snapshot.record?.id !== 'string'
+            || snapshot.record.id.trim().length < 1
+            || snapshot.record.id.length > 160) {
+            throw new Error('record identifier invalid');
+        }
+        recordId = snapshot.record.id;
+    } catch {
+        errors.push('원본 기록 ID를 snapshot.json에서 확인할 수 없습니다.');
+    }
     if (expected && expected !== zipSha256) errors.push('독립 보관된 ZIP SHA-256 값과 불일치합니다.');
     const extra = Object.keys(zip.files).filter(path => !zip.files[path].dir && path !== 'SHA256SUMS.txt' && !expectedNames.includes(path));
     if (extra.length || expectedLines.size !== expectedNames.length) errors.push('확인 목록 외 파일이 추가되었거나 목록에 오류가 있습니다.');
     return {
         verified: errors.length === 0,
         checkedFiles: expectedNames.length,
+        fileInventory: errors.length ? [] : manifest.fileHashes.map(file => ({...file})),
+        recordId: errors.length ? null : recordId,
         zipSha256,
         externallyAnchored: Boolean(expected),
         errors,
