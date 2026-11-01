@@ -81,11 +81,23 @@ describe('new isolated tenant evidence receipt proposal',()=>{
     await asUser(reviewer);
     expect((await db.query('select id from public.psi_tenant_evidence_receipts')).rows).toHaveLength(0);
   });
-  it('blocks modification or deletion, even if table permissions are accidentally elevated',async()=>{
+  it('blocks modification or deletion by RLS and by trigger even for a bypass-RLS database role',async()=>{
     await asUser(ua); const result=await createReceipt(a,wa,ra);
+    // Authenticated users have no UPDATE/DELETE policies. SQL may return zero
+    // affected rows instead of throwing, which is the correct RLS behavior.
     await db.exec('reset role');
     await db.exec('grant update,delete on public.psi_tenant_evidence_receipts to authenticated');
     await asUser(ua);
+    const untouched=await db.query('update public.psi_tenant_evidence_receipts set source_kind=$1 where id=$2 returning id',['field_evidence',result.rows[0].id]);
+    expect(untouched.rows).toHaveLength(0);
+    const notDeleted=await db.query('delete from public.psi_tenant_evidence_receipts where id=$1 returning id',[result.rows[0].id]);
+    expect(notDeleted.rows).toHaveLength(0);
+    expect((await db.query('select id from public.psi_tenant_evidence_receipts')).rows).toHaveLength(1);
+
+    // A privileged role bypasses RLS, but the append-only triggers still apply.
+    await db.exec('reset role');
+    await db.exec('grant select,update,delete on public.psi_tenant_evidence_receipts to service_role');
+    await db.exec('set local role service_role');
     await deny('update public.psi_tenant_evidence_receipts set source_kind=$1 where id=$2',['field_evidence',result.rows[0].id]);
     await deny('delete from public.psi_tenant_evidence_receipts where id=$1',[result.rows[0].id]);
   });
