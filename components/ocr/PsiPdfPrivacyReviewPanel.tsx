@@ -1,12 +1,14 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {
     MAX_PSI_PDF_PAGES,readPsiLocalPdf,loadPsiPdfRenderer,
-    choosePsiPdfRenderScale,downloadPsiRasterPdfReview,
+    choosePsiPdfRenderScale,buildPsiRasterPdfReview,
     type PsiPdfPageReview,
 } from '../../utils/psiPdfRasterReview';
 import {
     applyOpaquePsiPhotoMasks,psiMaskFromDrag,type PsiPhotoMaskRect,
 } from '../../utils/psiPhotoMaskGeometry';
+
+import {PsiPdfFinalComparePanel} from './PsiPdfFinalComparePanel';
 
 type Pointer={clientX:number;clientY:number};
 
@@ -23,6 +25,7 @@ export const PsiPdfPrivacyReviewPanel:React.FC<{hasPendingEdits:boolean}>=({hasP
     const [doneHash,setDoneHash]=useState('');
     const [zoom,setZoom]=useState<100|150|200>(100);
     const [gestureMode,setGestureMode]=useState<'move'|'mask'>('move');
+    const [prepared,setPrepared]=useState<Awaited<ReturnType<typeof buildPsiRasterPdfReview>>|null>(null);
     const canvas=useRef<HTMLCanvasElement|null>(null);
     const originalPixels=useRef<ImageData|null>(null);
     const documentRef=useRef<any>(null);
@@ -88,7 +91,8 @@ export const PsiPdfPrivacyReviewPanel:React.FC<{hasPendingEdits:boolean}>=({hasP
     };
     const loadFile=async(file:File|null)=>{
         closeDocument();setSource(null);setSourceHash('');setPageCount(0);
-        setCurrent(1);setMasksByPage({});setReviewed([]);setDoneHash('');setNotice('');setZoom(100);setGestureMode('move');
+        setCurrent(1);setMasksByPage({});setReviewed([]);setDoneHash('');setPrepared(null);
+        setNotice('');setZoom(100);setGestureMode('move');
         if(!file)return;
         setLoading(true);
         try{
@@ -122,30 +126,29 @@ export const PsiPdfPrivacyReviewPanel:React.FC<{hasPendingEdits:boolean}>=({hasP
         if(!candidate){setNotice('가림 영역이 너무 작거나 지정되지 않았습니다. 이름·서명이 충분히 덮이도록 드래그하세요.');return;}
         if(activeMasks.length>=40){setNotice('페이지별 가림 영역은 최대 40개입니다.');return;}
         setMasksByPage(prev=>({...prev,[current]:[...(prev[current]||[]),candidate]}));
-        setReviewed(prev=>prev.filter(page=>page!==current));setDoneHash('');
+        setReviewed(prev=>prev.filter(page=>page!==current));setDoneHash('');setPrepared(null);
     };
     const removeMask=()=>{
         setMasksByPage(prev=>({...prev,[current]:(prev[current]||[]).slice(0,-1)}));
-        setReviewed(prev=>prev.filter(page=>page!==current));setDoneHash('');
+        setReviewed(prev=>prev.filter(page=>page!==current));setDoneHash('');setPrepared(null);
     };
-    const save=async()=>{
+    const prepare=async()=>{
         if(!source||loading||hasPendingEdits||reviewed.length!==pageCount)return;
         setLoading(true);setNotice('');setDoneHash('');
         try{
             const plans:PsiPdfPageReview[]=Array.from({length:pageCount},(_,index)=>({
                 pageNumber:index+1,masks:masksByPage[index+1]||[],manuallyReviewed:true,
             }));
-            const result=await downloadPsiRasterPdfReview(source,sourceHash,plans);
-            setDoneHash(result.rasterPdfSha256);
-            setNotice('원본 PDF 텍스트·주석을 복사하지 않은 이미지 기반 검토 PDF와 '
-                +'검토 내역 JSON의 로컬 저장을 요청했습니다. '
-                +'검은 영역 밖에 남은 개인정보가 없는지 다시 열어 확인하고, 별도 승인 전 외부 제출하지 마세요.');
+            const result=await buildPsiRasterPdfReview(source,sourceHash,plans);
+            setPrepared(result);
+            setNotice('PDF 내부검증을 통과했습니다. 아직 파일을 저장하지 않았습니다. '
+                +'아래에서 원본과 실제 출력 PDF 전 페이지를 비교하여 확인하세요.');
         }catch(error){
-            setNotice(error instanceof Error?error.message:'검토용 PDF를 만들지 못했습니다.');
+            setNotice(error instanceof Error?error.message:'PDF를 준비하지 못했습니다.');
         }finally{setLoading(false);}
     };
     return <section data-psi-pdf-review="true" className="mt-3 rounded-xl border border-slate-300 bg-white p-3 sm:p-4">
-        <h4 className="text-sm font-black text-slate-900">PDF 페이지 개인정보 직접 가림 · 19차 현장 검토</h4>
+        <h4 className="text-sm font-black text-slate-900">PDF 개인정보 가림 · 20차 최종 비교 검토</h4>
         <p className="mt-2 text-xs leading-5 text-slate-700">
             로컬 PDF를 선택해 모든 페이지를 직접 확인합니다. 선택한 영역을 검정 픽셀로 덮은
             <strong> 이미지 기반 새 PDF</strong>만 만듭니다. 원본 텍스트·첨부파일·주석을
@@ -155,12 +158,13 @@ export const PsiPdfPrivacyReviewPanel:React.FC<{hasPendingEdits:boolean}>=({hasP
         <label className="mt-3 block text-xs font-bold text-slate-800">
             검토할 로컬 PDF (최대 12MB, {MAX_PSI_PDF_PAGES}페이지)
             <input type="file" accept=".pdf,application/pdf" className="mt-1 block w-full text-xs"
-                disabled={loading||hasPendingEdits}
+                disabled={loading||hasPendingEdits||!!prepared}
                 onChange={e=>void loadFile(e.currentTarget.files?.[0]||null)}/>
         </label>
         {sourceHash&&<p className="mt-2 break-all rounded-lg bg-slate-50 p-2 font-mono text-[11px]">
             선택한 PDF SHA-256: {sourceHash}
         </p>}
+        <div className={prepared?'hidden':''}>
         {pageCount>0&&<div className="mt-3 flex flex-wrap items-center gap-2">
             <span className="text-xs font-bold text-slate-800">문서 확대</span>
             {([100,150,200] as const).map(level=>
@@ -251,14 +255,23 @@ export const PsiPdfPrivacyReviewPanel:React.FC<{hasPendingEdits:boolean}>=({hasP
                 모든 페이지의 검토 표시가 있어야 내부용 PDF가 생성됩니다.
             </p>
             <button type="button" disabled={loading||hasPendingEdits||reviewed.length!==pageCount}
-                onClick={()=>void save()}
+                onClick={()=>void prepare()}
                 className="mt-3 min-h-11 w-full rounded-xl bg-indigo-900 p-3 text-xs font-bold text-white disabled:opacity-40">
-                {loading?'PDF 검증·출력 중...':'모든 페이지를 이미지화한 내부 검토용 PDF 생성'}
+                {loading?'PDF 출력 및 내부검증 중...':'모든 페이지 검토 완료 · 실제 PDF 생성 후 최종 비교'}
             </button>
             {doneHash&&<p className="mt-2 break-all rounded-lg bg-slate-50 p-2 font-mono text-[11px]">
                 새 내부 검토 PDF SHA-256: {doneHash}
             </p>}
         </>}
+        </div>
+        {prepared&&source&&<PsiPdfFinalComparePanel
+            source={source} prepared={prepared} disabled={loading||hasPendingEdits}
+            onBack={()=>{
+                setPrepared(null);setDoneHash('');
+                setNotice('가림 영역을 수정하면 최종 비교 PDF는 새로 생성해야 합니다.');
+            }}
+            onDownloaded={hash=>{setDoneHash(hash);setNotice('모든 페이지 비교 확인 후 로컬 저장 요청 완료. 다운로드 폴더를 확인하세요.');}}
+        />}
         {notice&&<p role="status" className="mt-3 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs text-slate-800">{notice}</p>}
     </section>;
 };

@@ -37,6 +37,12 @@ export type PsiPdfReviewManifest={
     humanReviewRequired:true;
     disclosureApproved:false;
     recipientDeliveryRecorded:false;
+    finalComparison?: {
+        completedAt:string;
+        comparedPages:number[];
+        userAcknowledged:true;
+        independentlyApproved:false;
+    };
     warning:string;
 };
 
@@ -271,6 +277,50 @@ export const buildPsiRasterPdfReview=async(
             manifest,
         };
     }finally{await loading.destroy();}
+};
+
+/**
+ * Final visual review is a separate, explicit user decision, not automatic approval.
+ * This gate is run only after the output PDF has been generated and postflight-checked.
+ */
+export const validatePsiPdfComparedPages=(pageCount:number,pages:readonly number[]):number[]=>{
+    if(!Number.isSafeInteger(pageCount)||pageCount<1||pageCount>MAX_PSI_PDF_PAGES||
+        !Array.isArray(pages)||pages.length!==pageCount)
+        throw new Error('완성된 PDF의 모든 페이지를 원본과 비교한 뒤 저장할 수 있습니다.');
+    const unique=new Set(pages);
+    if(unique.size!==pageCount||pages.some(page=>
+        !Number.isSafeInteger(page)||page<1||page>pageCount))
+        throw new Error('PDF 페이지별 원본·가림본 비교 기록이 유효하지 않습니다.');
+    return [...unique].sort((a,b)=>a-b);
+};
+
+export const downloadPreparedPsiRasterPdfReview=async(
+    prepared:Awaited<ReturnType<typeof buildPsiRasterPdfReview>>,
+    comparedPages:readonly number[],
+):Promise<PsiPdfReviewManifest>=>{
+    if(!prepared?.blob||!prepared?.manifest||
+        prepared.manifest.disclosureApproved!==false||
+        prepared.manifest.recipientDeliveryRecorded!==false||
+        prepared.manifest.originalSha256===prepared.manifest.rasterPdfSha256)
+        throw new Error('원본과 구분되는 유효한 내부 검토용 PDF만 저장할 수 있습니다.');
+    const sortedPages=validatePsiPdfComparedPages(prepared.manifest.pageCount,comparedPages);
+    const manifest:PsiPdfReviewManifest={
+        ...prepared.manifest,
+        finalComparison:{
+            completedAt:new Date().toISOString(),
+            comparedPages:sortedPages,
+            userAcknowledged:true,
+            independentlyApproved:false,
+        },
+    };
+    const save=await ensureFileSaver();
+    if(!save)throw new Error('파일 다운로드 기능을 사용할 수 없습니다.');
+    // This is a locally prepared image-based PDF, not an approved disclosure.
+    save(prepared.blob,prepared.fileName);
+    save(new Blob([JSON.stringify(manifest,null,2)+'\n'],
+        {type:'application/json;charset=utf-8'}),
+        'PSI_PDF_REVIEW_MANIFEST_'+manifest.preparedAt.slice(0,10)+'.json');
+    return manifest;
 };
 
 export const downloadPsiRasterPdfReview=async(
