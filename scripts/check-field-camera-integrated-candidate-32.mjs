@@ -61,8 +61,11 @@ export function assembleSourceCandidate({read=repoFile,stages=RELEASE_CANDIDATE_
  const files=[...new Set([...stages.flatMap(s=>s.files),...commonFiles])].sort();
  assert.ok(files.length>=20,'통합 후보에서 필요한 파일이 빠졌습니다.');
  for(const file of files){
-  assert.match(file,/^(?:[a-zA-Z0-9_.-]+\/)*[a-zA-Z0-9_.-]+$/,'검증 파일의 경로 형식이 잘못됐습니다.');
-  assert.doesNotMatch(file,/(^|\/)(?:\.env|node_modules|dist|artifacts|private|secrets)(?:\/|$)/i);
+  const segments=file.split('/');
+  const validPath=/^(?:[a-zA-Z0-9_.-]+\/)*[a-zA-Z0-9_.-]+$/.test(file) &&
+   segments.every(segment=>segment!=='.'&&segment!=='..') &&
+   !/(^|\/)(?:\.env|node_modules|dist|artifacts|private|secrets)(?:\/|$)/i.test(file);
+  if(!validPath)throw new Error('검증 파일의 경로 형식이 잘못됐습니다. 저장소 밖 경로나 비공개 파일을 포함할 수 없습니다.');
  }
  const sources=files.map(path=>{
   const content=readText(path,read);
