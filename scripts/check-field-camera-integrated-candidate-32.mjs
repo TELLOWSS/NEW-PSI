@@ -111,15 +111,23 @@ export function assembleSourceCandidate({read=repoFile,stages=RELEASE_CANDIDATE_
  };
 }
 
-/** Exported for test: this must never claim an incomplete release as approved. */
-export function isProductionApproval(manifest){
- return manifest?.releaseStatus==='APPROVED' &&
-  manifest?.mainMerged===true && manifest?.productionDeployed===true &&
-  manifest?.realDeviceVerified===true;
+/**
+ * This manifest certifies only local repository contents. No caller is allowed
+ * to turn it into a production-approval record by changing flags.
+ */
+export function assertSourceOnlyManifest(manifest){
+ assert.equal(manifest?.kind,RELEASE_CANDIDATE_KIND);
+ assert.equal(manifest?.releaseStatus,'REVIEW_CANDIDATE_ONLY');
+ assert.equal(manifest?.mainMerged,false);
+ assert.equal(manifest?.productionDeployed,false);
+ assert.equal(manifest?.realDeviceVerified,false);
+ assert.deepEqual(manifest?.requiredCI,RELEASE_REQUIRED_CI);
+ return true;
 }
 
 export function writeSourceCandidate(path='artifacts/audit/field-camera/32-integration-source-manifest.json'){
  const manifest=assembleSourceCandidate();
+ assertSourceOnlyManifest(manifest);
  const target=resolve(path);
  mkdirSync(dirname(target),{recursive:true});
  writeFileSync(target,JSON.stringify(manifest,null,2)+'\n',{flag:'w',mode:0o600});
