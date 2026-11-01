@@ -577,7 +577,7 @@ function LocalEvidenceAudit({inspectionId,busy}:{inspectionId:string;busy:boolea
   <p>내려받는 JSON은 사진 원본이 아닌 파일명·크기·SHA-256 검사값·교체 관계의 요약입니다. 암호화되지 않았으며 파일명에 개인정보가 들어 있을 수 있습니다. 사진 파일은 기존 백업 기능으로 별도 보관하세요.</p>
  </section>;
 }
-function FollowupEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSave:(id:string,value:Followup)=>Promise<boolean>}){
+function FollowupEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSave:(id:string,value:Followup,expected?:Followup)=>Promise<boolean>}){
  const current=row.followup;
  const [status,setStatus]=useState(current?.status||'pending'),[assignee,setAssignee]=useState(current?.assignee||''),[dueDate,setDueDate]=useState(current?.dueDate||''),[temporaryMeasure,setTemporaryMeasure]=useState(current?.temporaryMeasure||''),[note,setNote]=useState('');
  const [dueReason,setDueReason]=useState(''),[controlReason,setControlReason]=useState('');
@@ -601,7 +601,7 @@ function FollowupEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSave:(
     status,assignee,dueDate,temporaryMeasure,note,
     dueChangeReason:dueReason,temporaryChangeReason:controlReason,controlReview,
    }) as Followup;
-   if(await onSave(row.id,value)){
+   if(await onSave(row.id,value,current)){
     setNote('');setDueReason('');setControlReason('');setEditing(false);
    }
   }catch(error){
@@ -995,11 +995,11 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   }catch(error){setMessage(error instanceof Error&&!(error instanceof DOMException)&&error.message?error.message:'추가 현장 사진을 저장하지 못했습니다. 사진을 유지합니다. 다시 확인하세요.');return false;}
   finally{flight.current=false;setBusy(false);}
  };
- const saveFollowup=async(id:string,value:Followup):Promise<boolean>=>{
+ const saveFollowup=async(id:string,value:Followup,expected?:Followup):Promise<boolean>=>{
   if(flight.current||!validateFollowup(value))return false;
   flight.current=true;setBusy(true);setMessage('');
   try{
-   await runStore<void>('readwrite',store=>{const request=store.get(id);request.onsuccess=()=>{if(!request.result||JSON.stringify(request.result.followup||null)!==JSON.stringify({...value,history:value.history.slice(0,-1),status:request.result.followup?.status??value.status,assignee:request.result.followup?.assignee??value.assignee,dueDate:request.result.followup?.dueDate??value.dueDate,temporaryMeasure:request.result.followup?.temporaryMeasure??value.temporaryMeasure})){request.transaction?.abort();return;}store.put({...request.result,followup:value});};});
+   await runStore<void>('readwrite',store=>{const request=store.get(id);request.onsuccess=()=>{if(!request.result||JSON.stringify(request.result.followup||null)!==JSON.stringify(expected||null)){request.transaction?.abort();return;}store.put({...request.result,followup:value});};});
    await refresh();setMessage('후속 조치를 이 기기에 저장했습니다. 서버에는 전송하지 않았습니다.');return true;
   }catch{setMessage('후속 조치를 저장하지 못했습니다. 입력 내용을 확인하고 다시 시도하세요.');return false;}
   finally{flight.current=false;setBusy(false);}
