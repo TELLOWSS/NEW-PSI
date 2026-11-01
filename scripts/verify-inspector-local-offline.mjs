@@ -195,6 +195,24 @@ try{
  assert.match(firstHtml,/default-src 'none'/,'inert print HTML CSP required');
  assert.match(firstHtml,/상태 불일치 · 확인 필요/);
  assert.doesNotMatch(firstHtml,/합성 담당자|자재 공급이 늦어져|<script/);
+ assert.doesNotMatch(firstCsv,/F10 경과 연계 이력/,'existing report defaults must remain minimal');
+ // History is a separate opt-in and must remain sanitized without free text.
+ await f10Report.getByLabel('보고서에 F10 경과 연결 이력 포함').check();
+ await f10Report.getByRole('button',{name:'CSV·인쇄용 보고서 준비'}).click();
+ await csvLink.waitFor();
+ const timelineCsvDownload=page.waitForEvent('download');await csvLink.click();
+ const timelineCsv=await readFile(await (await timelineCsvDownload).path(),'utf8');
+ assert.match(timelineCsv,/F10 경과 연계 이력/);
+ assert.match(timelineCsv,/재점검/);
+ assert.doesNotMatch(timelineCsv,/합성 담당자|자재 공급이 늦어져|iVBORw0KGgo/,
+  'opt-in structure alone must not include free notes or photo bytes');
+ const timelineHtmlDownload=page.waitForEvent('download');await htmlLink.click();
+ const timelineHtml=await readFile(await (await timelineHtmlDownload).path(),'utf8');
+ assert.match(timelineHtml,/F10 경과 연계 이력/);
+ assert.match(timelineHtml,/default-src 'none'/);
+ assert.doesNotMatch(timelineHtml,/합성 담당자|자재 공급이 늦어져|<script/);
+ await f10Report.getByLabel('보고서에 F10 경과 연결 이력 포함').uncheck();
+ await csvLink.waitFor({state:'detached'});
  // The user explicitly opts in to names/free-text; all targets are included.
  await f10Report.getByLabel('재점검 보고 범위').selectOption('all');
  await f10Report.getByLabel('보고서에 담당자 이름 포함').check();
@@ -748,6 +766,27 @@ try{
  await restoredEditor.getByText('기한: 2030-02-05',{exact:false}).waitFor();
  await restoredTrace.getByRole('region',{name:'점검 전체 재점검·지연 사유'})
   .getByText('재점검 1건',{exact:false}).waitFor();
+ // F10 30th: three separate event types form a single read-only chronology.
+ const connected=panel.getByRole('group',{name:'F10 경과 통합 타임라인'});
+ await connected.getByText('30차 · 목표 기한·임시통제·재점검 경과 연결 보기',{exact:false}).click();
+ await connected.locator('summary').filter({hasText:'점검 전체 · 후속 2건 / 재점검 1건'}).click();
+ await connected.getByText('현재 조치 목표 기한: 2030-02-05 · 최신 재점검 다음 확인일: 2030-01-03',{exact:false}).waitFor();
+ await connected.getByText('2030-01-02 → 2030-02-05',{exact:false}).waitFor();
+ await connected.getByText('임시통제 확인 기록: 점검자가 현장 유지 상태 직접 확인했다고 기록',{exact:false}).waitFor();
+ await f10Report.getByLabel('재점검 보고 범위').selectOption('all');
+ await f10Report.getByLabel('보고서에 F10 경과 연결 이력 포함').check();
+ await f10Report.getByRole('button',{name:'CSV·인쇄용 보고서 준비'}).click();
+ await csvLink.waitFor();
+ const finalTimelineDownload=page.waitForEvent('download');await csvLink.click();
+ const finalTimeline=await readFile(await (await finalTimelineDownload).path(),'utf8');
+ assert.match(finalTimeline,/F10 경과 연계 이력/);
+ assert.match(finalTimeline,/2030-01-02/);
+ assert.match(finalTimeline,/2030-02-05/);
+ assert.match(finalTimeline,/2030-01-03/);
+ assert.doesNotMatch(finalTimeline,/자재 반입 일정 변경으로 목표 완료일을 재조정함/,
+  'old change reason must remain excluded unless detailed notes are selected');
+ await f10Report.getByLabel('보고서에 F10 경과 연결 이력 포함').uncheck();
+ await csvLink.waitFor({state:'detached'});
 
  assert.deepEqual(requests,[],'offline local operations must not initiate HTTP requests');
  assert.deepEqual(errors,[]);
