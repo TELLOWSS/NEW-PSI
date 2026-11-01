@@ -71,6 +71,13 @@ export const PsiPdfPrivacyReviewPanel:React.FC<{hasPendingEdits:boolean}>=({hasP
             await page.render({canvas:node,canvasContext:ctx,viewport}).promise;
             if(token!==generation.current)return;
             originalPixels.current=ctx.getImageData(0,0,node.width,node.height);
+            // Returning to a previously masked page must show the same
+            // blackout areas that will appear in the exported document.
+            // The canvas is redrawn from original pixels before applying them.
+            const existingMasks=masksByPage[num]||[];
+            if(existingMasks.length){
+                applyOpaquePsiPhotoMasks(ctx,existingMasks,node.width,node.height);
+            }
             setCurrent(num);
             setNotice('현재 '+num+'페이지: 가릴 내용을 검은 영역으로 지정한 후 페이지 검토를 완료하세요.');
         }catch(error){
