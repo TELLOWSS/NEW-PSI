@@ -94,6 +94,7 @@ export interface EvidencePackageVerification {
     verified: boolean;
     checkedFiles: number;
     fileInventory: EvidenceManifest['fileHashes'];
+    recordId: string | null;
     zipSha256: string;
     externallyAnchored: boolean;
     errors: string[];
@@ -149,6 +150,23 @@ export const verifyPsiEvidenceArchive = async (input: Blob, expectedZipSha256 = 
         const descriptor = manifest.fileHashes.find(item => item.path === path);
         if (descriptor && (descriptor.sha256 !== actualHash || descriptor.bytes !== bytes.length)) errors.push(path + ': 매니페스트 불일치');
     }
+    let recordId: string | null = null;
+    try {
+        const snapshotFile = zip.file('record/snapshot.json');
+        if (!snapshotFile) throw new Error('snapshot missing');
+        const source = await snapshotFile.async('string') as string;
+        if (source.length > 4 * 1024 * 1024) throw new Error('snapshot too large');
+        const snapshot = JSON.parse(source) as { schema?: string; record?: { id?: unknown } };
+        if (snapshot.schema !== PSI_EVIDENCE_PACKAGE_VERSION
+            || typeof snapshot.record?.id !== 'string'
+            || snapshot.record.id.trim().length < 1
+            || snapshot.record.id.length > 160) {
+            throw new Error('record identifier invalid');
+        }
+        recordId = snapshot.record.id;
+    } catch {
+        errors.push('원본 기록 ID를 snapshot.json에서 확인할 수 없습니다.');
+    }
     if (expected && expected !== zipSha256) errors.push('독립 보관된 ZIP SHA-256 값과 불일치합니다.');
     const extra = Object.keys(zip.files).filter(path => !zip.files[path].dir && path !== 'SHA256SUMS.txt' && !expectedNames.includes(path));
     if (extra.length || expectedLines.size !== expectedNames.length) errors.push('확인 목록 외 파일이 추가되었거나 목록에 오류가 있습니다.');
@@ -156,6 +174,7 @@ export const verifyPsiEvidenceArchive = async (input: Blob, expectedZipSha256 = 
         verified: errors.length === 0,
         checkedFiles: expectedNames.length,
         fileInventory: errors.length ? [] : manifest.fileHashes.map(file => ({...file})),
+        recordId: errors.length ? null : recordId,
         zipSha256,
         externallyAnchored: Boolean(expected),
         errors,
