@@ -10,6 +10,7 @@ const files: EvidencePackageVerification['fileInventory'] = [
 ];
 const verification = (changes: Partial<EvidencePackageVerification> = {}): EvidencePackageVerification => ({
     verified: true, checkedFiles: files.length + 1, zipSha256: sha,
+    recordId: 'synthetic-worker-01',
     externallyAnchored: true, errors: [], fileInventory: files,
     description: 'All internal and separately stored SHA-256 checks match',
     ...changes,
@@ -48,6 +49,9 @@ describe('PSI restricted evidence handoff review', () => {
         });
         expect(JSON.stringify(result)).not.toContain('originalImage');
         expect(result.warnings.join(' ')).toContain('실제 원본 ZIP은 전체 자료');
+    });
+    it('rejects a valid ZIP when it belongs to a different record', () => {
+        expect(() => buildPsiHandoffReviewDraft(verification({recordId:'another-worker'}),input())).toThrow('기록 ID가');
     });
     it('fails closed without an external fingerprint or with any mismatch', () => {
         expect(() => buildPsiHandoffReviewDraft(verification({externallyAnchored:false}),input())).toThrow('별도로 보관한 ZIP');
