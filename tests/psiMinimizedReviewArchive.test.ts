@@ -3,7 +3,7 @@ import type { WorkerRecord } from '../types';
 
 class MockZip {
     private contents = new Map<string, Uint8Array>();
-    file(path: string, bytes?: Uint8Array | string): {async: (format: 'string' | 'uint8array') => Promise<string | Uint8Array>} | null | void {
+    file(path: string, bytes?: Uint8Array | string): {async: (format: 'string' | 'uint8array') => Promise<string | Uint8Array>} | null {
         if (bytes === undefined) {
             const stored=this.contents.get(path);
             return stored ? { async: async format => format === 'string'
@@ -11,6 +11,7 @@ class MockZip {
         }
         this.contents.set(path,typeof bytes === 'string'
             ? new TextEncoder().encode(bytes) : bytes);
+        return null;
     }
     get files(): Record<string,{dir:boolean}> {
         return Object.fromEntries([...this.contents.keys()].map(path=>[path,{dir:false}]));
