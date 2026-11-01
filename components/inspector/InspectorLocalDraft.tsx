@@ -5,6 +5,7 @@ import {sourceReviewState} from '../../lib/inspector/sourceReview';
 import {FOLLOWUP_STATES, FOLLOWUP_LABELS, validateFollowup, validateAdditionalActions, overdue} from '../../lib/inspector/localFollowup.mjs';
 import {buildLocalRecheckQueue,summarizeLocalRecheckQueue,LOCAL_RECHECK_BUCKETS,LOCAL_RECHECK_LABELS,localCalendarDate} from '../../lib/inspector/localRecheckQueue.mjs';
 import {buildLocalRecheckReport,selectLocalRecheckReportTargets,formatLocalRecheckCsv,formatLocalRecheckPrintHtml,F10_LOCAL_REPORT_LIMIT} from '../../lib/inspector/localRecheckReport.mjs';
+import {buildLocalHandoffPlan,selectLocalHandoffTargets,formatLocalHandoffMessage,formatLocalHandoffHtml,handoffSourceSnapshot,F10_HANDOFF_MAX_ITEMS} from '../../lib/inspector/localRecheckHandoff.mjs';
 
 type Followup={status:string;assignee:string;dueDate:string;temporaryMeasure?:string;history:{status:string;assignee:string;dueDate:string;temporaryMeasure?:string;note:string;at:string}[]};
 type Recheck={id:string;result:'delayed'|'temporary_checked'|'needs_more'|'review_requested';reason:string;note:string;nextCheckDate:string;at:string;photoSha256:string|null;followupStatus:string};
@@ -694,6 +695,12 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [checks,setChecks]=useState<Record<string,string>>({});
  const [filter,setFilter]=useState('all');
  const [reportScope,setReportScope]=useState<'visible'|'all'>('visible');
+ const [handoffScope,setHandoffScope]=useState<'visible'|'all'>('all');
+ const handoffGeneration=useRef(0);
+ const [handoffPending,setHandoffPending]=useState(false);
+ const [handoffMessage,setHandoffMessage]=useState('');
+ const [handoffPrepared,setHandoffPrepared]=useState<{html:Blob;text:string;count:number;at:string}|null>(null);
+ const handoffHtmlUrl=useReportDownloadUrl(handoffPrepared?.html||null);
  const [reportIncludeAssignees,setReportIncludeAssignees]=useState(false);
  const [reportIncludeDetails,setReportIncludeDetails]=useState(false);
  const [reportBusy,setReportBusy]=useState(false);
@@ -708,6 +715,10 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [storageBusy,setStorageBusy]=useState(false);
  useEffect(()=>{setReportFiles(null);setReportMessage('');},
   [rows,filter,reportScope,reportIncludeAssignees,reportIncludeDetails]);
+ useEffect(()=>{
+  handoffGeneration.current++;
+  setHandoffPrepared(null);setHandoffMessage('');
+ },[rows,filter,handoffScope]);
  const recheckQueue=buildLocalRecheckQueue(rows);
  const recheckSummary=summarizeLocalRecheckQueue(recheckQueue);
  const recheckFilter=filter.startsWith('recheck:')?filter.slice('recheck:'.length):null;
@@ -718,12 +729,55 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   return filter==='all'||items.some(item=>filter==='unassigned'?!item?.assignee:filter==='no_due'?!item?.dueDate:filter==='overdue'?!!item&&overdue(item):filter==='review'?item?.status==='review_requested':false);
  });
  const reportTargetQueue=selectLocalRecheckReportTargets(rows,recheckQueue,filter,reportScope==='visible'?'visible':'all');
+ const handoffTargetQueue=selectLocalHandoffTargets(
+  selectLocalRecheckReportTargets(rows,recheckQueue,filter,handoffScope));
  const reportScopeLabel=reportScope==='all'?'전체 재점검 대상':
   filter.startsWith('recheck:')?('현재 상태 · '+(LOCAL_RECHECK_LABELS[recheckFilter]||'미확인')):
   filter==='all'?'현재 화면 · 전체':
   filter==='unassigned'?'현재 화면 · 담당 미지정':
   filter==='no_due'?'현재 화면 · 기한 미정':
   filter==='overdue'?'현재 화면 · 조치 기한 초과':'현재 화면 · 완료 확인 요청';
+ const prepareHandoff=async()=>{
+  if(handoffPending||busy||readState!=='ready')return;
+  setHandoffPending(true);setHandoffPrepared(null);setHandoffMessage('');
+  const generation=handoffGeneration.current;
+  try{
+   const now=new Date();
+   const beforeSnapshot=handoffSourceSnapshot(rows);
+   const first=buildLocalHandoffPlan(rows,now,filter,handoffScope);
+   // A different tab may update an action after this component rendered.
+   // Verify the actual persisted records before creating copyable material.
+   const fresh=await list();
+   if(beforeSnapshot!==handoffSourceSnapshot(fresh))
+    throw new Error('다른 탭에서 점검 기록이 변경됐습니다. 기기 기록 다시 조회 후 인계 내용을 준비하세요.');
+   const confirmed=buildLocalHandoffPlan(fresh,now,filter,handoffScope);
+   if(JSON.stringify(first)!==JSON.stringify(confirmed)||generation!==handoffGeneration.current)
+    throw new Error('인계 대상 또는 화면 선택이 변경됐습니다. 새로 조회한 뒤 다시 준비하세요.');
+   const text=formatLocalHandoffMessage(confirmed);
+   const html=formatLocalHandoffHtml(confirmed);
+   if(text.length>95000||html.length>150000)
+    throw new Error('인계 문서가 너무 큽니다. 상태별 필터로 나누어 준비하세요.');
+   if(generation!==handoffGeneration.current)
+    throw new Error('인계 목록이 바뀌어 이전 문서를 사용하지 않았습니다. 다시 준비하세요.');
+   setHandoffPrepared({
+    html:new Blob([html],{type:'text/html;charset=utf-8'}),
+    text,count:confirmed.entries.length,at:confirmed.localDate,
+   });
+   setHandoffMessage('기기 원본 기록과 인계 목록을 대조했습니다. 아래 인계 문구는 직접 검토·복사하고, 담당자 전달은 별도로 진행하세요.');
+  }catch(error){
+   setHandoffMessage(error instanceof Error?error.message:'인계 내용을 준비하지 못했습니다. 기록을 다시 확인하세요.');
+  }finally{setHandoffPending(false);}
+ };
+ const copyHandoff=async()=>{
+  if(!handoffPrepared)return;
+  try{
+   if(!navigator.clipboard?.writeText)throw new Error('클립보드를 사용할 수 없습니다.');
+   await navigator.clipboard.writeText(handoffPrepared.text);
+   setHandoffMessage('인계 문구를 기기 클립보드에 복사했습니다. 담당자에게 전송하거나 확인받은 것은 아닙니다.');
+  }catch{
+   setHandoffMessage('자동 복사가 제한된 브라우저입니다. 아래 인계 문구를 길게 눌러 직접 복사하세요.');
+  }
+ };
  const prepareRecheckReport=async()=>{
   if(reportBusy||busy||readState!=='ready')return;
   setReportBusy(true);setReportFiles(null);setReportMessage('');
@@ -1177,6 +1231,31 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
       {item.bucket==='conflict'?' · 완료 상태와 최신 미완료 재점검 이력이 상충해 전문가 재확인 필요':''}
      </li>)}</ol>
     </details>}
+    <div role="group" aria-label="F10 오늘 현장 인계 준비" className="mt-3 rounded-xl border border-slate-300 p-3">
+     <h5>28차 · 지연 조치 현장 인계 준비</h5>
+     <p>즉시 조치가 어려운 항목을 확인하도록 인계 초안을 만듭니다. 상태 불일치·기한 초과·오늘·3일 이내·다음 확인일 미정, 그리고 이후 예정 중 담당 미기록 항목을 포함합니다. 분류는 안전 위험등급이 아닌 업무 확인 순서입니다.</p>
+     <label>인계 대상 범위
+      <select aria-label="F10 인계 대상 범위" value={handoffScope} disabled={handoffPending||busy} onChange={e=>setHandoffScope(e.target.value as 'visible'|'all')}>
+       <option value="all">전체 점검의 인계 대상</option><option value="visible">현재 상태 필터의 인계 대상</option>
+      </select>
+     </label>
+     <p>인계 대상 {handoffTargetQueue.length}건 / 최대 {F10_HANDOFF_MAX_ITEMS}건. 담당자 미기록 {handoffTargetQueue.filter(item=>!item.hasAssignee).length}건, 임시조치 미기록 {handoffTargetQueue.filter(item=>!item.hasTemporaryMeasure).length}건.</p>
+     <p>이 인계 문구에는 담당자 실명·개인 연락처·사진 원본·자유기입 지연 사유를 자동 포함하지 않습니다. 미기록은 실제 조치가 없었다는 판정이 아닙니다.</p>
+     <button type="button" className="si-btn" disabled={busy||handoffPending||!handoffTargetQueue.length||handoffTargetQueue.length>F10_HANDOFF_MAX_ITEMS}
+      onClick={()=>void prepareHandoff()}>{handoffPending?'기기 인계 기록 대조 중…':'인계 문구·A4 인계표 준비'}</button>
+     {handoffTargetQueue.length>F10_HANDOFF_MAX_ITEMS&&<p role="alert">인계 대상이 40건을 초과했습니다. 현재 상태 필터로 나누어 준비하고 전체 관리대장도 확인하세요. 대상을 조용히 생략하지 않습니다.</p>}
+     {handoffMessage&&<p role="status">{handoffMessage}</p>}
+     {handoffPrepared&&<div aria-label="준비된 F10 인계 자료">
+      <p>기기 기준일 {handoffPrepared.at} · 인계 대상 {handoffPrepared.count}건. 작성 당시의 기기 기록으로만 준비했습니다.</p>
+      <button type="button" className="si-btn" onClick={()=>void copyHandoff()}>인계 문구 복사 (자동 전송 없음)</button>
+      {' '}
+      {handoffHtmlUrl&&<a className="si-btn" href={handoffHtmlUrl} download={'PSI_F10_handoff_'+handoffPrepared.at+'.html'}>A4 인계표 기기에 저장</a>}
+      <label>인계 문구 직접 확인·복사
+       <textarea aria-label="F10 인계 문구 직접 복사" readOnly rows={6} value={handoffPrepared.text}/>
+      </label>
+     </div>}
+     <p>인계표는 내부 관리용이며 통보·수신 확인 또는 위험 해소·작업 재개 승인서가 아닙니다. 현장 위험이 급박하면 인계 예정일을 기다리지 말고 접근통제·작업중지 필요성을 먼저 검토하세요.</p>
+    </div>
     <div role="group" aria-label="재점검 관리 보고서 만들기" className="mt-3 rounded-lg border border-slate-300 p-3">
      <h5>27차 · 현장 관리 보고서 만들기</h5>
      <p>기기 저장 기록으로 CSV 대장과 A4 가로 인쇄용 HTML을 준비합니다. 서버 업로드·자동 발송 없이 기기에서만 처리합니다. HTML 파일을 연 뒤 인쇄 기능에서 PDF로 저장할 수 있습니다.</p>
