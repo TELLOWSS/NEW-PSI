@@ -110,7 +110,9 @@ describe('PII masked internal text-only ZIP',()=>{
    expect(draft.manifest.humanContentReviewRequired).toBe(true);
    expect(draft.manifest.legallyApprovedForRelease).toBe(false);
    expect(draft.zipSha256).toMatch(/^[a-f0-9]{64}$/);
-   expect(await source.blob.text()).toContain('synthetic-worker-001');
+   const preserved=await new MockZip().loadAsync(source.blob);
+   const originalSnapshot=await preserved.file('record/snapshot.json')!.async('string') as string;
+   expect(originalSnapshot).toContain('synthetic-worker-001');
  });
  it('rejects images, duplicates, wrong record, unanchored verification and tampered source',async()=>{
    const {source,verification}=await fixture();
