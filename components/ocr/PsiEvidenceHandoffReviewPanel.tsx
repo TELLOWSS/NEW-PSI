@@ -76,12 +76,12 @@ export const PsiEvidenceHandoffReviewPanel: React.FC<{ record: WorkerRecord; has
         <p className="text-[11px] font-black uppercase tracking-widest text-indigo-600">PSI · DISCLOSURE REVIEW DRAFT</p>
         <h3 className="mt-1 text-lg font-black text-slate-900">증빙 제출 전 검토서 작성</h3>
         <p className="mt-2 text-xs leading-5 text-slate-600">
-            외부 기관·사고조사 제출 전 **어떤 파일을 어떤 목적으로 제출할지** 검토하는 초안입니다.
+            외부 기관·사고조사 제출 전 <strong>어떤 파일을 어떤 목적으로 제출할지</strong> 검토하는 초안입니다.
             승인을 받은 자료만 실제 제공하도록 별도 관리자 결재가 필요합니다.
         </p>
         <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
             이 기능은 검토서 JSON만 로컬에 저장합니다. 서버 승인·반출대장·실제 발송 기록이 아닙니다.
-            원본 ZIP은 그대로이며, 아래 파일 선택이 ZIP에서 개인정보를 제거하지 않습니다.
+            원본 ZIP은 그대로이며, 아래 파일 선택이 ZIP에서 개인정보를 제거하지 않습니다. 해시 보관대장 자체의 최초 생성 시각과 진정성도 검증하지 않습니다.
         </p>
         {hasPendingEdits && <p className="mt-2 rounded-lg bg-rose-50 p-2 text-xs text-rose-800">현재 미저장 수정이 있습니다. 먼저 원본·번역 변경을 저장하고 ZIP을 새로 생성·검증하세요.</p>}
         <label className="mt-4 block text-xs font-bold text-slate-800">
