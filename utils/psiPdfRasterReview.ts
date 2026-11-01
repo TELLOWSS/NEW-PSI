@@ -5,7 +5,7 @@ import {
 } from './psiPhotoMaskGeometry';
 
 export const PSI_FLATTENED_PDF_REVIEW_SCHEMA='psi-pdf-raster-review-v1';
-export const MAX_PSI_PDF_PAGES=5;
+export const MAX_PSI_PDF_PAGES=10;
 export const MAX_PSI_PDF_BYTES=12*1024*1024;
 const MAX_PAGE_PIXELS=8_000_000;
 
@@ -50,7 +50,7 @@ export const validatePsiPdfReviewPlan=(
     pages:number,plans:readonly PsiPdfPageReview[],
 ):void=>{
     if(!Number.isSafeInteger(pages)||pages<1||pages>MAX_PSI_PDF_PAGES)
-        throw new Error('PDF는 1~5페이지 검토용으로만 처리할 수 있습니다.');
+        throw new Error(`PDF는 1~${MAX_PSI_PDF_PAGES}페이지 검토용으로만 처리할 수 있습니다.`);
     if(plans.length!==pages||new Set(plans.map(item=>item.pageNumber)).size!==pages)
         throw new Error('PDF의 모든 페이지를 각각 검토해야 합니다.');
     for(const plan of plans){
@@ -97,7 +97,7 @@ export const readPsiLocalPdf=async(file:File)=>{
     try{
         const pdf=await task.promise;
         if(pdf.numPages<1||pdf.numPages>MAX_PSI_PDF_PAGES)
-            throw new Error('PDF는 최대 5페이지로 제한됩니다.');
+            throw new Error(`PDF는 최대 ${MAX_PSI_PDF_PAGES}페이지로 제한됩니다.`);
         return {source,hash,pageCount:pdf.numPages};
     }finally{await task.destroy();}
 };
@@ -146,14 +146,21 @@ export const verifyPsiRasterPdfHasNoExtractableContent=async(
                     await page.render({canvas,canvasContext:ctx,viewport}).promise;
                     const rectangles=validatePsiPhotoMasks(plan.masks,canvas.width,canvas.height);
                     for(const rect of rectangles){
-                        // Sample inside each blackout region, away from edges
-                        // where rasterizer interpolation can blend neighboring pixels.
-                        for(const fx of [0.25,0.5,0.75]){
-                            for(const fy of [0.25,0.5,0.75]){
-                                const x=Math.min(canvas.width-1,rect.x+Math.floor((rect.width-1)*fx));
-                                const y=Math.min(canvas.height-1,rect.y+Math.floor((rect.height-1)*fy));
-                                const pixel=ctx.getImageData(x,y,1,1).data;
-                                if(pixel[0]>16||pixel[1]>16||pixel[2]>16||pixel[3]!==255)
+                        // Verify *every* interior pixel of the decoded, exported PDF.
+                        // A one-pixel inset avoids false positives from PDF edge
+                        // resampling; interior chunks limit peak mobile memory.
+                        const insetX=rect.width>2?1:0;
+                        const insetY=rect.height>2?1:0;
+                        const x=rect.x+insetX;
+                        const yEnd=rect.y+rect.height-insetY;
+                        const scanWidth=rect.width-insetX*2;
+                        for(let y=rect.y+insetY;y<yEnd;y+=32){
+                            const scanHeight=Math.min(32,yEnd-y);
+                            const pixels=ctx.getImageData(x,y,scanWidth,scanHeight).data;
+                            if(pixels.length!==scanWidth*scanHeight*4)
+                                throw new Error('가림 PDF 픽셀 검증이 불완전하여 저장을 중단했습니다.');
+                            for(let j=0;j<pixels.length;j+=4){
+                                if(pixels[j]>16||pixels[j+1]>16||pixels[j+2]>16||pixels[j+3]!==255)
                                     throw new Error('완성된 PDF에 검은 가림 픽셀이 반영되지 않았습니다. 저장을 중단합니다.');
                             }
                         }
