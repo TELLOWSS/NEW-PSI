@@ -9,6 +9,7 @@ import {
 } from '../../utils/psiPhotoMaskGeometry';
 
 import {PsiPdfFinalComparePanel} from './PsiPdfFinalComparePanel';
+import {PsiPdfSavedArchiveCheckPanel} from './PsiPdfSavedArchiveCheckPanel';
 
 type Pointer={clientX:number;clientY:number};
 
@@ -148,7 +149,7 @@ export const PsiPdfPrivacyReviewPanel:React.FC<{hasPendingEdits:boolean}>=({hasP
         }finally{setLoading(false);}
     };
     return <section data-psi-pdf-review="true" className="mt-3 rounded-xl border border-slate-300 bg-white p-3 sm:p-4">
-        <h4 className="text-sm font-black text-slate-900">PDF 개인정보 가림 · 20차 최종 비교 검토</h4>
+        <h4 className="text-sm font-black text-slate-900">PDF 개인정보 가림 · 페이지 비교·저장본 재확인</h4>
         <p className="mt-2 text-xs leading-5 text-slate-700">
             로컬 PDF를 선택해 모든 페이지를 직접 확인합니다. 선택한 영역을 검정 픽셀로 덮은
             <strong> 이미지 기반 새 PDF</strong>만 만듭니다. 원본 텍스트·첨부파일·주석을
@@ -272,6 +273,8 @@ export const PsiPdfPrivacyReviewPanel:React.FC<{hasPendingEdits:boolean}>=({hasP
             }}
             onDownloaded={hash=>{setDoneHash(hash);setNotice('모든 페이지 비교 확인 후 로컬 저장 요청 완료. 다운로드 폴더를 확인하세요.');}}
         />}
+        <PsiPdfSavedArchiveCheckPanel key={sourceHash||'unbound'}
+            expectedOriginalSha256={sourceHash||undefined}/>
         {notice&&<p role="status" className="mt-3 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs text-slate-800">{notice}</p>}
     </section>;
 };
