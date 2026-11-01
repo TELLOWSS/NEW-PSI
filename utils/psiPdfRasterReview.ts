@@ -1,4 +1,4 @@
-import { ensureJsPdfConstructor, ensureFileSaver } from './externalScripts';
+import { ensureJsPdfConstructor, ensureJsZip, ensureFileSaver } from './externalScripts';
 import {
     applyOpaquePsiPhotoMasks, stripPsiCanvasPngMetadata,
     validatePsiPhotoMasks, type PsiPhotoMaskRect,
@@ -42,6 +42,7 @@ export type PsiPdfReviewManifest={
         comparedPages:number[];
         userAcknowledged:true;
         independentlyApproved:false;
+        localDownloadFormat?:'SINGLE_REVIEW_ZIP';
     };
     warning:string;
 };
@@ -346,15 +347,50 @@ export const downloadPreparedPsiRasterPdfReview=async(
             comparedPages:sortedPages,
             userAcknowledged:true,
             independentlyApproved:false,
+            localDownloadFormat:'SINGLE_REVIEW_ZIP',
         },
     };
+    type ZipEntry={async:(format:'uint8array')=>Promise<Uint8Array>};
+    type ArchiveReader={file:(path:string)=>ZipEntry|null};
+    type ArchiveConstructor=new()=> {
+        file:(path:string,contents:Uint8Array|string)=>void;
+        generateAsync:(opts:{type:'blob';compression:'DEFLATE';compressionOptions:{level:number}})=>Promise<Blob>;
+        loadAsync:(blob:Blob)=>Promise<ArchiveReader>;
+    };
+    const Zip=await ensureJsZip() as ArchiveConstructor|null;
+    if(!Zip)throw new Error('검토 자료 ZIP 모듈을 불러오지 못했습니다.');
+    const outputBytes=new Uint8Array(await prepared.blob.arrayBuffer());
+    const outputName='PSI_MASKED_REVIEW.pdf';
+    const manifestText=JSON.stringify(manifest,null,2)+'\n';
+    const manifestBytes=new TextEncoder().encode(manifestText);
+    const sums=manifest.rasterPdfSha256+'  '+outputName+'\n'
+        +await digest(manifestBytes)+'  REVIEW_MANIFEST.json\n';
+    const archive=new Zip();
+    archive.file(outputName,outputBytes);
+    archive.file('REVIEW_MANIFEST.json',manifestText);
+    archive.file('SHA256SUMS.txt',sums);
+    const zip=await archive.generateAsync({
+        type:'blob',compression:'DEFLATE',compressionOptions:{level:6},
+    });
+    if(zip.size===0||zip.size>60*1024*1024)
+        throw new Error('검토 ZIP의 크기가 비정상적입니다.');
+    // Verify actual compressed archive contents before issuing ONE download.
+    const opened=await new Zip().loadAsync(zip);
+    for(const [path,expected] of [
+        [outputName,manifest.rasterPdfSha256],
+        ['REVIEW_MANIFEST.json',await digest(manifestBytes)],
+    ] as const){
+        const entry=opened.file(path);
+        if(!entry||await digest(await entry.async('uint8array'))!==expected)
+            throw new Error('검토 ZIP 내부 파일이 원본·출력물 해시와 달라 저장을 중단했습니다.');
+    }
+    const sumsEntry=opened.file('SHA256SUMS.txt');
+    if(!sumsEntry||new TextDecoder().decode(await sumsEntry.async('uint8array'))!==sums)
+        throw new Error('검토 ZIP의 해시 목록이 유효하지 않습니다.');
     const save=await ensureFileSaver();
     if(!save)throw new Error('파일 다운로드 기능을 사용할 수 없습니다.');
-    // This is a locally prepared image-based PDF, not an approved disclosure.
-    save(prepared.blob,prepared.fileName);
-    save(new Blob([JSON.stringify(manifest,null,2)+'\n'],
-        {type:'application/json;charset=utf-8'}),
-        'PSI_PDF_REVIEW_MANIFEST_'+manifest.preparedAt.slice(0,10)+'.json');
+    // A single archive avoids second-download blocking on mobile browsers.
+    save(zip,'PSI_INTERNAL_MASKED_PDF_REVIEW_'+manifest.preparedAt.slice(0,10)+'.zip');
     return manifest;
 };
 
