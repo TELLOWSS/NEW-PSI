@@ -83,7 +83,7 @@ describe('PSI 21st source + final output integrity gate',()=>{
         await verifyPsiPreparedPdfIntegrity(pdf,original);
         const result=await downloadPreparedPsiRasterPdfReview(pdf,[2,1],original);
         expect(saved).toHaveBeenCalledTimes(1);
-        expect(saved.mock.calls[0][1]).toMatch(/\\.zip$/);
+        expect(saved.mock.calls[0][1]).toMatch(/\.zip$/);
         const paths=[...archiveFiles().keys()];
         expect(paths.sort()).toEqual([
             'PSI_MASKED_REVIEW.pdf','REVIEW_MANIFEST.json','SHA256SUMS.txt',
