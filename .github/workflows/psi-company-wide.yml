@@ -32,7 +32,7 @@ concurrency:
 jobs:
   organization:
     name: accountable-department-ownership
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -54,7 +54,7 @@ jobs:
   cross-module-browser:
     name: synthetic-product-journeys
     needs: organization
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
       CI: 'true'
