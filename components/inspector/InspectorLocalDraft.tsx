@@ -765,7 +765,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   setHandoffPrepared(null);setHandoffMessage('');
  },[rows,filter,handoffScope]);
  const recheckQueue=buildLocalRecheckQueue(rows);
- const recheckSummary=summarizeLocalRecheckQueue(recheckQueue);
+ const recheckSummary=summarizeLocalRecheckQueue(recheckQueue) as Record<string, number> & {total:number};
  const recheckFilter=filter.startsWith('recheck:')?filter.slice('recheck:'.length):null;
  const recheckRecordIds=new Set(recheckQueue.filter(item=>item.bucket===recheckFilter).map(item=>item.recordId));
  const visibleRows=rows.filter(row=>{
