@@ -704,6 +704,51 @@ try{
  const f06Batch=JSON.parse((await readFile(await (await f06BatchDownload).path())).toString());
  assert.equal(f06Batch.records[0].version,16);
  assert.equal(f06Batch.records[0].record.photoEdits['primary:0'].originalSha256,originalDigest);
+ // F10 29th: the existing v17 record retains both old and new dates.
+ const traceRecord=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
+ const traceEditor=traceRecord.getByRole('region',{name:'후속 조치 관리'}).first();
+ await traceEditor.getByRole('button',{name:'후속 조치 기록'}).click();
+ await traceEditor.getByLabel('목표 기한').fill('2030-02-05');
+ await traceEditor.getByLabel('임시 안전조치 (최종 완료와 별개)').fill('위험 구역 출입 통제선 확대 및 안내 표지 유지');
+ await traceEditor.getByLabel('진행·확인 내용').fill('변경된 통제선의 유지 상태를 현장에서 직접 확인');
+ const traceSave=traceEditor.getByRole('button',{name:'후속 기록 저장'});
+ assert.equal(await traceSave.isDisabled(),true,'changing due date and control requires separate reasons');
+ await traceEditor.getByLabel('목표 기한 변경 사유').fill('자재 반입 일정 변경으로 목표 완료일을 재조정함');
+ await traceEditor.getByLabel('임시조치 변경·해제 사유').fill('상부 작업 간섭으로 통제 범위를 확대함');
+ await traceEditor.getByLabel('임시조치 현장 확인 수준').selectOption('site_checked');
+ assert.equal(await traceSave.isDisabled(),false);
+ await traceSave.click();
+ await traceEditor.getByText('기한 변경 1건 · 임시조치 변경·해제 1건',{exact:false}).waitFor();
+ await traceEditor.getByText('기한·임시통제 변경 전후 확인 (2건)').click();
+ await traceEditor.getByText('2030-01-02 → 2030-02-05',{exact:false}).waitFor();
+ await traceEditor.locator('details').filter({hasText:'기한·임시통제 변경 전후 확인 (2건)'})
+  .getByText('자재 반입 일정 변경으로 목표 완료일을 재조정함',{exact:false}).waitFor();
+ const traceBackupEvent=page.waitForEvent('download');
+ await traceRecord.getByRole('button',{name:'사진과 기록 함께 백업'}).click();
+ const traceBytes=await readFile(await (await traceBackupEvent).path());
+ const traceSaved=JSON.parse(traceBytes.toString());
+ assert.equal(traceSaved.version,17,'existing backup schema must be preserved');
+ assert.equal(traceSaved.record.followup.dueDate,'2030-02-05');
+ assert.equal(traceSaved.record.followup.history.length,2);
+ assert.equal(traceSaved.record.followup.history[0].dueDate,'2030-01-02');
+ assert.equal(traceSaved.record.followup.history[1].dueDate,'2030-02-05');
+ assert.match(traceSaved.record.followup.history[1].note,/기한 변경 사유: 자재 반입 일정 변경/);
+ assert.match(traceSaved.record.followup.history[1].note,/임시조치 변경·해제 사유: 상부 작업 간섭/);
+ assert.match(traceSaved.record.followup.history[1].note,/점검자가 현장 유지 상태 직접 확인했다고 기록/);
+ assert.equal(traceSaved.record.rechecks[0].nextCheckDate,'2030-01-03',
+  'changing completion target must not alter separate reinspection schedule');
+ page.once('dialog',dialog=>dialog.accept());
+ await traceRecord.getByRole('button',{name:'이 기기 기록 삭제'}).click();
+ await panel.getByLabel('백업 파일 복원').setInputFiles({
+  name:'f10-29-trace-valid-v17.json',mimeType:'application/json',buffer:traceBytes,
+ });
+ const restoredTrace=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
+ const restoredEditor=restoredTrace.getByRole('region',{name:'후속 조치 관리'}).first();
+ await restoredEditor.getByText('기한 변경 1건 · 임시조치 변경·해제 1건',{exact:false}).waitFor();
+ await restoredEditor.getByText('기한: 2030-02-05',{exact:false}).waitFor();
+ await restoredTrace.getByRole('region',{name:'점검 전체 재점검·지연 사유'})
+  .getByText('재점검 1건',{exact:false}).waitFor();
+
  assert.deepEqual(requests,[],'offline local operations must not initiate HTTP requests');
  assert.deepEqual(errors,[]);
  console.log('PASS local camera, local save, rule lookup, export, quota failure and retry without HTTP requests');
