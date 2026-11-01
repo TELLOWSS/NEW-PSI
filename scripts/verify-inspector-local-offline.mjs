@@ -139,6 +139,20 @@ try{
  await itemRecheck.getByRole('button',{name:'재점검 이력 저장'}).click();
  await itemRecheck.getByText('재점검 1건',{exact:false}).waitFor();
  assert.equal(await item1.getByText('확인 완료',{exact:true}).count()>0,true,'recheck must not update prior followup status');
+ const priority=panel.getByRole('region',{name:'기한별 재점검 관리 현황'});
+ await priority.getByRole('button',{name:'상태 불일치 · 확인 필요 1건'}).waitFor();
+ await priority.getByRole('button',{name:'이후 예정 1건'}).waitFor();
+ await priority.getByText('재점검/조치 대상 2건',{exact:false}).waitFor();
+ await priority.getByText('확인 우선순위 · 전체 대상 보기 (2건)').click();
+ await priority.getByText('완료 상태와 최신 미완료 재점검 이력이 상충해 전문가 재확인 필요',{exact:false}).waitFor();
+ // A manually entered "verified" status never silently clears a delayed/temporary recheck.
+ await panel.getByLabel('후속 조치 모아보기').selectOption('recheck:conflict');
+ assert.equal(await actionRow.count(),1,'conflicting target must be findable');
+ await panel.getByLabel('후속 조치 모아보기').selectOption('recheck:today');
+ assert.equal(await actionRow.count(),0,'no invented same-day task');
+ await panel.getByLabel('후속 조치 모아보기').selectOption('recheck:scheduled');
+ assert.equal(await actionRow.count(),1,'2030 future recheck must remain scheduled');
+ await panel.getByLabel('후속 조치 모아보기').selectOption('all');
 
  await item1.getByLabel('이 조치 사진 선택').setInputFiles({name:'action-one-v2.png',mimeType:'image/png',buffer:Buffer.from('synthetic replacement action photo')});
  page.once('dialog',d=>d.accept());await item1.getByRole('button',{name:'이 조치에 사진 저장'}).click();
@@ -341,6 +355,11 @@ try{
  await panel.getByText('현재 기록된 임시 안전조치: 위험 구역 출입 통제 및 안내 표지 유지',{exact:false}).waitFor();
  await panel.getByRole('region',{name:'점검 전체 재점검·지연 사유'}).getByText('재점검 1건',{exact:false}).waitFor();
  await panel.getByRole('region',{name:'조치별 재점검·지연 사유'}).first().getByText('재점검 1건',{exact:false}).waitFor();
+ // Prioritized views must remain intact after v17 backup restore.
+ const restoredPriority=panel.getByRole('region',{name:'기한별 재점검 관리 현황'});
+ await restoredPriority.getByText('재점검/조치 대상 2건',{exact:false}).waitFor();
+ await restoredPriority.getByRole('button',{name:'상태 불일치 · 확인 필요 1건'}).waitFor();
+ await restoredPriority.getByRole('button',{name:'이후 예정 1건'}).waitFor();
  await panel.getByRole('heading',{name:'합성 출입 통제'}).waitFor();
  await panel.getByText('이 조치의 사진: action-one-v2.png').waitFor();
  await panel.getByText('이 조치의 이전 사진 1장').waitFor();
