@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import type { WorkerRecord } from '../../types';
 import { downloadPsiEvidenceArchive, verifyPsiEvidenceArchive } from '../../utils/psiEvidenceArchive';
+import { evaluatePsiEvidenceReadiness } from '../../utils/psiEvidenceReadiness';
 
 export const PsiEvidencePackagePanel: React.FC<{ record: WorkerRecord; hasPendingEdits?: boolean }> = ({ record, hasPendingEdits = false }) => {
     const [cutoff, setCutoff] = useState('');
     const [busy, setBusy] = useState(false);
     const [notice, setNotice] = useState('');
     const [verification, setVerification] = useState<'ok' | 'error' | null>(null);
+    const readiness = evaluatePsiEvidenceReadiness(record);
     const [lastZipHash, setLastZipHash] = useState('');
     const [expectedHash, setExpectedHash] = useState('');
 
@@ -41,6 +43,31 @@ export const PsiEvidencePackagePanel: React.FC<{ record: WorkerRecord; hasPendin
         <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">PSI EVIDENCE TRACEABILITY</p>
         <h3 className="mt-1 text-lg font-black text-slate-900">관리자 증빙·변경이력 패키지</h3>
         <p className="mt-2 text-xs leading-5 text-slate-600">자필 원본·한국어 번역·교육·현장 조치·재점검·수정 이력을 내부 보관용 ZIP에 연결합니다.</p>
+        <details open data-psi-evidence-readiness="true" className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <summary className="cursor-pointer text-sm font-black text-slate-900">
+                증빙 보강 필요사항 · 중요 {readiness.criticalCount}건 / 확인 필요 {readiness.reviewCount}건
+            </summary>
+            <p className="mt-2 text-xs text-slate-600">
+                현재 저장 자료만 평가하며, 사고 당시 존재 여부·법적 증거능력·사업주 법령 준수 여부는 평가하지 않습니다.
+                이 결과는 근로자 안전점수와 무관합니다.
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                {[
+                    ['자필 원문', readiness.sourceQuestionCount + '/5'],
+                    ['한국어 번역', readiness.translationCount + '/5'],
+                    ['현장 조치 건', readiness.followupCaseCount + '건'],
+                    ['독립 증빙 없는 완료 기록', readiness.unsupportedCompletionCount + '건'],
+                ].map(([label, count])=><div key={label} className="rounded-lg bg-white p-2">
+                    <p className="text-slate-500">{label}</p><p className="mt-1 font-black text-slate-900">{count}</p>
+                </div>)}
+            </div>
+            <div className="mt-3 space-y-2">
+                {readiness.findings.map(item=><p key={item.code} className={'rounded-lg p-2 text-xs leading-5 ' +
+                    (item.severity === 'critical' ? 'bg-rose-50 text-rose-900' : item.severity === 'review' ? 'bg-amber-50 text-amber-900' : 'bg-white text-slate-600')}>
+                    <strong>{item.title}</strong> — {item.message}
+                </p>)}
+            </div>
+        </details>
         <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
             기존 기록의 이벤트 시간을 기준으로 조회하며, 원본 이미지와 번역이 과거 그 시각에 존재했음은 별도로 확인해야 합니다.
             SHA-256 파일 검증은 공인 타임스탬프나 법적 원본 증명에 해당하지 않습니다.
