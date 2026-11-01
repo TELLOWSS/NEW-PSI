@@ -36,11 +36,13 @@ describe('PSI restricted evidence handoff review', () => {
         expect(result.checkedPackage.proposedFiles.map(file => file.path)).toEqual(['record/timeline.txt']);
         expect(result.checkedPackage.omittedFiles).toHaveLength(2);
         expect(result.checkedPackage.proposedFilesAreNotAnExport).toBe(true);
+        expect(result.checkedPackage.userSuppliedSha256Matched).toBe(true);
         expect(result.limitations).toEqual({
             approvedByAuthenticatedAuthority: false,
             sentToRecipient: false,
             storedInServerAuditLog: false,
             digitallySigned: false,
+            externalHashCustodyAuthenticated: false,
             originalZipModified: false,
             legalEvidenceCertified: false,
         });
