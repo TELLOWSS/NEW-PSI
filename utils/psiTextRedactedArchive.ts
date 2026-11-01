@@ -59,7 +59,9 @@ export const buildPsiTextRedactedReviewArchive = async (
         || selectedPaths.some(path => !allowedPaths.has(path))) {
         throw new Error('문서 2종(JSON/TXT)만 선택할 수 있습니다. 사진·PDF는 별도 가림 검증 전까지 제외됩니다.');
     }
-    const manual = normalizePsiPrivacyTerms(manualSensitiveTerms);
+    // Always suppress the identifying source record ID, even when the
+    // operator forgets to add it to manual privacy terms.
+    const manual = normalizePsiPrivacyTerms([...manualSensitiveTerms, expectedRecordId]);
     if (!manual.length) {
         throw new Error('근로자 이름 등 직접 가릴 식별 문구를 하나 이상 입력하세요.');
     }
