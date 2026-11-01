@@ -121,7 +121,7 @@ export const PsiPdfFinalComparePanel:React.FC<Props>=({
 
     return <section data-psi-pdf-final-compare="true"
         className="mt-4 rounded-xl border-2 border-indigo-300 bg-indigo-50/40 p-3 sm:p-4">
-        <h5 className="text-sm font-black text-slate-900">21차 · 최종 출력 PDF 원본 비교·무결성 검증</h5>
+        <h5 className="text-sm font-black text-slate-900">22차 · 최종 출력 PDF 원본 비교·단일 ZIP 저장</h5>
         <p className="mt-2 text-xs leading-5 text-slate-700">
             검정 가림 처리 후 생성한 <strong>실제 PDF 출력물</strong>을 다시 열었습니다.
             각 페이지에서 원본과 결과를 대조하고, 이름·서명·전화번호·식별번호 등
@@ -184,15 +184,16 @@ export const PsiPdfFinalComparePanel:React.FC<Props>=({
             disabled={!complete||saving||saved||disabled}
             className="mt-4 min-h-12 w-full rounded-xl bg-indigo-900 p-3 text-xs font-bold text-white disabled:opacity-40">
             {saving?'검토 PDF 저장 처리 중...':saved?'내부 검토 PDF 저장 요청 완료':
-                '모든 페이지 비교 확인 후 PDF + JSON 내려받기'}
+                '모든 페이지 비교 확인 후 PDF·JSON 묶음 ZIP 저장'}
         </button>
         <p className="mt-2 text-xs leading-5 text-slate-600">
-            저장 직전 원본·최종 PDF의 SHA-256을 다시 대조합니다. 최종 PDF와 비교 이력이 담긴 JSON은 로컬 파일로만 저장합니다.
-            외부 반출, 서버 승인 및 수신자 전달 기록은 수행하지 않습니다.
+            저장 직전 원본·최종 PDF의 SHA-256을 다시 대조합니다. 가림 PDF·검토 JSON·SHA-256 목록을
+            하나의 ZIP으로 묶고, 압축을 다시 풀어 무결성을 확인한 후 로컬 저장을 요청합니다.
+            ZIP을 압축 해제하면 PDF를 다시 열어 볼 수 있습니다. 서버 승인·외부 반출·수신 기록은 수행하지 않습니다.
         </p>
         {error&&<p role="alert" className="mt-2 rounded-lg bg-rose-50 p-2 text-xs text-rose-900">{error}</p>}
         {saved&&<p role="status" className="mt-2 text-xs text-emerald-900">
-            로컬 저장을 요청했습니다. 기기 다운로드 폴더에서 PDF와 JSON을 함께 확인하세요.
+            로컬 ZIP 저장을 요청했습니다. 기기 다운로드 폴더에서 ZIP 압축을 해제한 후 PDF와 검토 JSON을 확인하세요.
         </p>}
     </section>;
 };
