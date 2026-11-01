@@ -3,6 +3,7 @@ import InspectorCameraDialog from '../components/inspector/InspectorCameraDialog
 import {shareInspectorPacket,shareResultMessage,copyInspectorShareText,shareCopyResultMessage} from '../lib/inspector/sharing';
 import {addFieldPhoto,getFieldPhoto,listFieldPhotos,localPhotoError,removeFieldPhotos,type FieldPhoto} from '../lib/inspector/fieldPhotoStore';
 import {assetHash} from '../lib/inspector/photoAssets';
+import {verifyFieldPhotosForDelivery,FieldPhotoDeliveryError} from '../lib/inspector/fieldPhotoDelivery';
 import {exportFieldPhotos} from '../lib/inspector/fieldPhotoExport';
 import '../components/inspector/inspector.css';
 import '../components/inspector/inspector-experience.css';
@@ -18,6 +19,21 @@ export default function FieldCamera(){
  const [hashCheck,setHashCheck]=useState<{id:string;text:string}|null>(null),[checkingHash,setCheckingHash]=useState(false);
  const [invalidPhotos,setInvalidPhotos]=useState<string[]>([]);const invalidRef=useRef<Set<string>>(new Set());
  const [archive,setArchive]=useState<Blob|null>(null),[packing,setPacking]=useState(false);
+ const [transferring,setTransferring]=useState(false);
+ const transferRef=useRef(false);
+ const beginTransfer=()=>{
+  if(transferRef.current||busy||checkingHash||!!pending)return false;
+  transferRef.current=true;setTransferring(true);return true;
+ };
+ const endTransfer=()=>{transferRef.current=false;setTransferring(false);};
+ const reportDeliveryError=(error:unknown)=>{
+  if(error instanceof FieldPhotoDeliveryError&&error.affectedIds.length){
+   error.affectedIds.forEach(id=>invalidRef.current.add(id));
+   setInvalidPhotos([...invalidRef.current]);
+   setArchive(null);
+  }
+  setMessage(error instanceof Error?error.message:'사진을 검증하지 못했습니다. 기기 사진함을 확인하세요.');
+ };
  const archiveSelection=useRef('');archiveSelection.current=selected.join('|');
  const archiveUrl=usePhotoUrl(archive);
  useEffect(()=>{setArchive(null);},[selected,photos]);
@@ -33,20 +49,58 @@ export default function FieldCamera(){
  const chooseStored=(id:string)=>{if(id===activeId)return;if((site.trim()||location.trim())&&!window.confirm('입력한 현장 정보는 저장되지 않습니다. 다른 사진을 열까요?'))return;setSite('');setLocation('');setActiveId(id);};
  const remove=async(ids:string[])=>{const note=ids.includes(activeId)&&(site.trim()||location.trim())?' 현재 입력한 현장 정보도 사라집니다.':'';if(checkingHash||!ids.length||!window.confirm(`이 브라우저의 사진 ${ids.length}장을 삭제할까요? 삭제 후 복구할 수 없습니다.${note}`))return;setBusy(true);try{await removeFieldPhotos(ids);ids.forEach(id=>invalidRef.current.delete(id));setInvalidPhotos([...invalidRef.current]);const remaining=photos.filter(row=>!ids.includes(row.id));setPhotos(remaining);setSelected([]);if(ids.includes(activeId)){setActiveId(remaining.at(-1)?.id||'');setSite('');setLocation('');}setMessage('선택한 사진을 이 브라우저에서 삭제했습니다.');void size();}catch(error){setMessage(localPhotoError(error));}finally{setBusy(false);}};
  const caption=['현장 사진',site.trim()&&`현장: ${site.trim()}`,location.trim()&&`위치: ${location.trim()}`].filter(Boolean).join('\n');
- const share=async()=>{if(!active||checkingHash||invalidRef.current.has(active.id))return;const file=new File([active.blob],active.name,{type:active.type});const result=await shareInspectorPacket({title:'현장 사진',text:caption,files:[file]});setMessage(shareResultMessage[result]);};
- const shareSelected=async()=>{if(checkingHash||selected.some(id=>invalidRef.current.has(id)))return;const files=photos.filter(row=>selected.includes(row.id)).map(row=>new File([row.blob],row.name,{type:row.type}));if(!files.length)return;const result=await shareInspectorPacket({title:'현장 사진',text:'선택한 현장 사진',files});setMessage(shareResultMessage[result]);};
- const prepareArchive=async()=>{if(checkingHash||selected.some(id=>invalidRef.current.has(id)))return;setPacking(true);setArchive(null);const selection=archiveSelection.current;try{const rows=photos.filter(row=>selected.includes(row.id));const zip=await exportFieldPhotos(rows);if(archiveSelection.current!==selection||rows.some(row=>invalidRef.current.has(row.id))){setMessage('선택 또는 파일 상태가 바뀌었습니다. 사진을 확인한 뒤 다시 준비해 주세요.');return;}setArchive(zip);setMessage(`사진 ${rows.length}장의 ZIP 파일을 준비했습니다. 아래 버튼으로 기기에 저장하세요.`);}catch(error){setMessage(error instanceof Error?error.message:'파일을 준비하지 못했습니다. 사진을 나누어 선택해 주세요.');}finally{setPacking(false);}};
+ const share=async()=>{
+  if(!active||invalidRef.current.has(active.id)||!beginTransfer())return;
+  try{
+   const checked=await verifyFieldPhotosForDelivery(photos,[active.id]);
+   const fresh=checked[0];
+   const file=new File([fresh.blob],fresh.name,{type:fresh.type});
+   const result=await shareInspectorPacket({title:'현장 사진',text:caption,files:[file]});
+   setMessage(shareResultMessage[result]);
+  }catch(error){reportDeliveryError(error);}
+  finally{endTransfer();}
+ };
+ const shareSelected=async()=>{
+  if(selected.some(id=>invalidRef.current.has(id))||!selected.length||!beginTransfer())return;
+  const selection=archiveSelection.current;
+  try{
+   const ids=photos.filter(row=>selected.includes(row.id)).map(row=>row.id);
+   const checked=await verifyFieldPhotosForDelivery(photos,ids);
+   if(archiveSelection.current!==selection||checked.some(row=>invalidRef.current.has(row.id)))
+    throw new FieldPhotoDeliveryError('사진 선택이 변경됐습니다. 다시 확인해 주세요.',[],'selection');
+   const files=checked.map(row=>new File([row.blob],row.name,{type:row.type}));
+   const result=await shareInspectorPacket({title:'현장 사진',text:'선택한 현장 사진',files});
+   setMessage(shareResultMessage[result]);
+  }catch(error){reportDeliveryError(error);}
+  finally{endTransfer();}
+ };
+ const prepareArchive=async()=>{
+  if(selected.some(id=>invalidRef.current.has(id))||!selected.length||!beginTransfer())return;
+  setPacking(true);setArchive(null);
+  const selection=archiveSelection.current;
+  try{
+   const ids=photos.filter(row=>selected.includes(row.id)).map(row=>row.id);
+   const rows=await verifyFieldPhotosForDelivery(photos,ids);
+   if(archiveSelection.current!==selection||rows.some(row=>invalidRef.current.has(row.id)))
+    throw new FieldPhotoDeliveryError('사진 선택이 변경됐습니다. 다시 확인해 주세요.',[],'selection');
+   const zip=await exportFieldPhotos(rows);
+   if(archiveSelection.current!==selection||rows.some(row=>invalidRef.current.has(row.id)))
+    throw new FieldPhotoDeliveryError('사진 선택이 변경됐습니다. ZIP 생성을 중단했습니다.',[],'selection');
+   setArchive(zip);setMessage(`사진 ${rows.length}장의 저장된 실제 파일 해시를 재확인했습니다. ZIP을 기기에 저장하세요.`);
+  }catch(error){reportDeliveryError(error);}
+  finally{setPacking(false);endTransfer();}
+ };
  const copy=async()=>{const result=await copyInspectorShareText(caption);setMessage(shareCopyResultMessage[result]);};
  const verifyHash=async()=>{if(!active?.sha256||checkingHash)return;const id=active.id,expected=active.sha256;setCheckingHash(true);setHashCheck({id,text:'보관 파일 확인 중…'});try{const row=await getFieldPhoto(id);const actual=row?await assetHash(row.blob):null;if(!row||actual!==expected){invalidRef.current.add(id);setInvalidPhotos([...invalidRef.current]);setArchive(null);setHashCheck({id,text:row?'확인 당시 보관 파일이 기록된 해시와 달랐습니다. 다른 사본을 확인하세요.':'보관 파일을 찾을 수 없습니다. 사진함을 다시 확인하세요.'});}else{invalidRef.current.delete(id);setInvalidPhotos([...invalidRef.current]);setHashCheck({id,text:'확인 당시 보관 파일이 기록된 해시와 일치했습니다.'});}}catch{setHashCheck({id,text:'파일을 확인하지 못했습니다. 다시 시도하세요.'});}finally{setCheckingHash(false);}};
  return <main className="field-camera"><header><span>PSI · FIELD CAMERA</span><h1>현장 사진을 간편하게</h1><p>로그인 없이 촬영하고, 기기에 저장하거나 필요한 앱으로 공유하세요.</p></header>
   <section className="field-camera-card" aria-label="현장 카메라">
    {pending&&pendingUrl&&<div className="field-camera-pending"><strong>{busy?'사진 보관 중':'사진 보관을 확인하지 못했습니다'}</strong><img src={pendingUrl} alt="보관 대기 중인 사진"/><p>이 사진은 아직 임시 상태입니다. 기기에 내려받거나 보관을 다시 시도하세요. 기존 사진은 그대로 있습니다.</p><div className="field-camera-actions"><a href={pendingUrl} download={pending.name}>대기 사진 기기에 저장</a><button type="button" disabled={busy} onClick={()=>void save(pending)}>보관 다시 시도</button><button type="button" disabled={busy} onClick={()=>{if(window.confirm('보관되지 않은 사진을 버릴까요?'))setPending(null);}}>대기 사진 버리기</button></div></div>}
-   {active&&activeUrl?<><img src={activeUrl} alt="선택한 현장 사진 미리보기"/><div className="field-camera-status">{invalidPhotos.includes(active.id)?"보관 상태 불일치 · 이전 미리보기 사본":"이 브라우저에 보관됨 · 사진첩에는 자동 저장되지 않음"}</div><details className="field-camera-details"><summary>현장 정보 덧붙이기 (선택)</summary><label>현장명<input value={site} maxLength={100} onChange={e=>setSite(e.target.value)} placeholder="예: ○○ 현장"/></label><label>위치<input value={location} maxLength={100} onChange={e=>setLocation(e.target.value)} placeholder="예: 2동 3층"/></label><p>직접 입력한 정보는 저장되지 않으며 사진 파일에 기록되지 않습니다. 공유 앱에 따라 문구가 제외될 수 있습니다.</p><label>전달 문구<textarea readOnly rows={3} value={caption}/></label><button type="button" onClick={()=>void copy()}>문구 복사</button></details><div className="field-camera-actions field-camera-active-actions"><button type="button" disabled={busy||!!pending} onClick={newPhoto}>다음 사진 촬영</button>{!checkingHash&&(invalidPhotos.includes(active.id)?<a href={activeUrl} download={`이전-미리보기-${active.name}`}>이전 미리보기 사본 저장</a>:<a href={activeUrl} download={active.name} className="field-camera-primary">사진 기기에 저장</a>)}<button type="button" disabled={checkingHash||invalidPhotos.includes(active.id)} onClick={()=>void share()}>사진 공유</button></div></>:<><div className="field-camera-placeholder" aria-hidden="true">◎</div><h2>현장을 사진으로 남겨보세요</h2><p>사진은 서버로 전송되지 않습니다.</p><div className="field-camera-actions"><button type="button" className="field-camera-primary" disabled={busy||!!pending} onClick={newPhoto}>사진 촬영하기</button><label>사진첩에서 선택<input type="file" aria-label="사진첩에서 선택" accept="image/jpeg,image/png,image/webp" disabled={busy||!!pending} onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)choose(f);}}/></label></div></>}
+   {active&&activeUrl?<><img src={activeUrl} alt="선택한 현장 사진 미리보기"/><div className="field-camera-status">{invalidPhotos.includes(active.id)?"보관 상태 불일치 · 이전 미리보기 사본":"이 브라우저에 보관됨 · 사진첩에는 자동 저장되지 않음"}</div><details className="field-camera-details"><summary>현장 정보 덧붙이기 (선택)</summary><label>현장명<input value={site} maxLength={100} onChange={e=>setSite(e.target.value)} placeholder="예: ○○ 현장"/></label><label>위치<input value={location} maxLength={100} onChange={e=>setLocation(e.target.value)} placeholder="예: 2동 3층"/></label><p>직접 입력한 정보는 저장되지 않으며 사진 파일에 기록되지 않습니다. 공유 앱에 따라 문구가 제외될 수 있습니다.</p><label>전달 문구<textarea readOnly rows={3} value={caption}/></label><button type="button" onClick={()=>void copy()}>문구 복사</button></details><div className="field-camera-actions field-camera-active-actions"><button type="button" disabled={busy||!!pending||transferring} onClick={newPhoto}>다음 사진 촬영</button>{!checkingHash&&(invalidPhotos.includes(active.id)?<a href={activeUrl} download={`이전-미리보기-${active.name}`}>이전 미리보기 사본 저장</a>:<a href={activeUrl} download={active.name} className="field-camera-primary">사진 기기에 저장</a>)}<button type="button" disabled={busy||checkingHash||transferring||invalidPhotos.includes(active.id)} onClick={()=>void share()}>{transferring?'보관 파일 검증 중…':'사진 공유'}</button></div></>:<><div className="field-camera-placeholder" aria-hidden="true">◎</div><h2>현장을 사진으로 남겨보세요</h2><p>사진은 서버로 전송되지 않습니다.</p><div className="field-camera-actions"><button type="button" className="field-camera-primary" disabled={busy||!!pending} onClick={newPhoto}>사진 촬영하기</button><label>사진첩에서 선택<input type="file" aria-label="사진첩에서 선택" accept="image/jpeg,image/png,image/webp" disabled={busy||!!pending} onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)choose(f);}}/></label></div></>}
    {message&&<p role="status">{message}</p>}
   </section>
-  {active&&<details className="field-camera-next"><summary>보관 파일 정보</summary><p>{active.sha256?<>보관 시 계산한 SHA-256: <code className="field-camera-hash">{active.sha256}</code></>:'이 사진의 보관 시 해시는 기록되지 않았습니다.'}</p>{active.sha256&&<div className="field-camera-actions"><button type="button" disabled={checkingHash} onClick={()=>void verifyHash()}>보관 파일 다시 확인</button></div>}{hashCheck?.id===active.id&&<p role="status">{hashCheck.text}</p>}{invalidPhotos.includes(active.id)&&<p>일반 공유와 ZIP이 차단되었습니다. 화면의 사진은 이전에 불러온 사본이며 현재 보관 파일과 다를 수 있습니다.</p>}<p>브라우저에 보관한 파일의 해시입니다. 일치해도 카메라 센서 원본이나 촬영 시각·현장 상태를 증명하지 않습니다.</p></details>}
-  <section className="field-camera-next" aria-label="브라우저 사진함"><h2>{available?`이 브라우저의 사진 ${photos.length}장`:busy?'사진함 확인 중':'사진함 확인 필요'}</h2><p>브라우저 데이터 삭제, 비공개 모드 종료 또는 저장공간 정리로 사진이 사라질 수 있습니다. 중요한 사진은 기기에도 저장하세요.</p>{usage&&<p>{usage} · 브라우저 정책에 따라 달라질 수 있습니다.</p>}{invalidPhotos.length>0&&<p role="status">이 화면에서 확인된 불일치 사진은 공유·ZIP 선택에서 제외하세요. 해당 사진을 열어 보관 파일 정보를 확인할 수 있습니다.</p>}{!available&&!busy&&<p>사진함을 열지 못했습니다. 이 상태에서는 보관 여부를 확인할 수 없습니다.</p>}{photos.length>0&&<><ul className="field-camera-list">{photos.map((row,index)=><li key={row.id}><PhotoThumb blob={row.blob}/><label><input aria-label={`사진 ${index+1} 선택`} type="checkbox" checked={selected.includes(row.id)} onChange={e=>{const checked=e.target.checked;setSelected(previous=>checked?[...previous,row.id]:previous.filter(id=>id!==row.id));}}/> 사진 {index+1}</label><button type="button" aria-label={`사진 ${index+1} 보기`} aria-pressed={row.id===activeId} disabled={busy||!!pending} onClick={()=>chooseStored(row.id)}>{row.id===activeId?'보는 중':'보기'}</button></li>)}</ul><div className="field-camera-actions"><button type="button" disabled={busy||checkingHash||!selected.length||selected.some(id=>invalidPhotos.includes(id))} onClick={()=>void shareSelected()}>선택 사진 공유 ({selected.length})</button><button type="button" disabled={busy||checkingHash||!selected.length} onClick={()=>void remove(selected)}>선택 사진 삭제 ({selected.length})</button><button type="button" disabled={busy||checkingHash} onClick={()=>void remove(photos.map(row=>row.id))}>전체 사진 삭제</button></div><p>여러 장 공유가 지원되지 않으면 각 사진을 열어 기기에 저장하거나 개별 공유하세요.</p></>}</section>
-  {photos.length>0&&<section className="field-camera-next field-camera-export"><h2>선택 사진 한꺼번에 내보내기</h2><p>사진을 선택한 뒤 ZIP을 준비하세요. 사진 파일 내용은 변경하지 않으며, 받는 앱에서 ZIP 압축을 풀어 첨부해야 할 수 있습니다. ZIP에 표시되는 날짜는 촬영 시각을 의미하지 않습니다.</p><div className="field-camera-actions"><button type="button" disabled={busy||packing||checkingHash||!selected.length||selected.some(id=>invalidPhotos.includes(id))} onClick={()=>void prepareArchive()}>{packing?'파일 준비 중…':`선택 사진 ZIP 준비 (${selected.length})`}</button>{archive&&archiveUrl&&!checkingHash&&!selected.some(id=>invalidPhotos.includes(id))&&<a href={archiveUrl} download="PSI-현장사진.zip" className="field-camera-primary">ZIP 기기에 저장</a>}</div><p>한 번에 최대 100장, 합계 60MB까지 가능합니다. ZIP 이용이 어려운 앱에는 각 사진을 직접 저장하세요.</p></section>}
+  {active&&<details className="field-camera-next"><summary>보관 파일 정보</summary><p>{active.sha256?<>보관 시 계산한 SHA-256: <code className="field-camera-hash">{active.sha256}</code></>:'이 사진의 보관 시 해시는 기록되지 않았습니다.'}</p>{active.sha256&&<div className="field-camera-actions"><button type="button" disabled={checkingHash||transferring} onClick={()=>void verifyHash()}>보관 파일 다시 확인</button></div>}{hashCheck?.id===active.id&&<p role="status">{hashCheck.text}</p>}{invalidPhotos.includes(active.id)&&<p>일반 공유와 ZIP이 차단되었습니다. 화면의 사진은 이전에 불러온 사본이며 현재 보관 파일과 다를 수 있습니다.</p>}<p>브라우저에 보관한 파일의 해시입니다. 일치해도 카메라 센서 원본이나 촬영 시각·현장 상태를 증명하지 않습니다.</p></details>}
+  <section className="field-camera-next" aria-label="브라우저 사진함"><h2>{available?`이 브라우저의 사진 ${photos.length}장`:busy?'사진함 확인 중':'사진함 확인 필요'}</h2><p>브라우저 데이터 삭제, 비공개 모드 종료 또는 저장공간 정리로 사진이 사라질 수 있습니다. 중요한 사진은 기기에도 저장하세요.</p>{usage&&<p>{usage} · 브라우저 정책에 따라 달라질 수 있습니다.</p>}{invalidPhotos.length>0&&<p role="status">이 화면에서 확인된 불일치 사진은 공유·ZIP 선택에서 제외하세요. 해당 사진을 열어 보관 파일 정보를 확인할 수 있습니다.</p>}{!available&&!busy&&<p>사진함을 열지 못했습니다. 이 상태에서는 보관 여부를 확인할 수 없습니다.</p>}{photos.length>0&&<><ul className="field-camera-list">{photos.map((row,index)=><li key={row.id}><PhotoThumb blob={row.blob}/><label><input aria-label={`사진 ${index+1} 선택`} type="checkbox" disabled={transferring} checked={selected.includes(row.id)} onChange={e=>{const checked=e.target.checked;setSelected(previous=>checked?[...previous,row.id]:previous.filter(id=>id!==row.id));}}/> 사진 {index+1}</label><button type="button" aria-label={`사진 ${index+1} 보기`} aria-pressed={row.id===activeId} disabled={busy||!!pending||transferring} onClick={()=>chooseStored(row.id)}>{row.id===activeId?'보는 중':'보기'}</button></li>)}</ul><div className="field-camera-actions"><button type="button" disabled={busy||checkingHash||transferring||!selected.length||selected.some(id=>invalidPhotos.includes(id))} onClick={()=>void shareSelected()}>선택 사진 공유 ({selected.length})</button><button type="button" disabled={busy||checkingHash||transferring||!selected.length} onClick={()=>void remove(selected)}>선택 사진 삭제 ({selected.length})</button><button type="button" disabled={busy||checkingHash||transferring} onClick={()=>void remove(photos.map(row=>row.id))}>전체 사진 삭제</button></div><p>여러 장 공유가 지원되지 않으면 각 사진을 열어 기기에 저장하거나 개별 공유하세요.</p></>}</section>
+  {photos.length>0&&<section className="field-camera-next field-camera-export"><h2>선택 사진 한꺼번에 내보내기</h2><p>사진을 선택한 뒤 ZIP을 준비하세요. 공유·ZIP 생성 전에 브라우저에 실제 저장된 사진을 다시 열고 SHA-256을 확인합니다. 해시가 없는 사진이나 변조된 사진은 전달하지 않습니다. 사진 파일 내용은 변경하지 않으며, 받는 앱에서 ZIP 압축을 풀어 첨부해야 할 수 있습니다. ZIP에 표시되는 날짜는 촬영 시각을 의미하지 않습니다.</p><div className="field-camera-actions"><button type="button" disabled={busy||packing||transferring||checkingHash||!selected.length||selected.some(id=>invalidPhotos.includes(id))} onClick={()=>void prepareArchive()}>{packing?'파일 준비 중…':`선택 사진 ZIP 준비 (${selected.length})`}</button>{archive&&archiveUrl&&!checkingHash&&!selected.some(id=>invalidPhotos.includes(id))&&<a href={archiveUrl} download="PSI-현장사진.zip" className="field-camera-primary">ZIP 기기에 저장</a>}</div><p>한 번에 최대 100장, 합계 60MB까지 가능합니다. ZIP 이용이 어려운 앱에는 각 사진을 직접 저장하세요.</p></section>}
   <section className="field-camera-next field-camera-inspector"><h2>사진 다음은 기기 점검으로</h2><p>현장 위험·조치·담당·기한·조치 후 사진을 이 기기에 보관할 수 있습니다. 현재 사진함의 사진이나 입력 내용은 자동으로 이전·업로드되지 않습니다.</p><a href="/field-local/" onClick={e=>{if((pending||site.trim()||location.trim())&&!window.confirm('보관되지 않은 사진이나 입력 정보가 있습니다. 필요한 내용을 저장하고 이동할까요?'))e.preventDefault();}}>내 기기 점검 열기 →</a><p><a href="/inspector">관리자 클라우드 점검 (로그인 필요) →</a></p></section>
   <p className="field-camera-foot">사진함은 이 브라우저의 기기 저장소입니다. 같은 브라우저 프로필을 사용하는 다른 사람도 사진을 볼 수 있습니다. 공유 완료 여부는 선택한 앱에서 확인하세요.</p>
   {camera&&<InspectorCameraDialog onClose={()=>setCamera(false)} onUse={file=>{setCamera(false);choose(file);}} onSaveAndContinue={saveAndContinue} storedCount={photos.length}/>}
