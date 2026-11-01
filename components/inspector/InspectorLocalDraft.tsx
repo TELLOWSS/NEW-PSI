@@ -1177,7 +1177,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
       {item.bucket==='conflict'?' · 완료 상태와 최신 미완료 재점검 이력이 상충해 전문가 재확인 필요':''}
      </li>)}</ol>
     </details>}
-    <div aria-label="재점검 관리 보고서 만들기" className="mt-3 rounded-lg border border-slate-300 p-3">
+    <div role="group" aria-label="재점검 관리 보고서 만들기" className="mt-3 rounded-lg border border-slate-300 p-3">
      <h5>27차 · 현장 관리 보고서 만들기</h5>
      <p>기기 저장 기록으로 CSV 대장과 A4 가로 인쇄용 HTML을 준비합니다. 서버 업로드·자동 발송 없이 기기에서만 처리합니다. HTML 파일을 연 뒤 인쇄 기능에서 PDF로 저장할 수 있습니다.</p>
      <label>보고 대상 범위
