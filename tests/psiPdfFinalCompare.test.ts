@@ -1,8 +1,31 @@
 import {afterEach,describe,expect,it,vi} from 'vitest';
 
-const saved=vi.hoisted(()=>vi.fn());
+const {saved,archiveFiles,FakeZip}=vi.hoisted(()=>{
+    const saved=vi.fn();
+    let last=new Map<string,Uint8Array>();
+    const encode=(data:Uint8Array|string)=>typeof data==='string'?
+        new TextEncoder().encode(data):Uint8Array.from(data);
+    class FakeZip {
+        entries=new Map<string,Uint8Array>();
+        file(name:string,contents?:Uint8Array|string){
+            if(contents!==undefined){this.entries.set(name,encode(contents));return this;}
+            const bytes=this.entries.get(name);
+            return bytes?{async:async(_type:'uint8array')=>Uint8Array.from(bytes)}:null;
+        }
+        async generateAsync(_options:unknown){
+            last=new Map(this.entries);
+            return new Blob(['synthetic zip'],{type:'application/zip'});
+        }
+        async loadAsync(_data:Blob){
+            this.entries=new Map(last);
+            return this;
+        }
+    }
+    return {saved,archiveFiles:()=>last,FakeZip};
+});
 vi.mock('../utils/externalScripts',()=>({
     ensureJsPdfConstructor:vi.fn(),
+    ensureJsZip:vi.fn(async()=>FakeZip),
     ensureFileSaver:vi.fn(async()=>saved),
 }));
 
@@ -59,7 +82,12 @@ describe('PSI 21st source + final output integrity gate',()=>{
         const {original,pdf}=await fixture();
         await verifyPsiPreparedPdfIntegrity(pdf,original);
         const result=await downloadPreparedPsiRasterPdfReview(pdf,[2,1],original);
-        expect(saved).toHaveBeenCalledTimes(2);
+        expect(saved).toHaveBeenCalledTimes(1);
+        expect(saved.mock.calls[0][1]).toMatch(/\\.zip$/);
+        const paths=[...archiveFiles().keys()];
+        expect(paths.sort()).toEqual([
+            'PSI_MASKED_REVIEW.pdf','REVIEW_MANIFEST.json','SHA256SUMS.txt',
+        ].sort());
         expect(result.finalComparison?.comparedPages).toEqual([1,2]);
         expect(result.finalComparison?.userAcknowledged).toBe(true);
         expect(result.finalComparison?.independentlyApproved).toBe(false);
@@ -67,10 +95,12 @@ describe('PSI 21st source + final output integrity gate',()=>{
         expect(result.recipientDeliveryRecorded).toBe(false);
         expect(result.originalSha256).toBe(await sha(original));
         expect(result.rasterPdfSha256).toBe(await sha(pdf.blob));
-        const manifestFile=saved.mock.calls[1][0] as Blob;
-        const json=JSON.parse(await manifestFile.text());
+        const json=JSON.parse(new TextDecoder().decode(archiveFiles().get('REVIEW_MANIFEST.json')));
         expect(json.finalComparison.comparedPages).toEqual([1,2]);
         expect(json.disclosureApproved).toBe(false);
+        expect(json.finalComparison.localDownloadFormat).toBe('SINGLE_REVIEW_ZIP');
+        const pdfHash=new TextDecoder().decode(archiveFiles().get('SHA256SUMS.txt'));
+        expect(pdfHash).toContain(result.rasterPdfSha256+'  PSI_MASKED_REVIEW.pdf');
     });
     it('refuses a tampered original even if the reviewed page count is complete',async()=>{
         const {pdf}=await fixture();
