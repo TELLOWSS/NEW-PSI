@@ -761,6 +761,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  }|null>(null);
  const [emergencyCheck,setEmergencyCheck]=useState<'unverified'|'checking'|'verified'|'mismatch'|'error'>('unverified');
  const [emergencyCheckMessage,setEmergencyCheckMessage]=useState('');
+ const emergencyFileInputRef=useRef<HTMLInputElement|null>(null);
  const [unfinishedMessage,setUnfinishedMessage]=useState('');
  const [recoveryScanBusy,setRecoveryScanBusy]=useState(false);
  const [recoveryScanMessage,setRecoveryScanMessage]=useState('');
@@ -821,6 +822,16 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   emergencyExport.singleDraft!==singleDraftRef.current||
   emergencyExport.sequence!==draftRef.current
  ));
+ const emergencyStatus: 'waiting-file'|'checking'|'verified'|'mismatch'|'error'|'stale'=
+  emergencyExportStale?'stale':emergencyCheck==='unverified'?'waiting-file':emergencyCheck;
+ const emergencyStatusCopy:Record<typeof emergencyStatus,{title:string;guide:string}>={
+  'waiting-file':{title:'2단계 · 백업 파일 재선택 필요',guide:'다운로드 요청은 됐지만 저장된 파일을 아직 확인하지 못했습니다. JSON을 아래에서 다시 선택하세요.'},
+  checking:{title:'파일 확인 중',guide:'선택한 JSON 파일과 이번 백업의 비교값을 이 기기에서 대조하고 있습니다.'},
+  verified:{title:'3단계 · 백업 파일 내용 일치',guide:'다시 선택한 파일은 이번 백업과 일치합니다. 기기 밖 보관 여부는 직접 확인하세요.'},
+  mismatch:{title:'확인 실패 · 다른 백업 파일',guide:'이번에 만든 백업과 다릅니다. 원본을 삭제하지 말고 다운로드 폴더에서 올바른 파일을 다시 선택하세요.'},
+  error:{title:'확인 실패 · 파일 손상 또는 읽기 오류',guide:'원본 파일을 보관하세요. 올바른 JSON을 다시 선택하거나 현재 화면을 새로 백업하세요.'},
+  stale:{title:'변경 감지 · 새 백업 필요',guide:'백업 이후 점검 내용이나 사진이 변경됐습니다. 변경된 내용으로 새 파일을 내려받고 다시 검사하세요.'},
+ };
  const inputPending=inputDraftState==='ready'&&(
   inputDraftRef.current
    ?localInputDraftFields(inputDraftRef.current)!==localInputDraftFields(liveInput)
@@ -1786,9 +1797,15 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
       <button type="button" className="si-btn" style={{minHeight:44}} disabled={busy||unfinishedBusy||draftState==='loading'||singleDraftState==='loading'||inputDraftState==='loading'} onClick={()=>void backupUnfinished()}>작성 중 자료 한 번에 백업</button>
       <p>다운로드가 시작돼도 파일 보관이 완료된 것은 아닙니다. 파일 앱에서 저장된 JSON을 다시 선택해 확인하세요.</p>
       {emergencyExport&&<div aria-label="실제 내려받은 백업 파일 확인" className="rounded-lg border border-slate-300 p-3">
+       <section aria-label="백업 확인 진행 상태" className="rounded-lg border border-slate-300 p-3">
+        <strong>{emergencyStatusCopy[emergencyStatus].title}</strong>
+        <p role={emergencyStatus==='error'||emergencyStatus==='mismatch'||emergencyStatus==='stale'?'alert':'status'}>{emergencyStatusCopy[emergencyStatus].guide}</p>
+       </section>
        <p><strong>내려받은 파일 다시 확인</strong> · 예상 파일명: {emergencyExport.filename}</p>
-       <label>저장한 JSON 백업 파일 다시 선택<input type="file" aria-label="저장한 JSON 백업 파일 다시 선택" accept=".json,application/json" style={{display:"block",width:"100%",maxWidth:"100%",minHeight:44}} disabled={busy||unfinishedBusy} onChange={e=>{const selected=e.target.files?.[0];e.target.value='';if(selected)void checkDownloadedEmergencyBackup(selected);}}/></label>
+       <label>저장한 JSON 백업 파일 다시 선택<input ref={emergencyFileInputRef} type="file" aria-label="저장한 JSON 백업 파일 다시 선택" accept=".json,application/json" style={{display:"block",width:"100%",maxWidth:"100%",minHeight:44}} disabled={busy||unfinishedBusy} onChange={e=>{const selected=e.target.files?.[0];e.target.value='';if(selected)void checkDownloadedEmergencyBackup(selected);}}/></label>
        {emergencyCheck==='checking'&&<p role="status">백업 파일을 검사 중…</p>}
+       {(emergencyCheck==='mismatch'||emergencyCheck==='error')&&!emergencyExportStale&&<button type="button" className="si-btn" style={{minHeight:44,width:'100%'}} disabled={busy||unfinishedBusy} onClick={()=>emergencyFileInputRef.current?.click()}>다른 JSON 파일 다시 선택</button>}
+       {emergencyExportStale&&<button type="button" className="si-btn si-primary" style={{minHeight:44,width:'100%'}} disabled={busy||unfinishedBusy} onClick={()=>void backupUnfinished()}>변경 내용 새 백업</button>
        {emergencyCheckMessage&&<p role={emergencyCheck==='verified'&&!emergencyExportStale?'status':'alert'}>{emergencyCheckMessage}</p>}
        {emergencyCheck==='verified'&&!emergencyExportStale&&<p role="status">이번 화면 백업 파일 재선택 검사 통과. 필요한 경우 기기 밖에도 보관하세요.</p>}
        {emergencyExportStale&&<p role="alert">백업 이후 점검 내용이나 사진이 변경됐습니다. 최신 내용을 보관하려면 새 백업을 내려받아 다시 검사하세요.</p>}
