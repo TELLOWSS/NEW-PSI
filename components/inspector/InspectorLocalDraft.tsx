@@ -4,7 +4,7 @@ import {legalForText} from '../../lib/inspector/legal';
 import {sourceReviewState} from '../../lib/inspector/sourceReview';
 import {FOLLOWUP_STATES, FOLLOWUP_LABELS, validateFollowup, validateAdditionalActions, overdue} from '../../lib/inspector/localFollowup.mjs';
 import {prepareFollowupChange,analyzeFollowupChangeTrace,TEMPORARY_CONTROL_REVIEWS} from '../../lib/inspector/localFollowupChangeTrace.mjs';
-import {buildDeferredActionGuide} from '../../lib/inspector/localDeferredActionGuide.mjs';
+import {buildDeferredActionGuide,buildDeferredActionAttention} from '../../lib/inspector/localDeferredActionGuide.mjs';
 import {buildLocalRecheckQueue,summarizeLocalRecheckQueue,LOCAL_RECHECK_BUCKETS,LOCAL_RECHECK_LABELS,localCalendarDate} from '../../lib/inspector/localRecheckQueue.mjs';
 import {classifyLocalRestoreError,verifyLocalRestoreReadback} from '../../lib/inspector/localRestoreRecovery.mjs';
 import {localRecordMayDelete} from '../../lib/inspector/localRecordDeletionGuard.mjs';
@@ -606,6 +606,7 @@ function FollowupEditor({row,busy,onSave,actionId,rechecks}:{row:LocalRecord;bus
  const [editing,setEditing]=useState(false);
  const trace=analyzeFollowupChangeTrace(current);
  const guide=buildDeferredActionGuide(current,rechecks||row.rechecks||[]);
+ const attention=buildDeferredActionAttention(current,rechecks||row.rechecks||[]);
  const recheckAnchor='si-recheck-'+row.id+'-'+(actionId||'main');
  const dueChanged=!!current&&dueDate!==current.dueDate;
  const controlChanged=!!current&&temporaryMeasure.trim()!==(current.temporaryMeasure||'');
@@ -642,6 +643,16 @@ function FollowupEditor({row,busy,onSave,actionId,rechecks}:{row:LocalRecord;bus
    </ol>
    <p>기록 있음은 점검자 입력 여부만 나타냅니다. 임시조치 시행·유지, 담당자 연락, 위험 해소 또는 작업 재개 승인을 뜻하지 않습니다.</p>
    <a href={'#'+recheckAnchor}>재점검·지연 사유 입력 위치로 이동</a>
+  </section>
+  <section aria-label="후속 조치 누락·기한 확인" className="rounded-lg border border-slate-300 p-3">
+   <strong>기록 누락·예정일 확인</strong>
+   <p>사용 기기 날짜 {attention.asOf} 기준 · 담당자·임시 안전조치·목표 기한·재점검 기록을 구분합니다.</p>
+   {attention.flags.length===0?<p role="status">현재 입력에서 별도 누락 또는 기한 경과 항목이 발견되지 않았습니다. 실제 위험 해소·조치 완료를 의미하지 않습니다.</p>:
+    <div>{attention.flags.map(item=><p key={item.key} role={item.kind==='overdue'||item.kind==='conflict'?'alert':undefined} className="rounded-lg border border-slate-200 p-2">
+     <strong>{item.label}</strong> · {item.detail}
+    </p>)}</div>}
+   {attention.controlReview==='inspector-reported'&&<p>점검자가 임시조치 유지 상태를 확인했다고 입력한 기록이 있습니다. 독립적인 확인이나 작업 재개 승인은 아닙니다.</p>}
+   <p>예정일 분류는 기기의 날짜와 입력 기록에 근거합니다. 담당자에게 자동 연락하거나 조치 완료로 변경하지 않습니다. 급박한 위험은 현장에서 접근통제·작업중지 필요성을 우선 검토하세요.</p>
   </section>
   <p><strong>{current?FOLLOWUP_LABELS[current.status]:'상태 미기록'}</strong> · 담당: {current?.assignee||'미지정'} · 기한: {current?.dueDate||'미정'} {current&&overdue(current)?'· 기한 초과':''}</p>
   <p>{current?.temporaryMeasure?'현재 기록된 임시 안전조치: '+current.temporaryMeasure:'임시 안전조치 미기록'} · 임시 안전조치 기록만으로 위험 제거 또는 최종 완료가 확인된 것은 아닙니다.</p>
