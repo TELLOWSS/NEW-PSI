@@ -1033,8 +1033,34 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   try{await runStore<void>('readwrite',store=>{const request=store.get(DRAFT_KEY);request.onsuccess=()=>{if(request.result?.revision!==old.revision){request.transaction?.abort();return;}store.delete(DRAFT_KEY);};});draftRef.current=null;setDraft(null);setMessage('임시 촬영 사진을 삭제했습니다.');}
   catch{setMessage('임시 촬영 사진을 삭제하지 못했습니다. 다른 탭을 확인하고 다시 시도하세요.');}finally{flight.current=false;setBusy(false);}
  };
+ const clearSingleDraft=async()=>{
+  const old=singleDraftRef.current;
+  if(flight.current||!old||singleDraftState!=='ready'||!window.confirm('단건 임시사진을 삭제할까요? 이 사진이 필요한 경우 먼저 별도로 내려받아 보관하세요. 연속 촬영 사진과 점검 입력은 삭제하지 않습니다.'))return;
+  flight.current=true;setBusy(true);setMessage('');
+  let changed=false;
+  try{
+   await runStore<void>('readwrite',store=>{
+    const req=store.get(SINGLE_PHOTO_DRAFT_KEY);
+    req.onsuccess=()=>{
+     try{
+      if(!singlePhotoDraftCanReplace(req.result,old)){changed=true;req.transaction?.abort();return;}
+      store.delete(SINGLE_PHOTO_DRAFT_KEY);
+     }catch{try{req.transaction?.abort();}catch{/* already closed */}}
+    };
+   });
+   singleDraftRef.current=null;setPhoto(null);setSinglePhotoEdit(undefined);
+   setSinglePhotoSource(null);setSingleSavedAt('');setSingleDraftMessage('');
+   setMessage('단건 임시사진만 삭제했습니다. 연속 촬영 사진과 점검 입력은 유지했습니다.');
+  }catch{
+   setSingleDraftState(changed?'conflict':'error');
+   setSingleDraftMessage(changed
+    ?'다른 탭에서 단건 임시사진이 변경됐습니다. 삭제하지 않았습니다. 최신 사진을 확인하세요.'
+    :'단건 임시사진을 삭제하지 못했습니다. 사진을 보관한 후 다시 확인하세요.');
+  }finally{flight.current=false;setBusy(false);}
+ };
  const save=async()=>{
   const staged=draftRef.current,primary=staged?.photos[0]||photo;
+  if(staged&&photo){setMessage('단건 사진과 연속 촬영 사진이 동시에 임시 보관돼 있습니다. 필요한 사진을 백업한 뒤 한쪽을 명시적으로 선택해 주세요. 어느 사진도 자동 삭제하지 않았습니다.');return;}
   if(flight.current||!primary||!note.trim()||draftState!=='ready'||inputDraftState!=='ready'||singleDraftState!=='ready')return;
   inputEpochRef.current++;
   if(inputTimerRef.current)clearTimeout(inputTimerRef.current);
@@ -1046,6 +1072,26 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   };
   try{
    await inputWriteRef.current;
+   // Immediate final-save clicks may arrive before the 650ms auto-checkpoint.
+   // Commit the current form first, so aborting the final record transaction
+   // (quota, crash, tab close) cannot discard the most recent user text.
+   const fields={note,action,photoRole,siteContext:siteContextInput};
+   const existingInput=inputDraftRef.current;
+   if(localInputDraftHasContent(fields)&&
+       (!existingInput||localInputDraftFields(existingInput)!==localInputDraftFields(fields))){
+    const nextInput:LocalInputDraft={id:LOCAL_INPUT_DRAFT_KEY,kind:'inspection-input-draft',
+     revision:crypto.randomUUID(),savedAt:new Date().toISOString(),...fields};
+    await runStore<void>('readwrite',store=>{
+     const req=store.get(LOCAL_INPUT_DRAFT_KEY);
+     req.onsuccess=()=>{
+      try{
+       if(!localInputDraftCanReplace(req.result,existingInput)){inputConflict=true;req.transaction?.abort();return;}
+       store.put(nextInput);
+      }catch(error){abortFailedWrite(error,req.transaction);}
+     };
+    });
+    inputDraftRef.current=nextInput;setInputSavedAt(nextInput.savedAt);
+   }
    const secondary=staged?.photos[1],primaryRole=staged&&secondary&&photoRole==='unspecified'?'overview':photoRole;
    const primaryDigest=await hash(primary),contextDigest=secondary?await hash(secondary):undefined;
    if(staged&&!primaryDigest)throw new Error('기본 사진의 비교값을 만들지 못했습니다. 촬영본은 이 기기에 그대로 보관됩니다.');
@@ -1460,15 +1506,15 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     {photo&&<button type="button" className="si-btn" disabled={busy} onClick={()=>void choose(photo,singlePhotoSource||'file-picker',singlePhotoEdit)}>선택 사진 임시저장 다시 시도</button>}
     <button type="button" className="si-btn" disabled={busy} onClick={()=>{if(window.confirm('현재 선택한 사진을 내려받아 보관했습니까? 기기에 저장된 단건 임시사진을 다시 불러오면 현재 화면 사진이 바뀔 수 있습니다.'))void loadSinglePhoto();}}>기기 단건 임시사진 다시 확인</button>
    </div>}
-   {photo?<>{url&&<img src={url} alt="기기 점검에 선택한 사진" style={{display:'block',maxWidth:'100%',maxHeight:260,objectFit:'contain'}}/>}<p>{photo.name} · {Math.ceil(photo.size/1024)} KB</p>{backupIssue(photo)&&<p role="alert">저장 전 백업 안내: {backupIssue(photo)} 점검은 기기에 저장할 수 있습니다.</p>}<button type="button" className="si-btn" disabled={busy} onClick={()=>download(photo,photo.name)}>선택 사진 내려받기</button></>:<p>사진을 촬영하거나 선택해 주세요.</p>}
+   {photo?<>{url&&<img src={url} alt="기기 점검에 선택한 사진" style={{display:'block',maxWidth:'100%',maxHeight:260,objectFit:'contain'}}/>}<p>{photo.name} · {Math.ceil(photo.size/1024)} KB</p>{backupIssue(photo)&&<p role="alert">저장 전 백업 안내: {backupIssue(photo)} 점검은 기기에 저장할 수 있습니다.</p>}<button type="button" className="si-btn" disabled={busy} onClick={()=>download(photo,photo.name)}>선택 사진 내려받기</button>{singleDraftState==='ready'&&singleDraftRef.current&&<button type="button" className="si-btn" disabled={busy} onClick={()=>void clearSingleDraft()}>단건 임시사진만 삭제</button>}</>:<p>사진을 촬영하거나 선택해 주세요.</p>}
    <div><button type="button" className="si-btn" disabled={busy||!!draft||draftState!=='ready'||singleDraftState!=='ready'} onClick={()=>{setSequence(false);setCamera(true);}}>기기 점검 사진 촬영</button> <button type="button" className="si-btn" disabled={busy||!!photo||draftState!=='ready'||singleDraftState!=='ready'||(draft?.photos.length||0)>=2} onClick={()=>{setSequence(true);setCamera(true);}}>전체·위험 부위 연속 촬영</button> <label className="si-btn">기기 점검 사진 선택<input aria-label="기기 점검 사진 선택" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy||!!draft||draftState!=='ready'||singleDraftState!=='ready'} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void choose(file,'file-picker');}}/></label></div>
-   {draft&&photo&&<p role="alert">단건 임시사진과 연속 촬영 임시사진이 함께 있습니다. 저장하면 연속 촬영 사진이 선택됩니다. 필요한 파일을 모두 내려받고 각 임시기록을 확인해 주세요.</p>}
+   {draft&&photo&&<p role="alert">단건 임시사진과 연속 촬영 임시사진이 함께 있습니다. 혼합 저장은 차단됩니다. 필요한 사진을 내려받아 보관한 뒤, 사용하지 않을 임시사진을 명시적으로 삭제하여 한 가지 촬영본만 남기세요.</p>}
    {draftState==='loading'&&<p role="status">임시 촬영 사진을 확인하고 있습니다…</p>}
    {draftState==='error'&&<div role="alert"><p>임시 촬영 사진을 확인하지 못했습니다. 저장소를 확인하고 다시 시도하세요.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>void loadDraft()}>임시 사진 다시 확인</button></div>}
    {draft&&<section aria-label="임시 촬영 사진"><p>이 기기에 임시 보관된 촬영 사진 {draft.photos.length}장 · 점검 내용은 아직 저장되지 않았습니다.</p><p>두 장이면 첫 사진의 역할을 선택하세요. 선택하지 않으면 첫 사진은 현장 전체, 둘째는 위험 부위로 저장됩니다.</p>{draft.photos.map((file,i)=><p key={i}>{i+1}. {file.name} <button type="button" className="si-btn" onClick={()=>download(file,file.name)}>임시 사진 내려받기</button></p>)}<button type="button" className="si-btn" disabled={busy} onClick={()=>void clearDraft()}>임시 사진 모두 삭제</button></section>}
    <div aria-label="작성 중 점검 임시저장 안내">
     {inputDraftState==='loading'&&<p role="status">이전에 작성 중이던 점검 입력을 확인하고 있습니다…</p>}
-    {inputDraftState==='ready'&&<p role="status">점검 내용·현장정보는 변경 후 잠시 뒤 이 브라우저에 자동 임시저장됩니다. {inputSavedAt?'최근 임시저장: '+new Date(inputSavedAt).toLocaleString('ko-KR'):'아직 저장된 입력이 없습니다.'} 연속 촬영 사진은 별도로 임시 보관됩니다. 파일에서 직접 선택한 사진은 재실행 후 자동 복원되지 않으므로 별도 보관하세요.</p>}
+    {inputDraftState==='ready'&&<p role="status">점검 내용·현장정보는 변경 후 잠시 뒤 이 브라우저에 자동 임시저장됩니다. {inputSavedAt?'최근 임시저장: '+new Date(inputSavedAt).toLocaleString('ko-KR'):'아직 저장된 입력이 없습니다.'} 연속 촬영 사진은 별도로 임시 보관됩니다. 파일에서 선택한 단건 사진도 임시저장 확인 후 재실행 시 복원할 수 있습니다. 다만 브라우저 데이터 삭제·기기 분실에는 대비되지 않으므로 별도 백업하세요.</p>}
     {inputDraftState==='error'&&<div role="alert"><p>임시 입력을 저장하거나 불러오지 못했습니다. 현재 화면의 내용을 지우지 않았습니다. 입력을 복사해 별도 보관하세요.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>setInputDraftState('ready')}>임시저장 다시 시도</button></div>}
     {inputDraftState==='conflict'&&<div role="alert"><p>다른 탭의 임시 입력이 변경되어 덮어쓰지 않았습니다. 현재 입력을 별도 보관한 뒤 최신 내용을 불러오세요.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>{if(window.confirm('현재 화면의 입력을 다른 탭의 저장된 내용으로 바꿀까요?'))void loadInputDraft();}}>기기 임시 입력 다시 불러오기</button></div>}
    </div>
@@ -1485,7 +1531,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    <label>직접 확인한 내용<textarea aria-label="직접 확인한 내용" maxLength={4000} value={note} disabled={busy||inputDraftState==='loading'} onChange={e=>setNote(e.target.value)} placeholder="예: 시스템비계 발판 사이가 벌어져 보여 실측이 필요함"/></label>
    <label>현장 조치·확인 계획<textarea aria-label="현장 조치·확인 계획" maxLength={4000} value={action} disabled={busy||inputDraftState==='loading'} onChange={e=>setAction(e.target.value)} placeholder="예: 접근을 통제하고 담당자와 발판 상태 확인"/></label>
    {note.trim()&&<div aria-label="입력 내용으로 찾은 기준"><b>입력 내용으로 찾은 참고 기준</b><p>자료 묶음 버전 {reference.version} · 묶음 기준일 {reference.reviewedAt}. 개별 기준의 현재 적용 여부는 현장에서 확인하세요.</p>{reviewedCards.length?reviewedCards.slice(0,3).map(card=><article key={card.id}><strong>{card.title}</strong><p>{sourceReviewState(card.sourceReview).label}</p>{card.duties.slice(0,2).map(d=><p key={d.url}>{d.label}: {d.summary} <a href={d.url} target="_blank" rel="noreferrer">원문 확인 (인터넷 필요)</a></p>)}<p>{card.scope}</p></article>):<p>현재 입력에 대해 검토 이력과 검토 기한이 확인된 기준을 찾지 못했습니다. 위험이 없다는 뜻이 아니며, 현장 담당자가 적용 기준을 별도로 확인해야 합니다.</p>}</div>}
-   <button type="button" className="si-btn si-primary" disabled={busy||(!photo&&!draft)||!note.trim()||draftState!=='ready'||inputDraftState!=='ready'||singleDraftState!=='ready'} onClick={()=>void save()}>{busy?'기기에 저장 중…':'사진과 내용 기기에 저장'}</button>
+   <button type="button" className="si-btn si-primary" disabled={busy||(!photo&&!draft)||!!(photo&&draft)||!note.trim()||draftState!=='ready'||inputDraftState!=='ready'||singleDraftState!=='ready'} onClick={()=>void save()}>{busy?'기기에 저장 중…':'사진과 내용 기기에 저장'}</button>
    {message&&<p role="status">{message}</p>}
    <h3>{readState==='ready'?`이 브라우저에 보관된 점검 ${rows.length}건`:'이 브라우저의 점검 기록'}</h3>
    {readState==='loading'&&<p role="status">기기 기록을 확인하고 있습니다…</p>}
