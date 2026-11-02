@@ -273,6 +273,8 @@ try{
  assert.equal(await page.evaluate(()=>window.__syntheticHandoffCopied),handoffText);
  // F10-58: a prepared/exported/copied handoff NEVER means message sent or received.
  const receiptGuide=f10Handoff.getByRole('region',{name:'F10 인계 수신·재점검 확인 순서'});
+ await receiptGuide.getByText('인계 후 직접 확인할 일 · 이번 인계 대상 1건',{exact:true}).waitFor();
+ await receiptGuide.getByText('여러 대상 중 일부만 전달하거나 회신받았다면',{exact:false}).waitFor();
  await receiptGuide.getByText('다음 확인: 별도 전달 사실 확인').waitFor();
  const delivered=receiptGuide.getByRole('checkbox',{name:'인계 자료를 외부에서 직접 전달했음을 점검자가 확인'});
  const received=receiptGuide.getByRole('checkbox',{name:'담당자의 실제 수신 회신을 점검자가 확인'});
