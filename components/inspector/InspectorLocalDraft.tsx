@@ -9,7 +9,7 @@ import {classifyLocalRestoreError,verifyLocalRestoreReadback} from '../../lib/in
 import {localRecordMayDelete} from '../../lib/inspector/localRecordDeletionGuard.mjs';
 import {LOCAL_INPUT_DRAFT_KEY,validLocalInputDraft,localInputDraftFields,localInputDraftHasContent,localInputDraftCanReplace} from '../../lib/inspector/localInputDraft.mjs';
 import {SINGLE_PHOTO_DRAFT_KEY,validSinglePhotoDraft,singlePhotoDraftCanReplace,singlePhotoDraftMetadataMatches} from '../../lib/inspector/localSinglePhotoDraft.mjs';
-import {packUnfinishedBackup,unpackUnfinishedBackup,previewUnfinishedBackup} from '../../lib/inspector/localUnfinishedBackup.mjs';
+import {packUnfinishedBackup,unpackUnfinishedBackup,previewUnfinishedBackup,verifyUnfinishedRestoreReadback} from '../../lib/inspector/localUnfinishedBackup.mjs';
 import {buildLocalRecheckReport,selectLocalRecheckReportTargets,matchesLocalFollowupRecordFilter,formatLocalRecheckCsv,formatLocalRecheckPrintHtml,F10_LOCAL_REPORT_LIMIT} from '../../lib/inspector/localRecheckReport.mjs';
 import {buildLocalRecheckProgress} from '../../lib/inspector/localRecheckProgress.mjs';
 import {buildLocalHandoffPlan,selectLocalHandoffTargets,formatLocalHandoffMessage,formatLocalHandoffHtml,handoffSourceSnapshot,F10_HANDOFF_MAX_ITEMS} from '../../lib/inspector/localRecheckHandoff.mjs';
@@ -743,7 +743,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [singleDraftMessage,setSingleDraftMessage]=useState('');
  const [unfinishedBusy,setUnfinishedBusy]=useState(false);
  const [unfinishedMessage,setUnfinishedMessage]=useState('');
- const [unfinishedPreview,setUnfinishedPreview]=useState<{input:LocalInputDraft|null;single:SinglePhotoDraft|null;sequence:PhotoSetDraft|null;exportedAt:string}|null>(null);
+ const [unfinishedPreview,setUnfinishedPreview]=useState<{input:LocalInputDraft|null;single:SinglePhotoDraft|null;sequence:PhotoSetDraft|null;exportedAt:string;integrityLevel:'full'|'legacy-photo-only'}|null>(null);
  const inputDraftRef=useRef<LocalInputDraft|null>(null);
  const inputWriteRef=useRef<Promise<void>>(Promise.resolve());
  const inputTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null);
@@ -1424,7 +1424,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    setUnfinishedPreview(data);
    setUnfinishedMessage('백업 검증 완료: 입력 '+(info.hasInput?'있음':'없음')+
     ' · 단건 사진 '+info.singlePhotos+'장 · 연속 사진 '+info.sequencePhotos+
-    '장. 아직 복원하지 않았습니다. 현재 작성 중인 자료가 있으면 덮어쓰지 않습니다.');
+    '장. '+info.integrityLabel+'. 아직 복원하지 않았습니다. 현재 작성 중인 자료가 있으면 덮어쓰지 않습니다.');
   }catch(error){
    setUnfinishedMessage(error instanceof Error?error.message:'백업을 검증하지 못했습니다. 기존 기록은 변경하지 않았습니다.');
   }finally{setUnfinishedBusy(false);}
@@ -1463,11 +1463,9 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
      if(--remaining===0)set(Object.fromEntries(keys.map((key,i)=>[key,requests[i].result])));
     };
    });
-   const matches=(key:string,expected:{revision:string}|null)=>
-    expected? (restored[key] as {revision?:string}|undefined)?.revision===expected.revision:
-    restored[key]===undefined;
-   if(!matches(LOCAL_INPUT_DRAFT_KEY,data.input)||!matches(SINGLE_PHOTO_DRAFT_KEY,data.single)||!matches(DRAFT_KEY,data.sequence))
-    throw new Error('복원 후 저장된 임시기록을 확인하지 못했습니다. 기기 저장소를 다시 확인하세요.');
+   const checked=await verifyUnfinishedRestoreReadback(data,restored);
+   if(!checked.ok)
+    throw new Error('복원 후 '+(checked.part==='input'?'점검내용·현장정보':checked.part==='single'?'단건 사진':checked.part==='sequence'?'연속 촬영 사진':'임시기록')+'의 실제 저장 내용을 확인하지 못했습니다. 원본 백업 파일을 보관하고 기기 기록을 다시 조회하세요.');
    inputDraftRef.current=data.input;setInputSavedAt(data.input?.savedAt||'');
    setNote(data.input?.note||'');setAction(data.input?.action||'');
    setPhotoRole(data.input?.photoRole||'unspecified');
@@ -1477,11 +1475,11 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    setSinglePhotoSource(data.single?.source||null);setSinglePhotoEdit(undefined);
    draftRef.current=data.sequence;setDraft(data.sequence);setDraftState('ready');
    setUnfinishedPreview(null);
-   setUnfinishedMessage('작성 중 사진과 입력을 기기에 함께 복원하고 저장된 기록을 다시 확인했습니다. 기존 완료 점검은 유지했습니다. 이 화면에서 이어서 작성하세요. 안전 조치 완료나 사진의 법적 원본성을 뜻하지 않습니다.');
+   setUnfinishedMessage('작성 중 사진과 입력을 기기에 함께 복원하고, 점검 내용과 실제 사진 파일을 다시 읽어 비교했습니다. 기존 완료 점검은 유지했습니다. 이어서 작성하세요. 안전 조치 완료나 사진의 법적 원본성을 뜻하지 않습니다.');
   }catch{
    setUnfinishedMessage(conflict
     ?'기기에 이미 다른 임시기록이 있어 복원하지 않았습니다. 기존 자료를 덮어쓰지 않았습니다. 현재 자료를 먼저 백업한 뒤 확인하세요.'
-    :'작성 중 자료를 복원하지 못했습니다. 결과를 추정하지 않습니다. 원본 JSON 백업 파일을 보관하고 기기 기록을 다시 조회하세요.');
+    :'복원 저장 또는 저장 후 재검증에 실패했습니다. 일부 자료가 기기에 남았을 수 있으므로 자동으로 지우지 않습니다. 원본 백업 파일을 보관하고 이 화면을 새로 열어 임시기록을 확인하세요.');
   }finally{flight.current=false;setBusy(false);setUnfinishedBusy(false);}
  };
  const backup=async(row:LocalRecord)=>{if(flight.current)return;flight.current=true;setBusy(true);setMessage('');try{const current=await runStore<LocalRecord|undefined>('readonly',(store,set)=>{const request=store.get(row.id);request.onsuccess=()=>set(request.result as LocalRecord|undefined);});if(!current)throw new Error('해당 점검을 찾을 수 없어 백업하지 않았습니다. 목록을 다시 확인하세요.');download(await packRecord(current),'PSI-backup-'+current.id+'.json');setMessage('백업 파일 내려받기를 요청했습니다. 저장된 파일을 확인하고 안전한 장소에 보관하세요.');}catch(error){setMessage(error instanceof Error?error.message:'백업하지 못했습니다.');}finally{flight.current=false;setBusy(false);}};
@@ -1605,6 +1603,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     <label>작성 중 백업 파일 검사<input type="file" accept="application/json,.json" aria-label="작성 중 백업 파일 검사" disabled={busy||unfinishedBusy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void previewUnfinished(file);}}/></label>
     {unfinishedPreview&&<div aria-label="작성 중 복구 미리보기">
      <p>검사 완료 · 입력 {unfinishedPreview.input?'있음':'없음'} · 단건 사진 {unfinishedPreview.single?1:0}장 · 연속 사진 {unfinishedPreview.sequence?.photos.length||0}장. 복원 전이며 기존 임시기록은 덮어쓰지 않습니다.</p>
+     <p role={unfinishedPreview.integrityLevel==='full'?'status':'alert'}>{unfinishedPreview.integrityLevel==='full'?'사진·점검내용·조치계획·현장정보·파일 전체 비교값 확인됨':'이전 백업 형식: 사진 비교값만 확인됐습니다. 점검 내용·현장정보의 변경 여부는 확인할 수 없습니다. 복원 전 직접 검토하세요.'} (비교값은 작성자 신원이나 법적 진본성 증명이 아닙니다.)</p>
      <button type="button" className="si-btn" disabled={busy||unfinishedBusy} onClick={()=>void restoreUnfinished()}>검사된 작성 중 자료 복원</button>
     </div>}
     {unfinishedMessage&&<p role="status">{unfinishedMessage}</p>}
