@@ -91,7 +91,7 @@ try{
  await panel.getByText('현재 입력에 대해 검토 이력과 검토 기한이 확인된 기준을 찾지 못했습니다.',{exact:false}).waitFor();
  assert.equal(await panel.getByText('비계·작업발판',{exact:true}).count(),0,'legacy guidance must not appear as verified local guidance');
  await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
- await panel.getByText('기기에 저장했습니다. 서버에는 전송하지 않았습니다.').waitFor();
+ await panel.getByText('기기 점검 기록 1건을 다시 읽고 사진·내용을 확인했습니다.',{exact:false}).waitFor();
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
  const saved=await page.evaluate(()=>new Promise((resolve,reject)=>{const open=indexedDB.open('psi-inspector-local-records',1);open.onerror=()=>reject(open.error);open.onsuccess=()=>{const db=open.result,tx=db.transaction('records','readonly'),request=tx.objectStore('records').getAll();request.onsuccess=()=>{resolve(request.result.map(r=>({note:r.note,action:r.action,size:r.photo.size,sha:r.sha256,version:r.legalVersion})));};tx.oncomplete=()=>db.close();};}));
  assert.equal(saved.length,1);assert.match(saved[0].note,/시스템비계/);assert.ok(saved[0].size>0);assert.match(saved[0].sha,/^[a-f0-9]{64}$/);assert.ok(saved[0].version);
