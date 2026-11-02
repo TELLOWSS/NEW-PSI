@@ -55,6 +55,20 @@ try{
  await panel.getByRole('button',{name:'기기 임시 입력 다시 불러오기'}).click();
  await panel.getByText('최근 임시저장:',{exact:false}).waitFor();
  assert.equal(await panel.getByLabel('직접 확인한 내용').inputValue(),'다른 탭 최신 합성 입력');
+ // Simulate quota failure during async input checkpoint, not a final inspection.
+ // The browser must not leak an uncaught event-handler exception.
+ await page.evaluate(()=>{
+  window.__inputPutOriginal=IDBObjectStore.prototype.put;
+  IDBObjectStore.prototype.put=function(value,...args){
+   if(value?.kind==='inspection-input-draft')throw new DOMException('synthetic input disk full','QuotaExceededError');
+   return window.__inputPutOriginal.call(this,value,...args);
+  };
+ });
+ await panel.getByLabel('현장 조치·확인 계획').fill('임시 입력 저장공간 실패 복구');
+ await panel.getByText('임시 입력을 저장하거나 불러오지 못했습니다.',{exact:false}).waitFor();
+ await page.evaluate(()=>{IDBObjectStore.prototype.put=window.__inputPutOriginal;});
+ await panel.getByRole('button',{name:'임시저장 다시 시도'}).click();
+ await panel.getByText('최근 임시저장:',{exact:false}).waitFor();
  // Clearing fields removes only the reserved text checkpoint, never a saved inspection.
  await panel.getByLabel('현장명').fill('');
  await panel.getByLabel('직접 확인한 내용').fill('');
