@@ -148,7 +148,7 @@ try{
  }));
  two.once('dialog',dialog=>dialog.accept());
  await b.getByRole('button',{name:'검사된 작성 중 자료 복원'}).click();
- await b.getByText('작성 중 사진과 입력을 기기에 함께 복원하고 저장된 기록을 다시 확인했습니다.',{exact:false}).waitFor();
+ await b.getByText('작성 중 사진과 입력을 기기에 함께 복원하고, 점검 내용과 실제 사진 파일을 다시 읽어 비교했습니다.',{exact:false}).waitFor();
  assert.equal(await b.getByLabel('직접 확인한 내용').inputValue(),'합성 임시 점검 · 저장 공간 부족');
  assert.equal(await b.getByLabel('층').inputValue(),'16F');
  assert.equal((await readSaved(two,'psi-single-photo-draft-v1')).photoName,'quota-photo.png');
@@ -168,8 +168,40 @@ try{
  assert.equal(await readSaved(two,'psi-single-photo-draft-v1'),null);
  assert.equal(await readSaved(two,'psi-local-inspection-input-draft-v1'),null);
  assert.equal(pageErrors.length,0,'no uncaught browser exceptions');
- console.log('PASS F08 unified backup: quota failure, emergency export, tamper, atomic no-overwrite, reload, final commit');
  await secondContext.close();
+
+ // User case D: same record revision and photo metadata BUT different persisted
+ // bytes must NOT produce a success message after the transaction commits.
+ const thirdContext=await browser.newContext({viewport:{width:390,height:844},acceptDownloads:true});
+ const {page:three,panel:c}=await open(thirdContext);
+ await importJson(c,emergency.bytes);
+ await c.getByText('백업 검증 완료:',{exact:false}).waitFor();
+ await three.evaluate(()=>{
+  window.__originalAdd=IDBObjectStore.prototype.add;
+  IDBObjectStore.prototype.add=function(value,...args){
+   if(value?.kind==='single-photo-draft'){
+    const damaged=new File([new Uint8Array(value.photo.size).fill(42)],value.photo.name,
+     {type:value.photo.type,lastModified:value.photo.lastModified});
+    return window.__originalAdd.call(this,{...value,photo:damaged},...args);
+   }
+   return window.__originalAdd.call(this,value,...args);
+  };
+ });
+ three.once('dialog',dialog=>dialog.accept());
+ await c.getByRole('button',{name:'검사된 작성 중 자료 복원'}).click();
+ await c.getByText('복원 저장 또는 저장 후 재검증에 실패했습니다.',{exact:false}).waitFor();
+ assert.equal((await readSaved(three,'psi-single-photo-draft-v1')).photoName,'quota-photo.png');
+ // Deliberately do not auto-delete a committed-but-unverified checkpoint.
+ await three.evaluate(()=>{IDBObjectStore.prototype.add=window.__originalAdd;});
+ three.once('dialog',dialog=>dialog.accept());
+ await three.reload({waitUntil:'networkidle'});
+ await three.getByRole('heading',{name:'사진만 찍어도 점검을 시작할 수 있습니다'}).waitFor();
+ await three.getByText('통신 없이 기기에서 직접 점검',{exact:true}).click();
+ await three.getByRole('region',{name:'기기 직접 점검'})
+  .getByText('기기에 임시 보관된 단건 사진의 파일 비교값이 일치하지 않습니다.',{exact:false}).waitFor();
+ await thirdContext.close();
+ assert.equal(pageErrors.length,0,'no uncaught browser exceptions');
+ console.log('PASS F08 unified backup: quota failure, tamper, atomic no-overwrite, real persisted-byte readback, final commit');
 }finally{
  await browser.close();await server.close();
 }
