@@ -2189,13 +2189,14 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
       </label>
       <section aria-label="F10 인계 수신·재점검 확인 순서" className="rounded-lg border border-slate-200 p-3">
        <h6>인계 후 직접 확인할 일 · 이번 인계 대상 {handoffPrepared.count}건</h6>
-       <p>현재 화면에서만 확인하는 체크리스트입니다. <strong>새로고침 시 표시가 사라지며</strong> 원본 점검기록이나 인계 증빙으로 저장되지 않습니다. 여러 대상 중 일부만 전달하거나 회신받았다면 아래 일괄 확인란을 선택하지 말고 점검별 기록에서 확인하세요.</p>
+       <p>현재 화면에서만 확인하는 체크리스트입니다. <strong>새로고침 시 표시가 사라지며</strong> 원본 점검기록이나 인계 증빙으로 저장되지 않습니다. 여러 대상 중 일부만 전달하거나 회신받았다면 아래 항목별로 구분하여 확인하세요. 실제 전송·수신 증빙은 별도로 보관해야 합니다.</p>
        <ol className="list-decimal pl-5">
         {handoffFollowthrough.stages.map(stage=><li key={stage.key}>
          <strong>{stage.label}</strong> · {stage.description}
         </li>)}
        </ol>
        <p role="status">다음 확인: {handoffFollowthrough.next}</p>
+       {handoffPrepared.items.length===1&&<>
        <label style={{display:'flex',gap:8,alignItems:'flex-start',minHeight:44}}>
         <input type="checkbox" aria-label="인계 자료를 외부에서 직접 전달했음을 점검자가 확인" checked={handoffDeliveredByOperator}
          onChange={e=>{setHandoffDeliveredByOperator(e.target.checked);if(!e.target.checked)setHandoffReceivedByOperator(false);}}/>
@@ -2207,6 +2208,34 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
          onChange={e=>setHandoffReceivedByOperator(e.target.checked)}/>
         이번 인계 대상 모두에서 담당자의 실제 수신 회신을 제가 확인했습니다. (점검자 자기확인 · 수신 증빙 아님)
        </label>
+       </>}
+
+       {handoffPrepared.items.length>1&&<div role="group" aria-label="F10 건별 인계·수신 직접 확인">
+        <p role="status">건별 자기확인: 외부 전달 {handoffItemSummary.deliveredCount}/{handoffItemSummary.total}건 · 수신 회신 {handoffItemSummary.receivedCount}/{handoffItemSummary.total}건. 일부 항목만 확인해도 전체 전달·수신으로 처리하지 않습니다.</p>
+        <ol className="space-y-2">{handoffPrepared.items.map(item=>{
+         const current=handoffItemSummary.items[item.order-1];
+         return <li key={item.order} className="rounded-lg border border-slate-200 p-2">
+          <p><strong>{item.order}번 · {item.urgency}</strong> · {item.site} · {item.action}</p>
+          <label style={{display:'flex',gap:8,alignItems:'flex-start',minHeight:44}}>
+           <input type="checkbox" aria-label={`F10 ${item.order}번 외부 전달 직접 확인`} checked={current?.delivered===true}
+            onChange={e=>setHandoffItemReports(prev=>({...prev,[item.order]:{
+             delivered:e.target.checked,received:e.target.checked&&prev[item.order]?.received===true,
+            }}))}/>
+           이 항목을 외부에서 실제 전달했음을 점검자가 직접 확인 (전송 증빙 아님)
+          </label>
+          <label style={{display:'flex',gap:8,alignItems:'flex-start',minHeight:44}}>
+           <input type="checkbox" aria-label={`F10 ${item.order}번 수신 회신 직접 확인`} checked={current?.received===true}
+            disabled={current?.delivered!==true}
+            onChange={e=>setHandoffItemReports(prev=>({...prev,[item.order]:{
+             delivered:prev[item.order]?.delivered===true,
+             received:e.target.checked&&prev[item.order]?.delivered===true,
+            }}))}/>
+           이 항목의 담당자 회신을 점검자가 직접 확인 (제3자 수신 증빙 아님)
+          </label>
+          <p>다음 확인: {current?.next||'외부 전달 직접 확인'}</p>
+         </li>;
+        })}</ol>
+       </div>}
        <button type="button" className="si-btn" style={{minHeight:44}} onClick={()=>void copyHandoffReceiptRequest()}>담당자에게 보낼 수신 확인 요청 문구 복사</button>
        {handoffReceiptMessage&&<p role="status">{handoffReceiptMessage}</p>}
        <label>수신 확인 요청 문구 직접 복사
