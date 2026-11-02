@@ -5,7 +5,7 @@ import {sourceReviewState} from '../../lib/inspector/sourceReview';
 import {FOLLOWUP_STATES, FOLLOWUP_LABELS, validateFollowup, validateAdditionalActions, overdue} from '../../lib/inspector/localFollowup.mjs';
 import {prepareFollowupChange,analyzeFollowupChangeTrace,TEMPORARY_CONTROL_REVIEWS} from '../../lib/inspector/localFollowupChangeTrace.mjs';
 import {buildLocalRecheckQueue,summarizeLocalRecheckQueue,LOCAL_RECHECK_BUCKETS,LOCAL_RECHECK_LABELS,localCalendarDate} from '../../lib/inspector/localRecheckQueue.mjs';
-import {buildLocalRecheckReport,selectLocalRecheckReportTargets,formatLocalRecheckCsv,formatLocalRecheckPrintHtml,F10_LOCAL_REPORT_LIMIT} from '../../lib/inspector/localRecheckReport.mjs';
+import {buildLocalRecheckReport,selectLocalRecheckReportTargets,matchesLocalFollowupRecordFilter,formatLocalRecheckCsv,formatLocalRecheckPrintHtml,F10_LOCAL_REPORT_LIMIT} from '../../lib/inspector/localRecheckReport.mjs';
 import {buildLocalRecheckProgress} from '../../lib/inspector/localRecheckProgress.mjs';
 import {buildLocalHandoffPlan,selectLocalHandoffTargets,formatLocalHandoffMessage,formatLocalHandoffHtml,handoffSourceSnapshot,F10_HANDOFF_MAX_ITEMS} from '../../lib/inspector/localRecheckHandoff.mjs';
 
@@ -768,11 +768,9 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const recheckSummary=summarizeLocalRecheckQueue(recheckQueue) as Record<string, number> & {total:number};
  const recheckFilter=filter.startsWith('recheck:')?filter.slice('recheck:'.length):null;
  const recheckRecordIds=new Set(recheckQueue.filter(item=>item.bucket===recheckFilter).map(item=>item.recordId));
- const visibleRows=rows.filter(row=>{
-  if(recheckFilter)return recheckRecordIds.has(row.id);
-  const items=[row.followup,...(row.additionalActions||[]).map(item=>item.followup)];
-  return filter==='all'||items.some(item=>filter==='unassigned'?!item?.assignee:filter==='no_due'?!item?.dueDate:filter==='overdue'?!!item&&overdue(item):filter==='review'?item?.status==='review_requested':false);
- });
+ const visibleRows=rows.filter(row=>recheckFilter
+  ?recheckRecordIds.has(row.id)
+  :matchesLocalFollowupRecordFilter(row,filter));
  const reportTargetQueue=selectLocalRecheckReportTargets(rows,recheckQueue,filter,reportScope==='visible'?'visible':'all');
  const handoffTargetQueue=selectLocalHandoffTargets(
   selectLocalRecheckReportTargets(rows,recheckQueue,filter,handoffScope));
