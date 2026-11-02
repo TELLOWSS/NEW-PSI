@@ -753,6 +753,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [singleSavedAt,setSingleSavedAt]=useState('');
  const [singleDraftMessage,setSingleDraftMessage]=useState('');
  const [unfinishedBusy,setUnfinishedBusy]=useState(false);
+ const [recoveryOpen,setRecoveryOpen]=useState(false);
  const [unfinishedReviewConfirmed,setUnfinishedReviewConfirmed]=useState(false);
  // Local-only proof that a reselected downloaded file matches the exported blob.
  const [emergencyExport,setEmergencyExport]=useState<{
@@ -847,6 +848,16 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   error:{title:'확인 실패 · 파일 손상 또는 읽기 오류',guide:'원본 파일을 보관하세요. 올바른 JSON을 다시 선택하거나 현재 화면을 새로 백업하세요.'},
   stale:{title:'변경 감지 · 새 백업 필요',guide:'현재 화면이 이전 백업과 다릅니다. 변경된 내용을 새 파일로 내려받아 다시 검사하세요.'},
  };
+ // F08-54: the primary route is photo → directly observed hazard → local save.
+ // Backup/recovery remains available but does not dominate an ordinary first use.
+ const hasFieldPhoto=Boolean(photo||draft);
+ const canSaveLocalInspection=hasFieldPhoto&&!(photo&&draft)&&!!note.trim()
+  &&draftState==='ready'&&inputDraftState==='ready'&&singleDraftState==='ready'&&!busy;
+ useEffect(()=>{
+  if(inputDraftState==='error'||inputDraftState==='conflict'||
+   singleDraftState==='error'||singleDraftState==='conflict'||draftState==='error')
+   setRecoveryOpen(true);
+ },[inputDraftState,singleDraftState,draftState]);
  const inputPending=inputDraftState==='ready'&&(
   inputDraftRef.current
    ?localInputDraftFields(inputDraftRef.current)!==localInputDraftFields(liveInput)
@@ -1552,6 +1563,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  // No API, cloud upload, background sync, or deletion happens here.
  const backupUnfinished=async()=>{
   if(flight.current||busy||unfinishedBusy)return;
+  setRecoveryOpen(true);
   setUnfinishedBusy(true);setUnfinishedMessage('');
   setEmergencyExport(null);setEmergencyCheck('unverified');setEmergencyCheckMessage('');
   try{
@@ -1802,7 +1814,31 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    <h2>사진과 점검 내용을 이 기기에 보관</h2>
    <p>사진을 자동 분석하지 않습니다. 직접 확인한 내용으로 관련 기준을 찾아보는 기능입니다. 서버 업로드와 유료 AI 호출은 하지 않습니다.</p>
    <p>{offlineEntry?'사전에 오프라인 준비를 마친 기기에서는 이 주소로 인터넷 없이 다시 열 수 있습니다.':'인터넷이 끊기기 전 기기 점검 전용 화면에서 오프라인 준비가 필요합니다.'} 브라우저 데이터 삭제나 기기 분실 시 기록이 사라질 수 있으니 별도로 내려받으세요.</p>{!offlineEntry&&<p><a href="/field-local/">오프라인 재실행 준비 화면 열기</a></p>}
-   <section id="si-unfinished-recovery" aria-label="작성 중 자료 긴급 백업과 복구" className="rounded-xl border border-slate-300 p-3">
+   <section aria-label="현장 점검 쉬운 시작" className="rounded-xl border border-slate-300 p-3">
+    <h3>현장 점검 · 이 순서로 진행하세요</h3>
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" aria-label="점검 진행 3단계">
+     <div className="rounded-lg border border-slate-200 p-3">
+      <strong>1. 현장 사진</strong>
+      <p>{hasFieldPhoto?'사진이 선택돼 있습니다. 임시저장 상태를 별도로 확인하세요.':'사진을 촬영하거나 선택하세요.'}</p>
+      <a href="#si-local-photo-step">사진 단계로 이동</a>
+     </div>
+     <div className="rounded-lg border border-slate-200 p-3">
+      <strong>2. 위험 내용</strong>
+      <p>{note.trim()?'관찰 내용이 입력됐습니다. 현장 조치 계획도 확인하세요.':'눈으로 확인한 위험을 직접 적으세요.'}</p>
+      <a href="#si-local-inspection-note">내용 입력으로 이동</a>
+     </div>
+     <div className="rounded-lg border border-slate-200 p-3">
+      <strong>3. 기기에 저장</strong>
+      <p>{canSaveLocalInspection?'저장 버튼을 사용할 수 있습니다. 기기 저장 후 결과를 확인하세요.':inputDraftState==='error'||inputDraftState==='conflict'||singleDraftState==='error'||singleDraftState==='conflict'?'저장 확인 문제가 있습니다. 먼저 현재 기록을 보관하세요.':'사진·관찰 내용과 임시저장 상태를 확인한 후 저장하세요.'}</p>
+      <a href="#si-local-inspection-save">저장 단계로 이동</a>
+     </div>
+    </div>
+    <p>점검은 사진만으로 완료되지 않습니다. 위험 내용과 조치 계획을 확인하고 저장 결과를 직접 검토하세요. 급박한 위험은 현장 책임자와 접근통제·작업중지 필요성을 우선 확인하세요.</p>
+   </section>
+   <details id="si-unfinished-recovery" aria-label="작성 중 자료 긴급 백업과 복구" className="rounded-xl border border-slate-300 p-3"
+    open={recoveryOpen} onToggle={e=>setRecoveryOpen(e.currentTarget.open)}>
+    <summary style={{cursor:'pointer',minHeight:44,fontWeight:600}}>작성 중 기록 백업·복구 (필요할 때 열기)</summary>
+    <div>
     <h3>작성 중 기록 안전 복구</h3>
     <p>사진이나 입력이 사라질까 걱정되면 아래 순서대로 진행하세요. 인터넷·유료 API 없이 이 기기에서 처리하며, 기존 자료는 자동 삭제하지 않습니다.</p>
     <ol className="grid grid-cols-1 gap-3 p-0" style={{listStyle:'none'}}>
@@ -1889,7 +1925,8 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     </ol>
     {unfinishedMessage&&<p role="status">{unfinishedMessage}</p>}
     <p>백업 파일은 최대 50MB이며 암호화되지 않습니다. 파일을 안전한 장소에 보관하세요. 이 복구 도구는 점검 또는 안전조치 완료를 의미하지 않습니다.</p>
-   </section>
+    </div>
+   </details>
    <section aria-label="기기 저장 안정성 확인">
     <h3>기기 저장상태 확인</h3>
     <p>촬영 전후 저장 상태를 확인할 수 있습니다. 조회는 현재 기기의 브라우저에서만 수행하며 서버로 전송하지 않습니다.</p>
@@ -1909,7 +1946,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     <button type="button" className="si-btn" disabled={busy} onClick={()=>{if(window.confirm('현재 선택한 사진을 내려받아 보관했습니까? 기기에 저장된 단건 임시사진을 다시 불러오면 현재 화면 사진이 바뀔 수 있습니다.'))void loadSinglePhoto();}}>기기 단건 임시사진 다시 확인</button>
    </div>}
    {photo?<>{url&&<img src={url} alt="기기 점검에 선택한 사진" style={{display:'block',maxWidth:'100%',maxHeight:260,objectFit:'contain'}}/>}<p>{photo.name} · {Math.ceil(photo.size/1024)} KB</p>{backupIssue(photo)&&<p role="alert">저장 전 백업 안내: {backupIssue(photo)} 점검은 기기에 저장할 수 있습니다.</p>}<button type="button" className="si-btn" disabled={busy} onClick={()=>download(photo,photo.name)}>선택 사진 내려받기</button>{singleDraftState==='ready'&&singleDraftRef.current&&<button type="button" className="si-btn" disabled={busy} onClick={()=>void clearSingleDraft()}>단건 임시사진만 삭제</button>}</>:<p>사진을 촬영하거나 선택해 주세요.</p>}
-   <div><button type="button" className="si-btn" disabled={busy||!!draft||draftState!=='ready'||singleDraftState!=='ready'} onClick={()=>{setSequence(false);setCamera(true);}}>기기 점검 사진 촬영</button> <button type="button" className="si-btn" disabled={busy||!!photo||draftState!=='ready'||singleDraftState!=='ready'||(draft?.photos.length||0)>=2} onClick={()=>{setSequence(true);setCamera(true);}}>전체·위험 부위 연속 촬영</button> <label className="si-btn">기기 점검 사진 선택<input aria-label="기기 점검 사진 선택" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy||!!draft||draftState!=='ready'||singleDraftState!=='ready'} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void choose(file,'file-picker');}}/></label></div>
+   <div id="si-local-photo-step"><button type="button" className="si-btn" disabled={busy||!!draft||draftState!=='ready'||singleDraftState!=='ready'} onClick={()=>{setSequence(false);setCamera(true);}}>기기 점검 사진 촬영</button> <button type="button" className="si-btn" disabled={busy||!!photo||draftState!=='ready'||singleDraftState!=='ready'||(draft?.photos.length||0)>=2} onClick={()=>{setSequence(true);setCamera(true);}}>전체·위험 부위 연속 촬영</button> <label className="si-btn">기기 점검 사진 선택<input aria-label="기기 점검 사진 선택" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy||!!draft||draftState!=='ready'||singleDraftState!=='ready'} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void choose(file,'file-picker');}}/></label></div>
    {draft&&photo&&<p role="alert">단건 임시사진과 연속 촬영 임시사진이 함께 있습니다. 혼합 저장은 차단됩니다. 필요한 사진을 내려받아 보관한 뒤, 사용하지 않을 임시사진을 명시적으로 삭제하여 한 가지 촬영본만 남기세요.</p>}
    {draftState==='loading'&&<p role="status">임시 촬영 사진을 확인하고 있습니다…</p>}
    {draftState==='error'&&<div role="alert"><p>임시 촬영 사진을 확인하지 못했습니다. 저장소를 확인하고 다시 시도하세요.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>void loadDraft()}>임시 사진 다시 확인</button></div>}
@@ -1952,7 +1989,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    <label>직접 확인한 내용<textarea id="si-local-inspection-note" aria-label="직접 확인한 내용" maxLength={4000} value={note} disabled={busy||inputDraftState==='loading'} onChange={e=>setNote(e.target.value)} placeholder="예: 시스템비계 발판 사이가 벌어져 보여 실측이 필요함"/></label>
    <label>현장 조치·확인 계획<textarea aria-label="현장 조치·확인 계획" maxLength={4000} value={action} disabled={busy||inputDraftState==='loading'} onChange={e=>setAction(e.target.value)} placeholder="예: 접근을 통제하고 담당자와 발판 상태 확인"/></label>
    {note.trim()&&<div aria-label="입력 내용으로 찾은 기준"><b>입력 내용으로 찾은 참고 기준</b><p>자료 묶음 버전 {reference.version} · 묶음 기준일 {reference.reviewedAt}. 개별 기준의 현재 적용 여부는 현장에서 확인하세요.</p>{reviewedCards.length?reviewedCards.slice(0,3).map(card=><article key={card.id}><strong>{card.title}</strong><p>{sourceReviewState(card.sourceReview).label}</p>{card.duties.slice(0,2).map(d=><p key={d.url}>{d.label}: {d.summary} <a href={d.url} target="_blank" rel="noreferrer">원문 확인 (인터넷 필요)</a></p>)}<p>{card.scope}</p></article>):<p>현재 입력에 대해 검토 이력과 검토 기한이 확인된 기준을 찾지 못했습니다. 위험이 없다는 뜻이 아니며, 현장 담당자가 적용 기준을 별도로 확인해야 합니다.</p>}</div>}
-   <button type="button" className="si-btn si-primary" disabled={busy||(!photo&&!draft)||!!(photo&&draft)||!note.trim()||draftState!=='ready'||inputDraftState!=='ready'||singleDraftState!=='ready'} onClick={()=>void save()}>{busy?'기기에 저장 중…':'사진과 내용 기기에 저장'}</button>
+   <button id="si-local-inspection-save" type="button" className="si-btn si-primary" disabled={busy||(!photo&&!draft)||!!(photo&&draft)||!note.trim()||draftState!=='ready'||inputDraftState!=='ready'||singleDraftState!=='ready'} onClick={()=>void save()}>{busy?'기기에 저장 중…':'사진과 내용 기기에 저장'}</button>
    {message&&<p role="status">{message}</p>}
    <h3>{readState==='ready'?`이 브라우저에 보관된 점검 ${rows.length}건`:'이 브라우저의 점검 기록'}</h3>
    {readState==='loading'&&<p role="status">기기 기록을 확인하고 있습니다…</p>}
