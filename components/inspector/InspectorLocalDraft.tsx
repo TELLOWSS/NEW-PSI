@@ -10,7 +10,7 @@ import {localRecordMayDelete} from '../../lib/inspector/localRecordDeletionGuard
 import {LOCAL_INPUT_DRAFT_KEY,validLocalInputDraft,localInputDraftFields,localInputDraftHasContent,localInputDraftCanReplace} from '../../lib/inspector/localInputDraft.mjs';
 import {SINGLE_PHOTO_DRAFT_KEY,validSinglePhotoDraft,singlePhotoDraftCanReplace,singlePhotoDraftMetadataMatches} from '../../lib/inspector/localSinglePhotoDraft.mjs';
 import {packUnfinishedBackup,unpackUnfinishedBackup,previewUnfinishedBackup,verifyUnfinishedRestoreReadback} from '../../lib/inspector/localUnfinishedBackup.mjs';
-import {LOCAL_RECOVERY_KEYS,diagnoseLocalUnfinishedSlots} from '../../lib/inspector/localUnfinishedRecoveryTriage.mjs';
+import {LOCAL_RECOVERY_KEYS,diagnoseLocalUnfinishedSlots,unfinishedRestoreActionGate} from '../../lib/inspector/localUnfinishedRecoveryTriage.mjs';
 import {buildLocalRecheckReport,selectLocalRecheckReportTargets,matchesLocalFollowupRecordFilter,formatLocalRecheckCsv,formatLocalRecheckPrintHtml,F10_LOCAL_REPORT_LIMIT} from '../../lib/inspector/localRecheckReport.mjs';
 import {buildLocalRecheckProgress} from '../../lib/inspector/localRecheckProgress.mjs';
 import {buildLocalHandoffPlan,selectLocalHandoffTargets,formatLocalHandoffMessage,formatLocalHandoffHtml,handoffSourceSnapshot,F10_HANDOFF_MAX_ITEMS} from '../../lib/inspector/localRecheckHandoff.mjs';
@@ -1481,10 +1481,14 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const restoreUnfinished=async()=>{
   const data=unfinishedPreview;
   if(!data||flight.current||busy||unfinishedBusy)return;
-  if(photo||draft||note.trim()||action.trim()||localInputDraftHasContent({note,action,photoRole,siteContext:siteContextInput})){
-   setUnfinishedMessage('현재 화면에 작성 중인 자료가 있어 복원을 중단했습니다. 먼저 통합 백업 파일을 보관하고 새 빈 화면에서 진행하세요.');
-   return;
-  }
+  const currentGate=unfinishedRestoreActionGate({
+   verifiedBackup:!!data,
+   loading:draftState==='loading'||singleDraftState==='loading'||inputDraftState==='loading',
+   hasActiveWork:!!photo||!!draft||!!singleDraftRef.current||!!draftRef.current||
+    localInputDraftHasContent({note,action,photoRole,siteContext:siteContextInput}),
+   busy:busy||unfinishedBusy||recoveryScanBusy,
+  });
+  if(!currentGate.allowed){setUnfinishedMessage(currentGate.reason);return;}
   if(!window.confirm('현재 기기의 임시기록 3종이 모두 비어 있을 때만 한 번에 복원합니다. 기존 완료 점검은 변경하지 않습니다. 복원할까요?'))return;
   flight.current=true;setBusy(true);setUnfinishedBusy(true);setUnfinishedMessage('');setRecoveryScan(null);setRecoveryScanMessage('');
   let conflict=false;
@@ -1646,6 +1650,13 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     :error instanceof Error?error.message:'복원하지 못했습니다. 원본 백업은 보관하세요.');
   }finally{flight.current=false;setBusy(false);}
  };
+ const restoreGate=unfinishedRestoreActionGate({
+  verifiedBackup:!!unfinishedPreview,
+  loading:draftState==='loading'||singleDraftState==='loading'||inputDraftState==='loading',
+  hasActiveWork:!!photo||!!draft||!!singleDraftRef.current||!!draftRef.current||
+   localInputDraftHasContent({note,action,photoRole,siteContext:siteContextInput}),
+  busy:busy||unfinishedBusy||recoveryScanBusy,
+ });
  return <details id="si-local-inspection" className="si-local-inspection" onToggle={e=>{if(e.currentTarget.open)void refresh();}}>
   <summary>통신 없이 기기에서 직접 점검</summary>
   <section aria-label="기기 직접 점검">
@@ -1653,28 +1664,43 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    <p>사진을 자동 분석하지 않습니다. 직접 확인한 내용으로 관련 기준을 찾아보는 기능입니다. 서버 업로드와 유료 AI 호출은 하지 않습니다.</p>
    <p>{offlineEntry?'사전에 오프라인 준비를 마친 기기에서는 이 주소로 인터넷 없이 다시 열 수 있습니다.':'인터넷이 끊기기 전 기기 점검 전용 화면에서 오프라인 준비가 필요합니다.'} 브라우저 데이터 삭제나 기기 분실 시 기록이 사라질 수 있으니 별도로 내려받으세요.</p>{!offlineEntry&&<p><a href="/field-local/">오프라인 재실행 준비 화면 열기</a></p>}
    <section aria-label="작성 중 자료 긴급 백업과 복구" className="rounded-xl border border-slate-300 p-3">
-    <h3>작성 중 사진·내용 한번에 백업·복구</h3>
-    <p>저장공간 부족이나 앱 종료에 대비해 현재 화면의 점검 내용, 현장정보, 단건 사진 및 연속 촬영 사진을 하나의 JSON 파일로 내려받습니다. 기기에 저장되지 못한 화면의 입력과 사진도 포함할 수 있습니다.</p>
-    <button type="button" className="si-btn" disabled={busy||unfinishedBusy||draftState==='loading'||singleDraftState==='loading'||inputDraftState==='loading'} onClick={()=>void backupUnfinished()}>작성 중 자료 한 번에 백업</button>
-    <p>내려받기 완료 여부는 기기의 파일 앱에서 직접 확인하세요. 파일은 암호화되지 않았으므로 안전한 장소에 보관해야 합니다. 사진을 포함한 통합 백업은 50MB 이하만 지원하며, 이 기능으로 현장 안전조치가 완료되지는 않습니다.</p>
-    <label>작성 중 백업 파일 검사<input type="file" accept="application/json,.json" aria-label="작성 중 백업 파일 검사" disabled={busy||unfinishedBusy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void previewUnfinished(file);}}/></label>
-    {unfinishedPreview&&<div aria-label="작성 중 복구 미리보기">
-     <p>검사 완료 · 입력 {unfinishedPreview.input?'있음':'없음'} · 단건 사진 {unfinishedPreview.single?1:0}장 · 연속 사진 {unfinishedPreview.sequence?.photos.length||0}장. 복원 전이며 기존 임시기록은 덮어쓰지 않습니다.</p>
-     <p role={unfinishedPreview.integrityLevel==='full'?'status':'alert'}>{unfinishedPreview.integrityLevel==='full'?'사진·점검내용·조치계획·현장정보·파일 전체 비교값 확인됨':'이전 백업 형식: 사진 비교값만 확인됐습니다. 점검 내용·현장정보의 변경 여부는 확인할 수 없습니다. 복원 전 직접 검토하세요.'} (비교값은 작성자 신원이나 법적 진본성 증명이 아닙니다.)</p>
-     <button type="button" className="si-btn" disabled={busy||unfinishedBusy} onClick={()=>void restoreUnfinished()}>검사된 작성 중 자료 복원</button>
-    </div>}
+    <h3>작성 중 기록 안전 복구</h3>
+    <p>사진이나 입력이 사라질까 걱정되면 아래 순서대로 진행하세요. 인터넷·유료 API 없이 이 기기에서 처리하며, 기존 자료는 자동 삭제하지 않습니다.</p>
+    <ol className="grid grid-cols-1 gap-3 p-0" style={{listStyle:'none'}}>
+     <li className="rounded-lg border border-slate-300 p-3">
+      <h4>1. 현재 화면 먼저 백업</h4>
+      <p>아직 기기에 저장되지 않은 사진과 작성 중인 내용까지 한 파일로 보관합니다.</p>
+      <button type="button" className="si-btn" style={{minHeight:44}} disabled={busy||unfinishedBusy||draftState==='loading'||singleDraftState==='loading'||inputDraftState==='loading'} onClick={()=>void backupUnfinished()}>작성 중 자료 한 번에 백업</button>
+      <p>다운로드가 시작돼도 저장 완료로 확정하지 않습니다. 파일 앱에서 JSON 파일이 실제로 내려받아졌는지 확인하세요.</p>
+     </li>
+     <li className="rounded-lg border border-slate-300 p-3">
+      <h4>2. 기기에 남은 기록 확인</h4>
+      <p>입력·단건 사진·연속 촬영 사진을 삭제 없이 확인합니다.</p>
+      <button type="button" className="si-btn" style={{minHeight:44}} disabled={busy||unfinishedBusy||recoveryScanBusy} onClick={()=>void scanUnfinished()}>{recoveryScanBusy?'기기 기록 확인 중…':'기기 임시기록 상태 확인'}</button>
+      {recoveryScan&&<section aria-label="기기 임시기록 진단 결과">
+       <p><strong>{recoveryScan.state==='attention'?'손상 의심 기록 확인 필요':recoveryScan.state==='mixed'?'단건·연속 사진 중복 확인 필요':recoveryScan.state==='recoverable'?'기기에 작성 중 기록이 남아 있음':'기기에 임시기록이 보이지 않음'}</strong></p>
+       <p>{recoveryScan.guidance}</p>
+       {recoveryScan.results.map((part,i)=><p key={i}><strong>{part.label}: {part.message}</strong>{part.detail?' — '+part.detail:''}</p>)}
+       {recoveryScan.canExportStored&&<button type="button" className="si-btn" style={{minHeight:44}} disabled={busy||unfinishedBusy||recoveryScanBusy} onClick={()=>void backupStoredUnfinished()}>기기에 남은 임시자료 별도 백업</button>}
+       <p>이 버튼은 기기에 이미 저장된 내용만 백업합니다. 현재 화면의 미저장 변경은 1번 버튼으로 따로 보관하세요.</p>
+      </section>}
+      {recoveryScanMessage&&<p role="status">{recoveryScanMessage}</p>}
+     </li>
+     <li className="rounded-lg border border-slate-300 p-3">
+      <h4>3. 백업 파일 검사 후 복원</h4>
+      <p>파일을 선택해 내용을 먼저 확인합니다. 복원은 기기의 임시기록 3종이 모두 비었을 때만 가능합니다.</p>
+      <label>작성 중 백업 파일 검사<input type="file" accept="application/json,.json" aria-label="작성 중 백업 파일 검사" disabled={busy||unfinishedBusy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void previewUnfinished(file);}}/></label>
+      {unfinishedPreview&&<section aria-label="작성 중 복구 미리보기">
+       <p>검사 완료 · 입력 {unfinishedPreview.input?'있음':'없음'} · 단건 사진 {unfinishedPreview.single?1:0}장 · 연속 사진 {unfinishedPreview.sequence?.photos.length||0}장. 아직 복원되지 않았습니다.</p>
+       <p role={unfinishedPreview.integrityLevel==='full'?'status':'alert'}>{unfinishedPreview.integrityLevel==='full'?'사진·점검내용·조치계획·현장정보·파일 전체 비교값 확인됨':'이전 백업 형식: 사진 비교값만 확인됐습니다. 점검 내용·현장정보 변경 여부는 확인할 수 없습니다. 직접 검토하세요.'} (비교값은 작성자 신원·법적 진본성 증명이 아닙니다.)</p>
+       {unfinishedPreview.single&&unfinishedPreview.sequence&&<p role="alert">단건과 연속 촬영 사진이 모두 들어 있습니다. 복원 후 어느 사진을 사용할지 직접 정해야 하며, 자동으로 하나를 선택하지 않습니다.</p>}
+       {!restoreGate.allowed&&<p role="status">복원 버튼 비활성화: {restoreGate.reason}</p>}
+       <button type="button" className="si-btn" style={{minHeight:44}} disabled={!restoreGate.allowed} onClick={()=>void restoreUnfinished()}>검사된 작성 중 자료 복원</button>
+      </section>}
+     </li>
+    </ol>
     {unfinishedMessage&&<p role="status">{unfinishedMessage}</p>}
-    <div aria-label="복원 실패 기기자료 확인">
-     <p><strong>복원에 실패했거나 다른 탭에 자료가 남았나요?</strong> 아래에서 기기 자료 3종을 삭제 없이 확인할 수 있습니다.</p>
-     <button type="button" className="si-btn" disabled={busy||unfinishedBusy||recoveryScanBusy} onClick={()=>void scanUnfinished()}>{recoveryScanBusy?'기기 기록 확인 중…':'기기 임시기록 상태 확인'}</button>
-     {recoveryScan&&<section aria-label="기기 임시기록 진단 결과">
-      <p>{recoveryScan.guidance}</p>
-      {recoveryScan.results.map((part,i)=><p key={i}><strong>{part.label}: {part.message}</strong>{part.detail?' — '+part.detail:''}</p>)}
-      {recoveryScan.canExportStored&&<button type="button" className="si-btn" disabled={busy||unfinishedBusy||recoveryScanBusy} onClick={()=>void backupStoredUnfinished()}>기기에 남은 임시자료 별도 백업</button>}
-      <p>기기에 남은 자료 백업에는 현재 화면의 아직 저장하지 않은 변경이 빠질 수 있습니다. 화면 내용은 위의 '작성 중 자료 한 번에 백업'으로 따로 보관하세요. 이 진단은 위험 조치의 완료 판정이 아닙니다.</p>
-     </section>}
-     {recoveryScanMessage&&<p role="status">{recoveryScanMessage}</p>}
-    </div>
+    <p>백업 파일은 최대 50MB이며 암호화되지 않습니다. 파일을 안전한 장소에 보관하세요. 이 복구 도구는 점검 또는 안전조치 완료를 의미하지 않습니다.</p>
    </section>
    <section aria-label="기기 저장 안정성 확인">
     <h3>기기 저장상태 확인</h3>
