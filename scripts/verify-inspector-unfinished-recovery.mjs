@@ -152,6 +152,18 @@ try{
  assert.equal(await b.getByLabel('직접 확인한 내용').inputValue(),'합성 임시 점검 · 저장 공간 부족');
  assert.equal(await b.getByLabel('층').inputValue(),'16F');
  assert.equal((await readSaved(two,'psi-single-photo-draft-v1')).photoName,'quota-photo.png');
+ // One tap: inspect all three durable slots, without treating unverified text as
+ // a confirmed historical original. Download a separate verified snapshot.
+ await b.getByRole('button',{name:'기기 임시기록 상태 확인'}).click();
+ await b.getByRole('region',{name:'기기 임시기록 진단 결과'}).getByText('단건 사진: 저장 파일과 비교값 일치',{exact:false}).waitFor();
+ const [storedBackup]=await Promise.all([
+  two.waitForEvent('download'),
+  b.getByRole('button',{name:'기기에 남은 임시자료 별도 백업'}).click(),
+ ]);
+ const storedData=JSON.parse((await readFile(await storedBackup.path())).toString('utf8'));
+ assert.equal(storedData.version,2);
+ assert.equal(storedData.input.note,'합성 임시 점검 · 저장 공간 부족');
+ assert.equal(storedData.single.photo.name,'quota-photo.png');
  await b.getByAltText('기기 점검에 선택한 사진').waitFor();
  await b.getByText('이 브라우저에 보관된 점검 0건').waitFor();
  // Import the same file again. The screen is not blank; previous state survives.
@@ -190,6 +202,11 @@ try{
  three.once('dialog',dialog=>dialog.accept());
  await c.getByRole('button',{name:'검사된 작성 중 자료 복원'}).click();
  await c.getByText('복원 저장 또는 저장 후 재검증에 실패했습니다.',{exact:false}).waitFor();
+ // Auto-triage reads all slots after a failed postflight without deleting any.
+ await c.getByRole('region',{name:'기기 임시기록 진단 결과'})
+  .getByText('단건 사진: 저장 기록에 오류 또는 비교값 불일치',{exact:false}).waitFor();
+ assert.equal(await c.getByRole('button',{name:'기기에 남은 임시자료 별도 백업'}).count(),0,
+  'never offer a complete backup for corrupted stored photos');
  assert.equal((await readSaved(three,'psi-single-photo-draft-v1')).photoName,'quota-photo.png');
  // Deliberately do not auto-delete a committed-but-unverified checkpoint.
  await three.evaluate(()=>{IDBObjectStore.prototype.add=window.__originalAdd;});
