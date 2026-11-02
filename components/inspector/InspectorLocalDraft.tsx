@@ -912,8 +912,10 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
      await runStore<void>('readwrite',store=>{
       const req=store.get(LOCAL_INPUT_DRAFT_KEY);
       req.onsuccess=()=>{
-       if(!localInputDraftCanReplace(req.result,expected)){conflict=true;req.transaction?.abort();return;}
-       if(empty)store.delete(LOCAL_INPUT_DRAFT_KEY);else store.put(next);
+       try{
+        if(!localInputDraftCanReplace(req.result,expected)){conflict=true;req.transaction?.abort();return;}
+        if(empty)store.delete(LOCAL_INPUT_DRAFT_KEY);else store.put(next);
+       }catch{try{req.transaction?.abort();}catch{/* already closed */}}
       };
      });
     }catch{if(epoch===inputEpochRef.current)setInputDraftState(conflict?'conflict':'error');return;}
