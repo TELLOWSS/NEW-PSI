@@ -15,7 +15,7 @@ import {LOCAL_RECOVERY_KEYS,diagnoseLocalUnfinishedSlots,unfinishedRestoreAction
 import {buildLocalRecheckReport,selectLocalRecheckReportTargets,matchesLocalFollowupRecordFilter,formatLocalRecheckCsv,formatLocalRecheckPrintHtml,F10_LOCAL_REPORT_LIMIT} from '../../lib/inspector/localRecheckReport.mjs';
 import {buildLocalRecheckProgress} from '../../lib/inspector/localRecheckProgress.mjs';
 import {buildLocalHandoffPlan,selectLocalHandoffTargets,formatLocalHandoffMessage,formatLocalHandoffHtml,handoffSourceSnapshot,F10_HANDOFF_MAX_ITEMS} from '../../lib/inspector/localRecheckHandoff.mjs';
-import {buildLocalHandoffFollowthrough,formatLocalReceiptRequest} from '../../lib/inspector/localHandoffFollowthrough.mjs';
+import {buildLocalHandoffFollowthrough,formatLocalReceiptRequest,summarizeLocalHandoffItems} from '../../lib/inspector/localHandoffFollowthrough.mjs';
 /** F08-47: read-only, on-device photo preview with object URL cleanup. */
 function UnfinishedBackupPhotoPreview({file,label}:{file:File;label:string}){
  const [url,setUrl]=useState('');
@@ -818,13 +818,16 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const handoffGeneration=useRef(0);
  const [handoffPending,setHandoffPending]=useState(false);
  const [handoffMessage,setHandoffMessage]=useState('');
- const [handoffPrepared,setHandoffPrepared]=useState<{html:Blob;text:string;count:number;at:string}|null>(null);
+ const [handoffPrepared,setHandoffPrepared]=useState<{html:Blob;text:string;count:number;at:string;items:{order:number;urgency:string;site:string;action:string}[]}|null>(null);
  const [handoffDeliveredByOperator,setHandoffDeliveredByOperator]=useState(false);
  const [handoffReceivedByOperator,setHandoffReceivedByOperator]=useState(false);
+ const [handoffItemReports,setHandoffItemReports]=useState<Record<number,{delivered:boolean;received:boolean}>>({});
  const [handoffReceiptMessage,setHandoffReceiptMessage]=useState('');
+ const handoffItemSummary=summarizeLocalHandoffItems(handoffPrepared?.items||[],handoffItemReports);
  const handoffFollowthrough=buildLocalHandoffFollowthrough({
-  prepared:!!handoffPrepared,deliveryReported:handoffDeliveredByOperator,
-  receiptReported:handoffReceivedByOperator,
+  prepared:!!handoffPrepared,
+  deliveryReported:handoffPrepared?.items.length===1?handoffDeliveredByOperator:handoffItemSummary.allDelivered,
+  receiptReported:handoffPrepared?.items.length===1?handoffReceivedByOperator:handoffItemSummary.allReceived,
  });
  const handoffHtmlUrl=useReportDownloadUrl(handoffPrepared?.html||null);
  const [reportIncludeAssignees,setReportIncludeAssignees]=useState(false);
@@ -846,7 +849,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  useEffect(()=>{
   handoffGeneration.current++;
   setHandoffPrepared(null);setHandoffMessage('');
-  setHandoffDeliveredByOperator(false);setHandoffReceivedByOperator(false);
+  setHandoffDeliveredByOperator(false);setHandoffReceivedByOperator(false);setHandoffItemReports({});
   setHandoffReceiptMessage('');
  },[rows,filter,handoffScope]);
  const recheckQueue=buildLocalRecheckQueue(rows);
@@ -914,7 +917,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const prepareHandoff=async()=>{
   if(handoffPending||busy||readState!=='ready')return;
   setHandoffPending(true);setHandoffPrepared(null);setHandoffMessage('');
-  setHandoffDeliveredByOperator(false);setHandoffReceivedByOperator(false);
+  setHandoffDeliveredByOperator(false);setHandoffReceivedByOperator(false);setHandoffItemReports({});
   setHandoffReceiptMessage('');
   const generation=handoffGeneration.current;
   try{
@@ -938,6 +941,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    setHandoffPrepared({
     html:new Blob([html],{type:'text/html;charset=utf-8'}),
     text,count:confirmed.entries.length,at:confirmed.localDate,
+     items:confirmed.entries.map(({order,urgency,site,action})=>({order,urgency,site,action})),
    });
    setHandoffMessage('기기 원본 기록과 인계 목록을 대조했습니다. 아래 인계 문구는 직접 검토·복사하고, 담당자 전달은 별도로 진행하세요.');
   }catch(error){
