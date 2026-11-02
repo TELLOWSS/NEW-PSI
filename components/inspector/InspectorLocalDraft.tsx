@@ -7,7 +7,7 @@ import {prepareFollowupChange,analyzeFollowupChangeTrace,TEMPORARY_CONTROL_REVIE
 import {buildLocalRecheckQueue,summarizeLocalRecheckQueue,LOCAL_RECHECK_BUCKETS,LOCAL_RECHECK_LABELS,localCalendarDate} from '../../lib/inspector/localRecheckQueue.mjs';
 import {classifyLocalRestoreError,verifyLocalRestoreReadback} from '../../lib/inspector/localRestoreRecovery.mjs';
 import {localRecordMayDelete} from '../../lib/inspector/localRecordDeletionGuard.mjs';
-import {LOCAL_INPUT_DRAFT_KEY,validLocalInputDraft,localInputDraftFields,localInputDraftHasContent,localInputDraftCanReplace} from '../../lib/inspector/localInputDraft.mjs';
+import {LOCAL_INPUT_DRAFT_KEY,validLocalInputDraft,localInputDraftFields,localInputDraftHasContent,localInputDraftCanReplace,localInputDraftReadbackMatches} from '../../lib/inspector/localInputDraft.mjs';
 import {SINGLE_PHOTO_DRAFT_KEY,validSinglePhotoDraft,singlePhotoDraftCanReplace,singlePhotoDraftMetadataMatches} from '../../lib/inspector/localSinglePhotoDraft.mjs';
 import {packUnfinishedBackup,unpackUnfinishedBackup,previewUnfinishedBackup,verifyUnfinishedRestoreReadback} from '../../lib/inspector/localUnfinishedBackup.mjs';
 import {LOCAL_RECOVERY_KEYS,diagnoseLocalUnfinishedSlots,unfinishedRestoreActionGate,storedUnfinishedResumeGate} from '../../lib/inspector/localUnfinishedRecoveryTriage.mjs';
@@ -987,6 +987,14 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
        }catch{try{req.transaction?.abort();}catch{/* already closed */}}
       };
      });
+     // A transaction completion does not establish that the expected contents
+     // are still in durable storage; re-read every field before claiming saved.
+     const persisted=await runStore<LocalInputDraft|undefined>('readonly',(store,set)=>{
+      const req=store.get(LOCAL_INPUT_DRAFT_KEY);
+      req.onsuccess=()=>set(req.result as LocalInputDraft|undefined);
+     });
+     if(!localInputDraftReadbackMatches(empty?null:next,persisted))
+      throw new Error('작성 중 입력의 기기 저장 내용을 재확인하지 못했습니다.');
     }catch{if(epoch===inputEpochRef.current)setInputDraftState(conflict?'conflict':'error');return;}
     inputDraftRef.current=empty?null:next;
     if(epoch===inputEpochRef.current)setInputSavedAt(empty?'':next.savedAt);
@@ -1132,6 +1140,14 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
       }catch(error){abortFailedWrite(error,req.transaction);}
      };
     });
+    const persistedInput=await runStore<LocalInputDraft|undefined>('readonly',(store,set)=>{
+     const req=store.get(LOCAL_INPUT_DRAFT_KEY);
+     req.onsuccess=()=>set(req.result as LocalInputDraft|undefined);
+    });
+    if(!localInputDraftReadbackMatches(nextInput,persistedInput)){
+     setInputDraftState('error');
+     throw new Error('최근 입력이 기기에 예상대로 저장되지 않았습니다. 현재 화면의 사진·내용을 긴급 백업하고 기기 기록을 확인하세요.');
+    }
     inputDraftRef.current=nextInput;setInputSavedAt(nextInput.savedAt);
    }
    const secondary=staged?.photos[1],primaryRole=staged&&secondary&&photoRole==='unspecified'?'overview':photoRole;
@@ -1809,7 +1825,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    <div aria-label="작성 중 점검 임시저장 안내">
     {inputDraftState==='loading'&&<p role="status">이전에 작성 중이던 점검 입력을 확인하고 있습니다…</p>}
     {inputDraftState==='ready'&&<p role="status">점검 내용·현장정보는 이 브라우저에 임시저장됩니다. {inputPending?'현재 입력 임시저장 대기 중 · 저장 완료 표기가 나오기 전에는 화면을 닫지 마세요.':inputSavedAt?'최근 임시저장: '+new Date(inputSavedAt).toLocaleString('ko-KR'):'아직 저장된 입력이 없습니다.'} 연속 촬영 사진과 단건 선택 사진은 각각 임시보관됩니다. 브라우저 데이터 삭제·기기 분실에 대비해 별도로 백업하세요.</p>}
-    {inputDraftState==='error'&&<div role="alert"><p>임시 입력을 저장하거나 불러오지 못했습니다. 현재 화면의 내용은 유지됩니다. 먼저 통합 백업을 내려받아 확인하세요.</p><button type="button" className="si-btn" disabled={busy||unfinishedBusy} onClick={()=>void backupUnfinished()}>입력·사진 긴급 백업</button><button type="button" className="si-btn" disabled={busy} onClick={()=>setInputDraftState('ready')}>임시저장 다시 시도</button></div>}
+    {inputDraftState==='error'&&<div role="alert"><p>임시 입력을 저장하거나 저장 후 내용 확인에 실패했습니다. 현재 화면의 입력을 우선 긴급 백업하세요. 기기에 일부 기록이 남아 있을 수 있으므로 자동 삭제하거나 덮어쓰지 않습니다.</p><button type="button" className="si-btn" disabled={busy||unfinishedBusy} onClick={()=>void backupUnfinished()}>입력·사진 긴급 백업</button><button type="button" className="si-btn" disabled={busy} onClick={()=>setInputDraftState('ready')}>임시저장 다시 시도</button></div>}
     {inputDraftState==='conflict'&&<div role="alert"><p>다른 탭의 임시 입력이 변경되어 덮어쓰지 않았습니다. 현재 입력을 별도 보관한 뒤 최신 내용을 불러오세요.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>{if(window.confirm('현재 화면의 입력을 다른 탭의 저장된 내용으로 바꿀까요?'))void loadInputDraft();}}>기기 임시 입력 다시 불러오기</button></div>}
    </div>
    <fieldset aria-label="점검 현장정보" style={{border:'1px solid #8885',borderRadius:8,padding:12}}>
