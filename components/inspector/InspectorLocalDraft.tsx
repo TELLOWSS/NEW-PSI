@@ -1622,6 +1622,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    {singleDraftState==='ready'&&singleSavedAt&&photo&&<p role="status">선택 사진 임시저장 확인됨 · {new Date(singleSavedAt).toLocaleString('ko-KR')} · 사진 자체의 장기 보존을 보증하지 않습니다.</p>}
    {(singleDraftState==='error'||singleDraftState==='conflict')&&<div role="alert">
     <p>{singleDraftMessage||'단건 사진을 확인하지 못했습니다. 저장 전 사진은 별도로 내려받으세요.'}</p>
+    {photo&&<button type="button" className="si-btn" disabled={busy||unfinishedBusy} onClick={()=>void backupUnfinished()}>오류 난 사진·내용 긴급 백업</button>}
     {photo&&<button type="button" className="si-btn" disabled={busy} onClick={()=>void choose(photo,singlePhotoSource||'file-picker',singlePhotoEdit)}>선택 사진 임시저장 다시 시도</button>}
     <button type="button" className="si-btn" disabled={busy} onClick={()=>{if(window.confirm('현재 선택한 사진을 내려받아 보관했습니까? 기기에 저장된 단건 임시사진을 다시 불러오면 현재 화면 사진이 바뀔 수 있습니다.'))void loadSinglePhoto();}}>기기 단건 임시사진 다시 확인</button>
    </div>}
@@ -1634,7 +1635,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    <div aria-label="작성 중 점검 임시저장 안내">
     {inputDraftState==='loading'&&<p role="status">이전에 작성 중이던 점검 입력을 확인하고 있습니다…</p>}
     {inputDraftState==='ready'&&<p role="status">점검 내용·현장정보는 이 브라우저에 임시저장됩니다. {inputPending?'현재 입력 임시저장 대기 중 · 저장 완료 표기가 나오기 전에는 화면을 닫지 마세요.':inputSavedAt?'최근 임시저장: '+new Date(inputSavedAt).toLocaleString('ko-KR'):'아직 저장된 입력이 없습니다.'} 연속 촬영 사진과 단건 선택 사진은 각각 임시보관됩니다. 브라우저 데이터 삭제·기기 분실에 대비해 별도로 백업하세요.</p>}
-    {inputDraftState==='error'&&<div role="alert"><p>임시 입력을 저장하거나 불러오지 못했습니다. 현재 화면의 내용을 지우지 않았습니다. 입력을 복사해 별도 보관하세요.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>setInputDraftState('ready')}>임시저장 다시 시도</button></div>}
+    {inputDraftState==='error'&&<div role="alert"><p>임시 입력을 저장하거나 불러오지 못했습니다. 현재 화면의 내용은 유지됩니다. 먼저 통합 백업을 내려받아 확인하세요.</p><button type="button" className="si-btn" disabled={busy||unfinishedBusy} onClick={()=>void backupUnfinished()}>입력·사진 긴급 백업</button><button type="button" className="si-btn" disabled={busy} onClick={()=>setInputDraftState('ready')}>임시저장 다시 시도</button></div>}
     {inputDraftState==='conflict'&&<div role="alert"><p>다른 탭의 임시 입력이 변경되어 덮어쓰지 않았습니다. 현재 입력을 별도 보관한 뒤 최신 내용을 불러오세요.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>{if(window.confirm('현재 화면의 입력을 다른 탭의 저장된 내용으로 바꿀까요?'))void loadInputDraft();}}>기기 임시 입력 다시 불러오기</button></div>}
    </div>
    <fieldset aria-label="점검 현장정보" style={{border:'1px solid #8885',borderRadius:8,padding:12}}>
