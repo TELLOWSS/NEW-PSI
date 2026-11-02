@@ -27,6 +27,13 @@ function UnfinishedBackupPhotoPreview({file,label}:{file:File;label:string}){
 }
 
 
+/** Prepared handoff may be used only against the exact current saved records. */
+function localHandoffSnapshotMatches(prepared:{sourceSnapshot:string;at:string}|null,currentSnapshot:string,at:string,generationMatches:boolean):boolean{
+ return !!prepared&&typeof prepared.sourceSnapshot==='string'&&prepared.sourceSnapshot.length>0&&
+  typeof currentSnapshot==='string'&&currentSnapshot.length>0&&
+  /^\d{4}-\d{2}-\d{2}$/.test(prepared.at)&&prepared.at===at&&generationMatches===true&&
+  prepared.sourceSnapshot===currentSnapshot;
+}
 type Followup={status:string;assignee:string;dueDate:string;temporaryMeasure?:string;history:{status:string;assignee:string;dueDate:string;temporaryMeasure?:string;note:string;at:string}[]};
 type Recheck={id:string;result:'delayed'|'temporary_checked'|'needs_more'|'review_requested';reason:string;note:string;nextCheckDate:string;at:string;photoSha256:string|null;followupStatus:string};
 type AdditionalAction={id:string;title:string;followup?:Followup;rechecks?:Recheck[];photo?:File;photoSha256?:string;photoHistory?:AfterHistory[]};
@@ -816,9 +823,10 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [reportScope,setReportScope]=useState<'visible'|'all'>('visible');
  const [handoffScope,setHandoffScope]=useState<'visible'|'all'>('all');
  const handoffGeneration=useRef(0);
+ const handoffVerificationRef=useRef(false);
  const [handoffPending,setHandoffPending]=useState(false);
  const [handoffMessage,setHandoffMessage]=useState('');
- const [handoffPrepared,setHandoffPrepared]=useState<{html:Blob;text:string;count:number;at:string;items:{order:number;urgency:string;site:string;action:string}[]}|null>(null);
+ const [handoffPrepared,setHandoffPrepared]=useState<{html:Blob;text:string;count:number;at:string;sourceSnapshot:string;items:{order:number;urgency:string;site:string;action:string}[]}|null>(null);
  const [handoffDeliveredByOperator,setHandoffDeliveredByOperator]=useState(false);
  const [handoffReceivedByOperator,setHandoffReceivedByOperator]=useState(false);
  const [handoffItemReports,setHandoffItemReports]=useState<Record<number,{delivered:boolean;received:boolean}>>({});
@@ -829,7 +837,6 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   deliveryReported:handoffPrepared?.items.length===1?handoffDeliveredByOperator:handoffItemSummary.allDelivered,
   receiptReported:handoffPrepared?.items.length===1?handoffReceivedByOperator:handoffItemSummary.allReceived,
  });
- const handoffHtmlUrl=useReportDownloadUrl(handoffPrepared?.html||null);
  const [reportIncludeAssignees,setReportIncludeAssignees]=useState(false);
  const [reportIncludeDetails,setReportIncludeDetails]=useState(false);
  const [reportIncludeProgress,setReportIncludeProgress]=useState(false);
@@ -941,6 +948,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    setHandoffPrepared({
     html:new Blob([html],{type:'text/html;charset=utf-8'}),
     text,count:confirmed.entries.length,at:confirmed.localDate,
+    sourceSnapshot:handoffSourceSnapshot(fresh),
      items:confirmed.entries.map(({order,urgency,site,action})=>({order,urgency,site,action})),
    });
    setHandoffMessage('기기 원본 기록과 인계 목록을 대조했습니다. 아래 인계 문구는 직접 검토·복사하고, 담당자 전달은 별도로 진행하세요.');
@@ -948,15 +956,50 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    setHandoffMessage(error instanceof Error?error.message:'인계 내용을 준비하지 못했습니다. 기록을 다시 확인하세요.');
   }finally{setHandoffPending(false);}
  };
- const copyHandoff=async()=>{
-  if(!handoffPrepared)return;
+ // F10-60: the latest IndexedDB state, not the cached screen, gates every use.
+ const withVerifiedHandoff=async(operation:(value:NonNullable<typeof handoffPrepared>)=>Promise<void>|void)=>{
+  if(!handoffPrepared||handoffVerificationRef.current||busy||readState!=='ready')return;
+  const prepared=handoffPrepared,token=handoffGeneration.current;
+  handoffVerificationRef.current=true;setHandoffPending(true);
   try{
-   if(!navigator.clipboard?.writeText)throw new Error('클립보드를 사용할 수 없습니다.');
-   await navigator.clipboard.writeText(handoffPrepared.text);
-   setHandoffMessage('인계 문구를 기기 클립보드에 복사했습니다. 담당자에게 전송하거나 확인받은 것은 아닙니다.');
+   const fresh=await list();
+   if(!localHandoffSnapshotMatches(prepared,handoffSourceSnapshot(fresh),localCalendarDate(new Date()),token===handoffGeneration.current)){
+    setHandoffPrepared(null);setHandoffDeliveredByOperator(false);setHandoffReceivedByOperator(false);
+    setHandoffItemReports({});setHandoffReceiptMessage('');
+    setHandoffMessage('기기 점검 기록·날짜·조회 범위가 바뀌었습니다. 이전 인계 초안과 확인란을 무효화했습니다. 기록 다시 조회 후 새로 준비하세요.');
+    return;
+   }
+   await operation(prepared);
   }catch{
-   setHandoffMessage('자동 복사가 제한된 브라우저입니다. 아래 인계 문구를 길게 눌러 직접 복사하세요.');
+   setHandoffMessage('기기 기록 재확인에 실패했습니다. 이전 인계 초안을 복사하거나 저장·확인하지 않았습니다. 원본을 보존하고 다시 조회하세요.');
+  }finally{handoffVerificationRef.current=false;setHandoffPending(false);}
+ };
+ const copyHandoff=async()=>withVerifiedHandoff(async prepared=>{
+  try{
+   if(!navigator.clipboard?.writeText)throw new Error('clipboard unavailable');
+   await navigator.clipboard.writeText(prepared.text);
+   setHandoffMessage('최신 기기 기록을 재확인한 인계 문구를 복사했습니다. 담당자 발송·수신은 별도입니다.');
+  }catch{
+   setHandoffMessage('기기 기록은 재확인했으나 자동 복사가 제한됐습니다. 아래 문구를 직접 확인하여 복사하세요.');
   }
+ });
+ const saveHandoff=async()=>withVerifiedHandoff(prepared=>{
+  download(prepared.html,'PSI_F10_handoff_'+prepared.at+'.html');
+  setHandoffMessage('기기 기록 대조 후 A4 파일 저장을 요청했습니다. 실제 다운로드 여부는 기기 파일 앱에서 확인하세요.');
+ });
+ const reportHandoffCheck=(order:number,stage:'delivery'|'receipt',checked:boolean)=>{
+  void withVerifiedHandoff(()=>{
+   if(!handoffPrepared)return;
+   if(handoffPrepared.items.length===1){
+    if(stage==='delivery'){setHandoffDeliveredByOperator(checked);if(!checked)setHandoffReceivedByOperator(false);}
+    else if(handoffDeliveredByOperator)setHandoffReceivedByOperator(checked);
+   }else setHandoffItemReports(prev=>{
+    const old=prev[order]||{delivered:false,received:false};
+    return {...prev,[order]:stage==='delivery'
+     ?{delivered:checked,received:checked&&old.received}
+     :{delivered:old.delivered,received:checked&&old.delivered}};
+   });
+  });
  };
  const copyHandoffReceiptRequest=async()=>{
   if(!handoffPrepared)return;
@@ -2180,10 +2223,10 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
      {handoffTargetQueue.length>F10_HANDOFF_MAX_ITEMS&&<p role="alert">인계 대상이 40건을 초과했습니다. 현재 상태 필터로 나누어 준비하고 전체 관리대장도 확인하세요. 대상을 조용히 생략하지 않습니다.</p>}
      {handoffMessage&&<p role="status">{handoffMessage}</p>}
      {handoffPrepared&&<div aria-label="준비된 F10 인계 자료">
-      <p>기기 기준일 {handoffPrepared.at} · 인계 대상 {handoffPrepared.count}건. 작성 당시의 기기 기록으로만 준비했습니다.</p>
+      <p>기기 기준일 {handoffPrepared.at} · 인계 대상 {handoffPrepared.count}건. 복사·파일 저장·확인 체크 전에 기기 원본을 다시 대조합니다.</p>
       <button type="button" className="si-btn" onClick={()=>void copyHandoff()}>인계 문구 복사 (자동 전송 없음)</button>
       {' '}
-      {handoffHtmlUrl&&<a className="si-btn" href={handoffHtmlUrl} download={'PSI_F10_handoff_'+handoffPrepared.at+'.html'}>A4 인계표 기기에 저장</a>}
+      <button type="button" className="si-btn" onClick={()=>void saveHandoff()}>A4 인계표 기기에 저장</button>}
       <label>인계 문구 직접 확인·복사
        <textarea aria-label="F10 인계 문구 직접 복사" readOnly rows={6} value={handoffPrepared.text}/>
       </label>
@@ -2199,13 +2242,13 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
        {handoffPrepared.items.length===1&&<>
        <label style={{display:'flex',gap:8,alignItems:'flex-start',minHeight:44}}>
         <input type="checkbox" aria-label="인계 자료를 외부에서 직접 전달했음을 점검자가 확인" checked={handoffDeliveredByOperator}
-         onChange={e=>{setHandoffDeliveredByOperator(e.target.checked);if(!e.target.checked)setHandoffReceivedByOperator(false);}}/>
+         onChange={e=>reportHandoffCheck(1,'delivery',e.target.checked)}/>
         이번 인계 대상 모두에 대한 외부 전달 사실을 제가 직접 확인했습니다. (점검자 자기확인 · 실제 전달 증빙 아님)
        </label>
        <label style={{display:'flex',gap:8,alignItems:'flex-start',minHeight:44}}>
         <input type="checkbox" aria-label="담당자의 실제 수신 회신을 점검자가 확인" checked={handoffReceivedByOperator}
          disabled={!handoffDeliveredByOperator}
-         onChange={e=>setHandoffReceivedByOperator(e.target.checked)}/>
+         onChange={e=>reportHandoffCheck(1,'receipt',e.target.checked)}/>
         이번 인계 대상 모두에서 담당자의 실제 수신 회신을 제가 확인했습니다. (점검자 자기확인 · 수신 증빙 아님)
        </label>
        </>}
@@ -2218,18 +2261,13 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
           <p><strong>{item.order}번 · {item.urgency}</strong> · {item.site} · {item.action}</p>
           <label style={{display:'flex',gap:8,alignItems:'flex-start',minHeight:44}}>
            <input type="checkbox" aria-label={`F10 ${item.order}번 외부 전달 직접 확인`} checked={current?.delivered===true}
-            onChange={e=>setHandoffItemReports(prev=>({...prev,[item.order]:{
-             delivered:e.target.checked,received:e.target.checked&&prev[item.order]?.received===true,
-            }}))}/>
+            onChange={e=>reportHandoffCheck(item.order,'delivery',e.target.checked)}/>
            이 항목을 외부에서 실제 전달했음을 점검자가 직접 확인 (전송 증빙 아님)
           </label>
           <label style={{display:'flex',gap:8,alignItems:'flex-start',minHeight:44}}>
            <input type="checkbox" aria-label={`F10 ${item.order}번 수신 회신 직접 확인`} checked={current?.received===true}
             disabled={current?.delivered!==true}
-            onChange={e=>setHandoffItemReports(prev=>({...prev,[item.order]:{
-             delivered:prev[item.order]?.delivered===true,
-             received:e.target.checked&&prev[item.order]?.delivered===true,
-            }}))}/>
+            onChange={e=>reportHandoffCheck(item.order,'receipt',e.target.checked)}/>
            이 항목의 담당자 회신을 점검자가 직접 확인 (제3자 수신 증빙 아님)
           </label>
           <p>다음 확인: {current?.next||'외부 전달 직접 확인'}</p>
