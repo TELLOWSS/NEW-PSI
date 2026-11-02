@@ -26,7 +26,7 @@ try{
   dbRequest.onerror=()=>reject(dbRequest.error);
   dbRequest.onsuccess=()=>{
    const db=dbRequest.result,tx=db.transaction('records','readonly'),req=tx.objectStore('records').get(key);
-   req.onsuccess=()=>resolve(req.result||null);
+   req.onsuccess=()=>{const value=req.result;resolve(value?{...value,photo:{name:value.photo?.name,size:value.photo?.size,type:value.photo?.type}}:null);};
    tx.oncomplete=()=>db.close();tx.onabort=()=>reject(tx.error);
   };
  }),id);
