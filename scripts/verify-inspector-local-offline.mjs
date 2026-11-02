@@ -97,6 +97,16 @@ try{
  assert.equal(saved.length,1);assert.match(saved[0].note,/시스템비계/);assert.ok(saved[0].size>0);assert.match(saved[0].sha,/^[a-f0-9]{64}$/);assert.ok(saved[0].version);
  // A deferred action can be recorded and its after photo attached later while offline.
  const actionRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
+ const deferredGuide=actionRow.getByRole('region',{name:'지연 조치 4단계 안내'}).first();
+ await deferredGuide.getByText('입력된 항목 0/4개',{exact:false}).waitFor();
+ await deferredGuide.getByText('1. 담당자 지정 · 미기록').waitFor();
+ await deferredGuide.getByText('2. 임시 안전조치 · 미기록').waitFor();
+ await deferredGuide.getByText('3. 조치 목표 기한 · 미기록').waitFor();
+ await deferredGuide.getByText('4. 지연 사유·재점검 · 미기록').waitFor();
+ const recheckJump=deferredGuide.getByRole('link',{name:'재점검·지연 사유 입력 위치로 이동'});
+ const recheckTarget=await recheckJump.getAttribute('href');
+ assert.match(recheckTarget,/^#si-recheck-.+-main$/);
+ assert.equal(await page.locator(recheckTarget).count(),1,'main recheck target must exist');
  const photoSet=actionRow.getByRole('region',{name:'현장 사진 묶음'});
  await photoSet.getByText('기본 사진: 현장 전체',{exact:false}).waitFor();
  await photoSet.getByLabel('추가 사진 역할').selectOption('detail');
@@ -151,6 +161,9 @@ try{
  await actionRow.getByRole('button',{name:'후속 기록 저장'}).click();
  await panel.getByText('후속 조치를 이 기기에 저장했습니다.',{exact:false}).waitFor();
  await actionRow.getByText('현재 기록된 임시 안전조치: 위험 구역 출입 통제 및 안내 표지 유지',{exact:false}).waitFor();
+ await deferredGuide.getByText('입력된 항목 3/4개',{exact:false}).waitFor();
+ await deferredGuide.getByText('4. 지연 사유·재점검 · 미기록').waitFor();
+ await deferredGuide.getByText('임시조치 시행·유지, 담당자 연락, 위험 해소 또는 작업 재개 승인을 뜻하지 않습니다.',{exact:false}).waitFor();
  await actionRow.getByLabel('조치 후 사진 연결').setInputFiles({name:'synthetic-after.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a8sAAAAASUVORK5CYII=','base64')});
  await panel.getByText('조치 후 사진을 이 기기에 연결했습니다.',{exact:false}).waitFor();
  await actionRow.getByText('조치 후 사진: synthetic-after.png').waitFor();
@@ -162,6 +175,9 @@ try{
  await overallRecheck.getByLabel('점검 전체 다음 확인 예정일').fill('2030-01-03');
  await overallRecheck.getByRole('button',{name:'재점검 이력 저장'}).click();
  await overallRecheck.getByText('재점검 1건',{exact:false}).waitFor();
+ await deferredGuide.getByText('입력된 항목 4/4개',{exact:false}).waitFor();
+ await deferredGuide.getByText('네 항목 모두 기록됨 · 실제 현장 확인은 별도',{exact:false}).waitFor();
+ await deferredGuide.getByText('다음 확인: 2030-01-03',{exact:false}).waitFor();
  await overallRecheck.getByText('재점검·지연 이력 1건').click();
  await overallRecheck.getByText('자재 공급이 늦어져 현장 보수 작업이 지연됨',{exact:false}).waitFor();
  assert.equal(await actionRow.getByText('조치 진행 중',{exact:false}).count()>0,true,'reinspection should not auto mark work verified');
