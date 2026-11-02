@@ -256,7 +256,7 @@ try{
  assert.match(handoffText,/상태 불일치 · 확인 필요/);
  assert.match(handoffText,/담당자 기록 확인/);
  assert.doesNotMatch(handoffText,/합성 담당자|자재 공급이 늦어져|iVBORw0KGgo/);
- const handoffLink=f10Handoff.getByRole('link',{name:'A4 인계표 기기에 저장'});
+ const handoffLink=f10Handoff.getByRole('button',{name:'A4 인계표 기기에 저장'});
  const handoffDownload=page.waitForEvent('download');
  await handoffLink.click();
  const handoffHtml=await readFile(await (await handoffDownload).path(),'utf8');
@@ -269,7 +269,7 @@ try{
   }});
  });
  await f10Handoff.getByRole('button',{name:'인계 문구 복사 (자동 전송 없음)'}).click();
- await f10Handoff.getByText('인계 문구를 기기 클립보드에 복사했습니다.',{exact:false}).waitFor();
+ await f10Handoff.getByText('최신 기기 기록을 재확인한 인계 문구를 복사했습니다.',{exact:false}).waitFor();
  assert.equal(await page.evaluate(()=>window.__syntheticHandoffCopied),handoffText);
  // F10-58: a prepared/exported/copied handoff NEVER means message sent or received.
  const receiptGuide=f10Handoff.getByRole('region',{name:'F10 인계 수신·재점검 확인 순서'});
@@ -983,6 +983,9 @@ try{
  await partial.waitFor({state:'detached'});
  // This per-item checklist is intentionally not written to IndexedDB.
 
+ // F10-60: freshly prepare the handoff before the simulated concurrent edit.
+ await f10Handoff.getByRole('button',{name:'인계 문구·A4 인계표 준비'}).click();
+ await f10Handoff.getByLabel('F10 인계 문구 직접 복사').waitFor();
  // 31차 release guard: another browser tab changes ONLY an earlier follow-up
  // snapshot, without touching current status/date. The current screen stays
  // stale. A fresh IDB read must reject the opt-in history report.
@@ -1007,6 +1010,10 @@ try{
   };
  }),{id:staleRecordId,date:targetDate});
  await rewriteLocalHistory('2030-01-09');
+ // A stale prepared handoff must be invalidated without copying old content.
+ await f10Handoff.getByRole('button',{name:'인계 문구 복사 (자동 전송 없음)'}).click();
+ await f10Handoff.getByText('이전 인계 초안과 확인란을 무효화했습니다.',{exact:false}).waitFor();
+ assert.equal(await f10Handoff.getByLabel('F10 인계 문구 직접 복사').count(),0,'stale draft must be hidden');
  await f10Report.getByLabel('보고서에 F10 경과 연결 이력 포함').check();
  await f10Report.getByRole('button',{name:'CSV·인쇄용 보고서 준비'}).click();
  await f10Report.getByText('점검 기록이 다른 탭에서 변경됐습니다.',{exact:false}).waitFor();
@@ -1014,6 +1021,25 @@ try{
  assert.equal(await htmlLink.count(),0,'stale F10 history must not become printable HTML');
  await rewriteLocalHistory(previousHistoryDate);
  await f10Report.getByLabel('보고서에 F10 경과 연결 이력 포함').uncheck();
+ // F10-61: the A4 button must not download stale records after a second tab edit.
+ // Preserve the persisted original; no automatic overwrite, no external call.
+ await f10Handoff.getByRole('button',{name:'인계 문구·A4 인계표 준비'}).click();
+ await f10Handoff.getByRole('button',{name:'A4 인계표 기기에 저장'}).waitFor();
+ await rewriteLocalHistory('2030-01-08');
+ await f10Handoff.getByRole('button',{name:'A4 인계표 기기에 저장'}).click();
+ await f10Handoff.getByText('이전 인계 초안과 확인란을 무효화했습니다.',{exact:false}).waitFor();
+ assert.equal(await f10Handoff.getByRole('button',{name:'A4 인계표 기기에 저장'}).count(),0,
+  'stale A4 export control must be hidden');
+ await rewriteLocalHistory(previousHistoryDate);
+ // F10-62: even the manual confirmation box must reject a stale underlying record.
+ await f10Handoff.getByRole('button',{name:'인계 문구·A4 인계표 준비'}).click();
+ const oldDeliveryBox=f10Handoff.getByRole('checkbox',{name:'인계 자료를 외부에서 직접 전달했음을 점검자가 확인'});
+ await oldDeliveryBox.waitFor();
+ await rewriteLocalHistory('2030-01-07');
+ await oldDeliveryBox.click();
+ await f10Handoff.getByText('이전 인계 초안과 확인란을 무효화했습니다.',{exact:false}).waitFor();
+ assert.equal(await oldDeliveryBox.count(),0,'no manual delivery confirmation after stored data changes');
+ await rewriteLocalHistory(previousHistoryDate);
  // Stale rejection should not cause an external request or wipe the photos.
 
 
