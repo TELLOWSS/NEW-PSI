@@ -349,8 +349,47 @@ try{
  await five.evaluate(()=>{IDBObjectStore.prototype.put=window.__originalInputPut;});
  await fifthContext.close();
 
+ // F08-50: another tab modifies a stored record without changing its revision.
+ // The next autosave must not overwrite that record based on revision alone.
+ const sixthContext=await browser.newContext({viewport:{width:360,height:740},acceptDownloads:true});
+ const {page:six,panel:g}=await open(sixthContext);
+ await g.getByLabel('직접 확인한 내용').fill('원래 임시 메모');
+ await g.getByText('최근 임시저장:',{exact:false}).waitFor();
+ const original=await readSaved(six,'psi-local-inspection-input-draft-v1');
+ assert.equal(original.note,'원래 임시 메모');
+ await six.evaluate(()=>new Promise((resolve,reject)=>{
+  const open=indexedDB.open('psi-inspector-local-records',1);
+  open.onerror=()=>reject(open.error);
+  open.onsuccess=()=>{
+   const db=open.result,tx=db.transaction('records','readwrite'),store=tx.objectStore('records');
+   const req=store.get('psi-local-inspection-input-draft-v1');
+   req.onsuccess=()=>{
+    store.put({...req.result,note:'다른 탭에서 변경된 문구',siteContext:{...req.result.siteContext,level:'21F'}});
+   };
+   tx.oncomplete=()=>{db.close();resolve(true);};
+   tx.onerror=()=>reject(tx.error);
+  };
+ }));
+ const changed=await readSaved(six,'psi-local-inspection-input-draft-v1');
+ assert.equal(changed.revision,original.revision,'test keeps identical revision');
+ assert.equal(changed.note,'다른 탭에서 변경된 문구');
+ await g.getByLabel('직접 확인한 내용').fill('내가 계속 작성한 새 메모');
+ await g.getByText('다른 탭의 변경 또는 저장 내용 불일치 감지').waitFor();
+ assert.equal((await readSaved(six,'psi-local-inspection-input-draft-v1')).note,'다른 탭에서 변경된 문구',
+  'content mismatch must block an automatic overwrite despite equal revision');
+ const [conflictDownload]=await Promise.all([
+  six.waitForEvent('download'),g.getByRole('button',{name:'현재 화면 충돌 자료 백업'}).click(),
+ ]);
+ const conflictData=JSON.parse((await readFile(await conflictDownload.path())).toString('utf8'));
+ assert.equal(conflictData.input.note,'내가 계속 작성한 새 메모');
+ await g.getByRole('button',{name:'기기 저장본 읽기 전용 확인'}).click();
+ await g.getByText('진단 결과:',{exact:false}).waitFor();
+ assert.equal((await readSaved(six,'psi-local-inspection-input-draft-v1')).note,'다른 탭에서 변경된 문구',
+  'read-only diagnosis must not mutate or clear existing data');
+ await sixthContext.close();
+
  assert.equal(pageErrors.length,0,'no uncaught browser exceptions');
- console.log('PASS F08 unified backup: quota failure, tamper, atomic no-overwrite, real persisted-byte readback, mobile pagehide checkpoint, same-revision persisted-input mismatch, final commit');
+ console.log('PASS F08 unified backup: quota failure, tamper, atomic no-overwrite, real persisted-byte readback, mobile pagehide checkpoint, same-revision persisted-input mismatch, content-aware no-overwrite CAS, final commit');
 }finally{
  await browser.close();await server.close();
 }
