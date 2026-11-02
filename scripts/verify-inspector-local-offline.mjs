@@ -954,7 +954,7 @@ try{
  await secondHandoffTarget.getByLabel('조치 상태').selectOption('in_progress');
  await secondHandoffTarget.getByLabel('진행·확인 내용').fill('인계 대상별 현장 확인 필요');
  await secondHandoffTarget.getByRole('button',{name:'후속 기록 저장'}).click();
- await panel.getByText('후속 조치를 이 기기에 저장했습니다.',{exact:false}).waitFor();
+ await panel.getByText('추가 조치를 이 기기에 저장했습니다.',{exact:false}).waitFor();
  await f10Handoff.getByLabel('F10 인계 대상 범위').selectOption('all');
  await f10Handoff.getByText('인계 대상 2건 / 최대 40건',{exact:false}).waitFor();
  await f10Handoff.getByRole('button',{name:'인계 문구·A4 인계표 준비'}).click();
