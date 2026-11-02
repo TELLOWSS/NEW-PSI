@@ -7,6 +7,7 @@ import {prepareFollowupChange,analyzeFollowupChangeTrace,TEMPORARY_CONTROL_REVIE
 import {buildLocalRecheckQueue,summarizeLocalRecheckQueue,LOCAL_RECHECK_BUCKETS,LOCAL_RECHECK_LABELS,localCalendarDate} from '../../lib/inspector/localRecheckQueue.mjs';
 import {classifyLocalRestoreError,verifyLocalRestoreReadback} from '../../lib/inspector/localRestoreRecovery.mjs';
 import {localRecordMayDelete} from '../../lib/inspector/localRecordDeletionGuard.mjs';
+import {LOCAL_INPUT_DRAFT_KEY,validLocalInputDraft,localInputDraftFields,localInputDraftHasContent,localInputDraftCanReplace} from '../../lib/inspector/localInputDraft.mjs';
 import {buildLocalRecheckReport,selectLocalRecheckReportTargets,matchesLocalFollowupRecordFilter,formatLocalRecheckCsv,formatLocalRecheckPrintHtml,F10_LOCAL_REPORT_LIMIT} from '../../lib/inspector/localRecheckReport.mjs';
 import {buildLocalRecheckProgress} from '../../lib/inspector/localRecheckProgress.mjs';
 import {buildLocalHandoffPlan,selectLocalHandoffTargets,formatLocalHandoffMessage,formatLocalHandoffHtml,handoffSourceSnapshot,F10_HANDOFF_MAX_ITEMS} from '../../lib/inspector/localRecheckHandoff.mjs';
@@ -161,6 +162,7 @@ type AfterHistory={photo:File;sha256:string;replacedAt:string};
 type ContextHistory={photo:File;sha256:string;role:'overview'|'detail';replacedAt:string};
 type LocalRecord={rechecks?:Recheck[];photoEdits?:PhotoEdits;photoInputs?:PhotoInputs;siteContextHistory?:SiteContextChange[];siteContext?:FieldContext;primaryHistory?:AfterHistory[];afterHistory?:AfterHistory[];contextHistory?:ContextHistory[];contextDetached?:boolean;contextFirst?:boolean;photoRole?:PhotoRole;contextPhoto?:File;contextSha256?:string;contextRole?:'overview'|'detail';additionalActions?:AdditionalAction[];afterPhoto?:File;afterSha256?:string;followup?:Followup;id:string;createdAt:string;note:string;action:string;photo:File;sha256:string|null;legalVersion:string;reviewedAt:string};
 type PhotoSetDraft={id:string;kind:'photo-set-draft';revision:string;photos:File[];sources?:PhotoInput[];edits?:PhotoEdits};
+type LocalInputDraft={id:string;kind:'inspection-input-draft';revision:string;savedAt:string;note:string;action:string;photoRole:PhotoRole;siteContext:FieldContext};
 const DB='psi-inspector-local-records', STORE='records', DRAFT_KEY='psi-photo-set-draft-v1';
 function openRecords():Promise<IDBDatabase>{
  return new Promise((resolve,reject)=>{
@@ -224,7 +226,7 @@ async function buildEvidenceManifest(inspection:LocalRecord):Promise<EvidenceMan
  }
  return {format:'psi-local-photo-evidence-manifest',version:3,inspectionId:inspection.id,generatedAt:new Date().toISOString(),timeSource:'device-clock',scope:'stored-files-only',photos,checks:{matched:photos.filter(v=>v.check==='match').length,mismatch:photos.filter(v=>v.check==='mismatch').length,unrecorded:photos.filter(v=>v.check==='unrecorded').length,unavailable:photos.filter(v=>v.check==='unavailable').length,total:photos.length}};
 }
-const list=()=>runStore<LocalRecord[]>('readonly',(store,set)=>{const request=store.getAll();request.onsuccess=()=>set((request.result as LocalRecord[]).filter(item=>item.id!==DRAFT_KEY).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));});
+const list=()=>runStore<LocalRecord[]>('readonly',(store,set)=>{const request=store.getAll();request.onsuccess=()=>set((request.result as LocalRecord[]).filter(item=>item.id!==DRAFT_KEY&&item.id!==LOCAL_INPUT_DRAFT_KEY).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));});
 function download(blob:Blob,name:string){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 function useReportDownloadUrl(reportAssetBlob:Blob|null){
  const [current,setCurrent]=useState<{blob:Blob;url:string}|null>(null);
@@ -732,6 +734,12 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [siteContextInput,setSiteContextInput]=useState<FieldContext>(EMPTY_FIELD_CONTEXT);
  const [sequence,setSequence]=useState(false),[draft,setDraft]=useState<PhotoSetDraft|null>(null),[draftState,setDraftState]=useState<'loading'|'ready'|'error'>('loading');
  const draftRef=useRef<PhotoSetDraft|null>(null);
+ const inputDraftRef=useRef<LocalInputDraft|null>(null);
+ const inputWriteRef=useRef<Promise<void>>(Promise.resolve());
+ const inputTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null);
+ const inputEpochRef=useRef(0);
+ const [inputDraftState,setInputDraftState]=useState<'loading'|'ready'|'error'|'conflict'>('loading');
+ const [inputSavedAt,setInputSavedAt]=useState('');
  const [rows,setRows]=useState<LocalRecord[]>([]),[camera,setCamera]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
  const [afterCamera,setAfterCamera]=useState<LocalRecord|null>(null),[afterReferences,setAfterReferences]=useState<{primary:string;context:string}>({primary:'',context:''}),[afterReferenceChoice,setAfterReferenceChoice]=useState<'primary'|'context'>('primary');
  const [capturedAfter,setCapturedAfter]=useState<{row:LocalRecord;file:File;edit?:CameraEditEvidence}|null>(null);
@@ -874,6 +882,51 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  };
  useEffect(()=>{void loadDraft();},[]);
 
+ const loadInputDraft=async()=>{
+  setInputDraftState('loading');
+  try{
+   const saved=await runStore<LocalInputDraft|undefined>('readonly',(store,set)=>{
+    const req=store.get(LOCAL_INPUT_DRAFT_KEY);
+    req.onsuccess=()=>set(req.result as LocalInputDraft|undefined);
+   });
+   if(saved&&!validLocalInputDraft(saved))throw new Error('invalid local input draft');
+   inputDraftRef.current=saved||null;setNote(saved?.note||'');setAction(saved?.action||'');
+   setPhotoRole(saved?.photoRole||'unspecified');setSiteContextInput(saved?.siteContext||EMPTY_FIELD_CONTEXT);
+   setInputSavedAt(saved?.savedAt||'');setInputDraftState('ready');
+  }catch{setInputDraftState('error');}
+ };
+ useEffect(()=>{void loadInputDraft();return()=>{inputEpochRef.current++;if(inputTimerRef.current)clearTimeout(inputTimerRef.current);};},[]);
+ useEffect(()=>{
+  if(inputDraftState!=='ready')return;
+  const content={note,action,photoRole,siteContext:siteContextInput};
+  if(inputDraftRef.current&&localInputDraftFields(inputDraftRef.current)===localInputDraftFields(content))return;
+  if(!inputDraftRef.current&&!localInputDraftHasContent(content))return;
+  const epoch=++inputEpochRef.current;
+  const timer=setTimeout(()=>{
+   const task=inputWriteRef.current.then(async()=>{
+    if(epoch!==inputEpochRef.current)return;
+    const expected=inputDraftRef.current,empty=!localInputDraftHasContent(content);
+    const next:LocalInputDraft={id:LOCAL_INPUT_DRAFT_KEY,kind:'inspection-input-draft',revision:crypto.randomUUID(),savedAt:new Date().toISOString(),...content};
+    let conflict=false;
+    try{
+     await runStore<void>('readwrite',store=>{
+      const req=store.get(LOCAL_INPUT_DRAFT_KEY);
+      req.onsuccess=()=>{
+       if(!localInputDraftCanReplace(req.result,expected)){conflict=true;req.transaction?.abort();return;}
+       if(empty)store.delete(LOCAL_INPUT_DRAFT_KEY);else store.put(next);
+      };
+     });
+    }catch{if(epoch===inputEpochRef.current)setInputDraftState(conflict?'conflict':'error');return;}
+    inputDraftRef.current=empty?null:next;
+    if(epoch===inputEpochRef.current)setInputSavedAt(empty?'':next.savedAt);
+   });
+   inputWriteRef.current=task.catch(()=>{});
+  },650);
+  inputTimerRef.current=timer;
+  return()=>clearTimeout(timer);
+ },[note,action,photoRole,siteContextInput,inputDraftState]);
+
+
  useEffect(()=>{if(!photo){setUrl('');return;}const next=URL.createObjectURL(photo);setUrl(next);return()=>URL.revokeObjectURL(next);},[photo]);
  useEffect(()=>{setAfterReferenceChoice('primary');if(!afterCamera){setAfterReferences({primary:'',context:''});return;}const primary=URL.createObjectURL(afterCamera.photo),context=afterCamera.contextPhoto&&!afterCamera.contextDetached?URL.createObjectURL(afterCamera.contextPhoto):'';setAfterReferences({primary,context});return()=>{URL.revokeObjectURL(primary);if(context)URL.revokeObjectURL(context);};},[afterCamera]);
  useEffect(()=>{if(!photo&&!note&&!action&&!capturedAfter)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[photo,note,action,capturedAfter]);
@@ -903,7 +956,10 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  };
  const save=async()=>{
   const staged=draftRef.current,primary=staged?.photos[0]||photo;
-  if(flight.current||!primary||!note.trim()||draftState!=='ready')return;
+  if(flight.current||!primary||!note.trim()||draftState!=='ready'||inputDraftState!=='ready')return;
+  inputEpochRef.current++;
+  if(inputTimerRef.current)clearTimeout(inputTimerRef.current);
+  await inputWriteRef.current;
   flight.current=true;setBusy(true);setMessage('');
   try{
    const secondary=staged?.photos[1],primaryRole=staged&&secondary&&photoRole==='unspecified'?'overview':photoRole;
@@ -924,10 +980,25 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     if(edited&&Object.values(edited).reduce((sum,item)=>sum+(item?.originalFile?.size||0),0)>BACKUP_LIMIT)throw new Error('편집 전 사진 합계가 20MB를 넘습니다. 새 점검을 작성하거나 사진을 별도로 내려받으세요.');
     const record:LocalRecord={photoEdits:edited&&Object.keys(edited).length?edited:undefined,photoInputs:Object.keys(sources).length?sources:undefined,siteContext,photoRole:primaryRole==='unspecified'?undefined:primaryRole,id:crypto.randomUUID(),createdAt:new Date().toISOString(),note:note.trim(),action:action.trim(),photo:primary,sha256:primaryDigest,legalVersion:reference.version,reviewedAt:reference.reviewedAt,...(secondary?{contextPhoto:secondary,contextSha256:contextDigest!,contextRole:primaryRole==='overview'?'detail' as const:'overview' as const}:{})};
    if(record.photoEdits&&!validPhotoEdits(record.photoEdits,record))throw new Error('편집 전 사진과 회전 사진의 연결 정보를 확인하지 못했습니다.');
-    await runStore<void>('readwrite',store=>{if(!staged){store.add(record);return;}const request=store.get(DRAFT_KEY);request.onsuccess=()=>{if(request.result?.revision!==staged.revision){request.transaction?.abort();return;}store.add(record);store.delete(DRAFT_KEY);};});
+    const expectedInput=inputDraftRef.current;
+    let inputConflict=false;
+    await runStore<void>('readwrite',store=>{
+     const req=store.get(LOCAL_INPUT_DRAFT_KEY);
+     req.onsuccess=()=>{
+      if(!localInputDraftCanReplace(req.result,expectedInput)){inputConflict=true;req.transaction?.abort();return;}
+      if(!staged){store.add(record);if(expectedInput)store.delete(LOCAL_INPUT_DRAFT_KEY);return;}
+      const photoReq=store.get(DRAFT_KEY);
+      photoReq.onsuccess=()=>{
+       if(photoReq.result?.revision!==staged.revision){photoReq.transaction?.abort();return;}
+       store.add(record);store.delete(DRAFT_KEY);
+       if(expectedInput)store.delete(LOCAL_INPUT_DRAFT_KEY);
+      };
+     };
+    });
+    inputDraftRef.current=null;setInputSavedAt('');
    draftRef.current=null;setDraft(null);setPhoto(null);setSinglePhotoEdit(undefined);setSinglePhotoSource(null);setPhotoRole('unspecified');setSiteContextInput(EMPTY_FIELD_CONTEXT);setNote('');setAction('');setMessage(record.sha256?'기기에 저장했습니다. 서버에는 전송하지 않았습니다.':'기기에 저장했습니다. 파일 해시는 확인하지 못했습니다.');
    await refresh();
-  }catch(error){setMessage(error instanceof DOMException&&error.name==='QuotaExceededError'?'저장 공간이 부족합니다. 사진을 내려받거나 공간을 확보한 뒤 다시 시도하세요.':error instanceof Error&&!(error instanceof DOMException)&&error.message?error.message:'기기에 저장하지 못했습니다. 입력과 사진을 유지합니다. 다시 시도하거나 사진을 내려받으세요.');}
+  }catch(error){setMessage(inputConflict?'다른 탭의 임시 기록이 변경되어 현재 점검을 저장하지 않았습니다. 입력과 사진은 유지됩니다.':'저장 공간이 부족하거나 저장이 중단됐습니다. 사진과 입력을 보존한 뒤 다시 시도하세요.');if(inputConflict)setInputDraftState('conflict');}
   finally{flight.current=false;setBusy(false);}
  };
  const saveFieldContext=async(row:LocalRecord,next:FieldContext|null,reason:string):Promise<boolean>=>{
@@ -1274,6 +1345,12 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    {draftState==='loading'&&<p role="status">임시 촬영 사진을 확인하고 있습니다…</p>}
    {draftState==='error'&&<div role="alert"><p>임시 촬영 사진을 확인하지 못했습니다. 저장소를 확인하고 다시 시도하세요.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>void loadDraft()}>임시 사진 다시 확인</button></div>}
    {draft&&<section aria-label="임시 촬영 사진"><p>이 기기에 임시 보관된 촬영 사진 {draft.photos.length}장 · 점검 내용은 아직 저장되지 않았습니다.</p><p>두 장이면 첫 사진의 역할을 선택하세요. 선택하지 않으면 첫 사진은 현장 전체, 둘째는 위험 부위로 저장됩니다.</p>{draft.photos.map((file,i)=><p key={i}>{i+1}. {file.name} <button type="button" className="si-btn" onClick={()=>download(file,file.name)}>임시 사진 내려받기</button></p>)}<button type="button" className="si-btn" disabled={busy} onClick={()=>void clearDraft()}>임시 사진 모두 삭제</button></section>}
+   <div aria-label="작성 중 점검 임시저장 안내">
+    {inputDraftState==='loading'&&<p role="status">이전에 작성 중이던 점검 입력을 확인하고 있습니다…</p>}
+    {inputDraftState==='ready'&&<p role="status">점검 내용·현장정보는 변경 후 잠시 뒤 이 브라우저에 자동 임시저장됩니다. {inputSavedAt?'최근 임시저장: '+new Date(inputSavedAt).toLocaleString('ko-KR'):'아직 저장된 입력이 없습니다.'} 연속 촬영 사진은 별도로 임시 보관됩니다. 파일에서 직접 선택한 사진은 재실행 후 자동 복원되지 않으므로 별도 보관하세요.</p>}
+    {inputDraftState==='error'&&<div role="alert"><p>임시 입력을 저장하거나 불러오지 못했습니다. 현재 화면의 내용을 지우지 않았습니다. 입력을 복사해 별도 보관하세요.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>setInputDraftState('ready')}>임시저장 다시 시도</button></div>}
+    {inputDraftState==='conflict'&&<div role="alert"><p>다른 탭의 임시 입력이 변경되어 덮어쓰지 않았습니다. 현재 입력을 별도 보관한 뒤 최신 내용을 불러오세요.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>{if(window.confirm('현재 화면의 입력을 다른 탭의 저장된 내용으로 바꿀까요?'))void loadInputDraft();}}>기기 임시 입력 다시 불러오기</button></div>}
+   </div>
    <fieldset aria-label="점검 현장정보" style={{border:'1px solid #8885',borderRadius:8,padding:12}}>
     <legend>점검 현장정보 · 직접 입력</legend>
     <p>알고 있는 정보만 입력하세요. 미확인 항목은 비워 둘 수 있습니다. GPS·주소·촬영 위치는 추정하거나 자동으로 입력하지 않습니다.</p>
@@ -1284,10 +1361,10 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     <p>저장 시 해당 점검의 기본·추가·조치 후 사진과 후속 이력에 같은 현장정보가 연결됩니다. 기존 점검에는 임의로 채우지 않습니다.</p>
    </fieldset>
    <label>기본 사진 역할<select aria-label="기본 사진 역할" value={photoRole} onChange={e=>setPhotoRole(e.target.value as PhotoRole)}><option value="unspecified">지정하지 않음</option><option value="overview">현장 전체</option><option value="detail">위험 부위</option></select></label>
-   <label>직접 확인한 내용<textarea aria-label="직접 확인한 내용" maxLength={4000} value={note} disabled={busy} onChange={e=>setNote(e.target.value)} placeholder="예: 시스템비계 발판 사이가 벌어져 보여 실측이 필요함"/></label>
-   <label>현장 조치·확인 계획<textarea aria-label="현장 조치·확인 계획" maxLength={4000} value={action} disabled={busy} onChange={e=>setAction(e.target.value)} placeholder="예: 접근을 통제하고 담당자와 발판 상태 확인"/></label>
+   <label>직접 확인한 내용<textarea aria-label="직접 확인한 내용" maxLength={4000} value={note} disabled={busy||inputDraftState==='loading'} onChange={e=>setNote(e.target.value)} placeholder="예: 시스템비계 발판 사이가 벌어져 보여 실측이 필요함"/></label>
+   <label>현장 조치·확인 계획<textarea aria-label="현장 조치·확인 계획" maxLength={4000} value={action} disabled={busy||inputDraftState==='loading'} onChange={e=>setAction(e.target.value)} placeholder="예: 접근을 통제하고 담당자와 발판 상태 확인"/></label>
    {note.trim()&&<div aria-label="입력 내용으로 찾은 기준"><b>입력 내용으로 찾은 참고 기준</b><p>자료 묶음 버전 {reference.version} · 묶음 기준일 {reference.reviewedAt}. 개별 기준의 현재 적용 여부는 현장에서 확인하세요.</p>{reviewedCards.length?reviewedCards.slice(0,3).map(card=><article key={card.id}><strong>{card.title}</strong><p>{sourceReviewState(card.sourceReview).label}</p>{card.duties.slice(0,2).map(d=><p key={d.url}>{d.label}: {d.summary} <a href={d.url} target="_blank" rel="noreferrer">원문 확인 (인터넷 필요)</a></p>)}<p>{card.scope}</p></article>):<p>현재 입력에 대해 검토 이력과 검토 기한이 확인된 기준을 찾지 못했습니다. 위험이 없다는 뜻이 아니며, 현장 담당자가 적용 기준을 별도로 확인해야 합니다.</p>}</div>}
-   <button type="button" className="si-btn si-primary" disabled={busy||(!photo&&!draft)||!note.trim()||draftState!=='ready'} onClick={()=>void save()}>{busy?'기기에 저장 중…':'사진과 내용 기기에 저장'}</button>
+   <button type="button" className="si-btn si-primary" disabled={busy||(!photo&&!draft)||!note.trim()||draftState!=='ready'||inputDraftState!=='ready'} onClick={()=>void save()}>{busy?'기기에 저장 중…':'사진과 내용 기기에 저장'}</button>
    {message&&<p role="status">{message}</p>}
    <h3>{readState==='ready'?`이 브라우저에 보관된 점검 ${rows.length}건`:'이 브라우저의 점검 기록'}</h3>
    {readState==='loading'&&<p role="status">기기 기록을 확인하고 있습니다…</p>}
