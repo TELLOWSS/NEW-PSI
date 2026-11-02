@@ -7,7 +7,7 @@ import {prepareFollowupChange,analyzeFollowupChangeTrace,TEMPORARY_CONTROL_REVIE
 import {buildLocalRecheckQueue,summarizeLocalRecheckQueue,LOCAL_RECHECK_BUCKETS,LOCAL_RECHECK_LABELS,localCalendarDate} from '../../lib/inspector/localRecheckQueue.mjs';
 import {classifyLocalRestoreError,verifyLocalRestoreReadback} from '../../lib/inspector/localRestoreRecovery.mjs';
 import {localRecordMayDelete} from '../../lib/inspector/localRecordDeletionGuard.mjs';
-import {LOCAL_INPUT_DRAFT_KEY,validLocalInputDraft,localInputDraftFields,localInputDraftHasContent,localInputDraftCanReplace,localInputDraftReadbackMatches} from '../../lib/inspector/localInputDraft.mjs';
+import {LOCAL_INPUT_DRAFT_KEY,validLocalInputDraft,localInputDraftFields,localInputDraftHasContent,localInputDraftCanReplace,localInputDraftReadbackMatches,buildLocalInspectionEmergencyText} from '../../lib/inspector/localInputDraft.mjs';
 import {SINGLE_PHOTO_DRAFT_KEY,validSinglePhotoDraft,singlePhotoDraftCanReplace,singlePhotoDraftMetadataMatches} from '../../lib/inspector/localSinglePhotoDraft.mjs';
 import {packUnfinishedBackup,unpackUnfinishedBackup,previewUnfinishedBackup,verifyUnfinishedRestoreReadback} from '../../lib/inspector/localUnfinishedBackup.mjs';
 import {LOCAL_RECOVERY_KEYS,diagnoseLocalUnfinishedSlots,unfinishedRestoreActionGate,storedUnfinishedResumeGate} from '../../lib/inspector/localUnfinishedRecoveryTriage.mjs';
@@ -763,6 +763,8 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [emergencyCheckMessage,setEmergencyCheckMessage]=useState('');
  const emergencyFileInputRef=useRef<HTMLInputElement|null>(null);
  const [unfinishedMessage,setUnfinishedMessage]=useState('');
+ const [textRescueMessage,setTextRescueMessage]=useState('');
+ const textRescueTextareaRef=useRef<HTMLTextAreaElement|null>(null);
  const [recoveryScanBusy,setRecoveryScanBusy]=useState(false);
  const [recoveryScanMessage,setRecoveryScanMessage]=useState('');
  const [recoveryScan,setRecoveryScan]=useState<Awaited<ReturnType<typeof diagnoseLocalUnfinishedSlots>>|null>(null);
@@ -815,6 +817,19 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   ?recheckRecordIds.has(row.id)
   :matchesLocalFollowupRecordFilter(row,filter));
  const liveInput={note,action,photoRole,siteContext:siteContextInput};
+ const textRescueValue=buildLocalInspectionEmergencyText(liveInput);
+ const copyTextRescue=async()=>{
+  setTextRescueMessage('');
+  try{
+   if(!navigator.clipboard?.writeText)throw new Error('Clipboard API unavailable');
+   await navigator.clipboard.writeText(textRescueValue);
+   setTextRescueMessage('문구 복사 요청이 성공했습니다. 메모장 등에 붙여넣어 실제 보관 여부를 확인하세요. 사진은 포함되지 않습니다.');
+  }catch{
+   textRescueTextareaRef.current?.focus();
+   textRescueTextareaRef.current?.select();
+   setTextRescueMessage('이 브라우저에서 자동 복사를 허용하지 않았습니다. 아래 선택된 문구를 길게 눌러 복사하고 메모장 등에 붙여넣으세요. 사진은 별도 보관해야 합니다.');
+  }
+ };
  const emergencyExportStale=Boolean(emergencyExport&&(
   emergencyExport.inputFields!==localInputDraftFields(liveInput)||
   emergencyExport.photo!==photo||
@@ -1796,6 +1811,16 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
       <p>아직 기기에 저장되지 않은 사진과 작성 중인 내용까지 한 파일로 보관합니다.</p>
       <button type="button" className="si-btn" style={{minHeight:44}} disabled={busy||unfinishedBusy||draftState==='loading'||singleDraftState==='loading'||inputDraftState==='loading'} onClick={()=>void backupUnfinished()}>작성 중 자료 한 번에 백업</button>
       <p>다운로드가 시작돼도 파일 보관이 완료된 것은 아닙니다. 파일 앱에서 저장된 JSON을 다시 선택해 확인하세요.</p>
+      <details id="si-text-rescue" aria-label="점검 문구 비상 보존" className="rounded-lg border border-slate-300 p-3">
+       <summary style={{minHeight:44,cursor:'pointer'}}>JSON 다운로드가 안 될 때 · 문구만 따로 보관</summary>
+       <p>현재 입력 중인 현장명·동·층·공종·관찰 내용·조치 계획만 표시합니다. **사진은 포함되지 않으며** 완료된 점검 기록도 아닙니다.</p>
+       <label>현재 화면의 점검 문구
+        <textarea ref={textRescueTextareaRef} aria-label="점검 문구 비상 복사 원문" value={textRescueValue} readOnly rows={12} style={{display:'block',width:'100%',maxWidth:'100%',whiteSpace:'pre-wrap'}}/>
+       </label>
+       <button type="button" className="si-btn" style={{minHeight:44,width:'100%'}} onClick={()=>void copyTextRescue()}>점검 문구 복사 시도</button>
+       {textRescueMessage&&<p role="status">{textRescueMessage}</p>}
+       <p>복사에 성공해도 메모장 등에 붙여넣어 보관해야 합니다. 사진은 '선택 사진 내려받기'로 별도 보관하세요. 개인·현장정보를 외부에 공유할 때 주의하세요.</p>
+      </details>
       {emergencyExport&&<div aria-label="실제 내려받은 백업 파일 확인" className="rounded-lg border border-slate-300 p-3">
        <section aria-label="백업 확인 진행 상태" className="rounded-lg border border-slate-300 p-3">
         <strong>{emergencyStatusCopy[emergencyStatus].title}</strong>
@@ -1897,6 +1922,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
      <p>임시 입력을 저장하거나 저장 후 내용 확인에 실패했습니다. 기기 저장본의 상태가 확실하지 않습니다. 완료 처리하거나 기록을 자동 삭제하지 않습니다. 아래 순서대로 확인하세요.</p>
      <p>1. 지금 보이는 점검 내용과 사진을 먼저 파일로 보관하세요. 파일 앱에서 실제 다운로드 여부를 확인하세요.</p>
      <button type="button" className="si-btn" style={{minHeight:44}} disabled={busy||unfinishedBusy} onClick={()=>void backupUnfinished()}>입력·사진 긴급 백업</button>
+     <p>JSON 다운로드가 되지 않는다면 위 'JSON 다운로드가 안 될 때 · 문구만 따로 보관'을 펼쳐 현재 입력을 복사하세요. 사진은 별도로 보관해야 합니다.</p>
      <p>2. 기기에 남아 있는 임시기록을 읽기 전용으로 확인하세요. 현재 화면의 새 입력과 저장본이 다를 수 있습니다.</p>
      <button type="button" className="si-btn" style={{minHeight:44}} disabled={busy||unfinishedBusy||recoveryScanBusy} onClick={()=>void scanUnfinished()}>기기 기록 읽기 전용 확인</button>
      {recoveryScan&&<p role="status">진단 결과: {recoveryScan.guidance} <a href="#si-unfinished-recovery">상세 결과 보기</a></p>}
@@ -1909,7 +1935,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
      <button type="button" className="si-btn" style={{minHeight:44}} disabled={busy||unfinishedBusy} onClick={()=>void backupUnfinished()}>현재 화면 충돌 자료 백업</button>{' '}
      <button type="button" className="si-btn" style={{minHeight:44}} disabled={busy||recoveryScanBusy} onClick={()=>void scanUnfinished()}>기기 저장본 읽기 전용 확인</button>
      {recoveryScan&&<p role="status">진단 결과: {recoveryScan.guidance} <a href="#si-unfinished-recovery">상세 결과 보기</a></p>}
-     <p>기기 저장본을 다시 불러오면 현재 화면이 바뀔 수 있습니다. 먼저 현재 입력을 백업한 뒤 결정하세요.</p>
+     <p>JSON 파일을 저장할 수 없다면 위 '문구만 따로 보관'에서 현재 입력을 복사하세요. 기기 저장본을 다시 불러오면 현재 화면이 바뀔 수 있습니다. 먼저 현재 입력을 별도 보관한 뒤 결정하세요.</p>
      <button type="button" className="si-btn" style={{minHeight:44}} disabled={busy||unfinishedBusy} onClick={()=>{if(window.confirm('현재 화면의 입력을 별도 백업했습니까? 기기의 저장본으로 화면 내용이 바뀔 수 있습니다.'))void loadInputDraft();}}>기기 임시 입력 다시 불러오기</button>
     </div>}
    </div>
