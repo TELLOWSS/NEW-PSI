@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {buildLocalHandoffFollowthrough,formatLocalReceiptRequest} from '../lib/inspector/localHandoffFollowthrough.mjs';
+import {buildLocalHandoffFollowthrough,formatLocalReceiptRequest,summarizeLocalHandoffItems} from '../lib/inspector/localHandoffFollowthrough.mjs';
 describe('F10-58 manual handoff and receipt triage without invented delivery',()=>{
  it('untouched device cannot report a prepared, delivered or received handoff',()=>{
   const x=buildLocalHandoffFollowthrough();
@@ -30,6 +30,42 @@ describe('F10-58 manual handoff and receipt triage without invented delivery',()
   expect(x.stages[3].status).toBe('requires-local-record');
   expect(x.externallyVerified).toBe(false);expect(x.actionVerified).toBe(false);expect(x.persisted).toBe(false);
  });
+ it('F10-59 supports partial handoff without marking all targets delivered or received',()=>{
+  const entries=[{order:1},{order:2},{order:3}];
+  const check=summarizeLocalHandoffItems(entries,{1:{delivered:true,received:true},2:{delivered:true,received:false}});
+  expect(check.total).toBe(3);
+  expect(check.deliveredCount).toBe(2);
+  expect(check.receivedCount).toBe(1);
+  expect(check.allDelivered).toBe(false);
+  expect(check.allReceived).toBe(false);
+  expect(check.items.map(item=>item.next)).toEqual([
+   '개별 재점검 이력 기록','담당자 수신 회신 직접 확인','외부 전달 직접 확인',
+  ]);
+  expect(check.persisted).toBe(false);
+  expect(check.externallyVerified).toBe(false);
+  expect(check.actionVerified).toBe(false);
+ });
+ it('F10-59 never accepts receive-only or invalid external acknowledgements',()=>{
+  const x=summarizeLocalHandoffItems([{order:1},{order:2}],{
+   1:{received:true},2:{delivered:'true',received:true},999:{delivered:true,received:true},
+  });
+  expect(x.deliveredCount).toBe(0);
+  expect(x.receivedCount).toBe(0);
+  expect(x.allReceived).toBe(false);
+  const completed=summarizeLocalHandoffItems([{order:1},{order:2}],{
+   1:{delivered:true,received:true},2:{delivered:true,received:true},
+  });
+  expect(completed.allDelivered).toBe(true);
+  expect(completed.allReceived).toBe(true);
+  expect(completed.actionVerified).toBe(false);
+ });
+ it('F10-59 has no carried-over confirmations without current prepared items',()=>{
+  expect(summarizeLocalHandoffItems([],{1:{delivered:true,received:true}})).toMatchObject({
+   total:0,allDelivered:false,allReceived:false,receivedCount:0,
+  });
+  expect(summarizeLocalHandoffItems(undefined,{1:{delivered:true}}).total).toBe(0);
+ });
+
  it('generates a request for HUMAN replies with no invented recipient, status or actual contact',()=>{
   const t=formatLocalReceiptRequest();
   expect(t).toContain('수신 여부를 회신해 주세요');
