@@ -4,6 +4,7 @@ import {legalForText} from '../../lib/inspector/legal';
 import {sourceReviewState} from '../../lib/inspector/sourceReview';
 import {FOLLOWUP_STATES, FOLLOWUP_LABELS, validateFollowup, validateAdditionalActions, overdue} from '../../lib/inspector/localFollowup.mjs';
 import {prepareFollowupChange,analyzeFollowupChangeTrace,TEMPORARY_CONTROL_REVIEWS} from '../../lib/inspector/localFollowupChangeTrace.mjs';
+import {buildDeferredActionGuide} from '../../lib/inspector/localDeferredActionGuide.mjs';
 import {buildLocalRecheckQueue,summarizeLocalRecheckQueue,LOCAL_RECHECK_BUCKETS,LOCAL_RECHECK_LABELS,localCalendarDate} from '../../lib/inspector/localRecheckQueue.mjs';
 import {classifyLocalRestoreError,verifyLocalRestoreReadback} from '../../lib/inspector/localRestoreRecovery.mjs';
 import {localRecordMayDelete} from '../../lib/inspector/localRecordDeletionGuard.mjs';
@@ -596,7 +597,7 @@ function LocalEvidenceAudit({inspectionId,busy}:{inspectionId:string;busy:boolea
   <p>내려받는 JSON은 사진 원본이 아닌 파일명·크기·SHA-256 검사값·교체 관계의 요약입니다. 암호화되지 않았으며 파일명에 개인정보가 들어 있을 수 있습니다. 사진 파일은 기존 백업 기능으로 별도 보관하세요.</p>
  </section>;
 }
-function FollowupEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSave:(id:string,value:Followup,expected?:Followup)=>Promise<boolean>}){
+function FollowupEditor({row,busy,onSave,actionId,rechecks}:{row:LocalRecord;busy:boolean;actionId?:string;rechecks?:Recheck[];onSave:(id:string,value:Followup,expected?:Followup)=>Promise<boolean>}){
  const current=row.followup;
  const [status,setStatus]=useState(current?.status||'pending'),[assignee,setAssignee]=useState(current?.assignee||''),[dueDate,setDueDate]=useState(current?.dueDate||''),[temporaryMeasure,setTemporaryMeasure]=useState(current?.temporaryMeasure||''),[note,setNote]=useState('');
  const [dueReason,setDueReason]=useState(''),[controlReason,setControlReason]=useState('');
@@ -604,6 +605,8 @@ function FollowupEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSave:(
  const [formError,setFormError]=useState('');
  const [editing,setEditing]=useState(false);
  const trace=analyzeFollowupChangeTrace(current);
+ const guide=buildDeferredActionGuide(current,rechecks||row.rechecks||[]);
+ const recheckAnchor='si-recheck-'+row.id+'-'+(actionId||'main');
  const dueChanged=!!current&&dueDate!==current.dueDate;
  const controlChanged=!!current&&temporaryMeasure.trim()!==(current.temporaryMeasure||'');
  const openEditor=()=>{
@@ -627,7 +630,20 @@ function FollowupEditor({row,busy,onSave}:{row:LocalRecord;busy:boolean;onSave:(
    setFormError(error instanceof Error?error.message:'후속 조치 입력을 다시 확인해 주세요.');
   }
  };
- return <section aria-label="후속 조치 관리"><p><strong>{current?FOLLOWUP_LABELS[current.status]:'상태 미기록'}</strong> · 담당: {current?.assignee||'미지정'} · 기한: {current?.dueDate||'미정'} {current&&overdue(current)?'· 기한 초과':''}</p>
+ return <section aria-label="후속 조치 관리">
+  <section aria-label="지연 조치 4단계 안내" className="rounded-lg border border-slate-300 p-3">
+   <strong>조치를 바로 끝내지 못할 때 · 4단계 기록</strong>
+   <p role="status">입력된 항목 {guide.recorded}/{guide.total}개 · {guide.next?'다음 기록 권장: '+guide.next:'네 항목 모두 기록됨 · 실제 현장 확인은 별도'}</p>
+   <ol className="grid grid-cols-1 gap-2 p-0" style={{listStyle:'none'}}>
+    {guide.stages.map((stage,index)=><li key={stage.key} className="rounded-lg border border-slate-200 p-2">
+     <strong>{index+1}. {stage.label} · {stage.recorded?'기록 있음':'미기록'}</strong>
+     <p>{stage.detail}</p>
+    </li>)}
+   </ol>
+   <p>기록 있음은 점검자 입력 여부만 나타냅니다. 임시조치 시행·유지, 담당자 연락, 위험 해소 또는 작업 재개 승인을 뜻하지 않습니다.</p>
+   <a href={'#'+recheckAnchor}>재점검·지연 사유 입력 위치로 이동</a>
+  </section>
+  <p><strong>{current?FOLLOWUP_LABELS[current.status]:'상태 미기록'}</strong> · 담당: {current?.assignee||'미지정'} · 기한: {current?.dueDate||'미정'} {current&&overdue(current)?'· 기한 초과':''}</p>
   <p>{current?.temporaryMeasure?'현재 기록된 임시 안전조치: '+current.temporaryMeasure:'임시 안전조치 미기록'} · 임시 안전조치 기록만으로 위험 제거 또는 최종 완료가 확인된 것은 아닙니다.</p>
   <p>기한 변경 {trace.dueChangeCount}건 · 임시조치 변경·해제 {trace.controlChangeCount}건 · 최근 기록된 확인 수준: {trace.latestControlReview}. 모든 상태는 점검자 기기 입력이며 현장 조치가 자동 검증된 것은 아닙니다.</p>
   {trace.inconsistent&&<p role="alert">현재 후속 조치 상태와 마지막 이력의 내용이 다릅니다. 점검자가 기록을 다시 확인해야 합니다.</p>}
@@ -671,7 +687,7 @@ function RecheckEditor({row,action,busy,onSave}:{row:LocalRecord;action?:Additio
   if(!validRechecks([entry],hashes,1))return;
   if(await onSave(row,action?.id||null,entry)){setOpened(false);setReason('');setNote('');setNextCheckDate('');}
  };
- return <section aria-label={targetLabel+' 재점검·지연 사유'}>
+ return <section id={'si-recheck-'+row.id+'-'+(action?.id||'main')} aria-label={targetLabel+' 재점검·지연 사유'}>
   <h5>{targetLabel} 지연 조치·재점검 기록</h5>
   <p>재점검 {history.length}건 · {history.length?RECHECK_LABELS[history[history.length-1].result]:'재점검 기록 없음'} · 현재 연결 가능 증빙: {latestPhoto?'조치 후 사진 SHA-256':'사진 없음'}</p>
   <p>즉시 조치가 불가능해도 지연 사유와 임시 통제 상태를 남길 수 있습니다. 이 기록은 자동으로 '확인 완료'를 지정하거나 담당자에게 통보하지 않습니다.</p>
@@ -693,7 +709,7 @@ function ActionItem({row,item,busy,onUpdate,onPhoto,onRecheck}:{key?:string;row:
  const [pending,setPending]=useState<File|null>(null);
  const actions=row.additionalActions||[];
  useEffect(()=>{if(!pending)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[pending]);
- return <div><h5>{item.title}</h5><FollowupEditor row={{...row,followup:item.followup}} busy={busy} onSave={async(_id,value)=>onUpdate(row,actions.map(entry=>entry.id===item.id?{...entry,followup:value}:entry))}/><RecheckEditor row={row} action={item} busy={busy} onSave={onRecheck}/>
+ return <div><h5>{item.title}</h5><FollowupEditor row={{...row,followup:item.followup}} actionId={item.id} rechecks={item.rechecks} busy={busy} onSave={async(_id,value)=>onUpdate(row,actions.map(entry=>entry.id===item.id?{...entry,followup:value}:entry))}/><RecheckEditor row={row} action={item} busy={busy} onSave={onRecheck}/>
   <p>이 조치의 사진: {item.photo?.name||'없음'}</p><label>이 조치 사진 선택<input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f&&(!pending||window.confirm('저장하지 않은 사진을 바꿀까요?')))setPending(f);}}/></label>
   {pending&&<div><p>저장 전 사진: {pending.name}</p><button type="button" className="si-btn" disabled={busy} onClick={async()=>{if(await onPhoto(row,item,pending))setPending(null);}}>이 조치에 사진 저장</button> <button type="button" className="si-btn" onClick={()=>download(pending,pending.name)}>저장 전 사진 내려받기</button></div>}
   {item.photo&&<button type="button" className="si-btn" onClick={()=>download(item.photo!,item.photo!.name)}>이 조치 사진 내려받기</button>}
