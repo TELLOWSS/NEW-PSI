@@ -1043,7 +1043,8 @@ try{
  await rewriteLocalHistory(previousHistoryDate);
  // F10-62: even the manual confirmation box must reject a stale underlying record.
  await f10Handoff.getByRole('button',{name:'인계 문구·A4 인계표 준비'}).click();
- const oldDeliveryBox=f10Handoff.getByRole('checkbox',{name:'인계 자료를 외부에서 직접 전달했음을 점검자가 확인'});
+ await f10Handoff.getByLabel('F10 인계 문구 직접 복사').waitFor();
+ const oldDeliveryBox=f10Handoff.getByRole('checkbox',{name:/인계 자료를 외부에서 직접 전달했음을 점검자가 확인|F10 1번 외부 전달 직접 확인/}).first();
  await oldDeliveryBox.waitFor();
  await rewriteLocalHistory('2030-01-07');
  await oldDeliveryBox.click();
