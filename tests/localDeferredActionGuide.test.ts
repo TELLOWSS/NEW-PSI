@@ -97,7 +97,7 @@ describe('F10-57 attention from already recorded offline facts',()=>{
  it('distinguishes an inspector-written site check from actual verified work',()=>{
   const followup=state({status:'in_progress',assignee:'담당자',temporaryMeasure:'통제선 기록',dueDate:'2026-11-10',history:[{
    status:'in_progress',assignee:'담당자',temporaryMeasure:'통제선 기록',
-   dueDate:'2026-11-10',note:'[PSI F10-29 기기 변경 기록]\\n임시조치 확인 수준: 점검자가 현장 유지 상태 직접 확인했다고 기록\\n진행·확인 내용: 현장기록',at:'2026-11-02T11:00:00Z',
+   dueDate:'2026-11-10',note:'[PSI F10-29 기기 변경 기록]\n임시조치 확인 수준: 점검자가 현장 유지 상태 직접 확인했다고 기록\n진행·확인 내용: 현장기록',at:'2026-11-02T11:00:00Z',
   }]});
   const info=buildDeferredActionAttention(followup,[recheck('2026-11-06')],now);
   expect(info.controlReview).toBe('inspector-reported');
