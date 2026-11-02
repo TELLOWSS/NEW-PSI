@@ -31,6 +31,43 @@ describe('F08 unified unfinished backup and tamper-safe restore',()=>{
   expect(restored.sequence?.photos.map(p=>p.name)).toEqual(['overview.png','detail.png']);
   expect(previewUnfinishedBackup(restored)).toMatchObject({hasInput:true,singlePhotos:1,sequencePhotos:2});
  });
+ it('exports version 2 with independent form and whole-file checksums',async()=>{
+  const content=JSON.parse(await (await packUnfinishedBackup({input:input(),single:await single()})).text());
+  expect(content.version).toBe(2);
+  expect(content.inputSha256).toMatch(/^[a-f0-9]{64}$/);
+  expect(content.payloadSha256).toMatch(/^[a-f0-9]{64}$/);
+  const imported=await unpackUnfinishedBackup(new File([JSON.stringify(content)],'v2.json',{type:'application/json'}));
+  expect(imported.integrityLevel).toBe('full');
+  expect(previewUnfinishedBackup(imported).integrityLabel).toContain('점검내용');
+ });
+ it('rejects form tampering, metadata changes and missing checksums before restoration',async()=>{
+  const original=JSON.parse(await (await packUnfinishedBackup({input:input(),single:await single()})).text());
+  const changed=[
+   {...original,input:{...original.input,note:'손상된 메모'}},
+   {...original,input:{...original.input,action:'조치 변경'}},
+   {...original,input:{...original.input,siteContext:{...original.input.siteContext,level:'99F'}}},
+   {...original,exportedAt:'2026-11-02T03:00:00.000Z'},
+   {...original,inputSha256:'f'.repeat(64)},
+   {...original,payloadSha256:'f'.repeat(64)},
+   {...original,payloadSha256:undefined},
+   {...original,single:{...original.single,source:'camera-dialog'}},
+  ];
+  for(const item of changed){
+   const file=new File([JSON.stringify(item)],'tampered.json',{type:'application/json'});
+   await expect(unpackUnfinishedBackup(file)).rejects.toThrow();
+  }
+ });
+ it('imports version 1 backups but labels their input checksum as unverified',async()=>{
+  const latest=JSON.parse(await (await packUnfinishedBackup({input:input(),single:await single()})).text());
+  delete latest.inputSha256;
+  delete latest.payloadSha256;
+  latest.version=1;
+  const oldFile=new File([JSON.stringify(latest)],'legacy-v1.json',{type:'application/json'});
+  const decoded=await unpackUnfinishedBackup(oldFile);
+  expect(decoded.integrityLevel).toBe('legacy-photo-only');
+  expect(decoded.input.note).toBe(input().note);
+  expect(previewUnfinishedBackup(decoded).integrityLabel).toContain('이전 버전');
+ });
  it('allows text only or single-photo-only emergency export',async()=>{
   const s=await single();
   for(const record of [{input:input()},{single:s},{sequence:sequence()}]){
