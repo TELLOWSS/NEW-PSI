@@ -12,6 +12,9 @@ try{
  const open=async(context)=>{
   const page=await context.newPage();
   page.on('pageerror',err=>pageErrors.push(err.message));
+  // Same local-only synthetic admin entitlement as the existing Inspector
+  // browser QA; no production login credentials or real user account.
+  await page.route('**/api/admin/auth',route=>route.fulfill({json:{ok:true,authenticated:true}}));
   await page.goto(base+'/?mode=photo-inspector',{waitUntil:'networkidle'});
   await page.getByRole('heading',{name:'사진만 찍어도 점검을 시작할 수 있습니다'}).waitFor({timeout:15000}).catch(async error=>{
    console.error('UNFINISHED_QA_ENTRY_DIAGNOSTIC',JSON.stringify({
