@@ -81,7 +81,7 @@ describe('F08 unified unfinished backup and tamper-safe restore',()=>{
  it('rejects corrupted payload, unknown data, wrong version, and inconsistent hashes',async()=>{
   const base=JSON.parse(await (await packUnfinishedBackup({single:await single()})).text());
   const bad=[
-   {...base,format:'foreign-format'}, {...base,version:2},
+   {...base,format:'foreign-format'}, {...base,version:3},
    {...base,extra:'private'},
    {...base,single:{...base.single,sha256:'b'.repeat(64)}},
    {...base,single:{...base.single,photo:{...base.single.photo,data:'AAAA'}}},
