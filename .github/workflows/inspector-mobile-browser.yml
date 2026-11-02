@@ -9,6 +9,7 @@ on:
       - 'scripts/verify-inspector-camera.mjs'
       - 'scripts/verify-inspector-local-offline.mjs'
       - 'scripts/verify-inspector-offline-reopen.mjs'
+      - 'scripts/verify-inspector-single-photo-restart.mjs'
       - 'field-local/**'
       - 'pages/InspectorProduct.tsx'
       - 'pages/InspectorStandalone.tsx'
@@ -61,6 +62,8 @@ jobs:
         run: node scripts/verify-field-camera-local-route.mjs
       - name: Prepared offline app restart and local records
         run: node scripts/verify-inspector-offline-reopen.mjs
+      - name: Single picked photo restart, cross-tab collision and quota safety
+        run: node scripts/verify-inspector-single-photo-restart.mjs
       - name: Offline local capture, manual record and storage failure recovery
         run: node scripts/verify-inspector-local-offline.mjs
       - name: Camera permission, rotation, fallback and narrow viewports
