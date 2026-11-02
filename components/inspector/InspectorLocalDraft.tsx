@@ -10,6 +10,7 @@ import {localRecordMayDelete} from '../../lib/inspector/localRecordDeletionGuard
 import {LOCAL_INPUT_DRAFT_KEY,validLocalInputDraft,localInputDraftFields,localInputDraftHasContent,localInputDraftCanReplace} from '../../lib/inspector/localInputDraft.mjs';
 import {SINGLE_PHOTO_DRAFT_KEY,validSinglePhotoDraft,singlePhotoDraftCanReplace,singlePhotoDraftMetadataMatches} from '../../lib/inspector/localSinglePhotoDraft.mjs';
 import {packUnfinishedBackup,unpackUnfinishedBackup,previewUnfinishedBackup,verifyUnfinishedRestoreReadback} from '../../lib/inspector/localUnfinishedBackup.mjs';
+import {LOCAL_RECOVERY_KEYS,diagnoseLocalUnfinishedSlots} from '../../lib/inspector/localUnfinishedRecoveryTriage.mjs';
 import {buildLocalRecheckReport,selectLocalRecheckReportTargets,matchesLocalFollowupRecordFilter,formatLocalRecheckCsv,formatLocalRecheckPrintHtml,F10_LOCAL_REPORT_LIMIT} from '../../lib/inspector/localRecheckReport.mjs';
 import {buildLocalRecheckProgress} from '../../lib/inspector/localRecheckProgress.mjs';
 import {buildLocalHandoffPlan,selectLocalHandoffTargets,formatLocalHandoffMessage,formatLocalHandoffHtml,handoffSourceSnapshot,F10_HANDOFF_MAX_ITEMS} from '../../lib/inspector/localRecheckHandoff.mjs';
@@ -743,6 +744,9 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [singleDraftMessage,setSingleDraftMessage]=useState('');
  const [unfinishedBusy,setUnfinishedBusy]=useState(false);
  const [unfinishedMessage,setUnfinishedMessage]=useState('');
+ const [recoveryScanBusy,setRecoveryScanBusy]=useState(false);
+ const [recoveryScanMessage,setRecoveryScanMessage]=useState('');
+ const [recoveryScan,setRecoveryScan]=useState<Awaited<ReturnType<typeof diagnoseLocalUnfinishedSlots>>|null>(null);
  const [unfinishedPreview,setUnfinishedPreview]=useState<{input:LocalInputDraft|null;single:SinglePhotoDraft|null;sequence:PhotoSetDraft|null;exportedAt:string;integrityLevel:'full'|'legacy-photo-only'}|null>(null);
  const inputDraftRef=useRef<LocalInputDraft|null>(null);
  const inputWriteRef=useRef<Promise<void>>(Promise.resolve());
@@ -1386,6 +1390,51 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    setStorageBusy(false);
   }
  };
+ // Read-only diagnostic: do not change, merge or delete a single draft row.
+ const readStoredUnfinished=async()=>{
+  return await runStore<Record<string,unknown>>('readonly',(store,set)=>{
+   const requests=LOCAL_RECOVERY_KEYS.map(key=>store.get(key));
+   let remaining=requests.length;
+   for(const request of requests)request.onsuccess=()=>{
+    if(--remaining===0)set(Object.fromEntries(LOCAL_RECOVERY_KEYS.map((key,i)=>[key,requests[i].result])));
+   };
+  });
+ };
+ const scanUnfinished=async()=>{
+  if(flight.current||busy||unfinishedBusy||recoveryScanBusy)return;
+  setRecoveryScanBusy(true);setRecoveryScanMessage('');
+  try{
+   const slots=await readStoredUnfinished();
+   const report=await diagnoseLocalUnfinishedSlots(slots);
+   setRecoveryScan(report);
+   setRecoveryScanMessage('기기 임시기록을 읽기 전용으로 확인했습니다. 화면에서 새로 입력한 내용은 아직 저장되지 않았을 수 있습니다.');
+  }catch{
+   setRecoveryScan(null);
+   setRecoveryScanMessage('기기 임시기록을 읽지 못했습니다. 기록이 없거나 삭제됐다고 판단하지 마세요. 원본 백업과 현재 화면 자료를 별도로 보관하세요.');
+  }finally{setRecoveryScanBusy(false);}
+ };
+ const backupStoredUnfinished=async()=>{
+  if(flight.current||busy||unfinishedBusy||recoveryScanBusy)return;
+  setRecoveryScanBusy(true);setRecoveryScanMessage('');
+  try{
+   // Always re-read before export; a previous diagnostic may be stale.
+   const slots=await readStoredUnfinished();
+   const report=await diagnoseLocalUnfinishedSlots(slots);
+   setRecoveryScan(report);
+   if(!report.canExportStored)throw new Error('기기 기록에 오류가 있거나 보관할 자료가 없습니다. 원본 백업 및 현재 화면 자료를 먼저 확인하세요.');
+   const exported=await packUnfinishedBackup({
+    input:(slots[LOCAL_RECOVERY_KEYS[0]] as LocalInputDraft|undefined)||null,
+    single:(slots[LOCAL_RECOVERY_KEYS[1]] as SinglePhotoDraft|undefined)||null,
+    sequence:(slots[LOCAL_RECOVERY_KEYS[2]] as PhotoSetDraft|undefined)||null,
+   });
+   // Never advertise successful export of a structurally damaged backup.
+   await unpackUnfinishedBackup(new File([await exported.arrayBuffer()],'verify-unfinished.json',{type:'application/json'}));
+   download(exported,'PSI-stored-unfinished-'+new Date().toISOString().slice(0,10)+'.json');
+   setRecoveryScanMessage('기기에 이미 보관된 임시기록의 백업 파일 내려받기를 요청했습니다. 화면의 새 미저장 변경사항은 포함되지 않을 수 있습니다. 파일 앱에서 저장 여부와 내용을 확인하세요. 암호화된 파일은 아닙니다.');
+  }catch(error){
+   setRecoveryScanMessage(error instanceof Error?error.message:'기기 임시기록을 백업하지 못했습니다. 원본을 보관하세요.');
+  }finally{setRecoveryScanBusy(false);}
+ };
  // F08-41: emergency backup works even if the recent form/photo checkpoint
  // failed to persist. The currently visible input/photo is the backup source.
  // No API, cloud upload, background sync, or deletion happens here.
@@ -1437,7 +1486,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    return;
   }
   if(!window.confirm('현재 기기의 임시기록 3종이 모두 비어 있을 때만 한 번에 복원합니다. 기존 완료 점검은 변경하지 않습니다. 복원할까요?'))return;
-  flight.current=true;setBusy(true);setUnfinishedBusy(true);setUnfinishedMessage('');
+  flight.current=true;setBusy(true);setUnfinishedBusy(true);setUnfinishedMessage('');setRecoveryScan(null);setRecoveryScanMessage('');
   let conflict=false;
   try{
    await runStore<void>('readwrite',store=>{
@@ -1479,7 +1528,15 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   }catch{
    setUnfinishedMessage(conflict
     ?'기기에 이미 다른 임시기록이 있어 복원하지 않았습니다. 기존 자료를 덮어쓰지 않았습니다. 현재 자료를 먼저 백업한 뒤 확인하세요.'
-    :'복원 저장 또는 저장 후 재검증에 실패했습니다. 일부 자료가 기기에 남았을 수 있으므로 자동으로 지우지 않습니다. 원본 백업 파일을 보관하고 이 화면을 새로 열어 임시기록을 확인하세요.');
+    :'복원 저장 또는 저장 후 재검증에 실패했습니다. 일부 자료가 기기에 남았을 수 있으므로 자동으로 지우지 않습니다. 원본 백업 파일을 보관하고 아래 기기 진단 결과를 확인하세요.');
+   try{
+    const slots=await readStoredUnfinished();
+    setRecoveryScan(await diagnoseLocalUnfinishedSlots(slots));
+    setRecoveryScanMessage('복원 실패 후 기기 임시기록을 읽기 전용으로 조회했습니다. 이 진단은 기록을 수정하거나 삭제하지 않습니다.');
+   }catch{
+    setRecoveryScan(null);
+    setRecoveryScanMessage('복원 실패 후 기기 임시기록 조회도 실패했습니다. 기록이 사라졌다고 추정하지 마세요. 원본 백업을 보관하세요.');
+   }
   }finally{flight.current=false;setBusy(false);setUnfinishedBusy(false);}
  };
  const backup=async(row:LocalRecord)=>{if(flight.current)return;flight.current=true;setBusy(true);setMessage('');try{const current=await runStore<LocalRecord|undefined>('readonly',(store,set)=>{const request=store.get(row.id);request.onsuccess=()=>set(request.result as LocalRecord|undefined);});if(!current)throw new Error('해당 점검을 찾을 수 없어 백업하지 않았습니다. 목록을 다시 확인하세요.');download(await packRecord(current),'PSI-backup-'+current.id+'.json');setMessage('백업 파일 내려받기를 요청했습니다. 저장된 파일을 확인하고 안전한 장소에 보관하세요.');}catch(error){setMessage(error instanceof Error?error.message:'백업하지 못했습니다.');}finally{flight.current=false;setBusy(false);}};
@@ -1607,6 +1664,17 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
      <button type="button" className="si-btn" disabled={busy||unfinishedBusy} onClick={()=>void restoreUnfinished()}>검사된 작성 중 자료 복원</button>
     </div>}
     {unfinishedMessage&&<p role="status">{unfinishedMessage}</p>}
+    <div aria-label="복원 실패 기기자료 확인">
+     <p>**복원에 실패했거나 다른 탭에 자료가 남았나요?** 아래에서 기기 자료 3종을 삭제 없이 확인할 수 있습니다.</p>
+     <button type="button" className="si-btn" disabled={busy||unfinishedBusy||recoveryScanBusy} onClick={()=>void scanUnfinished()}>{recoveryScanBusy?'기기 기록 확인 중…':'기기 임시기록 상태 확인'}</button>
+     {recoveryScan&&<section aria-label="기기 임시기록 진단 결과" role="status">
+      <p>{recoveryScan.guidance}</p>
+      {recoveryScan.results.map((part,i)=><p key={i}><strong>{part.label}: {part.message}</strong>{part.detail?' — '+part.detail:''}</p>)}
+      {recoveryScan.canExportStored&&<button type="button" className="si-btn" disabled={busy||unfinishedBusy||recoveryScanBusy} onClick={()=>void backupStoredUnfinished()}>기기에 남은 임시자료 별도 백업</button>}
+      <p>기기에 남은 자료 백업에는 현재 화면의 아직 저장하지 않은 변경이 빠질 수 있습니다. 화면 내용은 위의 '작성 중 자료 한 번에 백업'으로 따로 보관하세요. 이 진단은 위험 조치의 완료 판정이 아닙니다.</p>
+     </section>}
+     {recoveryScanMessage&&<p role="status">{recoveryScanMessage}</p>}
+    </div>
    </section>
    <section aria-label="기기 저장 안정성 확인">
     <h3>기기 저장상태 확인</h3>
