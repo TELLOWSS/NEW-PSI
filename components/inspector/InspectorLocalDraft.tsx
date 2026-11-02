@@ -1217,7 +1217,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    }
    const secondary=staged?.photos[1],primaryRole=staged&&secondary&&photoRole==='unspecified'?'overview':photoRole;
    const primaryDigest=await hash(primary),contextDigest=secondary?await hash(secondary):undefined;
-   if(staged&&!primaryDigest)throw new Error('기본 사진의 비교값을 만들지 못했습니다. 촬영본은 이 기기에 그대로 보관됩니다.');
+   if(!primaryDigest)throw new Error('기본 사진의 비교값을 만들지 못했습니다. 촬영본은 이 화면에 그대로 유지됩니다. 사진과 점검 입력을 먼저 백업하세요.');
    if(secondary&&!contextDigest)throw new Error('추가 사진의 비교값을 만들지 못했습니다. 촬영본은 이 기기에 그대로 보관됩니다.');
    const siteContext=cleanFieldContext(siteContextInput);
    if(siteContext&&!validFieldContext(siteContext))throw new Error('현장정보 항목을 확인해 주세요.');
