@@ -321,8 +321,36 @@ try{
  assert.equal(await resumed.getByLabel('층').inputValue(),'지상 18층');
  await fourthContext.close();
 
+ // F08-49: a completed IndexedDB write could contain changed text while its
+ // revision and saved timestamp still match. Do not mark it as safely saved.
+ // Keep the original UI content available for a manual emergency export.
+ const fifthContext=await browser.newContext({viewport:{width:360,height:740},acceptDownloads:true});
+ const {page:five,panel:e}=await open(fifthContext);
+ await five.evaluate(()=>{
+  window.__originalInputPut=IDBObjectStore.prototype.put;
+  IDBObjectStore.prototype.put=function(value,...args){
+   if(value?.kind==='inspection-input-draft')
+    return window.__originalInputPut.call(this,{...value,note:'합성 검사: 저장본은 다른 문구'},...args);
+   return window.__originalInputPut.call(this,value,...args);
+  };
+ });
+ await e.getByLabel('직접 확인한 내용').fill('손상 전 실제 점검자의 입력');
+ await e.getByLabel('현장명').fill('합성 원본 현장');
+ await e.getByText('임시 입력을 저장하거나 저장 후 내용 확인에 실패했습니다.',{exact:false}).waitFor();
+ const wronglySaved=await readSaved(five,'psi-local-inspection-input-draft-v1');
+ assert.equal(wronglySaved.note,'합성 검사: 저장본은 다른 문구');
+ assert.equal(await e.getByText('최근 임시저장:',{exact:false}).count(),0,
+  'a mismatched stored note must never be displayed as a successful save');
+ const localBackup=await downloadJson(e,five,'입력·사진 긴급 백업');
+ assert.equal(localBackup.parsed.input.note,'손상 전 실제 점검자의 입력');
+ assert.equal(localBackup.parsed.input.siteContext.site,'합성 원본 현장');
+ assert.equal((await readSaved(five,'psi-local-inspection-input-draft-v1')).note,'합성 검사: 저장본은 다른 문구',
+  'the app must not overwrite or auto-delete a corrupt durable draft');
+ await five.evaluate(()=>{IDBObjectStore.prototype.put=window.__originalInputPut;});
+ await fifthContext.close();
+
  assert.equal(pageErrors.length,0,'no uncaught browser exceptions');
- console.log('PASS F08 unified backup: quota failure, tamper, atomic no-overwrite, real persisted-byte readback, mobile pagehide checkpoint, final commit');
+ console.log('PASS F08 unified backup: quota failure, tamper, atomic no-overwrite, real persisted-byte readback, mobile pagehide checkpoint, same-revision persisted-input mismatch, final commit');
 }finally{
  await browser.close();await server.close();
 }
