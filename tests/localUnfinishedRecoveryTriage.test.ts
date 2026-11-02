@@ -55,9 +55,9 @@ describe('F08-44 human-safe read-only local restore triage',()=>{
   expect(data.guidance).toContain('자동 삭제하지 마세요');
  });
  it('checks sequence camera provenance hashes and damaged rotation references',async()=>{
-  const seq=sequence(),a=await sha(seq.photos[0]),b=await sha(seq.photos[1]);
-  seq.sources=[{source:'camera-dialog',sha256:a,recordedAt:'2026-11-02T04:30:00.000Z'},
-   {source:'camera-dialog',sha256:b,recordedAt:'2026-11-02T04:30:01.000Z'}];
+  const source=sequence(),a=await sha(source.photos[0]),b=await sha(source.photos[1]);
+  const seq={...source,sources:[{source:'camera-dialog',sha256:a,recordedAt:'2026-11-02T04:30:00.000Z'},
+   {source:'camera-dialog',sha256:b,recordedAt:'2026-11-02T04:30:01.000Z'}]};
   const good=await diagnoseLocalUnfinishedSlots(records(undefined,undefined,seq));
   expect(good.results[2].state).toBe('verified');
   const damaged=await diagnoseLocalUnfinishedSlots(records(undefined,undefined,{
