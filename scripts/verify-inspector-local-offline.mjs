@@ -65,7 +65,7 @@ try{
   };
  });
  await panel.getByLabel('현장 조치·확인 계획').fill('임시 입력 저장공간 실패 복구');
- await panel.getByText('임시 입력을 저장하거나 불러오지 못했습니다.',{exact:false}).waitFor();
+ await panel.getByText('임시 입력을 저장하거나 저장 후 내용 확인에 실패했습니다.',{exact:false}).waitFor();
  await page.evaluate(()=>{IDBObjectStore.prototype.put=window.__inputPutOriginal;});
  await panel.getByRole('button',{name:'임시저장 다시 시도'}).click();
  await panel.getByText('최근 임시저장:',{exact:false}).waitFor();
