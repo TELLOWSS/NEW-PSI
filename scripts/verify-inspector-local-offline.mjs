@@ -197,6 +197,15 @@ try{
  await actions.getByLabel('추가할 조치 내용').fill('합성 출입 통제');
  await actions.getByRole('button',{name:'조치 항목 추가'}).click();
  const firstAction=actions.locator('div').filter({hasText:'합성 개구부 덮개 고정'}).first();
+ // F10-56: the parent has a recheck, but a newly created action has none.
+ // Never count the parent recheck against an additional corrective action.
+ const nestedGuide=firstAction.getByRole('region',{name:'지연 조치 4단계 안내'}).first();
+ await nestedGuide.getByText('입력된 항목 0/4개',{exact:false}).waitFor();
+ await nestedGuide.getByText('4. 지연 사유·재점검 · 미기록').waitFor();
+ const nestedHref=await nestedGuide.getByRole('link',{name:'재점검·지연 사유 입력 위치로 이동'}).getAttribute('href');
+ assert.match(nestedHref,/^#si-recheck-.+-[a-f0-9-]{36}$/i);
+ assert.equal(await page.locator(nestedHref).count(),1,'additional action link must target its own recheck editor');
+ assert.notEqual(nestedHref,recheckTarget,'parent and action must have separate recheck destinations');
  await firstAction.getByRole('button',{name:'후속 조치 기록'}).click();
  await firstAction.getByLabel('조치 상태').selectOption('verified');
  await firstAction.getByLabel('진행·확인 내용').fill('현장 재확인 완료');
