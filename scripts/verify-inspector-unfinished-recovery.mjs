@@ -88,6 +88,15 @@ try{
  // backup restores only to an empty destination, with no implicit overwrite.
  const secondContext=await browser.newContext({viewport:{width:390,height:844},acceptDownloads:true});
  const {page:two,panel:b}=await open(secondContext);
+ const recoveryPanel=b.getByRole('region',{name:'작성 중 자료 긴급 백업과 복구'});
+ await recoveryPanel.getByText('1. 현재 화면 먼저 백업').waitFor();
+ await recoveryPanel.getByText('2. 기기에 남은 기록 확인').waitFor();
+ await recoveryPanel.getByText('3. 백업 파일 검사 후 복원').waitFor();
+ await b.getByRole('button',{name:'기기 임시기록 상태 확인'}).click();
+ await b.getByRole('region',{name:'기기 임시기록 진단 결과'})
+  .getByText('기기에 임시기록이 보이지 않음').waitFor();
+ assert.equal(await b.getByRole('button',{name:'검사된 작성 중 자료 복원'}).count(),0,
+  'before file selection do not offer an active restore button');
  // Version 2 checks the entire manifest plus the form before touching IndexedDB.
  assert.equal(emergency.parsed.version,2);
  assert.match(emergency.parsed.inputSha256,/^[a-f0-9]{64}$/);
@@ -169,9 +178,17 @@ try{
  // Import the same file again. The screen is not blank; previous state survives.
  await importJson(b,emergency.bytes);
  await b.getByText('백업 검증 완료:',{exact:false}).waitFor();
- await b.getByRole('button',{name:'검사된 작성 중 자료 복원'}).click();
- await b.getByText('현재 화면에 작성 중인 자료가 있어 복원을 중단했습니다.',{exact:false}).waitFor();
+ const protectedRestore=b.getByRole('button',{name:'검사된 작성 중 자료 복원'});
+ assert.equal(await protectedRestore.isDisabled(),true,'active single photo and text must disable restore');
+ await b.getByText('복원 버튼 비활성화:',{exact:false}).waitFor();
  assert.equal((await readSaved(two,'psi-single-photo-draft-v1')).photoName,'quota-photo.png');
+ const mobileState=await recoveryPanel.evaluate(el=>{
+  const buttons=Array.from(el.querySelectorAll('button'));
+  return {width:window.innerWidth,outside:buttons.filter(x=>x.getBoundingClientRect().right>window.innerWidth+2).map(x=>x.textContent),
+    short:buttons.filter(x=>x.getBoundingClientRect().height<44).map(x=>x.textContent)};
+ });
+ assert.deepEqual(mobileState.outside,[],'recovery actions must not escape mobile viewport');
+ assert.deepEqual(mobileState.short,[],'recovery action touch targets must be at least 44 pixels');
 
  // User case C: complete saved inspection is created exactly once; temporary
  // rows are cleaned, but original backup remains downloadable.
