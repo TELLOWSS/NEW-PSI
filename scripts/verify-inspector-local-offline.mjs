@@ -790,6 +790,10 @@ try{
   'changing completion target must not alter separate reinspection schedule');
  page.once('dialog',dialog=>dialog.accept());
  await traceRecord.getByRole('button',{name:'이 기기 기록 삭제'}).click();
+ // Deletion now validates the latest IndexedDB record in a write transaction.
+ // Wait for the COMPLETE commit and list refresh before starting restoration.
+ await panel.getByText('선택한 기기 기록을 삭제했습니다.',{exact:false}).waitFor();
+ await traceRecord.waitFor({state:'detached'});
  await panel.getByLabel('백업 파일 복원').setInputFiles({
   name:'f10-29-trace-valid-v17.json',mimeType:'application/json',buffer:traceBytes,
  });
