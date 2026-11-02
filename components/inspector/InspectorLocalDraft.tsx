@@ -1040,7 +1040,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   inputEpochRef.current++;
   if(inputTimerRef.current)clearTimeout(inputTimerRef.current);
   flight.current=true;setBusy(true);setMessage('');
-  let inputConflict=false,saveQuotaFailure=false;
+  let inputConflict=false,singleConflict=false,saveQuotaFailure=false;
   const abortFailedWrite=(error:unknown,tx:IDBTransaction|null|undefined)=>{
    if(error instanceof DOMException&&error.name==='QuotaExceededError')saveQuotaFailure=true;
    try{tx?.abort();}catch{/* Already aborted; never leak a second exception. */}
@@ -1076,7 +1076,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
         photoReq.onsuccess=()=>{
          try{
           if(!singlePhotoDraftCanReplace(photoReq.result,singleDraftRef.current)){
-           inputConflict=true;photoReq.transaction?.abort();return;
+           singleConflict=true;photoReq.transaction?.abort();return;
           }
           store.add(record);
           if(singleDraftRef.current)store.delete(SINGLE_PHOTO_DRAFT_KEY);
@@ -1100,7 +1100,9 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    draftRef.current=null;setDraft(null);setPhoto(null);setSinglePhotoEdit(undefined);setSinglePhotoSource(null);setSingleDraftState('ready');setSingleDraftMessage('');setPhotoRole('unspecified');setSiteContextInput(EMPTY_FIELD_CONTEXT);setNote('');setAction('');setMessage(record.sha256?'기기에 저장했습니다. 서버에는 전송하지 않았습니다.':'기기에 저장했습니다. 파일 해시는 확인하지 못했습니다.');
    await refresh();
   }catch(error){
-   setMessage(inputConflict
+   setMessage(singleConflict
+    ?'다른 탭에서 임시사진이 변경되어 현재 점검을 저장하지 않았습니다. 사진과 입력을 보존하고 최신 사진을 확인하세요.'
+    :inputConflict
     ?'다른 탭의 임시 기록이 변경되어 현재 점검을 저장하지 않았습니다. 입력과 사진은 유지됩니다.'
     :saveQuotaFailure||(error instanceof DOMException&&error.name==='QuotaExceededError')
      ?'저장 공간이 부족합니다. 사진과 입력을 보존한 뒤 저장공간을 확인하고 다시 시도하세요.'
@@ -1108,6 +1110,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
       ?error.message
       :'기기 저장이 중단됐습니다. 입력과 사진을 유지합니다. 다시 시도하세요.');
    if(inputConflict)setInputDraftState('conflict');
+   if(singleConflict)setSingleDraftState('conflict');
   }
   finally{flight.current=false;setBusy(false);}
  };
@@ -1459,7 +1462,8 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     <button type="button" className="si-btn" disabled={busy} onClick={()=>{if(window.confirm('현재 선택한 사진을 내려받아 보관했습니까? 기기에 저장된 단건 임시사진을 다시 불러오면 현재 화면 사진이 바뀔 수 있습니다.'))void loadSinglePhoto();}}>기기 단건 임시사진 다시 확인</button>
    </div>}
    {photo?<>{url&&<img src={url} alt="기기 점검에 선택한 사진" style={{display:'block',maxWidth:'100%',maxHeight:260,objectFit:'contain'}}/>}<p>{photo.name} · {Math.ceil(photo.size/1024)} KB</p>{backupIssue(photo)&&<p role="alert">저장 전 백업 안내: {backupIssue(photo)} 점검은 기기에 저장할 수 있습니다.</p>}<button type="button" className="si-btn" disabled={busy} onClick={()=>download(photo,photo.name)}>선택 사진 내려받기</button></>:<p>사진을 촬영하거나 선택해 주세요.</p>}
-   <div><button type="button" className="si-btn" disabled={busy||!!draft||draftState!=='ready'} onClick={()=>{setSequence(false);setCamera(true);}}>기기 점검 사진 촬영</button> <button type="button" className="si-btn" disabled={busy||!!photo||draftState!=='ready'||(draft?.photos.length||0)>=2} onClick={()=>{setSequence(true);setCamera(true);}}>전체·위험 부위 연속 촬영</button> <label className="si-btn">기기 점검 사진 선택<input aria-label="기기 점검 사진 선택" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy||!!draft||draftState!=='ready'} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void choose(file,'file-picker');}}/></label></div>
+   <div><button type="button" className="si-btn" disabled={busy||!!draft||draftState!=='ready'||singleDraftState!=='ready'} onClick={()=>{setSequence(false);setCamera(true);}}>기기 점검 사진 촬영</button> <button type="button" className="si-btn" disabled={busy||!!photo||draftState!=='ready'||singleDraftState!=='ready'||(draft?.photos.length||0)>=2} onClick={()=>{setSequence(true);setCamera(true);}}>전체·위험 부위 연속 촬영</button> <label className="si-btn">기기 점검 사진 선택<input aria-label="기기 점검 사진 선택" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy||!!draft||draftState!=='ready'||singleDraftState!=='ready'} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void choose(file,'file-picker');}}/></label></div>
+   {draft&&photo&&<p role="alert">단건 임시사진과 연속 촬영 임시사진이 함께 있습니다. 저장하면 연속 촬영 사진이 선택됩니다. 필요한 파일을 모두 내려받고 각 임시기록을 확인해 주세요.</p>}
    {draftState==='loading'&&<p role="status">임시 촬영 사진을 확인하고 있습니다…</p>}
    {draftState==='error'&&<div role="alert"><p>임시 촬영 사진을 확인하지 못했습니다. 저장소를 확인하고 다시 시도하세요.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>void loadDraft()}>임시 사진 다시 확인</button></div>}
    {draft&&<section aria-label="임시 촬영 사진"><p>이 기기에 임시 보관된 촬영 사진 {draft.photos.length}장 · 점검 내용은 아직 저장되지 않았습니다.</p><p>두 장이면 첫 사진의 역할을 선택하세요. 선택하지 않으면 첫 사진은 현장 전체, 둘째는 위험 부위로 저장됩니다.</p>{draft.photos.map((file,i)=><p key={i}>{i+1}. {file.name} <button type="button" className="si-btn" onClick={()=>download(file,file.name)}>임시 사진 내려받기</button></p>)}<button type="button" className="si-btn" disabled={busy} onClick={()=>void clearDraft()}>임시 사진 모두 삭제</button></section>}
