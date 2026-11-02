@@ -418,8 +418,43 @@ try{
   'read-only diagnosis must not mutate or clear existing data');
  await sixthContext.close();
 
+ // F08-53: if photos or JSON cannot be saved and clipboard access is denied,
+ // live inspection text must remain selectable in a 320px mobile layout.
+ const seventhContext=await browser.newContext({viewport:{width:320,height:700},acceptDownloads:false});
+ const {page:seven,panel:h}=await open(seventhContext);
+ await h.getByLabel('현장명').fill('합성 다운로드 불가 현장');
+ await h.getByLabel('동').fill('2003동');
+ await h.getByLabel('층').fill('21F');
+ await h.getByLabel('점검 현장 공종').fill('형틀');
+ await h.getByLabel('직접 확인한 내용').fill('비상복사 전 추락 위험 관찰');
+ await h.getByLabel('현장 조치·확인 계획').fill('안전난간 확인 후 현장 접근통제');
+ await h.getByText('최근 임시저장:',{exact:false}).waitFor();
+ await seven.evaluate(()=>{
+  Object.defineProperty(navigator,'clipboard',{configurable:true,
+   value:{writeText:async()=>{throw new DOMException('synthetic clipboard denied','NotAllowedError');}}});
+ });
+ await h.getByText('JSON 다운로드가 안 될 때 · 문구만 따로 보관',{exact:true}).click();
+ const rescue=h.getByLabel('점검 문구 비상 복사 원문');
+ const content=await rescue.inputValue();
+ for(const required of ['합성 다운로드 불가 현장','2003동','21F','형틀',
+  '비상복사 전 추락 위험 관찰','안전난간 확인 후 현장 접근통제',
+  '사진은 포함되지 않습니다','점검 완료나 원본 보존을 증명할 수 없습니다'])
+  assert.ok(content.includes(required),'missing emergency copy section '+required);
+ const beforeCopy=await readSaved(seven,'psi-local-inspection-input-draft-v1');
+ await h.getByRole('button',{name:'점검 문구 복사 시도'}).click();
+ await h.getByText('이 브라우저에서 자동 복사를 허용하지 않았습니다.',{exact:false}).waitFor();
+ const selected=await rescue.evaluate(el=>({start:el.selectionStart,end:el.selectionEnd,length:el.value.length}));
+ assert.equal(selected.start,0);
+ assert.equal(selected.end,selected.length,'fallback must select all live text for manual copy');
+ const afterCopy=await readSaved(seven,'psi-local-inspection-input-draft-v1');
+ assert.deepEqual(afterCopy,beforeCopy,'text-only rescue must never mutate stored draft');
+ await h.getByLabel('직접 확인한 내용').fill('비상복사 이후 새 관찰 내용');
+ assert.ok((await rescue.inputValue()).includes('비상복사 이후 새 관찰 내용'),
+  'copy textarea must track unsaved current-screen edits');
+ await seventhContext.close();
+
  assert.equal(pageErrors.length,0,'no uncaught browser exceptions');
- console.log('PASS F08 unified backup: quota failure, tamper, atomic no-overwrite, real persisted-byte readback, mobile pagehide checkpoint, same-revision persisted-input mismatch, content-aware no-overwrite CAS, downloaded-file recheck, final commit');
+ console.log('PASS F08 unified backup: quota failure, tamper, atomic no-overwrite, real persisted-byte readback, mobile pagehide checkpoint, same-revision persisted-input mismatch, content-aware no-overwrite CAS, downloaded-file recheck, text-only clipboard-denied mobile rescue, final commit');
 }finally{
  await browser.close();await server.close();
 }
