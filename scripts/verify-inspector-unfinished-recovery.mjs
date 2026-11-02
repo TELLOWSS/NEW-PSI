@@ -118,6 +118,21 @@ try{
  // backup restores only to an empty destination, with no implicit overwrite.
  const secondContext=await browser.newContext({viewport:{width:390,height:844},acceptDownloads:true});
  const {page:two,panel:b}=await open(secondContext);
+ // F08-54: the normal first-use screen leads with photo → note → save.
+ // The long backup/recovery tools are collapsed until a worker opens them.
+ await b.getByText('현장 점검 · 이 순서로 진행하세요').waitFor();
+ const firstSteps=b.getByLabel('점검 진행 3단계');
+ await firstSteps.getByText('사진을 촬영하거나 선택하세요.').waitFor();
+ await firstSteps.getByText('눈으로 확인한 위험을 직접 적으세요.').waitFor();
+ for(const [name,href] of [
+  ['사진 단계로 이동','#si-local-photo-step'],
+  ['내용 입력으로 이동','#si-local-inspection-note'],
+  ['저장 단계로 이동','#si-local-inspection-save'],
+ ])assert.equal(await firstSteps.getByRole('link',{name}).getAttribute('href'),href);
+ assert.equal(await b.locator('#si-unfinished-recovery').evaluate(el=>el.open),false,
+  'long recovery tools should not obscure ordinary field entry');
+ await b.getByText('작성 중 기록 백업·복구 (필요할 때 열기)',{exact:true}).click();
+ assert.equal(await b.locator('#si-unfinished-recovery').evaluate(el=>el.open),true);
  const recoveryPanel=b.getByRole('region',{name:'작성 중 자료 긴급 백업과 복구'});
  await recoveryPanel.getByText('1. 현재 화면 먼저 백업').waitFor();
  await recoveryPanel.getByText('2. 기기에 남은 기록 확인').waitFor();
@@ -281,6 +296,7 @@ try{
  // bytes must NOT produce a success message after the transaction commits.
  const thirdContext=await browser.newContext({viewport:{width:390,height:844},acceptDownloads:true});
  const {page:three,panel:c}=await open(thirdContext);
+ await c.getByText('작성 중 기록 백업·복구 (필요할 때 열기)',{exact:true}).click();
  await importJson(c,emergency.bytes);
  await c.getByText('백업 검증 완료:',{exact:false}).waitFor();
  assert.equal(await c.getByRole('button',{name:'검사된 작성 중 자료 복원'}).isDisabled(),true,'fresh device needs acknowledgement');
@@ -422,6 +438,8 @@ try{
  // live inspection text must remain selectable in a 320px mobile layout.
  const seventhContext=await browser.newContext({viewport:{width:320,height:700},acceptDownloads:false});
  const {page:seven,panel:h}=await open(seventhContext);
+ await h.getByText('현장 점검 · 이 순서로 진행하세요').waitFor();
+ await h.getByText('작성 중 기록 백업·복구 (필요할 때 열기)',{exact:true}).click();
  await h.getByLabel('현장명').fill('합성 다운로드 불가 현장');
  await h.getByLabel('동').fill('2003동');
  await h.getByLabel('층').fill('21F');
@@ -454,7 +472,7 @@ try{
  await seventhContext.close();
 
  assert.equal(pageErrors.length,0,'no uncaught browser exceptions');
- console.log('PASS F08 unified backup: quota failure, tamper, atomic no-overwrite, real persisted-byte readback, mobile pagehide checkpoint, same-revision persisted-input mismatch, content-aware no-overwrite CAS, downloaded-file recheck, text-only clipboard-denied mobile rescue, final commit');
+ console.log('PASS F08 unified backup: quota failure, tamper, atomic no-overwrite, real persisted-byte readback, mobile pagehide checkpoint, same-revision persisted-input mismatch, content-aware no-overwrite CAS, downloaded-file recheck, text-only clipboard-denied mobile rescue, novice three-step flow and collapsed recovery, final commit');
 }finally{
  await browser.close();await server.close();
 }
