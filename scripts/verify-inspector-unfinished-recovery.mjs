@@ -1,6 +1,7 @@
 import {preview} from 'vite';
 import {chromium} from 'playwright';
 import {readFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 
 const base='http://127.0.0.1:3057';
@@ -87,11 +88,31 @@ try{
  // backup restores only to an empty destination, with no implicit overwrite.
  const secondContext=await browser.newContext({viewport:{width:390,height:844},acceptDownloads:true});
  const {page:two,panel:b}=await open(secondContext);
+ // Version 2 checks the entire manifest plus the form before touching IndexedDB.
+ assert.equal(emergency.parsed.version,2);
+ assert.match(emergency.parsed.inputSha256,/^[a-f0-9]{64}$/);
+ assert.match(emergency.parsed.payloadSha256,/^[a-f0-9]{64}$/);
+ const hashText=text=>createHash('sha256').update(text).digest('hex');
+ const withManifest=data=>{
+  const {payloadSha256,...payload}=data;
+  return {...payload,payloadSha256:hashText(JSON.stringify(payload))};
+ };
  const corrupt=structuredClone(emergency.parsed);
  corrupt.single.photo.data='AAAA';
  await importJson(b,Buffer.from(JSON.stringify(corrupt)),'tampered.json');
+ await b.getByText('백업 파일 내용이 변경되거나 손상됐습니다.',{exact:false}).waitFor();
+ assert.equal(await readSaved(two,'psi-single-photo-draft-v1'),null,'manifest corruption must not write to IndexedDB');
+ // Damage to the note is rejected independently of the total file checksum.
+ const noteTampered=withManifest({...emergency.parsed,input:{...emergency.parsed.input,note:'tampered inspection note'}});
+ await importJson(b,Buffer.from(JSON.stringify(noteTampered)),'tampered-note.json');
+ await b.getByText('백업의 점검 내용·조치 계획·현장정보가 변경되어 복원을 중단했습니다.',{exact:false}).waitFor();
+ assert.equal(await readSaved(two,'psi-local-inspection-input-draft-v1'),null,'tampered note must not restore');
+ // Even if the outer checksum is recomputed, each photo's own SHA is required.
+ const damagedPhoto=structuredClone(emergency.parsed);
+ damagedPhoto.single.photo.data='AAAA';
+ await importJson(b,Buffer.from(JSON.stringify(withManifest(damagedPhoto))),'tampered-photo.json');
  await b.getByText('백업 사진의 SHA-256 비교값이 일치하지 않습니다.',{exact:false}).waitFor();
- assert.equal(await readSaved(two,'psi-single-photo-draft-v1'),null,'corruption must not write to IndexedDB');
+ assert.equal(await readSaved(two,'psi-single-photo-draft-v1'),null,'photo corruption must not restore');
  await importJson(b,emergency.bytes);
  await b.getByText('백업 검증 완료:',{exact:false}).waitFor();
  await b.getByRole('button',{name:'검사된 작성 중 자료 복원'}).waitFor();
