@@ -15,6 +15,65 @@ try{
  await page.getByRole('heading',{name:'사진만 찍어도 점검을 시작할 수 있습니다'}).waitFor();
  await page.getByText('통신 없이 기기에서 직접 점검',{exact:true}).click();
  const panel=page.getByRole('region',{name:'기기 직접 점검'});
+ // F08-38: a text-only inspection is automatically checkpointed in IndexedDB.
+ // Restart the entire React page and prove recovery before offline camera QA.
+ await panel.getByLabel('현장명').fill('합성 임시저장 현장');
+ await panel.getByLabel('직접 확인한 내용').fill('F08 재실행 후 이어쓰기 합성 시험');
+ await panel.getByLabel('현장 조치·확인 계획').fill('통제 유지 및 담당자 확인');
+ await panel.getByText('최근 임시저장:',{exact:false}).waitFor();
+ const checkpoint=await page.evaluate(()=>new Promise((resolve,reject)=>{
+  const open=indexedDB.open('psi-inspector-local-records',1);
+  open.onerror=()=>reject(open.error);
+  open.onsuccess=()=>{
+   const db=open.result,tx=db.transaction('records','readonly'),req=tx.objectStore('records').get('psi-local-inspection-input-draft-v1');
+   req.onsuccess=()=>resolve(req.result);tx.oncomplete=()=>db.close();
+  };
+ }));
+ assert.equal(checkpoint.note,'F08 재실행 후 이어쓰기 합성 시험');
+ assert.equal(checkpoint.siteContext.site,'합성 임시저장 현장');
+ await page.reload({waitUntil:'networkidle'});
+ await page.getByText('통신 없이 기기에서 직접 점검',{exact:true}).click();
+ await panel.getByLabel('직접 확인한 내용').waitFor();
+ await panel.getByText('최근 임시저장:',{exact:false}).waitFor();
+ assert.equal(await panel.getByLabel('직접 확인한 내용').inputValue(),'F08 재실행 후 이어쓰기 합성 시험');
+ assert.equal(await panel.getByLabel('현장명').inputValue(),'합성 임시저장 현장');
+ assert.equal(await panel.getByLabel('현장 조치·확인 계획').inputValue(),'통제 유지 및 담당자 확인');
+ await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
+ // Simulate a different tab committing a newer input checkpoint.
+ await page.evaluate(()=>new Promise((resolve,reject)=>{
+  const open=indexedDB.open('psi-inspector-local-records',1);
+  open.onerror=()=>reject(open.error);
+  open.onsuccess=()=>{
+   const db=open.result,tx=db.transaction('records','readwrite'),store=tx.objectStore('records'),req=store.get('psi-local-inspection-input-draft-v1');
+   req.onsuccess=()=>store.put({...req.result,revision:crypto.randomUUID(),note:'다른 탭 최신 합성 입력'});
+   tx.oncomplete=()=>{db.close();resolve(true);};tx.onabort=()=>reject(tx.error);
+  };
+ }));
+ await panel.getByLabel('직접 확인한 내용').fill('내 탭의 오래된 입력 수정');
+ await panel.getByText('다른 탭의 임시 입력이 변경되어 덮어쓰지 않았습니다.',{exact:false}).waitFor();
+ page.once('dialog',dialog=>dialog.accept());
+ await panel.getByRole('button',{name:'기기 임시 입력 다시 불러오기'}).click();
+ await panel.getByText('최근 임시저장:',{exact:false}).waitFor();
+ assert.equal(await panel.getByLabel('직접 확인한 내용').inputValue(),'다른 탭 최신 합성 입력');
+ // Simulate quota failure during async input checkpoint, not a final inspection.
+ // The browser must not leak an uncaught event-handler exception.
+ await page.evaluate(()=>{
+  window.__inputPutOriginal=IDBObjectStore.prototype.put;
+  IDBObjectStore.prototype.put=function(value,...args){
+   if(value?.kind==='inspection-input-draft')throw new DOMException('synthetic input disk full','QuotaExceededError');
+   return window.__inputPutOriginal.call(this,value,...args);
+  };
+ });
+ await panel.getByLabel('현장 조치·확인 계획').fill('임시 입력 저장공간 실패 복구');
+ await panel.getByText('임시 입력을 저장하거나 불러오지 못했습니다.',{exact:false}).waitFor();
+ await page.evaluate(()=>{IDBObjectStore.prototype.put=window.__inputPutOriginal;});
+ await panel.getByRole('button',{name:'임시저장 다시 시도'}).click();
+ await panel.getByText('최근 임시저장:',{exact:false}).waitFor();
+ // Clearing fields removes only the reserved text checkpoint, never a saved inspection.
+ await panel.getByLabel('현장명').fill('');
+ await panel.getByLabel('직접 확인한 내용').fill('');
+ await panel.getByLabel('현장 조치·확인 계획').fill('');
+ await panel.getByText('아직 저장된 입력이 없습니다.',{exact:false}).waitFor();
  await context.setOffline(true);
  page.on('request',request=>{if(/^https?:/.test(request.url()))requests.push({url:request.url(),type:request.resourceType(),method:request.method(),phase:globalThis.__testPhase});});
  globalThis.__testPhase='camera';
@@ -252,7 +311,12 @@ try{
 
 
  await panel.getByLabel('후속 조치 모아보기').selectOption('unassigned');
- assert.equal(await actionRow.count(),1);
+ // The whole inspection has a named owner; the verified action is closed and
+ // the legacy action has no follow-up. Neither is pending/unassigned work.
+ assert.equal(await actionRow.count(),0,'verified or absent followup is not unassigned work');
+ await panel.getByText('현재 선택한 후속 조치 조건에 맞는 점검이 없습니다.',{exact:false}).waitFor();
+ await panel.getByRole('button',{name:'필터 해제 · 전체 기록 보기'}).click();
+ await actionRow.waitFor();
  await panel.getByLabel('후속 조치 모아보기').selectOption('review');
  assert.equal(await actionRow.count(),0);
  await panel.getByLabel('후속 조치 모아보기').selectOption('all');
@@ -317,7 +381,7 @@ try{
  await page.evaluate(async()=>{const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('psi-inspector-local-records',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});const tx=db.transaction('records','readwrite');tx.objectStore('records').put(window.__integrityFixture);await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);});db.close();});
 
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:backupBytes});
- await panel.getByText('같은 점검이 이미 이 기기에 있습니다.',{exact:false}).waitFor();
+ await panel.getByText('동일한 점검 ID가 이미 저장돼 기존 기록을 변경하지 않았습니다.',{exact:false}).waitFor();
  const altered=JSON.parse(backupBytes.toString());altered.record.sha256='0'.repeat(64);
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'corrupt.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(altered))});
  await panel.getByText('백업 사진의 무결성이 확인되지 않아 복원을 중단했습니다.').waitFor();
@@ -377,7 +441,7 @@ try{
  await panel.getByLabel('직접 확인한 내용').fill('저장 실패 시 보존 시험');
  await page.evaluate(()=>{window.__originalAdd=IDBObjectStore.prototype.add;IDBObjectStore.prototype.add=function(){throw new DOMException('full','QuotaExceededError');};});
  await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
- await panel.getByText('저장 공간이 부족합니다.',{exact:false}).waitFor();
+ await panel.getByRole('status').filter({hasText:/저장 공간이 부족합니다|기기 저장이 중단됐습니다/}).waitFor();
  assert.equal(await panel.getByLabel('직접 확인한 내용').inputValue(),'저장 실패 시 보존 시험');
  assert.equal(await panel.getByAltText('기기 점검에 선택한 사진').count(),1);
  await page.evaluate(()=>{IDBObjectStore.prototype.add=window.__originalAdd;});
@@ -406,7 +470,14 @@ try{
  const sourceRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
  page.once('dialog',d=>d.accept());await sourceRow.getByRole('button',{name:'이 기기 기록 삭제'}).click();
  await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
- // A detached photo remains recoverable through an offline backup.
+ // F08: the same valid backup must survive a simulated full-storage failure.
+ // Never overwrite or delete the original file or invent a successful restore.
+ await page.evaluate(()=>{window.__restoreOriginalAdd=IDBObjectStore.prototype.add;IDBObjectStore.prototype.add=function(){throw new DOMException('synthetic disk full','QuotaExceededError');};});
+ await panel.getByLabel('백업 파일 복원').setInputFiles({name:'detached-quota-failure.json',mimeType:'application/json',buffer:detachedBackupBytes});
+ await panel.getByText('기기 저장공간이 부족하거나 브라우저 저장 한도에 도달해 이 기록의 복원이 실패했습니다.',{exact:false}).waitFor();
+ await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
+ await page.evaluate(()=>{IDBObjectStore.prototype.add=window.__restoreOriginalAdd;});
+ // A detached photo remains recoverable through the unchanged offline backup.
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'detached.json',mimeType:'application/json',buffer:detachedBackupBytes});
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
  const detachedRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
@@ -428,7 +499,7 @@ try{
   await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
  }
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:backupBytes});
- await panel.getByText('백업을 이 기기에 복원했습니다.',{exact:false}).waitFor();
+ await panel.getByText('기기에서 복원된 기록을 다시 조회하여 사진 파일 정보를 확인했습니다.',{exact:false}).waitFor();
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
  await panel.getByText('조치 후 사진: synthetic-after-v2.png').waitFor();
  await panel.getByText('이전 조치 후 사진 1장').waitFor();
@@ -519,6 +590,26 @@ try{
  assert.equal(batchData.records.length,2);
  assert.ok(batchData.records.some(r=>r.record.followup?.temporaryMeasure==='위험 구역 출입 통제 및 안내 표지 유지'));
  await panel.getByText('백업 제외 1건:',{exact:false}).waitFor();
+ // F08-37: another tab changes the record after it is displayed, but before
+ // the user confirms deletion. That newer record must survive unchanged.
+ const staleDeleteRecordId=batchData.records.find(entry=>entry.record.followup?.temporaryMeasure==='위험 구역 출입 통제 및 안내 표지 유지').record.id;
+ await page.evaluate(async id=>{
+  const db=await new Promise((resolve,reject)=>{const request=indexedDB.open('psi-inspector-local-records',1);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
+  const tx=db.transaction('records','readwrite'),store=tx.objectStore('records');
+  const req=store.get(id);
+  req.onsuccess=()=>store.put({...req.result,action:(req.result.action||'')+' · 합성 타 탭 변경'});
+  await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);});db.close();
+ },staleDeleteRecordId);
+ page.once('dialog',d=>d.accept());await batchFirst.getByRole('button',{name:'이 기기 기록 삭제'}).click();
+ await panel.getByText('다른 탭에서 점검이 변경되었거나 기록을 찾지 못해 삭제하지 않았습니다.',{exact:false}).waitFor();
+ await panel.getByText('이 브라우저에 보관된 점검 3건').waitFor();
+ const survived=await page.evaluate(async id=>{
+  const db=await new Promise((resolve,reject)=>{const req=indexedDB.open('psi-inspector-local-records',1);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
+  const tx=db.transaction('records','readonly'),req=tx.objectStore('records').get(id);
+  const result=await new Promise((resolve,reject)=>{req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});db.close();return result?.action||'';
+ },staleDeleteRecordId);
+ assert.match(survived,/합성 타 탭 변경/,'stale delete must not erase newer cross-tab writes');
+ // The refreshed record is now the user's explicit deletion target.
  page.once('dialog',d=>d.accept());await batchFirst.getByRole('button',{name:'이 기기 기록 삭제'}).click();
  await panel.getByText('이 브라우저에 보관된 점검 2건').waitFor();
  page.once('dialog',d=>d.accept());await batchSecond.getByRole('button',{name:'이 기기 기록 삭제'}).click();
@@ -533,6 +624,7 @@ try{
  await page.evaluate(()=>{window.__batchOriginalAdd=IDBObjectStore.prototype.add;window.__batchFailNext=true;IDBObjectStore.prototype.add=function(...args){if(window.__batchFailNext){window.__batchFailNext=false;throw new DOMException('full','QuotaExceededError');}return window.__batchOriginalAdd.apply(this,args);};});
  await panel.getByRole('button',{name:'선택한 정상 기록 복원'}).click();
  await panel.getByText('묶음 복원 결과: 1건 저장 / 1건 실패.',{exact:false}).waitFor();
+ await panel.getByText('기기 저장공간이 부족하거나 브라우저 저장 한도에 도달해 이 기록의 복원이 실패했습니다.',{exact:false}).waitFor();
  await panel.getByText('이 브라우저에 보관된 점검 2건').waitFor();
  await page.evaluate(()=>{IDBObjectStore.prototype.add=window.__batchOriginalAdd;});
  await panel.getByRole('button',{name:'선택한 정상 기록 복원'}).click();
@@ -709,6 +801,8 @@ try{
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'f06-previous-format.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(downgraded))});
  await panel.getByText('이전 백업에 예상하지 않은 편집 전 사진이 포함됐습니다.',{exact:false}).waitFor();
  page.once('dialog',d=>d.accept());await f06Row.getByRole('button',{name:'이 기기 기록 삭제'}).click();
+ await panel.getByText('선택한 기기 기록을 삭제했습니다.',{exact:false}).waitFor();
+ await f06Row.waitFor({state:'detached'});
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'f06-valid.json',mimeType:'application/json',buffer:f06BackupBytes});
  const f06Restored=panel.locator('article').filter({hasText:'F06 회전본과 편집 전 사진 연결 검증'});
  await f06Restored.getByText('F06 회전본과 편집 전 사진 연결 검증',{exact:false}).waitFor();
@@ -757,6 +851,10 @@ try{
   'changing completion target must not alter separate reinspection schedule');
  page.once('dialog',dialog=>dialog.accept());
  await traceRecord.getByRole('button',{name:'이 기기 기록 삭제'}).click();
+ // Deletion now validates the latest IndexedDB record in a write transaction.
+ // Wait for the COMPLETE commit and list refresh before starting restoration.
+ await panel.getByText('선택한 기기 기록을 삭제했습니다.',{exact:false}).waitFor();
+ await traceRecord.waitFor({state:'detached'});
  await panel.getByLabel('백업 파일 복원').setInputFiles({
   name:'f10-29-trace-valid-v17.json',mimeType:'application/json',buffer:traceBytes,
  });

@@ -1,0 +1,28 @@
+name: PSI batch F10 offline matrix
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/verify-field-camera-batch33.mjs'
+      - 'lib/inspector/localRecheck*.mjs'
+      - 'lib/inspector/localFollowup*.mjs'
+      - '.github/workflows/psi-batch-f10-matrix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  f10-matrix:
+    name: f10-synthetic-300-cases
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify F10 without npm, browser or Vercel
+        run: node scripts/verify-field-camera-batch33.mjs
