@@ -124,7 +124,15 @@ try{
  assert.equal(await readSaved(two,'psi-single-photo-draft-v1'),null,'photo corruption must not restore');
  await importJson(b,emergency.bytes);
  await b.getByText('백업 검증 완료:',{exact:false}).waitFor();
- await b.getByRole('button',{name:'검사된 작성 중 자료 복원'}).waitFor();
+ const reviewedRestore=b.getByRole('button',{name:'검사된 작성 중 자료 복원'});
+ assert.equal(await reviewedRestore.isDisabled(),true,'unacknowledged backup cannot be restored');
+ await b.getByText('검사된 백업의 기록·사진 직접 확인').click();
+ await b.getByText('합성 임시 점검 · 저장 공간 부족',{exact:false}).waitFor();
+ await b.getByText('합성 41차 현장',{exact:false}).waitFor();
+ await b.getByAltText('단건 사진 백업 사진 미리보기').waitFor();
+ await b.getByLabel('검사된 백업 내용을 확인했습니다.').check();
+ assert.equal(await reviewedRestore.isDisabled(),false,'explicit review enables the guarded restore');
+
  // Another tab inserts a checkpoint after preview. Atomic restore must fail.
  await two.evaluate(()=>new Promise((resolve,reject)=>{
   const open=indexedDB.open('psi-inspector-local-records',1);
@@ -217,6 +225,7 @@ try{
  // Import the same file again. The screen is not blank; previous state survives.
  await importJson(b,emergency.bytes);
  await b.getByText('백업 검증 완료:',{exact:false}).waitFor();
+ assert.equal(await b.getByLabel('검사된 백업 내용을 확인했습니다.').isChecked(),false,'reselecting file clears old acknowledgement');
  const protectedRestore=b.getByRole('button',{name:'검사된 작성 중 자료 복원'});
  assert.equal(await protectedRestore.isDisabled(),true,'active single photo and text must disable restore');
  await b.getByText('복원 버튼 비활성화:',{exact:false}).waitFor();
@@ -244,6 +253,10 @@ try{
  const {page:three,panel:c}=await open(thirdContext);
  await importJson(c,emergency.bytes);
  await c.getByText('백업 검증 완료:',{exact:false}).waitFor();
+ assert.equal(await c.getByRole('button',{name:'검사된 작성 중 자료 복원'}).isDisabled(),true,'fresh device needs acknowledgement');
+ await c.getByText('검사된 백업의 기록·사진 직접 확인').click();
+ await c.getByAltText('단건 사진 백업 사진 미리보기').waitFor();
+ await c.getByLabel('검사된 백업 내용을 확인했습니다.').check();
  await three.evaluate(()=>{
   window.__originalAdd=IDBObjectStore.prototype.add;
   IDBObjectStore.prototype.add=function(value,...args){
