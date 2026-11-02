@@ -1735,7 +1735,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    <h2>사진과 점검 내용을 이 기기에 보관</h2>
    <p>사진을 자동 분석하지 않습니다. 직접 확인한 내용으로 관련 기준을 찾아보는 기능입니다. 서버 업로드와 유료 AI 호출은 하지 않습니다.</p>
    <p>{offlineEntry?'사전에 오프라인 준비를 마친 기기에서는 이 주소로 인터넷 없이 다시 열 수 있습니다.':'인터넷이 끊기기 전 기기 점검 전용 화면에서 오프라인 준비가 필요합니다.'} 브라우저 데이터 삭제나 기기 분실 시 기록이 사라질 수 있으니 별도로 내려받으세요.</p>{!offlineEntry&&<p><a href="/field-local/">오프라인 재실행 준비 화면 열기</a></p>}
-   <section aria-label="작성 중 자료 긴급 백업과 복구" className="rounded-xl border border-slate-300 p-3">
+   <section id="si-unfinished-recovery" aria-label="작성 중 자료 긴급 백업과 복구" className="rounded-xl border border-slate-300 p-3">
     <h3>작성 중 기록 안전 복구</h3>
     <p>사진이나 입력이 사라질까 걱정되면 아래 순서대로 진행하세요. 인터넷·유료 API 없이 이 기기에서 처리하며, 기존 자료는 자동 삭제하지 않습니다.</p>
     <ol className="grid grid-cols-1 gap-3 p-0" style={{listStyle:'none'}}>
@@ -1825,8 +1825,26 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    <div aria-label="작성 중 점검 임시저장 안내">
     {inputDraftState==='loading'&&<p role="status">이전에 작성 중이던 점검 입력을 확인하고 있습니다…</p>}
     {inputDraftState==='ready'&&<p role="status">점검 내용·현장정보는 이 브라우저에 임시저장됩니다. {inputPending?'현재 입력 임시저장 대기 중 · 저장 완료 표기가 나오기 전에는 화면을 닫지 마세요.':inputSavedAt?'최근 임시저장: '+new Date(inputSavedAt).toLocaleString('ko-KR'):'아직 저장된 입력이 없습니다.'} 연속 촬영 사진과 단건 선택 사진은 각각 임시보관됩니다. 브라우저 데이터 삭제·기기 분실에 대비해 별도로 백업하세요.</p>}
-    {inputDraftState==='error'&&<div role="alert"><p>임시 입력을 저장하거나 저장 후 내용 확인에 실패했습니다. 현재 화면의 입력을 우선 긴급 백업하세요. 기기에 일부 기록이 남아 있을 수 있으므로 자동 삭제하거나 덮어쓰지 않습니다.</p><button type="button" className="si-btn" disabled={busy||unfinishedBusy} onClick={()=>void backupUnfinished()}>입력·사진 긴급 백업</button><button type="button" className="si-btn" disabled={busy} onClick={()=>setInputDraftState('ready')}>임시저장 다시 시도</button></div>}
-    {inputDraftState==='conflict'&&<div role="alert"><p>다른 탭의 임시 입력이 변경되어 덮어쓰지 않았습니다. 현재 입력을 별도 보관한 뒤 최신 내용을 불러오세요.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>{if(window.confirm('현재 화면의 입력을 다른 탭의 저장된 내용으로 바꿀까요?'))void loadInputDraft();}}>기기 임시 입력 다시 불러오기</button></div>}
+    {inputDraftState==='error'&&<div role="alert" aria-label="입력 저장 오류 복구 도우미" className="rounded-lg border border-amber-400 p-3">
+     <strong>입력 저장 확인 실패 · 현재 화면은 유지 중</strong>
+     <p>기기 저장본의 상태가 확실하지 않습니다. 완료 처리하거나 기록을 자동 삭제하지 않습니다. 아래 순서대로 확인하세요.</p>
+     <p>1. 지금 보이는 점검 내용과 사진을 먼저 파일로 보관하세요. 파일 앱에서 실제 다운로드 여부를 확인하세요.</p>
+     <button type="button" className="si-btn" style={{minHeight:44}} disabled={busy||unfinishedBusy} onClick={()=>void backupUnfinished()}>입력·사진 긴급 백업</button>
+     <p>2. 기기에 남아 있는 임시기록을 읽기 전용으로 확인하세요. 현재 화면의 새 입력과 저장본이 다를 수 있습니다.</p>
+     <button type="button" className="si-btn" style={{minHeight:44}} disabled={busy||unfinishedBusy||recoveryScanBusy} onClick={()=>void scanUnfinished()}>기기 기록 읽기 전용 확인</button>
+     {recoveryScan&&<p role="status">진단 결과: {recoveryScan.guidance} <a href="#si-unfinished-recovery">상세 결과 보기</a></p>}
+     <p>3. 기록이 안전하게 백업됐고 다른 탭에서 변경되지 않았음을 확인한 뒤에만 재시도하세요. 내용이 달라졌으면 덮어쓰지 않고 중단합니다.</p>
+     <button type="button" className="si-btn" style={{minHeight:44}} disabled={busy||recoveryScanBusy||unfinishedBusy} onClick={()=>setInputDraftState('ready')}>임시저장 다시 시도</button>
+    </div>}
+    {inputDraftState==='conflict'&&<div role="alert" aria-label="동시 수정 충돌 복구 도우미">
+     <strong>다른 탭의 변경 또는 저장 내용 불일치 감지</strong>
+     <p>기존 저장본을 덮어쓰지 않았습니다. 현재 화면의 입력과 기기 저장본 중 무엇을 유지할지 직접 확인하세요.</p>
+     <button type="button" className="si-btn" style={{minHeight:44}} disabled={busy||unfinishedBusy} onClick={()=>void backupUnfinished()}>현재 화면 충돌 자료 백업</button>{' '}
+     <button type="button" className="si-btn" style={{minHeight:44}} disabled={busy||recoveryScanBusy} onClick={()=>void scanUnfinished()}>기기 저장본 읽기 전용 확인</button>
+     {recoveryScan&&<p role="status">진단 결과: {recoveryScan.guidance} <a href="#si-unfinished-recovery">상세 결과 보기</a></p>}
+     <p>기기 저장본을 다시 불러오면 현재 화면이 바뀔 수 있습니다. 먼저 현재 입력을 백업한 뒤 결정하세요.</p>
+     <button type="button" className="si-btn" style={{minHeight:44}} disabled={busy||unfinishedBusy} onClick={()=>{if(window.confirm('현재 화면의 입력을 별도 백업했습니까? 기기의 저장본으로 화면 내용이 바뀔 수 있습니다.'))void loadInputDraft();}}>기기 임시 입력 다시 불러오기</button>
+    </div>}
    </div>
    <fieldset aria-label="점검 현장정보" style={{border:'1px solid #8885',borderRadius:8,padding:12}}>
     <legend>점검 현장정보 · 직접 입력</legend>
