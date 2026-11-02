@@ -286,8 +286,43 @@ try{
  await three.getByRole('region',{name:'기기 직접 점검'})
   .getByText('기기에 임시 보관된 단건 사진의 파일 비교값이 일치하지 않습니다.',{exact:false}).waitFor();
  await thirdContext.close();
+
+ // F08-48: mobile OS may suspend a page before the 650ms autosave timer.
+ // Synthetic pagehide must start an IndexedDB write of the latest form.
+ const fourthContext=await browser.newContext({viewport:{width:360,height:740},acceptDownloads:true});
+ const {page:four,panel:d}=await open(fourthContext);
+ await d.getByLabel('현장명').fill('합성 48차 현장');
+ await d.getByLabel('층').fill('지상 18층');
+ await d.getByLabel('직접 확인한 내용').fill('화면 전환 직전 입력한 위험 관찰');
+ await d.getByLabel('현장 조치·확인 계획').fill('현장 접근 제한 후 후속 점검 계획');
+ await four.evaluate(()=>window.dispatchEvent(new Event('pagehide')));
+ await four.waitForFunction(async()=>new Promise(resolve=>{
+  const req=indexedDB.open('psi-inspector-local-records',1);
+  req.onerror=()=>resolve(false);
+  req.onsuccess=()=>{
+   const db=req.result,tx=db.transaction('records','readonly');
+   const get=tx.objectStore('records').get('psi-local-inspection-input-draft-v1');
+   get.onsuccess=()=>resolve(get.result?.note==='화면 전환 직전 입력한 위험 관찰'&&
+    get.result?.siteContext?.site==='합성 48차 현장'&&
+    get.result?.siteContext?.level==='지상 18층'&&
+    get.result?.action==='현장 접근 제한 후 후속 점검 계획');
+   get.onerror=()=>resolve(false);tx.oncomplete=()=>db.close();
+  };
+ }),null,{timeout:6000});
+ const backgroundSaved=await readSaved(four,'psi-local-inspection-input-draft-v1');
+ assert.equal(backgroundSaved.siteContext.site,'합성 48차 현장');
+ assert.equal(backgroundSaved.note,'화면 전환 직전 입력한 위험 관찰');
+ await four.reload({waitUntil:'networkidle'});
+ await four.getByText('통신 없이 기기에서 직접 점검',{exact:true}).click();
+ const resumed=four.getByRole('region',{name:'기기 직접 점검'});
+ await resumed.getByLabel('직접 확인한 내용').waitFor();
+ assert.equal(await resumed.getByLabel('직접 확인한 내용').inputValue(),'화면 전환 직전 입력한 위험 관찰');
+ assert.equal(await resumed.getByLabel('현장명').inputValue(),'합성 48차 현장');
+ assert.equal(await resumed.getByLabel('층').inputValue(),'지상 18층');
+ await fourthContext.close();
+
  assert.equal(pageErrors.length,0,'no uncaught browser exceptions');
- console.log('PASS F08 unified backup: quota failure, tamper, atomic no-overwrite, real persisted-byte readback, final commit');
+ console.log('PASS F08 unified backup: quota failure, tamper, atomic no-overwrite, real persisted-byte readback, mobile pagehide checkpoint, final commit');
 }finally{
  await browser.close();await server.close();
 }
