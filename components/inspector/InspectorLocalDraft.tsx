@@ -1787,7 +1787,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
       <p>다운로드가 시작돼도 파일 보관이 완료된 것은 아닙니다. 파일 앱에서 저장된 JSON을 다시 선택해 확인하세요.</p>
       {emergencyExport&&<div aria-label="실제 내려받은 백업 파일 확인" className="rounded-lg border border-slate-300 p-3">
        <p><strong>내려받은 파일 다시 확인</strong> · 예상 파일명: {emergencyExport.filename}</p>
-       <label>저장한 JSON 백업 파일 다시 선택<input type="file" aria-label="저장한 JSON 백업 파일 다시 선택" accept=".json,application/json" disabled={busy||unfinishedBusy} onChange={e=>{const selected=e.target.files?.[0];e.target.value='';if(selected)void checkDownloadedEmergencyBackup(selected);}}/></label>
+       <label>저장한 JSON 백업 파일 다시 선택<input type="file" aria-label="저장한 JSON 백업 파일 다시 선택" accept=".json,application/json" style={{display:"block",width:"100%",maxWidth:"100%",minHeight:44}} disabled={busy||unfinishedBusy} onChange={e=>{const selected=e.target.files?.[0];e.target.value='';if(selected)void checkDownloadedEmergencyBackup(selected);}}/></label>
        {emergencyCheck==='checking'&&<p role="status">백업 파일을 검사 중…</p>}
        {emergencyCheckMessage&&<p role={emergencyCheck==='verified'&&!emergencyExportStale?'status':'alert'}>{emergencyCheckMessage}</p>}
        {emergencyCheck==='verified'&&!emergencyExportStale&&<p role="status">이번 화면 백업 파일 재선택 검사 통과. 필요한 경우 기기 밖에도 보관하세요.</p>}
