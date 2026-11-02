@@ -1213,8 +1213,10 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  };
  const restore=async(file:File)=>{
   if(flight.current)return;flight.current=true;setBusy(true);setMessage('');
+  let backupValidated=false;
   try{
    const record=await unpackRecord(file);
+   backupValidated=true;
    await runStore<void>('readwrite',store=>{store.add(record);});
    const stored=await runStore<LocalRecord|undefined>('readonly',(store,set)=>{
     const request=store.get(record.id);
@@ -1224,7 +1226,11 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    await refresh();
    setMessage('기기에서 복원된 기록을 다시 조회하여 사진 파일 정보를 확인했습니다. 사진 바이트 전체의 무결성이나 장기 보존을 입증하지는 않습니다. 서버에는 전송하지 않았습니다.');
   }catch(error){
-   setMessage(classifyLocalRestoreError(error).message+' 원본 백업 파일은 삭제하지 마세요.');
+   // Preserve detailed backup validation failures. Recovery classification
+   // applies only after the parsed backup passed its integrity checks.
+   setMessage(backupValidated
+    ?classifyLocalRestoreError(error).message+' 원본 백업 파일은 삭제하지 마세요.'
+    :error instanceof Error?error.message:'복원하지 못했습니다. 원본 백업은 보관하세요.');
   }finally{flight.current=false;setBusy(false);}
  };
  return <details id="si-local-inspection" className="si-local-inspection" onToggle={e=>{if(e.currentTarget.open)void refresh();}}>
