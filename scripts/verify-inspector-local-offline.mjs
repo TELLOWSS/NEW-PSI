@@ -252,7 +252,12 @@ try{
 
 
  await panel.getByLabel('후속 조치 모아보기').selectOption('unassigned');
- assert.equal(await actionRow.count(),1);
+ // The whole inspection has a named owner; the verified action is closed and
+ // the legacy action has no follow-up. Neither is pending/unassigned work.
+ assert.equal(await actionRow.count(),0,'verified or absent followup is not unassigned work');
+ await panel.getByText('현재 선택한 후속 조치 조건에 맞는 점검이 없습니다.',{exact:false}).waitFor();
+ await panel.getByRole('button',{name:'필터 해제 · 전체 기록 보기'}).click();
+ await actionRow.waitFor();
  await panel.getByLabel('후속 조치 모아보기').selectOption('review');
  assert.equal(await actionRow.count(),0);
  await panel.getByLabel('후속 조치 모아보기').selectOption('all');
