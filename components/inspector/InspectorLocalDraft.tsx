@@ -5,6 +5,7 @@ import {sourceReviewState} from '../../lib/inspector/sourceReview';
 import {FOLLOWUP_STATES, FOLLOWUP_LABELS, validateFollowup, validateAdditionalActions, overdue} from '../../lib/inspector/localFollowup.mjs';
 import {prepareFollowupChange,analyzeFollowupChangeTrace,TEMPORARY_CONTROL_REVIEWS} from '../../lib/inspector/localFollowupChangeTrace.mjs';
 import {buildLocalRecheckQueue,summarizeLocalRecheckQueue,LOCAL_RECHECK_BUCKETS,LOCAL_RECHECK_LABELS,localCalendarDate} from '../../lib/inspector/localRecheckQueue.mjs';
+import {classifyLocalRestoreError,verifyLocalRestoreReadback} from '../../lib/inspector/localRestoreRecovery.mjs';
 import {buildLocalRecheckReport,selectLocalRecheckReportTargets,matchesLocalFollowupRecordFilter,formatLocalRecheckCsv,formatLocalRecheckPrintHtml,F10_LOCAL_REPORT_LIMIT} from '../../lib/inspector/localRecheckReport.mjs';
 import {buildLocalRecheckProgress} from '../../lib/inspector/localRecheckProgress.mjs';
 import {buildLocalHandoffPlan,selectLocalHandoffTargets,formatLocalHandoffMessage,formatLocalHandoffHtml,handoffSourceSnapshot,F10_HANDOFF_MAX_ITEMS} from '../../lib/inspector/localRecheckHandoff.mjs';
@@ -1192,11 +1193,17 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   try{
    for(const item of selected){
     try{
-     await runStore<void>('readwrite',store=>{store.add(item.record!);});
+     const original=item.record!;
+     await runStore<void>('readwrite',store=>{store.add(original);});
+     // A committed write is re-read before reporting successful restoration.
+     const stored=await runStore<LocalRecord|undefined>('readonly',(store,set)=>{
+      const request=store.get(original.id);
+      request.onsuccess=()=>set(request.result as LocalRecord|undefined);
+     });
+     if(!verifyLocalRestoreReadback(original,stored))throw new Error('unverified-restored-record');
      success++;restored.add(item.index);
     }catch(error){
-     const isDuplicate=error instanceof DOMException&&error.name==='ConstraintError';
-     errors.push('기록 '+(item.index+1)+': '+(isDuplicate?'동일 ID 존재, 덮어쓰기 방지':'기기 저장 실패 · 저장 공간 또는 다른 탭 확인'));
+     errors.push('기록 '+(item.index+1)+': '+classifyLocalRestoreError(error).message);
     }
    }
    setBatchPreview(previous=>previous?.map(item=>restored.has(item.index)?{...item,status:'duplicate' as const,message:'이번 복원에서 저장 완료 · 다시 가져오지 않음',record:undefined,selected:false}:item)||null);
@@ -1204,7 +1211,22 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    setMessage('묶음 복원 결과: '+success+'건 저장 / '+errors.length+'건 실패. '+(errors.length?errors.join(' / ')+' 실패 항목은 원본 백업 파일에서 다시 시도하세요.':'저장된 기록을 확인하세요.')+' 서버에는 전송하지 않았습니다.');
   }finally{flight.current=false;setBusy(false);}
  };
- const restore=async(file:File)=>{if(flight.current)return;flight.current=true;setBusy(true);setMessage('');try{const record=await unpackRecord(file);await runStore<void>('readwrite',store=>{store.add(record);});await refresh();setMessage('백업을 이 기기에 복원했습니다. 서버에는 전송하지 않았습니다.');}catch(error){setMessage(error instanceof DOMException&&error.name==='ConstraintError'?'같은 점검이 이미 이 기기에 있습니다. 기존 기록은 변경하지 않았습니다.':error instanceof Error?error.message:'복원하지 못했습니다.');}finally{flight.current=false;setBusy(false);}};
+ const restore=async(file:File)=>{
+  if(flight.current)return;flight.current=true;setBusy(true);setMessage('');
+  try{
+   const record=await unpackRecord(file);
+   await runStore<void>('readwrite',store=>{store.add(record);});
+   const stored=await runStore<LocalRecord|undefined>('readonly',(store,set)=>{
+    const request=store.get(record.id);
+    request.onsuccess=()=>set(request.result as LocalRecord|undefined);
+   });
+   if(!verifyLocalRestoreReadback(record,stored))throw new Error('unverified-restored-record');
+   await refresh();
+   setMessage('기기에서 복원된 기록을 다시 조회하여 사진 파일 정보를 확인했습니다. 사진 바이트 전체의 무결성이나 장기 보존을 입증하지는 않습니다. 서버에는 전송하지 않았습니다.');
+  }catch(error){
+   setMessage(classifyLocalRestoreError(error).message+' 원본 백업 파일은 삭제하지 마세요.');
+  }finally{flight.current=false;setBusy(false);}
+ };
  return <details id="si-local-inspection" className="si-local-inspection" onToggle={e=>{if(e.currentTarget.open)void refresh();}}>
   <summary>통신 없이 기기에서 직접 점검</summary>
   <section aria-label="기기 직접 점검">
@@ -1250,7 +1272,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     <button type="button" className="si-btn" disabled={busy||!backupIds.length||backupIds.length>BATCH_COUNT_LIMIT||readState!=='ready'} onClick={()=>void backupSelected()}>선택 기록 묶음 백업 ({backupIds.length}건)</button>
     {backupIds.length>BATCH_COUNT_LIMIT&&<p role="alert">10건을 초과했습니다. 나누어 선택하세요.</p>}
     <label>묶음 백업 파일 미리보기<input type="file" accept="application/json,.json" aria-label="묶음 백업 파일 미리보기" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void previewBatch(file);}}/></label>
-    {batchPreview&&<div aria-label="묶음 복원 미리보기"><p>미리보기의 선택 항목만 가져옵니다. 기존 기록은 덮어쓰지 않으며, 일부 항목이 실패해도 성공한 항목은 유지됩니다.</p>
+    {batchPreview&&<div aria-label="묶음 복원 미리보기"><p>미리보기의 선택 항목만 가져옵니다. 기존 기록은 덮어쓰지 않으며, 일부 항목이 실패해도 성공한 항목은 유지됩니다. 저장 후에는 각 기록을 다시 조회하여 파일 정보가 일치하는 경우에만 성공 건수에 포함합니다.</p>
      {batchPreview.map(entry=><div key={entry.index}><label><input type="checkbox" aria-label={`복원 기록 ${entry.index+1} 선택`} checked={entry.selected} disabled={busy||entry.status!=='ready'} onChange={e=>setBatchPreview(previous=>previous?.map(item=>item.index===entry.index?{...item,selected:e.target.checked}:item)||null)}/> {entry.index+1}번 · {entry.summary}</label><p>{entry.status==='ready'?'복원 가능':entry.status==='duplicate'?'중복 건너뜀':'손상 건너뜀'} · {entry.message}</p></div>)}
      <button type="button" className="si-btn" disabled={busy||!batchPreview.some(item=>item.status==='ready'&&item.selected)} onClick={()=>void restoreSelectedBatch()}>선택한 정상 기록 복원</button>
     </div>}
