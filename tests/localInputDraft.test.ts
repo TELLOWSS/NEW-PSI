@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {LOCAL_INPUT_DRAFT_KEY,validLocalInputDraft,localInputDraftFields,localInputDraftHasContent,localInputDraftCanReplace,localInputDraftReadbackMatches} from '../lib/inspector/localInputDraft.mjs';
+import {LOCAL_INPUT_DRAFT_KEY,validLocalInputDraft,localInputDraftFields,localInputDraftHasContent,localInputDraftCanReplace,localInputDraftReadbackMatches,buildLocalInspectionEmergencyText} from '../lib/inspector/localInputDraft.mjs';
 const fixture=()=>({
  id:LOCAL_INPUT_DRAFT_KEY,kind:'inspection-input-draft',
  revision:'00000000-0000-4000-8000-000000000001',
@@ -59,6 +59,19 @@ describe('F08 unfinished field-inspection input checkpoint',()=>{
    null,undefined,
   ])expect(localInputDraftReadbackMatches(intended,changed)).toBe(false);
   expect(localInputDraftReadbackMatches(null,intended)).toBe(false);
+ });
+ it('exports every visible text field offline without claiming a photo backup',()=>{
+  const row=fixture();
+  const out=buildLocalInspectionEmergencyText(row);
+  for(const field of [row.note,row.action,row.siteContext.site,row.siteContext.building,row.siteContext.level,row.siteContext.trade])
+   expect(out).toContain(field);
+  expect(out).toContain('사진은 포함되지 않습니다');
+  expect(out).toContain('점검 완료나 원본 보존을 증명할 수 없습니다');
+  const changed=buildLocalInspectionEmergencyText({...row,note:'새로 기록한 문구'});
+  expect(changed).toContain('새로 기록한 문구');
+  expect(changed).not.toContain(row.note);
+  expect(buildLocalInspectionEmergencyText({note:'',action:'',photoRole:'unspecified',siteContext:{}}))
+   .toContain('기본 사진 역할: 미지정');
  });
  it('does not confuse blank forms with prior work',()=>{
   const blank={note:'',action:'',photoRole:'unspecified',
