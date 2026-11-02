@@ -98,6 +98,11 @@ try{
  // A deferred action can be recorded and its after photo attached later while offline.
  const actionRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
  const deferredGuide=actionRow.getByRole('region',{name:'지연 조치 4단계 안내'}).first();
+ const attention=actionRow.getByRole('region',{name:'후속 조치 누락·기한 확인'}).first();
+ await attention.getByText('담당자 미지정',{exact:true}).waitFor();
+ await attention.getByText('임시 안전조치 미기록',{exact:true}).waitFor();
+ await attention.getByText('조치 목표 기한 미정',{exact:true}).waitFor();
+ await attention.getByText('재점검 이력 미기록',{exact:true}).waitFor();
  await deferredGuide.getByText('입력된 항목 0/4개',{exact:false}).waitFor();
  await deferredGuide.getByText('1. 담당자 지정 · 미기록').waitFor();
  await deferredGuide.getByText('2. 임시 안전조치 · 미기록').waitFor();
@@ -163,6 +168,9 @@ try{
  await actionRow.getByText('현재 기록된 임시 안전조치: 위험 구역 출입 통제 및 안내 표지 유지',{exact:false}).waitFor();
  await deferredGuide.getByText('입력된 항목 3/4개',{exact:false}).waitFor();
  await deferredGuide.getByText('4. 지연 사유·재점검 · 미기록').waitFor();
+ await attention.getByText('임시 안전조치 확인 기록 미흡',{exact:true}).waitFor();
+ await attention.getByText('재점검 이력 미기록',{exact:true}).waitFor();
+ assert.equal(await attention.getByText('담당자 미지정',{exact:true}).count(),0);
  await deferredGuide.getByText('임시조치 시행·유지, 담당자 연락, 위험 해소 또는 작업 재개 승인을 뜻하지 않습니다.',{exact:false}).waitFor();
  await actionRow.getByLabel('조치 후 사진 연결').setInputFiles({name:'synthetic-after.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a8sAAAAASUVORK5CYII=','base64')});
  await panel.getByText('조치 후 사진을 이 기기에 연결했습니다.',{exact:false}).waitFor();
@@ -178,6 +186,9 @@ try{
  await deferredGuide.getByText('입력된 항목 4/4개',{exact:false}).waitFor();
  await deferredGuide.getByText('네 항목 모두 기록됨 · 실제 현장 확인은 별도',{exact:false}).waitFor();
  await deferredGuide.getByText('다음 확인: 2030-01-03',{exact:false}).waitFor();
+ assert.equal(await attention.getByText('재점검 이력 미기록',{exact:true}).count(),0);
+ assert.equal(await attention.getByText('재점검 예정일 경과',{exact:true}).count(),0);
+ await attention.getByText('임시 안전조치 확인 기록 미흡',{exact:true}).waitFor();
  await overallRecheck.getByText('재점검·지연 이력 1건').click();
  await overallRecheck.getByText('자재 공급이 늦어져 현장 보수 작업이 지연됨',{exact:false}).waitFor();
  assert.equal(await actionRow.getByText('조치 진행 중',{exact:false}).count()>0,true,'reinspection should not auto mark work verified');
@@ -202,6 +213,9 @@ try{
  const nestedGuide=firstAction.getByRole('region',{name:'지연 조치 4단계 안내'}).first();
  await nestedGuide.getByText('입력된 항목 0/4개',{exact:false}).waitFor();
  await nestedGuide.getByText('4. 지연 사유·재점검 · 미기록').waitFor();
+ const nestedAttention=firstAction.getByRole('region',{name:'후속 조치 누락·기한 확인'}).first();
+ await nestedAttention.getByText('담당자 미지정',{exact:true}).waitFor();
+ await nestedAttention.getByText('재점검 이력 미기록',{exact:true}).waitFor();
  const nestedHref=await nestedGuide.getByRole('link',{name:'재점검·지연 사유 입력 위치로 이동'}).getAttribute('href');
  assert.match(nestedHref,/^#si-recheck-.+-[a-f0-9-]{36}$/i);
  assert.equal(await page.locator(nestedHref).count(),1,'additional action link must target its own recheck editor');
