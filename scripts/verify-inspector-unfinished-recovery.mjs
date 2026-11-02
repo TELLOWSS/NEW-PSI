@@ -87,6 +87,13 @@ try{
  await a.getByText('이번 화면 백업 파일 재선택 검사 통과.',{exact:false}).waitFor();
  await savedFile.setInputFiles({name:'corrupted.json',mimeType:'application/json',buffer:Buffer.from('{"bad":"bytes"}')});
  await a.getByText('지원하지 않거나 손상된 작성 중 백업입니다.',{exact:false}).waitFor();
+ // A structurally valid but different export must still be rejected.
+ const otherExport=structuredClone(emergency.parsed);
+ otherExport.exportedAt='2026-11-02T07:00:00.000Z';
+ const {payloadSha256:unusedSha,...differentPayload}=otherExport;
+ otherExport.payloadSha256=createHash('sha256').update(JSON.stringify(differentPayload)).digest('hex');
+ await savedFile.setInputFiles({name:'other-valid-backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(otherExport))});
+ await a.getByText('선택한 파일이 이번 화면에서 요청한 백업과 다릅니다.',{exact:false}).waitFor();
  await savedFile.setInputFiles({name:'recovered.json',mimeType:'application/json',buffer:emergency.bytes});
  await a.getByText('이번 화면 백업 파일 재선택 검사 통과.',{exact:false}).waitFor();
  await a.getByLabel('현장 조치·확인 계획').fill('변경된 현장 계획 · 새 백업 필요');
