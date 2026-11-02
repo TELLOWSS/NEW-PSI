@@ -979,6 +979,43 @@ try{
  await f10Report.getByLabel('보고서에 F10 경과 연결 이력 포함').uncheck();
  // Stale rejection should not cause an external request or wipe the photos.
 
+ // F10-59: two separate items must allow partial HUMAN checks, without
+ // turning a single acknowledged entry into an all-target acknowledgement.
+ const secondHandoffTarget=restoredTrace.getByRole('region',{name:'추가 조치 항목'})
+  .locator('div').filter({hasText:'합성 출입 통제'}).first();
+ await secondHandoffTarget.getByRole('button',{name:'후속 조치 기록'}).click();
+ await secondHandoffTarget.getByLabel('조치 상태').selectOption('in_progress');
+ await secondHandoffTarget.getByLabel('진행·확인 내용').fill('인계 대상별 현장 확인 필요');
+ await secondHandoffTarget.getByRole('button',{name:'후속 기록 저장'}).click();
+ await panel.getByText('후속 조치를 이 기기에 저장했습니다.',{exact:false}).waitFor();
+ await f10Handoff.getByLabel('F10 인계 대상 범위').selectOption('all');
+ await f10Handoff.getByText('인계 대상 2건 / 최대 40건',{exact:false}).waitFor();
+ await f10Handoff.getByRole('button',{name:'인계 문구·A4 인계표 준비'}).click();
+ const partial=f10Handoff.getByRole('group',{name:'F10 건별 인계·수신 직접 확인'});
+ await partial.getByText('건별 자기확인: 외부 전달 0/2건 · 수신 회신 0/2건',{exact:false}).waitFor();
+ const item1Delivered=partial.getByRole('checkbox',{name:'F10 1번 외부 전달 직접 확인'});
+ const item1Received=partial.getByRole('checkbox',{name:'F10 1번 수신 회신 직접 확인'});
+ const item2Delivered=partial.getByRole('checkbox',{name:'F10 2번 외부 전달 직접 확인'});
+ const item2Received=partial.getByRole('checkbox',{name:'F10 2번 수신 회신 직접 확인'});
+ assert.equal(await item1Received.isDisabled(),true);
+ assert.equal(await item2Received.isDisabled(),true);
+ await item1Delivered.check();
+ await item1Received.check();
+ await partial.getByText('외부 전달 1/2건 · 수신 회신 1/2건',{exact:false}).waitFor();
+ await receiptGuide.getByText('다음 확인: 별도 전달 사실 확인',{exact:true}).waitFor();
+ assert.equal(await item2Received.isDisabled(),true);
+ await item2Delivered.check();
+ await receiptGuide.getByText('다음 확인: 담당자 수신 회신 확인',{exact:true}).waitFor();
+ await item2Received.check();
+ await receiptGuide.getByText('다음 확인: 점검 항목별 재점검·조치 이력 기록',{exact:true}).waitFor();
+ await item1Delivered.uncheck();
+ assert.equal(await item1Received.isChecked(),false,'revoking a delivery must revoke its receipt only');
+ assert.equal(await item2Received.isChecked(),true,'other target must remain independent');
+ await partial.getByText('외부 전달 1/2건 · 수신 회신 1/2건',{exact:false}).waitFor();
+ await f10Handoff.getByLabel('F10 인계 대상 범위').selectOption('visible');
+ await partial.waitFor({state:'detached'});
+ // This per-item checklist is intentionally not written to IndexedDB.
+
  assert.deepEqual(requests,[],'offline local operations must not initiate HTTP requests');
  assert.deepEqual(errors,[]);
  console.log('PASS local camera, local save, rule lookup, export, quota failure and retry without HTTP requests');
