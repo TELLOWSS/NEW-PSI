@@ -754,6 +754,13 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [singleDraftMessage,setSingleDraftMessage]=useState('');
  const [unfinishedBusy,setUnfinishedBusy]=useState(false);
  const [unfinishedReviewConfirmed,setUnfinishedReviewConfirmed]=useState(false);
+ // Local-only proof that a reselected downloaded file matches the exported blob.
+ const [emergencyExport,setEmergencyExport]=useState<{
+  sha256:string;inputFields:string;photo:File|null;singleEdit:CameraEditEvidence|undefined;
+  singleDraft:SinglePhotoDraft|null;sequence:PhotoSetDraft|null;filename:string;
+ }|null>(null);
+ const [emergencyCheck,setEmergencyCheck]=useState<'unverified'|'checking'|'verified'|'mismatch'|'error'>('unverified');
+ const [emergencyCheckMessage,setEmergencyCheckMessage]=useState('');
  const [unfinishedMessage,setUnfinishedMessage]=useState('');
  const [recoveryScanBusy,setRecoveryScanBusy]=useState(false);
  const [recoveryScanMessage,setRecoveryScanMessage]=useState('');
@@ -807,6 +814,13 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   ?recheckRecordIds.has(row.id)
   :matchesLocalFollowupRecordFilter(row,filter));
  const liveInput={note,action,photoRole,siteContext:siteContextInput};
+ const emergencyExportStale=Boolean(emergencyExport&&(
+  emergencyExport.inputFields!==localInputDraftFields(liveInput)||
+  emergencyExport.photo!==photo||
+  emergencyExport.singleEdit!==singlePhotoEdit||
+  emergencyExport.singleDraft!==singleDraftRef.current||
+  emergencyExport.sequence!==draftRef.current
+ ));
  const inputPending=inputDraftState==='ready'&&(
   inputDraftRef.current
    ?localInputDraftFields(inputDraftRef.current)!==localInputDraftFields(liveInput)
@@ -1513,6 +1527,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const backupUnfinished=async()=>{
   if(flight.current||busy||unfinishedBusy)return;
   setUnfinishedBusy(true);setUnfinishedMessage('');
+  setEmergencyExport(null);setEmergencyCheck('unverified');setEmergencyCheckMessage('');
   try{
    const fields={note,action,photoRole,siteContext:siteContextInput};
    const input:LocalInputDraft|null=localInputDraftHasContent(fields)
@@ -1530,10 +1545,36 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    }else if(singleDraftRef.current)single=singleDraftRef.current;
    const sequence=draftRef.current||null;
    const exported=await packUnfinishedBackup({input,single,sequence});
-   download(exported,'PSI-unfinished-recovery-'+new Date().toISOString().slice(0,10)+'.json');
+   const sha256=await hash(new File([exported],'checkpoint.json',{type:'application/json'}));
+   if(!sha256)throw new Error('백업 파일의 비교값 계산에 실패했습니다.');
+   const filename='PSI-unfinished-recovery-'+new Date().toISOString().slice(0,10)+'.json';
+   setEmergencyExport({sha256,inputFields:localInputDraftFields(fields),photo,singleEdit:singlePhotoEdit,
+    singleDraft:singleDraftRef.current,sequence:draftRef.current,filename});
+   download(exported,filename);
    setUnfinishedMessage('작성 중 자료 통합 백업 파일 내려받기를 요청했습니다. 실제 저장된 JSON 파일을 확인하고 기기 밖의 안전한 장소에 보관하세요. 파일은 암호화되지 않았습니다. 작성 중 기록을 삭제하거나 완료 처리하지 않았습니다.');
   }catch(error){
    setUnfinishedMessage(error instanceof Error?error.message:'통합 백업을 만들지 못했습니다. 사진과 입력을 각각 별도 보관해 주세요.');
+  }finally{setUnfinishedBusy(false);}
+ };
+ // Read-only: never writes IndexedDB or calls a network API.
+ const checkDownloadedEmergencyBackup=async(file:File)=>{
+  if(flight.current||busy||unfinishedBusy||!emergencyExport)return;
+  setUnfinishedBusy(true);setEmergencyCheck('checking');setEmergencyCheckMessage('');
+  try{
+   if(file.size<1||file.size>50*1024*1024)throw new Error('50MB 이하 JSON 백업을 선택하세요.');
+   const checked=await unpackUnfinishedBackup(file);
+   if(checked.integrityLevel!=='full')throw new Error('점검 내용까지 검증되는 최신 형식의 백업을 선택하세요.');
+   const digest=await hash(file);
+   if(!digest||digest!==emergencyExport.sha256){
+    setEmergencyCheck('mismatch');
+    setEmergencyCheckMessage('선택한 파일이 이번 화면에서 요청한 백업과 다릅니다. 기존 파일을 보관하고 해당 백업을 다시 선택하세요.');
+    return;
+   }
+   setEmergencyCheck('verified');
+   setEmergencyCheckMessage('저장된 파일을 다시 선택해 읽었으며 이번 백업과 파일 내용이 일치합니다.');
+  }catch(error){
+   setEmergencyCheck('error');
+   setEmergencyCheckMessage(error instanceof Error?error.message:'백업 파일을 확인하지 못했습니다.');
   }finally{setUnfinishedBusy(false);}
  };
  const previewUnfinished=async(file:File)=>{
@@ -1743,7 +1784,16 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
       <h4>1. 현재 화면 먼저 백업</h4>
       <p>아직 기기에 저장되지 않은 사진과 작성 중인 내용까지 한 파일로 보관합니다.</p>
       <button type="button" className="si-btn" style={{minHeight:44}} disabled={busy||unfinishedBusy||draftState==='loading'||singleDraftState==='loading'||inputDraftState==='loading'} onClick={()=>void backupUnfinished()}>작성 중 자료 한 번에 백업</button>
-      <p>다운로드가 시작돼도 저장 완료로 확정하지 않습니다. 파일 앱에서 JSON 파일이 실제로 내려받아졌는지 확인하세요.</p>
+      <p>다운로드가 시작돼도 파일 보관이 완료된 것은 아닙니다. 파일 앱에서 저장된 JSON을 다시 선택해 확인하세요.</p>
+      {emergencyExport&&<div aria-label="실제 내려받은 백업 파일 확인" className="rounded-lg border border-slate-300 p-3">
+       <p><strong>내려받은 파일 다시 확인</strong> · 예상 파일명: {emergencyExport.filename}</p>
+       <label>저장한 JSON 백업 파일 다시 선택<input type="file" aria-label="저장한 JSON 백업 파일 다시 선택" accept=".json,application/json" disabled={busy||unfinishedBusy} onChange={e=>{const selected=e.target.files?.[0];e.target.value='';if(selected)void checkDownloadedEmergencyBackup(selected);}}/></label>
+       {emergencyCheck==='checking'&&<p role="status">백업 파일을 검사 중…</p>}
+       {emergencyCheckMessage&&<p role={emergencyCheck==='verified'&&!emergencyExportStale?'status':'alert'}>{emergencyCheckMessage}</p>}
+       {emergencyCheck==='verified'&&!emergencyExportStale&&<p role="status">이번 화면 백업 파일 재선택 검사 통과. 필요한 경우 기기 밖에도 보관하세요.</p>}
+       {emergencyExportStale&&<p role="alert">백업 이후 점검 내용이나 사진이 변경됐습니다. 최신 내용을 보관하려면 새 백업을 내려받아 다시 검사하세요.</p>}
+       <p>파일 재선택은 외부 보관을 보증하지 않습니다. 백업은 암호화되지 않았으며 작성자 신원·법적 원본성을 증명하지 않습니다.</p>
+      </div>}
      </li>
      <li className="rounded-lg border border-slate-300 p-3">
       <h4>2. 기기에 남은 기록 확인</h4>
