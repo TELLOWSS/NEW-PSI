@@ -129,10 +129,10 @@ try{
   ['내용 입력으로 이동','#si-local-inspection-note'],
   ['저장 단계로 이동','#si-local-inspection-save'],
  ])assert.equal(await firstSteps.getByRole('link',{name}).getAttribute('href'),href);
- assert.equal(await b.locator('#si-unfinished-recovery').evaluate(el=>el.open),false,
+ assert.equal(await b.locator('#si-unfinished-recovery details').first().evaluate(el=>el.open),false,
   'long recovery tools should not obscure ordinary field entry');
  await b.getByText('작성 중 기록 백업·복구 (필요할 때 열기)',{exact:true}).click();
- assert.equal(await b.locator('#si-unfinished-recovery').evaluate(el=>el.open),true);
+ assert.equal(await b.locator('#si-unfinished-recovery details').first().evaluate(el=>el.open),true);
  const recoveryPanel=b.getByRole('region',{name:'작성 중 자료 긴급 백업과 복구'});
  await recoveryPanel.getByText('1. 현재 화면 먼저 백업').waitFor();
  await recoveryPanel.getByText('2. 기기에 남은 기록 확인').waitFor();
