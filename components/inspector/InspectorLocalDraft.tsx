@@ -998,7 +998,16 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     inputDraftRef.current=null;setInputSavedAt('');
    draftRef.current=null;setDraft(null);setPhoto(null);setSinglePhotoEdit(undefined);setSinglePhotoSource(null);setPhotoRole('unspecified');setSiteContextInput(EMPTY_FIELD_CONTEXT);setNote('');setAction('');setMessage(record.sha256?'기기에 저장했습니다. 서버에는 전송하지 않았습니다.':'기기에 저장했습니다. 파일 해시는 확인하지 못했습니다.');
    await refresh();
-  }catch(error){setMessage(inputConflict?'다른 탭의 임시 기록이 변경되어 현재 점검을 저장하지 않았습니다. 입력과 사진은 유지됩니다.':'저장 공간이 부족하거나 저장이 중단됐습니다. 사진과 입력을 보존한 뒤 다시 시도하세요.');if(inputConflict)setInputDraftState('conflict');}
+  }catch(error){
+   setMessage(inputConflict
+    ?'다른 탭의 임시 기록이 변경되어 현재 점검을 저장하지 않았습니다. 입력과 사진은 유지됩니다.'
+    :error instanceof DOMException&&error.name==='QuotaExceededError'
+     ?'저장 공간이 부족합니다. 사진과 입력을 보존한 뒤 저장공간을 확인하고 다시 시도하세요.'
+     :error instanceof Error&&!(error instanceof DOMException)&&error.message
+      ?error.message
+      :'기기 저장이 중단됐습니다. 입력과 사진을 유지합니다. 다시 시도하세요.');
+   if(inputConflict)setInputDraftState('conflict');
+  }
   finally{flight.current=false;setBusy(false);}
  };
  const saveFieldContext=async(row:LocalRecord,next:FieldContext|null,reason:string):Promise<boolean>=>{
