@@ -3,9 +3,9 @@ import {chromium} from 'playwright';
 import {readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 
-const base='http://127.0.0.1:3063';
+const base='http://127.0.0.1:3057';
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a8sAAAAASUVORK5CYII=','base64');
-const server=await preview({preview:{host:'127.0.0.1',port:3063,strictPort:true}});
+const server=await preview({preview:{host:'127.0.0.1',port:3057,strictPort:true}});
 const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
 const pageErrors=[];
 try{
@@ -13,7 +13,13 @@ try{
   const page=await context.newPage();
   page.on('pageerror',err=>pageErrors.push(err.message));
   await page.goto(base+'/?mode=photo-inspector',{waitUntil:'networkidle'});
-  await page.getByRole('heading',{name:'사진만 찍어도 점검을 시작할 수 있습니다'}).waitFor();
+  await page.getByRole('heading',{name:'사진만 찍어도 점검을 시작할 수 있습니다'}).waitFor({timeout:15000}).catch(async error=>{
+   console.error('UNFINISHED_QA_ENTRY_DIAGNOSTIC',JSON.stringify({
+    url:page.url(),title:await page.title(),body:(await page.locator('body').innerText()).slice(0,1000),
+    errors:pageErrors.slice(-4),
+   }));
+   throw error;
+  });
   await page.getByText('통신 없이 기기에서 직접 점검',{exact:true}).click();
   const panel=page.getByRole('region',{name:'기기 직접 점검'});
   await panel.getByLabel('기기 점검 사진 선택').waitFor();
