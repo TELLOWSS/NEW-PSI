@@ -531,6 +531,26 @@ try{
  assert.equal(batchData.records.length,2);
  assert.ok(batchData.records.some(r=>r.record.followup?.temporaryMeasure==='위험 구역 출입 통제 및 안내 표지 유지'));
  await panel.getByText('백업 제외 1건:',{exact:false}).waitFor();
+ // F08-37: another tab changes the record after it is displayed, but before
+ // the user confirms deletion. That newer record must survive unchanged.
+ const staleRecordId=batchData.records.find(entry=>entry.record.followup?.temporaryMeasure==='위험 구역 출입 통제 및 안내 표지 유지').record.id;
+ await page.evaluate(async id=>{
+  const db=await new Promise((resolve,reject)=>{const request=indexedDB.open('psi-inspector-local-records',1);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
+  const tx=db.transaction('records','readwrite'),store=tx.objectStore('records');
+  const req=store.get(id);
+  req.onsuccess=()=>store.put({...req.result,action:(req.result.action||'')+' · 합성 타 탭 변경'});
+  await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);});db.close();
+ },staleRecordId);
+ page.once('dialog',d=>d.accept());await batchFirst.getByRole('button',{name:'이 기기 기록 삭제'}).click();
+ await panel.getByText('다른 탭에서 점검이 변경되었거나 기록을 찾지 못해 삭제하지 않았습니다.',{exact:false}).waitFor();
+ await panel.getByText('이 브라우저에 보관된 점검 3건').waitFor();
+ const survived=await page.evaluate(async id=>{
+  const db=await new Promise((resolve,reject)=>{const req=indexedDB.open('psi-inspector-local-records',1);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
+  const tx=db.transaction('records','readonly'),req=tx.objectStore('records').get(id);
+  const result=await new Promise((resolve,reject)=>{req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});db.close();return result?.action||'';
+ },staleRecordId);
+ assert.match(survived,/합성 타 탭 변경/,'stale delete must not erase newer cross-tab writes');
+ // The refreshed record is now the user's explicit deletion target.
  page.once('dialog',d=>d.accept());await batchFirst.getByRole('button',{name:'이 기기 기록 삭제'}).click();
  await panel.getByText('이 브라우저에 보관된 점검 2건').waitFor();
  page.once('dialog',d=>d.accept());await batchSecond.getByRole('button',{name:'이 기기 기록 삭제'}).click();
