@@ -1805,7 +1805,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
        <label>저장한 JSON 백업 파일 다시 선택<input ref={emergencyFileInputRef} type="file" aria-label="저장한 JSON 백업 파일 다시 선택" accept=".json,application/json" style={{display:"block",width:"100%",maxWidth:"100%",minHeight:44}} disabled={busy||unfinishedBusy} onChange={e=>{const selected=e.target.files?.[0];e.target.value='';if(selected)void checkDownloadedEmergencyBackup(selected);}}/></label>
        {emergencyCheck==='checking'&&<p role="status">백업 파일을 검사 중…</p>}
        {(emergencyCheck==='mismatch'||emergencyCheck==='error')&&!emergencyExportStale&&<button type="button" className="si-btn" style={{minHeight:44,width:'100%'}} disabled={busy||unfinishedBusy} onClick={()=>emergencyFileInputRef.current?.click()}>다른 JSON 파일 다시 선택</button>}
-       {emergencyExportStale&&<button type="button" className="si-btn si-primary" style={{minHeight:44,width:'100%'}} disabled={busy||unfinishedBusy} onClick={()=>void backupUnfinished()}>변경 내용 새 백업</button>
+       {emergencyExportStale&&<button type="button" className="si-btn si-primary" style={{minHeight:44,width:'100%'}} disabled={busy||unfinishedBusy} onClick={()=>void backupUnfinished()}>변경 내용 새 백업</button>}
        {emergencyCheckMessage&&<p role={emergencyCheck==='verified'&&!emergencyExportStale?'status':'alert'}>{emergencyCheckMessage}</p>}
        {emergencyCheck==='verified'&&!emergencyExportStale&&<p role="status">이번 화면 백업 파일 재선택 검사 통과. 필요한 경우 기기 밖에도 보관하세요.</p>}
        {emergencyExportStale&&<p role="alert">백업 이후 점검 내용이나 사진이 변경됐습니다. 최신 내용을 보관하려면 새 백업을 내려받아 다시 검사하세요.</p>}
