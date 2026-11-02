@@ -173,6 +173,45 @@ try{
  assert.equal(storedData.version,2);
  assert.equal(storedData.input.note,'합성 임시 점검 · 저장 공간 부족');
  assert.equal(storedData.single.photo.name,'quota-photo.png');
+ // F08-46: existing stored records are continued in place, not reimported.
+ const continueButton=b.getByRole('button',{name:'기존 점검 안전하게 이어쓰기'});
+ await continueButton.waitFor();
+ assert.equal(await continueButton.isDisabled(),false);
+ await continueButton.click();
+ await b.getByText('현재 기기 임시기록과 화면에 불러온 자료를 다시 확인했습니다.',{exact:false}).waitFor();
+ assert.equal(await b.getByLabel('직접 확인한 내용').evaluate(el=>el===document.activeElement),true,
+  'safe continuation should focus existing unsaved inspection without modifying storage');
+ assert.equal((await readSaved(two,'psi-local-inspection-input-draft-v1')).note,'합성 임시 점검 · 저장 공간 부족');
+ // A concurrent tab changes the stored note while the current form remains
+ // unchanged. Continuation must refuse to affirm an out-of-date screen.
+ await two.evaluate(()=>new Promise((resolve,reject)=>{
+  const req=indexedDB.open('psi-inspector-local-records',1);
+  req.onerror=()=>reject(req.error);
+  req.onsuccess=()=>{
+   const db=req.result,tx=db.transaction('records','readwrite'),st=tx.objectStore('records');
+   const g=st.get('psi-local-inspection-input-draft-v1');
+   g.onsuccess=()=>{
+    window.__resumePriorInput=g.result;
+    st.put({...g.result,revision:crypto.randomUUID(),note:'other-tab-updated-original'});
+   };
+   tx.oncomplete=()=>{db.close();resolve(true);};tx.onabort=()=>reject(tx.error);
+  };
+ }));
+ await continueButton.click();
+ await b.getByText('현재 화면과 기기에 보관된 점검 입력이 다릅니다.',{exact:false}).waitFor();
+ assert.equal((await readSaved(two,'psi-local-inspection-input-draft-v1')).note,'other-tab-updated-original');
+ assert.equal(await b.getByLabel('직접 확인한 내용').inputValue(),'합성 임시 점검 · 저장 공간 부족');
+ // Test harness restores its synthetic other-tab edit only. Application
+ // never deletes or overwrites anything during continuation.
+ await two.evaluate(()=>new Promise((resolve,reject)=>{
+  const req=indexedDB.open('psi-inspector-local-records',1);
+  req.onerror=()=>reject(req.error);
+  req.onsuccess=()=>{
+   const db=req.result,tx=db.transaction('records','readwrite');
+   tx.objectStore('records').put(window.__resumePriorInput);
+   tx.oncomplete=()=>{db.close();resolve(true);};tx.onabort=()=>reject(tx.error);
+  };
+ }));
  await b.getByAltText('기기 점검에 선택한 사진').waitFor();
  await b.getByText('이 브라우저에 보관된 점검 0건').waitFor();
  // Import the same file again. The screen is not blank; previous state survives.
