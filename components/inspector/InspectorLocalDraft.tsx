@@ -1827,7 +1827,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     {inputDraftState==='ready'&&<p role="status">점검 내용·현장정보는 이 브라우저에 임시저장됩니다. {inputPending?'현재 입력 임시저장 대기 중 · 저장 완료 표기가 나오기 전에는 화면을 닫지 마세요.':inputSavedAt?'최근 임시저장: '+new Date(inputSavedAt).toLocaleString('ko-KR'):'아직 저장된 입력이 없습니다.'} 연속 촬영 사진과 단건 선택 사진은 각각 임시보관됩니다. 브라우저 데이터 삭제·기기 분실에 대비해 별도로 백업하세요.</p>}
     {inputDraftState==='error'&&<div role="alert" aria-label="입력 저장 오류 복구 도우미" className="rounded-lg border border-amber-400 p-3">
      <strong>입력 저장 확인 실패 · 현재 화면은 유지 중</strong>
-     <p>기기 저장본의 상태가 확실하지 않습니다. 완료 처리하거나 기록을 자동 삭제하지 않습니다. 아래 순서대로 확인하세요.</p>
+     <p>임시 입력을 저장하거나 저장 후 내용 확인에 실패했습니다. 기기 저장본의 상태가 확실하지 않습니다. 완료 처리하거나 기록을 자동 삭제하지 않습니다. 아래 순서대로 확인하세요.</p>
      <p>1. 지금 보이는 점검 내용과 사진을 먼저 파일로 보관하세요. 파일 앱에서 실제 다운로드 여부를 확인하세요.</p>
      <button type="button" className="si-btn" style={{minHeight:44}} disabled={busy||unfinishedBusy} onClick={()=>void backupUnfinished()}>입력·사진 긴급 백업</button>
      <p>2. 기기에 남아 있는 임시기록을 읽기 전용으로 확인하세요. 현재 화면의 새 입력과 저장본이 다를 수 있습니다.</p>
