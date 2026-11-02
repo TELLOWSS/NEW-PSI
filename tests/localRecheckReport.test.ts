@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest';
 import {
-  buildLocalRecheckReport,selectLocalRecheckReportTargets,
+  buildLocalRecheckReport,selectLocalRecheckReportTargets,matchesLocalFollowupRecordFilter,
   formatLocalRecheckCsv,formatLocalRecheckPrintHtml,
   f10CsvCell,F10_LOCAL_REPORT_LIMIT,
 } from '../lib/inspector/localRecheckReport.mjs';
@@ -115,4 +115,51 @@ describe('PSI F10 local-only management report',()=>{
     const report=buildLocalRecheckReport(buildLocalRecheckQueue([unnamed],now),[unnamed],{generatedAt:now});
     expect(report.entries[0].site).toBe('현장정보 미기록');
   });
+  it('does not turn legacy records without follow-ups into unassigned work',()=>{
+    const at=new Date(2026,10,2,12);
+    const legacy={id:'old',note:'이전 사진 점검',additionalActions:[{id:'a',title:'과거 설명'}]};
+    const done={id:'done',note:'기록상 확인 완료',followup:{
+      status:'verified',assignee:'',dueDate:'',temporaryMeasure:'',history:[],
+    }};
+    const missing={id:'missing',note:'담당자 지정과 기한 수립 필요',followup:{
+      status:'pending',assignee:'  ',dueDate:'',temporaryMeasure:'',history:[],
+    }};
+    const overdue={id:'overdue',note:'미조치 작업',followup:{
+      status:'in_progress',assignee:'담당 지정',dueDate:'2026-10-30',temporaryMeasure:'',history:[],
+    }};
+    const malformed={id:'malformed',note:'구형 데이터 검토',followup:{
+      status:'pending',assignee:'담당 지정',dueDate:'2026-02-30',temporaryMeasure:'',history:[],
+    }};
+    const review={id:'review',note:'최종 확인 요청',followup:{
+      status:'review_requested',assignee:'담당 지정',dueDate:'2026-11-09',temporaryMeasure:'',history:[],
+    }};
+    const records=[legacy,done,missing,overdue,malformed,review];
+    const original=JSON.stringify(records);
+    const matches=(filter:string)=>records.filter(record=>matchesLocalFollowupRecordFilter(record,filter,at)).map(row=>row.id);
+    expect(matches('unassigned')).toEqual(['missing']);
+    expect(matches('no_due')).toEqual(['missing']);
+    expect(matches('overdue')).toEqual(['overdue']);
+    expect(matches('review')).toEqual(['review']);
+    expect(matches('all')).toEqual(records.map(row=>row.id));
+    const queue=buildLocalRecheckQueue(records,at);
+    expect(selectLocalRecheckReportTargets(records,queue,'unassigned','visible',at).map(x=>x.recordId)).toEqual(['missing']);
+    expect(selectLocalRecheckReportTargets(records,queue,'no_due','visible',at).map(x=>x.recordId)).toEqual(['missing']);
+    expect(selectLocalRecheckReportTargets(records,queue,'overdue','visible',at).map(x=>x.recordId)).toEqual(['overdue']);
+    expect(selectLocalRecheckReportTargets(records,queue,'review','visible',at).map(x=>x.recordId)).toEqual(['review']);
+    expect(JSON.stringify(records)).toBe(original);
+  });
+  it('retains independent actions in an explicitly visible inspection without claiming verification',()=>{
+    const at=new Date(2026,10,2,12);
+    const record={id:'separate-actions',note:'복수 조치 대상',additionalActions:[
+      {id:'missing-owner',title:'발판 고정',followup:{status:'pending',assignee:'',dueDate:'',history:[]}},
+      {id:'already-verified',title:'통제선 확인',followup:{status:'verified',assignee:'',dueDate:'',history:[]}},
+    ]};
+    expect(matchesLocalFollowupRecordFilter(record,'unassigned',at)).toBe(true);
+    const queue=buildLocalRecheckQueue([record],at);
+    const visible=selectLocalRecheckReportTargets([record],queue,'unassigned','visible',at);
+    expect(visible).toHaveLength(2); // Record-level visibility, not proof both tasks are open.
+    expect(visible.map(x=>x.bucket)).toEqual(['unscheduled','verified']);
+    expect(visible.every(x=>x.recordId==='separate-actions')).toBe(true);
+  });
+
 });
