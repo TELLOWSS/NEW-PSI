@@ -1748,7 +1748,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
          <p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>점검자 관찰 내용: {unfinishedPreview.input?.note||'미작성'}</p>
          <p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>조치·확인 계획: {unfinishedPreview.input?.action||'미작성'}</p>
          {unfinishedPreview.single&&<UnfinishedBackupPhotoPreview file={unfinishedPreview.single.photo} label="단건 사진"/>}
-         {unfinishedPreview.sequence?.photos.map((file,index)=><UnfinishedBackupPhotoPreview key={index} file={file} label={'연속 사진 '+(index+1)}/>)}
+         {unfinishedPreview.sequence?.photos.map((file,index)=><div key={index}><UnfinishedBackupPhotoPreview file={file} label={'연속 사진 '+(index+1)}/></div>)}
          <p>위 내용은 검사된 백업 파일에 담긴 자료이며, 아직 기기에 복원되지 않았습니다. 작성자 신원·법적 진본성 또는 안전조치 완료를 증명하지 않습니다.</p>
         </div>
        </details>
