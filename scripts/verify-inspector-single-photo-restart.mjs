@@ -59,6 +59,7 @@ try{
  await panel.getByLabel('직접 확인한 내용').fill('합성 단건 사진 재실행 복구 확인');
  await panel.getByLabel('현장 조치·확인 계획').fill('접근 통제와 확인 필요');
  await panel.getByLabel('층').fill('16F');
+ await panel.getByText('현재 입력 임시저장 대기 중',{exact:false}).waitFor();
  await page.evaluate(()=>{
   window.__abortFinalOldDelete=IDBObjectStore.prototype.delete;
   IDBObjectStore.prototype.delete=function(key){
@@ -158,6 +159,13 @@ try{
  await panel.getByRole('button',{name:'선택 사진 임시저장 다시 시도'}).click();
  await panel.getByText('선택 사진 임시저장 확인됨',{exact:false}).waitFor();
  assert.equal((await read(singleId)).photo.name,'quota-failure.png');
+ // Explicitly discard only the selected single-photo checkpoint, not the
+ // previously committed inspection, without guessing which photo to delete.
+ page.once('dialog',dialog=>dialog.accept());
+ await panel.getByRole('button',{name:'단건 임시사진만 삭제'}).click();
+ await panel.getByText('단건 임시사진만 삭제했습니다.',{exact:false}).waitFor();
+ assert.equal(await read(singleId),null,'manual discard should remove only the single-photo checkpoint');
+ await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
  assert.deepEqual(errors,[],'no uncaught browser exceptions');
  console.log('PASS single photo file selection, full reload, SHA-256, final save cleanup, cross-tab conflict and quota retry');
  await context.close();
