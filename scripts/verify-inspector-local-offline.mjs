@@ -15,6 +15,51 @@ try{
  await page.getByRole('heading',{name:'사진만 찍어도 점검을 시작할 수 있습니다'}).waitFor();
  await page.getByText('통신 없이 기기에서 직접 점검',{exact:true}).click();
  const panel=page.getByRole('region',{name:'기기 직접 점검'});
+ // F08-38: a text-only inspection is automatically checkpointed in IndexedDB.
+ // Restart the entire React page and prove recovery before offline camera QA.
+ await panel.getByLabel('현장명').fill('합성 임시저장 현장');
+ await panel.getByLabel('직접 확인한 내용').fill('F08 재실행 후 이어쓰기 합성 시험');
+ await panel.getByLabel('현장 조치·확인 계획').fill('통제 유지 및 담당자 확인');
+ await panel.getByText('최근 임시저장:',{exact:false}).waitFor();
+ const checkpoint=await page.evaluate(()=>new Promise((resolve,reject)=>{
+  const open=indexedDB.open('psi-inspector-local-records',1);
+  open.onerror=()=>reject(open.error);
+  open.onsuccess=()=>{
+   const db=open.result,tx=db.transaction('records','readonly'),req=tx.objectStore('records').get('psi-local-inspection-input-draft-v1');
+   req.onsuccess=()=>resolve(req.result);tx.oncomplete=()=>db.close();
+  };
+ }));
+ assert.equal(checkpoint.note,'F08 재실행 후 이어쓰기 합성 시험');
+ assert.equal(checkpoint.siteContext.site,'합성 임시저장 현장');
+ await page.reload({waitUntil:'networkidle'});
+ await page.getByText('통신 없이 기기에서 직접 점검',{exact:true}).click();
+ await panel.getByLabel('직접 확인한 내용').waitFor();
+ await panel.getByText('최근 임시저장:',{exact:false}).waitFor();
+ assert.equal(await panel.getByLabel('직접 확인한 내용').inputValue(),'F08 재실행 후 이어쓰기 합성 시험');
+ assert.equal(await panel.getByLabel('현장명').inputValue(),'합성 임시저장 현장');
+ assert.equal(await panel.getByLabel('현장 조치·확인 계획').inputValue(),'통제 유지 및 담당자 확인');
+ await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
+ // Simulate a different tab committing a newer input checkpoint.
+ await page.evaluate(()=>new Promise((resolve,reject)=>{
+  const open=indexedDB.open('psi-inspector-local-records',1);
+  open.onerror=()=>reject(open.error);
+  open.onsuccess=()=>{
+   const db=open.result,tx=db.transaction('records','readwrite'),store=tx.objectStore('records'),req=store.get('psi-local-inspection-input-draft-v1');
+   req.onsuccess=()=>store.put({...req.result,revision:crypto.randomUUID(),note:'다른 탭 최신 합성 입력'});
+   tx.oncomplete=()=>{db.close();resolve(true);};tx.onabort=()=>reject(tx.error);
+  };
+ }));
+ await panel.getByLabel('직접 확인한 내용').fill('내 탭의 오래된 입력 수정');
+ await panel.getByText('다른 탭의 임시 입력이 변경되어 덮어쓰지 않았습니다.',{exact:false}).waitFor();
+ page.once('dialog',dialog=>dialog.accept());
+ await panel.getByRole('button',{name:'기기 임시 입력 다시 불러오기'}).click();
+ await panel.getByText('최근 임시저장:',{exact:false}).waitFor();
+ assert.equal(await panel.getByLabel('직접 확인한 내용').inputValue(),'다른 탭 최신 합성 입력');
+ // Clearing fields removes only the reserved text checkpoint, never a saved inspection.
+ await panel.getByLabel('현장명').fill('');
+ await panel.getByLabel('직접 확인한 내용').fill('');
+ await panel.getByLabel('현장 조치·확인 계획').fill('');
+ await panel.getByText('아직 저장된 입력이 없습니다.',{exact:false}).waitFor();
  await context.setOffline(true);
  page.on('request',request=>{if(/^https?:/.test(request.url()))requests.push({url:request.url(),type:request.resourceType(),method:request.method(),phase:globalThis.__testPhase});});
  globalThis.__testPhase='camera';
