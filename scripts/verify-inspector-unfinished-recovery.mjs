@@ -471,8 +471,59 @@ try{
   'copy textarea must track unsaved current-screen edits');
  await seventhContext.close();
 
+ // F08-55 A: a newly verified single photo should lead to the note, then
+ // the final-save confirmation appears ONLY after an actual IndexedDB readback.
+ const eighthContext=await browser.newContext({viewport:{width:390,height:844},acceptDownloads:true});
+ const {page:eight,panel:i}=await open(eighthContext);
+ await i.getByLabel('기기 점검 사진 선택').setInputFiles({
+  name:'verified-55.png',mimeType:'image/png',buffer:png,
+ });
+ await i.getByText('선택 사진 임시저장 확인됨',{exact:false}).waitFor();
+ await eight.waitForFunction(()=>document.activeElement?.getAttribute('aria-label')==='직접 확인한 내용');
+ assert.equal(await i.getByLabel('직접 확인한 내용').inputValue(),'');
+ await i.getByLabel('직접 확인한 내용').fill('55차 합성 비계 발판 이격 관찰');
+ await i.getByLabel('현장 조치·확인 계획').fill('접근 통제 후 담당자 확인, 즉시 완료 아님');
+ await i.getByText('현장 조치·확인 계획은 앞으로 수행하거나 확인할 일입니다.',{exact:false}).waitFor();
+ assert.equal(await i.getByText('기기 저장 후 기록·사진 재검사 완료',{exact:false}).count(),0,
+  'an unsaved form cannot show final verified status');
+ await i.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
+ await i.getByText('기기 저장 후 기록·사진 재검사 완료',{exact:false}).waitFor();
+ await i.getByText('이 브라우저에 보관된 점검 1건').waitFor();
+ await i.getByText('조치 계획의 작성은 실제 조치 완료를 의미하지 않습니다.',{exact:false}).waitFor();
+ assert.equal(await i.getByLabel('직접 확인한 내용').inputValue(),'');
+ await eighthContext.close();
+
+ // F08-55 B: corrupt the final record *inside* the successful write so that
+ // transaction completion cannot incorrectly produce a success state.
+ const ninthContext=await browser.newContext({viewport:{width:390,height:844},acceptDownloads:true});
+ const {page:nine,panel:j}=await open(ninthContext);
+ await j.getByLabel('기기 점검 사진 선택').setInputFiles({
+  name:'tampered-final.png',mimeType:'image/png',buffer:png,
+ });
+ await j.getByText('선택 사진 임시저장 확인됨',{exact:false}).waitFor();
+ await j.getByLabel('직접 확인한 내용').fill('55차 합성 최종 저장 검증 실패');
+ await j.getByLabel('현장 조치·확인 계획').fill('저장 결과 미확인 시 현장 점검 보존');
+ await nine.evaluate(()=>{
+  window.__originalFinalAdd=IDBObjectStore.prototype.add;
+  IDBObjectStore.prototype.add=function(value,...args){
+   if(value?.note==='55차 합성 최종 저장 검증 실패'){
+    return window.__originalFinalAdd.call(this,{...value,note:'합성 저장 중 변경된 다른 문구'},...args);
+   }
+   return window.__originalFinalAdd.call(this,value,...args);
+  };
+ });
+ await j.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
+ await j.getByText('점검 기록의 저장 후 재검증에 실패했습니다.',{exact:false}).waitFor();
+ await j.getByText('최종 저장 결과를 확인하지 못했습니다.',{exact:false}).waitFor();
+ assert.equal(await j.getByLabel('직접 확인한 내용').inputValue(),'55차 합성 최종 저장 검증 실패');
+ await j.getByAltText('기기 점검에 선택한 사진').waitFor();
+ assert.equal(await j.getByText('기기 저장 후 기록·사진 재검사 완료',{exact:false}).count(),0,
+  'tampered final record must never be reported as verified');
+ await nine.evaluate(()=>{IDBObjectStore.prototype.add=window.__originalFinalAdd;});
+ await ninthContext.close();
+
  assert.equal(pageErrors.length,0,'no uncaught browser exceptions');
- console.log('PASS F08 unified backup: quota failure, tamper, atomic no-overwrite, real persisted-byte readback, mobile pagehide checkpoint, same-revision persisted-input mismatch, content-aware no-overwrite CAS, downloaded-file recheck, text-only clipboard-denied mobile rescue, novice three-step flow and collapsed recovery, final commit');
+ console.log('PASS F08 unified backup: quota failure, tamper, atomic no-overwrite, real persisted-byte readback, mobile pagehide checkpoint, same-revision persisted-input mismatch, content-aware no-overwrite CAS, downloaded-file recheck, text-only clipboard-denied mobile rescue, novice flow, photo-to-note focus, durable final-save readback and tamper rejection, final commit');
 }finally{
  await browser.close();await server.close();
 }
