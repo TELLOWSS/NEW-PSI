@@ -1813,7 +1813,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
       <p>다운로드가 시작돼도 파일 보관이 완료된 것은 아닙니다. 파일 앱에서 저장된 JSON을 다시 선택해 확인하세요.</p>
       <details id="si-text-rescue" aria-label="점검 문구 비상 보존" className="rounded-lg border border-slate-300 p-3">
        <summary style={{minHeight:44,cursor:'pointer'}}>JSON 다운로드가 안 될 때 · 문구만 따로 보관</summary>
-       <p>현재 입력 중인 현장명·동·층·공종·관찰 내용·조치 계획만 표시합니다. **사진은 포함되지 않으며** 완료된 점검 기록도 아닙니다.</p>
+       <p>현재 입력 중인 현장명·동·층·공종·관찰 내용·조치 계획만 표시합니다. <strong>사진은 포함되지 않으며</strong> 완료된 점검 기록도 아닙니다.</p>
        <label>현재 화면의 점검 문구
         <textarea ref={textRescueTextareaRef} aria-label="점검 문구 비상 복사 원문" value={textRescueValue} readOnly rows={12} style={{display:'block',width:'100%',maxWidth:'100%',whiteSpace:'pre-wrap'}}/>
        </label>
