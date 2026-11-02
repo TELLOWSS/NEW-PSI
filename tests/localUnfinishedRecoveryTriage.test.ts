@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {diagnoseLocalUnfinishedSlots,LOCAL_RECOVERY_KEYS} from '../lib/inspector/localUnfinishedRecoveryTriage.mjs';
+import {diagnoseLocalUnfinishedSlots,LOCAL_RECOVERY_KEYS,unfinishedRestoreActionGate} from '../lib/inspector/localUnfinishedRecoveryTriage.mjs';
 import {LOCAL_INPUT_DRAFT_KEY} from '../lib/inspector/localInputDraft.mjs';
 import {SINGLE_PHOTO_DRAFT_KEY} from '../lib/inspector/localSinglePhotoDraft.mjs';
 
@@ -65,5 +65,30 @@ describe('F08-44 human-safe read-only local restore triage',()=>{
   }));
   expect(damaged.results[2].state).toBe('invalid');
   expect(damaged.canExportStored).toBe(false);
+ });
+});
+
+describe('F08-45 mobile recovery action gating',()=>{
+ it('requires file verification before a restore button becomes enabled',()=>{
+  expect(unfinishedRestoreActionGate({}).state).toBe('no-file');
+  expect(unfinishedRestoreActionGate({}).allowed).toBe(false);
+ });
+ it('blocks restore whenever user has unsaved photo, note, site or shot sequence',()=>{
+  const decision=unfinishedRestoreActionGate({verifiedBackup:true,hasActiveWork:true});
+  expect(decision.state).toBe('active-work');
+  expect(decision.allowed).toBe(false);
+  expect(decision.reason).toContain('기존 자료는 자동 삭제하지 않습니다');
+ });
+ it('blocks restore during loading, writing and concurrent diagnosis',()=>{
+  for(const flags of [{loading:true},{busy:true},{loading:true,busy:true}]){
+   expect(unfinishedRestoreActionGate({verifiedBackup:true,...flags}).state).toBe('busy');
+   expect(unfinishedRestoreActionGate({verifiedBackup:true,...flags}).allowed).toBe(false);
+  }
+ });
+ it('offers restore only for checked files on empty ready UI, while demanding transactional IDB check',()=>{
+  const decision=unfinishedRestoreActionGate({verifiedBackup:true});
+  expect(decision.allowed).toBe(true);
+  expect(decision.state).toBe('ready');
+  expect(decision.reason).toContain('3종');
  });
 });
