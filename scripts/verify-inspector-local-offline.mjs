@@ -271,6 +271,26 @@ try{
  await f10Handoff.getByRole('button',{name:'인계 문구 복사 (자동 전송 없음)'}).click();
  await f10Handoff.getByText('인계 문구를 기기 클립보드에 복사했습니다.',{exact:false}).waitFor();
  assert.equal(await page.evaluate(()=>window.__syntheticHandoffCopied),handoffText);
+ // F10-58: a prepared/exported/copied handoff NEVER means message sent or received.
+ const receiptGuide=f10Handoff.getByRole('region',{name:'F10 인계 수신·재점검 확인 순서'});
+ await receiptGuide.getByText('다음 확인: 별도 전달 사실 확인').waitFor();
+ const delivered=receiptGuide.getByRole('checkbox',{name:'인계 자료를 외부에서 직접 전달했음을 점검자가 확인'});
+ const received=receiptGuide.getByRole('checkbox',{name:'담당자의 실제 수신 회신을 점검자가 확인'});
+ assert.equal(await delivered.isChecked(),false);
+ assert.equal(await received.isDisabled(),true,'cannot mark acknowledgement before a self-reported external delivery');
+ await receiptGuide.getByRole('button',{name:'담당자에게 보낼 수신 확인 요청 문구 복사'}).click();
+ await receiptGuide.getByText('수신 확인 요청 문구를 복사했습니다.',{exact:false}).waitFor();
+ assert.match(await page.evaluate(()=>window.__syntheticHandoffCopied),/수신 여부를 회신해 주세요/);
+ assert.equal(await delivered.isChecked(),false,'copying a request cannot mark delivery');
+ assert.equal(await received.isChecked(),false,'copying a request cannot mark receipt');
+ await delivered.check();
+ await receiptGuide.getByText('다음 확인: 담당자 수신 회신 확인').waitFor();
+ await received.check();
+ await receiptGuide.getByText('다음 확인: 점검 항목별 재점검·조치 이력 기록').waitFor();
+ await receiptGuide.getByText('원본 점검기록이나 인계 증빙으로 저장되지 않습니다.',{exact:false}).waitFor();
+ assert.equal(await actionRow.getByText('확인 완료',{exact:true}).count()>0,true,'manual handoff checklist must not change preexisting action status');
+ await delivered.uncheck();
+ assert.equal(await received.isChecked(),false,'unchecking delivery must clear inferred receipt');
  await f10Handoff.getByLabel('F10 인계 대상 범위').selectOption('visible');
  await directCopy.waitFor({state:'detached'});
  await f10Handoff.getByText('인계 대상 1건 / 최대 40건',{exact:false}).waitFor();
