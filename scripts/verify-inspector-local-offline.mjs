@@ -50,7 +50,7 @@ try{
   };
  }));
  await panel.getByLabel('직접 확인한 내용').fill('내 탭의 오래된 입력 수정');
- await panel.getByText('다른 탭의 임시 입력이 변경되어 덮어쓰지 않았습니다.',{exact:false}).waitFor();
+ await panel.getByText('다른 탭의 변경 또는 저장 내용 불일치 감지',{exact:false}).waitFor();
  page.once('dialog',dialog=>dialog.accept());
  await panel.getByRole('button',{name:'기기 임시 입력 다시 불러오기'}).click();
  await panel.getByText('최근 임시저장:',{exact:false}).waitFor();
