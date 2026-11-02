@@ -8,6 +8,7 @@ import {buildLocalRecheckQueue,summarizeLocalRecheckQueue,LOCAL_RECHECK_BUCKETS,
 import {classifyLocalRestoreError,verifyLocalRestoreReadback} from '../../lib/inspector/localRestoreRecovery.mjs';
 import {localRecordMayDelete} from '../../lib/inspector/localRecordDeletionGuard.mjs';
 import {LOCAL_INPUT_DRAFT_KEY,validLocalInputDraft,localInputDraftFields,localInputDraftHasContent,localInputDraftCanReplace} from '../../lib/inspector/localInputDraft.mjs';
+import {SINGLE_PHOTO_DRAFT_KEY,validSinglePhotoDraft,singlePhotoDraftCanReplace,singlePhotoDraftMetadataMatches} from '../../lib/inspector/localSinglePhotoDraft.mjs';
 import {buildLocalRecheckReport,selectLocalRecheckReportTargets,matchesLocalFollowupRecordFilter,formatLocalRecheckCsv,formatLocalRecheckPrintHtml,F10_LOCAL_REPORT_LIMIT} from '../../lib/inspector/localRecheckReport.mjs';
 import {buildLocalRecheckProgress} from '../../lib/inspector/localRecheckProgress.mjs';
 import {buildLocalHandoffPlan,selectLocalHandoffTargets,formatLocalHandoffMessage,formatLocalHandoffHtml,handoffSourceSnapshot,F10_HANDOFF_MAX_ITEMS} from '../../lib/inspector/localRecheckHandoff.mjs';
@@ -163,6 +164,7 @@ type ContextHistory={photo:File;sha256:string;role:'overview'|'detail';replacedA
 type LocalRecord={rechecks?:Recheck[];photoEdits?:PhotoEdits;photoInputs?:PhotoInputs;siteContextHistory?:SiteContextChange[];siteContext?:FieldContext;primaryHistory?:AfterHistory[];afterHistory?:AfterHistory[];contextHistory?:ContextHistory[];contextDetached?:boolean;contextFirst?:boolean;photoRole?:PhotoRole;contextPhoto?:File;contextSha256?:string;contextRole?:'overview'|'detail';additionalActions?:AdditionalAction[];afterPhoto?:File;afterSha256?:string;followup?:Followup;id:string;createdAt:string;note:string;action:string;photo:File;sha256:string|null;legalVersion:string;reviewedAt:string};
 type PhotoSetDraft={id:string;kind:'photo-set-draft';revision:string;photos:File[];sources?:PhotoInput[];edits?:PhotoEdits};
 type LocalInputDraft={id:string;kind:'inspection-input-draft';revision:string;savedAt:string;note:string;action:string;photoRole:PhotoRole;siteContext:FieldContext};
+type SinglePhotoDraft={id:string;kind:'single-photo-draft';revision:string;savedAt:string;photo:File;sha256:string;source:PhotoInput['source'];edit:PhotoEdit|null};
 const DB='psi-inspector-local-records', STORE='records', DRAFT_KEY='psi-photo-set-draft-v1';
 function openRecords():Promise<IDBDatabase>{
  return new Promise((resolve,reject)=>{
@@ -226,7 +228,7 @@ async function buildEvidenceManifest(inspection:LocalRecord):Promise<EvidenceMan
  }
  return {format:'psi-local-photo-evidence-manifest',version:3,inspectionId:inspection.id,generatedAt:new Date().toISOString(),timeSource:'device-clock',scope:'stored-files-only',photos,checks:{matched:photos.filter(v=>v.check==='match').length,mismatch:photos.filter(v=>v.check==='mismatch').length,unrecorded:photos.filter(v=>v.check==='unrecorded').length,unavailable:photos.filter(v=>v.check==='unavailable').length,total:photos.length}};
 }
-const list=()=>runStore<LocalRecord[]>('readonly',(store,set)=>{const request=store.getAll();request.onsuccess=()=>set((request.result as LocalRecord[]).filter(item=>item.id!==DRAFT_KEY&&item.id!==LOCAL_INPUT_DRAFT_KEY).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));});
+const list=()=>runStore<LocalRecord[]>('readonly',(store,set)=>{const request=store.getAll();request.onsuccess=()=>set((request.result as LocalRecord[]).filter(item=>item.id!==DRAFT_KEY&&item.id!==LOCAL_INPUT_DRAFT_KEY&&item.id!==SINGLE_PHOTO_DRAFT_KEY).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));});
 function download(blob:Blob,name:string){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 function useReportDownloadUrl(reportAssetBlob:Blob|null){
  const [current,setCurrent]=useState<{blob:Blob;url:string}|null>(null);
@@ -734,6 +736,10 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [siteContextInput,setSiteContextInput]=useState<FieldContext>(EMPTY_FIELD_CONTEXT);
  const [sequence,setSequence]=useState(false),[draft,setDraft]=useState<PhotoSetDraft|null>(null),[draftState,setDraftState]=useState<'loading'|'ready'|'error'>('loading');
  const draftRef=useRef<PhotoSetDraft|null>(null);
+ const singleDraftRef=useRef<SinglePhotoDraft|null>(null);
+ const [singleDraftState,setSingleDraftState]=useState<'loading'|'ready'|'saving'|'error'|'conflict'>('loading');
+ const [singleSavedAt,setSingleSavedAt]=useState('');
+ const [singleDraftMessage,setSingleDraftMessage]=useState('');
  const inputDraftRef=useRef<LocalInputDraft|null>(null);
  const inputWriteRef=useRef<Promise<void>>(Promise.resolve());
  const inputTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null);
@@ -882,6 +888,36 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  };
  useEffect(()=>{void loadDraft();},[]);
 
+ // Single picked/captured photo uses an independent checkpoint.
+ // A real hash comparison is required before restoring a saved file.
+ const loadSinglePhoto=async()=>{
+  if(flight.current)return;
+  setSingleDraftState('loading');setSingleDraftMessage('');
+  try{
+   const found=await runStore<SinglePhotoDraft|undefined>('readonly',(store,set)=>{
+    const req=store.get(SINGLE_PHOTO_DRAFT_KEY);
+    req.onsuccess=()=>set(req.result as SinglePhotoDraft|undefined);
+   });
+   if(found){
+    if(!validSinglePhotoDraft(found)||await hash(found.photo)!==found.sha256
+     ||(found.edit&&await hash(found.edit.originalFile)!==found.edit.originalSha256))
+     throw new Error('기기에 임시 보관된 단건 사진의 파일 비교값이 일치하지 않습니다.');
+    singleDraftRef.current=found;
+    setPhoto(found.photo);setSinglePhotoSource(found.source);
+    setSinglePhotoEdit(undefined);setSingleSavedAt(found.savedAt);
+   }else{
+    singleDraftRef.current=null;setSingleSavedAt('');
+    setPhoto(null);setSinglePhotoSource(null);setSinglePhotoEdit(undefined);
+   }
+   setSingleDraftState('ready');
+  }catch(error){
+   setSingleDraftState('error');
+   setSingleDraftMessage(error instanceof Error?error.message:'단건 사진을 복원하지 못했습니다.');
+  }
+ };
+ useEffect(()=>{void loadSinglePhoto();},[]);
+
+
  const loadInputDraft=async()=>{
   setInputDraftState('loading');
   try{
@@ -935,7 +971,49 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const reference=legalForText(note,new Date().toISOString());
  // Do not present legacy, unreviewed, expired, or withdrawn material as guidance.
  const reviewedCards=reference.cards.filter(card=>sourceReviewState(card.sourceReview).code==='reviewed');
- const choose=(file:File,source:PhotoInput['source'],edit?:CameraEditEvidence)=>{if(photo&&!window.confirm('현재 저장 전 사진을 바꿀까요? 입력한 내용은 유지됩니다.'))return;setPhoto(file);setSinglePhotoSource(source);setSinglePhotoEdit(edit);setMessage('');};
+ const choose=async(file:File,source:PhotoInput['source'],edit?:CameraEditEvidence)=>{
+  if(flight.current||draftRef.current||singleDraftState==='loading'||singleDraftState==='saving')return;
+  if(photo&&!window.confirm('현재 저장 전 사진을 바꿀까요? 입력한 내용은 유지됩니다.'))return;
+  // Keep the chosen File available for explicit manual download on failures.
+  setPhoto(file);setSinglePhotoSource(source);setSinglePhotoEdit(edit);
+  setSingleDraftState('saving');setSingleDraftMessage('');
+  flight.current=true;setBusy(true);setMessage('');
+  let conflict=false;
+  try{
+   const digest=await hash(file);
+   if(!digest)throw new Error('선택 사진의 SHA-256 비교값을 계산하지 못했습니다.');
+   const savedEdit=await makePhotoEdit(file,edit);
+   const expected=singleDraftRef.current;
+   const next:SinglePhotoDraft={id:SINGLE_PHOTO_DRAFT_KEY,kind:'single-photo-draft',
+    revision:crypto.randomUUID(),savedAt:new Date().toISOString(),photo:file,sha256:digest,
+    source,edit:savedEdit||null};
+   if(!validSinglePhotoDraft(next))throw new Error('사진 형식·크기 또는 회전정보를 확인하지 못해 임시저장을 중단했습니다.');
+   await runStore<void>('readwrite',store=>{
+    const req=store.get(SINGLE_PHOTO_DRAFT_KEY);
+    req.onsuccess=()=>{
+     try{
+      if(!singlePhotoDraftCanReplace(req.result,expected)){conflict=true;req.transaction?.abort();return;}
+      store.put(next);
+     }catch{try{req.transaction?.abort();}catch{/* already closed */}}
+    };
+   });
+   const stored=await runStore<SinglePhotoDraft|undefined>('readonly',(store,set)=>{
+    const req=store.get(SINGLE_PHOTO_DRAFT_KEY);
+    req.onsuccess=()=>set(req.result as SinglePhotoDraft|undefined);
+   });
+   if(!singlePhotoDraftMetadataMatches(next,stored)||await hash(stored!.photo)!==digest)
+    throw new Error('임시저장된 사진의 내용을 다시 확인할 수 없습니다.');
+   singleDraftRef.current=next;setSingleSavedAt(next.savedAt);
+   setSingleDraftState('ready');
+   setSingleDraftMessage('사진을 이 브라우저에 임시 보관하고 다시 읽어 확인했습니다. 점검 기록 저장은 별도로 필요합니다.');
+  }catch(error){
+   setSingleDraftState(conflict?'conflict':'error');
+   setSingleDraftMessage(conflict
+    ?'다른 탭에서 단건 임시사진을 변경하여 덮어쓰지 않았습니다. 현재 사진을 별도로 내려받아 보관하세요.'
+    :error instanceof Error?error.message+' 선택 사진은 이 화면에서 유지됩니다. 사진을 별도로 내려받거나 임시저장을 다시 시도하세요.'
+    :'사진을 임시저장하지 못했습니다. 사진을 별도로 내려받으세요.');
+  }finally{flight.current=false;setBusy(false);}
+ };
  const stagePhoto=async(file:File,edit?:CameraEditEvidence):Promise<boolean>=>{
   if(flight.current||draftState!=='ready'||photo)return false;
   const issue=backupIssue(file);if(issue){setMessage('연속 촬영 사진 '+issue);return false;}
@@ -958,7 +1036,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  };
  const save=async()=>{
   const staged=draftRef.current,primary=staged?.photos[0]||photo;
-  if(flight.current||!primary||!note.trim()||draftState!=='ready'||inputDraftState!=='ready')return;
+  if(flight.current||!primary||!note.trim()||draftState!=='ready'||inputDraftState!=='ready'||singleDraftState!=='ready')return;
   inputEpochRef.current++;
   if(inputTimerRef.current)clearTimeout(inputTimerRef.current);
   flight.current=true;setBusy(true);setMessage('');
@@ -982,7 +1060,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
      sources[index===0?'primary:0':'context:0']=entry;
     }
    }else if(singlePhotoSource&&primaryDigest){sources['primary:0']=photoInput(singlePhotoSource,primaryDigest);}
-   const initialPhotoEdit=staged?undefined:await makePhotoEdit(primary,singlePhotoEdit);
+   const initialPhotoEdit=staged?undefined:singleDraftRef.current?.edit||await makePhotoEdit(primary,singlePhotoEdit);
     const edited:PhotoEdits|undefined=staged?staged.edits:initialPhotoEdit?{'primary:0':initialPhotoEdit}:undefined;
     if(edited&&Object.values(edited).reduce((sum,item)=>sum+(item?.originalFile?.size||0),0)>BACKUP_LIMIT)throw new Error('편집 전 사진 합계가 20MB를 넘습니다. 새 점검을 작성하거나 사진을 별도로 내려받으세요.');
     const record:LocalRecord={photoEdits:edited&&Object.keys(edited).length?edited:undefined,photoInputs:Object.keys(sources).length?sources:undefined,siteContext,photoRole:primaryRole==='unspecified'?undefined:primaryRole,id:crypto.randomUUID(),createdAt:new Date().toISOString(),note:note.trim(),action:action.trim(),photo:primary,sha256:primaryDigest,legalVersion:reference.version,reviewedAt:reference.reviewedAt,...(secondary?{contextPhoto:secondary,contextSha256:contextDigest!,contextRole:primaryRole==='overview'?'detail' as const:'overview' as const}:{})};
@@ -993,7 +1071,20 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
      req.onsuccess=()=>{
       try{
        if(!localInputDraftCanReplace(req.result,expectedInput)){inputConflict=true;req.transaction?.abort();return;}
-       if(!staged){store.add(record);if(expectedInput)store.delete(LOCAL_INPUT_DRAFT_KEY);return;}
+       if(!staged){
+        const photoReq=store.get(SINGLE_PHOTO_DRAFT_KEY);
+        photoReq.onsuccess=()=>{
+         try{
+          if(!singlePhotoDraftCanReplace(photoReq.result,singleDraftRef.current)){
+           inputConflict=true;photoReq.transaction?.abort();return;
+          }
+          store.add(record);
+          if(singleDraftRef.current)store.delete(SINGLE_PHOTO_DRAFT_KEY);
+          if(expectedInput)store.delete(LOCAL_INPUT_DRAFT_KEY);
+         }catch(error){abortFailedWrite(error,photoReq.transaction);}
+        };
+        return;
+       }
        const photoReq=store.get(DRAFT_KEY);
        photoReq.onsuccess=()=>{
         try{
@@ -1005,8 +1096,8 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
       }catch(error){abortFailedWrite(error,req.transaction);}
      };
     });
-    inputDraftRef.current=null;setInputSavedAt('');
-   draftRef.current=null;setDraft(null);setPhoto(null);setSinglePhotoEdit(undefined);setSinglePhotoSource(null);setPhotoRole('unspecified');setSiteContextInput(EMPTY_FIELD_CONTEXT);setNote('');setAction('');setMessage(record.sha256?'기기에 저장했습니다. 서버에는 전송하지 않았습니다.':'기기에 저장했습니다. 파일 해시는 확인하지 못했습니다.');
+    inputDraftRef.current=null;setInputSavedAt('');singleDraftRef.current=null;setSingleSavedAt('');
+   draftRef.current=null;setDraft(null);setPhoto(null);setSinglePhotoEdit(undefined);setSinglePhotoSource(null);setSingleDraftState('ready');setSingleDraftMessage('');setPhotoRole('unspecified');setSiteContextInput(EMPTY_FIELD_CONTEXT);setNote('');setAction('');setMessage(record.sha256?'기기에 저장했습니다. 서버에는 전송하지 않았습니다.':'기기에 저장했습니다. 파일 해시는 확인하지 못했습니다.');
    await refresh();
   }catch(error){
    setMessage(inputConflict
@@ -1359,8 +1450,16 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     {storageMessage&&<p role="status">{storageMessage}</p>}
     <p>표시 용량은 사이트 전체의 브라우저 추정치이며 실제 기기 여유 공간이나 향후 저장 성공을 보장하지 않습니다. 저장 유지 요청이 승인되어도 브라우저 데이터 직접 삭제·기기 교체·분실 시 기록이 사라질 수 있습니다. 반드시 백업 파일을 내려받아 다른 안전한 장소에서 열리는지 확인하세요.</p>
    </section>
+   {singleDraftState==='loading'&&<p role="status">저장 전 단건 사진을 확인하고 있습니다…</p>}
+   {singleDraftState==='saving'&&<p role="status">선택한 사진을 기기에 임시 보관하고 다시 확인하고 있습니다…</p>}
+   {singleDraftState==='ready'&&singleSavedAt&&photo&&<p role="status">선택 사진 임시저장 확인됨 · {new Date(singleSavedAt).toLocaleString('ko-KR')} · 사진 자체의 장기 보존을 보증하지 않습니다.</p>}
+   {(singleDraftState==='error'||singleDraftState==='conflict')&&<div role="alert">
+    <p>{singleDraftMessage||'단건 사진을 확인하지 못했습니다. 저장 전 사진은 별도로 내려받으세요.'}</p>
+    {photo&&<button type="button" className="si-btn" disabled={busy} onClick={()=>void choose(photo,singlePhotoSource||'file-picker',singlePhotoEdit)}>선택 사진 임시저장 다시 시도</button>}
+    <button type="button" className="si-btn" disabled={busy} onClick={()=>{if(window.confirm('현재 선택한 사진을 내려받아 보관했습니까? 기기에 저장된 단건 임시사진을 다시 불러오면 현재 화면 사진이 바뀔 수 있습니다.'))void loadSinglePhoto();}}>기기 단건 임시사진 다시 확인</button>
+   </div>}
    {photo?<>{url&&<img src={url} alt="기기 점검에 선택한 사진" style={{display:'block',maxWidth:'100%',maxHeight:260,objectFit:'contain'}}/>}<p>{photo.name} · {Math.ceil(photo.size/1024)} KB</p>{backupIssue(photo)&&<p role="alert">저장 전 백업 안내: {backupIssue(photo)} 점검은 기기에 저장할 수 있습니다.</p>}<button type="button" className="si-btn" disabled={busy} onClick={()=>download(photo,photo.name)}>선택 사진 내려받기</button></>:<p>사진을 촬영하거나 선택해 주세요.</p>}
-   <div><button type="button" className="si-btn" disabled={busy||!!draft||draftState!=='ready'} onClick={()=>{setSequence(false);setCamera(true);}}>기기 점검 사진 촬영</button> <button type="button" className="si-btn" disabled={busy||!!photo||draftState!=='ready'||(draft?.photos.length||0)>=2} onClick={()=>{setSequence(true);setCamera(true);}}>전체·위험 부위 연속 촬영</button> <label className="si-btn">기기 점검 사진 선택<input aria-label="기기 점검 사진 선택" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy||!!draft||draftState!=='ready'} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)choose(file,'file-picker');}}/></label></div>
+   <div><button type="button" className="si-btn" disabled={busy||!!draft||draftState!=='ready'} onClick={()=>{setSequence(false);setCamera(true);}}>기기 점검 사진 촬영</button> <button type="button" className="si-btn" disabled={busy||!!photo||draftState!=='ready'||(draft?.photos.length||0)>=2} onClick={()=>{setSequence(true);setCamera(true);}}>전체·위험 부위 연속 촬영</button> <label className="si-btn">기기 점검 사진 선택<input aria-label="기기 점검 사진 선택" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy||!!draft||draftState!=='ready'} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void choose(file,'file-picker');}}/></label></div>
    {draftState==='loading'&&<p role="status">임시 촬영 사진을 확인하고 있습니다…</p>}
    {draftState==='error'&&<div role="alert"><p>임시 촬영 사진을 확인하지 못했습니다. 저장소를 확인하고 다시 시도하세요.</p><button type="button" className="si-btn" disabled={busy} onClick={()=>void loadDraft()}>임시 사진 다시 확인</button></div>}
    {draft&&<section aria-label="임시 촬영 사진"><p>이 기기에 임시 보관된 촬영 사진 {draft.photos.length}장 · 점검 내용은 아직 저장되지 않았습니다.</p><p>두 장이면 첫 사진의 역할을 선택하세요. 선택하지 않으면 첫 사진은 현장 전체, 둘째는 위험 부위로 저장됩니다.</p>{draft.photos.map((file,i)=><p key={i}>{i+1}. {file.name} <button type="button" className="si-btn" onClick={()=>download(file,file.name)}>임시 사진 내려받기</button></p>)}<button type="button" className="si-btn" disabled={busy} onClick={()=>void clearDraft()}>임시 사진 모두 삭제</button></section>}
@@ -1383,7 +1482,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    <label>직접 확인한 내용<textarea aria-label="직접 확인한 내용" maxLength={4000} value={note} disabled={busy||inputDraftState==='loading'} onChange={e=>setNote(e.target.value)} placeholder="예: 시스템비계 발판 사이가 벌어져 보여 실측이 필요함"/></label>
    <label>현장 조치·확인 계획<textarea aria-label="현장 조치·확인 계획" maxLength={4000} value={action} disabled={busy||inputDraftState==='loading'} onChange={e=>setAction(e.target.value)} placeholder="예: 접근을 통제하고 담당자와 발판 상태 확인"/></label>
    {note.trim()&&<div aria-label="입력 내용으로 찾은 기준"><b>입력 내용으로 찾은 참고 기준</b><p>자료 묶음 버전 {reference.version} · 묶음 기준일 {reference.reviewedAt}. 개별 기준의 현재 적용 여부는 현장에서 확인하세요.</p>{reviewedCards.length?reviewedCards.slice(0,3).map(card=><article key={card.id}><strong>{card.title}</strong><p>{sourceReviewState(card.sourceReview).label}</p>{card.duties.slice(0,2).map(d=><p key={d.url}>{d.label}: {d.summary} <a href={d.url} target="_blank" rel="noreferrer">원문 확인 (인터넷 필요)</a></p>)}<p>{card.scope}</p></article>):<p>현재 입력에 대해 검토 이력과 검토 기한이 확인된 기준을 찾지 못했습니다. 위험이 없다는 뜻이 아니며, 현장 담당자가 적용 기준을 별도로 확인해야 합니다.</p>}</div>}
-   <button type="button" className="si-btn si-primary" disabled={busy||(!photo&&!draft)||!note.trim()||draftState!=='ready'||inputDraftState!=='ready'} onClick={()=>void save()}>{busy?'기기에 저장 중…':'사진과 내용 기기에 저장'}</button>
+   <button type="button" className="si-btn si-primary" disabled={busy||(!photo&&!draft)||!note.trim()||draftState!=='ready'||inputDraftState!=='ready'||singleDraftState!=='ready'} onClick={()=>void save()}>{busy?'기기에 저장 중…':'사진과 내용 기기에 저장'}</button>
    {message&&<p role="status">{message}</p>}
    <h3>{readState==='ready'?`이 브라우저에 보관된 점검 ${rows.length}건`:'이 브라우저의 점검 기록'}</h3>
    {readState==='loading'&&<p role="status">기기 기록을 확인하고 있습니다…</p>}
@@ -1533,7 +1632,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    {capturedAfter&&<div role="status"><p>촬영한 조치 후 사진이 아직 저장되지 않았습니다. 연결할 점검: {capturedAfter.row.note}</p><button type="button" className="si-btn" disabled={busy} onClick={()=>void saveAfterPhoto(capturedAfter.row,capturedAfter.file,'camera-dialog',capturedAfter.edit)}>촬영 사진 연결{busy?' 중…':''}</button> <button type="button" className="si-btn" onClick={()=>download(capturedAfter.file,capturedAfter.file.name||'PSI-after.jpg')}>촬영 사진 내려받기</button> <button type="button" className="si-btn" disabled={busy} onClick={()=>{if(window.confirm('저장하지 않은 조치 후 사진을 버릴까요?'))setCapturedAfter(null);}}>촬영 사진 버리기</button></div>}
    <p>사진 변경 확인은 저장된 사진과 기록된 비교값만 대조합니다. 백업에서 복원한 기록의 비교값은 백업 당시 생성됐을 수 있습니다. 점검 내용의 변경이나 촬영 시각·장소·안전 여부는 증명하지 않습니다.</p>
   </section>
-  {camera&&<InspectorCameraDialog onClose={()=>{setCamera(false);setSequence(false);}} onSaveAndContinue={sequence?stagePhoto:undefined} storedCount={draft?.photos.length||0} onUse={(file,edit)=>{if(!sequence){setCamera(false);choose(file,'camera-dialog',edit);return;}void stagePhoto(file,edit).then(ok=>{if(ok){setCamera(false);setSequence(false);}else window.alert('사진을 기기에 보관하지 못했습니다. 사진을 내려받거나 다시 시도하세요.');});}}/>}
+  {camera&&<InspectorCameraDialog onClose={()=>{setCamera(false);setSequence(false);}} onSaveAndContinue={sequence?stagePhoto:undefined} storedCount={draft?.photos.length||0} onUse={(file,edit)=>{if(!sequence){setCamera(false);void choose(file,'camera-dialog',edit);return;}void stagePhoto(file,edit).then(ok=>{if(ok){setCamera(false);setSequence(false);}else window.alert('사진을 기기에 보관하지 못했습니다. 사진을 내려받거나 다시 시도하세요.');});}}/>}
   {afterCamera&&<InspectorCameraDialog reference={{url:afterReferenceChoice==='context'?afterReferences.context:afterReferences.primary,label:'조치 전 사진',...(afterReferences.context?{selection:{value:afterReferenceChoice,options:[{value:'primary',label:`기본 사진 · ${afterCamera.photoRole==='overview'?'현장 전체':afterCamera.photoRole==='detail'?'위험 부위':'역할 미지정'}`},{value:'context',label:`추가 사진 · ${afterCamera.contextRole==='overview'?'현장 전체':'위험 부위'}`}],onChange:(value:string)=>setAfterReferenceChoice(value==='context'?'context':'primary')}}:{})}} onClose={()=>setAfterCamera(null)} onUse={(file,edit)=>{setCapturedAfter({row:afterCamera,file,edit});setAfterCamera(null);setMessage('촬영 사진을 확인한 뒤 점검에 연결하세요.');}}/>}
  </details>;
 }
