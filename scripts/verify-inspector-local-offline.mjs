@@ -271,6 +271,16 @@ try{
  await f10Handoff.getByRole('button',{name:'인계 문구 복사 (자동 전송 없음)'}).click();
  await f10Handoff.getByText('최신 기기 기록을 재확인한 인계 문구를 복사했습니다.',{exact:false}).waitFor();
  assert.equal(await page.evaluate(()=>window.__syntheticHandoffCopied),handoffText);
+ // F10-60: the state is changed only after verified IndexedDB readback.
+ const checkHandoffAfterReadback=async(control,expected)=>{
+  const label=await control.getAttribute('aria-label');
+  assert.ok(label);
+  await control.click();
+  await page.waitForFunction(({label,expected})=>{
+   const control=Array.from(document.querySelectorAll('input[type="checkbox"]')).find(el=>el.getAttribute('aria-label')===label);
+   return control?.checked===expected;
+  },{label,expected});
+ };
  // F10-58: a prepared/exported/copied handoff NEVER means message sent or received.
  const receiptGuide=f10Handoff.getByRole('region',{name:'F10 인계 수신·재점검 확인 순서'});
  await receiptGuide.getByText('인계 후 직접 확인할 일 · 이번 인계 대상 1건',{exact:true}).waitFor();
@@ -285,13 +295,13 @@ try{
  assert.match(await page.evaluate(()=>window.__syntheticHandoffCopied),/수신 여부를 회신해 주세요/);
  assert.equal(await delivered.isChecked(),false,'copying a request cannot mark delivery');
  assert.equal(await received.isChecked(),false,'copying a request cannot mark receipt');
- await delivered.check();
+ await checkHandoffAfterReadback(delivered,true);
  await receiptGuide.getByText('다음 확인: 담당자 수신 회신 확인').waitFor();
- await received.check();
+ await checkHandoffAfterReadback(received,true);
  await receiptGuide.getByText('다음 확인: 점검 항목별 재점검·조치 이력 기록').waitFor();
  await receiptGuide.getByText('원본 점검기록이나 인계 증빙으로 저장되지 않습니다.',{exact:false}).waitFor();
  assert.equal(await actionRow.getByText('확인 완료',{exact:true}).count()>0,true,'manual handoff checklist must not change preexisting action status');
- await delivered.uncheck();
+ await checkHandoffAfterReadback(delivered,false);
  assert.equal(await received.isChecked(),false,'unchecking delivery must clear inferred receipt');
  await f10Handoff.getByLabel('F10 인계 대상 범위').selectOption('visible');
  await directCopy.waitFor({state:'detached'});
@@ -966,16 +976,16 @@ try{
  const item2Received=partial.getByRole('checkbox',{name:'F10 2번 수신 회신 직접 확인'});
  assert.equal(await item1Received.isDisabled(),true);
  assert.equal(await item2Received.isDisabled(),true);
- await item1Delivered.check();
- await item1Received.check();
+ await checkHandoffAfterReadback(item1Delivered,true);
+ await checkHandoffAfterReadback(item1Received,true);
  await partial.getByText('외부 전달 1/2건 · 수신 회신 1/2건',{exact:false}).waitFor();
  await receiptGuide.getByText('다음 확인: 별도 전달 사실 확인',{exact:true}).waitFor();
  assert.equal(await item2Received.isDisabled(),true);
- await item2Delivered.check();
+ await checkHandoffAfterReadback(item2Delivered,true);
  await receiptGuide.getByText('다음 확인: 담당자 수신 회신 확인',{exact:true}).waitFor();
- await item2Received.check();
+ await checkHandoffAfterReadback(item2Received,true);
  await receiptGuide.getByText('다음 확인: 점검 항목별 재점검·조치 이력 기록',{exact:true}).waitFor();
- await item1Delivered.uncheck();
+ await checkHandoffAfterReadback(item1Delivered,false);
  assert.equal(await item1Received.isChecked(),false,'revoking a delivery must revoke its receipt only');
  assert.equal(await item2Received.isChecked(),true,'other target must remain independent');
  await partial.getByText('외부 전달 1/2건 · 수신 회신 1/2건',{exact:false}).waitFor();
