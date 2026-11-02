@@ -33,7 +33,7 @@ describe('F08 stale destructive action guard',()=>{
   for(const value of [null,undefined,{id:'synthetic-id'},42,[]])
    expect(localRecordMayDelete(record(),value)).toBe(false);
   expect(localRecordMayDelete(null,record())).toBe(false);
-  const cyclic=record();
+  const cyclic=record() as ReturnType<typeof record>&{extra?:unknown};
   cyclic.extra=cyclic;
   expect(localRecordMayDelete(cyclic,record())).toBe(false);
  });
