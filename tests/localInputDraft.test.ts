@@ -31,6 +31,14 @@ describe('F08 unfinished field-inspection input checkpoint',()=>{
   const b={...a,revision:'00000000-0000-4000-8000-000000000002'};
   expect(localInputDraftCanReplace(null,null)).toBe(true);
   expect(localInputDraftCanReplace(a,a)).toBe(true);
+  // Same revision must NOT authorize overwriting another tab's modified fields.
+  for(const changed of [
+   {...a,note:'바뀐 현장 관찰'},
+   {...a,action:'바뀐 조치 계획'},
+   {...a,photoRole:'detail'},
+   {...a,siteContext:{...a.siteContext,level:'20F'}},
+   {...a,savedAt:'2026-11-02T02:00:00.000Z'},
+  ])expect(localInputDraftCanReplace(changed,a)).toBe(false);
   expect(localInputDraftCanReplace(b,a)).toBe(false);
   expect(localInputDraftCanReplace(null,a)).toBe(false);
   expect(localInputDraftCanReplace(a,null)).toBe(false);
