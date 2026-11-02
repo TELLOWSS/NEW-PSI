@@ -9,6 +9,7 @@ import {classifyLocalRestoreError,verifyLocalRestoreReadback} from '../../lib/in
 import {localRecordMayDelete} from '../../lib/inspector/localRecordDeletionGuard.mjs';
 import {LOCAL_INPUT_DRAFT_KEY,validLocalInputDraft,localInputDraftFields,localInputDraftHasContent,localInputDraftCanReplace} from '../../lib/inspector/localInputDraft.mjs';
 import {SINGLE_PHOTO_DRAFT_KEY,validSinglePhotoDraft,singlePhotoDraftCanReplace,singlePhotoDraftMetadataMatches} from '../../lib/inspector/localSinglePhotoDraft.mjs';
+import {packUnfinishedBackup,unpackUnfinishedBackup,previewUnfinishedBackup} from '../../lib/inspector/localUnfinishedBackup.mjs';
 import {buildLocalRecheckReport,selectLocalRecheckReportTargets,matchesLocalFollowupRecordFilter,formatLocalRecheckCsv,formatLocalRecheckPrintHtml,F10_LOCAL_REPORT_LIMIT} from '../../lib/inspector/localRecheckReport.mjs';
 import {buildLocalRecheckProgress} from '../../lib/inspector/localRecheckProgress.mjs';
 import {buildLocalHandoffPlan,selectLocalHandoffTargets,formatLocalHandoffMessage,formatLocalHandoffHtml,handoffSourceSnapshot,F10_HANDOFF_MAX_ITEMS} from '../../lib/inspector/localRecheckHandoff.mjs';
@@ -740,6 +741,9 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [singleDraftState,setSingleDraftState]=useState<'loading'|'ready'|'saving'|'error'|'conflict'>('loading');
  const [singleSavedAt,setSingleSavedAt]=useState('');
  const [singleDraftMessage,setSingleDraftMessage]=useState('');
+ const [unfinishedBusy,setUnfinishedBusy]=useState(false);
+ const [unfinishedMessage,setUnfinishedMessage]=useState('');
+ const [unfinishedPreview,setUnfinishedPreview]=useState<{input:LocalInputDraft|null;single:SinglePhotoDraft|null;sequence:PhotoSetDraft|null;exportedAt:string}|null>(null);
  const inputDraftRef=useRef<LocalInputDraft|null>(null);
  const inputWriteRef=useRef<Promise<void>>(Promise.resolve());
  const inputTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null);
@@ -1382,6 +1386,104 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    setStorageBusy(false);
   }
  };
+ // F08-41: emergency backup works even if the recent form/photo checkpoint
+ // failed to persist. The currently visible input/photo is the backup source.
+ // No API, cloud upload, background sync, or deletion happens here.
+ const backupUnfinished=async()=>{
+  if(flight.current||busy||unfinishedBusy)return;
+  setUnfinishedBusy(true);setUnfinishedMessage('');
+  try{
+   const fields={note,action,photoRole,siteContext:siteContextInput};
+   const input:LocalInputDraft|null=localInputDraftHasContent(fields)
+    ?{id:LOCAL_INPUT_DRAFT_KEY,kind:'inspection-input-draft',revision:crypto.randomUUID(),savedAt:new Date().toISOString(),...fields}
+    :null;
+   let single:SinglePhotoDraft|null=null;
+   if(photo){
+    const checksum=await hash(photo);
+    if(!checksum)throw new Error('선택 사진의 비교값을 확인하지 못했습니다. 사진을 별도로 내려받으세요.');
+    single={id:SINGLE_PHOTO_DRAFT_KEY,kind:'single-photo-draft',revision:crypto.randomUUID(),
+     savedAt:new Date().toISOString(),photo,sha256:checksum,
+     source:singlePhotoSource||'file-picker',
+     edit:singleDraftRef.current?.photo===photo?singleDraftRef.current.edit||null:
+       await makePhotoEdit(photo,singlePhotoEdit)||null};
+   }else if(singleDraftRef.current)single=singleDraftRef.current;
+   const sequence=draftRef.current||null;
+   const exported=await packUnfinishedBackup({input,single,sequence});
+   download(exported,'PSI-unfinished-recovery-'+new Date().toISOString().slice(0,10)+'.json');
+   setUnfinishedMessage('작성 중 자료 통합 백업 파일 내려받기를 요청했습니다. 실제 저장된 JSON 파일을 확인하고 기기 밖의 안전한 장소에 보관하세요. 파일은 암호화되지 않았습니다. 작성 중 기록을 삭제하거나 완료 처리하지 않았습니다.');
+  }catch(error){
+   setUnfinishedMessage(error instanceof Error?error.message:'통합 백업을 만들지 못했습니다. 사진과 입력을 각각 별도 보관해 주세요.');
+  }finally{setUnfinishedBusy(false);}
+ };
+ const previewUnfinished=async(file:File)=>{
+  if(flight.current||busy||unfinishedBusy)return;
+  setUnfinishedBusy(true);setUnfinishedPreview(null);setUnfinishedMessage('');
+  try{
+   const data=await unpackUnfinishedBackup(file);
+   const info=previewUnfinishedBackup(data);
+   setUnfinishedPreview(data);
+   setUnfinishedMessage('백업 검증 완료: 입력 '+(info.hasInput?'있음':'없음')+
+    ' · 단건 사진 '+info.singlePhotos+'장 · 연속 사진 '+info.sequencePhotos+
+    '장. 아직 복원하지 않았습니다. 현재 작성 중인 자료가 있으면 덮어쓰지 않습니다.');
+  }catch(error){
+   setUnfinishedMessage(error instanceof Error?error.message:'백업을 검증하지 못했습니다. 기존 기록은 변경하지 않았습니다.');
+  }finally{setUnfinishedBusy(false);}
+ };
+ const restoreUnfinished=async()=>{
+  const data=unfinishedPreview;
+  if(!data||flight.current||busy||unfinishedBusy)return;
+  if(photo||draft||note.trim()||action.trim()||localInputDraftHasContent({note,action,photoRole,siteContext:siteContextInput})){
+   setUnfinishedMessage('현재 화면에 작성 중인 자료가 있어 복원을 중단했습니다. 먼저 통합 백업 파일을 보관하고 새 빈 화면에서 진행하세요.');
+   return;
+  }
+  if(!window.confirm('현재 기기의 임시기록 3종이 모두 비어 있을 때만 한 번에 복원합니다. 기존 완료 점검은 변경하지 않습니다. 복원할까요?'))return;
+  flight.current=true;setBusy(true);setUnfinishedBusy(true);setUnfinishedMessage('');
+  let conflict=false;
+  try{
+   await runStore<void>('readwrite',store=>{
+    const keys=[LOCAL_INPUT_DRAFT_KEY,SINGLE_PHOTO_DRAFT_KEY,DRAFT_KEY];
+    const requests=keys.map(key=>store.get(key));
+    let remaining=requests.length;
+    for(const request of requests)request.onsuccess=()=>{
+     if(--remaining!==0)return;
+     try{
+      if(requests.some(item=>item.result!==undefined)){conflict=true;request.transaction?.abort();return;}
+      if(data.input)store.add(data.input);
+      if(data.single)store.add(data.single);
+      if(data.sequence)store.add(data.sequence);
+     }catch{try{request.transaction?.abort();}catch{/*already aborted*/}}
+    };
+   });
+   // Postflight: never say restored if the persisted revisions differ.
+   const restored=await runStore<Record<string,unknown>>('readonly',(store,set)=>{
+    const keys=[LOCAL_INPUT_DRAFT_KEY,SINGLE_PHOTO_DRAFT_KEY,DRAFT_KEY];
+    const requests=keys.map(key=>store.get(key));
+    let remaining=requests.length;
+    for(const request of requests)request.onsuccess=()=>{
+     if(--remaining===0)set(Object.fromEntries(keys.map((key,i)=>[key,requests[i].result])));
+    };
+   });
+   const matches=(key:string,expected:{revision:string}|null)=>
+    expected? (restored[key] as {revision?:string}|undefined)?.revision===expected.revision:
+    restored[key]===undefined;
+   if(!matches(LOCAL_INPUT_DRAFT_KEY,data.input)||!matches(SINGLE_PHOTO_DRAFT_KEY,data.single)||!matches(DRAFT_KEY,data.sequence))
+    throw new Error('복원 후 저장된 임시기록을 확인하지 못했습니다. 기기 저장소를 다시 확인하세요.');
+   inputDraftRef.current=data.input;setInputSavedAt(data.input?.savedAt||'');
+   setNote(data.input?.note||'');setAction(data.input?.action||'');
+   setPhotoRole(data.input?.photoRole||'unspecified');
+   setSiteContextInput(data.input?.siteContext||EMPTY_FIELD_CONTEXT);setInputDraftState('ready');
+   singleDraftRef.current=data.single;setSingleDraftState('ready');
+   setSingleSavedAt(data.single?.savedAt||'');setPhoto(data.single?.photo||null);
+   setSinglePhotoSource(data.single?.source||null);setSinglePhotoEdit(undefined);
+   draftRef.current=data.sequence;setDraft(data.sequence);setDraftState('ready');
+   setUnfinishedPreview(null);
+   setUnfinishedMessage('작성 중 사진과 입력을 기기에 함께 복원하고 저장된 기록을 다시 확인했습니다. 기존 완료 점검은 유지했습니다. 이 화면에서 이어서 작성하세요. 안전 조치 완료나 사진의 법적 원본성을 뜻하지 않습니다.');
+  }catch{
+   setUnfinishedMessage(conflict
+    ?'기기에 이미 다른 임시기록이 있어 복원하지 않았습니다. 기존 자료를 덮어쓰지 않았습니다. 현재 자료를 먼저 백업한 뒤 확인하세요.'
+    :'작성 중 자료를 복원하지 못했습니다. 결과를 추정하지 않습니다. 원본 JSON 백업 파일을 보관하고 기기 기록을 다시 조회하세요.');
+  }finally{flight.current=false;setBusy(false);setUnfinishedBusy(false);}
+ };
  const backup=async(row:LocalRecord)=>{if(flight.current)return;flight.current=true;setBusy(true);setMessage('');try{const current=await runStore<LocalRecord|undefined>('readonly',(store,set)=>{const request=store.get(row.id);request.onsuccess=()=>set(request.result as LocalRecord|undefined);});if(!current)throw new Error('해당 점검을 찾을 수 없어 백업하지 않았습니다. 목록을 다시 확인하세요.');download(await packRecord(current),'PSI-backup-'+current.id+'.json');setMessage('백업 파일 내려받기를 요청했습니다. 저장된 파일을 확인하고 안전한 장소에 보관하세요.');}catch(error){setMessage(error instanceof Error?error.message:'백업하지 못했습니다.');}finally{flight.current=false;setBusy(false);}};
  const backupSelected=async()=>{
   if(flight.current||!backupIds.length)return;
@@ -1495,6 +1597,18 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    <h2>사진과 점검 내용을 이 기기에 보관</h2>
    <p>사진을 자동 분석하지 않습니다. 직접 확인한 내용으로 관련 기준을 찾아보는 기능입니다. 서버 업로드와 유료 AI 호출은 하지 않습니다.</p>
    <p>{offlineEntry?'사전에 오프라인 준비를 마친 기기에서는 이 주소로 인터넷 없이 다시 열 수 있습니다.':'인터넷이 끊기기 전 기기 점검 전용 화면에서 오프라인 준비가 필요합니다.'} 브라우저 데이터 삭제나 기기 분실 시 기록이 사라질 수 있으니 별도로 내려받으세요.</p>{!offlineEntry&&<p><a href="/field-local/">오프라인 재실행 준비 화면 열기</a></p>}
+   <section aria-label="작성 중 자료 긴급 백업과 복구" className="rounded-xl border border-slate-300 p-3">
+    <h3>작성 중 사진·내용 한번에 백업·복구</h3>
+    <p>저장공간 부족이나 앱 종료에 대비해 현재 화면의 점검 내용, 현장정보, 단건 사진 및 연속 촬영 사진을 하나의 JSON 파일로 내려받습니다. 기기에 저장되지 못한 화면의 입력과 사진도 포함할 수 있습니다.</p>
+    <button type="button" className="si-btn" disabled={busy||unfinishedBusy||draftState==='loading'||singleDraftState==='loading'||inputDraftState==='loading'} onClick={()=>void backupUnfinished()}>작성 중 자료 한 번에 백업</button>
+    <p>내려받기 완료 여부는 기기의 파일 앱에서 직접 확인하세요. 파일은 암호화되지 않았으므로 안전한 장소에 보관해야 합니다. 사진을 포함한 통합 백업은 50MB 이하만 지원하며, 이 기능으로 현장 안전조치가 완료되지는 않습니다.</p>
+    <label>작성 중 백업 파일 검사<input type="file" accept="application/json,.json" aria-label="작성 중 백업 파일 검사" disabled={busy||unfinishedBusy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void previewUnfinished(file);}}/></label>
+    {unfinishedPreview&&<div aria-label="작성 중 복구 미리보기">
+     <p>검사 완료 · 입력 {unfinishedPreview.input?'있음':'없음'} · 단건 사진 {unfinishedPreview.single?1:0}장 · 연속 사진 {unfinishedPreview.sequence?.photos.length||0}장. 복원 전이며 기존 임시기록은 덮어쓰지 않습니다.</p>
+     <button type="button" className="si-btn" disabled={busy||unfinishedBusy} onClick={()=>void restoreUnfinished()}>검사된 작성 중 자료 복원</button>
+    </div>}
+    {unfinishedMessage&&<p role="status">{unfinishedMessage}</p>}
+   </section>
    <section aria-label="기기 저장 안정성 확인">
     <h3>기기 저장상태 확인</h3>
     <p>촬영 전후 저장 상태를 확인할 수 있습니다. 조회는 현재 기기의 브라우저에서만 수행하며 서버로 전송하지 않습니다.</p>
