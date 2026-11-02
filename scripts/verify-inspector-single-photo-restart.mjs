@@ -45,6 +45,7 @@ try{
  assert.equal(stored?.sha256,digest);
  assert.equal(stored?.source,'file-picker');
  await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
+ page.once('dialog',dialog=>dialog.accept()); // Accept browser's unsaved-photo leave warning in this deliberate restart test.
  await page.reload({waitUntil:'networkidle'});
  await page.getByRole('heading',{name:'사진만 찍어도 점검을 시작할 수 있습니다'}).waitFor();
  panel=await open();
