@@ -15,6 +15,7 @@ import {LOCAL_RECOVERY_KEYS,diagnoseLocalUnfinishedSlots,unfinishedRestoreAction
 import {buildLocalRecheckReport,selectLocalRecheckReportTargets,matchesLocalFollowupRecordFilter,formatLocalRecheckCsv,formatLocalRecheckPrintHtml,F10_LOCAL_REPORT_LIMIT} from '../../lib/inspector/localRecheckReport.mjs';
 import {buildLocalRecheckProgress} from '../../lib/inspector/localRecheckProgress.mjs';
 import {buildLocalHandoffPlan,selectLocalHandoffTargets,formatLocalHandoffMessage,formatLocalHandoffHtml,handoffSourceSnapshot,F10_HANDOFF_MAX_ITEMS} from '../../lib/inspector/localRecheckHandoff.mjs';
+import {buildLocalHandoffFollowthrough,formatLocalReceiptRequest} from '../../lib/inspector/localHandoffFollowthrough.mjs';
 /** F08-47: read-only, on-device photo preview with object URL cleanup. */
 function UnfinishedBackupPhotoPreview({file,label}:{file:File;label:string}){
  const [url,setUrl]=useState('');
@@ -818,6 +819,13 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [handoffPending,setHandoffPending]=useState(false);
  const [handoffMessage,setHandoffMessage]=useState('');
  const [handoffPrepared,setHandoffPrepared]=useState<{html:Blob;text:string;count:number;at:string}|null>(null);
+ const [handoffDeliveredByOperator,setHandoffDeliveredByOperator]=useState(false);
+ const [handoffReceivedByOperator,setHandoffReceivedByOperator]=useState(false);
+ const [handoffReceiptMessage,setHandoffReceiptMessage]=useState('');
+ const handoffFollowthrough=buildLocalHandoffFollowthrough({
+  prepared:!!handoffPrepared,deliveryReported:handoffDeliveredByOperator,
+  receiptReported:handoffReceivedByOperator,
+ });
  const handoffHtmlUrl=useReportDownloadUrl(handoffPrepared?.html||null);
  const [reportIncludeAssignees,setReportIncludeAssignees]=useState(false);
  const [reportIncludeDetails,setReportIncludeDetails]=useState(false);
@@ -838,6 +846,8 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  useEffect(()=>{
   handoffGeneration.current++;
   setHandoffPrepared(null);setHandoffMessage('');
+  setHandoffDeliveredByOperator(false);setHandoffReceivedByOperator(false);
+  setHandoffReceiptMessage('');
  },[rows,filter,handoffScope]);
  const recheckQueue=buildLocalRecheckQueue(rows);
  const recheckSummary=summarizeLocalRecheckQueue(recheckQueue) as Record<string, number> & {total:number};
@@ -904,6 +914,8 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const prepareHandoff=async()=>{
   if(handoffPending||busy||readState!=='ready')return;
   setHandoffPending(true);setHandoffPrepared(null);setHandoffMessage('');
+  setHandoffDeliveredByOperator(false);setHandoffReceivedByOperator(false);
+  setHandoffReceiptMessage('');
   const generation=handoffGeneration.current;
   try{
    const now=new Date();
@@ -940,6 +952,17 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    setHandoffMessage('인계 문구를 기기 클립보드에 복사했습니다. 담당자에게 전송하거나 확인받은 것은 아닙니다.');
   }catch{
    setHandoffMessage('자동 복사가 제한된 브라우저입니다. 아래 인계 문구를 길게 눌러 직접 복사하세요.');
+  }
+ };
+ const copyHandoffReceiptRequest=async()=>{
+  if(!handoffPrepared)return;
+  setHandoffReceiptMessage('');
+  try{
+   if(!navigator.clipboard?.writeText)throw new Error('clipboard unavailable');
+   await navigator.clipboard.writeText(formatLocalReceiptRequest());
+   setHandoffReceiptMessage('수신 확인 요청 문구를 복사했습니다. 담당자에게 전송하거나 수신받은 것은 아닙니다.');
+  }catch{
+   setHandoffReceiptMessage('수신 확인 요청 문구 자동 복사가 제한됐습니다. 아래 문구를 직접 선택해서 복사하세요.');
   }
  };
  const prepareRecheckReport=async()=>{
@@ -2160,6 +2183,34 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
       <label>인계 문구 직접 확인·복사
        <textarea aria-label="F10 인계 문구 직접 복사" readOnly rows={6} value={handoffPrepared.text}/>
       </label>
+      <section aria-label="F10 인계 수신·재점검 확인 순서" className="rounded-lg border border-slate-200 p-3">
+       <h6>인계 후 직접 확인할 일</h6>
+       <p>현재 화면에서만 확인하는 체크리스트입니다. <strong>새로고침 시 표시가 사라지며</strong> 원본 점검기록이나 인계 증빙으로 저장되지 않습니다.</p>
+       <ol className="list-decimal pl-5">
+        {handoffFollowthrough.stages.map(stage=><li key={stage.key}>
+         <strong>{stage.label}</strong> · {stage.description}
+        </li>)}
+       </ol>
+       <p role="status">다음 확인: {handoffFollowthrough.next}</p>
+       <label style={{display:'flex',gap:8,alignItems:'flex-start',minHeight:44}}>
+        <input type="checkbox" aria-label="인계 자료를 외부에서 직접 전달했음을 점검자가 확인" checked={handoffDeliveredByOperator}
+         onChange={e=>{setHandoffDeliveredByOperator(e.target.checked);if(!e.target.checked)setHandoffReceivedByOperator(false);}}/>
+        외부 전달 화면·구두 전달 등을 제가 직접 확인했습니다. (점검자 자기확인 · 실제 전달 증빙 아님)
+       </label>
+       <label style={{display:'flex',gap:8,alignItems:'flex-start',minHeight:44}}>
+        <input type="checkbox" aria-label="담당자의 실제 수신 회신을 점검자가 확인" checked={handoffReceivedByOperator}
+         disabled={!handoffDeliveredByOperator}
+         onChange={e=>setHandoffReceivedByOperator(e.target.checked)}/>
+        담당자가 직접 수신을 회신한 사실을 제가 확인했습니다. (점검자 자기확인 · 수신 증빙 아님)
+       </label>
+       <button type="button" className="si-btn" style={{minHeight:44}} onClick={()=>void copyHandoffReceiptRequest()}>담당자에게 보낼 수신 확인 요청 문구 복사</button>
+       {handoffReceiptMessage&&<p role="status">{handoffReceiptMessage}</p>}
+       <label>수신 확인 요청 문구 직접 복사
+        <textarea aria-label="F10 수신 확인 요청 문구" rows={4} readOnly value={formatLocalReceiptRequest()}/>
+       </label>
+       <p>수신 확인 뒤에도 작업 완료가 아닙니다. 아래 점검 기록의 <strong>재점검·지연 사유 추가</strong>에서 실제 확인 내용과 다음 확인 예정일을 별도로 기록하세요. 이 체크리스트는 자동으로 담당자를 연락하거나 기록 상태를 변경하지 않습니다.</p>
+       <a href="#si-saved-local-records">점검 목록에서 재점검 이력 기록하기</a>
+      </section>
      </div>}
      <p>인계표는 내부 관리용이며 통보·수신 확인 또는 위험 해소·작업 재개 승인서가 아닙니다. 현장 위험이 급박하면 인계 예정일을 기다리지 말고 접근통제·작업중지 필요성을 먼저 검토하세요.</p>
     </div>
