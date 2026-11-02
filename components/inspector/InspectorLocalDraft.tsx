@@ -960,7 +960,11 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   inputEpochRef.current++;
   if(inputTimerRef.current)clearTimeout(inputTimerRef.current);
   flight.current=true;setBusy(true);setMessage('');
-  let inputConflict=false;
+  let inputConflict=false,saveQuotaFailure=false;
+  const abortFailedWrite=(error:unknown,tx:IDBTransaction|null|undefined)=>{
+   if(error instanceof DOMException&&error.name==='QuotaExceededError')saveQuotaFailure=true;
+   try{tx?.abort();}catch{/* Already aborted; never leak a second exception. */}
+  };
   try{
    await inputWriteRef.current;
    const secondary=staged?.photos[1],primaryRole=staged&&secondary&&photoRole==='unspecified'?'overview':photoRole;
@@ -985,14 +989,18 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     await runStore<void>('readwrite',store=>{
      const req=store.get(LOCAL_INPUT_DRAFT_KEY);
      req.onsuccess=()=>{
-      if(!localInputDraftCanReplace(req.result,expectedInput)){inputConflict=true;req.transaction?.abort();return;}
-      if(!staged){store.add(record);if(expectedInput)store.delete(LOCAL_INPUT_DRAFT_KEY);return;}
-      const photoReq=store.get(DRAFT_KEY);
-      photoReq.onsuccess=()=>{
-       if(photoReq.result?.revision!==staged.revision){photoReq.transaction?.abort();return;}
-       store.add(record);store.delete(DRAFT_KEY);
-       if(expectedInput)store.delete(LOCAL_INPUT_DRAFT_KEY);
-      };
+      try{
+       if(!localInputDraftCanReplace(req.result,expectedInput)){inputConflict=true;req.transaction?.abort();return;}
+       if(!staged){store.add(record);if(expectedInput)store.delete(LOCAL_INPUT_DRAFT_KEY);return;}
+       const photoReq=store.get(DRAFT_KEY);
+       photoReq.onsuccess=()=>{
+        try{
+         if(photoReq.result?.revision!==staged.revision){photoReq.transaction?.abort();return;}
+         store.add(record);store.delete(DRAFT_KEY);
+         if(expectedInput)store.delete(LOCAL_INPUT_DRAFT_KEY);
+        }catch(error){abortFailedWrite(error,photoReq.transaction);}
+       };
+      }catch(error){abortFailedWrite(error,req.transaction);}
      };
     });
     inputDraftRef.current=null;setInputSavedAt('');
@@ -1001,7 +1009,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   }catch(error){
    setMessage(inputConflict
     ?'다른 탭의 임시 기록이 변경되어 현재 점검을 저장하지 않았습니다. 입력과 사진은 유지됩니다.'
-    :error instanceof DOMException&&error.name==='QuotaExceededError'
+    :saveQuotaFailure||(error instanceof DOMException&&error.name==='QuotaExceededError')
      ?'저장 공간이 부족합니다. 사진과 입력을 보존한 뒤 저장공간을 확인하고 다시 시도하세요.'
      :error instanceof Error&&!(error instanceof DOMException)&&error.message
       ?error.message
