@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {diagnoseLocalUnfinishedSlots,LOCAL_RECOVERY_KEYS,unfinishedRestoreActionGate} from '../lib/inspector/localUnfinishedRecoveryTriage.mjs';
+import {diagnoseLocalUnfinishedSlots,LOCAL_RECOVERY_KEYS,unfinishedRestoreActionGate,storedUnfinishedResumeGate} from '../lib/inspector/localUnfinishedRecoveryTriage.mjs';
 import {LOCAL_INPUT_DRAFT_KEY} from '../lib/inspector/localInputDraft.mjs';
 import {SINGLE_PHOTO_DRAFT_KEY} from '../lib/inspector/localSinglePhotoDraft.mjs';
 
@@ -90,5 +90,26 @@ describe('F08-45 mobile recovery action gating',()=>{
   expect(decision.allowed).toBe(true);
   expect(decision.state).toBe('ready');
   expect(decision.reason).toContain('3종');
+ });
+});
+
+describe('F08-46 safe continuation without a new restore',()=>{
+ it('permits valid stored input or picked photo after a read-only check',async()=>{
+  const r=await diagnoseLocalUnfinishedSlots(records(input(),await single(),undefined));
+  expect(storedUnfinishedResumeGate(r)).toMatchObject({allowed:true,state:'ready'});
+ });
+ it('blocks damaged, mixed, empty, or unread store conditions',async()=>{
+  const r=await diagnoseLocalUnfinishedSlots(records(undefined,await single(),sequence()));
+  expect(storedUnfinishedResumeGate(r).state).toBe('mixed');
+  expect(storedUnfinishedResumeGate(await diagnoseLocalUnfinishedSlots({})).state).toBe('empty');
+  const damage=await diagnoseLocalUnfinishedSlots(records(input(),{...await single(),sha256:'0'.repeat(64)},undefined));
+  expect(storedUnfinishedResumeGate(damage).state).toBe('damaged');
+  expect(storedUnfinishedResumeGate(null).state).toBe('unchecked');
+ });
+ it('does not claim a pending photo is already saved or allow loading-state navigation',async()=>{
+  const r=await diagnoseLocalUnfinishedSlots(records(input(),undefined,undefined));
+  expect(storedUnfinishedResumeGate(r,{draftsReady:false}).state).toBe('loading');
+  expect(storedUnfinishedResumeGate(r,{hasUnstagedPhoto:true}).state).toBe('unsaved-photo');
+  expect(storedUnfinishedResumeGate(r).message).toContain('기록을 수정·복원·삭제하지 않습니다');
  });
 });
