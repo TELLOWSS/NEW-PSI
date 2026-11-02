@@ -80,6 +80,18 @@ try{
  assert.equal(emergency.parsed.single.photo.name,'quota-photo.png');
  assert.ok(emergency.parsed.single.photo.data.length>10);
  assert.equal(emergency.parsed.sequence,null);
+ // F08-51: reselect the actual downloaded JSON, verify it matches the
+ // exported bytes and detect any changes after export.
+ const savedFile=a.getByLabel('저장한 JSON 백업 파일 다시 선택');
+ await savedFile.setInputFiles({name:'PSI-unfinished-recovery.json',mimeType:'application/json',buffer:emergency.bytes});
+ await a.getByText('이번 화면 백업 파일 재선택 검사 통과.',{exact:false}).waitFor();
+ await savedFile.setInputFiles({name:'corrupted.json',mimeType:'application/json',buffer:Buffer.from('{"bad":"bytes"}')});
+ await a.getByText('지원하지 않거나 손상된 작성 중 백업입니다.',{exact:false}).waitFor();
+ await savedFile.setInputFiles({name:'recovered.json',mimeType:'application/json',buffer:emergency.bytes});
+ await a.getByText('이번 화면 백업 파일 재선택 검사 통과.',{exact:false}).waitFor();
+ await a.getByLabel('현장 조치·확인 계획').fill('변경된 현장 계획 · 새 백업 필요');
+ await a.getByText('백업 이후 점검 내용이나 사진이 변경됐습니다.',{exact:false}).waitFor();
+ await a.getByText('이번 화면 백업 파일 재선택 검사 통과.',{exact:false}).waitFor({state:'hidden'});
  assert.equal(await readSaved(one,'psi-single-photo-draft-v1'),null,'file was NOT in IndexedDB: backup must use live File');
  await one.evaluate(()=>{IDBObjectStore.prototype.put=window.__unfinishedOldPut;});
  await firstContext.close();
@@ -389,7 +401,7 @@ try{
  await sixthContext.close();
 
  assert.equal(pageErrors.length,0,'no uncaught browser exceptions');
- console.log('PASS F08 unified backup: quota failure, tamper, atomic no-overwrite, real persisted-byte readback, mobile pagehide checkpoint, same-revision persisted-input mismatch, content-aware no-overwrite CAS, final commit');
+ console.log('PASS F08 unified backup: quota failure, tamper, atomic no-overwrite, real persisted-byte readback, mobile pagehide checkpoint, same-revision persisted-input mismatch, content-aware no-overwrite CAS, downloaded-file recheck, final commit');
 }finally{
  await browser.close();await server.close();
 }
