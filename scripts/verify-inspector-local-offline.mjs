@@ -801,6 +801,8 @@ try{
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'f06-previous-format.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(downgraded))});
  await panel.getByText('이전 백업에 예상하지 않은 편집 전 사진이 포함됐습니다.',{exact:false}).waitFor();
  page.once('dialog',d=>d.accept());await f06Row.getByRole('button',{name:'이 기기 기록 삭제'}).click();
+ await panel.getByText('선택한 기기 기록을 삭제했습니다.',{exact:false}).waitFor();
+ await f06Row.waitFor({state:'detached'});
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'f06-valid.json',mimeType:'application/json',buffer:f06BackupBytes});
  const f06Restored=panel.locator('article').filter({hasText:'F06 회전본과 편집 전 사진 연결 검증'});
  await f06Restored.getByText('F06 회전본과 편집 전 사진 연결 검증',{exact:false}).waitFor();
