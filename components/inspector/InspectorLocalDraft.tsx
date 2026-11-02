@@ -14,6 +14,16 @@ import {LOCAL_RECOVERY_KEYS,diagnoseLocalUnfinishedSlots,unfinishedRestoreAction
 import {buildLocalRecheckReport,selectLocalRecheckReportTargets,matchesLocalFollowupRecordFilter,formatLocalRecheckCsv,formatLocalRecheckPrintHtml,F10_LOCAL_REPORT_LIMIT} from '../../lib/inspector/localRecheckReport.mjs';
 import {buildLocalRecheckProgress} from '../../lib/inspector/localRecheckProgress.mjs';
 import {buildLocalHandoffPlan,selectLocalHandoffTargets,formatLocalHandoffMessage,formatLocalHandoffHtml,handoffSourceSnapshot,F10_HANDOFF_MAX_ITEMS} from '../../lib/inspector/localRecheckHandoff.mjs';
+/** F08-47: read-only, on-device photo preview with object URL cleanup. */
+function UnfinishedBackupPhotoPreview({file,label}:{file:File;label:string}){
+ const [url,setUrl]=useState('');
+ useEffect(()=>{const next=URL.createObjectURL(file);setUrl(next);return ()=>URL.revokeObjectURL(next);},[file]);
+ return <figure className="rounded-lg border border-slate-200 p-2" style={{minWidth:0,maxWidth:'100%'}}>
+  <figcaption style={{overflowWrap:'anywhere'}}>{label}: {file.name} · {(file.size/1024/1024).toFixed(2)}MB</figcaption>
+  {url&&<img src={url} alt={label+' 백업 사진 미리보기'} loading="lazy" style={{display:'block',width:'100%',maxWidth:320,maxHeight:240,objectFit:'contain'}}/>}
+ </figure>;
+}
+
 
 type Followup={status:string;assignee:string;dueDate:string;temporaryMeasure?:string;history:{status:string;assignee:string;dueDate:string;temporaryMeasure?:string;note:string;at:string}[]};
 type Recheck={id:string;result:'delayed'|'temporary_checked'|'needs_more'|'review_requested';reason:string;note:string;nextCheckDate:string;at:string;photoSha256:string|null;followupStatus:string};
@@ -743,6 +753,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [singleSavedAt,setSingleSavedAt]=useState('');
  const [singleDraftMessage,setSingleDraftMessage]=useState('');
  const [unfinishedBusy,setUnfinishedBusy]=useState(false);
+ const [unfinishedReviewConfirmed,setUnfinishedReviewConfirmed]=useState(false);
  const [unfinishedMessage,setUnfinishedMessage]=useState('');
  const [recoveryScanBusy,setRecoveryScanBusy]=useState(false);
  const [recoveryScanMessage,setRecoveryScanMessage]=useState('');
@@ -1494,7 +1505,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  };
  const previewUnfinished=async(file:File)=>{
   if(flight.current||busy||unfinishedBusy)return;
-  setUnfinishedBusy(true);setUnfinishedPreview(null);setUnfinishedMessage('');
+  setUnfinishedBusy(true);setUnfinishedPreview(null);setUnfinishedReviewConfirmed(false);setUnfinishedMessage('');
   try{
    const data=await unpackUnfinishedBackup(file);
    const info=previewUnfinishedBackup(data);
@@ -1508,7 +1519,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  };
  const restoreUnfinished=async()=>{
   const data=unfinishedPreview;
-  if(!data||flight.current||busy||unfinishedBusy)return;
+  if(!data||!unfinishedReviewConfirmed||flight.current||busy||unfinishedBusy)return;
   const currentGate=unfinishedRestoreActionGate({
    verifiedBackup:!!data,
    loading:draftState==='loading'||singleDraftState==='loading'||inputDraftState==='loading',
@@ -1555,7 +1566,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    setSingleSavedAt(data.single?.savedAt||'');setPhoto(data.single?.photo||null);
    setSinglePhotoSource(data.single?.source||null);setSinglePhotoEdit(undefined);
    draftRef.current=data.sequence;setDraft(data.sequence);setDraftState('ready');
-   setUnfinishedPreview(null);
+   setUnfinishedPreview(null);setUnfinishedReviewConfirmed(false);
    setUnfinishedMessage('작성 중 사진과 입력을 기기에 함께 복원하고, 점검 내용과 실제 사진 파일을 다시 읽어 비교했습니다. 기존 완료 점검은 유지했습니다. 이어서 작성하세요. 안전 조치 완료나 사진의 법적 원본성을 뜻하지 않습니다.');
   }catch{
    setUnfinishedMessage(conflict
@@ -1729,8 +1740,25 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
        <p>검사 완료 · 입력 {unfinishedPreview.input?'있음':'없음'} · 단건 사진 {unfinishedPreview.single?1:0}장 · 연속 사진 {unfinishedPreview.sequence?.photos.length||0}장. 아직 복원되지 않았습니다.</p>
        <p role={unfinishedPreview.integrityLevel==='full'?'status':'alert'}>{unfinishedPreview.integrityLevel==='full'?'사진·점검내용·조치계획·현장정보·파일 전체 비교값 확인됨':'이전 백업 형식: 사진 비교값만 확인됐습니다. 점검 내용·현장정보 변경 여부는 확인할 수 없습니다. 직접 검토하세요.'} (비교값은 작성자 신원·법적 진본성 증명이 아닙니다.)</p>
        {unfinishedPreview.single&&unfinishedPreview.sequence&&<p role="alert">단건과 연속 촬영 사진이 모두 들어 있습니다. 복원 후 어느 사진을 사용할지 직접 정해야 하며, 자동으로 하나를 선택하지 않습니다.</p>}
+       <details className="rounded-lg border border-slate-300 p-3" aria-label="복원 전 백업 내용 상세 확인">
+        <summary style={{cursor:'pointer',minHeight:44}}>검사된 백업의 기록·사진 직접 확인</summary>
+        <div style={{overflowWrap:'anywhere'}}>
+         <p>백업 생성시각: {new Date(unfinishedPreview.exportedAt).toLocaleString('ko-KR')}</p>
+         <p>현장: {unfinishedPreview.input?.siteContext.site||'미작성'} / 동: {unfinishedPreview.input?.siteContext.building||'미작성'} / 층: {unfinishedPreview.input?.siteContext.level||'미작성'} / 공종: {unfinishedPreview.input?.siteContext.trade||'미작성'}</p>
+         <p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>점검자 관찰 내용: {unfinishedPreview.input?.note||'미작성'}</p>
+         <p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>조치·확인 계획: {unfinishedPreview.input?.action||'미작성'}</p>
+         {unfinishedPreview.single&&<UnfinishedBackupPhotoPreview file={unfinishedPreview.single.photo} label="단건 사진"/>}
+         {unfinishedPreview.sequence?.photos.map((file,index)=><UnfinishedBackupPhotoPreview key={index} file={file} label={'연속 사진 '+(index+1)}/>)}
+         <p>위 내용은 검사된 백업 파일에 담긴 자료이며, 아직 기기에 복원되지 않았습니다. 작성자 신원·법적 진본성 또는 안전조치 완료를 증명하지 않습니다.</p>
+        </div>
+       </details>
+       <label style={{display:'flex',alignItems:'flex-start',gap:8,minHeight:44}}>
+        <input type="checkbox" aria-label="검사된 백업 내용을 확인했습니다." checked={unfinishedReviewConfirmed} onChange={e=>setUnfinishedReviewConfirmed(e.currentTarget.checked)}/>
+        백업의 기록과 사진을 확인했습니다. 기기 임시기록이 비어 있을 때만 복원하며 기존 자료를 덮어쓰지 않음을 이해했습니다.
+       </label>
+       {!unfinishedReviewConfirmed&&<p role="status">복원 전 확인: 상세 내용을 열어 검토하고 확인란을 선택하세요.</p>}
        {!restoreGate.allowed&&<p role="status">복원 버튼 비활성화: {restoreGate.reason}</p>}
-       <button type="button" className="si-btn" style={{minHeight:44}} disabled={!restoreGate.allowed} onClick={()=>void restoreUnfinished()}>검사된 작성 중 자료 복원</button>
+       <button type="button" className="si-btn" style={{minHeight:44}} disabled={!restoreGate.allowed||!unfinishedReviewConfirmed} onClick={()=>void restoreUnfinished()}>검사된 작성 중 자료 복원</button>
       </section>}
      </li>
     </ol>
