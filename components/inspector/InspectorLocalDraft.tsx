@@ -959,9 +959,10 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   if(flight.current||!primary||!note.trim()||draftState!=='ready'||inputDraftState!=='ready')return;
   inputEpochRef.current++;
   if(inputTimerRef.current)clearTimeout(inputTimerRef.current);
-  await inputWriteRef.current;
   flight.current=true;setBusy(true);setMessage('');
+  let inputConflict=false;
   try{
+   await inputWriteRef.current;
    const secondary=staged?.photos[1],primaryRole=staged&&secondary&&photoRole==='unspecified'?'overview':photoRole;
    const primaryDigest=await hash(primary),contextDigest=secondary?await hash(secondary):undefined;
    if(staged&&!primaryDigest)throw new Error('기본 사진의 비교값을 만들지 못했습니다. 촬영본은 이 기기에 그대로 보관됩니다.');
@@ -981,7 +982,6 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     const record:LocalRecord={photoEdits:edited&&Object.keys(edited).length?edited:undefined,photoInputs:Object.keys(sources).length?sources:undefined,siteContext,photoRole:primaryRole==='unspecified'?undefined:primaryRole,id:crypto.randomUUID(),createdAt:new Date().toISOString(),note:note.trim(),action:action.trim(),photo:primary,sha256:primaryDigest,legalVersion:reference.version,reviewedAt:reference.reviewedAt,...(secondary?{contextPhoto:secondary,contextSha256:contextDigest!,contextRole:primaryRole==='overview'?'detail' as const:'overview' as const}:{})};
    if(record.photoEdits&&!validPhotoEdits(record.photoEdits,record))throw new Error('편집 전 사진과 회전 사진의 연결 정보를 확인하지 못했습니다.');
     const expectedInput=inputDraftRef.current;
-    let inputConflict=false;
     await runStore<void>('readwrite',store=>{
      const req=store.get(LOCAL_INPUT_DRAFT_KEY);
      req.onsuccess=()=>{
