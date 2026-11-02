@@ -1835,8 +1835,8 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     </div>
     <p>점검은 사진만으로 완료되지 않습니다. 위험 내용과 조치 계획을 확인하고 저장 결과를 직접 검토하세요. 급박한 위험은 현장 책임자와 접근통제·작업중지 필요성을 우선 확인하세요.</p>
    </section>
-   <details id="si-unfinished-recovery" aria-label="작성 중 자료 긴급 백업과 복구" className="rounded-xl border border-slate-300 p-3"
-    open={recoveryOpen} onToggle={e=>setRecoveryOpen(e.currentTarget.open)}>
+   <section id="si-unfinished-recovery" aria-label="작성 중 자료 긴급 백업과 복구" className="rounded-xl border border-slate-300 p-3">
+   <details open={recoveryOpen} onToggle={e=>setRecoveryOpen(e.currentTarget.open)}>
     <summary style={{cursor:'pointer',minHeight:44,fontWeight:600}}>작성 중 기록 백업·복구 (필요할 때 열기)</summary>
     <div>
     <h3>작성 중 기록 안전 복구</h3>
@@ -1927,6 +1927,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     <p>백업 파일은 최대 50MB이며 암호화되지 않습니다. 파일을 안전한 장소에 보관하세요. 이 복구 도구는 점검 또는 안전조치 완료를 의미하지 않습니다.</p>
     </div>
    </details>
+   </section>
    <section aria-label="기기 저장 안정성 확인">
     <h3>기기 저장상태 확인</h3>
     <p>촬영 전후 저장 상태를 확인할 수 있습니다. 조회는 현재 기기의 브라우저에서만 수행하며 서버로 전송하지 않습니다.</p>
