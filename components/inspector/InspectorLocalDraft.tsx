@@ -963,7 +963,15 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   if(inputDraftRef.current&&localInputDraftFields(inputDraftRef.current)===localInputDraftFields(content))return;
   if(!inputDraftRef.current&&!localInputDraftHasContent(content))return;
   const epoch=++inputEpochRef.current;
-  const timer=setTimeout(()=>{
+  let queued=false;
+  // F08-48: Android may suspend/evict a background tab before the debounce runs.
+  // Start an IndexedDB checkpoint immediately on pagehide/visibilitychange.
+  // This is best effort, not a guarantee that an OS will finish the transaction.
+  const saveNow=()=>{
+   if(queued)return;
+   queued=true;
+   clearTimeout(timer);
+   inputTimerRef.current=null;
    const task=inputWriteRef.current.then(async()=>{
     if(epoch!==inputEpochRef.current)return;
     const expected=inputDraftRef.current,empty=!localInputDraftHasContent(content);
@@ -984,15 +992,24 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     if(epoch===inputEpochRef.current)setInputSavedAt(empty?'':next.savedAt);
    });
    inputWriteRef.current=task.catch(()=>{});
-  },650);
+  };
+  const timer=setTimeout(saveNow,650);
   inputTimerRef.current=timer;
-  return()=>clearTimeout(timer);
+  const onVisibilityChange=()=>{if(document.visibilityState==='hidden')saveNow();};
+  const onPageHide=()=>saveNow();
+  document.addEventListener('visibilitychange',onVisibilityChange);
+  window.addEventListener('pagehide',onPageHide);
+  return()=>{
+   clearTimeout(timer);
+   document.removeEventListener('visibilitychange',onVisibilityChange);
+   window.removeEventListener('pagehide',onPageHide);
+  };
  },[note,action,photoRole,siteContextInput,inputDraftState]);
 
 
  useEffect(()=>{if(!photo){setUrl('');return;}const next=URL.createObjectURL(photo);setUrl(next);return()=>URL.revokeObjectURL(next);},[photo]);
  useEffect(()=>{setAfterReferenceChoice('primary');if(!afterCamera){setAfterReferences({primary:'',context:''});return;}const primary=URL.createObjectURL(afterCamera.photo),context=afterCamera.contextPhoto&&!afterCamera.contextDetached?URL.createObjectURL(afterCamera.contextPhoto):'';setAfterReferences({primary,context});return()=>{URL.revokeObjectURL(primary);if(context)URL.revokeObjectURL(context);};},[afterCamera]);
- useEffect(()=>{if(!photo&&!note&&!action&&!capturedAfter)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[photo,note,action,capturedAfter]);
+ useEffect(()=>{if(!photo&&!capturedAfter&&!localInputDraftHasContent({note,action,photoRole,siteContext:siteContextInput}))return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[photo,note,action,photoRole,siteContextInput,capturedAfter]);
  const reference=legalForText(note,new Date().toISOString());
  // Do not present legacy, unreviewed, expired, or withdrawn material as guidance.
  const reviewedCards=reference.cards.filter(card=>sourceReviewState(card.sourceReview).code==='reviewed');
