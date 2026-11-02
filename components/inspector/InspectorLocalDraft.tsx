@@ -743,7 +743,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [singleDraftMessage,setSingleDraftMessage]=useState('');
  const [unfinishedBusy,setUnfinishedBusy]=useState(false);
  const [unfinishedMessage,setUnfinishedMessage]=useState('');
- const [unfinishedPreview,setUnfinishedPreview]=useState<{input:LocalInputDraft|null;single:SinglePhotoDraft|null;sequence:PhotoSetDraft|null;exportedAt:string}|null>(null);
+ const [unfinishedPreview,setUnfinishedPreview]=useState<{input:LocalInputDraft|null;single:SinglePhotoDraft|null;sequence:PhotoSetDraft|null;exportedAt:string;integrityLevel:'full'|'legacy-photo-only'}|null>(null);
  const inputDraftRef=useRef<LocalInputDraft|null>(null);
  const inputWriteRef=useRef<Promise<void>>(Promise.resolve());
  const inputTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null);
@@ -1424,7 +1424,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    setUnfinishedPreview(data);
    setUnfinishedMessage('백업 검증 완료: 입력 '+(info.hasInput?'있음':'없음')+
     ' · 단건 사진 '+info.singlePhotos+'장 · 연속 사진 '+info.sequencePhotos+
-    '장. 아직 복원하지 않았습니다. 현재 작성 중인 자료가 있으면 덮어쓰지 않습니다.');
+    '장. '+info.integrityLabel+'. 아직 복원하지 않았습니다. 현재 작성 중인 자료가 있으면 덮어쓰지 않습니다.');
   }catch(error){
    setUnfinishedMessage(error instanceof Error?error.message:'백업을 검증하지 못했습니다. 기존 기록은 변경하지 않았습니다.');
   }finally{setUnfinishedBusy(false);}
@@ -1605,6 +1605,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     <label>작성 중 백업 파일 검사<input type="file" accept="application/json,.json" aria-label="작성 중 백업 파일 검사" disabled={busy||unfinishedBusy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void previewUnfinished(file);}}/></label>
     {unfinishedPreview&&<div aria-label="작성 중 복구 미리보기">
      <p>검사 완료 · 입력 {unfinishedPreview.input?'있음':'없음'} · 단건 사진 {unfinishedPreview.single?1:0}장 · 연속 사진 {unfinishedPreview.sequence?.photos.length||0}장. 복원 전이며 기존 임시기록은 덮어쓰지 않습니다.</p>
+     <p role={unfinishedPreview.integrityLevel==='full'?'status':'alert'}>{unfinishedPreview.integrityLevel==='full'?'사진·점검내용·조치계획·현장정보·파일 전체 비교값 확인됨':'이전 백업 형식: 사진 비교값만 확인됐습니다. 점검 내용·현장정보의 변경 여부는 확인할 수 없습니다. 복원 전 직접 검토하세요.'} (비교값은 작성자 신원이나 법적 진본성 증명이 아닙니다.)</p>
      <button type="button" className="si-btn" disabled={busy||unfinishedBusy} onClick={()=>void restoreUnfinished()}>검사된 작성 중 자료 복원</button>
     </div>}
     {unfinishedMessage&&<p role="status">{unfinishedMessage}</p>}
