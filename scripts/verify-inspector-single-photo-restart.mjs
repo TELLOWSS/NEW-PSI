@@ -53,8 +53,37 @@ try{
  await panel.getByAltText('기기 점검에 선택한 사진').waitFor();
  await panel.getByText('first-single.png',{exact:false}).first().waitFor();
  assert.equal(await panel.getByText('이 브라우저에 보관된 점검 0건').count(),1,'unfinished photo must never count as completed inspection');
+ // F08-40: abort AFTER the full inspection has been queued, but before
+ // the database transaction commits. An immediate Save must flush the latest
+ // unsaved text checkpoint first, even if the 650ms timer has not fired.
  await panel.getByLabel('직접 확인한 내용').fill('합성 단건 사진 재실행 복구 확인');
  await panel.getByLabel('현장 조치·확인 계획').fill('접근 통제와 확인 필요');
+ await panel.getByLabel('층').fill('16F');
+ await page.evaluate(()=>{
+  window.__abortFinalOldDelete=IDBObjectStore.prototype.delete;
+  IDBObjectStore.prototype.delete=function(key){
+   const req=window.__abortFinalOldDelete.call(this,key);
+   if(key==='psi-single-photo-draft-v1')this.transaction.abort();
+   return req;
+  };
+ });
+ await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
+ await panel.getByRole('status').filter({hasText:/기기 저장이 중단됐습니다/}).waitFor();
+ await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
+ assert.equal((await read(singleId))?.photo?.name,'first-single.png','aborted commit must preserve picked photo');
+ const textCheckpoint=await read('psi-local-inspection-input-draft-v1');
+ assert.equal(textCheckpoint?.note,'합성 단건 사진 재실행 복구 확인','immediate save must flush current text before failing');
+ assert.equal(textCheckpoint?.action,'접근 통제와 확인 필요');
+ assert.equal(textCheckpoint?.siteContext.level,'16F');
+ await page.evaluate(()=>{IDBObjectStore.prototype.delete=window.__abortFinalOldDelete;});
+ page.once('dialog',dialog=>dialog.accept());
+ await page.reload({waitUntil:'networkidle'});
+ await page.getByRole('heading',{name:'사진만 찍어도 점검을 시작할 수 있습니다'}).waitFor();
+ panel=await open();
+ await panel.getByText('선택 사진 임시저장 확인됨',{exact:false}).waitFor();
+ assert.equal(await panel.getByLabel('직접 확인한 내용').inputValue(),'합성 단건 사진 재실행 복구 확인');
+ assert.equal(await panel.getByLabel('현장 조치·확인 계획').inputValue(),'접근 통제와 확인 필요');
+ assert.equal(await panel.getByLabel('층').inputValue(),'16F');
  await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
  assert.equal(await read(singleId),null,'checkpoint must be removed atomically after successful final save');
@@ -71,6 +100,31 @@ try{
 
  await pick('second-single.png');
  await panel.getByText('선택 사진 임시저장 확인됨',{exact:false}).waitFor();
+ // F08-40: simulate a legacy second draft arriving from another browser tab.
+ // Saving must NOT silently prefer the two-photo sequence over a single photo.
+ await page.evaluate(()=>new Promise((resolve,reject)=>{
+  const open=indexedDB.open('psi-inspector-local-records',1);
+  open.onerror=()=>reject(open.error);
+  open.onsuccess=()=>{
+   const db=open.result,tx=db.transaction('records','readwrite');
+   tx.objectStore('records').put({
+    id:'psi-photo-set-draft-v1',kind:'photo-set-draft',revision:crypto.randomUUID(),
+    photos:[new File(['two-photo sequence'],'sequence-only.png',{type:'image/png'})],
+   });
+   tx.oncomplete=()=>{db.close();resolve(true);};tx.onabort=()=>reject(tx.error);
+  };
+ }));
+ page.once('dialog',dialog=>dialog.accept());await page.reload({waitUntil:'networkidle'});
+ await page.getByRole('heading',{name:'사진만 찍어도 점검을 시작할 수 있습니다'}).waitFor();
+ panel=await open();
+ await panel.getByText('단건 임시사진과 연속 촬영 임시사진이 함께 있습니다.',{exact:false}).waitFor();
+ await panel.getByLabel('직접 확인한 내용').fill('가상 혼합 사진 충돌');
+ assert.equal(await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).isDisabled(),true,'ambiguous photo sources must block final save');
+ page.once('dialog',dialog=>dialog.accept());
+ await panel.getByRole('button',{name:'임시 사진 모두 삭제'}).click();
+ await panel.getByText('임시 촬영 사진을 삭제했습니다.',{exact:false}).waitFor();
+ assert.equal((await read(singleId))?.photo?.name,'second-single.png','clearing sequence must retain picked single photo');
+ await panel.getByLabel('직접 확인한 내용').fill('');
  const preserved=await read(singleId);
  await page.evaluate(key=>new Promise((resolve,reject)=>{
   const req=indexedDB.open('psi-inspector-local-records',1);
