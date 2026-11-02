@@ -2226,7 +2226,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
       <p>기기 기준일 {handoffPrepared.at} · 인계 대상 {handoffPrepared.count}건. 복사·파일 저장·확인 체크 전에 기기 원본을 다시 대조합니다.</p>
       <button type="button" className="si-btn" onClick={()=>void copyHandoff()}>인계 문구 복사 (자동 전송 없음)</button>
       {' '}
-      <button type="button" className="si-btn" onClick={()=>void saveHandoff()}>A4 인계표 기기에 저장</button>}
+      <button type="button" className="si-btn" onClick={()=>void saveHandoff()}>A4 인계표 기기에 저장</button>
       <label>인계 문구 직접 확인·복사
        <textarea aria-label="F10 인계 문구 직접 복사" readOnly rows={6} value={handoffPrepared.text}/>
       </label>
