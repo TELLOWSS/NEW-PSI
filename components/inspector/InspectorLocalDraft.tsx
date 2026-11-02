@@ -830,7 +830,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   verified:{title:'3단계 · 백업 파일 내용 일치',guide:'다시 선택한 파일은 이번 백업과 일치합니다. 기기 밖 보관 여부는 직접 확인하세요.'},
   mismatch:{title:'확인 실패 · 다른 백업 파일',guide:'이번에 만든 백업과 다릅니다. 원본을 삭제하지 말고 다운로드 폴더에서 올바른 파일을 다시 선택하세요.'},
   error:{title:'확인 실패 · 파일 손상 또는 읽기 오류',guide:'원본 파일을 보관하세요. 올바른 JSON을 다시 선택하거나 현재 화면을 새로 백업하세요.'},
-  stale:{title:'변경 감지 · 새 백업 필요',guide:'백업 이후 점검 내용이나 사진이 변경됐습니다. 변경된 내용으로 새 파일을 내려받고 다시 검사하세요.'},
+  stale:{title:'변경 감지 · 새 백업 필요',guide:'현재 화면이 이전 백업과 다릅니다. 변경된 내용을 새 파일로 내려받아 다시 검사하세요.'},
  };
  const inputPending=inputDraftState==='ready'&&(
   inputDraftRef.current
