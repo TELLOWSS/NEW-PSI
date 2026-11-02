@@ -1665,7 +1665,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     </div>}
     {unfinishedMessage&&<p role="status">{unfinishedMessage}</p>}
     <div aria-label="복원 실패 기기자료 확인">
-     <p>**복원에 실패했거나 다른 탭에 자료가 남았나요?** 아래에서 기기 자료 3종을 삭제 없이 확인할 수 있습니다.</p>
+     <p><strong>복원에 실패했거나 다른 탭에 자료가 남았나요?</strong> 아래에서 기기 자료 3종을 삭제 없이 확인할 수 있습니다.</p>
      <button type="button" className="si-btn" disabled={busy||unfinishedBusy||recoveryScanBusy} onClick={()=>void scanUnfinished()}>{recoveryScanBusy?'기기 기록 확인 중…':'기기 임시기록 상태 확인'}</button>
      {recoveryScan&&<section aria-label="기기 임시기록 진단 결과" role="status">
       <p>{recoveryScan.guidance}</p>
