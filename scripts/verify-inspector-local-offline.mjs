@@ -322,7 +322,7 @@ try{
  await page.evaluate(async()=>{const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('psi-inspector-local-records',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});const tx=db.transaction('records','readwrite');tx.objectStore('records').put(window.__integrityFixture);await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);});db.close();});
 
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:backupBytes});
- await panel.getByText('같은 점검이 이미 이 기기에 있습니다.',{exact:false}).waitFor();
+ await panel.getByText('동일한 점검 ID가 이미 저장돼 기존 기록을 변경하지 않았습니다.',{exact:false}).waitFor();
  const altered=JSON.parse(backupBytes.toString());altered.record.sha256='0'.repeat(64);
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'corrupt.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(altered))});
  await panel.getByText('백업 사진의 무결성이 확인되지 않아 복원을 중단했습니다.').waitFor();
@@ -411,7 +411,14 @@ try{
  const sourceRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
  page.once('dialog',d=>d.accept());await sourceRow.getByRole('button',{name:'이 기기 기록 삭제'}).click();
  await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
- // A detached photo remains recoverable through an offline backup.
+ // F08: the same valid backup must survive a simulated full-storage failure.
+ // Never overwrite or delete the original file or invent a successful restore.
+ await page.evaluate(()=>{window.__restoreOriginalAdd=IDBObjectStore.prototype.add;IDBObjectStore.prototype.add=function(){throw new DOMException('synthetic disk full','QuotaExceededError');};});
+ await panel.getByLabel('백업 파일 복원').setInputFiles({name:'detached-quota-failure.json',mimeType:'application/json',buffer:detachedBackupBytes});
+ await panel.getByText('기기 저장공간이 부족하거나 브라우저 저장 한도에 도달해 이 기록의 복원이 실패했습니다.',{exact:false}).waitFor();
+ await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
+ await page.evaluate(()=>{IDBObjectStore.prototype.add=window.__restoreOriginalAdd;});
+ // A detached photo remains recoverable through the unchanged offline backup.
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'detached.json',mimeType:'application/json',buffer:detachedBackupBytes});
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
  const detachedRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
@@ -433,7 +440,7 @@ try{
   await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
  }
  await panel.getByLabel('백업 파일 복원').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:backupBytes});
- await panel.getByText('백업을 이 기기에 복원했습니다.',{exact:false}).waitFor();
+ await panel.getByText('기기에서 복원된 기록을 다시 조회하여 사진 파일 정보를 확인했습니다.',{exact:false}).waitFor();
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
  await panel.getByText('조치 후 사진: synthetic-after-v2.png').waitFor();
  await panel.getByText('이전 조치 후 사진 1장').waitFor();
@@ -538,6 +545,7 @@ try{
  await page.evaluate(()=>{window.__batchOriginalAdd=IDBObjectStore.prototype.add;window.__batchFailNext=true;IDBObjectStore.prototype.add=function(...args){if(window.__batchFailNext){window.__batchFailNext=false;throw new DOMException('full','QuotaExceededError');}return window.__batchOriginalAdd.apply(this,args);};});
  await panel.getByRole('button',{name:'선택한 정상 기록 복원'}).click();
  await panel.getByText('묶음 복원 결과: 1건 저장 / 1건 실패.',{exact:false}).waitFor();
+ await panel.getByText('기기 저장공간이 부족하거나 브라우저 저장 한도에 도달해 이 기록의 복원이 실패했습니다.',{exact:false}).waitFor();
  await panel.getByText('이 브라우저에 보관된 점검 2건').waitFor();
  await page.evaluate(()=>{IDBObjectStore.prototype.add=window.__batchOriginalAdd;});
  await panel.getByRole('button',{name:'선택한 정상 기록 복원'}).click();
