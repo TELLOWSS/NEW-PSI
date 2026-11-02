@@ -1010,8 +1010,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    setSingleDraftState(conflict?'conflict':'error');
    setSingleDraftMessage(conflict
     ?'다른 탭에서 단건 임시사진을 변경하여 덮어쓰지 않았습니다. 현재 사진을 별도로 내려받아 보관하세요.'
-    :error instanceof Error?error.message+' 선택 사진은 이 화면에서 유지됩니다. 사진을 별도로 내려받거나 임시저장을 다시 시도하세요.'
-    :'사진을 임시저장하지 못했습니다. 사진을 별도로 내려받으세요.');
+    :'사진을 임시저장하지 못했습니다. '+(error instanceof Error&&error.message?'브라우저 저장 오류: '+error.message+' ':'')+'선택 사진은 이 화면에 유지됩니다. 별도로 내려받거나 임시저장을 다시 시도하세요.');
   }finally{flight.current=false;setBusy(false);}
  };
  const stagePhoto=async(file:File,edit?:CameraEditEvidence):Promise<boolean>=>{
