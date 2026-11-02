@@ -2184,8 +2184,8 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
        <textarea aria-label="F10 인계 문구 직접 복사" readOnly rows={6} value={handoffPrepared.text}/>
       </label>
       <section aria-label="F10 인계 수신·재점검 확인 순서" className="rounded-lg border border-slate-200 p-3">
-       <h6>인계 후 직접 확인할 일</h6>
-       <p>현재 화면에서만 확인하는 체크리스트입니다. <strong>새로고침 시 표시가 사라지며</strong> 원본 점검기록이나 인계 증빙으로 저장되지 않습니다.</p>
+       <h6>인계 후 직접 확인할 일 · 이번 인계 대상 {handoffPrepared.count}건</h6>
+       <p>현재 화면에서만 확인하는 체크리스트입니다. <strong>새로고침 시 표시가 사라지며</strong> 원본 점검기록이나 인계 증빙으로 저장되지 않습니다. 여러 대상 중 일부만 전달하거나 회신받았다면 아래 일괄 확인란을 선택하지 말고 점검별 기록에서 확인하세요.</p>
        <ol className="list-decimal pl-5">
         {handoffFollowthrough.stages.map(stage=><li key={stage.key}>
          <strong>{stage.label}</strong> · {stage.description}
@@ -2195,13 +2195,13 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
        <label style={{display:'flex',gap:8,alignItems:'flex-start',minHeight:44}}>
         <input type="checkbox" aria-label="인계 자료를 외부에서 직접 전달했음을 점검자가 확인" checked={handoffDeliveredByOperator}
          onChange={e=>{setHandoffDeliveredByOperator(e.target.checked);if(!e.target.checked)setHandoffReceivedByOperator(false);}}/>
-        외부 전달 화면·구두 전달 등을 제가 직접 확인했습니다. (점검자 자기확인 · 실제 전달 증빙 아님)
+        이번 인계 대상 모두에 대한 외부 전달 사실을 제가 직접 확인했습니다. (점검자 자기확인 · 실제 전달 증빙 아님)
        </label>
        <label style={{display:'flex',gap:8,alignItems:'flex-start',minHeight:44}}>
         <input type="checkbox" aria-label="담당자의 실제 수신 회신을 점검자가 확인" checked={handoffReceivedByOperator}
          disabled={!handoffDeliveredByOperator}
          onChange={e=>setHandoffReceivedByOperator(e.target.checked)}/>
-        담당자가 직접 수신을 회신한 사실을 제가 확인했습니다. (점검자 자기확인 · 수신 증빙 아님)
+        이번 인계 대상 모두에서 담당자의 실제 수신 회신을 제가 확인했습니다. (점검자 자기확인 · 수신 증빙 아님)
        </label>
        <button type="button" className="si-btn" style={{minHeight:44}} onClick={()=>void copyHandoffReceiptRequest()}>담당자에게 보낼 수신 확인 요청 문구 복사</button>
        {handoffReceiptMessage&&<p role="status">{handoffReceiptMessage}</p>}
