@@ -41,9 +41,9 @@ try{
    }:null);};tx.oncomplete=()=>db.close();tx.onabort=()=>reject(tx.error);
   };
  }),id);
- const downloadJson=async(panel,page)=>{
+ const downloadJson=async(panel,page,buttonLabel='작성 중 자료 한 번에 백업')=>{
   const [dl]=await Promise.all([
-   page.waitForEvent('download'),panel.getByRole('button',{name:'작성 중 자료 한 번에 백업'}).click(),
+   page.waitForEvent('download'),panel.getByRole('button',{name:buttonLabel}).click(),
   ]);
   const bytes=await readFile(await dl.path());
   const parsed=JSON.parse(bytes.toString('utf8'));
@@ -74,7 +74,7 @@ try{
  await a.getByLabel('현장 조치·확인 계획').fill('접근통제 및 담당 지정 예정');
  await a.getByLabel('현장명').fill('합성 41차 현장');
  await a.getByLabel('층').fill('16F');
- const emergency=await downloadJson(a,one);
+ const emergency=await downloadJson(a,one,'오류 난 사진·내용 긴급 백업');
  assert.equal(emergency.parsed.input.note,'합성 임시 점검 · 저장 공간 부족');
  assert.equal(emergency.parsed.input.siteContext.level,'16F');
  assert.equal(emergency.parsed.single.photo.name,'quota-photo.png');
