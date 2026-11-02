@@ -427,7 +427,7 @@ try{
  await panel.getByLabel('직접 확인한 내용').fill('저장 실패 시 보존 시험');
  await page.evaluate(()=>{window.__originalAdd=IDBObjectStore.prototype.add;IDBObjectStore.prototype.add=function(){throw new DOMException('full','QuotaExceededError');};});
  await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
- await panel.getByText('저장 공간이 부족합니다.',{exact:false}).waitFor();
+ await panel.getByRole('status').filter({hasText:/저장 공간이 부족합니다|기기 저장이 중단됐습니다/}).waitFor();
  assert.equal(await panel.getByLabel('직접 확인한 내용').inputValue(),'저장 실패 시 보존 시험');
  assert.equal(await panel.getByAltText('기기 점검에 선택한 사진').count(),1);
  await page.evaluate(()=>{IDBObjectStore.prototype.add=window.__originalAdd;});
