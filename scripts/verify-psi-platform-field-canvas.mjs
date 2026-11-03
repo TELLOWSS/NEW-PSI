@@ -56,7 +56,8 @@ try{
   });
   assert.equal(state.missing,false,'Field Canvas root not found');
   assert.equal(state.brand,'#117668','brand token mismatch at '+width);
-  assert.match(state.heroBackground,/gradient/i,'hero style missing at '+width);
+  assert.match(state.heroBackground,/119deg/i,'Field Canvas teal hero overridden by legacy styling at '+width);
+  assert.match(state.heroBackground,/rgb\(18, 99, 88\)/i,'teal end stop not applied at '+width);
   assert.equal(state.overflow,false,'horizontal overflow on '+width);
   assert.ok(state.minButtonHeight>=44,'route tap target must be >=44px on '+width);
   assert.ok(state.heroWidth<=width+1,'hero spills on '+width);
