@@ -63,7 +63,8 @@ describe('NEW-PSI R70–R73 Field Canvas platform design contract',()=>{
   expect(canvas).toContain('@media print');
   expect(canvas).toContain(':focus-visible');
   expect(canvas).toContain('min-height:46px');
-  expect(canvas).toContain('min-height:44px');
+  // The phone route cards have a 75px minimum; the tap target exceeds 44px.
+  expect(canvas).toContain('min-height:75px');
   expect(canvas).toContain('grid-template-columns:repeat(3,minmax(0,1fr))');
  });
  it('maintains legible white text on brand accent and dark hero',()=>{
