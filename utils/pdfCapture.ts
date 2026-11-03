@@ -69,8 +69,11 @@ const waitForImages = async (root: HTMLElement, timeoutMs = 0) => {
     const images = Array.from(root.querySelectorAll('img'));
     if (timeoutMs > 0) {
         await Promise.all(images.map(img => new Promise<void>((resolve, reject) => {
-            if (!img.currentSrc && !img.getAttribute('src')) return resolve();
+            if (!img.currentSrc && !img.getAttribute('src') && !img.getAttribute('srcset')) return resolve();
+            let settled = false;
             const done = (ok: boolean) => {
+                if (settled) return;
+                settled = true;
                 window.clearTimeout(timer);
                 img.removeEventListener('load', onLoad);
                 img.removeEventListener('error', onError);
@@ -116,10 +119,15 @@ const waitForFonts = async (timeoutMs = 0) => {
         if (timeoutMs > 0) {
             // Do not hold the whole browser indefinitely for unavailable remote fonts.
             // Timeout is a fallback, NOT a claim that the glyphs are correctly rendered.
-            await Promise.race([
-                document.fonts.ready.catch(() => undefined),
-                new Promise<void>(resolve => window.setTimeout(resolve, timeoutMs)),
-            ]);
+            let timer: number | undefined;
+            try {
+                await Promise.race([
+                    document.fonts.ready.catch(() => undefined),
+                    new Promise<void>(resolve => { timer = window.setTimeout(resolve, timeoutMs); }),
+                ]);
+            } finally {
+                if (timer !== undefined) window.clearTimeout(timer);
+            }
         } else {
             await document.fonts.ready;
         }
