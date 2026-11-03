@@ -217,9 +217,14 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                         <h3 className="psi-section-title mt-1">관리자 확인 근거 기반 실천 환류</h3>
                         <p className="psi-small-note mt-1">운영주기 {practice.periodStartDate || '전체'} ~ {practice.asOfDate} · 기록된 확인 횟수이며 교육 대상자 전원의 이수율이 아닙니다.</p>
                     </div>
-                    <button type="button" onClick={() => onNavigateToPage('ocr-analysis')} className="min-h-11 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-bold text-white">
-                        근로자 기록에서 확인·등록
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button type="button" onClick={() => onNavigateToPage('survey-intelligence')} className="min-h-11 rounded-xl border border-emerald-300 bg-white px-4 py-2 text-sm font-bold text-emerald-900 transition-colors hover:bg-emerald-50 dark:border-emerald-700 dark:bg-slate-900 dark:text-emerald-200">
+                            근로자 의견 분석
+                        </button>
+                        <button type="button" onClick={() => onNavigateToPage('ocr-analysis')} className="min-h-11 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-bold text-white">
+                            근로자 기록에서 확인·등록
+                        </button>
+                    </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-5">
                     {[
