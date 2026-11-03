@@ -1,6 +1,8 @@
 import React from 'react';
 import App from '../App';
 import '../styles.css';
+// R70: only admin platform inherits this scoped Field Canvas design layer.
+import '../styles/psi-platform-field-canvas.css';
 import {DevModeProvider} from '../contexts/DevModeContext';
 import {OperationalModeProvider} from '../contexts/OperationalModeContext';
 
