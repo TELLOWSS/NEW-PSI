@@ -795,6 +795,20 @@
  }
 }
 
+/* R88 / The scrolling viewport is narrow, but the *paper* must remain 210mm.
+   Tailwind max-w-full previously shrank the A4 document on mobile,
+   making the 210mm poster overflow the page and blocking all exports. */
+.psi-platform-field-canvas [data-psi-screen="a4-education-studio"] [data-psi-a4-preview-scroll] > article[data-report-template-root="true"]{
+ width:210mm!important;
+ min-width:210mm!important;
+ max-width:none!important;
+}
+.psi-platform-field-canvas [data-psi-screen="a4-education-studio"] [data-psi-a4-preview-scroll] > article[data-report-template-root="true"] > [data-report-page="true"]{
+ width:210mm!important;
+ min-width:210mm!important;
+ max-width:none!important;
+}
+
 /* R84 / Dense trades remain fully legible, without compressing axis labels. */
 .psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-chart="risk-gap"]{
  min-width:0;
