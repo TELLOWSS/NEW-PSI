@@ -454,6 +454,7 @@ html.dark .si-refresh-local .si-btn.si-primary{background:#116f64;color:#fff;bor
  .si-quick.si-refresh .si-refresh-path .si-refresh-path-action{
   grid-column:1/-1;width:100%;min-width:0;min-height:44px;
  }
- .si-quick.si-refresh .si-quick-photo{min-height:250px;padding:18px;gap:9px}
+ .si-quick.si-refresh .si-quick-heading.si-refresh-hero{padding:19px 22px;gap:14px}
+ .si-quick.si-refresh .si-quick-photo{min-height:230px;padding:16px;gap:8px}
  .si-quick.si-refresh .si-quick-photo h2{font-size:23px}
 }
