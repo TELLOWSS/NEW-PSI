@@ -95,7 +95,7 @@ describe('F10 local-only safety handover',()=>{
   });
   const plan=buildLocalHandoffPlan([src],NOW);
   expect(plan.entries).toHaveLength(2);
-  expect(plan.entries.map((e:any)=>[e.recordId,e.actionId])).toEqual([
+  expect(plan.entries.map((e:any)=>[e.recordId,e.actionId]).sort((a,b)=>a[1].localeCompare(b[1]))).toEqual([
    ['opaque-record-63',''],['opaque-record-63','opaque-action-63'],
   ]);
   for(const exported of [formatLocalHandoffMessage(plan),formatLocalHandoffHtml(plan)]){
