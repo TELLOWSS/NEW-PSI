@@ -41,6 +41,7 @@ try{
   const initialCamera=await camera.boundingBox(),records=await page.getByRole('button',{name:'저장 기록 · 상세 관리',exact:true}).boundingBox();
   await page.screenshot({path:`${out}/${baseline?'before':'after'}-${width}.png`,fullPage:true});
   if(baseline){results.push({width,camera:initialCamera,records});await context.close();continue;}
+  console.log('[Field Canvas mobile first view]',JSON.stringify({width,camera:initialCamera,records,viewportHeight:844}));
   assert.ok(initialCamera.y+initialCamera.height<=844,'camera must be visible without scrolling at '+width);
   assert.ok(records.y+records.height<=844,'records must be visible at '+width);
   assert.equal(await camera.count(),1);assert.ok(initialCamera.height>=44&&records.height>=44);
