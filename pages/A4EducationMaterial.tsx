@@ -8,6 +8,17 @@ import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
 import { getA4LanguagePolicy } from '../utils/a4LanguagePolicy';
 import { inspectA4FontPreflight, type A4FontPreflight } from '../utils/educationA4FontPreflight';
+import {
+    A4_REVIEW_CHECKS,
+    a4ReviewKey,
+    calculateA4ReviewFingerprint,
+    newA4ReviewChecks,
+    readA4ReviewStore,
+    saveA4ReviewStore,
+    validA4Review,
+    type A4OutputReview,
+    type A4ReviewerRole,
+} from '../utils/educationA4LocalReview';
 import { TRAINING_LANGUAGE_LABELS } from '../utils/constructionTrainingTranslation';
 import {
     normalizeEducationPosterTranslationMap,
@@ -1182,6 +1193,13 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const [batchProgress, setBatchProgress] = useState('');
     const [preparedBundle, setPreparedBundle] = useState<{ blob: Blob; filename: string } | null>(null);
     const [fontPreflight, setFontPreflight] = useState<A4FontPreflight | null>(null);
+    const [localOutputReviews, setLocalOutputReviews] = useState(() => (
+        typeof window === 'undefined' ? {} : readA4ReviewStore(window.localStorage)
+    ));
+    const [reviewDigestSnapshot, setReviewDigestSnapshot] = useState<{ scope: string; digests: Record<string, string> }>({ scope: '', digests: {} });
+    const [reviewChecks, setReviewChecks] = useState(newA4ReviewChecks);
+    const [reviewerRole, setReviewerRole] = useState<A4ReviewerRole>('site-manager');
+    const [reviewSaveMessage, setReviewSaveMessage] = useState('');
     const [notice, setNotice] = useState('');
     const [translatedTexts, setTranslatedTexts] = useState<Record<string, string>>(
         initialState?.translatedTexts || {},
@@ -1273,6 +1291,39 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     );
     const translationNeedsRefresh = translationLanguageCodes.length > 0
         && translationSourceText !== currentTranslationSourceText;
+
+    // A local review belongs to the exact month, work type, source, translation
+    // and language. Any content change yields a different SHA-256; old reviews
+    // must never be shown as valid for an updated safety message.
+    const reviewLanguageCodes = useMemo(() => [
+        'ko-KR',
+        ...translationLanguageCodes.filter(code => code !== 'ko-KR'),
+    ], [translationLanguageCodes]);
+    const reviewScopes = useMemo(() => Object.fromEntries(reviewLanguageCodes.map(code => [
+        code,
+        JSON.stringify({
+            educationMonth, workType, draft,
+            currentTranslationSourceText,
+            translationSourceText,
+            language: code,
+            text: code === 'ko-KR' ? '' : translatedTexts[code] || '',
+            structured: code === 'ko-KR' ? null : structuredTranslations[code] || null,
+        }),
+    ])), [educationMonth, workType, draft, currentTranslationSourceText, translationSourceText, reviewLanguageCodes, translatedTexts, structuredTranslations]);
+    const serializedReviewScopes = JSON.stringify(reviewScopes);
+    const reviewDigests = reviewDigestSnapshot.scope === serializedReviewScopes ? reviewDigestSnapshot.digests : {};
+    const currentReviewKey = a4ReviewKey(educationMonth, workType, previewLanguage);
+    const currentReview = reviewDigests[previewLanguage]
+        ? validA4Review(localOutputReviews, currentReviewKey, reviewDigests[previewLanguage])
+        : null;
+    const reviewedLanguageCount = reviewLanguageCodes.filter(code => (
+        Boolean(reviewDigests[code] && validA4Review(
+            localOutputReviews,
+            a4ReviewKey(educationMonth, workType, code),
+            reviewDigests[code],
+        ))
+        && (code === 'ko-KR' || !translationNeedsRefresh)
+    )).length;
     const currentPreviewIsStaleTranslation = translationNeedsRefresh && previewLanguage !== 'ko-KR';
     const languageAudit = useMemo(() => buildEducationLanguageAudit({
         draft,
@@ -1288,6 +1339,24 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         verifiedPngCacheRef.current = null;
     }, [draft, educationMonth, workType, structuredTranslations, translatedTexts]);
     useEffect(() => setFontPreflight(null), [previewLanguage, draft, structuredTranslations, translatedTexts]);
+    useEffect(() => {
+        setReviewChecks(newA4ReviewChecks());
+        setReviewSaveMessage('');
+    }, [previewLanguage, serializedReviewScopes]);
+    useEffect(() => {
+        let active = true;
+        setReviewDigestSnapshot({ scope: '', digests: {} });
+        const scopes = JSON.parse(serializedReviewScopes) as Record<string, string>;
+        void Promise.all(Object.entries(scopes).map(async ([language, scope]) => [
+            language,
+            await calculateA4ReviewFingerprint(scope),
+        ] as const)).then(entries => {
+            if (active) setReviewDigestSnapshot({ scope: serializedReviewScopes, digests: Object.fromEntries(entries) });
+        }).catch(() => {
+            if (active) setReviewSaveMessage('이 브라우저에서는 안전하게 변경 이력을 대조할 수 없어 확인기록 저장을 사용할 수 없습니다.');
+        });
+        return () => { active = false; };
+    }, [serializedReviewScopes]);
 
     const applyStudioState = (nextState: StoredStudioState) => {
         setEducationMonth(nextState.educationMonth);
@@ -1715,6 +1784,48 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         }
     };
 
+
+    const saveCurrentLocalReview = () => {
+        const fingerprint = reviewDigests[previewLanguage];
+        if (!fingerprint || !A4_REVIEW_CHECKS.every(check => reviewChecks[check])) {
+            setReviewSaveMessage('파일·글자·안전지시 내용 3가지를 직접 확인한 후 저장해 주세요.');
+            return;
+        }
+        if ((previewLanguage !== 'ko-KR' && translationNeedsRefresh) || isOverflowing) {
+            setReviewSaveMessage('번역 갱신 또는 A4 넘침 해결 후 새 출력 파일을 다시 확인해 주세요.');
+            return;
+        }
+        const next: A4OutputReview = {
+            version: 1,
+            key: currentReviewKey,
+            fingerprint,
+            language: previewLanguage,
+            role: reviewerRole,
+            checkedAt: new Date().toISOString(),
+            checks: { fileOpened: true, glyphsLegible: true, safetyMeaningCompared: true },
+        };
+        const entries = { ...localOutputReviews, [currentReviewKey]: next };
+        try {
+            saveA4ReviewStore(window.localStorage, entries);
+            setLocalOutputReviews(readA4ReviewStore(window.localStorage));
+            setReviewSaveMessage('이 기기에 검수 확인 내용을 기록했습니다. 서버 승인이나 교육 완료 증명이 아닙니다.');
+            setReviewChecks(newA4ReviewChecks());
+        } catch {
+            setReviewSaveMessage('이 기기의 저장공간 사용이 차단됐습니다. 검수 내용을 저장하지 못했습니다.');
+        }
+    };
+
+    const clearCurrentLocalReview = () => {
+        const entries = { ...localOutputReviews };
+        delete entries[currentReviewKey];
+        try {
+            saveA4ReviewStore(window.localStorage, entries);
+            setLocalOutputReviews(readA4ReviewStore(window.localStorage));
+            setReviewSaveMessage('현재 언어의 기기 내 확인기록을 취소했습니다.');
+        } catch {
+            setReviewSaveMessage('이 기기의 저장공간 사용이 차단되어 확인기록 취소에 실패했습니다.');
+        }
+    };
 
     const runFontPreflight = () => {
         const faces = document.fonts ? Array.from(document.fonts, face => ({ family: face.family, status: face.status })) : null;
@@ -2863,6 +2974,95 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                     <p className="mt-2 no-print text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
                         다국어 출력은 ZIP 1개 또는 여러 A4 페이지를 묶은 PDF 1개로 요청됩니다. 번역 정확성·글꼴·다운로드 폴더를 확인한 뒤 배포하세요.
                     </p>
+                    <section data-psi-a4-output-review="true" className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 no-print dark:border-slate-700 dark:bg-slate-900">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <h3 className="text-base font-black text-slate-900 dark:text-white">출력물 현장 확인기록</h3>
+                                <p className="mt-1 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">파일을 실제로 연 뒤 문자·문장·안전지시를 직접 확인했을 때만 체크하세요. 자동 판정이나 교육 완료 증명이 아닙니다.</p>
+                            </div>
+                            <span data-psi-a4-review-count="true" className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-800 dark:bg-slate-800 dark:text-slate-100">
+                                현재 자료 확인기록 {reviewedLanguageCount}/{reviewLanguageCodes.length}개 언어
+                            </span>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2" aria-label="언어별 기기 확인기록 현황">
+                            {reviewLanguageCodes.map(code => {
+                                const checked = reviewDigests[code] && validA4Review(
+                                    localOutputReviews,
+                                    a4ReviewKey(educationMonth, workType, code),
+                                    reviewDigests[code],
+                                ) && (code === 'ko-KR' || !translationNeedsRefresh);
+                                return (
+                                    <button
+                                        type="button"
+                                        key={code}
+                                        disabled={isExporting}
+                                        onClick={() => { setPreviewLanguage(code); setViewMode('single'); }}
+                                        className={`min-h-10 rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50 ${checked
+                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                                            : 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'}`}
+                                    >
+                                        {TRAINING_LANGUAGE_LABELS[code as keyof typeof TRAINING_LANGUAGE_LABELS] || code} · {checked ? '기기 기록 있음' : '확인 필요'}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div className="mt-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                            <p data-psi-a4-review-status={currentReview && !(previewLanguage !== 'ko-KR' && translationNeedsRefresh) ? 'recorded' : 'needs-review'} className="text-sm font-black text-slate-800 dark:text-slate-100">
+                                현재 언어: {TRAINING_LANGUAGE_LABELS[previewLanguage as keyof typeof TRAINING_LANGUAGE_LABELS] || previewLanguage}
+                                {' · '}
+                                {currentReview && !(previewLanguage !== 'ko-KR' && translationNeedsRefresh)
+                                    ? `이 기기의 확인기록 있음 (${new Date(currentReview.checkedAt).toLocaleString('ko-KR')})`
+                                    : '확인기록 없음 또는 내용 변경으로 재확인 필요'}
+                            </p>
+                            <div className="mt-3 grid gap-3">
+                                {([
+                                    ['fileOpened', '저장한 PDF 또는 PNG 파일을 직접 열어 전체 페이지를 확인했습니다.'],
+                                    ['glyphsLegible', '글자 깨짐·겹침·누락·잘림 없이 해당 언어를 읽을 수 있음을 확인했습니다.'],
+                                    ['safetyMeaningCompared', '위험요소·작업중지·금지·보호구 등 안전지시를 한국어 원문과 대조했습니다.'],
+                                ] as const).map(([check, label]) => (
+                                    <label key={check} className="flex min-h-11 cursor-pointer items-start gap-3 text-xs font-semibold leading-5 text-slate-700 dark:text-slate-200">
+                                        <input
+                                            type="checkbox"
+                                            data-psi-a4-review-check={check}
+                                            checked={reviewChecks[check]}
+                                            disabled={isExporting}
+                                            onChange={event => setReviewChecks(previous => ({ ...previous, [check]: event.target.checked }))}
+                                            className="mt-1 h-5 w-5 accent-blue-700"
+                                        />
+                                        <span>{label}</span>
+                                    </label>
+                                ))}
+                            </div>
+                            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+                                <label className="flex-1 text-xs font-bold text-slate-700 dark:text-slate-200">
+                                    직접 확인한 역할
+                                    <select data-psi-a4-review-role="true" value={reviewerRole} disabled={isExporting}
+                                        onChange={event => setReviewerRole(event.target.value as A4ReviewerRole)}
+                                        className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white">
+                                        <option value="site-manager">현장 관리자</option>
+                                        <option value="native-language-reviewer">모국어 확인자</option>
+                                        <option value="joint-review">관리자와 모국어 확인자 공동</option>
+                                    </select>
+                                </label>
+                                <button type="button" data-psi-a4-review-save="true" onClick={saveCurrentLocalReview}
+                                    disabled={isExporting || !reviewDigests[previewLanguage] || !A4_REVIEW_CHECKS.every(check => reviewChecks[check]) || isOverflowing || (previewLanguage !== 'ko-KR' && translationNeedsRefresh)}
+                                    className="min-h-11 rounded-xl bg-blue-700 px-4 py-3 text-xs font-black text-white disabled:opacity-45">
+                                    {currentReview ? '현재 내용 재확인 기록' : '현재 언어 확인기록 저장'}
+                                </button>
+                                {currentReview && (
+                                    <button type="button" onClick={clearCurrentLocalReview} disabled={isExporting}
+                                        className="min-h-11 rounded-xl border border-slate-300 px-4 py-3 text-xs font-black text-slate-700 disabled:opacity-45 dark:text-slate-200">
+                                        확인기록 취소
+                                    </button>
+                                )}
+                            </div>
+                            {reviewSaveMessage && <p role="status" aria-live="polite" className="mt-2 text-xs font-semibold text-blue-700 dark:text-blue-300">{reviewSaveMessage}</p>}
+                        </div>
+                        <p className="mt-3 text-[11px] font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                            이 확인은 현재 기기 브라우저에만 저장됩니다. 이름·근로자 정보·원문·사진·파일은 기록하지 않으며 서버 전송·조직 승인·산업안전 법정 교육 증빙으로 사용하지 않습니다.
+                            원문 또는 번역이 달라지면 해당 언어는 자동으로 다시 확인해야 합니다.
+                        </p>
+                    </section>
                     {batchProgress && (
                         <p className="mt-2 no-print rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm font-bold text-teal-900 dark:border-teal-800 dark:bg-teal-900/30 dark:text-teal-100" role="status" aria-live="polite">
                             {batchProgress} · 완료되기 전 다른 메뉴로 이동하지 마세요.
