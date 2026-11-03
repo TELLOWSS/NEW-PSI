@@ -5,6 +5,7 @@ import '../components/inspector/inspector.css';
 import '../components/inspector/inspector-experience.css';
 import '../components/inspector/inspector-quick.css';
 import '../components/inspector/inspector-collab.css';
+import '../components/inspector/inspector-refresh.css';
 
 const InspectorAdvancedWorkspace=lazy(()=>import('./InspectorAdvancedWorkspace'));
 
