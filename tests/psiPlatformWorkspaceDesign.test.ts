@@ -29,6 +29,7 @@ describe('PSI R74–R77 secondary workspaces product design contract',()=>{
     expect(education).toContain("onNavigateToPage('reports')");
     expect(education).toContain("onNavigateToPage('monthly-guidance-report')");
     expect(education).toContain("onNavigateToPage('a4-education-material')");
+    expect(education).toContain("onNavigateToPage('survey-intelligence')");
     expect(education).toContain('현장 위험이 없다는 뜻은 아닙니다');
   });
   it('retains OCR routes and paid OCR explicit approval without behavioral rewrites',()=>{
