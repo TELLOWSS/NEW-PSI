@@ -34,7 +34,7 @@ describe('NEW-PSI Field Canvas UX design contract',()=>{
  });
  it('marks the actual offline and F10 anchors with no record overwrite shortcut',()=>{
   expect(local).toContain('className="si-local-inspection si-refresh-local"');
-  expect(local).toContain('aria-label="기기 점검 빠른 이동"');
+  expect(local).toContain('aria-label="기기 점검 바로가기"');
   expect(local).toContain('href="#si-saved-local-records"');
   expect(local).toContain('href="#si-f10-recheck"');
   expect(local).toContain('id="si-f10-recheck"');
