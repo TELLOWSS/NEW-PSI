@@ -54,7 +54,7 @@ try{
   assert.equal(await page.locator('#si-local-inspection').getAttribute('open'),null);
   await openLocal.click();
   await page.waitForFunction(()=>document.querySelector('#si-local-inspection')?.open===true);
-  await page.getByRole('navigation',{name:'기기 점검 빠른 이동'}).getByRole('link',{name:'지연 조치·재점검'}).waitFor();
+  await page.getByRole('navigation',{name:'기기 점검 바로가기'}).getByRole('link',{name:'지연 조치·재점검'}).waitFor();
   await page.locator('#si-local-inspection > summary').click();
   await page.waitForFunction(()=>document.querySelector('#si-local-inspection')?.open===false);
   // The existing control is visible without opening cost/operator settings.
