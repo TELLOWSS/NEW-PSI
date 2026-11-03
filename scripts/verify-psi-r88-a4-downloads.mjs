@@ -184,7 +184,34 @@ try {
     assert.deepEqual(externalCalls, [], 'external jsPDF or html2canvas CDN was required');
     assert.deepEqual(pageErrors, [], 'uncaught browser error during download');
     checks.push({ label: 'network and browser errors', externalCalls, pageErrors });
-    console.log('PASS R88–R90 real Chromium mobile-size downloads: ZIP 2 PNG + PDF 2 A4 pages (synthetic only)');
+
+    // R93: an unresolved external A4 image must fail with an actionable message,
+    // never leave the phone waiting indefinitely or claim a successful file.
+    let stalledImageRoute;
+    await page.route('**/__psi_qa_stalled_a4_image__.png', route => { stalledImageRoute = route; });
+    await page.evaluate(() => {
+        const poster = document.querySelector('[data-psi-a4-preview-scroll] [data-a4-safety-poster="true"]');
+        if (!poster) throw new Error('A4 poster is absent before stalled-image preflight');
+        const img = document.createElement('img');
+        img.src = '/__psi_qa_stalled_a4_image__.png';
+        img.alt = 'Synthetic unavailable image';
+        img.width = 1;
+        img.height = 1;
+        img.style.position = 'absolute';
+        img.style.left = '0';
+        img.style.top = '0';
+        img.id = 'psi-qa-unavailable-image';
+        poster.appendChild(img);
+    });
+    await page.getByRole('button', { name: 'PNG 이미지', exact: true }).click();
+    await page.getByText(/A4 이미지가 준비되지 않았습니다/).waitFor({ state: 'visible', timeout: 24_000 });
+    assert.equal(await page.getByRole('button', { name: 'PNG 이미지', exact: true }).isDisabled(), false,
+        'stalled capture did not release export state');
+    checks.push({ label: 'R93 stalled image recovery', message: 'Clear failure, released export control' });
+    if (stalledImageRoute) await stalledImageRoute.abort().catch(() => {});
+    await page.unroute('**/__psi_qa_stalled_a4_image__.png');
+    await page.evaluate(() => document.getElementById('psi-qa-unavailable-image')?.remove());
+    console.log('PASS R92–R94 mobile-size font preflight + bounded-image failure + ZIP/PDF downloads (synthetic only)');
     await writeFile(resolve(out, 'results.json'), JSON.stringify({ result: 'PASS', syntheticOnly: true, checks }, null, 2));
 } catch (error) {
     await writeFile(resolve(out, 'results.json'), JSON.stringify({
