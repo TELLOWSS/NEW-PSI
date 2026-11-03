@@ -49,6 +49,13 @@ interface Props {
 }
 
 type StudioTab = 'sources' | 'ai' | 'package' | 'editor' | 'preview';
+const STUDIO_STEPS: ReadonlyArray<readonly [StudioTab, string]> = [
+    ['sources', '1. 자료 모으기'],
+    ['ai', '2. AI 정밀 초안'],
+    ['package', '3. 5단계 검수'],
+    ['editor', '4. 한 장 편집'],
+    ['preview', '5. 출력 확인'],
+];
 
 const getNextMonth = (): string => {
     const date = new Date();
@@ -1790,18 +1797,13 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                 </div>
             </section>
 
-            <nav className="psi-segmented-nav grid grid-cols-2 gap-2 sm:grid-cols-5 no-print" aria-label="교육자료 제작 단계">
-                {([
-                    ['sources', '1. 자료 모으기'],
-                    ['ai', '2. AI 정밀 초안'],
-                    ['package', '3. 5단계 검수'],
-                    ['editor', '4. 한 장 편집'],
-                    ['preview', '5. 출력 확인'],
-                ] as Array<[StudioTab, string]>).map(([id, label]) => (
+            <nav className="psi-segmented-nav grid grid-cols-2 gap-2 sm:grid-cols-5 no-print" aria-label="교육자료 제작 단계" aria-describedby="psi-studio-stage-status">
+                {STUDIO_STEPS.map(([id, label]) => (
                     <button
                         key={id}
                         type="button"
                         onClick={() => setActiveTab(id)}
+                        aria-current={activeTab === id ? 'step' : undefined}
                         className={`min-h-11 rounded-xl px-3 py-2 text-xs font-black transition-colors sm:text-sm ${
                             activeTab === id
                                 ? 'bg-blue-700 text-white shadow-md'
@@ -1812,6 +1814,9 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                     </button>
                 ))}
             </nav>
+            <p id="psi-studio-stage-status" data-psi-studio-progress="true" role="status" aria-live="polite" className="no-print text-xs font-semibold leading-5">
+                현재 {STUDIO_STEPS.findIndex(([id]) => id === activeTab) + 1}/5단계 · {STUDIO_STEPS.find(([id]) => id === activeTab)?.[1].replace(/^\d+\.\s*/, '')} · 위 단계 버튼으로 필요한 작업을 바로 선택할 수 있습니다.
+            </p>
 
             {notice && (
                 <p className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200 no-print">
@@ -2358,6 +2363,10 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                         </div>
                     )}
 
+                    <p className="psi-a4-preview-hint no-print text-xs font-semibold leading-5">
+                        모바일 미리보기는 좌우로 이동해 전체 A4를 확인하세요. 인쇄·PDF·PNG는 원래 A4 크기로 저장됩니다.
+                    </p>
+                    <div data-psi-a4-preview-scroll="true" role="region" aria-label="A4 교육자료 미리보기: 화면 폭이 좁으면 좌우로 이동" tabIndex={0}>
                     <article ref={sheetRef} data-report-template-root="true" className="mx-auto w-[210mm] max-w-full bg-white text-slate-900 shadow-2xl">
                         <div
                             data-report-page="true"
@@ -2685,6 +2694,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                             )}
                         </div>
                     </article>
+                    </div>
 
                     <div className="mt-4 grid gap-2 sm:grid-cols-4 no-print">
                         <button type="button" disabled={isExporting || currentPreviewIsStaleTranslation || isOverflowing} onClick={() => void exportImage()} className="min-h-12 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-black text-blue-800 disabled:opacity-50 dark:border-blue-500/40 dark:bg-slate-900 dark:text-blue-200">PNG 이미지</button>
