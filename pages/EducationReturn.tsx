@@ -182,7 +182,7 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
     const repeatedRiskText = summary.repeatedRiskKeywords.slice(0, 3).join(' · ');
 
     return (
-        <div data-education-return="page" className="psi-page space-y-5 pb-16">
+        <div data-education-return="page" data-psi-screen="education-return" className="psi-page space-y-5 pb-16">
             <section data-education-return="hero" className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
                 <div className="flex flex-col gap-5 2xl:flex-row 2xl:items-start 2xl:justify-between">
                     <div className="max-w-4xl">
