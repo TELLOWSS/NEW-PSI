@@ -16,7 +16,6 @@ import {
     readA4ReviewStore,
     saveA4ReviewStore,
     validA4Review,
-    type A4ReviewCheck,
     type A4OutputReview,
     type A4ReviewerRole,
 } from '../utils/educationA4LocalReview';
