@@ -85,6 +85,20 @@ html.dark .psi-app-shell.psi-platform-field-canvas {
   border-color:var(--psi-border);
   background:linear-gradient(140deg,var(--psi-surface),var(--psi-surface-muted));
 }
+.psi-platform-field-canvas .psi-sidebar-brand{
+  padding-top:23px;padding-bottom:20px;
+}
+.psi-platform-field-canvas .psi-sidebar-brand-eyebrow{
+  color:var(--psi-brand);font-size:8px;line-height:1.15;
+  letter-spacing:.085em;font-weight:850;margin:0 0 4px;
+}
+.psi-platform-field-canvas .psi-sidebar-wordmark{
+  color:var(--psi-text);font-size:25px;font-weight:870;
+  letter-spacing:-.06em;line-height:1;
+}
+.psi-platform-field-canvas .psi-sidebar-brand .psi-small-note{
+  color:var(--psi-text-subtle);font-size:10px;letter-spacing:-.01em;
+}
 .psi-platform-field-canvas .psi-sidebar > div:first-child .psi-small-note{
   color:var(--psi-text-subtle);
 }
