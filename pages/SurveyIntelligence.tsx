@@ -38,6 +38,7 @@ import {
     type SurveyRiskLevel,
 } from '../utils/surveyRiskGap';
 import { normalizeDashboardTrade } from '../utils/dashboardDataTransformer';
+import { averageAvailableSurveyScores, getRiskGapChartHeight } from '../utils/surveyChartDisplay';
 import {
     deleteSurveyRiskBaseline,
     loadSurveyRiskBaselineHistory,
@@ -263,11 +264,9 @@ function useSurveyData(records: WorkerRecord[], managerBaselines: ManagerRiskBas
         const latest = specificityTrend[specificityTrend.length - 1] ?? {};
         const prev = specificityTrend[specificityTrend.length - 2] ?? {};
         // Missing Q4/Q5 responses are null, not zero-point evidence.
-        const monthAverage = (row: Record<string, number | string | null>): number | null => {
-            const values = topTrades.map(trade => row[trade]).filter((value): value is number => typeof value === 'number');
-            return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length * 10) / 10 : null;
-        };
-        const latestAvg = monthAverage(latest);
+        const monthAverage = (row: Record<string, number | string | null>): number | null =>
+            averageAvailableSurveyScores(topTrades.map(trade => row[trade]));
+                const latestAvg = monthAverage(latest);
         const prevAvg = monthAverage(prev);
 
         const topGap = getTopComparableGap(gapData);
@@ -643,7 +642,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
     const specificityDelta = data.avgSpecificityLatest !== null && data.avgSpecificityPrev !== null
         ? Math.round((data.avgSpecificityLatest - data.avgSpecificityPrev) * 10) / 10
         : null;
-    const riskGapChartHeight = Math.max(260, data.gapData.length * 38 + 70);
+    const riskGapChartHeight = getRiskGapChartHeight(data.gapData.length);
     const canEditBaseline = selectedMonth !== ALL_MONTHS;
 
     const syncLocalBaselineHistory = () => {
