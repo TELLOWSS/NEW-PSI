@@ -44,6 +44,9 @@ describe('PSI R88–R90 A4 offline PDF writer', () => {
         expect(studio).toContain('buildEducationA4Pdf([{');
         expect(studio).toContain('buildEducationA4Pdf(pdfPages)');
         expect(studio).not.toContain('ensureJsPdfConstructor()');
+        expect(studio).toContain('data-psi-education-ready-download="true"');
+        expect(studio).toContain('파일 다시 다운로드');
+        expect(studio).toContain('setPreparedBundle({ blob, filename })');
         expect(studio).toContain("requestEducationDownload(blob, buildPsiExportFileName({");
         const pdfSource = readFileSync('utils/educationLocalPdf.ts', 'utf8');
         expect(pdfSource).not.toContain('fetch(');
