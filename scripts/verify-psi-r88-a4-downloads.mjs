@@ -170,7 +170,7 @@ try {
         assert.ok(Math.abs(viewport.height - 297 * 72 / 25.4) < 0.02, 'PDF height is not A4');
         assert.ok((await pdfPage.getOperatorList()).fnArray.length > 0, 'PDF page content missing');
     }
-    await document.destroy();
+    await task.destroy();
     checks.push({ label: 'PDF parsed', pages: 2, format: 'A4' });
     assert.deepEqual(externalCalls, [], 'external jsPDF or html2canvas CDN was required');
     assert.deepEqual(pageErrors, [], 'uncaught browser error during download');
