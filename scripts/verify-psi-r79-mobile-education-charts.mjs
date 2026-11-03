@@ -74,8 +74,12 @@ try {
             scrollWidth: el.scrollWidth,
             clientWidth: el.clientWidth,
             tabIndex: el.tabIndex,
+            paperWidth: el.querySelector('article[data-report-template-root="true"]')?.getBoundingClientRect().width ?? 0,
+            pageWidth: el.querySelector('[data-report-page="true"]')?.getBoundingClientRect().width ?? 0,
         }));
         assert.ok(previewMetrics.areaWidth <= width + 1, 'mobile A4 preview must not exceed viewport');
+        assert.ok(Math.abs(previewMetrics.paperWidth - 210 * 96 / 25.4) < 2, 'A4 paper shrank in phone preview');
+        assert.ok(Math.abs(previewMetrics.pageWidth - 210 * 96 / 25.4) < 2, 'actual A4 page shrank in phone preview');
         assert.equal(previewMetrics.tabIndex, 0, 'A4 scrolling region must be keyboard accessible');
         await page.screenshot({ path: out + '/education-' + width + '.png', fullPage: false });
 
