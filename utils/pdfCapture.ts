@@ -176,6 +176,8 @@ type JsPdfConstructor = new (orientation: string, unit: string, format: string) 
 
 interface CaptureReportCanvasOptions {
     scale?: number;
+    /** Education-only: attempt bundled html-to-image even if document has external font CSS. */
+    preferOfflineRenderer?: boolean;
 }
 
 interface ElementLayoutSize {
@@ -336,7 +338,7 @@ export const captureReportCanvases = async (
         try {
         const { width, height } = getElementLayoutSize(captureTarget);
 
-        if (canInlineCurrentStylesheets()) {
+        if (options.preferOfflineRenderer || canInlineCurrentStylesheets()) {
             try {
                 const { toCanvas } = await loadHtmlToImage();
                 return await toCanvas(captureTarget, {

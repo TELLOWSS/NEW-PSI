@@ -97,25 +97,27 @@ export const createEducationWorkflowSvg = (draft: TbmEducationDraft): string => 
     const blocks = stages.map(([number, title, detail], i) => {
         const y = 172 + i * 122;
         const connector = i < stages.length - 1
-            ? `<path d="M 80 ${y + 86} v 27" stroke="#94a3b8" stroke-width="3" stroke-dasharray="5 6"/>`
+            ? `<path d="M 80 ${y + 86} v 27" stroke="#86a9a0" stroke-width="3" stroke-dasharray="5 6"/>`
             : '';
         return `<g>
-            <rect x="42" y="${y}" width="1016" height="91" rx="17" fill="#ffffff" stroke="#dbe5ef" stroke-width="2"/>
-            <rect x="59" y="${y + 14}" width="64" height="63" rx="13" fill="#dbeafe"/>
-            <text x="91" y="${y + 53}" font-size="24" fill="#1d4ed8" font-weight="800" text-anchor="middle">${number}</text>
-            <text x="145" y="${y + 34}" font-size="22" font-weight="800" fill="#0f172a">${escapeSvg(title)}</text>
-            <text x="145" y="${y + 64}" font-size="17" fill="#475569">${escapeSvg(shorten(detail, 72))}</text>
+            <rect x="42" y="${y}" width="1016" height="91" rx="17" fill="#ffffff" stroke="#d6e5e4" stroke-width="2"/>
+            <rect x="59" y="${y + 14}" width="64" height="63" rx="13" fill="#e2f5ee"/>
+            <text x="91" y="${y + 53}" font-size="24" fill="#137c6d" font-weight="800" text-anchor="middle">${number}</text>
+            <text x="145" y="${y + 34}" font-size="22" font-weight="800" fill="#102f3e">${escapeSvg(title)}</text>
+            <text x="145" y="${y + 64}" font-size="17" fill="#486675">${escapeSvg(shorten(detail, 72))}</text>
             ${connector}
         </g>`;
     }).join('\n');
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 895" width="1100" height="895" role="img" aria-label="PSI 5단계 안전교육 흐름도">
-        <rect width="1100" height="895" fill="#f1f5f9"/>
-        <rect width="1100" height="126" fill="#10284d"/>
-        <text x="43" y="49" font-family="sans-serif" fill="#93c5fd" font-size="17" font-weight="700">PSI · SAFETY EDUCATION WORKFLOW</text>
+        <title>NEW-PSI 위험성평가 5단계 교육 흐름</title>
+        <desc>관리자 검토용 교육자료: 5분 안전 영상, 재해사례, 상등급 위험 공유, 중점관리, 공지·이해 확인 순서입니다. 검증되지 않은 위험 항목은 관리자 확인 필요로 표시합니다.</desc>
+        <rect width="1100" height="895" fill="#f1f6f6"/>
+        <rect width="1100" height="126" fill="#102d3e"/>
+        <text x="43" y="49" font-family="sans-serif" fill="#a9ead6" font-size="17" font-weight="700">PSI · SAFETY EDUCATION WORKFLOW</text>
         <text x="43" y="93" font-family="sans-serif" fill="#ffffff" font-size="34" font-weight="900">위험성평가 5단계 교육 흐름</text>
-        <text x="43" y="151" font-family="sans-serif" fill="#334155" font-size="18">${escapeSvg(shorten(draft.month, 16))} · ${escapeSvg(shorten(draft.workType, 26))} · 관리자 검토용</text>
+        <text x="43" y="151" font-family="sans-serif" fill="#314d59" font-size="18">${escapeSvg(shorten(draft.month, 16))} · ${escapeSvg(shorten(draft.workType, 26))} · 관리자 검토용</text>
         <g font-family="sans-serif">${blocks}</g>
-        <text x="43" y="808" font-family="sans-serif" fill="#0f172a" font-size="17" font-weight="700">실제 교육 전 원문·위험등급·조치내용·다국어 번역을 관리자가 확인해야 합니다.</text>
-        <text x="43" y="843" font-family="sans-serif" fill="#64748b" font-size="15">로컬 SVG · 외부 전송 없음 · 자동 교육승인 또는 위험성평가 법적 확정 아님</text>
+        <text x="43" y="808" font-family="sans-serif" fill="#102f3e" font-size="17" font-weight="700">실제 교육 전 원문·위험등급·조치내용·다국어 번역을 관리자가 확인해야 합니다.</text>
+        <text x="43" y="843" font-family="sans-serif" fill="#59737f" font-size="15">로컬 SVG · 외부 전송 없음 · 자동 교육승인 또는 위험성평가 법적 확정 아님</text>
     </svg>`;
 };

@@ -14,7 +14,7 @@ import {
     type EducationPosterTranslationMap,
 } from '../utils/educationPosterTranslation';
 import type { WorkerRecord } from '../types';
-import { ensureHtml2Canvas, ensureJsPdfConstructor } from '../utils/externalScripts';
+import { ensureHtml2Canvas } from '../utils/externalScripts';
 import { buildPsiExportFileName } from '../utils/exportFileNaming';
 import { createEducationSceneManifest, createEducationWorkflowSvg } from '../utils/educationVisualExports';
 import EducationPreview30 from '../components/tbm/EducationPreview30';
@@ -22,7 +22,9 @@ import MultilingualEducationAuditPanel from '../components/tbm/MultilingualEduca
 import LayaOfflineBenchmarkPanel from '../components/tbm/LayaOfflineBenchmarkPanel';
 import LayaExtendedReviewPanel from '../components/tbm/LayaExtendedReviewPanel';
 import { buildEducationLanguageAudit } from '../utils/multilingualEducationAudit';
-import { captureReportCanvas, saveCanvasAsA4Pdf } from '../utils/pdfCapture';
+import { captureReportCanvas, canvasToBlob, getCanvasPlacementOnA4 } from '../utils/pdfCapture';
+import { buildEducationA4Pdf, type EducationPdfPage } from '../utils/educationLocalPdf';
+import { buildEducationPngZip, isMatchingA4Language, requestEducationDownload, type EducationZipFile } from '../utils/educationA4BatchExport';
 import {
     buildMonthlyEducationPackageText,
     buildFieldRecordSource,
@@ -49,6 +51,13 @@ interface Props {
 }
 
 type StudioTab = 'sources' | 'ai' | 'package' | 'editor' | 'preview';
+const STUDIO_STEPS: ReadonlyArray<readonly [StudioTab, string]> = [
+    ['sources', '1. 자료 모으기'],
+    ['ai', '2. AI 정밀 초안'],
+    ['package', '3. 5단계 검수'],
+    ['editor', '4. 한 장 편집'],
+    ['preview', '5. 출력 확인'],
+];
 
 const getNextMonth = (): string => {
     const date = new Date();
@@ -1169,6 +1178,8 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const [sources, setSources] = useState<TbmEvidenceSource[]>(initialState?.sources || []);
     const [isExtracting, setIsExtracting] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+    const [batchProgress, setBatchProgress] = useState('');
+    const [preparedBundle, setPreparedBundle] = useState<{ blob: Blob; filename: string } | null>(null);
     const [notice, setNotice] = useState('');
     const [translatedTexts, setTranslatedTexts] = useState<Record<string, string>>(
         initialState?.translatedTexts || {},
@@ -1194,6 +1205,9 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const [forcedTightFit, setForcedTightFit] = useState(false);
     const [isPrintMode, setIsPrintMode] = useState(false);
     const sheetRef = useRef<HTMLElement>(null);
+    // Re-use verified PNG pages for a subsequent PDF export, without
+    // performing expensive multilingual DOM capture twice on a phone.
+    const verifiedPngCacheRef = useRef<{ scope: string; files: EducationZipFile[] } | null>(null);
 
     const workTypes = useMemo(
         () => [DEFAULT_WORK_TYPE, ...Array.from(new Set(sourceRecords.map((item) => item.jobField).filter(Boolean))).sort()],
@@ -1265,6 +1279,12 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         translatedTexts,
         structuredTranslations,
     }), [draft, currentTranslationSourceText, translationSourceText, translatedTexts, structuredTranslations]);
+
+    // Do not offer a stale assembled file after its source, month or translation changes.
+    useEffect(() => {
+        setPreparedBundle(null);
+        verifiedPngCacheRef.current = null;
+    }, [draft, educationMonth, workType, structuredTranslations, translatedTexts]);
 
     const applyStudioState = (nextState: StoredStudioState) => {
         setEducationMonth(nextState.educationMonth);
@@ -1541,8 +1561,12 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         if (!pageEl || hasA4Overflow(pageEl)) {
             throw new Error('일부 내용이 A4 영역을 벗어납니다. 문장을 줄이거나 번역을 갱신한 뒤 다시 저장해 주세요.');
         }
-        const html2canvas = await ensureHtml2Canvas();
-        return captureReportCanvas(sheetRef.current, html2canvas, { scale: 3 });
+        // Prefer the bundled html-to-image engine; fetch the legacy CDN fallback
+        // only if that local rendering path cannot capture this document.
+        return captureReportCanvas(sheetRef.current, async (element, options) => {
+            const fallback = await ensureHtml2Canvas();
+            return fallback(element, options);
+        }, { scale: 3, preferOfflineRenderer: true });
     };
 
     const blockStaleTranslationExport = (): boolean => {
@@ -1594,17 +1618,23 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         if (blockStaleTranslationExport()) return;
         setIsExporting(true);
         try {
-            const [canvas, JsPDF] = await Promise.all([captureSheet(), ensureJsPdfConstructor()]);
-            if (!JsPDF) throw new Error('PDF 생성 도구를 불러오지 못했습니다.');
+            const canvas = await captureSheet();
+            const jpeg = await canvasToBlob(canvas, 'image/jpeg', 0.96);
+            if (!/^image\/jpeg$/i.test(jpeg.type)) throw new Error('이 브라우저는 로컬 PDF 이미지 변환을 지원하지 않습니다.');
             const langLabel = previewLanguage !== 'ko-KR' ? LANGUAGE_KOREAN_NAMES[normalizeLanguageCode(previewLanguage)] || '다국어' : '';
             const exportTokens = ['PSI_위험성평가교육자료', educationMonth, workType];
             if (langLabel) exportTokens.push(langLabel);
-
-            saveCanvasAsA4Pdf(canvas, JsPDF, buildPsiExportFileName({
+            const blob = buildEducationA4Pdf([{
+                jpeg: new Uint8Array(await jpeg.arrayBuffer()),
+                pixelWidth: canvas.width,
+                pixelHeight: canvas.height,
+                placement: getCanvasPlacementOnA4(canvas),
+            }]);
+            requestEducationDownload(blob, buildPsiExportFileName({
                 tokens: exportTokens,
                 extension: 'pdf',
             }));
-            setNotice('A4 비율과 화면 품질을 유지한 PDF를 저장했습니다.');
+            setNotice('로컬 A4 PDF 다운로드를 요청했습니다. 기기 다운로드 폴더에서 파일을 확인하세요.');
         } catch (error) {
             setNotice(error instanceof Error ? error.message : 'PDF를 저장하지 못했습니다.');
         } finally {
@@ -1674,81 +1704,158 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         }
     };
 
-    const exportAllImages = async () => {
+
+    // Confirm React has rendered the exact language before each batch capture.
+    // A fixed delay can silently save the previous language under the next file name.
+    const waitForRenderedEducationLanguage = async (requestedLanguage: string) => {
+        const deadline = Date.now() + 8_000;
+        while (Date.now() < deadline) {
+            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+            const page = sheetRef.current?.querySelector('[data-report-page="true"]');
+            const poster = page?.querySelector('[data-a4-safety-poster="true"]');
+            if (!isMatchingA4Language(requestedLanguage, page?.getAttribute('lang') ?? null, poster?.getAttribute('lang') ?? null)) {
+                continue;
+            }
+            await waitForA4Fonts();
+            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+            const finalPage = sheetRef.current?.querySelector('[data-report-page="true"]');
+            const finalPoster = finalPage?.querySelector('[data-a4-safety-poster="true"]');
+            if (isMatchingA4Language(requestedLanguage, finalPage?.getAttribute('lang') ?? null, finalPoster?.getAttribute('lang') ?? null)) {
+                return;
+            }
+        }
+        throw new Error(`'${TRAINING_LANGUAGE_LABELS[requestedLanguage as keyof typeof TRAINING_LANGUAGE_LABELS] || requestedLanguage}' 화면이 준비되지 않았습니다. 언어별 출력 확인을 진행한 후 다시 저장해 주세요.`);
+    };
+
+    // One local ZIP / one local PDF: prevents mobile browsers blocking 11 consecutive downloads.
+    const exportLanguageBundle = async (format: 'png' | 'pdf') => {
         if (translationNeedsRefresh) {
-            setNotice('수정된 한국어 원문 기준으로 다국어를 먼저 갱신해야 일괄 저장할 수 있습니다.');
+            setNotice('수정된 한국어 원문 기준으로 다국어를 갱신한 후 묶음 파일을 생성해 주세요.');
             return;
         }
-        setIsExporting(true);
+        if (isExporting) return;
         const originalLang = previewLanguage;
-        const originalViewMode = viewMode;
-        const targetLanguages = ['ko-KR', ...translationLanguageCodes];
-        
+        const originalMode = viewMode;
+        const languages = ['ko-KR', ...translationLanguageCodes.filter(lang => lang !== 'ko-KR')];
+        const pngFiles: EducationZipFile[] = [];
+        const pdfPages: EducationPdfPage[] = [];
+        // Scope includes both the source and all translated content, so cache
+        // reuse cannot cross a changed training package or work period.
+        const cacheScope = JSON.stringify({ educationMonth, workType, draft, translatedTexts, structuredTranslations, languages });
+        const cached = format === 'pdf' && verifiedPngCacheRef.current?.scope === cacheScope
+            ? verifiedPngCacheRef.current.files
+            : null;
+        let prepared = 0;
+        setIsExporting(true);
+        setPreparedBundle(null);
+        setBatchProgress(`언어별 A4 검수 준비 · 0/${languages.length}`);
         try {
-            for (const lang of targetLanguages) {
+            for (const lang of languages) {
+                setBatchProgress(`${lang} 자료 준비 중 · ${prepared}/${languages.length}`);
+                if (cached) {
+                    const source = cached[prepared];
+                    if (!source || !(source.content instanceof Blob)) {
+                        throw new Error('검수된 PNG 원본 캐시가 유효하지 않습니다.');
+                    }
+                    // Convert the *already verified* PNG into JPEG via a local
+                    // canvas; no second font/layout/DOM capture is necessary.
+                    const image = await createImageBitmap(source.content);
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = image.width;
+                        canvas.height = image.height;
+                        const context = canvas.getContext('2d', { alpha: false });
+                        if (!context) throw new Error('PDF 이미지 변환을 위한 2D 화면이 지원되지 않습니다.');
+                        context.fillStyle = '#ffffff';
+                        context.fillRect(0, 0, canvas.width, canvas.height);
+                        context.drawImage(image, 0, 0);
+                        const jpeg = await canvasToBlob(canvas, 'image/jpeg', 0.94);
+                        if (jpeg.type !== 'image/jpeg') throw new Error('JPEG 변환 기능을 지원하지 않습니다.');
+                        pdfPages.push({
+                            jpeg: new Uint8Array(await jpeg.arrayBuffer()),
+                            pixelWidth: canvas.width,
+                            pixelHeight: canvas.height,
+                            placement: getCanvasPlacementOnA4(canvas),
+                        });
+                        canvas.width = 0;
+                        canvas.height = 0;
+                    } finally {
+                        image.close();
+                    }
+                    prepared++;
+                    setBatchProgress(`검수된 PNG 재사용 · ${prepared}/${languages.length}`);
+                    continue;
+                }
                 setPreviewLanguage(lang);
                 setViewMode('single');
-                await new Promise((resolve) => setTimeout(resolve, 400));
-                
+                await waitForRenderedEducationLanguage(lang);
+                // Allow the existing 80ms overflow observer to switch to dense A4
+                // before deciding that a translated page cannot be exported.
+                await new Promise<void>((resolve) => window.setTimeout(resolve, 160));
+                await waitForRenderedEducationLanguage(lang);
                 const canvas = await captureSheet();
-                const link = document.createElement('a');
-                const langLabel = lang !== 'ko-KR' ? LANGUAGE_KOREAN_NAMES[normalizeLanguageCode(lang)] || '다국어' : '한국어';
-                const exportTokens = ['PSI_위험성평가교육자료', educationMonth, workType, langLabel];
-                
-                link.download = buildPsiExportFileName({
-                    tokens: exportTokens,
-                    extension: 'png',
-                });
-                link.href = canvas.toDataURL('image/png', 1);
-                link.click();
+                const page = sheetRef.current?.querySelector('[data-report-page="true"]');
+                const poster = page?.querySelector('[data-a4-safety-poster="true"]');
+                if (!isMatchingA4Language(lang, page?.getAttribute('lang') ?? null, poster?.getAttribute('lang') ?? null)) {
+                    throw new Error('언어 전환 도중 화면이 바뀌었습니다. 잘못된 언어로 저장하지 않았습니다.');
+                }
+                if (format === 'png') {
+                    const blob = await canvasToBlob(canvas, 'image/png', 1);
+                    const langLabel = lang === 'ko-KR' ? '한국어' : LANGUAGE_KOREAN_NAMES[normalizeLanguageCode(lang)] || lang;
+                    pngFiles.push({
+                        name: buildPsiExportFileName({ tokens: ['PSI_위험성평가교육자료', educationMonth, workType, langLabel], extension: 'png' }),
+                        content: blob,
+                    });
+                } else {
+                    const jpeg = await canvasToBlob(canvas, 'image/jpeg', 0.96);
+                    if (!/^image\/jpeg$/i.test(jpeg.type)) throw new Error('이 브라우저는 로컬 PDF 이미지 변환을 지원하지 않습니다.');
+                    pdfPages.push({
+                        jpeg: new Uint8Array(await jpeg.arrayBuffer()),
+                        pixelWidth: canvas.width,
+                        pixelHeight: canvas.height,
+                        placement: getCanvasPlacementOnA4(canvas),
+                    });
+                }
+                // Release the high-resolution raster promptly between pages.
+                canvas.width = 0;
+                canvas.height = 0;
+                prepared += 1;
+                setBatchProgress(`언어별 A4 확인 완료 · ${prepared}/${languages.length}`);
+                // Yield to the UI; do not hold the phone unresponsive while rendering successive pages.
+                await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
             }
-            setNotice('선택된 모든 언어의 PNG 이미지를 일괄 저장했습니다.');
+            if (format === 'png') {
+                verifiedPngCacheRef.current = { scope: cacheScope, files: pngFiles };
+            }
+            const filename = buildPsiExportFileName({
+                tokens: ['PSI_위험성평가교육자료', educationMonth, workType, '다국어_' + languages.length + '개언어'],
+                extension: format === 'png' ? 'zip' : 'pdf',
+            });
+            const blob = format === 'png'
+                ? await buildEducationPngZip(pngFiles)
+                : buildEducationA4Pdf(pdfPages);
+            setPreparedBundle({ blob, filename });
+            // Mobile browsers may reject a scripted download after async render.
+            // Keep a second, explicitly user-initiated click available below.
+            try {
+                requestEducationDownload(blob, filename);
+                setNotice(`${languages.length}개 언어의 묶음 다운로드를 요청했습니다. 기기 파일 앱의 다운로드 폴더에서 실제 파일을 확인해 주세요. 보이지 않으면 아래 '파일 다시 다운로드' 버튼을 직접 누르세요.`);
+            } catch {
+                setNotice(`${languages.length}개 언어 파일은 준비됐지만 다운로드 요청이 차단됐습니다. 아래 '파일 다시 다운로드' 버튼을 눌러 주세요.`);
+            }
         } catch (error) {
-            setNotice(error instanceof Error ? error.message : '일괄 PNG 이미지 저장 중 오류가 발생했습니다.');
+            const message = error instanceof Error ? error.message : '알 수 없는 생성 오류';
+            setNotice(`${prepared}/${languages.length}개 언어 처리 후 중단했습니다. 묶음 다운로드는 요청하지 않았습니다. ${message} 필요한 언어를 개별 저장하거나 내용을 줄인 후 다시 시도해 주세요.`);
         } finally {
             setPreviewLanguage(originalLang);
-            setViewMode(originalViewMode);
+            setViewMode(originalMode);
+            setBatchProgress('');
             setIsExporting(false);
         }
     };
 
-    const exportAllPdfs = async () => {
-        if (translationNeedsRefresh) {
-            setNotice('수정된 한국어 원문 기준으로 다국어를 먼저 갱신해야 일괄 저장할 수 있습니다.');
-            return;
-        }
-        setIsExporting(true);
-        const originalLang = previewLanguage;
-        const originalViewMode = viewMode;
-        const targetLanguages = ['ko-KR', ...translationLanguageCodes];
-        
-        try {
-            const JsPDF = await ensureJsPdfConstructor();
-            if (!JsPDF) throw new Error('PDF 생성 도구를 불러오지 못했습니다.');
-            
-            for (const lang of targetLanguages) {
-                setPreviewLanguage(lang);
-                setViewMode('single');
-                await new Promise((resolve) => setTimeout(resolve, 400));
-                
-                const canvas = await captureSheet();
-                const langLabel = lang !== 'ko-KR' ? LANGUAGE_KOREAN_NAMES[normalizeLanguageCode(lang)] || '다국어' : '한국어';
-                const exportTokens = ['PSI_위험성평가교육자료', educationMonth, workType, langLabel];
-
-                saveCanvasAsA4Pdf(canvas, JsPDF, buildPsiExportFileName({
-                    tokens: exportTokens,
-                    extension: 'pdf',
-                }));
-            }
-            setNotice('선택된 모든 언어의 PDF를 일괄 저장했습니다.');
-        } catch (error) {
-            setNotice(error instanceof Error ? error.message : '일괄 PDF 저장 중 오류가 발생했습니다.');
-        } finally {
-            setPreviewLanguage(originalLang);
-            setViewMode(originalViewMode);
-            setIsExporting(false);
-        }
-    };
+    const exportAllImages = async () => exportLanguageBundle('png');
+    const exportAllPdfs = async () => exportLanguageBundle('pdf');
 
     return (
         <div data-psi-screen="a4-education-studio" className="psi-page space-y-5 pb-16">
@@ -1770,7 +1877,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             <section className="psi-enterprise-panel grid gap-4 p-5 lg:grid-cols-3 no-print">
                 <label className="text-sm font-black text-slate-800 dark:text-slate-100">
                     {cycle.cadence === 'monthly' ? '교육 대상월' : '교육자료 보관 월'}
-                    <input type="month" value={educationMonth} onInput={(event) => switchStudioScope(event.currentTarget.value, workType)} className="mt-2 w-full rounded-xl border px-3 py-3 bg-white dark:bg-slate-900" />
+                    <input type="month" value={educationMonth} disabled={isExporting} onInput={(event) => switchStudioScope(event.currentTarget.value, workType)} className="mt-2 w-full rounded-xl border px-3 py-3 bg-white dark:bg-slate-900" />
                     {cycle.cadence !== 'monthly' && (
                         <span className="mt-2 block text-[11px] font-semibold leading-5 text-slate-500 dark:text-slate-400">
                             실제 교육 적용 구간: {targetPeriod.label} · {cycleCopy.frequencyLabel}
@@ -1779,7 +1886,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                 </label>
                 <label className="text-sm font-black text-slate-800 dark:text-slate-100">
                     대상 공종
-                    <select value={workType} onChange={(event) => switchStudioScope(educationMonth, event.target.value)} className="mt-2 w-full rounded-xl border px-3 py-3 bg-white dark:bg-slate-900">
+                    <select value={workType} disabled={isExporting} onChange={(event) => switchStudioScope(educationMonth, event.target.value)} className="mt-2 w-full rounded-xl border px-3 py-3 bg-white dark:bg-slate-900">
                         {workTypes.map((item) => <option key={item}>{item}</option>)}
                     </select>
                 </label>
@@ -1790,18 +1897,14 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                 </div>
             </section>
 
-            <nav className="psi-segmented-nav grid grid-cols-2 gap-2 sm:grid-cols-5 no-print" aria-label="교육자료 제작 단계">
-                {([
-                    ['sources', '1. 자료 모으기'],
-                    ['ai', '2. AI 정밀 초안'],
-                    ['package', '3. 5단계 검수'],
-                    ['editor', '4. 한 장 편집'],
-                    ['preview', '5. 출력 확인'],
-                ] as Array<[StudioTab, string]>).map(([id, label]) => (
+            <nav className="psi-segmented-nav grid grid-cols-2 gap-2 sm:grid-cols-5 no-print" aria-label="교육자료 제작 단계" aria-describedby="psi-studio-stage-status">
+                {STUDIO_STEPS.map(([id, label]) => (
                     <button
                         key={id}
                         type="button"
+                        disabled={isExporting}
                         onClick={() => setActiveTab(id)}
+                        aria-current={activeTab === id ? 'step' : undefined}
                         className={`min-h-11 rounded-xl px-3 py-2 text-xs font-black transition-colors sm:text-sm ${
                             activeTab === id
                                 ? 'bg-blue-700 text-white shadow-md'
@@ -1812,6 +1915,9 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                     </button>
                 ))}
             </nav>
+            <p id="psi-studio-stage-status" data-psi-studio-progress="true" role="status" aria-live="polite" className="no-print text-xs font-semibold leading-5">
+                현재 {STUDIO_STEPS.findIndex(([id]) => id === activeTab) + 1}/5단계 · {STUDIO_STEPS.find(([id]) => id === activeTab)?.[1].replace(/^\d+\.\s*/, '')} · 위 단계 버튼으로 필요한 작업을 바로 선택할 수 있습니다.
+            </p>
 
             {notice && (
                 <p className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200 no-print">
@@ -2262,8 +2368,9 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
 
                     <MultilingualEducationAuditPanel
                         audit={languageAudit}
-                        onRegenerate={() => setActiveTab('ai')}
+                        onRegenerate={() => { if (!isExporting) setActiveTab('ai'); }}
                         onInspect={(item) => {
+                            if (isExporting) return;
                             if (item.status === 'missing') {
                                 setActiveTab('ai');
                                 setNotice(item.label + ' 번역이 없습니다. 한국어 원문으로 번역을 준비해 주세요.');
@@ -2281,6 +2388,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                             <button
                                 type="button"
                                 onClick={() => setPreviewLanguage('ko-KR')}
+                                disabled={isExporting}
                                 className={`px-4 py-2 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 ${
                                     previewLanguage === 'ko-KR'
                                         ? 'bg-blue-700 border-blue-700 text-white shadow-sm'
@@ -2297,6 +2405,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                         key={code}
                                         type="button"
                                         onClick={() => setPreviewLanguage(code)}
+                                        disabled={isExporting}
                                         className={`px-4 py-2 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 ${
                                             previewLanguage === code
                                                 ? 'bg-blue-700 border-blue-700 text-white shadow-sm'
@@ -2317,6 +2426,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                 <button
                                     type="button"
                                     onClick={() => setViewMode('split')}
+                                    disabled={isExporting}
                                     className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all ${
                                         viewMode === 'split'
                                             ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
@@ -2328,6 +2438,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                 <button
                                     type="button"
                                     onClick={() => setViewMode('single')}
+                                    disabled={isExporting}
                                     className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all ${
                                         viewMode === 'single'
                                             ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
@@ -2358,6 +2469,10 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                         </div>
                     )}
 
+                    <p className="psi-a4-preview-hint no-print text-xs font-semibold leading-5">
+                        모바일 미리보기는 좌우로 이동해 전체 A4를 확인하세요. 인쇄·PDF·PNG는 원래 A4 크기로 저장됩니다.
+                    </p>
+                    <div data-psi-a4-preview-scroll="true" role="region" aria-label="A4 교육자료 미리보기: 화면 폭이 좁으면 좌우로 이동" tabIndex={0}>
                     <article ref={sheetRef} data-report-template-root="true" className="mx-auto w-[210mm] max-w-full bg-white text-slate-900 shadow-2xl">
                         <div
                             data-report-page="true"
@@ -2685,12 +2800,13 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                             )}
                         </div>
                     </article>
+                    </div>
 
                     <div className="mt-4 grid gap-2 sm:grid-cols-4 no-print">
                         <button type="button" disabled={isExporting || currentPreviewIsStaleTranslation || isOverflowing} onClick={() => void exportImage()} className="min-h-12 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-black text-blue-800 disabled:opacity-50 dark:border-blue-500/40 dark:bg-slate-900 dark:text-blue-200">PNG 이미지</button>
                         <button type="button" disabled={isExporting || currentPreviewIsStaleTranslation || isOverflowing} onClick={() => void exportPdf()} className="min-h-12 rounded-xl bg-blue-700 px-4 py-3 text-sm font-black text-white disabled:opacity-50">PDF 저장</button>
                         <button type="button" disabled={isExporting || currentPreviewIsStaleTranslation || isOverflowing} onClick={() => void exportPptx()} className="min-h-12 rounded-xl bg-orange-500 px-4 py-3 text-sm font-black text-white disabled:opacity-50">PPTX 저장</button>
-                        <button type="button" disabled={currentPreviewIsStaleTranslation || isOverflowing} onClick={printA4} className="min-h-12 rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900">A4 요약 인쇄</button>
+                        <button type="button" disabled={isExporting || currentPreviewIsStaleTranslation || isOverflowing} onClick={printA4} className="min-h-12 rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900">A4 요약 인쇄</button>
                     </div>
                     {isOverflowing && (
                         <p className="mt-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-900 no-print dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100">
@@ -2704,8 +2820,30 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                     )}
                     {translationLanguageCodes.length > 0 && (
                         <div className="mt-2 grid gap-2 sm:grid-cols-2 no-print border-t border-slate-200 dark:border-slate-800 pt-3">
-                            <button type="button" disabled={isExporting || translationNeedsRefresh} onClick={() => void exportAllImages()} className="min-h-12 rounded-xl border-2 border-dashed border-blue-300 bg-blue-50/50 px-4 py-3 text-sm font-black text-blue-900 hover:bg-blue-50 disabled:opacity-50">전체 다국어 PNG 이미지 일괄 저장</button>
-                            <button type="button" disabled={isExporting || translationNeedsRefresh} onClick={() => void exportAllPdfs()} className="min-h-12 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50/50 px-4 py-3 text-sm font-black text-indigo-900 hover:bg-indigo-50 disabled:opacity-50">전체 다국어 PDF 일괄 저장</button>
+                            <button type="button" disabled={isExporting || translationNeedsRefresh} onClick={() => void exportAllImages()} className="min-h-12 rounded-xl border-2 border-dashed border-blue-300 bg-blue-50/50 px-4 py-3 text-sm font-black text-blue-900 hover:bg-blue-50 disabled:opacity-50">전체 다국어 PNG · ZIP 한 파일</button>
+                            <button type="button" disabled={isExporting || translationNeedsRefresh} onClick={() => void exportAllPdfs()} className="min-h-12 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50/50 px-4 py-3 text-sm font-black text-indigo-900 hover:bg-indigo-50 disabled:opacity-50">전체 다국어 PDF · 한 파일</button>
+                        </div>
+                    )}
+                    <p className="mt-2 no-print text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                        다국어 출력은 ZIP 1개 또는 여러 A4 페이지를 묶은 PDF 1개로 요청됩니다. 번역 정확성·글꼴·다운로드 폴더를 확인한 뒤 배포하세요.
+                    </p>
+                    {batchProgress && (
+                        <p className="mt-2 no-print rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm font-bold text-teal-900 dark:border-teal-800 dark:bg-teal-900/30 dark:text-teal-100" role="status" aria-live="polite">
+                            {batchProgress} · 완료되기 전 다른 메뉴로 이동하지 마세요.
+                        </p>
+                    )}
+                    {preparedBundle && !isExporting && (
+                        <div className="mt-2 no-print rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-950 dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-100" data-psi-education-ready-download="true">
+                            <p className="mb-2 break-all text-xs">파일 준비 완료 · {preparedBundle.filename} · {(preparedBundle.blob.size / 1024 / 1024).toFixed(1)}MB</p>
+                            <button type="button" className="min-h-12 w-full rounded-xl bg-blue-700 px-4 py-3 font-black text-white"
+                                onClick={() => {
+                                    try {
+                                        requestEducationDownload(preparedBundle.blob, preparedBundle.filename);
+                                        setNotice('파일 다운로드를 다시 요청했습니다. 기기 다운로드 폴더에서 실제 저장 여부를 확인해 주세요.');
+                                    } catch (error) {
+                                        setNotice(error instanceof Error ? error.message : '파일을 다운로드하지 못했습니다.');
+                                    }
+                                }}>파일 다시 다운로드</button>
                         </div>
                     )}
                 </section>

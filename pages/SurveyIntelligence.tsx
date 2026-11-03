@@ -38,6 +38,7 @@ import {
     type SurveyRiskLevel,
 } from '../utils/surveyRiskGap';
 import { normalizeDashboardTrade } from '../utils/dashboardDataTransformer';
+import { averageAvailableSurveyScores, getRiskGapChartHeight } from '../utils/surveyChartDisplay';
 import {
     deleteSurveyRiskBaseline,
     loadSurveyRiskBaselineHistory,
@@ -171,7 +172,7 @@ function useSurveyData(records: WorkerRecord[], managerBaselines: ManagerRiskBas
                 radarData: [] as Array<{ trade: string; A: number; B: number }>,
                 keywordTrend: [] as Array<Record<string, number | string>>,
                 wordData: [] as Array<{ word: string; count: number }>,
-                specificityTrend: [] as Array<Record<string, number | string>>,
+                specificityTrend: [] as Array<Record<string, number | string | null>>,
                 specificityTrades: [] as string[],
                 topGapTrade: '-',
                 topGapScore: null as number | null,
@@ -181,8 +182,8 @@ function useSurveyData(records: WorkerRecord[], managerBaselines: ManagerRiskBas
                 comparableResponseCount: 0,
                 totalRiskResponseCount: 0,
                 baselineCoverage: 0,
-                avgSpecificityLatest: 0,
-                avgSpecificityPrev: 0,
+                avgSpecificityLatest: null as number | null,
+                avgSpecificityPrev: null as number | null,
                 latestTopKeyword: '-',
                 latestTopKeywordDelta: 0,
             };
@@ -232,9 +233,16 @@ function useSurveyData(records: WorkerRecord[], managerBaselines: ManagerRiskBas
         })).filter(w => w.count > 0).sort((a, b) => b.count - a.count);
 
         // ── 지표 3: 구체성 점수 추세 ─────────────────────────────────────────
-        const topTrades = trades.slice(0, 3);
+        const responseCountFor = (trade: string) => records
+            .filter(record => normalizeSurveyTrade(record.jobField) === trade)
+            .flatMap(record => record.handwrittenAnswers || [])
+            .filter(answer => ['4', '5', 'Q4', 'Q5'].includes(answer.questionNumber)
+                && Boolean((answer.koreanTranslation || answer.answerText || '').trim())).length;
+        const topTrades = [...trades].filter(trade => responseCountFor(trade) > 0)
+            .sort((left, right) => responseCountFor(right) - responseCountFor(left) || left.localeCompare(right))
+            .slice(0, 3);
         const specificityTrend = months.map(month => {
-            const obj: Record<string, number | string> = { month: formatSurveyMonthShort(month) };
+            const obj: Record<string, number | string | null> = { month: formatSurveyMonthShort(month) };
             topTrades.forEach(trade => {
                 const recs = records.filter(r => {
                     return normalizeSurveyTrade(r.jobField) === trade && getRecordMonthKey(r.date) === month;
@@ -242,19 +250,24 @@ function useSurveyData(records: WorkerRecord[], managerBaselines: ManagerRiskBas
                 const scores = recs.flatMap(r =>
                     (r.handwrittenAnswers || [])
                         .filter(a => ['4', '5', 'Q4', 'Q5'].includes(a.questionNumber))
-                        .map(a => specificityScore(a.koreanTranslation || a.answerText))
+                        .map(a => (a.koreanTranslation || a.answerText || '').trim())
+                        .filter(Boolean)
+                        .map(specificityScore)
                 );
                 obj[trade] = scores.length > 0
                     ? Math.round((scores.reduce((s, v) => s + v, 0) / scores.length) * 10) / 10
-                    : 0;
+                    : null;
             });
             return obj;
         });
 
         const latest = specificityTrend[specificityTrend.length - 1] ?? {};
         const prev = specificityTrend[specificityTrend.length - 2] ?? {};
-        const latestAvg = topTrades.reduce((s, t) => s + ((latest[t] as number) || 0), 0) / (topTrades.length || 1);
-        const prevAvg = topTrades.reduce((s, t) => s + ((prev[t] as number) || 0), 0) / (topTrades.length || 1);
+        // Missing Q4/Q5 responses are null, not zero-point evidence.
+        const monthAverage = (row: Record<string, number | string | null>): number | null =>
+            averageAvailableSurveyScores(topTrades.map(trade => row[trade]));
+                const latestAvg = monthAverage(latest);
+        const prevAvg = monthAverage(prev);
 
         const topGap = getTopComparableGap(gapData);
         const hasLowSample = gapData.some(row => row.status === 'low-sample');
@@ -286,8 +299,8 @@ function useSurveyData(records: WorkerRecord[], managerBaselines: ManagerRiskBas
             baselineCoverage: totalRiskResponseCount > 0
                 ? Math.round((comparableResponseCount / totalRiskResponseCount) * 100)
                 : 0,
-            avgSpecificityLatest: Math.round(latestAvg * 10) / 10,
-            avgSpecificityPrev: Math.round(prevAvg * 10) / 10,
+            avgSpecificityLatest: latestAvg,
+            avgSpecificityPrev: prevAvg,
             latestTopKeyword: latestKwCounts.kw,
             latestTopKeywordDelta: latestKwCounts.prev > 0
                 ? Math.round((latestKwCounts.cur - latestKwCounts.prev) / latestKwCounts.prev * 100)
@@ -626,7 +639,10 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
 
     const data = useSurveyData(filteredRecords, managerBaselines);
 
-    const specificityDelta = data.avgSpecificityLatest - data.avgSpecificityPrev;
+    const specificityDelta = data.avgSpecificityLatest !== null && data.avgSpecificityPrev !== null
+        ? Math.round((data.avgSpecificityLatest - data.avgSpecificityPrev) * 10) / 10
+        : null;
+    const riskGapChartHeight = getRiskGapChartHeight(data.gapData.length);
     const canEditBaseline = selectedMonth !== ALL_MONTHS;
 
     const syncLocalBaselineHistory = () => {
@@ -851,20 +867,41 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                         color="bg-rose-50 border-rose-200 text-rose-800 dark:bg-rose-900/20 dark:border-rose-700 dark:text-rose-300"
                     />
                     <KpiCard
-                        label={`이번 달 급증 위험어`}
+                        label="최근 집계 월 추적 위험어"
                         value={data.latestTopKeyword}
-                        sub="Q1·Q2 텍스트 언급 빈도 1위"
-                        delta={data.latestTopKeywordDelta}
+                        sub="Q1·Q2 · 추적 4개 위험어 중 언급 기준"
+                        
                         color="bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-300"
                     />
                     <KpiCard
                         label="평균 약속 구체성 점수"
-                        value={`${data.avgSpecificityLatest}점`}
-                        sub="Q4·Q5 AI 텍스트 분석 (5점 만점)"
-                        delta={specificityDelta > 0 ? Math.round(specificityDelta * 10) : undefined}
+                        value={data.avgSpecificityLatest === null ? '자료 없음' : `${data.avgSpecificityLatest}점`}
+                        sub={`Q4·Q5 규칙 기반 점수 (5점 만점) · ${specificityDelta !== null ? `직전 집계 월 대비 ${specificityDelta > 0 ? '+' : ''}${specificityDelta}점` : '비교할 두 달의 응답 부족'}`}
+                        
                         color="bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-300"
                     />
                 </div>
+
+                {/* R81: show the denominator behind every risk perception comparison. */}
+                <section data-psi-survey="coverage" aria-label="차트 표본 및 비교 기준">
+                    <div>
+                        <span>비교 가능한 위험도 응답</span>
+                        <strong>{data.comparableResponseCount.toLocaleString()} / {data.totalRiskResponseCount.toLocaleString()}건</strong>
+                    </div>
+                    <div>
+                        <span>관리자 기준 비교 가능 비율</span>
+                        <strong>{data.totalRiskResponseCount > 0 ? `${data.baselineCoverage}%` : '표본 없음'}</strong>
+                    </div>
+                    <div>
+                        <span>월별 추세 집계 구간</span>
+                        <strong>{data.keywordTrend.length}개월</strong>
+                    </div>
+                    <p>
+                        필터: {selectedTrade} · {selectedMonth === ALL_MONTHS ? '전체 월' : formatSurveyMonth(selectedMonth)}.
+                        비교 불가·표본 부족 응답은 임의로 0점이나 양호로 처리하지 않습니다.
+                        위험어 언급 횟수는 사고 발생 건수 또는 위험등급이 아닙니다.
+                    </p>
+                </section>
 
                 <div className="rounded-2xl border border-indigo-200 bg-white dark:bg-slate-800 dark:border-indigo-800/50 overflow-hidden shadow-sm">
                     <div className="px-5 py-4 bg-indigo-50 dark:bg-indigo-900/20 border-b border-indigo-100 dark:border-indigo-800/40">
@@ -1387,6 +1424,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-3 text-center">
                                 공종별 위험 인식 점수 · 100점에 가까울수록 높은 위험
                             </p>
+                            {data.radarData.length >= 3 ? (
                             <ResponsiveContainer width="100%" height={260}>
                                 <RadarChart data={data.radarData}>
                                     <PolarGrid stroke="#e2e8f0" />
@@ -1398,24 +1436,31 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                                     <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                                 </RadarChart>
                             </ResponsiveContainer>
+                            ) : (
+                                <p className="rounded-xl border border-dashed border-slate-300 p-5 text-xs font-semibold leading-6 text-slate-600 dark:border-slate-600 dark:text-slate-300">
+                                    비교 가능한 공종이 3개 미만입니다. 점수는 옆의 막대차트와 아래 표에서 확인하세요.
+                                </p>
+                            )}
                         </div>
 
                         {/* 막대 갭 */}
-                        <div>
+                        <div data-psi-chart="risk-gap" role="region" aria-label="공종별 관리자 및 근로자 위험도 막대차트, 작은 화면에서는 좌우 이동" tabIndex={0}>
                             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-3 text-center">
                                 관리자 기준과 근로자 체감 점수 비교
                             </p>
-                            <ResponsiveContainer width="100%" height={260}>
+                            <div className="min-w-[460px]">
+                            <ResponsiveContainer width="100%" height={riskGapChartHeight}>
                                 <BarChart data={data.gapData} layout="vertical" margin={{ left: 16, right: 24 }}>
                                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                                     <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                                    <YAxis type="category" dataKey="trade" tick={{ fontSize: 11, fill: '#64748b' }} width={36} />
+                                    <YAxis type="category" dataKey="trade" tick={{ fontSize: 11, fill: '#64748b' }} width={88} />
                                     <Tooltip content={<ChartTooltip />} />
                                     <Bar dataKey="managerScore" name="관리자 기준" fill="#ef4444" radius={[0, 4, 4, 0]} opacity={0.8} />
                                     <Bar dataKey="workerScore" name="근로자 체감" fill="#6366f1" radius={[0, 4, 4, 0]} opacity={0.8} />
                                     <ReferenceLine x={50} stroke="#cbd5e1" strokeDasharray="4 4" />
                                 </BarChart>
                             </ResponsiveContainer>
+                            </div>
                         </div>
                     </div>
                     ) : (
@@ -1426,8 +1471,9 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                     )}
 
                     {/* 갭 랭킹 테이블 */}
-                    <div className="mt-4 overflow-x-auto">
+                    <div className="mt-4 overflow-x-auto" role="region" aria-label="공종별 위험 인식 차이 표, 좌우로 이동하여 확인" tabIndex={0}>
                         <table className="w-full text-xs">
+                            <caption className="sr-only">관리자 기준·근로자 응답·차이·표본·판정을 공종별로 비교합니다. 판정은 해당 표본과 기준이 갖춰진 경우에만 표시됩니다.</caption>
                             <thead>
                                 <tr className="border-b border-slate-100 dark:border-slate-700">
                                     <th className="text-left py-2 px-3 font-bold text-slate-500">공종</th>
@@ -1496,7 +1542,9 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                     title="공종별 실질 위협 워드클라우드 및 트렌드 (Risk Ontology Trend)"
                     subtitle="데이터 출처: Q1(가장 위험한 작업) + Q2(가장 큰 위험요소) 텍스트 빈도 분석"
                     actionLabel="이달 현장 피드백 포인트"
-                    actionDesc={`'${data.latestTopKeyword}' 언급 ${data.latestTopKeywordDelta > 0 ? `${data.latestTopKeywordDelta}% 증가` : '안정'} → 비계·추락 방지 설비 긴급 점검 실시`}
+                    actionDesc={data.wordData.length === 0
+                        ? 'Q1·Q2 응답에서 집계된 위험어가 없습니다. 원문과 표본을 확인해 주세요.'
+                        : `최근 집계 월 추적 위험어 상위: '${data.latestTopKeyword}' · 원문을 검토한 후 현장 점검 항목을 선정하세요.`}
                 >
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* 워드클라우드 시뮬레이션 */}
@@ -1506,7 +1554,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                             </p>
                             <WordCloudSimulated data={data.wordData} />
                             <p className="text-[10px] text-center text-slate-400 mt-2">
-                                글자 크기 = 언급 빈도 비례 · 마우스 오버 시 횟수 표시
+                                글자 크기 = 언급 빈도 비례 · 정확한 언급 수는 아래 순위에 표시
                             </p>
                         </div>
 
@@ -1560,9 +1608,11 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                     badge="지표 3"
                     badgeColor="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
                     title="자기규율 약속 구체성 지수 (Self-Discipline Specificity Score)"
-                    subtitle="데이터 출처: Q3 이유 + Q4 안전조치 + Q5 실천약속 텍스트 응답품질 판단 (1~5점)"
-                    actionLabel="마인드셋 변화 근거"
-                    actionDesc={`공종별 구체성 점수 월평균 ${specificityDelta >= 0 ? `+${specificityDelta.toFixed(1)}pt` : `${specificityDelta.toFixed(1)}pt`} 변화 — "서류 작업이 아니라 근로자 사고방식을 능동적으로 변화시키고 있다"는 객관적 증거`}
+                    subtitle="데이터 출처: Q4 안전조치 + Q5 실천약속, 문구 패턴 규칙 기반 참고 점수(1~5점)"
+                    actionLabel="검토할 응답 경향"
+                    actionDesc={specificityDelta === null
+                        ? '비교 가능한 두 달의 Q4·Q5 응답이 부족합니다. 점수 변화나 교육 효과를 단정하지 않습니다.'
+                        : `직전 집계 월 대비 평균 ${specificityDelta > 0 ? '+' : ''}${specificityDelta}점 · 표현 구체성 참고값이며 실제 행동 변화의 증거는 아닙니다.`}
                 >
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         {/* 추세선 */}
@@ -1599,7 +1649,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
 
                         {/* 응답품질 기준 안내 */}
                         <div className="flex flex-col gap-3">
-                            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">AI 응답품질 기준표</p>
+                            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">문구 규칙 기반 점수 예시 (실제 행동 검증 아님)</p>
                             {[
                                 { score: 5, label: '행동+조건+시점 명시', example: '"매일 출근 시 안전벨트 직접 확인하겠다"', color: 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300' },
                                 { score: 4, label: '구체적 행동 명시', example: '"안전벨트 착용 여부를 확인하겠다"', color: 'bg-teal-50 border-teal-200 text-teal-800 dark:bg-teal-900/20 dark:text-teal-300' },
@@ -1631,9 +1681,8 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                                     경영진 보고 핵심 메시지
                                 </p>
                                 <p className="text-xs text-emerald-700 dark:text-emerald-400 leading-relaxed">
-                                    점수 우상향 추세는 <strong>한 달에 한 번 자필 응답 행위</strong>가 근로자의 뇌를
-                                    <strong> 수동적 상태 → 능동적 분석 사고(System 2)</strong>로 전환시키고 있다는
-                                    가장 객관적·과학적 증거입니다. <em>"이 양식은 서류 작업이 아니라 근로자의 마인드셋을 개조하는 도구"</em>입니다.
+                                    점수 상승은 Q4·Q5 답변이 문구 규칙상 더 구체적으로 작성된 경향을 뜻합니다.
+                                    실제 위험 인지, 안전행동 실천 및 교육 효과는 현장 관찰·추가 교육 확인 등 독립 근거로 검증해야 합니다.
                                 </p>
                             </div>
                         </div>
@@ -1646,7 +1695,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                         <svg className="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
-                        경보 임계값 기준 (자동 조치 트리거)
+                        관리자 검토를 위한 참고 기준 (자동 조치 아님)
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         {[
@@ -1661,7 +1710,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                             {
                                 icon: '🟡',
                                 condition: '특정 위험어 2개월 연속 ↑',
-                                action: '현장 설비 긴급 점검 + 관리자 보고',
+                                action: '언급 원문과 작업 환경을 확인한 뒤 점검 필요성을 판단',
                                 cardClass: 'rounded-xl border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/20 p-3',
                                 titleClass: 'text-xs font-black text-amber-700 dark:text-amber-300',
                                 bodyClass: 'text-xs text-amber-600 dark:text-amber-400',
@@ -1669,7 +1718,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                             {
                                 icon: '🟣',
                                 condition: '구체성 점수 ≤ 3.5점',
-                                action: '해당 협력사 작성 교육 재실시 권고',
+                                action: '답변 구체성을 검토하고 필요 시 작성 안내 보완',
                                 cardClass: 'rounded-xl border border-indigo-200 dark:border-indigo-800/40 bg-indigo-50 dark:bg-indigo-900/20 p-3',
                                 titleClass: 'text-xs font-black text-indigo-700 dark:text-indigo-300',
                                 bodyClass: 'text-xs text-indigo-600 dark:text-indigo-400',
