@@ -46,6 +46,13 @@ try{
   assert.ok(records.y+records.height<=844,'records must be visible at '+width);
   assert.equal(await camera.count(),1);assert.ok(initialCamera.height>=44&&records.height>=44);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+  if(width<=768){
+   const hero=await page.locator('.si-refresh-hero').boundingBox();
+   const copy=await page.locator('.si-refresh-hero-copy').boundingBox();
+   assert.ok(hero&&copy&&copy.width>=hero.width-75,
+    'mobile hero title must occupy a full row, not a single-character column at '+width);
+  }
+
   // Field Canvas R69: purposeful paths at 320/390/768/1440px.
   const choice=page.getByRole('region',{name:'점검 방식 선택'});
   const startPhoto=choice.getByRole('link',{name:/^사진점검 시작/});
