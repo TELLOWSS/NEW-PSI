@@ -111,15 +111,12 @@ try {
    assert.ok(await page.getByText('JSON 파일 불러오기',{exact:false}).count()>0,'Backup rescue path missing');
    await page.screenshot({path:`${out}/ocr-backup-open-${width}.png`,fullPage:false});
   }
-  // R78 actual navigation: use the existing sidebar/mobile menu, not dev hooks.
-  if(width<1024){
-   const nav=page.getByRole('navigation',{name:'모바일 하단 탐색'});
-   await nav.getByRole('button',{name:'더보기'}).click();
-   const drawer=page.getByRole('dialog',{name:'전체 메뉴'});
-   await drawer.getByRole('button',{name:'근로자 의견 분석'}).click();
-  }else{
-   await page.locator('.psi-sidebar').getByRole('button',{name:'근로자 의견 분석'}).click();
-  }
+  // R78 actual navigation: survey is intentionally hidden by the default
+  // minimalist sidebar, but directly discoverable from education follow-up.
+  // Do NOT bypass role/operational-mode checks or inject a dev-only route.
+  await goEducation();
+  await page.locator('[data-education-return="practice-verification"]')
+   .getByRole('button',{name:'근로자 의견 분석'}).click();
   await inspect('survey-intelligence','[data-psi-screen="survey-intelligence"]');
   await page.getByRole('heading',{name:'위험성평가 설문 분석 대시보드'}).waitFor({timeout:32000});
   const surveyTrade=page.getByRole('combobox',{name:'분석 공종 선택'});
@@ -143,9 +140,9 @@ try {
   if(width===390){
    await page.evaluate(()=>localStorage.setItem('psi_theme_mode','dark'));
    await page.reload({waitUntil:'domcontentloaded'});
-   await goHome();
-   await page.getByRole('navigation',{name:'모바일 하단 탐색'}).getByRole('button',{name:'더보기'}).click();
-   await page.getByRole('dialog',{name:'전체 메뉴'}).getByRole('button',{name:'근로자 의견 분석'}).click();
+   await goEducation();
+   await page.locator('[data-education-return="practice-verification"]')
+    .getByRole('button',{name:'근로자 의견 분석'}).click();
    await page.locator('[data-psi-screen="survey-intelligence"]').waitFor({timeout:32000});
    const dark=await page.locator('[data-psi-screen="survey-intelligence"] [data-psi-survey="header"]').evaluate(el=>({color:getComputedStyle(el).color,bg:getComputedStyle(el).backgroundImage}));
    assert.ok(await page.evaluate(()=>document.documentElement.classList.contains('dark')),'survey dark mode lost after reload');
