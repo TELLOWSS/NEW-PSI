@@ -1205,6 +1205,9 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const [forcedTightFit, setForcedTightFit] = useState(false);
     const [isPrintMode, setIsPrintMode] = useState(false);
     const sheetRef = useRef<HTMLElement>(null);
+    // Re-use verified PNG pages for a subsequent PDF export, without
+    // performing expensive multilingual DOM capture twice on a phone.
+    const verifiedPngCacheRef = useRef<{ scope: string; files: EducationZipFile[] } | null>(null);
 
     const workTypes = useMemo(
         () => [DEFAULT_WORK_TYPE, ...Array.from(new Set(sourceRecords.map((item) => item.jobField).filter(Boolean))).sort()],
@@ -1278,7 +1281,10 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     }), [draft, currentTranslationSourceText, translationSourceText, translatedTexts, structuredTranslations]);
 
     // Do not offer a stale assembled file after its source, month or translation changes.
-    useEffect(() => setPreparedBundle(null), [draft, educationMonth, workType, structuredTranslations, translatedTexts]);
+    useEffect(() => {
+        setPreparedBundle(null);
+        verifiedPngCacheRef.current = null;
+    }, [draft, educationMonth, workType, structuredTranslations, translatedTexts]);
 
     const applyStudioState = (nextState: StoredStudioState) => {
         setEducationMonth(nextState.educationMonth);
@@ -1733,6 +1739,12 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         const languages = ['ko-KR', ...translationLanguageCodes.filter(lang => lang !== 'ko-KR')];
         const pngFiles: EducationZipFile[] = [];
         const pdfPages: EducationPdfPage[] = [];
+        // Scope includes both the source and all translated content, so cache
+        // reuse cannot cross a changed training package or work period.
+        const cacheScope = JSON.stringify({ educationMonth, workType, draft, translatedTexts, structuredTranslations, languages });
+        const cached = format === 'pdf' && verifiedPngCacheRef.current?.scope === cacheScope
+            ? verifiedPngCacheRef.current.files
+            : null;
         let prepared = 0;
         setIsExporting(true);
         setPreparedBundle(null);
@@ -1740,6 +1752,40 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         try {
             for (const lang of languages) {
                 setBatchProgress(`${lang} 자료 준비 중 · ${prepared}/${languages.length}`);
+                if (cached) {
+                    const source = cached[prepared];
+                    if (!source || !(source.content instanceof Blob)) {
+                        throw new Error('검수된 PNG 원본 캐시가 유효하지 않습니다.');
+                    }
+                    // Convert the *already verified* PNG into JPEG via a local
+                    // canvas; no second font/layout/DOM capture is necessary.
+                    const image = await createImageBitmap(source.content);
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = image.width;
+                        canvas.height = image.height;
+                        const context = canvas.getContext('2d', { alpha: false });
+                        if (!context) throw new Error('PDF 이미지 변환을 위한 2D 화면이 지원되지 않습니다.');
+                        context.fillStyle = '#ffffff';
+                        context.fillRect(0, 0, canvas.width, canvas.height);
+                        context.drawImage(image, 0, 0);
+                        const jpeg = await canvasToBlob(canvas, 'image/jpeg', 0.94);
+                        if (jpeg.type !== 'image/jpeg') throw new Error('JPEG 변환 기능을 지원하지 않습니다.');
+                        pdfPages.push({
+                            jpeg: new Uint8Array(await jpeg.arrayBuffer()),
+                            pixelWidth: canvas.width,
+                            pixelHeight: canvas.height,
+                            placement: getCanvasPlacementOnA4(canvas),
+                        });
+                        canvas.width = 0;
+                        canvas.height = 0;
+                    } finally {
+                        image.close();
+                    }
+                    prepared++;
+                    setBatchProgress(`검수된 PNG 재사용 · ${prepared}/${languages.length}`);
+                    continue;
+                }
                 setPreviewLanguage(lang);
                 setViewMode('single');
                 await waitForRenderedEducationLanguage(lang);
@@ -1770,10 +1816,16 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                         placement: getCanvasPlacementOnA4(canvas),
                     });
                 }
+                // Release the high-resolution raster promptly between pages.
+                canvas.width = 0;
+                canvas.height = 0;
                 prepared += 1;
                 setBatchProgress(`언어별 A4 확인 완료 · ${prepared}/${languages.length}`);
                 // Yield to the UI; do not hold the phone unresponsive while rendering successive pages.
                 await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+            }
+            if (format === 'png') {
+                verifiedPngCacheRef.current = { scope: cacheScope, files: pngFiles };
             }
             const filename = buildPsiExportFileName({
                 tokens: ['PSI_위험성평가교육자료', educationMonth, workType, '다국어_' + languages.length + '개언어'],
