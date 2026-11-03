@@ -794,3 +794,26 @@
   background:transparent!important;
  }
 }
+
+/* R84 / Dense trades remain fully legible, without compressing axis labels. */
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-chart="risk-gap"]{
+ min-width:0;
+ max-width:100%;
+ overflow-x:auto;
+ overscroll-behavior-x:contain;
+ scrollbar-width:thin;
+ padding-bottom:8px;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-chart="risk-gap"]:focus-visible{
+ outline:3px solid var(--psi-focus);
+ outline-offset:2px;
+ border-radius:8px;
+}
+@media(max-width:720px){
+ .psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-chart="risk-gap"]{
+  border:1px solid var(--psi-border);
+  border-radius:12px;
+  padding:12px 8px;
+  background:var(--psi-surface);
+ }
+}
