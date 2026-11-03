@@ -1733,6 +1733,10 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                 setPreviewLanguage(lang);
                 setViewMode('single');
                 await waitForRenderedEducationLanguage(lang);
+                // Allow the existing 80ms overflow observer to switch to dense A4
+                // before deciding that a translated page cannot be exported.
+                await new Promise<void>((resolve) => window.setTimeout(resolve, 160));
+                await waitForRenderedEducationLanguage(lang);
                 const canvas = await captureSheet();
                 const page = sheetRef.current?.querySelector('[data-report-page="true"]');
                 const poster = page?.querySelector('[data-a4-safety-poster="true"]');
