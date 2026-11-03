@@ -1179,6 +1179,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const [isExtracting, setIsExtracting] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const [batchProgress, setBatchProgress] = useState('');
+    const [preparedBundle, setPreparedBundle] = useState<{ blob: Blob; filename: string } | null>(null);
     const [notice, setNotice] = useState('');
     const [translatedTexts, setTranslatedTexts] = useState<Record<string, string>>(
         initialState?.translatedTexts || {},
@@ -1275,6 +1276,9 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         translatedTexts,
         structuredTranslations,
     }), [draft, currentTranslationSourceText, translationSourceText, translatedTexts, structuredTranslations]);
+
+    // Do not offer a stale assembled file after its source, month or translation changes.
+    useEffect(() => setPreparedBundle(null), [draft, educationMonth, workType, structuredTranslations, translatedTexts]);
 
     const applyStudioState = (nextState: StoredStudioState) => {
         setEducationMonth(nextState.educationMonth);
@@ -1731,6 +1735,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         const pdfPages: EducationPdfPage[] = [];
         let prepared = 0;
         setIsExporting(true);
+        setPreparedBundle(null);
         setBatchProgress(`언어별 A4 검수 준비 · 0/${languages.length}`);
         try {
             for (const lang of languages) {
@@ -1774,13 +1779,18 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                 tokens: ['PSI_위험성평가교육자료', educationMonth, workType, '다국어_' + languages.length + '개언어'],
                 extension: format === 'png' ? 'zip' : 'pdf',
             });
-            if (format === 'png') {
-                const blob = await buildEducationPngZip(pngFiles);
+            const blob = format === 'png'
+                ? await buildEducationPngZip(pngFiles)
+                : buildEducationA4Pdf(pdfPages);
+            setPreparedBundle({ blob, filename });
+            // Mobile browsers may reject a scripted download after async render.
+            // Keep a second, explicitly user-initiated click available below.
+            try {
                 requestEducationDownload(blob, filename);
-            } else {
-                requestEducationDownload(buildEducationA4Pdf(pdfPages), filename);
+                setNotice(`${languages.length}개 언어의 묶음 다운로드를 요청했습니다. 기기 파일 앱의 다운로드 폴더에서 실제 파일을 확인해 주세요. 보이지 않으면 아래 '파일 다시 다운로드' 버튼을 직접 누르세요.`);
+            } catch {
+                setNotice(`${languages.length}개 언어 파일은 준비됐지만 다운로드 요청이 차단됐습니다. 아래 '파일 다시 다운로드' 버튼을 눌러 주세요.`);
             }
-            setNotice(`${languages.length}개 언어를 ${format === 'png' ? '하나의 PNG ZIP' : '하나의 다중 페이지 A4 PDF'}으로 묶어 다운로드를 요청했습니다. 기기 다운로드 폴더에서 실제 파일을 확인하세요. 배포 전 외국어 원문 대조와 글꼴 검토가 필요합니다.`);
         } catch (error) {
             const message = error instanceof Error ? error.message : '알 수 없는 생성 오류';
             setNotice(`${prepared}/${languages.length}개 언어 처리 후 중단했습니다. 묶음 다운로드는 요청하지 않았습니다. ${message} 필요한 언어를 개별 저장하거나 내용을 줄인 후 다시 시도해 주세요.`);
@@ -2769,6 +2779,20 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                         <p className="mt-2 no-print rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm font-bold text-teal-900 dark:border-teal-800 dark:bg-teal-900/30 dark:text-teal-100" role="status" aria-live="polite">
                             {batchProgress} · 완료되기 전 다른 메뉴로 이동하지 마세요.
                         </p>
+                    )}
+                    {preparedBundle && !isExporting && (
+                        <div className="mt-2 no-print rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-950 dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-100" data-psi-education-ready-download="true">
+                            <p className="mb-2 break-all text-xs">파일 준비 완료 · {preparedBundle.filename} · {(preparedBundle.blob.size / 1024 / 1024).toFixed(1)}MB</p>
+                            <button type="button" className="min-h-12 w-full rounded-xl bg-blue-700 px-4 py-3 font-black text-white"
+                                onClick={() => {
+                                    try {
+                                        requestEducationDownload(preparedBundle.blob, preparedBundle.filename);
+                                        setNotice('파일 다운로드를 다시 요청했습니다. 기기 다운로드 폴더에서 실제 저장 여부를 확인해 주세요.');
+                                    } catch (error) {
+                                        setNotice(error instanceof Error ? error.message : '파일을 다운로드하지 못했습니다.');
+                                    }
+                                }}>파일 다시 다운로드</button>
+                        </div>
                     )}
                 </section>
             )}
