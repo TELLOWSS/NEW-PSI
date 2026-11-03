@@ -34,7 +34,7 @@ describe('PSI R92–R94 A4 multilingual font and stalled-capture preflight', () 
         expect(studio).toContain('data-psi-a4-font-preflight="true"');
         expect(studio).toContain('data-psi-a4-font-result={fontPreflight.level}');
         expect(studio).toContain('현재 언어 글꼴 점검');
-        expect(studio).toContain('글자 결합');
+        expect(studio).toContain('자음 결합');
         expect(studio).toContain('setFontPreflight(null)');
         expect(studio).toContain('assetTimeoutMs: 8_000');
         const capture = readFileSync('utils/pdfCapture.ts', 'utf8');
