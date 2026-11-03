@@ -1026,8 +1026,11 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  // A recheck jump never implies corrective action completion.
  const jumpToHandoffRecheck=(recordId:string,actionId:string)=>{
   void withVerifiedHandoff(()=>{
+   // Even when the filter already equals 'all', temporary acknowledgements
+   // must not follow the operator to an unrelated screen.
+   setHandoffPrepared(null);setHandoffDeliveredByOperator(false);setHandoffReceivedByOperator(false);
+   setHandoffItemReports({});setHandoffReceiptMessage('');
    setRecheckJumpTarget({recordId,actionId});
-   // Reveal filtered-out actions; this deliberately clears temporary checkmarks.
    setFilter('all');
   });
  };
