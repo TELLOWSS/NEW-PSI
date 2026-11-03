@@ -86,6 +86,15 @@ try {
     assert.equal(await a4.getAttribute('lang'), 'ko-KR', 'Korean poster missing');
     const pageWidth = await page.locator('[data-psi-a4-preview-scroll] [data-report-page="true"]').evaluate(el => el.getBoundingClientRect().width);
     assert.ok(Math.abs(pageWidth - 210 * 96 / 25.4) < 2, 'mobile A4 page width is not physically 210mm');
+    // R92: webfont load is observable but NEVER equivalent to visual/glyph approval.
+    await page.getByRole('button', { name: '현재 언어 글꼴 점검' }).click();
+    const fontResult = page.locator('[data-psi-a4-font-result]');
+    await fontResult.waitFor({ state: 'visible', timeout: 5_000 });
+    const fontSample = await page.getByLabel('선택 언어의 글자 모양 확인용 샘플').innerText();
+    assert.ok(fontSample.includes('가나다라마'), 'Korean script sample missing');
+    assert.match(await fontResult.innerText(), /직접 확인|검증된 것은 아닙니다|육안 확인/);
+    checks.push({ label: 'R92 advisory font check', sample: fontSample, status: await fontResult.getAttribute('data-psi-a4-font-result') });
+
 
     const requestDownload = async label => {
         const button = page.getByRole('button', { name: label, exact: true });
@@ -175,7 +184,34 @@ try {
     assert.deepEqual(externalCalls, [], 'external jsPDF or html2canvas CDN was required');
     assert.deepEqual(pageErrors, [], 'uncaught browser error during download');
     checks.push({ label: 'network and browser errors', externalCalls, pageErrors });
-    console.log('PASS R88–R90 real Chromium mobile-size downloads: ZIP 2 PNG + PDF 2 A4 pages (synthetic only)');
+
+    // R93: an unresolved external A4 image must fail with an actionable message,
+    // never leave the phone waiting indefinitely or claim a successful file.
+    let stalledImageRoute;
+    await page.route('**/__psi_qa_stalled_a4_image__.png', route => { stalledImageRoute = route; });
+    await page.evaluate(() => {
+        const poster = document.querySelector('[data-psi-a4-preview-scroll] [data-a4-safety-poster="true"]');
+        if (!poster) throw new Error('A4 poster is absent before stalled-image preflight');
+        const img = document.createElement('img');
+        img.src = '/__psi_qa_stalled_a4_image__.png';
+        img.alt = 'Synthetic unavailable image';
+        img.width = 1;
+        img.height = 1;
+        img.style.position = 'absolute';
+        img.style.left = '0';
+        img.style.top = '0';
+        img.id = 'psi-qa-unavailable-image';
+        poster.appendChild(img);
+    });
+    await page.getByRole('button', { name: 'PNG 이미지', exact: true }).click();
+    await page.getByText(/A4 이미지가 준비되지 않았습니다/).waitFor({ state: 'visible', timeout: 24_000 });
+    assert.equal(await page.getByRole('button', { name: 'PNG 이미지', exact: true }).isDisabled(), false,
+        'stalled capture did not release export state');
+    checks.push({ label: 'R93 stalled image recovery', message: 'Clear failure, released export control' });
+    if (stalledImageRoute) await stalledImageRoute.abort().catch(() => {});
+    await page.unroute('**/__psi_qa_stalled_a4_image__.png');
+    await page.evaluate(() => document.getElementById('psi-qa-unavailable-image')?.remove());
+    console.log('PASS R92–R94 mobile-size font preflight + bounded-image failure + ZIP/PDF downloads (synthetic only)');
     await writeFile(resolve(out, 'results.json'), JSON.stringify({ result: 'PASS', syntheticOnly: true, checks }, null, 2));
 } catch (error) {
     await writeFile(resolve(out, 'results.json'), JSON.stringify({

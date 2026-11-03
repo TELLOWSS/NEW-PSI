@@ -7,6 +7,7 @@ import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
 import { getA4LanguagePolicy } from '../utils/a4LanguagePolicy';
+import { inspectA4FontPreflight, type A4FontPreflight } from '../utils/educationA4FontPreflight';
 import { TRAINING_LANGUAGE_LABELS } from '../utils/constructionTrainingTranslation';
 import {
     normalizeEducationPosterTranslationMap,
@@ -1180,6 +1181,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const [isExporting, setIsExporting] = useState(false);
     const [batchProgress, setBatchProgress] = useState('');
     const [preparedBundle, setPreparedBundle] = useState<{ blob: Blob; filename: string } | null>(null);
+    const [fontPreflight, setFontPreflight] = useState<A4FontPreflight | null>(null);
     const [notice, setNotice] = useState('');
     const [translatedTexts, setTranslatedTexts] = useState<Record<string, string>>(
         initialState?.translatedTexts || {},
@@ -1285,6 +1287,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         setPreparedBundle(null);
         verifiedPngCacheRef.current = null;
     }, [draft, educationMonth, workType, structuredTranslations, translatedTexts]);
+    useEffect(() => setFontPreflight(null), [previewLanguage, draft, structuredTranslations, translatedTexts]);
 
     const applyStudioState = (nextState: StoredStudioState) => {
         setEducationMonth(nextState.educationMonth);
@@ -1566,7 +1569,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         return captureReportCanvas(sheetRef.current, async (element, options) => {
             const fallback = await ensureHtml2Canvas();
             return fallback(element, options);
-        }, { scale: 3, preferOfflineRenderer: true });
+        }, { scale: 3, preferOfflineRenderer: true, assetTimeoutMs: 8_000 });
     };
 
     const blockStaleTranslationExport = (): boolean => {
@@ -1704,6 +1707,11 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         }
     };
 
+
+    const runFontPreflight = () => {
+        const faces = document.fonts ? Array.from(document.fonts, face => ({ family: face.family, status: face.status })) : null;
+        setFontPreflight(inspectA4FontPreflight(previewLanguage, faces, document.fonts?.status === 'loading'));
+    };
 
     // Confirm React has rendered the exact language before each batch capture.
     // A fixed delay can silently save the previous language under the next file name.
@@ -2469,6 +2477,25 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                         </div>
                     )}
 
+                    <div data-psi-a4-font-preflight="true" className="no-print mb-3 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="min-w-0">
+                                <p className="text-xs font-black text-slate-800 dark:text-slate-100">글꼴·문자 출력 점검</p>
+                                <p className="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-300">외국어 글꼴 로드 상태는 참고용입니다. 깨진 글자·자음 결합·번역 오류는 실제 화면과 저장 파일에서 직접 확인해야 합니다.</p>
+                            </div>
+                            <button type="button" disabled={isExporting} onClick={runFontPreflight} className="min-h-11 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-black text-blue-800 disabled:opacity-50 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-100">
+                                현재 언어 글꼴 점검
+                            </button>
+                        </div>
+                        <p lang={previewLanguagePolicy.lang} dir={previewLanguagePolicy.dir} style={{ fontFamily: previewLanguagePolicy.fontFamily }} className="mt-2 text-lg leading-relaxed text-slate-900 dark:text-slate-100" aria-label="선택 언어의 글자 모양 확인용 샘플">
+                            {fontPreflight?.sample || '글꼴 점검 버튼을 눌러 해당 언어의 문자 샘플을 확인하세요.'}
+                        </p>
+                        {fontPreflight && (
+                            <p role="status" aria-live="polite" data-psi-a4-font-result={fontPreflight.level} className="mt-1 text-xs font-semibold leading-5 text-slate-700 dark:text-slate-200">
+                                {fontPreflight.family} · {fontPreflight.detail}
+                            </p>
+                        )}
+                    </div>
                     <p className="psi-a4-preview-hint no-print text-xs font-semibold leading-5">
                         모바일 미리보기는 좌우로 이동해 전체 A4를 확인하세요. 인쇄·PDF·PNG는 원래 A4 크기로 저장됩니다.
                     </p>
