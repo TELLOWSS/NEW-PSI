@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 const quick=readFileSync('components/inspector/InspectorQuickWorkspace.tsx','utf8');
 const local=readFileSync('components/inspector/InspectorLocalDraft.tsx','utf8');
 const wrapper=readFileSync('pages/SafetyInspector.tsx','utf8');
+const standalone=readFileSync('field-local/main.tsx','utf8');
 const advanced=readFileSync('pages/InspectorAdvancedWorkspace.tsx','utf8');
 const css=readFileSync('components/inspector/inspector-refresh.css','utf8');
 
@@ -43,6 +44,8 @@ describe('NEW-PSI Field Canvas UX design contract',()=>{
  it('loads refresh layer last while retaining advanced/print routes',()=>{
   expect(wrapper.indexOf('inspector-refresh.css')).toBeGreaterThan(wrapper.indexOf('inspector-collab.css'));
   expect(advanced).toContain('si-refresh-advanced');
+  expect(standalone).toContain('inspector-refresh.css');
+  expect(standalone).toContain('si-workspace si-quick si-refresh');
   expect(css).toContain('@media print');
   expect(css).toContain('prefers-reduced-motion:reduce');
   expect(css).toContain('html.dark');
