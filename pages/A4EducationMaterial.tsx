@@ -1558,18 +1558,26 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
 
     const captureSheet = async () => {
         if (!sheetRef.current) throw new Error('내보낼 한 장 자료를 찾지 못했습니다.');
-        await waitForA4Fonts();
+        // Use best-effort browser font loading only. The offline renderer
+        // deliberately does not fetch/inline remote font assets.
+        await waitForA4Fonts(1_000);
         await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
         const pageEl = sheetRef.current.querySelector('[data-report-page="true"]');
         if (!pageEl || hasA4Overflow(pageEl)) {
             throw new Error('일부 내용이 A4 영역을 벗어납니다. 문장을 줄이거나 번역을 갱신한 뒤 다시 저장해 주세요.');
         }
-        // Prefer the bundled html-to-image engine; fetch the legacy CDN fallback
-        // only if that local rendering path cannot capture this document.
+        // A4 export stays local: never fetch the legacy html2canvas CDN when
+        // a remote font stalls, and never silently treat a fallback as verified.
         return captureReportCanvas(sheetRef.current, async (element, options) => {
             const fallback = await ensureHtml2Canvas();
             return fallback(element, options);
-        }, { scale: 3, preferOfflineRenderer: true, assetTimeoutMs: 8_000 });
+        }, {
+            scale: 3,
+            preferOfflineRenderer: true,
+            strictLocalCapture: true,
+            assetTimeoutMs: 3_000,
+            captureTimeoutMs: 20_000,
+        });
     };
 
     const blockStaleTranslationExport = (): boolean => {
@@ -1724,7 +1732,8 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             if (!isMatchingA4Language(requestedLanguage, page?.getAttribute('lang') ?? null, poster?.getAttribute('lang') ?? null)) {
                 continue;
             }
-            await waitForA4Fonts();
+            // Layout must be the new language. Font completeness is reviewed
+            // separately; waiting for remote fonts here can stall every page.
             await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
             const finalPage = sheetRef.current?.querySelector('[data-report-page="true"]');
             const finalPoster = finalPage?.querySelector('[data-a4-safety-poster="true"]');
@@ -1847,7 +1856,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             // Keep a second, explicitly user-initiated click available below.
             try {
                 requestEducationDownload(blob, filename);
-                setNotice(`${languages.length}개 언어의 묶음 다운로드를 요청했습니다. 기기 파일 앱의 다운로드 폴더에서 실제 파일을 확인해 주세요. 보이지 않으면 아래 '파일 다시 다운로드' 버튼을 직접 누르세요.`);
+                setNotice(`${languages.length}개 언어의 묶음 다운로드를 요청했습니다. 기기 파일 앱의 다운로드 폴더에서 실제 파일을 확인해 주세요. 출력물은 기기 글꼴로 만들어졌으므로 외국어 문자·줄바꿈을 육안으로 확인하세요. 파일이 보이지 않으면 아래 '파일 다시 다운로드' 버튼을 누르세요.`);
             } catch {
                 setNotice(`${languages.length}개 언어 파일은 준비됐지만 다운로드 요청이 차단됐습니다. 아래 '파일 다시 다운로드' 버튼을 눌러 주세요.`);
             }

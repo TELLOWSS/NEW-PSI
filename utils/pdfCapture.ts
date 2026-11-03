@@ -215,6 +215,10 @@ interface CaptureReportCanvasOptions {
     preferOfflineRenderer?: boolean;
     /** Fail a stalled image capture rather than waiting indefinitely. 0 preserves legacy reports. */
     assetTimeoutMs?: number;
+    /** A4 education: never fetch a remote CDN fallback or embed external webfonts. */
+    strictLocalCapture?: boolean;
+    /** A4 education: bound image rendering itself, not merely resource readiness. */
+    captureTimeoutMs?: number;
 }
 
 interface ElementLayoutSize {
@@ -378,8 +382,12 @@ export const captureReportCanvases = async (
         if (options.preferOfflineRenderer || canInlineCurrentStylesheets()) {
             try {
                 const { toCanvas } = await loadHtmlToImage();
-                return await toCanvas(captureTarget, {
-                    cacheBust: true,
+                const render = () => toCanvas(captureTarget, {
+                    // A4's local-only mode never downloads external webfonts during
+                    // capture. Rendering uses the browser's installed font fallback,
+                    // and the UI requires a separate real-device glyph check.
+                    skipFonts: options.strictLocalCapture === true,
+                    cacheBust: options.strictLocalCapture !== true,
                     pixelRatio: scale,
                     backgroundColor: '#ffffff',
                     width,
@@ -397,9 +405,35 @@ export const captureReportCanvases = async (
                         overflow: captureTarget.getAttribute('data-report-page') === 'true' ? 'hidden' : 'visible',
                     },
                 });
-            } catch {
-                // html-to-image 실패 시 html2canvas로 폴백
+                if (options.captureTimeoutMs && options.captureTimeoutMs > 0) {
+                    let timer: number | undefined;
+                    try {
+                        return await Promise.race([
+                            render(),
+                            new Promise<never>((_, reject) => {
+                                timer = window.setTimeout(
+                                    () => reject(new Error('A4 이미지 변환 시간이 초과되었습니다. 파일을 만들지 않았습니다. 화면의 글꼴과 원본 이미지를 확인한 뒤 다시 시도해 주세요.')),
+                                    options.captureTimeoutMs,
+                                );
+                            }),
+                        ]);
+                    } finally {
+                        if (timer !== undefined) window.clearTimeout(timer);
+                    }
+                }
+                return await render();
+            } catch (error) {
+                // A4 output must fail closed. A CDN renderer would not work in
+                // tunnels/offline and can silently switch to different glyphs.
+                if (options.strictLocalCapture) {
+                    throw error instanceof Error ? error : new Error('로컬 A4 변환에 실패했습니다.');
+                }
+                // Legacy reports preserve their existing html2canvas fallback.
             }
+        }
+
+        if (options.strictLocalCapture) {
+            throw new Error('로컬 A4 이미지 변환 기능을 사용할 수 없습니다. 브라우저를 갱신하거나 인쇄 기능을 이용해 주세요.');
         }
 
         try {
