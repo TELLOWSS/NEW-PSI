@@ -1751,7 +1751,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     };
 
     return (
-        <div className="psi-page space-y-5 pb-16">
+        <div data-psi-screen="a4-education-studio" className="psi-page space-y-5 pb-16">
             <section className="psi-enterprise-hero no-print">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-100">Evidence-based Risk Assessment Studio</p>
                 <h2 className="mt-2 text-2xl font-black sm:text-3xl">위험성평가 교육자료 스튜디오</h2>
