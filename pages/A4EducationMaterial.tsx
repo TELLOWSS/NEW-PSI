@@ -2300,8 +2300,9 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
 
                     <MultilingualEducationAuditPanel
                         audit={languageAudit}
-                        onRegenerate={() => setActiveTab('ai')}
+                        onRegenerate={() => { if (!isExporting) setActiveTab('ai'); }}
                         onInspect={(item) => {
+                            if (isExporting) return;
                             if (item.status === 'missing') {
                                 setActiveTab('ai');
                                 setNotice(item.label + ' 번역이 없습니다. 한국어 원문으로 번역을 준비해 주세요.');
