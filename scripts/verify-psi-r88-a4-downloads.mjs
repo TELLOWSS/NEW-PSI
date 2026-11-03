@@ -86,6 +86,15 @@ try {
     assert.equal(await a4.getAttribute('lang'), 'ko-KR', 'Korean poster missing');
     const pageWidth = await page.locator('[data-psi-a4-preview-scroll] [data-report-page="true"]').evaluate(el => el.getBoundingClientRect().width);
     assert.ok(Math.abs(pageWidth - 210 * 96 / 25.4) < 2, 'mobile A4 page width is not physically 210mm');
+    // R92: webfont load is observable but NEVER equivalent to visual/glyph approval.
+    await page.getByRole('button', { name: '현재 언어 글꼴 점검' }).click();
+    const fontResult = page.locator('[data-psi-a4-font-result]');
+    await fontResult.waitFor({ state: 'visible', timeout: 5_000 });
+    const fontSample = await page.getByLabel('선택 언어의 글자 모양 확인용 샘플').innerText();
+    assert.ok(fontSample.includes('가나다라마'), 'Korean script sample missing');
+    assert.match(await fontResult.innerText(), /직접 확인|검증된 것은 아닙니다|육안 확인/);
+    checks.push({ label: 'R92 advisory font check', sample: fontSample, status: await fontResult.getAttribute('data-psi-a4-font-result') });
+
 
     const requestDownload = async label => {
         const button = page.getByRole('button', { name: label, exact: true });
