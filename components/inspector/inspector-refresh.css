@@ -439,3 +439,21 @@ html.dark .si-refresh-local .si-btn.si-primary{background:#116f64;color:#fff;bor
  .si-quick.si-refresh .si-quick-photo .si-quick-buttons{gap:7px}
  .si-quick.si-refresh .si-quick-photo .si-quick-buttons .si-btn{min-height:44px;padding:9px 8px}
 }
+
+/* Portrait tablets have enough width for two compact choices. Keeping them
+   side by side makes the primary camera usable above the 844px fold. */
+@media(min-width:650px) and (max-width:800px){
+ .si-quick.si-refresh .si-refresh-paths{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:11px;margin-bottom:14px;
+ }
+ .si-quick.si-refresh .si-refresh-path{
+  grid-template-columns:38px minmax(0,1fr);
+  align-content:start;gap:8px 11px;min-height:128px;padding:14px;
+ }
+ .si-quick.si-refresh .si-refresh-path .si-refresh-path-action{
+  grid-column:1/-1;width:100%;min-width:0;min-height:44px;
+ }
+ .si-quick.si-refresh .si-quick-photo{min-height:250px;padding:18px;gap:9px}
+ .si-quick.si-refresh .si-quick-photo h2{font-size:23px}
+}
