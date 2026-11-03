@@ -58,6 +58,13 @@ try {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true, reducedMotion: 'reduce' });
     const page = await context.newPage();
     const externalCalls = [];
+    // R96: proof that the print renderer does not rely on third-party webfont
+    // availability. These are synthetic browser routes, never field data.
+    const blockedRemoteFonts = [];
+    await page.route(/^https:\/\/fonts\.(?:googleapis|gstatic)\.com\//, route => {
+        blockedRemoteFonts.push(route.request().url());
+        return route.abort('failed');
+    });
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(error.message));
     page.on('request', request => {
@@ -95,6 +102,19 @@ try {
     assert.match(await fontResult.innerText(), /직접 확인|검증된 것은 아닙니다|육안 확인/);
     checks.push({ label: 'R92 advisory font check', sample: fontSample, status: await fontResult.getAttribute('data-psi-a4-font-result') });
 
+    // R96: keep a synthetic FontFace pending throughout the two-language
+    // export. The app must NOT need document.fonts.ready or external font data
+    // to finish these local files. No actual font bytes are downloaded.
+    let heldFontRoute;
+    await page.route('**/__psi_qa_slow_webfont__.woff2', route => { heldFontRoute = route; });
+    await page.evaluate(() => {
+        const face = new FontFace('PSI-QA-Slow-Font', 'url(/__psi_qa_slow_webfont__.woff2)');
+        document.fonts.add(face);
+        window.__psiQaSlowFontFace = face;
+        void face.load().catch(() => undefined);
+    });
+    await page.waitForFunction(() => document.fonts.status === 'loading', undefined, { timeout: 5_000 });
+    checks.push({ label: 'R96 pending remote font setup', loading: true });
 
     const requestDownload = async label => {
         const button = page.getByRole('button', { name: label, exact: true });
@@ -184,6 +204,12 @@ try {
     assert.deepEqual(externalCalls, [], 'external jsPDF or html2canvas CDN was required');
     assert.deepEqual(pageErrors, [], 'uncaught browser error during download');
     checks.push({ label: 'network and browser errors', externalCalls, pageErrors });
+    assert.equal(await page.evaluate(() => document.fonts.status), 'loading',
+        'the deliberately stalled FontFace completed before offline export proof');
+    if (heldFontRoute) await heldFontRoute.abort('failed').catch(() => {});
+    await page.unroute('**/__psi_qa_slow_webfont__.woff2');
+    await page.evaluate(() => document.fonts.delete(window.__psiQaSlowFontFace));
+    checks.push({ label: 'R96 offline captures while font load is pending', blockedRemoteFonts: blockedRemoteFonts.length });
 
     // R93: an unresolved external A4 image must fail with an actionable message,
     // never leave the phone waiting indefinitely or claim a successful file.
