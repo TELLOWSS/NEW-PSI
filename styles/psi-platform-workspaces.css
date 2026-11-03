@@ -62,22 +62,22 @@
   line-height:1.75;
   font-weight:530;
 }
-.psi-platform-field-canvas [data-education-return="hero"] >div>.grid {
+.psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid {
   align-self:stretch;
   gap:10px;
 }
-.psi-platform-field-canvas [data-education-return="hero"] >div>.grid>div {
+.psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid>div {
   background:#f8fcfb;
   border:1px solid #c4ded9;
   border-radius:15px;
   box-shadow:0 8px 26px rgba(4,35,44,.075);
   min-width:0;
 }
-.psi-platform-field-canvas [data-education-return="hero"] >div>.grid .psi-meta-label {
+.psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid .psi-meta-label {
   font-size:11px;
   font-weight:700;
 }
-.psi-platform-field-canvas [data-education-return="hero"] >div>.grid .psi-data-value {
+.psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid .psi-data-value {
   color:#163b44;
   font-size:22px;
   font-variant-numeric:tabular-nums;
@@ -443,26 +443,26 @@
   box-shadow:none;
 }
 @media(max-width:900px){
- .psi-platform-field-canvas [data-education-return="hero"]>div>.grid {
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid {
   grid-template-columns:repeat(3,minmax(0,1fr));
  }
- .psi-platform-field-canvas [data-education-return="hero"]>div>.grid>div {
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid>div {
   padding:12px 10px;
  }
- .psi-platform-field-canvas [data-education-return="hero"]>div>.grid>div>span{
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid>div>span{
   display:none;
  }
- .psi-platform-field-canvas [data-education-return="hero"]>div>.grid .psi-data-value {font-size:20px}
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid .psi-data-value {font-size:20px}
 }
 @media(max-width:630px){
  .psi-platform-field-canvas [data-education-return="hero"] {
   border-radius:19px;
   padding:18px 15px;
  }
- .psi-platform-field-canvas [data-education-return="hero"]>div>.grid {gap:6px}
- .psi-platform-field-canvas [data-education-return="hero"]>div>.grid>div {min-height:78px;padding:11px 8px}
- .psi-platform-field-canvas [data-education-return="hero"]>div>.grid .psi-meta-label {font-size:10px}
- .psi-platform-field-canvas [data-education-return="hero"]>div>.grid .psi-data-value {font-size:17px;overflow-wrap:anywhere}
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid {gap:6px}
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid>div {min-height:78px;padding:11px 8px}
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid .psi-meta-label {font-size:10px}
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid .psi-data-value {font-size:17px;overflow-wrap:anywhere}
  .psi-platform-field-canvas [data-education-return="three-step-flow"] {padding:13px;border-radius:14px}
  .psi-platform-field-canvas [data-education-return="three-step-flow"] .grid{gap:10px}
  .psi-platform-field-canvas [data-education-return="three-step-flow"] .psi-section-title{font-size:13px}
@@ -486,8 +486,8 @@
  }
 }
 @media(max-width:360px){
- .psi-platform-field-canvas [data-education-return="hero"]>div>.grid .psi-data-value{font-size:15px}
- .psi-platform-field-canvas [data-education-return="hero"]>div>.grid .psi-meta-label{font-size:9px}
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid .psi-data-value{font-size:15px}
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid .psi-meta-label{font-size:9px}
  .psi-platform-field-canvas [data-psi-screen="survey-intelligence"]>div>div:first-child select{
   width:100%;
  }
@@ -507,5 +507,29 @@
  .psi-platform-field-canvas [data-psi-screen="monthly-guidance"]>.guidance-print,
  .psi-platform-field-canvas [data-psi-screen="a4-education-studio"] [data-report-page]{
    box-shadow:none!important;
+ }
+}
+
+/* R77 direct visual audit: the three-step flow has its OWN grid and must not
+   inherit the three-column metric layout on narrow devices. */
+@media(max-width:630px){
+ .psi-platform-field-canvas [data-education-return="three-step-flow"]>div{
+  grid-template-columns:minmax(0,1fr);
+  gap:12px;
+ }
+ .psi-platform-field-canvas [data-education-return="three-step-flow"]>div>div{
+  background:transparent;
+  border:0;
+  min-width:0;
+  padding:0;
+ }
+ .psi-platform-field-canvas [data-education-return="three-step-flow"]>div>div>span:nth-child(2){
+  width:46px;height:46px;border-radius:12px;
+ }
+ .psi-platform-field-canvas [data-education-return="three-step-flow"] .psi-section-title{
+  color:#fff;
+ }
+ .psi-platform-field-canvas [data-education-return="three-step-flow"] .psi-body-compact{
+  color:#d2ece5;
  }
 }
