@@ -111,6 +111,47 @@ try {
    assert.ok(await page.getByText('JSON 파일 불러오기',{exact:false}).count()>0,'Backup rescue path missing');
    await page.screenshot({path:`${out}/ocr-backup-open-${width}.png`,fullPage:false});
   }
+  // R78 actual navigation: use the existing sidebar/mobile menu, not dev hooks.
+  if(width<1024){
+   const nav=page.getByRole('navigation',{name:'모바일 하단 탐색'});
+   await nav.getByRole('button',{name:'더보기'}).click();
+   const drawer=page.getByRole('dialog',{name:'전체 메뉴'});
+   await drawer.getByRole('button',{name:'근로자 의견 분석'}).click();
+  }else{
+   await page.locator('.psi-sidebar').getByRole('button',{name:'근로자 의견 분석'}).click();
+  }
+  await inspect('survey-intelligence','[data-psi-screen="survey-intelligence"]');
+  await page.getByRole('heading',{name:'위험성평가 설문 분석 대시보드'}).waitFor({timeout:32000});
+  const surveyTrade=page.getByRole('combobox',{name:'분석 공종 선택'});
+  const surveyPeriod=page.getByRole('combobox',{name:'분석 기간 선택'});
+  const surveyReset=page.getByRole('button',{name:'필터 초기화'});
+  assert.equal(await surveyTrade.count(),1,'survey trade filter must have an accessible name');
+  assert.equal(await surveyPeriod.count(),1,'survey period filter must have an accessible name');
+  const filterRects=await Promise.all([surveyTrade,surveyPeriod,surveyReset].map(el=>el.boundingBox()));
+  assert.ok(filterRects.every(rect=>rect&&rect.height>=44),'survey filter touch controls must be >=44px');
+  const firstTrade=await surveyTrade.inputValue();
+  const totalOptions=await surveyTrade.locator('option').count();
+  assert.ok(totalOptions>1,'survey trade filter must offer a real choice');
+  await surveyTrade.selectOption({index:1});
+  assert.notEqual(await surveyTrade.inputValue(),firstTrade,'trade filter interaction failed');
+  await surveyReset.click();
+  assert.equal(await surveyTrade.inputValue(),firstTrade,'survey filter reset failed');
+  const kpis=page.locator('[data-psi-screen="survey-intelligence"] [data-psi-survey="metric"]');
+  assert.equal(await kpis.count(),3,'three evidence KPI cards must remain visible');
+  const cols=await page.locator('[data-psi-survey="metrics"]').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length);
+  assert.equal(cols,width<=630?1:3,'survey KPI grid breaks at '+width);
+  if(width===390){
+   await page.evaluate(()=>localStorage.setItem('psi_theme_mode','dark'));
+   await page.reload({waitUntil:'domcontentloaded'});
+   await goHome();
+   await page.getByRole('navigation',{name:'모바일 하단 탐색'}).getByRole('button',{name:'더보기'}).click();
+   await page.getByRole('dialog',{name:'전체 메뉴'}).getByRole('button',{name:'근로자 의견 분석'}).click();
+   await page.locator('[data-psi-screen="survey-intelligence"]').waitFor({timeout:32000});
+   const dark=await page.locator('[data-psi-screen="survey-intelligence"] [data-psi-survey="header"]').evaluate(el=>({color:getComputedStyle(el).color,bg:getComputedStyle(el).backgroundImage}));
+   assert.ok(await page.evaluate(()=>document.documentElement.classList.contains('dark')),'survey dark mode lost after reload');
+   assert.match(dark.bg,/gradient/i,'survey dark header not themed');
+   await page.screenshot({path:`${out}/survey-intelligence-dark-390.png`,fullPage:false});
+  }
   assert.deepEqual(errors,[],'Browser runtime errors on '+width);
   await context.close();
  }
