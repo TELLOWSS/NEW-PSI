@@ -6622,7 +6622,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     );
 
     return (
-        <div className="psi-field-screen psi-ocr-precision space-y-6 sm:space-y-8 animate-fade-in-up">
+        <div data-psi-screen="ocr-analysis" className="psi-field-screen psi-ocr-precision space-y-6 sm:space-y-8 animate-fade-in-up">
             <section id="ocr-start-guide" tabIndex={-1} aria-labelledby="ocr-start-title" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm outline-none sm:p-7">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div><p className="text-sm font-semibold text-indigo-700">위험성평가 작업 시작</p><h2 id="ocr-start-title" className="mt-1 text-2xl font-bold text-slate-950">오늘 어떤 작업을 하시나요?</h2></div>
