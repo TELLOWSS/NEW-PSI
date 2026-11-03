@@ -1051,6 +1051,31 @@ try{
  await f10Handoff.getByText('이전 인계 초안과 확인란을 무효화했습니다.',{exact:false}).waitFor();
  assert.equal(await oldDeliveryBox.count(),0,'no manual delivery confirmation after stored data changes');
  await rewriteLocalHistory(previousHistoryDate);
+ // F10-64: the previously unguarded receipt-request copy is also invalidated
+ // after concurrent local history edits, without sending anything externally.
+ await f10Handoff.getByRole('button',{name:'인계 문구·A4 인계표 준비'}).click();
+ await f10Handoff.getByRole('button',{name:'담당자에게 보낼 수신 확인 요청 문구 복사'}).waitFor();
+ const previousClipboard=await page.evaluate(()=>window.__syntheticHandoffCopied);
+ await rewriteLocalHistory('2030-01-06');
+ await f10Handoff.getByRole('button',{name:'담당자에게 보낼 수신 확인 요청 문구 복사'}).click();
+ await f10Handoff.getByText('이전 인계 초안과 확인란을 무효화했습니다.',{exact:false}).waitFor();
+ assert.equal(await page.evaluate(()=>window.__syntheticHandoffCopied),previousClipboard,
+  'a stale receipt request must not modify the clipboard');
+ await rewriteLocalHistory(previousHistoryDate);
+ // F10-63: a requested recheck jump must focus the precise recorded action,
+ // clear ephemeral handoff states, and reveal records from any active filter.
+ await f10Handoff.getByRole('button',{name:'인계 문구·A4 인계표 준비'}).click();
+ const jumpSingle=f10Handoff.getByRole('button',{name:'이 항목의 재점검 입력으로 이동'});
+ await jumpSingle.waitFor();
+ await jumpSingle.click();
+ await panel.getByText('선택한 점검의 재점검 입력 위치로 이동했습니다.',{exact:false}).waitFor();
+ const focusId=await page.evaluate(()=>document.activeElement?.id||'');
+ assert.match(focusId,/^si-recheck-.+/,'navigation must focus an actual recheck editor');
+ assert.notEqual(focusId.endsWith('-main'),true,'filtered conflict is for a separate action');
+ assert.equal(await f10Handoff.getByLabel('F10 인계 문구 직접 복사').count(),0,
+  'jumping to action must clear temporary handoff materials');
+ assert.equal(await panel.getByLabel('후속 조치 모아보기').inputValue(),'all',
+  'navigation to a hidden action must reveal all inspections');
  // Stale rejection should not cause an external request or wipe the photos.
 
 
