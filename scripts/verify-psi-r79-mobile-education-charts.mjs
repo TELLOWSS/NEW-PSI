@@ -28,9 +28,13 @@ try {
         await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 30000 });
         await page.waitForFunction(() => document.documentElement.dataset.psiMounted === '1', undefined, { timeout: 30000 });
         const navigate = async target => {
-            const available = await page.evaluate(() => typeof window.__setCurrentPage === 'function');
-            assert.equal(available, true, 'synthetic operator navigation unavailable');
-            await page.evaluate(pageId => window.__setCurrentPage(pageId), target);
+            // Production preview intentionally does not expose DEV-only __setCurrentPage.
+            // Follow the actual phone navigation (bottom rail -> full menu -> destination).
+            const label = target === 'a4-education-material' ? '위험성평가 교육자료' : '근로자 의견 분석';
+            const rail = page.getByRole('navigation', { name: '모바일 하단 탐색' });
+            await rail.getByRole('button', { name: '더보기' }).click();
+            const dialog = page.getByRole('dialog', { name: '전체 메뉴' });
+            await dialog.getByRole('button', { name: label, exact: true }).click();
         };
         await navigate('a4-education-material');
         const studio = page.locator('[data-psi-screen="a4-education-studio"]');
