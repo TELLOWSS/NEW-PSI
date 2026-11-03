@@ -349,7 +349,7 @@ html.dark .si-refresh-local .si-btn.si-primary{background:#116f64;color:#fff;bor
 }
 @media (max-width:800px){
  .si-quick.si-refresh{padding:10px 12px 110px}
- .si-quick.si-refresh .si-refresh-hero{grid-template-columns:1fr;gap:18px;padding:25px 22px;min-height:0}
+ .si-quick.si-refresh .si-quick-heading.si-refresh-hero{grid-template-columns:1fr;gap:18px;padding:25px 22px;min-height:0}
  .si-quick.si-refresh .si-refresh-hero .si-inspector-return-nav{display:flex;flex-wrap:wrap;gap:8px}
  .si-quick.si-refresh .si-refresh-hero .si-inspector-return-nav .si-btn{width:auto;flex:1 1 145px}
  .si-refresh-paths{grid-template-columns:1fr}
@@ -361,7 +361,7 @@ html.dark .si-refresh-local .si-btn.si-primary{background:#116f64;color:#fff;bor
 }
 @media (max-width:530px){
  .si-quick.si-refresh{padding:8px 10px 102px}
- .si-quick.si-refresh .si-refresh-hero{padding:22px 19px;border-radius:19px;margin-bottom:11px}
+ .si-quick.si-refresh .si-quick-heading.si-refresh-hero{padding:22px 19px;border-radius:19px;margin-bottom:11px}
  .si-quick.si-refresh .si-refresh-hero h1{font-size:clamp(26px,7.8vw,34px);line-height:1.28}
  .si-quick.si-refresh .si-refresh-hero .si-eyebrow{font-size:10px}
  .si-refresh-hero-points{gap:6px;margin-top:15px}
@@ -402,7 +402,7 @@ html.dark .si-refresh-local .si-btn.si-primary{background:#116f64;color:#fff;bor
 /* FINAL narrow-phone rules override previous breakpoint layouts. */
 /* First-screen mobile budget: camera and records must remain visible without a scroll. */
 @media (max-width:530px){
- .si-quick.si-refresh .si-refresh-hero{gap:12px;padding:17px 16px}
+ .si-quick.si-refresh .si-quick-heading.si-refresh-hero{gap:12px;padding:17px 16px}
  .si-quick.si-refresh .si-refresh-hero h1{font-size:26px;line-height:1.21;margin-bottom:6px}
  .si-quick.si-refresh .si-refresh-hero .si-refresh-lead{font-size:12px;line-height:1.5}
  .si-quick.si-refresh .si-refresh-hero .si-eyebrow{margin-bottom:6px}
@@ -424,7 +424,7 @@ html.dark .si-refresh-local .si-btn.si-primary{background:#116f64;color:#fff;bor
 }
 
 @media(max-width:530px){
- .si-quick.si-refresh .si-refresh-hero{min-height:0;padding:14px 15px;gap:8px;margin-bottom:9px}
+ .si-quick.si-refresh .si-quick-heading.si-refresh-hero{min-height:0;padding:14px 15px;gap:8px;margin-bottom:9px}
  .si-quick.si-refresh .si-refresh-hero h1{font-size:23px;line-height:1.18;margin:0 0 6px;letter-spacing:-.04em}
  .si-quick.si-refresh .si-refresh-hero .si-refresh-lead{font-size:11px;line-height:1.45;max-width:28ch}
  .si-quick.si-refresh .si-refresh-hero .si-inspector-return-nav{gap:6px}
