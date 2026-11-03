@@ -1550,8 +1550,12 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         if (!pageEl || hasA4Overflow(pageEl)) {
             throw new Error('일부 내용이 A4 영역을 벗어납니다. 문장을 줄이거나 번역을 갱신한 뒤 다시 저장해 주세요.');
         }
-        const html2canvas = await ensureHtml2Canvas();
-        return captureReportCanvas(sheetRef.current, html2canvas, { scale: 3 });
+        // Prefer the bundled html-to-image engine; fetch the legacy CDN fallback
+        // only if that local rendering path cannot capture this document.
+        return captureReportCanvas(sheetRef.current, async (element, options) => {
+            const fallback = await ensureHtml2Canvas();
+            return fallback(element, options);
+        }, { scale: 3 });
     };
 
     const blockStaleTranslationExport = (): boolean => {
