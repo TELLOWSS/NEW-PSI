@@ -458,3 +458,18 @@ html.dark .si-refresh-local .si-btn.si-primary{background:#116f64;color:#fff;bor
  .si-quick.si-refresh .si-quick-photo{min-height:230px;padding:16px;gap:8px}
  .si-quick.si-refresh .si-quick-photo h2{font-size:23px}
 }
+
+/* Desktop first viewport: preserve a generous editorial canvas without pushing
+   the camera CTA under an 844px browser window. */
+@media(min-width:1101px){
+ .si-quick.si-refresh .si-quick-heading.si-refresh-hero{
+  min-height:184px;padding:23px 30px;gap:25px;
+ }
+ .si-quick.si-refresh .si-quick-photo{
+  min-height:350px;padding:25px;gap:10px;
+ }
+ .si-quick.si-refresh .si-refresh-path{
+  min-height:100px;padding:14px 16px;gap:10px;
+ }
+ .si-quick.si-refresh .si-refresh-paths{margin-bottom:16px}
+}
