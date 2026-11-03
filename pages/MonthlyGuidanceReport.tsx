@@ -329,7 +329,7 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
         ? `psi://guidance/${selectedGroup?.period.key || 'current'}`
         : `${window.location.origin}${window.location.pathname}?guidancePeriod=${encodeURIComponent(selectedGroup?.period.key || '')}`;
 
-    return <div className="space-y-5 pb-16">
+    return <div data-psi-screen="monthly-guidance" className="space-y-5 pb-16">
         <style>{`@media print { .guidance-no-print { display:none !important; } .guidance-print { box-shadow:none !important; border:0 !important; } }`}</style>
         <section className="guidance-no-print rounded-3xl border border-sky-800 bg-gradient-to-br from-sky-950 via-slate-900 to-indigo-950 p-5 text-white shadow-xl">
             <p className="psi-eyebrow text-sky-300">PSI {cycleCopy.shortLabel} 교육 환류</p>
