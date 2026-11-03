@@ -14,7 +14,7 @@ import {
     type EducationPosterTranslationMap,
 } from '../utils/educationPosterTranslation';
 import type { WorkerRecord } from '../types';
-import { ensureHtml2Canvas, ensureJsPdfConstructor } from '../utils/externalScripts';
+import { ensureHtml2Canvas } from '../utils/externalScripts';
 import { buildPsiExportFileName } from '../utils/exportFileNaming';
 import { createEducationSceneManifest, createEducationWorkflowSvg } from '../utils/educationVisualExports';
 import EducationPreview30 from '../components/tbm/EducationPreview30';
@@ -22,7 +22,8 @@ import MultilingualEducationAuditPanel from '../components/tbm/MultilingualEduca
 import LayaOfflineBenchmarkPanel from '../components/tbm/LayaOfflineBenchmarkPanel';
 import LayaExtendedReviewPanel from '../components/tbm/LayaExtendedReviewPanel';
 import { buildEducationLanguageAudit } from '../utils/multilingualEducationAudit';
-import { captureReportCanvas, canvasToBlob, getCanvasPlacementOnA4, saveCanvasAsA4Pdf } from '../utils/pdfCapture';
+import { captureReportCanvas, canvasToBlob, getCanvasPlacementOnA4 } from '../utils/pdfCapture';
+import { buildEducationA4Pdf, type EducationPdfPage } from '../utils/educationLocalPdf';
 import { buildEducationPngZip, isMatchingA4Language, requestEducationDownload, type EducationZipFile } from '../utils/educationA4BatchExport';
 import {
     buildMonthlyEducationPackageText,
@@ -1607,17 +1608,23 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         if (blockStaleTranslationExport()) return;
         setIsExporting(true);
         try {
-            const [canvas, JsPDF] = await Promise.all([captureSheet(), ensureJsPdfConstructor()]);
-            if (!JsPDF) throw new Error('PDF 생성 도구를 불러오지 못했습니다.');
+            const canvas = await captureSheet();
+            const jpeg = await canvasToBlob(canvas, 'image/jpeg', 0.96);
+            if (!/^image\/jpeg$/i.test(jpeg.type)) throw new Error('이 브라우저는 로컬 PDF 이미지 변환을 지원하지 않습니다.');
             const langLabel = previewLanguage !== 'ko-KR' ? LANGUAGE_KOREAN_NAMES[normalizeLanguageCode(previewLanguage)] || '다국어' : '';
             const exportTokens = ['PSI_위험성평가교육자료', educationMonth, workType];
             if (langLabel) exportTokens.push(langLabel);
-
-            saveCanvasAsA4Pdf(canvas, JsPDF, buildPsiExportFileName({
+            const blob = buildEducationA4Pdf([{
+                jpeg: new Uint8Array(await jpeg.arrayBuffer()),
+                pixelWidth: canvas.width,
+                pixelHeight: canvas.height,
+                placement: getCanvasPlacementOnA4(canvas),
+            }]);
+            requestEducationDownload(blob, buildPsiExportFileName({
                 tokens: exportTokens,
                 extension: 'pdf',
             }));
-            setNotice('A4 비율과 화면 품질을 유지한 PDF를 저장했습니다.');
+            setNotice('로컬 A4 PDF 다운로드를 요청했습니다. 기기 다운로드 폴더에서 파일을 확인하세요.');
         } catch (error) {
             setNotice(error instanceof Error ? error.message : 'PDF를 저장하지 못했습니다.');
         } finally {
@@ -1721,13 +1728,11 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         const originalMode = viewMode;
         const languages = ['ko-KR', ...translationLanguageCodes.filter(lang => lang !== 'ko-KR')];
         const pngFiles: EducationZipFile[] = [];
+        const pdfPages: EducationPdfPage[] = [];
         let prepared = 0;
         setIsExporting(true);
         setBatchProgress(`언어별 A4 검수 준비 · 0/${languages.length}`);
         try {
-            const JsPDF = format === 'pdf' ? await ensureJsPdfConstructor() : null;
-            if (format === 'pdf' && !JsPDF) throw new Error('PDF 생성 도구를 불러오지 못했습니다.');
-            const pdf = JsPDF ? new JsPDF('p', 'mm', 'a4') : null;
             for (const lang of languages) {
                 setBatchProgress(`${lang} 자료 준비 중 · ${prepared}/${languages.length}`);
                 setPreviewLanguage(lang);
@@ -1750,13 +1755,15 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                         name: buildPsiExportFileName({ tokens: ['PSI_위험성평가교육자료', educationMonth, workType, langLabel], extension: 'png' }),
                         content: blob,
                     });
-                } else if (pdf) {
-                    if (prepared > 0) {
-                        if (!pdf.addPage) throw new Error('여러 페이지 PDF를 지원하지 않습니다.');
-                        pdf.addPage();
-                    }
-                    const a4 = getCanvasPlacementOnA4(canvas);
-                    pdf.addImage(canvas.toDataURL('image/png', 1), 'PNG', a4.offsetX, a4.offsetY, a4.width, a4.height, undefined, 'FAST');
+                } else {
+                    const jpeg = await canvasToBlob(canvas, 'image/jpeg', 0.96);
+                    if (!/^image\/jpeg$/i.test(jpeg.type)) throw new Error('이 브라우저는 로컬 PDF 이미지 변환을 지원하지 않습니다.');
+                    pdfPages.push({
+                        jpeg: new Uint8Array(await jpeg.arrayBuffer()),
+                        pixelWidth: canvas.width,
+                        pixelHeight: canvas.height,
+                        placement: getCanvasPlacementOnA4(canvas),
+                    });
                 }
                 prepared += 1;
                 setBatchProgress(`언어별 A4 확인 완료 · ${prepared}/${languages.length}`);
@@ -1770,9 +1777,8 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             if (format === 'png') {
                 const blob = await buildEducationPngZip(pngFiles);
                 requestEducationDownload(blob, filename);
-            } else if (pdf) {
-                if (!pdf.output) throw new Error('PDF Blob 출력을 지원하지 않습니다.');
-                requestEducationDownload(pdf.output('blob'), filename);
+            } else {
+                requestEducationDownload(buildEducationA4Pdf(pdfPages), filename);
             }
             setNotice(`${languages.length}개 언어를 ${format === 'png' ? '하나의 PNG ZIP' : '하나의 다중 페이지 A4 PDF'}으로 묶어 다운로드를 요청했습니다. 기기 다운로드 폴더에서 실제 파일을 확인하세요. 배포 전 외국어 원문 대조와 글꼴 검토가 필요합니다.`);
         } catch (error) {
