@@ -87,6 +87,23 @@ describe('F10 local-only safety handover',()=>{
   expect(html).not.toContain('<b>테스트 현장</b>');
   expect(text).toContain("조치: '=1+1");
  });
+ it('F10-63 retains precise local navigation IDs but keeps them out of shared copy and HTML',()=>{
+  const src=record('opaque-record-63',{
+   followup:follow('in_progress','2026-11-01'),
+   additionalActions:[{id:'opaque-action-63',title:'개구부 임시통제',
+    followup:follow('pending','2026-11-01')}],
+  });
+  const plan=buildLocalHandoffPlan([src],NOW);
+  expect(plan.entries).toHaveLength(2);
+  expect(plan.entries.map((e:any)=>[e.recordId,e.actionId]).sort((a,b)=>a[1].localeCompare(b[1]))).toEqual([
+   ['opaque-record-63',''],['opaque-record-63','opaque-action-63'],
+  ]);
+  for(const exported of [formatLocalHandoffMessage(plan),formatLocalHandoffHtml(plan)]){
+   expect(exported).not.toContain('opaque-record-63');
+   expect(exported).not.toContain('opaque-action-63');
+   expect(exported).toContain('개구부 임시통제');
+  }
+ });
  it('honors visible bucket scope and distinguishes it from all',()=>{
   const plan=buildLocalHandoffPlan(records,NOW,'recheck:today','visible');
   expect(plan.entries).toHaveLength(1);

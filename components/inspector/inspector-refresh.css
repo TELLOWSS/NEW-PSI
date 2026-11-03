@@ -1,0 +1,475 @@
+/* NEW-PSI Field Canvas R67 — source-only, no fonts/images/API requests.
+   This layer is intentionally loaded AFTER the legacy inspector themes.
+   Product/safety semantics and print-ready reports are not altered. */
+
+.si-workspace.si-refresh,
+.si-workspace.si-refresh-advanced {
+  --fc-ink:#102c3e;
+  --fc-muted:#51687b;
+  --fc-teal:#116f68;
+  --fc-teal-deep:#0e625b;
+  --fc-line:#d5e2e6;
+  --fc-paper:#fff;
+  --fc-soft:#f5f9f9;
+  --fc-mint:#eaf6f1;
+  --fc-shadow:0 16px 48px rgba(22,48,64,.065);
+  --si-navy:var(--fc-ink);
+  --si-teal:var(--fc-teal);
+  --si-muted:var(--fc-muted);
+  --si-line:var(--fc-line);
+  --si-surface:var(--fc-paper);
+  --si-soft:var(--fc-soft);
+  --si-accent-soft:var(--fc-mint);
+  color:var(--fc-ink);
+  scroll-behavior:smooth;
+}
+.si-workspace.si-refresh {max-width:1260px;padding:16px 18px 100px}
+.si-workspace.si-refresh :is(button,a,summary,input,textarea,select):focus-visible,
+.si-workspace.si-refresh-advanced :is(button,a,summary,input,textarea,select):focus-visible {
+  outline:3px solid #0e9387;
+  outline-offset:3px;
+}
+.si-workspace.si-refresh .si-btn,
+.si-workspace.si-refresh-advanced .si-btn{
+  min-height:46px;
+  border-radius:12px;
+  font-size:13px;
+  font-weight:730;
+  box-shadow:none;
+  transition:background-color .18s ease, border-color .18s ease, transform .18s ease;
+}
+.si-workspace.si-refresh .si-btn.si-primary {background:#127b6d;border-color:#127b6d;color:white}
+.si-workspace.si-refresh .si-btn.si-primary:hover:not(:disabled) {background:#0a6057;border-color:#0a6057}
+.si-workspace.si-refresh .si-btn:hover:not(:disabled),
+.si-workspace.si-refresh-advanced .si-btn:hover:not(:disabled){transform:translateY(-1px)}
+.si-workspace.si-refresh .si-btn:disabled{transform:none}
+
+/* First viewport: one brand idea, two honest routes, one main action. */
+.si-quick.si-refresh .si-quick-heading.si-refresh-hero {
+  isolation:isolate;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(190px,auto);
+  align-items:center;
+  gap:28px;
+  min-height:220px;
+  margin:0 0 12px;
+  padding:clamp(23px,3.1vw,38px);
+  border:1px solid #214956;
+  border-radius:25px;
+  background:linear-gradient(116deg,#102939 0%,#143d49 65%,#16544e 130%);
+  box-shadow:0 18px 42px rgba(10,36,49,.14);
+}
+.si-quick.si-refresh .si-refresh-hero::after{
+  z-index:-1;top:0;right:0;left:auto;bottom:auto;
+  width:240px;height:170px;border:0;border-radius:0;
+  background-image:radial-gradient(rgba(178,233,214,.27) 1px, transparent 1.4px);
+  background-size:19px 19px;
+  opacity:.35;
+  box-shadow:none;
+}
+.si-quick.si-refresh .si-refresh-hero-copy{position:relative;z-index:1;min-width:0}
+.si-quick.si-refresh .si-refresh-hero .si-eyebrow{
+  display:flex;flex-wrap:wrap;gap:10px;align-items:center;
+  margin:0 0 12px;color:#aee6d3;font-size:11px;font-weight:850;
+  letter-spacing:.14em;
+}
+.si-quick.si-refresh .si-refresh-hero .si-eyebrow::before{content:none}
+.si-quick.si-refresh .si-refresh-hero h1{
+  margin:0 0 11px;
+  max-width:740px;
+  font-size:clamp(28px,3.4vw,43px);
+  letter-spacing:-.052em;
+  line-height:1.22;
+  font-weight:800;
+  color:#f7fffc;
+  text-wrap:balance;
+}
+.si-quick.si-refresh .si-refresh-hero .si-refresh-lead{
+  margin:0;max-width:680px;
+  color:#d0e6e3;font-size:clamp(13px,1.35vw,15px);line-height:1.75;
+}
+.si-refresh-hero-points{
+  display:flex;gap:9px;flex-wrap:wrap;margin:20px 0 0;
+  color:#e3f5ec;
+}
+.si-refresh-hero-points>span{
+  display:inline-flex;gap:6px;align-items:center;
+  border:1px solid rgba(177,224,211,.34);
+  border-radius:999px;
+  padding:5px 10px;
+  font-size:11px;
+  font-weight:680;
+  background:rgba(255,255,255,.065);
+  line-height:1.3;
+}
+.si-refresh-hero-points .si-icon{width:14px;height:14px;color:#a8e7d7}
+.si-quick.si-refresh .si-refresh-hero .si-inspector-return-nav{
+  z-index:2;
+  display:grid;
+  grid-template-columns:1fr;
+  align-content:center;
+  gap:8px;
+  margin:0;
+  min-width:0;
+}
+.si-quick.si-refresh .si-refresh-hero .si-inspector-return-nav .si-btn{
+  width:100%;
+  min-height:44px;
+  border:1px solid rgba(202,231,224,.36);
+  background:rgba(255,255,255,.075);
+  color:#f0fff9;
+  font-size:12px;
+  text-align:center;
+  white-space:normal;
+}
+.si-quick.si-refresh .si-refresh-hero .si-inspector-return-nav .si-btn:hover:not(:disabled){
+  background:rgba(235,255,251,.17);border-color:rgba(220,255,249,.64);
+}
+.si-refresh-paths{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+  margin:0 0 23px;
+}
+.si-refresh-path{
+  display:grid;
+  grid-template-columns:41px minmax(0,1fr) auto;
+  align-items:center;gap:13px;min-height:112px;
+  padding:18px;
+  border:1px solid var(--fc-line);border-radius:18px;
+  background:var(--fc-paper);
+  box-shadow:0 3px 12px rgba(17,54,66,.035);
+}
+.si-refresh-path-photo{border-color:#b9ded3;background:linear-gradient(115deg,#f1fbf6,#fff 65%)}
+.si-refresh-path-offline{background:var(--fc-soft)}
+.si-refresh-path-index{
+  display:grid;place-items:center;
+  width:41px;height:41px;border-radius:12px;
+  background:#e2f5ed;color:#14655c;
+  font-weight:850;font-size:16px;font-variant-numeric:tabular-nums;
+}
+.si-refresh-path-offline .si-refresh-path-index{background:#e7eef3;color:#315469}
+.si-refresh-path-copy b{display:block;font-size:16px;line-height:1.3;letter-spacing:-.025em}
+.si-refresh-path-copy p{margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--fc-muted);max-width:420px}
+.si-workspace.si-refresh .si-refresh-path-action{
+  min-width:145px;padding:10px 15px;
+  border-color:#bcd8d0;background:var(--fc-paper);
+  color:var(--fc-teal-deep);
+  align-self:center;
+  text-decoration:none;
+}
+.si-workspace.si-refresh .si-refresh-path-photo .si-refresh-path-action{
+  background:#0e776a;border-color:#0e776a;color:#fff;
+}
+.si-workspace.si-refresh .si-refresh-path-action:hover:not(:disabled){transform:none;background:#e4f5ee}
+.si-workspace.si-refresh .si-refresh-path-photo .si-refresh-path-action:hover:not(:disabled){background:#075f55;color:#fff}
+
+/* Focus the camera as a meaningful canvas, not another nested card. */
+.si-quick.si-refresh .si-quick-input{
+  grid-template-columns:minmax(0, .95fr) minmax(0,1.05fr);
+  border:1px solid var(--fc-line);
+  border-radius:23px;
+  background:var(--fc-paper);
+  box-shadow:var(--fc-shadow);
+  overflow:hidden;
+  scroll-margin-top:18px;
+}
+.si-quick.si-refresh .si-quick-photo{
+  min-height:430px;
+  background:radial-gradient(ellipse 65% 70% at 5% 0%,#226b66 0,transparent 80%),linear-gradient(150deg,#0e2b3d,#154a50);
+  padding:clamp(24px,3vw,38px);
+}
+.si-quick.si-refresh .si-quick-photo::after{inset:15px;border-radius:15px;border:1px solid rgba(204,241,231,.18)}
+.si-quick.si-refresh .si-quick-photo h2{font-size:clamp(20px,2.3vw,27px);font-weight:760;letter-spacing:-.035em}
+.si-quick.si-refresh .si-quick-photo p{font-size:13px;color:#d4e6e6}
+.si-quick.si-refresh .si-quick-camera-mark{
+  width:75px;height:68px;border:1px solid rgba(158,229,210,.72);
+  border-radius:20px;background:rgba(236,255,251,.09);
+  box-shadow:0 0 0 9px rgba(205,255,242,.045),0 18px 35px rgba(0,0,0,.2);
+}
+.si-quick.si-refresh .si-quick-context{padding:clamp(21px,2.8vw,36px);gap:12px}
+.si-quick.si-refresh .si-discovery-start{
+  border:0;border-left:3px solid #1b8b7b;
+  border-radius:0 12px 12px 0;
+  margin:0 0 4px;
+  background:var(--fc-soft);
+  padding:14px 16px;
+}
+.si-quick.si-refresh .si-discovery-start>b{font-size:16px}
+.si-quick.si-refresh .si-discovery-start p{font-size:12px;margin:4px 0}
+.si-quick.si-refresh .si-novice-analysis-status{
+  border:1px solid var(--fc-line);border-left:3px solid #1b8b7b;
+  background:var(--fc-soft);border-radius:12px;
+}
+.si-quick.si-refresh .si-quick-consent{background:var(--fc-paper);border-color:var(--fc-line)}
+.si-quick.si-refresh .si-quick-start{min-height:54px;font-size:16px!important;font-weight:760;letter-spacing:-.03em}
+.si-quick.si-refresh .si-quick-context :is(textarea,select,input:not([type=checkbox])){
+  font-size:16px;line-height:1.65;
+  color:var(--fc-ink);border-color:#b9cdd1;border-radius:12px;
+  background:var(--fc-paper);
+}
+.si-quick.si-refresh .si-novice-analysis-settings,
+.si-quick.si-refresh .si-photo-hint{
+  background:var(--fc-paper);border-radius:12px;
+}
+.si-quick.si-refresh .si-inspection-context{background:var(--fc-paper);border-radius:16px}
+.si-quick.si-refresh .si-quick-result{scroll-margin-top:20px}
+.si-quick.si-refresh :is(.si-quick-findings>section,.si-legal-card,.si-report-readiness){
+  border-color:var(--fc-line);border-radius:16px;box-shadow:0 3px 14px rgba(16,44,62,.045);
+}
+
+/* F08/F10: visible sequence, low-emphasis recovery, distinct management blocks. */
+.si-refresh-local{margin:24px 0 0!important;border:1px solid var(--fc-line);border-radius:20px;overflow:hidden;background:var(--fc-paper);box-shadow:var(--fc-shadow);scroll-margin-top:16px}
+.si-refresh-local>summary{
+  display:flex;align-items:center;justify-content:space-between;
+  min-height:67px;padding:17px 21px!important;
+  margin:0;color:var(--fc-ink)!important;font-size:18px!important;font-weight:780!important;
+  letter-spacing:-.03em;background:var(--fc-soft);cursor:pointer;
+}
+.si-refresh-local>summary::after{
+  content:"기기 전용 · 외부 AI 호출 없음";
+  display:inline-flex;margin-left:14px;max-width:48%;
+  font-size:11px;letter-spacing:0;line-height:1.4;
+  padding:6px 10px;border-radius:999px;
+  color:#146b63;background:#e1f5ed;
+}
+.si-refresh-local>section[aria-label="기기 직접 점검"]{padding:clamp(16px,2.4vw,28px);min-width:0}
+.si-refresh-local>section[aria-label="기기 직접 점검"]>h2{font-size:clamp(20px,2.25vw,26px);letter-spacing:-.035em}
+.si-refresh-local>section[aria-label="기기 직접 점검"]>p{font-size:13px;line-height:1.75;color:var(--fc-muted);max-width:950px}
+.si-refresh-local [aria-label="현장 점검 쉬운 시작"]{
+  padding:20px!important;margin:19px 0 20px;border:1px solid #c7e2d6!important;
+  border-radius:18px!important;background:#f2fbf6;
+}
+.si-refresh-local [aria-label="현장 점검 쉬운 시작"]>h3{font-size:17px;margin:0 0 15px}
+.si-refresh-local [aria-label="점검 진행 3단계"]>div{
+  position:relative;border:1px solid #d8e7e0!important;border-radius:14px!important;
+  background:var(--fc-paper);padding:17px!important;
+}
+.si-refresh-local [aria-label="점검 진행 3단계"] strong{font-size:14px;color:var(--fc-ink)}
+.si-refresh-local [aria-label="점검 진행 3단계"] p{font-size:12px;color:var(--fc-muted);line-height:1.6;margin:7px 0}
+.si-refresh-local [aria-label="점검 진행 3단계"] a{font-size:12px;font-weight:730;color:var(--fc-teal-deep);text-underline-offset:4px}
+.si-refresh-local-shortcuts{
+  display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:13px 0 4px;
+}
+.si-refresh-local-shortcuts a{
+  display:inline-flex;align-items:center;justify-content:center;
+  flex:1 1 150px;min-height:44px;
+  padding:9px 12px;border:1px solid var(--fc-line);border-radius:11px;
+  color:var(--fc-teal-deep);background:var(--fc-paper);
+  font-size:12px;font-weight:730;text-align:center;
+  text-decoration:none;
+}
+.si-refresh-local-shortcuts a:hover{border-color:var(--fc-teal);background:var(--fc-mint)}
+.si-refresh-local #si-f10-recheck{scroll-margin-top:16px}
+.si-refresh-local [aria-label="작성 중 자료 긴급 백업과 복구"]{
+  border-color:var(--fc-line)!important;background:var(--fc-soft);
+  padding:14px 18px!important;border-radius:15px!important;margin:18px 0;
+}
+.si-refresh-local [aria-label="작성 중 자료 긴급 백업과 복구"]>details{margin:0}
+.si-refresh-local [aria-label="작성 중 자료 긴급 백업과 복구"]>details>summary{color:var(--fc-ink);font-size:13px!important}
+.si-refresh-local [aria-label="기기 저장 안정성 확인"]{
+  border:1px solid var(--fc-line);border-radius:14px;padding:16px 18px;margin:20px 0;
+  background:var(--fc-paper);
+}
+.si-refresh-local [aria-label="기기 저장 안정성 확인"]>h3{margin:0 0 9px;font-size:15px}
+.si-refresh-local #si-local-photo-step{margin:16px 0;display:flex;flex-wrap:wrap;gap:9px;align-items:center;scroll-margin-top:12px}
+.si-refresh-local #si-local-photo-step .si-btn{flex:1 1 170px;min-height:48px;justify-content:center}
+.si-refresh-local fieldset[aria-label="점검 현장정보"]{
+  border:1px solid var(--fc-line)!important;border-radius:15px!important;
+  margin:19px 0;padding:18px!important;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px;
+}
+.si-refresh-local fieldset[aria-label="점검 현장정보"] legend{padding:0 7px;color:var(--fc-ink);font-size:14px;font-weight:760}
+.si-refresh-local fieldset[aria-label="점검 현장정보"] p{grid-column:1/-1;margin:4px 0;font-size:12px;color:var(--fc-muted)}
+.si-refresh-local fieldset[aria-label="점검 현장정보"] label{min-width:0}
+.si-refresh-local :is(input:not([type=checkbox]):not([type=file]),textarea,select){
+  font-size:16px!important;border-radius:11px!important;max-width:100%;
+}
+.si-refresh-local #si-local-inspection-note{min-height:110px;scroll-margin-top:15px}
+.si-refresh-local #si-local-inspection-save{min-height:54px;font-size:15px;scroll-margin-top:15px;min-width:min(100%,300px)}
+.si-refresh-local #si-saved-local-records{margin:33px 0 14px;padding-top:21px;border-top:1px solid var(--fc-line);font-size:21px;scroll-margin-top:16px}
+.si-refresh-local [aria-label="여러 점검 백업·복원"]{border:1px solid var(--fc-line);border-radius:15px;padding:17px;margin:13px 0}
+.si-refresh-local [aria-label="여러 점검 백업·복원"] h4{font-size:15px;margin:0}
+.si-refresh-local [aria-label="기한별 재점검 관리 현황"]{
+  border:1px solid #c5d9df!important;border-radius:19px!important;background:var(--fc-paper);
+  padding:clamp(16px,2vw,24px)!important;margin:23px 0;
+}
+.si-refresh-local [aria-label="기한별 재점검 관리 현황"]>h4{font-size:20px;line-height:1.3;margin:0 0 12px;letter-spacing:-.03em}
+.si-refresh-local [aria-label="F10 오늘 현장 인계 준비"],
+.si-refresh-local [aria-label="재점검 관리 보고서 만들기"]{
+  padding:clamp(15px,2vw,24px)!important;border:1px solid var(--fc-line)!important;
+  border-radius:17px!important;margin:17px 0!important;background:var(--fc-soft);
+}
+.si-refresh-local [aria-label="F10 오늘 현장 인계 준비"]>h5,
+.si-refresh-local [aria-label="재점검 관리 보고서 만들기"]>h5{font-size:18px;margin:0 0 12px;letter-spacing:-.03em}
+.si-refresh-local [aria-label="F10 건별 인계·수신 직접 확인"]>ol>li{
+  background:var(--fc-paper);border-color:var(--fc-line)!important;border-radius:13px!important;
+}
+.si-refresh-local [aria-label="F10 인계 수신·재점검 확인 순서"]{
+  background:var(--fc-paper);border-color:var(--fc-line)!important;border-radius:15px!important;
+}
+.si-refresh-local [aria-label="F10 인계 수신·재점검 확인 순서"] button{
+  margin-top:7px;min-height:44px;
+}
+.si-refresh-local :is(p,li,legend,button,label,summary){overflow-wrap:anywhere}
+.si-refresh-local :is(button, a.si-btn){min-height:44px}
+
+/* Advanced workspace shares the typographic/geometry rhythm, not new behavior. */
+.si-workspace.si-refresh-advanced{max-width:1420px}
+.si-refresh-advanced .si-hero{border-radius:23px;border-color:#244b56;background:linear-gradient(125deg,#102b3e,#164b4e);box-shadow:var(--fc-shadow)}
+.si-refresh-advanced .si-card{border-radius:18px;border-color:var(--fc-line);box-shadow:0 4px 15px rgba(16,44,62,.04)}
+.si-refresh-advanced .si-list{background:var(--fc-paper)}
+.si-refresh-advanced .si-tabs .is-active{color:var(--fc-teal-deep);border-color:var(--fc-teal)}
+.si-refresh-advanced .si-tabs button{min-height:48px}
+.si-refresh-advanced :is(input:not([type=checkbox]):not([type=file]),textarea,select){font-size:16px}
+
+/* Dark mode applies to the UI only, never the print-ready report. */
+html.dark .si-workspace.si-refresh,
+html.dark .si-workspace.si-refresh-advanced{
+  --fc-ink:#eef6f5;--fc-muted:#b4c9cd;--fc-teal:#6bd8c2;--fc-teal-deep:#b1f0df;
+  --fc-line:#33515b;--fc-paper:#112734;--fc-soft:#0c202c;--fc-mint:#163c3b;
+  --fc-shadow:0 14px 34px rgba(0,0,0,.15);
+  --si-navy:var(--fc-ink);
+}
+html.dark .si-refresh-path-photo{background:linear-gradient(115deg,#173b37,#112734 70%);border-color:#336c60}
+html.dark .si-refresh-path-index{background:#235145;color:#d8ffef}
+html.dark .si-refresh-path-offline .si-refresh-path-index{background:#254454;color:#e0f2ff}
+html.dark .si-workspace.si-refresh .si-refresh-path-action{background:#183b40;color:#d5fff6;border-color:#437a75}
+html.dark .si-workspace.si-refresh .si-refresh-path-photo .si-refresh-path-action{background:#117a70;color:#fff}
+html.dark .si-refresh-local [aria-label="현장 점검 쉬운 시작"]{background:#18382f;border-color:#2c6352!important}
+html.dark .si-refresh-local>summary::after{background:#224f43;color:#b4f2db}
+html.dark .si-quick.si-refresh .si-quick-context :is(input:not([type=checkbox]),textarea,select){background:#152f3d;color:#effdfd;border-color:#466878}
+html.dark .si-refresh-local :is(input:not([type=checkbox]),textarea,select){background:#152f3d!important;color:#effdfd!important;border-color:#466878}
+html.dark .si-refresh-local .si-btn{background:#183947;color:#ebf8f7;border-color:#45646e}
+html.dark .si-refresh-local .si-btn.si-primary{background:#116f64;color:#fff;border-color:#1a8a7e}
+
+/* Layout safety, touch targets, zoom, reduced motion. */
+@media (max-width:1100px){
+ .si-refresh-path{grid-template-columns:40px 1fr;align-content:start}
+ .si-refresh-path .si-refresh-path-action{grid-column:2;width:100%;min-width:0}
+}
+@media (max-width:800px){
+ .si-quick.si-refresh{padding:10px 12px 110px}
+ .si-quick.si-refresh .si-quick-heading.si-refresh-hero{grid-template-columns:1fr;gap:18px;padding:25px 22px;min-height:0}
+ .si-quick.si-refresh .si-refresh-hero .si-inspector-return-nav{display:flex;flex-wrap:wrap;gap:8px}
+ .si-quick.si-refresh .si-refresh-hero .si-inspector-return-nav .si-btn{width:auto;flex:1 1 145px}
+ .si-refresh-paths{grid-template-columns:1fr}
+ .si-refresh-path{min-height:0;grid-template-columns:40px minmax(0,1fr) auto}
+ .si-refresh-path .si-refresh-path-action{grid-column:auto;width:auto}
+ .si-quick.si-refresh .si-quick-input{grid-template-columns:1fr;border-radius:20px}
+ .si-quick.si-refresh .si-quick-photo{min-height:295px}
+ .si-quick.si-refresh .si-quick-context{padding:24px 21px}
+}
+@media (max-width:530px){
+ .si-quick.si-refresh{padding:8px 10px 102px}
+ .si-quick.si-refresh .si-quick-heading.si-refresh-hero{padding:22px 19px;border-radius:19px;margin-bottom:11px}
+ .si-quick.si-refresh .si-refresh-hero h1{font-size:clamp(26px,7.8vw,34px);line-height:1.28}
+ .si-quick.si-refresh .si-refresh-hero .si-eyebrow{font-size:10px}
+ .si-refresh-hero-points{gap:6px;margin-top:15px}
+ .si-refresh-hero-points>span{font-size:10px;padding:5px 8px}
+ .si-refresh-paths{gap:9px;margin-bottom:15px}
+ .si-refresh-path{grid-template-columns:38px minmax(0,1fr);gap:10px;padding:15px 14px;border-radius:15px}
+ .si-refresh-path-index{width:38px;height:38px}
+ .si-refresh-path-copy b{font-size:15px}
+ .si-refresh-path-copy p{font-size:12px}
+ .si-refresh-path .si-refresh-path-action{grid-column:1/-1;width:100%;min-height:44px;justify-content:center}
+ .si-quick.si-refresh .si-quick-photo{padding:22px 16px;min-height:278px}
+ .si-quick.si-refresh .si-quick-photo h2{font-size:21px}
+ .si-quick.si-refresh .si-quick-context{padding:20px 15px}
+ .si-refresh-local>summary{font-size:16px!important;padding:16px!important;flex-wrap:wrap;gap:9px}
+ .si-refresh-local>summary::after{margin:0;max-width:100%;font-size:10px}
+ .si-refresh-local>section[aria-label="기기 직접 점검"]{padding:13px}
+ .si-refresh-local [aria-label="현장 점검 쉬운 시작"]{padding:14px!important}
+ .si-refresh-local fieldset[aria-label="점검 현장정보"]{grid-template-columns:1fr;padding:14px!important}
+ .si-refresh-local #si-local-photo-step .si-btn{flex-basis:100%}
+ .si-refresh-local #si-local-inspection-save{width:100%;min-width:0}
+ .si-refresh-local [aria-label="기한별 재점검 관리 현황"]{padding:13px!important}
+}
+@media (max-width:350px){
+ .si-refresh-path-copy p{font-size:11px}
+ .si-quick.si-refresh .si-refresh-hero .si-inspector-return-nav .si-btn{flex-basis:100%}
+}
+@media (prefers-reduced-motion:reduce){
+ .si-workspace.si-refresh,.si-workspace.si-refresh-advanced{scroll-behavior:auto}
+ .si-workspace.si-refresh .si-btn,.si-workspace.si-refresh-advanced .si-btn{transition:none}
+ .si-workspace.si-refresh .si-btn:hover:not(:disabled),
+ .si-workspace.si-refresh-advanced .si-btn:hover:not(:disabled){transform:none}
+}
+@media print {
+ .si-refresh-hero,.si-refresh-paths,.si-refresh-local {print-color-adjust:economy}
+ .si-refresh-paths{display:none!important}
+}
+
+/* FINAL narrow-phone rules override previous breakpoint layouts. */
+/* First-screen mobile budget: camera and records must remain visible without a scroll. */
+@media (max-width:530px){
+ .si-quick.si-refresh .si-quick-heading.si-refresh-hero{gap:12px;padding:17px 16px}
+ .si-quick.si-refresh .si-refresh-hero h1{font-size:26px;line-height:1.21;margin-bottom:6px}
+ .si-quick.si-refresh .si-refresh-hero .si-refresh-lead{font-size:12px;line-height:1.5}
+ .si-quick.si-refresh .si-refresh-hero .si-eyebrow{margin-bottom:6px}
+ .si-quick.si-refresh .si-refresh-hero-points{display:none}
+ .si-quick.si-refresh .si-refresh-hero .si-inspector-return-nav{gap:6px}
+ .si-quick.si-refresh .si-refresh-hero .si-inspector-return-nav .si-btn{min-height:44px;padding:8px;flex:1 1 110px;font-size:11px}
+ .si-quick.si-refresh .si-refresh-paths{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}
+ .si-quick.si-refresh .si-refresh-path{
+   display:flex;flex-direction:column;align-items:stretch;justify-content:space-between;gap:6px;
+   padding:12px 10px;min-height:86px;border-radius:13px;
+ }
+ .si-quick.si-refresh .si-refresh-path-index{display:none}
+ .si-quick.si-refresh .si-refresh-path-copy b{font-size:13px;line-height:1.35}
+ .si-quick.si-refresh .si-refresh-path-copy p{display:none}
+ .si-quick.si-refresh .si-refresh-path .si-refresh-path-action{
+   width:100%;min-width:0;min-height:41px;padding:7px 5px;font-size:11px;
+   line-height:1.4;text-align:center;justify-content:center;
+ }
+}
+
+@media(max-width:530px){
+ .si-quick.si-refresh .si-quick-heading.si-refresh-hero{min-height:0;padding:14px 15px;gap:8px;margin-bottom:9px}
+ .si-quick.si-refresh .si-refresh-hero h1{font-size:23px;line-height:1.18;margin:0 0 6px;letter-spacing:-.04em}
+ .si-quick.si-refresh .si-refresh-hero .si-refresh-lead{font-size:11px;line-height:1.45;max-width:28ch}
+ .si-quick.si-refresh .si-refresh-hero .si-inspector-return-nav{gap:6px}
+ .si-quick.si-refresh .si-refresh-hero .si-inspector-return-nav .si-btn{min-height:44px;padding:7px 5px}
+ .si-quick.si-refresh .si-refresh-paths{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-bottom:9px}
+ .si-quick.si-refresh .si-refresh-path{min-height:84px;padding:10px 8px;gap:5px}
+ .si-quick.si-refresh .si-refresh-path-copy b{font-size:12px}
+ .si-quick.si-refresh .si-refresh-path .si-refresh-path-action{min-height:44px;padding:5px;font-size:10px}
+ .si-quick.si-refresh .si-quick-photo{min-height:220px;padding:15px 12px;gap:7px}
+ .si-quick.si-refresh .si-quick-photo h2{font-size:19px;line-height:1.3}
+ .si-quick.si-refresh .si-quick-photo p{font-size:11px;line-height:1.5}
+ .si-quick.si-refresh .si-quick-photo .si-quick-buttons{gap:7px}
+ .si-quick.si-refresh .si-quick-photo .si-quick-buttons .si-btn{min-height:44px;padding:9px 8px}
+}
+
+/* Portrait tablets have enough width for two compact choices. Keeping them
+   side by side makes the primary camera usable above the 844px fold. */
+@media(min-width:650px) and (max-width:800px){
+ .si-quick.si-refresh .si-refresh-paths{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:11px;margin-bottom:14px;
+ }
+ .si-quick.si-refresh .si-refresh-path{
+  grid-template-columns:38px minmax(0,1fr);
+  align-content:start;gap:8px 11px;min-height:128px;padding:14px;
+ }
+ .si-quick.si-refresh .si-refresh-path .si-refresh-path-action{
+  grid-column:1/-1;width:100%;min-width:0;min-height:44px;
+ }
+ .si-quick.si-refresh .si-quick-heading.si-refresh-hero{padding:19px 22px;gap:14px}
+ .si-quick.si-refresh .si-quick-photo{min-height:230px;padding:16px;gap:8px}
+ .si-quick.si-refresh .si-quick-photo h2{font-size:23px}
+}
+
+/* Desktop first viewport: preserve a generous editorial canvas without pushing
+   the camera CTA under an 844px browser window. */
+@media(min-width:1101px){
+ .si-quick.si-refresh .si-quick-heading.si-refresh-hero{
+  min-height:184px;padding:23px 30px;gap:25px;
+ }
+ .si-quick.si-refresh .si-quick-photo{
+  min-height:350px;padding:25px;gap:10px;
+ }
+ .si-quick.si-refresh .si-refresh-path{
+  min-height:100px;padding:14px 16px;gap:10px;
+ }
+ .si-quick.si-refresh .si-refresh-paths{margin-bottom:16px}
+}

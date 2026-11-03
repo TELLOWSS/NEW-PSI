@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {LOCAL_INPUT_DRAFT_KEY,validLocalInputDraft,localInputDraftFields,localInputDraftHasContent,localInputDraftCanReplace} from '../lib/inspector/localInputDraft.mjs';
+import {LOCAL_INPUT_DRAFT_KEY,validLocalInputDraft,localInputDraftFields,localInputDraftHasContent,localInputDraftCanReplace,localInputDraftReadbackMatches,buildLocalInspectionEmergencyText} from '../lib/inspector/localInputDraft.mjs';
 const fixture=()=>({
  id:LOCAL_INPUT_DRAFT_KEY,kind:'inspection-input-draft',
  revision:'00000000-0000-4000-8000-000000000001',
@@ -31,9 +31,47 @@ describe('F08 unfinished field-inspection input checkpoint',()=>{
   const b={...a,revision:'00000000-0000-4000-8000-000000000002'};
   expect(localInputDraftCanReplace(null,null)).toBe(true);
   expect(localInputDraftCanReplace(a,a)).toBe(true);
+  // Same revision must NOT authorize overwriting another tab's modified fields.
+  for(const changed of [
+   {...a,note:'바뀐 현장 관찰'},
+   {...a,action:'바뀐 조치 계획'},
+   {...a,photoRole:'detail'},
+   {...a,siteContext:{...a.siteContext,level:'20F'}},
+   {...a,savedAt:'2026-11-02T02:00:00.000Z'},
+  ])expect(localInputDraftCanReplace(changed,a)).toBe(false);
   expect(localInputDraftCanReplace(b,a)).toBe(false);
   expect(localInputDraftCanReplace(null,a)).toBe(false);
   expect(localInputDraftCanReplace(a,null)).toBe(false);
+ });
+ it('does not report saved when IDB readback has different fields under the same revision',()=>{
+  const intended=fixture();
+  expect(localInputDraftReadbackMatches(intended,structuredClone(intended))).toBe(true);
+  expect(localInputDraftReadbackMatches(null,undefined)).toBe(true);
+  expect(localInputDraftReadbackMatches(null,null)).toBe(true);
+  for(const changed of [
+   {...intended,note:'다른 입력'},
+   {...intended,action:'임시통제 취소'},
+   {...intended,photoRole:'detail'},
+   {...intended,siteContext:{...intended.siteContext,level:'19F'}},
+   {...intended,savedAt:'2026-11-02T01:00:00.000Z'},
+   {...intended,revision:'00000000-0000-4000-8000-000000000002'},
+   {...intended,unexpected:'extra'},
+   null,undefined,
+  ])expect(localInputDraftReadbackMatches(intended,changed)).toBe(false);
+  expect(localInputDraftReadbackMatches(null,intended)).toBe(false);
+ });
+ it('exports every visible text field offline without claiming a photo backup',()=>{
+  const row=fixture();
+  const out=buildLocalInspectionEmergencyText(row);
+  for(const field of [row.note,row.action,row.siteContext.site,row.siteContext.building,row.siteContext.level,row.siteContext.trade])
+   expect(out).toContain(field);
+  expect(out).toContain('사진은 포함되지 않습니다');
+  expect(out).toContain('점검 완료나 원본 보존을 증명할 수 없습니다');
+  const changed=buildLocalInspectionEmergencyText({...row,note:'새로 기록한 문구'});
+  expect(changed).toContain('새로 기록한 문구');
+  expect(changed).not.toContain(row.note);
+  expect(buildLocalInspectionEmergencyText({note:'',action:'',photoRole:'unspecified',siteContext:{}}))
+   .toContain('기본 사진 역할: 미지정');
  });
  it('does not confuse blank forms with prior work',()=>{
   const blank={note:'',action:'',photoRole:'unspecified',

@@ -50,7 +50,7 @@ try{
   };
  }));
  await panel.getByLabel('직접 확인한 내용').fill('내 탭의 오래된 입력 수정');
- await panel.getByText('다른 탭의 임시 입력이 변경되어 덮어쓰지 않았습니다.',{exact:false}).waitFor();
+ await panel.getByText('다른 탭의 변경 또는 저장 내용 불일치 감지',{exact:false}).waitFor();
  page.once('dialog',dialog=>dialog.accept());
  await panel.getByRole('button',{name:'기기 임시 입력 다시 불러오기'}).click();
  await panel.getByText('최근 임시저장:',{exact:false}).waitFor();
@@ -65,7 +65,7 @@ try{
   };
  });
  await panel.getByLabel('현장 조치·확인 계획').fill('임시 입력 저장공간 실패 복구');
- await panel.getByText('임시 입력을 저장하거나 불러오지 못했습니다.',{exact:false}).waitFor();
+ await panel.getByText('임시 입력을 저장하거나 저장 후 내용 확인에 실패했습니다.',{exact:false}).waitFor();
  await page.evaluate(()=>{IDBObjectStore.prototype.put=window.__inputPutOriginal;});
  await panel.getByRole('button',{name:'임시저장 다시 시도'}).click();
  await panel.getByText('최근 임시저장:',{exact:false}).waitFor();
@@ -91,12 +91,27 @@ try{
  await panel.getByText('현재 입력에 대해 검토 이력과 검토 기한이 확인된 기준을 찾지 못했습니다.',{exact:false}).waitFor();
  assert.equal(await panel.getByText('비계·작업발판',{exact:true}).count(),0,'legacy guidance must not appear as verified local guidance');
  await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
- await panel.getByText('기기에 저장했습니다. 서버에는 전송하지 않았습니다.').waitFor();
+ await panel.getByText('기기 점검 기록 1건을 다시 읽고 사진·내용을 확인했습니다.',{exact:false}).waitFor();
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
  const saved=await page.evaluate(()=>new Promise((resolve,reject)=>{const open=indexedDB.open('psi-inspector-local-records',1);open.onerror=()=>reject(open.error);open.onsuccess=()=>{const db=open.result,tx=db.transaction('records','readonly'),request=tx.objectStore('records').getAll();request.onsuccess=()=>{resolve(request.result.map(r=>({note:r.note,action:r.action,size:r.photo.size,sha:r.sha256,version:r.legalVersion})));};tx.oncomplete=()=>db.close();};}));
  assert.equal(saved.length,1);assert.match(saved[0].note,/시스템비계/);assert.ok(saved[0].size>0);assert.match(saved[0].sha,/^[a-f0-9]{64}$/);assert.ok(saved[0].version);
  // A deferred action can be recorded and its after photo attached later while offline.
  const actionRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
+ const deferredGuide=actionRow.getByRole('region',{name:'지연 조치 4단계 안내'}).first();
+ const attention=actionRow.getByRole('region',{name:'후속 조치 누락·기한 확인'}).first();
+ await attention.getByText('담당자 미지정',{exact:true}).waitFor();
+ await attention.getByText('임시 안전조치 미기록',{exact:true}).waitFor();
+ await attention.getByText('조치 목표 기한 미정',{exact:true}).waitFor();
+ await attention.getByText('재점검 이력 미기록',{exact:true}).waitFor();
+ await deferredGuide.getByText('입력된 항목 0/4개',{exact:false}).waitFor();
+ await deferredGuide.getByText('1. 담당자 지정 · 미기록').waitFor();
+ await deferredGuide.getByText('2. 임시 안전조치 · 미기록').waitFor();
+ await deferredGuide.getByText('3. 조치 목표 기한 · 미기록').waitFor();
+ await deferredGuide.getByText('4. 지연 사유·재점검 · 미기록').waitFor();
+ const recheckJump=deferredGuide.getByRole('link',{name:'재점검·지연 사유 입력 위치로 이동'});
+ const recheckTarget=await recheckJump.getAttribute('href');
+ assert.match(recheckTarget,/^#si-recheck-.+-main$/);
+ assert.equal(await page.locator(recheckTarget).count(),1,'main recheck target must exist');
  const photoSet=actionRow.getByRole('region',{name:'현장 사진 묶음'});
  await photoSet.getByText('기본 사진: 현장 전체',{exact:false}).waitFor();
  await photoSet.getByLabel('추가 사진 역할').selectOption('detail');
@@ -151,6 +166,12 @@ try{
  await actionRow.getByRole('button',{name:'후속 기록 저장'}).click();
  await panel.getByText('후속 조치를 이 기기에 저장했습니다.',{exact:false}).waitFor();
  await actionRow.getByText('현재 기록된 임시 안전조치: 위험 구역 출입 통제 및 안내 표지 유지',{exact:false}).waitFor();
+ await deferredGuide.getByText('입력된 항목 3/4개',{exact:false}).waitFor();
+ await deferredGuide.getByText('4. 지연 사유·재점검 · 미기록').waitFor();
+ await attention.getByText('임시 안전조치 확인 기록 미흡',{exact:true}).waitFor();
+ await attention.getByText('재점검 이력 미기록',{exact:true}).waitFor();
+ assert.equal(await attention.getByText('담당자 미지정',{exact:true}).count(),0);
+ await deferredGuide.getByText('임시조치 시행·유지, 담당자 연락, 위험 해소 또는 작업 재개 승인을 뜻하지 않습니다.',{exact:false}).waitFor();
  await actionRow.getByLabel('조치 후 사진 연결').setInputFiles({name:'synthetic-after.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a8sAAAAASUVORK5CYII=','base64')});
  await panel.getByText('조치 후 사진을 이 기기에 연결했습니다.',{exact:false}).waitFor();
  await actionRow.getByText('조치 후 사진: synthetic-after.png').waitFor();
@@ -162,6 +183,12 @@ try{
  await overallRecheck.getByLabel('점검 전체 다음 확인 예정일').fill('2030-01-03');
  await overallRecheck.getByRole('button',{name:'재점검 이력 저장'}).click();
  await overallRecheck.getByText('재점검 1건',{exact:false}).waitFor();
+ await deferredGuide.getByText('입력된 항목 4/4개',{exact:false}).waitFor();
+ await deferredGuide.getByText('네 항목 모두 기록됨 · 실제 현장 확인은 별도',{exact:false}).waitFor();
+ await deferredGuide.getByText('다음 확인: 2030-01-03',{exact:false}).waitFor();
+ assert.equal(await attention.getByText('재점검 이력 미기록',{exact:true}).count(),0);
+ assert.equal(await attention.getByText('재점검 예정일 경과',{exact:true}).count(),0);
+ await attention.getByText('임시 안전조치 확인 기록 미흡',{exact:true}).waitFor();
  await overallRecheck.getByText('재점검·지연 이력 1건').click();
  await overallRecheck.getByText('자재 공급이 늦어져 현장 보수 작업이 지연됨',{exact:false}).waitFor();
  assert.equal(await actionRow.getByText('조치 진행 중',{exact:false}).count()>0,true,'reinspection should not auto mark work verified');
@@ -181,6 +208,18 @@ try{
  await actions.getByLabel('추가할 조치 내용').fill('합성 출입 통제');
  await actions.getByRole('button',{name:'조치 항목 추가'}).click();
  const firstAction=actions.locator('div').filter({hasText:'합성 개구부 덮개 고정'}).first();
+ // F10-56: the parent has a recheck, but a newly created action has none.
+ // Never count the parent recheck against an additional corrective action.
+ const nestedGuide=firstAction.getByRole('region',{name:'지연 조치 4단계 안내'}).first();
+ await nestedGuide.getByText('입력된 항목 0/4개',{exact:false}).waitFor();
+ await nestedGuide.getByText('4. 지연 사유·재점검 · 미기록').waitFor();
+ const nestedAttention=firstAction.getByRole('region',{name:'후속 조치 누락·기한 확인'}).first();
+ await nestedAttention.getByText('담당자 미지정',{exact:true}).waitFor();
+ await nestedAttention.getByText('재점검 이력 미기록',{exact:true}).waitFor();
+ const nestedHref=await nestedGuide.getByRole('link',{name:'재점검·지연 사유 입력 위치로 이동'}).getAttribute('href');
+ assert.match(nestedHref,/^#si-recheck-.+-[a-f0-9-]{36}$/i);
+ assert.equal(await page.locator(nestedHref).count(),1,'additional action link must target its own recheck editor');
+ assert.notEqual(nestedHref,recheckTarget,'parent and action must have separate recheck destinations');
  await firstAction.getByRole('button',{name:'후속 조치 기록'}).click();
  await firstAction.getByLabel('조치 상태').selectOption('verified');
  await firstAction.getByLabel('진행·확인 내용').fill('현장 재확인 완료');
@@ -217,7 +256,7 @@ try{
  assert.match(handoffText,/상태 불일치 · 확인 필요/);
  assert.match(handoffText,/담당자 기록 확인/);
  assert.doesNotMatch(handoffText,/합성 담당자|자재 공급이 늦어져|iVBORw0KGgo/);
- const handoffLink=f10Handoff.getByRole('link',{name:'A4 인계표 기기에 저장'});
+ const handoffLink=f10Handoff.getByRole('button',{name:'A4 인계표 기기에 저장'});
  const handoffDownload=page.waitForEvent('download');
  await handoffLink.click();
  const handoffHtml=await readFile(await (await handoffDownload).path(),'utf8');
@@ -230,8 +269,40 @@ try{
   }});
  });
  await f10Handoff.getByRole('button',{name:'인계 문구 복사 (자동 전송 없음)'}).click();
- await f10Handoff.getByText('인계 문구를 기기 클립보드에 복사했습니다.',{exact:false}).waitFor();
+ await f10Handoff.getByText('최신 기기 기록을 재확인한 인계 문구를 복사했습니다.',{exact:false}).waitFor();
  assert.equal(await page.evaluate(()=>window.__syntheticHandoffCopied),handoffText);
+ // F10-60: the state is changed only after verified IndexedDB readback.
+ const checkHandoffAfterReadback=async(control,expected)=>{
+  const label=await control.getAttribute('aria-label');
+  assert.ok(label);
+  await control.click();
+  await page.waitForFunction(({label,expected})=>{
+   const control=Array.from(document.querySelectorAll('input[type="checkbox"]')).find(el=>el.getAttribute('aria-label')===label);
+   return control?.checked===expected;
+  },{label,expected});
+ };
+ // F10-58: a prepared/exported/copied handoff NEVER means message sent or received.
+ const receiptGuide=f10Handoff.getByRole('region',{name:'F10 인계 수신·재점검 확인 순서'});
+ await receiptGuide.getByText('인계 후 직접 확인할 일 · 이번 인계 대상 1건',{exact:true}).waitFor();
+ await receiptGuide.getByText('여러 대상 중 일부만 전달하거나 회신받았다면',{exact:false}).waitFor();
+ await receiptGuide.getByText('다음 확인: 별도 전달 사실 확인').waitFor();
+ const delivered=receiptGuide.getByRole('checkbox',{name:'인계 자료를 외부에서 직접 전달했음을 점검자가 확인'});
+ const received=receiptGuide.getByRole('checkbox',{name:'담당자의 실제 수신 회신을 점검자가 확인'});
+ assert.equal(await delivered.isChecked(),false);
+ assert.equal(await received.isDisabled(),true,'cannot mark acknowledgement before a self-reported external delivery');
+ await receiptGuide.getByRole('button',{name:'담당자에게 보낼 수신 확인 요청 문구 복사'}).click();
+ await receiptGuide.getByText('수신 확인 요청 문구를 복사했습니다.',{exact:false}).waitFor();
+ assert.match(await page.evaluate(()=>window.__syntheticHandoffCopied),/수신 여부를 회신해 주세요/);
+ assert.equal(await delivered.isChecked(),false,'copying a request cannot mark delivery');
+ assert.equal(await received.isChecked(),false,'copying a request cannot mark receipt');
+ await checkHandoffAfterReadback(delivered,true);
+ await receiptGuide.getByText('다음 확인: 담당자 수신 회신 확인').waitFor();
+ await checkHandoffAfterReadback(received,true);
+ await receiptGuide.getByText('다음 확인: 점검 항목별 재점검·조치 이력 기록').waitFor();
+ await receiptGuide.getByText('원본 점검기록이나 인계 증빙으로 저장되지 않습니다.',{exact:false}).waitFor();
+ assert.equal(await actionRow.getByText('확인 완료',{exact:true}).count()>0,true,'manual handoff checklist must not change preexisting action status');
+ await checkHandoffAfterReadback(delivered,false);
+ assert.equal(await received.isChecked(),false,'unchecking delivery must clear inferred receipt');
  await f10Handoff.getByLabel('F10 인계 대상 범위').selectOption('visible');
  await directCopy.waitFor({state:'detached'});
  await f10Handoff.getByText('인계 대상 1건 / 최대 40건',{exact:false}).waitFor();
@@ -551,7 +622,7 @@ try{
  // advertise a backup which the restore validator will necessarily reject.
  await panel.getByLabel('기기 점검 사진 선택').setInputFiles({name:'unsupported.heic',mimeType:'image/heic',buffer:Buffer.from('synthetic file')});
  await panel.getByRole('alert').filter({hasText:'저장 전 백업 안내:'}).waitFor();
- assert.match(await panel.getByRole('alert').innerText(),/점검은 기기에 저장할 수 있습니다/);
+ assert.match(await panel.getByRole('alert').filter({hasText:'저장 전 백업 안내:'}).innerText(),/점검은 기기에 저장할 수 있습니다/);
  await panel.getByLabel('직접 확인한 내용').fill('지원하지 않는 사진 형식 백업 시험');
  await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
  const unsupported=panel.locator('article').filter({hasText:'지원하지 않는 사진 형식 백업 시험'});
@@ -885,6 +956,46 @@ try{
   'old change reason must remain excluded unless detailed notes are selected');
  await f10Report.getByLabel('보고서에 F10 경과 연결 이력 포함').uncheck();
  await csvLink.waitFor({state:'detached'});
+ // F10-59: two separate items must allow partial HUMAN checks, without
+ // turning a single acknowledged entry into an all-target acknowledgement.
+ const secondHandoffTarget=restoredTrace.getByRole('region',{name:'추가 조치 항목'})
+  .locator('div').filter({hasText:'합성 출입 통제'}).first();
+ await secondHandoffTarget.getByRole('button',{name:'후속 조치 기록'}).click();
+ await secondHandoffTarget.getByLabel('조치 상태').selectOption('in_progress');
+ await secondHandoffTarget.getByLabel('진행·확인 내용').fill('인계 대상별 현장 확인 필요');
+ await secondHandoffTarget.getByRole('button',{name:'후속 기록 저장'}).click();
+ await panel.getByText('추가 조치를 이 기기에 저장했습니다.',{exact:false}).waitFor();
+ await f10Handoff.getByLabel('F10 인계 대상 범위').selectOption('all');
+ await f10Handoff.getByText('인계 대상 2건 / 최대 40건',{exact:false}).waitFor();
+ await f10Handoff.getByRole('button',{name:'인계 문구·A4 인계표 준비'}).click();
+ const partial=f10Handoff.getByRole('group',{name:'F10 건별 인계·수신 직접 확인'});
+ await partial.getByText('건별 자기확인: 외부 전달 0/2건 · 수신 회신 0/2건',{exact:false}).waitFor();
+ const item1Delivered=partial.getByRole('checkbox',{name:'F10 1번 외부 전달 직접 확인'});
+ const item1Received=partial.getByRole('checkbox',{name:'F10 1번 수신 회신 직접 확인'});
+ const item2Delivered=partial.getByRole('checkbox',{name:'F10 2번 외부 전달 직접 확인'});
+ const item2Received=partial.getByRole('checkbox',{name:'F10 2번 수신 회신 직접 확인'});
+ assert.equal(await item1Received.isDisabled(),true);
+ assert.equal(await item2Received.isDisabled(),true);
+ await checkHandoffAfterReadback(item1Delivered,true);
+ await checkHandoffAfterReadback(item1Received,true);
+ await partial.getByText('외부 전달 1/2건 · 수신 회신 1/2건',{exact:false}).waitFor();
+ await receiptGuide.getByText('다음 확인: 별도 전달 사실 확인',{exact:true}).waitFor();
+ assert.equal(await item2Received.isDisabled(),true);
+ await checkHandoffAfterReadback(item2Delivered,true);
+ await receiptGuide.getByText('다음 확인: 담당자 수신 회신 확인',{exact:true}).waitFor();
+ await checkHandoffAfterReadback(item2Received,true);
+ await receiptGuide.getByText('다음 확인: 점검 항목별 재점검·조치 이력 기록',{exact:true}).waitFor();
+ await checkHandoffAfterReadback(item1Delivered,false);
+ assert.equal(await item1Received.isChecked(),false,'revoking a delivery must revoke its receipt only');
+ assert.equal(await item2Received.isChecked(),true,'other target must remain independent');
+ await partial.getByText('외부 전달 1/2건 · 수신 회신 1/2건',{exact:false}).waitFor();
+ await f10Handoff.getByLabel('F10 인계 대상 범위').selectOption('visible');
+ await partial.waitFor({state:'detached'});
+ // This per-item checklist is intentionally not written to IndexedDB.
+
+ // F10-60: freshly prepare the handoff before the simulated concurrent edit.
+ await f10Handoff.getByRole('button',{name:'인계 문구·A4 인계표 준비'}).click();
+ await f10Handoff.getByLabel('F10 인계 문구 직접 복사').waitFor();
  // 31차 release guard: another browser tab changes ONLY an earlier follow-up
  // snapshot, without touching current status/date. The current screen stays
  // stale. A fresh IDB read must reject the opt-in history report.
@@ -909,6 +1020,10 @@ try{
   };
  }),{id:staleRecordId,date:targetDate});
  await rewriteLocalHistory('2030-01-09');
+ // A stale prepared handoff must be invalidated without copying old content.
+ await f10Handoff.getByRole('button',{name:'인계 문구 복사 (자동 전송 없음)'}).click();
+ await f10Handoff.getByText('이전 인계 초안과 확인란을 무효화했습니다.',{exact:false}).waitFor();
+ assert.equal(await f10Handoff.getByLabel('F10 인계 문구 직접 복사').count(),0,'stale draft must be hidden');
  await f10Report.getByLabel('보고서에 F10 경과 연결 이력 포함').check();
  await f10Report.getByRole('button',{name:'CSV·인쇄용 보고서 준비'}).click();
  await f10Report.getByText('점검 기록이 다른 탭에서 변경됐습니다.',{exact:false}).waitFor();
@@ -916,7 +1031,53 @@ try{
  assert.equal(await htmlLink.count(),0,'stale F10 history must not become printable HTML');
  await rewriteLocalHistory(previousHistoryDate);
  await f10Report.getByLabel('보고서에 F10 경과 연결 이력 포함').uncheck();
+ // F10-61: the A4 button must not download stale records after a second tab edit.
+ // Preserve the persisted original; no automatic overwrite, no external call.
+ await f10Handoff.getByRole('button',{name:'인계 문구·A4 인계표 준비'}).click();
+ await f10Handoff.getByRole('button',{name:'A4 인계표 기기에 저장'}).waitFor();
+ await rewriteLocalHistory('2030-01-08');
+ await f10Handoff.getByRole('button',{name:'A4 인계표 기기에 저장'}).click();
+ await f10Handoff.getByText('이전 인계 초안과 확인란을 무효화했습니다.',{exact:false}).waitFor();
+ assert.equal(await f10Handoff.getByRole('button',{name:'A4 인계표 기기에 저장'}).count(),0,
+  'stale A4 export control must be hidden');
+ await rewriteLocalHistory(previousHistoryDate);
+ // F10-62: even the manual confirmation box must reject a stale underlying record.
+ await f10Handoff.getByRole('button',{name:'인계 문구·A4 인계표 준비'}).click();
+ await f10Handoff.getByLabel('F10 인계 문구 직접 복사').waitFor();
+ const oldDeliveryBox=f10Handoff.getByRole('checkbox',{name:/인계 자료를 외부에서 직접 전달했음을 점검자가 확인|F10 1번 외부 전달 직접 확인/}).first();
+ await oldDeliveryBox.waitFor();
+ await rewriteLocalHistory('2030-01-07');
+ await oldDeliveryBox.click();
+ await f10Handoff.getByText('이전 인계 초안과 확인란을 무효화했습니다.',{exact:false}).waitFor();
+ assert.equal(await oldDeliveryBox.count(),0,'no manual delivery confirmation after stored data changes');
+ await rewriteLocalHistory(previousHistoryDate);
+ // F10-64: the previously unguarded receipt-request copy is also invalidated
+ // after concurrent local history edits, without sending anything externally.
+ await f10Handoff.getByRole('button',{name:'인계 문구·A4 인계표 준비'}).click();
+ await f10Handoff.getByRole('button',{name:'담당자에게 보낼 수신 확인 요청 문구 복사'}).waitFor();
+ const previousClipboard=await page.evaluate(()=>window.__syntheticHandoffCopied);
+ await rewriteLocalHistory('2030-01-06');
+ await f10Handoff.getByRole('button',{name:'담당자에게 보낼 수신 확인 요청 문구 복사'}).click();
+ await f10Handoff.getByText('이전 인계 초안과 확인란을 무효화했습니다.',{exact:false}).waitFor();
+ assert.equal(await page.evaluate(()=>window.__syntheticHandoffCopied),previousClipboard,
+  'a stale receipt request must not modify the clipboard');
+ await rewriteLocalHistory(previousHistoryDate);
+ // F10-63: a requested recheck jump must focus the precise recorded action,
+ // clear ephemeral handoff states, and reveal records from any active filter.
+ await f10Handoff.getByRole('button',{name:'인계 문구·A4 인계표 준비'}).click();
+ const jumpButton=f10Handoff.getByRole('button',{name:/이 항목의 재점검 입력으로 이동|F10 1번 재점검 입력으로 이동/}).first();
+ await jumpButton.waitFor();
+ await jumpButton.click();
+ await panel.getByText('선택한 점검의 재점검 입력 위치로 이동했습니다.',{exact:false}).waitFor();
+ const focusId=await page.evaluate(()=>document.activeElement?.id||'');
+ assert.match(focusId,/^si-recheck-.+/,'navigation must focus an actual recheck editor');
+ assert.equal(await page.locator('[id="'+focusId+'"]').count(),1,'focused recheck editor must remain in the active DOM');
+ assert.equal(await f10Handoff.getByLabel('F10 인계 문구 직접 복사').count(),0,
+  'jumping to action must clear temporary handoff materials');
+ assert.equal(await panel.getByLabel('후속 조치 모아보기').inputValue(),'all',
+  'navigation to a hidden action must reveal all inspections');
  // Stale rejection should not cause an external request or wipe the photos.
+
 
  assert.deepEqual(requests,[],'offline local operations must not initiate HTTP requests');
  assert.deepEqual(errors,[]);
