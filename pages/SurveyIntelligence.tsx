@@ -851,17 +851,17 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                         color="bg-rose-50 border-rose-200 text-rose-800 dark:bg-rose-900/20 dark:border-rose-700 dark:text-rose-300"
                     />
                     <KpiCard
-                        label={`이번 달 급증 위험어`}
+                        label="최근 집계 월 추적 위험어"
                         value={data.latestTopKeyword}
-                        sub="Q1·Q2 텍스트 언급 빈도 1위"
-                        delta={data.latestTopKeywordDelta}
+                        sub="Q1·Q2 · 추적 4개 위험어 중 언급 기준"
+                        
                         color="bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-300"
                     />
                     <KpiCard
                         label="평균 약속 구체성 점수"
                         value={`${data.avgSpecificityLatest}점`}
-                        sub="Q4·Q5 문구 규칙 기반 점수 (5점 만점)"
-                        delta={specificityDelta > 0 ? Math.round(specificityDelta * 10) : undefined}
+                        sub={`Q4·Q5 문구 규칙 기반 점수 (5점 만점) · ${data.specificityTrend.length > 1 ? `전월 대비 ${specificityDelta > 0 ? '+' : ''}${Math.round(specificityDelta * 10) / 10}점` : '전월 비교 자료 없음'}`}
+                        
                         color="bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-300"
                     />
                 </div>
@@ -1520,7 +1520,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                     actionLabel="이달 현장 피드백 포인트"
                     actionDesc={data.wordData.length === 0
                         ? 'Q1·Q2 응답에서 집계된 위험어가 없습니다. 원문과 표본을 확인해 주세요.'
-                        : `최근 집계 월 최빈 위험어: '${data.latestTopKeyword}' · 원문을 검토한 후 현장 점검 항목을 선정하세요.`}
+                        : `최근 집계 월 추적 위험어 상위: '${data.latestTopKeyword}' · 원문을 검토한 후 현장 점검 항목을 선정하세요.`}
                 >
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* 워드클라우드 시뮬레이션 */}
