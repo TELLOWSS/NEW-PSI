@@ -860,11 +860,32 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                     <KpiCard
                         label="평균 약속 구체성 점수"
                         value={`${data.avgSpecificityLatest}점`}
-                        sub="Q4·Q5 AI 텍스트 분석 (5점 만점)"
+                        sub="Q4·Q5 문구 규칙 기반 점수 (5점 만점)"
                         delta={specificityDelta > 0 ? Math.round(specificityDelta * 10) : undefined}
                         color="bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-300"
                     />
                 </div>
+
+                {/* R81: show the denominator behind every risk perception comparison. */}
+                <section data-psi-survey="coverage" aria-label="차트 표본 및 비교 기준">
+                    <div>
+                        <span>비교 가능한 위험도 응답</span>
+                        <strong>{data.comparableResponseCount.toLocaleString()} / {data.totalRiskResponseCount.toLocaleString()}건</strong>
+                    </div>
+                    <div>
+                        <span>관리자 기준 비교 가능 비율</span>
+                        <strong>{data.baselineCoverage}%</strong>
+                    </div>
+                    <div>
+                        <span>월별 추세 집계 구간</span>
+                        <strong>{data.keywordTrend.length}개월</strong>
+                    </div>
+                    <p>
+                        필터: {selectedTrade} · {selectedMonth === ALL_MONTHS ? '전체 월' : formatSurveyMonth(selectedMonth)}.
+                        비교 불가·표본 부족 응답은 임의로 0점이나 양호로 처리하지 않습니다.
+                        위험어 언급 횟수는 사고 발생 건수 또는 위험등급이 아닙니다.
+                    </p>
+                </section>
 
                 <div className="rounded-2xl border border-indigo-200 bg-white dark:bg-slate-800 dark:border-indigo-800/50 overflow-hidden shadow-sm">
                     <div className="px-5 py-4 bg-indigo-50 dark:bg-indigo-900/20 border-b border-indigo-100 dark:border-indigo-800/40">
@@ -1426,8 +1447,9 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                     )}
 
                     {/* 갭 랭킹 테이블 */}
-                    <div className="mt-4 overflow-x-auto">
+                    <div className="mt-4 overflow-x-auto" role="region" aria-label="공종별 위험 인식 차이 표, 좌우로 이동하여 확인" tabIndex={0}>
                         <table className="w-full text-xs">
+                            <caption className="sr-only">관리자 기준·근로자 응답·차이·표본·판정을 공종별로 비교합니다. 판정은 해당 표본과 기준이 갖춰진 경우에만 표시됩니다.</caption>
                             <thead>
                                 <tr className="border-b border-slate-100 dark:border-slate-700">
                                     <th className="text-left py-2 px-3 font-bold text-slate-500">공종</th>
@@ -1496,7 +1518,9 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                     title="공종별 실질 위협 워드클라우드 및 트렌드 (Risk Ontology Trend)"
                     subtitle="데이터 출처: Q1(가장 위험한 작업) + Q2(가장 큰 위험요소) 텍스트 빈도 분석"
                     actionLabel="이달 현장 피드백 포인트"
-                    actionDesc={`'${data.latestTopKeyword}' 언급 ${data.latestTopKeywordDelta > 0 ? `${data.latestTopKeywordDelta}% 증가` : '안정'} → 비계·추락 방지 설비 긴급 점검 실시`}
+                    actionDesc={data.wordData.length === 0
+                        ? 'Q1·Q2 응답에서 집계된 위험어가 없습니다. 원문과 표본을 확인해 주세요.'
+                        : `최근 집계 월 최빈 위험어: '${data.latestTopKeyword}' · 원문을 검토한 후 현장 점검 항목을 선정하세요.`}
                 >
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* 워드클라우드 시뮬레이션 */}
