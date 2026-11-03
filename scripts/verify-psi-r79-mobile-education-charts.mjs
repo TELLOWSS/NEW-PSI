@@ -65,7 +65,18 @@ try {
             assert.ok(studioMetrics.lastButtonWidth >= studioMetrics.navWidth * 0.75, 'final preview step must be full width');
         }
         await buttons.nth(4).click();
-        await studio.getByRole('button', { name: '5. 출력 확인' }).waitFor();
+        assert.equal(await buttons.nth(4).getAttribute('aria-current'), 'step', 'current education step is not announced');
+        assert.match(await studio.locator('[data-psi-studio-progress]').innerText(), /현재 5\/5단계/);
+        const preview = studio.locator('[data-psi-a4-preview-scroll]');
+        await preview.waitFor({ state: 'visible' });
+        const previewMetrics = await preview.evaluate(el => ({
+            areaWidth: el.getBoundingClientRect().width,
+            scrollWidth: el.scrollWidth,
+            clientWidth: el.clientWidth,
+            tabIndex: el.tabIndex,
+        }));
+        assert.ok(previewMetrics.areaWidth <= width + 1, 'mobile A4 preview must not exceed viewport');
+        assert.equal(previewMetrics.tabIndex, 0, 'A4 scrolling region must be keyboard accessible');
         await page.screenshot({ path: out + '/education-' + width + '.png', fullPage: false });
 
         await navigate('survey-intelligence');
@@ -84,10 +95,10 @@ try {
         if (width === 390) assert.equal(coverageMetrics.columns, 2, '390px coverage must be two-column');
         await page.screenshot({ path: out + '/survey-' + width + '.png', fullPage: false });
         assert.deepEqual(pageErrors, [], 'uncaught browser errors at ' + width);
-        checks.push({ width, studio: studioMetrics, survey: coverageMetrics, pageErrors });
+        checks.push({ width, studio: studioMetrics, preview: previewMetrics, survey: coverageMetrics, pageErrors });
         await context.close();
     }
-    console.log('PASS mobile education+survey visual flow: 320, 390, 768');
+    console.log('PASS mobile education+survey visual flow R79–R84: 320, 390, 768');
     await writeFile(out + '/result.json', JSON.stringify({ result: 'PASS', syntheticOnly: true, checks }, null, 2));
 } catch (error) {
     await writeFile(out + '/result.json', JSON.stringify({ result: 'FAIL', message: error.message, syntheticOnly: true, checks }, null, 2));
