@@ -22,7 +22,8 @@ import MultilingualEducationAuditPanel from '../components/tbm/MultilingualEduca
 import LayaOfflineBenchmarkPanel from '../components/tbm/LayaOfflineBenchmarkPanel';
 import LayaExtendedReviewPanel from '../components/tbm/LayaExtendedReviewPanel';
 import { buildEducationLanguageAudit } from '../utils/multilingualEducationAudit';
-import { captureReportCanvas, saveCanvasAsA4Pdf } from '../utils/pdfCapture';
+import { captureReportCanvas, canvasToBlob, getCanvasPlacementOnA4, saveCanvasAsA4Pdf } from '../utils/pdfCapture';
+import { buildEducationPngZip, isMatchingA4Language, requestEducationDownload, type EducationZipFile } from '../utils/educationA4BatchExport';
 import {
     buildMonthlyEducationPackageText,
     buildFieldRecordSource,
@@ -1176,6 +1177,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const [sources, setSources] = useState<TbmEvidenceSource[]>(initialState?.sources || []);
     const [isExtracting, setIsExtracting] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+    const [batchProgress, setBatchProgress] = useState('');
     const [notice, setNotice] = useState('');
     const [translatedTexts, setTranslatedTexts] = useState<Record<string, string>>(
         initialState?.translatedTexts || {},
@@ -1681,81 +1683,103 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         }
     };
 
-    const exportAllImages = async () => {
+
+    // Confirm React has rendered the exact language before each batch capture.
+    // A fixed delay can silently save the previous language under the next file name.
+    const waitForRenderedEducationLanguage = async (requestedLanguage: string) => {
+        const deadline = Date.now() + 8_000;
+        while (Date.now() < deadline) {
+            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+            const page = sheetRef.current?.querySelector('[data-report-page="true"]');
+            const poster = page?.querySelector('[data-a4-safety-poster="true"]');
+            if (!isMatchingA4Language(requestedLanguage, page?.getAttribute('lang') ?? null, poster?.getAttribute('lang') ?? null)) {
+                continue;
+            }
+            await waitForA4Fonts();
+            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+            const finalPage = sheetRef.current?.querySelector('[data-report-page="true"]');
+            const finalPoster = finalPage?.querySelector('[data-a4-safety-poster="true"]');
+            if (isMatchingA4Language(requestedLanguage, finalPage?.getAttribute('lang') ?? null, finalPoster?.getAttribute('lang') ?? null)) {
+                return;
+            }
+        }
+        throw new Error(`'${TRAINING_LANGUAGE_LABELS[requestedLanguage as keyof typeof TRAINING_LANGUAGE_LABELS] || requestedLanguage}' 화면이 준비되지 않았습니다. 언어별 출력 확인을 진행한 후 다시 저장해 주세요.`);
+    };
+
+    // One local ZIP / one local PDF: prevents mobile browsers blocking 11 consecutive downloads.
+    const exportLanguageBundle = async (format: 'png' | 'pdf') => {
         if (translationNeedsRefresh) {
-            setNotice('수정된 한국어 원문 기준으로 다국어를 먼저 갱신해야 일괄 저장할 수 있습니다.');
+            setNotice('수정된 한국어 원문 기준으로 다국어를 갱신한 후 묶음 파일을 생성해 주세요.');
             return;
         }
-        setIsExporting(true);
+        if (isExporting) return;
         const originalLang = previewLanguage;
-        const originalViewMode = viewMode;
-        const targetLanguages = ['ko-KR', ...translationLanguageCodes];
-        
+        const originalMode = viewMode;
+        const languages = ['ko-KR', ...translationLanguageCodes.filter(lang => lang !== 'ko-KR')];
+        const pngFiles: EducationZipFile[] = [];
+        let prepared = 0;
+        setIsExporting(true);
+        setBatchProgress(`언어별 A4 검수 준비 · 0/${languages.length}`);
         try {
-            for (const lang of targetLanguages) {
+            const JsPDF = format === 'pdf' ? await ensureJsPdfConstructor() : null;
+            if (format === 'pdf' && !JsPDF) throw new Error('PDF 생성 도구를 불러오지 못했습니다.');
+            const pdf = JsPDF ? new JsPDF('p', 'mm', 'a4') : null;
+            for (const lang of languages) {
+                setBatchProgress(`${lang} 자료 준비 중 · ${prepared}/${languages.length}`);
                 setPreviewLanguage(lang);
                 setViewMode('single');
-                await new Promise((resolve) => setTimeout(resolve, 400));
-                
+                await waitForRenderedEducationLanguage(lang);
                 const canvas = await captureSheet();
-                const link = document.createElement('a');
-                const langLabel = lang !== 'ko-KR' ? LANGUAGE_KOREAN_NAMES[normalizeLanguageCode(lang)] || '다국어' : '한국어';
-                const exportTokens = ['PSI_위험성평가교육자료', educationMonth, workType, langLabel];
-                
-                link.download = buildPsiExportFileName({
-                    tokens: exportTokens,
-                    extension: 'png',
-                });
-                link.href = canvas.toDataURL('image/png', 1);
-                link.click();
+                const page = sheetRef.current?.querySelector('[data-report-page="true"]');
+                const poster = page?.querySelector('[data-a4-safety-poster="true"]');
+                if (!isMatchingA4Language(lang, page?.getAttribute('lang') ?? null, poster?.getAttribute('lang') ?? null)) {
+                    throw new Error('언어 전환 도중 화면이 바뀌었습니다. 잘못된 언어로 저장하지 않았습니다.');
+                }
+                if (format === 'png') {
+                    const blob = await canvasToBlob(canvas, 'image/png', 1);
+                    const langLabel = lang === 'ko-KR' ? '한국어' : LANGUAGE_KOREAN_NAMES[normalizeLanguageCode(lang)] || lang;
+                    pngFiles.push({
+                        name: buildPsiExportFileName({ tokens: ['PSI_위험성평가교육자료', educationMonth, workType, langLabel], extension: 'png' }),
+                        content: blob,
+                    });
+                } else if (pdf) {
+                    if (prepared > 0) {
+                        if (!pdf.addPage) throw new Error('여러 페이지 PDF를 지원하지 않습니다.');
+                        pdf.addPage();
+                    }
+                    const a4 = getCanvasPlacementOnA4(canvas);
+                    pdf.addImage(canvas.toDataURL('image/png', 1), 'PNG', a4.offsetX, a4.offsetY, a4.width, a4.height, undefined, 'FAST');
+                }
+                prepared += 1;
+                setBatchProgress(`언어별 A4 확인 완료 · ${prepared}/${languages.length}`);
+                // Yield to the UI; do not hold the phone unresponsive while rendering successive pages.
+                await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
             }
-            setNotice('선택된 모든 언어의 PNG 이미지를 일괄 저장했습니다.');
+            const filename = buildPsiExportFileName({
+                tokens: ['PSI_위험성평가교육자료', educationMonth, workType, '다국어_' + languages.length + '개언어'],
+                extension: format === 'png' ? 'zip' : 'pdf',
+            });
+            if (format === 'png') {
+                const blob = await buildEducationPngZip(pngFiles);
+                requestEducationDownload(blob, filename);
+            } else if (pdf) {
+                if (!pdf.output) throw new Error('PDF Blob 출력을 지원하지 않습니다.');
+                requestEducationDownload(pdf.output('blob'), filename);
+            }
+            setNotice(`${languages.length}개 언어를 ${format === 'png' ? '하나의 PNG ZIP' : '하나의 다중 페이지 A4 PDF'}으로 묶어 다운로드를 요청했습니다. 기기 다운로드 폴더에서 실제 파일을 확인하세요. 배포 전 외국어 원문 대조와 글꼴 검토가 필요합니다.`);
         } catch (error) {
-            setNotice(error instanceof Error ? error.message : '일괄 PNG 이미지 저장 중 오류가 발생했습니다.');
+            const message = error instanceof Error ? error.message : '알 수 없는 생성 오류';
+            setNotice(`${prepared}/${languages.length}개 언어 처리 후 중단했습니다. 묶음 다운로드는 요청하지 않았습니다. ${message} 필요한 언어를 개별 저장하거나 내용을 줄인 후 다시 시도해 주세요.`);
         } finally {
             setPreviewLanguage(originalLang);
-            setViewMode(originalViewMode);
+            setViewMode(originalMode);
+            setBatchProgress('');
             setIsExporting(false);
         }
     };
 
-    const exportAllPdfs = async () => {
-        if (translationNeedsRefresh) {
-            setNotice('수정된 한국어 원문 기준으로 다국어를 먼저 갱신해야 일괄 저장할 수 있습니다.');
-            return;
-        }
-        setIsExporting(true);
-        const originalLang = previewLanguage;
-        const originalViewMode = viewMode;
-        const targetLanguages = ['ko-KR', ...translationLanguageCodes];
-        
-        try {
-            const JsPDF = await ensureJsPdfConstructor();
-            if (!JsPDF) throw new Error('PDF 생성 도구를 불러오지 못했습니다.');
-            
-            for (const lang of targetLanguages) {
-                setPreviewLanguage(lang);
-                setViewMode('single');
-                await new Promise((resolve) => setTimeout(resolve, 400));
-                
-                const canvas = await captureSheet();
-                const langLabel = lang !== 'ko-KR' ? LANGUAGE_KOREAN_NAMES[normalizeLanguageCode(lang)] || '다국어' : '한국어';
-                const exportTokens = ['PSI_위험성평가교육자료', educationMonth, workType, langLabel];
-
-                saveCanvasAsA4Pdf(canvas, JsPDF, buildPsiExportFileName({
-                    tokens: exportTokens,
-                    extension: 'pdf',
-                }));
-            }
-            setNotice('선택된 모든 언어의 PDF를 일괄 저장했습니다.');
-        } catch (error) {
-            setNotice(error instanceof Error ? error.message : '일괄 PDF 저장 중 오류가 발생했습니다.');
-        } finally {
-            setPreviewLanguage(originalLang);
-            setViewMode(originalViewMode);
-            setIsExporting(false);
-        }
-    };
+    const exportAllImages = async () => exportLanguageBundle('png');
+    const exportAllPdfs = async () => exportLanguageBundle('pdf');
 
     return (
         <div data-psi-screen="a4-education-studio" className="psi-page space-y-5 pb-16">
