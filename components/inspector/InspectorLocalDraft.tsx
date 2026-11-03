@@ -706,7 +706,7 @@ function RecheckEditor({row,action,busy,onSave}:{row:LocalRecord;action?:Additio
   if(!validRechecks([entry],hashes,1))return;
   if(await onSave(row,action?.id||null,entry)){setOpened(false);setReason('');setNote('');setNextCheckDate('');}
  };
- return <section id={'si-recheck-'+row.id+'-'+(action?.id||'main')} aria-label={targetLabel+' 재점검·지연 사유'}>
+ return <section id={'si-recheck-'+row.id+'-'+(action?.id||'main')} tabIndex={-1} aria-label={targetLabel+' 재점검·지연 사유'}>
   <h5>{targetLabel} 지연 조치·재점검 기록</h5>
   <p>재점검 {history.length}건 · {history.length?RECHECK_LABELS[history[history.length-1].result]:'재점검 기록 없음'} · 현재 연결 가능 증빙: {latestPhoto?'조치 후 사진 SHA-256':'사진 없음'}</p>
   <p>즉시 조치가 불가능해도 지연 사유와 임시 통제 상태를 남길 수 있습니다. 이 기록은 자동으로 '확인 완료'를 지정하거나 담당자에게 통보하지 않습니다.</p>
@@ -826,11 +826,12 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const handoffVerificationRef=useRef(false);
  const [handoffPending,setHandoffPending]=useState(false);
  const [handoffMessage,setHandoffMessage]=useState('');
- const [handoffPrepared,setHandoffPrepared]=useState<{html:Blob;text:string;count:number;at:string;sourceSnapshot:string;items:{order:number;urgency:string;site:string;action:string}[]}|null>(null);
+ const [handoffPrepared,setHandoffPrepared]=useState<{html:Blob;text:string;count:number;at:string;sourceSnapshot:string;items:{order:number;urgency:string;site:string;action:string;recordId:string;actionId:string}[]}|null>(null);
  const [handoffDeliveredByOperator,setHandoffDeliveredByOperator]=useState(false);
  const [handoffReceivedByOperator,setHandoffReceivedByOperator]=useState(false);
  const [handoffItemReports,setHandoffItemReports]=useState<Record<number,{delivered:boolean;received:boolean}>>({});
  const [handoffReceiptMessage,setHandoffReceiptMessage]=useState('');
+ const [recheckJumpTarget,setRecheckJumpTarget]=useState<{recordId:string;actionId:string}|null>(null);
  const handoffItemSummary=summarizeLocalHandoffItems(handoffPrepared?.items||[],handoffItemReports);
  const handoffFollowthrough=buildLocalHandoffFollowthrough({
   prepared:!!handoffPrepared,
@@ -866,6 +867,17 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const visibleRows=rows.filter(row=>recheckFilter
   ?recheckRecordIds.has(row.id)
   :matchesLocalFollowupRecordFilter(row,filter));
+ useEffect(()=>{
+  if(!recheckJumpTarget||filter!=='all'||readState!=='ready')return;
+  const id='si-recheck-'+recheckJumpTarget.recordId+'-'+(recheckJumpTarget.actionId||'main');
+  const target=document.getElementById(id);
+  if(target){
+   target.scrollIntoView({block:'center',behavior:'auto'});
+   target.focus({preventScroll:true});
+   setMessage('선택한 점검의 재점검 입력 위치로 이동했습니다. 현장 확인 후 기록하세요. 인계 화면 체크는 초기화됩니다.');
+  }else setMessage('재점검 입력 위치를 찾지 못했습니다. 원본 점검을 다시 조회하세요.');
+  setRecheckJumpTarget(null);
+ },[recheckJumpTarget,filter,rows,readState]);
  const liveInput={note,action,photoRole,siteContext:siteContextInput};
  const textRescueValue=buildLocalInspectionEmergencyText(liveInput);
  const copyTextRescue=async()=>{
@@ -949,7 +961,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     html:new Blob([html],{type:'text/html;charset=utf-8'}),
     text,count:confirmed.entries.length,at:confirmed.localDate,
     sourceSnapshot:handoffSourceSnapshot(fresh),
-     items:confirmed.entries.map(({order,urgency,site,action})=>({order,urgency,site,action})),
+     items:confirmed.entries.map(({order,urgency,site,action,recordId,actionId})=>({order,urgency,site,action,recordId,actionId})),
    });
    setHandoffMessage('기기 원본 기록과 인계 목록을 대조했습니다. 아래 인계 문구는 직접 검토·복사하고, 담당자 전달은 별도로 진행하세요.');
   }catch(error){
@@ -1001,8 +1013,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    });
   });
  };
- const copyHandoffReceiptRequest=async()=>{
-  if(!handoffPrepared)return;
+ const copyHandoffReceiptRequest=async()=>withVerifiedHandoff(async()=>{
   setHandoffReceiptMessage('');
   try{
    if(!navigator.clipboard?.writeText)throw new Error('clipboard unavailable');
@@ -1011,6 +1022,14 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   }catch{
    setHandoffReceiptMessage('수신 확인 요청 문구 자동 복사가 제한됐습니다. 아래 문구를 직접 선택해서 복사하세요.');
   }
+ });
+ // A recheck jump never implies corrective action completion.
+ const jumpToHandoffRecheck=(recordId:string,actionId:string)=>{
+  void withVerifiedHandoff(()=>{
+   setRecheckJumpTarget({recordId,actionId});
+   // Reveal filtered-out actions; this deliberately clears temporary checkmarks.
+   setFilter('all');
+  });
  };
  const prepareRecheckReport=async()=>{
   if(reportBusy||busy||readState!=='ready')return;
@@ -2239,6 +2258,8 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
         </li>)}
        </ol>
        <p role="status">다음 확인: {handoffFollowthrough.next}</p>
+       <p>재점검 입력 위치로 이동하면 화면의 임시 인계 체크는 초기화됩니다. 실제 수신 증빙은 별도 보관하세요.</p>
+       {handoffPrepared.items.length===1&&<button type="button" className="si-btn" onClick={()=>jumpToHandoffRecheck(handoffPrepared.items[0].recordId,handoffPrepared.items[0].actionId)}>이 항목의 재점검 입력으로 이동</button>
        {handoffPrepared.items.length===1&&<>
        <label style={{display:'flex',gap:8,alignItems:'flex-start',minHeight:44}}>
         <input type="checkbox" aria-label="인계 자료를 외부에서 직접 전달했음을 점검자가 확인" checked={handoffDeliveredByOperator}
@@ -2271,6 +2292,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
            이 항목의 담당자 회신을 점검자가 직접 확인 (제3자 수신 증빙 아님)
           </label>
           <p>다음 확인: {current?.next||'외부 전달 직접 확인'}</p>
+          <button type="button" className="si-btn" aria-label={`F10 ${item.order}번 재점검 입력으로 이동`} onClick={()=>jumpToHandoffRecheck(item.recordId,item.actionId)}>이 항목 재점검 입력으로 이동</button>
          </li>;
         })}</ol>
        </div>}
