@@ -42,7 +42,7 @@ try {
     const main=document.querySelector('#psi-main-content');
     const styles=getComputedStyle(el);
     return{
-     width:rect.width,
+     rootWidth:rect.width,
      x:rect.x,
      documentOverflow:document.documentElement.scrollWidth>innerWidth+2,
      background:styles.backgroundImage,
@@ -51,11 +51,11 @@ try {
       .slice(0,16).map(b=>({name:(b.getAttribute('aria-label')||b.innerText||'').trim().slice(0,45),height:Math.round(b.getBoundingClientRect().height)})),
     };
    });
-   assert.ok(metrics.width>0 && metrics.width<=width+2,id+' root width on '+width+': '+metrics.width);
+   assert.ok(metrics.rootWidth>0 && metrics.rootWidth<=width+2,id+' root width on '+width+': '+metrics.rootWidth);
    assert.ok(metrics.x>=-1,id+' screen begins outside viewport on '+width+': '+metrics.x);
    assert.equal(metrics.documentOverflow,false,id+' document scroll overflow on '+width);
    await page.screenshot({path:`${out}/${id}-${width}.png`,fullPage:false});
-   checks.push({width,id,...metrics});
+   checks.push({viewportWidth:width,id,...metrics});
    return metrics;
   };
   await goEducation();
@@ -64,6 +64,24 @@ try {
   assert.ok(await page.getByText('교육 이수·이해 답변과 작업 중 실제 안전행동 관찰은 별개입니다.',{exact:false}).count()>0,'Education completion is not field completion');
   const eduBg=await page.locator('[data-education-return="hero"]').evaluate(el=>getComputedStyle(el).backgroundImage);
   assert.match(eduBg,/120deg/i,'Education hero must have Field Canvas gradient');
+  const steps=await page.locator('[data-education-return="three-step-flow"]').evaluate(el=>{
+   const grid=el.querySelector(':scope>div');
+   const first=grid?.querySelector(':scope>div');
+   const title=first?.querySelector('.psi-section-title');
+   return{
+    columns:getComputedStyle(grid).gridTemplateColumns.split(' ').length,
+    textColor:title?getComputedStyle(title).color:'',
+    stepBg:first?getComputedStyle(first).backgroundColor:'',
+    steps:grid?.querySelectorAll(':scope>div').length||0
+   };
+  });
+  if(width<=630){
+   assert.equal(steps.columns,1,'Education 3-step flow must stack on '+width+'px');
+   assert.equal(steps.steps,3,'All three education steps must remain visible');
+   assert.equal(steps.textColor,'rgb(255, 255, 255)','Education step title not legible at '+width);
+   assert.equal(steps.stepBg,'rgba(0, 0, 0, 0)','Education step should remain transparent over dark flow');
+  }
+
 
   await page.getByRole('button',{name:'보호 리포트 확인'}).click();
   await inspect('reports','[data-psi-screen="reports"]');
