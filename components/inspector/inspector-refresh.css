@@ -329,6 +329,28 @@ html.dark .si-refresh-local :is(input:not([type=checkbox]),textarea,select){back
 html.dark .si-refresh-local .si-btn{background:#183947;color:#ebf8f7;border-color:#45646e}
 html.dark .si-refresh-local .si-btn.si-primary{background:#116f64;color:#fff;border-color:#1a8a7e}
 
+/* First-screen mobile budget: camera and records must remain visible without a scroll. */
+@media (max-width:530px){
+ .si-quick.si-refresh .si-refresh-hero{gap:12px;padding:17px 16px}
+ .si-quick.si-refresh .si-refresh-hero h1{font-size:26px;line-height:1.21;margin-bottom:6px}
+ .si-quick.si-refresh .si-refresh-hero .si-refresh-lead{font-size:12px;line-height:1.5}
+ .si-quick.si-refresh .si-refresh-hero .si-eyebrow{margin-bottom:6px}
+ .si-quick.si-refresh .si-refresh-hero-points{display:none}
+ .si-quick.si-refresh .si-refresh-hero .si-inspector-return-nav{gap:6px}
+ .si-quick.si-refresh .si-refresh-hero .si-inspector-return-nav .si-btn{min-height:42px;padding:8px;flex:1 1 110px;font-size:11px}
+ .si-quick.si-refresh .si-refresh-paths{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}
+ .si-quick.si-refresh .si-refresh-path{
+   display:flex;flex-direction:column;align-items:stretch;justify-content:space-between;gap:6px;
+   padding:12px 10px;min-height:86px;border-radius:13px;
+ }
+ .si-quick.si-refresh .si-refresh-path-index{display:none}
+ .si-quick.si-refresh .si-refresh-path-copy b{font-size:13px;line-height:1.35}
+ .si-quick.si-refresh .si-refresh-path-copy p{display:none}
+ .si-quick.si-refresh .si-refresh-path .si-refresh-path-action{
+   width:100%;min-width:0;min-height:41px;padding:7px 5px;font-size:11px;
+   line-height:1.4;text-align:center;justify-content:center;
+ }
+}
 /* Layout safety, touch targets, zoom, reduced motion. */
 @media (max-width:1100px){
  .si-refresh-path{grid-template-columns:40px 1fr;align-content:start}
