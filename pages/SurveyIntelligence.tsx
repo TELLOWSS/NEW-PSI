@@ -341,7 +341,7 @@ const SectionCard: React.FC<{
 const KpiCard: React.FC<{
     label: string; value: string; sub: string; delta?: number; color: string;
 }> = ({ label, value, sub, delta, color }) => (
-    <div className={`rounded-xl border p-4 flex flex-col gap-1 ${color}`}>
+    <div data-psi-survey="metric" className={`rounded-xl border p-4 flex flex-col gap-1 ${color}`}>
         <span className="text-xs font-semibold opacity-70">{label}</span>
         <span className="text-2xl font-black">{value}</span>
         <span className="text-xs opacity-60">{sub}</span>
@@ -775,7 +775,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
                 {/* ── 페이지 헤더 ─────────────────────────────────────────── */}
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+                <div data-psi-survey="header" className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
                             <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
@@ -805,8 +805,9 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                         <p className="text-xs text-slate-400 dark:text-slate-500 shrink-0">
                             조회 기준: {selectedMonth === ALL_MONTHS ? '전체 누적 기간' : formatSurveyMonth(selectedMonth)}
                         </p>
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div data-psi-survey="filters" className="flex flex-wrap items-center gap-2">
                             <select
+                                aria-label="분석 공종 선택"
                                 value={selectedTrade}
                                 onChange={(event) => setSelectedTrade(event.target.value)}
                                 className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
@@ -816,6 +817,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                                 ))}
                             </select>
                             <select
+                                aria-label="분석 기간 선택"
                                 value={selectedMonth}
                                 onChange={(event) => handleMonthSelection(event.target.value)}
                                 className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
@@ -841,7 +843,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                 </div>
 
                 {/* ── 상단 KPI 3개 ────────────────────────────────────────── */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div data-psi-survey="metrics" className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <KpiCard
                         label="최대 인식 차이 공종"
                         value={data.topGapScore === null ? data.gapAvailabilityLabel : data.topGapTrade}
