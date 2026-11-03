@@ -409,13 +409,36 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
     const journey=item&&photo?resultJourney(item,photo.id,{notesMatch:resultNote===note,analysisViewed:analyzedResult,review,hasDraft:actionDraftDirty}):null;
     const handleJourney=(action:ResultAction)=>{switch(action){case 'edit-input':setEditInput(true);setHintOpen(true);requestAnimationFrame(()=>{noteRef.current?.focus();noteRef.current?.scrollIntoView({block:'center',behavior:'smooth'});});break;case 'view-stored':viewStoredResult();break;case 'review-fields':setReviewEditRequest(n=>n+1);break;case 'save-review':saveReviewOnly();break;case 'next-review':continueReview();break;case 'draft-action':draftPhotoAction(!!analysis?.risk_findings?.length);break;case 'return-draft':returnToDraft();break;case 'report':finish();break;}};
     const brief=()=>[...(riskTopic?[`점검자 선택 위험${photo&&(item?.document.photoRiskTopics?.[photo.id]||'')!==riskTopic?' (저장 전)':''}: ${legalTopicTitle(riskTopic)} · AI 판정 아님`]:[]),...(analysis?[`${reviewSaved?'저장한 전문가 검토':'저장 전 검토 선택'}: ${review.decision==='rejected'?'AI 해석 수용 안 함':'AI 참고 활용'}`,review.note.trim()?`전문가 의견${reviewSaved?'':' (저장 전)'}: ${review.note.trim()}`:'']:[]),resultNote,...((review.decision==='rejected'?null:analysis)?.risk_findings?.flatMap(f=>[`문제 제안: ${f.problem}`,`가능 위험: ${f.risk}`,`우선 조치: ${f.action}`])||[]),...((review.decision==='rejected'?null:analysis)?.observed_facts.map(f=>`관찰 제안: ${f.text}`)||[]),...((review.decision==='rejected'?null:analysis)?.recommended_controls.map(c=>`조치 제안: ${c.action}`)||[]),...((effectiveReference?.cards||[]).flatMap(card=>[card.title,sourceReviewState(card.sourceReview).label,'사건 당시 시행본·실제 적용 요건 별도 확인',...card.actions,...card.duties.map(d=>`${d.label}: ${d.summary}\n${d.url}`),...card.sanctions.map(s=>`${s.actor}: ${sanctionText(s)} / 조건: ${s.condition} / 근거: ${s.basis}\n${s.url}`),...(card.sanctionNote?[card.sanctionNote]:[])])),...((effectiveReference?.inspectionCases||[]).flatMap(c=>[`공개 감독사례: ${c.title} (${c.publishedAt})`,sourceReviewState(c.sourceReview).label,c.finding,c.response,c.url])),`공식 원문 대조: ${reference?.reviewedAt} · 금액은 법정상한 · 실제 위반·부과액 확정 아님`].join('\n');
-    return <div className="si-workspace si-quick" aria-busy={busy} onFocusCapture={e=>focusField(e.target)} onBlurCapture={blurField} onPaste={e=>{if(e.defaultPrevented||busy||photo)return;const files=pastedPhotos(e.clipboardData);if(files.length){e.preventDefault();choose(files[0]);}}}>
-        <header className="si-quick-heading"><div><p className="si-eyebrow">NEW-PSI · 현장 사진점검</p><h1>사진만 찍어도 점검을 시작할 수 있습니다</h1><p>위험 확인 → 현장 검토 → 필요한 조치 → 검토용 보고서</p></div><nav className="si-inspector-return-nav" aria-label="점검 화면 이동">
+    return <div className="si-workspace si-quick si-refresh" aria-busy={busy} onFocusCapture={e=>focusField(e.target)} onBlurCapture={blurField} onPaste={e=>{if(e.defaultPrevented||busy||photo)return;const files=pastedPhotos(e.clipboardData);if(files.length){e.preventDefault();choose(files[0]);}}}>
+        <header className="si-quick-heading si-refresh-hero"><div className="si-refresh-hero-copy">
+            <p className="si-eyebrow">NEW-PSI <span aria-hidden="true">/</span> FIELD CANVAS</p>
+            <h1>사진만 찍어도 점검을 시작할 수 있습니다</h1>
+            <p className="si-refresh-lead">사진으로 현장을 남기고, 확인한 사실을 구분하고, 필요한 조치와 재점검까지 이어갑니다.</p>
+            <div className="si-refresh-hero-points" aria-label="점검 운영 원칙">
+              <span><InspectorIcon name="camera"/>사진으로 시작</span>
+              <span><InspectorIcon name="check"/>사람이 확인</span>
+              <span><InspectorIcon name="shield"/>조치·재점검 분리</span>
+            </div>
+           </div><nav className="si-inspector-return-nav" aria-label="점검 화면 이동">
             {(local||photo||reference)&&<button type="button" className="si-btn" disabled={busy||storageBusy} onClick={()=>{setEditInput(true);setHintOpen(true);document.getElementById('si-quick-input')?.scrollIntoView({behavior:'smooth',block:'start'});}}>← 이전 단계</button>}
             <button type="button" className="si-btn" disabled={busy||storageBusy} onClick={()=>{if((unsavedPhoto||actionDraftDirty)&&!window.confirm('저장하지 않은 사진·설명·검토·조치 입력이 사라질 수 있습니다. 첫 화면으로 돌아갈까요?'))return;startNew(true);}}>⌂ 첫 화면</button>
             <button type="button" className="si-btn" disabled={busy||storageBusy} onClick={()=>{if(!unsavedPhoto&&!actionDraftDirty||window.confirm('상세 관리로 이동합니다. 저장 전 사진·설명·검토·작성 중인 조치는 이 화면을 닫으면 사라집니다. 이동할까요?'))onAdvanced();}}>저장 기록 · 상세 관리</button>
           </nav></header>
-        <a className="si-btn" href="#si-local-inspection">통신 없이 기기에서 직접 점검 ↓</a>
+        <section className="si-refresh-paths" aria-label="점검 방식 선택">
+          <div className="si-refresh-path si-refresh-path-photo">
+            <span className="si-refresh-path-index" aria-hidden="true">01</span>
+            <div className="si-refresh-path-copy"><b>사진점검</b><p>현장 사진을 촬영하거나 선택하세요. 직접 확인한 위험과 개선할 일을 연결합니다.</p></div>
+            <a className="si-btn si-refresh-path-action" href="#si-quick-input">사진점검 시작 <span aria-hidden="true">↓</span></a>
+          </div>
+          <div className="si-refresh-path si-refresh-path-offline">
+            <span className="si-refresh-path-index" aria-hidden="true">02</span>
+            <div className="si-refresh-path-copy"><b>통신 없는 기기 점검</b><p>외부 AI 없이 기기에서 기록하고 관리합니다. 오프라인 재실행은 사전 준비가 필요합니다.</p></div>
+            <a className="si-btn si-refresh-path-action" href="#si-local-inspection" onClick={()=>{
+              const section=document.getElementById('si-local-inspection') as HTMLDetailsElement|null;
+              if(section){section.open=true;requestAnimationFrame(()=>section.scrollIntoView({behavior:'smooth',block:'start'}));}
+            }}>통신 없이 기기에서 직접 점검 ↓</a>
+          </div>
+        </section>
         {(item||deletedResumeId)&&<InspectorStorageManager key={item?.id||deletedResumeId} id={item?.id||deletedResumeId} revision={item?.revision||0} title={item?.document.title||'이 탭의 이전 점검 · 삭제 결과'} initialOpen={!!deletedResumeId} disabled={busy||!!local&&!photo} onWorking={setStorageBusy} onLocked={()=>{setStorageLocked(true);clearActive();}} onComplete={()=>startNew()}/>}
         {storageLocked&&<p className="si-notice" role="alert">삭제 중이거나 사진이 삭제된 점검입니다. 위 보관·삭제 관리에서 검증 결과를 확인하세요.</p>}
         <fieldset className="si-work-area" hidden={storageLocked} disabled={storageBusy}>
