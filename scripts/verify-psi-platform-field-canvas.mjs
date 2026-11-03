@@ -22,7 +22,7 @@ try{
   await page.route('https://cdn.jsdelivr.net/**',route=>route.fulfill({body:'',contentType:'text/css'}));
   await page.addInitScript(()=>{
    sessionStorage.setItem('isAdminAuthenticated','true');
-   localStorage.setItem('psi_theme_mode','light');
+   if(!localStorage.getItem('psi_theme_mode'))localStorage.setItem('psi_theme_mode','light');
   });
   await page.goto(base+'/',{waitUntil:'domcontentloaded'});
   await page.getByRole('heading',{name:'현장 안전, 한눈에.'}).waitFor({timeout:30000});
