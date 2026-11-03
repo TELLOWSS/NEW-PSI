@@ -45,6 +45,18 @@ try{
   assert.ok(records.y+records.height<=844,'records must be visible at '+width);
   assert.equal(await camera.count(),1);assert.ok(initialCamera.height>=44&&records.height>=44);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+  // Field Canvas R69: purposeful paths at 320/390/768/1440px.
+  const choice=page.getByRole('region',{name:'점검 방식 선택'});
+  const startPhoto=choice.getByRole('link',{name:/^사진점검 시작/});
+  const openLocal=choice.getByRole('link',{name:'통신 없이 기기에서 직접 점검 ↓'});
+  assert.equal(await startPhoto.count(),1);
+  assert.equal(await openLocal.count(),1);
+  assert.equal(await page.locator('#si-local-inspection').getAttribute('open'),null);
+  await openLocal.click();
+  await page.waitForFunction(()=>document.querySelector('#si-local-inspection')?.open===true);
+  await page.getByRole('navigation',{name:'기기 점검 빠른 이동'}).getByRole('link',{name:'지연 조치·재점검'}).waitFor();
+  await page.locator('#si-local-inspection > summary').click();
+  await page.waitForFunction(()=>document.querySelector('#si-local-inspection')?.open===false);
   // The existing control is visible without opening cost/operator settings.
   const mode=page.getByRole('switch');await mode.scrollIntoViewIfNeeded();assert.equal(await mode.count(),1);assert.equal(await mode.getAttribute('aria-checked'),'false');await mode.getByText('AI 없는 점검', {exact:false}).waitFor();assert.equal(ops.includes('ai-status'),false,'manual default must not check AI');
   await page.locator('.si-photo-hint summary').click();const note=page.locator('#si-quick-note');await note.fill('직접 확인한 개구부 덮개 누락');
