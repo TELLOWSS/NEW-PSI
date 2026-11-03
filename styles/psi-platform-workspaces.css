@@ -736,3 +736,61 @@
   grid-column:auto;
  }
 }
+
+/* R82–R83 / Phone education flow: stage orientation and full-size A4 preview.
+   All rules are scoped to the operator workbench; no printed artifact is resized. */
+.psi-platform-field-canvas [data-psi-screen="a4-education-studio"] [data-psi-studio-progress]{
+ color:var(--psi-text-muted);
+ background:var(--psi-surface-muted);
+ border:1px solid var(--psi-border);
+ border-radius:12px;
+ padding:10px 13px;
+ margin-top:-12px;
+}
+.psi-platform-field-canvas [data-psi-screen="a4-education-studio"]>.psi-segmented-nav.no-print>button[aria-current="step"]{
+ color:#fff;
+ background:#146e63;
+ border:2px solid #90e6cb;
+ box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);
+}
+.psi-platform-field-canvas [data-psi-screen="a4-education-studio"] [data-psi-a4-preview-scroll]{
+ max-width:100%;
+ overflow-x:auto;
+ overflow-y:visible;
+ overscroll-behavior-x:contain;
+ scrollbar-width:thin;
+ padding:2px 0 12px;
+}
+.psi-platform-field-canvas [data-psi-screen="a4-education-studio"] [data-psi-a4-preview-scroll]:focus-visible{
+ outline:3px solid var(--psi-focus);
+ outline-offset:2px;
+ border-radius:8px;
+}
+.psi-platform-field-canvas [data-psi-screen="a4-education-studio"] .psi-a4-preview-hint{
+ display:none;
+}
+@media(max-width:720px){
+ .psi-platform-field-canvas [data-psi-screen="a4-education-studio"] .psi-a4-preview-hint{
+  display:block;
+  color:var(--psi-text-muted);
+  background:var(--psi-surface-muted);
+  padding:12px;
+  border:1px solid var(--psi-border);
+  border-radius:12px;
+  margin-bottom:10px;
+ }
+ .psi-platform-field-canvas [data-psi-screen="a4-education-studio"] [data-psi-a4-preview-scroll]{
+  border:1px solid var(--psi-border);
+  border-radius:12px;
+  background:var(--psi-surface-inset);
+  padding:10px 8px 14px;
+ }
+}
+@media print{
+ .psi-platform-field-canvas [data-psi-screen="a4-education-studio"] [data-psi-a4-preview-scroll]{
+  overflow:visible!important;
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+ }
+}
