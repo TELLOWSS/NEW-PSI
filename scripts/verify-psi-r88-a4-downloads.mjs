@@ -237,7 +237,49 @@ try {
     if (stalledImageRoute) await stalledImageRoute.abort().catch(() => {});
     await page.unroute('**/__psi_qa_stalled_a4_image__.png');
     await page.evaluate(() => document.getElementById('psi-qa-unavailable-image')?.remove());
-    console.log('PASS R92–R94 mobile-size font preflight + bounded-image failure + ZIP/PDF downloads (synthetic only)');
+
+    // R100: local, operator-acknowledged proof is not automatic certification.
+    // First ensure nobody is silently marked as having reviewed the file.
+    const review = page.locator('[data-psi-a4-output-review="true"]');
+    await review.waitFor({ state: 'visible' });
+    const reviewState = review.locator('[data-psi-a4-review-status]');
+    assert.equal(await reviewState.getAttribute('data-psi-a4-review-status'), 'needs-review');
+    assert.match(await review.locator('[data-psi-a4-review-count]').innerText(), /0\/2/);
+    const saveReview = review.locator('[data-psi-a4-review-save]');
+    assert.equal(await saveReview.isDisabled(), true, 'review cannot be saved without all three human confirmations');
+    for (const check of ['fileOpened', 'glyphsLegible', 'safetyMeaningCompared']) {
+        await review.locator('[data-psi-a4-review-check="' + check + '"]').check();
+    }
+    await saveReview.waitFor({ state: 'visible' });
+    await page.waitForFunction(() => {
+        const button = document.querySelector('[data-psi-a4-review-save]');
+        return button && !button.disabled;
+    }, undefined, { timeout: 10_000 });
+    await saveReview.click();
+    await page.waitForFunction(() => document.querySelector('[data-psi-a4-review-status]')?.getAttribute('data-psi-a4-review-status') === 'recorded');
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('psi_a4_local_output_review_v1') || '{}'));
+    assert.equal(Object.keys(stored).length, 1, 'one local review expected');
+    assert.match(JSON.stringify(stored), /[a-f0-9]{64}/, 'content SHA-256 missing');
+    assert.doesNotMatch(JSON.stringify(stored), /Never walk beneath a suspended load|인양물 아래 접근 금지/, 'source text leaked into local review record');
+    assert.match(await review.locator('[data-psi-a4-review-count]').innerText(), /1\/2/);
+
+    await review.getByRole('button', { name: /영어 · 확인 필요/ }).click();
+    await page.waitForFunction(() => document.querySelector('[data-psi-a4-preview-scroll] [data-a4-safety-poster]')?.getAttribute('lang') === 'en-US');
+    assert.equal(await reviewState.getAttribute('data-psi-a4-review-status'), 'needs-review', 'other language incorrectly inherited Korean review');
+    await review.getByRole('button', { name: /한국어 · 기기 기록 있음/ }).click();
+    await page.waitForFunction(() => document.querySelector('[data-psi-a4-review-status]')?.getAttribute('data-psi-a4-review-status') === 'recorded');
+
+    await page.getByRole('button', { name: '4. 한 장 편집' }).click();
+    await page.getByLabel('교육자료 제목').fill('양중 전 확인 - 내용 수정');
+    await page.getByRole('button', { name: '5. 출력 확인' }).click();
+    await page.waitForFunction(() => {
+        const reviewSection = document.querySelector('[data-psi-a4-output-review]');
+        return reviewSection?.querySelector('[data-psi-a4-review-count]')?.textContent?.includes('0/2')
+            && reviewSection?.querySelector('[data-psi-a4-review-status]')?.getAttribute('data-psi-a4-review-status') === 'needs-review';
+    }, undefined, { timeout: 15_000 });
+    checks.push({ label: 'R100 human device attestation', initial: 'unchecked', saved: true, languageIsolation: true, editInvalidates: true });
+    console.log('PASS R98–R100 operator review checkboxes + SHA-256 source invalidation (synthetic browser only)');
+    console.log('PASS R92–R97 mobile font + stalled-image failure + offline ZIP/PDF (synthetic only)');
     await writeFile(resolve(out, 'results.json'), JSON.stringify({ result: 'PASS', syntheticOnly: true, checks }, null, 2));
 } catch (error) {
     await writeFile(resolve(out, 'results.json'), JSON.stringify({
