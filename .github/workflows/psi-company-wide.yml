@@ -78,6 +78,8 @@ jobs:
         run: node scripts/verify-field-camera-delivery-preflight.mjs
       - name: Audit Field Canvas dashboard across four viewports, dark mode and actual navigation
         run: node scripts/verify-psi-platform-field-canvas.mjs
+      - name: Validate education, OCR, monthly guidance, A4 studio and reporting layout
+        run: node scripts/verify-psi-platform-workspaces.mjs
       - name: Upload synthetic-only cross-department evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -90,5 +92,6 @@ jobs:
             artifacts/audit/browser/
             artifacts/audit/psi-pdf/
             artifacts/audit/psi-platform-field-canvas/
+            artifacts/audit/psi-platform-workspaces/
           if-no-files-found: ignore
           retention-days: 7
