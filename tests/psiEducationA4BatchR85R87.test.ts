@@ -51,7 +51,7 @@ describe('PSI R85–R87 local multilingual A4 batches', () => {
         expect(studio).toContain("querySelector('[data-a4-safety-poster=\"true\"]')");
         expect(studio).not.toContain('setTimeout(resolve, 400)');
         expect(studio).toContain('buildEducationPngZip(pngFiles)');
-        expect(studio).toContain("pdf.output('blob')");
+        expect(studio).toContain('buildEducationA4Pdf(pdfPages)');
         expect(studio).toContain('requestEducationDownload(blob, filename)');
         expect(studio).toContain('잘못된 언어로 저장하지 않았습니다.');
         expect(studio).toContain('묶음 다운로드는 요청하지 않았습니다');
