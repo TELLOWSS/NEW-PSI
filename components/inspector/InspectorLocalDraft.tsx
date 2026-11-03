@@ -1987,7 +1987,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     </div>
     <p>점검은 사진만으로 완료되지 않습니다. 위험 내용과 조치 계획을 확인하고 저장 결과를 직접 검토하세요. 급박한 위험은 현장 책임자와 접근통제·작업중지 필요성을 우선 확인하세요.</p>
    </section>
-   <nav className="si-refresh-local-shortcuts" aria-label="기기 점검 빠른 이동">
+   <nav className="si-refresh-local-shortcuts" aria-label="기기 점검 바로가기">
     <a href="#si-local-photo-step">사진·관찰 입력</a>
     <a href="#si-saved-local-records">저장된 점검</a>
     <a href="#si-f10-recheck">지연 조치·재점검</a>
