@@ -47,6 +47,19 @@ describe('PSI R74–R77 secondary workspaces product design contract',()=>{
     expect(survey).toContain('근로자');
     expect(visual).toContain('[data-psi-screen="survey-intelligence"]');
   });
+  it('keeps survey Q1-Q5 metrics, accessible trade/month filters and action-safe reset',()=>{
+    expect(survey).toContain('data-psi-survey="header"');
+    expect(survey).toContain('data-psi-survey="filters"');
+    expect(survey).toContain('data-psi-survey="metrics"');
+    expect(survey).toContain('data-psi-survey="metric"');
+    expect(survey).toContain('aria-label="분석 공종 선택"');
+    expect(survey).toContain('aria-label="분석 기간 선택"');
+    expect(survey).toContain('setSelectedTrade(ALL_TRADES)');
+    expect(survey).toContain('setSelectedMonth(ALL_MONTHS)');
+    expect(visual).toContain('min-height:46px');
+    expect(visual).toContain('grid-template-columns:minmax(0,1fr)');
+    expect(survey).toContain('MIN_COMPARABLE_SAMPLE');
+  });
   it('leaves report verification and print materials isolated',()=>{
     expect(reports).toContain('data-psi-screen="reports"');
     expect(reports).toContain('latestVerification');
