@@ -1960,7 +1960,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    localInputDraftHasContent({note,action,photoRole,siteContext:siteContextInput}),
   busy:busy||unfinishedBusy||recoveryScanBusy,
  });
- return <details id="si-local-inspection" className="si-local-inspection" onToggle={e=>{if(e.currentTarget.open)void refresh();}}>
+ return <details id="si-local-inspection" className="si-local-inspection si-refresh-local" onToggle={e=>{if(e.currentTarget.open)void refresh();}}>
   <summary>통신 없이 기기에서 직접 점검</summary>
   <section aria-label="기기 직접 점검">
    <h2>사진과 점검 내용을 이 기기에 보관</h2>
