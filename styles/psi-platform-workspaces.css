@@ -299,6 +299,95 @@
 .psi-platform-field-canvas [data-psi-screen="survey-intelligence"] >div>section {
   border-radius:18px;
 }
+/* R78 / Q1~Q5 survey UX audit: filters must remain legible and tappable;
+   each metric keeps its original rose/amber/emerald evidence semantics. */
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="header"]{
+  gap:16px;
+  min-width:0;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="header"]>div{
+  min-width:0;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="header"] h1{
+  text-wrap:balance;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="filters"]{
+  display:flex;
+  gap:9px;
+  align-items:stretch;
+  flex-wrap:wrap;
+  max-width:100%;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="filters"] :is(select,button){
+  min-height:46px;
+  min-width:0;
+  padding:10px 12px;
+  border:1px solid var(--psi-border-strong);
+  border-radius:11px;
+  background:var(--psi-surface);
+  color:var(--psi-text);
+  font-size:12px;
+  font-weight:680;
+  cursor:pointer;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="filters"] button:hover{
+  background:var(--psi-surface-selected);
+  border-color:var(--psi-focus);
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="metrics"]{
+  gap:12px;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="metric"]{
+  min-width:0;
+  min-height:125px;
+  display:flex;
+  justify-content:center;
+  border-radius:17px;
+  padding:17px;
+  box-shadow:var(--psi-shadow);
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="metric"]>span:nth-child(2){
+  line-height:1.25;
+  font-size:clamp(20px,2.2vw,29px);
+  overflow-wrap:anywhere;
+  word-break:keep-all;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="metric"]>span:first-child{
+  opacity:.93;
+  font-size:12px;
+  font-weight:750;
+  line-height:1.45;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="metric"]>span:nth-child(3){
+  opacity:.82;
+  line-height:1.55;
+}
+@media(max-width:720px){
+ .psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="header"]{
+  align-items:stretch;
+ }
+ .psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="filters"]{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  width:100%;
+  gap:8px;
+ }
+ .psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="filters"]>button{
+  grid-column:1/-1;
+ }
+ .psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="filters"] :is(select,button){
+  width:100%;
+  min-height:46px;
+ }
+ .psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="metrics"]{
+  grid-template-columns:minmax(0,1fr);
+  gap:9px;
+ }
+ .psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="metric"]{
+  min-height:92px;
+  padding:14px 16px;
+ }
+}
 /* R77 / reports: status is left intact, previews/evidence export remain
    managed by their existing state machine. Print media is excluded. */
 .psi-platform-field-canvas [data-psi-screen="reports"] {
