@@ -84,14 +84,38 @@ try {
     const a4 = page.locator('[data-psi-a4-preview-scroll] [data-a4-safety-poster="true"]');
     await a4.waitFor({ timeout: 25_000 });
     assert.equal(await a4.getAttribute('lang'), 'ko-KR', 'Korean poster missing');
+    const pageWidth = await page.locator('[data-psi-a4-preview-scroll] [data-report-page="true"]').evaluate(el => el.getBoundingClientRect().width);
+    assert.ok(Math.abs(pageWidth - 210 * 96 / 25.4) < 2, 'mobile A4 page width is not physically 210mm');
 
     const requestDownload = async label => {
         const button = page.getByRole('button', { name: label, exact: true });
         await button.waitFor({ state: 'visible' });
         assert.equal(await button.isDisabled(), false, 'download must be enabled: ' + label);
-        const event = page.waitForEvent('download', { timeout: 90_000 });
+        const event = page.waitForEvent('download', { timeout: 75_000 });
         await button.click();
-        const download = await event;
+        let download;
+        try {
+            download = await Promise.race([
+                event,
+                page.getByText(/묶음 다운로드는 요청하지 않았습니다/).waitFor({ state: 'visible', timeout: 75_000 })
+                    .then(async () => { throw new Error('Education export was blocked: ' + (await page.locator('body').innerText()).slice(-1200)); }),
+            ]);
+        } catch (error) {
+            const diagnostics = await page.evaluate(() => {
+                const root = document.querySelector('[data-psi-screen="a4-education-studio"]');
+                const pageNode = root?.querySelector('[data-psi-a4-preview-scroll] [data-report-page="true"]');
+                const posterNode = pageNode?.querySelector('[data-a4-safety-poster="true"]');
+                return {
+                    lastText: (root?.textContent || '').slice(-2200),
+                    paperWidth: pageNode?.getBoundingClientRect().width,
+                    posterWidth: posterNode?.getBoundingClientRect().width,
+                    currentLanguage: pageNode?.getAttribute('lang'),
+                    fonts: document.fonts?.status,
+                };
+            });
+            await page.screenshot({ path: resolve(out, 'download-error.png'), fullPage: false });
+            throw new Error('Browser did not download ' + label + ': ' + String(error) + ' :: ' + JSON.stringify(diagnostics));
+        }
         const path = await download.path();
         assert.ok(path, 'browser did not retain the downloaded file');
         const bytes = await readFile(path);
