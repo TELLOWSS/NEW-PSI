@@ -65,8 +65,27 @@ export interface CanvasPlacement {
 
 const wait = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms));
 
-const waitForImages = async (root: HTMLElement) => {
+const waitForImages = async (root: HTMLElement, timeoutMs = 0) => {
     const images = Array.from(root.querySelectorAll('img'));
+    if (timeoutMs > 0) {
+        await Promise.all(images.map(img => new Promise<void>((resolve, reject) => {
+            if (!img.currentSrc && !img.getAttribute('src')) return resolve();
+            const done = (ok: boolean) => {
+                window.clearTimeout(timer);
+                img.removeEventListener('load', onLoad);
+                img.removeEventListener('error', onError);
+                if (ok) resolve();
+                else reject(new Error('A4 이미지가 준비되지 않았습니다. 네트워크 연결 또는 원본 이미지를 확인하고 다시 저장해 주세요.'));
+            };
+            const onLoad = () => done(img.naturalWidth > 0);
+            const onError = () => done(false);
+            const timer = window.setTimeout(() => done(false), timeoutMs);
+            img.addEventListener('load', onLoad, { once: true });
+            img.addEventListener('error', onError, { once: true });
+            if (img.complete) done(img.naturalWidth > 0);
+        })));
+        return;
+    }
     await Promise.all(images.map(async (img) => {
         if (img.complete) return;
         if (typeof img.decode === 'function') {
@@ -91,19 +110,27 @@ const waitForImages = async (root: HTMLElement) => {
     }));
 };
 
-const waitForFonts = async () => {
+const waitForFonts = async (timeoutMs = 0) => {
     if (!('fonts' in document) || !document.fonts) return;
-
     try {
-        await document.fonts.ready;
+        if (timeoutMs > 0) {
+            // Do not hold the whole browser indefinitely for unavailable remote fonts.
+            // Timeout is a fallback, NOT a claim that the glyphs are correctly rendered.
+            await Promise.race([
+                document.fonts.ready.catch(() => undefined),
+                new Promise<void>(resolve => window.setTimeout(resolve, timeoutMs)),
+            ]);
+        } else {
+            await document.fonts.ready;
+        }
     } catch {
-        // noop
+        // Font readiness is advisory; operator must visually inspect A4 output.
     }
 };
 
-const waitForStableLayout = async (root: HTMLElement) => {
-    await waitForFonts();
-    await waitForImages(root);
+const waitForStableLayout = async (root: HTMLElement, assetTimeoutMs = 0) => {
+    await waitForFonts(assetTimeoutMs);
+    await waitForImages(root, assetTimeoutMs);
     await wait(80);
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -178,6 +205,8 @@ interface CaptureReportCanvasOptions {
     scale?: number;
     /** Education-only: attempt bundled html-to-image even if document has external font CSS. */
     preferOfflineRenderer?: boolean;
+    /** Fail a stalled image capture rather than waiting indefinitely. 0 preserves legacy reports. */
+    assetTimeoutMs?: number;
 }
 
 interface ElementLayoutSize {
@@ -286,7 +315,7 @@ const applyCaptureSurfaceStyles = (target: HTMLElement): void => {
     });
 };
 
-const createIsolatedCaptureTarget = async (source: HTMLElement): Promise<{ target: HTMLElement; cleanup: () => void }> => {
+const createIsolatedCaptureTarget = async (source: HTMLElement, assetTimeoutMs = 0): Promise<{ target: HTMLElement; cleanup: () => void }> => {
     const host = document.createElement('div');
     host.setAttribute('data-psi-export-host', 'true');
     host.classList.add('psi-report-light-host');
@@ -307,7 +336,7 @@ const createIsolatedCaptureTarget = async (source: HTMLElement): Promise<{ targe
     host.appendChild(clone);
     document.body.appendChild(host);
     copyCanvasPixels(source, clone);
-    await waitForStableLayout(clone);
+    await waitForStableLayout(clone, assetTimeoutMs);
 
     return {
         target: clone,
@@ -329,11 +358,11 @@ export const captureReportCanvases = async (
     html2canvas: Html2Canvas,
     options: CaptureReportCanvasOptions = {}
 ): Promise<HTMLCanvasElement[]> => {
-    await waitForStableLayout(element);
+    await waitForStableLayout(element, options.assetTimeoutMs);
     const scale = options.scale ?? Math.max(2, Math.min(4, window.devicePixelRatio || 1));
 
     const captureSingleCanvas = async (target: HTMLElement): Promise<HTMLCanvasElement> => {
-        const isolated = await createIsolatedCaptureTarget(target);
+        const isolated = await createIsolatedCaptureTarget(target, options.assetTimeoutMs);
         const captureTarget = isolated.target;
         try {
         const { width, height } = getElementLayoutSize(captureTarget);
