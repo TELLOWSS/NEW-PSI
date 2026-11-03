@@ -1987,6 +1987,12 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     </div>
     <p>점검은 사진만으로 완료되지 않습니다. 위험 내용과 조치 계획을 확인하고 저장 결과를 직접 검토하세요. 급박한 위험은 현장 책임자와 접근통제·작업중지 필요성을 우선 확인하세요.</p>
    </section>
+   <nav className="si-refresh-local-shortcuts" aria-label="기기 점검 빠른 이동">
+    <a href="#si-local-photo-step">사진·관찰 입력</a>
+    <a href="#si-saved-local-records">저장된 점검</a>
+    <a href="#si-f10-recheck">지연 조치·재점검</a>
+    <a href="#si-unfinished-recovery">백업·복구</a>
+   </nav>
    <section id="si-unfinished-recovery" aria-label="작성 중 자료 긴급 백업과 복구" className="rounded-xl border border-slate-300 p-3">
    <details open={recoveryOpen} onToggle={e=>setRecoveryOpen(e.currentTarget.open)}>
     <summary style={{cursor:'pointer',minHeight:44,fontWeight:600}}>작성 중 기록 백업·복구 (필요할 때 열기)</summary>
@@ -2164,7 +2170,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     </div>}
    </section>
    <label className="si-btn">백업 파일 복원<input type="file" accept="application/json,.json" aria-label="백업 파일 복원" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void restore(file);}}/></label>
-   {readState==='ready'&&<section aria-label="기한별 재점검 관리 현황" className="rounded-xl border border-slate-300 p-3">
+   {readState==='ready'&&<section id="si-f10-recheck" aria-label="기한별 재점검 관리 현황" className="rounded-xl border border-slate-300 p-3">
     <h4>F10 · 지연 조치와 재점검 예정 관리</h4>
     <p>기기 날짜 {localCalendarDate()} 기준 · 재점검/조치 대상 {recheckSummary.total}건. 하나의 점검에 여러 조치 대상이 포함될 수 있습니다.</p>
     <p>기한 도래는 재점검 필요성을 알리는 <strong>조회용 분류</strong>입니다. 실제 통보·안전 확인·조치 완료·작업 재개 승인이 아닙니다.</p>
