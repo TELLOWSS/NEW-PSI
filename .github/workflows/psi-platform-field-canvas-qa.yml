@@ -1,0 +1,45 @@
+name: PSI platform Field Canvas visual QA
+
+on:
+  push:
+    branches:
+      - dev/psi-platform-field-canvas-r70-73-20261103
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: psi-field-canvas-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout review branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install reviewed lockfile dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Install Chromium for synthetic UI QA
+        run: npx playwright install --with-deps chromium
+      - name: Build production-like static UI
+        run: npm run build
+      - name: Verify 320/390/768/1440px, dark mode and real photo navigation
+        run: node scripts/verify-psi-platform-field-canvas.mjs
+      - name: Upload no-user-data screenshots and result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: psi-platform-field-canvas-evidence
+          path: artifacts/audit/psi-platform-field-canvas/
+          if-no-files-found: ignore
+          retention-days: 5
