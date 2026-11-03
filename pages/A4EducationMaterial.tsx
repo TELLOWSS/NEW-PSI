@@ -8,6 +8,18 @@ import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
 import { getA4LanguagePolicy } from '../utils/a4LanguagePolicy';
 import { inspectA4FontPreflight, type A4FontPreflight } from '../utils/educationA4FontPreflight';
+import {
+    A4_REVIEW_CHECKS,
+    a4ReviewKey,
+    calculateA4ReviewFingerprint,
+    newA4ReviewChecks,
+    readA4ReviewStore,
+    saveA4ReviewStore,
+    validA4Review,
+    type A4ReviewCheck,
+    type A4OutputReview,
+    type A4ReviewerRole,
+} from '../utils/educationA4LocalReview';
 import { TRAINING_LANGUAGE_LABELS } from '../utils/constructionTrainingTranslation';
 import {
     normalizeEducationPosterTranslationMap,
@@ -1182,6 +1194,13 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const [batchProgress, setBatchProgress] = useState('');
     const [preparedBundle, setPreparedBundle] = useState<{ blob: Blob; filename: string } | null>(null);
     const [fontPreflight, setFontPreflight] = useState<A4FontPreflight | null>(null);
+    const [localOutputReviews, setLocalOutputReviews] = useState(() => (
+        typeof window === 'undefined' ? {} : readA4ReviewStore(window.localStorage)
+    ));
+    const [reviewDigests, setReviewDigests] = useState<Record<string, string>>({});
+    const [reviewChecks, setReviewChecks] = useState(newA4ReviewChecks);
+    const [reviewerRole, setReviewerRole] = useState<A4ReviewerRole>('site-manager');
+    const [reviewSaveMessage, setReviewSaveMessage] = useState('');
     const [notice, setNotice] = useState('');
     const [translatedTexts, setTranslatedTexts] = useState<Record<string, string>>(
         initialState?.translatedTexts || {},
@@ -1273,6 +1292,38 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     );
     const translationNeedsRefresh = translationLanguageCodes.length > 0
         && translationSourceText !== currentTranslationSourceText;
+
+    // A local review belongs to the exact month, work type, source, translation
+    // and language. Any content change yields a different SHA-256; old reviews
+    // must never be shown as valid for an updated safety message.
+    const reviewLanguageCodes = useMemo(() => [
+        'ko-KR',
+        ...translationLanguageCodes.filter(code => code !== 'ko-KR'),
+    ], [translationLanguageCodes]);
+    const reviewScopes = useMemo(() => Object.fromEntries(reviewLanguageCodes.map(code => [
+        code,
+        JSON.stringify({
+            educationMonth, workType, draft,
+            currentTranslationSourceText,
+            translationSourceText,
+            language: code,
+            text: code === 'ko-KR' ? '' : translatedTexts[code] || '',
+            structured: code === 'ko-KR' ? null : structuredTranslations[code] || null,
+        }),
+    ])), [educationMonth, workType, draft, currentTranslationSourceText, translationSourceText, reviewLanguageCodes, translatedTexts, structuredTranslations]);
+    const serializedReviewScopes = JSON.stringify(reviewScopes);
+    const currentReviewKey = a4ReviewKey(educationMonth, workType, previewLanguage);
+    const currentReview = reviewDigests[previewLanguage]
+        ? validA4Review(localOutputReviews, currentReviewKey, reviewDigests[previewLanguage])
+        : null;
+    const reviewedLanguageCount = reviewLanguageCodes.filter(code => (
+        Boolean(reviewDigests[code] && validA4Review(
+            localOutputReviews,
+            a4ReviewKey(educationMonth, workType, code),
+            reviewDigests[code],
+        ))
+        && (code === 'ko-KR' || !translationNeedsRefresh)
+    )).length;
     const currentPreviewIsStaleTranslation = translationNeedsRefresh && previewLanguage !== 'ko-KR';
     const languageAudit = useMemo(() => buildEducationLanguageAudit({
         draft,
@@ -1288,6 +1339,24 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         verifiedPngCacheRef.current = null;
     }, [draft, educationMonth, workType, structuredTranslations, translatedTexts]);
     useEffect(() => setFontPreflight(null), [previewLanguage, draft, structuredTranslations, translatedTexts]);
+    useEffect(() => {
+        setReviewChecks(newA4ReviewChecks());
+        setReviewSaveMessage('');
+    }, [previewLanguage, serializedReviewScopes]);
+    useEffect(() => {
+        let active = true;
+        setReviewDigests({});
+        const scopes = JSON.parse(serializedReviewScopes) as Record<string, string>;
+        void Promise.all(Object.entries(scopes).map(async ([language, scope]) => [
+            language,
+            await calculateA4ReviewFingerprint(scope),
+        ] as const)).then(entries => {
+            if (active) setReviewDigests(Object.fromEntries(entries));
+        }).catch(() => {
+            if (active) setReviewSaveMessage('이 브라우저에서는 안전하게 변경 이력을 대조할 수 없어 확인기록 저장을 사용할 수 없습니다.');
+        });
+        return () => { active = false; };
+    }, [serializedReviewScopes]);
 
     const applyStudioState = (nextState: StoredStudioState) => {
         setEducationMonth(nextState.educationMonth);
@@ -1715,6 +1784,48 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         }
     };
 
+
+    const saveCurrentLocalReview = () => {
+        const fingerprint = reviewDigests[previewLanguage];
+        if (!fingerprint || !A4_REVIEW_CHECKS.every(check => reviewChecks[check])) {
+            setReviewSaveMessage('파일·글자·안전지시 내용 3가지를 직접 확인한 후 저장해 주세요.');
+            return;
+        }
+        if ((previewLanguage !== 'ko-KR' && translationNeedsRefresh) || isOverflowing) {
+            setReviewSaveMessage('번역 갱신 또는 A4 넘침 해결 후 새 출력 파일을 다시 확인해 주세요.');
+            return;
+        }
+        const next: A4OutputReview = {
+            version: 1,
+            key: currentReviewKey,
+            fingerprint,
+            language: previewLanguage,
+            role: reviewerRole,
+            checkedAt: new Date().toISOString(),
+            checks: { fileOpened: true, glyphsLegible: true, safetyMeaningCompared: true },
+        };
+        const entries = { ...localOutputReviews, [currentReviewKey]: next };
+        try {
+            saveA4ReviewStore(window.localStorage, entries);
+            setLocalOutputReviews(readA4ReviewStore(window.localStorage));
+            setReviewSaveMessage('이 기기에 검수 확인 내용을 기록했습니다. 서버 승인이나 교육 완료 증명이 아닙니다.');
+            setReviewChecks(newA4ReviewChecks());
+        } catch {
+            setReviewSaveMessage('이 기기의 저장공간 사용이 차단됐습니다. 검수 내용을 저장하지 못했습니다.');
+        }
+    };
+
+    const clearCurrentLocalReview = () => {
+        const entries = { ...localOutputReviews };
+        delete entries[currentReviewKey];
+        try {
+            saveA4ReviewStore(window.localStorage, entries);
+            setLocalOutputReviews(readA4ReviewStore(window.localStorage));
+            setReviewSaveMessage('현재 언어의 기기 내 확인기록을 취소했습니다.');
+        } catch {
+            setReviewSaveMessage('이 기기의 저장공간 사용이 차단되어 확인기록 취소에 실패했습니다.');
+        }
+    };
 
     const runFontPreflight = () => {
         const faces = document.fonts ? Array.from(document.fonts, face => ({ family: face.family, status: face.status })) : null;
