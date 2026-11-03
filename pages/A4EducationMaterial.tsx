@@ -1801,7 +1801,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             <section className="psi-enterprise-panel grid gap-4 p-5 lg:grid-cols-3 no-print">
                 <label className="text-sm font-black text-slate-800 dark:text-slate-100">
                     {cycle.cadence === 'monthly' ? '교육 대상월' : '교육자료 보관 월'}
-                    <input type="month" value={educationMonth} onInput={(event) => switchStudioScope(event.currentTarget.value, workType)} className="mt-2 w-full rounded-xl border px-3 py-3 bg-white dark:bg-slate-900" />
+                    <input type="month" value={educationMonth} disabled={isExporting} onInput={(event) => switchStudioScope(event.currentTarget.value, workType)} className="mt-2 w-full rounded-xl border px-3 py-3 bg-white dark:bg-slate-900" />
                     {cycle.cadence !== 'monthly' && (
                         <span className="mt-2 block text-[11px] font-semibold leading-5 text-slate-500 dark:text-slate-400">
                             실제 교육 적용 구간: {targetPeriod.label} · {cycleCopy.frequencyLabel}
@@ -1810,7 +1810,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                 </label>
                 <label className="text-sm font-black text-slate-800 dark:text-slate-100">
                     대상 공종
-                    <select value={workType} onChange={(event) => switchStudioScope(educationMonth, event.target.value)} className="mt-2 w-full rounded-xl border px-3 py-3 bg-white dark:bg-slate-900">
+                    <select value={workType} disabled={isExporting} onChange={(event) => switchStudioScope(educationMonth, event.target.value)} className="mt-2 w-full rounded-xl border px-3 py-3 bg-white dark:bg-slate-900">
                         {workTypes.map((item) => <option key={item}>{item}</option>)}
                     </select>
                 </label>
@@ -1826,6 +1826,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                     <button
                         key={id}
                         type="button"
+                        disabled={isExporting}
                         onClick={() => setActiveTab(id)}
                         aria-current={activeTab === id ? 'step' : undefined}
                         className={`min-h-11 rounded-xl px-3 py-2 text-xs font-black transition-colors sm:text-sm ${
@@ -2310,6 +2311,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                             <button
                                 type="button"
                                 onClick={() => setPreviewLanguage('ko-KR')}
+                                disabled={isExporting}
                                 className={`px-4 py-2 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 ${
                                     previewLanguage === 'ko-KR'
                                         ? 'bg-blue-700 border-blue-700 text-white shadow-sm'
@@ -2326,6 +2328,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                         key={code}
                                         type="button"
                                         onClick={() => setPreviewLanguage(code)}
+                                        disabled={isExporting}
                                         className={`px-4 py-2 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 ${
                                             previewLanguage === code
                                                 ? 'bg-blue-700 border-blue-700 text-white shadow-sm'
@@ -2346,6 +2349,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                 <button
                                     type="button"
                                     onClick={() => setViewMode('split')}
+                                    disabled={isExporting}
                                     className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all ${
                                         viewMode === 'split'
                                             ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
@@ -2357,6 +2361,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                 <button
                                     type="button"
                                     onClick={() => setViewMode('single')}
+                                    disabled={isExporting}
                                     className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all ${
                                         viewMode === 'single'
                                             ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
@@ -2724,7 +2729,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                         <button type="button" disabled={isExporting || currentPreviewIsStaleTranslation || isOverflowing} onClick={() => void exportImage()} className="min-h-12 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-black text-blue-800 disabled:opacity-50 dark:border-blue-500/40 dark:bg-slate-900 dark:text-blue-200">PNG 이미지</button>
                         <button type="button" disabled={isExporting || currentPreviewIsStaleTranslation || isOverflowing} onClick={() => void exportPdf()} className="min-h-12 rounded-xl bg-blue-700 px-4 py-3 text-sm font-black text-white disabled:opacity-50">PDF 저장</button>
                         <button type="button" disabled={isExporting || currentPreviewIsStaleTranslation || isOverflowing} onClick={() => void exportPptx()} className="min-h-12 rounded-xl bg-orange-500 px-4 py-3 text-sm font-black text-white disabled:opacity-50">PPTX 저장</button>
-                        <button type="button" disabled={currentPreviewIsStaleTranslation || isOverflowing} onClick={printA4} className="min-h-12 rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900">A4 요약 인쇄</button>
+                        <button type="button" disabled={isExporting || currentPreviewIsStaleTranslation || isOverflowing} onClick={printA4} className="min-h-12 rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900">A4 요약 인쇄</button>
                     </div>
                     {isOverflowing && (
                         <p className="mt-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-900 no-print dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100">
@@ -2738,9 +2743,17 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                     )}
                     {translationLanguageCodes.length > 0 && (
                         <div className="mt-2 grid gap-2 sm:grid-cols-2 no-print border-t border-slate-200 dark:border-slate-800 pt-3">
-                            <button type="button" disabled={isExporting || translationNeedsRefresh} onClick={() => void exportAllImages()} className="min-h-12 rounded-xl border-2 border-dashed border-blue-300 bg-blue-50/50 px-4 py-3 text-sm font-black text-blue-900 hover:bg-blue-50 disabled:opacity-50">전체 다국어 PNG 이미지 일괄 저장</button>
-                            <button type="button" disabled={isExporting || translationNeedsRefresh} onClick={() => void exportAllPdfs()} className="min-h-12 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50/50 px-4 py-3 text-sm font-black text-indigo-900 hover:bg-indigo-50 disabled:opacity-50">전체 다국어 PDF 일괄 저장</button>
+                            <button type="button" disabled={isExporting || translationNeedsRefresh} onClick={() => void exportAllImages()} className="min-h-12 rounded-xl border-2 border-dashed border-blue-300 bg-blue-50/50 px-4 py-3 text-sm font-black text-blue-900 hover:bg-blue-50 disabled:opacity-50">전체 다국어 PNG · ZIP 한 파일</button>
+                            <button type="button" disabled={isExporting || translationNeedsRefresh} onClick={() => void exportAllPdfs()} className="min-h-12 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50/50 px-4 py-3 text-sm font-black text-indigo-900 hover:bg-indigo-50 disabled:opacity-50">전체 다국어 PDF · 한 파일</button>
                         </div>
+                    )}
+                    <p className="mt-2 no-print text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                        다국어 출력은 ZIP 1개 또는 여러 A4 페이지를 묶은 PDF 1개로 요청됩니다. 번역 정확성·글꼴·다운로드 폴더를 확인한 뒤 배포하세요.
+                    </p>
+                    {batchProgress && (
+                        <p className="mt-2 no-print rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm font-bold text-teal-900 dark:border-teal-800 dark:bg-teal-900/30 dark:text-teal-100" role="status" aria-live="polite">
+                            {batchProgress} · 완료되기 전 다른 메뉴로 이동하지 마세요.
+                        </p>
                     )}
                 </section>
             )}
