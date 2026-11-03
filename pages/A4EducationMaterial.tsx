@@ -1569,7 +1569,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         return captureReportCanvas(sheetRef.current, async (element, options) => {
             const fallback = await ensureHtml2Canvas();
             return fallback(element, options);
-        }, { scale: 3, preferOfflineRenderer: true });
+        }, { scale: 3, preferOfflineRenderer: true, assetTimeoutMs: 8_000 });
     };
 
     const blockStaleTranslationExport = (): boolean => {
