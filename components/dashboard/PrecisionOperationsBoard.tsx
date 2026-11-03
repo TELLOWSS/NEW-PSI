@@ -306,6 +306,12 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
         { key: 'report', page: 'reports', title: '6. 공식 리포트', description: '승인 근거·수정 이력', status: '내부 확인용' },
     ];
 
+    const fieldRouteActions: Array<{key: string; step: string; label: string; helper: string; page: Page}> = [
+        {key:'source',step:'01',label:'위험성평가 원문 확인',helper:'근로자의 위험 인식을 확인하고 관리자 검토로 연결',page:'ocr-analysis'},
+        {key:'photo',step:'02',label:'현장 사진점검',helper:'확인된 사실을 기록하고 개선·재점검 항목 관리',page:'safety-inspector'},
+        {key:'education',step:'03',label:'교육 환류',helper:'검토된 기록을 근로자 안전계도와 다음 교육으로 연결',page:'education-return'},
+    ];
+
     return (
         <div className="psi-ops-dashboard">
             <section className="psi-ops-intro" aria-labelledby="operations-page-title">
@@ -350,6 +356,36 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                         <span>새 {cycleCopy.recordLabel} 등록</span>
                     </button>
                 </div>
+            </section>
+
+            <section className="psi-ops-field-route" aria-labelledby="psi-field-route-title">
+                <div className="psi-ops-field-route-heading">
+                    <div>
+                        <p className="psi-ops-route-eyebrow">FIELD WORKFLOW / 3 STEPS</p>
+                        <h2 id="psi-field-route-title">오늘 현장 업무, 여기서 시작하세요</h2>
+                        <p>근로자 기록을 이해하고, 실제 위험을 확인하며, 다음 교육으로 이어갑니다.</p>
+                    </div>
+                    <span className="psi-ops-route-manual">최종 판단 · 현장 관리자 확인</span>
+                </div>
+                <div className="psi-ops-field-route-grid">
+                    {fieldRouteActions.map((action) => (
+                        <button
+                            type="button"
+                            key={action.key}
+                            className={`psi-ops-route-action psi-ops-route-action--${action.key}`}
+                            onClick={() => setCurrentPage(action.page)}
+                            aria-label={`${action.label} 화면으로 이동`}
+                        >
+                            <span className="psi-ops-route-number" aria-hidden="true">{action.step}</span>
+                            <span className="psi-ops-route-copy">
+                                <strong>{action.label}</strong>
+                                <small>{action.helper}</small>
+                            </span>
+                            <span className="psi-ops-route-arrow" aria-hidden="true"><ChevronIcon /></span>
+                        </button>
+                    ))}
+                </div>
+                <p className="psi-ops-route-note">AI 분석·인계·상태 표시는 검토를 돕는 정보입니다. 현장 위험 해소나 작업 재개를 자동 승인하지 않습니다.</p>
             </section>
 
             <section className="psi-ops-assurance" aria-labelledby="operations-assurance-title">

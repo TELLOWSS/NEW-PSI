@@ -1,0 +1,582 @@
+/* NEW-PSI FIELD CANVAS / R70–R73
+   Admin operational surfaces only. Scope under AppShell, never public product,
+   /field-local, document print surfaces or worker training.
+   Source-only: no remote font, image, or paid API calls.
+*/
+.psi-app-shell.psi-platform-field-canvas {
+  --psi-canvas:#f1f6f6;
+  --psi-surface:#ffffff;
+  --psi-surface-raised:#ffffff;
+  --psi-surface-muted:#f6faf9;
+  --psi-surface-inset:#edf5f3;
+  --psi-surface-selected:#e9f7f2;
+  --psi-text:#173645;
+  --psi-text-muted:#486675;
+  --psi-text-subtle:#59737f;
+  --psi-border:#d6e5e4;
+  --psi-border-strong:#a9c5c0;
+  --psi-focus:#157e70;
+  --psi-brand:#117668;
+  --psi-brand-strong:#143846;
+  --psi-accent:#138c7a;
+  --psi-info:#126f74;
+  --psi-info-soft:#eaf6f4;
+  --psi-control-bg:#fff;
+  --psi-control-border:#b6cbc7;
+  --psi-control-border-hover:#5c9e93;
+  --psi-radius:16px;
+  --psi-radius-sm:11px;
+  --psi-radius-lg:22px;
+  --psi-shadow:0 5px 22px rgba(13,52,59,.04);
+  --psi-shadow-raised:0 15px 36px rgba(17,60,67,.10);
+  background:var(--psi-canvas);
+  color:var(--psi-text);
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+}
+html.dark .psi-app-shell.psi-platform-field-canvas {
+  --psi-canvas:#091b26;
+  --psi-surface:#112938;
+  --psi-surface-raised:#153342;
+  --psi-surface-muted:#0d2532;
+  --psi-surface-inset:#0a202d;
+  --psi-surface-selected:#1d4b49;
+  --psi-text:#edf9f7;
+  --psi-text-muted:#c2d9dc;
+  --psi-text-subtle:#a8c2cb;
+  --psi-border:#2c4b55;
+  --psi-border-strong:#54767b;
+  --psi-focus:#6fdec5;
+  --psi-brand:#76deca;
+  --psi-brand-strong:#c7f3e7;
+  --psi-accent:#74dfc4;
+  --psi-info:#7adac9;
+  --psi-info-soft:#183d3c;
+  --psi-control-bg:#132f3f;
+  --psi-control-border:#52717c;
+  --psi-control-border-hover:#84b8af;
+  --psi-shadow:0 8px 24px rgba(0,0,0,.12);
+  --psi-shadow-raised:0 17px 40px rgba(0,0,0,.22);
+}
+.psi-platform-field-canvas .psi-topbar{
+  background:color-mix(in srgb,var(--psi-surface) 96%,transparent)!important;
+  border-bottom:1px solid var(--psi-border);
+  box-shadow:0 4px 20px rgba(13,45,53,.035);
+  min-height:70px;
+}
+.psi-platform-field-canvas .psi-topbar .psi-card-title{font-size:clamp(14px,1.3vw,17px);letter-spacing:-.02em;font-weight:750}
+.psi-platform-field-canvas .psi-topbar .psi-meta-label{letter-spacing:.02em;color:var(--psi-text-subtle)}
+.psi-platform-field-canvas .psi-topbar :is(button,summary){border-radius:12px;transition:background-color .16s ease,border-color .16s ease}
+.psi-platform-field-canvas .psi-operator-menu >summary{
+  background:var(--psi-surface);
+  color:var(--psi-text);
+  border-color:var(--psi-border);
+}
+.psi-platform-field-canvas .psi-operator-menu >summary:hover{
+  border-color:var(--psi-focus);
+  background:var(--psi-surface-muted);
+}
+/* Navigation is user-specific, ordered/hidden by their saved preferences. */
+.psi-platform-field-canvas .psi-sidebar-surface{
+  background:var(--psi-surface);
+  border-color:var(--psi-border);
+  box-shadow:7px 0 28px rgba(18,59,67,.035);
+}
+.psi-platform-field-canvas .psi-sidebar > div:first-child{
+  border-color:var(--psi-border);
+  background:linear-gradient(140deg,var(--psi-surface),var(--psi-surface-muted));
+}
+.psi-platform-field-canvas .psi-sidebar-brand{
+  padding-top:23px;padding-bottom:20px;
+}
+.psi-platform-field-canvas .psi-sidebar-brand-eyebrow{
+  color:var(--psi-brand);font-size:8px;line-height:1.15;
+  letter-spacing:.085em;font-weight:850;margin:0 0 4px;
+}
+.psi-platform-field-canvas .psi-sidebar-wordmark{
+  color:var(--psi-text);font-size:25px;font-weight:870;
+  letter-spacing:-.06em;line-height:1;
+}
+.psi-platform-field-canvas .psi-sidebar-brand .psi-small-note{
+  color:var(--psi-text-subtle);font-size:10px;letter-spacing:-.01em;
+}
+.psi-platform-field-canvas .psi-sidebar > div:first-child .psi-small-note{
+  color:var(--psi-text-subtle);
+}
+.psi-platform-field-canvas .psi-sidebar nav>section{margin-bottom:18px}
+.psi-platform-field-canvas .psi-sidebar nav>section>h3{
+  color:var(--psi-text-subtle);
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.085em;
+  margin:4px 0;
+  padding-left:12px;
+}
+.psi-platform-field-canvas .psi-sidebar-item{
+  color:var(--psi-text-muted);
+  border-radius:12px;
+  border-color:transparent;
+  font-weight:640;
+  font-size:12px;
+  min-height:46px;
+  gap:12px;
+  transition:background-color .16s ease,border-color .16s ease,color .16s ease;
+}
+.psi-platform-field-canvas .psi-sidebar-item>span:first-child{color:var(--psi-text-subtle)}
+.psi-platform-field-canvas .psi-sidebar-item:hover:not(.is-active){
+  background:var(--psi-surface-muted);
+  color:var(--psi-text);
+  border-color:var(--psi-border);
+}
+.psi-platform-field-canvas .psi-sidebar-item.is-active{
+  background:var(--psi-surface-selected);
+  border-color:color-mix(in srgb,var(--psi-focus) 28%,var(--psi-border));
+  color:var(--psi-text);
+  font-weight:800;
+  box-shadow:inset 3px 0 var(--psi-focus);
+}
+.psi-platform-field-canvas .psi-sidebar-item.is-active>span:first-child{color:var(--psi-brand)}
+.psi-platform-field-canvas .psi-sidebar-item.is-active::before{content:none}
+.psi-platform-field-canvas .psi-sidebar>div:last-child{
+  border-color:var(--psi-border);
+  background:var(--psi-surface-muted);
+}
+.psi-platform-field-canvas .psi-page-header{
+  padding:10px 0 18px;
+  margin-bottom:22px;
+  border-bottom:1px solid var(--psi-border);
+}
+.psi-platform-field-canvas .psi-page-title{
+  font-size:clamp(20px,2.3vw,28px);
+  font-weight:820;
+  letter-spacing:-.04em;
+  line-height:1.25;
+  color:var(--psi-text);
+}
+.psi-platform-field-canvas .psi-page-header .psi-status-badge{
+  border:1px solid var(--psi-border);
+  border-radius:8px;
+  background:var(--psi-surface);
+  color:var(--psi-brand);
+  padding:5px 9px;
+  font-size:10px;
+  letter-spacing:.04em;
+}
+.psi-platform-field-canvas .psi-page-header .psi-body-compact{
+  line-height:1.6;
+  color:var(--psi-text-muted);
+  font-size:clamp(12px,1.2vw,14px);
+}
+.psi-platform-field-canvas #psi-main-content{
+  background:
+    radial-gradient(ellipse 50% 200px at 92% 0,rgba(56,142,125,.055),transparent),
+    var(--psi-canvas);
+  scroll-padding-top:16px;
+}
+.psi-platform-field-canvas #psi-main-content>div{max-width:1510px}
+.psi-platform-field-canvas .psi-enterprise-panel,
+.psi-platform-field-canvas .psi-industrial-panel{
+  border-color:var(--psi-border);
+  border-radius:var(--psi-radius-lg);
+  box-shadow:var(--psi-shadow);
+}
+/* The main basic operations board: primary action first, factual risks remain distinct. */
+.psi-platform-field-canvas .psi-ops-dashboard{
+  gap:16px;
+  color:var(--psi-text);
+  padding-bottom:18px;
+}
+.psi-platform-field-canvas .psi-ops-intro{
+  position:relative;
+  isolation:isolate;
+  overflow:hidden;
+  align-items:center;
+  min-height:228px;
+  padding:clamp(22px,3vw,36px);
+  gap:clamp(18px,2.5vw,32px);
+  border:1px solid #285a62;
+  border-radius:26px;
+  background:linear-gradient(119deg,#102d3e 0%,#144750 60%,#126358 135%);
+  color:#effffb;
+  box-shadow:0 15px 42px rgba(10,46,55,.12);
+}
+.psi-platform-field-canvas .psi-ops-intro::after{
+  position:absolute;z-index:-1;
+  right:0;top:0;width:255px;height:170px;
+  background-image:radial-gradient(rgba(187,237,220,.36) 1px,transparent 1.5px);
+  background-size:20px 20px;
+  opacity:.28;
+  content:"";
+}
+.psi-platform-field-canvas .psi-ops-intro .psi-ops-context{
+  color:#cfebe7;
+  font-size:11px;
+  font-weight:630;
+  flex-wrap:wrap;
+  gap:8px;
+  line-height:1.55;
+}
+.psi-platform-field-canvas .psi-ops-intro .psi-ops-context-mark{
+  border-color:#9dd9c4;
+  background:#80d5b7;
+}
+.psi-platform-field-canvas .psi-ops-intro .psi-ops-context-divider{background:rgba(204,242,229,.35)}
+.psi-platform-field-canvas .psi-ops-intro .psi-ops-eyebrow{
+  margin-top:17px!important;
+  color:#aee8d6!important;
+  letter-spacing:.13em;
+  font-size:10px!important;
+}
+.psi-platform-field-canvas .psi-ops-intro .psi-ops-title{
+  color:white;
+  font-size:clamp(28px,3.6vw,43px);
+  font-weight:810;
+  line-height:1.18;
+  letter-spacing:-.06em;
+  margin-top:5px;
+  text-wrap:balance;
+}
+.psi-platform-field-canvas .psi-ops-intro .psi-ops-subtitle{
+  color:#d8ede8;
+  font-size:clamp(12px,1.3vw,15px);
+  line-height:1.72;
+  max-width:640px;
+  font-weight:530;
+  margin-top:11px;
+}
+.psi-platform-field-canvas .psi-ops-hero-pills{
+  display:flex;gap:7px;flex-wrap:wrap;margin-top:17px;
+}
+.psi-platform-field-canvas .psi-ops-hero-pills>span{
+  background:rgba(237,255,249,.09);
+  border:1px solid rgba(225,253,245,.24);
+  color:#e5faf4;
+  border-radius:999px;
+  font-size:11px;
+  padding:6px 11px;
+}
+.psi-platform-field-canvas .psi-ops-hero-pills b{color:#fff;font-variant-numeric:tabular-nums}
+.psi-platform-field-canvas .psi-ops-toolbar{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  width:clamp(280px,30vw,380px);
+  border:1px solid rgba(210,247,237,.25);
+  border-radius:18px;
+  background:rgba(5,32,39,.20);
+  padding:15px;
+  gap:10px;
+}
+.psi-platform-field-canvas .psi-ops-toolbar .psi-ops-filter>span{
+  color:#d5efeb;
+  font-size:11px;
+  font-weight:720;
+}
+.psi-platform-field-canvas .psi-ops-toolbar .psi-ops-filter select{
+  width:100%;
+  min-width:0;
+  min-height:46px;
+  color:#153947;
+  background:#f7fdfb;
+  border:1px solid #b9ddd5;
+  border-radius:11px;
+  font-size:12px;
+  font-weight:660;
+}
+.psi-platform-field-canvas .psi-ops-toolbar .psi-ops-primary-action{
+  grid-column:1/-1;
+  width:100%;
+  min-height:48px;
+  border:1px solid #87dfc7;
+  border-radius:11px;
+  color:#07392f;
+  background:#a7ead6;
+  font-size:13px;
+  font-weight:810;
+  box-shadow:none;
+}
+.psi-platform-field-canvas .psi-ops-toolbar .psi-ops-primary-action:hover{
+  background:#d1f8ea;
+  border-color:#d1f8ea;
+  color:#07372d;
+}
+/* Three real routes, no fabricated metrics/confirmation. */
+.psi-platform-field-canvas .psi-ops-field-route{
+  border:1px solid var(--psi-border);
+  border-radius:22px;
+  background:var(--psi-surface);
+  box-shadow:var(--psi-shadow);
+  padding:clamp(18px,2.3vw,24px);
+}
+.psi-platform-field-canvas .psi-ops-field-route-heading{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:15px;flex-wrap:wrap;margin-bottom:15px;
+}
+.psi-platform-field-canvas .psi-ops-route-eyebrow{
+  margin:0 0 5px;
+  color:var(--psi-brand);
+  font-size:10px;font-weight:830;letter-spacing:.11em;
+}
+.psi-platform-field-canvas .psi-ops-field-route-heading h2{
+  color:var(--psi-text);
+  margin:0 0 5px;
+  font-size:clamp(17px,2vw,22px);
+  line-height:1.3;
+  letter-spacing:-.036em;
+  font-weight:810;
+}
+.psi-platform-field-canvas .psi-ops-field-route-heading p:not(.psi-ops-route-eyebrow){
+  color:var(--psi-text-muted);margin:0;
+  font-size:12px;line-height:1.6;
+}
+.psi-platform-field-canvas .psi-ops-route-manual{
+  display:inline-flex;align-items:center;
+  padding:7px 12px;
+  border-radius:999px;
+  background:var(--psi-surface-muted);
+  border:1px solid var(--psi-border);
+  color:var(--psi-text-muted);
+  font-size:10px;font-weight:760;
+}
+.psi-platform-field-canvas .psi-ops-field-route-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:11px;
+}
+.psi-platform-field-canvas .psi-ops-route-action{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  text-align:left;
+  min-width:0;
+  min-height:106px;
+  padding:17px;
+  border-radius:16px;
+  border:1px solid var(--psi-border);
+  background:var(--psi-surface-muted);
+  color:var(--psi-text);
+  box-shadow:none;
+  cursor:pointer;
+  transition:background-color .18s ease,border-color .18s ease,transform .18s ease;
+}
+.psi-platform-field-canvas .psi-ops-route-action:hover{
+  background:var(--psi-surface-selected);
+  border-color:var(--psi-focus);
+  transform:translateY(-2px);
+}
+.psi-platform-field-canvas .psi-ops-route-action--source{
+  background:linear-gradient(125deg,var(--psi-surface-selected),var(--psi-surface) 75%);
+  border-color:color-mix(in srgb,var(--psi-focus) 32%,var(--psi-border));
+}
+.psi-platform-field-canvas .psi-ops-route-number{
+  flex:0 0 44px;height:44px;
+  display:grid;place-items:center;
+  border-radius:12px;
+  background:var(--psi-surface);
+  border:1px solid var(--psi-border);
+  color:var(--psi-brand);
+  font-weight:850;
+  font-size:15px;
+  font-variant-numeric:tabular-nums;
+}
+.psi-platform-field-canvas .psi-ops-route-copy{
+  min-width:0;flex:1 1 auto;
+  display:block;
+}
+.psi-platform-field-canvas .psi-ops-route-copy strong{
+  display:block;color:var(--psi-text);
+  font-size:clamp(13px,1.2vw,16px);
+  font-weight:810;letter-spacing:-.02em;line-height:1.45;
+  overflow-wrap:break-word;word-break:keep-all;
+}
+.psi-platform-field-canvas .psi-ops-route-copy small{
+  display:block;margin-top:7px;
+  color:var(--psi-text-muted);font-size:11px;line-height:1.6;
+  font-weight:570;word-break:keep-all;overflow-wrap:break-word;
+}
+.psi-platform-field-canvas .psi-ops-route-arrow{
+  flex:0 0 22px;height:22px;display:grid;place-items:center;
+  color:var(--psi-brand);
+}
+.psi-platform-field-canvas .psi-ops-route-note{
+  margin:12px 0 0;
+  color:var(--psi-text-subtle);
+  font-size:11px;line-height:1.65;
+  word-break:keep-all;
+}
+.psi-platform-field-canvas .psi-ops-assurance{
+  background:color-mix(in srgb,var(--psi-info-soft) 58%,var(--psi-surface));
+  border:1px solid var(--psi-border);
+  border-radius:18px;
+  padding:clamp(15px,2vw,20px);
+  gap:18px;
+}
+.psi-platform-field-canvas .psi-ops-assurance h2{font-size:16px;letter-spacing:-.02em}
+.psi-platform-field-canvas .psi-ops-assurance p{font-size:12px;line-height:1.6}
+.psi-platform-field-canvas .psi-ops-assurance-metrics{gap:8px}
+.psi-platform-field-canvas .psi-ops-kpi-grid{gap:12px}
+.psi-platform-field-canvas .psi-ops-kpi{
+  min-height:134px;
+  border:1px solid var(--psi-border);
+  border-radius:19px;
+  background:var(--psi-surface);
+  box-shadow:var(--psi-shadow);
+  padding:17px 18px;
+}
+.psi-platform-field-canvas .psi-ops-kpi-heading{
+  font-size:12px;
+  font-weight:780;
+}
+.psi-platform-field-canvas .psi-ops-kpi-value{
+  font-size:clamp(25px,2.8vw,36px);
+  font-variant-numeric:tabular-nums;
+  letter-spacing:-.04em;
+}
+.psi-platform-field-canvas .psi-ops-kpi p{font-size:11px;line-height:1.55}
+.psi-platform-field-canvas .psi-ops-main-grid{gap:14px}
+.psi-platform-field-canvas .psi-ops-panel{
+  border:1px solid var(--psi-border);
+  border-radius:20px;
+  background:var(--psi-surface);
+  box-shadow:var(--psi-shadow);
+}
+.psi-platform-field-canvas .psi-ops-panel-header{
+  background:var(--psi-surface-muted);
+  border-bottom:1px solid var(--psi-border);
+  padding:18px 20px;
+}
+.psi-platform-field-canvas .psi-ops-panel-header h2{
+  font-size:16px;
+  font-weight:810;
+  letter-spacing:-.03em;
+}
+.psi-platform-field-canvas .psi-ops-panel-header p{font-size:12px;line-height:1.6}
+.psi-platform-field-canvas .psi-ops-workflow{
+  border:1px solid var(--psi-border);
+  border-radius:20px;
+  background:var(--psi-surface);
+  box-shadow:var(--psi-shadow);
+  padding:clamp(17px,2vw,23px);
+}
+.psi-platform-field-canvas .psi-ops-workflow>header h2{
+  font-weight:810;font-size:clamp(17px,1.7vw,20px);
+  letter-spacing:-.027em;
+}
+.psi-platform-field-canvas .psi-ops-quick-grid{gap:9px}
+.psi-platform-field-canvas .psi-ops-quick-grid>button{
+  min-height:83px;border-radius:13px;
+  padding:13px 11px;background:var(--psi-surface-muted);
+  border-color:var(--psi-border);
+}
+.psi-platform-field-canvas .psi-ops-quick-grid>button:hover{
+  border-color:var(--psi-focus);
+  background:var(--psi-surface-selected);
+}
+.psi-platform-field-canvas .psi-ops-quick-grid strong{font-size:12px}
+.psi-platform-field-canvas .psi-ops-quick-grid small{font-size:11px}
+/* Mobile bottom rail is stable, accessible, and remains transparent to modals. */
+.psi-platform-field-canvas .psi-mobile-nav{
+  background:color-mix(in srgb,var(--psi-surface) 97%,transparent);
+  border-color:var(--psi-border);
+  box-shadow:0 -10px 35px rgba(9,42,51,.09);
+}
+.psi-platform-field-canvas .psi-mobile-nav button[aria-current="page"]{
+  background:var(--psi-surface-selected);
+  color:var(--psi-brand);
+  border-radius:12px;
+}
+.psi-platform-field-canvas :is(.psi-sidebar-item,.psi-ops-route-action,.psi-ops-quick-grid>button,.psi-ops-toolbar button,.psi-mobile-nav button):focus-visible{
+  outline:3px solid var(--psi-focus);
+  outline-offset:3px;
+}
+@media(max-width:1100px){
+ .psi-platform-field-canvas .psi-ops-intro{align-items:stretch;flex-direction:column;min-height:0}
+ .psi-platform-field-canvas .psi-ops-toolbar{width:100%;grid-template-columns:repeat(2,minmax(0,1fr))}
+ .psi-platform-field-canvas .psi-ops-field-route-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .psi-platform-field-canvas .psi-ops-route-action:last-child{grid-column:1/-1}
+}
+@media(max-width:720px){
+ .psi-platform-field-canvas .psi-page-header{padding:5px 0 14px;margin-bottom:17px}
+ .psi-platform-field-canvas .psi-ops-dashboard{gap:12px}
+ .psi-platform-field-canvas .psi-ops-intro{
+  padding:22px 19px;gap:17px;border-radius:20px;
+ }
+ .psi-platform-field-canvas .psi-ops-intro .psi-ops-title{font-size:clamp(26px,7.2vw,34px)}
+ .psi-platform-field-canvas .psi-ops-intro .psi-ops-context{font-size:10px;gap:5px}
+ .psi-platform-field-canvas .psi-ops-intro .psi-ops-context-divider{display:none}
+ .psi-platform-field-canvas .psi-ops-hero-pills{margin-top:13px}
+ .psi-platform-field-canvas .psi-ops-hero-pills>span{font-size:10px;padding:5px 8px}
+ .psi-platform-field-canvas .psi-ops-toolbar{padding:12px;gap:8px;border-radius:13px}
+ .psi-platform-field-canvas .psi-ops-toolbar .psi-ops-filter select{font-size:12px}
+ .psi-platform-field-canvas .psi-ops-field-route{padding:17px 14px;border-radius:18px}
+ .psi-platform-field-canvas .psi-ops-field-route-heading{gap:10px;margin-bottom:11px}
+ .psi-platform-field-canvas .psi-ops-route-manual{font-size:10px}
+ .psi-platform-field-canvas .psi-ops-field-route-grid{grid-template-columns:1fr;gap:8px}
+ .psi-platform-field-canvas .psi-ops-route-action:last-child{grid-column:auto}
+ .psi-platform-field-canvas .psi-ops-route-action{min-height:75px;padding:12px;gap:10px}
+ .psi-platform-field-canvas .psi-ops-route-number{flex-basis:38px;height:38px;font-size:13px}
+ .psi-platform-field-canvas .psi-ops-route-copy small{margin-top:3px;font-size:11px}
+ .psi-platform-field-canvas .psi-ops-assurance{padding:14px;border-radius:16px}
+ .psi-platform-field-canvas .psi-ops-kpi-grid{gap:8px}
+ .psi-platform-field-canvas .psi-ops-kpi{min-height:130px;padding:13px;border-radius:15px}
+ .psi-platform-field-canvas .psi-ops-panel-header{padding:14px}
+ .psi-platform-field-canvas .psi-ops-workflow{padding:14px}
+ .psi-platform-field-canvas .psi-ops-quick-grid strong{font-size:11px}
+ .psi-platform-field-canvas .psi-ops-workflow>header{align-items:flex-start;flex-direction:column;gap:8px}
+}
+@media(max-width:360px){
+ .psi-platform-field-canvas .psi-ops-intro{padding:18px 15px}
+ .psi-platform-field-canvas .psi-ops-intro .psi-ops-title{font-size:26px}
+ .psi-platform-field-canvas .psi-ops-context span{overflow-wrap:anywhere}
+ .psi-platform-field-canvas .psi-ops-route-action{padding:11px}
+ .psi-platform-field-canvas .psi-ops-route-copy strong{font-size:13px}
+}
+@media(prefers-reduced-motion:reduce){
+ .psi-platform-field-canvas :is(.psi-sidebar-item,.psi-ops-route-action,.psi-ops-quick-grid>button){
+   transition:none;
+ }
+ .psi-platform-field-canvas :is(.psi-ops-route-action,.psi-ops-quick-grid>button):hover{transform:none}
+}
+@media print{
+ .psi-platform-field-canvas .psi-ops-intro,
+ .psi-platform-field-canvas .psi-ops-field-route,
+ .psi-platform-field-canvas .psi-ops-panel,
+ .psi-platform-field-canvas .psi-ops-kpi{box-shadow:none;print-color-adjust:economy}
+ .psi-platform-field-canvas .psi-ops-field-route{display:none}
+}
+
+/* R73 visual audit: the legacy late-loaded .psi-ops-dashboard .psi-ops-intro
+   selector has equal specificity to the new rule. Give the operator-only layer
+   explicit precedence so our intended teal Field Canvas hero is actually shown. */
+.psi-platform-field-canvas .psi-ops-dashboard .psi-ops-intro{
+  border-color:#285a62;
+  border-radius:26px;
+  background-image:linear-gradient(119deg,#102d3e 0%,#144750 60%,#126358 135%);
+  background-color:#102d3e;
+  box-shadow:0 15px 42px rgba(10,46,55,.12);
+}
+.psi-platform-field-canvas .psi-ops-dashboard .psi-ops-intro .psi-ops-title{
+  color:#fff;
+  font-size:clamp(29px,3.4vw,39px);
+  letter-spacing:-.055em;
+}
+.psi-platform-field-canvas .psi-ops-dashboard .psi-ops-intro .psi-ops-context,
+.psi-platform-field-canvas .psi-ops-dashboard .psi-ops-intro .psi-ops-subtitle{
+  color:#d8ede8;
+}
+.psi-platform-field-canvas .psi-ops-dashboard .psi-ops-hero-pills>span{
+  border-radius:999px;
+  background:rgba(237,255,249,.09);
+  border-color:rgba(225,253,245,.24);
+  color:#e5faf4;
+}
+@media(max-width:720px){
+ .psi-platform-field-canvas .psi-ops-dashboard .psi-ops-intro{
+  padding:22px 19px;border-radius:20px;
+ }
+ .psi-platform-field-canvas .psi-ops-dashboard .psi-ops-intro .psi-ops-title{
+  font-size:clamp(26px,7.2vw,34px);
+ }
+}
+@media(max-width:360px){
+ .psi-platform-field-canvas .psi-ops-dashboard .psi-ops-intro{padding:18px 15px}
+ .psi-platform-field-canvas .psi-ops-dashboard .psi-ops-intro .psi-ops-title{font-size:26px}
+}

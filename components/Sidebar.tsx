@@ -187,14 +187,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
     return (
         <div className="psi-sidebar psi-sidebar-surface flex h-full w-[248px] shrink-0 flex-col border-r text-slate-800 transition-colors dark:text-slate-100">
-            <div className="border-b border-slate-200 px-5 pb-4 pt-5 dark:border-slate-800/80">
+            <div className="psi-sidebar-brand border-b border-slate-200 px-5 pb-4 pt-5 dark:border-slate-800/80">
                 <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-slate-900 bg-[#102a43] p-1.5 text-white dark:border-sky-300/20 dark:bg-sky-400/15">
                         <BrandPhilosophyLogo className="h-7 w-7" />
                     </div>
                     <div>
-                        <p className="text-xl font-extrabold leading-none tracking-tight">psi</p>
-                        <p className="psi-small-note mt-1">건설현장 안전관리</p>
+                        <p className="psi-sidebar-brand-eyebrow">SAFETY INTELLIGENCE</p>
+                        <p className="psi-sidebar-wordmark">PSI</p>
+                        <p className="psi-small-note mt-1">근로자 참여형 안전관리</p>
                     </div>
                 </div>
             </div>

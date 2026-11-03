@@ -3308,7 +3308,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     };
 
     return (
-        <section aria-labelledby="reports-page-title" className="flex h-full flex-col gap-5 pb-10 font-sans">
+        <section data-psi-screen="reports" aria-labelledby="reports-page-title" className="flex h-full flex-col gap-5 pb-10 font-sans">
             <header className="no-print shrink-0 rounded-xl border border-slate-200 bg-white px-4 py-4 dark:border-slate-700 dark:bg-slate-900 sm:px-5 sm:py-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">

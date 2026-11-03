@@ -1,0 +1,624 @@
+/* NEW-PSI Field Canvas R74-R77: scoped operator workspace design.
+   The main PSI safety assessment, education and report flows retain their
+   underlying calculations, source evidence, approval gates and print layout.
+   Rules apply only inside OperationalApp; public camera, worker and /product
+   experiences never load this file. */
+.psi-platform-field-canvas [data-psi-screen] {
+  --psi-workspace-ink:#102f3e;
+  --psi-workspace-teal:#137c6d;
+  --psi-workspace-border:var(--psi-border);
+  min-width:0;
+}
+.psi-platform-field-canvas [data-psi-screen] :is(button,select,input,textarea):focus-visible {
+  outline:3px solid var(--psi-focus);
+  outline-offset:2px;
+}
+.psi-platform-field-canvas [data-psi-screen] :is(button,select,input) {
+  touch-action:manipulation;
+}
+.psi-platform-field-canvas [data-psi-screen] :is(input,select,textarea) {
+  max-width:100%;
+}
+/* R74 / Education Return: evidence -> manager review -> education -> recheck.
+   Tone colors for unresolved verification are NOT overridden. */
+.psi-platform-field-canvas [data-psi-screen="education-return"] {
+  display:flex;
+  flex-direction:column;
+  gap:18px;
+}
+.psi-platform-field-canvas [data-education-return="hero"] {
+  position:relative;
+  isolation:isolate;
+  overflow:hidden;
+  border:1px solid #285862;
+  border-radius:24px;
+  background:linear-gradient(120deg,#102e3f 0%,#154a50 70%,#1b6658 130%);
+  color:#fff;
+  padding:clamp(20px,2.5vw,30px);
+  box-shadow:0 18px 40px rgba(12,52,59,.13);
+}
+.psi-platform-field-canvas [data-education-return="hero"]::after {
+  content:"";
+  position:absolute;z-index:-1;
+  width:220px;height:220px;right:-80px;top:-80px;
+  border-radius:50%;border:1px solid rgba(167,234,216,.18);
+  box-shadow:0 0 0 22px rgba(167,234,216,.035),0 0 0 60px rgba(167,234,216,.025);
+}
+.psi-platform-field-canvas [data-education-return="hero"] .psi-eyebrow {
+  color:#a7e9d3!important;
+  font-weight:800;
+  letter-spacing:.13em;
+  font-size:11px;
+}
+.psi-platform-field-canvas [data-education-return="hero"] .psi-page-title {
+  color:#fff;
+  font-size:clamp(25px,2.6vw,34px);
+  line-height:1.22;
+  letter-spacing:-.04em;
+}
+.psi-platform-field-canvas [data-education-return="hero"] .psi-body-copy{
+  color:#e0f3ee;
+  font-size:clamp(13px,1.25vw,15px);
+  line-height:1.75;
+  font-weight:530;
+}
+.psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid {
+  align-self:stretch;
+  gap:10px;
+}
+.psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid>div {
+  background:#f8fcfb;
+  border:1px solid #c4ded9;
+  border-radius:15px;
+  box-shadow:0 8px 26px rgba(4,35,44,.075);
+  min-width:0;
+}
+.psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid .psi-meta-label {
+  font-size:11px;
+  font-weight:700;
+}
+.psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid .psi-data-value {
+  color:#163b44;
+  font-size:22px;
+  font-variant-numeric:tabular-nums;
+}
+.psi-platform-field-canvas [data-education-return="three-step-flow"] {
+  border:1px solid rgba(189,237,225,.27);
+  border-radius:16px;
+  background:rgba(1,29,40,.24);
+  padding:17px;
+}
+.psi-platform-field-canvas [data-education-return="three-step-flow"] .psi-section-title {
+  color:#fff;
+  font-size:14px;
+  line-height:1.4;
+}
+.psi-platform-field-canvas [data-education-return="three-step-flow"] .psi-body-compact {
+  color:#d2ece5;
+  font-size:12px;
+}
+.psi-platform-field-canvas [data-education-return="three-step-flow"] .lg\\:block {
+  color:#c7e6de;
+}
+.psi-platform-field-canvas [data-education-return="practice-verification"] {
+  border-color:var(--psi-workspace-border);
+  border-radius:20px;
+  background:var(--psi-surface);
+  color:var(--psi-text);
+  box-shadow:var(--psi-shadow);
+  padding:clamp(17px,2.3vw,25px);
+}
+.psi-platform-field-canvas [data-education-return="practice-verification"] h3 {
+  font-size:clamp(17px,1.9vw,21px);
+  line-height:1.3;
+  color:var(--psi-text);
+}
+.psi-platform-field-canvas [data-education-return="practice-verification"] >div.grid >div {
+  background:var(--psi-surface-muted);
+  border:1px solid var(--psi-border);
+  border-radius:12px;
+}
+.psi-platform-field-canvas [data-education-return="practice-verification"] >div.grid >div p:last-child {
+  color:var(--psi-text);
+  font-variant-numeric:tabular-nums;
+}
+.psi-platform-field-canvas [data-education-return="practice-verification"] button {
+  min-height:44px;
+  border-radius:12px;
+}
+.psi-platform-field-canvas [data-education-return="outputs"] {
+  gap:12px;
+}
+.psi-platform-field-canvas [data-education-return="output-card"] {
+  min-width:0;
+  border:1px solid var(--psi-border);
+  border-radius:18px;
+  background:var(--psi-surface);
+  color:var(--psi-text);
+  box-shadow:var(--psi-shadow);
+  padding:clamp(16px,1.8vw,22px);
+}
+.psi-platform-field-canvas [data-education-return="output-card"] h3 {
+  color:var(--psi-text);
+  font-size:18px;
+  font-weight:810;
+  line-height:1.35;
+}
+.psi-platform-field-canvas [data-education-return="output-card"] >button {
+  background:#126b60;
+  border:1px solid #126b60;
+  color:#fff;
+  font-size:13px;
+  font-weight:770;
+  min-height:48px;
+  border-radius:12px;
+}
+.psi-platform-field-canvas [data-education-return="output-card"] >button:hover {
+  background:#0b594f;
+}
+.psi-platform-field-canvas [data-education-return="proof-message"] {
+  border:1px solid var(--psi-border);
+  border-radius:17px;
+  background:var(--psi-info-soft);
+}
+.psi-platform-field-canvas [data-education-return="proof-message"] .psi-card-title {
+  color:var(--psi-text);
+}
+/* R75 / OCR: all three existing routes remain direct actions; backup is not
+   treated as a verified safety record or an approved risk decision. */
+.psi-platform-field-canvas [data-psi-screen="ocr-analysis"] {
+  gap:18px;
+}
+.psi-platform-field-canvas [data-psi-screen="ocr-analysis"] #ocr-start-guide {
+  overflow:hidden;
+  background:var(--psi-surface);
+  border:1px solid var(--psi-border);
+  border-radius:22px;
+  box-shadow:var(--psi-shadow);
+  padding:clamp(17px,2.3vw,27px);
+}
+.psi-platform-field-canvas [data-psi-screen="ocr-analysis"] #ocr-start-guide>div:first-child {
+  border-bottom:1px solid var(--psi-border);
+  padding-bottom:17px;
+}
+.psi-platform-field-canvas [data-psi-screen="ocr-analysis"] #ocr-start-guide h2 {
+  color:var(--psi-text);
+  font-size:clamp(23px,2.5vw,32px);
+  letter-spacing:-.048em;
+  line-height:1.3;
+  font-weight:840;
+}
+.psi-platform-field-canvas [data-psi-screen="ocr-analysis"] #ocr-start-guide>div:first-child p:first-child {
+  color:var(--psi-brand);
+  font-size:12px;
+  font-weight:780;
+  letter-spacing:.035em;
+}
+.psi-platform-field-canvas [data-psi-screen="ocr-analysis"] #ocr-start-guide>div:first-child>span {
+  background:var(--psi-surface-muted);
+  border:1px solid var(--psi-border);
+  color:var(--psi-text-muted);
+  font-size:12px;
+  font-variant-numeric:tabular-nums;
+}
+.psi-platform-field-canvas [data-psi-screen="ocr-analysis"] #ocr-start-guide [aria-label="작업 선택"] {
+  gap:11px;
+  margin-top:20px;
+}
+.psi-platform-field-canvas [data-psi-screen="ocr-analysis"] #ocr-start-guide [aria-label="작업 선택"]>button {
+  min-width:0;
+  min-height:116px;
+  border-radius:16px;
+  border:1px solid var(--psi-border);
+  background:var(--psi-surface-muted);
+  padding:18px;
+  color:var(--psi-text);
+  box-shadow:none;
+  transition:background .18s,border-color .18s,transform .18s;
+}
+.psi-platform-field-canvas [data-psi-screen="ocr-analysis"] #ocr-start-guide [aria-label="작업 선택"]>button:first-child {
+  color:#fff;
+  background:linear-gradient(135deg,#143b48,#126d60);
+  border-color:#236b6b;
+}
+.psi-platform-field-canvas [data-psi-screen="ocr-analysis"] #ocr-start-guide [aria-label="작업 선택"]>button:first-child span {
+  color:#fff;
+}
+.psi-platform-field-canvas [data-psi-screen="ocr-analysis"] #ocr-start-guide [aria-label="작업 선택"]>button:not(:first-child) span {
+  color:var(--psi-text);
+}
+.psi-platform-field-canvas [data-psi-screen="ocr-analysis"] #ocr-start-guide [aria-label="작업 선택"]>button:not(:first-child) span:first-child {
+  color:var(--psi-text-muted);
+}
+.psi-platform-field-canvas [data-psi-screen="ocr-analysis"] #ocr-start-guide [aria-label="작업 선택"]>button:hover {
+  border-color:var(--psi-focus);
+  transform:translateY(-2px);
+}
+.psi-platform-field-canvas [data-psi-screen="ocr-analysis"] #ocr-start-guide>p:last-child {
+  color:var(--psi-text-muted);
+  line-height:1.6;
+  font-size:12px;
+}
+.psi-platform-field-canvas [data-psi-screen="ocr-analysis"] #ocr-start-guide [aria-label="백업 이어하기 방법"] {
+  border:1px solid var(--psi-border);
+  border-radius:15px;
+  background:var(--psi-info-soft);
+  color:var(--psi-text);
+}
+.psi-platform-field-canvas [data-psi-screen="ocr-analysis"] #ocr-start-guide [aria-label="백업 이어하기 방법"]>p {
+  color:var(--psi-text);
+}
+/* R76 / Worker survey: neutral workspace prevents dense multi-chart surface
+   from competing with the operational dashboard's primary action. */
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] {
+  min-height:0;
+  margin:0;
+  border-radius:22px;
+  background:transparent;
+  color:var(--psi-text);
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] >div {
+  max-width:100%;
+  padding:0;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] >div>div:first-child {
+  border:1px solid var(--psi-border);
+  border-radius:20px;
+  padding:clamp(17px,2.3vw,25px);
+  background:linear-gradient(120deg,var(--psi-surface),var(--psi-surface-muted));
+  box-shadow:var(--psi-shadow);
+  align-items:center;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] >div>div:first-child h1 {
+  font-size:clamp(20px,2.4vw,29px);
+  line-height:1.3;
+  color:var(--psi-text);
+  letter-spacing:-.039em;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] >div>div:first-child p {
+  line-height:1.6;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] >div>div:first-child select,
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] >div>div:first-child button {
+  border:1px solid var(--psi-border-strong);
+  border-radius:10px;
+  background:var(--psi-surface);
+  color:var(--psi-text);
+  min-height:44px;
+  font-size:12px;
+  padding:8px 10px;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] >div>div:first-child select {
+  max-width:100%;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] >div>div:first-child button:hover{
+  border-color:var(--psi-focus);
+  background:var(--psi-surface-selected);
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] >div>.grid:first-of-type>div,
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] >div>section {
+  border-radius:18px;
+}
+/* R78 / Q1~Q5 survey UX audit: filters must remain legible and tappable;
+   each metric keeps its original rose/amber/emerald evidence semantics. */
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="header"]{
+  gap:16px;
+  min-width:0;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="header"]>div{
+  min-width:0;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="header"] h1{
+  text-wrap:balance;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="filters"]{
+  display:flex;
+  gap:9px;
+  align-items:stretch;
+  flex-wrap:wrap;
+  max-width:100%;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="filters"] :is(select,button){
+  min-height:46px;
+  min-width:0;
+  padding:10px 12px;
+  border:1px solid var(--psi-border-strong);
+  border-radius:11px;
+  background:var(--psi-surface);
+  color:var(--psi-text);
+  font-size:12px;
+  font-weight:680;
+  cursor:pointer;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="filters"] button:hover{
+  background:var(--psi-surface-selected);
+  border-color:var(--psi-focus);
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="metrics"]{
+  gap:12px;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="metric"]{
+  min-width:0;
+  min-height:125px;
+  display:flex;
+  justify-content:center;
+  border-radius:17px;
+  padding:17px;
+  box-shadow:var(--psi-shadow);
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="metric"]>span:nth-child(2){
+  line-height:1.25;
+  font-size:clamp(20px,2.2vw,29px);
+  overflow-wrap:anywhere;
+  word-break:keep-all;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="metric"]>span:first-child{
+  opacity:.93;
+  font-size:12px;
+  font-weight:750;
+  line-height:1.45;
+}
+.psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="metric"]>span:nth-child(3){
+  opacity:.82;
+  line-height:1.55;
+}
+@media(max-width:720px){
+ .psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="header"]{
+  align-items:stretch;
+ }
+ .psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="filters"]{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  width:100%;
+  gap:8px;
+ }
+ .psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="filters"]>button{
+  grid-column:1/-1;
+ }
+ .psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="filters"] :is(select,button){
+  width:100%;
+  min-height:46px;
+ }
+ .psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="metrics"]{
+  grid-template-columns:minmax(0,1fr);
+  gap:9px;
+ }
+ .psi-platform-field-canvas [data-psi-screen="survey-intelligence"] [data-psi-survey="metric"]{
+  min-height:92px;
+  padding:14px 16px;
+ }
+}
+/* R77 / reports: status is left intact, previews/evidence export remain
+   managed by their existing state machine. Print media is excluded. */
+.psi-platform-field-canvas [data-psi-screen="reports"] {
+  gap:16px;
+  color:var(--psi-text);
+  min-width:0;
+}
+.psi-platform-field-canvas [data-psi-screen="reports"] >header {
+  border:1px solid var(--psi-border);
+  border-radius:20px;
+  padding:clamp(17px,2.3vw,25px);
+  background:linear-gradient(130deg,var(--psi-surface),var(--psi-surface-muted));
+  box-shadow:var(--psi-shadow);
+}
+.psi-platform-field-canvas [data-psi-screen="reports"] >header h2 {
+  color:var(--psi-text);
+  font-size:clamp(21px,2.4vw,30px);
+  letter-spacing:-.044em;
+  line-height:1.25;
+}
+.psi-platform-field-canvas [data-psi-screen="reports"] >header p {
+  color:var(--psi-text-muted);
+  line-height:1.65;
+}
+.psi-platform-field-canvas [data-psi-screen="reports"] >header p:first-child{
+  color:var(--psi-brand);
+  letter-spacing:.09em;
+}
+.psi-platform-field-canvas [data-psi-screen="reports"] >.grid {
+  gap:12px;
+}
+.psi-platform-field-canvas [data-psi-screen="reports"] >.grid >div,
+.psi-platform-field-canvas [data-psi-screen="reports"] >.grid >section{
+  border-radius:18px;
+  border-color:var(--psi-border);
+}
+.psi-platform-field-canvas [data-psi-screen="reports"] button {
+  min-height:44px;
+}
+.psi-platform-field-canvas [data-psi-screen="reports"] [role="tablist"] {
+  border-color:var(--psi-border);
+}
+/* Monthly field guidance: apply only to the workbench, never printed/archived
+   reports; keep the draft and anonymous teaching status exactly as authored. */
+.psi-platform-field-canvas [data-psi-screen="monthly-guidance"]>.guidance-no-print:first-of-type {
+  position:relative;
+  overflow:hidden;
+  border:1px solid #245864;
+  border-radius:23px;
+  background:linear-gradient(120deg,#102e3e,#155557 90%,#14746c 140%);
+  padding:clamp(19px,2.4vw,28px);
+  box-shadow:0 15px 38px rgba(12,49,59,.12);
+}
+.psi-platform-field-canvas [data-psi-screen="monthly-guidance"]>.guidance-no-print:first-of-type h2{
+  color:#fff;
+  font-size:clamp(21px,2.4vw,30px);
+  letter-spacing:-.04em;
+  line-height:1.28;
+}
+.psi-platform-field-canvas [data-psi-screen="monthly-guidance"]>.guidance-no-print:first-of-type p {
+  color:#daefe9;
+}
+.psi-platform-field-canvas [data-psi-screen="monthly-guidance"]>.guidance-no-print:first-of-type .psi-eyebrow {
+  color:#aae5d0;
+}
+.psi-platform-field-canvas [data-psi-screen="monthly-guidance"]>.guidance-no-print:first-of-type .grid>div {
+  border-radius:11px;
+  border:1px solid rgba(216,253,239,.24);
+  background:rgba(6,29,36,.21);
+  color:#ecfff9;
+}
+.psi-platform-field-canvas [data-psi-screen="monthly-guidance"]>.guidance-no-print:first-of-type .grid span {
+  color:#a9ead6;
+}
+.psi-platform-field-canvas [data-psi-screen="monthly-guidance"]>.guidance-no-print.grid {
+  border-color:var(--psi-border);
+  background:var(--psi-surface);
+  color:var(--psi-text);
+  border-radius:17px;
+  box-shadow:var(--psi-shadow);
+}
+.psi-platform-field-canvas [data-psi-screen="monthly-guidance"]>.guidance-no-print.grid label,
+.psi-platform-field-canvas [data-psi-screen="monthly-guidance"]>.guidance-no-print.grid .psi-item-title {
+  color:var(--psi-text);
+}
+.psi-platform-field-canvas [data-psi-screen="monthly-guidance"]>.guidance-no-print.grid select{
+  min-height:45px;
+  border:1px solid var(--psi-border-strong);
+  background:var(--psi-surface);
+  color:var(--psi-text);
+}
+.psi-platform-field-canvas [data-psi-screen="monthly-guidance"]>.guidance-no-print.grid>div {
+  border-color:var(--psi-border);
+  background:var(--psi-surface-muted);
+  color:var(--psi-text);
+}
+/* A4 studio: navigation and upload canvas. The actual A4 page is excluded. */
+.psi-platform-field-canvas [data-psi-screen="a4-education-studio"]>.psi-enterprise-hero.no-print {
+  border:1px solid #275963;
+  border-radius:24px;
+  background:linear-gradient(120deg,#102d3e 0%,#12534e 85%,#137263 140%);
+  box-shadow:0 18px 45px rgba(10,47,55,.13);
+  padding:clamp(20px,2.5vw,30px);
+}
+.psi-platform-field-canvas [data-psi-screen="a4-education-studio"]>.psi-enterprise-hero.no-print h2 {
+  color:#fff;
+  font-size:clamp(23px,2.7vw,33px);
+  letter-spacing:-.045em;
+  line-height:1.28;
+}
+.psi-platform-field-canvas [data-psi-screen="a4-education-studio"]>.psi-enterprise-hero.no-print p{
+  color:#def0e8;
+  line-height:1.65;
+}
+.psi-platform-field-canvas [data-psi-screen="a4-education-studio"]>.psi-enterprise-hero.no-print span{
+  border:1px solid rgba(201,246,226,.25);
+  border-radius:999px;
+}
+.psi-platform-field-canvas [data-psi-screen="a4-education-studio"]>.psi-enterprise-panel.no-print {
+  border-color:var(--psi-border);
+  border-radius:19px;
+  background:var(--psi-surface);
+  box-shadow:var(--psi-shadow);
+  padding:clamp(16px,2vw,23px);
+}
+.psi-platform-field-canvas [data-psi-screen="a4-education-studio"]>.psi-segmented-nav.no-print {
+  border-color:var(--psi-border);
+  border-radius:16px;
+  background:var(--psi-surface-muted);
+  gap:6px;
+  padding:7px;
+}
+.psi-platform-field-canvas [data-psi-screen="a4-education-studio"]>.psi-segmented-nav.no-print button{
+  min-height:46px;
+  font-size:12px;
+  border-radius:11px;
+  color:var(--psi-text-muted);
+}
+.psi-platform-field-canvas [data-psi-screen="a4-education-studio"]>.psi-segmented-nav.no-print button.bg-blue-700{
+  color:#fff;
+  background:#146e63;
+  box-shadow:none;
+}
+@media(max-width:900px){
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid {
+  grid-template-columns:repeat(3,minmax(0,1fr));
+ }
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid>div {
+  padding:12px 10px;
+ }
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid>div>span{
+  display:none;
+ }
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid .psi-data-value {font-size:20px}
+}
+@media(max-width:630px){
+ .psi-platform-field-canvas [data-education-return="hero"] {
+  border-radius:19px;
+  padding:18px 15px;
+ }
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid {gap:6px}
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid>div {min-height:78px;padding:11px 8px}
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid .psi-meta-label {font-size:10px}
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid .psi-data-value {font-size:17px;overflow-wrap:anywhere}
+ .psi-platform-field-canvas [data-education-return="three-step-flow"] {padding:13px;border-radius:14px}
+ .psi-platform-field-canvas [data-education-return="three-step-flow"] .grid{gap:10px}
+ .psi-platform-field-canvas [data-education-return="three-step-flow"] .psi-section-title{font-size:13px}
+ .psi-platform-field-canvas [data-education-return="three-step-flow"] .psi-body-compact{font-size:11px}
+ .psi-platform-field-canvas [data-education-return="practice-verification"]{padding:15px}
+ .psi-platform-field-canvas [data-psi-screen="ocr-analysis"] #ocr-start-guide [aria-label="작업 선택"]>button{
+   min-height:95px;padding:15px;
+ }
+ .psi-platform-field-canvas [data-psi-screen="reports"] >header{
+   border-radius:16px;
+   padding:15px;
+ }
+ .psi-platform-field-canvas [data-psi-screen="survey-intelligence"] >div>div:first-child {
+   padding:15px;border-radius:15px;
+ }
+ .psi-platform-field-canvas [data-psi-screen="a4-education-studio"]>.psi-segmented-nav.no-print{
+   grid-template-columns:repeat(2,minmax(0,1fr));
+ }
+ .psi-platform-field-canvas [data-psi-screen="a4-education-studio"]>.psi-segmented-nav.no-print button{
+   min-height:46px;
+ }
+}
+@media(max-width:360px){
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid .psi-data-value{font-size:15px}
+ .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid .psi-meta-label{font-size:9px}
+ .psi-platform-field-canvas [data-psi-screen="survey-intelligence"]>div>div:first-child select{
+  width:100%;
+ }
+}
+@media(prefers-reduced-motion:reduce){
+ .psi-platform-field-canvas [data-psi-screen] #ocr-start-guide [aria-label="작업 선택"]>button{
+  transition:none;
+ }
+ .psi-platform-field-canvas [data-psi-screen] #ocr-start-guide [aria-label="작업 선택"]>button:hover{
+  transform:none;
+ }
+}
+@media print{
+ /* No layout overrides on reports, A4 posters or safety evidence pages.
+    Printing remains governed by the preexisting report templates. */
+ .psi-platform-field-canvas [data-psi-screen="reports"]>header,
+ .psi-platform-field-canvas [data-psi-screen="monthly-guidance"]>.guidance-print,
+ .psi-platform-field-canvas [data-psi-screen="a4-education-studio"] [data-report-page]{
+   box-shadow:none!important;
+ }
+}
+
+/* R77 direct visual audit: the three-step flow has its OWN grid and must not
+   inherit the three-column metric layout on narrow devices. */
+@media(max-width:630px){
+ .psi-platform-field-canvas [data-education-return="three-step-flow"]>div{
+  grid-template-columns:minmax(0,1fr);
+  gap:12px;
+ }
+ .psi-platform-field-canvas [data-education-return="three-step-flow"]>div>div{
+  background:transparent;
+  border:0;
+  min-width:0;
+  padding:0;
+ }
+ .psi-platform-field-canvas [data-education-return="three-step-flow"]>div>div>span:nth-child(2){
+  width:46px;height:46px;border-radius:12px;
+ }
+ .psi-platform-field-canvas [data-education-return="three-step-flow"] .psi-section-title{
+  color:#fff;
+ }
+ .psi-platform-field-canvas [data-education-return="three-step-flow"] .psi-body-compact{
+  color:#d2ece5;
+ }
+}
