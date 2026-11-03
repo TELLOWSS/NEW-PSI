@@ -2262,7 +2262,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
        </ol>
        <p role="status">다음 확인: {handoffFollowthrough.next}</p>
        <p>재점검 입력 위치로 이동하면 화면의 임시 인계 체크는 초기화됩니다. 실제 수신 증빙은 별도 보관하세요.</p>
-       {handoffPrepared.items.length===1&&<button type="button" className="si-btn" onClick={()=>jumpToHandoffRecheck(handoffPrepared.items[0].recordId,handoffPrepared.items[0].actionId)}>이 항목의 재점검 입력으로 이동</button>
+       {handoffPrepared.items.length===1&&<button type="button" className="si-btn" onClick={()=>jumpToHandoffRecheck(handoffPrepared.items[0].recordId,handoffPrepared.items[0].actionId)}>이 항목의 재점검 입력으로 이동</button>}
        {handoffPrepared.items.length===1&&<>
        <label style={{display:'flex',gap:8,alignItems:'flex-start',minHeight:44}}>
         <input type="checkbox" aria-label="인계 자료를 외부에서 직접 전달했음을 점검자가 확인" checked={handoffDeliveredByOperator}
