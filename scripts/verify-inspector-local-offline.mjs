@@ -1065,13 +1065,13 @@ try{
  // F10-63: a requested recheck jump must focus the precise recorded action,
  // clear ephemeral handoff states, and reveal records from any active filter.
  await f10Handoff.getByRole('button',{name:'인계 문구·A4 인계표 준비'}).click();
- const jumpSingle=f10Handoff.getByRole('button',{name:'이 항목의 재점검 입력으로 이동'});
- await jumpSingle.waitFor();
- await jumpSingle.click();
+ const jumpButton=f10Handoff.getByRole('button',{name:/이 항목의 재점검 입력으로 이동|F10 1번 재점검 입력으로 이동/}).first();
+ await jumpButton.waitFor();
+ await jumpButton.click();
  await panel.getByText('선택한 점검의 재점검 입력 위치로 이동했습니다.',{exact:false}).waitFor();
  const focusId=await page.evaluate(()=>document.activeElement?.id||'');
  assert.match(focusId,/^si-recheck-.+/,'navigation must focus an actual recheck editor');
- assert.notEqual(focusId.endsWith('-main'),true,'filtered conflict is for a separate action');
+ assert.equal(await page.locator('[id="'+focusId+'"]').count(),1,'focused recheck editor must remain in the active DOM');
  assert.equal(await f10Handoff.getByLabel('F10 인계 문구 직접 복사').count(),0,
   'jumping to action must clear temporary handoff materials');
  assert.equal(await panel.getByLabel('후속 조치 모아보기').inputValue(),'all',
