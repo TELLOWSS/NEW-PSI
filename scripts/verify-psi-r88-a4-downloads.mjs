@@ -266,8 +266,11 @@ try {
     // R103: real browser download, UTF-8 CSV bytes (NOT just button visibility).
     const ledgerDownload = await requestDownload('현재 검수 현황 CSV 저장');
     assert.match(ledgerDownload.download.suggestedFilename(), /\.csv$/i);
+    // TextDecoder strips a BOM by default. Assert the original downloaded
+    // bytes, not a decoded string that already discarded those bytes.
+    assert.deepEqual([...ledgerDownload.bytes.subarray(0, 3)], [0xef, 0xbb, 0xbf],
+        'Excel UTF-8 BOM bytes missing from downloaded CSV');
     const ledgerCsv = new TextDecoder().decode(ledgerDownload.bytes);
-    assert.equal(ledgerCsv.charCodeAt(0), 0xfeff, 'Excel BOM missing from downloaded CSV');
     assert.match(ledgerCsv, /이 기기 확인기록 있음/);
     assert.match(ledgerCsv, /"영어","en-US","미확인"/);
     assert.match(ledgerCsv, /법정 증빙·서버 승인이 아님/);
