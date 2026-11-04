@@ -398,8 +398,12 @@ export const captureReportCanvases = async (
                     backgroundColor: '#ffffff',
                     width,
                     height,
-                    canvasWidth: Math.round(width * scale),
-                    canvasHeight: Math.round(height * scale),
+                    // html-to-image multiplies canvasWidth/Height by pixelRatio
+                    // internally. A4 used to multiply by 'scale' twice,
+                    // creating ~9x edges (~72 million pixels) at scale=3.
+                    // Keep legacy report behavior outside strict A4 mode.
+                    canvasWidth: Math.round(width * (options.strictLocalCapture ? 1 : scale)),
+                    canvasHeight: Math.round(height * (options.strictLocalCapture ? 1 : scale)),
                     style: {
                         width: '210mm',
                         maxWidth: 'none',
