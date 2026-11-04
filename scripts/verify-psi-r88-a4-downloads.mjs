@@ -142,7 +142,17 @@ try {
                     fonts: document.fonts?.status,
                 };
             });
-            await page.screenshot({ path: resolve(out, 'download-error.png'), fullPage: false });
+            // This test intentionally keeps document.fonts.status='loading'.
+            // Playwright screenshots wait for fonts by default and can hang,
+            // masking the ORIGINAL download failure. Keep diagnostics even if
+            // the screenshot is impossible, and always report the root cause.
+            if (diagnostics.fonts !== 'loading') {
+                await page.screenshot({
+                    path: resolve(out, 'download-error.png'),
+                    fullPage: false,
+                    timeout: 5_000,
+                }).catch(() => undefined);
+            }
             throw new Error('Browser did not download ' + label + ': ' + String(error) + ' :: ' + JSON.stringify(diagnostics));
         }
         const path = await download.path();
