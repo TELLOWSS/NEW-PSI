@@ -79,6 +79,23 @@ for(const scenario of ['review','short-opinion','rejected','changed-input','prin
   assert.equal(ops.filter(x=>x==='confirm-photo').length,1);assert.equal(ops.filter(x=>x==='analyze-photo').length,1);assert.equal(item.document.reviews[photo.id].decision,scenario==='rejected'?'rejected':'accepted');
   await journey.screenshot({path:`${output}/${scenario}-guide.png`});await journey.getByRole('button',{name:'보고서로 기록하기',exact:true}).click();await page.locator('.si-report').waitFor();await page.waitForFunction(()=>document.activeElement?.classList.contains('si-report'));const reportTop=await page.locator('.si-report').evaluate(e=>e.getBoundingClientRect().top);assert.ok(reportTop>=-10&&reportTop<480,`New report should be visible after creation, got top=${reportTop}`);
   assert.equal(ops.filter(x=>x==='report').length,1);assert.equal(ops.filter(x=>x==='upload').length,1);assert.ok((await page.locator('.si-report').innerText()).includes('직접 확인한 발판 틈새.'));
+   // R110: short field summary is the default; full evidence remains printable
+   // and the view switch must never modify the saved inspection.
+   const reportRoot=page.locator('.si-report');
+   const snapshotBefore=JSON.stringify(item);
+   assert.match(await reportRoot.getAttribute('class'),/si-report-mode-brief/);
+   await reportRoot.locator('[data-psi-inspector-field-brief]').waitFor();
+   assert.equal(await reportRoot.locator('[data-psi-inspector-full-evidence]').isVisible(),false);
+   assert.match(await reportRoot.locator('[data-psi-inspector-field-brief]').innerText(),/AI 확인 상태|개선조치 상태/);
+   await reportRoot.getByRole('button',{name:'상세 근거 전체 보기',exact:true}).click();
+   assert.equal(await reportRoot.locator('[data-psi-inspector-full-evidence]').isVisible(),true);
+   await reportRoot.getByRole('button',{name:'핵심 요약 보기',exact:true}).click();
+   assert.equal(JSON.stringify(item),snapshotBefore,'view switch changed the inspection');
+   await page.emulateMedia({media:'print'});
+   assert.equal(await reportRoot.locator('[data-psi-inspector-full-evidence]').isVisible(),true,'print lost full evidence from brief mode');
+   assert.equal(await reportRoot.locator('[data-psi-inspector-field-brief]').isVisible(),false,'read-only summary duplicated into print');
+   await page.emulateMedia({media:'screen'});
+   assert.equal(await reportRoot.locator('[data-psi-inspector-full-evidence]').isVisible(),false);
   const print=page.locator('.si-quick-print .si-primary');
   if(scenario==='print-loading'){
    await page.locator('[data-report-photo-state="loading"]').waitFor();
