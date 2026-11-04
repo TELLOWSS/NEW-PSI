@@ -201,6 +201,71 @@ try {
     }
     await task.destroy();
     checks.push({ label: 'PDF parsed', pages: 2, format: 'A4' });
+
+    // R104-R106: real ZIP -> PDF on a device WITHOUT createImageBitmap.
+    // The old implementation failed before producing a PDF on such browsers.
+    await page.evaluate(() => {
+        window.__psiQaOriginalCreateImageBitmap = window.createImageBitmap;
+        window.__psiQaOriginalCreateObjectURL = URL.createObjectURL;
+        window.__psiQaLocalPngDecodes = 0;
+        URL.createObjectURL = function (blob) {
+            if (blob instanceof Blob && blob.type === 'image/png') window.__psiQaLocalPngDecodes++;
+            return window.__psiQaOriginalCreateObjectURL.call(this, blob);
+        };
+        window.createImageBitmap = undefined;
+    });
+    const fallbackPdf = await requestDownload('전체 다국어 PDF · 한 파일');
+    assert.equal(fallbackPdf.bytes.subarray(0, 8).toString(), '%PDF-1.4');
+    const fallbackTask = getDocument({ data: Uint8Array.from(fallbackPdf.bytes), useSystemFonts: true });
+    const fallbackDoc = await fallbackTask.promise;
+    assert.equal(fallbackDoc.numPages, 2, 'WebKit-style decoder fallback lost a language page');
+    await fallbackTask.destroy();
+    assert.equal(await page.evaluate(() => window.__psiQaLocalPngDecodes), 2, 'local image fallback did not decode two cached PNGs');
+    checks.push({ label: 'R104 missing createImageBitmap fallback', pages: 2, localPngLoads: 2 });
+
+    // A function may exist but reject on valid PNGs: still use local decoding,
+    // do not recapture the DOM or call a remote API.
+    await page.evaluate(() => {
+        window.createImageBitmap = () => Promise.reject(new Error('unsupported bitmap decoder (synthetic)'));
+    });
+    const rejectedPdf = await requestDownload('전체 다국어 PDF · 한 파일');
+    const rejectedTask = getDocument({ data: Uint8Array.from(rejectedPdf.bytes), useSystemFonts: true });
+    const rejectedDoc = await rejectedTask.promise;
+    assert.equal(rejectedDoc.numPages, 2);
+    await rejectedTask.destroy();
+    assert.equal(await page.evaluate(() => window.__psiQaLocalPngDecodes), 4);
+    checks.push({ label: 'R105 rejected native decode fallback', pages: 2, localPngLoads: 2 });
+
+    // Both native decoder and local URL are unavailable. Must fail closed,
+    // release the export UI and NEVER emit an incorrect PDF download.
+    await page.evaluate(() => {
+        window.createImageBitmap = undefined;
+        URL.createObjectURL = blob => {
+            if (blob instanceof Blob && blob.type === 'image/png') {
+                throw new Error('temporary image URLs blocked (synthetic)');
+            }
+            return window.__psiQaOriginalCreateObjectURL.call(URL, blob);
+        };
+    });
+    await page.getByRole('button', { name: '전체 다국어 PDF · 한 파일', exact: true }).click();
+    await page.getByText(/묶음 다운로드는 요청하지 않았습니다.*임시 이미지 주소를 만들 수 없습니다/).waitFor({
+        state: 'visible', timeout: 15_000,
+    });
+    assert.equal(await page.getByRole('button', { name: '전체 다국어 PDF · 한 파일', exact: true }).isDisabled(), false,
+        'PDF export controls remained locked after decoder failure');
+    assert.equal(await page.locator('[data-psi-export-host]').count(), 0,
+        'stalled local conversion left an isolated report clone');
+    await page.evaluate(() => {
+        window.createImageBitmap = window.__psiQaOriginalCreateImageBitmap;
+        URL.createObjectURL = window.__psiQaOriginalCreateObjectURL;
+    });
+    const recoveredPdf = await requestDownload('전체 다국어 PDF · 한 파일');
+    const recoveredTask = getDocument({ data: Uint8Array.from(recoveredPdf.bytes), useSystemFonts: true });
+    const recoveredDoc = await recoveredTask.promise;
+    assert.equal(recoveredDoc.numPages, 2);
+    await recoveredTask.destroy();
+    checks.push({ label: 'R106 unavailable local decoder recovery', failedClosed: true, exportUnlocked: true, recoveredPages: 2 });
+
     assert.deepEqual(externalCalls, [], 'external jsPDF or html2canvas CDN was required');
     assert.deepEqual(pageErrors, [], 'uncaught browser error during download');
     checks.push({ label: 'network and browser errors', externalCalls, pageErrors });
@@ -233,7 +298,11 @@ try {
     await page.getByText(/A4 이미지가 준비되지 않았습니다/).waitFor({ state: 'visible', timeout: 24_000 });
     assert.equal(await page.getByRole('button', { name: 'PNG 이미지', exact: true }).isDisabled(), false,
         'stalled capture did not release export state');
-    checks.push({ label: 'R93 stalled image recovery', message: 'Clear failure, released export control' });
+    // R105: even when waitForImages fails before cleanup is returned, hidden
+    // report clones must be reclaimed instead of consuming mobile memory.
+    assert.equal(await page.locator('[data-psi-export-host]').count(), 0,
+        'failed A4 capture leaked a hidden report host');
+    checks.push({ label: 'R93/R105 stalled image recovery', message: 'Clear failure, released controls and report DOM' });
     if (stalledImageRoute) await stalledImageRoute.abort().catch(() => {});
     await page.unroute('**/__psi_qa_stalled_a4_image__.png');
     await page.evaluate(() => document.getElementById('psi-qa-unavailable-image')?.remove());
@@ -351,6 +420,7 @@ try {
 
     checks.push({ label: 'R103 negative-path simulations', staleCsv: true, quotaDenied: true, downloadBlockedAndRetried: true, mobile320: true, clipboardDenied: true });
     checks.push({ label: 'R100 human device attestation', initial: 'unchecked', saved: true, languageIsolation: true, editInvalidates: true });
+    console.log('PASS R104–R106 native bitmap missing/rejected + local PNG fallback + failed decoder recovery + capture DOM cleanup (synthetic only)');
     console.log('PASS R101–R103 CSV actual download + scope recheck + storage/download/clipboard failure recovery + 320px mobile (synthetic only)');
     console.log('PASS R98–R100 operator review checkboxes + SHA-256 source invalidation (synthetic browser only)');
     console.log('PASS R92–R97 mobile font + stalled-image failure + offline ZIP/PDF (synthetic only)');
