@@ -23,6 +23,8 @@ describe('PSI R104–R106 cached A4 PNG to PDF conversion / mobile fallback', ()
         expect(source).toContain('image.onerror = null;');
         expect(source).toContain('canvas.width = 0');
         expect(source).toContain('canvas.height = 0');
+        expect(source).toContain('Math.sqrt(12_000_000 / (width * height))');
+        expect(source).toContain('context.drawImage(decoded.source, 0, 0, outputWidth, outputHeight)');
         expect(source).not.toContain('fetch(');
         expect(source).not.toContain('cdnjs.');
     });
@@ -36,6 +38,8 @@ describe('PSI R104–R106 cached A4 PNG to PDF conversion / mobile fallback', ()
         expect(snippet).toContain('} catch (error) {');
         expect(snippet).toContain('host.remove();');
         expect(snippet).toContain('throw error;');
+        expect(source).toContain('canvasWidth: Math.round(width * (options.strictLocalCapture ? 1 : scale))');
+        expect(source).toContain('canvasHeight: Math.round(height * (options.strictLocalCapture ? 1 : scale))');
     });
 
     it('only uses cached local PNG and never falsely treats PDF export as human review', () => {
