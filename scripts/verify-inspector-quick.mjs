@@ -314,7 +314,7 @@ try{
         }
         await page.getByRole('region',{name:'사진점검 결과'}).waitFor();if(scenario!=='no-findings')await page.getByText('5년 이하 징역 또는 5,000만원 이하 벌금',{exact:true}).first().waitFor();await page.waitForFunction(()=>!document.querySelector('.si-quick-start').disabled);
         if(scenario.startsWith('direct-')){
-            const entry=scenario==='direct-manual'?page.getByRole('region',{name:'점검 다음 단계'}).getByRole('button',{name:'직접 확인한 조치 작성',exact:true}):page.locator('.si-photo-action-entry button'),planner=page.locator('.si-action-planner');
+            const entry=scenario==='direct-manual'?page.getByRole('region',{name:'점검 다음 단계'}).getByRole('button',{name:'조치 작성 (선택)',exact:true}):page.locator('.si-photo-action-entry button'),planner=page.locator('.si-action-planner');
             const originalId=evidence[0].id,analysesBefore=analyzeCalls,uploadsBefore=ops.filter(op=>op==='upload').length;
             if(scenario==='direct-cap'){const saved=JSON.stringify(item),count=ops.length;await entry.click();await page.getByRole('alert').waitFor();assert.match(await page.getByRole('alert').innerText(),/30건/);assert.equal(JSON.stringify(item),saved);assert.equal(ops.length,count);assert.equal(await page.getByRole('region',{name:'사진점검 결과'}).isVisible(),true);assert.deepEqual(errors,[]);results.push({scenario,status:'PASS',provider:'fixture, no paid calls',ops});console.log('PASS '+scenario);await context.close();continue;}
             if(scenario==='direct-rejected'){
