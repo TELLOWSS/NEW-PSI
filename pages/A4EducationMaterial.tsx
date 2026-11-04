@@ -1922,6 +1922,10 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             ? verifiedPngCacheRef.current.files
             : null;
         let prepared = 0;
+        // Clear a previous failed attempt before starting a new export.
+        // Otherwise the old error stays visible during retry and can be
+        // mistaken for the outcome of the new request.
+        setNotice('');
         setIsExporting(true);
         setPreparedBundle(null);
         setBatchProgress(`언어별 A4 검수 준비 · 0/${languages.length}`);
