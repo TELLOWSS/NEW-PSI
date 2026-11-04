@@ -10,7 +10,7 @@ const browser=await chromium.launch({executablePath:process.env.PSI_CHROMIUM_PAT
 const output='artifacts/audit/inspector-result-journey'+(target?'-deployed':built?'-built':'');await mkdir(output,{recursive:true});const results=[];
 const allowed={policy:'free-only',state:'free-project',allowed:true,message:'fixture only',remainingRequests:null,billingCheck:'verified'};
 try{
-for(const scenario of ['review','short-opinion','rejected','changed-input','print-loading','print-failed']){
+for(const scenario of ['manual-report','review','short-opinion','rejected','changed-input','print-loading','print-failed']){
  console.log('scenario',scenario);
  const context=await browser.newContext({viewport:{width:390,height:844},permissions:['clipboard-read','clipboard-write']});const page=await context.newPage();const ops=[],errors=[];let item,photo,bytes,heldStatus,heldPhotoRoute;
  page.setDefaultTimeout(15000);page.setDefaultNavigationTimeout(15000);page.on('pageerror',e=>{errors.push(e.message);console.log('pageerror',e.message);});
@@ -46,7 +46,7 @@ for(const scenario of ['review','short-opinion','rejected','changed-input','prin
   await r.fulfill({json:result});
  });
  await page.goto(base+'/?mode=photo-inspector',{waitUntil:'domcontentloaded'});
- await page.locator('.si-quick').waitFor();await page.getByRole('switch',{name:'AI 정밀점검 사용',exact:true}).click();await page.evaluate(()=>{window.__printCalls=0;window.__confirmCalls=0;window.print=()=>{window.__printCalls++};window.confirm=()=>{window.__confirmCalls++;return false};});if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}
+ await page.locator('.si-quick').waitFor();if(scenario!=='manual-report')await page.getByRole('switch',{name:'AI 정밀점검 사용',exact:true}).click();await page.evaluate(()=>{window.__printCalls=0;window.__confirmCalls=0;window.print=()=>{window.__printCalls++};window.confirm=()=>{window.__confirmCalls++;return false};});if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}
  const source=Buffer.from(await page.evaluate(()=>{const c=document.createElement('canvas');c.width=640;c.height=480;c.getContext('2d').fillRect(0,0,640,480);return c.toDataURL('image/jpeg').split(',')[1];}),'base64');
  await page.locator('.si-quick input[type=file]').first().setInputFiles({name:'synthetic.jpg',mimeType:'image/jpeg',buffer:source});
  await page.locator('.si-consent-cue').getByText('다음 단계 · 이 사진의 보관 안내 확인').waitFor();
@@ -60,6 +60,38 @@ for(const scenario of ['review','short-opinion','rejected','changed-input','prin
  assert.equal(await page.locator('.si-quick-start').isDisabled(),false);
  await page.locator('.si-photo-hint summary').click();await page.locator('.si-quick textarea').first().fill('직접 확인한 발판 틈새.');
  await page.locator('.si-quick-start').click();const journey=page.getByRole('region',{name:'점검 다음 단계'});await journey.waitFor();
+ if(scenario==='manual-report'){
+   const first=journey.getByRole('button').first();
+   assert.equal(await first.innerText(),'사진·설명으로 보고서 작성');
+   assert.equal(await journey.getByRole('button',{name:'조치 작성 (선택)',exact:true}).count(),1);
+   assert.equal(ops.filter(x=>x==='analyze-photo').length,0,'manual route silently used AI');
+   assert.equal(ops.filter(x=>x==='confirm-photo').length,0,'manual route created an AI review');
+   assert.equal(item.document.actions.length,0,'manual route invented an action');
+   await first.click();
+   const report=page.getByRole('article',{name:'점검 검토용 보고서'});await report.waitFor();
+   await report.locator('[data-psi-inspector-field-brief]').waitFor();
+   assert.match(await report.locator('[data-psi-inspector-field-brief]').innerText(),/등록된 개선조치가 없습니다. 조치가 완료됐다는 뜻이 아닙니다/);
+   assert.equal(ops.filter(x=>x==='report').length,1);
+   assert.equal(ops.filter(x=>x==='upload').length,1);
+   assert.equal(ops.filter(x=>x==='analyze-photo').length,0);
+   assert.deepEqual(item.document.actions,[]);
+   assert.deepEqual(item.document.reviews,{});
+   assert.match(await report.getAttribute('class'),/si-report-mode-brief/);
+   await report.getByRole('button',{name:'상세 근거 전체 보기',exact:true}).click();
+   assert.equal(await report.locator('[data-psi-inspector-full-evidence]').isVisible(),true);
+   assert.match(await report.innerText(),/직접 확인한 발판 틈새/);
+   await report.getByRole('button',{name:'핵심 요약 보기',exact:true}).click();
+   await page.emulateMedia({media:'print'});
+   assert.equal(await report.locator('[data-psi-inspector-full-evidence]').isVisible(),true);
+   await page.emulateMedia({media:'screen'});
+   for(const width of [320,390,844,1440]){
+     await page.setViewportSize({width,height:900});
+     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'manual report mobile overflow '+width);
+   }
+   assert.deepEqual(errors,[]);
+   results.push({scenario,ops,passed:true});console.log('PASS manual photo -> no-AI report with no invented completion');
+   await context.close();continue;
+ }
  assert.equal(ops.filter(x=>x==='analyze-photo').length,1);assert.equal(ops.filter(x=>x==='confirm-photo').length,0);
  assert.equal(await journey.getByRole('button',{name:'현장 대조 후 검토 저장',exact:true}).count(),1);
  assert.equal(await page.locator('.si-photo-action-entry').count(),0,'Duplicate result-page primary action');
