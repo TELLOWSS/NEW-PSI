@@ -21,6 +21,13 @@ import {
 } from '../utils/educationA4LocalReview';
 import { TRAINING_LANGUAGE_LABELS } from '../utils/constructionTrainingTranslation';
 import {
+    A4_REVIEW_LEDGER_STATUSES,
+    A4_REVIEW_ROLE_LABELS,
+    buildA4ReviewLedger,
+    buildA4ReviewLedgerCsv,
+    buildA4ReviewLedgerText,
+} from '../utils/educationA4ReviewLedger';
+import {
     normalizeEducationPosterTranslationMap,
     type EducationPosterTranslation,
     type EducationPosterTranslationMap,
@@ -1193,13 +1200,16 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const [batchProgress, setBatchProgress] = useState('');
     const [preparedBundle, setPreparedBundle] = useState<{ blob: Blob; filename: string } | null>(null);
     const [fontPreflight, setFontPreflight] = useState<A4FontPreflight | null>(null);
-    const [localOutputReviews, setLocalOutputReviews] = useState(() => (
-        typeof window === 'undefined' ? {} : readA4ReviewStore(window.localStorage)
-    ));
+    const [localOutputReviews, setLocalOutputReviews] = useState(() => {
+        if (typeof window === 'undefined') return {};
+        try { return readA4ReviewStore(window.localStorage); }
+        catch { return {}; }
+    });
     const [reviewDigestSnapshot, setReviewDigestSnapshot] = useState<{ scope: string; digests: Record<string, string> }>({ scope: '', digests: {} });
     const [reviewChecks, setReviewChecks] = useState(newA4ReviewChecks);
     const [reviewerRole, setReviewerRole] = useState<A4ReviewerRole>('site-manager');
     const [reviewSaveMessage, setReviewSaveMessage] = useState('');
+    const [preparedReviewCsv, setPreparedReviewCsv] = useState<{ blob: Blob; filename: string } | null>(null);
     const [notice, setNotice] = useState('');
     const [translatedTexts, setTranslatedTexts] = useState<Record<string, string>>(
         initialState?.translatedTexts || {},
@@ -1316,14 +1326,16 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const currentReview = reviewDigests[previewLanguage]
         ? validA4Review(localOutputReviews, currentReviewKey, reviewDigests[previewLanguage])
         : null;
-    const reviewedLanguageCount = reviewLanguageCodes.filter(code => (
-        Boolean(reviewDigests[code] && validA4Review(
-            localOutputReviews,
-            a4ReviewKey(educationMonth, workType, code),
-            reviewDigests[code],
-        ))
-        && (code === 'ko-KR' || !translationNeedsRefresh)
-    )).length;
+    const reviewLedgerRows = buildA4ReviewLedger({
+        educationMonth, workType,
+        languages: reviewLanguageCodes,
+        labels: TRAINING_LANGUAGE_LABELS,
+        fingerprints: reviewDigests,
+        stored: localOutputReviews,
+        translationNeedsRefresh,
+    });
+    const reviewedLanguageCount = reviewLedgerRows.filter(row => row.status === 'recorded').length;
+    const recheckLanguageCount = reviewLedgerRows.filter(row => row.status === 'recheck').length;
     const currentPreviewIsStaleTranslation = translationNeedsRefresh && previewLanguage !== 'ko-KR';
     const languageAudit = useMemo(() => buildEducationLanguageAudit({
         draft,
@@ -1343,6 +1355,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         setReviewChecks(newA4ReviewChecks());
         setReviewSaveMessage('');
     }, [previewLanguage, serializedReviewScopes]);
+    useEffect(() => setPreparedReviewCsv(null), [serializedReviewScopes, localOutputReviews]);
     useEffect(() => {
         let active = true;
         setReviewDigestSnapshot({ scope: '', digests: {} });
@@ -1824,6 +1837,40 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             setReviewSaveMessage('현재 언어의 기기 내 확인기록을 취소했습니다.');
         } catch {
             setReviewSaveMessage('이 기기의 저장공간 사용이 차단되어 확인기록 취소에 실패했습니다.');
+        }
+    };
+
+    const exportReviewLedgerCsv = () => {
+        try {
+            const csv = buildA4ReviewLedgerCsv(educationMonth, workType, reviewLedgerRows);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+            const filename = buildPsiExportFileName({
+                tokens: ['PSI_A4_기기검수현황', educationMonth, workType],
+                extension: 'csv',
+            });
+            setPreparedReviewCsv({ blob, filename });
+            try {
+                requestEducationDownload(blob, filename);
+                setReviewSaveMessage('이 기기의 수동 확인기록 CSV 다운로드를 요청했습니다. 파일 앱에서 실제 저장 여부를 확인하세요. 교육 이수 또는 법정 증빙이 아닙니다.');
+            } catch {
+                setReviewSaveMessage('CSV는 준비됐으나 브라우저가 다운로드 요청을 차단했습니다. 아래 파일 다시 다운로드를 눌러 주세요.');
+            }
+        } catch (error) {
+            setPreparedReviewCsv(null);
+            setReviewSaveMessage(error instanceof Error ? error.message : '검수 현황 파일을 준비하지 못했습니다.');
+        }
+    };
+
+    const copyReviewLedgerSummary = async () => {
+        try {
+            if (!navigator.clipboard?.writeText) throw new Error('클립보드 복사가 지원되지 않습니다.');
+            if (reviewLedgerRows.some(row => row.status === 'calculating')) {
+                throw new Error('내용 확인 계산이 끝난 후 복사해 주세요.');
+            }
+            await navigator.clipboard.writeText(buildA4ReviewLedgerText(reviewLedgerRows));
+            setReviewSaveMessage('언어별 검수 현황 문구를 복사했습니다. 수동 확인기록이며 법정 교육 증빙이 아닙니다.');
+        } catch (error) {
+            setReviewSaveMessage(error instanceof Error ? error.message : '복사할 수 없습니다. CSV 저장을 이용해 주세요.');
         }
     };
 
