@@ -43,6 +43,7 @@ import LayaExtendedReviewPanel from '../components/tbm/LayaExtendedReviewPanel';
 import { buildEducationLanguageAudit } from '../utils/multilingualEducationAudit';
 import { captureReportCanvas, canvasToBlob, getCanvasPlacementOnA4 } from '../utils/pdfCapture';
 import { buildEducationA4Pdf, type EducationPdfPage } from '../utils/educationLocalPdf';
+import { cachedEducationPngToPdfPage } from '../utils/educationCachedPngPdf';
 import { buildEducationPngZip, isMatchingA4Language, requestEducationDownload, type EducationZipFile } from '../utils/educationA4BatchExport';
 import {
     buildMonthlyEducationPackageText,
@@ -1921,6 +1922,10 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             ? verifiedPngCacheRef.current.files
             : null;
         let prepared = 0;
+        // Clear a previous failed attempt before starting a new export.
+        // Otherwise the old error stays visible during retry and can be
+        // mistaken for the outcome of the new request.
+        setNotice('');
         setIsExporting(true);
         setPreparedBundle(null);
         setBatchProgress(`언어별 A4 검수 준비 · 0/${languages.length}`);
@@ -1932,33 +1937,16 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                     if (!source || !(source.content instanceof Blob)) {
                         throw new Error('검수된 PNG 원본 캐시가 유효하지 않습니다.');
                     }
-                    // Convert the *already verified* PNG into JPEG via a local
-                    // canvas; no second font/layout/DOM capture is necessary.
-                    const image = await createImageBitmap(source.content);
-                    try {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = image.width;
-                        canvas.height = image.height;
-                        const context = canvas.getContext('2d', { alpha: false });
-                        if (!context) throw new Error('PDF 이미지 변환을 위한 2D 화면이 지원되지 않습니다.');
-                        context.fillStyle = '#ffffff';
-                        context.fillRect(0, 0, canvas.width, canvas.height);
-                        context.drawImage(image, 0, 0);
-                        const jpeg = await canvasToBlob(canvas, 'image/jpeg', 0.94);
-                        if (jpeg.type !== 'image/jpeg') throw new Error('JPEG 변환 기능을 지원하지 않습니다.');
-                        pdfPages.push({
-                            jpeg: new Uint8Array(await jpeg.arrayBuffer()),
-                            pixelWidth: canvas.width,
-                            pixelHeight: canvas.height,
-                            placement: getCanvasPlacementOnA4(canvas),
-                        });
-                        canvas.width = 0;
-                        canvas.height = 0;
-                    } finally {
-                        image.close();
-                    }
+                    // The cached PNG remains an actual file, not a re-rendered
+                    // screenshot. Safari/WebKit may lack createImageBitmap.
+                    // The converter falls back to a local blob URL and releases
+                    // all native image/canvas resources even if decoding fails.
+                    const converted = await cachedEducationPngToPdfPage(source.content);
+                    pdfPages.push(converted.page);
                     prepared++;
-                    setBatchProgress(`검수된 PNG 재사용 · ${prepared}/${languages.length}`);
+                    setBatchProgress(
+                        `검수된 PNG 재사용 · ${prepared}/${languages.length}${converted.method === 'local-image' ? ' · 모바일 호환 방식' : ''}`,
+                    );
                     continue;
                 }
                 setPreviewLanguage(lang);

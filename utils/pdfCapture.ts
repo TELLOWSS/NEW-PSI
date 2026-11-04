@@ -347,13 +347,19 @@ const createIsolatedCaptureTarget = async (source: HTMLElement, assetTimeoutMs =
     applyCaptureSurfaceStyles(clone);
     host.appendChild(clone);
     document.body.appendChild(host);
-    copyCanvasPixels(source, clone);
-    await waitForStableLayout(clone, assetTimeoutMs);
-
-    return {
-        target: clone,
-        cleanup: () => host.remove(),
-    };
+    try {
+        copyCanvasPixels(source, clone);
+        await waitForStableLayout(clone, assetTimeoutMs);
+        return {
+            target: clone,
+            cleanup: () => host.remove(),
+        };
+    } catch (error) {
+        // A stalled/broken A4 image previously threw before cleanup() was
+        // returned, leaving a hidden full-size clone in the document.
+        host.remove();
+        throw error;
+    }
 };
 
 export const captureReportCanvas = async (
@@ -392,8 +398,12 @@ export const captureReportCanvases = async (
                     backgroundColor: '#ffffff',
                     width,
                     height,
-                    canvasWidth: Math.round(width * scale),
-                    canvasHeight: Math.round(height * scale),
+                    // html-to-image multiplies canvasWidth/Height by pixelRatio
+                    // internally. A4 used to multiply by 'scale' twice,
+                    // creating ~9x edges (~72 million pixels) at scale=3.
+                    // Keep legacy report behavior outside strict A4 mode.
+                    canvasWidth: Math.round(width * (options.strictLocalCapture ? 1 : scale)),
+                    canvasHeight: Math.round(height * (options.strictLocalCapture ? 1 : scale)),
                     style: {
                         width: '210mm',
                         maxWidth: 'none',
