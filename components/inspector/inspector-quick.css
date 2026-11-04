@@ -346,4 +346,18 @@
 @media print {
   .si-report-view-controls,.si-report-field-brief{display:none!important}
   .si-report .si-report-full-only{display:block!important}
+  /* inspector.css restores ALL report descendants via
+     body:has(.si-report) #root .si-report * { display: revert !important }.
+     Match that root specificity so summary-only UI cannot leak into PDF. */
+  body:has(.si-report) #root .si-report .si-report-view-controls,
+  body:has(.si-report) #root .si-report .si-report-view-controls *,
+  body:has(.si-report) #root .si-report .si-report-field-brief,
+  body:has(.si-report) #root .si-report .si-report-field-brief * {
+    display:none!important;
+    visibility:hidden!important;
+  }
+  body:has(.si-report) #root .si-report .si-report-full-only {
+    display:block!important;
+    visibility:visible!important;
+  }
 }
