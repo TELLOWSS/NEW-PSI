@@ -263,6 +263,22 @@ try {
     assert.doesNotMatch(JSON.stringify(stored), /Never walk beneath a suspended load|인양물 아래 접근 금지/, 'source text leaked into local review record');
     assert.match(await review.locator('[data-psi-a4-review-count]').innerText(), /1\/2/);
 
+    // R103: real browser download, UTF-8 CSV bytes (NOT just button visibility).
+    const ledgerDownload = await requestDownload('현재 검수 현황 CSV 저장');
+    assert.match(ledgerDownload.download.suggestedFilename(), /\.csv$/i);
+    // TextDecoder strips a BOM by default. Assert the original downloaded
+    // bytes, not a decoded string that already discarded those bytes.
+    assert.deepEqual([...ledgerDownload.bytes.subarray(0, 3)], [0xef, 0xbb, 0xbf],
+        'Excel UTF-8 BOM bytes missing from downloaded CSV');
+    const ledgerCsv = new TextDecoder().decode(ledgerDownload.bytes);
+    assert.match(ledgerCsv, /이 기기 확인기록 있음/);
+    assert.match(ledgerCsv, /"영어","en-US","미확인"/);
+    assert.match(ledgerCsv, /법정 증빙·서버 승인이 아님/);
+    assert.doesNotMatch(ledgerCsv, /Never walk beneath a suspended load|인양물 아래 접근 금지/, 'source material leaked into local CSV');
+    const rowsFromCsv = ledgerCsv.split('\r\n').filter(Boolean);
+    assert.equal(rowsFromCsv.length, 4, 'CSV must contain disclaimer, header and two scope-language rows');
+    checks.push({ label: 'R103 review-ledger CSV download', rows: rowsFromCsv.length, reviewStatus: '1 recorded / 1 pending', privacySafe: true });
+
     await review.getByRole('button', { name: /영어 · 확인 필요/ }).click();
     await page.waitForFunction(() => document.querySelector('[data-psi-a4-preview-scroll] [data-a4-safety-poster]')?.getAttribute('lang') === 'en-US');
     assert.equal(await reviewState.getAttribute('data-psi-a4-review-status'), 'needs-review', 'other language incorrectly inherited Korean review');
@@ -277,7 +293,65 @@ try {
         return reviewSection?.querySelector('[data-psi-a4-review-count]')?.textContent?.includes('0/2')
             && reviewSection?.querySelector('[data-psi-a4-review-status]')?.getAttribute('data-psi-a4-review-status') === 'needs-review';
     }, undefined, { timeout: 15_000 });
+    const changedRow = review.locator('[data-psi-a4-ledger-language="ko-KR"]');
+    assert.equal(await changedRow.getAttribute('data-psi-a4-ledger-status'), 'recheck',
+        'the old approval remains marked as valid after a content change');
+    const staleDownload = await requestDownload('현재 검수 현황 CSV 저장');
+    const staleCsv = new TextDecoder().decode(staleDownload.bytes);
+    assert.match(staleCsv, /"한국어","ko-KR","변경됨 · 다시 확인"/);
+    assert.doesNotMatch(staleCsv, /"관리자와 모국어 확인자 공동"/, 'obsolete role appeared as a new approval');
+
+    // R103: blocked device storage must NOT emit a false confirmation.
+    await page.evaluate(() => {
+        window.__psiQaOriginalReviewSetItem = Storage.prototype.setItem;
+        Storage.prototype.setItem = function (key, value) {
+            if (key === 'psi_a4_local_output_review_v1') throw new DOMException('denied', 'QuotaExceededError');
+            return window.__psiQaOriginalReviewSetItem.call(this, key, value);
+        };
+    });
+    for (const check of ['fileOpened', 'glyphsLegible', 'safetyMeaningCompared']) {
+        await review.locator('[data-psi-a4-review-check="' + check + '"]').check();
+    }
+    await page.waitForFunction(() => !document.querySelector('[data-psi-a4-review-save]')?.disabled);
+    await saveReview.click();
+    await review.getByText(/저장공간 사용이 차단됐습니다/).waitFor({ state: 'visible', timeout: 5_000 });
+    assert.equal(await reviewState.getAttribute('data-psi-a4-review-status'), 'needs-review');
+    await page.evaluate(() => { Storage.prototype.setItem = window.__psiQaOriginalReviewSetItem; });
+
+    // Browser blocks a programmatic CSV request: the user must have a manual retry.
+    await page.evaluate(() => {
+        window.__psiQaOriginalObjectURL = URL.createObjectURL;
+        URL.createObjectURL = () => { throw new Error('download blocked (synthetic)'); };
+    });
+    await review.locator('[data-psi-a4-review-export]').click();
+    await review.getByText(/브라우저가 다운로드 요청을 차단했습니다/).waitFor({ state: 'visible', timeout: 5_000 });
+    const retryCsv = review.locator('[data-psi-a4-review-ready-download]');
+    await retryCsv.waitFor({ state: 'visible', timeout: 5_000 });
+    await page.evaluate(() => { URL.createObjectURL = window.__psiQaOriginalObjectURL; });
+    const retryEvent = page.waitForEvent('download', { timeout: 15_000 });
+    await retryCsv.getByRole('button', { name: '검수 현황 CSV 파일 다시 다운로드' }).click();
+    const retryFile = await retryEvent;
+    assert.match(retryFile.suggestedFilename(), /\.csv$/i);
+    assert.ok((await readFile(await retryFile.path())).length > 200);
+
+    await page.setViewportSize({ width: 320, height: 720 });
+    const widths = await review.locator('[data-psi-a4-review-ledger="true"] [role="region"]').evaluate(el => ({
+        scroll: el.scrollWidth, viewport: el.clientWidth, outer: el.getBoundingClientRect().width,
+    }));
+    assert.ok(widths.scroll > widths.viewport, 'mobile ledger should be horizontally scrollable, not squashed');
+    assert.ok(widths.outer <= 320, 'review ledger region exceeds mobile viewport');
+
+    // Copy permission unavailable: no unhandled exception, clear recovery message.
+    await page.evaluate(() => {
+        Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
+    });
+    await review.locator('[data-psi-a4-review-copy]').click();
+    await review.getByText(/클립보드 복사가 지원되지 않습니다/).waitFor({ state: 'visible', timeout: 5_000 });
+    assert.deepEqual(pageErrors, [], 'browser threw during blocked local storage, download or clipboard simulation');
+
+    checks.push({ label: 'R103 negative-path simulations', staleCsv: true, quotaDenied: true, downloadBlockedAndRetried: true, mobile320: true, clipboardDenied: true });
     checks.push({ label: 'R100 human device attestation', initial: 'unchecked', saved: true, languageIsolation: true, editInvalidates: true });
+    console.log('PASS R101–R103 CSV actual download + scope recheck + storage/download/clipboard failure recovery + 320px mobile (synthetic only)');
     console.log('PASS R98–R100 operator review checkboxes + SHA-256 source invalidation (synthetic browser only)');
     console.log('PASS R92–R97 mobile font + stalled-image failure + offline ZIP/PDF (synthetic only)');
     await writeFile(resolve(out, 'results.json'), JSON.stringify({ result: 'PASS', syntheticOnly: true, checks }, null, 2));

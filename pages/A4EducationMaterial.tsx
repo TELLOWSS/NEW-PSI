@@ -21,6 +21,13 @@ import {
 } from '../utils/educationA4LocalReview';
 import { TRAINING_LANGUAGE_LABELS } from '../utils/constructionTrainingTranslation';
 import {
+    A4_REVIEW_LEDGER_STATUSES,
+    A4_REVIEW_ROLE_LABELS,
+    buildA4ReviewLedger,
+    buildA4ReviewLedgerCsv,
+    buildA4ReviewLedgerText,
+} from '../utils/educationA4ReviewLedger';
+import {
     normalizeEducationPosterTranslationMap,
     type EducationPosterTranslation,
     type EducationPosterTranslationMap,
@@ -1193,13 +1200,16 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const [batchProgress, setBatchProgress] = useState('');
     const [preparedBundle, setPreparedBundle] = useState<{ blob: Blob; filename: string } | null>(null);
     const [fontPreflight, setFontPreflight] = useState<A4FontPreflight | null>(null);
-    const [localOutputReviews, setLocalOutputReviews] = useState(() => (
-        typeof window === 'undefined' ? {} : readA4ReviewStore(window.localStorage)
-    ));
+    const [localOutputReviews, setLocalOutputReviews] = useState(() => {
+        if (typeof window === 'undefined') return {};
+        try { return readA4ReviewStore(window.localStorage); }
+        catch { return {}; }
+    });
     const [reviewDigestSnapshot, setReviewDigestSnapshot] = useState<{ scope: string; digests: Record<string, string> }>({ scope: '', digests: {} });
     const [reviewChecks, setReviewChecks] = useState(newA4ReviewChecks);
     const [reviewerRole, setReviewerRole] = useState<A4ReviewerRole>('site-manager');
     const [reviewSaveMessage, setReviewSaveMessage] = useState('');
+    const [preparedReviewCsv, setPreparedReviewCsv] = useState<{ blob: Blob; filename: string } | null>(null);
     const [notice, setNotice] = useState('');
     const [translatedTexts, setTranslatedTexts] = useState<Record<string, string>>(
         initialState?.translatedTexts || {},
@@ -1316,14 +1326,16 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const currentReview = reviewDigests[previewLanguage]
         ? validA4Review(localOutputReviews, currentReviewKey, reviewDigests[previewLanguage])
         : null;
-    const reviewedLanguageCount = reviewLanguageCodes.filter(code => (
-        Boolean(reviewDigests[code] && validA4Review(
-            localOutputReviews,
-            a4ReviewKey(educationMonth, workType, code),
-            reviewDigests[code],
-        ))
-        && (code === 'ko-KR' || !translationNeedsRefresh)
-    )).length;
+    const reviewLedgerRows = buildA4ReviewLedger({
+        educationMonth, workType,
+        languages: reviewLanguageCodes,
+        labels: TRAINING_LANGUAGE_LABELS,
+        fingerprints: reviewDigests,
+        stored: localOutputReviews,
+        translationNeedsRefresh,
+    });
+    const reviewedLanguageCount = reviewLedgerRows.filter(row => row.status === 'recorded').length;
+    const recheckLanguageCount = reviewLedgerRows.filter(row => row.status === 'recheck').length;
     const currentPreviewIsStaleTranslation = translationNeedsRefresh && previewLanguage !== 'ko-KR';
     const languageAudit = useMemo(() => buildEducationLanguageAudit({
         draft,
@@ -1343,6 +1355,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         setReviewChecks(newA4ReviewChecks());
         setReviewSaveMessage('');
     }, [previewLanguage, serializedReviewScopes]);
+    useEffect(() => setPreparedReviewCsv(null), [serializedReviewScopes, localOutputReviews]);
     useEffect(() => {
         let active = true;
         setReviewDigestSnapshot({ scope: '', digests: {} });
@@ -1824,6 +1837,40 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             setReviewSaveMessage('현재 언어의 기기 내 확인기록을 취소했습니다.');
         } catch {
             setReviewSaveMessage('이 기기의 저장공간 사용이 차단되어 확인기록 취소에 실패했습니다.');
+        }
+    };
+
+    const exportReviewLedgerCsv = () => {
+        try {
+            const csv = buildA4ReviewLedgerCsv(educationMonth, workType, reviewLedgerRows);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+            const filename = buildPsiExportFileName({
+                tokens: ['PSI_A4_기기검수현황', educationMonth, workType],
+                extension: 'csv',
+            });
+            setPreparedReviewCsv({ blob, filename });
+            try {
+                requestEducationDownload(blob, filename);
+                setReviewSaveMessage('이 기기의 수동 확인기록 CSV 다운로드를 요청했습니다. 파일 앱에서 실제 저장 여부를 확인하세요. 교육 이수 또는 법정 증빙이 아닙니다.');
+            } catch {
+                setReviewSaveMessage('CSV는 준비됐으나 브라우저가 다운로드 요청을 차단했습니다. 아래 파일 다시 다운로드를 눌러 주세요.');
+            }
+        } catch (error) {
+            setPreparedReviewCsv(null);
+            setReviewSaveMessage(error instanceof Error ? error.message : '검수 현황 파일을 준비하지 못했습니다.');
+        }
+    };
+
+    const copyReviewLedgerSummary = async () => {
+        try {
+            if (!navigator.clipboard?.writeText) throw new Error('클립보드 복사가 지원되지 않습니다.');
+            if (reviewLedgerRows.some(row => row.status === 'calculating')) {
+                throw new Error('내용 확인 계산이 끝난 후 복사해 주세요.');
+            }
+            await navigator.clipboard.writeText(buildA4ReviewLedgerText(reviewLedgerRows));
+            setReviewSaveMessage('언어별 검수 현황 문구를 복사했습니다. 수동 확인기록이며 법정 교육 증빙이 아닙니다.');
+        } catch (error) {
+            setReviewSaveMessage(error instanceof Error ? error.message : '복사할 수 없습니다. CSV 저장을 이용해 주세요.');
         }
     };
 
@@ -3005,6 +3052,71 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                     </button>
                                 );
                             })}
+                        </div>
+                        <div data-psi-a4-review-ledger="true" className="mt-4 space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-xs font-black text-slate-700 dark:text-slate-200">
+                                    언어별 확인 현황 · 다시 확인 {recheckLanguageCount}개 · 미확인/계산 중 {reviewLedgerRows.length - reviewedLanguageCount - recheckLanguageCount}개
+                                </p>
+                                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">현재 대상월·공종·번역 기준 · 이 기기만</p>
+                            </div>
+                            <div className="max-w-full overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700" role="region"
+                                 aria-label="다국어 출력물 검수 현황표 · 가로로 이동하여 확인" tabIndex={0}>
+                                <table className="min-w-[640px] w-full text-left text-xs" data-psi-a4-review-ledger-table="true">
+                                    <thead className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                        <tr>
+                                            <th scope="col" className="p-3">언어</th>
+                                            <th scope="col" className="p-3">기기 확인 상태</th>
+                                            <th scope="col" className="p-3">확인 역할</th>
+                                            <th scope="col" className="p-3">기록 시각</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                        {reviewLedgerRows.map(row => (
+                                            <tr key={row.language} data-psi-a4-ledger-language={row.language}
+                                                data-psi-a4-ledger-status={row.status}
+                                                className="text-slate-700 dark:text-slate-200">
+                                                <td className="p-3 font-black">{row.languageLabel}</td>
+                                                <td className="p-3 font-semibold">{A4_REVIEW_LEDGER_STATUSES[row.status]}</td>
+                                                <td className="p-3">{row.role ? A4_REVIEW_ROLE_LABELS[row.role] : '—'}</td>
+                                                <td className="p-3 tabular-nums">{row.checkedAt ? new Date(row.checkedAt).toLocaleString('ko-KR') : '—'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                                <button type="button" data-psi-a4-review-export="true" onClick={exportReviewLedgerCsv}
+                                    disabled={isExporting || reviewLedgerRows.some(row => row.status === 'calculating')}
+                                    className="min-h-12 rounded-xl bg-blue-700 px-4 py-3 text-sm font-black text-white disabled:opacity-45">
+                                    현재 검수 현황 CSV 저장
+                                </button>
+                                <button type="button" data-psi-a4-review-copy="true" onClick={() => void copyReviewLedgerSummary()}
+                                    disabled={isExporting || reviewLedgerRows.some(row => row.status === 'calculating')}
+                                    className="min-h-12 rounded-xl border border-blue-300 bg-blue-50 px-4 py-3 text-sm font-black text-blue-900 disabled:opacity-45 dark:border-blue-800 dark:bg-slate-800 dark:text-blue-100">
+                                    현황 요약 복사
+                                </button>
+                            </div>
+                            {preparedReviewCsv && (
+                                <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs font-semibold text-blue-900 dark:border-blue-800 dark:bg-slate-800 dark:text-blue-100"
+                                    data-psi-a4-review-ready-download="true">
+                                    <p className="mb-2 break-all">준비한 파일: {preparedReviewCsv.filename} · {(preparedReviewCsv.blob.size / 1024).toFixed(1)}KB</p>
+                                    <button type="button" onClick={() => {
+                                        try {
+                                            requestEducationDownload(preparedReviewCsv.blob, preparedReviewCsv.filename);
+                                            setReviewSaveMessage('CSV 다운로드를 다시 요청했습니다. 파일 앱에서 실제 저장 여부를 확인해 주세요.');
+                                        } catch {
+                                            setReviewSaveMessage('다운로드가 차단됐습니다. 브라우저 다운로드 권한을 확인하거나 현황 요약 복사를 사용해 주세요.');
+                                        }
+                                    }} className="min-h-11 w-full rounded-lg border border-blue-300 bg-white px-3 py-2 font-black text-blue-800 dark:bg-slate-900 dark:text-blue-200">
+                                        검수 현황 CSV 파일 다시 다운로드
+                                    </button>
+                                </div>
+                            )}
+                            <p className="text-[11px] font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                                CSV에는 현재 언어의 확인 상태·역할·기록 시각·문서 SHA-256만 포함합니다. 미확인과 변경 후 재확인 상태도 표시되며,
+                                근로자 신원·원문·사진은 포함되지 않습니다. 파일 저장 확인과 현장 안전지시 검토는 별도로 진행하세요.
+                            </p>
                         </div>
                         <div className="mt-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
                             <p data-psi-a4-review-status={currentReview && !(previewLanguage !== 'ko-KR' && translationNeedsRefresh) ? 'recorded' : 'needs-review'} className="text-sm font-black text-slate-800 dark:text-slate-100">

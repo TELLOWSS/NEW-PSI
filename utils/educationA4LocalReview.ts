@@ -66,10 +66,10 @@ export const readA4ReviewStore = (storage?: Pick<Storage, 'getItem'>): A4ReviewS
 
 export const validA4Review = (store: A4ReviewStore, key: string, fingerprint: string): A4OutputReview | null => {
     const saved = store[key];
-    return saved && isStoredReview(saved) && saved.fingerprint === fingerprint ? saved : null;
+    return saved && isStoredReview(saved) && saved.key === key && saved.fingerprint === fingerprint ? saved : null;
 };
 
 export const saveA4ReviewStore = (storage: Pick<Storage, 'setItem'>, entries: A4ReviewStore): void => {
-    const safe = Object.fromEntries(Object.entries(entries).filter(([, entry]) => isStoredReview(entry)).slice(-100));
+    const safe = Object.fromEntries(Object.entries(entries).filter(([key, entry]) => isStoredReview(entry) && entry.key === key).slice(-100));
     storage.setItem(A4_REVIEW_STORAGE_KEY, JSON.stringify(safe));
 };
