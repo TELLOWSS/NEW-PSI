@@ -361,3 +361,30 @@
     visibility:visible!important;
   }
 }
+
+
+/* R111 · One-photo report: one prominent path, advanced/AI tools remain available below.
+   This is presentation only; consent and the server's photo/report checks stay intact. */
+.si-quick-context.si-one-photo-active>.si-one-photo-guide{order:-3}
+.si-quick-context.si-one-photo-active>.si-quick-consent{order:-2}
+.si-quick-context.si-one-photo-active>.si-one-photo-action{order:-1}
+.si-one-photo-guide{border:1px solid #a9cfca;background:linear-gradient(145deg,#f5fcfa,#eef7f7);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:9px}
+.si-one-photo-guide .si-one-photo-kicker{margin:0;color:#136b63;font-size:12px;font-weight:800;letter-spacing:.06em}
+.si-one-photo-guide h3{margin:0;color:#173d3b;font-size:19px;line-height:1.4}
+.si-one-photo-guide label{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:700;color:#163b3b}
+.si-one-photo-guide label strong{font-size:11px;padding:2px 7px;border-radius:50px;background:#d7f0e7;color:#0b624f}
+.si-one-photo-guide textarea{box-sizing:border-box;min-height:110px;background:#fff;border:1px solid #88b9b0;font-size:15px}
+.si-one-photo-guide>p:last-child{font-size:12px;line-height:1.65;color:#4f6566;margin:0}
+.si-one-photo-action{border:1px solid #cde1dc;background:#fbfdfc;border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:9px}
+.si-one-photo-action .si-one-photo-report{min-height:54px;width:100%;font-size:16px;font-weight:800;justify-content:center}
+.si-one-photo-action .si-one-photo-report:disabled{opacity:.6}
+.si-one-photo-action p{font-size:12px;line-height:1.65;color:#52676b;margin:0}
+.si-one-photo-active>.si-quick-start{background:transparent;color:var(--si-teal);border:1px solid var(--si-line)}
+.si-one-photo-active>.si-quick-start:hover{background:var(--si-accent-soft)}
+.si-one-photo-active>.si-quick-api{border-top:1px solid var(--si-line);padding-top:14px;margin-top:4px}
+@media(max-width:700px){
+ .si-one-photo-guide{padding:14px;border-radius:13px}
+ .si-one-photo-guide h3{font-size:17px}
+ .si-one-photo-action .si-one-photo-report{min-height:52px;font-size:15px}
+}
+@media print{.si-one-photo-guide,.si-one-photo-action{display:none!important}}
