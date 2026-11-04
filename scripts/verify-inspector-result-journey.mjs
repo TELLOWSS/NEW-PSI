@@ -75,6 +75,7 @@ for(const scenario of ['one-photo-direct','one-photo-retry','manual-report','rev
      await page.locator('.si-quick-error [role="alert"]').waitFor();
      assert.equal(ops.filter(x=>x==='upload').length,1,'retry must not require uploading the same photo again');
      assert.equal(ops.filter(x=>x==='report').length,1);
+     await page.locator('.si-one-photo-report:not(:disabled)').waitFor();
      assert.equal(await button.isDisabled(),false,'saved photo should allow retry after server failure');
      await button.click();
    }
