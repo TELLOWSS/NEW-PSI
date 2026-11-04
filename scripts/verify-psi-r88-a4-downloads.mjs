@@ -185,6 +185,18 @@ try {
         const localExtraLen = dv.getUint16(local + 28, true);
         const data = local + 30 + localNameLen + localExtraLen;
         assert.deepEqual([...zip.bytes.subarray(data, data + 8)], [137,80,78,71,13,10,26,10], 'ZIP member not PNG');
+        // R105: assert the actual PNG IHDR dimensions. Previously the A4
+        // renderer applied 'scale=3' twice, leading to huge ~9x edges and
+        // costly decoded memory. The corrected result is ~3x CSS pixels.
+        const exportedWidth = dv.getUint32(data + 16, false);
+        const exportedHeight = dv.getUint32(data + 20, false);
+        assert.ok(exportedWidth >= 1800 && exportedWidth <= 4100,
+            'A4 PNG width was overscaled or underscaled: ' + exportedWidth);
+        assert.ok(exportedHeight >= 2600 && exportedHeight <= 5700,
+            'A4 PNG height was overscaled or underscaled: ' + exportedHeight);
+        assert.ok(exportedWidth * exportedHeight <= 16_000_000,
+            'A4 print image retained excessive decoded pixel count');
+        checks.push({ label: 'R105 A4 PNG native resolution', width: exportedWidth, height: exportedHeight });
         assert.equal(dv.getUint16(central + 10, true), 0, 'ZIP must use STORE method');
         central += 46 + nameLen + extraLen + commentLen;
     }
