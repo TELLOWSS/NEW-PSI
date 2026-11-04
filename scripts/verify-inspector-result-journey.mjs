@@ -98,24 +98,24 @@ for(const scenario of ['review','short-opinion','rejected','changed-input','prin
    assert.equal(await reportRoot.locator('[data-psi-inspector-full-evidence]').isVisible(),false);
   const print=page.locator('.si-quick-print .si-primary');
   if(scenario==='print-loading'){
-   await page.locator('[data-report-photo-state="loading"]').waitFor();
+   await page.locator('[data-report-photo-state="loading"]').waitFor({state:'attached'});
    assert.equal(await print.isDisabled(),true,'Print must wait for evidence photo');
    for(let n=0;n<30&&!heldPhotoRoute;n++)await page.waitForTimeout(100);
    assert.ok(heldPhotoRoute,'Expected delayed photo fetch');
    await page.screenshot({path:output+'/print-loading-blocked.png'});
    await heldPhotoRoute.fulfill({body:bytes,contentType:'image/jpeg'});
-   await page.locator('[data-report-photo-state="ready"]').waitFor();
+   await page.locator('[data-report-photo-state="ready"]').waitFor({state:'attached'});
    assert.equal(await print.isDisabled(),false);
    await print.click();assert.equal(await page.evaluate(()=>window.__printCalls),1);
   }else if(scenario==='print-failed'){
-   await page.locator('[data-report-photo-state="failed"]').waitFor();
+   await page.locator('[data-report-photo-state="failed"]').waitFor({state:'attached'});
    assert.equal(await print.isDisabled(),false);
    await print.click();assert.deepEqual(await page.evaluate(()=>[window.__confirmCalls,window.__printCalls]),[1,0]);
    await page.evaluate(()=>{window.confirm=()=>{window.__confirmCalls++;return true};});
    await print.click();assert.deepEqual(await page.evaluate(()=>[window.__confirmCalls,window.__printCalls]),[2,1]);
    assert.match(await page.locator('.si-report-readers-guide').innerText(),/불러오지 못/);
   }else{
-   await page.locator('[data-report-photo-state="ready"]').waitFor();
+   await page.locator('[data-report-photo-state="ready"]').waitFor({state:'attached'});
    assert.equal(await print.isDisabled(),false);
   }
 
