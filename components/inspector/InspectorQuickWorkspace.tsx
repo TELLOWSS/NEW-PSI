@@ -110,6 +110,14 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
     },[local,busy]);
     useEffect(()=>{if(reference)resultRef.current?.focus({preventScroll:true});},[reference]);
     useEffect(()=>{if(error){errorRef.current?.focus({preventScroll:true});errorRef.current?.scrollIntoView({block:'center',behavior:'smooth'});}},[error]);
+    useEffect(()=>{
+        if(!report)return;
+        const frame=requestAnimationFrame(()=>{
+            const target=document.querySelector<HTMLElement>('.si-quick-print');
+            target?.scrollIntoView({block:'start',behavior:'smooth'});
+        });
+        return()=>cancelAnimationFrame(frame);
+    },[report]);
     const readOnlyPreset=!item&&!local&&!photo&&lookupPreset===note&&reportTitle==='사진 현장점검'&&!workType&&!riskTopic;
     const unsavedPhoto=!readOnlyPreset&&(photoWorkUnsaved(item,photo,local?.id,note,reportTitle,review)||workType!==(item?.document.workType||'')||!!photo&&(item?.document.photoRiskTopics?.[photo.id]||'')!==riskTopic);
     useEffect(()=>{onUnsavedChange?.(unsavedPhoto||actionDraftDirty);return()=>onUnsavedChange?.(false);},[unsavedPhoto,actionDraftDirty,onUnsavedChange]);
@@ -263,6 +271,32 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
         if(alive.current){forgetReviewPosition(current.id);setReviewNotice('');setPrintPhotoStatus('loading');setReport(r.report);}
         });
     };
+    /** R111 — explicit no-AI shortcut for exactly one photograph.
+     * Preserves the existing upload consent, source photo bytes, server revision,
+     * unsaved-action guard and report snapshot; never invents AI approval or a closed action.
+     * A failed report request leaves the stored photo available for a safe retry.
+     */
+    const createOnePhotoReport=()=>{
+        if(inflight.current||storageBusy||storageLocked)return;
+        void run(async()=>{
+            if(apiEnabled)throw new Error('AI 정밀점검은 별도 검토 후 보고서로 진행하세요.');
+            if(!local&&!photo)throw new Error('먼저 현장 사진 한 장을 선택해 주세요.');
+            if(!consent)throw new Error('사진 보관 안내를 확인해 주세요.');
+            if(!note.trim())throw new Error('사진에서 직접 확인한 내용을 한 문장으로 적어 주세요. 확인하지 못한 사항은 추정하지 마세요.');
+            if(actionDraftDirty)throw new Error('작성 중인 조치를 먼저 저장 또는 정리해 주세요.');
+            if(entryIntent)throw new Error('이어 쓰는 점검은 기존 검토·보고서 경로에서 진행해 주세요.');
+            const previous=latest.current;
+            if(previous&&(previous.document.photoIds.length>1||previous.document.photoIds.some(id=>!!previous.document.analyses[id])))
+                throw new Error('여러 사진 또는 AI 검토가 있는 기록은 기존 보고서 절차로 진행해 주세요.');
+            setActivity('사진과 현장 설명 저장 중');
+            const {current}=await savePhoto(false);
+            if(current.document.photoIds.length!==1||Object.keys(current.document.analyses).some(id=>current.document.photoIds.includes(id)))
+                throw new Error('사진 및 검토 저장 상태가 달라졌습니다. 기존 보고서 절차에서 확인해 주세요.');
+            setActivity('사진 1장 검토용 보고서 작성 중');
+            const result=await request({op:'report',id:current.id,expectedRevision:current.revision});
+            if(alive.current){forgetReviewPosition(current.id);setReviewNotice('');setPrintPhotoStatus('loading');setReport(result.report);}
+        });
+    };
     const finish=()=>createReport(false);
     const finishSavedOnly=()=>createReport(true);
     const restoreSavedPhoto=async(current:Inspection,registered:Evidence)=>{
@@ -407,6 +441,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
     const reviewSaved=!!photo&&reviewIsSaved(item,photo.id,review);
     const activeNoviceStep=noviceStep({hasPhoto:!!(local||photo),hasResult:!!reference,reviewSaved,hasReport:!!report});
     const journey=item&&photo?resultJourney(item,photo.id,{notesMatch:resultNote===note,analysisViewed:analyzedResult,review,hasDraft:actionDraftDirty}):null;
+    const onePhotoEligible=!apiEnabled&&!reference&&!report&&!entryIntent&&!actionDraftDirty&&!!(local||photo)&&(!item||(item.document.photoIds.length<=1&&item.document.photoIds.every(id=>!item.document.analyses[id])));
     const handleJourney=(action:ResultAction)=>{switch(action){case 'edit-input':setEditInput(true);setHintOpen(true);requestAnimationFrame(()=>{noteRef.current?.focus();noteRef.current?.scrollIntoView({block:'center',behavior:'smooth'});});break;case 'view-stored':viewStoredResult();break;case 'review-fields':setReviewEditRequest(n=>n+1);break;case 'save-review':saveReviewOnly();break;case 'next-review':continueReview();break;case 'draft-action':draftPhotoAction(!!analysis?.risk_findings?.length);break;case 'return-draft':returnToDraft();break;case 'report':finish();break;}};
     const brief=()=>[...(riskTopic?[`점검자 선택 위험${photo&&(item?.document.photoRiskTopics?.[photo.id]||'')!==riskTopic?' (저장 전)':''}: ${legalTopicTitle(riskTopic)} · AI 판정 아님`]:[]),...(analysis?[`${reviewSaved?'저장한 전문가 검토':'저장 전 검토 선택'}: ${review.decision==='rejected'?'AI 해석 수용 안 함':'AI 참고 활용'}`,review.note.trim()?`전문가 의견${reviewSaved?'':' (저장 전)'}: ${review.note.trim()}`:'']:[]),resultNote,...((review.decision==='rejected'?null:analysis)?.risk_findings?.flatMap(f=>[`문제 제안: ${f.problem}`,`가능 위험: ${f.risk}`,`우선 조치: ${f.action}`])||[]),...((review.decision==='rejected'?null:analysis)?.observed_facts.map(f=>`관찰 제안: ${f.text}`)||[]),...((review.decision==='rejected'?null:analysis)?.recommended_controls.map(c=>`조치 제안: ${c.action}`)||[]),...((effectiveReference?.cards||[]).flatMap(card=>[card.title,sourceReviewState(card.sourceReview).label,'사건 당시 시행본·실제 적용 요건 별도 확인',...card.actions,...card.duties.map(d=>`${d.label}: ${d.summary}\n${d.url}`),...card.sanctions.map(s=>`${s.actor}: ${sanctionText(s)} / 조건: ${s.condition} / 근거: ${s.basis}\n${s.url}`),...(card.sanctionNote?[card.sanctionNote]:[])])),...((effectiveReference?.inspectionCases||[]).flatMap(c=>[`공개 감독사례: ${c.title} (${c.publishedAt})`,sourceReviewState(c.sourceReview).label,c.finding,c.response,c.url])),`공식 원문 대조: ${reference?.reviewedAt} · 금액은 법정상한 · 실제 위반·부과액 확정 아님`].join('\n');
     return <div className="si-workspace si-quick si-refresh" aria-busy={busy} onFocusCapture={e=>focusField(e.target)} onBlurCapture={blurField} onPaste={e=>{if(e.defaultPrevented||busy||photo)return;const files=pastedPhotos(e.clipboardData);if(files.length){e.preventDefault();choose(files[0]);}}}>
@@ -461,7 +496,17 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
                 <button type="button" className="si-btn" disabled={busy||storageBusy||photoTurns===0} onClick={()=>rotateLocalPhoto(-photoTurns)}>원래 방향</button>
               </div><p>선택 사진을 회전해 점검용 사본으로 다시 준비합니다. 기기에 있는 원본은 변경되지 않습니다.</p>
             </div>}{!photo&&<button className="si-btn" disabled={busy||storageBusy} onClick={()=>{if(local&&!window.confirm('아직 보관하지 않은 사진을 선택 해제할까요? 입력한 설명은 유지됩니다.'))return;sourcePhoto.current=null;sourceTurns.current=0;setPhotoTurns(0);setLocal(null);setReference(null);}}>다른 사진 선택</button>}</>:<><InspectorScene/><span className="si-capture-label">현장 사진으로 시작</span><div className="si-quick-camera-mark" aria-hidden="true"><InspectorIcon name="camera"/></div><h2>점검할 곳을 사진으로 찍어주세요</h2><p>무엇이 문제인지 몰라도 시작할 수 있습니다.</p><div className="si-quick-buttons"><button className="si-btn si-primary si-novice-main-camera" disabled={busy} onClick={()=>setCamera(true)}><InspectorIcon name="camera"/>사진 찍고 점검하기</button><label className="si-btn si-novice-photo-choice"><InspectorIcon name="upload"/>사진첩·파일에서 선택<input aria-label="현장사진 선택" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)choose(file);}}/></label></div></>}</div>
-            <div className="si-quick-context"><div className="si-quick-api si-inspection-mode"><button type="button" className="si-btn" role="switch" aria-label="AI 정밀점검 사용" aria-checked={apiEnabled} disabled={busy} onClick={toggleApi}>{apiEnabled?'AI 정밀점검 · 켜짐':'AI 없는 점검 · 직접 확인'}</button><span>{apiEnabled?'AI 정밀점검: 직접 실행할 때 사진을 외부 AI로 전송합니다.':'AI 없는 점검: 사진·설명을 저장하고 직접 확인한 내용으로 기록합니다.'}</span></div><div className="si-discovery-start"><b>{apiEnabled?'사진의 위험 단서 살펴보기':'확인한 내용으로 점검하기'}</b><p>{apiEnabled?'AI가 찾은 의심 지점은 사진·현장과 대조하세요. AI 정밀점검을 끄면 직접 점검으로 계속할 수 있습니다.':'사진에서 직접 확인한 상황을 적거나 주제를 선택하세요. 사진만 저장해도 위험이 없다고 판단한 것은 아닙니다.'}</p></div>{!apiEnabled&&preview&&<InspectorManualContext workType={workType} topic={riskTopic} showTopic={!reference} disabled={busy||storageLocked} eventAt={item?.document.eventAt} onWorkType={setWorkType} onTopic={value=>{setRiskTopic(value);setReport(null);setCopied(false);}}/>}<InspectorContextHints note={note} disabled={busy} onChange={value=>{setNote(value);setCopied(false);}}/><details className="si-photo-hint" open={hintOpen} onToggle={e=>setHintOpen(e.currentTarget.open)}><summary>{apiEnabled?'힌트가 있으면 덧붙이기 (선택)':'점검자 의견 덧붙이기 (선택)'}</summary><label htmlFor="si-quick-note"><b>{apiEnabled?'어떤 상황인가요?':'점검자 의견'}</b> <span>(짧게, 선택)</span></label><textarea ref={noteRef} id="si-quick-note" maxLength={4000} value={note} disabled={busy} placeholder="예: 2002동 3층, 다음 작업 전, 사진 오른쪽이 신경 쓰임" onChange={e=>{setNote(e.target.value);setCopied(false);}}/><p className="si-caption">위험 이름을 몰라도 됩니다. 위치·작업 상황 등 아는 내용만 적어 주세요.</p></details>
+            <div className={'si-quick-context'+(onePhotoEligible?' si-one-photo-active':'')}>
+                {onePhotoEligible&&<div className="si-one-photo-guide" data-psi-one-photo-guide="true" role="group" aria-label="사진 1장 간편 보고서">
+                    <p className="si-one-photo-kicker">간편 보고서 · 사진 한 장</p>
+                    <h3>사진에서 확인한 내용을 적어주세요</h3>
+                    <label htmlFor="si-one-photo-note">현장 확인 내용 <strong>필수</strong></label>
+                    <textarea id="si-one-photo-note" data-psi-one-photo-note="true" value={note} disabled={busy} maxLength={4000}
+                        placeholder="예: 2002동 5층 발판과 구조물 사이에 틈이 있어 추락 위험이 우려됩니다."
+                        onChange={e=>{setNote(e.target.value);setCopied(false);}}/>
+                    <p>확인하지 못한 내용은 쓰지 않아도 됩니다. 사진과 설명은 검토용 기록이며, AI가 위험을 자동 판독하거나 조치 완료로 처리하지 않습니다.</p>
+                </div>}
+                <div className="si-quick-api si-inspection-mode"><button type="button" className="si-btn" role="switch" aria-label="AI 정밀점검 사용" aria-checked={apiEnabled} disabled={busy} onClick={toggleApi}>{apiEnabled?'AI 정밀점검 · 켜짐':'AI 없는 점검 · 직접 확인'}</button><span>{apiEnabled?'AI 정밀점검: 직접 실행할 때 사진을 외부 AI로 전송합니다.':'AI 없는 점검: 사진·설명을 저장하고 직접 확인한 내용으로 기록합니다.'}</span></div><div className="si-discovery-start"><b>{apiEnabled?'사진의 위험 단서 살펴보기':'확인한 내용으로 점검하기'}</b><p>{apiEnabled?'AI가 찾은 의심 지점은 사진·현장과 대조하세요. AI 정밀점검을 끄면 직접 점검으로 계속할 수 있습니다.':'사진에서 직접 확인한 상황을 적거나 주제를 선택하세요. 사진만 저장해도 위험이 없다고 판단한 것은 아닙니다.'}</p></div>{!apiEnabled&&preview&&<InspectorManualContext workType={workType} topic={riskTopic} showTopic={!reference} disabled={busy||storageLocked} eventAt={item?.document.eventAt} onWorkType={setWorkType} onTopic={value=>{setRiskTopic(value);setReport(null);setCopied(false);}}/>}<InspectorContextHints note={note} disabled={busy} onChange={value=>{setNote(value);setCopied(false);}}/><details className="si-photo-hint" open={hintOpen} onToggle={e=>setHintOpen(e.currentTarget.open)}><summary>{apiEnabled?'힌트가 있으면 덧붙이기 (선택)':'점검자 의견 덧붙이기 (선택)'}</summary><label htmlFor="si-quick-note"><b>{apiEnabled?'어떤 상황인가요?':'점검자 의견'}</b> <span>(짧게, 선택)</span></label><textarea ref={noteRef} id="si-quick-note" maxLength={4000} value={note} disabled={busy} placeholder="예: 2002동 3층, 다음 작업 전, 사진 오른쪽이 신경 쓰임" onChange={e=>{setNote(e.target.value);setCopied(false);}}/><p className="si-caption">위험 이름을 몰라도 됩니다. 위치·작업 상황 등 아는 내용만 적어 주세요.</p></details>
                 <div className="si-novice-analysis-status" role="status"><b>{!apiEnabled?'직접 점검 방식':ready===null?'AI 사진 분석 연결 확인 중':ready&&!cost.allowed?'AI 분석 이용 확인 필요':ready?'AI 사진 분석 사용 가능':'AI 연결 없이 직접 점검 가능'}</b><span>{apiEnabled&&ready&&cost.allowed?'사진 보관과 외부 AI 전송에 동의한 뒤 직접 실행할 때만 분석됩니다.':'사진은 직접 점검할 수 있습니다. 관리자 설정을 몰라도 업무를 계속할 수 있습니다.'}</span></div>
                 {apiEnabled&&ready===true&&!cost.allowed&&<InspectorAiCostNotice cost={cost} checking={false} ready={true} busy={busy} retention={retention} onRefresh={refreshAnalysisStatus} onManual={continueManually}/>}
                 <details className="si-novice-analysis-settings"><summary>비용 안내 및 운영자 설정 보기</summary>
@@ -469,6 +514,12 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
                     <details className="si-api-explanation"><summary>운영자 전용 · 연결 작동 시험</summary><InspectorAiDiagnostics disabled={busy||!ready||!cost.allowed||!apiEnabled} onCost={setCost}/></details>
                 </details>
                 <label className="si-quick-consent" data-stage={local&&!consent?'pending':local&&consent?'ready':'neutral'}><input ref={consentRef} className="si-consent-input" type="checkbox" checked={consent} disabled={busy} aria-describedby="si-start-guide" onChange={e=>setConsent(e.target.checked)}/><span>{local&&!consent&&<strong className="si-consent-cue">다음 단계 · 이 사진의 보관 안내 확인</strong>}{local&&consent&&<strong className="si-consent-cue">확인 완료 · 이제 점검할 수 있습니다</strong>}이 사진의 보관을 허용합니다. AI 사진 분석을 실행할 때에만 외부 서비스로 사진을 전송합니다. 이 사진의 얼굴·명찰 등 불필요한 개인정보는 가렸습니다.</span></label>
+                {onePhotoEligible&&<div className="si-one-photo-action" data-psi-one-photo-action="true">
+                    <button type="button" className="si-btn si-primary si-one-photo-report" disabled={busy||storageBusy||!consent||!note.trim()} onClick={createOnePhotoReport}>
+                        {busy?activity||'보고서 준비 중…':'사진 1장으로 보고서 미리보기'}
+                    </button>
+                    <p>보관 동의 후 누르면 사진·설명 저장과 검토용 보고서 생성을 이어서 처리합니다. PDF 저장·공유는 보고서에서 직접 선택합니다.</p>
+                </div>}
                 <button ref={startRef} className="si-btn si-primary si-quick-start" aria-describedby="si-start-guide" disabled={busy||(!local&&!photo)||!consent||apiEnabled&&ready===null||apiEnabled&&ready===true&&!cost.allowed} onClick={analyze}>{busy?activity||'처리 중…':!!local&&!consent?'먼저 사진 보관 안내 확인':apiEnabled&&ready&&!cost.allowed?'AI 분석 이용 확인 필요':apiEnabled&&ready?'AI 정밀점검 실행하기':'사진 저장하고 직접 점검하기'}</button>
                 {apiEnabled&&(ready!==true||!cost.allowed)&&!!(local||photo)&&<button type="button" className="si-btn si-novice-manual" disabled={busy||!consent} onClick={continueManually}>AI 없이 사진 저장 · 직접 점검 계속하기</button>}
                 <p id="si-start-guide" className="si-start-guide" role="status">{inspectionStartGuidance({hasPhoto:!!(local||photo),consent,automatic:apiEnabled,ready,allowed:cost.allowed})}</p>
