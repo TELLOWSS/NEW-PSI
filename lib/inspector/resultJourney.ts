@@ -17,6 +17,6 @@ export function resultJourney(item:Inspection,photoId:string,options:{notesMatch
   return result('save-review','현장 대조 후 검토 저장','먼저 사진·현장과 결과를 대조하세요','사진에서 보이는 사실과 현장에서 확인한 내용을 대조한 뒤 눌러 주세요. 검토 저장은 안전 판정이나 개선 완료를 뜻하지 않습니다.');}
  if(options.hasDraft)return result('return-draft','작성 중인 조치 계속하기','작성 중인 조치를 먼저 마무리하세요','담당자·기한·개선 입력을 저장한 뒤 보고서로 이어갈 수 있습니다.');
  if(queue.length)return result('next-review','다음 검토 사진 보기',`다른 사진 ${queue.length}장이 검토를 기다립니다`,`사진 ${queue[0].number}의 저장된 결과를 이어서 확인합니다. 사진을 다시 분석하지 않습니다.`);
- if(!analysis&&!linked.length)return result('draft-action','직접 확인한 조치 작성','직접 확인한 내용으로 이어가세요','이 사진은 자동 분석하지 않았습니다. 현장에서 확인한 조치를 적거나 사진·설명을 보고서로 기록할 수 있습니다.',{action:'report',label:'보고서로 기록하기'});
+ if(!analysis&&!linked.length)return result('report','사진·설명으로 보고서 작성','직접 확인한 내용을 먼저 기록하세요','AI 판독이 아닌 사진·점검자 설명을 검토용 보고서로 기록합니다. 조치는 아직 미등록 상태로 남으며, 담당·기한 지정이나 개선 확인은 필요할 때 별도로 진행하세요.',{action:'draft-action',label:'조치 작성 (선택)'});
  return result('report','보고서로 기록하기','모은 내용을 검토용 보고서로 정리하세요',unresolved?'미결 조치는 진행 상태 그대로 보고서에 남깁니다. 보고서 작성이 조치 완료를 뜻하지 않습니다.':'사진·설명과 저장한 검토를 함께 기록합니다. 조치는 필요할 때 추가할 수 있습니다.',{action:'draft-action',label:linked.length?'이 사진에 조치 추가':'이 사진 조치 작성'});
 }
