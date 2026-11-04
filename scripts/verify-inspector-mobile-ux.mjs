@@ -102,7 +102,7 @@ try{
   await page.getByLabel('직접 대조할 기준',{exact:true}).selectOption('electric');
   await page.locator('.si-legal-focus').screenshot({path:`${out}/source-${width}.png`});
   await page.getByRole('tab',{name:/^사례·동향/}).click();await page.locator('.si-case-trends').waitFor();
-  await page.getByRole('region',{name:'점검 다음 단계'}).getByRole('button',{name:'직접 확인한 조치 작성',exact:true}).click();
+  await page.getByRole('region',{name:'점검 다음 단계'}).getByRole('button',{name:'조치 작성 (선택)',exact:true}).click();
   const draft=page.locator('.si-action-draft');await draft.waitFor();assert.match(await draft.locator('.si-action-timing').innerText(),/긴급 위험.*[\s\S]*기한부 시정조치/);
   const owner=draft.getByLabel('담당자·공종',{exact:true});await draft.getByLabel('현장에 요청할 조치',{exact:true}).fill('개구부 접근통제 후 덮개 보강');await owner.fill('합성 형틀반장');await draft.getByLabel('완료기한',{exact:true}).fill('2026-10-30');
   page.on('dialog',dismiss);await page.getByRole('button',{name:'저장 기록 · 상세 관리',exact:true}).click();assert.equal(await owner.inputValue(),'합성 형틀반장');
