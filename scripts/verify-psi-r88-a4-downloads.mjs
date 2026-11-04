@@ -116,7 +116,7 @@ try {
     await page.waitForFunction(() => document.fonts.status === 'loading', undefined, { timeout: 5_000 });
     checks.push({ label: 'R96 pending remote font setup', loading: true });
 
-    const requestDownload = async label => {
+    const requestDownload = async (label, { ignorePriorError = false } = {}) => {
         const button = page.getByRole('button', { name: label, exact: true });
         await button.waitFor({ state: 'visible' });
         assert.equal(await button.isDisabled(), false, 'download must be enabled: ' + label);
@@ -124,7 +124,10 @@ try {
         await button.click();
         let download;
         try {
-            download = await Promise.race([
+            // Recovery starts with an intentionally visible previous error.
+            // Do not race a stale notice against the NEW download event.
+            // The application also clears that notice at the start of retry.
+            download = ignorePriorError ? await event : await Promise.race([
                 event,
                 page.getByText(/묶음 다운로드는 요청하지 않았습니다/).waitFor({ state: 'visible', timeout: 75_000 })
                     .then(async () => { throw new Error('Education export was blocked: ' + (await page.locator('body').innerText()).slice(-1200)); }),
@@ -281,7 +284,7 @@ try {
         window.createImageBitmap = window.__psiQaOriginalCreateImageBitmap;
         URL.createObjectURL = window.__psiQaOriginalCreateObjectURL;
     });
-    const recoveredPdf = await requestDownload('전체 다국어 PDF · 한 파일');
+    const recoveredPdf = await requestDownload('전체 다국어 PDF · 한 파일', { ignorePriorError: true });
     const recoveredTask = getDocument({ data: Uint8Array.from(recoveredPdf.bytes), useSystemFonts: true });
     const recoveredDoc = await recoveredTask.promise;
     assert.equal(recoveredDoc.numPages, 2);
