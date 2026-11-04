@@ -120,25 +120,31 @@ export const cachedEducationPngToPdfPage = async (
     try {
         const { width, height } = decoded;
         if (!Number.isInteger(width) || !Number.isInteger(height)
-            || width < 1 || height < 1 || width > 10_000 || height > 10_000 || width * height > 32_000_000) {
-            throw cachedPngError('이미지 해상도가 기기의 안전한 변환 범위를 넘었습니다.');
+            || width < 1 || height < 1 || width > 16_000 || height > 16_000 || width * height > 100_000_000) {
+            throw cachedPngError('입력 이미지 크기가 브라우저의 안전한 처리 범위를 넘었습니다.');
         }
+        // Some older A4 captures applied the 3x pixel ratio twice, producing
+        // ~72 million decoded pixels. Never allocate another giant canvas:
+        // a 12MP output still exceeds 300dpi at A4 and preserves aspect ratio.
+        const factor = Math.min(1, Math.sqrt(12_000_000 / (width * height)), 5_000 / Math.max(width, height));
+        const outputWidth = Math.max(1, Math.round(width * factor));
+        const outputHeight = Math.max(1, Math.round(height * factor));
         canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
+        canvas.width = outputWidth;
+        canvas.height = outputHeight;
         const context = canvas.getContext('2d', { alpha: false });
         if (!context) throw cachedPngError('이 기기에서 2D 이미지 변환을 사용할 수 없습니다.');
         context.fillStyle = '#ffffff';
-        context.fillRect(0, 0, width, height);
-        context.drawImage(decoded.source, 0, 0, width, height);
+        context.fillRect(0, 0, outputWidth, outputHeight);
+        context.drawImage(decoded.source, 0, 0, outputWidth, outputHeight);
         const placement = getCanvasPlacementOnA4(canvas);
         const jpeg = await canvasToBlob(canvas, 'image/jpeg', 0.94);
         if (jpeg.type !== 'image/jpeg' || jpeg.size === 0) throw cachedPngError('JPEG 변환을 지원하지 않습니다.');
         return {
             page: {
                 jpeg: new Uint8Array(await jpeg.arrayBuffer()),
-                pixelWidth: width,
-                pixelHeight: height,
+                pixelWidth: outputWidth,
+                pixelHeight: outputHeight,
                 placement,
             },
             method: decoded.method,
