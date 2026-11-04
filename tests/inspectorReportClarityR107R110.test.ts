@@ -69,7 +69,7 @@ describe('PSI R107–R110 photo-to-report clarity and hard safety boundaries', (
         expect(css).toContain('.si-report .si-report-full-only{display:block!important}');
         const report = readFileSync('components/inspector/InspectorReport.tsx', 'utf8');
         expect(report).toContain('photoState');
-        expect(report).toContain('사진 준비 중 · 완료 후 인쇄 가능');
+        expect(report).toContain('장 준비 중 · 완료 후 인쇄 가능');
     });
 
     it('distinguishes offline local photo saving from optional reinspection reporting', () => {
