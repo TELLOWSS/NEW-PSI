@@ -130,7 +130,7 @@ try{
            continue;
          }
 
-        if(['ai-off','action-manual','direct-manual','discovery-api-off','card-manual'].includes(scenario))await page.getByRole('switch').click();
+        if(['ai-off','action-manual','direct-manual','direct-delayed','discovery-api-off','card-manual'].includes(scenario))await page.getByRole('switch').click();
         if(['cost-blocked','cost-paid','cost-reader-failed'].includes(scenario)){
             if(scenario==='cost-reader-failed'){const notice=page.getByRole('region',{name:'AI 무료 사용 보호',exact:true});await notice.getByText('확인 방식: 청구 조회 실패 · 분석 차단',{exact:true}).waitFor();assert.equal(await notice.getByText('무료 프로젝트 최초 등록 · 운영자',{exact:true}).count(),0);}
             await page.getByRole('checkbox').check();await page.getByRole('button',{name:'무료 확인 전 · AI 분석 차단',exact:true}).waitFor();assert.equal(await page.locator('.si-quick-start').isDisabled(),true);assert.equal(analyzeCalls,0);assert.equal(ops.filter(op=>['create','upload','save'].includes(op)).length,0);
@@ -314,7 +314,7 @@ try{
         }
         await page.getByRole('region',{name:'사진점검 결과'}).waitFor();if(scenario!=='no-findings')await page.getByText('5년 이하 징역 또는 5,000만원 이하 벌금',{exact:true}).first().waitFor();await page.waitForFunction(()=>!document.querySelector('.si-quick-start').disabled);
         if(scenario.startsWith('direct-')){
-            const entry=scenario==='direct-manual'?page.getByRole('region',{name:'점검 다음 단계'}).getByRole('button',{name:'조치 작성 (선택)',exact:true}):page.locator('.si-photo-action-entry button'),planner=page.locator('.si-action-planner');
+            const entry=['direct-manual','direct-delayed'].includes(scenario)?page.getByRole('region',{name:'점검 다음 단계'}).getByRole('button',{name:'조치 작성 (선택)',exact:true}):page.locator('.si-photo-action-entry button'),planner=page.locator('.si-action-planner');
             const originalId=evidence[0].id,analysesBefore=analyzeCalls,uploadsBefore=ops.filter(op=>op==='upload').length;
             if(scenario==='direct-cap'){const saved=JSON.stringify(item),count=ops.length;await entry.click();await page.getByRole('alert').waitFor();assert.match(await page.getByRole('alert').innerText(),/30건/);assert.equal(JSON.stringify(item),saved);assert.equal(ops.length,count);assert.equal(await page.getByRole('region',{name:'사진점검 결과'}).isVisible(),true);assert.deepEqual(errors,[]);results.push({scenario,status:'PASS',provider:'fixture, no paid calls',ops});console.log('PASS '+scenario);await context.close();continue;}
             if(scenario==='direct-rejected'){
@@ -326,7 +326,7 @@ try{
             await planner.getByLabel('현장에 요청할 조치',{exact:true}).waitFor();
             assert.equal(await planner.evaluate(el=>el.open),true);assert.equal(await planner.locator('.si-action-sources input:checked').count(),1);
             assert.equal(await planner.getByLabel('담당자·공종',{exact:true}).inputValue(),'');assert.equal(await planner.getByLabel('완료기한',{exact:true}).inputValue(),'');
-            if(scenario==='direct-manual'){assert.equal(await planner.getByLabel('정리할 제안',{exact:true}).inputValue(),'manual');await planner.getByLabel('현장에 요청할 조치',{exact:true}).fill('수동 확인한 발판 고정 보완 요청');assert.equal(ops.filter(op=>op==='confirm-photo').length,0);}
+            if(['direct-manual','direct-delayed'].includes(scenario)){assert.equal(await planner.getByLabel('정리할 제안',{exact:true}).inputValue(),'manual');await planner.getByLabel('현장에 요청할 조치',{exact:true}).fill('수동 확인한 발판 고정 보완 요청');assert.equal(ops.filter(op=>op==='confirm-photo').length,0);}
             else {assert.ok(item.document.reviews[originalId]);assert.match(await planner.getByLabel('현장에 요청할 조치',{exact:true}).inputValue(),scenario==='direct-rejected'?/실측 결과 난간은 있음/:/접근을 통제/);}
             const save=planner.getByRole('button',{name:'확인한 조치 저장',exact:true}),ack=planner.getByLabel('선택한 사진의 실제 위치·상태와 조치 적용 범위를 확인했습니다.',{exact:true});
             assert.equal(await ack.isChecked(),false);assert.equal(await save.isDisabled(),true);
