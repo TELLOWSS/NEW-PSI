@@ -423,3 +423,13 @@
 .si-one-photo-only-option small{font-size:12px;line-height:1.6;font-weight:400;color:var(--si-muted)}
 .si-one-photo-only-option:focus-within{outline:2px solid var(--si-teal);outline-offset:2px}
 @media(max-width:600px){.si-one-photo-guide .si-one-photo-only-option{padding:12px;gap:9px}}
+
+
+/* R115: reopen a saved photo-only report without losing the earlier snapshot. */
+.si-report-followup,.si-unverified-resume{border:1px solid var(--si-line);border-radius:13px;background:var(--si-accent-soft);padding:15px;margin:15px 0;display:flex;flex-wrap:wrap;align-items:center;gap:9px}
+.si-report-followup strong,.si-unverified-resume strong{display:block;font-size:14px;font-weight:800;line-height:1.5;color:var(--si-navy)}
+.si-report-followup p,.si-unverified-resume p{width:100%;flex-basis:100%;margin:4px 0 8px;font-size:12px;line-height:1.8;color:var(--si-muted)}
+.si-report-followup .si-btn,.si-unverified-resume .si-btn{min-height:48px;min-width:0;white-space:normal}
+.si-unverified-resume>div{flex:1;min-width:210px}
+@media(max-width:600px){.si-report-followup,.si-unverified-resume{padding:12px;flex-direction:column;align-items:stretch}.si-report-followup .si-btn,.si-unverified-resume .si-btn{width:100%;justify-content:center}}
+@media print{.si-report-followup,.si-unverified-resume{display:none!important}}
