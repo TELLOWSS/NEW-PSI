@@ -388,3 +388,28 @@
  .si-one-photo-action .si-one-photo-report{min-height:52px;font-size:15px}
 }
 @media print{.si-one-photo-guide,.si-one-photo-action{display:none!important}}
+
+
+/* R113: finished report -> one clear PDF/share decision. No browser API calls here. */
+.si-report-delivery{padding:20px;border:1px solid var(--si-line);border-radius:17px;background:var(--si-surface);color:var(--si-navy);box-shadow:0 7px 22px #142d4210;overflow-wrap:anywhere}
+.si-report-delivery-heading .si-eyebrow{font-size:11px;font-weight:750;color:var(--si-teal);letter-spacing:.04em}
+.si-report-delivery-heading h2{font-size:clamp(19px,2.2vw,24px);line-height:1.4;margin:8px 0}
+.si-report-delivery-heading p{line-height:1.7;margin:0 0 15px;color:var(--si-muted)}
+.si-report-delivery-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0 6px}
+.si-report-delivery-actions .si-btn{min-height:52px;width:100%;justify-content:center;font-size:15px;font-weight:750;white-space:normal;text-align:center}
+.si-report-delivery-photo-status{margin:8px 0 14px!important;line-height:1.65;color:var(--si-teal);font-weight:700}
+.si-report-delivery-pdf-help{border-top:1px solid var(--si-line);border-bottom:1px solid var(--si-line);padding:5px 0}
+.si-report-delivery-pdf-help summary{min-height:48px;display:flex;align-items:center;cursor:pointer;font-weight:700;font-size:14px}
+.si-report-delivery-pdf-help ol{padding-left:23px;margin:6px 0 13px;font-size:13px;line-height:1.8;color:var(--si-navy)}
+.si-report-delivery-pdf-help li{margin:5px 0}
+.si-report-delivery-pdf-help p{line-height:1.75;color:var(--si-muted);font-size:12px}
+.si-report-delivery-secondary{display:flex;flex-wrap:wrap;gap:8px;margin:15px 0}
+.si-report-delivery-secondary .si-btn{min-height:44px;font-size:12px}
+.si-report-delivery>.si-caption{margin:8px 0 0;line-height:1.7}
+@media(max-width:600px){
+ .si-report-delivery{padding:15px 12px;border-radius:14px}
+ .si-report-delivery-actions{grid-template-columns:1fr}
+ .si-report-delivery-actions .si-btn{min-height:52px;font-size:15px;margin:0}
+ .si-report-delivery-secondary .si-btn{flex:1;justify-content:center;margin:0}
+}
+@media print{.si-report-delivery{display:none!important}}
