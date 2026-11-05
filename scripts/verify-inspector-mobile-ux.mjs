@@ -76,11 +76,11 @@ try{
   const source=Buffer.from(await page.evaluate(()=>{const c=document.createElement('canvas');c.width=640;c.height=480;c.getContext('2d').fillRect(0,0,640,480);return c.toDataURL('image/jpeg').split(',')[1];}),'base64');
   await page.getByLabel('현장사진 선택',{exact:true}).setInputFiles({name:'synthetic.jpg',mimeType:'image/jpeg',buffer:source});const work=page.getByLabel('공종',{exact:true}),risk=page.getByLabel('직접 확인한 위험유형',{exact:true});
   await page.getByAltText('분석할 현장사진').waitFor();
-  await page.waitForFunction(()=>document.activeElement?.classList.contains('si-consent-input'));
-  const consentOnScreen=await page.locator('.si-consent-input').evaluate(el=>{
+  await page.waitForFunction(()=>document.activeElement?.id==='si-one-photo-note');
+  const noteOnScreen=await page.locator('#si-one-photo-note').evaluate(el=>{
     const rect=el.getBoundingClientRect();return rect.top>=0&&rect.bottom<=innerHeight;
   });
-  assert.equal(consentOnScreen,true,'photo selection brings the storage notice into view');
+  assert.equal(noteOnScreen,true,'R112: selecting the first photo brings the observed facts input into view');
   assert.equal(await page.locator('.si-consent-input').isChecked(),false,'scrolling never grants consent');
   assert.equal(ops.filter(x=>x==='upload').length,0,'opening the notice does not upload the photo');
   page.once('dialog',dialog=>dialog.dismiss());
@@ -102,7 +102,7 @@ try{
   await page.getByLabel('직접 대조할 기준',{exact:true}).selectOption('electric');
   await page.locator('.si-legal-focus').screenshot({path:`${out}/source-${width}.png`});
   await page.getByRole('tab',{name:/^사례·동향/}).click();await page.locator('.si-case-trends').waitFor();
-  await page.getByRole('region',{name:'점검 다음 단계'}).getByRole('button',{name:'직접 확인한 조치 작성',exact:true}).click();
+  await page.getByRole('region',{name:'점검 다음 단계'}).getByRole('button',{name:'조치 작성 (선택)',exact:true}).click();
   const draft=page.locator('.si-action-draft');await draft.waitFor();assert.match(await draft.locator('.si-action-timing').innerText(),/긴급 위험.*[\s\S]*기한부 시정조치/);
   const owner=draft.getByLabel('담당자·공종',{exact:true});await draft.getByLabel('현장에 요청할 조치',{exact:true}).fill('개구부 접근통제 후 덮개 보강');await owner.fill('합성 형틀반장');await draft.getByLabel('완료기한',{exact:true}).fill('2026-10-30');
   page.on('dialog',dismiss);await page.getByRole('button',{name:'저장 기록 · 상세 관리',exact:true}).click();assert.equal(await owner.inputValue(),'합성 형틀반장');
@@ -111,7 +111,10 @@ try{
   await draft.locator('.si-action-timing').screenshot({path:`${out}/action-timing-${width}.png`});
   failSave=true;await draft.getByRole('button',{name:'확인한 조치 저장',exact:true}).click();await page.getByRole('alert').waitFor();assert.equal(await owner.inputValue(),'합성 형틀반장');
   failSave=false;await draft.getByRole('button',{name:'확인한 조치 저장',exact:true}).click();await page.getByText('조치를 미조치 상태로 저장했습니다.',{exact:false}).waitFor();assert.equal(item.document.actions.length,1);assert.equal(item.document.actions[0].status,'open');assert.equal(item.document.photoRiskTopics[photo.id],'electric');
-  await page.getByRole('button',{name:'모은 자료로 보고서 완성',exact:true}).last().click();await page.locator('.si-report').waitFor();assert.match(await page.locator('.si-report').innerText(),/직접 확인한 개구부 덮개 누락/);assert.match(await page.locator('.si-report').innerText(),/합성 형틀반장/);assert.match(await page.locator('.si-report').innerText(),/점검자 선택 위험:.*AI 판정 아님/);
+  await page.getByRole('button',{name:'모은 자료로 보고서 완성',exact:true}).last().click();await page.locator('.si-report').waitFor();assert.match(await page.locator('.si-report').innerText(),/직접 확인한 개구부 덮개 누락/);
+   assert.match(await page.locator('.si-report').getAttribute('class'),/si-report-mode-brief/);
+   await page.getByRole('button',{name:'상세 근거 전체 보기',exact:true}).click();
+   assert.match(await page.locator('.si-report').innerText(),/합성 형틀반장/);assert.match(await page.locator('.si-report').innerText(),/점검자 선택 위험:.*AI 판정 아님/);
   await page.reload({waitUntil:'domcontentloaded'});const resume=page.getByRole('button',{name:'이전 점검 이어하기',exact:true});await resume.waitFor();await page.evaluate(()=>scrollTo(0,0));const resumeBox=await resume.boundingBox();assert.ok(resumeBox.y+resumeBox.height<=844);await resume.click();await page.locator('.si-storage-manager').waitFor();assert.equal(item.document.photoIds[0],photo.id);assert.equal(ops.filter(x=>x==='create').length,1);assert.equal(ops.filter(x=>x==='report').length,1);
   await page.locator('.si-photo-collection').getByRole('button',{name:'열어 검토',exact:true}).first().click();await page.getByRole('tab',{name:'법령·금액',exact:true}).click();await page.locator('.si-topic-manual summary').click();assert.equal(await page.getByLabel('직접 대조할 기준',{exact:true}).inputValue(),'electric');
   assert.equal(ops.includes('ai-status'),false,'complete manual flow and resume must make zero AI status requests');

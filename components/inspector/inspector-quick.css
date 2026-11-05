@@ -309,3 +309,82 @@
 .si-quick-print,.si-report{scroll-margin-top:84px}
 .si-report:focus{outline:2px solid var(--si-teal);outline-offset:3px}
 .si-manual-context{min-width:0;margin:14px 0;padding:14px;border:1px solid var(--si-line);border-radius:12px}.si-manual-context legend{padding:0 6px;font-size:14px;font-weight:700}.si-manual-context .si-topic-select{align-items:flex-start;flex-direction:column;gap:6px}.si-manual-context .si-topic-select select{box-sizing:border-box;width:100%;max-width:none;flex:auto}.si-manual-context details>summary{min-height:44px;display:flex;align-items:center;font-size:13px;cursor:pointer}
+
+
+/* R109 — report reading is progressive disclosure, not a data change.
+   The entire stored report always prints, even when the on-screen mode is brief. */
+.si-report-view-controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:16px 0 12px;padding:12px;background:#f4f9fa;border:1px solid #d3e5e5;border-radius:13px}
+.si-report-view-controls .si-btn{min-height:46px;font-size:14px}
+.si-report-view-controls .si-btn[aria-pressed="true"]{background:#146b63;color:#fff;border-color:#146b63}
+.si-report-view-controls p{flex-basis:100%;margin:0;font-size:12px;color:#405768}
+.si-report-field-brief{border:1px solid #d7e5e0;background:#fff;padding:18px;border-radius:15px;margin:12px 0 20px;color:#182b40;overflow-wrap:anywhere}
+.si-report-field-brief h3{font-size:19px;margin:0 0 8px;line-height:1.4}
+.si-report-field-brief>p{font-size:13px;line-height:1.7}
+.si-report-field-brief dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:16px 0}
+.si-report-field-brief dl>div{background:#f3f7f7;border:1px solid #e1eaea;border-radius:10px;padding:11px;min-width:0}
+.si-report-field-brief dt{font-weight:650;color:#516777;font-size:12px}
+.si-report-field-brief dd{margin:4px 0 0;font-weight:750;font-size:14px;line-height:1.5}
+.si-report-field-brief .si-report-brief-caution{padding:10px 12px;border-left:3px solid #157069;background:#f1f7f5;font-weight:650}
+.si-report-brief-photos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.si-report-brief-photos figure{min-width:0;margin:0;border:1px solid #dde6e8;border-radius:10px;overflow:hidden}
+.si-report-brief-photos img,.si-report-brief-photos figure>div{width:100%;height:180px;object-fit:contain;background:#f0f4f6;display:flex;align-items:center;justify-content:center;color:#455c6e;font-size:13px}
+.si-report-brief-photos figcaption{padding:10px 12px;font-size:12px;line-height:1.55;overflow-wrap:anywhere}
+.si-journey-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:15px 0!important}
+.si-result-journey .si-journey-steps li{border:1px solid #d5e6df;border-radius:10px;background:#fff;padding:10px;font-size:12px;line-height:1.55;min-width:0}
+.si-journey-steps span{overflow-wrap:anywhere}
+@media screen {
+  .si-report-mode-brief .si-report-full-only{display:none!important}
+}
+@media(max-width:600px) {
+  .si-report-field-brief{padding:13px}
+  .si-report-field-brief dl{grid-template-columns:1fr}
+  .si-report-brief-photos{grid-template-columns:1fr}
+  .si-report-brief-photos img,.si-report-brief-photos figure>div{height:200px}
+  .si-result-journey .si-journey-steps{grid-template-columns:1fr}
+  .si-report-view-controls .si-btn{flex:1 1 160px}
+}
+@media print {
+  .si-report-view-controls,.si-report-field-brief{display:none!important}
+  .si-report .si-report-full-only{display:block!important}
+  /* inspector.css restores ALL report descendants via
+     body:has(.si-report) #root .si-report * { display: revert !important }.
+     Match that root specificity so summary-only UI cannot leak into PDF. */
+  body:has(.si-report) #root .si-report .si-report-view-controls,
+  body:has(.si-report) #root .si-report .si-report-view-controls *,
+  body:has(.si-report) #root .si-report .si-report-field-brief,
+  body:has(.si-report) #root .si-report .si-report-field-brief * {
+    display:none!important;
+    visibility:hidden!important;
+  }
+  body:has(.si-report) #root .si-report .si-report-full-only {
+    display:block!important;
+    visibility:visible!important;
+  }
+}
+
+
+/* R111 · One-photo report: one prominent path, advanced/AI tools remain available below.
+   This is presentation only; consent and the server's photo/report checks stay intact. */
+.si-quick-context.si-one-photo-active>.si-one-photo-guide{order:-3}
+.si-quick-context.si-one-photo-active>.si-quick-consent{order:-2}
+.si-quick-context.si-one-photo-active>.si-one-photo-action{order:-1}
+.si-one-photo-guide{border:1px solid #a9cfca;background:linear-gradient(145deg,#f5fcfa,#eef7f7);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:9px}
+.si-one-photo-guide .si-one-photo-kicker{margin:0;color:#136b63;font-size:12px;font-weight:800;letter-spacing:.06em}
+.si-one-photo-guide h3{margin:0;color:#173d3b;font-size:19px;line-height:1.4}
+.si-one-photo-guide label{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:700;color:#163b3b}
+.si-one-photo-guide label strong{font-size:11px;padding:2px 7px;border-radius:50px;background:#d7f0e7;color:#0b624f}
+.si-one-photo-guide textarea{box-sizing:border-box;min-height:110px;background:#fff;border:1px solid #88b9b0;font-size:15px}
+.si-one-photo-guide>p:last-child{font-size:12px;line-height:1.65;color:#4f6566;margin:0}
+.si-one-photo-action{border:1px solid #cde1dc;background:#fbfdfc;border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:9px}
+.si-one-photo-action .si-one-photo-report{min-height:54px;width:100%;font-size:16px;font-weight:800;justify-content:center}
+.si-one-photo-action .si-one-photo-report:disabled{opacity:.6}
+.si-one-photo-action p{font-size:12px;line-height:1.65;color:#52676b;margin:0}
+.si-one-photo-active>.si-quick-start{background:transparent;color:var(--si-teal);border:1px solid var(--si-line)}
+.si-one-photo-active>.si-quick-start:hover{background:var(--si-accent-soft)}
+.si-one-photo-active>.si-quick-api{border-top:1px solid var(--si-line);padding-top:14px;margin-top:4px}
+@media(max-width:700px){
+ .si-one-photo-guide{padding:14px;border-radius:13px}
+ .si-one-photo-guide h3{font-size:17px}
+ .si-one-photo-action .si-one-photo-report{min-height:52px;font-size:15px}
+}
+@media print{.si-one-photo-guide,.si-one-photo-action{display:none!important}}

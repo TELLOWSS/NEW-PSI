@@ -473,3 +473,15 @@ html.dark .si-refresh-local .si-btn.si-primary{background:#116f64;color:#fff;bor
  }
  .si-quick.si-refresh .si-refresh-paths{margin-bottom:16px}
 }
+
+
+/* R111 — keep the one-photo beginner path legible in the existing dark theme. */
+html.dark .si-one-photo-guide{background:linear-gradient(145deg,#173b39,#152e3a);border-color:#436e69}
+html.dark .si-one-photo-guide h3,
+html.dark .si-one-photo-guide label{color:#e8f8f4}
+html.dark .si-one-photo-guide .si-one-photo-kicker{color:#88e3d2}
+html.dark .si-one-photo-guide label strong{background:#235449;color:#c6fce6}
+html.dark .si-one-photo-guide>p:last-child{color:#b7d5d1}
+html.dark .si-one-photo-action{background:#153039;border-color:#416466}
+html.dark .si-one-photo-action p{color:#c0d3d4}
+html.dark .si-one-photo-active>.si-quick-start{background:#14343d;color:#b6f7ed;border-color:#4c807c}

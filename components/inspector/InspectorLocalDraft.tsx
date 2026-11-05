@@ -1986,11 +1986,13 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
      </div>
     </div>
     <p>점검은 사진만으로 완료되지 않습니다. 위험 내용과 조치 계획을 확인하고 저장 결과를 직접 검토하세요. 급박한 위험은 현장 책임자와 접근통제·작업중지 필요성을 우선 확인하세요.</p>
+     <p role="note" className="si-local-report-path-note" data-psi-local-report-path="true"><strong>보고서까지의 경로:</strong> 일반 사진점검은 먼저 위 3단계로 기기에 저장하세요. 아래 <strong>재점검 경과보고서</strong>는 이미 저장한 조치·재점검 이력을 모아 만드는 별도 관리자료입니다. 사진 1장을 저장했다고 재점검 보고서가 자동 생성되지는 않습니다.</p>
    </section>
    <nav className="si-refresh-local-shortcuts" aria-label="기기 점검 바로가기">
     <a href="#si-local-photo-step">사진·관찰 입력</a>
     <a href="#si-saved-local-records">저장된 점검</a>
     <a href="#si-f10-recheck">지연 조치·재점검</a>
+     {reportTargetQueue.length>0&&<a href="#si-local-recheck-report">재점검 경과보고서</a>}
     <a href="#si-unfinished-recovery">백업·복구</a>
    </nav>
    <section id="si-unfinished-recovery" aria-label="작성 중 자료 긴급 백업과 복구" className="rounded-xl border border-slate-300 p-3">
@@ -2316,8 +2318,8 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
      </div>}
      <p>인계표는 내부 관리용이며 통보·수신 확인 또는 위험 해소·작업 재개 승인서가 아닙니다. 현장 위험이 급박하면 인계 예정일을 기다리지 말고 접근통제·작업중지 필요성을 먼저 검토하세요.</p>
     </div>
-    <div role="group" aria-label="재점검 관리 보고서 만들기" className="mt-3 rounded-lg border border-slate-300 p-3">
-     <h5>30차 · F10 현장 관리·경과 연결 보고서</h5>
+    <div id="si-local-recheck-report" role="group" aria-label="재점검 관리 보고서 만들기" className="mt-3 rounded-lg border border-slate-300 p-3">
+     <h5>재점검 경과보고서 · 필요할 때만</h5>
      <p>기기 저장 기록으로 CSV 대장과 A4 가로 인쇄용 HTML을 준비합니다. 서버 업로드·자동 발송 없이 기기에서만 처리합니다. HTML 파일을 연 뒤 인쇄 기능에서 PDF로 저장할 수 있습니다.</p>
      <label>보고 대상 범위
       <select aria-label="재점검 보고 범위" value={reportScope} disabled={reportBusy||busy} onChange={e=>setReportScope(e.target.value as 'visible'|'all')}>

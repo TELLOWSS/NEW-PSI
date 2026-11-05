@@ -16,6 +16,8 @@ export default function InspectorReport({ report,onPhotoState }: { report: Inspe
     const {inspection,evidence,generatedAt}=report.snapshot, doc=inspection.document;
     const reportRef=useRef<HTMLElement>(null);
     const [briefMessage,setBriefMessage]=useState('');
+    const [readMode,setReadMode]=useState<'brief'|'full'>('brief');
+    useEffect(()=>setReadMode('brief'),[report.id]);
     const [photos,setPhotos]=useState<Record<string,{url?:string;blob?:Blob;failed?:boolean}>>({});
     useEffect(()=>{
         const frame=requestAnimationFrame(()=>{
@@ -39,11 +41,36 @@ export default function InspectorReport({ report,onPhotoState }: { report: Inspe
     },[report.id]);
     const photoState=reportPrintState(evidence.length,evidence.map(photo=>photos[photo.id]?.failed?'failed':photos[photo.id]?.url?'ready':'loading'));
     useEffect(()=>{onPhotoState?.(photoState);},[photoState,onPhotoState]);
-    return <article ref={reportRef} tabIndex={-1} className="si-report" aria-label="점검 검토용 보고서">
+    return <article ref={reportRef} tabIndex={-1} className={`si-report si-report-mode-${readMode}`} aria-label="점검 검토용 보고서">
         <header><p className="si-eyebrow">NEW-PSI · SAFETY INSPECTOR</p><h2>현장점검 검토용 보고서</h2><p>{report.snapshot.legalReference?'공식 법령 요지·조건별 금액 포함 · 현장 적용 및 최종 승인 전':'작성 당시 법령 자료 미수록 · 최종 승인 전'}</p></header>
-        <section className="si-report-readers-guide" aria-label="보고서 확인 순서"><b>처음 확인하는 분을 위한 보고서 길잡이</b><ol><li>사진별 위험요인과 현장 전문가 검토 의견을 비교합니다.</li><li>관련 법령·금액은 적용 조건과 공식 원문을 대조합니다.</li><li>미결 조치·개선사진·현장 재점검 결과를 확인한 뒤 공유합니다.</li></ol><p>이 자료는 검토용이며 보고서를 출력했다고 현장 개선이나 법 위반이 확정되지 않습니다.</p><p role="status">{photoState==='loading'?`보고서 사진 ${evidence.filter(photo=>photos[photo.id]?.url).length}/${evidence.length}장 준비 중 · 완료 후 인쇄 가능`:photoState==='failed'?'일부 사진을 불러오지 못했습니다. 사진 누락 여부를 확인하고 인쇄 여부를 결정하세요.':'보고서 사진 준비 완료 · 인쇄/PDF 저장 가능'}</p></section>
+        <section className="si-report-readers-guide" aria-label="보고서 확인 순서"><b>인쇄 전 사진 준비 상태</b><p role="status">{photoState==='loading'?`보고서 사진 ${evidence.filter(photo=>photos[photo.id]?.url).length}/${evidence.length}장 준비 중 · 완료 후 인쇄 가능`:photoState==='failed'?'일부 사진을 불러오지 못했습니다. 사진 누락 여부를 확인하고 인쇄 여부를 결정하세요.':'보고서 사진 준비 완료 · 인쇄/PDF 저장 가능'}</p><details><summary>배포 전 확인할 사항 보기</summary><ol><li>사진·점검자 의견·AI 제안을 서로 대조합니다.</li><li>법령·조건별 금액은 공식 원문 및 적용 조건을 확인합니다.</li><li>미결 조치·개선사진·현장 재점검 결과를 확인한 뒤 전달합니다.</li></ol><p>보고서를 출력했다고 개선 완료, 위법, 작업재개가 확정되지 않습니다.</p></details></section>
         <section className="si-report-brief"><div className="si-section-heading"><h3>바로 활용하는 보고 요약</h3><button className="si-btn" onClick={()=>void navigator.clipboard.writeText(buildReportActionRequests(report)).then(()=>setBriefMessage('현장 전달용 요약을 복사했습니다.')).catch(()=>setBriefMessage('복사하지 못했습니다. 보고 요약 내용을 선택해 주세요.'))}>현장 전달용 요약 복사</button><button className="si-btn" onClick={()=>void Promise.resolve().then(()=>navigator.clipboard.writeText(buildInspectionBrief(report))).then(()=>setBriefMessage('보고 요약을 복사했습니다.')).catch(()=>setBriefMessage('복사할 수 없습니다. 아래 요약을 선택해 복사해 주세요.'))}>보고 요약 복사</button><InspectorShareButton title={doc.title+' · 검토용 보고 요약'} text={buildInspectionBrief(report)} label="보고서 사진·요약 보내기" prepareFiles={async()=>Promise.all(evidence.map(async(photo,n)=>{const blob=photos[photo.id]?.blob;if(!blob)throw new Error('사진 로딩 미완료');return sharePhotoFile(blob,n+1);}))}/></div>{briefMessage&&<p role="status">{briefMessage}</p>}<details><summary>보고 요약 내용 보기</summary><p className="si-pre">{buildInspectionBrief(report)}</p></details></section>
+        <div className="si-report-view-controls" role="group" aria-label="보고서 읽기 방식" data-psi-inspector-report-view="true">
+            <button type="button" className="si-btn" aria-pressed={readMode==='brief'} onClick={()=>setReadMode('brief')}>핵심 요약 보기</button>
+            <button type="button" className="si-btn" aria-pressed={readMode==='full'} onClick={()=>setReadMode('full')}>상세 근거 전체 보기</button>
+            <p>화면의 읽기 방식만 바뀝니다. 인쇄·PDF에는 저장된 전체 근거가 포함됩니다.</p>
+        </div>
+        <section className="si-report-field-brief" data-psi-inspector-field-brief="true" aria-label="현장 보고 핵심 요약">
+            <h3>현장 보고 핵심</h3>
+            <p><strong>{doc.title}</strong> · {doc.siteName || '현장명 미입력'} · {doc.workType || '공종 미입력'} · {inspectionKindText(doc.inspectionKind)}</p>
+            <dl>
+                <div><dt>사진 기록</dt><dd>{evidence.length}장</dd></div>
+                <div><dt>AI 확인 상태</dt><dd>{evidence.filter(photo=>!!doc.analyses[photo.id]&&!!doc.reviews[photo.id]).length}장 검토 기록 · {evidence.filter(photo=>!!doc.analyses[photo.id]&&!doc.reviews[photo.id]).length}장 검토 대기</dd></div>
+                <div><dt>개선조치 상태</dt><dd>{doc.actions.filter(a=>a.status!=='verified').length}건 미결 · {doc.actions.filter(a=>a.status==='review-requested').length}건 재점검 대기</dd></div>
+                <div><dt>근거 확인</dt><dd>{report.snapshot.legalReference?'관련 법령 참고자료 포함 · 실제 적용 검토 필요':'법령 참고자료 미수록'}</dd></div>
+            </dl>
+            <p className="si-report-brief-caution">사진 보관·보고서 생성은 현장 위험의 제거, 조치 완료, 위법 판정이나 작업재개 승인을 의미하지 않습니다. AI가 없는 사진은 자동 판독하지 않은 기록입니다.</p>
+            <div className="si-report-brief-photos">
+                {evidence.slice(0,2).map((photo,index)=><figure key={photo.id}>
+                    {photos[photo.id]?.url?<img src={photos[photo.id].url} alt={`보고서 대표 사진 ${index+1}`}/>:<div role="status">{photos[photo.id]?.failed?'대표 사진 로딩 실패':'대표 사진 준비 중'}</div>}
+                    <figcaption>사진 {index+1} · {doc.photoNotes?.[photo.id] || '점검자 설명 미입력'}</figcaption>
+                </figure>)}
+            </div>
+            {evidence.length>2&&<p>대표 사진 2장만 요약 화면에 표시합니다. 나머지 {evidence.length-2}장은 상세 근거 전체 보기·인쇄 자료에 그대로 포함됩니다.</p>}
+            {doc.actions.length===0&&<p>등록된 개선조치가 없습니다. 조치가 완료됐다는 뜻이 아닙니다. 필요한 임시통제·담당·기한은 별도 기록하세요.</p>}
+        </section>
         <div className="si-report-summary"><span>증거사진 <b>{evidence.length}</b>장</span><span>미결 조치 <b>{doc.actions.filter(a=>a.status!=='verified').length}</b>건</span><span>미확인 질문 <b>{Object.entries(doc.analyses).filter(([id])=>evidence.some(p=>p.id===id)).reduce((sum,[id,a])=>sum+a.requires_confirmation.filter((_,n)=>{const answer=doc.confirmationAnswers?.[id]?.find(x=>x.questionIndex===n);return !answer || answer.answer==='unknown';}).length,0)}</b>건</span><span>{report.snapshot.legalReference?'법령 요지·금액 포함 · 적용 검토':'작성 당시 법령 미수록'}</span></div>
+        <div className="si-report-full-only" data-psi-inspector-full-evidence="true">
         <dl className="si-report-meta"><div><dt>점검명</dt><dd>{doc.title}</dd></div><div><dt>점검 유형</dt><dd>{inspectionKindText(doc.inspectionKind)}</dd></div><div><dt>현장·위치</dt><dd>{doc.siteName || '미입력'} / {doc.location || '미입력'}</dd></div><div><dt>공종·촬영시점</dt><dd>{doc.workType || '미입력'} / {formatInspectionTimestamp(doc.eventAt)}</dd></div><div><dt>상태</dt><dd>{inspectionState(doc)}</dd></div><div><dt>점검번호·버전</dt><dd>{inspection.id} · {inspection.revision}</dd></div><div><dt>생성시각</dt><dd>{formatInspectionTimestamp(generatedAt)}</dd></div></dl>
         <h3>1. 현장 공통 설명</h3><p className="si-pre">{doc.notes || '공통 설명은 별도로 입력하지 않았습니다. 사진별 설명은 아래에 표시됩니다.'}</p>
         {doc.urgent && <p className="si-urgent">긴급 검토 요청: 현장 접근통제·작업중지 필요성을 책임자가 먼저 검토해야 합니다.</p>}
@@ -64,5 +91,6 @@ export default function InspectorReport({ report,onPhotoState }: { report: Inspe
         <h3>3. 관련 법령 요지와 조건별 제재 금액</h3>{report.snapshot.legalReference?<InspectorLegalResult reference={report.snapshot.legalReference}/>:<p>이 보고서를 작성할 당시 법령 자료는 저장되지 않았습니다. 현재 기준을 과거 보고서에 소급해 표시하지 않습니다.</p>}
         <h3>4. 개선조치와 미결사항</h3>{doc.actions.length ? doc.actions.map(a=><section key={a.id} className="si-report-block"><h4>{a.title}</h4><p>담당: {a.owner} · 기한: {a.dueDate} · 상태: {a.status==='verified'?'재점검 확인됨':a.status==='review-requested'?'완료 검토 요청':'미조치'}</p>{a.scheduleContext&&<p>최초 약정기한 설정 근거·현장 여건: {a.scheduleContext}</p>}<p className="si-pre">{a.note || '조치 내용 미입력'}</p>{actionPhotoSummary(a,evidence.map(p=>p.id)).map(line=><p key={line}>{line}</p>)}{a.completionPhotoId&&<><InspectorPhotoComparison before={photos[a.sourcePhotoIds?.[0]||'']?.url} after={photos[a.completionPhotoId]?.url} beforeError={photos[a.sourcePhotoIds?.[0]||'']?.failed} afterError={photos[a.completionPhotoId]?.failed}/>{!a.sourcePhotoIds?.length&&<p>작성 당시 조치 전 사진 연결 미수록</p>}{a.sourcePhotoIds&&a.sourcePhotoIds.length>1&&<p>조치 전 대표 1장 비교 · 나머지 적용 사진은 사진별 기록을 함께 확인하세요.</p>}</>}<p>현장 재점검 확인시각: {a.verifiedAt?formatInspectionTimestamp(a.verifiedAt):'미확인'}</p></section>):<p>개선조치가 등록되지 않았습니다.</p>}
         <h3>5. 보고서 이력</h3><p>이 보고서는 저장한 점검 버전의 스냅샷입니다. 보고서 작성은 개선 완료나 법령 검증 승인을 의미하지 않습니다. 승인된 PSI 지표 및 별도 SMART TBM 프로그램으로 아직 전송되지 않습니다.</p><p>기록 주체: 전용 설치 관리자 계정(개인 전자서명 아님).</p><p className="si-hash">보고서 번호: {report.id}<br/>스냅샷 SHA-256: {report.snapshot_sha256}</p>
+        </div>
     </article>;
 }
