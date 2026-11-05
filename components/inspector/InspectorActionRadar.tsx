@@ -35,7 +35,7 @@ export default function InspectorActionRadar({actions,document:doc,disabled=fals
                     <span>{attentionLabels[kind]}</span><b>{attention.groups[kind].length}건</b>
                 </button>)}
             </div>
-            <p className="si-caption">확인 예정일은 기록된 계획일 뿐이며, 알림이 발송되거나 임시조치가 시행됐다는 뜻이 아닙니다. ‘오늘·미확인 현장 확인’에는 예정일이 지난 미확인 건도 포함됩니다.</p>
+            <p className="si-caption">확인 예정일은 기록된 계획일 뿐이며, 알림이 발송되거나 임시조치가 시행됐다는 뜻이 아닙니다. ‘현장 확인일 도래’에는 오늘이거나 이미 지난 예정일의 미확인 건이 모두 포함됩니다.</p>
             {attention.overlap>0&&<p className="si-caption" data-attention-overlap="true" role="note">한 조치가 기한 경과·확인일 도래·재점검 대기 등에 중복 해당합니다. 분류별 숫자를 합산하지 마세요. (중복 집계 {attention.overlap}회)</p>}
             {activeAttention&&attentionRows.length>0?<div className="si-attention-results" role="region" aria-label={attentionLabels[activeAttention]+' 조치 목록'} aria-live="polite">
                 <p className="si-attention-results-heading">{attentionLabels[activeAttention]} · 저장된 조치 {attentionRows.length}건</p>
