@@ -49,6 +49,7 @@ import {sameAction} from '../../lib/inspector/actionFollowup';
 import {changeActionAssignment,recoveredAssignment,type AssignmentChange} from '../../lib/inspector/actionAssignment';
 import type {ImprovementSubmission} from './InspectorActionFollowup';
 import {buildActionRequest,DEFAULT_REVIEW_NOTE,type ExpertReview} from '../../lib/inspector/expertReview';
+import {buildInspectionBrief} from '../../lib/inspector/journey';
 
 const request=(body:unknown,timeoutMs=9000)=>postAdminJson<any>('/api/admin/inspector',body,{fallbackMessage:'점검 요청을 처리하지 못했습니다.',timeoutMs});
 const base64=(file:File)=>new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(new Error('사진을 읽지 못했습니다.'));reader.readAsDataURL(file);});
@@ -597,7 +598,31 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
         </section>}
         {fieldCard&&createPortal(<Suspense fallback={<div role="status">전달 카드 편집기 준비 중…</div>}><InspectorFieldCardDialog {...fieldCard} onClose={()=>setFieldCard(null)}/></Suspense>,document.body)}
         <details className="si-quick-basics" open={showBasics} onToggle={e=>setShowBasics(e.currentTarget.open)}><summary>현장 필수 법령 요지 · 금액 전체 보기 ({LEGAL_CARDS.length}개 주제)</summary>{showBasics&&<InspectorLegalResult reference={{...legalForText(''),cards:LEGAL_CARDS.filter(card=>card.sourceReview?.status!=='withdrawn')}}/>}</details>
-        {report&&<><div className="si-quick-print"><button className="si-btn si-primary" disabled={printPhotoStatus==='loading'} onClick={()=>{if(printPhotoStatus==='failed'&&!window.confirm('일부 보고서 사진을 불러오지 못했습니다. 사진이 누락된 상태로 인쇄할까요?'))return;window.print();}}>{printPhotoStatus==='loading'?'사진 준비 중 · 인쇄 대기':printPhotoStatus==='failed'?'사진 누락 확인 후 인쇄/PDF 저장':'보고서 인쇄 · PDF 저장'}</button><button className="si-btn" disabled={busy} onClick={()=>nextPhoto()}>사진 더 추가</button><button className="si-btn" disabled={busy} onClick={()=>startNew()}>새 점검 시작</button><p>검토용 보고서입니다. 보고서를 만들었다고 개선조치가 완료되거나 법 위반이 확정되는 것은 아닙니다.</p></div><Suspense fallback={<p role="status">보고서 화면을 준비합니다…</p>}><InspectorReport report={report} onPhotoState={setPrintPhotoStatus}/></Suspense></>}
+        {report&&<><section className="si-quick-print si-report-delivery" aria-label="보고서 저장·공유" data-psi-report-delivery="true">
+            <div className="si-report-delivery-heading">
+                <span className="si-eyebrow">NEW-PSI · 검토용 보고서 저장됨</span>
+                <h2>보고서 작성 완료 · 이제 저장하거나 공유하세요</h2>
+                <p>사진 {report.snapshot.evidence.length}장 · 미결 조치 {report.snapshot.inspection.document.actions.filter(a=>a.status!=='verified').length}건 · 개선조치 완료 확인서가 아닙니다.</p>
+            </div>
+            <div className="si-report-delivery-actions">
+                <button type="button" className="si-btn si-primary" data-psi-report-print="true"
+                    disabled={printPhotoStatus==='loading'}
+                    onClick={()=>{if(printPhotoStatus==='failed'&&!window.confirm('일부 보고서 사진을 불러오지 못했습니다. 사진이 누락된 상태로 인쇄할까요?'))return;window.print();}}>
+                    {printPhotoStatus==='loading'?'보고서 사진 준비 중…':printPhotoStatus==='failed'?'사진 누락 확인 후 PDF·인쇄':'PDF로 저장 / 인쇄'}
+                </button>
+                <InspectorShareButton title={report.snapshot.inspection.document.title+' · 검토용 보고 요약'}
+                    text={buildInspectionBrief(report)} label="보고서 사진·요약 보내기"
+                    disabled={busy}
+                    prepareFiles={async()=>Promise.all(report.snapshot.evidence.map(async(photo,index)=>sharePhotoFile(await loadEvidencePhoto(photo.id),index+1)))}/>
+            </div>
+            <p role="status" className="si-report-delivery-photo-status">{printPhotoStatus==='loading'?'사진을 보고서에 준비하고 있습니다. 준비 후 PDF 저장이 가능합니다.':printPhotoStatus==='failed'?'일부 사진을 준비하지 못했습니다. 출력 또는 공유 전에 반드시 사진 누락을 확인하세요.':'사진 준비 완료. 인쇄창에서 저장 위치를 선택해야 실제 PDF 파일이 생깁니다.'}</p>
+            <details className="si-report-delivery-pdf-help"><summary>PDF 저장 방법 · PC/휴대폰</summary>
+                <ol><li>위 ‘PDF로 저장 / 인쇄’를 선택합니다.</li><li>PC에서는 인쇄 대상(프린터)을 ‘PDF로 저장’으로 선택합니다. 모바일에서는 브라우저·기기의 인쇄 메뉴에서 PDF 저장을 선택합니다(기기마다 이름과 위치가 다를 수 있음).</li><li>저장 위치를 정하고 실제 PDF 파일에 사진과 상세 근거가 포함됐는지 확인하세요.</li></ol>
+                <p>인쇄창을 열거나 보고서가 화면에 보인 것만으로 PDF 파일이 저장된 것은 아닙니다. 인쇄 기능이 없는 환경에서는 다른 브라우저·PC에서 저장 기록을 열어 출력하세요.</p>
+            </details>
+            <div className="si-report-delivery-secondary"><button type="button" className="si-btn" disabled={busy} onClick={()=>nextPhoto()}>사진 더 추가</button><button type="button" className="si-btn" disabled={busy} onClick={()=>startNew()}>새 점검 시작</button></div>
+            <p className="si-caption">검토용 보고서입니다. 실제 위험 제거·위법 여부·작업재개 승인은 현장 책임자가 별도 확인해야 합니다. 공유창을 연 것만으로 상대방에게 전달된 것은 아닙니다.</p>
+        </section><Suspense fallback={<p role="status">보고서 화면을 준비합니다…</p>}><InspectorReport report={report} onPhotoState={setPrintPhotoStatus} showShareAction={false}/></Suspense></>}
         {!busy&&!analysisFailed&&!storageLocked&&item&&item.document.photoIds.length>0&&!report&&!editInput&&(!local||photo)&&createPortal(<div className={`si-workspace si-dock-scope si-quick-dock${editingField?' is-editing-field':''}`} ><div className="si-quick-finish" aria-label="결과 확인과 저장"><p>{busy?activity||'처리 중…':`${item.document.photoIds.length}장 보관 · ${item.document.photoIds.filter(id=>!!item.document.reviews[id]).length}장 검토 기록`}</p>{photo?<button className="si-btn" disabled={busy||storageBusy||resultNote!==note||!!analysis&&!reviewSaved||actionDraftDirty} onClick={()=>nextPhoto(!apiEnabled)}>확인하고 다음 사진</button>:<button className="si-btn" disabled={busy||storageBusy} onClick={()=>setCamera(true)}>다음 사진 촬영</button>}<button className="si-btn si-primary" disabled={busy||storageBusy} onClick={photo&&journey?()=>handleJourney(journey.action):!photo&&actionDraftDirty?()=>{setReportBlocked(true);setDraftRequest(n=>n+1);}:!photo&&pendingPhoto?()=>openSavedPhoto(pendingPhoto):finish}>{photo&&journey?journey.label:!photo&&actionDraftDirty?'작성 중인 입력 계속하기':photo?'확인 · 보고서 저장':pendingPhoto?'검토 대기 사진 이어보기':'모은 자료로 보고서 완성'}</button></div></div>,document.body)}
         {zoom&&preview&&<InspectorPhotoDialog src={preview} onClose={()=>setZoom(false)} caption={(zoomFocus?`AI 관찰 위치: ${zoomFocus} · `:'')+(local||photo?.optimization_receipt?'점검용 최적화 사본입니다. 고화질 원본은 기기에 별도로 보관하세요.':'보관한 점검 사진입니다. 기기 원본 보관 상태는 별도로 확인하세요.')}/>}
         </fieldset>

@@ -100,7 +100,37 @@ for(const scenario of ['one-photo-direct','one-photo-retry','manual-report','rev
    assert.match(await report.innerText(),/하부 통제 여부는 미확인/);
    assert.match(await report.locator('[data-psi-inspector-field-brief]').innerText(),/조치가 완료됐다는 뜻이 아닙니다/);
    await page.locator('[data-report-photo-state="ready"]').waitFor({state:'attached'});
-   assert.equal(await page.locator('.si-quick-print .si-primary').isDisabled(),false);
+   const delivery=page.getByRole('region',{name:'보고서 저장·공유'});
+   await delivery.waitFor();
+   assert.equal(await delivery.getByRole('button',{name:'PDF로 저장 / 인쇄',exact:true}).isDisabled(),false);
+   assert.equal(await delivery.getByRole('button',{name:'보고서 사진·요약 보내기',exact:true}).count(),1);
+   assert.equal(await report.getByRole('button',{name:'보고서 사진·요약 보내기',exact:true}).count(),0,
+     'quick flow must have one share action, not two');
+   assert.match(await delivery.innerText(),/인쇄창에서 저장 위치를 선택해야 실제 PDF 파일/);
+   await delivery.getByText('PDF 저장 방법 · PC/휴대폰').click();
+   assert.match(await delivery.innerText(),/인쇄창을 열거나 보고서가 화면에 보인 것만으로 PDF 파일이 저장된 것은 아닙니다/);
+   if(scenario==='one-photo-direct'){
+     const frozen=JSON.stringify(item.document);
+     const before=ops.filter(op=>op==='report').length;
+     await delivery.getByRole('button',{name:'보고서 사진·요약 보내기',exact:true}).click();
+     const dialog=page.getByRole('dialog',{name:'현장 자료 보내기'});
+     await dialog.waitFor();
+     await dialog.getByRole('button',{name:'사진·문구 공유창 열기',exact:true}).waitFor();
+     assert.match(await dialog.getByLabel('보낼 문구',{exact:true}).inputValue(),/하부 통제 여부는 미확인/);
+     assert.equal(await dialog.getByRole('checkbox').count(),1,'share dialog must offer exactly the one saved photo');
+     await dialog.getByRole('button',{name:'닫기',exact:true}).click();
+     assert.equal(ops.filter(op=>op==='report').length,before,'share should not make a new report');
+     assert.equal(JSON.stringify(item.document),frozen,'share dialog should not mutate inspection');
+     await delivery.getByRole('button',{name:'PDF로 저장 / 인쇄',exact:true}).click();
+     assert.equal(await page.evaluate(()=>window.__printCalls),1,'print opens the native dialog once only');
+     await page.emulateMedia({media:'print'});
+     assert.equal(await delivery.isVisible(),false,'delivery buttons must not appear in PDF output');
+     assert.equal(await report.locator('[data-psi-inspector-full-evidence]').isVisible(),true,'PDF must contain full saved detail');
+     const pdf=await page.pdf({format:'A4',printBackground:true});
+     assert.equal(pdf.subarray(0,4).toString(),'%PDF');
+     assert.ok(pdf.length>8000,'actual synthetic printable PDF should not be empty');
+     await page.emulateMedia({media:'screen'});
+   }
    await page.screenshot({path:output+'/one-photo-direct-report.png',fullPage:true});
    if(scenario==='one-photo-direct'){
      await page.getByRole('button',{name:'사진 더 추가',exact:true}).click();
@@ -172,7 +202,8 @@ for(const scenario of ['one-photo-direct','one-photo-retry','manual-report','rev
   }
   await journey.getByRole('button',{name:'현장 대조 후 검토 저장',exact:true}).click();await journey.getByRole('button',{name:'보고서로 기록하기',exact:true}).waitFor();
   assert.equal(ops.filter(x=>x==='confirm-photo').length,1);assert.equal(ops.filter(x=>x==='analyze-photo').length,1);assert.equal(item.document.reviews[photo.id].decision,scenario==='rejected'?'rejected':'accepted');
-  await journey.screenshot({path:`${output}/${scenario}-guide.png`});await journey.getByRole('button',{name:'보고서로 기록하기',exact:true}).click();await page.locator('.si-report').waitFor();await page.waitForFunction(()=>document.activeElement?.classList.contains('si-report'));const reportTop=await page.locator('.si-report').evaluate(e=>e.getBoundingClientRect().top);assert.ok(reportTop>=-10&&reportTop<480,`New report should be visible after creation, got top=${reportTop}`);
+  await journey.screenshot({path:`${output}/${scenario}-guide.png`});await journey.getByRole('button',{name:'보고서로 기록하기',exact:true}).click();await page.locator('.si-report').waitFor();await page.waitForFunction(()=>document.activeElement?.classList.contains('si-report'));const deliveryTop=await page.locator('[data-psi-report-delivery]').evaluate(e=>e.getBoundingClientRect().top);
+  assert.ok(deliveryTop>=-30&&deliveryTop<480,`After saving, PDF/share actions should appear first, got top=${deliveryTop}`);
   assert.equal(ops.filter(x=>x==='report').length,1);assert.equal(ops.filter(x=>x==='upload').length,1);assert.ok((await page.locator('.si-report').innerText()).includes('직접 확인한 발판 틈새.'));
    // R110: short field summary is the default; full evidence remains printable
    // and the view switch must never modify the saved inspection.
