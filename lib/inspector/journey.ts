@@ -29,6 +29,7 @@ export function buildInspectionBrief(report:InspectionReport) {
         const a=doc.analyses[photo.id],review=doc.reviews[photo.id];
         lines.push('',`사진 ${n+1} · ${review?.decision==='rejected'?'전문가 의견 반영':review?.decision==='accepted'?'점검자 확인됨':'확인 대기'}`);
         if(doc.photoNotes?.[photo.id])lines.push(`점검자 설명: ${doc.photoNotes[photo.id]}`);
+        else lines.push(!a&&!review?'점검자 설명: 미입력 · 사진만 기록, 현장 확인·조치 상태 미확인':'점검자 설명: 미입력');
         if(doc.photoRiskTopics?.[photo.id])lines.push(`점검자 선택 위험: ${legalTopicTitle(doc.photoRiskTopics[photo.id])} · AI 판정 아님`);
         if(review?.note&&review.note!==DEFAULT_REVIEW_NOTE)lines.push(`전문가 검토 의견: ${review.note}`);
         if(review?.decision==='rejected'){lines.push('AI 해석 수용 안 함 · 전문가 의견을 기준으로 검토');return;}

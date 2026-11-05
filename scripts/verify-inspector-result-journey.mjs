@@ -10,7 +10,7 @@ const browser=await chromium.launch({executablePath:process.env.PSI_CHROMIUM_PAT
 const output='artifacts/audit/inspector-result-journey'+(target?'-deployed':built?'-built':'');await mkdir(output,{recursive:true});const results=[];
 const allowed={policy:'free-only',state:'free-project',allowed:true,message:'fixture only',remainingRequests:null,billingCheck:'verified'};
 try{
-for(const scenario of ['one-photo-direct','one-photo-retry','manual-report','review','short-opinion','rejected','changed-input','print-loading','print-failed']){
+for(const scenario of ['one-photo-direct','one-photo-retry','photo-only-unverified','manual-report','review','short-opinion','rejected','changed-input','print-loading','print-failed']){
  console.log('scenario',scenario);
  const context=await browser.newContext({viewport:{width:390,height:844},permissions:['clipboard-read','clipboard-write']});const page=await context.newPage();const ops=[],errors=[];let item,photo,bytes,heldStatus,heldPhotoRoute;
  page.setDefaultTimeout(15000);page.setDefaultNavigationTimeout(15000);page.on('pageerror',e=>{errors.push(e.message);console.log('pageerror',e.message);});
@@ -47,13 +47,13 @@ for(const scenario of ['one-photo-direct','one-photo-retry','manual-report','rev
   await r.fulfill({json:result});
  });
  await page.goto(base+'/?mode=photo-inspector',{waitUntil:'domcontentloaded'});
- await page.locator('.si-quick').waitFor();if(!['manual-report','one-photo-direct','one-photo-retry'].includes(scenario))await page.getByRole('switch',{name:'AI 정밀점검 사용',exact:true}).click();await page.evaluate(()=>{window.__printCalls=0;window.__confirmCalls=0;window.print=()=>{window.__printCalls++};window.confirm=()=>{window.__confirmCalls++;return false};});if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}
+ await page.locator('.si-quick').waitFor();if(!['manual-report','one-photo-direct','one-photo-retry','photo-only-unverified'].includes(scenario))await page.getByRole('switch',{name:'AI 정밀점검 사용',exact:true}).click();await page.evaluate(()=>{window.__printCalls=0;window.__confirmCalls=0;window.print=()=>{window.__printCalls++};window.confirm=()=>{window.__confirmCalls++;return false};});if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}
  const source=Buffer.from(await page.evaluate(()=>{const c=document.createElement('canvas');c.width=640;c.height=480;c.getContext('2d').fillRect(0,0,640,480);return c.toDataURL('image/jpeg').split(',')[1];}),'base64');
  await page.locator('.si-quick input[type=file]').first().setInputFiles({name:'synthetic.jpg',mimeType:'image/jpeg',buffer:source});
  await page.locator('.si-consent-cue').getByText('다음 단계 · 이 사진의 보관 안내 확인').waitFor();
  assert.equal(await page.locator('.si-quick-start').isDisabled(),true,'Consent must not be implicitly accepted');
  assert.equal(await page.locator('.si-quick-start').innerText(),'먼저 사진 보관 안내 확인');
- if(['one-photo-direct','one-photo-retry','manual-report'].includes(scenario)){
+ if(['one-photo-direct','one-photo-retry','photo-only-unverified','manual-report'].includes(scenario)){
    await page.waitForFunction(()=>document.activeElement?.id==='si-one-photo-note');
    const noteRect=await page.locator('#si-one-photo-note').boundingBox();
    assert.ok(noteRect&&noteRect.y>=0&&noteRect.y+noteRect.height<=844,'one-photo explanation must start in view');
@@ -65,13 +65,22 @@ for(const scenario of ['one-photo-direct','one-photo-retry','manual-report','rev
  await page.locator('.si-quick-consent input').check();
  await page.getByText('확인 완료 · 이제 점검할 수 있습니다',{exact:true}).waitFor();
  assert.equal(await page.locator('.si-quick-start').isDisabled(),false);
- if(['one-photo-direct','one-photo-retry'].includes(scenario)){
+ if(['one-photo-direct','one-photo-retry','photo-only-unverified'].includes(scenario)){
    const simple=page.locator('[data-psi-one-photo-guide="true"]');
    const button=page.locator('.si-one-photo-report');
    assert.equal(await simple.isVisible(),true,'one-photo note must be visible without opening a panel');
    assert.equal(await button.isDisabled(),true,'cannot report without observed facts');
-   await page.locator('[data-psi-one-photo-note="true"]').fill('2002동 5층 발판에 틈이 보입니다. 하부 통제 여부는 미확인입니다.');
-   assert.equal(await button.isDisabled(),false);
+   if(scenario==='photo-only-unverified'){
+     const explicit=page.locator('[data-psi-photo-only-option="true"] input[type="checkbox"]');
+     assert.equal(await explicit.isChecked(),false,'photo-only consent cannot be preselected');
+     await explicit.check();
+     assert.equal(await button.isDisabled(),false);
+     assert.match(await button.innerText(),/미확인 보고서/);
+     assert.equal(await page.locator('[data-psi-one-photo-note]').inputValue(),'');
+   }else{
+     await page.locator('[data-psi-one-photo-note="true"]').fill('2002동 5층 발판에 틈이 보입니다. 하부 통제 여부는 미확인입니다.');
+     assert.equal(await button.isDisabled(),false);
+   }
    assert.equal(ops.filter(x=>x==='upload').length,0,'photo must not upload before an explicit report action');
    await page.evaluate(()=>document.documentElement.classList.add('dark'));
    assert.equal(await page.locator('.si-one-photo-guide h3').evaluate(el=>getComputedStyle(el).color),'rgb(232, 248, 244)','dark mode label contrast');
@@ -96,8 +105,14 @@ for(const scenario of ['one-photo-direct','one-photo-retry','manual-report','rev
    assert.deepEqual(item.document.actions,[]);
    assert.deepEqual(item.document.reviews,{});
    assert.equal(item.document.photoIds.length,1);
-   assert.match(item.document.photoNotes[photo.id],/하부 통제 여부는 미확인/);
-   assert.match(await report.innerText(),/하부 통제 여부는 미확인/);
+   if(scenario==='photo-only-unverified'){
+     assert.equal(item.document.photoNotes[photo.id],'','photo-only must not fabricate observation text');
+     assert.match(await report.locator('[data-psi-photo-only-warning="true"]').innerText(),/사실 확인이 미입력/);
+     assert.match(await report.locator('[data-psi-photo-only-print="true"]').innerText(),/위험이 없다는 판정이 아니며/);
+   }else{
+     assert.match(item.document.photoNotes[photo.id],/하부 통제 여부는 미확인/);
+     assert.match(await report.innerText(),/하부 통제 여부는 미확인/);
+   }
    assert.match(await report.locator('[data-psi-inspector-field-brief]').innerText(),/조치가 완료됐다는 뜻이 아닙니다/);
    await page.locator('[data-report-photo-state="ready"]').waitFor({state:'attached'});
    const delivery=page.getByRole('region',{name:'보고서 저장·공유'});
@@ -109,14 +124,15 @@ for(const scenario of ['one-photo-direct','one-photo-retry','manual-report','rev
    assert.match(await delivery.innerText(),/인쇄창에서 저장 위치를 선택해야 실제 PDF 파일/);
    await delivery.getByText('PDF 저장 방법 · PC/휴대폰').click();
    assert.match(await delivery.innerText(),/인쇄창을 열거나 보고서가 화면에 보인 것만으로 PDF 파일이 저장된 것은 아닙니다/);
-   if(scenario==='one-photo-direct'){
+   if(['one-photo-direct','photo-only-unverified'].includes(scenario)){
      const frozen=JSON.stringify(item.document);
      const before=ops.filter(op=>op==='report').length;
      await delivery.getByRole('button',{name:'보고서 사진·요약 보내기',exact:true}).click();
      const dialog=page.getByRole('dialog',{name:'현장 자료 보내기'});
      await dialog.waitFor();
      await dialog.getByRole('button',{name:'사진·문구 공유창 열기',exact:true}).waitFor();
-     assert.match(await dialog.getByLabel('보낼 문구',{exact:true}).inputValue(),/하부 통제 여부는 미확인/);
+     const sentText=await dialog.getByLabel('보낼 문구',{exact:true}).inputValue();
+     assert.match(sentText,scenario==='photo-only-unverified'?/사진만 기록, 현장 확인·조치 상태 미확인/:/하부 통제 여부는 미확인/);
      assert.equal(await dialog.getByRole('checkbox').count(),1,'share dialog must offer exactly the one saved photo');
      await dialog.getByRole('button',{name:'닫기',exact:true}).click();
      assert.equal(ops.filter(op=>op==='report').length,before,'share should not make a new report');
@@ -126,6 +142,7 @@ for(const scenario of ['one-photo-direct','one-photo-retry','manual-report','rev
      await page.emulateMedia({media:'print'});
      assert.equal(await delivery.isVisible(),false,'delivery buttons must not appear in PDF output');
      assert.equal(await report.locator('[data-psi-inspector-full-evidence]').isVisible(),true,'PDF must contain full saved detail');
+     if(scenario==='photo-only-unverified')assert.equal(await report.locator('[data-psi-photo-only-print="true"]').isVisible(),true,'PDF should retain unverified warning');
      const pdf=await page.pdf({format:'A4',printBackground:true});
      assert.equal(pdf.subarray(0,4).toString(),'%PDF');
      assert.ok(pdf.length>8000,'actual synthetic printable PDF should not be empty');
@@ -148,7 +165,7 @@ for(const scenario of ['one-photo-direct','one-photo-retry','manual-report','rev
    }
    assert.deepEqual(errors,[]);
    results.push({scenario,ops,passed:true});
-   console.log('PASS '+scenario+' -> explicit report action, zero AI, safe retry and no invented completion');
+   console.log('PASS '+scenario+' -> explicit report action, zero AI, no invented observation/completion, printable report');
    await context.close();continue;
  }
  await page.locator('.si-photo-hint summary').click();await page.locator('.si-quick textarea').first().fill('직접 확인한 발판 틈새.');

@@ -413,3 +413,13 @@
  .si-report-delivery-secondary .si-btn{flex:1;justify-content:center;margin:0}
 }
 @media print{.si-report-delivery{display:none!important}}
+
+
+/* R114 — an explicit photo-only evidence route, not an AI hazard classification. */
+.si-one-photo-guide .si-one-photo-only-option{box-sizing:border-box;display:flex;align-items:flex-start;gap:11px;padding:13px 14px;border:1px solid #a1bcb8;border-radius:11px;background:var(--si-surface);cursor:pointer;font-weight:500;line-height:1.6;min-height:57px}
+.si-one-photo-only-option input[type="checkbox"]{flex:0 0 20px;min-width:20px;width:20px;height:20px;margin:3px 0 0;accent-color:var(--si-teal)}
+.si-one-photo-only-option span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.si-one-photo-only-option b{font-size:14px;color:var(--si-navy)}
+.si-one-photo-only-option small{font-size:12px;line-height:1.6;font-weight:400;color:var(--si-muted)}
+.si-one-photo-only-option:focus-within{outline:2px solid var(--si-teal);outline-offset:2px}
+@media(max-width:600px){.si-one-photo-guide .si-one-photo-only-option{padding:12px;gap:9px}}
