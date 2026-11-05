@@ -15,22 +15,45 @@ let proxy;if(externalBase&&(process.env.HTTPS_PROXY||process.env.HTTP_PROXY)){co
 const browser=await chromium.launch({executablePath:process.env.PSI_CHROMIUM_PATH,headless:true,...(proxy?{proxy}:{}),args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});
 const results=[];await mkdir(out,{recursive:true});
 try{
- for(const scenario of ['cost-expiry-registration','cost-expiry-pricing','cost-reader-failed','api-resumed-retry','api-lost-context','api-lost-deleted','api-auth-failed','api-lost-result','ai-diagnostic-cost-race','ai-diagnostic','ai-diagnostic-failed','ai-diagnostic-blocked','cost-register','context-product-only','cost-race','cost-blocked','cost-paid','context-msds','context-unclear','video-prefill','video-draft-report','video-progress','selected-action','selected-generic','selected-expert','selected-rejected','selected-failed','selected-save-review','selected-cancel','action-assignment','action-assignment-failed','action-assignment-response','action-assignment-conflict','action-assignment-deleted','action-assignment-cancel','review-save','review-save-finish','review-save-failed','review-save-response','review-save-stale','review-save-deleted','review-save-storage','review-save-rejected','review-save-short','review-save-resume-missing','result-focus','result-copy-denied','camera-ai','gallery-rotate','paste-ai','ai-off','api-unavailable','api-retry','report-retry','no-findings','finish-between','expert-correction','resume-review','resume-pending','multi-photo','stored-result-recovery','delete-retry','delete-resume','delete-files','action-group','action-attention','action-save-retry','action-save-failed','action-manual','share-native','action-followup-file','action-followup-camera','action-followup-paste','action-followup-retry','action-followup-response','action-followup-legacy','action-followup-resume','action-followup-pending','direct-action','direct-manual','direct-delayed','direct-rejected','direct-review-failed','direct-cap','discovery-photo','discovery-unclear','discovery-no-api','discovery-api-off','discovery-mismatch','card-selected','card-edited','card-rejected','card-manual','card-unclear','card-render-failed','card-long','card-low','link-rebar','link-multi','link-unsupported','link-missing-keywords','link-resume','link-rejected','text-only']){
+ for(const scenario of ['cost-expiry-registration','cost-expiry-pricing','cost-reader-failed','api-resumed-retry','api-lost-context','api-lost-deleted','api-auth-failed','api-lost-result','ai-diagnostic-cost-race','ai-diagnostic','ai-diagnostic-failed','ai-diagnostic-blocked','cost-register','context-product-only','cost-race','cost-blocked','cost-paid','context-msds','context-unclear','video-prefill','video-draft-report','video-progress','selected-action','selected-generic','selected-expert','selected-rejected','selected-failed','selected-save-review','selected-cancel','action-assignment','action-assignment-failed','action-assignment-response','action-assignment-conflict','action-assignment-deleted','action-assignment-cancel','review-save','review-save-finish','review-save-failed','review-save-response','review-save-stale','review-save-deleted','review-save-storage','review-save-rejected','review-save-short','review-save-resume-missing','result-focus','result-copy-denied','camera-ai','gallery-rotate','paste-ai','ai-off','api-unavailable','api-retry','report-retry','no-findings','finish-between','expert-correction','resume-review','resume-pending','multi-photo','stored-result-recovery','delete-retry','delete-resume','delete-files','action-group','action-attention','global-register-fields','action-save-retry','action-save-failed','action-manual','share-native','action-followup-file','action-followup-camera','action-followup-paste','action-followup-retry','action-followup-response','action-followup-legacy','action-followup-resume','action-followup-pending','direct-action','direct-manual','direct-delayed','direct-rejected','direct-review-failed','direct-cap','discovery-photo','discovery-unclear','discovery-no-api','discovery-api-off','discovery-mismatch','card-selected','card-edited','card-rejected','card-manual','card-unclear','card-render-failed','card-long','card-low','link-rebar','link-multi','link-unsupported','link-missing-keywords','link-resume','link-rejected','text-only']){
     if(process.env.PSI_QA_SCENARIOS&&!process.env.PSI_QA_SCENARIOS.split(',').includes(scenario))continue;
     console.log('START '+scenario);
     const context=await browser.newContext({viewport:{width:390,height:900},permissions:['clipboard-read','clipboard-write'],ignoreHTTPSErrors:!!externalBase}),page=await context.newPage();const ops=[],errors=[],attempts=[],images=new Map();let actionSaves=0,followupSaves=0,reviewAttempts=0,assignmentSaves=0;let freeRegistered=false;let item,evidence=[],reports=[],analyzeCalls=0,reportCalls=0,deleteCalls=0,deletionState='active',deletionMode=null,verifyAfter=null;
     if(scenario.startsWith('cost-expiry-'))await page.clock.install({time:new Date()});
     if(scenario.startsWith('direct-'))await page.clock.install({time:new Date('2026-12-31T14:30:00Z')});
     if(scenario==='action-attention')await page.clock.install({time:new Date('2026-10-26T03:00:00Z')});
+    if(scenario==='global-register-fields')await page.clock.install({time:new Date('2026-11-05T21:00:00Z')});
     page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
     await page.route('**/api/admin/auth',r=>r.fulfill({json:{ok:true,authenticated:true}}));
     await page.route('https://fonts.googleapis.com/**',r=>r.fulfill({body:'',contentType:'text/css'}));await page.route('https://cdn.jsdelivr.net/**',r=>r.fulfill({body:'',contentType:'text/css'}));
     if(process.env.PSI_QA_KOREAN_FONT)await page.route('**/__qa-korean.otf',async r=>r.fulfill({body:await readFile(process.env.PSI_QA_KOREAN_FONT),contentType:'font/otf'}));
     await page.route('**/__photo/*',r=>r.fulfill({body:images.get(r.request().url().split('/').pop()),contentType:'image/jpeg'}));
+    let globalRows=[];
+    if(scenario==='global-register-fields'){
+        const plan=date=>'즉시 조치 곤란(미조치 유지): 자재 입고 지연\\n임시 보호조치 계획(시행 미확인): 작업구역 출입통제 검토\\n다음 현장 확인 예정: '+date;
+        const actionId=randomUUID(),inspectionId=randomUUID();
+        item={id:inspectionId,revision:2,created_at:'2026-11-01T00:00:00Z',updated_at:'2026-11-05T00:00:00Z',document:{
+            title:'월간 현장점검 A',siteName:'용인 A현장',location:'2002동 2층',workType:'형틀',eventAt:'2026-11-01T00:00:00Z',urgent:false,notes:'',
+            photoIds:[],analyses:{},reviews:{},ocrResults:{},actions:[{id:actionId,title:'발판 이격부 보완',owner:'형틀반장',dueDate:'2026-11-05',status:'open',completionPhotoId:'',note:'실제 시공 상태 재확인 필요',sourcePhotoIds:[],scheduleContext:plan('2026-11-06')}]
+        }};
+        const fields=(inspectionId,actionId,siteName,owner,dueDate,status,scheduleContext)=>({
+            inspectionId,inspectionRevision:2,inspectionTitle:'월간 현장점검 '+siteName.slice(-3),siteName,location:'2002동 2층',workType:'형틀',urgent:false,
+            inspectionCreatedAt:'2026-11-01T00:00:00Z',inspectionUpdatedAt:'2026-11-05T00:00:00Z',
+            actionId,title:'발판 이격부 보완',owner,dueDate,status,scheduleContext,verifiedAt:''
+        });
+        const otherId=randomUUID();
+        globalRows=[
+            fields(inspectionId,actionId,'용인 A현장','형틀반장','2026-11-05','open',plan('2026-11-06')),
+            fields(otherId,randomUUID(),'용인 B현장','철근반장','2026-11-09','review-requested',plan('2026-11-04')),
+            fields(inspectionId,randomUUID(),'용인 A현장','철근반장','2026-11-08','open',plan('2026-11-07')),
+            fields(otherId,randomUUID(),'용인 B현장','도장반장','2026-11-04','verified',plan('2026-11-03'))
+        ];
+    }
     const deletionStatus=()=>({state:deletionState,mode:deletionMode,verifyAfter,verified:['purged','files-deleted'].includes(deletionState),remainingFiles:images.size,remainingBytes:[...images.values()].reduce((n,b)=>n+b.length,0),remainingRecords:{inspections:deletionState==='purged'?0:1,evidence:deletionState==='purged'?0:evidence.length,reports:deletionState==='purged'?0:reports.length,events:deletionState==='purged'?0:item.revision,operations:0},pendingOperations:0,oldestPendingAt:null,checkedAt:new Date().toISOString(),receipt:deletionState==='purged'||deletionState==='files-deleted'?{managedResidualFiles:0}:null});
     const bump=d=>(item={...item,revision:item.revision+1,document:structuredClone(d),updated_at:new Date().toISOString()});
     await page.route('**/api/admin/inspector',async r=>{try{const b=r.request().postDataJSON();ops.push(b.op);const result={ok:true};
-        if(b.op==='list'){result.items=item?[{id:item.id,revision:item.revision,title:item.document.title,work_type:'',location:'',urgent:false,open_actions:0,needs_review:item.document.photoIds.some(id=>item.document.analyses[id]&&!item.document.reviews[id]),created_at:item.created_at,updated_at:item.updated_at}]:[];}
+        if(b.op==='global-action-register'){assert.equal(b.before,undefined);assert.equal(b.beforeId,undefined);Object.assign(result,{rows:globalRows,inspectionCount:2,hasMore:false,nextCursor:null,scope:'loaded-page-only'});}
+        else if(b.op==='list'){result.items=item?[{id:item.id,revision:item.revision,title:item.document.title,work_type:'',location:'',urgent:false,open_actions:0,needs_review:item.document.photoIds.some(id=>item.document.analyses[id]&&!item.document.reviews[id]),created_at:item.created_at,updated_at:item.updated_at}]:[];}
         else if(b.op==='ai-status'){Object.assign(result,{ready:!['api-unavailable','discovery-no-api'].includes(scenario),provider:'gemini',model:'fixture',cost:{policy:'free-only',registrationChallenge:'fixture-challenge',projectLabel:'sample-project',expiresAt:new Date(Date.now()+86400000).toISOString(),state:scenario==='cost-register'?(freeRegistered?'operator-confirmed':'unverified'):scenario==='cost-reader-failed'?'unavailable':scenario==='cost-paid'?'billing-linked':scenario==='cost-blocked'?'unverified':'free-project',allowed:scenario==='cost-register'?freeRegistered:!['cost-blocked','cost-paid','cost-reader-failed'].includes(scenario),billingCheck:scenario==='cost-reader-failed'?'failed':undefined,message:scenario==='cost-reader-failed'?'실시간 청구 조회 실패 · 외부 분석 차단':scenario==='cost-paid'?'청구 계정 연결 감지 · 외부 분석 차단':scenario==='cost-blocked'?'무료 여부 미확인 · 외부 분석 차단':'청구 미연결 확인 · 시뮬레이션',remainingRequests:null,checkedAt:new Date().toISOString()}});if(scenario.startsWith('cost-expiry-')){const moment=await page.evaluate(()=>Date.now());Object.assign(result.cost,{state:scenario==='cost-expiry-registration'?'operator-confirmed':'free-project',allowed:true,billingCheck:scenario==='cost-expiry-registration'?'not-configured':'verified',registrationScope:scenario==='cost-expiry-registration'?'server':undefined,expiresAt:scenario==='cost-expiry-registration'?new Date(moment+60000).toISOString():undefined,pricingExpiresAt:new Date(moment+(scenario==='cost-expiry-pricing'?60000:86400000)).toISOString()});}}
         else if(b.op==='ai-analysis-check'){assert.equal(b.confirmed,true);if(scenario==='ai-diagnostic-cost-race'){await r.fulfill({status:409,json:{ok:false,code:'AI_COST_BLOCKED',message:'청구 계정 연결 감지 · 외부 분석 차단',cost:{policy:'free-only',state:'billing-linked',allowed:false,message:'청구 계정 연결 감지 · 외부 분석 차단',remainingRequests:null}}});return;}if(scenario==='ai-diagnostic-failed'){await r.fulfill({status:409,json:{ok:false,code:'AI_AUTH_REJECTED',message:'AI 키 인증이 거부됐습니다. (HTTP 401)'}});return;}Object.assign(result,{connected:true,model:'fixture',inferenceRequests:1,syntheticOnly:true,checkedAt:new Date().toISOString()});}
         else if(b.op==='free-project-register'){assert.equal(b.confirmed,true);assert.equal(b.projectId,'sample-project');assert.equal(b.challenge,'fixture-challenge');freeRegistered=true;}
@@ -62,7 +85,58 @@ try{
     }catch(e){errors.push(e.message);console.error('Fixture boundary failed',r.request().postDataJSON()?.op,e.message);await r.fulfill({status:503,json:{ok:false,message:'Fixture assertion failed'}});}});
     if(scenario==='share-native'||scenario.startsWith('card-'))await page.addInitScript(()=>{window.__shares=[];window.__shareMode='ok';Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>window.__shareMode!=='files-unsupported'});Object.defineProperty(navigator,'share',{configurable:true,value:async function(data){if(window.__shareMode==='cancel')throw new DOMException('cancel','AbortError');window.__shares.push({title:data.title,text:data.text,files:(data.files||[]).map(f=>({name:f.name,size:f.size,type:f.type})),activation:navigator.userActivation.isActive});}});});
     if(scenario==='review-save-storage')await page.addInitScript(()=>{const set=Storage.prototype.setItem;Object.defineProperty(Storage.prototype,'setItem',{value:function(key,value){if(key==='psi.inspector.quick.review-position.v1')throw new DOMException('blocked','SecurityError');return set.call(this,key,value);}});});
-    await page.goto(base+'/?mode=photo-inspector',{waitUntil:'domcontentloaded'});await page.getByRole('heading',{name:'사진만 찍어도 점검을 시작할 수 있습니다'}).waitFor();await page.getByRole('switch',{name:'AI 정밀점검 사용',exact:true}).click();
+    await page.goto(base+'/?mode=photo-inspector',{waitUntil:'domcontentloaded'});await page.getByRole('heading',{name:'사진만 찍어도 점검을 시작할 수 있습니다'}).waitFor();
+    if(scenario==='global-register-fields'){
+        const register=page.locator('[data-global-register="loaded-pages-only"]');
+        await register.locator(':scope > summary').click();
+        await register.getByLabel('통합 조치 현장 선택').waitFor();
+        await register.getByRole('button',{name:/현재 필터 결과 CSV/}).waitFor();
+        assert.equal(await register.locator('[data-global-action-id]').count(),3,'initially load 3 unverified records');
+        assert.match(await register.innerText(),/불러온 점검 2건 · 저장 조치 4건/);
+        assert.equal(ops.filter(op=>op==='global-action-register').length,1,'only one explicit read');
+        await register.getByLabel('통합 조치 필터').selectOption('check');
+        assert.equal(await register.locator('[data-global-action-id]').count(),2,'two due field checks across two inspections');
+        await register.getByLabel('통합 조치 현장 선택').selectOption('용인 A현장');
+        await register.getByLabel('통합 조치 담당 선택').selectOption('형틀반장');
+        await register.getByLabel('통합 조치 기한 시작일').fill('2026-11-05');
+        await register.getByLabel('통합 조치 기한 종료일').fill('2026-11-05');
+        assert.equal(await register.locator('[data-global-action-id]').count(),1,'combined site, owner, agreed due date, check filter');
+        assert.match(await register.locator('[data-global-next-check-count]').innerText(),/도래한 미결 조치 1건/);
+        const before=JSON.stringify(item),beforeOps=ops.length;
+        const downloadStart=page.waitForEvent('download');
+        await register.getByRole('button',{name:/현재 필터 결과 CSV/}).click();
+        const download=await downloadStart,bytes=await readFile(await download.path()),csv=bytes.toString('utf8');
+        assert.deepEqual([...bytes.subarray(0,3)],[239,187,191],'CSV BOM');
+        assert.match(csv,/다음 현장 확인 예정일/);
+        assert.match(csv,/용인 A현장/);assert.doesNotMatch(csv,/용인 B현장/);
+        assert.equal(csv.split('\\r\\n').filter(Boolean).length,2,'header plus one filtered action');
+        assert.equal(ops.length,beforeOps,'filters and CSV do not request more data');
+        await register.getByLabel('통합 조치 기한 시작일').fill('2026-11-10');
+        await register.getByLabel('통합 조치 기한 종료일').fill('2026-11-05');
+        assert.match(await register.getByRole('alert').innerText(),/시작일이 종료일보다 늦습니다/);
+        assert.equal(await register.locator('[data-global-action-id]').count(),0,'invalid range must never broaden the query');
+        await register.getByRole('button',{name:'검색 조건 초기화'}).click();
+        await register.getByLabel('통합 조치 필터').selectOption('overdue');
+        assert.equal(await register.locator('[data-global-action-id]').count(),1);
+        for(const width of [320,390,768,1440]){
+            await page.setViewportSize({width,height:950});
+            assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'global register page overflows at '+width);
+            if(width===390)await register.screenshot({path:out+'/global-register-mobile.png'});
+        }
+        await page.setViewportSize({width:390,height:950});
+        await page.evaluate(()=>document.documentElement.classList.add('dark'));
+        await register.screenshot({path:out+'/global-register-dark.png'});
+        await page.evaluate(()=>document.documentElement.classList.remove('dark'));
+        assert.equal(JSON.stringify(item),before,'no mutation from filters or CSV');
+        const beforeOpen=ops.length;
+        await register.getByRole('button',{name:'원점검 조치 열기',exact:true}).click();
+        await page.locator('.si-action-radar').waitFor();
+        assert.equal(ops.slice(beforeOpen).filter(op=>op==='detail').length,1,'opens exact original inspection once');
+        assert.equal(ops.filter(op=>['save','upload','analyze-photo'].includes(op)).length,0,'no writes and no AI');
+        assert.deepEqual(errors,[]);
+        results.push({scenario,status:'PASS',providerCalls:0,ops});console.log('PASS '+scenario);await context.close();continue;
+    }
+    await page.getByRole('switch',{name:'AI 정밀점검 사용',exact:true}).click();
     if(process.env.PSI_QA_KOREAN_FONT){await page.addStyleTag({content:"@font-face{font-family:PSIQA;src:url('/__qa-korean.otf')}body,.si-workspace *{font-family:PSIQA,sans-serif!important}"});await page.evaluate(()=>document.fonts.load('16px PSIQA','현장점검'));}
     if(scenario.startsWith('ai-diagnostic')){
         await page.getByText('API 연결은 어떻게 되나요?',{exact:true}).click();const panel=page.getByRole('region',{name:'AI 실제 작동 시험',exact:true}),button=panel.getByRole('button');
