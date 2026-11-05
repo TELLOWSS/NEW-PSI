@@ -319,6 +319,33 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
         setReviewEditRequest(0);setReviewNotice('');setLocal(null);setCopied(false);setActionCopied(false);setZoom(false);setFieldCard(null);uploaded.current=registered;setPhoto(registered);setStoredPhoto(blob);setNote(text);setPhotoOnlyAcknowledged(false);setRiskTopic(current.document.photoRiskTopics?.[photoId]||'');setHintOpen(!!text.trim());setResultNote(text);setReview({decision:prior?.decision||'accepted',note:prior?.note===DEFAULT_REVIEW_NOTE?'':prior?.note||''});setAnalyzedResult(!!a);setAnalysisFailed(false);setReport(null);setEditInput(false);setSelectedFinding(0);setResultKey(k=>k+1);setReference(legalForPhoto(a,text,current.document.eventAt));
         requestAnimationFrame(()=>resultRef.current?.scrollIntoView({block:'start',behavior:'smooth'}));
     };
+    /** R115 — re-enter an existing one-photo unverified record without replacing its prior reports.
+     * Current photo bytes remain registered; a new report is created only after an explicit save.
+     */
+    const focusUnverifiedEditor=()=>{
+        setEntryIntent(null);setReference(null);setReport(null);setEditInput(true);setHintOpen(false);
+        setPhotoOnlyAcknowledged(false);
+        setEntryNotice('기존 보고서는 당시 버전 그대로 보관됩니다. 현장 확인 내용을 추가하고 보관 안내를 확인한 뒤 새 보고서를 직접 작성하세요. 이전 보고서는 자동 수정되지 않습니다.');
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{
+            const input=onePhotoNoteRef.current;
+            input?.focus({preventScroll:true});
+            input?.scrollIntoView({block:'center',behavior:'smooth'});
+        }));
+    };
+    const reviseCurrentUnverifiedReport=()=>{
+        const current=latest.current,selected=uploaded.current;
+        if(!current||!selected||!photo||!report||storageLocked||storageBusy||busy||actionDraftDirty)return;
+        if(current.document.photoIds.length!==1||!!current.document.analyses[selected.id]||!!current.document.photoNotes?.[selected.id])return;
+        focusUnverifiedEditor();
+    };
+    const reopenUnverifiedPhoto=(photoId:string)=>void run(async()=>{
+        const current=latest.current,registered=evidence.find(p=>p.id===photoId&&p.inspection_id===current?.id);
+        if(!current||!registered||local||photo||storageLocked||storageBusy||actionDraftDirty)throw new Error('현재 작성 중인 사진·조치를 정리하고 저장 기록에서 다시 열어 주세요.');
+        if(current.document.photoIds.length!==1||current.document.photoIds[0]!==photoId||current.document.analyses[photoId]||current.document.photoNotes?.[photoId])
+            throw new Error('이 버튼은 설명이 없는 사진 한 장 기록에만 사용합니다. 다른 기록은 일반 사진 검토 절차로 진행하세요.');
+        await restoreSavedPhoto(current,registered);
+        if(alive.current)focusUnverifiedEditor();
+    });
     const continueReview=()=>void run(async()=>{
         if(!photo||resultNote!==note||storageLocked||actionDraftDirty)throw new Error('현재 사진의 분석·설명과 입력 중인 조치를 확인한 뒤 이어가세요.');
         if(!latest.current||!pendingReviewQueue(latest.current.document,photo.id).length)throw new Error('다음 AI 검토 대기 사진이 없습니다.');
@@ -490,7 +517,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
         {item&&entryIntent&&<section className="si-resumed-context" aria-label="현재 저장 점검"><p className="si-eyebrow">저장한 점검 이어하기</p><h2>{item.document.title}</h2><p>버전 {item.revision} · 사진 {item.document.photoIds.length}장 · 검토 대기 {recordResumeStatus(item.document).pendingPhotos}장 · 미결 조치 {recordResumeStatus(item.document).remainingActions}건</p>{entryNotice&&<p role="status" className="si-notice">{entryNotice}</p>}</section>}
         {item&&!entryIntent&&entryNotice&&<p role="status" className="si-notice">{entryNotice}</p>}
 
-         {item&&item.document.photoIds.length>0&&<InspectorPhotoCollection item={item} active={!!(local||photo)} busy={busy} title={reportTitle} onTitle={setReportTitle} onOpen={openSavedPhoto} onFinish={finish}/>}
+         {item&&item.document.photoIds.length>0&&<InspectorPhotoCollection item={item} active={!!(local||photo)} busy={busy} title={reportTitle} onTitle={setReportTitle} onOpen={openSavedPhoto} onEditUnverified={reopenUnverifiedPhoto} onFinish={finish}/>}
         {!storageLocked&&actionDraftDirty&&<section className="si-report-draft-choice" aria-label="작성 중인 입력과 보고서" tabIndex={-1}><div><b>{reportBlocked?'작성 중인 조치가 있어 보고서 범위를 골라 주세요':'작성 중인 입력이 있습니다'}</b><p>조치·담당 변경·개선 입력은 아직 저장되지 않았습니다. 입력은 유지하며, 저장본만 보고서에 담을 수도 있습니다.</p>{local&&!photo&&<p>선택한 새 사진을 먼저 저장하거나 사진 선택을 해제한 뒤 작성 중인 입력으로 돌아가세요.</p>}</div><div className="si-draft-choice-actions"><button type="button" className="si-btn si-primary" disabled={busy||storageBusy||!!local&&!photo} onClick={returnToDraft}>{photo?'현재 사진 검토 저장 · 입력으로 돌아가기':'작성 중인 입력으로 이동'}</button><button type="button" className="si-btn" disabled={busy||storageBusy||!item||!!local||!!photo} onClick={finishSavedOnly}>미저장 입력 제외 · 저장본으로 보고서</button></div></section>}
         {item&&!storageLocked&&!local&&!photo&&item.document.actions.length>0&&<InspectorActionRadar actions={item.document.actions} document={item.document} disabled={busy||storageBusy||actionDraftDirty} onOpenActions={()=>setDraftRequest(n=>n+1)} onOpenInbox={()=>setInboxRequest(n=>n+1)} onOpenPriorityAction={actionId=>setPriorityFocus(prev=>({actionId,request:(prev?.request||0)+1}))}/>}
         {item&&!report&&!storageLocked&&!photo&&!local&&item.document.photoIds.length>0&&<section className="si-report-readiness" aria-label="검토용 보고서 준비 상태"><b>모은 사진으로 보고서를 만들 수 있습니다</b><p>사진 {item.document.photoIds.length}장 · 저장된 AI 검토 {item.document.photoIds.filter(id=>!!item.document.analyses[id]&&!!item.document.reviews[id]).length}장 · 아직 검토할 AI 사진 {item.document.photoIds.filter(id=>!!item.document.analyses[id]&&!item.document.reviews[id]).length}장 · 미결 조치 {item.document.actions.filter(action=>action.status!=='verified').length}건 (현장 재점검 대기 {item.document.actions.filter(action=>action.status==='review-requested').length}건)</p><small>미검토 AI 사진은 먼저 열어 확인해 주세요. 개선사진 접수와 완료 검토 요청은 현장 재점검 확정이 아닙니다. 조치 기록을 갱신했다면 최신 저장본으로 새 보고서를 작성하세요. 보고서 작성은 법 위반 확정이나 작업재개 승인이 아닙니다.</small></section>}
@@ -622,6 +649,13 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
                 <ol><li>위 ‘PDF로 저장 / 인쇄’를 선택합니다.</li><li>PC에서는 인쇄 대상(프린터)을 ‘PDF로 저장’으로 선택합니다. 모바일에서는 브라우저·기기의 인쇄 메뉴에서 PDF 저장을 선택합니다(기기마다 이름과 위치가 다를 수 있음).</li><li>저장 위치를 정하고 실제 PDF 파일에 사진과 상세 근거가 포함됐는지 확인하세요.</li></ol>
                 <p>인쇄창을 열거나 보고서가 화면에 보인 것만으로 PDF 파일이 저장된 것은 아닙니다. 인쇄 기능이 없는 환경에서는 다른 브라우저·PC에서 저장 기록을 열어 출력하세요.</p>
             </details>
+            {photo&&item&&report.snapshot.evidence.length===1&&!report.snapshot.inspection.document.analyses[photo.id]&&!report.snapshot.inspection.document.photoNotes?.[photo.id]&&
+                <div className="si-report-followup" data-psi-report-followup="true">
+                    <strong>나중에 현장을 확인했나요?</strong>
+                    <p>기존 미확인 보고서는 유지하고, 설명을 보완하여 새 보고서 버전을 만들 수 있습니다. 실제 조치가 필요하면 담당·기한을 별도 등록하세요.</p>
+                    <button type="button" className="si-btn si-primary" data-psi-revise-photo="true" disabled={busy||storageBusy||storageLocked||actionDraftDirty} onClick={reviseCurrentUnverifiedReport}>현장 설명 보완 · 새 보고서</button>
+                    <button type="button" className="si-btn" disabled={busy||storageBusy||storageLocked||actionDraftDirty||resultNote!==note} onClick={()=>{setReport(null);draftPhotoAction(false);}}>개선조치 담당·기한 등록 (선택)</button>
+                </div>}
             <div className="si-report-delivery-secondary"><button type="button" className="si-btn" disabled={busy} onClick={()=>nextPhoto()}>사진 더 추가</button><button type="button" className="si-btn" disabled={busy} onClick={()=>startNew()}>새 점검 시작</button></div>
             <p className="si-caption">검토용 보고서입니다. 실제 위험 제거·위법 여부·작업재개 승인은 현장 책임자가 별도 확인해야 합니다. 공유창을 연 것만으로 상대방에게 전달된 것은 아닙니다.</p>
         </section><Suspense fallback={<p role="status">보고서 화면을 준비합니다…</p>}><InspectorReport report={report} onPhotoState={setPrintPhotoStatus} showShareAction={false}/></Suspense></>}
