@@ -30,7 +30,7 @@ describe('R118 paged administrator register filters without rescanning or rewrit
   expect(filterGlobalActionsWithCriteria(data,'check','',today,all).map(x=>x.actionId)).toEqual(['a1','a2']);
   expect(globalActionDimensions(data.find(x=>x.actionId==='b2')!,today).check).toBe(false);
   expect(globalActionDimensions(data.find(x=>x.actionId==='a2')!,today)).toMatchObject({check:true,checkLate:true,reinspection:true,overdue:false});
-  expect(globalActionNextStep(data.find(x=>x.actionId==='a1')!,today)).toMatch(/임시 보호조치 계획의 실제 이행 여부/);
+  expect(globalActionNextStep({...data.find(x=>x.actionId==='b1')!,scheduleContext:check('2026-11-06')},today)).toMatch(/임시 보호조치 계획의 실제 이행 여부/);
  });
  it('combines exact site, exact owner, and inclusive agreed due date interval',()=>{
   const data=rows(),today='2026-11-06';
