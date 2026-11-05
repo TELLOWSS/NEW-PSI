@@ -102,6 +102,16 @@ for(const scenario of ['one-photo-direct','one-photo-retry','manual-report','rev
    await page.locator('[data-report-photo-state="ready"]').waitFor({state:'attached'});
    assert.equal(await page.locator('.si-quick-print .si-primary').isDisabled(),false);
    await page.screenshot({path:output+'/one-photo-direct-report.png',fullPage:true});
+   if(scenario==='one-photo-direct'){
+     await page.getByRole('button',{name:'사진 더 추가',exact:true}).click();
+     await page.locator('.si-quick-input:not([hidden])').waitFor();
+     await page.getByLabel('현장사진 선택',{exact:true}).setInputFiles({name:'second.jpg',mimeType:'image/jpeg',buffer:source});
+     await page.getByAltText('분석할 현장사진').waitFor();
+     assert.equal(await page.locator('[data-psi-one-photo-guide]').count(),0,
+       'second photo must not offer the one-photo report shortcut');
+     assert.equal(ops.filter(x=>x==='upload').length,1,
+       'selecting the second photo must not upload it or alter the first report');
+   }
    for(const width of [320,390,844,1440]){
      await page.setViewportSize({width,height:900});
      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'one-photo mobile overflow '+width);
