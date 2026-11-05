@@ -381,8 +381,13 @@ try{
             }
             await page.getByRole('button',{name:'모은 자료로 보고서 완성',exact:true}).last().click();await page.getByRole('article',{name:'점검 검토용 보고서'}).waitFor();assert.equal(reportCalls,1);assert.deepEqual(reports[0].snapshot.inspection.document.actions,item.document.actions);assert.deepEqual(errors,[]);
             if(scenario==='direct-delayed'){
-                assert.match(await page.getByRole('article',{name:'점검 검토용 보고서'}).innerText(),/다음 현장 확인 예정: 2027-01-02/);
-                assert.match(await page.getByRole('article',{name:'점검 검토용 보고서'}).innerText(),/임시 보호조치 계획\(시행 미확인\)/);
+                const savedReport=page.getByRole('article',{name:'점검 검토용 보고서'});
+                await page.emulateMedia({media:'print'});
+                const printable=savedReport.locator('[data-psi-inspector-full-evidence="true"]');
+                assert.equal(await printable.isVisible(),true,'full action evidence must remain printable');
+                assert.match(await printable.innerText(),/다음 현장 확인 예정: 2027-01-02/);
+                assert.match(await printable.innerText(),/임시 보호조치 계획\(시행 미확인\)/);
+                await page.emulateMedia({media:'screen'});
                 assert.equal(item.document.actions[0].status,'open');
             }
             results.push({scenario,status:'PASS',provider:'fixture, no paid calls',ops});console.log('PASS '+scenario);await context.close();continue;
