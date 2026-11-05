@@ -7,7 +7,7 @@ import {overdueAction} from './workQueue.js';
  */
 export const attentionLabels={
  overdue:'기한 경과',
- check:'오늘·미확인 현장 확인',
+ check:'현장 확인일 도래',
  reinspection:'재점검 대기',
  due:'오늘 완료기한',
 } as const;
