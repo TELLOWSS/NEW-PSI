@@ -29,8 +29,8 @@ export default function InspectorGlobalActionRegister({onOpenAction,blocked=fals
  };
  const today=koreanDay(),criteria:GlobalRegisterCriteria={site,owner,dueFrom,dueTo};
  const criteriaError=globalRegisterCriteriaError(criteria);
- const sites=[...new Set(rows.map(row=>row.siteName.trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
- const owners=[...new Set(rows.map(row=>row.owner.trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
+ const sites:string[]=Array.from(new Set<string>(rows.map((row:GlobalActionRow)=>row.siteName.trim()).filter((value:string)=>value.length>0))).sort((a:string,b:string)=>a.localeCompare(b,'ko'));
+ const owners:string[]=Array.from(new Set<string>(rows.map((row:GlobalActionRow)=>row.owner.trim()).filter((value:string)=>value.length>0))).sort((a:string,b:string)=>a.localeCompare(b,'ko'));
  const scoped=filterGlobalActionsWithCriteria(rows,'all',search,today,criteria);
  const counts=globalActionCounts(scoped,today),checks=globalActionCheckCounts(scoped,today);
  const filtered=filterGlobalActionsWithCriteria(rows,filter,search,today,criteria);
