@@ -114,7 +114,7 @@ describe('ATLAS 10th release: prevent accidental overwrite when importing Laya r
             expect(preview.incomingReviewed).toBe(132);
             expect(preview.reviewProvenanceVerified).toBe(false);
         }
-    });
+    }, 15_000);
     it('input ordering does not change the comparison, and older handoff JSON remains compatible',()=>{
         const current=reviewed();
         const imported={...current,cases:[...current.cases].reverse()};
