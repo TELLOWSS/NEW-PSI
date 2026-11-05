@@ -53,8 +53,14 @@ for(const scenario of ['one-photo-direct','one-photo-retry','manual-report','rev
  await page.locator('.si-consent-cue').getByText('다음 단계 · 이 사진의 보관 안내 확인').waitFor();
  assert.equal(await page.locator('.si-quick-start').isDisabled(),true,'Consent must not be implicitly accepted');
  assert.equal(await page.locator('.si-quick-start').innerText(),'먼저 사진 보관 안내 확인');
- await page.waitForFunction(()=>document.activeElement?.classList.contains('si-consent-input'));
- await page.waitForFunction(()=>{const el=document.querySelector('.si-quick-consent');if(!el)return false;const rect=el.getBoundingClientRect();return rect.top>=0&&rect.bottom<=innerHeight;});
+ if(['one-photo-direct','one-photo-retry','manual-report'].includes(scenario)){
+   await page.waitForFunction(()=>document.activeElement?.id==='si-one-photo-note');
+   const noteRect=await page.locator('#si-one-photo-note').boundingBox();
+   assert.ok(noteRect&&noteRect.y>=0&&noteRect.y+noteRect.height<=844,'one-photo explanation must start in view');
+ }else{
+   await page.waitForFunction(()=>document.activeElement?.classList.contains('si-consent-input'));
+   await page.waitForFunction(()=>{const el=document.querySelector('.si-quick-consent');if(!el)return false;const rect=el.getBoundingClientRect();return rect.top>=0&&rect.bottom<=innerHeight;});
+ }
  if(scenario==='review'){await page.screenshot({path:output+'/first-photo-consent.png'});assert.equal(ops.filter(x=>x==='upload').length,0);}
  await page.locator('.si-quick-consent input').check();
  await page.getByText('확인 완료 · 이제 점검할 수 있습니다',{exact:true}).waitFor();
