@@ -433,3 +433,23 @@
 .si-unverified-resume>div{flex:1;min-width:210px}
 @media(max-width:600px){.si-report-followup,.si-unverified-resume{padding:12px;flex-direction:column;align-items:stretch}.si-report-followup .si-btn,.si-unverified-resume .si-btn{width:100%;justify-content:center}}
 @media print{.si-report-followup,.si-unverified-resume{display:none!important}}
+
+
+/* R116: deferred correction plan — planned controls are never displayed as completed. */
+.si-deferred-correction{margin:14px 0;border:1px solid var(--si-line);background:var(--si-surface);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.si-deferred-trigger{display:flex!important;align-items:flex-start;gap:11px;cursor:pointer;font-size:14px;line-height:1.5}
+.si-deferred-trigger input{flex:0 0 20px;width:20px;height:20px;margin:3px 0 0;accent-color:var(--si-teal)}
+.si-deferred-trigger span{display:flex;flex-direction:column;gap:4px;min-width:0}
+.si-deferred-trigger b{font-weight:800;color:var(--si-navy)}
+.si-deferred-trigger small{font-size:12px;line-height:1.6;color:var(--si-muted)}
+.si-deferred-fields{display:flex;flex-direction:column;gap:10px;padding:14px;border-top:1px solid var(--si-line);background:var(--si-accent-soft);border-radius:9px}
+.si-deferred-fields label{font-size:14px;font-weight:750;color:var(--si-navy)}
+.si-deferred-fields label strong{font-size:11px;color:var(--si-teal)}
+.si-deferred-fields textarea,.si-deferred-fields input[type="date"]{box-sizing:border-box;width:100%;min-width:0;max-width:100%;background:var(--si-surface);color:var(--si-navy);border:1px solid var(--si-line);border-radius:10px;padding:11px;font:inherit;font-size:14px}
+.si-deferred-fields textarea{min-height:69px;resize:vertical}
+.si-deferred-fields .si-notice,.si-deferred-fields .si-caption{margin:1px 0;line-height:1.7}
+.si-deferred-presets{display:flex;flex-wrap:wrap;gap:7px}
+.si-deferred-presets .si-btn{min-height:39px;white-space:normal;text-align:center;font-size:12px}
+.si-action-next-check{padding:10px 12px;border:1px solid var(--si-line);border-radius:9px;background:var(--si-accent-soft);color:var(--si-navy);font-size:13px;font-weight:700;line-height:1.6;overflow-wrap:anywhere}
+@media(max-width:600px){.si-deferred-correction{padding:12px}.si-deferred-fields{padding:11px}.si-deferred-presets .si-btn{flex:1;min-width:130px}}
+@media print{.si-deferred-correction{display:none!important}}

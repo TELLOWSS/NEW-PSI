@@ -15,7 +15,7 @@ let proxy;if(externalBase&&(process.env.HTTPS_PROXY||process.env.HTTP_PROXY)){co
 const browser=await chromium.launch({executablePath:process.env.PSI_CHROMIUM_PATH,headless:true,...(proxy?{proxy}:{}),args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});
 const results=[];await mkdir(out,{recursive:true});
 try{
- for(const scenario of ['cost-expiry-registration','cost-expiry-pricing','cost-reader-failed','api-resumed-retry','api-lost-context','api-lost-deleted','api-auth-failed','api-lost-result','ai-diagnostic-cost-race','ai-diagnostic','ai-diagnostic-failed','ai-diagnostic-blocked','cost-register','context-product-only','cost-race','cost-blocked','cost-paid','context-msds','context-unclear','video-prefill','video-draft-report','video-progress','selected-action','selected-generic','selected-expert','selected-rejected','selected-failed','selected-save-review','selected-cancel','action-assignment','action-assignment-failed','action-assignment-response','action-assignment-conflict','action-assignment-deleted','action-assignment-cancel','review-save','review-save-finish','review-save-failed','review-save-response','review-save-stale','review-save-deleted','review-save-storage','review-save-rejected','review-save-short','review-save-resume-missing','result-focus','result-copy-denied','camera-ai','gallery-rotate','paste-ai','ai-off','api-unavailable','api-retry','report-retry','no-findings','finish-between','expert-correction','resume-review','resume-pending','multi-photo','stored-result-recovery','delete-retry','delete-resume','delete-files','action-group','action-save-retry','action-save-failed','action-manual','share-native','action-followup-file','action-followup-camera','action-followup-paste','action-followup-retry','action-followup-response','action-followup-legacy','action-followup-resume','action-followup-pending','direct-action','direct-manual','direct-rejected','direct-review-failed','direct-cap','discovery-photo','discovery-unclear','discovery-no-api','discovery-api-off','discovery-mismatch','card-selected','card-edited','card-rejected','card-manual','card-unclear','card-render-failed','card-long','card-low','link-rebar','link-multi','link-unsupported','link-missing-keywords','link-resume','link-rejected','text-only']){
+ for(const scenario of ['cost-expiry-registration','cost-expiry-pricing','cost-reader-failed','api-resumed-retry','api-lost-context','api-lost-deleted','api-auth-failed','api-lost-result','ai-diagnostic-cost-race','ai-diagnostic','ai-diagnostic-failed','ai-diagnostic-blocked','cost-register','context-product-only','cost-race','cost-blocked','cost-paid','context-msds','context-unclear','video-prefill','video-draft-report','video-progress','selected-action','selected-generic','selected-expert','selected-rejected','selected-failed','selected-save-review','selected-cancel','action-assignment','action-assignment-failed','action-assignment-response','action-assignment-conflict','action-assignment-deleted','action-assignment-cancel','review-save','review-save-finish','review-save-failed','review-save-response','review-save-stale','review-save-deleted','review-save-storage','review-save-rejected','review-save-short','review-save-resume-missing','result-focus','result-copy-denied','camera-ai','gallery-rotate','paste-ai','ai-off','api-unavailable','api-retry','report-retry','no-findings','finish-between','expert-correction','resume-review','resume-pending','multi-photo','stored-result-recovery','delete-retry','delete-resume','delete-files','action-group','action-save-retry','action-save-failed','action-manual','share-native','action-followup-file','action-followup-camera','action-followup-paste','action-followup-retry','action-followup-response','action-followup-legacy','action-followup-resume','action-followup-pending','direct-action','direct-manual','direct-delayed','direct-rejected','direct-review-failed','direct-cap','discovery-photo','discovery-unclear','discovery-no-api','discovery-api-off','discovery-mismatch','card-selected','card-edited','card-rejected','card-manual','card-unclear','card-render-failed','card-long','card-low','link-rebar','link-multi','link-unsupported','link-missing-keywords','link-resume','link-rejected','text-only']){
     if(process.env.PSI_QA_SCENARIOS&&!process.env.PSI_QA_SCENARIOS.split(',').includes(scenario))continue;
     console.log('START '+scenario);
     const context=await browser.newContext({viewport:{width:390,height:900},permissions:['clipboard-read','clipboard-write'],ignoreHTTPSErrors:!!externalBase}),page=await context.newPage();const ops=[],errors=[],attempts=[],images=new Map();let actionSaves=0,followupSaves=0,reviewAttempts=0,assignmentSaves=0;let freeRegistered=false;let item,evidence=[],reports=[],analyzeCalls=0,reportCalls=0,deleteCalls=0,deletionState='active',deletionMode=null,verifyAfter=null;
@@ -130,7 +130,7 @@ try{
            continue;
          }
 
-        if(['ai-off','action-manual','direct-manual','discovery-api-off','card-manual'].includes(scenario))await page.getByRole('switch').click();
+        if(['ai-off','action-manual','direct-manual','direct-delayed','discovery-api-off','card-manual'].includes(scenario))await page.getByRole('switch').click();
         if(['cost-blocked','cost-paid','cost-reader-failed'].includes(scenario)){
             if(scenario==='cost-reader-failed'){const notice=page.getByRole('region',{name:'AI 무료 사용 보호',exact:true});await notice.getByText('확인 방식: 청구 조회 실패 · 분석 차단',{exact:true}).waitFor();assert.equal(await notice.getByText('무료 프로젝트 최초 등록 · 운영자',{exact:true}).count(),0);}
             await page.getByRole('checkbox').check();await page.getByRole('button',{name:'무료 확인 전 · AI 분석 차단',exact:true}).waitFor();assert.equal(await page.locator('.si-quick-start').isDisabled(),true);assert.equal(analyzeCalls,0);assert.equal(ops.filter(op=>['create','upload','save'].includes(op)).length,0);
@@ -314,7 +314,7 @@ try{
         }
         await page.getByRole('region',{name:'사진점검 결과'}).waitFor();if(scenario!=='no-findings')await page.getByText('5년 이하 징역 또는 5,000만원 이하 벌금',{exact:true}).first().waitFor();await page.waitForFunction(()=>!document.querySelector('.si-quick-start').disabled);
         if(scenario.startsWith('direct-')){
-            const entry=scenario==='direct-manual'?page.getByRole('region',{name:'점검 다음 단계'}).getByRole('button',{name:'조치 작성 (선택)',exact:true}):page.locator('.si-photo-action-entry button'),planner=page.locator('.si-action-planner');
+            const entry=['direct-manual','direct-delayed'].includes(scenario)?page.getByRole('region',{name:'점검 다음 단계'}).getByRole('button',{name:'조치 작성 (선택)',exact:true}):page.locator('.si-photo-action-entry button'),planner=page.locator('.si-action-planner');
             const originalId=evidence[0].id,analysesBefore=analyzeCalls,uploadsBefore=ops.filter(op=>op==='upload').length;
             if(scenario==='direct-cap'){const saved=JSON.stringify(item),count=ops.length;await entry.click();await page.getByRole('alert').waitFor();assert.match(await page.getByRole('alert').innerText(),/30건/);assert.equal(JSON.stringify(item),saved);assert.equal(ops.length,count);assert.equal(await page.getByRole('region',{name:'사진점검 결과'}).isVisible(),true);assert.deepEqual(errors,[]);results.push({scenario,status:'PASS',provider:'fixture, no paid calls',ops});console.log('PASS '+scenario);await context.close();continue;}
             if(scenario==='direct-rejected'){
@@ -326,7 +326,7 @@ try{
             await planner.getByLabel('현장에 요청할 조치',{exact:true}).waitFor();
             assert.equal(await planner.evaluate(el=>el.open),true);assert.equal(await planner.locator('.si-action-sources input:checked').count(),1);
             assert.equal(await planner.getByLabel('담당자·공종',{exact:true}).inputValue(),'');assert.equal(await planner.getByLabel('완료기한',{exact:true}).inputValue(),'');
-            if(scenario==='direct-manual'){assert.equal(await planner.getByLabel('정리할 제안',{exact:true}).inputValue(),'manual');await planner.getByLabel('현장에 요청할 조치',{exact:true}).fill('수동 확인한 발판 고정 보완 요청');assert.equal(ops.filter(op=>op==='confirm-photo').length,0);}
+            if(['direct-manual','direct-delayed'].includes(scenario)){assert.equal(await planner.getByLabel('정리할 제안',{exact:true}).inputValue(),'manual');await planner.getByLabel('현장에 요청할 조치',{exact:true}).fill('수동 확인한 발판 고정 보완 요청');assert.equal(ops.filter(op=>op==='confirm-photo').length,0);}
             else {assert.ok(item.document.reviews[originalId]);assert.match(await planner.getByLabel('현장에 요청할 조치',{exact:true}).inputValue(),scenario==='direct-rejected'?/실측 결과 난간은 있음/:/접근을 통제/);}
             const save=planner.getByRole('button',{name:'확인한 조치 저장',exact:true}),ack=planner.getByLabel('선택한 사진의 실제 위치·상태와 조치 적용 범위를 확인했습니다.',{exact:true});
             assert.equal(await ack.isChecked(),false);assert.equal(await save.isDisabled(),true);
@@ -335,8 +335,39 @@ try{
             await shortcuts.getByRole('button',{name:'1일',exact:true}).click();assert.equal(await planner.getByLabel('완료기한',{exact:true}).inputValue(),'2027-01-01');assert.equal(await ack.isChecked(),false);
             await shortcuts.getByRole('button',{name:'3일',exact:true}).click();assert.equal(await planner.getByLabel('완료기한',{exact:true}).inputValue(),'2027-01-03');
             await page.clock.fastForward(60*60*1000);assert.equal(await planner.getByLabel('완료기한',{exact:true}).inputValue(),'2027-01-03');await ack.check();
+            if(scenario==='direct-delayed'){
+                const panel=planner.locator('[data-psi-deferred-correction="true"]');
+                const delay=panel.locator('.si-deferred-trigger input[type="checkbox"]');
+                assert.equal(await delay.isChecked(),false,'delayed action must not be enabled by default');
+                await delay.check();
+                assert.equal(await save.isDisabled(),true,'delay without actual reason or temporary plan must not save');
+                assert.equal(await ack.isChecked(),false,'changing delayed plan requires renewed scope acknowledgement');
+                const reason=panel.getByLabel(/즉시 조치가 어려운 이유/),interim=panel.getByLabel(/그동안의 임시 보호조치 계획/),checkDate=panel.getByLabel(/다음 현장 확인 예정일/);
+                await panel.getByRole('group',{name:'미조치 사유 빠른 입력'}).getByRole('button',{name:'자재 입고 일정 확인 필요'}).click();
+                await interim.fill('출입통제와 작업범위 조정 방안을 책임자가 검토할 예정');
+                await checkDate.fill('2027-01-04');
+                assert.equal(await save.isDisabled(),true,'followup date after completion due date must be rejected');
+                assert.match(await panel.getByRole('status').innerText(),/약정 완료기한 이전/);
+                await checkDate.fill('2027-01-02');
+                assert.match(await reason.inputValue(),/자재 입고 일정 확인 필요/);
+                assert.equal(await save.isDisabled(),true,'acknowledgement must be renewed after plan changes');
+                await ack.check();
+                assert.equal(await save.isDisabled(),false);
+            }
             for(const width of [320,390,768,1440]){await page.setViewportSize({width,height:950});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));if(scenario==='direct-action'){await planner.locator('.si-action-assignment').scrollIntoViewIfNeeded();await page.screenshot({path:`${out}/direct-assignment-${width}.png`,fullPage:true});}}
             await save.click();await planner.getByText('조치를 미조치 상태로 저장했습니다.',{exact:false}).waitFor();assert.deepEqual(item.document.actions[0].sourcePhotoIds,[originalId]);assert.equal(item.document.actions[0].status,'open');assert.equal(analyzeCalls,analysesBefore);assert.equal(ops.filter(op=>op==='upload').length,uploadsBefore);
+            if(scenario==='direct-delayed'){
+                const details=item.document.actions[0].scheduleContext;
+                assert.match(details,/즉시 조치 곤란\(미조치 유지\)/);
+                assert.match(details,/임시 보호조치 계획\(시행 미확인\)/);
+                assert.match(details,/다음 현장 확인 예정: 2027-01-02/);
+                assert.ok(details.length<=300);
+                await planner.getByRole('button',{name:'등록 조치 1',exact:true}).click();
+                assert.match(await planner.locator('.si-action-next-check').innerText(),/2027-01-02 · 상태 미확인 · 자동 알림 없음/);
+                assert.equal(item.document.actions[0].completionPhotoId,'');
+                assert.equal(item.document.actions[0].verifiedAt,undefined);
+                assert.deepEqual(errors,[]);
+            }
             if(scenario==='direct-action'){
                 await page.setViewportSize({width:390,height:950});await page.getByLabel('현장사진 선택').setInputFiles({name:'second.jpg',mimeType:'image/jpeg',buffer:source});await page.getByAltText('분석할 현장사진').waitFor();await fillHint('3층 개구부 덮개 없음');await page.locator('.si-quick-start').click();await page.getByRole('region',{name:'사진점검 결과'}).waitFor();await page.waitForFunction(()=>!document.querySelector('.si-quick-start').disabled);await entry.click();await planner.getByLabel('현장에 요청할 조치',{exact:true}).waitFor();
                 assert.equal(await planner.locator('.si-action-sources input').count(),2);assert.equal(await planner.locator('.si-action-sources input').first().isChecked(),false);assert.equal(await planner.locator('.si-action-sources input').nth(1).isChecked(),true);
@@ -349,6 +380,16 @@ try{
                 await page.evaluate(()=>document.documentElement.classList.add('dark'));await page.waitForTimeout(250);await planner.locator('.si-action-assignment').scrollIntoViewIfNeeded();await page.screenshot({path:out+'/direct-assignment-dark.png',fullPage:true});await page.evaluate(()=>document.documentElement.classList.remove('dark'));await save.click();await planner.getByText('조치를 미조치 상태로 저장했습니다.',{exact:false}).waitFor();assert.equal(item.document.actions.length,2);assert.equal(analyzeCalls,2);assert.equal(ops.filter(op=>op==='upload').length,2);const beforeClose=JSON.stringify(item);await planner.getByRole('button',{name:'다른 범위의 조치 작성',exact:true}).click();await planner.getByLabel('현장에 요청할 조치',{exact:true}).fill('저장하지 않고 닫을 새 조치');await planner.getByRole('button',{name:'이 조치 작성 닫기',exact:true}).click();assert.equal(JSON.stringify(item),beforeClose);assert.equal(await planner.evaluate(el=>el.open),false);
             }
             await page.getByRole('button',{name:'모은 자료로 보고서 완성',exact:true}).last().click();await page.getByRole('article',{name:'점검 검토용 보고서'}).waitFor();assert.equal(reportCalls,1);assert.deepEqual(reports[0].snapshot.inspection.document.actions,item.document.actions);assert.deepEqual(errors,[]);
+            if(scenario==='direct-delayed'){
+                const savedReport=page.getByRole('article',{name:'점검 검토용 보고서'});
+                await page.emulateMedia({media:'print'});
+                const printable=savedReport.locator('[data-psi-inspector-full-evidence="true"]');
+                assert.equal(await printable.isVisible(),true,'full action evidence must remain printable');
+                assert.match(await printable.innerText(),/다음 현장 확인 예정: 2027-01-02/);
+                assert.match(await printable.innerText(),/임시 보호조치 계획\(시행 미확인\)/);
+                await page.emulateMedia({media:'screen'});
+                assert.equal(item.document.actions[0].status,'open');
+            }
             results.push({scenario,status:'PASS',provider:'fixture, no paid calls',ops});console.log('PASS '+scenario);await context.close();continue;
         }
         if(scenario==='no-findings'){await page.getByText('이 사진으로 문제를 특정하기 어렵습니다',{exact:true}).waitFor();assert.ok((await page.getByLabel('핵심 답변').innerText()).includes('안전이 확인되었다는 뜻은 아닙니다'));assert.equal(await page.getByLabel('핵심 답변').locator('li').count(),1);assert.equal(await page.getByText('검증용 이미지일 수 있음',{exact:true}).isVisible(),false);}
