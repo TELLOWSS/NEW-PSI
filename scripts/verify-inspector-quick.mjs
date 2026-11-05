@@ -15,12 +15,13 @@ let proxy;if(externalBase&&(process.env.HTTPS_PROXY||process.env.HTTP_PROXY)){co
 const browser=await chromium.launch({executablePath:process.env.PSI_CHROMIUM_PATH,headless:true,...(proxy?{proxy}:{}),args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});
 const results=[];await mkdir(out,{recursive:true});
 try{
- for(const scenario of ['cost-expiry-registration','cost-expiry-pricing','cost-reader-failed','api-resumed-retry','api-lost-context','api-lost-deleted','api-auth-failed','api-lost-result','ai-diagnostic-cost-race','ai-diagnostic','ai-diagnostic-failed','ai-diagnostic-blocked','cost-register','context-product-only','cost-race','cost-blocked','cost-paid','context-msds','context-unclear','video-prefill','video-draft-report','video-progress','selected-action','selected-generic','selected-expert','selected-rejected','selected-failed','selected-save-review','selected-cancel','action-assignment','action-assignment-failed','action-assignment-response','action-assignment-conflict','action-assignment-deleted','action-assignment-cancel','review-save','review-save-finish','review-save-failed','review-save-response','review-save-stale','review-save-deleted','review-save-storage','review-save-rejected','review-save-short','review-save-resume-missing','result-focus','result-copy-denied','camera-ai','gallery-rotate','paste-ai','ai-off','api-unavailable','api-retry','report-retry','no-findings','finish-between','expert-correction','resume-review','resume-pending','multi-photo','stored-result-recovery','delete-retry','delete-resume','delete-files','action-group','action-save-retry','action-save-failed','action-manual','share-native','action-followup-file','action-followup-camera','action-followup-paste','action-followup-retry','action-followup-response','action-followup-legacy','action-followup-resume','action-followup-pending','direct-action','direct-manual','direct-delayed','direct-rejected','direct-review-failed','direct-cap','discovery-photo','discovery-unclear','discovery-no-api','discovery-api-off','discovery-mismatch','card-selected','card-edited','card-rejected','card-manual','card-unclear','card-render-failed','card-long','card-low','link-rebar','link-multi','link-unsupported','link-missing-keywords','link-resume','link-rejected','text-only']){
+ for(const scenario of ['cost-expiry-registration','cost-expiry-pricing','cost-reader-failed','api-resumed-retry','api-lost-context','api-lost-deleted','api-auth-failed','api-lost-result','ai-diagnostic-cost-race','ai-diagnostic','ai-diagnostic-failed','ai-diagnostic-blocked','cost-register','context-product-only','cost-race','cost-blocked','cost-paid','context-msds','context-unclear','video-prefill','video-draft-report','video-progress','selected-action','selected-generic','selected-expert','selected-rejected','selected-failed','selected-save-review','selected-cancel','action-assignment','action-assignment-failed','action-assignment-response','action-assignment-conflict','action-assignment-deleted','action-assignment-cancel','review-save','review-save-finish','review-save-failed','review-save-response','review-save-stale','review-save-deleted','review-save-storage','review-save-rejected','review-save-short','review-save-resume-missing','result-focus','result-copy-denied','camera-ai','gallery-rotate','paste-ai','ai-off','api-unavailable','api-retry','report-retry','no-findings','finish-between','expert-correction','resume-review','resume-pending','multi-photo','stored-result-recovery','delete-retry','delete-resume','delete-files','action-group','action-attention','action-save-retry','action-save-failed','action-manual','share-native','action-followup-file','action-followup-camera','action-followup-paste','action-followup-retry','action-followup-response','action-followup-legacy','action-followup-resume','action-followup-pending','direct-action','direct-manual','direct-delayed','direct-rejected','direct-review-failed','direct-cap','discovery-photo','discovery-unclear','discovery-no-api','discovery-api-off','discovery-mismatch','card-selected','card-edited','card-rejected','card-manual','card-unclear','card-render-failed','card-long','card-low','link-rebar','link-multi','link-unsupported','link-missing-keywords','link-resume','link-rejected','text-only']){
     if(process.env.PSI_QA_SCENARIOS&&!process.env.PSI_QA_SCENARIOS.split(',').includes(scenario))continue;
     console.log('START '+scenario);
     const context=await browser.newContext({viewport:{width:390,height:900},permissions:['clipboard-read','clipboard-write'],ignoreHTTPSErrors:!!externalBase}),page=await context.newPage();const ops=[],errors=[],attempts=[],images=new Map();let actionSaves=0,followupSaves=0,reviewAttempts=0,assignmentSaves=0;let freeRegistered=false;let item,evidence=[],reports=[],analyzeCalls=0,reportCalls=0,deleteCalls=0,deletionState='active',deletionMode=null,verifyAfter=null;
     if(scenario.startsWith('cost-expiry-'))await page.clock.install({time:new Date()});
     if(scenario.startsWith('direct-'))await page.clock.install({time:new Date('2026-12-31T14:30:00Z')});
+    if(scenario==='action-attention')await page.clock.install({time:new Date('2026-10-26T03:00:00Z')});
     page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
     await page.route('**/api/admin/auth',r=>r.fulfill({json:{ok:true,authenticated:true}}));
     await page.route('https://fonts.googleapis.com/**',r=>r.fulfill({body:'',contentType:'text/css'}));await page.route('https://cdn.jsdelivr.net/**',r=>r.fulfill({body:'',contentType:'text/css'}));
@@ -466,6 +467,36 @@ try{
             await page.setViewportSize({width:390,height:900});await planner.scrollIntoViewIfNeeded();if(scenario==='action-group')await page.screenshot({path:out+'/action-draft-mobile.png',fullPage:true});
             await save.click();if(scenario==='action-save-failed'){await page.getByRole('alert').waitFor();assert.equal(item.document.actions.length,0);await save.click();}
             await planner.getByText('조치를 미조치 상태로 저장했습니다.',{exact:false}).waitFor();assert.equal(item.document.actions.length,1);assert.equal(item.document.actions[0].status,'open');assert.equal(item.document.actions[0].completionPhotoId,'');assert.ok(item.document.actions[0].note.includes(evidence[0].id));if(evidence.length>1)assert.ok(!item.document.actions[0].note.includes(evidence[1].id));
+            if(scenario==='action-attention'){
+                const radar=page.getByRole('region',{name:'조치 관리 우선순위'}),board=radar.locator('[data-psi-attention-board="saved-only"]');
+                await board.waitFor();
+                assert.match(await board.locator('.si-attention-header').innerText(),/미결 1건 중 확인 필요 1건/);
+                assert.match(await board.locator('[data-attention-filter="overdue"]').innerText(),/1건/);
+                for(const kind of ['check','reinspection','due'])assert.match(await board.locator('[data-attention-filter="'+kind+'"]').innerText(),/0건/);
+                const before=JSON.stringify(item),beforeOps=ops.length;
+                await board.locator('[data-attention-filter="check"]').click();
+                assert.equal(await board.locator('[data-attention-filter="check"]').getAttribute('aria-pressed'),'true');
+                assert.match(await board.locator('.si-attention-empty').innerText(),/분류에 해당하는 저장 조치가 없습니다/);
+                await board.locator('[data-attention-filter="overdue"]').click();
+                assert.equal(await board.locator('[data-attention-filter="overdue"]').getAttribute('aria-pressed'),'true');
+                assert.equal(await board.locator('[data-attention-action-id]').count(),1);
+                for(const width of [320,390,768,1440]){
+                    await page.setViewportSize({width,height:950});
+                    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'attention overflow at '+width);
+                    if(width===390)await board.screenshot({path:out+'/action-attention-mobile.png'});
+                }
+                await page.setViewportSize({width:390,height:950});
+                await page.evaluate(()=>document.documentElement.classList.add('dark'));
+                await board.screenshot({path:out+'/action-attention-dark.png'});
+                await page.evaluate(()=>document.documentElement.classList.remove('dark'));
+                await board.getByRole('button',{name:'이 조치 확인·재점검',exact:true}).click();
+                await planner.getByRole('button',{name:'등록 조치 1',exact:true}).waitFor();
+                assert.equal(JSON.stringify(item),before,'priority navigation never changes the inspection');
+                assert.equal(ops.length,beforeOps,'attention-only filtering and navigation make no server calls');
+                assert.deepEqual(errors,[]);
+                results.push({scenario,status:'PASS',provider:'fixture, no paid calls',ops});console.log('PASS '+scenario);
+                await context.close();continue;
+            }
             await planner.getByRole('button',{name:'등록 조치 1',exact:true}).click();await planner.getByRole('button',{name:'미결 조치요청문 복사',exact:true}).click();await planner.getByText('등록한 조치요청문을 복사했습니다.',{exact:true}).waitFor();const request=await page.evaluate(()=>navigator.clipboard.readText());assert.ok(request.includes('형틀반장'));assert.ok(request.includes('상태: 미조치'));assert.equal(analyzeCalls,scenario==='action-manual'?0:scenario==='action-group'?2:1);
             if(['action-group','action-manual','action-followup-file'].includes(scenario))await checkActionCsv('미조치');
             if(scenario==='action-group'){

@@ -4,16 +4,21 @@ import {buildNextCycleHandoffDraft} from '../../lib/inspector/educationHandoff';
 import {copyInspectorShareText,shareCopyResultMessage} from '../../lib/inspector/sharing';
 import {selectPriorityAction,summarizeActionRadar} from '../../lib/inspector/actionRadar';
 import {scheduledCorrectionRows,scheduledCorrectionTotals} from '../../lib/inspector/actionSchedule';
+import {actionAttentionBoard,attentionLabels,attentionOrder,type AttentionKind} from '../../lib/inspector/actionAttention';
 import {useInspectionDay} from './useInspectionDay';
 import './inspector-action-radar.css';
 
 export default function InspectorActionRadar({actions,document:doc,disabled=false,onOpenActions,onOpenInbox,onOpenPriorityAction}:{actions:readonly InspectorAction[];document?:InspectionDocument;disabled?:boolean;onOpenActions?:()=>void;onOpenInbox?:()=>void;onOpenPriorityAction?:(actionId:string)=>void}){
     const [copyFeedback,setCopyFeedback]=useState('');
+    const [attentionView,setAttentionView]=useState<AttentionKind|null>(null);
     const today=useInspectionDay();
     const summary=summarizeActionRadar(actions,today);
     const priority=selectPriorityAction(actions,today);
     const schedule=scheduledCorrectionRows(actions,today);
     const scheduleCounts=scheduledCorrectionTotals(schedule);
+    const attention=actionAttentionBoard(actions,today);
+    const activeAttention=attentionView??attentionOrder.find(kind=>attention.groups[kind].length>0);
+    const attentionRows=activeAttention?attention.groups[activeAttention]:[];
     const handoff=doc?buildNextCycleHandoffDraft(doc,today):'';
     return <section className="si-action-radar" role="region" aria-label="조치 관리 우선순위" data-action-radar="saved-only">
         <div className="si-action-radar-header">
@@ -21,6 +26,29 @@ export default function InspectorActionRadar({actions,document:doc,disabled=fals
             <span className="si-action-radar-scope">{today} · 한국시간 기준</span>
         </div>
         <p className="si-action-radar-lead" role="status">{summary.immediateMessage}</p>
+        <section className="si-attention-board" aria-label="오늘의 미결 조치 확인" data-psi-attention-board="saved-only">
+            <div className="si-attention-header"><b>오늘 먼저 볼 조치</b><span>미결 {attention.unresolved}건 중 확인 필요 {attention.uniqueAttention}건</span></div>
+            <div className="si-attention-filters" role="group" aria-label="확인할 조치 분류">
+                {attentionOrder.map(kind=><button type="button" key={kind} data-attention-filter={kind}
+                  className={'si-attention-filter is-'+kind+(activeAttention===kind?' is-active':'')} aria-pressed={activeAttention===kind}
+                  onClick={()=>setAttentionView(kind)}>
+                    <span>{attentionLabels[kind]}</span><b>{attention.groups[kind].length}건</b>
+                </button>)}
+            </div>
+            <p className="si-caption">확인 예정일은 기록된 계획일 뿐이며, 알림이 발송되거나 임시조치가 시행됐다는 뜻이 아닙니다. ‘현장 확인일 도래’에는 오늘이거나 이미 지난 예정일의 미확인 건이 모두 포함됩니다.</p>
+            {attention.overlap>0&&<p className="si-caption" data-attention-overlap="true" role="note">한 조치가 기한 경과·확인일 도래·재점검 대기 등에 중복 해당합니다. 분류별 숫자를 합산하지 마세요. (중복 집계 {attention.overlap}회)</p>}
+            {activeAttention&&attentionRows.length>0?<div className="si-attention-results" role="region" aria-label={attentionLabels[activeAttention]+' 조치 목록'} aria-live="polite">
+                <p className="si-attention-results-heading">{attentionLabels[activeAttention]} · 저장된 조치 {attentionRows.length}건</p>
+                <ol>{attentionRows.map(row=><li key={row.actionId} data-attention-action-id={row.actionId}>
+                    <div className="si-attention-item-heading"><b>{row.title}</b><span>{row.evidenceSubmitted?'개선사진 접수 · 재점검 미확인':'미조치 · 현장 상태 확인 전'}</span></div>
+                    <p>담당 {row.owner?.trim()||'미지정'} · 약정 완료기한 {row.dueDate||'미지정'}{row.deadlineLate?' (기한 경과)':''}</p>
+                    {row.checkDate&&<p>다음 현장 확인 예정 {row.checkDate}{row.checkLate?' · 예정일 지남 · 현장 확인 필요':''} · 이행 여부 미확인</p>}
+                    <p className="si-attention-next">{row.evidenceSubmitted?'접수된 개선사진을 실제 현장과 대조하고 재점검 기록을 남기세요.':row.deadlineLate?'기한 경과 사유·보호조치 실제 시행 여부와 현장 상태를 확인하세요.':row.checkDate&&row.checkDate<=today?'현장 확인 예정일이 도래했습니다. 임시 보호조치 계획의 실제 이행 여부를 확인하세요.':'담당자와 현재 개선 진행상황 및 임시 보호조치를 확인하세요.'}</p>
+                    {onOpenPriorityAction&&<button type="button" className="si-btn" disabled={disabled} onClick={()=>onOpenPriorityAction(row.actionId)}>이 조치 확인·재점검</button>}
+                </li>)}</ol>
+            </div>:<p className="si-attention-empty">{activeAttention?attentionLabels[activeAttention]+' 분류에 해당하는 저장 조치가 없습니다.':'현재 점검의 저장된 조치에서 오늘 확인할 네 분류의 항목이 없습니다.'} 향후 기한·미등록 위험과 현장 안전은 별도로 확인하세요.</p>}
+            <p className="si-caption">이 화면은 <b>현재 점검 한 건</b>의 저장된 기록만 표시합니다. 다른 현장·다른 점검의 누락이나 실제 공유·회신·개선 완료를 판단하지 않습니다.</p>
+        </section>
         <dl className="si-action-radar-grid">
             {[
                 {label:'기한 지남',value:summary.overdue,key:'overdue'},
