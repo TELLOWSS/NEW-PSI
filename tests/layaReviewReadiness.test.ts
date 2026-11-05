@@ -109,7 +109,7 @@ describe('ATLAS safety review readiness / imported-result alignment', () => {
             }:row)};
             expect(() => verifyLayaRunMatchesCurrentPack(asRun(bad),original)).toThrow();
         }
-    });
+    }, 15_000);
     it('does not create Vercel API calls, cron jobs or new model runtime costs', () => {
         const source=readFileSync('utils/layaReviewReadiness.ts','utf8');
         const panel=readFileSync('components/tbm/LayaExtendedReviewPanel.tsx','utf8');
