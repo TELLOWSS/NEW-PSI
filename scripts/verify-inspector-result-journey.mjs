@@ -202,7 +202,8 @@ for(const scenario of ['one-photo-direct','one-photo-retry','manual-report','rev
   }
   await journey.getByRole('button',{name:'현장 대조 후 검토 저장',exact:true}).click();await journey.getByRole('button',{name:'보고서로 기록하기',exact:true}).waitFor();
   assert.equal(ops.filter(x=>x==='confirm-photo').length,1);assert.equal(ops.filter(x=>x==='analyze-photo').length,1);assert.equal(item.document.reviews[photo.id].decision,scenario==='rejected'?'rejected':'accepted');
-  await journey.screenshot({path:`${output}/${scenario}-guide.png`});await journey.getByRole('button',{name:'보고서로 기록하기',exact:true}).click();await page.locator('.si-report').waitFor();await page.waitForFunction(()=>document.activeElement?.classList.contains('si-report'));const reportTop=await page.locator('.si-report').evaluate(e=>e.getBoundingClientRect().top);assert.ok(reportTop>=-10&&reportTop<480,`New report should be visible after creation, got top=${reportTop}`);
+  await journey.screenshot({path:`${output}/${scenario}-guide.png`});await journey.getByRole('button',{name:'보고서로 기록하기',exact:true}).click();await page.locator('.si-report').waitFor();await page.waitForFunction(()=>document.activeElement?.classList.contains('si-report'));const deliveryTop=await page.locator('[data-psi-report-delivery]').evaluate(e=>e.getBoundingClientRect().top);
+  assert.ok(deliveryTop>=-30&&deliveryTop<480,`After saving, PDF/share actions should appear first, got top=${deliveryTop}`);
   assert.equal(ops.filter(x=>x==='report').length,1);assert.equal(ops.filter(x=>x==='upload').length,1);assert.ok((await page.locator('.si-report').innerText()).includes('직접 확인한 발판 틈새.'));
    // R110: short field summary is the default; full evidence remains printable
    // and the view switch must never modify the saved inspection.
