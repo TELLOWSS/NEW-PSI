@@ -67,3 +67,48 @@
 }
 @media(max-width:560px){.si-correction-schedule-list .si-btn{width:100%}}
 @media print{.si-correction-schedule{display:none!important}}
+
+
+/* R117 — saved-only action attention. Not a cross-inspection alarm or evidence of delivery. */
+.si-attention-board{margin:12px 0 18px;padding:15px;border:1px solid #bfd9d3;border-radius:14px;background:#fff;overflow-wrap:anywhere}
+.si-attention-header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px;margin-bottom:12px}
+.si-attention-header>b{font-size:16px;font-weight:850;color:#163e3b}
+.si-attention-header>span{font-size:12px;color:#446861;font-weight:700}
+.si-attention-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.si-attention-filter{min-height:65px;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:6px;padding:10px;border-radius:10px;border:1px solid #c6dcd8;background:#f6faf9;cursor:pointer;color:#1c4c48;font:inherit;text-align:left;min-width:0;overflow-wrap:anywhere}
+.si-attention-filter span{font-size:12px;font-weight:750;line-height:1.4}
+.si-attention-filter b{font-size:19px;font-weight:850;line-height:1.15;font-variant-numeric:tabular-nums}
+.si-attention-filter.is-overdue{border-color:#d6a67b;background:#fff8f0;color:#7a431c}
+.si-attention-filter.is-check{border-color:#c5c480;background:#fffef0;color:#5b5820}
+.si-attention-filter.is-reinspection{border-color:#9ebfd9;background:#f1f8fe;color:#1d537a}
+.si-attention-filter.is-due{border-color:#9bd3c9;background:#f3fcfa;color:#21645d}
+.si-attention-filter.is-active{outline:2px solid #246d67;outline-offset:1px;box-shadow:0 3px 12px #173e3d20}
+.si-attention-filter:focus-visible{outline:3px solid #187a71;outline-offset:2px}
+.si-attention-results{margin-top:15px;border-top:1px solid #dae9e5}
+.si-attention-results-heading{font-size:13px;font-weight:800;margin:12px 0;color:#214f4a}
+.si-attention-results ol{display:grid;gap:10px;list-style:none;padding:0;margin:0}
+.si-attention-results li{padding:13px;border:1px solid #cbdedb;border-radius:10px;background:#fafdfc;color:#193f3b;min-width:0}
+.si-attention-item-heading{display:flex;flex-wrap:wrap;gap:6px;justify-content:space-between;align-items:flex-start}
+.si-attention-item-heading b{font-size:14px;line-height:1.55;flex:1;min-width:0}
+.si-attention-item-heading span{font-size:11px;font-weight:800;color:#526d65}
+.si-attention-results li p{font-size:12px;line-height:1.65;margin:7px 0;color:#3b5c55}
+.si-attention-results li .si-attention-next{font-weight:700;color:#2b5e57}
+.si-attention-results .si-btn{min-height:44px;margin-top:6px;max-width:100%}
+.si-attention-empty{padding:13px;margin:10px 0 0;border-radius:10px;background:#f3f8f6;font-size:13px;line-height:1.7;color:#42625c}
+.dark .si-attention-board{background:#1a3035;border-color:#456a68}
+.dark .si-attention-header>b,.dark .si-attention-results-heading{color:#eef8f4}
+.dark .si-attention-header>span{color:#bad5cc}
+.dark .si-attention-filter{background:#25403e;border-color:#5f8178;color:#e8fcf5}
+.dark .si-attention-filter.is-overdue{background:#463222;border-color:#9d704b;color:#ffe5c4}
+.dark .si-attention-filter.is-check{background:#464122;border-color:#9c8e4c;color:#fff4c3}
+.dark .si-attention-filter.is-reinspection{background:#223d52;border-color:#5685a8;color:#dfedff}
+.dark .si-attention-filter.is-due{background:#1d403c;border-color:#548d83;color:#dcfff4}
+.dark .si-attention-filter.is-active,.dark .si-attention-filter:focus-visible{outline-color:#8adac9}
+.dark .si-attention-results{border-top-color:#42625f}
+.dark .si-attention-results li{background:#213b3e;border-color:#4b7270;color:#f1faf6}
+.dark .si-attention-item-heading span,.dark .si-attention-results li p{color:#c2dbd3}
+.dark .si-attention-results li .si-attention-next{color:#d7f6e7}
+.dark .si-attention-empty{background:#213c3a;color:#d0e9e0}
+@media(max-width:640px){.si-attention-board{padding:12px}.si-attention-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.si-attention-filter{min-height:66px}.si-attention-results .si-btn{width:100%;justify-content:center}}
+@media(max-width:340px){.si-attention-filters{gap:6px}.si-attention-filter{padding:9px 8px}.si-attention-filter span{font-size:11px}}
+@media print{.si-attention-board{display:none!important}}
