@@ -174,7 +174,7 @@ for(const scenario of ['one-photo-direct','one-photo-retry','photo-only-unverifi
      await page.locator('#si-one-photo-note').fill('현장 재확인: 2002동 5층 발판 틈새 확인. 난간 설치 및 하부 통제 여부는 별도 확인 중.');
      await page.locator('.si-one-photo-report:not(:disabled)').click();
      await page.getByRole('article',{name:'점검 검토용 보고서'}).waitFor();
-     await page.getByText(/현장 재확인: 2002동 5층 발판 틈새 확인/).first().waitFor();
+     await report.locator('[data-psi-inspector-field-brief]').getByText(/현장 재확인: 2002동 5층 발판 틈새 확인/).waitFor();
      assert.equal(issuedReports.length,2,'revised report must get a separate saved snapshot');
      assert.notEqual(issuedReports[0].id,issuedReports[1].id,'report ID must change');
      assert.ok(issuedReports[1].inspection_revision>original.inspection_revision,'report version must advance');
