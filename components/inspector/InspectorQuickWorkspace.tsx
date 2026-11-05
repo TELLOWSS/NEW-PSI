@@ -101,6 +101,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
     useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
     useEffect(()=>{if(!apiEnabled)return;let active=true;void request({op:'ai-status'}).then(r=>{if(active&&alive.current){setReady(r.ready);setCost(normalizeAiCost(r.cost));setConnection({provider:r.provider,model:r.model});}}).catch(()=>{if(active&&alive.current)setReady(false);});return()=>{active=false;};},[apiEnabled]);
     useEffect(()=>{const file=local?.file||storedPhoto;if(!file){setPreview('');return;}const url=URL.createObjectURL(file);setPreview(url);return()=>URL.revokeObjectURL(url);},[local,storedPhoto]);
+    useEffect(()=>{if(note.trim())setPhotoOnlyAcknowledged(false);},[note]);
     useEffect(()=>{
         if(!local||busy)return;
         const frame=requestAnimationFrame(()=>{
