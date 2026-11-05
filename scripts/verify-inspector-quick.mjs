@@ -30,7 +30,7 @@ try{
     await page.route('**/__photo/*',r=>r.fulfill({body:images.get(r.request().url().split('/').pop()),contentType:'image/jpeg'}));
     let globalRows=[];
     if(scenario==='global-register-fields'){
-        const plan=date=>'즉시 조치 곤란(미조치 유지): 자재 입고 지연\\n임시 보호조치 계획(시행 미확인): 작업구역 출입통제 검토\\n다음 현장 확인 예정: '+date;
+        const plan=date=>'즉시 조치 곤란(미조치 유지): 자재 입고 지연\n임시 보호조치 계획(시행 미확인): 작업구역 출입통제 검토\n다음 현장 확인 예정: '+date;
         const actionId=randomUUID(),inspectionId=randomUUID();
         item={id:inspectionId,revision:2,created_at:'2026-11-01T00:00:00Z',updated_at:'2026-11-05T00:00:00Z',document:{
             title:'월간 현장점검 A',siteName:'용인 A현장',location:'2002동 2층',workType:'형틀',eventAt:'2026-11-01T00:00:00Z',urgent:false,notes:'',
@@ -109,7 +109,7 @@ try{
         assert.deepEqual([...bytes.subarray(0,3)],[239,187,191],'CSV BOM');
         assert.match(csv,/다음 현장 확인 예정일/);
         assert.match(csv,/용인 A현장/);assert.doesNotMatch(csv,/용인 B현장/);
-        assert.equal(csv.split('\\r\\n').filter(Boolean).length,2,'header plus one filtered action');
+        assert.equal(csv.split('\r\n').filter(Boolean).length,2,'header plus one filtered action');
         assert.equal(ops.length,beforeOps,'filters and CSV do not request more data');
         await register.getByLabel('통합 조치 기한 시작일').fill('2026-11-10');
         await register.getByLabel('통합 조치 기한 종료일').fill('2026-11-05');
