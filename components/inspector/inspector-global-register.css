@@ -42,3 +42,9 @@
 @media(max-width:900px){.si-global-register-scope-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.si-global-register-scope{padding:12px}.si-global-register-scope-grid{grid-template-columns:1fr}.si-global-register-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.si-global-register-scope-footer{align-items:stretch;flex-direction:column}.si-global-register-scope-footer .si-btn{width:100%}}
 @media(prefers-color-scheme:dark){.si-global-register-scope{background:#172b41;border-color:#4b647d}.si-global-register-scope legend,.si-global-register-scope-grid label{color:#e2efff}.si-global-register-scope-grid input,.si-global-register-scope-grid select{background:#223850;color:#f0f8ff;border-color:#5c7894}.si-global-register-scope-footer{color:#c5d8e8}.si-global-register-check-notice{background:#4b391e;color:#fff1bc;border-color:#978049}.si-global-register-entry p.si-global-register-next-check{background:#3b3525;color:#ffe3a2}}
+
+/* R119: an explicit assignment gap is not a legal finding or automatically uncompleted work. */
+.si-global-register-assignment-notice{margin:0;padding:12px 14px;border:1px solid #f59e0b;background:#fffbeb;color:#78350f;border-radius:11px;font-size:12px;line-height:1.65}
+.si-global-register-entry[data-assignment-needed="yes"]{border-inline-start:4px solid #d97706}
+.si-global-register-entry p.si-global-register-assignment-detail{color:#92400e;background:#fff7e6;border-radius:6px;padding:6px 9px;font-weight:700}
+@media(prefers-color-scheme:dark){.si-global-register-assignment-notice{background:#451a03;color:#fde68a;border-color:#b45309}.si-global-register-entry p.si-global-register-assignment-detail{background:#422b16;color:#fde68a}}
