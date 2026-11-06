@@ -1,5 +1,5 @@
 import type {InspectorAction} from './types.js';
-import {deferredCheckDate} from './deferredCorrection.js';
+import {effectiveFieldCheckDate,latestFieldCheck} from './fieldCheck.js';
 import {overdueAction} from './workQueue.js';
 
 /** Read-only categories for a SINGLE saved inspection. One action can belong to several
@@ -23,6 +23,7 @@ export type AttentionRow={
  checkLate:boolean;
  deadlineLate:boolean;
  evidenceSubmitted:boolean;
+ fieldCheckResult?:InspectorAction['fieldChecks'] extends (infer T)[]|undefined ? T : never;
 };
 const validDay=(day:string)=>/^\d{4}-\d{2}-\d{2}$/.test(day)&&!Number.isNaN(Date.parse(day+'T00:00:00Z'))&&new Date(day+'T00:00:00Z').toISOString().slice(0,10)===day;
 export function actionAttentionBoard(actions:readonly InspectorAction[],today:string):{
@@ -36,11 +37,12 @@ export function actionAttentionBoard(actions:readonly InspectorAction[],today:st
  const matched=new Set<string>();
  let matches=0;
  for(const action of active){
-  const checkDate=deferredCheckDate(action.scheduleContext);
+  const checkDate=effectiveFieldCheckDate(action);
   const row:AttentionRow={
    actionId:action.id,title:action.title,owner:action.owner,dueDate:action.dueDate,
    status:action.status,checkDate,checkLate:!!checkDate&&validDay(today)&&checkDate<today,
    deadlineLate:overdueAction(action,today),evidenceSubmitted:action.status==='review-requested',
+   fieldCheckResult:latestFieldCheck(action),
   };
   const kinds:AttentionKind[]=[];
   if(row.deadlineLate)kinds.push('overdue');
