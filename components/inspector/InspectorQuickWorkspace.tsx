@@ -447,7 +447,14 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
             setActivity('현장 확인 이력 저장 중');
             const payload={op:'field-check',id:current.id,actionId:input.actionId,checkId:input.checkId,
                 expectedRevision:current.revision,result:input.result,note:input.note,nextCheckDate:input.nextCheckDate};
-            accept((await request(payload)).item);
+            try{accept((await request(payload)).item);}
+            catch(cause){
+                // Only the exact server-saved UUID with matching values can recover a lost response.
+                let recovered;try{recovered=await request({op:'detail',id:current.id});}catch{throw cause;}
+                const entry=recovered.item.document.actions.find((a:InspectorAction)=>a.id===input.actionId)?.fieldChecks?.find((c:{id:string})=>c.id===input.checkId);
+                if(!entry||entry.result!==input.result||entry.note!==input.note.trim()||entry.nextCheckDate!==input.nextCheckDate)throw cause;
+                accept(recovered.item);
+            }
             if(alive.current){setReport(null);saved=true;}
         });
         return saved;
