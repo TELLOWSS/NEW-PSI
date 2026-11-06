@@ -52,7 +52,7 @@ export default function InspectorGlobalActionRegister({onOpenAction,blocked=fals
    {error&&<p role="alert" className="si-notice si-error">{error} · 다시 조회해 주세요. 저장한 조치 기록은 변경하지 않았습니다.</p>}
    {loaded&&<><p className="si-caption" role="status">불러온 점검 {inspections}건 · 저장 조치 {rows.length}건{more?' · 이전 점검 더 있음':''}. 검색·선택 범위 {scoped.length}건 · 조회 기준 {today} (한국시간)</p>
     <div className="si-global-register-stats" aria-label="불러온 점검의 조치현황">
-     {([['unresolved',counts.unresolved],['scheduled',counts.scheduled],['today',counts.today],['overdue',counts.overdue],['check',checks.due],['reinspection',counts.reinspection],['verified',counts.verified]] as const).map(([kind,n])=><button type="button" key={kind} aria-pressed={filter===kind} className={filter===kind?'is-active':''} onClick={()=>setFilter(kind)}><b>{n}</b><span>{registerFilterLabel[kind]}</span></button>)}
+     {([['unresolved',counts.unresolved],['scheduled',counts.scheduled],['today',counts.today],['overdue',counts.overdue],['check',checks.due],['assignment',counts.assignment],['reinspection',counts.reinspection],['verified',counts.verified]] as const).map(([kind,n])=><button type="button" key={kind} aria-pressed={filter===kind} className={filter===kind?'is-active':''} onClick={()=>setFilter(kind)}><b>{n}</b><span>{registerFilterLabel[kind]}</span></button>)}
     </div>
     {counts.overlappingOverdueReinspection>0&&<p className="si-global-register-overlap" role="status">기한 초과이면서 재점검 대기인 조치 {counts.overlappingOverdueReinspection}건이 양쪽에 포함됩니다. 초과 건수와 재점검 대기 건수를 더해 미결 건수로 계산하지 마세요.</p>}
     {(checks.overlapWithOverdue>0||checks.overlapWithReinspection>0)&&<p className="si-global-register-overlap" data-global-check-overlap="true">현장 확인일이 도래한 조치 중 기한 초과와 중복 {checks.overlapWithOverdue}건, 재점검 대기와 중복 {checks.overlapWithReinspection}건입니다. 다른 기준의 분류 건수를 합산하지 마세요.</p>}
@@ -71,13 +71,15 @@ export default function InspectorGlobalActionRegister({onOpenAction,blocked=fals
      <div className="si-global-register-scope-footer"><span>완료기한은 약정기한 기준입니다. 다음 현장 확인 예정일과 서로 다릅니다.</span><button type="button" className="si-btn" disabled={!site&&!owner&&!dueFrom&&!dueTo&&!search} onClick={()=>{setSite('');setOwner('');setDueFrom('');setDueTo('');setSearch('');}}>검색 조건 초기화</button></div>
      {criteriaError&&<p role="alert" className="si-global-register-overlap">{criteriaError} 이전 점검기록은 변경되지 않았습니다.</p>}
     </fieldset>
+    {counts.assignment>0&&<p className="si-global-register-assignment-notice" data-global-assignment-count="true">현재 검색·현장·담당·기한 선택 범위에 <b>담당자가 미지정되었거나 유효한 약정기한을 확인해야 할 미결 조치 {counts.assignment}건</b>이 있습니다. ‘담당·기한 확인 필요’를 선택해 원점검을 확인하세요. 날짜·담당자를 자동 배정하거나 조치 완료로 판단하지 않습니다.</p>}
     {checks.due>0&&<p className="si-global-register-check-notice" data-global-next-check-count="true">다음 현장 확인 예정일이 도래한 미결 조치 {checks.due}건 (예정일 지난 건 {checks.past}건). 계획상 날짜만 확인한 것이며 현장 확인·임시조치 시행·자동 알림 여부는 검증되지 않았습니다.</p>}
     <div className="si-global-register-list" aria-live="polite">
      {!filtered.length?<p className="si-caption">현재 불러온 범위에 일치하는 조치가 없습니다. 이전 점검은 ‘더 보기’로 추가 조회할 수 있습니다.</p>:filtered.map(row=>{
       const dimension=globalActionDimensions(row,today);
-      return <article key={row.inspectionId+':'+row.actionId} className="si-global-register-entry" data-global-action-id={row.actionId} data-deadline-passed={dimension.overdue?'yes':'no'} data-reinspection-pending={dimension.reinspection?'yes':'no'}>
+      return <article key={row.inspectionId+':'+row.actionId} className="si-global-register-entry" data-global-action-id={row.actionId} data-deadline-passed={dimension.overdue?'yes':'no'} data-reinspection-pending={dimension.reinspection?'yes':'no'} data-assignment-needed={dimension.assignmentNeeded?'yes':'no'}>
        <div><b>{row.title}</b><p>{inspectionKindText(row.inspectionKind)} · {row.inspectionTitle} · {row.siteName||'현장 미입력'} · {row.location||'위치 미입력'} · {row.workType||'공종 미입력'}</p>
         <p>담당 {row.owner?.trim()||'미지정'} · 약정기한 {row.dueDate||'미지정'} · <strong>{globalActionStatusText(row,today)}</strong></p>
+        {dimension.assignmentNeeded&&<p className="si-global-register-assignment-detail" data-assignment-gap="true">확인 필요: {[dimension.ownerMissing?'담당자 미지정':'',dimension.dueDateNeedsReview?'약정기한 미입력·유효성 확인':''].filter(Boolean).join(' / ')} · 원점검에서 담당자·기한을 직접 확인하세요.</p>}
         {dimension.nextCheckDate&&<p className="si-global-register-next-check" data-next-check-date={dimension.nextCheckDate}>다음 현장 확인 예정: <b>{dimension.nextCheckDate}</b>{dimension.checkLate?' · 예정일 지남 · 현장 확인 필요':dimension.check?' · 오늘 현장 확인 예정':''} · 실제 확인·시행 여부 미확인</p>}
         <p className="si-global-register-next"><b>다음 확인:</b> {globalActionNextStep(row,today)}</p>
         {row.scheduleContext&&<p>기한 설정 근거: {row.scheduleContext}</p>}
