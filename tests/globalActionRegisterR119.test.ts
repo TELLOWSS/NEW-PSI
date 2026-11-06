@@ -47,7 +47,7 @@ describe('R119 owner and agreed-deadline gap queue',()=>{
   expect(csv).not.toContain('verified-gap');
   const historical=buildGlobalActionRegisterCsv([rows[3]],today);
   expect(historical).toContain('"예","예"'); // historical metadata remains truthful, but the verified action is not in the gap queue
-  expect(csv).not.toContain('scheduled');
+  expect(csv).not.toContain('"scheduled","합성 작업발판 점검"'); // action ID exclusion, not the legitimate deadline phase
   expect(JSON.stringify(rows)).toBe(original);
  });
 });
