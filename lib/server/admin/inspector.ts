@@ -14,6 +14,8 @@ import { newInspectionDocument, type Evidence, type Inspection } from '../../ins
 import { legalForInspection } from '../../inspector/legal.js';
 import {reportPhotoSelection} from '../../inspector/actionFollowup.js';
 import {projectGlobalActionRows} from '../../inspector/globalActionRegister.js';
+import {makeFieldCheck,fieldCheckInputError} from '../../inspector/fieldCheck.js';
+import {koreanDay} from '../../inspector/workQueue.js';
 
 const BUCKET = 'psi-inspector-evidence';
 const MAX_PHOTO = 3 * 1024 * 1024;
@@ -219,6 +221,29 @@ export default async function inspector(req: any, res: any) {
             const signed=await db.storage.from(BUCKET).createSignedUrl(data.storage_key,120);dbError(signed.error);
             const after=await db.from('psi_inspector_controls').select('state').eq('inspection_id',inspectionId).maybeSingle();dbError(after.error);if(after.data&&after.data.state!=='active')reject(410,'PHOTO_DELETED','사진이 삭제 중이거나 삭제되었습니다.');
             return res.status(200).json({ok:true,url:signed.data.signedUrl,expiresIn:120});
+        }
+        if(body.op==='field-check'){
+            keys(body,['id','actionId','checkId','expectedRevision','result','note','nextCheckDate']);
+            const actionId=id(body.actionId),checkId=id(body.checkId);
+            const document=structuredClone(current.document),action=document.actions.find(a=>a.id===actionId);
+            if(!action)reject(404,'ACTION_NOT_FOUND','현장 확인 대상 조치가 없습니다.');
+            const prior=action.fieldChecks?.find((entry:{id:string})=>entry.id===checkId);
+            if(prior){
+                if(prior.result!==body.result||prior.note!==body.note?.trim()||prior.nextCheckDate!==body.nextCheckDate)
+                    reject(409,'FIELD_CHECK_CONFLICT','이미 사용된 현장 확인 기록 번호입니다. 최신 저장본을 확인해 주세요.');
+                return res.status(200).json({ok:true,item:current,replayed:true});
+            }
+            if(action.status==='verified')reject(409,'ACTION_ALREADY_VERIFIED','재점검 확인이 완료된 조치는 현장 확인 이력을 추가할 수 없습니다.');
+            if(body.expectedRevision!==current.revision)reject(409,'REVISION_CONFLICT','다른 변경사항이 있습니다. 원점검을 다시 불러와 주세요.');
+            const input={id:checkId,result:body.result,note:body.note,nextCheckDate:body.nextCheckDate};
+            const error=fieldCheckInputError(input,koreanDay());
+            if(error)reject(400,'FIELD_CHECK_INVALID',error);
+            if((action.fieldChecks?.length||0)>=12)reject(409,'FIELD_CHECK_LIMIT','이 조치에는 현장 확인 기록 12건이 등록돼 있습니다.');
+            action.fieldChecks=[...(action.fieldChecks||[]),makeFieldCheck(input)];
+            // Leave original deferred plan, agreed deadline and unverified/open status unchanged.
+            delete document.materialCompletion;
+            validateDocument(document,inspectionId,await getEvidence(db,inspectionId));
+            return res.status(200).json({ok:true,item:await update(db,current,document,body.expectedRevision)});
         }
         if(body.op==='verify-action') {
             keys(body,['id','actionId','expectedRevision','verificationNote']);const actionId=id(body.actionId);

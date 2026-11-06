@@ -1,6 +1,7 @@
 import validateSchema from './visionValidator.generated.js';
 import type { Evidence, InspectionDocument, VisionImport } from './types.js';
 import {LEGAL_CARDS} from './legal.js';
+import {fieldCheckInputError} from './fieldCheck.js';
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export class InspectorInputError extends Error {}
 function fail(message = '입력 형식과 필수 항목을 확인해 주세요.'): never { throw new InspectorInputError(message); }
@@ -76,10 +77,21 @@ export function validateDocument(value: unknown, inspectionId: string, evidence:
     }
     if (!Array.isArray(doc.actions) || doc.actions.length > 30 || new Set(doc.actions.map(a => a.id)).size !== doc.actions.length) fail();
     for (const action of doc.actions) {
-        exact(action, ['id','title','owner','dueDate','status','completionPhotoId','note','verifiedAt','sourcePhotoIds','scheduleContext']);
+        exact(action, ['id','title','owner','dueDate','status','completionPhotoId','note','verifiedAt','sourcePhotoIds','scheduleContext','fieldChecks']);
         if (!UUID.test(action.id) || !['open','review-requested','verified'].includes(action.status)) fail();
         text(action.title, 1000, 1); text(action.owner, 100, 1); text(action.note, 2000); text(action.dueDate, 10);
         if(action.scheduleContext!==undefined)text(action.scheduleContext,300);
+        if(action.fieldChecks!==undefined){
+            if(!Array.isArray(action.fieldChecks)||action.fieldChecks.length>12||new Set(action.fieldChecks.map(c=>c?.id)).size!==action.fieldChecks.length)
+                fail('현장 확인 기록은 조치당 12건까지 가능합니다.');
+            for(const check of action.fieldChecks){
+                exact(check,['id','recordedAt','result','note','nextCheckDate']);
+                if(!UUID.test(check.id)||typeof check.recordedAt!=='string'||!/^\d{4}-\d{2}-\d{2}T/.test(check.recordedAt)||!Number.isFinite(Date.parse(check.recordedAt))
+                    ||new Date(check.recordedAt).toISOString()!==check.recordedAt
+                    ||fieldCheckInputError(check,''))
+                    fail('현장 확인 기록의 시각·결과·근거·다음 확인일을 점검해 주세요.');
+            }
+        }
         if (!/^\d{4}-\d{2}-\d{2}$/.test(action.dueDate) || !Number.isFinite(Date.parse(action.dueDate))
             || new Date(action.dueDate).toISOString().slice(0,10) !== action.dueDate) fail();
         if (action.completionPhotoId !== '' && !doc.photoIds.includes(action.completionPhotoId)) fail();
@@ -111,6 +123,8 @@ export function assertSafeEdit(next: InspectionDocument, previous: InspectionDoc
     }
     for (const action of next.actions) {
         const old = previous.actions.find(a => a.id === action.id);
+        // Only server operation field-check may append a new server-timestamped record.
+        if(JSON.stringify(action.fieldChecks||[])!==JSON.stringify(old?.fieldChecks||[]))fail('현장 확인 기록은 전용 확인 버튼으로만 추가해 주세요.');
         if(old?.sourcePhotoIds&&JSON.stringify(old.sourcePhotoIds)!==JSON.stringify(action.sourcePhotoIds))fail('등록한 조치의 적용 사진은 바꿀 수 없습니다. 적용 범위가 다르면 새 조치로 등록해 주세요.');
         if ((action.status === 'verified' || action.verifiedAt) && JSON.stringify(action) !== JSON.stringify(old)) fail('완료 확인은 재점검 확인 버튼을 이용해 주세요.');
     }
