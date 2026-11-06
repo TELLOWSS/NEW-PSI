@@ -457,6 +457,25 @@ try{
                 assert.equal(item.document.actions[0].verifiedAt,undefined);
                 assert.deepEqual(errors,[]);
             }
+            if(scenario==='direct-field-check'){
+                await planner.getByRole('button',{name:'현장 확인 결과 기록'}).click();
+                const checkForm=planner.getByRole('form',{name:'현장 확인 결과 입력'});
+                await checkForm.getByLabel('현장 확인 결과',{exact:true}).selectOption('not-implemented');
+                await checkForm.getByLabel(/확인 내용·근거/).fill('작업반장과 동행하여 임시 접근통제 설비가 아직 미설치 상태임을 확인');
+                assert.equal(await checkForm.getByRole('button',{name:'현장 확인 이력 저장'}).isDisabled(),true);
+                await checkForm.getByLabel(/후속 현장 확인 예정일/).fill('2027-01-04');
+                await checkForm.getByRole('checkbox').check();
+                await checkForm.getByRole('button',{name:'현장 확인 이력 저장'}).click();
+                await planner.locator('[data-field-check-latest]').waitFor();
+                assert.equal(item.document.actions[0].fieldChecks.length,1);
+                assert.equal(item.document.actions[0].fieldChecks[0].result,'not-implemented');
+                assert.equal(item.document.actions[0].fieldChecks[0].nextCheckDate,'2027-01-04');
+                assert.equal(item.document.actions[0].status,'open');
+                assert.equal(item.document.actions[0].verifiedAt,undefined);
+                assert.match(await planner.locator('.si-action-next-check').innerText(),/2027-01-04/);
+                assert.equal(ops.filter(op=>op==='field-check').length,1);
+                assert.deepEqual(errors,[]);
+            }
             if(scenario==='direct-action'){
                 await page.setViewportSize({width:390,height:950});await page.getByLabel('현장사진 선택').setInputFiles({name:'second.jpg',mimeType:'image/jpeg',buffer:source});await page.getByAltText('분석할 현장사진').waitFor();await fillHint('3층 개구부 덮개 없음');await page.locator('.si-quick-start').click();await page.getByRole('region',{name:'사진점검 결과'}).waitFor();await page.waitForFunction(()=>!document.querySelector('.si-quick-start').disabled);await entry.click();await planner.getByLabel('현장에 요청할 조치',{exact:true}).waitFor();
                 assert.equal(await planner.locator('.si-action-sources input').count(),2);assert.equal(await planner.locator('.si-action-sources input').first().isChecked(),false);assert.equal(await planner.locator('.si-action-sources input').nth(1).isChecked(),true);
