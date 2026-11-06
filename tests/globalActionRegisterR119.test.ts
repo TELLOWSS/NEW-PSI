@@ -46,7 +46,7 @@ describe('R119 owner and agreed-deadline gap queue',()=>{
   expect(csv.split('\r\n').filter(Boolean)).toHaveLength(5);
   expect(csv).not.toContain('verified-gap');
   const historical=buildGlobalActionRegisterCsv([rows[3]],today);
-  expect(historical).toMatch(/예,예/); // historical metadata remains truthful, but the verified action is not in the gap queue
+  expect(historical).toContain('"예","예"'); // historical metadata remains truthful, but the verified action is not in the gap queue
   expect(csv).not.toContain('scheduled');
   expect(JSON.stringify(rows)).toBe(original);
  });
