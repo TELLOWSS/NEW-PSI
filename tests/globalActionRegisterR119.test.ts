@@ -24,7 +24,7 @@ describe('R119 owner and agreed-deadline gap queue',()=>{
   expect(flags[0]).toMatchObject({assignmentNeeded:true,ownerMissing:true,dueDateNeedsReview:false});
   expect(flags[1]).toMatchObject({assignmentNeeded:true,ownerMissing:false,dueDateNeedsReview:true});
   expect(flags[2]).toMatchObject({assignmentNeeded:true,ownerMissing:true,dueDateNeedsReview:true});
-  expect(flags[3]).toMatchObject({verified:true,assignmentNeeded:false,ownerMissing:false,dueDateNeedsReview:false});
+  expect(flags[3]).toMatchObject({verified:true,assignmentNeeded:false,ownerMissing:true,dueDateNeedsReview:true});
   expect(flags[4].assignmentNeeded).toBe(false);
   expect(flags[5]).toMatchObject({reinspection:true,assignmentNeeded:true});
   expect(globalActionCounts(rows,today).assignment).toBe(4);
@@ -45,6 +45,8 @@ describe('R119 owner and agreed-deadline gap queue',()=>{
   expect(csv).toContain('약정기한 확인 필요 여부');
   expect(csv.split('\r\n').filter(Boolean)).toHaveLength(5);
   expect(csv).not.toContain('verified-gap');
+  const historical=buildGlobalActionRegisterCsv([rows[3]],today);
+  expect(historical).toMatch(/예,예/); // historical metadata remains truthful, but the verified action is not in the gap queue
   expect(csv).not.toContain('scheduled');
   expect(JSON.stringify(rows)).toBe(original);
  });
