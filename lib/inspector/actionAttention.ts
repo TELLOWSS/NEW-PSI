@@ -1,4 +1,4 @@
-import type {InspectorAction} from './types.js';
+import type {InspectorAction,InspectorFieldCheck} from './types.js';
 import {effectiveFieldCheckDate,latestFieldCheck} from './fieldCheck.js';
 import {overdueAction} from './workQueue.js';
 
@@ -23,7 +23,7 @@ export type AttentionRow={
  checkLate:boolean;
  deadlineLate:boolean;
  evidenceSubmitted:boolean;
- fieldCheckResult?:InspectorAction['fieldChecks'] extends (infer T)[]|undefined ? T : never;
+ fieldCheckResult?:InspectorFieldCheck;
 };
 const validDay=(day:string)=>/^\d{4}-\d{2}-\d{2}$/.test(day)&&!Number.isNaN(Date.parse(day+'T00:00:00Z'))&&new Date(day+'T00:00:00Z').toISOString().slice(0,10)===day;
 export function actionAttentionBoard(actions:readonly InspectorAction[],today:string):{
