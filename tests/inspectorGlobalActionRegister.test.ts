@@ -9,7 +9,7 @@ const read=(path:string)=>readFileSync(new URL('../'+path,import.meta.url),'utf8
 describe('admin global inspector action register',()=>{
  it('classifies deadlines and reinspection distinctly across multiple inspections',()=>{
   const rows=sample(),count=globalActionCounts(rows,'2026-10-26');
-  expect(count).toEqual({unresolved:4,scheduled:1,today:1,overdue:2,reinspection:1,verified:1,overlappingOverdueReinspection:1});
+  expect(count).toEqual({unresolved:4,scheduled:1,today:1,overdue:2,reinspection:1,assignment:0,verified:1,overlappingOverdueReinspection:1});
   expect(filterGlobalActions(rows,'unresolved','','2026-10-26').map(r=>r.actionId)).toEqual(['late','review','today','future']);
   expect(globalActionPhase(rows[0],'2026-10-26')).toBe('scheduled');
  });
