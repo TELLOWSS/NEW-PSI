@@ -1,13 +1,14 @@
 import {inspectionKindText,type InspectionKind,type Inspection,type InspectorAction} from './types.js';
 import {actionDeadlinePhase,actionDeadlineText,type ActionDeadlinePhase} from './workQueue.js';
 import {actionCsvCell} from './actionRegister.js';
-import {deferredCheckDate} from './deferredCorrection.js';
+import {effectiveFieldCheckDate,fieldCheckLabels,latestFieldCheck} from './fieldCheck.js';
+import type {InspectorFieldCheck} from './types.js';
 
 /** Saved actions from explicit requested pages only, never proposed AI controls. */
 export type GlobalActionRow={
  inspectionId:string;inspectionRevision:number;inspectionTitle:string;inspectionKind?:InspectionKind;siteName:string;location:string;workType:string;urgent:boolean;
  inspectionCreatedAt:string;inspectionUpdatedAt:string;actionId:string;title:string;owner:string;dueDate:string;
- status:InspectorAction['status'];scheduleContext:string;verifiedAt:string;
+ status:InspectorAction['status'];scheduleContext:string;verifiedAt:string;lastFieldCheck?:InspectorFieldCheck;
 };
 export type GlobalActionSource=Pick<Inspection,'id'|'revision'|'document'|'created_at'|'updated_at'>;
 export type RegisterFilter='unresolved'|'scheduled'|'today'|'overdue'|'reinspection'|'check'|'assignment'|'all'|'verified';
@@ -20,7 +21,7 @@ export function projectGlobalActionRows(items:readonly GlobalActionSource[]):Glo
   siteName:item.document.siteName,location:item.document.location,workType:item.document.workType,
   urgent:item.document.urgent,inspectionCreatedAt:item.created_at,inspectionUpdatedAt:item.updated_at,
   actionId:a.id,title:a.title,owner:a.owner,dueDate:a.dueDate,status:a.status,
-  scheduleContext:(a.scheduleContext||'').slice(0,300),verifiedAt:a.verifiedAt||'',
+  scheduleContext:(a.scheduleContext||'').slice(0,300),verifiedAt:a.verifiedAt||'',lastFieldCheck:latestFieldCheck(a),
  })));
 }
 /** Legacy one-label phase for compatibility; never use it as the only deadline flag. */
@@ -30,7 +31,7 @@ export function globalActionPhase(row:GlobalActionRow,today:string):ActionDeadli
 /** Date and human reinspection are independent axes. A late submitted action belongs to BOTH queues. */
 export function globalActionDimensions(row:GlobalActionRow,today:string){
  const verified=row.status==='verified';
- const nextCheckDate=deferredCheckDate(row.scheduleContext);
+ const nextCheckDate=effectiveFieldCheckDate({scheduleContext:row.scheduleContext,fieldChecks:row.lastFieldCheck?[row.lastFieldCheck]:undefined});
  const check=!!nextCheckDate&&/^\d{4}-\d{2}-\d{2}$/.test(today)&&nextCheckDate<=today&&!verified;
  const checkLate=check&&nextCheckDate<today;
  const phase=actionDeadlinePhase({status:verified?'verified':'open',dueDate:row.dueDate} as InspectorAction,today);
@@ -130,7 +131,7 @@ export function globalActionCounts(rows:readonly GlobalActionRow[],today:string)
 }
 /** CSV exports loaded records ONLY. All untrusted text is cell-escaped against Excel formulas. */
 export function buildGlobalActionRegisterCsv(rows:readonly GlobalActionRow[],today:string){
- const cols=['점검번호','점검버전','점검명','점검 유형','현장','위치','공종','조치ID','조치내용','담당자','약정기한','기한 단계','기존 조치 상태','최초 기한 근거','현장 재점검 시각','조회 범위','약정기한 경과 여부','재점검 대기 여부','현장 확인할 다음 단계','다음 현장 확인 예정일','확인 예정일 도래 여부','확인 예정일 경과 여부','담당자 미지정 여부','약정기한 확인 필요 여부'];
+ const cols=['점검번호','점검버전','점검명','점검 유형','현장','위치','공종','조치ID','조치내용','담당자','약정기한','기한 단계','기존 조치 상태','최초 기한 근거','현장 재점검 시각','조회 범위','약정기한 경과 여부','재점검 대기 여부','현장 확인할 다음 단계','다음 현장 확인 예정일','확인 예정일 도래 여부','확인 예정일 경과 여부','담당자 미지정 여부','약정기한 확인 필요 여부','최근 현장 확인 결과(점검자 입력)','최근 현장 확인 서버시각'];
  const body=rows.map(row=>{
   const s=globalActionDimensions(row,today);
   return [
@@ -139,7 +140,8 @@ export function buildGlobalActionRegisterCsv(rows:readonly GlobalActionRow[],tod
    row.status==='verified'?'현장 재점검 확인':row.status==='review-requested'?'재점검 대기':'이행 검토 중',
    row.scheduleContext,row.verifiedAt,'사용자가 불러온 점검 범위만 · 현장 승인 아님',
    s.overdue?'예':'아니오',s.reinspection?'예':'아니오',globalActionNextStep(row,today),
-   s.nextCheckDate,s.check?'예':'아니오',s.checkLate?'예':'아니오',s.ownerMissing?'예':'아니오',s.dueDateNeedsReview?'예':'아니오'
+   s.nextCheckDate,s.check?'예':'아니오',s.checkLate?'예':'아니오',s.ownerMissing?'예':'아니오',s.dueDateNeedsReview?'예':'아니오',
+   row.lastFieldCheck?fieldCheckLabels[row.lastFieldCheck.result]:'현장 확인 미기록',row.lastFieldCheck?.recordedAt||''
   ];
  });
  return '\uFEFF'+[cols,...body].map(row=>row.map(actionCsvCell).join(',')).join('\r\n')+'\r\n';
