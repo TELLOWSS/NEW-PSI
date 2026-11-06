@@ -46,7 +46,8 @@ try{
             fields(inspectionId,actionId,'용인 A현장','형틀반장','2026-11-05','open',plan('2026-11-06')),
             fields(otherId,randomUUID(),'용인 B현장','철근반장','2026-11-09','review-requested',plan('2026-11-04')),
             fields(inspectionId,randomUUID(),'용인 A현장','철근반장','2026-11-08','open',plan('2026-11-07')),
-            fields(otherId,randomUUID(),'용인 B현장','도장반장','2026-11-04','verified',plan('2026-11-03'))
+            fields(otherId,randomUUID(),'용인 B현장','도장반장','2026-11-04','verified',plan('2026-11-03')),
+            fields(otherId,randomUUID(),'용인 B현장','','2026-02-30','open','')
         ];
     }
     const deletionStatus=()=>({state:deletionState,mode:deletionMode,verifyAfter,verified:['purged','files-deleted'].includes(deletionState),remainingFiles:images.size,remainingBytes:[...images.values()].reduce((n,b)=>n+b.length,0),remainingRecords:{inspections:deletionState==='purged'?0:1,evidence:deletionState==='purged'?0:evidence.length,reports:deletionState==='purged'?0:reports.length,events:deletionState==='purged'?0:item.revision,operations:0},pendingOperations:0,oldestPendingAt:null,checkedAt:new Date().toISOString(),receipt:deletionState==='purged'||deletionState==='files-deleted'?{managedResidualFiles:0}:null});
@@ -91,8 +92,8 @@ try{
         await register.locator(':scope > summary').click();
         await register.getByLabel('통합 조치 현장 선택').waitFor();
         await register.getByRole('button',{name:/현재 필터 결과 CSV/}).waitFor();
-        assert.equal(await register.locator('[data-global-action-id]').count(),3,'initially load 3 unverified records');
-        assert.match(await register.innerText(),/불러온 점검 2건 · 저장 조치 4건/);
+        assert.equal(await register.locator('[data-global-action-id]').count(),4,'initially load 4 unverified records');
+        assert.match(await register.innerText(),/불러온 점검 2건 · 저장 조치 5건/);
         assert.equal(ops.filter(op=>op==='global-action-register').length,1,'only one explicit read');
         await register.getByLabel('통합 조치 필터').selectOption('check');
         assert.equal(await register.locator('[data-global-action-id]').count(),2,'two due field checks across two inspections');
@@ -116,6 +117,18 @@ try{
         assert.match(await register.getByRole('alert').innerText(),/시작일이 종료일보다 늦습니다/);
         assert.equal(await register.locator('[data-global-action-id]').count(),0,'invalid range must never broaden the query');
         await register.getByRole('button',{name:'검색 조건 초기화'}).click();
+        await register.getByLabel('통합 조치 필터').selectOption('assignment');
+        assert.equal(await register.locator('[data-global-action-id]').count(),1,'only saved unresolved owner/deadline gap');
+        assert.match(await register.locator('[data-global-assignment-count]').innerText(),/미결 조치 1건/);
+        assert.equal(await register.locator('[data-assignment-needed="yes"]').count(),1);
+        assert.match(await register.locator('[data-assignment-gap]').innerText(),/담당자 미지정.*약정기한 미입력/);
+        const gapDownloadStart=page.waitForEvent('download');
+        await register.getByRole('button',{name:/현재 필터 결과 CSV/}).click();
+        const gapDownload=await gapDownloadStart,gapCsv=(await readFile(await gapDownload.path())).toString('utf8');
+        assert.match(gapCsv,/담당자 미지정 여부/);
+        assert.match(gapCsv,/약정기한 확인 필요 여부/);
+        assert.equal(gapCsv.split('\r\n').filter(Boolean).length,2,'selected gap scope only');
+        assert.equal(ops.filter(op=>op==='global-action-register').length,1,'assignment scan stays within loaded page');
         await register.getByLabel('통합 조치 필터').selectOption('overdue');
         assert.equal(await register.locator('[data-global-action-id]').count(),1);
         for(const width of [320,390,768,1440]){
