@@ -403,7 +403,7 @@ try{
         }
         await page.getByRole('region',{name:'사진점검 결과'}).waitFor();if(scenario!=='no-findings')await page.getByText('5년 이하 징역 또는 5,000만원 이하 벌금',{exact:true}).first().waitFor();await page.waitForFunction(()=>!document.querySelector('.si-quick-start').disabled);
         if(scenario.startsWith('direct-')){
-            const entry=['direct-manual','direct-delayed'].includes(scenario)?page.getByRole('region',{name:'점검 다음 단계'}).getByRole('button',{name:'조치 작성 (선택)',exact:true}):page.locator('.si-photo-action-entry button'),planner=page.locator('.si-action-planner');
+            const entry=['direct-manual','direct-delayed','direct-field-check'].includes(scenario)?page.getByRole('region',{name:'점검 다음 단계'}).getByRole('button',{name:'조치 작성 (선택)',exact:true}):page.locator('.si-photo-action-entry button'),planner=page.locator('.si-action-planner');
             const originalId=evidence[0].id,analysesBefore=analyzeCalls,uploadsBefore=ops.filter(op=>op==='upload').length;
             if(scenario==='direct-cap'){const saved=JSON.stringify(item),count=ops.length;await entry.click();await page.getByRole('alert').waitFor();assert.match(await page.getByRole('alert').innerText(),/30건/);assert.equal(JSON.stringify(item),saved);assert.equal(ops.length,count);assert.equal(await page.getByRole('region',{name:'사진점검 결과'}).isVisible(),true);assert.deepEqual(errors,[]);results.push({scenario,status:'PASS',provider:'fixture, no paid calls',ops});console.log('PASS '+scenario);await context.close();continue;}
             if(scenario==='direct-rejected'){
@@ -424,7 +424,7 @@ try{
             await shortcuts.getByRole('button',{name:'1일',exact:true}).click();assert.equal(await planner.getByLabel('완료기한',{exact:true}).inputValue(),'2027-01-01');assert.equal(await ack.isChecked(),false);
             await shortcuts.getByRole('button',{name:'3일',exact:true}).click();assert.equal(await planner.getByLabel('완료기한',{exact:true}).inputValue(),'2027-01-03');
             await page.clock.fastForward(60*60*1000);assert.equal(await planner.getByLabel('완료기한',{exact:true}).inputValue(),'2027-01-03');await ack.check();
-            if(scenario==='direct-delayed'){
+            if(['direct-delayed','direct-field-check'].includes(scenario)){
                 const panel=planner.locator('[data-psi-deferred-correction="true"]');
                 const delay=panel.locator('.si-deferred-trigger input[type="checkbox"]');
                 assert.equal(await delay.isChecked(),false,'delayed action must not be enabled by default');
@@ -445,7 +445,7 @@ try{
             }
             for(const width of [320,390,768,1440]){await page.setViewportSize({width,height:950});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));if(scenario==='direct-action'){await planner.locator('.si-action-assignment').scrollIntoViewIfNeeded();await page.screenshot({path:`${out}/direct-assignment-${width}.png`,fullPage:true});}}
             await save.click();await planner.getByText('조치를 미조치 상태로 저장했습니다.',{exact:false}).waitFor();assert.deepEqual(item.document.actions[0].sourcePhotoIds,[originalId]);assert.equal(item.document.actions[0].status,'open');assert.equal(analyzeCalls,analysesBefore);assert.equal(ops.filter(op=>op==='upload').length,uploadsBefore);
-            if(scenario==='direct-delayed'){
+            if(['direct-delayed','direct-field-check'].includes(scenario)){
                 const details=item.document.actions[0].scheduleContext;
                 assert.match(details,/즉시 조치 곤란\(미조치 유지\)/);
                 assert.match(details,/임시 보호조치 계획\(시행 미확인\)/);
@@ -469,7 +469,7 @@ try{
                 await page.evaluate(()=>document.documentElement.classList.add('dark'));await page.waitForTimeout(250);await planner.locator('.si-action-assignment').scrollIntoViewIfNeeded();await page.screenshot({path:out+'/direct-assignment-dark.png',fullPage:true});await page.evaluate(()=>document.documentElement.classList.remove('dark'));await save.click();await planner.getByText('조치를 미조치 상태로 저장했습니다.',{exact:false}).waitFor();assert.equal(item.document.actions.length,2);assert.equal(analyzeCalls,2);assert.equal(ops.filter(op=>op==='upload').length,2);const beforeClose=JSON.stringify(item);await planner.getByRole('button',{name:'다른 범위의 조치 작성',exact:true}).click();await planner.getByLabel('현장에 요청할 조치',{exact:true}).fill('저장하지 않고 닫을 새 조치');await planner.getByRole('button',{name:'이 조치 작성 닫기',exact:true}).click();assert.equal(JSON.stringify(item),beforeClose);assert.equal(await planner.evaluate(el=>el.open),false);
             }
             await page.getByRole('button',{name:'모은 자료로 보고서 완성',exact:true}).last().click();await page.getByRole('article',{name:'점검 검토용 보고서'}).waitFor();assert.equal(reportCalls,1);assert.deepEqual(reports[0].snapshot.inspection.document.actions,item.document.actions);assert.deepEqual(errors,[]);
-            if(scenario==='direct-delayed'){
+            if(['direct-delayed','direct-field-check'].includes(scenario)){
                 const savedReport=page.getByRole('article',{name:'점검 검토용 보고서'});
                 await page.emulateMedia({media:'print'});
                 const printable=savedReport.locator('[data-psi-inspector-full-evidence="true"]');
