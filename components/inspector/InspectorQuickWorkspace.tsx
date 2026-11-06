@@ -437,6 +437,21 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
             if(alive.current){setReport(null);setEntryNotice('담당·기한 변경을 저장했습니다. 요청문·조치대장·보고서는 새 저장본으로 전달하세요.');saved=true;}
         });return saved;
     };
+    const recordFieldCheck=async(input:FieldCheckSubmission)=>{
+        let saved=false;
+        await run(async()=>{
+            const current=latest.current;
+            const action=current?.document.actions.find(a=>a.id===input.actionId);
+            if(!current||!action||action.status==='verified'||storageLocked||local||photo)
+                throw new Error('현장 확인 대상 조치를 다시 확인해 주세요.');
+            setActivity('현장 확인 이력 저장 중');
+            const payload={op:'field-check',id:current.id,actionId:input.actionId,checkId:input.checkId,
+                expectedRevision:current.revision,result:input.result,note:input.note,nextCheckDate:input.nextCheckDate};
+            accept((await request(payload)).item);
+            if(alive.current){setReport(null);saved=true;}
+        });
+        return saved;
+    };
     const submitImprovement=async(input:ImprovementSubmission)=>{
         let saved=false;await run(async()=>{
             const current=latest.current,action=current?.document.actions.find(a=>a.id===input.actionId);
