@@ -34,7 +34,7 @@ describe('R119 owner and agreed-deadline gap queue',()=>{
   expect(new Set(selected.map(row=>row.actionId))).toEqual(new Set(['unassigned','no-deadline','bad-date-and-owner','review-missing']));
   expect(globalActionNextStep(rows[5],today)).toContain('완료 검토 요청');
   expect(globalActionNextStep(rows[2],today)).toContain('기한을 임의로 지정하지 않습니다');
-  expect(filterGlobalActionsWithCriteria(rows,'assignment','',today,{...criteria,siteName:'unknown',site:'합성 B현장'}).map(row=>row.actionId)).toEqual(['review-missing']);
+  expect(filterGlobalActionsWithCriteria(rows,'assignment','',today,{...criteria,site:'합성 B현장'}).map(row=>row.actionId)).toEqual(['review-missing']);
  });
  it('exports only the selected scope with independent evidence columns and never modifies source',()=>{
   const original=JSON.stringify(rows);
