@@ -4,6 +4,7 @@ import {postAdminJson} from '../../utils/adminApiClient';
 import {koreanDay} from '../../lib/inspector/workQueue';
 import {buildGlobalActionRegisterCsv,filterGlobalActionsWithCriteria,globalActionCounts,globalActionCheckCounts,globalRegisterCriteriaError,globalActionDimensions,globalActionStatusText,globalActionNextStep,registerFilterLabel,type RegisterFilter,type GlobalActionRow,type GlobalRegisterCriteria} from '../../lib/inspector/globalActionRegister';
 import './inspector-global-register.css';
+import {fieldCheckLabels} from '../../lib/inspector/fieldCheck';
 type Cursor={before:string;beforeId:string};
 type Response={ok:boolean;rows:GlobalActionRow[];inspectionCount:number;hasMore:boolean;nextCursor:Cursor|null};
 export default function InspectorGlobalActionRegister({onOpenAction,blocked=false}:{onOpenAction:(inspectionId:string,actionId:string)=>void;blocked?:boolean}){
@@ -80,7 +81,8 @@ export default function InspectorGlobalActionRegister({onOpenAction,blocked=fals
        <div><b>{row.title}</b><p>{inspectionKindText(row.inspectionKind)} · {row.inspectionTitle} · {row.siteName||'현장 미입력'} · {row.location||'위치 미입력'} · {row.workType||'공종 미입력'}</p>
         <p>담당 {row.owner?.trim()||'미지정'} · 약정기한 {row.dueDate||'미지정'} · <strong>{globalActionStatusText(row,today)}</strong></p>
         {dimension.assignmentNeeded&&<p className="si-global-register-assignment-detail" data-assignment-gap="true">확인 필요: {[dimension.ownerMissing?'담당자 미지정':'',dimension.dueDateNeedsReview?'약정기한 미입력·유효성 확인':''].filter(Boolean).join(' / ')} · 원점검에서 담당자·기한을 직접 확인하세요.</p>}
-        {dimension.nextCheckDate&&<p className="si-global-register-next-check" data-next-check-date={dimension.nextCheckDate}>다음 현장 확인 예정: <b>{dimension.nextCheckDate}</b>{dimension.checkLate?' · 예정일 지남 · 현장 확인 필요':dimension.check?' · 오늘 현장 확인 예정':''} · 실제 확인·시행 여부 미확인</p>}
+        {row.lastFieldCheck&&<p className="si-global-register-next-check" data-global-field-check="true">현장 확인 이력: <b>{fieldCheckLabels[row.lastFieldCheck.result]}</b> · {new Date(row.lastFieldCheck.recordedAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})} 서버 저장시각 · 최종 완료·작업재개 승인 아님</p>}
+        {dimension.nextCheckDate&&<p className="si-global-register-next-check" data-next-check-date={dimension.nextCheckDate}>다음 현장 확인 예정: <b>{dimension.nextCheckDate}</b>{dimension.checkLate?' · 예정일 지남 · 현장 확인 필요':dimension.check?' · 오늘 현장 확인 예정':''} · {row.lastFieldCheck?'점검자 기록 기준·독립 검증 미완료':'실제 확인·시행 여부 미확인'}</p>}
         <p className="si-global-register-next"><b>다음 확인:</b> {globalActionNextStep(row,today)}</p>
         {row.scheduleContext&&<p>기한 설정 근거: {row.scheduleContext}</p>}
         {row.urgent&&<p className="si-global-register-urgent">원점검에 긴급 검토 표시 · 기한과 별개로 현장 통제 필요성 확인</p>}
