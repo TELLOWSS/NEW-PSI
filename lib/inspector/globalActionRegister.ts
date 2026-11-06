@@ -35,7 +35,7 @@ export function globalActionDimensions(row:GlobalActionRow,today:string){
  const checkLate=check&&nextCheckDate<today;
  const phase=actionDeadlinePhase({status:verified?'verified':'open',dueDate:row.dueDate} as InspectorAction,today);
  const ownerMissing=!row.owner?.trim();
- const dueDateNeedsReview=phase==='unknown';
+ const dueDateNeedsReview=actionDeadlinePhase({status:'open',dueDate:row.dueDate} as InspectorAction,today)==='unknown';
  return {
   verified,
   check,nextCheckDate,checkLate,
@@ -45,8 +45,8 @@ export function globalActionDimensions(row:GlobalActionRow,today:string){
   unknown:phase==='unknown',
   reinspection:!verified&&row.status==='review-requested',
   assignmentNeeded:!verified&&(ownerMissing||dueDateNeedsReview),
-  ownerMissing:!verified&&ownerMissing,
-  dueDateNeedsReview:!verified&&dueDateNeedsReview,
+  ownerMissing,
+  dueDateNeedsReview,
  };
 }
 export function globalActionStatusText(row:GlobalActionRow,today:string):string {
