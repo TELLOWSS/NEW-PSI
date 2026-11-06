@@ -48,6 +48,7 @@ import {duplicateAction,findingActionEntry,type FindingActionEntry} from '../../
 import {sameAction} from '../../lib/inspector/actionFollowup';
 import {changeActionAssignment,recoveredAssignment,type AssignmentChange} from '../../lib/inspector/actionAssignment';
 import type {ImprovementSubmission} from './InspectorActionFollowup';
+import type {FieldCheckSubmission} from './InspectorFieldCheckEditor';
 import {buildActionRequest,DEFAULT_REVIEW_NOTE,type ExpertReview} from '../../lib/inspector/expertReview';
 import {buildInspectionBrief} from '../../lib/inspector/journey';
 
