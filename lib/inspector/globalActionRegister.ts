@@ -10,9 +10,9 @@ export type GlobalActionRow={
  status:InspectorAction['status'];scheduleContext:string;verifiedAt:string;
 };
 export type GlobalActionSource=Pick<Inspection,'id'|'revision'|'document'|'created_at'|'updated_at'>;
-export type RegisterFilter='unresolved'|'scheduled'|'today'|'overdue'|'reinspection'|'check'|'all'|'verified';
+export type RegisterFilter='unresolved'|'scheduled'|'today'|'overdue'|'reinspection'|'check'|'assignment'|'all'|'verified';
 export const registerFilterLabel:Record<RegisterFilter,string>={
- unresolved:'미결 전체',scheduled:'기한 내',today:'오늘 기한',overdue:'기한 초과',reinspection:'재점검 대기',check:'현장 확인일 도래',verified:'재점검 확인',all:'전체',
+ unresolved:'미결 전체',scheduled:'기한 내',today:'오늘 기한',overdue:'기한 초과',reinspection:'재점검 대기',check:'현장 확인일 도래',assignment:'담당·기한 확인 필요',verified:'재점검 확인',all:'전체',
 };
 export function projectGlobalActionRows(items:readonly GlobalActionSource[]):GlobalActionRow[]{
  return items.flatMap(item=>(item.document.actions||[]).filter(a=>['open','review-requested','verified'].includes(a.status)).map(a=>({
@@ -34,6 +34,8 @@ export function globalActionDimensions(row:GlobalActionRow,today:string){
  const check=!!nextCheckDate&&/^\d{4}-\d{2}-\d{2}$/.test(today)&&nextCheckDate<=today&&!verified;
  const checkLate=check&&nextCheckDate<today;
  const phase=actionDeadlinePhase({status:verified?'verified':'open',dueDate:row.dueDate} as InspectorAction,today);
+ const ownerMissing=!row.owner?.trim();
+ const dueDateNeedsReview=phase==='unknown';
  return {
   verified,
   check,nextCheckDate,checkLate,
@@ -42,7 +44,9 @@ export function globalActionDimensions(row:GlobalActionRow,today:string){
   scheduled:phase==='scheduled',
   unknown:phase==='unknown',
   reinspection:!verified&&row.status==='review-requested',
-  assignmentNeeded:!verified&&(!row.owner?.trim()||phase==='unknown'),
+  assignmentNeeded:!verified&&(ownerMissing||dueDateNeedsReview),
+  ownerMissing:!verified&&ownerMissing,
+  dueDateNeedsReview:!verified&&dueDateNeedsReview,
  };
 }
 export function globalActionStatusText(row:GlobalActionRow,today:string):string {
@@ -56,9 +60,9 @@ export function globalActionStatusText(row:GlobalActionRow,today:string):string 
 export function globalActionNextStep(row:GlobalActionRow,today:string):string {
  const s=globalActionDimensions(row,today);
  if(s.verified)return '현장 재점검 확인 기록을 열어 검토하세요.';
+ if(s.assignmentNeeded)return '담당자와 유효한 약정기한을 원점검에서 확인·보완하세요. 기한을 임의로 지정하지 않습니다.'+(s.reinspection?' 완료 검토 요청과 현장 재점검도 별도로 확인하세요.':'');
  if(s.reinspection&&s.overdue)return '기한 경과 사유와 현재 보호조치를 확인한 후, 접수 증빙과 현장을 대조해 재점검 결과를 기록하세요.';
  if(s.reinspection)return '접수된 증빙·완료 요청과 현장을 대조하고 재점검 결과를 기록하세요.';
- if(s.assignmentNeeded)return '담당자와 유효한 약정기한을 확인·보완하세요. 기한을 임의로 지정하지 않습니다.';
  if(s.overdue)return '기한 경과 사유, 현재 보호조치, 실제 개선 진행상황을 현장에서 확인하세요.';
  if(s.check)return '다음 현장 확인 예정일이 도래했습니다. 임시 보호조치 계획의 실제 이행 여부를 확인하고 기록하세요. 자동 알림·시행 확인은 아닙니다.';
  if(s.today)return '오늘 약정기한의 진행상황과 임시 보호조치를 확인하세요.';
@@ -72,7 +76,7 @@ export function filterGlobalActions(rows:readonly GlobalActionRow[],filter:Regis
  const q=search.trim().normalize('NFC').toLocaleLowerCase('ko-KR').slice(0,100);
  return rows.filter(row=>{
   const s=globalActionDimensions(row,today);
-  const eligible=filter==='all'||(filter==='unresolved'?!s.verified:filter==='verified'?s.verified:s[filter]);
+  const eligible=filter==='all'||(filter==='unresolved'?!s.verified:filter==='verified'?s.verified:filter==='assignment'?s.assignmentNeeded:s[filter]);
   return eligible&&(!q||[row.inspectionTitle,inspectionKindText(row.inspectionKind),row.siteName,row.location,row.workType,row.title,row.owner].some(text=>String(text||'').normalize('NFC').toLocaleLowerCase('ko-KR').includes(q)));
  }).sort((a,b)=>priority(a,today)-priority(b,today)
   ||(a.dueDate||'9999').localeCompare(b.dueDate||'9999')||a.inspectionId.localeCompare(b.inspectionId)||a.actionId.localeCompare(b.actionId));
@@ -119,13 +123,14 @@ export function globalActionCounts(rows:readonly GlobalActionRow[],today:string)
   today:flags.filter(s=>s.today).length,
   overdue:flags.filter(s=>s.overdue).length,
   reinspection:flags.filter(s=>s.reinspection).length,
+  assignment:flags.filter(s=>s.assignmentNeeded).length,
   verified:flags.filter(s=>s.verified).length,
   overlappingOverdueReinspection:flags.filter(s=>s.overdue&&s.reinspection).length,
  };
 }
 /** CSV exports loaded records ONLY. All untrusted text is cell-escaped against Excel formulas. */
 export function buildGlobalActionRegisterCsv(rows:readonly GlobalActionRow[],today:string){
- const cols=['점검번호','점검버전','점검명','점검 유형','현장','위치','공종','조치ID','조치내용','담당자','약정기한','기한 단계','기존 조치 상태','최초 기한 근거','현장 재점검 시각','조회 범위','약정기한 경과 여부','재점검 대기 여부','현장 확인할 다음 단계','다음 현장 확인 예정일','확인 예정일 도래 여부','확인 예정일 경과 여부'];
+ const cols=['점검번호','점검버전','점검명','점검 유형','현장','위치','공종','조치ID','조치내용','담당자','약정기한','기한 단계','기존 조치 상태','최초 기한 근거','현장 재점검 시각','조회 범위','약정기한 경과 여부','재점검 대기 여부','현장 확인할 다음 단계','다음 현장 확인 예정일','확인 예정일 도래 여부','확인 예정일 경과 여부','담당자 미지정 여부','약정기한 확인 필요 여부'];
  const body=rows.map(row=>{
   const s=globalActionDimensions(row,today);
   return [
@@ -134,7 +139,7 @@ export function buildGlobalActionRegisterCsv(rows:readonly GlobalActionRow[],tod
    row.status==='verified'?'현장 재점검 확인':row.status==='review-requested'?'재점검 대기':'이행 검토 중',
    row.scheduleContext,row.verifiedAt,'사용자가 불러온 점검 범위만 · 현장 승인 아님',
    s.overdue?'예':'아니오',s.reinspection?'예':'아니오',globalActionNextStep(row,today),
-   s.nextCheckDate,s.check?'예':'아니오',s.checkLate?'예':'아니오'
+   s.nextCheckDate,s.check?'예':'아니오',s.checkLate?'예':'아니오',s.ownerMissing?'예':'아니오',s.dueDateNeedsReview?'예':'아니오'
   ];
  });
  return '\uFEFF'+[cols,...body].map(row=>row.map(actionCsvCell).join(',')).join('\r\n')+'\r\n';
