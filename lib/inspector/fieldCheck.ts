@@ -16,7 +16,7 @@ export function fieldCheckInputError(input:{result:string;note:string;nextCheckD
  if(typeof input.note!=='string'||input.note.trim().length<10||input.note.length>600||input.note.includes('\u0000'))return '현장 확인 상황과 근거를 10~600자 이내로 작성해 주세요.';
  if(typeof input.nextCheckDate!=='string'||input.nextCheckDate.length>10)return '다음 현장 확인 날짜를 다시 선택해 주세요.';
  if(input.nextCheckDate&&!validDay(input.nextCheckDate))return '다음 현장 확인 날짜가 올바르지 않습니다.';
- if(input.result!=='implemented'&&!input.nextCheckDate)return '미시행·확인 불가 상태는 다음 현장 확인 예정일을 지정해 주세요.';
+ if(input.result!=='implemented'&&!input.nextCheckDate)return '미시행·확인 불가 상태에는 다음 현장 확인 예정일이 필수입니다.';
  if(input.nextCheckDate&&validDay(today)&&input.nextCheckDate<today)return '다음 현장 확인 날짜는 과거일 수 없습니다.';
  return '';
 }
