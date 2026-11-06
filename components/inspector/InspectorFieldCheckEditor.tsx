@@ -1,6 +1,7 @@
 import React,{useEffect,useId,useRef,useState} from 'react';
 import type {InspectorAction,InspectorFieldCheck} from '../../lib/inspector/types';
 import {effectiveFieldCheckDate,fieldCheckInputError,fieldCheckLabels,latestFieldCheck} from '../../lib/inspector/fieldCheck';
+import './inspector-field-check.css';
 
 export type FieldCheckSubmission={actionId:string;checkId:string;result:InspectorFieldCheck['result'];note:string;nextCheckDate:string};
 export default function InspectorFieldCheckEditor({action,busy,today,onSave,onDirty}:{
@@ -44,7 +45,7 @@ export default function InspectorFieldCheckEditor({action,busy,today,onSave,onDi
     e.preventDefault();if(!canSave||result==='0')return;
     if(await onSave({actionId:action.id,checkId:checkId.current,result,note:note.trim(),nextCheckDate})){reset();setFeedback('현장 확인 기록을 서버에 저장했습니다. 새 보고서는 변경된 저장본으로 다시 작성하세요.');}
    }}>
-    <p className="si-caption">현장 점검자가 직접 확인한 사실 또는 확인 불가를 선택하세요. 사진·AI가 판정한 상태가 아닙니다. **임시 보호조치 확인과 최종 시정조치 완료는 별개**입니다.</p>
+    <p className="si-caption">현장 점검자가 직접 확인한 사실 또는 확인 불가를 선택하세요. 사진·AI가 판정한 상태가 아닙니다. 임시 보호조치 확인과 최종 시정조치 완료는 별개입니다.</p>
     <label htmlFor={uid+'result'}>현장 확인 결과</label>
     <select id={uid+'result'} value={result} disabled={busy} onChange={e=>{setResult(e.target.value as InspectorFieldCheck['result']);setAck(false);}}>
       <option value="0">직접 선택</option>
