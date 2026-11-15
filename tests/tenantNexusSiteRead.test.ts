@@ -86,6 +86,7 @@ describe('PSI NEXUS server identity and site read boundary',()=>{
   it('returns only server-verified active sites and checks that every membership matches the user',async()=>{
     prepare({data:[member()],error:null},{data:[siteRow()],error:null});
     const response=res();await handler(req({mode:'sites'}),response);
+    if(response.code!==200) console.error('[NEXUS READ DIAGNOSTIC]',JSON.stringify({result:response.body,calls:traces,remaining:queue.length}));
     expect(response.code).toBe(200);
     expect(response.body.sites).toEqual([{id:site,name:'Test site'}]);
     expect(response.body.officialReportVerified).toBe(false);
