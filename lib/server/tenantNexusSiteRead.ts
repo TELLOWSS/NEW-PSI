@@ -136,7 +136,7 @@ export default async function tenantNexusSiteRead(req:any,res:any) {
     const sites=await authorizedSites(context);
     if(mode==='sites'){
       return res.status(200).json({ok:true,scope:'SERVER_AUTHENTICATED_SITE_MEMBERSHIP',
-        sites,sourceReady:true,recordsRead:false,officialReportVerified:false});
+        sites,sourceReady:false,sourceAvailability:'PROPOSAL_ONLY_NOT_ACTIVATED',recordsRead:false,officialReportVerified:false});
     }
     if(!filter)return invalid();
     const {siteId,month,trade,cutoffAt}=filter;
