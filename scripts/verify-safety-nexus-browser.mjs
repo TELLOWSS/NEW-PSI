@@ -34,6 +34,10 @@ try {
   check('기본 입자 캔버스', await root.locator('canvas.nexus-core-canvas').count() === 1, 'canvas');
   const renderer = await root.locator('canvas.nexus-core-canvas').getAttribute('data-renderer') || 'canvas-2d-fallback';
   check('GPU 렌더러 또는 2D 대체 렌더러', ['webgl','canvas-2d-fallback'].includes(renderer), {renderer});
+  // For cinematic acceptance, browser QA itself MUST actually execute the GPU
+  // shader. Fallback usability is verified independently below.
+  check('시네마틱 GPU 셰이더 실제 가동',renderer==='webgl',
+    {renderer,reason:'2D fallback cannot certify native GPU lighting or camera art'});
   check('후속조치 이력 카드 6종 구분', await root.locator('.nexus-followup-card').count() === 6, 'unresolved, overdue, interim, planned, reopened, evidence verified');
   check('현장 실천·재점검 5종 분리', await root.locator('.nexus-recheck-card').count() === 5,
     'education delivered, observed, rechecked, needs recheck, overdue recheck');
