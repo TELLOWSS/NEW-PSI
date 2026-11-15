@@ -232,7 +232,7 @@ const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback }) 
         // A desktop-sized particle field shrinks dramatically during responsive testing.
         // Adapt intensity to rendered CSS width, while native mobile uses a lower particle count.
         const displayWidth=canvas.width/ratio;
-        const widthFactor=Math.max(.28,Math.pow(Math.min(1,displayWidth/720),1.35));
+        const widthFactor=Math.max(.43,Math.pow(Math.min(1,displayWidth/720),.72));
         gl.uniform1f(locIntensity,Math.min(1,widthFactor*(mobile?1.45:1)));
         gl.uniform1f(locBloom,1);
         gl.drawArrays(gl.POINTS,0,data.length/5);
