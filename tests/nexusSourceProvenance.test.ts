@@ -108,7 +108,7 @@ describe('PSI NEXUS source provenance · no report auto approval',()=>{
       status:'COUNTS_MATCH_PENDING_INDEPENDENT_APPROVAL',
       independentOfficialReportVerified:false,acceptedByReviewer:false,
       authorizesActionClosure:false,authorizesWorkRestart:false,
-      sourceIdSetWasIndependentlyProvided:true,sourceRecordCount:3,officialDenominator:3,
+      externalReportDeclaresSourceIdSet:true,sourceRecordCount:3,declaredExternalDenominator:3,
     });
     expect(JSON.stringify(result)).not.toContain(id1);
     expect(JSON.stringify(result)).not.toContain('Independent signed field report service');
@@ -116,7 +116,7 @@ describe('PSI NEXUS source provenance · no report auto approval',()=>{
   it('still refuses to call a matching count an official verification when ID set was not published',()=>{
     const manifest=buildNexusSourceManifest(scope,source());
     const result=compareNexusReportOriginal(manifest,report(),bytes);
-    expect(result.sourceIdSetWasIndependentlyProvided).toBe(false);
+    expect(result.externalReportDeclaresSourceIdSet).toBe(false);
     expect(result.independentOfficialReportVerified).toBe(false);
   });
   it('fails closed with invalid scope and malformed unrecognized self-risk levels',()=>{
