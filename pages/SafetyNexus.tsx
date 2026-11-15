@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Page, WorkerRecord } from '../types';
-import { summarizeLoadedNexusRecords } from '../utils/safetyNexusViewModel';
+import { sliceLoadedNexusRecords } from '../utils/safetyNexusViewModel';
+import { buildMonthlyFieldFollowupSummary, getKoreanCalendarDay } from '../utils/monthlyFieldFollowup';
 import WebGLNexusCore from './NexusWebGLCore';
 import './SafetyNexus.css';
 
@@ -122,7 +123,26 @@ const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
   // Keep a high-fidelity still on mobile; motion runs only after an explicit play action.
   const [paused,setPaused]=useState(()=>typeof window!=='undefined'&&window.matchMedia('(max-width: 700px)').matches);
   const [reduced,setReduced]=useState(()=>typeof window!=='undefined'&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const snapshot=useMemo(()=>summarizeLoadedNexusRecords(workerRecords),[workerRecords]);
+  const [filterMonth,setFilterMonth]=useState('');
+  const [filterTrade,setFilterTrade]=useState('');
+  const loadedSlice=useMemo(
+    ()=>sliceLoadedNexusRecords(workerRecords,{month:filterMonth,trade:filterTrade}),
+    [workerRecords,filterMonth,filterTrade]
+  );
+  const snapshot=loadedSlice.snapshot;
+  const followup=useMemo(()=>{
+    const today=getKoreanCalendarDay();
+    const year=Number(filterMonth.slice(0,4)),month=Number(filterMonth.slice(5,7));
+    const lastDay=filterMonth && month>=1 && month<=12 && year>=2000 && year<=2100
+      ? filterMonth+'-'+String(new Date(year,month,0).getDate()).padStart(2,'0')
+      : today;
+    const asOfDate=lastDay>today?today:lastDay;
+    return buildMonthlyFieldFollowupSummary(workerRecords,{
+      asOfDate,
+      ...(filterMonth?{periodStartDate:filterMonth+'-01'}:{}),
+      ...(filterTrade?{workType:filterTrade}:{})
+    });
+  },[workerRecords,filterMonth,filterTrade]);
   const count=snapshot.loadedRecordRows;
   const selected=STEPS[active];
   const focusPaths=[
@@ -145,7 +165,7 @@ const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
         <h2>현장의 위험신호를<br/><em>하나의 흐름으로.</em></h2>
         <p>근로자가 직접 기록하는 위험과 관리자의 검증, 조치, 교육 환류를 하나의 정보구조로 연결합니다.</p>
         <div className="nexus-aside-rule"/>
-        <div className="nexus-record-count"><span>화면에 불러온 기록</span><strong>{count.toLocaleString('ko-KR')}<small> 건</small></strong><p>로드 건수이며 공식 집계·안전판정이 아닙니다.</p></div>
+        <div className="nexus-record-count"><span>선택 조건에 해당하는 기록</span><strong>{count.toLocaleString('ko-KR')}<small> 건</small></strong><p>로드 건수이며 공식 집계·안전판정이 아닙니다.</p></div>
         <div className="nexus-perception" aria-label="근로자가 직접 선택한 자가평가 등급의 분포">
           <span>WORKER SELF-ASSESSMENT</span>
           <h3>자가평가 상·중·하 <small>공식 위험등급 아님</small></h3>
@@ -154,7 +174,7 @@ const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
             <strong>{snapshot.selfRiskLevels[level]}</strong>
           </div>)}
           {snapshot.unclassifiedRows>0&&<p>미분류 {snapshot.unclassifiedRows}건 · 안전으로 간주하지 않음</p>}
-          <p>현재 불러온 작성 행만 집계 · 현장/월 범위 미검증</p>
+          <p>현재 불러온 기록의 작성일·공종 기준 · 현장 인증 범위 미검증</p>
         </div>
         <div className="nexus-aside-note"><b>◎ 시각화 모드 안내</b><p>입자·빛·궤도는 현재 디자인 표현입니다. 실제 위험수준·개선완료·작업중지를 자동 판단하지 않습니다.</p></div>
       </aside>
@@ -185,6 +205,49 @@ const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
         <div className="nexus-next"><span>SAFETY LOOP · NEXT ACTION</span><ol><li>근로자 위험 인식</li><li>AI 구조화 · 관리자 대조</li><li>조치 · 기한 · 재점검</li><li>교육 · 재확인 · 환류</li></ol></div>
       </aside>
     </div>
+    <section className="nexus-followup" aria-label="근로자 위험성평가 후속조치 익명 집계">
+      <div className="nexus-followup-header">
+        <div><span>VERIFIABLE READ-ONLY SIGNALS</span><h2>후속조치 현황 <small>불러온 기록의 관리자 이력 기준</small></h2></div>
+        <p>이 화면은 현장 안전을 판정하거나 조치 완료를 승인하지 않습니다. <b>현장별 인증 범위는 아직 미연동</b>입니다.</p>
+      </div>
+      <div className="nexus-followup-filters">
+        <label>현장
+          <select disabled aria-label="현장 인증 범위 미연동"><option>현장 인증 범위 미연동</option></select>
+        </label>
+        <label>작성 월
+          <select value={filterMonth} onChange={event=>setFilterMonth(event.target.value)} aria-label="작성 월 선택">
+            <option value="">전체 작성기간</option>
+            {loadedSlice.monthOptions.map(month=><option key={month} value={month}>{month}</option>)}
+          </select>
+        </label>
+        <label>공종
+          <select value={filterTrade} onChange={event=>setFilterTrade(event.target.value)} aria-label="공종 선택">
+            <option value="">전체 공종</option>
+            {loadedSlice.tradeOptions.map(trade=><option key={trade} value={trade}>{trade}</option>)}
+          </select>
+        </label>
+        <span className="nexus-followup-asof">조치 기준일 {followup.asOfDate} · 확인 범위: 현재 불러온 기록</span>
+      </div>
+      <div className="nexus-followup-cards">
+        {[
+          ['미완료',followup.unresolved,'action'],
+          ['기한 초과',followup.overdue,'overdue'],
+          ['임시 통제 중',followup.interimControl,'interim'],
+          ['조치 예정',followup.scheduled,'scheduled'],
+          ['재개방 이력',followup.reopened,'reopened'],
+          ['완료 증빙 확인',followup.completed,'complete'],
+        ].map(([label,value,tone])=>
+          <div className={'nexus-followup-card tone-'+tone} key={String(label)}>
+            <span>{label}</span><strong>{value}</strong><small>건</small>
+          </div>
+        )}
+      </div>
+      <div className="nexus-followup-footer">
+        <span>조치 이력 {followup.totalCases}건 · 이전 주기에서 이어진 미완료 {followup.carriedOver}건 · 월별 조치는 선택월 말일까지의 상태를 포함합니다.</span>
+        <span>미완료·임시통제·기한초과는 완료로 처리하지 않습니다. 재개방은 이력 건수이며 현재 미완료와 중복될 수 있습니다.</span>
+        {loadedSlice.undatedRowsInAllPeriods>0&&<span>작성일 확인 불가 {loadedSlice.undatedRowsInAllPeriods}행 · 특정 월로 임의 배정하지 않음</span>}
+      </div>
+    </section>
     <section className="nexus-metrics" aria-label="6대 안전인식 지표">
       <div className="nexus-metrics-caption"><span>THE SIX PROTECTION SIGNALS</span><strong>6대 안전인식 지표</strong></div>
       <div className="nexus-metrics-list">{METRICS.map(s=><div className="nexus-metric" key={s[0]}><span>{s[0]} <i/></span><strong>{s[1]}</strong><small>{s[2]}</small></div>)}</div>
