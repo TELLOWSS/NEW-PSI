@@ -255,3 +255,11 @@
 /* Inner luminous particles may not erase the navigation wordmark. */
 .nexus-core-label strong{text-shadow:0 2px 10px #08111f,0 0 19px #08111f,0 1px 2px #091019}
 .nexus-core-label small{text-shadow:0 1px 6px #080e17,0 0 12px #080e17;color:#fff0d8}
+
+
+/* The in-app motion preference takes precedence over OS animation settings. */
+.safety-nexus[data-reduced-motion="true"] .nexus-focus-link path,
+.safety-nexus[data-reduced-motion="true"] .nexus-detail-intro {
+  animation: none !important;
+  transition: none !important;
+}
