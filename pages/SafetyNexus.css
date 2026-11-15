@@ -263,3 +263,18 @@
   animation: none !important;
   transition: none !important;
 }
+
+
+/* Independent evidence layer: education and recheck are not action-closure states. */
+.nexus-practice{margin-top:18px;padding-top:17px;border-top:1px solid #7393a337}
+.nexus-practice-heading{display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.nexus-practice-heading strong{font-size:13px;color:#f3e7d4;font-weight:680}
+.nexus-practice-heading span{font-size:10px;color:#9db5c0}
+.nexus-recheck-cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.nexus-recheck-card{padding:10px 12px;background:#1022339a;border:1px solid #63839a43;border-radius:5px;min-width:0}
+.nexus-recheck-card span{display:block;font-size:10px;color:#a8beca;word-break:keep-all}
+.nexus-recheck-card strong{font-size:22px;font-weight:550;color:#f4efe8;line-height:1.6;font-variant-numeric:tabular-nums}
+.nexus-recheck-card small{font-size:10px;color:#93adbb;margin-left:4px}
+.nexus-practice>p{font-size:10px;line-height:1.8;color:#a1b4bf;margin:12px 0 0;word-break:keep-all}
+@media(max-width:960px){.nexus-recheck-cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:470px){.nexus-recheck-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
