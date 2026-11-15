@@ -45,6 +45,16 @@
 - [ ] V05 **human side-by-side video-to-video approval** remains PENDING. The new WebM is a playable comparison input, not evidence that the owner approves its motion aesthetics.
 - [ ] V07 explicit owner signoff and physical Android/iPhone GPU/FPS/temperature remain PENDING.
 
+## Iteration 10 visual comparison and controlled mobile emulation
+
+**Tested code: `ac36356ffcf813f727d6ec7fd62b0e9664743dc8`**.
+- New orbit and camera: three distinct radii, independent glowing orbit anchors, continuous WebGL line loops (not just scattered shell dots), a smaller central sphere and stronger 12-second eased yaw/pitch/dolly choreography. All visuals remain nonlive and source-neutral.
+- First intermediate iteration `416b69d7` produced real browser QA **49/49**, but manual screenshot review rejected its giant sphere and invisible outer arcs. The final orbit-rebalanced version `ac36356f` passed release CI https://github.com/TELLOWSS/NEW-PSI/actions/runs/43761278840 and cross-product browser https://github.com/TELLOWSS/NEW-PSI/actions/runs/43761278845 (10/10 company, 49/49 NEXUS).
+- Real screenshot/movie evidence https://github.com/TELLOWSS/NEW-PSI/actions/runs/43761278845/artifacts/14180965948 . GPU renderer checked explicitly; 10s screenshot inspected. Current wider illuminated tracks visible but anchors much less dramatic than reference. **Do not mark V02/V03 fully approved.**
+- Actual owner video `92203.mp4` frames 6,10,12,16,18 examined and qualitative 12s side-by-side MP4 generated locally (source embedded-display crop 6–18s, development clip 0–12s). Original transitions between distinct particle-field/diagonal-stream/expanded-ellipse compositions that are not matched by the present PSI scene. **V04/V05 remain only partially fulfilled and not signed off.**
+- Browser mobile emulation: 390×844, DPR2, touch/mobile Chrome, actual webgl renderer, LOD conservative; 188 requestAnimationFrame intervals with p50 16.7ms and p95 16.8ms. **This is not real mobile GPU frame-time or thermals.** V06 actual-device criterion still open.
+- V07 art signoff remains absent. Site-scoped real risk data/report evidence also blocked independently. PR #230 remains DRAFT and unmerged.
+
 ## Unresolved visual issues / ordered next work
 
 1. Visually inspect newest 1440/390 screenshots and all cinema frames in the current CI artifact; check luminance clipping, text contrast, orbit readability, stage control wrapping, and genuine camera movement.
