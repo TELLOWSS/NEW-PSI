@@ -114,7 +114,7 @@ try {
 
   // Force the real 3D renderer's getContext() call to fail. The 2D Canvas
   // fallback must be visible, interactive, and free of unexpected page errors.
-  const fallbackPage = await browser.newPage({ viewport: { width: 390, height: 900 }, deviceScaleFactor: 1 });
+  const fallbackPage = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   const fallbackErrors = [];
   fallbackPage.on('pageerror', error => fallbackErrors.push(error.message));
   await fallbackPage.addInitScript(() => {
@@ -134,6 +134,9 @@ try {
     await fallbackPage.getByRole('button', { name: '안전지능 네트워크 · 시제품' }).first().click();
     const fallbackRoot = fallbackPage.locator('.safety-nexus');
     await fallbackRoot.waitFor({ state: 'visible', timeout: 20000 });
+    // Enter through the visible real desktop menu, then verify the 390px viewport.
+    // The mobile sidebar is collapsed by design and its button is not initially accessible.
+    await fallbackPage.setViewportSize({ width: 390, height: 900 });
     await fallbackRoot.locator('canvas.nexus-core-canvas:not([data-renderer])').waitFor({ state: 'visible', timeout: 12000 });
     check('WebGL 비활성 기기에서 Canvas 2D로 자동 복귀',
       await fallbackRoot.locator('canvas.nexus-core-canvas:not([data-renderer])').count() === 1,
