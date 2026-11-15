@@ -248,6 +248,71 @@ try {
     await lossPage.close();
   }
 
+  // Dedicated 390px touch/mobile Chromium context, not a desktop context resized
+  // after the GPU has already allocated desktop particle counts.
+  // These are *emulation indicators*, not an Android/iPhone hardware FPS claim.
+  const mobilePage=await browser.newPage({
+    viewport:{width:390,height:844},deviceScaleFactor:2,isMobile:true,hasTouch:true
+  });
+  const mobileErrors=[];
+  mobilePage.on('pageerror',err=>mobileErrors.push(err.message));
+  await mobilePage.addInitScript(()=>sessionStorage.setItem('isAdminAuthenticated','true'));
+  await mobilePage.route('**/api/admin/auth',route=>route.fulfill({
+    status:200,contentType:'application/json',
+    body:JSON.stringify({ok:true,authenticated:true})
+  }));
+  try{
+    await mobilePage.goto(baseUrl,{waitUntil:'domcontentloaded'});
+    await mobilePage.getByRole('navigation',{name:'모바일 하단 탐색'})
+      .getByRole('button',{name:/더보기/}).click();
+    await mobilePage.getByRole('dialog',{name:'전체 메뉴'})
+      .getByRole('button',{name:'안전지능 네트워크 · 시제품'}).click();
+    const mobileRoot=mobilePage.locator('.safety-nexus');
+    await mobileRoot.waitFor({state:'visible',timeout:20000});
+    const mobileCanvas=mobileRoot.locator('canvas.nexus-core-canvas');
+    await mobileCanvas.waitFor({state:'visible',timeout:12000});
+    check('실제 모바일 미디어쿼리에서 WebGL 캔버스 생성',
+      await mobileCanvas.getAttribute('data-renderer')==='webgl',
+      {viewport:'390x844',dpr:2,isMobile:true,hasTouch:true});
+    const initialMotion=await mobileRoot.getByRole('button',{name:'모션 재생'}).count();
+    check('모바일은 모션 정지로 안전하게 시작',initialMotion===1,
+      {pausedOnMobile:true});
+    await mobileRoot.getByRole('button',{name:'12초 시네마틱 보기'}).click();
+    const telemetry=await mobilePage.evaluate(async()=>{
+      const intervals=[];
+      let last=0;
+      const started=performance.now();
+      await new Promise(resolve=>{
+        const onFrame=(now)=>{
+          if(last>0)intervals.push(now-last);
+          last=now;
+          if(now-started<3200)requestAnimationFrame(onFrame);
+          else resolve(null);
+        };
+        requestAnimationFrame(onFrame);
+      });
+      intervals.sort((a,b)=>a-b);
+      return {
+        metric:'browser requestAnimationFrame cadence (not native GPU FPS)',
+        samples:intervals.length,
+        p50Ms:intervals[Math.floor(intervals.length*.5)]||0,
+        p95Ms:intervals[Math.floor(intervals.length*.95)]||0,
+        p99Ms:intervals[Math.floor(intervals.length*.99)]||0,
+      };
+    });
+    await writeFile(resolve(output,'nexus-mobile-emulation.json'),
+      JSON.stringify({emulation:{viewport:'390x844',deviceScaleFactor:2,isMobile:true,hasTouch:true},
+        renderer:await mobileCanvas.getAttribute('data-renderer'),
+        telemetry,realDeviceValidated:false},null,2)+'\n');
+    check('모바일 브라우저 애니메이션 프레임 지표 수집',
+      telemetry.samples>=15 && telemetry.p95Ms>0 && Number.isFinite(telemetry.p95Ms),
+      telemetry);
+    await mobilePage.screenshot({path:resolve(output,'nexus-mobile-native-390-dpr2.png'),fullPage:true});
+    check('모바일 터치 및 시네마틱 런타임 오류 없음',mobileErrors.length===0,mobileErrors);
+  }finally{
+    await mobilePage.close();
+  }
+
   const report = { kind: 'synthetic-browser-review', visualApproval: false,
     pass: checks.every(c => c.passed), passed: checks.filter(c => c.passed).length,
     total: checks.length, checks, failures };
