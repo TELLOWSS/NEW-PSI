@@ -53,7 +53,8 @@ void main() {
       p *= mix(.80,1.0,smoothstep(0.0,2.4,u_story));
     }
     p = yawPitch(p, depthYaw, depthPitch);
-    p *= 1.0 + .025*sin(t*2.0+seed*24.0);
+    // Keep the nucleus compact enough for wide independent orbit sweeps.
+    p *= .82*(1.0 + .025*sin(t*2.0+seed*24.0));
   } else {
     float azimuth = ring < .5 ? .55 : ring < 1.5 ? -.91 : 1.18;
     float speed = ring < .5 ? .37 : ring < 1.5 ? -.25 : .16;
@@ -94,23 +95,29 @@ void main() {
     vec3 ringColor=ring > 1.5 ? vec3(.38,.84,.90) : vec3(1.,.69,.43);
     v_color=isAnchor ? vec3(1.,.91,.67) : mix(ringColor,vec3(1.,.96,.78),spark*.55);
     v_alpha=isAnchor
-      ? clamp((.65+.32*sin(t*1.7+seed*PI*2.0))*reveal*u_intensity,.0,.97)
-      : clamp(mix(.17,.54,clamp((p.z+2.8)/5.6,0.,1.))
-        * (.75+spark*.90)*reveal*u_intensity,0.0,.90);
+      ? clamp((.76+.20*sin(t*1.7+seed*PI*2.0))*reveal*u_intensity,0.0,.98)
+      : clamp(mix(.32,.70,clamp((p.z+2.8)/5.6,0.,1.))
+        * (.78+spark*.95)*reveal*u_intensity,0.0,.94);
     gl_PointSize=u_ratio*lens*(isAnchor
-      ? (u_bloom>.5 ? 42.0 : 5.3)
-      : (u_bloom>.5 ? 9.0+spark*5.0 : 1.45+spark*1.9));
+      ? (u_bloom>.5 ? 55.0 : 7.2)
+      : (u_bloom>.5 ? 12.0+spark*6.0 : 2.05+spark*2.2));
   }
   v_kind = kind;
 }`;
 const FRAGMENT = `
 precision mediump float;
 uniform float u_bloom;
+uniform float u_line;
 uniform float u_intensity;
 varying vec3 v_color;
 varying float v_alpha;
 varying float v_kind;
 void main() {
+  if(u_line > .5) {
+    // A continuous, thin illuminated arc under the additive orbit particles.
+    gl_FragColor=vec4(v_color*.78,v_alpha*.50);
+    return;
+  }
   vec2 p=gl_PointCoord*2.-1.;
   float r2=dot(p,p);
   if(r2>1.0) discard;
@@ -232,7 +239,7 @@ const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback, se
         const seed=((i*73+251)%997)/997;
         raw.push(Math.cos(t)*shellRadius*radial,y*radial,Math.sin(t)*shellRadius*radial,seed,.2);
       }
-      const orbitRadii=[1.91,2.27,2.58] as const;
+      const orbitRadii=[1.68,2.02,2.37] as const;
       for (let ring=0;ring<3;ring++) {
         const radius=orbitRadii[ring];
         for (let j=0;j<ringCount;j++) {
@@ -262,6 +269,7 @@ const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback, se
       const locTime=gl.getUniformLocation(program,'u_time');
       const locFocus=gl.getUniformLocation(program,'u_focus');
       const locBloom=gl.getUniformLocation(program,'u_bloom');
+      const locLine=gl.getUniformLocation(program,'u_line');
       const locIntensity=gl.getUniformLocation(program,'u_intensity');
       const locStory=gl.getUniformLocation(program,'u_story');
       const resize=()=>{
@@ -292,10 +300,19 @@ const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback, se
         const displayWidth=canvas.width/ratio;
         const widthFactor=Math.max(.43,Math.pow(Math.min(1,displayWidth/720),.72));
         gl.uniform1f(locIntensity,Math.min(1,widthFactor*(mobile?1.45:1)));
+        gl.uniform1f(locLine,0);
         gl.uniform1f(locBloom,1);
         gl.drawArrays(gl.POINTS,0,data.length/5);
         gl.uniform1f(locBloom,0);
         gl.drawArrays(gl.POINTS,0,data.length/5);
+        // Solid camera-rotated orbital tracks connect the sparse visual tracers.
+        // These are decorative paths, NOT verified worker/safety evidence links.
+        gl.uniform1f(locLine,1);
+        const orbitStart=shellCount+interiorCount;
+        for(let ring=0;ring<3;ring++) {
+          gl.drawArrays(gl.LINE_LOOP,orbitStart+ring*(ringCount+2),ringCount);
+        }
+        gl.uniform1f(locLine,0);
       };
       let dpr=Math.min(window.devicePixelRatio||1,mobile?1.25:1.6);
       repaint.current=()=>draw(dpr);
