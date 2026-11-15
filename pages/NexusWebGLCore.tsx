@@ -57,8 +57,8 @@ void main() {
   gl_Position=vec4(screen.x/(u_size.x*.5),-screen.y/(u_size.y*.5),0.,1.);
   if(kind < .5) {
     float near = clamp((p.z+1.)*.5,0.,1.);
-    v_color = seed < .075 ? vec3(.27,.91,.95) : seed > .92 ? vec3(1.,.96,.77) : vec3(1.,.65,.34);
-    v_alpha = mix(.19,.84,near)*(0.7 + .3*sin(t*1.6+seed*31.0)*sin(t*1.6+seed*31.0));
+    v_color = seed < .065 ? vec3(.27,.91,.95) : seed > .86 ? vec3(1.,.98,.82) : vec3(1.,.74,.42);
+    v_alpha = mix(.31,.95,near)*(0.7 + .3*sin(t*1.6+seed*31.0)*sin(t*1.6+seed*31.0));
     gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 13.0+seed*11.0 : 1.4+seed*2.15);
   } else {
     v_color = kind > 2.5 ? vec3(.33,.82,.90) : vec3(1.,.69,.43);
@@ -78,8 +78,8 @@ void main() {
   float r2=dot(p,p);
   if(r2>1.0) discard;
   if(u_bloom > .5) {
-    float glow=exp(-r2*5.2)*.24;
-    gl_FragColor=vec4(v_color*glow, v_alpha*.34);
+    float glow=exp(-r2*5.2)*.46;
+    gl_FragColor=vec4(v_color*glow, v_alpha*.48);
   } else {
     float core=smoothstep(.37,.03,sqrt(r2));
     float fringe=exp(-r2*5.0)*.33;
@@ -171,6 +171,17 @@ const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback }) 
         const angle=i*phi;
         const seed=((i*67)%997)/997;
         raw.push(Math.cos(angle)*r,y,Math.sin(angle)*r,seed,0);
+      }
+      // Interior volume points prevent the sphere from becoming a hollow, edge-only halo.
+      // Deterministic golden-angle distribution, denser toward the warm central nucleus.
+      const interiorCount = mobile ? 1200 : 4100;
+      for (let i=0;i<interiorCount;i++) {
+        const y=1-(i+.5)*2/interiorCount;
+        const t=i*phi*1.43;
+        const shellRadius=Math.sqrt(Math.max(0,1-y*y));
+        const radial=Math.pow(((i*137+71)%1009)/1009,1.35)*.92;
+        const seed=((i*73+251)%997)/997;
+        raw.push(Math.cos(t)*shellRadius*radial,y*radial,Math.sin(t)*shellRadius*radial,seed,0);
       }
       for (let ring=0; ring<3;ring++) {
         for (let j=0; j<ringCount;j++) {
