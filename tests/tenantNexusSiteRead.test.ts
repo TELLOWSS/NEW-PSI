@@ -41,7 +41,9 @@ beforeEach(()=>{
   mocks.context.mockImplementation(async()=>({tenantId:tenant,userId:person,role:'viewer',client:{from:mocks.from}}));
   mocks.from.mockImplementation((table:string)=>{
     const trace:Trace={table,calls:[]};traces.push(trace);
-    const q:any={then(resolve:any,reject:any){return Promise.resolve(queue.shift()||{data:[],error:null}).then(resolve,reject);}};
+    // A real PostgREST query is one Promise per table request; do not shift a
+    // mocked response each time a thenable is assimilated by the event loop.
+    const q:any=Promise.resolve(queue.shift()??{data:[],error:null});
     for(const op of ['select','eq','in','limit','maybeSingle'])q[op]=(...args:any[])=>{
       trace.calls.push([op,...args]);return q;
     };
@@ -86,7 +88,6 @@ describe('PSI NEXUS server identity and site read boundary',()=>{
   it('returns only server-verified active sites and checks that every membership matches the user',async()=>{
     prepare({data:[member()],error:null},{data:[siteRow()],error:null});
     const response=res();await handler(req({mode:'sites'}),response);
-    if(response.code!==200) console.error('[NEXUS READ DIAGNOSTIC]',JSON.stringify({result:response.body,calls:traces,remaining:queue.length}));
     expect(response.code).toBe(200);
     expect(response.body.sites).toEqual([{id:site,name:'Test site'}]);
     expect(response.body.officialReportVerified).toBe(false);
