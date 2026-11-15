@@ -245,9 +245,13 @@
 
 /* Volumetric central illumination stays subordinate to the readable PSI wordmark. */
 .nexus-nucleus{position:absolute;inset:0;z-index:0;pointer-events:none;mix-blend-mode:screen;
- background:radial-gradient(ellipse at 50% 50%,rgba(255,236,190,.22) 0%,rgba(252,183,94,.13) 11%,rgba(230,126,56,.055) 25%,rgba(145,64,27,0) 43%)}
+ background:radial-gradient(ellipse at 50% 50%,rgba(255,236,190,.12) 0%,rgba(252,183,94,.075) 11%,rgba(230,126,56,.038) 25%,rgba(145,64,27,0) 43%)}
 .nexus-hud-orbits{position:absolute;inset:0;z-index:0;width:100%;height:100%;
  pointer-events:none;overflow:visible;filter:drop-shadow(0 0 4px rgba(241,159,87,.21))}
 .nexus-hud-orbits ellipse{fill:none;stroke:rgba(245,185,119,.23);stroke-width:1.2;stroke-dasharray:1 4}
 .nexus-hud-orbits ellipse:nth-child(2){stroke:rgba(107,201,218,.17);stroke-dasharray:3 9}
 @media(max-width:700px){.nexus-nucleus{opacity:.52}}
+
+/* Inner luminous particles may not erase the navigation wordmark. */
+.nexus-core-label strong{text-shadow:0 2px 10px #08111f,0 0 19px #08111f,0 1px 2px #091019}
+.nexus-core-label small{text-shadow:0 1px 6px #080e17,0 0 12px #080e17;color:#fff0d8}
