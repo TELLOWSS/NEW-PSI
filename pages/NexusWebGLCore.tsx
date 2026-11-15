@@ -38,7 +38,8 @@ vec3 yawPitch(vec3 p, float ay, float ax) {
 void main() {
   float seed = a_data.w;
   float kind = a_kind;
-  float ring = kind-1.0;
+  float ring = kind >= 3.5 ? kind-4.0 : kind-1.0;
+  bool isAnchor = kind >= 3.5;
   vec3 p = a_data.xyz;
   float t = u_time;
   float reveal=1.0;
@@ -47,32 +48,38 @@ void main() {
     float depthPitch = .22 + sin(t*.35)*.16;
     if(u_story >= 0.0) {
       float sweep=smoothstep(0.0,12.0,u_story);
-      depthYaw += .47*sweep;
-      depthPitch += .13*sin(sweep*3.14159265);
+      depthYaw += .79*sweep;
+      depthPitch += .21*sin(sweep*3.14159265);
       p *= mix(.80,1.0,smoothstep(0.0,2.4,u_story));
     }
     p = yawPitch(p, depthYaw, depthPitch);
     p *= 1.0 + .025*sin(t*2.0+seed*24.0);
   } else {
-    float azimuth = ring < .5 ? .45 : ring < 1.5 ? -.80 : 1.06;
-    float speed = ring < .5 ? .33 : ring < 1.5 ? -.29 : .19;
-    p = yawPitch(p, t*speed + ring*.82, azimuth);
-    reveal = u_story < 0.0 ? 1.0 : mix(.37,1.0,smoothstep(1.4+ring*.50,4.5+ring*.50,u_story));
+    float azimuth = ring < .5 ? .55 : ring < 1.5 ? -.91 : 1.18;
+    float speed = ring < .5 ? .37 : ring < 1.5 ? -.25 : .16;
+    if(isAnchor) {
+      // Distinct orbital beacons: their phase advances along each original plane.
+      float phase=seed*PI*2.0 + t*(ring < .5 ? .52 : ring < 1.5 ? -.47 : .33);
+      float orbitRadius=length(p.xy);
+      p=vec3(cos(phase)*orbitRadius,sin(phase)*orbitRadius,0.0);
+    }
+    p=yawPitch(p,t*speed+ring*.82+u_focus*.043,azimuth);
+    reveal=u_story < 0.0 ? 1.0 : mix(.22,1.0,smoothstep(1.3+ring*.44,5.4+ring*.32,u_story));
   }
   float lens = 2.95/(2.95-p.z*.43);
   float breathing = 1.0 + .036*sin(t*.22) + .018*sin(t*.45);
   float radius = min(u_size.x*.26,u_size.y*.29)*breathing;
   if(u_story>=0.0) {
     float sweep=smoothstep(0.0,12.0,u_story);
-    radius *= 1.0 + .075*sin(sweep*3.14159265);
+    radius *= 1.0 + .11*sin(sweep*3.14159265);
   }
   vec2 screen = p.xy*radius*lens;
   // A restrained dolly: source-inspired dimensional motion, never a live risk claim.
   screen.x += sin(t*.31)*radius*.026;
   screen.y += cos(t*.22)*radius*.019;
   if(u_story >= 0.0) {
-    screen.x += sin(u_story*.48)*radius*.075;
-    screen.y += (smoothstep(0.0,5.0,u_story)-.5)*radius*.052;
+    screen.x += sin(u_story*.48)*radius*.095;
+    screen.y += (smoothstep(0.0,6.0,u_story)-.5)*radius*.083;
   }
   gl_Position=vec4(screen.x/(u_size.x*.5),-screen.y/(u_size.y*.5),0.,1.);
   if(kind < .5) {
@@ -81,14 +88,18 @@ void main() {
     v_alpha = mix(.25,.84,near)*(0.7 + .3*sin(t*1.6+seed*31.0)*sin(t*1.6+seed*31.0)) * (kind > .1 ? .55 : 1.0) * u_intensity;
     gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 13.0+seed*11.0 : 1.4+seed*2.15);
   } else {
-    float travel=fract(seed-t*.07-ring*.23);
+    float travel=fract(seed-t*(.078+ring*.018)-ring*.23);
     float arc=min(travel,1.0-travel);
-    float spark=exp(-arc*arc*430.0);
-    vec3 ringColor=kind > 2.5 ? vec3(.33,.82,.90) : vec3(1.,.69,.43);
-    v_color=mix(ringColor,vec3(1.,.94,.75),spark*.52);
-    v_alpha=clamp(mix(.21,.58,clamp((p.z+1.65)/3.3,0.,1.))
-      * (0.73+spark*.72) * reveal*u_intensity,0.0,.96);
-    gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 9.0 : 1.65);
+    float spark=exp(-arc*arc*490.0);
+    vec3 ringColor=ring > 1.5 ? vec3(.38,.84,.90) : vec3(1.,.69,.43);
+    v_color=isAnchor ? vec3(1.,.91,.67) : mix(ringColor,vec3(1.,.96,.78),spark*.55);
+    v_alpha=isAnchor
+      ? clamp((.65+.32*sin(t*1.7+seed*PI*2.0))*reveal*u_intensity,.0,.97)
+      : clamp(mix(.17,.54,clamp((p.z+2.8)/5.6,0.,1.))
+        * (.75+spark*.90)*reveal*u_intensity,0.0,.90);
+    gl_PointSize=u_ratio*lens*(isAnchor
+      ? (u_bloom>.5 ? 42.0 : 5.3)
+      : (u_bloom>.5 ? 9.0+spark*5.0 : 1.45+spark*1.9));
   }
   v_kind = kind;
 }`;
@@ -215,10 +226,16 @@ const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback, se
         const seed=((i*73+251)%997)/997;
         raw.push(Math.cos(t)*shellRadius*radial,y*radial,Math.sin(t)*shellRadius*radial,seed,.2);
       }
-      for (let ring=0; ring<3;ring++) {
-        for (let j=0; j<ringCount;j++) {
-          const a=j/ringCount*Math.PI*2;
-          raw.push(Math.cos(a)*1.64,Math.sin(a)*1.64,0,j/ringCount,ring+1);
+      const orbitRadii=[1.91,2.27,2.58] as const;
+      for (let ring=0;ring<3;ring++) {
+        const radius=orbitRadii[ring];
+        for (let j=0;j<ringCount;j++) {
+          const angle=j/ringCount*Math.PI*2;
+          raw.push(Math.cos(angle)*radius,Math.sin(angle)*radius,0,j/ringCount,ring+1);
+        }
+        // Two high-visibility anchors in each orbital plane, not fake telemetry.
+        for(const phase of [0.13,0.63]){
+          raw.push(radius,0,0,phase,ring+4);
         }
       }
       const data = new Float32Array(raw);
