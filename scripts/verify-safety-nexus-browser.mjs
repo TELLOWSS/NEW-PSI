@@ -135,6 +135,39 @@ try {
     await root.getByRole('button',{name:'12초 시네마틱 보기'}).isDisabled(),
     'reduced-motion accessibility gate');
 
+  // Record a genuine continuous 12-second Chromium clip for HUMAN motion review.
+  // Time-sampled PNGs verify change, but they cannot prove smooth movement.
+  const movieContext = await browser.newContext({
+    viewport:{width:1440,height:960},deviceScaleFactor:1,
+    recordVideo:{dir:output,size:{width:1440,height:960}}
+  });
+  const moviePage=await movieContext.newPage();
+  await moviePage.addInitScript(()=>sessionStorage.setItem('isAdminAuthenticated','true'));
+  await moviePage.route('**/api/admin/auth',route=>route.fulfill({
+    status:200,contentType:'application/json',
+    body:JSON.stringify({ok:true,authenticated:true})
+  }));
+  let movie;
+  try{
+    await moviePage.goto(baseUrl,{waitUntil:'domcontentloaded'});
+    await moviePage.getByRole('button',{name:'안전지능 네트워크 · 시제품'}).first().click();
+    await moviePage.locator('.safety-nexus').waitFor({state:'visible',timeout:20000});
+    await moviePage.getByRole('button',{name:/전체 화면 몰입 보기/}).click();
+    await moviePage.getByRole('button',{name:'12초 시네마틱 보기'}).click();
+    await moviePage.waitForTimeout(12400);
+    movie=moviePage.video();
+    check('연속 모션 비교용 브라우저 영상 캡처',Boolean(movie),'12+ seconds of synthetic Chromium animation');
+  }finally{
+    await moviePage.close();
+    await movieContext.close();
+  }
+  if(movie){
+    const moviePath=resolve(output,'nexus-cinematic-12s.webm');
+    await movie.saveAs(moviePath);
+    const movieSize=(await (await import('node:fs/promises')).stat(moviePath)).size;
+    check('연속 시네마틱 영상 파일 무결성',movieSize>8192,{path:moviePath,bytes:movieSize});
+  }
+
   await page.setViewportSize({ width: 1440, height: 900 });
   await root.getByRole('button', { name: /안전조치 현황 열기/ }).click();
   check('기존 업무 화면 이동', await page.locator('.safety-nexus').count() === 0, 'navigated Q4');
