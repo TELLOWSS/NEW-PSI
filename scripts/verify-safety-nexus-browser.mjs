@@ -61,6 +61,28 @@ try {
       const sidebarNote = await root.locator('.nexus-aside').boundingBox();
       check('390px 첫 화면에 코어 우선 노출', Boolean(hero && sidebarNote && hero.y < sidebarNote.y && hero.y < 400),
         { heroTop: hero?.y, overviewTop: sidebarNote?.y });
+      // Avoid approving a blown-out white sphere: compare RGB values of the *actual* stage screenshot.
+      // Screenshot data is synthetic-only and never contains worker photos.
+      const stagePng = await root.locator('.nexus-stage').screenshot();
+      const saturation = await page.evaluate(async (base64) => {
+        const image = new Image();
+        image.src = 'data:image/png;base64,' + base64;
+        await image.decode();
+        const surface = document.createElement('canvas');
+        surface.width = image.naturalWidth;
+        surface.height = image.naturalHeight;
+        const c = surface.getContext('2d', { willReadFrequently: true });
+        if (!c) return 1;
+        c.drawImage(image, 0, 0);
+        const pixels = c.getImageData(0, 0, surface.width, surface.height).data;
+        let clipped = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+          if (pixels[i] > 246 && pixels[i+1] > 243 && pixels[i+2] > 215) clipped++;
+        }
+        return clipped / (surface.width * surface.height);
+      }, stagePng.toString('base64'));
+      check('390px 코어 백색 포화 9% 미만', saturation < 0.09,
+        { whitePixelRatio: saturation, threshold: 0.09 });
     }
     if ([390, 768, 1440, 1920].includes(width)) {
       await page.screenshot({ path: resolve(output, 'nexus-' + width + '.png'), fullPage: true });
