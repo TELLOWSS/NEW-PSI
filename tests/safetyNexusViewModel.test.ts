@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkerRecord } from '../types';
-import { sliceLoadedNexusRecords, summarizeLoadedNexusRecords } from '../utils/safetyNexusViewModel';
+import { filterLoadedNexusRecords, sliceLoadedNexusRecords, summarizeLoadedNexusRecords } from '../utils/safetyNexusViewModel';
 
 type MinimalRecord = Pick<WorkerRecord, 'selfAssessedRiskLevel' | 'reviewStatus' | 'approvalStatus'>;
 
@@ -53,6 +53,17 @@ describe('Safety Nexus local scope guards', () => {
     const all=sliceLoadedNexusRecords(rows,{month:'',trade:''});
     expect(all.undatedRowsInAllPeriods).toBe(1);
     expect(all.snapshot.loadedRecordRows).toBe(4);
+  });
+  it('returns exactly matching loaded source records without copying personal fields into metrics', () => {
+    const source=[
+      {id:'A',date:'2026-11-15',jobField:'형틀',selfAssessedRiskLevel:'상'},
+      {id:'B',date:'2026-11-14',jobField:'철근',selfAssessedRiskLevel:'중'},
+      {id:'C',date:'2026-10-15',jobField:'형틀',selfAssessedRiskLevel:'하'},
+      {id:'D',date:'invalid',jobField:'형틀',selfAssessedRiskLevel:'상'},
+    ];
+    const result=filterLoadedNexusRecords(source,{month:'2026-11',trade:'형틀'});
+    expect(result.map(row=>row.id)).toEqual(['A']);
+    expect(source).toHaveLength(4);
   });
   it('unknown trade never appears as a fabricated category', () => {
     const result=sliceLoadedNexusRecords([...rows,
