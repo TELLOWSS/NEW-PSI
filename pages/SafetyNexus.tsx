@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Page, WorkerRecord } from '../types';
+import { summarizeLoadedNexusRecords } from '../utils/safetyNexusViewModel';
 import './SafetyNexus.css';
 
 type Topic = { index: string; title: string; en: string; detail: string; page: Page; action: string };
@@ -110,7 +111,8 @@ const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
   // Keep a high-fidelity still on mobile; motion runs only after an explicit play action.
   const [paused,setPaused]=useState(()=>typeof window!=='undefined'&&window.matchMedia('(max-width: 700px)').matches);
   const [reduced,setReduced]=useState(()=>typeof window!=='undefined'&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const count=useMemo(()=>workerRecords.length,[workerRecords]);
+  const snapshot=useMemo(()=>summarizeLoadedNexusRecords(workerRecords),[workerRecords]);
+  const count=snapshot.loadedRecordRows;
   const selected=STEPS[active];
   const focusPaths=[
     'M500 350 Q355 232 172 120','M500 350 Q635 205 843 112',
@@ -132,6 +134,16 @@ const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
         <p>근로자가 직접 기록하는 위험과 관리자의 검증, 조치, 교육 환류를 하나의 정보구조로 연결합니다.</p>
         <div className="nexus-aside-rule"/>
         <div className="nexus-record-count"><span>화면에 불러온 기록</span><strong>{count.toLocaleString('ko-KR')}<small> 건</small></strong><p>로드 건수이며 공식 집계·안전판정이 아닙니다.</p></div>
+        <div className="nexus-perception" aria-label="근로자가 직접 선택한 자가평가 등급의 분포">
+          <span>WORKER SELF-ASSESSMENT</span>
+          <h3>자가평가 상·중·하 <small>공식 위험등급 아님</small></h3>
+          {(['상','중','하'] as const).map(level=><div className="nexus-perception-row" key={level}>
+            <b>{level}</b><div className="nexus-perception-track"><i className={'risk-'+level} style={{width:(count?snapshot.selfRiskLevels[level]/count*100:0)+'%'}}/></div>
+            <strong>{snapshot.selfRiskLevels[level]}</strong>
+          </div>)}
+          {snapshot.unclassifiedRows>0&&<p>미분류 {snapshot.unclassifiedRows}건 · 안전으로 간주하지 않음</p>}
+          <p>현재 불러온 작성 행만 집계 · 현장/월 범위 미검증</p>
+        </div>
         <div className="nexus-aside-note"><b>◎ 시각화 모드 안내</b><p>입자·빛·궤도는 현재 디자인 표현입니다. 실제 위험수준·개선완료·작업중지를 자동 판단하지 않습니다.</p></div>
       </aside>
       <section className="nexus-visual" aria-label="5단계 위험성평가 네트워크 탐색">
