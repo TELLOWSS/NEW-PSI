@@ -5,7 +5,7 @@ import { requireTenantContext, sendTenantError, TenantAccessError, type TenantCo
  * The data table is still a proposal, not a production migration or data source.
  * No admin shared-password bypass, service-role client, write method, or PII.
  */
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const COLUMNS = [
   'tenant_id','site_id','period_month','job_field','source_cutoff_at','loaded_record_rows',
   'self_risk_high','self_risk_medium','self_risk_low','self_risk_unknown',
@@ -21,11 +21,9 @@ const METRIC_KEYS = [
   'followup_reopened_history','followup_completion_logged'
 ] as const;
 function invalid(): never {
-  if(process.env.NODE_ENV==='test') console.error('[NEXUS TEMP INVALID LOC]',new Error().stack?.split('\\n').slice(0,4).join('|'));
   throw new TenantAccessError(400,'NEXUS_INVALID_FILTER','현장, 작성 월, 공종 또는 기준시각을 확인해 주세요.');
 }
 function storageUnavailable(): never {
-  if(process.env.NODE_ENV==='test') console.error('[NEXUS TEMP SCOPE LOC]',new Error().stack?.split('\\n').slice(0,4).join('|'));
   throw new TenantAccessError(503,'NEXUS_SCOPE_UNAVAILABLE','현장별 인증 조회가 준비되지 않았습니다.');
 }
 function singleText(input: unknown, max: number): string {
