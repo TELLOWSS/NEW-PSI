@@ -98,6 +98,38 @@ Legend: `[x]` implemented/documented with cited evidence; `[ ]` pending; `REVIEW
 - **Residual operational gap**: trusted site/month/trade scoping, official report denominators, action due/recheck state contracts, privileged source authorization, low-end real device and GPU/thermal profiling remain **PENDING**.
 - **Branch strategy**: this documentation-only checkpoint does not change application source; prior code SHA above is the verified reference. Production is unchanged.
 
+## Iteration 05 · Native GPU bloom + defensible loaded-record status view · 2026-11-15
+
+**Implemented and verified code SHA:** `7450e48715959bf8ba18ee4d55fd2e8ee99a5495` (before documentation-only handoff update).
+- [x] Add `pages/NexusWebGLCore.tsx`: native WebGL 1 additive point sprites with warm/teal particles, depth projection, three independent orbit planes, moving camera, bloom/solid passes, visibility pause, low-power profile, mobile density control. No package, remote AI calls, or API keys.
+- [x] Keep Canvas 2D fallback when GPU context/shaders fail; improve fallback highlight bloom and camera parallax. **Fallback implementation exists but forced WebGL-disabled Chromium smoke is still PENDING.**
+- [x] Correct first GPU rendering's hollow center by adding interior volumetric points. Correct follow-up excessive whiteout by controlling bloom luminance based on actual display width and ensuring PSI text contrast.
+- [x] Preserve 2D alternative, pause, reduced motion, cinematic immersive view, 5 interactive stages and six signals.
+- [x] Add `sliceLoadedNexusRecords()` with strict valid date parsing, read-only month and trade filtering and explicit missing-date exclusions; unit tests cover exact month, trade, missing dates, unmapped/empty data.
+- [x] Reuse `buildMonthlyFieldFollowupSummary()` (existing tested state semantics) to show six distinct **loaded-record** follow-up categories: unresolved, overdue, interim control, scheduled, reopened-history, recorded completion; no conflation with work-restart authorization.
+- [x] Explicitly show authenticated **site** scope as unavailable/disabled: ordinary WorkerRecord has no verified site_id / site-specific RLS. The 2026-11-01 SQL proposals are not applied to the operational worker data path. **NO verified site/month report parity claim.**
+- [x] Synthetic browser QA added 5 status/source checks and measured exposure clipping criterion from an actual 390px stage screenshot (white pixels RGB >246/243/215 must be <9%). Functional accessibility/overflow/navigational tests retained.
+
+**Evidence and observed findings**
+- [x] GitHub release verify **PASS**: `https://github.com/TELLOWSS/NEW-PSI/actions/runs/43715061508`.
+- [x] GitHub cross-department browser verify **PASS**: `https://github.com/TELLOWSS/NEW-PSI/actions/runs/43715061446`.
+- [x] Safety Nexus smoke **27 / 27 PASS**, WebGL active in CI, 390px overexposed white ratio **0.0008711329273096385** (<0.09 limit).
+- [x] Source-only screenshot artifact (synthetic data): `https://github.com/TELLOWSS/NEW-PSI/actions/runs/43715061446/artifacts/14162526259`, files `browser/safety-nexus/nexus-390.png`, `nexus-768.png`, `nexus-1440.png`, `nexus-1920.png`, `nexus-immersive-1440.png`.
+- [x] Desktop and mobile screenshots manually reviewed. Initial hollow desktop orb and severely blown-out mobile orb **rejected and improved**. Current tested desktop has a visible volumetric luminous core; mobile readable PSI and visible fine-grain particle texture.
+- [ ] **Owner final V01–V07 aesthetic approval** still PENDING. Screenshots do not substitute for reference-video motion comparison.
+- [ ] Low-end Android/iOS actual-device FPS/thermal/energy and GPU context-loss retry must be verified.
+- [ ] Fully authenticated site_id → month/trade → official report denominator reconciliation must be built using real server-enforced per-site access; 2026-11-01 staging proposals alone are insufficient.
+- [ ] Privileged evidence drilldowns, verified action-closure/reinspection approvals, historical data migrations and production error monitoring remain separate P0/P2/P4 tasks.
+- [ ] 10+ sec video motion comparison and owner final art signoff remain release blockers.
+
+**Safety rules / release state:** `main` untouched; PR #230 remains **DRAFT**, unmerged. No Vercel Production release. No site claims, AI risk adjudication, work-restart decision or personal worker ranking inferred.
+
+**Next implementation order**
+1. Create authorized test fixture for verified site_id without making tenant policy bypass; compare month/trade official report row denominators under the same scope and cutoff.
+2. Connect action follow-up + reinspection to authenticated server-provided site scope; never equate interim control or logged completion with reviewed safe state.
+3. Add forced-GPU-failure test, mobile actual-device FPS/thermal budget, 10-second camera motion clip and direct reference comparison.
+4. Ask owner to approve visual gates V01–V07, then complete independent release gates. Do not merge/deploy before explicit approval.
+
 ## Current modified files
 - `pages/SafetyNexus.tsx` (new)
 - `pages/SafetyNexus.css` (new)
@@ -117,7 +149,7 @@ Legend: `[x]` implemented/documented with cited evidence; `[ ]` pending; `REVIEW
 ## Next strictly ordered work
 1. Pull latest branch head and verify latest release + full Chromium CI; if failed, inspect the exact job log and fix without weakening tests. A previous SHA's pass is not the latest SHA's result.
 2. Retrieve latest CI screenshot artifact (especially 390px hero above-fold and 1440px core), inspect for actual visual quality and overlap, then compare with owner's video.
-3. Improve shader/depth/light effects for true video-grade visual **only on branch**, while profiling power and lower-end hardware.
+3. Continue visual refinement from native GPU volumetric bloom VG-5; measure a 10-second source comparison and profile real low-end hardware. This is not yet owner-approved cinematic equivalence.
 4. Audit data semantics, introduce view model and 2D operational states; add tests.
 5. Update this handoff after EVERY increment, including actual SHA, checks, evidence, blockers.
 6. Present actual comparison to owner; no production merge.
