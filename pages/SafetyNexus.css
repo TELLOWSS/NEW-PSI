@@ -241,3 +241,13 @@
  .nexus-followup-card strong{font-size:22px}
 }
 @media(max-width:420px){.nexus-followup-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+/* Volumetric central illumination stays subordinate to the readable PSI wordmark. */
+.nexus-nucleus{position:absolute;inset:0;z-index:0;pointer-events:none;mix-blend-mode:screen;
+ background:radial-gradient(ellipse at 50% 50%,rgba(255,236,190,.22) 0%,rgba(252,183,94,.13) 11%,rgba(230,126,56,.055) 25%,rgba(145,64,27,0) 43%)}
+.nexus-hud-orbits{position:absolute;inset:0;z-index:0;width:100%;height:100%;
+ pointer-events:none;overflow:visible;filter:drop-shadow(0 0 4px rgba(241,159,87,.21))}
+.nexus-hud-orbits ellipse{fill:none;stroke:rgba(245,185,119,.23);stroke-width:1.2;stroke-dasharray:1 4}
+.nexus-hud-orbits ellipse:nth-child(2){stroke:rgba(107,201,218,.17);stroke-dasharray:3 9}
+@media(max-width:700px){.nexus-nucleus{opacity:.52}}
