@@ -163,7 +163,7 @@ const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
     'M500 350 Q732 345 920 335','M500 350 Q720 533 820 590',
     'M500 350 Q322 525 160 590'
   ];
-  const surface=<main className={'safety-nexus'+(immersive?' is-immersive':'')} aria-label="PSI 안전지능 네트워크">
+  const surface=<main className={'safety-nexus'+(immersive?' is-immersive':'')} data-reduced-motion={reduced ? 'true' : 'false'} aria-label="PSI 안전지능 네트워크">
     <div className="nexus-background" aria-hidden="true"/>
     <header className="nexus-header">
       <div className="nexus-brand"><span className="nexus-symbol">Ψ</span><div><small>PROACTIVE SAFETY INTELLIGENCE</small><h1>SAFETY <b>NEXUS</b></h1></div></div>
