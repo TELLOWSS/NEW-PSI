@@ -95,14 +95,85 @@ try {
   await page.keyboard.press('Escape');
   check('Escape로 몰입 보기 종료', await root.evaluate(el => !el.classList.contains('is-immersive')), 'safe return to shell');
 
-  await page.emulateMedia({ reducedMotion: 'reduce' });
+  // In-app reduced motion must work even when OS preference is "no-preference".
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.locator('.nexus-footer input[type="checkbox"]').check();
   check('움직임 축소 옵션', await root.locator('.nexus-footer input[type="checkbox"]').isChecked(), 'reduced motion');
+  const stoppedEffect = await root.locator('.nexus-focus-link path').evaluate(el => getComputedStyle(el).animationName);
+  check('앱 설정으로 CSS 궤도 움직임까지 중단', stoppedEffect === 'none', { animationName: stoppedEffect });
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await root.getByRole('button', { name: /안전조치 현황 열기/ }).click();
   check('기존 업무 화면 이동', await page.locator('.safety-nexus').count() === 0, 'navigated Q4');
   check('런타임 스크립트 오류 없음', failures.length === 0, failures);
+
+
+  // Force the real 3D renderer's getContext() call to fail. The 2D Canvas
+  // fallback must be visible, interactive, and free of unexpected page errors.
+  const fallbackPage = await browser.newPage({ viewport: { width: 390, height: 900 }, deviceScaleFactor: 1 });
+  const fallbackErrors = [];
+  fallbackPage.on('pageerror', error => fallbackErrors.push(error.message));
+  await fallbackPage.addInitScript(() => {
+    sessionStorage.setItem('isAdminAuthenticated', 'true');
+    const getContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function(kind, ...args) {
+      if (['webgl', 'webgl2', 'experimental-webgl'].includes(kind)) return null;
+      return getContext.call(this, kind, ...args);
+    };
+  });
+  await fallbackPage.route('**/api/admin/auth', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ ok: true, authenticated: true }),
+  }));
+  try {
+    await fallbackPage.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await fallbackPage.getByRole('button', { name: '안전지능 네트워크 · 시제품' }).first().click();
+    const fallbackRoot = fallbackPage.locator('.safety-nexus');
+    await fallbackRoot.waitFor({ state: 'visible', timeout: 20000 });
+    await fallbackRoot.locator('canvas.nexus-core-canvas:not([data-renderer])').waitFor({ state: 'visible', timeout: 12000 });
+    check('WebGL 비활성 기기에서 Canvas 2D로 자동 복귀',
+      await fallbackRoot.locator('canvas.nexus-core-canvas:not([data-renderer])').count() === 1,
+      'forced getContext(webgl) = null');
+    await fallbackRoot.locator('.nexus-node.node-4').click();
+    check('2D 대체 엔진에서 Q5 노드 탐색', await fallbackRoot.locator('.nexus-node.node-4').getAttribute('aria-pressed') === 'true',
+      'Q5 selected without GPU');
+    await fallbackPage.screenshot({ path: resolve(output, 'nexus-forced-canvas-fallback-390.png'), fullPage: true });
+    check('GPU 없이 런타임 오류 없음', fallbackErrors.length === 0, fallbackErrors);
+  } finally {
+    await fallbackPage.close();
+  }
+
+  // An artificial context-loss event checks that the lifecycle handler fails
+  // safely. This is *not* a replacement for physical GPU loss/restoration QA.
+  const lossPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  lossPage.on('pageerror', error => fallbackErrors.push(error.message));
+  await lossPage.addInitScript(() => sessionStorage.setItem('isAdminAuthenticated', 'true'));
+  await lossPage.route('**/api/admin/auth', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ ok: true, authenticated: true }),
+  }));
+  try {
+    await lossPage.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await lossPage.getByRole('button', { name: '안전지능 네트워크 · 시제품' }).first().click();
+    const lossRoot = lossPage.locator('.safety-nexus');
+    await lossRoot.waitFor({ state: 'visible', timeout: 20000 });
+    const isGpu = await lossRoot.locator('canvas[data-renderer="webgl"]').count() === 1;
+    if (isGpu) {
+      await lossRoot.locator('canvas[data-renderer="webgl"]').evaluate(canvas =>
+        canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true })));
+      await lossRoot.locator('canvas.nexus-core-canvas:not([data-renderer])').waitFor({ state:'visible', timeout:12000 });
+      check('WebGL 컨텍스트 손실 이벤트 후 2D 대체',
+        await lossRoot.locator('canvas.nexus-core-canvas:not([data-renderer])').count() === 1,
+        'synthetic context-loss event, not physical GPU test');
+    } else {
+      check('WebGL 불가 상태에서도 2D 대체 유지',
+        await lossRoot.locator('canvas.nexus-core-canvas:not([data-renderer])').count() === 1,
+        'device has no WebGL');
+    }
+    check('GPU 손실 경로에서 스크립트 오류 없음', fallbackErrors.length === 0, fallbackErrors);
+  } finally {
+    await lossPage.close();
+  }
 
   const report = { kind: 'synthetic-browser-review', visualApproval: false,
     pass: checks.every(c => c.passed), passed: checks.filter(c => c.passed).length,
