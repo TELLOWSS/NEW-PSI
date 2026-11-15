@@ -46,6 +46,19 @@
 .nexus-record-count strong{display:block;font-size:38px;line-height:1.25;margin:8px 0;color:#f4f7f7;font-weight:520;letter-spacing:-.045em}
 .nexus-record-count small{font-size:14px;color:#879aab}
 .nexus-record-count p{font-size:10px;line-height:1.7;color:#7e93a6}
+.nexus-perception{margin:22px 0 0;border-top:1px solid #67818b32;padding-top:18px}
+.nexus-perception>span{font-size:9px;letter-spacing:.13em;color:#81b9bd;font-weight:800}
+.nexus-perception h3{font-size:12px;color:#dce8eb;font-weight:760;margin:8px 0 14px}
+.nexus-perception h3 small{font-size:9px;font-weight:500;color:#93a8b9;white-space:nowrap}
+.nexus-perception-row{display:grid;grid-template-columns:16px minmax(0,1fr) 18px;align-items:center;gap:8px;margin:9px 0}
+.nexus-perception-row b{font-size:11px;color:#cedde3;font-weight:750}
+.nexus-perception-row strong{font-size:11px;text-align:right;font-weight:600;color:#d9e5ea;font-variant-numeric:tabular-nums}
+.nexus-perception-track{height:3px;background:#53677a44;overflow:hidden}
+.nexus-perception-track i{display:block;height:100%;background:#b1bac1}
+.nexus-perception-track i.risk-상{background:#edb276}
+.nexus-perception-track i.risk-중{background:#78bdbf}
+.nexus-perception-track i.risk-하{background:#8f9bac}
+.nexus-perception p{font-size:10px;color:#91a5b4;line-height:1.6;margin:8px 0}
 .nexus-aside-note{margin-top:40px;padding:15px 12px;border-left:2px solid #e2a65b;background:linear-gradient(90deg,#e7a35312,transparent);}
 .nexus-aside-note b{display:block;font-size:11px;color:#e8c79d}
 .nexus-aside-note p{font-size:11px;color:#93a7b8;line-height:1.75;margin:9px 0 0;word-break:keep-all}
