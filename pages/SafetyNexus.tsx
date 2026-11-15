@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Page, WorkerRecord } from '../types';
 import { summarizeLoadedNexusRecords } from '../utils/safetyNexusViewModel';
 import './SafetyNexus.css';
@@ -107,6 +108,15 @@ const CoreArt: React.FC<{ active: number; paused: boolean; reduced: boolean }> =
 
 const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
   const [active,setActive]=useState(0);
+  const [immersive,setImmersive]=useState(false);
+  useEffect(()=>{
+    if(!immersive)return;
+    const priorOverflow=document.body.style.overflow;
+    document.body.style.overflow='hidden';
+    const onKey=(event:KeyboardEvent)=>{if(event.key==='Escape')setImmersive(false);};
+    document.addEventListener('keydown',onKey);
+    return ()=>{document.body.style.overflow=priorOverflow;document.removeEventListener('keydown',onKey);};
+  },[immersive]);
   const [flat,setFlat]=useState(false);
   // Keep a high-fidelity still on mobile; motion runs only after an explicit play action.
   const [paused,setPaused]=useState(()=>typeof window!=='undefined'&&window.matchMedia('(max-width: 700px)').matches);
@@ -119,11 +129,12 @@ const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
     'M500 350 Q732 345 920 335','M500 350 Q720 533 820 590',
     'M500 350 Q322 525 160 590'
   ];
-  return <main className="safety-nexus" aria-label="PSI 안전지능 네트워크">
+  const surface=<main className={'safety-nexus'+(immersive?' is-immersive':'')} aria-label="PSI 안전지능 네트워크">
     <div className="nexus-background" aria-hidden="true"/>
     <header className="nexus-header">
       <div className="nexus-brand"><span className="nexus-symbol">Ψ</span><div><small>PROACTIVE SAFETY INTELLIGENCE</small><h1>SAFETY <b>NEXUS</b></h1></div></div>
       <div className="nexus-header-right"><span className="nexus-status"><i/>VISUAL GATE 01 · 시제품</span>
+        <button type="button" className="nexus-immersive-toggle" aria-pressed={immersive} onClick={()=>setImmersive(v=>!v)}>{immersive?'몰입 화면 종료 ↙':'전체 화면 몰입 보기 ⤢'}</button>
         <button type="button" onClick={()=>onNavigateToPage('dashboard')}>기존 관제센터로 돌아가기 ↗</button></div>
     </header>
     <div className="nexus-lead"><span>INTELLIGENCE VISUALIZATION</span><p>위험을 인식하고, 근거를 확인하고, 조치와 교육으로 연결하다.</p></div>
@@ -180,5 +191,6 @@ const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
     <footer className="nexus-footer"><span>PSI / SAFETY NEXUS · VG-1</span><span>지금은 시각·탐색 시제품입니다. 실제 승인 통계·처리상태 연동은 별도 검증 후 진행합니다.</span>
       <label><input type="checkbox" checked={reduced} onChange={e=>setReduced(e.target.checked)}/> 움직임 줄이기</label></footer>
   </main>;
+  return immersive && typeof document!=='undefined' ? createPortal(surface,document.body) : surface;
 };
 export default SafetyNexus;
