@@ -21,7 +21,7 @@ const METRICS = [
   ['04','보호구·수칙','Protection'],['05','소통·보고','Communication'],['06','작업중지 감수성','Stop-work awareness'],
 ];
 
-const CoreArt: React.FC<{ active: number; paused: boolean; reduced: boolean }> = ({ active, paused, reduced }) => {
+const CoreArt: React.FC<{ active: number; paused: boolean; reduced: boolean; sequenceNonce?:number; cinematicActive?:boolean }> = ({ active, paused, reduced, sequenceNonce=0, cinematicActive=false }) => {
   const ref = useRef<HTMLCanvasElement>(null);
   const focusRef = useRef(active);
   useEffect(() => { focusRef.current = active; }, [active]);
@@ -33,6 +33,7 @@ const CoreArt: React.FC<{ active: number; paused: boolean; reduced: boolean }> =
     let raf = 0;
     let last = 0;
     let phase = 0;
+    const sceneStarted=performance.now();
     let smoothedFocus = focusRef.current;
     let visible = document.visibilityState === 'visible';
     let w = 600, h = 540;
@@ -56,8 +57,11 @@ const CoreArt: React.FC<{ active: number; paused: boolean; reduced: boolean }> =
     const draw = () => {
       smoothedFocus += (focusRef.current - smoothedFocus) * .065;
       const t=reduced?0.35:phase;
-      const cx=w*.5+Math.sin(t*.34)*w*.009,cy=h*.50+Math.cos(t*.26)*h*.007;
-      const R=Math.min(w*.255,h*.275,176);
+      const story=cinematicActive?Math.min(12,(performance.now()-sceneStarted)/1000):-1;
+      const sweep=story>=0?Math.max(0,Math.min(1,story/12)):0;
+      const cx=w*.5+Math.sin(t*.34)*w*.009+(story>=0?Math.sin(story*.48)*w*.013:0);
+      const cy=h*.50+Math.cos(t*.26)*h*.007+(story>=0?(sweep-.5)*h*.013:0);
+      const R=Math.min(w*.255,h*.275,176)*(story>=0?(1+.075*Math.sin(sweep*Math.PI)):1);
       ctx.clearRect(0,0,w,h);
       const halo=ctx.createRadialGradient(cx,cy,R*.06,cx,cy,R*2.2);
       halo.addColorStop(0,'rgba(255,205,116,.29)');halo.addColorStop(.36,'rgba(247,139,55,.075)');
@@ -118,7 +122,7 @@ const CoreArt: React.FC<{ active: number; paused: boolean; reduced: boolean }> =
     resize();
     if(!paused&&!reduced&&visible)raf=requestAnimationFrame(tick);
     return ()=>{cancelAnimationFrame(raf);observer.disconnect();document.removeEventListener('visibilitychange',visibility);};
-  },[paused,reduced]);
+  },[paused,reduced,sequenceNonce,cinematicActive]);
   return <canvas ref={ref} className="nexus-core-canvas" aria-hidden="true"/>;
 };
 
@@ -134,6 +138,13 @@ const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
     return ()=>{document.body.style.overflow=priorOverflow;document.removeEventListener('keydown',onKey);};
   },[immersive]);
   const [flat,setFlat]=useState(false);
+  const [cinematicPlaying,setCinematicPlaying]=useState(false);
+  const [cinematicNonce,setCinematicNonce]=useState(0);
+  useEffect(()=>{
+    if(!cinematicPlaying)return;
+    const timeout=setTimeout(()=>setCinematicPlaying(false),12000);
+    return ()=>clearTimeout(timeout);
+  },[cinematicPlaying,cinematicNonce]);
   // Keep a high-fidelity still on mobile; motion runs only after an explicit play action.
   const [paused,setPaused]=useState(()=>typeof window!=='undefined'&&window.matchMedia('(max-width: 700px)').matches);
   const [reduced,setReduced]=useState(()=>typeof window!=='undefined'&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -204,25 +215,37 @@ const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
       </aside>
       <section className="nexus-visual" aria-label="5단계 위험성평가 네트워크 탐색">
         <div className="nexus-visual-head"><span><i/> INTELLIGENCE FIELD</span><div>
-          <button type="button" aria-pressed={flat} onClick={()=>setFlat(v=>!v)}>{flat?'입체 보기':'간결한 보기'}</button>
-          <button type="button" disabled={flat||reduced} onClick={()=>setPaused(v=>!v)}>{paused?'모션 재생':'모션 일시정지'}</button>
+          <button type="button" aria-pressed={flat} onClick={()=>{setCinematicPlaying(false);setFlat(v=>!v)}}>{flat?'입체 보기':'간결한 보기'}</button>
+          <button type="button" disabled={flat||reduced} onClick={()=>{setCinematicPlaying(false);setPaused(v=>!v)}}>{paused?'모션 재생':'모션 일시정지'}</button>
+          <button type="button" className="nexus-story-button" disabled={flat||reduced}
+            aria-pressed={cinematicPlaying}
+            onClick={()=>{if(cinematicPlaying){setCinematicPlaying(false)}else{setPaused(false);setCinematicNonce(v=>v+1);setCinematicPlaying(true)}}}>
+            {cinematicPlaying?'12초 연출 중단':'12초 시네마틱 보기'}
+          </button>
         </div></div>
-        <div className={'nexus-stage'+(flat?' is-flat':'')}>
-          {!flat&&<WebGLNexusCore active={active} paused={paused} reduced={reduced} fallback={<CoreArt active={active} paused={paused} reduced={reduced}/>}/>}
+        <div className={'nexus-stage'+(flat?' is-flat':'')+(cinematicPlaying?' is-cinematic':'')} data-cinematic={cinematicPlaying?'playing':'idle'}>
+          {!flat&&<WebGLNexusCore active={active} paused={paused} reduced={reduced} sequenceNonce={cinematicNonce} cinematicActive={cinematicPlaying} fallback={<CoreArt active={active} paused={paused} reduced={reduced} sequenceNonce={cinematicNonce} cinematicActive={cinematicPlaying}/>}/>}
           {!flat&&<div className="nexus-nucleus" aria-hidden="true"/>}
           {!flat&&<svg className="nexus-hud-orbits" viewBox="0 0 1000 700" preserveAspectRatio="none" aria-hidden="true">
             <ellipse cx="500" cy="350" rx="330" ry="130" transform="rotate(-31 500 350)"/>
             <ellipse cx="500" cy="350" rx="280" ry="100" transform="rotate(57 500 350)"/>
+            <ellipse cx="500" cy="350" rx="355" ry="178" transform="rotate(10 500 350)"/>
           </svg>}
           {!flat&&<svg className="nexus-focus-link" viewBox="0 0 1000 700" preserveAspectRatio="none" aria-hidden="true">
             <path key={selected.index} d={focusPaths[active]} />
           </svg>}
+          {!flat&&<div className="nexus-scene-caption" aria-live="off">
+            <span>CORE · ORBIT · EVIDENCE</span>
+            <small>그래픽 시연 / 실시간 위험 경보 아님</small>
+          </div>}
           <div className="nexus-core-label" aria-hidden="true"><strong>PSI</strong><small>HUMAN RISK<br/>INTELLIGENCE</small></div>
           {STEPS.map((topic,i)=><button key={topic.index} type="button" className={'nexus-node node-'+i+(active===i?' selected':'')}
             aria-pressed={active===i} onClick={()=>setActive(i)}><b>{topic.index}</b><span>{topic.title}</span></button>)}
           <div className="nexus-crosshair" aria-hidden="true">Q1 — Q5 / SELF-REGULATION</div>
         </div>
-        <div className="nexus-visual-foot"><span>FIVE-STEP SAFETY CYCLE</span><span>노드를 눌러 상세 업무를 탐색하세요.</span></div>
+        <div className="nexus-visual-foot"><span>FIVE-STEP SAFETY CYCLE</span>
+          <span>{cinematicPlaying?'연출 재생 중 · 데이터는 변하지 않습니다.':'노드를 눌러 상세 업무를 탐색하세요.'}</span>
+        </div>
       </section>
       <aside className="nexus-detail">
         <div className="nexus-section-title"><span>02 / SELECTED SIGNAL</span><b>{selected.index} / 05</b></div>
