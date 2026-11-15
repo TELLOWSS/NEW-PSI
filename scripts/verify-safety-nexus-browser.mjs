@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
 
@@ -96,6 +97,31 @@ try {
   await root.getByRole('button', { name: /전체 화면 몰입 보기/ }).click();
   check('시네마틱 몰입 보기', await root.evaluate(el => el.classList.contains('is-immersive') && getComputedStyle(el).position === 'fixed'), 'fullscreen portal');
   await page.screenshot({ path: resolve(output, 'nexus-immersive-1440.png'), fullPage: false });
+  const cinemaControl=root.getByRole('button',{name:'12초 시네마틱 보기'});
+  check('12초 시네마틱 명시적 재생 버튼',await cinemaControl.isVisible(), 'opt-in; no autoplay lockout');
+  await cinemaControl.click();
+  check('12초 연출이 사용자 클릭으로 시작',await root.locator('.nexus-stage').getAttribute('data-cinematic')==='playing','explicit playback');
+  const cinematicFrames=[];
+  const saveStoryFrame=async(time)=>{
+    const shot=await root.locator('.nexus-stage').screenshot();
+    const digest=createHash('sha256').update(shot).digest('hex').slice(0,16);
+    cinematicFrames.push({second:time,sha256Prefix:digest});
+    await writeFile(resolve(output,'nexus-cinema-'+String(time).padStart(2,'0')+'s.png'),shot);
+  };
+  await saveStoryFrame(0);
+  await page.waitForTimeout(3000);
+  await saveStoryFrame(3);
+  await page.waitForTimeout(3000);
+  await saveStoryFrame(6);
+  await page.waitForTimeout(4000);
+  await saveStoryFrame(10);
+  check('10초 이상 연속 재생에서 서로 다른 광원·궤도 프레임',new Set(cinematicFrames.map(x=>x.sha256Prefix)).size>=3,cinematicFrames);
+  check('시연 연출이 실제 위험 예측으로 오인되지 않음',
+    await root.getByText('그래픽 시연 / 실시간 위험 경보 아님').count()===1, 'design-only visual cue');
+  await page.waitForTimeout(2400);
+  check('12초 종료 후 일반 조작 복귀',
+    await root.locator('.nexus-stage').getAttribute('data-cinematic')==='idle',
+    'no mandatory waiting or forced navigation');
   await page.keyboard.press('Escape');
   check('Escape로 몰입 보기 종료', await root.evaluate(el => !el.classList.contains('is-immersive')), 'safe return to shell');
 
