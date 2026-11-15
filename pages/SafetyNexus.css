@@ -7,6 +7,19 @@
   font-family:Inter, "Pretendard", "Noto Sans KR", system-ui, sans-serif;
   box-shadow:0 22px 65px #04080e35;
 }
+.safety-nexus.is-immersive{
+  position:fixed;inset:0;z-index:9999;width:100vw;height:100dvh;min-height:0;
+  max-width:none;overflow-x:hidden;overflow-y:auto;border-radius:0;border:none;
+  background:radial-gradient(ellipse at 50% 31%,#1a2631 0%,#0b1420 39%,#050a11 80%);
+}
+.safety-nexus.is-immersive .nexus-main{max-width:1840px;margin:0 auto}
+.safety-nexus.is-immersive .nexus-metrics{max-width:1770px;margin-left:auto;margin-right:auto}
+.safety-nexus.is-immersive .nexus-stage{height:min(58vw,680px);min-height:515px}
+.safety-nexus.is-immersive .nexus-header{max-width:1770px;margin-left:auto;margin-right:auto}
+.safety-nexus.is-immersive .nexus-lead{max-width:1840px;margin-left:auto;margin-right:auto}
+.safety-nexus.is-immersive .nexus-footer{margin-top:12px}
+.nexus-immersive-toggle{border-color:#b994656b!important;color:#ffe5c1!important}
+.nexus-immersive-toggle[aria-pressed="true"]{background:#b77c3c29!important}
 .safety-nexus *{box-sizing:border-box}
 .safety-nexus button{font:inherit;cursor:pointer}
 .safety-nexus button:focus-visible,.safety-nexus input:focus-visible{outline:2px solid #8decef;outline-offset:4px}
@@ -152,6 +165,8 @@
  .nexus-status{font-size:8px;letter-spacing:.02em}
  .nexus-lead{padding:17px 18px 5px;display:block}.nexus-lead p{text-align:left;margin-top:7px}
  .nexus-main{display:flex;flex-direction:column;padding:0 10px 15px}
+ .safety-nexus.is-immersive .nexus-stage{height:460px;min-height:460px}
+ .safety-nexus.is-immersive .nexus-header{margin:0 18px}
  .nexus-visual{order:0}
  .nexus-aside{order:1}
  .nexus-detail{order:2}
