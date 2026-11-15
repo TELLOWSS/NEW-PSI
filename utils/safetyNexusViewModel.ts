@@ -59,6 +59,17 @@ const monthOf = (value: unknown): string => {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === day.slice(0, 10)
     ? day.slice(0, 7) : '';
 };
+/** Select the same loaded assessment rows for perception, follow-ups and rechecks.
+ * This is only an in-memory assessment-date/trade filter; NOT a site authorization.
+ */
+export const filterLoadedNexusRecords = <T extends Pick<WorkerRecord, 'date' | 'jobField'>>(
+  rows: readonly T[],
+  filters: SafetyNexusLocalFilter,
+): T[] => rows.filter(row =>
+  (!filters.month || monthOf(row.date) === filters.month)
+  && (!filters.trade || String(row.jobField || '').trim() === filters.trade)
+);
+
 /** Never assign a missing/ambiguous date to the selected month. No cross-site inference. */
 export const sliceLoadedNexusRecords = (
   rows: readonly Pick<WorkerRecord, 'date' | 'jobField' | 'selfAssessedRiskLevel' | 'reviewStatus' | 'approvalStatus'>[],
@@ -67,10 +78,7 @@ export const sliceLoadedNexusRecords = (
   const monthOptions = [...new Set(rows.map(row => monthOf(row.date)).filter(Boolean))].sort().reverse();
   const tradeOptions = [...new Set(rows.map(row => String(row.jobField || '').trim()).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, 'ko'));
-  const selected = rows.filter(row =>
-    (!filters.month || monthOf(row.date) === filters.month)
-    && (!filters.trade || String(row.jobField || '').trim() === filters.trade)
-  );
+  const selected = filterLoadedNexusRecords(rows, filters);
   return {
     monthOptions,
     tradeOptions,
