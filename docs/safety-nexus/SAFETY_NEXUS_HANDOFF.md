@@ -199,6 +199,50 @@ Legend: `[x]` implemented/documented with cited evidence; `[ ]` pending; `REVIEW
 3. Bind only server-attested, independently reconciled data to the optional SAFETY NEXUS site selector (off until backend is ready); use an explicit `NOT_VERIFIED` state.
 4. Real device GPU/thermal and reference 92203.mp4 side-by-side motion review, then owner aesthetic and release acceptance.
 
+## Iteration 08 · Official report original / source denominator lineage · 2026-11-16 KST
+
+**Verified application code SHA:** `262af71c56bcc0edbef1eeb9930f3670f738a316` (this handoff-only commit follows).
+
+### Real source-code findings and denominator definitions
+- The current `pages/MonthlyGuidanceReport.tsx` generates **`analyzedRecords = records.length`** and a separate **`totalWorkers = new Set(worker identity fallback).size`**. The latter can fall back to a worker name when a stable key is absent; neither becomes an independently authenticated official denominator simply because it appears in the client report.
+- `pages/Reports.tsx` also derives `filteredSourceRecords` using UI filters; those rows have no server-attested `site_id` ownership boundary. `getConfiguredSiteName()` is a display/configuration value, **not** authenticated site assignment.
+- A monthly risk-assessment period may differ from the calendar month of downstream education. The official original must explicitly identify the **assessment period, denominator definition and source snapshot cutoff** before comparison. Do not equate “participating people” to “assessment form rows.”
+
+### Implemented source provenance guards
+- [x] `lib/server/nexusSourceProvenance.ts` provides a **deterministic snapshot** of exact `tenantId + siteId + assessment YYYY-MM + trade + immutable UTC cutoff`. It accepts only explicit source UUIDs, per-row site and tenant scope, assessment date, source-committed timestamp and Q3 self-assessment value.
+- [x] Fails closed on **missing/duplicate source ID** (case-insensitive), cross-site or cross-tenant sources, wrong month/trade, invalid calendar date, later revision than cutoff, empty set, invalid risk levels, malformed scope and excessive row count. No silent filtering or guessing; 10,000 rows per snapshot ceiling.
+- [x] Produces independent **SHA-256 digest of the sorted source-ID set**, and **canonical snapshot SHA-256** that binds the scope, cutoff, committed source states and risk distribution. No worker identities, names, statements or raw evidence are returned.
+- [x] `compareNexusReportOriginal()` accepts **actual external PDF/XLSX byte content** and separately supplied original metadata; verifies file SHA-256, exact scope/cutoff, report issued after snapshot cutoff, `assessment_record_rows` denominator kind, count, and optional externally declared ID-set digest. Rejects cross-site, changed cutoff, wrong denominator kind, mismatched bytes/record counts and record-set claims.
+- [x] An identical stored count is **not independently verified official evidence**. Positive comparison returns only `COUNTS_MATCH_PENDING_INDEPENDENT_APPROVAL`, with `independentOfficialReportVerified=false`, `acceptedByReviewer=false`, `authorizesActionClosure=false`, `authorizesWorkRestart=false`. Wording uses `declaredExternalDenominator` and `externalReportDeclaresSourceIdSet`; no deceptive “official” or “independently supplied” assertion is emitted.
+- [x] `lib/server/tenantNexusSiteRead.ts` no longer claims `sourceReady=true` when the API merely found site memberships. It reports `sourceReady=false` / `sourceAvailability=PROPOSAL_ONLY_NOT_ACTIVATED`. Feature flag remains OFF in production.
+
+### Staging-only immutable provenance receipts
+- [x] `supabase/proposals/psi_nexus_report_provenance_staging.sql` proposes two separate append-only, RLS-protected tables: anonymous **source manifest** (site/month/trade/cutoff/count/hashes) and **external report original receipt** (original digest, document MIME, issuer label, declared denominator, same source scope).
+- [x] Every report receipt has a **composite foreign key** binding its manifest's tenant/site/month/trade/cutoff. Cross-site associations and silent updates/deletes are blocked. All `anon/authenticated/service_role` client writes are revoked. Only active site+tenant members may read under RLS.
+- [x] Database state stays **`scope_checked_not_server_attested`** and **`pending_external_evidence_review`**; there is deliberately no operational “approved” column or automatic passage to work-restart status.
+- [x] These are **proposal files only**. They were not run against production or used to write actual site or worker data.
+
+### Tests / evidence
+- [x] `tests/nexusSourceProvenance.test.ts`: **14/14 PASS** with deterministic fixtures covering malformed IDs, duplicate IDs, mixed sites, changed cutoff, post-cutoff edits, wrong period/trade, report byte/hash mismatch, count mismatch, count-vs-person discrepancy, externally declared source-set mismatch and no automatic official approval.
+- [x] `tests/nexusReportProvenanceSql.test.ts`: **6/6 PASS** using PGlite with two tenants and three sites; tests site RLS, membership suspension revocation, all client writes blocked, append-only mutation rejected, wrong-site report links and pending-only states.
+- [x] **Release CI PASS**: https://github.com/TELLOWSS/NEW-PSI/actions/runs/43750545940 — entire **1,921/1,921 tests** green, TypeScript and build passed on application code SHA `262af71c`.
+- [x] **Company browser CI PASS**: https://github.com/TELLOWSS/NEW-PSI/actions/runs/43750545976 — existing product journeys **10/10**, SAFETY NEXUS synthetic Chromium **35/35**. No new UI release or art approval implied.
+- [x] Initial provenance test run failed due to incorrect UUID grouping; corrected to strict **8-4-4-4-12** and revalidated without weakening checks.
+
+### Deliberate nonclaims — still BLOCKING release
+- [ ] The current WorkerRecord and follow-up records still lack an activated, server-authorized, versioned **site_id + source-commit revision** path. The SHA-256 manifest is deterministic but **not a cryptographic server attestation** or identity proof until the writer loads the records from a trusted source.
+- [ ] **No independently obtained, signed original official report has been bound to this code.** An issuer string and a checksum supplied by a caller are not proof of authenticity. Actual original-byte custody, issuer/signature verification, separate reviewer identity and review acceptance must precede any “officially reconciled” claim.
+- [ ] No authorized server writer/read adapter persists these staging receipts. No real site/month/trade official denominator has been independently checked. DO NOT use old UI display site names, worker names, user-submitted roles, or self-supplied record lists as a source of authority.
+- [ ] Real action closure, interim control, reinspection and work-restart authorization remain separate; never infer from a matched report count.
+- [ ] No production schema activation, client flag enablement, `main` merge, Vercel deployment, real-data backfill, external sharing or visual V01–V07 acceptance. Real-device performance and ≥10s reference-video comparison are still open.
+
+### Next strictly ordered step (Iteration 09)
+1. Establish verified site-owned `WorkerRecord` source IDs and **DB-committed revision timestamps** with per-site RLS, authorized selection and repeatable snapshot cutoff. Implement source provenance creation **inside a server reader**, never from client-provided array data.
+2. Create independently authenticated **report original intake** (actual signed PDF/XLSX bytes from the authority's source, cryptographic issuer evidence and immutable custody record), compare exact denominator kind/scope/cutoff and require a different authorized reviewer to approve.
+3. Add write-once **server attestation/signature** and separately versioned approval event transitions; until then, keep all statuses explicitly pending and the site API default OFF.
+4. Reconcile against both official assessment-record denominator and separately defined unique-participant denominator when the official original supports each, with mismatch reason codes and audit receipts.
+5. Only then consider site-selector activation, live report parity tests, mobile/device load and visual signoff; keep Draft PR and production blocked.
+
 ## Current modified files
 - `pages/SafetyNexus.tsx` (new)
 - `pages/SafetyNexus.css` (new)
@@ -214,6 +258,11 @@ Legend: `[x]` implemented/documented with cited evidence; `[ ]` pending; `REVIEW
 - `scripts/verify-psi-company-browser.mjs` (cross-department scenario)
 - `utils/safetyNexusViewModel.ts` (loaded-record-only anonymized self-assessment)
 - `tests/safetyNexusViewModel.test.ts` (pure unit tests)
+- `lib/server/nexusSourceProvenance.ts` (new source SHA-256 and original report matching; pending only)
+- `tests/nexusSourceProvenance.test.ts` (14 deterministic source/report lineage tests)
+- `supabase/proposals/psi_nexus_report_provenance_staging.sql` (unapplied immutable RLS receipt proposal)
+- `tests/nexusReportProvenanceSql.test.ts` (6 synthetic cross-site/immutability tests)
+- `lib/server/tenantNexusSiteRead.ts` (sourceReady false until backend activation)
 
 ## Next strictly ordered work
 1. Verify the latest source HEAD and read Iteration 06 evidence above; code SHA `501636948` passed CI. Documentation-only commits require separate status check.
