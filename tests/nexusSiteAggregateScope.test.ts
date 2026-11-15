@@ -53,6 +53,9 @@ beforeAll(async()=>{
     grant execute on function auth.uid() to authenticated;
   `);
   await db.exec(await readFile(resolve('supabase/migrations/20260929000000_tenant_identity_foundation.sql'),'utf8'));
+  // The existing site-membership proposal also defines worker assignment FKs.
+  // Provide the same minimal synthetic prerequisite as tenantSiteEvidenceScopeSql.test.ts.
+  await db.exec('create table public.psi_tenant_workers(tenant_id uuid not null references public.psi_tenants(id),id uuid not null,primary key(tenant_id,id));');
   await db.exec(await readFile(resolve('supabase/proposals/psi_tenant_site_memberships_staging.sql'),'utf8'));
   await db.exec(await readFile(resolve('supabase/proposals/psi_nexus_site_aggregate_staging.sql'),'utf8'));
 },30000);
