@@ -49,6 +49,12 @@ try {
     await root.locator('.nexus-header').waitFor({ state: 'visible' });
     const sizes = await root.evaluate(el => ({ client: el.clientWidth, scroll: el.scrollWidth }));
     check(width + 'px 페이지 내부 가로 넘침 없음', sizes.scroll <= sizes.client + 2, sizes);
+    if (width === 390) {
+      const hero = await root.locator('.nexus-visual').boundingBox();
+      const sidebarNote = await root.locator('.nexus-aside').boundingBox();
+      check('390px 첫 화면에 코어 우선 노출', Boolean(hero && sidebarNote && hero.y < sidebarNote.y && hero.y < 500),
+        { heroTop: hero?.y, overviewTop: sidebarNote?.y });
+    }
     if ([390, 768, 1440, 1920].includes(width)) {
       await page.screenshot({ path: resolve(output, 'nexus-' + width + '.png'), fullPage: true });
     }
