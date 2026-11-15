@@ -21,6 +21,7 @@ uniform float u_ratio;
 uniform float u_time;
 uniform float u_focus;
 uniform float u_bloom;
+uniform float u_intensity;
 varying vec3 v_color;
 varying float v_alpha;
 varying float v_kind;
@@ -58,11 +59,11 @@ void main() {
   if(kind < .5) {
     float near = clamp((p.z+1.)*.5,0.,1.);
     v_color = seed < .065 ? vec3(.27,.91,.95) : seed > .86 ? vec3(1.,.98,.82) : vec3(1.,.74,.42);
-    v_alpha = mix(.31,.95,near)*(0.7 + .3*sin(t*1.6+seed*31.0)*sin(t*1.6+seed*31.0));
+    v_alpha = mix(.25,.84,near)*(0.7 + .3*sin(t*1.6+seed*31.0)*sin(t*1.6+seed*31.0)) * (kind > .1 ? .55 : 1.0) * u_intensity;
     gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 13.0+seed*11.0 : 1.4+seed*2.15);
   } else {
     v_color = kind > 2.5 ? vec3(.33,.82,.90) : vec3(1.,.69,.43);
-    v_alpha = mix(.25,.67,clamp((p.z+1.65)/3.3,0.,1.));
+    v_alpha = mix(.21,.58,clamp((p.z+1.65)/3.3,0.,1.)) * u_intensity;
     gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 9.0 : 1.65);
   }
   v_kind = kind;
@@ -70,6 +71,7 @@ void main() {
 const FRAGMENT = `
 precision mediump float;
 uniform float u_bloom;
+uniform float u_intensity;
 varying vec3 v_color;
 varying float v_alpha;
 varying float v_kind;
@@ -78,8 +80,8 @@ void main() {
   float r2=dot(p,p);
   if(r2>1.0) discard;
   if(u_bloom > .5) {
-    float glow=exp(-r2*5.2)*.46;
-    gl_FragColor=vec4(v_color*glow, v_alpha*.48);
+    float glow=exp(-r2*5.2)*.36;
+    gl_FragColor=vec4(v_color*glow, v_alpha*.40);
   } else {
     float core=smoothstep(.37,.03,sqrt(r2));
     float fringe=exp(-r2*5.0)*.33;
@@ -174,14 +176,14 @@ const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback }) 
       }
       // Interior volume points prevent the sphere from becoming a hollow, edge-only halo.
       // Deterministic golden-angle distribution, denser toward the warm central nucleus.
-      const interiorCount = mobile ? 1200 : 4100;
+      const interiorCount = mobile ? 950 : 3400;
       for (let i=0;i<interiorCount;i++) {
         const y=1-(i+.5)*2/interiorCount;
         const t=i*phi*1.43;
         const shellRadius=Math.sqrt(Math.max(0,1-y*y));
         const radial=Math.pow(((i*137+71)%1009)/1009,1.35)*.92;
         const seed=((i*73+251)%997)/997;
-        raw.push(Math.cos(t)*shellRadius*radial,y*radial,Math.sin(t)*shellRadius*radial,seed,0);
+        raw.push(Math.cos(t)*shellRadius*radial,y*radial,Math.sin(t)*shellRadius*radial,seed,.2);
       }
       for (let ring=0; ring<3;ring++) {
         for (let j=0; j<ringCount;j++) {
@@ -207,6 +209,7 @@ const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback }) 
       const locTime=gl.getUniformLocation(program,'u_time');
       const locFocus=gl.getUniformLocation(program,'u_focus');
       const locBloom=gl.getUniformLocation(program,'u_bloom');
+      const locIntensity=gl.getUniformLocation(program,'u_intensity');
       const resize=()=>{
         const rect=canvas.getBoundingClientRect();
         const ratio=Math.min(window.devicePixelRatio||1,mobile?1.25:1.6);
@@ -226,6 +229,11 @@ const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback }) 
         gl.uniform1f(locRatio,ratio);
         gl.uniform1f(locTime,phase);
         gl.uniform1f(locFocus,focusValue);
+        // A desktop-sized particle field shrinks dramatically during responsive testing.
+        // Adapt intensity to rendered CSS width, while native mobile uses a lower particle count.
+        const displayWidth=canvas.width/ratio;
+        const widthFactor=Math.max(.28,Math.pow(Math.min(1,displayWidth/720),1.35));
+        gl.uniform1f(locIntensity,Math.min(1,widthFactor*(mobile?1.45:1)));
         gl.uniform1f(locBloom,1);
         gl.drawArrays(gl.POINTS,0,data.length/5);
         gl.uniform1f(locBloom,0);
