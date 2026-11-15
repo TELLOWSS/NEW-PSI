@@ -165,6 +165,40 @@ Legend: `[x]` implemented/documented with cited evidence; `[ ]` pending; `REVIEW
 4. Add true physical-device performance and GPU loss/recovery checks, 10s camera/lighting motion capture, and human art review.
 5. Maintain draft PR until the owner specifically approves release; never silently apply staging SQL to production.
 
+## Iteration 07 · Server-authenticated site read API (draft-only) · 2026-11-15
+
+**Application code SHA verified:** `702f6f5ad732875ef594090e27e7dbeda82075aa` (handoff update follows).
+
+### Work completed
+- [x] Added `lib/server/tenantNexusSiteRead.ts` and wired it into `api/saas/access.ts?resource=nexus-site-aggregates`. Reuses `requireTenantContext()`, which authenticates the individual JWT with Supabase Auth and validates active tenant membership with a user-scoped anon/publishable client.
+- [x] **Feature OFF unless `PSI_NEXUS_SITE_READ_ENABLED=true`**. A disabled API returns `503 NEXUS_NOT_ACTIVATED`, even if tenant headers are supplied. Existing shared administrator password/cookie cannot substitute for an individual bearer JWT.
+- [x] GET-only; rejects role/tenant/user-supplied authority filters before any identity/DB query; no client INSERT/UPDATE/DELETE; no service_role credentials, key, images, names, IDs of workers or raw evidence in response.
+- [x] `mode=sites` reads site memberships of the verified user and active sites using RLS-scoped queries; fails closed for wrong tenant/user, suspended/duplicate membership or malformed sites, rather than exposing cross-site or cross-tenant contents.
+- [x] `mode=aggregate` requires **one explicit site UUID**, valid `YYYY-MM`, exact trade and valid past UTC `cutoffAt`. It reads one matching row from the still-unapplied `psi_nexus_site_aggregate_staging` contract; checks the returned tenant/site/scope/time and integer counts again before returning an anonymous DTO.
+- [x] No matching authorized row is `NO_AUTHORIZED_AGGREGATE` with `aggregate:null`, **not zero risk**. A mismatched total, foreign row, absent schema or RLS provider failure produces a controlled error with no leaked provider diagnostics.
+- [x] `recordedInternalMatch` only means two stored numeric fields agree; the API always returns `independentOfficialReportVerified:false`. Stored completion is `completionLogged`, never reinspection approval or work-restart permission. Server read does **not** yet activate a UI site selector.
+- [x] `tests/tenantNexusSiteRead.test.ts`: 12 API contract tests for feature-disabled, GET-only, JWT/tenant denial, input injection, authorized site list, foreign site denial, no-PII aggregate, missing data, corrupted totals, stored versus independently verified report, missing-schema fail-closed.
+- [x] Fixed incorrect 8-4-4-12 UUID regex found by CI to the standard **8-4-4-4-12** shape. Security validation was **not** relaxed. Temporary diagnostic logging was removed before validation.
+
+### Evidence
+- [x] **Release CI PASS** code SHA `702f6f5`: https://github.com/TELLOWSS/NEW-PSI/actions/runs/43739368092 . **1,901/1,901 tests**, including new 12/12 server read tests; TypeScript/build gates passed.
+- [x] **Cross-department browser CI PASS**: https://github.com/TELLOWSS/NEW-PSI/actions/runs/43739368067 . Existing product journeys **10/10**, SAFETY NEXUS synthetic Chromium **35/35**. No new front-end screenshots required because this iteration changed server route + tests only.
+- [x] Checked current PR #230 remains **DRAFT**, unmerged into `main`. No production Vercel deployment or operational DB mutation performed in this iteration.
+
+### Still BLOCKED (do not mark production ready)
+- [ ] The `psi_nexus_site_aggregate_staging` table exists **as GitHub proposal only**. User-scoped authorization path is coded/tested against a synthetic contract, but the real API cannot serve field records until authorized DB migration and source writer exist. `PSI_NEXUS_SITE_READ_ENABLED` must stay absent/off.
+- [ ] **Official report parity:** independently obtain signed report source, exact authorized site assignments, source record IDs, matching month/trade/cutoff, denominator rules and reviewer acceptance. A stored `report_reconciled_at` alone does **not** prove an official report.
+- [ ] **Site-bound followup/recheck approval:** current general WorkerRecord and `psi_tenant_actions.site_name` are not site_id/RLS proof. Build scoped immutable event IDs, evidence provenance, independent manager review and precise closure states before enabling; never equate interim control or recheck logged with approved work restart.
+- [ ] Check whether `mode=sites` response field `sourceReady` could be misconstrued as aggregate readiness; clarify or rename before feature activation (currently OFF).
+- [ ] Physical Android/iOS GPU/thermal testing, 10+ second source-video motion comparison and owner V01–V07 aesthetic signoff remain required.
+- [ ] Absolutely no merge to main, preview-to-production promotion, production migration, real worker backfill or flag enablement without explicit approval.
+
+### Next ordered development
+1. Build **server-attested source provenance writer/manifest** for site-assigned source IDs and immutable snapshot cutoff; reconcile with *independently retrieved* official report denominator under identical scopes. Include two-site cross-leakage, missing ID, duplicate, stale month and changed cutoff tests.
+2. Implement site-scoped follow-up and separate reinspection approval history in staging with actor/reviewer separation, evidence links and immutable transitions; avoid old `site_name` text as authorization.
+3. Bind only server-attested, independently reconciled data to the optional SAFETY NEXUS site selector (off until backend is ready); use an explicit `NOT_VERIFIED` state.
+4. Real device GPU/thermal and reference 92203.mp4 side-by-side motion review, then owner aesthetic and release acceptance.
+
 ## Current modified files
 - `pages/SafetyNexus.tsx` (new)
 - `pages/SafetyNexus.css` (new)
