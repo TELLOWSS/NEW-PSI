@@ -288,6 +288,44 @@ Legend: `[x]` implemented/documented with cited evidence; `[ ]` pending; `REVIEW
 4. In parallel for operational release: authorized source adapter and independently signed official denominator lineage from Iteration 08, then manager/reinspection approval and server-enforced site scope.
 5. Keep PR #230 **DRAFT** until all required owner-approved gates are satisfied. No production changes.
 
+## Iteration 10 · Wide orbits / camera choreography / comparative motion / emulated mobile QA · 2026-11-16 KST
+
+**Application code verified SHA:** `ac36356ffcf813f727d6ec7fd62b0e9664743dc8`.
+**Art decision:** Functional visual iteration delivered; **V01–V07 owner approval still NOT granted**.
+
+### Implemented on isolated branch
+- [x] `pages/NexusWebGLCore.tsx` now generates **three differently sized 3D orbital planes**, with phase-independent angular speeds, dedicated migrating orbital beacon point sprites, and more pronounced yaw/pitch/dolly camera sweep over the opt-in 12-second sequence.
+- [x] After inspecting first GPU capture, rejected over-large core and invisible outer rings: reduced core envelope to 82%, rebalanced orbit radii, and added continuous, narrow **WebGL LINE_LOOP** arcs underneath the original particle tracers. Geometry stays decorative, never conveys verified hazards, official approval or work restart.
+- [x] A conservative **mobile LOD** branch reduces shell/interior/ring particles when the browser reports few hardware cores or low device memory; normal mobile/desktop density remains intact. This is a heuristic, **not physical device profiling**.
+- [x] `scripts/verify-safety-nexus-browser.mjs` adds a 390×844, DPR=2, touch/mobile Chromium context that enters through the REAL mobile '더보기' menu. It verifies actual WebGL, mobile LOD, paused-on-entry state, opt-in cinematic, script errors and records `nexus-mobile-emulation.json` with browser requestAnimationFrame intervals. The shader-on-browser hard gate and forced GPU-denied Canvas2D fallback tests remain.
+- [x] The source video `92203.mp4` (44.3s) and original v1.1 DOCX §09/10 / storyboard tables were reopened. Source ~6–18s embedded dashboard is more dynamically scene-changing (forming point fields, orbit sweeps, diagonal particulate movement, widened horizontal ellipse); **PSI graphics do NOT yet reproduce this full choreography**.
+- [x] Locally produced an actual side-by-side approximately phase-matched **12-second MP4** (source dashboard crop versus latest GitHub CI WebM, no copied media assets committed to repo). Different aspect ratios, brands and stories make this a **qualitative** review, not pixel equivalence.
+- [x] Inspected actual latest 10s GPU stage, immersive desktop and 390px mobile screenshots. Thinner wide ring arcs became visible beyond the compact sphere without obscuring the Q1–Q5 labels; the current source-like strong moving beacons and fast scene-scale transitions remain an art gap.
+
+### Verification on `ac36356f`
+- [x] Release CI **PASS**: https://github.com/TELLOWSS/NEW-PSI/actions/runs/43761278840
+- [x] All-product Chromium browser CI **PASS 10/10**, Safety Nexus **49/49** focused checks: https://github.com/TELLOWSS/NEW-PSI/actions/runs/43761278845
+- [x] Evidence screens, 0/3/6/10s PNG, 12s WebM and mobile emulation JSON: https://github.com/TELLOWSS/NEW-PSI/actions/runs/43761278845/artifacts/14180965948
+- [x] 390×844 @ DPR2 emulation: **renderer=webgl**, **LOD=mobile-conservative**, initial animation paused, no JS errors. Browser `requestAnimationFrame` cadence during ~3.2s: **188 samples, p50 16.7ms, p95 16.8ms, p99 33.3ms**. This is **NOT real Android/iPhone FPS, thermals, GPU memory or energy use**.
+- [x] 390px screenshot white-highlight clipping ratio **0.00246947** (0.247%) against loose automation bound 9%. This single scalar is not perceptual video-grade approval.
+- [x] Production path unchanged; no actual Vercel branch deployments found when last checked. No operational records, paid AI endpoints, main, database migration or runtime feature flag changed.
+
+### Visual gate decisions / blockers
+- **V01** actual GPU particle volume: **implemented/tested**, artistic owner approval open.
+- **V02** multi-plane luminous arcs/beacons: **implemented and made visible**, still less luminous/diverse than source.
+- **V03** lighting and peripheral HUD: **partial**, source has clearer brighter beacons and many more information layers; do not fabricate operational counters to imitate it.
+- **V04** 12s animation/camera: **implemented/tested**, still simpler than source's materially changing scene layout; data-driven camera focus and verified evidence remain gated.
+- **V05** actual 12s synchronized-ish comparison MP4 **created and manually compared**; mismatch remains, **approval pending**.
+- **V06** Chromium touch/mobile/LOD/2D/reduced motion tested; **native Android and iOS not tested**, so hardware-performance approval pending.
+- **V07** owner's explicit **video-grade visual signoff not received**.
+- Separate operational source site_id RLS, authoritative official-report denominator and independently reviewed reinspection approvals remain **BLOCKED** per Iterations 07–08.
+
+### Iteration 11 next tasks
+1. Introduce source-inspired **scene-scale transitions** (without replacing PSI's actual navigation), brighter separately controlled orbit anchor bloom and camera-path easing; keep text contrast and no invented data.
+2. Review 12s clips with the owner against V01–V07, accept/reject in writing with annotated frames.
+3. Measure on at least one low-end Android and one iPhone: startup time, sustained actual frames, device heat/energy, context loss, responsive menu, fallback. Browser RAF emulation is preliminary only.
+4. After user explicitly approves visual and operational gates, prepare separated release candidate and rollback; **do not merge or deploy now**.
+
 ## Current modified files
 - `pages/SafetyNexus.tsx` (new)
 - `pages/SafetyNexus.css` (new)
