@@ -66,11 +66,11 @@ export interface NexusComparison {
   status: 'COUNTS_MATCH_PENDING_INDEPENDENT_APPROVAL';
   scope: NexusSourceScope;
   sourceRecordCount: number;
-  officialDenominator: number;
+  declaredExternalDenominator: number;
   originalSha256: string;
   sourceIdSetSha256: string;
   canonicalSnapshotSha256: string;
-  sourceIdSetWasIndependentlyProvided: boolean;
+  externalReportDeclaresSourceIdSet: boolean;
   independentOfficialReportVerified: false;
   acceptedByReviewer: false;
   authorizesActionClosure: false;
@@ -196,10 +196,10 @@ export function compareNexusReportOriginal(
      &&!safeHashEqual(report.sourceIdSetSha256,manifest.sourceIdSetSha256))fail('SOURCE_ID_SET_MISMATCH');
   return {
     status:'COUNTS_MATCH_PENDING_INDEPENDENT_APPROVAL',scope:{...manifest.scope},
-    sourceRecordCount:manifest.sourceRecordCount,officialDenominator:report.denominator,
+    sourceRecordCount:manifest.sourceRecordCount,declaredExternalDenominator:report.denominator,
     originalSha256:report.originalSha256,sourceIdSetSha256:manifest.sourceIdSetSha256,
     canonicalSnapshotSha256:manifest.canonicalSnapshotSha256,
-    sourceIdSetWasIndependentlyProvided:report.sourceIdSetSha256!==undefined,
+    externalReportDeclaresSourceIdSet:report.sourceIdSetSha256!==undefined,
     independentOfficialReportVerified:false,acceptedByReviewer:false,
     authorizesActionClosure:false,authorizesWorkRestart:false
   };
