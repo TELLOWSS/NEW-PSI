@@ -274,6 +274,9 @@ try {
     check('실제 모바일 미디어쿼리에서 WebGL 캔버스 생성',
       await mobileCanvas.getAttribute('data-renderer')==='webgl',
       {viewport:'390x844',dpr:2,isMobile:true,hasTouch:true});
+    const lod=await mobileCanvas.getAttribute('data-lod');
+    check('모바일 GPU 입자 LOD 자동 선택', ['mobile-standard','mobile-conservative'].includes(lod),
+      {lod,source:'hardware hint only; not a physical device benchmark'});
     const initialMotion=await mobileRoot.getByRole('button',{name:'모션 재생'}).count();
     check('모바일은 모션 정지로 안전하게 시작',initialMotion===1,
       {pausedOnMobile:true});
@@ -303,7 +306,7 @@ try {
     await writeFile(resolve(output,'nexus-mobile-emulation.json'),
       JSON.stringify({emulation:{viewport:'390x844',deviceScaleFactor:2,isMobile:true,hasTouch:true},
         renderer:await mobileCanvas.getAttribute('data-renderer'),
-        telemetry,realDeviceValidated:false},null,2)+'\n');
+        lod,telemetry,realDeviceValidated:false},null,2)+'\n');
     check('모바일 브라우저 애니메이션 프레임 지표 수집',
       telemetry.samples>=15 && telemetry.p95Ms>0 && Number.isFinite(telemetry.p95Ms),
       telemetry);
