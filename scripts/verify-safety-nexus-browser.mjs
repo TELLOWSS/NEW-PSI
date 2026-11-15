@@ -34,6 +34,10 @@ try {
   const renderer = await root.locator('canvas.nexus-core-canvas').getAttribute('data-renderer') || 'canvas-2d-fallback';
   check('GPU 렌더러 또는 2D 대체 렌더러', ['webgl','canvas-2d-fallback'].includes(renderer), {renderer});
   check('후속조치 이력 카드 6종 구분', await root.locator('.nexus-followup-card').count() === 6, 'unresolved, overdue, interim, planned, reopened, evidence verified');
+  check('현장 실천·재점검 5종 분리', await root.locator('.nexus-recheck-card').count() === 5,
+    'education delivered, observed, rechecked, needs recheck, overdue recheck');
+  check('교육과 조치완료 자동판정 분리', await root.locator('.nexus-practice').getByText(/안전행동이 관찰되었더라도 조치 완료/).count() === 1,
+    'no automatic action closure on education or observation');
   check('미확인 현장 범위 필터 비활성화', await root.getByRole('combobox', {name:'현장 인증 범위 미연동'}).isDisabled(), 'site isolation not implemented');
   check('월·공종 필터 제공', await root.getByRole('combobox', {name:'작성 월 선택'}).count() === 1
      && await root.getByRole('combobox', {name:'공종 선택'}).count() === 1, 'loaded-record-only selectors');
