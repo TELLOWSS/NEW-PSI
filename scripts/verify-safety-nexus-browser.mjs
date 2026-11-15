@@ -21,8 +21,9 @@ await page.route('**/api/admin/auth', route => route.fulfill({
 }));
 try {
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => typeof window.__setCurrentPage === 'function', { timeout: 25000 });
-  await page.evaluate(() => window.__setCurrentPage('safety-nexus'));
+  // Production builds intentionally do not expose the developer-only __setCurrentPage helper.
+  // Enter via the actual end-user navigation so this test also checks sidebar composition.
+  await page.getByRole('button', { name: '안전지능 네트워크 · 시제품' }).first().click();
   const root = page.locator('.safety-nexus');
   await root.waitFor({ state: 'visible', timeout: 20000 });
   check('전용 페이지 진입 및 렌더', await root.isVisible(), 'safety-nexus route');
