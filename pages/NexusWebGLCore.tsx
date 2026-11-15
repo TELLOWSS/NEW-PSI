@@ -38,6 +38,7 @@ vec3 yawPitch(vec3 p, float ay, float ax) {
 void main() {
   float seed = a_data.w;
   float kind = a_kind;
+  float ring = kind-1.0;
   vec3 p = a_data.xyz;
   float t = u_time;
   float reveal=1.0;
@@ -53,7 +54,6 @@ void main() {
     p = yawPitch(p, depthYaw, depthPitch);
     p *= 1.0 + .025*sin(t*2.0+seed*24.0);
   } else {
-    float ring = kind-1.0;
     float azimuth = ring < .5 ? .45 : ring < 1.5 ? -.80 : 1.06;
     float speed = ring < .5 ? .33 : ring < 1.5 ? -.29 : .19;
     p = yawPitch(p, t*speed + ring*.82, azimuth);
@@ -218,7 +218,7 @@ const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback, se
       for (let ring=0; ring<3;ring++) {
         for (let j=0; j<ringCount;j++) {
           const a=j/ringCount*Math.PI*2;
-          raw.push(Math.cos(a)*1.64,Math.sin(a)*1.64,0,((j*43+ring*79)%997)/997,ring+1);
+          raw.push(Math.cos(a)*1.64,Math.sin(a)*1.64,0,j/ringCount,ring+1);
         }
       }
       const data = new Float32Array(raw);
