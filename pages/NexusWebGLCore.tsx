@@ -5,6 +5,8 @@ type Props = {
   paused: boolean;
   reduced: boolean;
   fallback: React.ReactNode;
+  sequenceNonce?: number;
+  cinematicActive?: boolean;
 };
 
 /**
@@ -22,6 +24,7 @@ uniform float u_time;
 uniform float u_focus;
 uniform float u_bloom;
 uniform float u_intensity;
+uniform float u_story;
 varying vec3 v_color;
 varying float v_alpha;
 varying float v_kind;
@@ -37,9 +40,16 @@ void main() {
   float kind = a_kind;
   vec3 p = a_data.xyz;
   float t = u_time;
+  float reveal=1.0;
   if(kind < 0.5) {
     float depthYaw = t*0.31 + u_focus*0.105;
     float depthPitch = .22 + sin(t*.35)*.16;
+    if(u_story >= 0.0) {
+      float sweep=smoothstep(0.0,12.0,u_story);
+      depthYaw += .47*sweep;
+      depthPitch += .13*sin(sweep*3.14159265);
+      p *= mix(.80,1.0,smoothstep(0.0,2.4,u_story));
+    }
     p = yawPitch(p, depthYaw, depthPitch);
     p *= 1.0 + .025*sin(t*2.0+seed*24.0);
   } else {
@@ -47,14 +57,23 @@ void main() {
     float azimuth = ring < .5 ? .45 : ring < 1.5 ? -.80 : 1.06;
     float speed = ring < .5 ? .33 : ring < 1.5 ? -.29 : .19;
     p = yawPitch(p, t*speed + ring*.82, azimuth);
+    reveal = u_story < 0.0 ? 1.0 : mix(.37,1.0,smoothstep(1.4+ring*.50,4.5+ring*.50,u_story));
   }
   float lens = 2.95/(2.95-p.z*.43);
   float breathing = 1.0 + .036*sin(t*.22) + .018*sin(t*.45);
   float radius = min(u_size.x*.26,u_size.y*.29)*breathing;
+  if(u_story>=0.0) {
+    float sweep=smoothstep(0.0,12.0,u_story);
+    radius *= 1.0 + .075*sin(sweep*3.14159265);
+  }
   vec2 screen = p.xy*radius*lens;
   // A restrained dolly: source-inspired dimensional motion, never a live risk claim.
   screen.x += sin(t*.31)*radius*.026;
   screen.y += cos(t*.22)*radius*.019;
+  if(u_story >= 0.0) {
+    screen.x += sin(u_story*.48)*radius*.075;
+    screen.y += (smoothstep(0.0,5.0,u_story)-.5)*radius*.052;
+  }
   gl_Position=vec4(screen.x/(u_size.x*.5),-screen.y/(u_size.y*.5),0.,1.);
   if(kind < .5) {
     float near = clamp((p.z+1.)*.5,0.,1.);
@@ -62,8 +81,13 @@ void main() {
     v_alpha = mix(.25,.84,near)*(0.7 + .3*sin(t*1.6+seed*31.0)*sin(t*1.6+seed*31.0)) * (kind > .1 ? .55 : 1.0) * u_intensity;
     gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 13.0+seed*11.0 : 1.4+seed*2.15);
   } else {
-    v_color = kind > 2.5 ? vec3(.33,.82,.90) : vec3(1.,.69,.43);
-    v_alpha = mix(.21,.58,clamp((p.z+1.65)/3.3,0.,1.)) * u_intensity;
+    float travel=fract(seed-t*.07-ring*.23);
+    float arc=min(travel,1.0-travel);
+    float spark=exp(-arc*arc*430.0);
+    vec3 ringColor=kind > 2.5 ? vec3(.33,.82,.90) : vec3(1.,.69,.43);
+    v_color=mix(ringColor,vec3(1.,.94,.75),spark*.52);
+    v_alpha=clamp(mix(.21,.58,clamp((p.z+1.65)/3.3,0.,1.))
+      * (0.73+spark*.72) * reveal*u_intensity,0.0,.96);
     gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 9.0 : 1.65);
   }
   v_kind = kind;
@@ -102,10 +126,16 @@ function makeShader(gl: WebGLRenderingContext, type: number, source: string): We
   return shader;
 }
 
-const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback }) => {
+const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback, sequenceNonce=0, cinematicActive=false }) => {
   const ref = useRef<HTMLCanvasElement>(null);
   const focus = useRef(active);
   const repaint = useRef<()=>void>(()=>{});
+  const story = useRef<{active:boolean;started:number}>({active:false,started:0});
+  useEffect(()=>{
+    story.current.active=cinematicActive&&!reduced;
+    if(cinematicActive && sequenceNonce>0) story.current.started=performance.now();
+    repaint.current();
+  },[cinematicActive,sequenceNonce,reduced]);
   const [unavailable, setUnavailable] = useState(false);
   useEffect(() => { focus.current = active; repaint.current(); }, [active]);
   useEffect(() => {
@@ -210,6 +240,7 @@ const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback }) 
       const locFocus=gl.getUniformLocation(program,'u_focus');
       const locBloom=gl.getUniformLocation(program,'u_bloom');
       const locIntensity=gl.getUniformLocation(program,'u_intensity');
+      const locStory=gl.getUniformLocation(program,'u_story');
       const resize=()=>{
         const rect=canvas.getBoundingClientRect();
         const ratio=Math.min(window.devicePixelRatio||1,mobile?1.25:1.6);
@@ -229,6 +260,10 @@ const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback }) 
         gl.uniform1f(locRatio,ratio);
         gl.uniform1f(locTime,phase);
         gl.uniform1f(locFocus,focusValue);
+        const storyTime=story.current.active
+          ? Math.min(12,Math.max(0,(performance.now()-story.current.started)/1000))
+          : -1;
+        gl.uniform1f(locStory,storyTime);
         // A desktop-sized particle field shrinks dramatically during responsive testing.
         // Adapt intensity to rendered CSS width, while native mobile uses a lower particle count.
         const displayWidth=canvas.width/ratio;
