@@ -21,9 +21,11 @@ const METRIC_KEYS = [
   'followup_reopened_history','followup_completion_logged'
 ] as const;
 function invalid(): never {
+  if(process.env.NODE_ENV==='test') console.error('[NEXUS TEMP INVALID LOC]',new Error().stack?.split('\\n').slice(0,4).join('|'));
   throw new TenantAccessError(400,'NEXUS_INVALID_FILTER','현장, 작성 월, 공종 또는 기준시각을 확인해 주세요.');
 }
 function storageUnavailable(): never {
+  if(process.env.NODE_ENV==='test') console.error('[NEXUS TEMP SCOPE LOC]',new Error().stack?.split('\\n').slice(0,4).join('|'));
   throw new TenantAccessError(503,'NEXUS_SCOPE_UNAVAILABLE','현장별 인증 조회가 준비되지 않았습니다.');
 }
 function singleText(input: unknown, max: number): string {
