@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Page, WorkerRecord } from '../types';
-import { sliceLoadedNexusRecords } from '../utils/safetyNexusViewModel';
+import { filterLoadedNexusRecords, sliceLoadedNexusRecords } from '../utils/safetyNexusViewModel';
 import { buildMonthlyFieldFollowupSummary, getKoreanCalendarDay } from '../utils/monthlyFieldFollowup';
+import { buildPracticeVerificationSummary } from '../utils/practiceVerification';
 import WebGLNexusCore from './NexusWebGLCore';
 import './SafetyNexus.css';
 
@@ -143,19 +144,29 @@ const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
     [workerRecords,filterMonth,filterTrade]
   );
   const snapshot=loadedSlice.snapshot;
-  const followup=useMemo(()=>{
+  const filteredRecords=useMemo(
+    ()=>filterLoadedNexusRecords(workerRecords,{month:filterMonth,trade:filterTrade}),
+    [workerRecords,filterMonth,filterTrade]
+  );
+  const asOfWindow=useMemo(()=>{
     const today=getKoreanCalendarDay();
     const year=Number(filterMonth.slice(0,4)),month=Number(filterMonth.slice(5,7));
-    const lastDay=filterMonth && month>=1 && month<=12 && year>=2000 && year<=2100
+    const endOfMonth=filterMonth && month>=1 && month<=12 && year>=2000 && year<=2100
       ? filterMonth+'-'+String(new Date(year,month,0).getDate()).padStart(2,'0')
       : today;
-    const asOfDate=lastDay>today?today:lastDay;
-    return buildMonthlyFieldFollowupSummary(workerRecords,{
-      asOfDate,
-      ...(filterMonth?{periodStartDate:filterMonth+'-01'}:{}),
-      ...(filterTrade?{workType:filterTrade}:{})
-    });
-  },[workerRecords,filterMonth,filterTrade]);
+    return {
+      asOfDate:endOfMonth>today?today:endOfMonth,
+      ...(filterMonth?{periodStartDate:filterMonth+'-01'}:{})
+    };
+  },[filterMonth]);
+  const followup=useMemo(
+    ()=>buildMonthlyFieldFollowupSummary(filteredRecords,asOfWindow),
+    [filteredRecords,asOfWindow]
+  );
+  const practice=useMemo(
+    ()=>buildPracticeVerificationSummary(filteredRecords,asOfWindow),
+    [filteredRecords,asOfWindow]
+  );
   const count=snapshot.loadedRecordRows;
   const selected=STEPS[active];
   const focusPaths=[
@@ -260,8 +271,29 @@ const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
           </div>
         )}
       </div>
+      <div className="nexus-practice">
+        <div className="nexus-practice-heading">
+          <strong>현장 실천 확인 · 별도 재점검</strong>
+          <span>교육 전달과 조치 완료는 구별하며, 재점검은 관리자 이력 기준입니다.</span>
+        </div>
+        <div className="nexus-recheck-cards">
+          {[
+            ['교육 전달 기록',practice.educationDelivered],
+            ['현장 관찰 기록',practice.fieldObserved],
+            ['현장 재점검 기록',practice.rechecked],
+            ['재확인 필요',practice.needsFieldRecheck],
+            ['재확인 기한초과',practice.overdueFieldRecheck],
+          ].map(([label,total])=>
+            <div className="nexus-recheck-card" key={String(label)}>
+              <span>{label}</span><strong>{total}</strong><small>건</small>
+            </div>
+          )}
+        </div>
+        <p>재확인 필요는 기록·문항의 마지막 현장 확인에서 개선 필요 또는 확인 불가로 남은 경우입니다.
+          안전행동이 관찰되었더라도 조치 완료·작업재개가 자동 승인되는 것은 아닙니다.</p>
+      </div>
       <div className="nexus-followup-footer">
-        <span>조치 이력 {followup.totalCases}건 · 이전 주기에서 이어진 미완료 {followup.carriedOver}건 · 월별 조치는 선택월 말일까지의 상태를 포함합니다.</span>
+        <span>조치 이력 {followup.totalCases}건 · 선택한 작성기록과 연결된 조치만 반영 · 이전 주기 미완료 {followup.carriedOver}건 · 선택 월말 또는 현재일 기준 상태입니다.</span>
         <span>미완료·임시통제·기한초과는 완료로 처리하지 않습니다. 재개방은 이력 건수이며 현재 미완료와 중복될 수 있습니다.</span>
         {loadedSlice.undatedRowsInAllPeriods>0&&<span>작성일 확인 불가 {loadedSlice.undatedRowsInAllPeriods}행 · 특정 월로 임의 배정하지 않음</span>}
       </div>
