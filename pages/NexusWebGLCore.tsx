@@ -205,8 +205,14 @@ const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback, se
       }
 
       const mobile = window.matchMedia('(max-width: 700px)').matches;
-      const shellCount = mobile ? 2400 : 6500;
-      const ringCount = mobile ? 230 : 480;
+      const memory=(navigator as Navigator & {deviceMemory?:number}).deviceMemory;
+      const cores=navigator.hardwareConcurrency;
+      // Conservative LOD: browser hints are estimates, not actual GPU benchmarks.
+      const lowBudget=mobile && ((typeof memory==='number'&&memory<=3)
+        || (typeof cores==='number'&&cores<=4));
+      const shellCount=lowBudget ? 1350 : mobile ? 2400 : 6500;
+      const ringCount=lowBudget ? 170 : mobile ? 230 : 480;
+      canvas.dataset.lod=lowBudget?'mobile-conservative':mobile?'mobile-standard':'desktop';
       const raw: number[] = [];
       const phi = Math.PI*(3-Math.sqrt(5));
       for (let i=0; i<shellCount; i++) {
@@ -217,7 +223,7 @@ const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback, se
       }
       // Interior volume points prevent the sphere from becoming a hollow, edge-only halo.
       // Deterministic golden-angle distribution, denser toward the warm central nucleus.
-      const interiorCount = mobile ? 950 : 3400;
+      const interiorCount=lowBudget?520:mobile?950:3400;
       for (let i=0;i<interiorCount;i++) {
         const y=1-(i+.5)*2/interiorCount;
         const t=i*phi*1.43;
