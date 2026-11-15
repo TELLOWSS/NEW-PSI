@@ -455,6 +455,7 @@ const PRODUCT_GROUP_LABEL_MAP: Record<ProductGroup, string> = {
 
 const PAGE_HEADER_HIDDEN_MAP: Partial<Record<Page, boolean>> = {
     'dashboard': true,
+    'safety-nexus': true,
     'worker-training': true,
     'ocr-analysis': true,
     'reports': true,
