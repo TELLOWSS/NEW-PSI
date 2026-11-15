@@ -31,6 +31,20 @@
 3. `pages/SafetyNexus.css`: restrained orbit sweep, fine captions, small-screen controls, reduced-motion bypass. The visual declares **그래픽 시연 / 실시간 위험 경보 아님**.
 4. `scripts/verify-safety-nexus-browser.mjs`: record 0/3/6/10-second screenshots, compare stage screenshot digests for motion, assert normal interaction returns after 12 seconds, verify reduced-motion replay disabled. This is functional motion QA, **not owner approval**.
 
+## Verified VG-7 browser correction and motion evidence (2026-11-16 KST)
+
+**Tested source-code SHA: `fda49654ca4996850f771e2c804aa30ef35d131d`.** This is the implementation reference preceding documentation-only commits.
+
+- [x] GitHub Release CI PASS: https://github.com/TELLOWSS/NEW-PSI/actions/runs/43755965841
+- [x] GitHub company browser CI PASS: https://github.com/TELLOWSS/NEW-PSI/actions/runs/43755965810 — company product **10/10**, Safety Nexus **44/44** checks.
+- [x] Browser artifact: https://github.com/TELLOWSS/NEW-PSI/actions/runs/43755965810/artifacts/14178980175 — `browser/safety-nexus/nexus-immersive-1440.png`, `nexus-390.png`, `nexus-cinema-00s.png`, `03s.png`, `06s.png`, `10s.png`, `nexus-cinematic-12s.webm`, 2D forced fallback, results JSON.
+- [x] CRITICAL REGRESSION FOUND AND FIXED: initial cinematic CI passed **43/43** while silently falling back to Canvas 2D because a GPU shader referenced a ring variable outside its scope. The missing local identifier prevented GPU shader compilation. Restored correct shader scope and real angular ordering of orbital tracer points in `pages/NexusWebGLCore.tsx`; **new QA explicitly FAILS if the primary Chromium cinematic scene is not WebGL**. Forced GPU-unavailable functionality remains an independent test.
+- [x] Browser result JSON explicitly confirms `renderer:'webgl'`, 1440px cinematic still, 390px hero top **297.734375px**, and absence of horizontal scrolling. Mobile overexposed bright-pixel ratio **0.0009999090991728026** under 0.09 threshold.
+- [x] 0/3/6/10-second captures differ in their SHA-256 snapshot digests; normal controls return after the 12-second opt-in sequence. A true continuous **15.44s WebM screen recording**, including the 12s sequence and navigation, was generated and personally inspected. Replay is disabled in the in-app reduced-motion mode.
+- [x] Actual current desktop immersive and 390px screenshots inspected. Current GPU sphere is legible and dimensional; however the original source has a stronger wide orbital sweep, external anchors and more dramatic changing camera framing. **These remain artistic gaps, even though WebGL and motion QA now pass.**
+- [ ] V05 **human side-by-side video-to-video approval** remains PENDING. The new WebM is a playable comparison input, not evidence that the owner approves its motion aesthetics.
+- [ ] V07 explicit owner signoff and physical Android/iPhone GPU/FPS/temperature remain PENDING.
+
 ## Unresolved visual issues / ordered next work
 
 1. Visually inspect newest 1440/390 screenshots and all cinema frames in the current CI artifact; check luminance clipping, text contrast, orbit readability, stage control wrapping, and genuine camera movement.
