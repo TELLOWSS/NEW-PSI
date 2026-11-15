@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Page, WorkerRecord } from '../types';
 import { summarizeLoadedNexusRecords } from '../utils/safetyNexusViewModel';
+import WebGLNexusCore from './NexusWebGLCore';
 import './SafetyNexus.css';
 
 type Topic = { index: string; title: string; en: string; detail: string; page: Page; action: string };
@@ -133,7 +134,7 @@ const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
     <div className="nexus-background" aria-hidden="true"/>
     <header className="nexus-header">
       <div className="nexus-brand"><span className="nexus-symbol">Ψ</span><div><small>PROACTIVE SAFETY INTELLIGENCE</small><h1>SAFETY <b>NEXUS</b></h1></div></div>
-      <div className="nexus-header-right"><span className="nexus-status"><i/>VISUAL GATE 01 · 시제품</span>
+      <div className="nexus-header-right"><span className="nexus-status"><i/>VISUAL GATE 02 · GPU 시제품</span>
         <button type="button" className="nexus-immersive-toggle" aria-pressed={immersive} onClick={()=>setImmersive(v=>!v)}>{immersive?'몰입 화면 종료 ↙':'전체 화면 몰입 보기 ⤢'}</button>
         <button type="button" onClick={()=>onNavigateToPage('dashboard')}>기존 관제센터로 돌아가기 ↗</button></div>
     </header>
@@ -163,7 +164,7 @@ const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
           <button type="button" disabled={flat||reduced} onClick={()=>setPaused(v=>!v)}>{paused?'모션 재생':'모션 일시정지'}</button>
         </div></div>
         <div className={'nexus-stage'+(flat?' is-flat':'')}>
-          {!flat&&<CoreArt active={active} paused={paused} reduced={reduced}/>}
+          {!flat&&<WebGLNexusCore active={active} paused={paused} reduced={reduced} fallback={<CoreArt active={active} paused={paused} reduced={reduced}/>}/>}
           {!flat&&<svg className="nexus-focus-link" viewBox="0 0 1000 700" preserveAspectRatio="none" aria-hidden="true">
             <path key={selected.index} d={focusPaths[active]} />
           </svg>}
