@@ -103,8 +103,9 @@ function makeShader(gl: WebGLRenderingContext, type: number, source: string): We
 const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback }) => {
   const ref = useRef<HTMLCanvasElement>(null);
   const focus = useRef(active);
+  const repaint = useRef<()=>void>(()=>{});
   const [unavailable, setUnavailable] = useState(false);
-  useEffect(() => { focus.current = active; }, [active]);
+  useEffect(() => { focus.current = active; repaint.current(); }, [active]);
   useEffect(() => {
     if (unavailable) return;
     const canvas = ref.current;
@@ -209,7 +210,7 @@ const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback }) 
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
-        focusValue+=(focus.current-focusValue)*.05;
+        focusValue=paused||reduced ? focus.current : focusValue+(focus.current-focusValue)*.05;
         gl.uniform2f(locSize,canvas.width,canvas.height);
         gl.uniform1f(locRatio,ratio);
         gl.uniform1f(locTime,phase);
@@ -220,6 +221,7 @@ const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback }) 
         gl.drawArrays(gl.POINTS,0,data.length/5);
       };
       let dpr=Math.min(window.devicePixelRatio||1,mobile?1.25:1.6);
+      repaint.current=()=>draw(dpr);
       const tick=(now:number)=>{
         if(disposed||lost||!visible||paused||reduced)return;
         if(now-lastFrame>=33){
@@ -247,6 +249,7 @@ const WebGLNexusCore: React.FC<Props> = ({ active, paused, reduced, fallback }) 
       return ()=>{
         disposed=true;
         document.removeEventListener('visibilitychange',onVisibility);
+        repaint.current=()=>{};
         reset();
       };
     } catch {
