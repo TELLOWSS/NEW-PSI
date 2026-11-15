@@ -76,6 +76,17 @@ Legend: `[x]` implemented/documented with cited evidence; `[ ]` pending; `REVIEW
 - Latest source head before documentation update: `04897ec717936e2d740b09cb5a5f6bee5f720e22`; CI started `43710681128` / `43710681142`, results must be refreshed.
 - These changes **do not** satisfy V01–V07 art sign-off, live data parity, server roles or actual-device benchmarking.
 
+## Iteration 03 · Visual-first immersion and verified screenshots (2026-11-15)
+- Added **fullscreen cinematic presentation mode** using an isolated React portal, with explicit on-screen exit and Escape key. The normal AppShell remains intact; no production Dashboard replacement.
+- In the prototype-only Canvas renderer, selected node has smooth easing and a highlighted **navigation path**, without claiming verified field connection.
+- CI source commit `a349ba39eb340a02d4de1849bcc9c917bb25ffe2`: **release verification PASS** GitHub Actions `43710991301`; **cross-department synthetic browser PASS** `43710991255`. Nexus smoke: **21/21 PASS**, including mobile hero-before-overview, full-screen open, screenshot, Escape exit, Q4 delayed-action meaning, 2D fallback and no horizontal clipping.
+- Real Chromium screenshot artifact: `https://github.com/TELLOWSS/NEW-PSI/actions/runs/43710991255/artifacts/14160815410`; contains `browser/safety-nexus/nexus-390.png`, `nexus-768.png`, `nexus-1440.png`, `nexus-1920.png` and `nexus-immersive-1440.png`.
+- Inspected 1440px immersive and 390px mobile captures in-session. Assessment: immersed desktop layout is more cinematic with central glowing sphere and balanced evidence panel, but current software-projected Canvas still differs from reference video in bloom, particle intensity and camera dynamics. **V01–V07 owner approval is NOT claimed.**
+- Mobile screenshot still showed a duplicate global page heading above the graphic. Fixed by hiding the common PageHeader for `safety-nexus` alone (`config/routeMeta.ts`) and strengthening the visual smoke threshold to `hero.y < 400` at 390px. **Latest header-only revision requires fresh CI/screenshots.**
+- Original video comparison frames independently extracted from the owner-provided 92203.mp4 at **6/12/20/27/35 seconds** in the current conversation. The reference assets are not published or copied to the repo.
+- Safe data view still counts loaded record rows and Q3 self-risk classification only; site/month/official denominator, approval controls and verified action states remain pending.
+- Release remains **BLOCKED** pending visual approval, performance on real devices, data/role audit and explicit user approval. No `main` merge, no production deployment.
+
 ## Current modified files
 - `pages/SafetyNexus.tsx` (new)
 - `pages/SafetyNexus.css` (new)
