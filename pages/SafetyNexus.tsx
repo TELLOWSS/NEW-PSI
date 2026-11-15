@@ -54,7 +54,9 @@ const CoreArt: React.FC<{ active: number; paused: boolean; reduced: boolean }> =
     };
     const draw = () => {
       smoothedFocus += (focusRef.current - smoothedFocus) * .065;
-      const cx=w*.5,cy=h*.50,R=Math.min(w*.255,h*.275,176),t=reduced?0.35:phase;
+      const t=reduced?0.35:phase;
+      const cx=w*.5+Math.sin(t*.34)*w*.009,cy=h*.50+Math.cos(t*.26)*h*.007;
+      const R=Math.min(w*.255,h*.275,176);
       ctx.clearRect(0,0,w,h);
       const halo=ctx.createRadialGradient(cx,cy,R*.06,cx,cy,R*2.2);
       halo.addColorStop(0,'rgba(255,205,116,.29)');halo.addColorStop(.36,'rgba(247,139,55,.075)');
@@ -81,6 +83,17 @@ const CoreArt: React.FC<{ active: number; paused: boolean; reduced: boolean }> =
         const size=1+.035*Math.sin(t*4+p.seed*19),pr=project(pos.x*size,pos.y*size,pos.z*size);
         return {x:pr.x,y:pr.y,z:pos.z,s:(.5+p.seed*1.05)*pr.d,color:p.color};
       }).sort((a,b)=>a.z-b.z);
+      // Software fallback retains a few soft additive highlights without per-particle blur.
+      ctx.save();
+      ctx.globalCompositeOperation='lighter';
+      ctx.shadowBlur=12;
+      sorted.forEach((p,i)=>{
+        if(i%29!==0 || p.z<.05) return;
+        ctx.shadowColor=p.color?'#74e8e2':'#ffc18a';
+        ctx.fillStyle=p.color?'rgba(88,223,227,.32)':'rgba(255,191,106,.35)';
+        ctx.beginPath();ctx.arc(p.x,p.y,p.s*1.7,0,Math.PI*2);ctx.fill();
+      });
+      ctx.restore();
       sorted.forEach(p=>{
         const alpha=(p.z>0?.5:.23)+Math.max(0,p.z)*.37;
         ctx.fillStyle=p.color?'rgba(119,236,236,'+alpha+')':'rgba(255,189,106,'+alpha+')';
