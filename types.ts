@@ -2,6 +2,7 @@ import type { LegacyBackupProvenance } from './utils/legacyBackupMigration';
 
 export type Page =
     'dashboard' | 
+    'safety-nexus' |
     'ocr-analysis' | 
     'education-return' |
     'monthly-guidance-report' |
