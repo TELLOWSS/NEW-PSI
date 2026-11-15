@@ -31,6 +31,13 @@ try {
   check('위험성평가 Q1–Q5 탐색', await root.locator('.nexus-node').count() === 5, '5 nodes');
   check('6대 안전인식 항목 노출', await root.locator('.nexus-metric').count() === 6, '6 metrics');
   check('기본 입자 캔버스', await root.locator('canvas.nexus-core-canvas').count() === 1, 'canvas');
+  const renderer = await root.locator('canvas.nexus-core-canvas').getAttribute('data-renderer') || 'canvas-2d-fallback';
+  check('GPU 렌더러 또는 2D 대체 렌더러', ['webgl','canvas-2d-fallback'].includes(renderer), {renderer});
+  check('후속조치 이력 카드 6종 구분', await root.locator('.nexus-followup-card').count() === 6, 'unresolved, overdue, interim, planned, reopened, evidence verified');
+  check('미확인 현장 범위 필터 비활성화', await root.getByRole('combobox', {name:'현장 인증 범위 미연동'}).isDisabled(), 'site isolation not implemented');
+  check('월·공종 필터 제공', await root.getByRole('combobox', {name:'작성 월 선택'}).count() === 1
+     && await root.getByRole('combobox', {name:'공종 선택'}).count() === 1, 'loaded-record-only selectors');
+  check('현장 범위 인증 미완료 고지', await root.getByText(/현장별 인증 범위는 아직 미연동/).count() === 1, 'transparent trust boundary');
 
   await root.locator('.nexus-node.node-3').click();
   check('선택 노드의 상태 변경', await root.locator('.nexus-node.node-3').getAttribute('aria-pressed') === 'true', 'Q4 selected');
@@ -79,7 +86,7 @@ try {
     pass: checks.every(c => c.passed), passed: checks.filter(c => c.passed).length,
     total: checks.length, checks, failures };
   await writeFile(resolve(output, 'result.json'), JSON.stringify(report, null, 2) + '\n');
-  console.log('[Safety Nexus VG-1] ' + report.passed + '/' + report.total + ' checks passed. Art approval NOT claimed.');
+  console.log('[Safety Nexus VG-2] ' + report.passed + '/' + report.total + ' checks passed. Art approval NOT claimed.');
   if (!report.pass) process.exitCode = 1;
 } finally {
   await browser.close();
