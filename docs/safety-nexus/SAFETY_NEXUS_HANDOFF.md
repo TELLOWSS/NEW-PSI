@@ -87,6 +87,17 @@ Legend: `[x]` implemented/documented with cited evidence; `[ ]` pending; `REVIEW
 - Safe data view still counts loaded record rows and Q3 self-risk classification only; site/month/official denominator, approval controls and verified action states remain pending.
 - Release remains **BLOCKED** pending visual approval, performance on real devices, data/role audit and explicit user approval. No `main` merge, no production deployment.
 
+## Iteration 04 · Final validation of mobile header improvement (2026-11-15)
+- **Code revision under test**: `91819b2aaddbb10bc133c5b10090dab8f016e6a0`, PR #230 remains draft and unmerged.
+- **Release CI PASS**: `https://github.com/TELLOWSS/NEW-PSI/actions/runs/43711514938`.
+- **Full synthetic cross-department CI PASS**: `https://github.com/TELLOWSS/NEW-PSI/actions/runs/43711514992`.
+- **Safety Nexus Chromium smoke PASS 21/21**, screenshot artifact `14161315178`: `https://github.com/TELLOWSS/NEW-PSI/actions/runs/43711514992/artifacts/14161315178`.
+- **Measured 390px first-fold hero top**: previous 422.109375px → now **313.234375px**; `overviewTop=856.53125px`. Real Chromium 390 screenshot reviewed: complete luminous core and 5 interactive nodes visible above mobile bottom navigation.
+- **Immersive mode**: 1440px screenshot reviewed, on-screen exit and Escape verified; ordinary AppShell is preserved.
+- **Residual visual gap**: current 2D Canvas software projection remains softer than source video's stronger glow, richer particle bloom and camera sweep; V01–V07 owner visual approval remains **PENDING**, not simulated by CI.
+- **Residual operational gap**: trusted site/month/trade scoping, official report denominators, action due/recheck state contracts, privileged source authorization, low-end real device and GPU/thermal profiling remain **PENDING**.
+- **Branch strategy**: this documentation-only checkpoint does not change application source; prior code SHA above is the verified reference. Production is unchanged.
+
 ## Current modified files
 - `pages/SafetyNexus.tsx` (new)
 - `pages/SafetyNexus.css` (new)
