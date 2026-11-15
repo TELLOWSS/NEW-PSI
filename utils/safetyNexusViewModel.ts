@@ -54,7 +54,7 @@ export interface SafetyNexusLocalSlice {
 }
 const monthOf = (value: unknown): string => {
   const day = String(value || '').trim();
-  if (!/^\\d{4}-\\d{2}-\\d{2}(?:$|T|\\s)/.test(day)) return '';
+  if (!/^\d{4}-\d{2}-\d{2}(?:$|T|\s)/.test(day)) return '';
   const date = new Date(day.slice(0, 10) + 'T00:00:00.000Z');
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === day.slice(0, 10)
     ? day.slice(0, 7) : '';
