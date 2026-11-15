@@ -18,6 +18,8 @@ const METRICS = [
 
 const CoreArt: React.FC<{ active: number; paused: boolean; reduced: boolean }> = ({ active, paused, reduced }) => {
   const ref = useRef<HTMLCanvasElement>(null);
+  const focusRef = useRef(active);
+  useEffect(() => { focusRef.current = active; }, [active]);
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
@@ -26,6 +28,7 @@ const CoreArt: React.FC<{ active: number; paused: boolean; reduced: boolean }> =
     let raf = 0;
     let last = 0;
     let phase = 0;
+    let smoothedFocus = focusRef.current;
     let visible = document.visibilityState === 'visible';
     let w = 600, h = 540;
     const n = window.matchMedia('(max-width: 700px)').matches ? 680 : 1700;
@@ -46,6 +49,7 @@ const CoreArt: React.FC<{ active: number; paused: boolean; reduced: boolean }> =
       return {x:xx,y:y*Math.cos(ax)-zz*Math.sin(ax),z:y*Math.sin(ax)+zz*Math.cos(ax)};
     };
     const draw = () => {
+      smoothedFocus += (focusRef.current - smoothedFocus) * .065;
       const cx=w*.5,cy=h*.50,R=Math.min(w*.255,h*.275,176),t=reduced?0.35:phase;
       ctx.clearRect(0,0,w,h);
       const halo=ctx.createRadialGradient(cx,cy,R*.06,cx,cy,R*2.2);
@@ -69,7 +73,7 @@ const CoreArt: React.FC<{ active: number; paused: boolean; reduced: boolean }> =
         ctx.fillStyle=ring===2?'#76e6eb':'#ffcf9b';ctx.beginPath();ctx.arc(d.x,d.y,2.3,0,2*Math.PI);ctx.fill();ctx.shadowBlur=0;
       }
       const sorted=points.map(p=>{
-        const pos=rotate(p.x,p.y,p.z,t+active*.065,.27+Math.sin(t*.5)*.18);
+        const pos=rotate(p.x,p.y,p.z,t+smoothedFocus*.085,.27+Math.sin(t*.5)*.18);
         const size=1+.035*Math.sin(t*4+p.seed*19),pr=project(pos.x*size,pos.y*size,pos.z*size);
         return {x:pr.x,y:pr.y,z:pos.z,s:(.5+p.seed*1.05)*pr.d,color:p.color};
       }).sort((a,b)=>a.z-b.z);
@@ -96,17 +100,23 @@ const CoreArt: React.FC<{ active: number; paused: boolean; reduced: boolean }> =
     resize();
     if(!paused&&!reduced&&visible)raf=requestAnimationFrame(tick);
     return ()=>{cancelAnimationFrame(raf);observer.disconnect();document.removeEventListener('visibilitychange',visibility);};
-  },[active,paused,reduced]);
+  },[paused,reduced]);
   return <canvas ref={ref} className="nexus-core-canvas" aria-hidden="true"/>;
 };
 
 const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
   const [active,setActive]=useState(0);
   const [flat,setFlat]=useState(false);
-  const [paused,setPaused]=useState(false);
+  // Keep a high-fidelity still on mobile; motion runs only after an explicit play action.
+  const [paused,setPaused]=useState(()=>typeof window!=='undefined'&&window.matchMedia('(max-width: 700px)').matches);
   const [reduced,setReduced]=useState(()=>typeof window!=='undefined'&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const count=useMemo(()=>workerRecords.length,[workerRecords]);
   const selected=STEPS[active];
+  const focusPaths=[
+    'M500 350 Q355 232 172 120','M500 350 Q635 205 843 112',
+    'M500 350 Q732 345 920 335','M500 350 Q720 533 820 590',
+    'M500 350 Q322 525 160 590'
+  ];
   return <main className="safety-nexus" aria-label="PSI 안전지능 네트워크">
     <div className="nexus-background" aria-hidden="true"/>
     <header className="nexus-header">
@@ -131,6 +141,9 @@ const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
         </div></div>
         <div className={'nexus-stage'+(flat?' is-flat':'')}>
           {!flat&&<CoreArt active={active} paused={paused} reduced={reduced}/>}
+          {!flat&&<svg className="nexus-focus-link" viewBox="0 0 1000 700" preserveAspectRatio="none" aria-hidden="true">
+            <path key={selected.index} d={focusPaths[active]} />
+          </svg>}
           <div className="nexus-core-label" aria-hidden="true"><strong>PSI</strong><small>HUMAN RISK<br/>INTELLIGENCE</small></div>
           {STEPS.map((topic,i)=><button key={topic.index} type="button" className={'nexus-node node-'+i+(active===i?' selected':'')}
             aria-pressed={active===i} onClick={()=>setActive(i)}><b>{topic.index}</b><span>{topic.title}</span></button>)}
@@ -140,7 +153,7 @@ const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
       </section>
       <aside className="nexus-detail">
         <div className="nexus-section-title"><span>02 / SELECTED SIGNAL</span><b>{selected.index} / 05</b></div>
-        <div className="nexus-detail-intro"><span>{selected.en}</span><h2>{selected.title}</h2></div>
+        <div key={selected.index} className="nexus-detail-intro"><span>{selected.en}</span><h2>{selected.title}</h2></div>
         <div className="nexus-detail-pulse" aria-hidden="true"><i/><i/><i/></div>
         <p className="nexus-detail-text">{selected.detail}</p>
         <div className="nexus-detail-notice"><b>!</b><span>시각적 강조는 위험확정 또는 개선완료를 뜻하지 않습니다.</span></div>
