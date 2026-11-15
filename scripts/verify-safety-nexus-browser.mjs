@@ -52,7 +52,7 @@ try {
     if (width === 390) {
       const hero = await root.locator('.nexus-visual').boundingBox();
       const sidebarNote = await root.locator('.nexus-aside').boundingBox();
-      check('390px 첫 화면에 코어 우선 노출', Boolean(hero && sidebarNote && hero.y < sidebarNote.y && hero.y < 500),
+      check('390px 첫 화면에 코어 우선 노출', Boolean(hero && sidebarNote && hero.y < sidebarNote.y && hero.y < 400),
         { heroTop: hero?.y, overviewTop: sidebarNote?.y });
     }
     if ([390, 768, 1440, 1920].includes(width)) {
