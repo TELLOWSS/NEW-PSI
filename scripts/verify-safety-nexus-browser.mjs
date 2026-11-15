@@ -131,6 +131,9 @@ try {
   check('움직임 축소 옵션', await root.locator('.nexus-footer input[type="checkbox"]').isChecked(), 'reduced motion');
   const stoppedEffect = await root.locator('.nexus-focus-link path').evaluate(el => getComputedStyle(el).animationName);
   check('앱 설정으로 CSS 궤도 움직임까지 중단', stoppedEffect === 'none', { animationName: stoppedEffect });
+  check('모션 축소에서는 12초 시네마틱 재생 차단',
+    await root.getByRole('button',{name:'12초 시네마틱 보기'}).isDisabled(),
+    'reduced-motion accessibility gate');
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await root.getByRole('button', { name: /안전조치 현황 열기/ }).click();
