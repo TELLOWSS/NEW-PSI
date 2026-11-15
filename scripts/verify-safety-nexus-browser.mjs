@@ -59,6 +59,13 @@ try {
       await page.screenshot({ path: resolve(output, 'nexus-' + width + '.png'), fullPage: true });
     }
   }
+  await page.setViewportSize({ width: 1440, height: 960 });
+  await root.getByRole('button', { name: /전체 화면 몰입 보기/ }).click();
+  check('시네마틱 몰입 보기', await root.evaluate(el => el.classList.contains('is-immersive') && getComputedStyle(el).position === 'fixed'), 'fullscreen portal');
+  await page.screenshot({ path: resolve(output, 'nexus-immersive-1440.png'), fullPage: false });
+  await page.keyboard.press('Escape');
+  check('Escape로 몰입 보기 종료', await root.evaluate(el => !el.classList.contains('is-immersive')), 'safe return to shell');
+
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.locator('.nexus-footer input[type="checkbox"]').check();
   check('움직임 축소 옵션', await root.locator('.nexus-footer input[type="checkbox"]').isChecked(), 'reduced motion');
