@@ -130,6 +130,41 @@ Legend: `[x]` implemented/documented with cited evidence; `[ ]` pending; `REVIEW
 3. Add forced-GPU-failure test, mobile actual-device FPS/thermal budget, 10-second camera motion clip and direct reference comparison.
 4. Ask owner to approve visual gates V01–V07, then complete independent release gates. Do not merge/deploy before explicit approval.
 
+## Iteration 06 · Staging site scope + GPU failure and reinspection QA · 2026-11-15
+
+**Verified application source HEAD:** `5016369481e53b4ef4805ab3a57c79da5a48ffde` (before this documentation-only commit).
+
+### Implementation and evidence
+- [x] **GPU unavailable fallback browser simulation:** `scripts/verify-safety-nexus-browser.mjs` now forces the WebGL context creation API to return null on a separate real Chromium page, captures `nexus-forced-canvas-fallback-390.png`, and checks Q5 remains interactive.
+- [x] **Synthetic GPU context loss** triggers 2D fallback and checks for script errors. This does **not** prove physical GPU recovery after system context restoration.
+- [x] **Reduced-motion toggle** disables both Canvas/WebGL motion and CSS orbital/panel animations even without OS motion-reduction settings. UI root now exposes `data-reduced-motion`.
+- [x] **Staging-only site-scoped anonymous aggregate SQL** in `supabase/proposals/psi_nexus_site_aggregate_staging.sql`. Read-only grants to authenticated site members; **no client write grants**. Requires active tenant membership, active site membership and active site.
+- [x] Six `PGlite` cases in `tests/nexusSiteAggregateScope.test.ts` passed for cross-site/tenant isolation, same site+month+trade+cutoff denominator, suspension revocation, blocked client INSERT/UPDATE/DELETE and impossible totals/reconciliation.
+- [x] Follow-up and practice/recheck views now share **the exact same loaded record date/trade filter**, via `filterLoadedNexusRecords()` in `utils/safetyNexusViewModel.ts`. No worker names or personal content flow into aggregated UI.
+- [x] NEW-PSI existing `buildPracticeVerificationSummary()` reused to display **five independent** signals: education delivered, field observation, recheck events, latest field recheck need, overdue recheck need. No inference of corrective-action closure or work restart.
+- [x] Extra unit tests and smoke assertions for filter precision and recheck/education boundary.
+
+### CI results (verified)
+- [x] **Release CI PASS**: `https://github.com/TELLOWSS/NEW-PSI/actions/runs/43720312705` — includes `nexusSiteAggregateScope.test.ts` **6/6 PASS**.
+- [x] **Cross-department CI PASS**: `https://github.com/TELLOWSS/NEW-PSI/actions/runs/43720312702` — existing product suite **10/10**, NEXUS focused Chromium **35/35 PASS**, error-free.
+- [x] Screenshot/QA artifact `14164415996`: `https://github.com/TELLOWSS/NEW-PSI/actions/runs/43720312702/artifacts/14164415996`.
+- [x] Actually viewed screenshot `nexus-immersive-1440.png`, `nexus-390.png` and `nexus-forced-canvas-fallback-390.png`. Fallback core and five Q nodes visually present on 390px. No visual V01–V07 approval asserted.
+- [x] Actual 390px hero top **297.734375px**, no sideways overflow, overexposed pixel ratio `0.0008711329273096385` (< `0.09` automated threshold).
+
+### Critical boundaries NOT cleared
+- [ ] **Live site authorization is NOT implemented for general WorkerRecord or follow-up histories.** The new SQL is purely `supabase/proposals` with synthetic test data, not a migration and not an authorized production API.
+- [ ] **Official report denominator parity is NOT proven.** A staging CHECK constraint validates internal arithmetic and requires matching values when a reconciliation field is set, but cannot establish where an official report denominator came from. Independently verified source+cutoff+server-side write provenance is still required.
+- [ ] Cross-site assignments, source evidence reads, anonymous aggregation and clearance of recheck closure must pass server-side authorization and owner-approved migration. Do not enable the site selector prematurely.
+- [ ] Physical low-end Android/iOS GPU context loss and sustained FPS/heat; >=10 second side-by-side comparison to original 92203.mp4; visual owner V01–V07 approval.
+- [ ] `main` merge, Vercel preview/Production release, DB schema activation and live worker migration: **NOT AUTHORIZED**.
+
+### Next ordered tasks
+1. Design authorization-backed site aggregate **read API** that derives tenant, user and site memberships server-side; do not accept client-provided role authorization.
+2. Tie independently verified source record IDs, site assignments, report denominator definitions, cutoff and reviewer signoff into a deliberate versioned write pipeline; test no cross-site leakage or backfill guessing.
+3. Introduce audited site-scoped follow-up and recheck state read models, keeping local/temporary controls distinct from manager-approved closure.
+4. Add true physical-device performance and GPU loss/recovery checks, 10s camera/lighting motion capture, and human art review.
+5. Maintain draft PR until the owner specifically approves release; never silently apply staging SQL to production.
+
 ## Current modified files
 - `pages/SafetyNexus.tsx` (new)
 - `pages/SafetyNexus.css` (new)
@@ -147,9 +182,9 @@ Legend: `[x]` implemented/documented with cited evidence; `[ ]` pending; `REVIEW
 - `tests/safetyNexusViewModel.test.ts` (pure unit tests)
 
 ## Next strictly ordered work
-1. Pull latest branch head and verify latest release + full Chromium CI; if failed, inspect the exact job log and fix without weakening tests. A previous SHA's pass is not the latest SHA's result.
+1. Verify the latest source HEAD and read Iteration 06 evidence above; code SHA `501636948` passed CI. Documentation-only commits require separate status check.
 2. Retrieve latest CI screenshot artifact (especially 390px hero above-fold and 1440px core), inspect for actual visual quality and overlap, then compare with owner's video.
-3. Continue visual refinement from native GPU volumetric bloom VG-5; measure a 10-second source comparison and profile real low-end hardware. This is not yet owner-approved cinematic equivalence.
+3. Prioritize real authenticated site-scope read API and official report denominator parity; staging table and simulated RLS tests are NOT live authorization.
 4. Audit data semantics, introduce view model and 2D operational states; add tests.
 5. Update this handoff after EVERY increment, including actual SHA, checks, evidence, blockers.
 6. Present actual comparison to owner; no production merge.
