@@ -121,20 +121,25 @@ export default async function tenantNexusSiteRead(req:any,res:any) {
     if(Object.keys(query).some(key=>!QUERY_KEYS.has(key)))return invalid();
     const mode=query.mode===undefined?'aggregate':singleText(query.mode,15);
     if(mode!=='sites' && mode!=='aggregate')return invalid();
+    // Validate the complete untrusted query BEFORE contacting identity or database.
+    if(mode==='sites' && Object.keys(query).some(key=>!['resource','mode'].includes(key)))return invalid();
+    const filter=mode==='aggregate'?(()=>{
+      const siteId=singleText(query.siteId,36);
+      if(!UUID.test(siteId))return invalid();
+      const month=singleText(query.month,7);
+      if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || month<'2000-01'||month>'2100-12')return invalid();
+      const trade=singleText(query.trade,120);
+      const cutoffAt=readCutoff(query.cutoffAt);
+      return {siteId,month,trade,cutoffAt};
+    })():null;
     const context=await requireTenantContext(req);
     const sites=await authorizedSites(context);
     if(mode==='sites'){
-      if(Object.keys(query).some(key=>!['resource','mode'].includes(key)))return invalid();
       return res.status(200).json({ok:true,scope:'SERVER_AUTHENTICATED_SITE_MEMBERSHIP',
         sites,sourceReady:true,recordsRead:false,officialReportVerified:false});
     }
-    const siteId=singleText(query.siteId,36);
-    if(!UUID.test(siteId))return invalid();
-    const month=singleText(query.month,7);
-    if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || month<'2000-01'||month>'2100-12')return invalid();
-    const trade=singleText(query.trade,120);
-    if(trade.length>120 || trade.length<1)return invalid();
-    const cutoffAt=readCutoff(query.cutoffAt);
+    if(!filter)return invalid();
+    const {siteId,month,trade,cutoffAt}=filter;
     if(!sites.some(site=>site.id===siteId)) throw new TenantAccessError(403,'NEXUS_SITE_FORBIDDEN','해당 현장 조회 권한이 없습니다.');
     const {data,error}=await context.client.from('psi_nexus_site_aggregate_staging')
       .select(COLUMNS).eq('tenant_id',context.tenantId).eq('site_id',siteId)
