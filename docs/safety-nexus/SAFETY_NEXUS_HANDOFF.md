@@ -243,6 +243,51 @@ Legend: `[x]` implemented/documented with cited evidence; `[ ]` pending; `REVIEW
 4. Reconcile against both official assessment-record denominator and separately defined unique-participant denominator when the official original supports each, with mismatch reason codes and audit receipts.
 5. Only then consider site-selector activation, live report parity tests, mobile/device load and visual signoff; keep Draft PR and production blocked.
 
+## Iteration 09 · Video-reference art audit and real GPU cinematic QA · 2026-11-16 KST
+
+**VERDICT: VISUAL IMPLEMENTATION ADVANCED, ART NOT COMPLETE; V07 OWNER APPROVAL PENDING.**
+**Verified application source SHA:** `fda49654ca4996850f771e2c804aa30ef35d131d` (subsequent commits update docs only).
+
+### Exact owner assets checked
+- [x] Reopened and directly reviewed `92203.mp4` (44.301144 s, 1080 × 2340 portrait capture), frames at ~2, 6, 12, 20, 28, 35 seconds; and exact original `NEW_PSI_SAFETY_NEXUS_비주얼혁신_기획서_V1.1_영상급디자인보강.docx`, including sections 09–10, element criteria, 12s storyboard and art gates V01–V07.
+- [x] Compared directly against existing desktop immersive 1440x960 and mobile 390x900 Chromium screenshots; produced a local user-facing original/implementation comparison image in the current conversation (not checked into GitHub due outside branding/source restrictions).
+- [x] Permanent detailed verdict: `docs/safety-nexus/SAFETY_NEXUS_VISUAL_GATE_AUDIT_20261116.md`.
+
+### Visual features actually implemented and verified
+- [x] Native WebGL sphere (shell+interior), perspective, warm-gold/turquoise shading, several independent orbit planes and 2-pass additive bloom, Canvas fallback.
+- [x] **Opt-in** 12-second cinematic replay with staged particle formation, ring appearance, camera sweep/dolly and animated ring tracer; **12초 연출 중단** control; end returns to existing interaction and leaves all safety data unchanged.
+- [x] Ordinary first render is available immediately; no waiting on an intro or live data polling. Reduced-motion and 2D alternatives remain enabled; cinematic replay is disabled for reduced-motion preference.
+- [x] Actual Chromium script captures 0/3/6/10s stage screenshots AND a continuous `nexus-cinematic-12s.webm` (actual file 15.44s includes navigation and the 12s sequence). Visual quality comparison remains a HUMAN gate.
+- [x] Found critical hidden regression: older browser smoke accepted 2D fallback as visually sufficient and reported 43/43 even while a shader ring variable was out of scope. Corrected shader scoping and made animated orbit tracer index continuous. **New visual browser check fails unless normal Chromium uses actual `renderer=webgl`.** Dedicated GPU-denied 2D usability test stays separate.
+
+### Latest QA, source commit `fda49654...`
+- [x] Release CI PASS: https://github.com/TELLOWSS/NEW-PSI/actions/runs/43755965841
+- [x] Cross-department browser CI PASS: https://github.com/TELLOWSS/NEW-PSI/actions/runs/43755965810 — overall 10/10 product, Safety Nexus focused **44/44**, actual WebGL confirmed in result.json.
+- [x] Evidence ZIP/frames/continuous WebM: https://github.com/TELLOWSS/NEW-PSI/actions/runs/43755965810/artifacts/14178980175
+- [x] 390px visual first-fold top 297.734375px; no horizontal overflow; measured overexposed white-pixel ratio 0.0009999 against 0.09 gate. Actual desktop + mobile screenshots opened and manually inspected.
+- [ ] Physical low-end Android/iOS FPS/GPU/heat and camera performance still NOT measured.
+
+### Art V01–V07 current gate status (never infer approval from CI)
+- **V01**: WebGL particle depth implemented and visibly verified; owner aesthetics **PENDING**.
+- **V02**: multi-plane orbit, tracer and GPU geometry implemented; wider orbital sweeps/anchor brightness versus original still **needs artistic tuning**.
+- **V03**: glow readability and font contrast pass synthetic QA, but source-grade layered lighting/peripheral HUD still **PARTIAL**.
+- **V04**: user-triggered 12s cinematic/camera sequence implemented and operationally tested; no real server-approved risk state driving animation yet, so **PARTIAL**.
+- **V05**: actual 10+ second browser clip produced; **matched video-to-video owner review NOT DONE**, remains **PENDING**.
+- **V06**: browser responsive/reduced-motion/2D access tested; real Android/iPhone devices not tested, **PARTIAL**.
+- **V07**: explicit owner video-grade art acceptance **NOT RECEIVED**.
+- IMPORTANT: no invented overall design-completion percentage; V01–V07 are independently gated.
+
+### Other release blockers unchanged
+- [ ] Authoritative WorkerRecord site_id + source-commit lineage, independently signed official report intake/reviewer acceptance, true tenant/site RLS path and approved action/reinspection state are **NOT PRODUCTION READY**. Iteration 08 applies.
+- [ ] No `main` merge, Vercel production deployment, DB migrations, live flag activation, privileged access grants or WorkerRecord backfill.
+
+### Next strictly ordered work
+1. Refine ring scale and moving anchors to better match original outer-sweep geometry while maintaining PSI branding and clear data-status semantics.
+2. Complete a real **video-to-video** source/time-synchronized visual review (original source may not be committed to repo) and obtain owner visual feedback V01–V07.
+3. Profile low-end Android and iPhone actual FPS, brightness, thermal and fallback/recovery. Keep 2D option.
+4. In parallel for operational release: authorized source adapter and independently signed official denominator lineage from Iteration 08, then manager/reinspection approval and server-enforced site scope.
+5. Keep PR #230 **DRAFT** until all required owner-approved gates are satisfied. No production changes.
+
 ## Current modified files
 - `pages/SafetyNexus.tsx` (new)
 - `pages/SafetyNexus.css` (new)
@@ -262,6 +307,9 @@ Legend: `[x]` implemented/documented with cited evidence; `[ ]` pending; `REVIEW
 - `tests/nexusSourceProvenance.test.ts` (14 deterministic source/report lineage tests)
 - `supabase/proposals/psi_nexus_report_provenance_staging.sql` (unapplied immutable RLS receipt proposal)
 - `tests/nexusReportProvenanceSql.test.ts` (6 synthetic cross-site/immutability tests)
+- `docs/safety-nexus/SAFETY_NEXUS_VISUAL_GATE_AUDIT_20261116.md` (actual-source V01–V07 audit)
+- `pages/NexusWebGLCore.tsx` (12-second opt-in GPU scene and restored orbital tracer)
+- `scripts/verify-safety-nexus-browser.mjs` (44-check GPU-only cinematic art smoke plus actual WebM)
 - `lib/server/tenantNexusSiteRead.ts` (sourceReady false until backend activation)
 
 ## Next strictly ordered work
