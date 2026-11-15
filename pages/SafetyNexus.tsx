@@ -198,6 +198,11 @@ const SafetyNexus:React.FC<Props>=({workerRecords,onNavigateToPage})=>{
         </div></div>
         <div className={'nexus-stage'+(flat?' is-flat':'')}>
           {!flat&&<WebGLNexusCore active={active} paused={paused} reduced={reduced} fallback={<CoreArt active={active} paused={paused} reduced={reduced}/>}/>}
+          {!flat&&<div className="nexus-nucleus" aria-hidden="true"/>}
+          {!flat&&<svg className="nexus-hud-orbits" viewBox="0 0 1000 700" preserveAspectRatio="none" aria-hidden="true">
+            <ellipse cx="500" cy="350" rx="330" ry="130" transform="rotate(-31 500 350)"/>
+            <ellipse cx="500" cy="350" rx="280" ry="100" transform="rotate(57 500 350)"/>
+          </svg>}
           {!flat&&<svg className="nexus-focus-link" viewBox="0 0 1000 700" preserveAspectRatio="none" aria-hidden="true">
             <path key={selected.index} d={focusPaths[active]} />
           </svg>}
