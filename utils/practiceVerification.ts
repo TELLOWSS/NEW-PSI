@@ -117,8 +117,48 @@ export interface PracticeVerificationSummary {
     needsFieldRecheck: number;
     overdueFieldRecheck: number;
     rechecked: number;
+    conflictingRecords: number;
     educationFocus: string[];
 }
+
+export const collectPracticeRecheckCases = (record: WorkerRecord, entries: readonly WorkerPracticeVerificationEvent[], asOfDate: string) =>
+    [1, 2, 3, 4, 5].flatMap(question => {
+        const latest = [...entries].reverse().find(entry => entry.questionNumber === question && (entry.stage === 'field_check' || entry.stage === 'recheck'));
+        if (!latest || !['correction_required', 'unable_to_verify'].includes(latest.result)) return [];
+        const dueDate = String(latest.nextCheckDueDate || '');
+        return [{ recordId: record.id, question, latest, overdue: validDay(dueDate) && dueDate < asOfDate }];
+    });
+
+const groupPracticeRecords = (records: readonly WorkerRecord[], asOfDate: string, workType?: string) => {
+    const groups = new Map<string, { record: WorkerRecord; events: Map<string, WorkerPracticeVerificationEvent>; conflict: boolean }>();
+    for (const record of records) {
+        if (workType && workType !== '전체 공종' && workType !== record.jobField) continue;
+        if (!record.id) continue;
+        const assessmentDate = String(record.date || '').slice(0, 10);
+        if (validDay(assessmentDate) && assessmentDate > asOfDate) continue;
+        const group = groups.get(record.id) || { record, events: new Map<string, WorkerPracticeVerificationEvent>(), conflict: false };
+        for (const entry of record.practiceVerificationEvents || []) {
+            const day = entry?.timestamp ? koreaDay(entry.timestamp) : '';
+            if (!entry?.id || !day || day > asOfDate) continue;
+            const prior=group.events.get(entry.id);
+            if (!prior) group.events.set(entry.id, entry);
+            else {
+                const keys = new Set([...Object.keys(prior), ...Object.keys(entry)]);
+                if ([...keys].some(key => prior[key as keyof WorkerPracticeVerificationEvent] !== entry[key as keyof WorkerPracticeVerificationEvent])) group.conflict=true;
+            }
+        }
+        groups.set(record.id, group);
+    }
+    return [...groups.values()].map(({record,events,conflict}) => ({ record, conflict,
+        entries:[...events.values()].sort((a,b)=>a.timestamp.localeCompare(b.timestamp) || a.id.localeCompare(b.id)) }));
+};
+
+export const collectOverduePracticeRechecks = (records: readonly WorkerRecord[], asOfDate: string) => {
+    return groupPracticeRecords(records,asOfDate).flatMap(({record,entries,conflict}) => {
+        if (conflict) return [];
+        return collectPracticeRecheckCases(record, entries, asOfDate).filter(item=>item.overdue);
+    });
+};
 
 export const buildPracticeVerificationSummary = (
     records: readonly WorkerRecord[],
@@ -132,23 +172,12 @@ export const buildPracticeVerificationSummary = (
         asOfDate, periodStartDate,
         educationDelivered: 0, understandingConfirmed: 0, understandingNeedsHelp: 0,
         fieldObserved: 0, fieldPositiveObservation: 0, needsFieldRecheck: 0,
-        overdueFieldRecheck: 0, rechecked: 0, educationFocus: [],
+        overdueFieldRecheck: 0, rechecked: 0, conflictingRecords: 0, educationFocus: [],
     };
     // One row per document, not one row per event; no personal fields are copied out.
-    const seenRecords = new Set<string>();
     const needsByQuestion = new Map<number, { cases: number; overdue: number }>();
-    for (const record of records) {
-        if (options.workType && options.workType !== '전체 공종' && options.workType !== record.jobField) continue;
-        if (!record.id || seenRecords.has(record.id)) continue;
-        seenRecords.add(record.id);
-        const assessmentDate = String(record.date || '').slice(0, 10);
-        if (validDay(assessmentDate) && assessmentDate > asOfDate) continue;
-        const eventsById = new Map<string, WorkerPracticeVerificationEvent>();
-        for (const entry of record.practiceVerificationEvents || []) {
-            if (!entry?.id || !koreaDay(entry.timestamp) || koreaDay(entry.timestamp) > asOfDate) continue;
-            if (!eventsById.has(entry.id)) eventsById.set(entry.id, entry);
-        }
-        const entries = [...eventsById.values()].sort((a, b) => a.timestamp.localeCompare(b.timestamp) || a.id.localeCompare(b.id));
+    for (const {record,entries,conflict} of groupPracticeRecords(records,asOfDate,options.workType)) {
+        if (conflict) { result.conflictingRecords++; continue; }
         const inWindow = (event: WorkerPracticeVerificationEvent) => !periodStartDate || koreaDay(event.timestamp) >= periodStartDate;
         result.educationDelivered += entries.filter(x => inWindow(x) && x.stage === 'education').length;
         result.understandingConfirmed += entries.filter(x => inWindow(x) && x.stage === 'understanding' && x.result === 'understood').length;
@@ -156,13 +185,8 @@ export const buildPracticeVerificationSummary = (
         result.fieldObserved += entries.filter(x => inWindow(x) && x.stage === 'field_check').length;
         result.fieldPositiveObservation += entries.filter(x => inWindow(x) && x.result === 'observed_safe').length;
         result.rechecked += entries.filter(x => inWindow(x) && x.stage === 'recheck').length;
-        for (const q of [1, 2, 3, 4, 5]) {
-            const latest = [...entries].reverse().find(x =>
-                x.questionNumber === q && (x.stage === 'field_check' || x.stage === 'recheck')
-            );
-            if (!latest || !['correction_required', 'unable_to_verify'].includes(latest.result)) continue;
+        for (const { question: q, overdue } of collectPracticeRecheckCases(record, entries, asOfDate)) {
             result.needsFieldRecheck++;
-            const overdue = validDay(String(latest.nextCheckDueDate || '')) && String(latest.nextCheckDueDate) < asOfDate;
             if (overdue) result.overdueFieldRecheck++;
             const row = needsByQuestion.get(q) || { cases: 0, overdue: 0 };
             row.cases++;
@@ -179,10 +203,11 @@ export const buildPracticeVerificationSummary = (
 };
 
 export const formatPracticeVerificationEducationLines = (summary: PracticeVerificationSummary): string[] => {
-    if (!summary.educationDelivered && !summary.fieldObserved && !summary.needsFieldRecheck
+    if (!summary.conflictingRecords && !summary.educationDelivered && !summary.fieldObserved && !summary.needsFieldRecheck
         && !summary.rechecked && !summary.understandingConfirmed && !summary.understandingNeedsHelp) return [];
     return [
         '[PSI 교육 후 실천 확인 · 기준일 ' + summary.asOfDate + ']',
+        ...(summary.conflictingRecords ? ['동일 이력의 내용이 충돌하는 기록 ' + summary.conflictingRecords + '건은 집계에서 제외했으며 원본 확인이 필요합니다.'] : []),
         '교육 전달 기록 ' + summary.educationDelivered + '회 / 이해 확인 ' + summary.understandingConfirmed
           + '회 / 현장 관찰 ' + summary.fieldObserved + '회 / 현장 재점검 ' + summary.rechecked + '회.',
         '현장 재확인 필요 ' + summary.needsFieldRecheck + '개 문항·기록 (기한 초과 ' + summary.overdueFieldRecheck + '개).',

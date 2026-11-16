@@ -63,7 +63,7 @@ describe('PSI R107–R110 photo-to-report clarity and hard safety boundaries', (
     });
 
     it('hides only screen-level detailed evidence, never the full print evidence or photos', () => {
-        const css = readFileSync('components/inspector/inspector-quick.css', 'utf8');
+        const css = readFileSync('components/inspector/inspector-quick.css', 'utf8').replace(/\r\n/g, '\n');
         expect(css).toContain('@media screen {\n  .si-report-mode-brief .si-report-full-only{display:none!important}');
         expect(css).toContain('@media print {\n  .si-report-view-controls,.si-report-field-brief{display:none!important}');
         expect(css).toContain('.si-report .si-report-full-only{display:block!important}');

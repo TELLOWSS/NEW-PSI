@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Page, SafetyCheckRecord, WorkerRecord } from '../../types';
+import { nexusFeatureFlags } from '../../config/nexusFeatureFlags';
 import { calculateCoreMetricSnapshot, isOperationalWorkerRecord } from '../../utils/coreMetrics';
 import { useAssessmentCycle } from '../../hooks/useAssessmentCycle';
 import { resolveAssessmentPeriod } from '../../utils/assessmentCycle';
@@ -19,9 +20,13 @@ interface PrecisionOperationsBoardProps {
     safetyCheckRecords: SafetyCheckRecord[];
     setCurrentPage: (page: Page) => void;
     onOpenAdvanced: () => void;
+    onOpenNexus?: (trade: string, view: OperationsViewState) => void;
+    initialTrade?: string;
+    initialView?: OperationsViewState | null;
 }
 
 type PeriodFilter = 'all' | 'cycle' | '7' | '30';
+export type OperationsViewState = { period: PeriodFilter; trend: TrendGranularity };
 
 const OPS_TONE_CLASSES: Record<OperationsQueueTone, {
     kpi: string;
@@ -104,11 +109,14 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
     safetyCheckRecords,
     setCurrentPage,
     onOpenAdvanced,
+    onOpenNexus,
+    initialTrade,
+    initialView,
 }) => {
     const { cycle, copy: cycleCopy } = useAssessmentCycle();
-    const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('cycle');
-    const [tradeFilter, setTradeFilter] = useState('all');
-    const [trendPeriod, setTrendPeriod] = useState<TrendGranularity>('monthly');
+    const [periodFilter, setPeriodFilter] = useState<PeriodFilter>(initialView?.period ?? 'cycle');
+    const [tradeFilter, setTradeFilter] = useState(initialTrade || 'all');
+    const [trendPeriod, setTrendPeriod] = useState<TrendGranularity>(initialView?.trend ?? 'monthly');
     const protectionPriorityThreshold = getSafetyLevelThresholds().intermediateMin;
 
     const operationalRecords = useMemo(
@@ -344,6 +352,7 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                         <span>공종</span>
                         <select value={tradeFilter} onChange={(event) => setTradeFilter(event.target.value)}>
                             <option value="all">전체 공종</option>
+                            {tradeFilter !== 'all' && !tradeOptions.includes(tradeFilter) && <option value={tradeFilter}>{tradeFilter} · 현재 기록 없음</option>}
                             {tradeOptions.map((trade) => <option key={trade} value={trade}>{trade}</option>)}
                         </select>
                     </label>
@@ -385,6 +394,8 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                         </button>
                     ))}
                 </div>
+                {nexusFeatureFlags.uiEnabled && <button type="button" className="psi-ops-text-action" onClick={() => onOpenNexus ? onOpenNexus(tradeFilter === 'all' ? '' : tradeFilter, {period:periodFilter,trend:trendPeriod}) : setCurrentPage('safety-nexus')}>안전지능 연결 보기 · 시제품</button>}
+                <p className="psi-ops-route-note">선택한 공종을 전달합니다. 기간은 안전지능 화면에서 다시 선택해 주세요.</p>
                 <p className="psi-ops-route-note">AI 분석·인계·상태 표시는 검토를 돕는 정보입니다. 현장 위험 해소나 작업 재개를 자동 승인하지 않습니다.</p>
             </section>
 

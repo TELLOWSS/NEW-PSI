@@ -1,4 +1,5 @@
 import type { Page } from '../types';
+import { nexusFeatureFlags } from '../config/nexusFeatureFlags';
 
 export type OperationalMode = 'immediate' | 'standard' | 'developer';
 
@@ -68,6 +69,7 @@ export const cycleOperationalMode = (): OperationalMode => {
 };
 
 export const isPageVisibleByOperationalMode = (page: Page, mode: OperationalMode): boolean => {
+    if (page === 'safety-nexus' && !nexusFeatureFlags.uiEnabled) return false;
     if (mode === 'developer' || mode === 'standard') return true;
     return IMMEDIATE_VISIBLE_PAGES.has(page);
 };

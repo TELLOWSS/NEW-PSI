@@ -98,6 +98,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const [isDark, setIsDark] = useState(() => getResolvedTheme(getStoredTheme()) === 'dark');
     const [showScrollTop, setShowScrollTop] = useState(false);
     const mainRef = useRef<HTMLElement>(null);
+    const navigationScroll = useRef(new Map<Page, number>());
+    const restoringScroll = useRef(false);
     const operatorMenuRef = useRef<HTMLDetailsElement>(null);
     const mobileMenuDialogRef = useRef<HTMLDivElement>(null);
     const mobileMenuPreviousFocusRef = useRef<HTMLElement | null>(null);
@@ -199,6 +201,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const activeMobileTab = (Object.entries(filteredMobilePageGroups).find(([, pages]) => pages.includes(currentPage))?.[0] as MobileTabId | undefined) ?? 'home';
 
     const handlePageChange = (page: Page) => {
+        if (currentPage === 'dashboard' || currentPage === 'safety-nexus') {
+            navigationScroll.current.set(currentPage, mainRef.current?.scrollTop || 0);
+        }
         setCurrentPage(page);
         setIsMobileMenuOpen(false); // Close mobile menu on navigation
     };
@@ -430,16 +435,37 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     useEffect(() => {
         const el = mainRef.current;
         if (!el) return;
-        const onScroll = () => setShowScrollTop(el.scrollTop > 250);
+        const onScroll = () => {
+            setShowScrollTop(el.scrollTop > 250);
+        };
         el.addEventListener('scroll', onScroll, { passive: true });
         return () => el.removeEventListener('scroll', onScroll);
-    }, []);
+    }, [currentPage]);
 
     useEffect(() => {
         const main = mainRef.current;
         if (!main) return;
-        main.scrollTo({ top: 0 });
+        const target = navigationScroll.current.get(currentPage) || 0;
+        restoringScroll.current = true;
+        // Lazy page content may arrive after the shell. Retry on DOM arrival, never in a draw loop.
+        let observer: MutationObserver | undefined;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const finish = () => { restoringScroll.current = false; observer?.disconnect(); if (timer) clearTimeout(timer); };
+        const restore = () => {
+            if (main.scrollHeight - main.clientHeight < target) return;
+            main.scrollTo({ top: target, behavior: 'instant' });
+            finish();
+        };
+        observer = new MutationObserver(restore);
+        observer.observe(main, { childList: true, subtree: true });
+        timer = setTimeout(() => { main.scrollTo({ top: target, behavior: 'instant' }); finish(); }, 3000);
+        restore();
         main.focus({ preventScroll: true });
+        const cancel = () => finish();
+        main.addEventListener('wheel', cancel, { passive: true });
+        main.addEventListener('touchstart', cancel, { passive: true });
+        main.addEventListener('keydown', cancel);
+        return () => { finish(); main.removeEventListener('wheel', cancel); main.removeEventListener('touchstart', cancel); main.removeEventListener('keydown', cancel); };
     }, [currentPage]);
 
     useEffect(() => {
@@ -631,6 +657,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                 <main
                     id="psi-main-content"
                     ref={mainRef}
+                    onClickCapture={() => {
+                        if (currentPage === 'dashboard' || currentPage === 'safety-nexus') {
+                            navigationScroll.current.set(currentPage, mainRef.current?.scrollTop || 0);
+                        }
+                    }}
                     tabIndex={-1}
                     className={`relative flex-1 overflow-y-auto p-3 outline-none ${currentPage === 'dashboard' ? 'pb-24 sm:p-4 sm:pb-24 md:p-4 lg:px-6 lg:py-4 lg:pb-12' : 'pb-24 sm:p-4 md:p-6 lg:p-8 lg:pb-12'}`}
                 >

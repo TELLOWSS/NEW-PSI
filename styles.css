@@ -1295,6 +1295,13 @@
         background: var(--psi-info-soft);
     }
 
+    .psi-ops-field-route .psi-ops-text-action {
+        min-height: 48px;
+        margin-top: 8px;
+        padding: 8px 12px;
+        font-size: 0.875rem;
+    }
+
     .psi-ops-panel-unit {
         color: var(--psi-text-subtle);
         font-size: 0.64rem;

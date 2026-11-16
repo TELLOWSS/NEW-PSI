@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, Component, Suspense, lazy, type ReactNode, type ErrorInfo } from 'react';
 import { preserveEvidenceText } from './utils/evidenceText';
+import type { NexusViewState } from './pages/SafetyNexus';
+import type { OperationsViewState } from './components/dashboard/PrecisionOperationsBoard';
 import { Layout } from './components/Layout';
 import { AdminLockScreen } from './components/AdminLockScreen';
 import { Spinner } from './components/Spinner';
@@ -664,6 +666,10 @@ const App: React.FC = () => {
     const [adminUnlockError, setAdminUnlockError] = useState('');
     const [isUnlockSubmitting, setIsUnlockSubmitting] = useState(false);
     const [workerRecords, setWorkerRecords] = useState<WorkerRecord[]>([]);
+    const [nexusInitialTrade, setNexusInitialTrade] = useState('');
+    const [nexusView, setNexusView] = useState<NexusViewState|null>(null);
+    const [dashboardReturnTrade, setDashboardReturnTrade] = useState('');
+    const [dashboardView, setDashboardView] = useState<OperationsViewState|null>(null);
     const [workerRecordsLoadState, setWorkerRecordsLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
     const [safetyCheckRecords, setSafetyCheckRecords] = useState<SafetyCheckRecord[]>([]);
     const [storageNotice, setStorageNotice] = useState('');
@@ -774,6 +780,8 @@ const App: React.FC = () => {
     }, [currentPage, operationalMode, uiAudienceMode, isWorkerKioskMode, safetyTrainingHandoffOpen]);
 
     const navigateToPage = useCallback((page: Page) => {
+        setNexusInitialTrade('');
+        setDashboardReturnTrade('');
         setSafetyTrainingHandoffOpen(false);
         const resolvedPage: Page = page === 'ppt-pdf-one-page-summary'
             ? 'a4-education-material'
@@ -806,6 +814,8 @@ const App: React.FC = () => {
 
     const handleAdminLogout = useCallback(async () => {
         await logoutAdmin();
+        setNexusView(null);
+        setDashboardView(null);
         setIsAdminUnlocked(false);
         setCurrentPage('dashboard');
     }, []);
@@ -911,6 +921,10 @@ const App: React.FC = () => {
 
     // [Updated] Stable Handler using useCallback
     const performRecordUpdate = useCallback(async (updatedRecord: WorkerRecord): Promise<boolean> => {
+        if (workerRecordsRef.current.filter(record => record.id === updatedRecord.id).length > 1) {
+            setStorageNotice('동일 식별자의 기록이 여러 개여서 수정을 저장하지 않았습니다. 원본을 대조해 중복 기록을 정리한 후 다시 시도해 주세요.');
+            return false;
+        }
         const profileAwareRecord = applyWorkerProfilePolicy(updatedRecord, workerRecordsRef.current);
         const normalizedIdentityRecord = applyIdentityPolicy(profileAwareRecord, workerRecordsRef.current);
         const unifiedWorkerRecord = ensureWorkerUuid(normalizedIdentityRecord, workerRecordsRef.current);
@@ -1305,8 +1319,8 @@ const App: React.FC = () => {
             ) : (
                 <Layout currentPage={currentPage} setCurrentPage={navigateToPage} onAdminLogout={handleAdminLogout}>
                     <Suspense fallback={<div className="min-h-[240px] flex items-center justify-center"><Spinner /></div>}>
-                        {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={navigateToPage} />}
-                        {currentPage === 'safety-nexus' && <SafetyNexus workerRecords={workerRecords} loadState={workerRecordsLoadState} onNavigateToPage={navigateToPage} onOpenRecord={(record) => setModalState({type:'recordDetail', record})} />}
+                        {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={navigateToPage} initialTrade={dashboardReturnTrade} initialView={dashboardView} onOpenNexus={(trade,view) => { setDashboardView(view); navigateToPage('safety-nexus'); setNexusInitialTrade(trade); setNexusView(previous=>previous?.trade===trade?previous:null); }} />}
+                        {currentPage === 'safety-nexus' && <SafetyNexus workerRecords={workerRecords} loadState={workerRecordsLoadState} initialTrade={nexusInitialTrade} initialView={nexusView} onViewChange={setNexusView} onNavigateToPage={navigateToPage} onReturnDashboard={(trade) => { navigateToPage('dashboard'); setDashboardReturnTrade(trade); }} onOpenRecord={(record) => setModalState({type:'recordDetail', record})} />}
                         {currentPage === 'education-return' && <EducationReturn workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'ocr-analysis' && (
                             <OcrAnalysis 

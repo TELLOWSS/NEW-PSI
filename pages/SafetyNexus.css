@@ -24,6 +24,11 @@
 .safety-nexus button{font:inherit;cursor:pointer}
 .safety-nexus button:focus-visible,.safety-nexus input:focus-visible{outline:2px solid #8decef;outline-offset:4px}
 .safety-nexus button:disabled{opacity:.35;cursor:not-allowed}
+.nexus-priority-summary{margin:16px 35px 10px;padding:16px 18px;border:1px solid #c69062;border-radius:8px;background:#182a39;color:#eef5f8}
+.nexus-priority-summary strong{font-size:16px}.nexus-priority-summary p{font-size:13px;line-height:1.6;color:#d2dee5;margin:6px 0}
+.nexus-priority-counts{display:flex;flex-wrap:wrap;gap:8px 20px;margin:10px 0;font-size:14px}.nexus-priority-counts b{font-size:20px;color:#ffd29d}
+.nexus-priority-summary button{min-height:48px;padding:8px 14px;border:1px solid #80e0e0;border-radius:6px;background:#122a3b;color:#edf5fb}
+@media(max-width:790px){.nexus-priority-summary{margin:12px 12px 8px}}
 .nexus-background{position:absolute;inset:0;z-index:-1;pointer-events:none;
   background-image:linear-gradient(90deg,transparent 96%,#b9dcf309 97%),linear-gradient(0deg,transparent 96%,#b9dcf309 97%);
   background-size:64px 64px;mask-image:linear-gradient(180deg,#0009,transparent 90%);
@@ -228,8 +233,10 @@
 .nexus-followup-card::before{content:"";position:absolute;left:12px;right:12px;top:0;
   height:2px;background:#7896a5}
 .nexus-followup-card.tone-overdue::before{background:#e0a06d}
-.nexus-followup-card.tone-interim::before{background:#c5c189}
-.nexus-followup-card.tone-complete::before{background:#78b8a3}
+.nexus-followup-card.tone-interim_control::before{background:#c5c189}
+.nexus-followup-card.tone-completed::before{background:#78b8a3}
+.nexus-followup-card[aria-pressed="true"]{outline:2px solid #80e0e0;outline-offset:2px}
+.nexus-followup-card:focus-visible{outline:3px solid #fbc187;outline-offset:3px}
 .nexus-followup-card span{display:block;font-size:11px;color:#b2c2cb;word-break:keep-all}
 .nexus-followup-card strong{font-size:25px;line-height:1.55;color:#f0f4f5;font-weight:500;font-variant-numeric:tabular-nums}
 .nexus-followup-card small{font-size:10px;color:#849aab;margin-left:4px}
@@ -333,3 +340,20 @@
 }
 .safety-nexus[data-reduced-motion="true"] .nexus-stage.is-cinematic .nexus-hud-orbits ellipse,
 .safety-nexus[data-reduced-motion="true"] .nexus-stage.is-cinematic .nexus-scene-caption{animation:none!important}
+/* Field-readable evidence takes priority over decorative HUD sizing. */
+.safety-nexus .nexus-followup-card span,
+.safety-nexus .nexus-followup-asof,
+.safety-nexus .nexus-followup-footer span,
+.safety-nexus .nexus-priority-summary p,
+.safety-nexus .nexus-scene-caption small{font-size:14px;line-height:1.6}
+.safety-nexus .nexus-followup-card{min-height:48px;text-align:left;cursor:pointer}
+.safety-nexus .nexus-metrics>button{min-height:48px;padding:10px 14px;color:#eef5f8;border:1px solid #80e0e0;border-radius:6px}
+.safety-nexus>section[aria-label="기존 평가점수 근거"]{margin:16px 24px;background:#142232;color:#f3f6fa;overflow-wrap:anywhere}
+@media(max-width:480px){.safety-nexus>section[aria-label="기존 평가점수 근거"]{margin:12px}}
+@media(forced-colors:active){.safety-nexus button,.safety-nexus article{border:1px solid ButtonText}.nexus-core-canvas,.nexus-hud-orbits,.nexus-focus-link{display:none}}
+@media print{
+ .safety-nexus,.safety-nexus>section[aria-label="기존 평가점수 근거"]{background:white!important;color:black!important;box-shadow:none!important}
+ .safety-nexus .nexus-visual,.safety-nexus button,.safety-nexus .nexus-toolbar{display:none!important}
+ .safety-nexus p,.safety-nexus span,.safety-nexus strong,.safety-nexus small{color:black!important;text-shadow:none!important}
+ .safety-nexus section{break-inside:avoid;border-color:black!important}
+}

@@ -166,14 +166,17 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
 
                     {/* 6대 지표 전체 점수표 */}
                     <div className="mt-4 rounded-xl bg-[var(--psi-surface-muted)] border border-[var(--psi-border)] p-3">
-                        <p className="text-[10px] font-bold text-[var(--psi-text-subtle)] mb-2 uppercase tracking-wide">전체 지표 점수</p>
+                        <p className="text-sm font-bold text-[var(--psi-text-subtle)] mb-2">전체 지표 점수 · 항목별 유효 분모</p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs">
                             {SIX_METRIC_KEYS.map(k => (
-                                <div key={k} className="flex justify-between text-[var(--psi-text-muted)]">
-                                    <span className="truncate mr-1">{SIX_METRIC_LABELS[k]}</span>
+                                <div key={k} className="flex flex-wrap justify-between gap-1 text-[var(--psi-text-muted)]">
+                                    <span className="mr-1">{SIX_METRIC_LABELS[k]}</span>
                                     <span className="font-bold shrink-0">
                                         {metricValue(k, targetGroup.metrics[k]) === null ? '자료 없음' : `${metricValue(k, targetGroup.metrics[k])}/${METRIC_MAX[k]}점`}
                                     </span>
+                                    {targetGroup.metricEvidence?.find(row => row.key === k) && <span className="w-full text-sm">
+                                        {(() => { const row = targetGroup.metricEvidence!.find(item => item.key === k)!; return `유효 ${row.valid}/${row.total} · 결측 ${row.missing} · 제외 ${row.excluded}`; })()}
+                                    </span>}
                                 </div>
                             ))}
                         </div>

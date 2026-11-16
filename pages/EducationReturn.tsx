@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { EvidenceScopePanel } from '../components/shared/EvidenceScopePanel';
 import type { Page, WorkerRecord } from '../types';
 import { buildEducationReturnSummary } from '../utils/educationReturnSummary';
 import { buildPracticeVerificationSummary } from '../utils/practiceVerification';
@@ -210,6 +211,12 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                 </div>
             </section>
 
+            <EvidenceScopePanel source="현재 앱에 불러온 위험성평가 기록과 관리자 실천 확인 이력"
+                scope={`교육자료 기준 ${summary.targetPeriod} · 실천 환류 ${practice.periodStartDate || '전체'} ~ ${practice.asOfDate}`}
+                asOf={`${practice.asOfDate} (한국시간 집계 기준일) · 서버 최신성 미확인`}
+                state="local" population={`불러온 평가기록 ${workerRecords.length}행 · 전체 현장 인원·교육 이수율 아님`}
+                review="교육자료 작성·전달·이해 확인·현장 관찰은 각각 별도 기록"
+                nextAction="근로자 기록에서 교육 원문·이해 확인·현장 관찰 근거를 대조하세요."/>
             <section data-education-return="practice-verification" className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm sm:p-7">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
@@ -240,6 +247,7 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                         </div>
                     ))}
                 </div>
+                {practice.conflictingRecords > 0 && <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-bold text-amber-900">실천 확인 이력 내용이 충돌한 기록 {practice.conflictingRecords}건은 집계에서 제외했습니다. 원본을 확인해 주세요.</p>}
                 {practice.educationFocus.length ? (
                     <div className="mt-3 space-y-2">
                         {practice.educationFocus.map(line => <p key={line} className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-900">{line}</p>)}

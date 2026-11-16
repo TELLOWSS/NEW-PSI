@@ -47,6 +47,8 @@ try {
   check('월·공종 필터 제공', await root.getByRole('combobox', {name:'작성 월 선택'}).count() === 1
      && await root.getByRole('combobox', {name:'공종 선택'}).count() === 1, 'loaded-record-only selectors');
   check('현장 범위 인증 미완료 고지', await root.getByText(/현장별 인증 범위는 아직 미연동/).count() === 1, 'transparent trust boundary');
+  await root.getByRole('button',{name:'조치 내역과 범위 확인'}).click();
+  check('우선 확인에서 조치 내역으로 키보드 포커스 이동', await root.locator('#nexus-followup-details').evaluate(el=>document.activeElement===el), 'focus follows navigation');
 
   await root.locator('.nexus-node.node-3').click();
   check('선택 노드의 상태 변경', await root.locator('.nexus-node.node-3').getAttribute('aria-pressed') === 'true', 'Q4 selected');
@@ -69,11 +71,13 @@ try {
     if (width === 390) {
       const hero = await root.locator('.nexus-visual').boundingBox();
       const sidebarNote = await root.locator('.nexus-aside').boundingBox();
-      check('390px 첫 화면에 코어 우선 노출', Boolean(hero && sidebarNote && hero.y < sidebarNote.y && hero.y < 400),
+      const priority = await root.locator('.nexus-priority-summary').boundingBox();
+      check('390px 후속조치 요약을 시각화보다 먼저 표시', Boolean(priority && hero && priority.y < hero.y && hero.y < sidebarNote.y),
         { heroTop: hero?.y, overviewTop: sidebarNote?.y });
       // Avoid approving a blown-out white sphere: compare RGB values of the *actual* stage screenshot.
       // Screenshot data is synthetic-only and never contains worker photos.
-      const stagePng = await root.locator('.nexus-stage').screenshot();
+      // Exclude the fixed app navigation from the pixel sample; it can overlap the stage after scrolling.
+      const stagePng = await root.locator('.nexus-stage').screenshot({style:'.psi-mobile-nav { visibility: hidden !important; }'});
       const saturation = await page.evaluate(async (base64) => {
         const image = new Image();
         image.src = 'data:image/png;base64,' + base64;
@@ -101,6 +105,10 @@ try {
   await page.setViewportSize({ width: 1440, height: 960 });
   await root.getByRole('button', { name: /전체 화면 몰입 보기/ }).click();
   check('시네마틱 몰입 보기', await root.evaluate(el => el.classList.contains('is-immersive') && getComputedStyle(el).position === 'fixed'), 'fullscreen portal');
+  check('몰입 화면에서 배경 조작 차단', await root.evaluate(el=>el.getAttribute('aria-modal')==='true' && [...document.body.children].filter(child=>child!==el && !child.contains(el) && child instanceof HTMLElement).every(child=>child.inert)), 'background inert');
+  check('몰입 화면 키보드 포커스 진입', await root.getByRole('button', {name:/몰입 화면 종료/}).evaluate(el=>document.activeElement===el), 'focus enters immersive control');
+  await page.keyboard.press('Shift+Tab');
+  check('몰입 화면 역방향 포커스 유지', await root.evaluate(el=>el.contains(document.activeElement)), 'focus stays inside immersive view');
   await page.screenshot({ path: resolve(output, 'nexus-immersive-1440.png'), fullPage: false });
   const cinemaControl=root.getByRole('button',{name:'12초 시네마틱 보기'});
   check('12초 시네마틱 명시적 재생 버튼',await cinemaControl.isVisible(), 'opt-in; no autoplay lockout');
@@ -129,9 +137,16 @@ try {
     'no mandatory waiting or forced navigation');
   await page.keyboard.press('Escape');
   check('Escape로 몰입 보기 종료', await root.evaluate(el => !el.classList.contains('is-immersive')), 'safe return to shell');
+  check('몰입 종료 시 배경 조작 복구', await page.locator('#root').evaluate(el=>!el.inert), 'background restored');
+  await root.getByRole('button', {name:/전체 화면 몰입 보기/}).waitFor();
+  check('몰입 종료 후 포커스 복귀', await root.getByRole('button', {name:/전체 화면 몰입 보기/}).evaluate(el=>document.activeElement===el), 'focus returns to entry control');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForFunction(() => document.querySelector('.nexus-footer input[type="checkbox"]')?.checked === true);
+  check('시스템 움직임 축소 변경 반영', await root.locator('.nexus-footer input[type="checkbox"]').isChecked(), 'operating system preference update');
 
   // In-app reduced motion must work even when OS preference is "no-preference".
   await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.waitForFunction(() => document.querySelector('.nexus-footer input[type="checkbox"]')?.checked === false);
   await page.locator('.nexus-footer input[type="checkbox"]').check();
   check('움직임 축소 옵션', await root.locator('.nexus-footer input[type="checkbox"]').isChecked(), 'reduced motion');
   const stoppedEffect = await root.locator('.nexus-focus-link path').evaluate(el => getComputedStyle(el).animationName);
