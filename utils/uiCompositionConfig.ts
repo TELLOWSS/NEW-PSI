@@ -10,6 +10,7 @@ const MANAGER_RISK_ENTRY_PAGE: Page = 'survey-intelligence';
 
 const DEFAULT_SIDEBAR_ORDER: Page[] = [
     'dashboard',
+    'safety-nexus',
     'ocr-analysis',
     'safety-compliance-hub',
     'safety-inspector',

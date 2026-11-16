@@ -97,6 +97,7 @@ const lazyWithRecovery = <T extends { default: React.ComponentType<any> }>(
 });
 
 const Dashboard = lazyWithRecovery('Dashboard', () => import('./pages/Dashboard'));
+const SafetyNexus = lazyWithRecovery('SafetyNexus', () => import('./pages/SafetyNexus'));
 const OcrAnalysis = lazyWithRecovery('OcrAnalysis', () => import('./pages/OcrAnalysis'));
 const EducationReturn = lazyWithRecovery('EducationReturn', () => import('./pages/EducationReturn'));
 const MonthlyGuidanceReport = lazyWithRecovery('MonthlyGuidanceReport', () => import('./pages/MonthlyGuidanceReport'));
@@ -663,6 +664,7 @@ const App: React.FC = () => {
     const [adminUnlockError, setAdminUnlockError] = useState('');
     const [isUnlockSubmitting, setIsUnlockSubmitting] = useState(false);
     const [workerRecords, setWorkerRecords] = useState<WorkerRecord[]>([]);
+    const [workerRecordsLoadState, setWorkerRecordsLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
     const [safetyCheckRecords, setSafetyCheckRecords] = useState<SafetyCheckRecord[]>([]);
     const [storageNotice, setStorageNotice] = useState('');
     const [briefingData, setBriefingData] = useState<BriefingData | null>(null);
@@ -826,6 +828,7 @@ const App: React.FC = () => {
             const sanitizedData = sanitizeRecords(sourceData).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             const reconciled = reconcileWorkerProfiles(sanitizedData);
             setWorkerRecords(reconciled.records);
+            setWorkerRecordsLoadState('ready');
 
             if (useQaSeed && (forceQaSeed || data.length === 0) && reconciled.records.length > 0) {
                 void (async () => {
@@ -887,6 +890,7 @@ const App: React.FC = () => {
                 })();
             }
         }).catch((error) => {
+            setWorkerRecordsLoadState('error');
             console.error('[PSI][Storage] 위험성평가 기록 불러오기 실패:', error);
             setStorageNotice('이 기기에 저장된 위험성평가 기록을 불러오지 못했습니다. 새 기록을 입력하기 전에 화면을 다시 불러와 주세요.');
         });
@@ -1302,6 +1306,7 @@ const App: React.FC = () => {
                 <Layout currentPage={currentPage} setCurrentPage={navigateToPage} onAdminLogout={handleAdminLogout}>
                     <Suspense fallback={<div className="min-h-[240px] flex items-center justify-center"><Spinner /></div>}>
                         {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={navigateToPage} />}
+                        {currentPage === 'safety-nexus' && <SafetyNexus workerRecords={workerRecords} loadState={workerRecordsLoadState} onNavigateToPage={navigateToPage} onOpenRecord={(record) => setModalState({type:'recordDetail', record})} />}
                         {currentPage === 'education-return' && <EducationReturn workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'ocr-analysis' && (
                             <OcrAnalysis 
