@@ -1,4 +1,5 @@
-import { createServer } from 'vite';
+import { build, preview } from 'vite';
+import { resolve } from 'node:path';
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 
@@ -8,8 +9,9 @@ try {
   for(const ui of ['true','false']) {
     process.env.VITE_PSI_NEXUS_UI_ENABLED=ui;
     process.env.VITE_PSI_NEXUS_3D_ENABLED='false';
-    const server=await createServer({server:{host:'127.0.0.1',port:4193,strictPort:true}});
-    await server.listen();
+    const outDir=`artifacts/audit/nexus-rollback-${ui}`;
+    await build({build:{outDir,rollupOptions:{input:{app:resolve('index.html'),fixture:resolve('tests/fixtures/nexus-priority.html')}}}});
+    const server=await preview({build:{outDir},preview:{host:'127.0.0.1',port:4193,strictPort:true}});
     const page=await browser.newPage();
     try {
       if(ui==='true') {
@@ -27,7 +29,7 @@ try {
         assert.equal(await page.getByRole('button',{name:/안전지능 (연결 보기|네트워크)/}).count(),0);
       }
       console.log(`PASS: UI ${ui}, 3D false rollback`);
-    } finally { await page.close(); await server.close(); }
+    } finally { await page.close(); await new Promise(resolve=>server.httpServer.close(resolve)); }
   }
 } finally {
   await browser.close();

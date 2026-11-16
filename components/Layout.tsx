@@ -657,6 +657,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                 <main
                     id="psi-main-content"
                     ref={mainRef}
+                    onClickCapture={() => {
+                        if (currentPage === 'dashboard' || currentPage === 'safety-nexus') {
+                            navigationScroll.current.set(currentPage, mainRef.current?.scrollTop || 0);
+                        }
+                    }}
                     tabIndex={-1}
                     className={`relative flex-1 overflow-y-auto p-3 outline-none ${currentPage === 'dashboard' ? 'pb-24 sm:p-4 sm:pb-24 md:p-4 lg:px-6 lg:py-4 lg:pb-12' : 'pb-24 sm:p-4 md:p-6 lg:p-8 lg:pb-12'}`}
                 >

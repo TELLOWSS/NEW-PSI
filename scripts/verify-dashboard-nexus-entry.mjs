@@ -24,6 +24,10 @@ try {
   await trade.selectOption({label:'가상 공종'});
   await page.locator('.psi-ops-toolbar .psi-ops-filter select').first().selectOption('all');
   const entry=page.getByRole('button',{name:'안전지능 연결 보기 · 시제품'});
+  await page.waitForFunction(()=>{const el=document.getElementById('psi-main-content');return el.scrollHeight-el.clientHeight>200;});
+  await page.locator('#psi-main-content').evaluate(el=>el.scrollTo({top:180,behavior:'instant'}));
+  await page.waitForFunction(()=>document.getElementById('psi-main-content').scrollTop>0);
+  await entry.evaluate(button=>button.addEventListener('click',()=>{window.__savedDashboardScroll=document.getElementById('psi-main-content').scrollTop;},{capture:true,once:true}));
   await entry.click();
   await page.getByRole('main',{name:'PSI 안전지능 네트워크'}).waitFor();
   assert.equal(await page.getByRole('region',{name:'우선 확인할 후속조치'}).count(),1);
@@ -34,6 +38,8 @@ try {
   await page.getByRole('button',{name:/기존 관제센터로 돌아가기/}).click();
   assert.equal(await page.locator('.psi-ops-toolbar .psi-ops-filter select').nth(1).inputValue(),'가상 공종');
   assert.equal(await page.locator('.psi-ops-toolbar .psi-ops-filter select').first().inputValue(),'all');
+  console.log('Scroll evidence',await page.evaluate(()=>({actual:document.getElementById('psi-main-content').scrollTop,expected:window.__savedDashboardScroll})));
+  await page.waitForFunction(()=>Math.abs(document.getElementById('psi-main-content').scrollTop-window.__savedDashboardScroll)<2);
   await page.getByRole('button',{name:'안전지능 연결 보기 · 시제품'}).click();
   assert.equal(await page.getByRole('combobox',{name:'작성 월 선택'}).inputValue(),'2020-01');
   assert.equal(await page.getByRole('button',{name:'입체 보기',exact:true}).count(),1);

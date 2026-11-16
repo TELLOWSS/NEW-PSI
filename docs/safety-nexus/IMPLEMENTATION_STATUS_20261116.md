@@ -78,3 +78,10 @@ npx vitest run tests/nexusFeatureFlags.test.ts tests/tenantNexusSiteRead.test.ts
 - Windows 줄바꿈에 종속된 기존 계약검사 2건을 LF 정규화하도록 수정했다. 검사 내용은 제거하지 않았다.
 
 남은 작업은 자동검사 완료로 대체하지 않는다. 특히 승인된 6관점 산식, 실제 현장 원자료/RLS/공식 보고서 대조, 통역자·실기기·사용자·미감 검수는 미완료다. 현재 구현은 해당 경계를 화면에 표시하며 자동 안전 승인이나 운영 DB 변경을 하지 않는다.
+
+### 최종 후속 검증
+
+- 현황판 클릭 직전 자동 스크롤 위치를 capture 단계에서 저장하도록 보강. 합성 왕복에서 기대 45px/복귀 45px 일치, 공종·기간·Nexus 월·2D 선택 복원 PASS.
+- UI OFF와 3D OFF는 별도 production 빌드 및 preview에서 확인했다. 테스트 산출물은 `artifacts/audit/nexus-rollback-*`로 분리하며 배포 빌드에 fixture를 포함하지 않는다.
+- 최종 제품 브라우저 재실행도 10/10, Nexus 57/57 PASS. 후속 스크롤 보강은 전용 왕복 검사·타입·빌드를 재검증했다.
+- GitHub 검토본: https://github.com/TELLOWSS/NEW-PSI/pull/233 . 원격 CI·배포 결과는 이 PR 최신 HEAD 기준으로 확인한다.
