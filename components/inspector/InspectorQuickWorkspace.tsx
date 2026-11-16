@@ -48,6 +48,7 @@ import {duplicateAction,findingActionEntry,type FindingActionEntry} from '../../
 import {sameAction} from '../../lib/inspector/actionFollowup';
 import {changeActionAssignment,recoveredAssignment,type AssignmentChange} from '../../lib/inspector/actionAssignment';
 import type {ImprovementSubmission} from './InspectorActionFollowup';
+import type {FieldCheckSubmission} from './InspectorFieldCheckEditor';
 import {buildActionRequest,DEFAULT_REVIEW_NOTE,type ExpertReview} from '../../lib/inspector/expertReview';
 import {buildInspectionBrief} from '../../lib/inspector/journey';
 
@@ -436,6 +437,28 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
             if(alive.current){setReport(null);setEntryNotice('담당·기한 변경을 저장했습니다. 요청문·조치대장·보고서는 새 저장본으로 전달하세요.');saved=true;}
         });return saved;
     };
+    const recordFieldCheck=async(input:FieldCheckSubmission)=>{
+        let saved=false;
+        await run(async()=>{
+            const current=latest.current;
+            const action=current?.document.actions.find(a=>a.id===input.actionId);
+            if(!current||!action||action.status==='verified'||storageLocked||local||photo)
+                throw new Error('현장 확인 대상 조치를 다시 확인해 주세요.');
+            setActivity('현장 확인 이력 저장 중');
+            const payload={op:'field-check',id:current.id,actionId:input.actionId,checkId:input.checkId,
+                expectedRevision:current.revision,result:input.result,note:input.note,nextCheckDate:input.nextCheckDate};
+            try{accept((await request(payload)).item);}
+            catch(cause){
+                // Only the exact server-saved UUID with matching values can recover a lost response.
+                let recovered;try{recovered=await request({op:'detail',id:current.id});}catch{throw cause;}
+                const entry=recovered.item.document.actions.find((a:InspectorAction)=>a.id===input.actionId)?.fieldChecks?.find((c:{id:string})=>c.id===input.checkId);
+                if(!entry||entry.result!==input.result||entry.note!==input.note.trim()||entry.nextCheckDate!==input.nextCheckDate)throw cause;
+                accept(recovered.item);
+            }
+            if(alive.current){setReport(null);saved=true;}
+        });
+        return saved;
+    };
     const submitImprovement=async(input:ImprovementSubmission)=>{
         let saved=false;await run(async()=>{
             const current=latest.current,action=current?.document.actions.find(a=>a.id===input.actionId);
@@ -521,7 +544,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
         {!storageLocked&&actionDraftDirty&&<section className="si-report-draft-choice" aria-label="작성 중인 입력과 보고서" tabIndex={-1}><div><b>{reportBlocked?'작성 중인 조치가 있어 보고서 범위를 골라 주세요':'작성 중인 입력이 있습니다'}</b><p>조치·담당 변경·개선 입력은 아직 저장되지 않았습니다. 입력은 유지하며, 저장본만 보고서에 담을 수도 있습니다.</p>{local&&!photo&&<p>선택한 새 사진을 먼저 저장하거나 사진 선택을 해제한 뒤 작성 중인 입력으로 돌아가세요.</p>}</div><div className="si-draft-choice-actions"><button type="button" className="si-btn si-primary" disabled={busy||storageBusy||!!local&&!photo} onClick={returnToDraft}>{photo?'현재 사진 검토 저장 · 입력으로 돌아가기':'작성 중인 입력으로 이동'}</button><button type="button" className="si-btn" disabled={busy||storageBusy||!item||!!local||!!photo} onClick={finishSavedOnly}>미저장 입력 제외 · 저장본으로 보고서</button></div></section>}
         {item&&!storageLocked&&!local&&!photo&&item.document.actions.length>0&&<InspectorActionRadar actions={item.document.actions} document={item.document} disabled={busy||storageBusy||actionDraftDirty} onOpenActions={()=>setDraftRequest(n=>n+1)} onOpenInbox={()=>setInboxRequest(n=>n+1)} onOpenPriorityAction={actionId=>setPriorityFocus(prev=>({actionId,request:(prev?.request||0)+1}))}/>}
         {item&&!report&&!storageLocked&&!photo&&!local&&item.document.photoIds.length>0&&<section className="si-report-readiness" aria-label="검토용 보고서 준비 상태"><b>모은 사진으로 보고서를 만들 수 있습니다</b><p>사진 {item.document.photoIds.length}장 · 저장된 AI 검토 {item.document.photoIds.filter(id=>!!item.document.analyses[id]&&!!item.document.reviews[id]).length}장 · 아직 검토할 AI 사진 {item.document.photoIds.filter(id=>!!item.document.analyses[id]&&!item.document.reviews[id]).length}장 · 미결 조치 {item.document.actions.filter(action=>action.status!=='verified').length}건 (현장 재점검 대기 {item.document.actions.filter(action=>action.status==='review-requested').length}건)</p><small>미검토 AI 사진은 먼저 열어 확인해 주세요. 개선사진 접수와 완료 검토 요청은 현장 재점검 확정이 아닙니다. 조치 기록을 갱신했다면 최신 저장본으로 새 보고서를 작성하세요. 보고서 작성은 법 위반 확정이나 작업재개 승인이 아닙니다.</small></section>}
-        {item&&!storageLocked&&(item.document.photoIds.length>0||item.document.actions.length>0)&&<InspectorActionPlanner key={`${item.id}:${actionEntry?.token||''}`} item={item} active={!!(local||photo)} busy={busy} onSave={saveAction} onReassign={reassignAction} onDirty={setActionDraftDirty} onOpen={openSavedPhoto} evidence={evidence} loadPhoto={loadEvidencePhoto} onSubmitImprovement={submitImprovement} onVerify={verifyAction} onAdoptShare={adoptShare} inboxRequest={inboxRequest} draftRequest={draftRequest} priorityFocus={priorityFocus} initialPhotoId={actionEntry?.photoId} initialSelection={actionEntry?.selection} initialRegistered={entryIntent==='actions'&&!actionEntry} onCloseEntry={closeActionEntry}/>}
+        {item&&!storageLocked&&(item.document.photoIds.length>0||item.document.actions.length>0)&&<InspectorActionPlanner key={`${item.id}:${actionEntry?.token||''}`} item={item} active={!!(local||photo)} busy={busy} onSave={saveAction} onReassign={reassignAction} onRecordFieldCheck={recordFieldCheck} onDirty={setActionDraftDirty} onOpen={openSavedPhoto} evidence={evidence} loadPhoto={loadEvidencePhoto} onSubmitImprovement={submitImprovement} onVerify={verifyAction} onAdoptShare={adoptShare} inboxRequest={inboxRequest} draftRequest={draftRequest} priorityFocus={priorityFocus} initialPhotoId={actionEntry?.photoId} initialSelection={actionEntry?.selection} initialRegistered={entryIntent==='actions'&&!actionEntry} onCloseEntry={closeActionEntry}/>}
         {reference&&<div className="si-input-recap">{preview&&<button className="si-preview-open" aria-label="점검 사진 크게 보기" onClick={()=>{setZoomFocus('');setZoom(true);}}><img src={preview} alt="점검 사진 미리보기"/></button>}<div><b>{analysis?'사진 분석 결과 준비됨':photo&&item?.document.photoIds.includes(photo.id)?'사진 보관 완료 · 직접 점검':photo?'사진 보관 확인 필요':'설명으로 기준 조회됨'}</b><p>{resultNote||(photo?(riskTopic?`점검자 선택 위험: ${legalTopicTitle(riskTopic)}`:'위험유형은 아직 선택하지 않았습니다. 필요하면 직접 선택하세요.'):'설명을 입력해 관련 기준을 확인하세요.')}</p></div><button className="si-btn" disabled={busy} aria-expanded={editInput} aria-controls="si-quick-input" onClick={()=>{if(note.trim())setHintOpen(true);setEditInput(v=>!v);}}>{editInput?'입력 접기':'사진·설명 수정'}</button></div>}
         <section id="si-quick-input" hidden={!!reference&&!editInput} className="si-quick-input" data-photo-ready={!!preview} aria-label="사진과 설명 입력">
             <div className={'si-quick-photo'+(!preview?' si-field-entry':'')}>{preview?<><p className="si-photo-preview-label">{photo&&item?.document.photoIds.includes(photo.id)?'보관된 점검 사진':'선택한 사진 · 저장 전'}</p><img src={preview} alt="분석할 현장사진"/>{local&&!photo&&<div className="si-quick-photo-rotation" role="group" aria-label="점검 사진 방향 편집">

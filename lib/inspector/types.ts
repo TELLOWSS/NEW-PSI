@@ -12,12 +12,19 @@ export type VisionImport = {
 export type InspectionKind='spot'|'regular'|'consulting'|'other';
 export const inspectionKindLabel:Record<InspectionKind,string>={spot:'수시점검',regular:'정기점검',consulting:'컨설팅점검',other:'기타 점검'};
 export const inspectionKindText=(kind?:InspectionKind):string=>kind?inspectionKindLabel[kind]:'유형 미지정(기존 기록)';
+/** Server-timestamped, append-only field observation attached to a saved corrective action.
+ * A human-recorded interim control is NOT verified final corrective completion or work release.
+ */
+export type InspectorFieldCheck = {
+    id:string; recordedAt:string; result:'implemented'|'not-implemented'|'unknown';
+    note:string; nextCheckDate:string;
+};
 export type InspectorAction = { id: string; title: string; owner: string; dueDate: string;
     status: 'open' | 'review-requested' | 'verified'; completionPhotoId: string; note: string; verifiedAt?: string;
     /** Optional for legacy records; new actions explicitly link the original scope. */
     sourcePhotoIds?: string[];
     /** Optional original agreed-deadline rationale; older actions remain valid. */
-    scheduleContext?: string };
+    scheduleContext?: string; fieldChecks?: InspectorFieldCheck[] };
 export type OcrResult = { rawText: string; recognizedText: string; confidence: number; language: 'kor'|'eng'|'vie'|'chi_sim'; engine: 'LOCAL_TESSERACT'; reviewStatus: 'unreviewed'|'corrected'|'accepted' };
 export type ConfirmationAnswer = { questionIndex: number; question: string; answer: 'confirmed' | 'not-confirmed' | 'unknown'; note: string };
 export const confirmationAnswerLabel = { confirmed: '현장 확인됨', 'not-confirmed': '확인 결과와 다름', unknown: '아직 확인하지 못함' } as const;

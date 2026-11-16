@@ -5,6 +5,7 @@ import {copyInspectorShareText,shareCopyResultMessage} from '../../lib/inspector
 import {selectPriorityAction,summarizeActionRadar} from '../../lib/inspector/actionRadar';
 import {scheduledCorrectionRows,scheduledCorrectionTotals} from '../../lib/inspector/actionSchedule';
 import {actionAttentionBoard,attentionLabels,attentionOrder,type AttentionKind} from '../../lib/inspector/actionAttention';
+import {fieldCheckLabels} from '../../lib/inspector/fieldCheck';
 import {useInspectionDay} from './useInspectionDay';
 import './inspector-action-radar.css';
 
@@ -42,7 +43,8 @@ export default function InspectorActionRadar({actions,document:doc,disabled=fals
                 <ol>{attentionRows.map(row=><li key={row.actionId} data-attention-action-id={row.actionId}>
                     <div className="si-attention-item-heading"><b>{row.title}</b><span>{row.evidenceSubmitted?'개선사진 접수 · 재점검 미확인':'미조치 · 현장 상태 확인 전'}</span></div>
                     <p>담당 {row.owner?.trim()||'미지정'} · 약정 완료기한 {row.dueDate||'미지정'}{row.deadlineLate?' (기한 경과)':''}</p>
-                    {row.checkDate&&<p>다음 현장 확인 예정 {row.checkDate}{row.checkLate?' · 예정일 지남 · 현장 확인 필요':''} · 이행 여부 미확인</p>}
+                    {row.checkDate&&<p>다음 현장 확인 예정 {row.checkDate}{row.checkLate?' · 예정일 지남 · 현장 확인 필요':''} · {row.fieldCheckResult?fieldCheckLabels[row.fieldCheckResult.result]:'실제 이행 여부 미확인'}</p>}
+                    {row.fieldCheckResult&&<p className="si-caption" data-attention-field-check="true">현장 확인 기록: {fieldCheckLabels[row.fieldCheckResult.result]} · 서버기록 {new Date(row.fieldCheckResult.recordedAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})} (자동 완료·작업재개 승인 아님)</p>}
                     <p className="si-attention-next">{row.evidenceSubmitted?'접수된 개선사진을 실제 현장과 대조하고 재점검 기록을 남기세요.':row.deadlineLate?'기한 경과 사유·보호조치 실제 시행 여부와 현장 상태를 확인하세요.':row.checkDate&&row.checkDate<=today?'현장 확인 예정일이 도래했습니다. 임시 보호조치 계획의 실제 이행 여부를 확인하세요.':'담당자와 현재 개선 진행상황 및 임시 보호조치를 확인하세요.'}</p>
                     {onOpenPriorityAction&&<button type="button" className="si-btn" disabled={disabled} onClick={()=>onOpenPriorityAction(row.actionId)}>이 조치 확인·재점검</button>}
                 </li>)}</ol>
