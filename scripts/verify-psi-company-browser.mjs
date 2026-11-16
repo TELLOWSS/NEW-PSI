@@ -4,7 +4,8 @@ import {mkdir,writeFile,readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 
 /** Synthetic-only browser journeys spanning PSI modules. Never calls real data or paid AI. */
-const url='http://127.0.0.1:4182/';
+const port=Number(process.env.PSI_QA_PORT || 4182);
+const url=`http://127.0.0.1:${port}/`;
 const scenarios=[
  {owner:'platform',name:'inspector-production-navigation',script:'scripts/verify-inspector-production.mjs'},
  {owner:'safety-ai',name:'six-metrics-dashboard',script:'scripts/verify-psi-current-metrics-ui.mjs'},
@@ -21,7 +22,7 @@ const output='artifacts/audit/psi-company';
 await mkdir(output,{recursive:true});
 const vercel=JSON.parse(await readFile('vercel.json','utf8'));
 const headers=Object.fromEntries((vercel.headers.find(row=>row.source==='/(.*)')?.headers||[]).map(row=>[row.key,row.value]));
-const server=await preview({preview:{host:'127.0.0.1',port:4182,strictPort:true,headers}});
+const server=await preview({preview:{host:'127.0.0.1',port,strictPort:true,headers}});
 const results=[];
 const run=task=>new Promise(done=>{
  const started=Date.now(),logs=[];

@@ -72,6 +72,8 @@ jobs:
         run: npm run build
       - name: Independently verify seven product and transparency journeys
         run: node scripts/verify-psi-company-browser.mjs
+      - name: Verify Nexus evidence, navigation restoration and presentation rollback
+        run: node scripts/verify-nexus-workflows.mjs
       - name: Test genuine synthetic PDF rendering and privacy postflight in desktop/mobile Chromium
         run: node scripts/verify-psi-pdf-privacy-browser.mjs
       - name: Simulate local field camera share and ZIP preflight, including stealth IndexedDB tampering

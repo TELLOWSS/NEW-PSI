@@ -1,19 +1,24 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Page, WorkerRecord } from '../types';
-import { filterLoadedNexusRecords, sliceLoadedNexusRecords, summarizeNexusScoreEvidence, nexusEventsAsOf } from '../utils/safetyNexusViewModel';
-import { buildMonthlyFieldFollowupSummary, getKoreanCalendarDay } from '../utils/monthlyFieldFollowup';
-import { buildPracticeVerificationSummary } from '../utils/practiceVerification';
+import { filterLoadedNexusRecords, sliceLoadedNexusRecords } from '../utils/safetyNexusViewModel';
+import { buildMonthlyFieldFollowupSummary, collectMonthlyFollowupCases, getKoreanCalendarDay } from '../utils/monthlyFieldFollowup';
+import { buildPracticeVerificationSummary, collectOverduePracticeRechecks, PRACTICE_RESULT_LABELS } from '../utils/practiceVerification';
 import { FOLLOWUP_STATUS_LABELS } from '../utils/workerRiskFollowup';
 import WebGLNexusCore from './NexusWebGLCore';
+import { ScoreMetricEvidencePanel } from '../components/shared/ScoreMetricEvidencePanel';
+import { nexusFeatureFlags } from '../config/nexusFeatureFlags';
 import './SafetyNexus.css';
 
 type Topic = { index: string; title: string; en: string; detail: string; page: Page; action: string };
-type Props = { workerRecords: WorkerRecord[]; loadState?: 'loading' | 'ready' | 'error'; onNavigateToPage: (page: Page) => void; onOpenRecord?: (record: WorkerRecord) => void };
+const FOLLOWUP_FILTER_LABELS = {overdue:'기한 초과',unresolved:'미완료',interim_control:'임시 통제 중',scheduled:'조치 예정',reopened:'재개방 이력',completed:'완료로 기록된'} as const;
+type FollowupFilter = keyof typeof FOLLOWUP_FILTER_LABELS;
+export type NexusViewState = {month:string;trade:string;active:number;flat:boolean;question:number|null;priority:FollowupFilter|'recheck'|null};
+type Props = { workerRecords: WorkerRecord[]; loadState?: 'loading' | 'ready' | 'error'; initialTrade?: string; initialView?:NexusViewState|null; onViewChange?:(view:NexusViewState)=>void; onNavigateToPage: (page: Page) => void; onReturnDashboard?: (trade: string) => void; onOpenRecord?: (record: WorkerRecord) => void };
 const STEPS: Topic[] = [
   {index:'01',title:'위험작업',en:'RISK IDENTIFICATION',detail:'근로자가 가장 위험하다고 느끼는 작업을 직접 기록합니다. 개인의 위험 인식과 현장에서 확정된 위험은 구별합니다.',page:'ocr-analysis',action:'위험성평가 원본 확인'},
   {index:'02',title:'위험요소',en:'HAZARD SIGNAL',detail:'추락·끼임·감전 등 위험요소를 분석합니다. AI 해석은 관리자 원본 대조와 검토를 거친 후 활용합니다.',page:'ocr-analysis',action:'위험요소 분석 열기'},
-  {index:'03',title:'위험등급',en:'SELF-ASSESSMENT',detail:'근로자가 선택한 상·중·하와 그 이유를 살핍니다. 근로자 자가평가를 현장 위험의 최종 판정으로 표시하지 않습니다.',page:'predictive-analysis',action:'위험신호 분석 열기'},
+  {index:'03',title:'자가평가',en:'SELF-ASSESSMENT',detail:'근로자가 선택한 상·중·하와 그 이유를 살핍니다. 근로자 자가평가를 현장 위험의 최종 판정으로 표시하지 않습니다.',page:'predictive-analysis',action:'위험신호 분석 열기'},
   {index:'04',title:'안전조치',en:'PROTECTIVE ACTION',detail:'즉시 조치가 어려운 경우에도 미해결 상태를 유지합니다. 임시 보호조치·담당·목표일·재점검 등 확인이 필요합니다.',page:'safety-behavior-management',action:'안전조치 현황 열기'},
   {index:'05',title:'실천약속',en:'BEHAVIOR COMMITMENT',detail:'근로자 스스로 작성한 실천 약속을 교육과 재확인으로 이어갑니다. 교육 실시와 실제 개선 완료는 구분합니다.',page:'education-return',action:'교육 환류 열기'},
 ];
@@ -127,18 +132,48 @@ const CoreArt: React.FC<{ active: number; paused: boolean; reduced: boolean; seq
   return <canvas ref={ref} className="nexus-core-canvas" aria-hidden="true"/>;
 };
 
-const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',onNavigateToPage,onOpenRecord})=>{
-  const [active,setActive]=useState(0);
+const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',initialTrade='',initialView,onViewChange,onNavigateToPage,onReturnDashboard,onOpenRecord:requestOpenRecord})=>{
+  const [active,setActive]=useState(initialView?.active ?? 0);
   const [immersive,setImmersive]=useState(false);
+  const [recordNotice,setRecordNotice]=useState('');
+  const [pendingRecord,setPendingRecord]=useState<WorkerRecord|null>(null);
+  const onOpenRecord=requestOpenRecord ? (record:WorkerRecord)=>{
+    if(workerRecords.filter(row=>String(row.id || '').trim()===String(record.id || '').trim()).length!==1){
+      setRecordNotice('동일 식별자의 기록이 여러 개입니다. 오래된 이력으로 덮어쓰지 않도록 상세 편집을 열지 않았습니다. 원본 기록을 대조해 주세요.');
+      return;
+    }
+    setRecordNotice('');setImmersive(false);setPendingRecord(record);
+  } : undefined;
+  useEffect(()=>{
+    if(!pendingRecord || immersive)return;
+    const frame=requestAnimationFrame(()=>{requestOpenRecord?.(pendingRecord);setPendingRecord(null);});
+    return ()=>cancelAnimationFrame(frame);
+  },[pendingRecord,immersive,requestOpenRecord]);
+  const immersiveToggleRef=useRef<HTMLButtonElement>(null);
   useEffect(()=>{
     if(!immersive)return;
     const priorOverflow=document.body.style.overflow;
     document.body.style.overflow='hidden';
-    const onKey=(event:KeyboardEvent)=>{if(event.key==='Escape')setImmersive(false);};
+    const surface=document.querySelector<HTMLElement>('.safety-nexus.is-immersive');
+    const background=Array.from(document.body.children).filter((element):element is HTMLElement =>
+      element instanceof HTMLElement && element!==surface && !element.contains(surface));
+    const previousInert=background.map(element=>element.inert);
+    background.forEach(element=>{element.inert=true;});
+    immersiveToggleRef.current?.focus();
+    const onKey=(event:KeyboardEvent)=>{
+      if(event.key==='Escape'){setImmersive(false);return;}
+      if(event.key!=='Tab')return;
+      const surface=document.querySelector<HTMLElement>('.safety-nexus.is-immersive');
+      const targets=surface ? Array.from(surface.querySelectorAll<HTMLElement>('button:not(:disabled), select:not(:disabled), input:not(:disabled), summary, a[href], [tabindex]:not([tabindex="-1"])')).filter(el=>el.getClientRects().length>0) : [];
+      if(!targets.length)return;
+      const first=targets[0],last=targets[targets.length-1];
+      if(event.shiftKey && (document.activeElement===first || !surface?.contains(document.activeElement))){event.preventDefault();last.focus();}
+      else if(!event.shiftKey && (document.activeElement===last || !surface?.contains(document.activeElement))){event.preventDefault();first.focus();}
+    };
     document.addEventListener('keydown',onKey);
-    return ()=>{document.body.style.overflow=priorOverflow;document.removeEventListener('keydown',onKey);};
+    return ()=>{document.body.style.overflow=priorOverflow;document.removeEventListener('keydown',onKey);background.forEach((element,index)=>{element.inert=previousInert[index];});requestAnimationFrame(()=>immersiveToggleRef.current?.focus());};
   },[immersive]);
-  const [flat,setFlat]=useState(false);
+  const [flat,setFlat]=useState(!nexusFeatureFlags.threeDEnabled || (initialView?.flat ?? false));
   const [cinematicPlaying,setCinematicPlaying]=useState(false);
   const [cinematicNonce,setCinematicNonce]=useState(0);
   useEffect(()=>{
@@ -149,9 +184,18 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',onNavigateTo
   // Keep a high-fidelity still on mobile; motion runs only after an explicit play action.
   const [paused,setPaused]=useState(()=>typeof window!=='undefined'&&window.matchMedia('(max-width: 700px)').matches);
   const [reduced,setReduced]=useState(()=>typeof window!=='undefined'&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const [filterMonth,setFilterMonth]=useState('');
-  const [filterTrade,setFilterTrade]=useState('');
-  const [selectedQuestion,setSelectedQuestion]=useState<number | null>(null);
+  useEffect(()=>{
+    const preference=window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onChange=(event:MediaQueryListEvent)=>setReduced(event.matches);
+    preference.addEventListener('change',onChange);
+    return ()=>preference.removeEventListener('change',onChange);
+  },[]);
+  useEffect(()=>{if(reduced)setCinematicPlaying(false);},[reduced]);
+  const [filterMonth,setFilterMonth]=useState(initialView?.month ?? '');
+  const [filterTrade,setFilterTrade]=useState(initialView?.trade ?? initialTrade);
+  const [selectedQuestion,setSelectedQuestion]=useState<number | null>(initialView?.question ?? null);
+  const [priorityFilter,setPriorityFilter]=useState<FollowupFilter | 'recheck' | null>(initialView?.priority ?? null);
+  useEffect(()=>{onViewChange?.({month:filterMonth,trade:filterTrade,active,flat,question:selectedQuestion,priority:priorityFilter});},[filterMonth,filterTrade,active,flat,selectedQuestion,priorityFilter,onViewChange]);
   const loadedSlice=useMemo(
     ()=>sliceLoadedNexusRecords(workerRecords,{month:filterMonth,trade:filterTrade}),
     [workerRecords,filterMonth,filterTrade]
@@ -176,28 +220,59 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',onNavigateTo
     ()=>buildMonthlyFieldFollowupSummary(filteredRecords,asOfWindow),
     [filteredRecords,asOfWindow]
   );
+  const allFollowupCases=useMemo(()=>collectMonthlyFollowupCases(filteredRecords,followup.asOfDate),[filteredRecords,followup.asOfDate]);
+  const questionCases=allFollowupCases.filter(row=>row.item.opened.questionNumber===selectedQuestion);
+  const priorityCases=useMemo(()=>allFollowupCases
+    .filter(row=>priorityFilter==='overdue'?row.overdue:priorityFilter==='unresolved'?!row.completed:priorityFilter==='reopened'?row.item.events.some(event=>event.status==='reopened'):row.item.latest.status===priorityFilter),
+    [allFollowupCases,priorityFilter]);
   const practice=useMemo(
     ()=>buildPracticeVerificationSummary(filteredRecords,asOfWindow),
     [filteredRecords,asOfWindow]
   );
+  const overdueRechecks=useMemo(()=>collectOverduePracticeRechecks(filteredRecords,practice.asOfDate),[filteredRecords,practice.asOfDate]);
   const count=snapshot.loadedRecordRows;
-  const scoreEvidence=useMemo(()=>summarizeNexusScoreEvidence(filteredRecords),[filteredRecords]);
   const selected=STEPS[active];
   const focusPaths=[
     'M500 350 Q355 232 172 120','M500 350 Q635 205 843 112',
     'M500 350 Q732 345 920 335','M500 350 Q720 533 820 590',
     'M500 350 Q322 525 160 590'
   ];
+  const showFollowupDetails=()=>{
+    const target=document.getElementById('nexus-followup-details');
+    target?.scrollIntoView({behavior:'auto',block:'start'});
+    target?.focus({preventScroll:true});
+  };
   if(loadState!=='ready') return <main className="safety-nexus" aria-label="PSI 안전지능 네트워크"><section className="nexus-followup" role="status"><h1>안전지능 네트워크</h1><p>{loadState==='loading'?'저장된 기록을 불러오고 있습니다.':'기록을 불러오지 못했습니다. 화면을 다시 불러와 주세요.'}</p><button type="button" onClick={()=>onNavigateToPage('dashboard')}>기존 관제센터로 돌아가기</button></section></main>;
-  const surface=<main className={'safety-nexus'+(immersive?' is-immersive':'')} data-reduced-motion={reduced ? 'true' : 'false'} data-motion-paused={paused ? 'true' : 'false'} aria-label="PSI 안전지능 네트워크">
+  const surface=<main role={immersive?'dialog':undefined} aria-modal={immersive?true:undefined} className={'safety-nexus'+(immersive?' is-immersive':'')} data-reduced-motion={reduced ? 'true' : 'false'} data-motion-paused={paused ? 'true' : 'false'} aria-label="PSI 안전지능 네트워크">
     <div className="nexus-background" aria-hidden="true"/>
     <header className="nexus-header">
       <div className="nexus-brand"><span className="nexus-symbol">Ψ</span><div><small>PROACTIVE SAFETY INTELLIGENCE</small><h1>SAFETY <b>NEXUS</b></h1></div></div>
       <div className="nexus-header-right"><span className="nexus-status"><i/>VISUAL GATE 02 · GPU 시제품</span>
-        <button type="button" className="nexus-immersive-toggle" aria-pressed={immersive} onClick={()=>setImmersive(v=>!v)}>{immersive?'몰입 화면 종료 ↙':'전체 화면 몰입 보기 ⤢'}</button>
-        <button type="button" onClick={()=>onNavigateToPage('dashboard')}>기존 관제센터로 돌아가기 ↗</button></div>
+        <button ref={immersiveToggleRef} type="button" className="nexus-immersive-toggle" aria-pressed={immersive} onClick={()=>setImmersive(v=>!v)}>{immersive?'몰입 화면 종료 ↙':'전체 화면 몰입 보기 ⤢'}</button>
+        <button type="button" onClick={()=>onReturnDashboard ? onReturnDashboard(filterTrade) : onNavigateToPage('dashboard')}>기존 관제센터로 돌아가기 ↗</button></div>
     </header>
-    <div className="nexus-lead"><span>INTELLIGENCE VISUALIZATION</span><p>위험을 인식하고, 근거를 확인하고, 조치와 교육으로 연결하다.</p></div>
+    <div className="nexus-lead"><span>INTELLIGENCE VISUALIZATION</span><p>위험을 인식하고, 근거를 확인하고, 조치와 교육으로 연결하다. 관제센터로 돌아가면 공종과 이전 조회기간을 복원합니다. 작성 월은 이 화면에서 별도로 선택합니다.</p></div>
+    <section className="nexus-priority-summary" aria-label="우선 확인할 후속조치">
+      <div><strong>우선 확인할 후속조치</strong><p>현재 불러온 기록 · {filterMonth || '전체 작성기간'} · {filterTrade || '전체 공종'} · 기준일 {followup.asOfDate}</p></div>
+      <div className="nexus-priority-counts"><button type="button" aria-pressed={priorityFilter==='overdue'} onClick={()=>setPriorityFilter('overdue')}>기한 초과 <b>{followup.overdue}</b>건</button><button type="button" aria-pressed={priorityFilter==='unresolved'} onClick={()=>setPriorityFilter('unresolved')}>미완료 <b>{followup.unresolved}</b>건</button><button type="button" aria-pressed={priorityFilter==='recheck'} onClick={()=>setPriorityFilter('recheck')}>재확인 기한초과 <b>{practice.overdueFieldRecheck}</b>건</button></div>
+      <p>기한 초과는 미완료에 포함될 수 있습니다. 긴급위험 전체 조회 결과는 아닙니다.</p>
+      {recordNotice && <p role="alert">{recordNotice}</p>}
+      {practice.conflictingRecords>0 && <p role="alert">재확인 이력의 내용이 충돌한 기록 {practice.conflictingRecords}건은 집계에서 제외했습니다. 원본을 확인해 주세요.</p>}
+      {followup.conflictingRecords>0 && <p role="alert">조치 이력의 내용이 충돌한 기록 {followup.conflictingRecords}건은 집계에서 제외했습니다. 원본을 확인해 주세요.</p>}
+      {priorityFilter==='recheck' && <div aria-live="polite"><h3>재확인 기한초과 {overdueRechecks.length}건</h3>
+        {overdueRechecks.length===0 ? <p>선택 범위에 해당 기록이 없습니다.</p> : <ul>{overdueRechecks.map(item=>{
+          const record=filteredRecords.find(row=>row.id===item.recordId);
+          return <li key={item.recordId+'-'+item.question}>Q{item.question} · {PRACTICE_RESULT_LABELS[item.latest.result] || '확인 필요'} · 예정일 {item.latest.nextCheckDueDate} {record && onOpenRecord && <button type="button" onClick={()=>onOpenRecord(record)}>관련 기록 열기</button>}</li>;
+        })}</ul>}
+      </div>}
+      {priorityFilter && priorityFilter!=='recheck' && <div aria-live="polite"><h3>{FOLLOWUP_FILTER_LABELS[priorityFilter]} 조치 {priorityCases.length}건</h3>
+        {priorityCases.length===0 ? <p>선택 범위에 해당 조치가 없습니다.</p> : <ul>{priorityCases.map(({recordId,item,dueDate})=>{
+          const record=filteredRecords.find(row=>String(row.id || '').trim()===recordId);
+          return <li key={recordId+'-'+item.caseId}>Q{item.opened.questionNumber} · {FOLLOWUP_STATUS_LABELS[item.latest.status] || '상태 확인 필요'} · 기한 {dueDate || '미지정'} {record && onOpenRecord && <button type="button" onClick={()=>onOpenRecord(record)}>관련 기록 열기</button>}</li>;
+        })}</ul>}
+      </div>}
+      <button type="button" onClick={showFollowupDetails}>조치 내역과 범위 확인</button>
+    </section>
     <div className="nexus-main">
       <aside className="nexus-aside">
         <div className="nexus-section-title"><span>01 / SYSTEM OVERVIEW</span><i/></div>
@@ -220,7 +295,7 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',onNavigateTo
       </aside>
       <section className="nexus-visual" aria-label="5단계 위험성평가 네트워크 탐색">
         <div className="nexus-visual-head"><span><i/> INTELLIGENCE FIELD</span><div>
-          <button type="button" aria-pressed={flat} onClick={()=>{setCinematicPlaying(false);setFlat(v=>!v)}}>{flat?'입체 보기':'간결한 보기'}</button>
+          <button type="button" disabled={!nexusFeatureFlags.threeDEnabled} aria-pressed={flat} onClick={()=>{setCinematicPlaying(false);setFlat(v=>!v)}}>{!nexusFeatureFlags.threeDEnabled?'간결한 보기 · 입체 기능 꺼짐':flat?'입체 보기':'간결한 보기'}</button>
           <button type="button" disabled={flat||reduced} onClick={()=>{setCinematicPlaying(false);setPaused(v=>!v)}}>{paused?'모션 재생':'모션 일시정지'}</button>
           <button type="button" className="nexus-story-button" disabled={flat||reduced}
             aria-pressed={cinematicPlaying}
@@ -262,7 +337,7 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',onNavigateTo
         <div className="nexus-next"><span>SAFETY LOOP · NEXT ACTION</span><ol><li>근로자 위험 인식</li><li>AI 구조화 · 관리자 대조</li><li>조치 · 기한 · 재점검</li><li>교육 · 재확인 · 환류</li></ol></div>
       </aside>
     </div>
-    <section className="nexus-followup" aria-label="근로자 위험성평가 후속조치 익명 집계">
+    <section id="nexus-followup-details" tabIndex={-1} className="nexus-followup" aria-label="근로자 위험성평가 후속조치 익명 집계">
       <div className="nexus-followup-header">
         <div><span>VERIFIABLE READ-ONLY SIGNALS</span><h2>후속조치 현황 <small>불러온 기록의 관리자 이력 기준</small></h2></div>
         <p>이 화면은 현장 안전을 판정하거나 조치 완료를 승인하지 않습니다. <b>현장별 인증 범위는 아직 미연동</b>입니다.</p>
@@ -274,12 +349,14 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',onNavigateTo
         <label>작성 월
           <select value={filterMonth} onChange={event=>{setFilterMonth(event.target.value);setSelectedQuestion(null)}} aria-label="작성 월 선택">
             <option value="">전체 작성기간</option>
+            {filterMonth && !loadedSlice.monthOptions.includes(filterMonth) && <option value={filterMonth}>{filterMonth} · 현재 기록 없음</option>}
             {loadedSlice.monthOptions.map(month=><option key={month} value={month}>{month}</option>)}
           </select>
         </label>
         <label>공종
           <select value={filterTrade} onChange={event=>{setFilterTrade(event.target.value);setSelectedQuestion(null)}} aria-label="공종 선택">
             <option value="">전체 공종</option>
+            {filterTrade && !loadedSlice.tradeOptions.includes(filterTrade) && <option value={filterTrade}>{filterTrade} · 현재 기록 없음</option>}
             {loadedSlice.tradeOptions.map(trade=><option key={trade} value={trade}>{trade}</option>)}
           </select>
         </label>
@@ -287,22 +364,22 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',onNavigateTo
       </div>
       <div className="nexus-followup-cards">
         {[
-          ['미완료',followup.unresolved,'action'],
+          ['미완료',followup.unresolved,'unresolved'],
           ['기한 초과',followup.overdue,'overdue'],
-          ['임시 통제 중',followup.interimControl,'interim'],
+          ['임시 통제 중',followup.interimControl,'interim_control'],
           ['조치 예정',followup.scheduled,'scheduled'],
           ['재개방 이력',followup.reopened,'reopened'],
-          ['완료로 기록된 조치',followup.completed,'complete'],
+          ['완료로 기록된 조치',followup.completed,'completed'],
         ].map(([label,value,tone])=>
-          <div className={'nexus-followup-card tone-'+tone} key={String(label)}>
+          <button type="button" aria-pressed={priorityFilter===tone} onClick={()=>{setPriorityFilter(tone as FollowupFilter);document.querySelector('.nexus-priority-summary')?.scrollIntoView({block:'start'});}} className={'nexus-followup-card tone-'+tone} key={String(label)}>
             <span>{label}</span><strong>{value}</strong><small>건</small>
-          </div>
+          </button>
         )}
       </div>
       <div className="nexus-followup-breakdown" aria-label="문항별 후속조치 내역">
         <h3>문항별 확인이 필요한 조치</h3>
         <p>선택한 작성 기록과 연결된 조치입니다. 기한 초과와 재개방 이력은 미완료 건수와 겹칠 수 있습니다.</p>
-        {followup.totalCases === 0 ? <p>선택한 기록에 연결된 조치 이력이 없습니다.</p> :
+        {followup.totalCases === 0 ? <p>{followup.conflictingRecords ? '집계 가능한 조치 이력이 없습니다. 충돌 기록의 원본을 확인해 주세요.' : '선택한 기록에 연결된 조치 이력이 없습니다.'}</p> :
           <ul>{followup.questionGroups.filter(group=>group.unresolved || group.overdue || group.reopened).map(group=>
             <li key={group.number}><button type="button" aria-pressed={selectedQuestion===group.number} onClick={()=>setSelectedQuestion(group.number)}>Q{group.number} 관련 기록 보기</button> · 미완료 {group.unresolved}건 · 기한 초과 {group.overdue}건 · 재개방 이력 {group.reopened}건</li>
           )}</ul>}
@@ -310,15 +387,17 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',onNavigateTo
           <p>선택 범위에서 미완료 또는 재개방 이력이 집계되지 않았습니다.</p>}
         {selectedQuestion!==null && <div>
           <p>Q{selectedQuestion}에 연결된 이력이 있는 선택 범위의 기록입니다. 아래 이력은 조치 기준일 {followup.asOfDate}까지 표시하며, 완료 이력도 포함할 수 있습니다.</p>
-          <ul>{filteredRecords.filter(record=>nexusEventsAsOf(record,selectedQuestion,followup.asOfDate).length>0).map(record=>
-            <li key={record.id}>{record.date} · {record.jobField || '공종 미확인'} · {record.name || '이름 미확인'} {onOpenRecord && <button type="button" onClick={()=>onOpenRecord(record)}>기록 상세 열기</button>}
+          {questionCases.length===0 && <p>해당 문항에 집계 가능한 조치가 없습니다. 충돌한 이력은 표시하지 않습니다.</p>}
+          <ul>{questionCases.map(({recordId,item})=>{
+            const record=filteredRecords.find(row=>String(row.id || '').trim()===recordId);
+            return <li key={recordId+'-'+item.caseId}>{record?.date} · {record?.jobField || '공종 미확인'} · {record?.name || '이름 미확인'} {record && onOpenRecord && <button type="button" onClick={()=>onOpenRecord(record)}>기록 상세 열기</button>}
               <details><summary>해당 문항 조치 이력 보기</summary>
-                <ul>{nexusEventsAsOf(record,selectedQuestion,followup.asOfDate).map(event=>
+                <ul>{item.events.map(event=>
                   <li key={event.id}>{event.timestamp} · {FOLLOWUP_STATUS_LABELS[event.status] || '상태 확인 필요'} · {event.actionDetail || '내용 없음'}</li>
                 )}</ul>
               </details>
-              {!record.handwrittenAnswers?.some(answer=>Boolean(String(answer.answerText || '').trim())) && <span> · 자필 답변이 없어 상세 화면의 조치 도구가 표시되지 않을 수 있습니다.</span>}</li>
-          )}</ul>
+              {!record?.handwrittenAnswers?.some(answer=>Boolean(String(answer.answerText || '').trim())) && <span> · 자필 답변이 없어 상세 화면의 조치 도구가 표시되지 않을 수 있습니다.</span>}</li>;
+          })}</ul>
         </div>}
       </div>
       <div className="nexus-practice">
@@ -351,15 +430,10 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',onNavigateTo
     <section className="nexus-metrics" aria-label="6대 안전인식 지표">
       <div className="nexus-metrics-caption"><span>THE SIX PROTECTION SIGNALS</span><strong>6대 안전인식 지표</strong><p>지표명 안내입니다. 점수와 유효 분모는 이 화면에 아직 연결되지 않았습니다.</p></div>
       <div className="nexus-metrics-list">{METRICS.map(s=><div className="nexus-metric" key={s[0]}><span>{s[0]} <i/></span><strong>{s[1]}</strong><small>{s[2]}</small></div>)}</div>
-      <div className="nexus-score-evidence" aria-label="기존 평가 점수 근거">
-        <h3>기존 평가 점수의 유효 자료</h3>
-        <p>현재 불러온 작성 기록 행 기준입니다. 아래 점수는 위 안전인식 항목과 서로 다른 기존 평가 체계입니다.</p>
-        <ul>{scoreEvidence.map(item=><li key={item.key}><strong>{item.label}</strong> {item.average===null?'산출 불가':`${item.average.toFixed(1)} / ${item.max}점`} · 유효 {item.valid} / {count}건 · 결측 또는 범위 오류 {item.missing}건</li>)}</ul>
-        <p>반복위반 감점은 별도의 감점 항목이며 역량 평균에 포함하지 않습니다. 공식 현장 집계는 아닙니다.</p>
-        <button type="button" onClick={()=>onNavigateToPage('monthly-guidance-report')}>기존 평가 보고서 열기</button>
-      </div>
+      <button type="button" onClick={()=>onNavigateToPage('monthly-guidance-report')}>기존 평가 보고서 열기</button>
     </section>
-    <footer className="nexus-footer"><span>PSI / SAFETY NEXUS · VG-1</span><span>지금은 시각·탐색 시제품입니다. 실제 승인 통계·처리상태 연동은 별도 검증 후 진행합니다.</span>
+    <ScoreMetricEvidencePanel records={filteredRecords} scopeLabel={`${filterMonth || '전체 작성기간'} · ${filterTrade || '전체 공종'}`} asOf={followup.asOfDate} loadState={loadState} onOpenRecord={onOpenRecord}/>
+    <footer className="nexus-footer"><span>PSI / SAFETY NEXUS</span><span>현재 불러온 기록의 탐색 화면입니다. 실제 현장 승인 통계와의 대조는 미완료입니다.</span>
       <label><input type="checkbox" checked={reduced} onChange={e=>setReduced(e.target.checked)}/> 움직임 줄이기</label></footer>
   </main>;
   return immersive && typeof document!=='undefined' ? createPortal(surface,document.body) : surface;

@@ -1,6 +1,9 @@
 import React, { useMemo, useState } from 'react';
+import { EvidenceScopePanel } from '../components/shared/EvidenceScopePanel';
 import { QRCodeCanvas } from 'qrcode.react';
-import type { MonthlyGuidanceReport as GuidanceData, SixMetricBreakdown, WorkerRecord, Page } from '../types';
+import type { MonthlyGuidanceReport as StoredGuidanceData, SixMetricBreakdown, WorkerRecord, Page } from '../types';
+import { summarizeScoreMetricEvidence, type ScoreMetricEvidence, SCORE_EVIDENCE_VERSION } from '../utils/scoreMetricEvidence';
+import { hasValidSafetyScore } from '../utils/coreMetrics';
 import { FieldRadarChart } from '../components/charts/FieldRadarChart';
 import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
 import { buildMonthlyFieldFollowupSummary, formatMonthlyFollowupEducationLines, getKoreanCalendarDay } from '../utils/monthlyFieldFollowup';
@@ -13,8 +16,9 @@ import {
 
 interface Props { workerRecords: WorkerRecord[]; onNavigateToPage?: (page:Page)=>void; }
 
+type GuidanceData = Omit<StoredGuidanceData, 'sixMetricTrends'> & { sixMetricTrends: { [K in keyof StoredGuidanceData['sixMetricTrends']]: number | null }; metricEvidence: ScoreMetricEvidence[] };
 type MetricKey = keyof SixMetricBreakdown;
-type ChartPoint = { month: string; value: number; label: string };
+type ChartPoint = { month: string; value: number | null; label: string };
 
 const metrics: Array<{ key: MetricKey; label: string; max: number; description: string }> = [
     { key: 'psychological', label: '응답 충실도', max: 10, description: '위험을 구체적으로 기록하는 경향' },
@@ -39,10 +43,6 @@ const riskMap = (records: WorkerRecord[]) => {
     });
     return result;
 };
-const average = (records: WorkerRecord[], key: MetricKey) => {
-    const values = records.map((record) => record.scoreBreakdown?.[key]).filter((value): value is number => typeof value === 'number');
-    return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length * 10) / 10 : 0;
-};
 const clampPercent = (value: number) => Math.max(0, Math.min(100, value));
 
 const getConfiguredSiteName = (): string => {
@@ -60,20 +60,16 @@ const SparkLine: React.FC<{ points: ChartPoint[] }> = ({ points }) => {
     const width = 360;
     const height = 150;
     const padding = 22;
-    const safePoints = points.length > 0 ? points : [{ month: '', value: 0, label: '자료 대기' }];
-    const max = Math.max(100, ...safePoints.map((point) => point.value));
-    const min = Math.min(0, ...safePoints.map((point) => point.value));
+    const safePoints = points.length > 0 ? points : [{ month: '', value: null, label: '자료 대기' }];
+    const max = Math.max(100, ...safePoints.map((point) => point.value ?? 0));
+    const min = Math.min(0, ...safePoints.map((point) => point.value ?? 0));
     const range = max - min || 1;
     const xStep = safePoints.length > 1 ? (width - padding * 2) / (safePoints.length - 1) : 0;
     const coords = safePoints.map((point, index) => {
         const x = padding + index * xStep;
-        const y = height - padding - ((point.value - min) / range) * (height - padding * 2);
+        const y = point.value === null ? null : height - padding - ((point.value - min) / range) * (height - padding * 2);
         return { ...point, x, y };
     });
-    const line = coords.map((point) => `${point.x},${point.y}`).join(' ');
-    const area = coords.length > 1
-        ? `M ${coords[0].x},${height - padding} L ${line} L ${coords[coords.length - 1].x},${height - padding} Z`
-        : '';
 
     return (
         <svg viewBox={`0 0 ${width} ${height}`} className="h-40 w-full" role="img" aria-label="운영 주기별 위험인식 신호 변화 차트">
@@ -92,11 +88,10 @@ const SparkLine: React.FC<{ points: ChartPoint[] }> = ({ points }) => {
                     </g>
                 );
             })}
-            {area && <path d={area} fill="url(#monthlyTrackingGradient)" />}
-            <polyline points={line} fill="none" stroke="#2563eb" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+            {coords.map((point, index) => index > 0 && point.y !== null && coords[index - 1].y !== null ? <line key={point.month} x1={coords[index - 1].x} y1={coords[index - 1].y!} x2={point.x} y2={point.y} stroke="#2563eb" strokeWidth="4" /> : null)}
             {coords.map((point) => (
                 <g key={`${point.month}-${point.value}`}>
-                    <circle cx={point.x} cy={point.y} r="5" fill="#ffffff" stroke="#2563eb" strokeWidth="3" />
+                    {point.y !== null ? <circle cx={point.x} cy={point.y} r="5" fill="#ffffff" stroke="#2563eb" strokeWidth="3" /> : <text x={point.x} y={height / 2} textAnchor="middle" className="fill-slate-600 text-[12px]">자료 없음</text>}
                     <text x={point.x} y={height - 4} textAnchor="middle" className="fill-slate-500 text-[10px] font-bold">{point.label}</text>
                 </g>
             ))}
@@ -107,21 +102,22 @@ const SparkLine: React.FC<{ points: ChartPoint[] }> = ({ points }) => {
 const TrackingAnalysisPanel: React.FC<{
     report: GuidanceData;
     monthlyPoints: ChartPoint[];
-    delta: number;
+    delta: number | null;
     cycleCopy: AssessmentCycleCopy;
 }> = ({ report, monthlyPoints, delta, cycleCopy }) => {
-    const currentAverage = monthlyPoints[monthlyPoints.length - 1]?.value ?? 0;
+    const currentAverage = monthlyPoints[monthlyPoints.length - 1]?.value ?? null;
     const maxRiskCount = Math.max(1, ...report.topRiskFactors.map((risk) => risk.count));
     const weakestMetrics = metrics
         .map((metric) => {
             const value = report.sixMetricTrends[`${metric.key}Avg` as keyof GuidanceData['sixMetricTrends']];
-            return { ...metric, value, percent: metric.max > 0 ? (Math.abs(value) / metric.max) * 100 : 0 };
+            return { ...metric, value, percent: metric.max > 0 ? (Math.abs(value ?? 0) / metric.max) * 100 : 0 };
         })
+        .filter(metric => metric.value !== null)
         .sort((a, b) => a.percent - b.percent)
         .slice(0, 3);
     const worsenedCount = report.repeatedIssues.filter((issue) => issue.trend === 'worsened' || issue.trend === 'same').length;
-    const trendTone = delta > 0 ? 'text-emerald-700' : delta < 0 ? 'text-rose-700' : 'text-slate-700';
-    const trendLabel = delta > 0 ? '개선 흐름' : delta < 0 ? '추가 확인' : '유지';
+    const trendTone = delta === null ? 'text-slate-700' : delta > 0 ? 'text-emerald-700' : delta < 0 ? 'text-rose-700' : 'text-slate-700';
+    const trendLabel = delta === null ? '비교 불가' : delta > 0 ? '개선 흐름' : delta < 0 ? '추가 확인' : '유지';
 
     return (
         <section data-monthly-guidance="tracking-analysis" className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -133,7 +129,7 @@ const TrackingAnalysisPanel: React.FC<{
                     </div>
                     <div className="text-right">
                         <p className="psi-meta-label">현재 주기 평균</p>
-                        <p className="psi-data-value mt-1 text-blue-700">{currentAverage}</p>
+                        <p className="psi-data-value mt-1 text-blue-700">{currentAverage ?? '산출 불가'}</p>
                     </div>
                 </div>
                 <div className="mt-3 rounded-2xl bg-slate-50 px-2 py-3">
@@ -142,7 +138,7 @@ const TrackingAnalysisPanel: React.FC<{
                 <div className="mt-3 grid gap-2 sm:grid-cols-3">
                     {[
                         [`${cycleCopy.shortLabel} 판정`, trendLabel, trendTone],
-                        [`${cycleCopy.previousCycleLabel} 차이`, `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}`, trendTone],
+                        [`${cycleCopy.previousCycleLabel} 차이`, delta === null ? '비교 불가' : `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}`, trendTone],
                         ['분석 표본', `${report.analyzedRecords}건`, 'text-slate-800'],
                     ].map(([label, value, color]) => (
                         <div key={label} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
@@ -203,6 +199,8 @@ const createReport = (
     cycleCopy: AssessmentCycleCopy,
     siteName: string,
 ): GuidanceData => {
+    const metricEvidence = summarizeScoreMetricEvidence(records);
+    const average = (key: MetricKey) => metricEvidence.find(row => row.key === key)?.average ?? null;
     const currentRisks = riskMap(records);
     const previousRisks = riskMap(previous);
     const topRiskFactors = [...currentRisks.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 5).map(([riskName, item]) => ({
@@ -232,10 +230,11 @@ const createReport = (
         goodWritingExamples: [...answers].sort((a, b) => b.answer.length - a.answer.length).slice(0, 2).map((item) => ({ ...item, example: item.answer, whyGood: '위험 상황과 행동이 구체적으로 연결되어 작업 전 확인에 활용할 수 있습니다.' })),
         poorWritingExamples: [...answers].sort((a, b) => a.answer.length - b.answer.length).slice(0, 2).map((item) => ({ question: item.question, example: item.answer, improvedExample: `${fallbackRisk}이 발생하는 위치와 작업 순서를 확인하고, 작업 전 차단조치와 보호구 상태를 확인한다.`, coachingPoint: '단어만 적기보다 언제·어디서·무엇을 확인할지 한 문장으로 작성합니다.' })),
         repeatedIssues,
+        metricEvidence,
         sixMetricTrends: {
-            psychologicalAvg: average(records, 'psychological'), jobUnderstandingAvg: average(records, 'jobUnderstanding'),
-            riskAssessmentUnderstandingAvg: average(records, 'riskAssessmentUnderstanding'), proficiencyAvg: average(records, 'proficiency'),
-            improvementExecutionAvg: average(records, 'improvementExecution'), repeatViolationPenaltyAvg: average(records, 'repeatViolationPenalty'),
+            psychologicalAvg: average('psychological'), jobUnderstandingAvg: average('jobUnderstanding'),
+            riskAssessmentUnderstandingAvg: average('riskAssessmentUnderstanding'), proficiencyAvg: average('proficiency'),
+            improvementExecutionAvg: average('improvementExecution'), repeatViolationPenaltyAvg: average('repeatViolationPenalty'),
         },
         nextMonthEducationFocus: topRiskFactors.slice(0, 3).map((risk) => `${risk.riskName}: 작업 전 확인사항과 실천행동을 구체적으로 작성`),
         multilingualSummaries: [
@@ -285,37 +284,27 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
         periodStartDate: selectedGroup?.period.startDate,
     }), [workerRecords, selectedGroup?.period.endDate, selectedGroup?.period.startDate]);
     const monthlyChartPoints = useMemo<ChartPoint[]>(() => (
-        [...periodGroups]
+        periodGroups.slice(selectedPeriodIndex)
             .reverse()
             .slice(-6)
             .map((group) => {
-                const scores = group.records
-                    .map((record) => Number(record.safetyScore))
-                    .filter((score) => Number.isFinite(score) && score > 0);
+                const scores = group.records.filter(hasValidSafetyScore).map(record => record.safetyScore);
                 const value = scores.length
                     ? Number((scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(1))
-                    : 0;
+                    : null;
                 return {
                     month: group.period.key,
                     value,
                     label: group.period.startDate.slice(5).replace('-', '.'),
                 };
             })
-    ), [periodGroups]);
-    const currentAverage = records
-        .map((record) => Number(record.safetyScore))
-        .filter((score) => Number.isFinite(score) && score > 0);
-    const previousAverage = previous
-        .map((record) => Number(record.safetyScore))
-        .filter((score) => Number.isFinite(score) && score > 0);
-    const currentScore = currentAverage.length
-        ? currentAverage.reduce((sum, score) => sum + score, 0) / currentAverage.length
-        : 0;
-    const previousScore = previousAverage.length
-        ? previousAverage.reduce((sum, score) => sum + score, 0) / previousAverage.length
-        : 0;
-    const monthlyDelta = Number((currentScore - previousScore).toFixed(1));
-    const weakest = metrics.map((metric) => ({ ...metric, value: report.sixMetricTrends[`${metric.key}Avg` as keyof GuidanceData['sixMetricTrends']] })).sort((a, b) => a.value / a.max - b.value / b.max)[0];
+    ), [periodGroups, selectedPeriodIndex]);
+    const currentAverage = records.filter(hasValidSafetyScore).map(record => record.safetyScore);
+    const previousAverage = previous.filter(hasValidSafetyScore).map(record => record.safetyScore);
+    const currentScore = currentAverage.length ? currentAverage.reduce((sum, score) => sum + score, 0) / currentAverage.length : null;
+    const previousScore = previousAverage.length ? previousAverage.reduce((sum, score) => sum + score, 0) / previousAverage.length : null;
+    const monthlyDelta = currentScore === null || previousScore === null ? null : Number((currentScore - previousScore).toFixed(1));
+    const weakest = metrics.filter(metric => metric.key !== 'repeatViolationPenalty').map((metric) => ({ ...metric, value: report.sixMetricTrends[`${metric.key}Avg` as keyof GuidanceData['sixMetricTrends']] })).filter(metric => metric.value !== null).sort((a, b) => a.value! / a.max - b.value! / b.max)[0];
     const downloadOutline = () => {
         const text = [`[PSI ${cycleCopy.reportLabel}] ${assessmentPeriodLabel}`, `기준자료: ${assessmentPeriodLabel}`, '', report.overallSummary, '', '위험요소 TOP5', ...report.topRiskFactors.map((r, i) => `${i + 1}. ${r.riskName} (${r.count}건) - ${r.guidanceMessage}`), '', `${cycleCopy.nextCycleLabel} 실천행동`, ...report.nextMonthEducationFocus.map((v) => `- ${v}`), '', '', ...formatMonthlyFollowupEducationLines(monthlyFollowup), '', ...formatPracticeVerificationEducationLines(practice), '', '※ 개인 실명·점수·순위는 교육자료에 포함하지 않습니다.'].join('\n');
         const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
@@ -376,6 +365,12 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
                 </dl>
                 <p className="mt-2 text-xs font-semibold leading-5 text-amber-800">공식 발행 전 현장 ID, 작성 완료율의 분모·제외 사유, 조치 담당자·기한, 교육자료 ID, 승인자·승인일과 수정이력을 연결해야 합니다.</p>
             </header>
+            <EvidenceScopePanel source="현재 앱에 불러온 평가기록 및 관리자 후속조치·실천 확인 이력"
+                scope={`${assessmentPeriodLabel} 작성자료 · 후속조치에는 이전 평가기간의 미완료 이력 포함`}
+                asOf={`${monthlyFollowup.asOfDate} (한국시간 집계 기준일) · 서버 최신성 미확인`}
+                state="local" population={`선택 기간 평가기록 ${records.length}행 · 전체 현장 모집단 확인 전`}
+                review="관리자 승인 전 초안 · 이력의 완료 상태와 실제 안전 확보는 별개"
+                nextAction="원본·분모·제외 사유와 담당자·기한·재점검 근거를 확인한 뒤 발행하세요."/>
             {records.length === 0 && (
                 <section role="status" className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950">
                     <h3 className="psi-section-title">선택한 구간에 분석 기록이 없습니다.</h3>
@@ -390,6 +385,7 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
                         <p className="psi-eyebrow text-amber-700">실제 조치 기록 기반 · 월간 환류</p>
                         <h3 className="psi-section-title mt-1">미완료 조치·재확인 → 다음 교육 중점사항</h3>
                         <p className="psi-small-note mt-1">집계 기준일 {monthlyFollowup.asOfDate}. 선택한 평가기간 이전의 미완료 건도 이월해 확인합니다. 교육용 익명 집계로 개인별 제재·공식 위험등급에 사용하지 않습니다.</p>
+                        {monthlyFollowup.conflictingRecords > 0 && <p role="alert" className="mt-2 text-sm font-bold text-amber-800">조치 이력 내용이 충돌한 기록 {monthlyFollowup.conflictingRecords}건은 집계에서 제외했습니다. 원본을 확인해 주세요.</p>}
                     </div>
                     <span className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">현장 확인 자료 · 공식 상등급과 별개</span>
                 </div>
@@ -423,6 +419,7 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
                 <p className="psi-eyebrow text-emerald-700">교육 후 실천 확인 기록 · 계도용 익명 집계</p>
                 <h3 className="psi-section-title mt-1">교육과 현장 실천 관찰은 별도로 확인합니다</h3>
                 <p className="psi-small-note mt-1">집계 기준일 {practice.asOfDate} · 교육 전달 또는 이해 확인만으로 보호구 착용·조치 완료를 인정하지 않습니다.</p>
+                {practice.conflictingRecords > 0 && <p role="alert" className="mt-2 text-sm font-bold text-amber-800">실천 확인 이력 내용이 충돌한 기록 {practice.conflictingRecords}건은 집계에서 제외했습니다. 원본을 확인해 주세요.</p>}
                 <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-5">
                     {[
                         ['교육 전달', practice.educationDelivered, '회'],
@@ -500,7 +497,7 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
                 <ReportBox title="반복지적 개선관리">{report.repeatedIssues.length ? report.repeatedIssues.map((issue) => <div key={issue.issueName} className="rounded-xl border border-slate-100 p-3"><div className="flex justify-between gap-3"><b className="psi-item-title">{issue.issueName}</b><span className="text-xs font-bold text-amber-700">{issue.previousCount || 0} → {issue.currentCount || 0}</span></div><p className="psi-small-note mt-1 text-slate-600">{issue.guidanceMessage}</p></div>) : <Empty />}</ReportBox>
             </section>
             <ReportBox title="좋은 작성 예시 vs 미흡 작성 예시" subtitle="개인정보는 제거하고 공종과 작성 방식만 공유합니다."><div className="grid gap-4 lg:grid-cols-2"><Examples title="좋은 작성 예시" color="emerald" items={report.goodWritingExamples.map((v) => ({ head: v.question, body: `“${v.example}”`, foot: v.whyGood }))} /><Examples title="미흡 작성 예시와 개선안" color="amber" items={report.poorWritingExamples.map((v) => ({ head: v.question, body: `미흡: “${v.example}”\n개선: “${v.improvedExample}”`, foot: v.coachingPoint }))} /></div></ReportBox>
-            <ReportBox title={`6대 지표 ${cycleCopy.shortLabel} 변화`}><p className="rounded-xl bg-indigo-50 p-3 text-sm font-semibold leading-7 text-indigo-900">6대 지표는 근로자를 징계하거나 순위를 매기기 위한 점수가 아니라, {cycleCopy.frequencyLabel} 작성되는 {cycleCopy.recordLabel}를 통해 현장 전체의 위험 인식 수준과 개선 흐름을 정량적으로 확인하기 위한 교육·계도 지표입니다.</p><div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{metrics.map((m) => { const value = report.sixMetricTrends[`${m.key}Avg` as keyof GuidanceData['sixMetricTrends']]; return <div key={m.key} className="rounded-xl border border-slate-200 p-4"><div className="flex justify-between text-sm font-bold"><span>{m.label}</span><span>{value} / {m.max}</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-indigo-500" style={{ width: `${Math.min(100, Math.round(Math.abs(value) / m.max * 100))}%` }} /></div><p className="psi-small-note mt-2">{m.description}</p></div>; })}</div></ReportBox>
+            <ReportBox title={`6대 지표 ${cycleCopy.shortLabel} 변화`}><p className="rounded-xl bg-indigo-50 p-3 text-sm font-semibold leading-7 text-indigo-900">6대 지표는 근로자를 징계하거나 순위를 매기기 위한 점수가 아니라, {cycleCopy.frequencyLabel} 작성되는 {cycleCopy.recordLabel}를 통해 현장 전체의 위험 인식 수준과 개선 흐름을 정량적으로 확인하기 위한 교육·계도 지표입니다.</p><p className="mt-3 text-sm">현재 선택한 작성자료의 유효값만 항목별 평균합니다. 결측은 0점이 아니며 반복위반 감점은 낮을수록 작습니다. 산식 {SCORE_EVIDENCE_VERSION}. 기획서의 6개 안전 관점과 다른 기존 평가점수입니다.</p><div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{metrics.map((m) => { const value = report.sixMetricTrends[`${m.key}Avg` as keyof GuidanceData['sixMetricTrends']]; return <div key={m.key} className="rounded-xl border border-slate-200 p-4"><div className="flex justify-between text-sm font-bold"><span>{m.label}</span><span>{value === null ? '산출 불가' : `${value} / ${m.max}`}</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-indigo-500" style={{ width: `${Math.min(100, Math.round(Math.abs(value ?? 0) / m.max * 100))}%` }} /></div><p className="psi-small-note mt-2">{m.description}</p><p className="text-sm mt-2">{(() => { const row = report.metricEvidence.find(item => item.key === m.key)!; return `유효 ${row.valid}/${row.total}개 평가 · 결측 ${row.missing} · 제외 ${row.excluded}`; })()}</p></div>; })}</div></ReportBox>
             <section className="rounded-2xl bg-slate-900 p-5 text-white"><h3 className="psi-section-title text-white">{cycleCopy.nextCycleLabel} 개선해야 할 실천행동</h3><ul className="mt-3 space-y-2 text-sm font-medium leading-7 text-slate-200">{report.nextMonthEducationFocus.length ? report.nextMonthEducationFocus.map((v) => <li key={v}>• {v}</li>) : <li>• 분석자료 수집 후 교육 중점 행동을 생성합니다.</li>}</ul></section>
         </main>
 

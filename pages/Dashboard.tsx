@@ -6,7 +6,7 @@ import { StatCard } from '../components/StatCard';
 import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { Tooltip } from '../components/shared/Tooltip';
-import { PrecisionOperationsBoard } from '../components/dashboard/PrecisionOperationsBoard';
+import { PrecisionOperationsBoard, type OperationsViewState } from '../components/dashboard/PrecisionOperationsBoard';
 import { AdvancedOperationsOverview } from '../components/dashboard/AdvancedOperationsOverview';
 import { MOBILE_CARD_GRID_ITEM_CLASS, MOBILE_CARD_PANEL_CLASS, MOBILE_CARD_PANEL_COMPACT_CLASS } from '../components/shared/cardTokens';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
@@ -63,6 +63,9 @@ interface DashboardProps {
     workerRecords: WorkerRecord[];
     safetyCheckRecords: SafetyCheckRecord[];
     setCurrentPage: (page: Page) => void;
+    onOpenNexus?: (trade: string, view: OperationsViewState) => void;
+    initialTrade?: string;
+    initialView?: OperationsViewState | null;
 }
 
 type DashboardTeamOption = {
@@ -364,7 +367,7 @@ const DeferredSection: React.FC<{ children: React.ReactNode; fallback?: React.Re
     return <div ref={containerRef}>{isVisible ? children : fallback}</div>;
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords, setCurrentPage }) => {
+const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords, setCurrentPage, onOpenNexus, initialTrade, initialView }) => {
     const { isDevMode } = useDevMode();
     const { mode: operationalMode } = useOperationalMode();
     const isImmediateOperationalMode = operationalMode === 'immediate';
@@ -2582,6 +2585,9 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 workerRecords={workerRecords}
                 safetyCheckRecords={safetyCheckRecords}
                 setCurrentPage={setCurrentPage}
+                onOpenNexus={onOpenNexus}
+                initialTrade={initialTrade}
+                initialView={initialView}
                 onOpenAdvanced={() => {
                     setIsDashboardUIModeLocked(false);
                     setDashboardUIMode('advanced');

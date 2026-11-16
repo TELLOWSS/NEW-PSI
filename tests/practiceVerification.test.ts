@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkerPracticeVerificationEvent, WorkerRecord } from '../types';
 import {
-    appendPracticeVerificationEvent, buildPracticeVerificationSummary,
+    appendPracticeVerificationEvent, buildPracticeVerificationSummary, collectOverduePracticeRechecks,
     formatPracticeVerificationEducationLines, validatePracticeVerificationEvent,
 } from '../utils/practiceVerification';
 import { buildFieldRecordSource, buildTbmEducationDraft } from '../utils/tbmEducationStudio';
@@ -26,6 +26,39 @@ const record = (id: string, items: WorkerPracticeVerificationEvent[], trade='형
 } as unknown as WorkerRecord);
 
 describe('worker practice verification is separate from training and corrective action', () => {
+    it('excludes conflicting copies and reports them regardless of order', () => {
+        const concern=evt('same','field_check','correction_required','2026-09-03T01:00:00Z',{nextCheckDueDate:'2026-09-05'});
+        const conflict={...concern,result:'observed_safe' as const};
+        const copies=[record('one',[concern]),record('one',[conflict])];
+        for(const rows of [copies,[...copies].reverse()]) {
+            const summary=buildPracticeVerificationSummary(rows,{asOfDate:'2026-09-30'});
+            expect(summary.conflictingRecords).toBe(1);
+            expect(summary.overdueFieldRecheck).toBe(0);
+            expect(collectOverduePracticeRechecks(rows,summary.asOfDate)).toHaveLength(0);
+            expect(formatPracticeVerificationEducationLines(summary).join(' ')).toContain('원본 확인');
+        }
+    });
+    it('matches overdue detail rows to the summary with duplicates and later rechecks', () => {
+        const concern=evt('concern','field_check','correction_required','2026-09-03T01:00:00Z',{nextCheckDueDate:'2026-09-05'});
+        const later=evt('later','recheck','observed_safe','2026-10-03T01:00:00Z');
+        const rows=[record('one',[concern,later]),record('one',[concern])];
+        const summary=buildPracticeVerificationSummary(rows,{asOfDate:'2026-09-30'});
+        const details=collectOverduePracticeRechecks(rows,summary.asOfDate);
+        expect(details).toHaveLength(summary.overdueFieldRecheck);
+        expect(details.map(item=>item.recordId)).toEqual(['one']);
+        expect(collectOverduePracticeRechecks(rows,'2026-10-31')).toHaveLength(0);
+    });
+    it('keeps later verification events from duplicate copies regardless of copy order', () => {
+        const concern=evt('concern','field_check','correction_required','2026-09-03T01:00:00Z',{nextCheckDueDate:'2026-09-05'});
+        const recheck=evt('recheck','recheck','observed_safe','2026-09-15T01:00:00Z');
+        const copies=[record('same',[concern]),record('same',[concern,recheck])];
+        for (const rows of [copies,[...copies].reverse()]) {
+            const summary=buildPracticeVerificationSummary(rows,{asOfDate:'2026-09-30'});
+            expect(summary.overdueFieldRecheck).toBe(0);
+            expect(summary.rechecked).toBe(1);
+            expect(collectOverduePracticeRechecks(rows,summary.asOfDate)).toHaveLength(0);
+        }
+    });
     it('rejects fictional education completion and contradictory phase/result pairs', () => {
         const base = evt('e1','education','delivered','2026-09-15T01:00:00Z');
         expect(validatePracticeVerificationEvent(base,[]).join(' ')).toContain('교육일지');

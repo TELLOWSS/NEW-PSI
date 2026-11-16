@@ -4,10 +4,12 @@ import {postAdminJson} from '../../utils/adminApiClient';
 import {koreanDay} from '../../lib/inspector/workQueue';
 import {buildGlobalActionRegisterCsv,filterGlobalActionsWithCriteria,globalActionCounts,globalActionCheckCounts,globalRegisterCriteriaError,globalActionDimensions,globalActionStatusText,globalActionNextStep,registerFilterLabel,type RegisterFilter,type GlobalActionRow,type GlobalRegisterCriteria} from '../../lib/inspector/globalActionRegister';
 import './inspector-global-register.css';
+import {EvidenceScopePanel} from '../shared/EvidenceScopePanel';
 type Cursor={before:string;beforeId:string};
 type Response={ok:boolean;rows:GlobalActionRow[];inspectionCount:number;hasMore:boolean;nextCursor:Cursor|null};
 export default function InspectorGlobalActionRegister({onOpenAction,blocked=false}:{onOpenAction:(inspectionId:string,actionId:string)=>void;blocked?:boolean}){
  const [rows,setRows]=useState<GlobalActionRow[]>([]),[loaded,setLoaded]=useState(false),[loading,setLoading]=useState(false);
+ const [fetchedAt,setFetchedAt]=useState('');
  const [inspections,setInspections]=useState(0),[more,setMore]=useState(false),[cursor,setCursor]=useState<Cursor|null>(null);
  const [filter,setFilter]=useState<RegisterFilter>('unresolved'),[search,setSearch]=useState(''),[error,setError]=useState('');
  const [site,setSite]=useState(''),[owner,setOwner]=useState(''),[dueFrom,setDueFrom]=useState(''),[dueTo,setDueTo]=useState('');
@@ -23,7 +25,7 @@ export default function InspectorGlobalActionRegister({onOpenAction,blocked=fals
    if(!alive.current)return;
    setRows(old=>reset?result.rows:[...old,...result.rows.filter(r=>!old.some(x=>x.inspectionId===r.inspectionId&&x.actionId===r.actionId))]);
    setInspections(old=>reset?result.inspectionCount:old+result.inspectionCount);
-   setMore(result.hasMore);setCursor(result.nextCursor);setLoaded(true);
+   setMore(result.hasMore);setCursor(result.nextCursor);setLoaded(true);setFetchedAt(new Date().toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}));
   }catch(cause){if(alive.current)setError(cause instanceof Error?cause.message:'목록을 읽지 못했습니다.');}
   finally{inflight.current=false;if(alive.current)setLoading(false);}
  };
@@ -50,6 +52,12 @@ export default function InspectorGlobalActionRegister({onOpenAction,blocked=fals
     <button type="button" className="si-btn" disabled={!filtered.length||loading||!!criteriaError} onClick={exportLoaded}>현재 필터 결과 CSV · {filtered.length}건</button>
    </div>
    {error&&<p role="alert" className="si-notice si-error">{error} · 다시 조회해 주세요. 저장한 조치 기록은 변경하지 않았습니다.</p>}
+   <EvidenceScopePanel source="서버에 저장된 Inspector 조치 이력" scope="관리자 조회로 불러온 점검 페이지 · 검색·현장·담당·기한 필터는 불러온 자료에만 적용"
+    asOf={fetchedAt ? fetchedAt+' (한국시간) · 마지막 조회 성공' : '조회 성공 이력 없음'}
+    state={error ? (loaded ? 'stale' : 'error') : loading ? 'loading' : loaded ? (rows.length ? 'loaded' : 'empty') : 'not-requested'}
+    population={loaded ? `점검 ${inspections}건의 저장 조치 ${rows.length}건 · 검색·선택 범위 ${scoped.length}건` : undefined}
+    review="조치 상태 기록 · 현장 이행·작업재개 승인과 별개"
+    nextAction={error ? '새로고침으로 최신 자료를 확인하세요. 아래 기존 값은 이번 조회 성공을 뜻하지 않습니다.' : '원점검 조치를 열어 담당·기한·재점검 증빙을 대조하세요.'}/>
    {loaded&&<><p className="si-caption" role="status">불러온 점검 {inspections}건 · 저장 조치 {rows.length}건{more?' · 이전 점검 더 있음':''}. 검색·선택 범위 {scoped.length}건 · 조회 기준 {today} (한국시간)</p>
     <div className="si-global-register-stats" aria-label="불러온 점검의 조치현황">
      {([['unresolved',counts.unresolved],['scheduled',counts.scheduled],['today',counts.today],['overdue',counts.overdue],['check',checks.due],['assignment',counts.assignment],['reinspection',counts.reinspection],['verified',counts.verified]] as const).map(([kind,n])=><button type="button" key={kind} aria-pressed={filter===kind} className={filter===kind?'is-active':''} onClick={()=>setFilter(kind)}><b>{n}</b><span>{registerFilterLabel[kind]}</span></button>)}

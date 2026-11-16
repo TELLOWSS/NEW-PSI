@@ -1,14 +1,15 @@
 import type { WorkerRecord } from '../types';
 import { getWorkerIdentityKey } from './workerIdentity';
 import { hasValidSafetyScore, selectLatestCoreMetricRecords } from './coreMetrics';
+import { summarizeScoreMetricEvidence, type ScoreMetricEvidence } from './scoreMetricEvidence';
 
 export interface SixMetricAverages {
-    psychological: number;
-    jobUnderstanding: number;
-    riskAssessmentUnderstanding: number;
-    proficiency: number;
-    improvementExecution: number;
-    repeatViolationPenalty: number;
+    psychological: number | null;
+    jobUnderstanding: number | null;
+    riskAssessmentUnderstanding: number | null;
+    proficiency: number | null;
+    improvementExecution: number | null;
+    repeatViolationPenalty: number | null;
 }
 
 export interface WorkerTrendPoint {
@@ -34,6 +35,7 @@ export interface TradeNationalityGroupData {
     compositeScore: number;
     workerCount: number;
     metrics: SixMetricAverages;
+    metricEvidence?: ScoreMetricEvidence[];
     workers: WorkerTrendData[];
 }
 
@@ -43,6 +45,7 @@ export interface DashboardTransformedData {
     barData: Array<{ trade: string; [nationality: string]: string | number }>;
     groups: Record<string, TradeNationalityGroupData>;
     siteAverageMetrics: SixMetricAverages;
+    siteMetricEvidence: ScoreMetricEvidence[];
     unassignedRecordCount: number;
 }
 
@@ -73,15 +76,6 @@ const DASHBOARD_JOB_FIELD_ALIASES: Record<string, string> = {
     '용역': '용역',
     '콘크리트비계': '콘크리트비계',
     '콘크리트 비계': '콘크리트비계',
-};
-
-const EMPTY_METRICS: SixMetricAverages = {
-    psychological: 0,
-    jobUnderstanding: 0,
-    riskAssessmentUnderstanding: 0,
-    proficiency: 0,
-    improvementExecution: 0,
-    repeatViolationPenalty: 0,
 };
 
 const round1 = (value: number) => Number(value.toFixed(1));
@@ -134,15 +128,13 @@ export function transformDashboardData(workerRecords: WorkerRecord[]): Dashboard
         sumSafetyScore: number;
         count: number;
         workerSet: Set<string>;
-        metricSums: SixMetricAverages;
-        metricCount: number;
+        metricRecords: WorkerRecord[];
     }>();
 
     const workerRecordsMap = new Map<string, WorkerRecord[]>();
 
-    let siteMetricCount = 0;
     let unassignedRecordCount = 0;
-    const siteMetricSums: SixMetricAverages = { ...EMPTY_METRICS };
+    const siteMetricRecords: WorkerRecord[] = [];
     const latestRecords = new Set(selectLatestCoreMetricRecords(workerRecords));
 
     const ensureGroup = (trade: string, nationality: string) => {
@@ -154,8 +146,7 @@ export function transformDashboardData(workerRecords: WorkerRecord[]): Dashboard
                 sumSafetyScore: 0,
                 count: 0,
                 workerSet: new Set<string>(),
-                metricSums: { ...EMPTY_METRICS },
-                metricCount: 0,
+                metricRecords: [],
             });
         }
         return groupAccumulator.get(key)!;
@@ -200,28 +191,9 @@ export function transformDashboardData(workerRecords: WorkerRecord[]): Dashboard
                 group.workerSet.add(workerId);
             }
 
-            const sb = hasValidSafetyScore(record) ? record.scoreBreakdown : undefined;
-            if (sb) {
-                group.metricSums.psychological += sb.psychological ?? 0;
-                group.metricSums.jobUnderstanding += sb.jobUnderstanding ?? 0;
-                group.metricSums.riskAssessmentUnderstanding += sb.riskAssessmentUnderstanding ?? 0;
-                group.metricSums.proficiency += sb.proficiency ?? 0;
-                group.metricSums.improvementExecution += sb.improvementExecution ?? 0;
-                group.metricSums.repeatViolationPenalty += Math.abs(sb.repeatViolationPenalty ?? 0);
-                group.metricCount += 1;
-            }
+            group.metricRecords.push(record);
         }
-
-        const sb = hasValidSafetyScore(record) ? record.scoreBreakdown : undefined;
-        if (sb) {
-            siteMetricSums.psychological += sb.psychological ?? 0;
-            siteMetricSums.jobUnderstanding += sb.jobUnderstanding ?? 0;
-            siteMetricSums.riskAssessmentUnderstanding += sb.riskAssessmentUnderstanding ?? 0;
-            siteMetricSums.proficiency += sb.proficiency ?? 0;
-            siteMetricSums.improvementExecution += sb.improvementExecution ?? 0;
-            siteMetricSums.repeatViolationPenalty += Math.abs(sb.repeatViolationPenalty ?? 0);
-            siteMetricCount += 1;
-        }
+        siteMetricRecords.push(record);
     }
 
     const trades = Array.from(tradesSet).sort((a, b) => a.localeCompare(b, 'ko'));
@@ -257,16 +229,8 @@ export function transformDashboardData(workerRecords: WorkerRecord[]): Dashboard
     const groups: Record<string, TradeNationalityGroupData> = {};
 
     for (const [key, acc] of groupAccumulator) {
-        const metrics = acc.metricCount > 0
-            ? {
-                psychological: round1(acc.metricSums.psychological / acc.metricCount),
-                jobUnderstanding: round1(acc.metricSums.jobUnderstanding / acc.metricCount),
-                riskAssessmentUnderstanding: round1(acc.metricSums.riskAssessmentUnderstanding / acc.metricCount),
-                proficiency: round1(acc.metricSums.proficiency / acc.metricCount),
-                improvementExecution: round1(acc.metricSums.improvementExecution / acc.metricCount),
-                repeatViolationPenalty: round1(acc.metricSums.repeatViolationPenalty / acc.metricCount),
-            }
-            : { ...EMPTY_METRICS };
+        const metricEvidence = summarizeScoreMetricEvidence(acc.metricRecords);
+        const metrics = Object.fromEntries(metricEvidence.map(row => [row.key, row.average])) as unknown as SixMetricAverages;
 
         const workers = Array.from(acc.workerSet)
             .map((workerId) => allWorkers.get(workerId))
@@ -279,6 +243,7 @@ export function transformDashboardData(workerRecords: WorkerRecord[]): Dashboard
             compositeScore: acc.count > 0 ? round1(acc.sumSafetyScore / acc.count) : 0,
             workerCount: acc.workerSet.size,
             metrics,
+            metricEvidence,
             workers,
         };
     }
@@ -292,16 +257,8 @@ export function transformDashboardData(workerRecords: WorkerRecord[]): Dashboard
         return row;
     });
 
-    const siteAverageMetrics = siteMetricCount > 0
-        ? {
-            psychological: round1(siteMetricSums.psychological / siteMetricCount),
-            jobUnderstanding: round1(siteMetricSums.jobUnderstanding / siteMetricCount),
-            riskAssessmentUnderstanding: round1(siteMetricSums.riskAssessmentUnderstanding / siteMetricCount),
-            proficiency: round1(siteMetricSums.proficiency / siteMetricCount),
-            improvementExecution: round1(siteMetricSums.improvementExecution / siteMetricCount),
-            repeatViolationPenalty: round1(siteMetricSums.repeatViolationPenalty / siteMetricCount),
-        }
-        : { ...EMPTY_METRICS };
+    const siteMetricEvidence = summarizeScoreMetricEvidence(siteMetricRecords);
+    const siteAverageMetrics = Object.fromEntries(siteMetricEvidence.map(row => [row.key, row.average])) as unknown as SixMetricAverages;
 
     return {
         trades,
@@ -309,6 +266,7 @@ export function transformDashboardData(workerRecords: WorkerRecord[]): Dashboard
         barData,
         groups,
         siteAverageMetrics,
+        siteMetricEvidence,
         unassignedRecordCount,
     };
 }

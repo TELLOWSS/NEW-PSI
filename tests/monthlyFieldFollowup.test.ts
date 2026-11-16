@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkerRecord, WorkerRiskFollowupEvent } from '../types';
-import { buildMonthlyFieldFollowupSummary, formatMonthlyFollowupEducationLines, getKoreanCalendarDay } from '../utils/monthlyFieldFollowup';
+import { buildMonthlyFieldFollowupSummary, collectMonthlyFollowupCases, formatMonthlyFollowupEducationLines, getKoreanCalendarDay } from '../utils/monthlyFieldFollowup';
 import { buildFieldRecordSource, buildTbmEducationDraft } from '../utils/tbmEducationStudio';
 
 const event = (
@@ -21,6 +21,29 @@ const worker = (id: string, date: string, riskFollowupEvents: WorkerRiskFollowup
 } as unknown as WorkerRecord);
 
 describe('monthly worker action follow-up education handoff', () => {
+    it('excludes conflicting event copies and reports the missing record in either order', () => {
+        const original=event('same','case','open','2026-01-02T00:00:00Z');
+        const conflicting={...original,status:'completed' as const};
+        const rows=[worker('one','2026-01-01',[original]),worker('one','2026-01-01',[conflicting])];
+        for(const copies of [rows,[...rows].reverse()]) {
+            const summary=buildMonthlyFieldFollowupSummary(copies,{asOfDate:'2026-01-31'});
+            expect(summary.conflictingRecords).toBe(1);
+            expect(summary.totalCases).toBe(0);
+            expect(collectMonthlyFollowupCases(copies,summary.asOfDate)).toHaveLength(0);
+            expect(formatMonthlyFollowupEducationLines(summary).join(' ')).toContain('원본 확인');
+        }
+    });
+    it('uses the same deduplicated cases for priority lists and summary counts', () => {
+        const due = event('a','case-a','scheduled','2026-01-02T00:00:00Z',{dueDate:'2026-01-10'});
+        const done = event('b','case-b','completed','2026-01-03T00:00:00Z');
+        const record = worker('record-1','2026-01-01',[due,done]);
+        const rows = [record, worker('record-1','2026-01-01',[due])];
+        const summary = buildMonthlyFieldFollowupSummary(rows,{asOfDate:'2026-01-31'});
+        const cases = collectMonthlyFollowupCases(rows,summary.asOfDate);
+        expect(cases.filter(row=>!row.completed)).toHaveLength(summary.unresolved);
+        expect(cases.filter(row=>row.overdue)).toHaveLength(summary.overdue);
+        expect(cases.filter(row=>row.overdue).map(row=>row.item.caseId)).toEqual(['case-a']);
+    });
     const first = event('evt1', 'case-A', 'scheduled', '2026-08-20T01:30:00Z', { dueDate: '2026-08-31' });
     const interim = event('evt2', 'case-B', 'interim_control', '2026-09-02T10:30:00Z', {
         questionNumber: 4, interimControl: '작업구역 출입을 통제합니다.',

@@ -98,6 +98,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const [isDark, setIsDark] = useState(() => getResolvedTheme(getStoredTheme()) === 'dark');
     const [showScrollTop, setShowScrollTop] = useState(false);
     const mainRef = useRef<HTMLElement>(null);
+    const navigationScroll = useRef(new Map<Page, number>());
+    const restoringScroll = useRef(false);
     const operatorMenuRef = useRef<HTMLDetailsElement>(null);
     const mobileMenuDialogRef = useRef<HTMLDivElement>(null);
     const mobileMenuPreviousFocusRef = useRef<HTMLElement | null>(null);
@@ -430,16 +432,40 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     useEffect(() => {
         const el = mainRef.current;
         if (!el) return;
-        const onScroll = () => setShowScrollTop(el.scrollTop > 250);
+        const onScroll = () => {
+            setShowScrollTop(el.scrollTop > 250);
+            if (!restoringScroll.current && (currentPage === 'dashboard' || currentPage === 'safety-nexus')) {
+                navigationScroll.current.set(currentPage, el.scrollTop);
+            }
+        };
         el.addEventListener('scroll', onScroll, { passive: true });
         return () => el.removeEventListener('scroll', onScroll);
-    }, []);
+    }, [currentPage]);
 
     useEffect(() => {
         const main = mainRef.current;
         if (!main) return;
-        main.scrollTo({ top: 0 });
+        const target = navigationScroll.current.get(currentPage) || 0;
+        restoringScroll.current = true;
+        // Lazy page content may arrive after the shell. Retry on DOM arrival, never in a draw loop.
+        let observer: MutationObserver | undefined;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const finish = () => { restoringScroll.current = false; observer?.disconnect(); if (timer) clearTimeout(timer); };
+        const restore = () => {
+            if (main.scrollHeight - main.clientHeight < target) return;
+            main.scrollTo({ top: target, behavior: 'instant' });
+            finish();
+        };
+        observer = new MutationObserver(restore);
+        observer.observe(main, { childList: true, subtree: true });
+        timer = setTimeout(() => { main.scrollTo({ top: target, behavior: 'instant' }); finish(); }, 3000);
+        restore();
         main.focus({ preventScroll: true });
+        const cancel = () => finish();
+        main.addEventListener('wheel', cancel, { passive: true });
+        main.addEventListener('touchstart', cancel, { passive: true });
+        main.addEventListener('keydown', cancel);
+        return () => { finish(); main.removeEventListener('wheel', cancel); main.removeEventListener('touchstart', cancel); main.removeEventListener('keydown', cancel); };
     }, [currentPage]);
 
     useEffect(() => {

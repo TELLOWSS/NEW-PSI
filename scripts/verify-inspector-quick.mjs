@@ -141,6 +141,18 @@ try{
         await register.screenshot({path:out+'/global-register-dark.png'});
         await page.evaluate(()=>document.documentElement.classList.remove('dark'));
         assert.equal(JSON.stringify(item),before,'no mutation from filters or CSV');
+        const scopeCard=register.locator('[data-evidence-scope="loaded"]');
+        assert.match(await scopeCard.innerText(),/마지막 조회 성공/);
+        const savedScope=await scopeCard.innerText();
+        await page.route('**/api/admin/inspector',async route=>{
+            if(route.request().postDataJSON().op==='global-action-register')return route.fulfill({status:503,json:{ok:false,message:'합성 새로고침 실패'}});
+            return route.fallback();
+        });
+        await register.getByRole('button',{name:'최신 저장 조치 새로고침',exact:true}).click();
+        await register.locator('[data-evidence-scope="stale"]').waitFor();
+        assert.match(await register.locator('[data-evidence-scope="stale"]').innerText(),/이전 조회 자료/);
+        assert.equal(await register.locator('[data-global-action-id]').count(),1,'refresh failure preserves scoped prior data');
+        assert.ok(savedScope.includes('저장 조치 5건'),'successful snapshot has explicit population');
         const beforeOpen=ops.length;
         await register.getByRole('button',{name:'원점검 조치 열기',exact:true}).click();
         await page.locator('.si-action-radar').waitFor();
