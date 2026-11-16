@@ -87,3 +87,8 @@ npx vitest run tests/nexusFeatureFlags.test.ts tests/tenantNexusSiteRead.test.ts
 - GitHub 검토본: https://github.com/TELLOWSS/NEW-PSI/pull/233 . 원격 CI·배포 결과는 이 PR 최신 HEAD 기준으로 확인한다.
 
 - 개발서버 왕복 재검증에서 Dashboard 최초 마운트의 기존 scroll-to-top이 복원 위치를 덮는 경우를 추가 발견했다. UI 모드가 실제 바뀐 경우만 상단 이동하고, 탐색 시점에 위치를 보존하도록 교정. 최종 통합 스크립트 기대 83px/복귀 83px 및 네 가지 흐름 모두 PASS.
+
+### 2026-11-17 원격 CI 후속 수정
+
+- df2fdb2 원격 release 및 Inspector mobile PASS, Vercel Preview READY. 회사 QA의 기존 Field Canvas 검사에서 신규 Nexus 진입 버튼이 768px 폭에서 36px로 축소되는 문제 발견. 다른 신규 Nexus/PDF/ZIP 검사는 PASS였으나 병합 보류.
+- `.psi-ops-field-route .psi-ops-text-action`에 모든 폭 48px 터치 높이·14px 글자·8px 간격 적용. 로컬 Field Canvas 320/390/768/1440 재검증 PASS. 이전 실패 기록을 완료로 덮어쓰지 않는다.
