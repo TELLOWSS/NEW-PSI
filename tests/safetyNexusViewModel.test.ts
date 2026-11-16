@@ -1,6 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkerRecord } from '../types';
-import { filterLoadedNexusRecords, sliceLoadedNexusRecords, summarizeLoadedNexusRecords } from '../utils/safetyNexusViewModel';
+import { filterLoadedNexusRecords, sliceLoadedNexusRecords, summarizeLoadedNexusRecords, summarizeNexusScoreEvidence, nexusEventsAsOf } from '../utils/safetyNexusViewModel';
+
+it('limits related events to the Korean calendar cutoff and excludes later source records', () => {
+  const events = [
+    { id:'a', caseId:'x', questionNumber:2, timestamp:'2026-01-31T14:59:00Z' },
+    { id:'b', caseId:'x', questionNumber:2, timestamp:'2026-01-31T15:00:00Z' },
+    { id:'c', caseId:'x', questionNumber:2, timestamp:'invalid' },
+  ] as WorkerRecord['riskFollowupEvents'];
+  expect(nexusEventsAsOf({date:'2026-01-01',riskFollowupEvents:events},2,'2026-01-31').map(e=>e.id)).toEqual(['a']);
+  expect(nexusEventsAsOf({date:'2026-02-01',riskFollowupEvents:events},2,'2026-01-31')).toEqual([]);
+});
+
+it('keeps valid zero scores and excludes missing or invalid values independently for each metric', () => {
+  const rows = [
+    { scoreBreakdown: { psychological: 0, jobUnderstanding: 20 } },
+    { scoreBreakdown: { psychological: 10, jobUnderstanding: 21 } },
+    { scoreBreakdown: { psychological: NaN, jobUnderstanding: 0 } },
+    {},
+  ] as unknown as Pick<WorkerRecord, 'scoreBreakdown'>[];
+  const result = summarizeNexusScoreEvidence(rows);
+  expect(result.find(item => item.key === 'psychological')).toMatchObject({ valid: 2, missing: 2, average: 5 });
+  expect(result.find(item => item.key === 'jobUnderstanding')).toMatchObject({ valid: 2, missing: 2, average: 10 });
+  expect(result.find(item => item.key === 'proficiency')).toMatchObject({ valid: 0, missing: 4, average: null });
+  expect(result.some(item => item.key === 'repeatViolationPenalty')).toBe(false);
+});
 
 type MinimalRecord = Pick<WorkerRecord, 'selfAssessedRiskLevel' | 'reviewStatus' | 'approvalStatus'>;
 

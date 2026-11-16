@@ -1,4 +1,35 @@
-import type { WorkerRecord } from '../types';
+import type { SixMetricBreakdown, WorkerRecord } from '../types';
+import { getKoreanCalendarDay } from './monthlyFieldFollowup';
+
+export function nexusEventsAsOf(record: Pick<WorkerRecord, 'date' | 'riskFollowupEvents'>, question: number, asOfDate: string) {
+  const recordDay = String(record.date || '').slice(0, 10);
+  const parsedDay = new Date(recordDay + 'T00:00:00.000Z');
+  const validRecordDay = /^\d{4}-\d{2}-\d{2}$/.test(recordDay) && Number.isFinite(parsedDay.getTime())
+    && parsedDay.toISOString().slice(0, 10) === recordDay;
+  if (validRecordDay && recordDay > asOfDate) return [];
+  return (record.riskFollowupEvents || []).filter(event => {
+    if (!event || !event.id || !event.caseId || event.questionNumber !== question) return false;
+    const date = new Date(event.timestamp);
+    return Number.isFinite(date.getTime()) && getKoreanCalendarDay(date) <= asOfDate;
+  });
+}
+
+export const NEXUS_SCORE_FIELDS: { key: keyof SixMetricBreakdown; label: string; max: number }[] = [
+  { key: 'psychological', label: '응답 충실도', max: 10 },
+  { key: 'jobUnderstanding', label: '업무이해도', max: 20 },
+  { key: 'riskAssessmentUnderstanding', label: '위험성평가 이해도', max: 20 },
+  { key: 'proficiency', label: '숙련도', max: 30 },
+  { key: 'improvementExecution', label: '개선이행도', max: 20 },
+];
+
+export function summarizeNexusScoreEvidence(rows: readonly Pick<WorkerRecord, 'scoreBreakdown'>[]) {
+  return NEXUS_SCORE_FIELDS.map(field => {
+    const values = rows.map(row => row.scoreBreakdown?.[field.key])
+      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= field.max);
+    return { ...field, valid: values.length, missing: rows.length - values.length,
+      average: values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null };
+  });
+}
 
 /**
  * Read-only, privacy-minimal snapshot of the records already loaded by App.
