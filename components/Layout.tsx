@@ -201,6 +201,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const activeMobileTab = (Object.entries(filteredMobilePageGroups).find(([, pages]) => pages.includes(currentPage))?.[0] as MobileTabId | undefined) ?? 'home';
 
     const handlePageChange = (page: Page) => {
+        if (currentPage === 'dashboard' || currentPage === 'safety-nexus') {
+            navigationScroll.current.set(currentPage, mainRef.current?.scrollTop || 0);
+        }
         setCurrentPage(page);
         setIsMobileMenuOpen(false); // Close mobile menu on navigation
     };
@@ -434,9 +437,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         if (!el) return;
         const onScroll = () => {
             setShowScrollTop(el.scrollTop > 250);
-            if (!restoringScroll.current && (currentPage === 'dashboard' || currentPage === 'safety-nexus')) {
-                navigationScroll.current.set(currentPage, el.scrollTop);
-            }
         };
         el.addEventListener('scroll', onScroll, { passive: true });
         return () => el.removeEventListener('scroll', onScroll);

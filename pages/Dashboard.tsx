@@ -634,7 +634,10 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
     }, []);
 
+    const previousDashboardUIMode = useRef(dashboardUIMode);
     useEffect(() => {
+        if (previousDashboardUIMode.current === dashboardUIMode) return;
+        previousDashboardUIMode.current = dashboardUIMode;
         document.getElementById('psi-main-content')?.scrollTo({
             top: 0,
             left: 0,

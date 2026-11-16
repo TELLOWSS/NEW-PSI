@@ -85,3 +85,5 @@ npx vitest run tests/nexusFeatureFlags.test.ts tests/tenantNexusSiteRead.test.ts
 - UI OFF와 3D OFF는 별도 production 빌드 및 preview에서 확인했다. 테스트 산출물은 `artifacts/audit/nexus-rollback-*`로 분리하며 배포 빌드에 fixture를 포함하지 않는다.
 - 최종 제품 브라우저 재실행도 10/10, Nexus 57/57 PASS. 후속 스크롤 보강은 전용 왕복 검사·타입·빌드를 재검증했다.
 - GitHub 검토본: https://github.com/TELLOWSS/NEW-PSI/pull/233 . 원격 CI·배포 결과는 이 PR 최신 HEAD 기준으로 확인한다.
+
+- 개발서버 왕복 재검증에서 Dashboard 최초 마운트의 기존 scroll-to-top이 복원 위치를 덮는 경우를 추가 발견했다. UI 모드가 실제 바뀐 경우만 상단 이동하고, 탐색 시점에 위치를 보존하도록 교정. 최종 통합 스크립트 기대 83px/복귀 83px 및 네 가지 흐름 모두 PASS.
