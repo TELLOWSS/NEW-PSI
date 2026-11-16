@@ -1,27 +1,95 @@
-# PSI 현장 안전 운영 플랫폼
+# NEW-PSI | Proactive Safety Intelligence
 
-PSI는 위험성평가 기록을 분석하고, 관리자 검증·안전조치·근로자 교육 환류까지 연결하는 현장 안전 운영 프로그램입니다.
+**현장의 위험 인식부터 조치·재점검·교육 환류까지 연결하는 근로자 참여형 안전관리 플랫폼**
 
-## 로컬 실행
+[NEW-PSI 운영 서비스](https://new-psi-eta.vercel.app/) · [운영 안내](ADMIN_OPERATION_GUIDE.md) · [검증](VERIFICATION.md) · [배포 환경](DEPLOYMENT_ENV_CHECKLIST.md)
 
-1. Node.js 22.13 이상을 설치합니다.
-2. `npm install`을 실행합니다.
-3. `.env.local`에 필요한 환경변수를 설정합니다.
-4. `npm run dev`로 실행합니다.
+NEW-PSI는 근로자가 직접 발견하고 기록한 위험을 출발점으로 삼습니다. AI·OCR은 위험성평가와 사진점검의 **보조 분석 수단**이며, 관리자 검토·현장 조치·근로자 교육을 대신하지 않습니다. **SMART TBM 및 PSI : ZERO DAY는 별개 프로젝트**입니다.
 
-배포 전에는 `npm run verify:release`로 형식 검사, 자동 테스트, 제품 기준 검사와 빌드를 확인합니다.
+## 핵심 운영 흐름
 
-## 현재 기준 문서
+**근로자 자기기입 → 위험성평가·AI/OCR 보조 분석 → 관리자 확인 → 안전조치 또는 임시통제 → 담당자 인계·재점검 → 월간 교육과 다음 평가에 환류**
 
-- 제품 가치·디자인·출시 기준: [docs/PSI_PRODUCT_VALUE_AND_DESIGN_BLUEPRINT_2026-08-21.md](docs/PSI_PRODUCT_VALUE_AND_DESIGN_BLUEPRINT_2026-08-21.md)
-- 운영: [ADMIN_OPERATION_GUIDE.md](ADMIN_OPERATION_GUIDE.md)
-- 배포 환경: [DEPLOYMENT_ENV_CHECKLIST.md](DEPLOYMENT_ENV_CHECKLIST.md)
-- 검증: [VERIFICATION.md](VERIFICATION.md)
-- OCR 운영 확인: [OCR_ANALYSIS_VERIFICATION.md](OCR_ANALYSIS_VERIFICATION.md)
-- 문자·MMS 설정: [SMS_MMS_SETUP.md](SMS_MMS_SETUP.md)
-- 브랜드 문구: [PSI_BRAND_VOICE_GUIDE.md](PSI_BRAND_VOICE_GUIDE.md)
-- 역할별 UX 문구: [PSI_ROLE_BASED_UX_COPY_GUIDE.md](PSI_ROLE_BASED_UX_COPY_GUIDE.md)
-- 제품화 이전 실행계획: [docs/PSI_보강사항_검증_실행계획_2026-07-14.md](docs/PSI_보강사항_검증_실행계획_2026-07-14.md)
-- 개발 원칙: [docs/PSI_DEVELOPMENT_GUARDRAILS.md](docs/PSI_DEVELOPMENT_GUARDRAILS.md)
+### 근로자 위험 인식: 자기규율 5단계
 
-과거 계획, 완료 보고, 회차별 인계 문서는 [docs/archive/root-history](docs/archive/root-history)에 보존합니다. 특허, 감사, 마이그레이션, 운영 보고 자료는 기존 전용 폴더에서 관리합니다.
+1. 내가 수행하는 **가장 위험한 작업**
+2. 그 작업의 **가장 큰 위험요소**
+3. 내가 판단한 **위험등급과 이유**
+4. 내가 실행할 수 있는 **예방 조치**
+5. 오늘부터 지킬 **구체적인 안전 실천 약속**
+
+현장 교육에는 다국어 응답과 QR 참여 동선을 지원합니다. 작성한 답변은 개인을 처벌하거나 자동으로 안전등급을 확정하기 위한 자료가 아닙니다. 실제 번역 의미·글꼴·문장 줄바꿈은 해당 언어 사용자와 현장 담당자가 확인해야 합니다.
+
+### 제품 주요 기능
+
+| 영역 | 실제 업무에서 제공하는 가치 |
+| --- | --- |
+| **PSI 분석·위험성평가** | 근로자 위험 인식과 작업별 위험요소를 구조화하고 관리자가 검토할 수 있도록 지원 |
+| **6대 안전인식 지표** | 위험인지도, 교육이해도, 실천참여도, 보호구·수칙, 소통·보고, 작업중지 감수성을 구분 |
+| **AI·OCR 보조** | 분석 가능한 자료와 미확인 사항을 구분해 검토를 돕고, AI 중단 시 가능한 수동 경로를 안내 |
+| **사진점검 Inspector** | 사진·설명·관찰 근거를 토대로 현장점검, 의견 검토, 조치 및 보고서 작성으로 연결 |
+| **F10 조치·재점검** | 즉시 해결되지 않은 위험의 임시통제, 담당자·기한, 변경사유, 인계, 재점검과 확인을 이력으로 관리 |
+| **오프라인 기기 점검** | 지원 브라우저의 로컬 저장·사진·백업/복원과 규칙 기반 점검 경로를 제공 |
+| **교육·A4 다국어 출력** | 월간 안전교육·피드백, A4 출력, 다국어 ZIP·PDF와 현장 검수 기록 지원 |
+| **보고·내보내기** | 저장된 사실과 미조치 상태를 구분하여 보고서·CSV·공유 문구를 생성 |
+
+## 사진점검: 처음 사용하는 사람의 작업 순서
+
+1. **사진 촬영 또는 첨부** — 현장 전체와 위험 부분을 명확히 기록합니다.
+2. **점검 설명 입력** — 사진으로 확인한 사실과 점검자 설명을 구분합니다.
+3. **검토 또는 수동 점검** — AI를 사용할 수 없어도 직접 확인한 내용을 기록하는 경로를 제공합니다.
+4. **조치·인계·재점검** — 조치가 즉시 이루어지지 않으면 임시통제, 담당자, 기한과 후속 확인을 분리해 관리합니다.
+5. **보고서 확인·출력** — 핵심 요약부터 보고, 필요하면 상세 근거를 펼쳐 봅니다.
+
+보고서 작성, 사진 첨부, 개선 사진 수신만으로 **조치 완료 또는 작업 재개 승인**을 자동 판정하지 않습니다. 사진에 보이지 않는 위험, 법률 위반, 벌금·과태료 및 촬영자 신원을 자동 확정하지 않습니다.
+
+## 오프라인·비용·개인정보 기준
+
+- **기기 내 경로:** 지원 브라우저에서 점검 입력과 사진을 로컬에 보존하고, 직접 백업·복원할 수 있도록 설계합니다. 브라우저 저장소 삭제, 기기 분실, 강제종료, 용량 부족 시 무손실을 보장하지 않습니다.
+- **외부 AI 경로:** 외부 모델 또는 서버 의존 기능은 네트워크·승인·무료 한도에 영향을 받을 수 있습니다. 오프라인 점검이 가능하다는 사실은 모든 AI 기능이 오프라인으로 실행된다는 뜻이 아닙니다.
+- **파일 검증:** SHA-256은 저장·전송 전후 변경 감지를 위한 기술 지문일 뿐 촬영 원본성, 작성자 신원이나 법적 증거능력의 인증이 아닙니다.
+- **개인정보:** 현장 사진·응답·인계 정보는 권한과 목적을 확인한 뒤 공유합니다. 기기 밖으로 내려받은 일반 JSON·CSV·PDF가 자동으로 암호화되는 것은 아닙니다.
+- **현장 승인:** 작업중지·재개, 실제 위험 해소와 개선 완료는 권한 있는 현장 담당자가 확인합니다.
+
+## 배포·검증 상태 읽는 법
+
+**GitHub 코드**, **자동검증 통과**, **Vercel Preview**, **Production 운영 배포**, **Android·Samsung Internet 실기기 검증**, **실제 현장 조치 확인**은 각각 다른 단계입니다. 어느 한 단계의 성공만으로 다른 단계가 완료됐다고 표시하지 않습니다.
+
+고정된 날짜의 상태표는 빠르게 낡으므로, 최신 상황은 아래에서 직접 확인합니다.
+
+- [GitHub pull requests](https://github.com/TELLOWSS/NEW-PSI/pulls): 검토 중인 개발·병합 여부
+- [GitHub Actions](https://github.com/TELLOWSS/NEW-PSI/actions): 검사별 최신 실행 결과
+- [NEW-PSI 공식 운영 주소](https://new-psi-eta.vercel.app/): 실제 공개 화면
+- [검증 절차](VERIFICATION.md) / [배포 점검](DEPLOYMENT_ENV_CHECKLIST.md): 운영 승인 조건
+
+Chromium 합성 시험은 실제 휴대폰 권한, Samsung Internet 파일 저장, 모국어 가독성 또는 실제 담당자 수신을 대신하지 않습니다.
+
+## 개발자용 실행
+
+Node.js 22.x와 권한에 맞는 프로젝트 설정이 필요합니다. 개발 컴퓨터의 로컬 사본보다 **GitHub 원격 `main`과 실제 운영 배포 커밋**을 먼저 확인하세요.
+
+```bash
+npm install
+npm run dev
+npm run check:types
+npm run test
+npm run verify:release
+```
+
+비밀키·비밀번호·실제 근로자 개인정보는 저장소에 커밋하지 않습니다. 환경변수는 프로젝트 운영 정책에 따라 별도로 설정합니다.
+
+## 운영·설계 참고 문서
+
+- [관리자 운영 안내](ADMIN_OPERATION_GUIDE.md)
+- [PSI 제품 가치 및 디자인 기준](docs/PSI_PRODUCT_VALUE_AND_DESIGN_BLUEPRINT_2026-08-21.md)
+- [OCR 운영 확인](OCR_ANALYSIS_VERIFICATION.md)
+- [검증 지침](VERIFICATION.md)
+- [역할별 UI/UX 문구 가이드](PSI_ROLE_BASED_UX_COPY_GUIDE.md)
+- [개발 원칙](docs/PSI_DEVELOPMENT_GUARDRAILS.md)
+- [지난 개발·운영 기록](docs/archive/root-history)
+
+**저장소 상단 About 소개문구 제안**
+
+> NEW-PSI · 근로자 참여형 건설현장 안전관리 플랫폼 | 위험성평가·AI/OCR·사진점검·조치·재점검·다국어 교육·보고
+
+*README 수정만으로 GitHub 저장소의 About 설정이 변경되지는 않습니다.*
