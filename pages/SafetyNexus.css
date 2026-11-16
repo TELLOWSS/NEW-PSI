@@ -141,6 +141,15 @@
 /* Selected path denotes operator exploration, never proof of an approved safety action. */
 .nexus-focus-link{position:absolute;inset:0;z-index:1;width:100%;height:100%;pointer-events:none;overflow:visible}
 .nexus-focus-link path{fill:none;stroke:#f7c184;stroke-width:1.1;stroke-dasharray:3 12;opacity:.43;filter:drop-shadow(0 0 4px #f1a253);animation:nexusFocusTrace 9s linear infinite}
+.safety-nexus[data-motion-paused="true"] .nexus-focus-link path{animation-play-state:paused}
+.nexus-score-evidence{margin-top:20px;padding:18px;border:1px solid #617c8d47;border-radius:8px;color:#dbe7ee;background:#102233}
+.nexus-score-evidence h3{margin:0 0 8px;font-size:16px}
+.nexus-score-evidence p,.nexus-score-evidence li{font-size:14px;line-height:1.7}
+.nexus-score-evidence button{min-height:48px;padding:8px 14px;color:#10212e;background:#fbc187;border:0;border-radius:6px}
+.nexus-followup-breakdown{margin-top:18px;padding:16px;border:1px solid #617c8d47;border-radius:6px;color:#dbe7ee}
+.nexus-followup-breakdown h3{margin:0;font-size:16px}
+.nexus-followup-breakdown p,.nexus-followup-breakdown li{font-size:14px;line-height:1.7}
+.nexus-followup-breakdown button{min-height:48px;padding:8px 14px;border:1px solid #80e0e0;border-radius:6px;background:#122a3b;color:#edf5fb}
 .nexus-detail-intro{animation:nexusDetailReveal .55s cubic-bezier(.18,.72,.25,1) both}
 @keyframes nexusFocusTrace{to{stroke-dashoffset:-150}}
 @keyframes nexusDetailReveal{from{opacity:.45;transform:translateY(9px)}to{opacity:1;transform:translateY(0)}}
@@ -185,7 +194,7 @@
 @media(max-width:480px){
  .nexus-visual-head{display:block}.nexus-visual-head>div{margin-top:10px}
  .nexus-stage{height:385px;min-height:385px}
- .nexus-node{padding:7px 8px;gap:5px}.nexus-node span{font-size:12px}
+ .nexus-node{padding:7px 8px;gap:5px;min-height:48px}.nexus-node span{font-size:12px}
  .nexus-node.node-0{left:2%;top:14%}.nexus-node.node-1{right:2%;top:12%}
  .nexus-node.node-2{top:48%;right:0}.nexus-node.node-3{right:3%;bottom:11%}
  .nexus-node.node-4{left:3%;bottom:11%}.nexus-core-label strong{font-size:32px}
@@ -315,7 +324,7 @@
 }
 @media(max-width:480px){
  .nexus-scene-caption{top:4%}
- .nexus-scene-caption small{font-size:8px}
+ .nexus-scene-caption small{font-size:14px}
  .nexus-stage.is-cinematic .nexus-hud-orbits{opacity:.7}
 }
 @media(prefers-reduced-motion:reduce){

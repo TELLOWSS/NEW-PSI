@@ -58,6 +58,7 @@ try {
   check('원래 입체 화면으로 복귀', await root.locator('canvas.nexus-core-canvas').count() === 1, 'canvas restore');
   await root.getByRole('button', { name: '모션 일시정지' }).click();
   check('모션 중지 버튼 토글', await root.getByRole('button', { name: '모션 재생' }).count() === 1, 'paused');
+  check('모션 중지 시 연결선도 정지', await root.locator('.nexus-focus-link path').evaluate(el => getComputedStyle(el).animationPlayState) === 'paused', 'CSS motion paused');
 
   // Responsive screenshots and overflow measurement are a visual review artifact, not an art approval.
   for (const width of [390, 768, 1366, 1440, 1920]) {
