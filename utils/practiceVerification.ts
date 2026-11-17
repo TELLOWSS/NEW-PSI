@@ -153,12 +153,24 @@ const groupPracticeRecords = (records: readonly WorkerRecord[], asOfDate: string
         entries:[...events.values()].sort((a,b)=>a.timestamp.localeCompare(b.timestamp) || a.id.localeCompare(b.id)) }));
 };
 
-export const collectOverduePracticeRechecks = (records: readonly WorkerRecord[], asOfDate: string) => {
-    return groupPracticeRecords(records,asOfDate).flatMap(({record,entries,conflict}) => {
+export const collectPracticeRechecks = (records: readonly WorkerRecord[], asOfDate: string, workType?: string) => {
+    return groupPracticeRecords(records,asOfDate,workType).flatMap(({record,entries,conflict}) => {
         if (conflict) return [];
-        return collectPracticeRecheckCases(record, entries, asOfDate).filter(item=>item.overdue);
+        return collectPracticeRecheckCases(record, entries, asOfDate);
     });
 };
+
+export const collectOverduePracticeRechecks = (records: readonly WorkerRecord[], asOfDate: string) =>
+    collectPracticeRechecks(records,asOfDate).filter(item=>item.overdue);
+
+/** Same event window and conflict exclusion as the summary; rows are events, not people. */
+export const collectPracticeStageEvidence = (
+    records: readonly WorkerRecord[],
+    options: { asOfDate: string; periodStartDate?: string; workType?: string; stage: WorkerPracticeStage },
+) => groupPracticeRecords(records,options.asOfDate,options.workType).flatMap(({record,entries,conflict}) =>
+    conflict ? [] : entries.filter(event=>event.stage===options.stage
+        && (!options.periodStartDate || koreaDay(event.timestamp)>=options.periodStartDate))
+        .map(event=>({recordId:record.id,event})));
 
 export const buildPracticeVerificationSummary = (
     records: readonly WorkerRecord[],

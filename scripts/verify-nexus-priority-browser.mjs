@@ -5,6 +5,15 @@ try {
   const page=await browser.newPage({viewport:{width:390,height:844}});
   await page.goto(process.env.PSI_NEXUS_FIXTURE_URL || 'http://127.0.0.1:4188/tests/fixtures/nexus-priority.html');
   const priority=page.getByRole('region',{name:'우선 확인할 후속조치'});
+  const practice=page.getByRole('region',{name:'교육·현장 확인 근거'});
+  await practice.getByRole('button',{name:'교육 전달 기록 2회'}).click();
+  assert.equal(await practice.getByRole('heading',{name:'교육 전달 기록 근거 2회'}).count(),1);
+  await practice.getByText('기록된 확인 근거 펼치기',{exact:true}).first().click();
+  assert.equal(await practice.getByText('가상 교육 전달 근거입니다',{exact:true}).isVisible(),true);
+  await practice.getByRole('button',{name:'이 근거의 기록 열기'}).first().click();
+  assert.notEqual(await page.title(),'synthetic-one');
+  await practice.getByRole('button',{name:'재확인 필요 1개 문항·기록'}).click();
+  assert.equal(await practice.getByRole('heading',{name:'재확인 필요 근거 1개 문항·기록'}).count(),1);
   await priority.getByRole('button',{name:'기한 초과 1건'}).click();
   assert.equal(await priority.getByRole('heading',{name:'기한 초과 조치 1건'}).count(),1);
   assert.equal(await priority.getByRole('button',{name:'관련 기록 열기'}).count(),1);
@@ -35,7 +44,12 @@ try {
   assert.equal(await priority.getByRole('heading',{name:'미완료 조치 0건'}).count(),1);
   await page.getByRole('combobox',{name:'공종 선택'}).selectOption('가상 공종');
   await page.getByRole('combobox',{name:'작성 월 선택'}).selectOption('2020-01');
+  await practice.getByRole('button',{name:'교육 전달 기록 1회'}).click();
+  assert.equal(await practice.getByRole('heading',{name:'교육 전달 기록 근거 1회'}).count(),1);
+  await practice.getByRole('button',{name:'이 근거의 기록 열기'}).click();
+  assert.equal(await page.title(),'synthetic-one');
   await page.getByRole('button',{name:'합성 기록 제거'}).click();
+  assert.equal(await practice.getByRole('heading',{name:'교육 전달 기록 근거 0회'}).count(),1);
   assert.equal(await page.getByRole('combobox',{name:'공종 선택'}).inputValue(),'가상 공종');
   assert.equal(await page.getByRole('combobox',{name:'작성 월 선택'}).inputValue(),'2020-01');
   assert.match(await page.getByRole('combobox',{name:'공종 선택'}).locator('option:checked').textContent(),/현재 기록 없음/);

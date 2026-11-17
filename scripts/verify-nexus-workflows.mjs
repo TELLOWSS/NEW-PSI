@@ -1,6 +1,6 @@
 import { createServer } from 'vite';
 import { spawn } from 'node:child_process';
-const server=await createServer({server:{host:'127.0.0.1',port:4194,strictPort:true}});
+const server=await createServer({server:{host:'127.0.0.1',port:4194,strictPort:true,watch:{ignored:['**/artifacts/**']}}});
 const run=script=>new Promise((resolve,reject)=>{
   const child=spawn(process.execPath,[script],{stdio:'inherit',env:{...process.env,
     PSI_UI_URL:'http://127.0.0.1:4194/',PSI_NEXUS_FIXTURE_URL:'http://127.0.0.1:4194/tests/fixtures/nexus-priority.html'}});

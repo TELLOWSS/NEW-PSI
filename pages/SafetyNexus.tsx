@@ -7,13 +7,14 @@ import { buildPracticeVerificationSummary, collectOverduePracticeRechecks, PRACT
 import { FOLLOWUP_STATUS_LABELS } from '../utils/workerRiskFollowup';
 import WebGLNexusCore from './NexusWebGLCore';
 import { ScoreMetricEvidencePanel } from '../components/shared/ScoreMetricEvidencePanel';
+import { PracticeEvidencePanel, type PracticeEvidenceSelection } from '../components/shared/PracticeEvidencePanel';
 import { nexusFeatureFlags } from '../config/nexusFeatureFlags';
 import './SafetyNexus.css';
 
 type Topic = { index: string; title: string; en: string; detail: string; page: Page; action: string };
 const FOLLOWUP_FILTER_LABELS = {overdue:'기한 초과',unresolved:'미완료',interim_control:'임시 통제 중',scheduled:'조치 예정',reopened:'재개방 이력',completed:'완료로 기록된'} as const;
 type FollowupFilter = keyof typeof FOLLOWUP_FILTER_LABELS;
-export type NexusViewState = {month:string;trade:string;active:number;flat:boolean;question:number|null;priority:FollowupFilter|'recheck'|null};
+export type NexusViewState = {month:string;trade:string;active:number;flat:boolean;question:number|null;priority:FollowupFilter|'recheck'|null;practice?:PracticeEvidenceSelection|null};
 type Props = { workerRecords: WorkerRecord[]; loadState?: 'loading' | 'ready' | 'error'; initialTrade?: string; initialView?:NexusViewState|null; onViewChange?:(view:NexusViewState)=>void; onNavigateToPage: (page: Page) => void; onReturnDashboard?: (trade: string) => void; onOpenRecord?: (record: WorkerRecord) => void };
 const STEPS: Topic[] = [
   {index:'01',title:'위험작업',en:'RISK IDENTIFICATION',detail:'근로자가 가장 위험하다고 느끼는 작업을 직접 기록합니다. 개인의 위험 인식과 현장에서 확정된 위험은 구별합니다.',page:'ocr-analysis',action:'위험성평가 원본 확인'},
@@ -195,7 +196,8 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',initialTrade
   const [filterTrade,setFilterTrade]=useState(initialView?.trade ?? initialTrade);
   const [selectedQuestion,setSelectedQuestion]=useState<number | null>(initialView?.question ?? null);
   const [priorityFilter,setPriorityFilter]=useState<FollowupFilter | 'recheck' | null>(initialView?.priority ?? null);
-  useEffect(()=>{onViewChange?.({month:filterMonth,trade:filterTrade,active,flat,question:selectedQuestion,priority:priorityFilter});},[filterMonth,filterTrade,active,flat,selectedQuestion,priorityFilter,onViewChange]);
+  const [practiceFilter,setPracticeFilter]=useState<PracticeEvidenceSelection|null>(initialView?.practice ?? null);
+  useEffect(()=>{onViewChange?.({month:filterMonth,trade:filterTrade,active,flat,question:selectedQuestion,priority:priorityFilter,practice:practiceFilter});},[filterMonth,filterTrade,active,flat,selectedQuestion,priorityFilter,practiceFilter,onViewChange]);
   const loadedSlice=useMemo(
     ()=>sliceLoadedNexusRecords(workerRecords,{month:filterMonth,trade:filterTrade}),
     [workerRecords,filterMonth,filterTrade]
@@ -405,19 +407,7 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',initialTrade
           <strong>현장 실천 확인 · 별도 재점검</strong>
           <span>교육 전달과 조치 완료는 구별하며, 재점검은 관리자 이력 기준입니다.</span>
         </div>
-        <div className="nexus-recheck-cards">
-          {[
-            ['교육 전달 기록',practice.educationDelivered],
-            ['현장 관찰 기록',practice.fieldObserved],
-            ['현장 재점검 기록',practice.rechecked],
-            ['재확인 필요',practice.needsFieldRecheck],
-            ['재확인 기한초과',practice.overdueFieldRecheck],
-          ].map(([label,total])=>
-            <div className="nexus-recheck-card" key={String(label)}>
-              <span>{label}</span><strong>{total}</strong><small>건</small>
-            </div>
-          )}
-        </div>
+        <PracticeEvidencePanel records={filteredRecords} summary={practice} selected={practiceFilter} onSelect={setPracticeFilter} onOpenRecord={onOpenRecord}/>
         <p>재확인 필요는 기록·문항의 마지막 현장 확인에서 개선 필요 또는 확인 불가로 남은 경우입니다.
           안전행동이 관찰되었더라도 조치 완료·작업재개가 자동 승인되는 것은 아닙니다.</p>
       </div>
