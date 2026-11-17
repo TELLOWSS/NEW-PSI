@@ -39,7 +39,10 @@ try {
   check('시네마틱 GPU 셰이더 실제 가동',renderer==='webgl',
     {renderer,reason:'2D fallback cannot certify native GPU lighting or camera art'});
   check('후속조치 이력 카드 6종 구분', await root.locator('.nexus-followup-card').count() === 6, 'unresolved, overdue, interim, planned, reopened, evidence verified');
-  check('현장 실천·재점검 5종 분리', await root.locator('.nexus-recheck-card').count() === 5,
+  const practiceEvidence=root.getByRole('region',{name:'교육·현장 확인 근거'});
+  const practiceCards=await Promise.all(['교육 전달 기록','현장 관찰 기록','현장 재점검 기록','재확인 필요','재확인 기한초과']
+    .map(name=>practiceEvidence.getByRole('button',{name:new RegExp('^'+name+' ')}).isVisible()));
+  check('현장 실천·재점검 5종 분리', practiceCards.every(Boolean),
     'education delivered, observed, rechecked, needs recheck, overdue recheck');
   check('교육과 조치완료 자동판정 분리', await root.locator('.nexus-practice').getByText(/안전행동이 관찰되었더라도 조치 완료/).count() === 1,
     'no automatic action closure on education or observation');

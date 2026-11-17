@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkerPracticeVerificationEvent, WorkerRecord } from '../types';
 import {
-    appendPracticeVerificationEvent, buildPracticeVerificationSummary, collectOverduePracticeRechecks,
+    appendPracticeVerificationEvent, buildPracticeVerificationSummary, collectOverduePracticeRechecks, collectPracticeRechecks, collectPracticeStageEvidence,
     formatPracticeVerificationEducationLines, validatePracticeVerificationEvent,
 } from '../utils/practiceVerification';
 import { buildFieldRecordSource, buildTbmEducationDraft } from '../utils/tbmEducationStudio';
@@ -26,6 +26,23 @@ const record = (id: string, items: WorkerPracticeVerificationEvent[], trade='형
 } as unknown as WorkerRecord);
 
 describe('worker practice verification is separate from training and corrective action', () => {
+    it('drills into the exact summary event window and case population without counting copies', () => {
+        const education=evt('edu','education','delivered','2026-09-02T01:00:00Z',{sessionReference:'synthetic-session'});
+        const before=evt('before','education','delivered','2026-08-31T01:00:00Z');
+        const after=evt('after','education','delivered','2026-10-01T01:00:00Z');
+        const concern=evt('concern','field_check','unable_to_verify','2026-09-03T01:00:00Z',{nextCheckDueDate:'2026-10-10'});
+        const rows=[record('same',[before,education,after,concern]),record('same',[education,concern])];
+        const summary=buildPracticeVerificationSummary(rows,{asOfDate:'2026-09-30',periodStartDate:'2026-09-01'});
+        const evidence=collectPracticeStageEvidence(rows,{...summary,stage:'education'});
+        expect(evidence.map(row=>row.event.id)).toEqual(['edu']);
+        expect(evidence).toHaveLength(summary.educationDelivered);
+        expect(collectPracticeStageEvidence(rows,{...summary,stage:'field_check'})).toHaveLength(summary.fieldObserved);
+        expect(collectPracticeRechecks(rows,summary.asOfDate)).toHaveLength(summary.needsFieldRecheck);
+        expect(collectOverduePracticeRechecks(rows,summary.asOfDate)).toHaveLength(0);
+        const conflicts=[...rows,record('same',[{...education,evidenceNote:'different copy'}])];
+        expect(collectPracticeStageEvidence(conflicts,{...summary,stage:'education'})).toHaveLength(0);
+        expect(collectPracticeRechecks(conflicts,summary.asOfDate)).toHaveLength(0);
+    });
     it('excludes conflicting copies and reports them regardless of order', () => {
         const concern=evt('same','field_check','correction_required','2026-09-03T01:00:00Z',{nextCheckDueDate:'2026-09-05'});
         const conflict={...concern,result:'observed_safe' as const};

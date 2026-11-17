@@ -8,7 +8,10 @@ const event = (id:string, caseId:string, status:string, dueDate?:string) => ({
   actor:'가상 관리자', owner:'가상 담당', actionDetail:'가상 조치',
 });
 const first = { id:'synthetic-one', name:'가상 작업자', date:'2020-01-01', jobField:'가상 공종',
-  practiceVerificationEvents:[{id:'practice-1',questionNumber:3,stage:'field_check',result:'correction_required',timestamp:'2020-01-02T01:00:00Z',nextCheckDueDate:'2020-01-03',actor:'가상 관리자',evidenceNote:'가상 현장 확인 기록입니다'}],
+  practiceVerificationEvents:[
+    {id:'education-1',questionNumber:3,stage:'education',result:'delivered',timestamp:'2020-01-02T00:00:00Z',actor:'가상 관리자',evidenceNote:'가상 교육 전달 근거입니다',sessionReference:'합성 교육 회차'},
+    {id:'education-2',questionNumber:3,stage:'education',result:'delivered',timestamp:'2020-02-02T00:00:00Z',actor:'가상 관리자',evidenceNote:'다음 달 가상 교육입니다'},
+    {id:'practice-1',questionNumber:3,stage:'field_check',result:'correction_required',timestamp:'2020-01-02T01:00:00Z',nextCheckDueDate:'2020-01-03',actor:'가상 관리자',evidenceNote:'가상 현장 확인 기록입니다'}],
   riskFollowupEvents:[event('a','overdue','scheduled','2020-01-03'),event('b','open','open'),event('c','complete','completed')] };
 const duplicate = { ...first, riskFollowupEvents:[event('a','overdue','scheduled','2020-01-03')] };
 const second = { id:'synthetic-two', name:'가상 작업자2', date:'2020-02-01', jobField:'다른 공종', riskFollowupEvents:[] };

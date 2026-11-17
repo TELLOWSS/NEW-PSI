@@ -35,6 +35,7 @@ try {
   assert.equal(await page.getByRole('combobox',{name:'작성 월 선택'}).inputValue(),'');
   await page.getByRole('combobox',{name:'작성 월 선택'}).selectOption('2020-01');
   await page.getByRole('button',{name:'간결한 보기',exact:true}).click();
+  await page.getByRole('region',{name:'교육·현장 확인 근거'}).getByRole('button',{name:'교육 전달 기록 0회'}).click();
   await page.getByRole('button',{name:/기존 관제센터로 돌아가기/}).click();
   assert.equal(await page.locator('.psi-ops-toolbar .psi-ops-filter select').nth(1).inputValue(),'가상 공종');
   assert.equal(await page.locator('.psi-ops-toolbar .psi-ops-filter select').first().inputValue(),'all');
@@ -43,5 +44,6 @@ try {
   await page.getByRole('button',{name:'안전지능 연결 보기 · 시제품'}).click();
   assert.equal(await page.getByRole('combobox',{name:'작성 월 선택'}).inputValue(),'2020-01');
   assert.equal(await page.getByRole('button',{name:'입체 보기',exact:true}).count(),1);
+  assert.equal(await page.getByRole('region',{name:'교육·현장 확인 근거'}).getByRole('button',{name:'교육 전달 기록 0회'}).getAttribute('aria-pressed'),'true');
   console.log('PASS: 현황판 공종·기간 복귀 및 Nexus 작성월·2D 선택 복원');
 } finally { await browser.close(); }
