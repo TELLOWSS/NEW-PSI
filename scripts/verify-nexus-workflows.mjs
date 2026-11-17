@@ -11,5 +11,6 @@ try {
   await server.listen();
   await run('scripts/verify-nexus-priority-browser.mjs');
   await run('scripts/verify-dashboard-nexus-entry.mjs');
+  await run('scripts/verify-evidence-panels-browser.mjs');
   await run('scripts/verify-nexus-flags-browser.mjs');
 } finally { await server.close(); }

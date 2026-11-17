@@ -2,6 +2,8 @@
 
 이 문서는 `PSI_VISUAL_IDENTITY_MASTER_PLAN_V2.md`의 VI-01~15를 현재 코드와 대조한 인계표다. 전체 기획 완료 또는 운영 검증 완료 선언이 아니다. 로컬 변경을 운영 반영으로 표시하지 않는다.
 
+최신 후속 구현: [긴급 검토 분리·사건 관계·판독성·권한 점검](./CONTINUITY_IMPLEMENTATION_20261117.md). 직전 운영 반영은 PR #234 / main `98efd6b`; 후속 브랜치의 최종 독립 검토·병합 상태와 혼동하지 않는다.
+
 ## 기준과 책임
 
 - 대상: `TELLOWSS/NEW-PSI`, 작업 브랜치 `codex/nexus-accessibility-20261116`.

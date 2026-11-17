@@ -3,7 +3,7 @@ import type {
     WorkerRecord, WorkerRiskFollowupEvent,
 } from '../types';
 import { getKoreanCalendarDay } from './monthlyFieldFollowup';
-import { collectWorkerRiskFollowupCases } from './workerRiskFollowup';
+import { resolvePracticeFollowupLink } from './practiceFollowupLink';
 
 export const PRACTICE_VERIFICATION_VERSION = 'psi-practice-verification-v1';
 export const MAX_PRACTICE_EVENTS_PER_RECORD = 150;
@@ -67,17 +67,21 @@ export const validatePracticeVerificationEvent = (
         && !validDay(String(item.nextCheckDueDate || ''))) {
         errors.push('보완 또는 확인 필요 시 재확인 예정일을 지정해 주세요.');
     }
-    if (item.relatedFollowupCaseId) {
-        const caseEntry = collectWorkerRiskFollowupCases(existingFollowups)
-            .find(entry => entry.caseId === item.relatedFollowupCaseId);
-        if (!caseEntry) errors.push('연결된 현장 조치 건을 찾을 수 없습니다.');
-        else if (caseEntry.opened.questionNumber !== item.questionNumber) errors.push('연결된 조치 건의 문항 번호가 다릅니다.');
+    if (item.relatedFollowupCaseId?.trim()) {
+        const link = resolvePracticeFollowupLink(item, existingFollowups);
+        if (link.state === 'missing') errors.push('연결된 현장 조치 건을 찾을 수 없습니다.');
+        else if (link.state === 'question_mismatch') errors.push('연결된 조치 건의 문항 번호가 다릅니다.');
+        else if (link.state === 'conflict') errors.push('연결된 조치 이력이 충돌합니다. 원본을 먼저 확인해 주세요.');
+        else if (link.linkedCase && Date.parse(link.linkedCase.opened.timestamp) > time) errors.push('현장 조치가 등록되기 전 시각의 검증 이력을 연결할 수 없습니다.');
     }
     if (item.stage === 'recheck' && !previous.some(entry =>
         entry.questionNumber === item.questionNumber
+        && String(entry.relatedFollowupCaseId || '').trim() === String(item.relatedFollowupCaseId || '').trim()
+        && Date.parse(entry.timestamp) <= time
+        && (entry.stage === 'field_check' || entry.stage === 'recheck')
         && (entry.result === 'correction_required' || entry.result === 'unable_to_verify')
     )) {
-        errors.push('재점검 전 확인 필요·개선 필요 이력이 있어야 합니다.');
+        errors.push('재점검 전 같은 연결 조치·문항의 확인 필요·개선 필요 현장 이력이 있어야 합니다.');
     }
     return errors;
 };
