@@ -30,11 +30,12 @@ export default function InspectorGlobalActionRegister({onOpenAction,blocked=fals
   finally{inflight.current=false;if(alive.current)setLoading(false);}
  };
  const today=koreanDay(),criteria:GlobalRegisterCriteria={site,owner,dueFrom,dueTo};
- const criteriaError=globalRegisterCriteriaError(criteria);
+ const criteriaError=filter==='urgent'?'':globalRegisterCriteriaError(criteria);
  const sites:string[]=Array.from(new Set<string>(rows.map((row:GlobalActionRow)=>row.siteName.trim()).filter((value:string)=>value.length>0))).sort((a:string,b:string)=>a.localeCompare(b,'ko'));
  const owners:string[]=Array.from(new Set<string>(rows.map((row:GlobalActionRow)=>row.owner.trim()).filter((value:string)=>value.length>0))).sort((a:string,b:string)=>a.localeCompare(b,'ko'));
  const scoped=filterGlobalActionsWithCriteria(rows,'all',search,today,criteria);
  const counts=globalActionCounts(scoped,today),checks=globalActionCheckCounts(scoped,today);
+ const urgentRows=filterGlobalActionsWithCriteria(rows,'urgent',search,today,criteria);
  const filtered=filterGlobalActionsWithCriteria(rows,filter,search,today,criteria);
  const exportLoaded=()=>{
   if(!rows.length)return;
@@ -52,13 +53,18 @@ export default function InspectorGlobalActionRegister({onOpenAction,blocked=fals
     <button type="button" className="si-btn" disabled={!filtered.length||loading||!!criteriaError} onClick={exportLoaded}>현재 필터 결과 CSV · {filtered.length}건</button>
    </div>
    {error&&<p role="alert" className="si-notice si-error">{error} · 다시 조회해 주세요. 저장한 조치 기록은 변경하지 않았습니다.</p>}
-   <EvidenceScopePanel source="서버에 저장된 Inspector 조치 이력" scope="관리자 조회로 불러온 점검 페이지 · 검색·현장·담당·기한 필터는 불러온 자료에만 적용"
+   <EvidenceScopePanel source="서버에 저장된 Inspector 조치 이력" scope={filter==='urgent'?'불러온 점검 페이지 · 검색·현장·담당 적용 · 긴급 검토는 약정기한 필터 제외':'관리자 조회로 불러온 점검 페이지 · 검색·현장·담당·기한 필터는 불러온 자료에만 적용'}
     asOf={fetchedAt ? fetchedAt+' (한국시간) · 마지막 조회 성공' : '조회 성공 이력 없음'}
     state={error ? (loaded ? 'stale' : 'error') : loading ? 'loading' : loaded ? (rows.length ? 'loaded' : 'empty') : 'not-requested'}
-    population={loaded ? `점검 ${inspections}건의 저장 조치 ${rows.length}건 · 검색·선택 범위 ${scoped.length}건` : undefined}
+    population={loaded ? `점검 ${inspections}건의 저장 조치 ${rows.length}건 · 현재 목록 ${filtered.length}건${filter==='urgent'?' (기한 필터 제외)':''}` : undefined}
     review="조치 상태 기록 · 현장 이행·작업재개 승인과 별개"
     nextAction={error ? '새로고침으로 최신 자료를 확인하세요. 아래 기존 값은 이번 조회 성공을 뜻하지 않습니다.' : '원점검 조치를 열어 담당·기한·재점검 증빙을 대조하세요.'}/>
-   {loaded&&<><p className="si-caption" role="status">불러온 점검 {inspections}건 · 저장 조치 {rows.length}건{more?' · 이전 점검 더 있음':''}. 검색·선택 범위 {scoped.length}건 · 조회 기준 {today} (한국시간)</p>
+   {loaded&&<><p className="si-caption" role="status">불러온 점검 {inspections}건 · 저장 조치 {rows.length}건{more?' · 이전 점검 더 있음':''}. 현재 목록 {filtered.length}건{filter==='urgent'?' · 약정기한 필터 제외':''} · 조회 기준 {today} (한국시간)</p>
+    <div className="si-global-register-urgent" role="region" aria-label="기한과 별개인 긴급 검토">
+     <button type="button" className="si-btn" aria-pressed={filter==='urgent'} onClick={()=>setFilter('urgent')}>긴급 검토 표시 {urgentRows.length}건 보기</button>
+     <p>현재 검색·현장·담당 범위의 원점검 긴급 표시입니다. 약정기한 필터를 적용하지 않으며 재점검 확인 상태도 포함합니다. 표시가 없거나 조치가 확인되었다고 무위험·긴급 해제·작업재개를 뜻하지 않습니다.</p>
+    </div>
+    <p className="si-caption">아래 일반 분류 건수는 약정기한 필터를 적용합니다. 긴급 검토 건수와 합산하지 않습니다.</p>
     <div className="si-global-register-stats" aria-label="불러온 점검의 조치현황">
      {([['unresolved',counts.unresolved],['scheduled',counts.scheduled],['today',counts.today],['overdue',counts.overdue],['check',checks.due],['assignment',counts.assignment],['reinspection',counts.reinspection],['verified',counts.verified]] as const).map(([kind,n])=><button type="button" key={kind} aria-pressed={filter===kind} className={filter===kind?'is-active':''} onClick={()=>setFilter(kind)}><b>{n}</b><span>{registerFilterLabel[kind]}</span></button>)}
     </div>
@@ -76,7 +82,7 @@ export default function InspectorGlobalActionRegister({onOpenAction,blocked=fals
       <label>완료기한 시작<input type="date" aria-label="통합 조치 기한 시작일" value={dueFrom} onChange={e=>setDueFrom(e.target.value)}/></label>
       <label>완료기한 종료<input type="date" aria-label="통합 조치 기한 종료일" value={dueTo} onChange={e=>setDueTo(e.target.value)}/></label>
      </div>
-     <div className="si-global-register-scope-footer"><span>완료기한은 약정기한 기준입니다. 다음 현장 확인 예정일과 서로 다릅니다.</span><button type="button" className="si-btn" disabled={!site&&!owner&&!dueFrom&&!dueTo&&!search} onClick={()=>{setSite('');setOwner('');setDueFrom('');setDueTo('');setSearch('');}}>검색 조건 초기화</button></div>
+     <div className="si-global-register-scope-footer"><span>{filter==='urgent'?'긴급 검토 목록에는 약정기한 필터를 적용하지 않습니다. ':'완료기한은 약정기한 기준입니다. '}다음 현장 확인 예정일과 서로 다릅니다.</span><button type="button" className="si-btn" disabled={!site&&!owner&&!dueFrom&&!dueTo&&!search} onClick={()=>{setSite('');setOwner('');setDueFrom('');setDueTo('');setSearch('');}}>검색 조건 초기화</button></div>
      {criteriaError&&<p role="alert" className="si-global-register-overlap">{criteriaError} 이전 점검기록은 변경되지 않았습니다.</p>}
     </fieldset>
     {counts.assignment>0&&<p className="si-global-register-assignment-notice" data-global-assignment-count="true">현재 검색·현장·담당·기한 선택 범위에 <b>담당자가 미지정되었거나 유효한 약정기한을 확인해야 할 미결 조치 {counts.assignment}건</b>이 있습니다. ‘담당·기한 확인 필요’를 선택해 원점검을 확인하세요. 날짜·담당자를 자동 배정하거나 조치 완료로 판단하지 않습니다.</p>}

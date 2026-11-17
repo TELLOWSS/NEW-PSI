@@ -4,7 +4,8 @@ import {
     appendPracticeVerificationEvent, PRACTICE_ALLOWED_RESULTS,
     PRACTICE_RESULT_LABELS, PRACTICE_STAGE_LABELS,
 } from '../../utils/practiceVerification';
-import { collectWorkerRiskFollowupCases } from '../../utils/workerRiskFollowup';
+import { collectWorkerRiskFollowupCases, FOLLOWUP_STATUS_LABELS } from '../../utils/workerRiskFollowup';
+import { resolvePracticeFollowupLink } from '../../utils/practiceFollowupLink';
 
 interface Props {
     record: WorkerRecord;
@@ -30,7 +31,9 @@ export const WorkerPracticeVerificationPanel: React.FC<Props> = ({ record, onPer
     const [nextCheckDueDate, setNextCheckDueDate] = useState('');
     const [saving, setSaving] = useState(false);
     const [notice, setNotice] = useState('');
-    const selectableCases = cases.filter(x => x.opened.questionNumber === questionNumber);
+    const selectableCases = cases.filter(x => x.opened.questionNumber === questionNumber
+        && resolvePracticeFollowupLink({questionNumber, relatedFollowupCaseId:x.caseId}, record.riskFollowupEvents).state === 'linked');
+    const selectedLink = resolvePracticeFollowupLink({questionNumber, relatedFollowupCaseId}, record.riskFollowupEvents);
 
     const chooseStage = (next: WorkerPracticeStage) => {
         setStage(next);
@@ -96,16 +99,24 @@ export const WorkerPracticeVerificationPanel: React.FC<Props> = ({ record, onPer
             </header>
             {events.length > 0 && (
                 <div className="mt-3 space-y-2">
-                    {[...events].slice(-5).reverse().map(item => (
+                    {[...events].slice(-5).reverse().map(item => { const link = resolvePracticeFollowupLink(item, record.riskFollowupEvents); return (
                         <article key={item.id} className="rounded-xl bg-slate-50 p-3 text-xs">
                             <div className="flex flex-wrap justify-between gap-2">
                                 <p className="font-black text-slate-800">Q{item.questionNumber} · {PRACTICE_STAGE_LABELS[item.stage]} / {PRACTICE_RESULT_LABELS[item.result]}</p>
                                 <span className="text-slate-500">{item.timestamp.slice(0, 10)}</span>
                             </div>
                             <p className="mt-1 break-words text-slate-700">{item.evidenceNote}</p>
+                            <p className="mt-1 break-words text-slate-700">현장 조치 연결: {link.label}</p>
+                            {link.caseId && <p className="mt-1 break-all text-slate-600">조치 식별자: {link.caseId}</p>}
+                            {link.linkedCase && <details className="mt-1 text-slate-700">
+                                <summary className="min-h-11 cursor-pointer py-3 font-bold">연결된 조치 내용 확인</summary>
+                                <p className="break-words">{link.linkedCase.latest.actionDetail}</p>
+                                <p>현재 조치 기록 시각: {link.linkedCase.latest.timestamp}</p>
+                                <p>연결은 해당 교육·관찰과 조치의 관계 기록이며 조치 완료나 작업재개 승인이 아닙니다.</p>
+                            </details>}
                             {item.nextCheckDueDate && <p className="mt-1 font-bold text-amber-800">재확인 예정일: {item.nextCheckDueDate}</p>}
                         </article>
-                    ))}
+                    ); })}
                 </div>
             )}
             <form className="mt-4 space-y-3" onSubmit={event => { event.preventDefault(); void save(); }}>
@@ -142,8 +153,9 @@ export const WorkerPracticeVerificationPanel: React.FC<Props> = ({ record, onPer
                         <select value={relatedFollowupCaseId} onChange={event => setRelatedFollowupCaseId(event.target.value)}
                             className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
                             <option value="">별도 조치 연결 안 함</option>
-                            {selectableCases.map(item => <option key={item.caseId} value={item.caseId}>Q{questionNumber} · {item.latest.status} · {item.latest.owner}</option>)}
+                            {selectableCases.map(item => <option key={item.caseId} value={item.caseId}>Q{questionNumber} · {FOLLOWUP_STATUS_LABELS[item.latest.status]} · {item.latest.owner} · {item.latest.actionDetail.slice(0, 80)} · {item.caseId}</option>)}
                         </select>
+                        <span className="mt-1 block break-words font-normal">{selectedLink.label}. 같은 문항이라도 조치 건이 다르면 별도로 선택합니다.</span>
                     </label>
                     {(result === 'observed_safe') && (
                         <label className="text-xs font-bold text-slate-700">현장 관찰 증빙 참조 (필수)

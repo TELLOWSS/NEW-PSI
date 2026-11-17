@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import type { WorkerRecord, WorkerPracticeVerificationEvent } from '../../types';
 import { PRACTICE_RESULT_LABELS, PRACTICE_STAGE_LABELS } from '../../utils/practiceVerification';
+import { resolvePracticeFollowupLink } from '../../utils/practiceFollowupLink';
 
 /**
  * Manager-only A4 appendix for separately verified practice observations.
@@ -11,7 +12,7 @@ export const WorkerPracticeVerificationAppendix: React.FC<{ record: WorkerRecord
         const items = [...(record.practiceVerificationEvents || [])]
             .sort((a, b) => a.timestamp.localeCompare(b.timestamp) || a.id.localeCompare(b.id));
         const out: WorkerPracticeVerificationEvent[][] = [];
-        for (let index = 0; index < items.length; index += 6) out.push(items.slice(index, index + 6));
+        for (let index = 0; index < items.length; index += 4) out.push(items.slice(index, index + 4));
         return out;
     }, [record.practiceVerificationEvents]);
 
@@ -46,7 +47,8 @@ export const WorkerPracticeVerificationAppendix: React.FC<{ record: WorkerRecord
                             {event.sessionReference && <p className="break-all"><strong>교육/이해 확인 근거: </strong>{event.sessionReference}</p>}
                             {event.evidenceReference && <p className="break-all"><strong>현장 관찰 증빙: </strong>{event.evidenceReference}</p>}
                             {event.nextCheckDueDate && <p><strong>재점검 기한: </strong>{event.nextCheckDueDate}</p>}
-                            {event.relatedFollowupCaseId && <p className="break-all"><strong>연결 현장 조치: </strong>{event.relatedFollowupCaseId}</p>}
+                            <p className="break-words"><strong>현장 조치 관계: </strong>{resolvePracticeFollowupLink(event, record.riskFollowupEvents).label}</p>
+                            {event.relatedFollowupCaseId && <p className="break-all"><strong>연결 조치 식별자: </strong>{event.relatedFollowupCaseId}</p>}
                         </div>
                     </article>
                 ))}
