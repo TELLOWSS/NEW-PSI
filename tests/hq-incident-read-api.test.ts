@@ -118,6 +118,7 @@ describe('HQ-SAFE read-only tenant/site access gate (default disabled)',()=>{
     replies({data:membership(),error:null},{data:siteRow(),error:null},
       {data:[incident()],error:null});
     const response=res();await handler(req({zone:'지하',processId:'formwork'}),response);
+    console.info('HQ_API_DIAGNOSTIC',JSON.stringify({body:response.body,contextCalls:mocks.context.mock.calls.length,traces}));
     expect(response.code).toBe(200);
     expect(response.body.items).toEqual([{
       id:caseId,occurredOn:'2026-11-19',zone:'지하',processId:'formwork',
