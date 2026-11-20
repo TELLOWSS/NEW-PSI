@@ -1,0 +1,21 @@
+.hq-evidence-ledger{background:#132d45;border:1px solid rgba(113,208,238,.38);border-radius:15px;padding:18px;margin:15px 0;color:#e9f7ff}
+.hq-evidence-head{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.hq-evidence-head h4{margin:7px 0;font-size:1.09rem}.hq-evidence-head p{font-size:.81rem;line-height:1.7;color:#bfd9e8;margin:0}
+.hq-evidence-head>span{font-size:.69rem;border:1px solid #477b94;border-radius:40px;padding:7px 11px;white-space:nowrap}
+.hq-evidence-warning{font-size:.8rem;line-height:1.7;color:#f3debd;border:1px solid rgba(218,167,104,.38);border-radius:10px;background:#4c392e65;padding:11px 14px;margin:15px 0}
+.hq-evidence-grid{display:grid;grid-template-columns:minmax(225px,41%) minmax(0,1fr);gap:14px}
+.hq-evidence-register{background:#193750;border:1px solid #395f7a;border-radius:12px;padding:14px;min-width:0}
+.hq-evidence-register h4{display:flex;justify-content:space-between}.hq-evidence-register h4 small{color:#b3d4e6}
+.hq-evidence-item{background:#1b455d;border-left:3px solid #77d7ee;border-radius:0 9px 9px 0;padding:11px;margin-bottom:10px;overflow-wrap:anywhere}
+.hq-evidence-item>div{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hq-evidence-item b{font-size:.84rem}.hq-evidence-item span{font-size:.71rem;color:#b3f0fd}
+.hq-evidence-item p{font-size:.79rem;line-height:1.6}.hq-evidence-item small{font-size:.7rem;line-height:1.6;display:block;color:#bbd7e7}
+.hq-evidence-item code{word-break:break-all;font-size:.68rem;color:#bef4ff}
+.hq-evidence-audit{border-top:1px solid #426c84;padding-top:13px;margin-top:14px}
+.hq-evidence-audit h5{font-size:.87rem;margin:5px 0 11px}
+.hq-evidence-counters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+.hq-evidence-counters span{display:flex;flex-direction:column;gap:5px;align-items:center;border-radius:8px;background:#234962;border:1px solid #507993;padding:8px 3px;font-size:.67rem;color:#c8dfed}
+.hq-evidence-counters b{font-size:1rem;color:#aae9fd}
+.hq-evidence-audit ul{padding-left:18px;color:#f1d8b9;font-size:.76rem;line-height:1.7}
+.hq-evidence-audit p{font-size:.78rem;color:#bbd8e9;line-height:1.6}
+@media(max-width:760px){.hq-evidence-grid{grid-template-columns:1fr}.hq-evidence-head{align-items:flex-start;flex-direction:column}}
