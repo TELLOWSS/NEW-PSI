@@ -29,11 +29,11 @@ function parse(req:any):EvidenceReadRequest {
  if(!query||typeof query!=='object'||Array.isArray(query)||
   Object.keys(query).some(k=>!allowedQueryKeys.has(k))||
   query.resource!=='hq-evidence-read'){
-  throw new TenantAccessError(400,'HQ_EVIDENCE_INVALID_QUERY','조회할 사고 증빙번호를 확인해 주세요.');
+  throw new TenantAccessError(400,'HQ_EVIDENCE_QUERY_SHAPE','조회할 사고 증빙번호를 확인해 주세요.');
  }
  for(const key of ['siteId','caseId','evidenceId']){
   if(typeof query[key]!=='string'||!uuid.test(query[key])||query[key].length!==36){
-   throw new TenantAccessError(400,'HQ_EVIDENCE_INVALID_QUERY','조회할 사고 증빙번호를 확인해 주세요.');
+   throw new TenantAccessError(400,'HQ_EVIDENCE_ID_INVALID','조회할 사고 증빙번호를 확인해 주세요.');
   }
  }
  return {
