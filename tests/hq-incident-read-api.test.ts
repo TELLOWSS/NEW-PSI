@@ -45,7 +45,7 @@ beforeEach(()=>{
   mocks.from.mockImplementation((table:string)=>{
     const trace:Trace={table,calls:[]};traces.push(trace);
     const q:any=Promise.resolve(queue.shift()??{data:null,error:null});
-    for(const op of ['select','eq','maybeSingle','order','limit'])q[op]=(...args:any[])=>{trace.calls.push([op,...args]);return q;};
+    for(const op of ['select','eq','maybeSingle','order','limit','range'])q[op]=(...args:any[])=>{trace.calls.push([op,...args]);return q;};
     return q;
   });
 });
@@ -67,7 +67,8 @@ describe('HQ-SAFE read-only tenant/site access gate (default disabled)',()=>{
     }
     for(const field of [{role:'owner'},{tenantId:tenant},{siteId:[site,other]},
       {siteId:'any'},{zone:'외부'},{processId:'unknown'},{caseId:'not-uuid'},
-      {siteId:' '+site},{caseId:caseId,unexpected:'raw-sql-injection'}]){
+      {siteId:' '+site},{page:'-1'},{page:'100'},{page:['1','2']},{caseId:caseId,page:'1'},
+      {caseId:caseId,unexpected:'raw-sql-injection'}]){
       const response=res();await handler(req(field),response);
       expect(response.code).toBe(400);
     }
@@ -125,6 +126,10 @@ describe('HQ-SAFE read-only tenant/site access gate (default disabled)',()=>{
     expect(response.body.officialAccidentStatistics).toBe(false);
     expect(response.body.independentVerification).toBe(false);
     expect(response.body.totalCount).toBe(null);
+    expect(response.body.page).toBe(0);
+    expect(response.body.nextPage).toBe(null);
+    expect(response.body.pageWindowIsSnapshot).toBe(false);
+    expect(traces[2].calls).toContainEqual(['range',0,25]);
     expect(JSON.stringify(response.body)).not.toContain('SECRET_PERSONAL');
     expect(traces.map(x=>x.table)).toEqual(['psi_tenant_site_memberships','psi_tenant_sites','psi_hq_incident_cases']);
     expect(traces[2].calls).toContainEqual(['eq','tenant_id',tenant]);
@@ -147,6 +152,30 @@ describe('HQ-SAFE read-only tenant/site access gate (default disabled)',()=>{
       expect(response.code).toBe(503);
       expect(response.body.items).toBeUndefined();
     }
+  });
+
+  it('paginates a bounded site-scoped list without inventing a verified total',async()=>{
+    const data=Array.from({length:26},(_,i)=>incident({
+      id:'c9600000-0000-4000-8000-'+String(i+1).padStart(12,'0')
+    }));
+    replies({data:membership(),error:null},{data:siteRow(),error:null},
+      {data,error:null});
+    const response=res();await handler(req({page:'2'}),response);
+    expect(response.code).toBe(200);
+    expect(response.body.items).toHaveLength(25);
+    expect(response.body.page).toBe(2);
+    expect(response.body.nextPage).toBe('3');
+    expect(response.body.hasMore).toBe(true);
+    expect(response.body.totalCount).toBe(null);
+    expect(traces[2].calls).toContainEqual(['range',50,75]);
+    expect(response.body.pageWindowIsSnapshot).toBe(false);
+  });
+  it('refuses duplicate database case identifiers instead of double-counting',async()=>{
+    replies({data:membership(),error:null},{data:siteRow(),error:null},
+      {data:[incident(),incident()],error:null});
+    const response=res();await handler(req(),response);
+    expect(response.code).toBe(503);
+    expect(response.body.items).toBeUndefined();
   });
 
   it('never interprets missing staging data as independently verified zero incidents',async()=>{
