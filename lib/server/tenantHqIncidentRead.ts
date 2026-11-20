@@ -10,6 +10,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ZONES = new Set(['기초','지하','지상','옥탑']);
 const PROCESSES = new Set(['underground-wall','underground-slab','formwork','gangform','alform',
   'rebar','pour','shoring','scaffold','lifting']);
+const INCIDENT_TYPES = new Set(['추락','넘어짐','미끄러짐','낙하·비래','맞음','끼임','끼임·협착',
+  '무너짐·전도','충돌','감전','절단','절단·베임','화재·폭발','질식','화상','교통사고','기타·아차사고']);
 const QUERY_KEYS = new Set(['resource','siteId','zone','processId','caseId']);
 const COLUMNS = 'tenant_id,site_id,id,occurred_on,construction_zone,process_code,incident_type,created_at';
 const PAGE_SIZE = 25;
@@ -75,7 +77,7 @@ function safeCase(row:unknown,context:TenantContext,siteId:string) {
     ||typeof r.id!=='string'||!UUID.test(r.id)||!dateOnly(r.occurred_on)
     ||typeof r.construction_zone!=='string'||!ZONES.has(r.construction_zone)
     ||typeof r.process_code!=='string'||!PROCESSES.has(r.process_code)
-    ||typeof r.incident_type!=='string'||r.incident_type.length<1||r.incident_type.length>80
+    ||typeof r.incident_type!=='string'||!INCIDENT_TYPES.has(r.incident_type)
     ||typeof r.created_at!=='string'||!Number.isFinite(Date.parse(r.created_at)))return unavailable();
   return {id:r.id,occurredOn:r.occurred_on,zone:r.construction_zone,processId:r.process_code,
     incidentType:r.incident_type,createdAt:r.created_at};
