@@ -79,7 +79,7 @@ describe('HQ restricted evidence read gate (no API route, no actual storage)',()
    signedUrlIssued:false,browserCacheAllowed:false
   });
   expect(state.calls).toEqual(['tenant','membership','site','incident','manifest',
-   'audit:read_requested','storage','audit:download_completed']);
+   'audit:read_requested','storage','audit:read_verified']);
  });
  it('permits separately assigned site and HQ reviewers but not the submitter role by itself',async()=>{
   for(const [userId,role] of [
@@ -129,8 +129,8 @@ describe('HQ restricted evidence read gate (no API route, no actual storage)',()
   const modified=setup({payload:new TextEncoder().encode('%PDF-1.7\nTAMPERED SYNTHETIC')});
   await denied(modified,'EVIDENCE_INTEGRITY_FAILURE');
   expect(modified.calls).toContain('audit:digest_mismatch');
-  expect(modified.calls).not.toContain('audit:download_completed');
-  const post=setup({auditFailsOn:'download_completed'});await denied(post,'EVIDENCE_UNAVAILABLE');
+  expect(modified.calls).not.toContain('audit:read_verified');
+  const post=setup({auditFailsOn:'read_verified'});await denied(post,'EVIDENCE_UNAVAILABLE');
   expect(post.calls).toContain('storage');
   const unreadable=setup({readFails:true});await denied(unreadable,'EVIDENCE_UNAVAILABLE');
  });
