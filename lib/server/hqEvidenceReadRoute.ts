@@ -12,7 +12,7 @@ import {
  * tenant/site auth, private Storage activation, independent audit persistence,
  * malware scanner and operational security approval.
  */
-const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const allowedQueryKeys=new Set(['resource','siteId','caseId','evidenceId']);
 const mimetypes=new Set(['image/png','image/jpeg','application/pdf']);
 const extension:Record<string,string>={
