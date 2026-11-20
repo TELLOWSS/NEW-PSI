@@ -11,6 +11,9 @@ export type EvidenceActor = Readonly<{
   tenantId:string;userId:string;role:'owner'|'admin'|'reviewer'|'viewer';
 }>;
 export type EvidenceReadRequest = Readonly<{siteId:string;caseId:string;evidenceId:string}>;
+export type ScopedTenantMembership = Readonly<{
+  tenantId:string;userId:string;role:EvidenceActor['role'];status:'active'|'inactive';
+}>;
 export type ScopedMembership = Readonly<{
   tenantId:string;siteId:string;userId:string;status:'active'|'inactive';
 }>;
@@ -35,6 +38,7 @@ export type EvidenceAuditEvent = Readonly<{
   eventCode:'AUTHZ_ALLOWED'|'AUTHZ_DENIED'|'BYTE_VERIFIED'|'HASH_MISMATCH';
 }>;
 export type EvidenceReadPorts = Readonly<{
+  lookupTenantMembership:(actor:EvidenceActor)=>Promise<ScopedTenantMembership|null>;
   lookupSiteMembership:(actor:EvidenceActor,siteId:string)=>Promise<ScopedMembership|null>;
   lookupSite:(actor:EvidenceActor,siteId:string)=>Promise<ScopedSite|null>;
   lookupIncident:(actor:EvidenceActor,siteId:string,caseId:string)=>Promise<ScopedIncident|null>;
@@ -99,6 +103,9 @@ export async function readScopedEvidence(
    evidenceId:request.evidenceId,actorId:actor.userId,eventType,eventCode
  });
  try{
+  const tenant=await ports.lookupTenantMembership(actor);
+  if(!tenant||tenant.tenantId!==actor.tenantId||tenant.userId!==actor.userId||
+     tenant.status!=='active'||tenant.role!==actor.role)denied();
   const member=await ports.lookupSiteMembership(actor,request.siteId);
   const site=await ports.lookupSite(actor,request.siteId);
   if(!member||!site||!isInScope(member,actor,request)||!isInScope(site,actor,request)
