@@ -465,3 +465,33 @@
 2. 서버 전송 상태 감사의 durable outbox·실패 경보·누락 재처리, 증빙 접근·열람의 종단간 감사 로그 보존.
 3. 비공개 악성검사 저장소와 업로드·다운로드 포트, 현장관리자/독립 검토자 본인인증, 백업·복구.
 4. 전체 Vitest/부서별 Chromium/Android 실기기 및 npm 보안 취약점 해결, 승인 후 단계적 배포.
+
+
+## 2026-11-21 17차: 증빙 전송감사 durable outbox / 미확인 상태 / 재시도 계약
+
+### 기존 16차를 중복 구현하지 않은 이유
+최신 인계 시 16차에서 분산 입장 예약(6회/60초, 사용자 동시 2건, 기업 동시 8건) 및 \`response_send_started\`, \`response_flushed\`, \`response_aborted\` 분리까지 이미 구현된 것을 확인했다. 남아 있던 가장 큰 문제는 **finish/close 이후 감사 기록이 실패하면 조용히 누락될 수 있고, 서버가 전송 중 종료돼 종료 신호가 없다면 이를 복구할 기준이 없다**는 점이다.
+
+### 17차 실제 구현
+- \`lib/server/hqEvidenceTransportOutbox.ts\`
+  - **서버가 바이트를 내보내기 전에** 영속 DB 저장을 보장해야 하는 \`prepareTransportOutbox()\` 계약. 저장 실패·유효하지 않은 UUID 영수증은 503 성격의 실패닫힘으로 처리하고 별도 알림을 요청.
+  - \`settleTransportOutbox()\`: 응답 \`finish\`와 \`close\`를 \`response_flushed\` / \`response_aborted\`로 기록. 실패 시 독립 alert 포트 호출. 단말 수신 완료나 작업재개 승인을 의미하지 않음.
+  - \`reconcileTransportOutbox()\`: 승인된 후속 서버작업에서 **명시적으로만 호출**하는 계약. 기한을 넘겼는데 종료 신호가 없는 \`prepared\`는 \`unconfirmed\`로 기록(임의 다운로드 완료 처리 금지), 외부 감사 싱크에 UUID 멱등키로 전달·ACK, 실패 시 최대 3,600초의 제한된 재시도 예약과 독립 경보.
+  - 주의: 아직 실제 Redis·Postgres 서버 클라이언트, 외부 로그 보관업체, 백그라운드 작업이나 cron을 만들거나 실행하지 않음. 재처리 데이터의 원자적 claim/ack/retry/임대만료는 **실제 운영 어댑터의 필수 구현 계약**.
+- \`lib/server/hqEvidenceReadRoute.ts\`
+  - 기존 분산 admission, 로그인·권한·악성파일 상태·해시·\`read_verified\` 경계를 유지하고, **추가로 \`transportOutbox\` 포트가 없으면 503**.
+  - HTTP 응답 전에 \`prepare\` 영수증을 받고, 전송 완료/중단 이벤트에서 \`settle\`·기존 감사 이벤트 기록·용량 예약 해제를 호출. 기존 \`download_completed\`는 사용하지 않음.
+  - 실제 배포 entrypoint는 \`buildPorts\`, \`admission\`, \`transportOutbox\` 모두 미설정이며 기본 플래그 OFF. 따라서 실수로 플래그를 켜도 운영 파일은 응답할 수 없음.
+- \`supabase/proposals/psi_hq_transport_outbox_staging.sql\`
+  - 실제로 운영 DB에 적용하지 않는 비공개 \`hq_evidence_staging.transport_outbox\` proposal. 사전 \`prepared\` 상태, \`response_flushed\`/\`response_aborted\`/\`unconfirmed\` 상태와 settled_at 일관성 CHECK, claim_token/claim_expires_at, retry attempt/next_attempt_at, ACK 시각, 제한된 실패 코드 및 사고별 FK. 일반 로그인과 익명 사용자의 직접 읽기/쓰기/수정/삭제 REVOKE, FORCE RLS.
+  - 이 테이블 자체만으로 **불변(WORM) 외부 감사 저장소, 실제 전송 완료 증빙, 장애 복구 보장 또는 데이터 복제/백업을 구현한 것이 아님**. 어댑터는 신뢰된 비공개 서버 작업으로만 만들어야 함.
+- \`tests/hq-evidence-transport-outbox.test.ts\`: 저장 영수증 거부, 종료 처리 실패·경보, 미확인 구분, 외부 싱크 전달/재시도 및 부적절한 어댑터 응답 차단.
+- \`tests/hq-evidence-read-route.test.ts\`: outbox 없는 서버 차단, DB 저장 장애 발생 시 전송 중단, 종결 처리 실패 시 독립 알림. 기존 16차 요청량/전송·반환 테스트 유지.
+- \`tests/hqPrivateEvidenceRlsSql.test.ts\`: 격리 PGlite에서 SQL 생성·prepare/settle/ACK·수정 제약/현장·사용자 접근 거부 및 미존재 증빙 FK 차단 검증.
+
+### 검증 및 보안 출시 게이트
+- 최신 코드 HEAD의 CI 완료 결과를 확인해 확정한다. 이전 16차 결과를 17차 합격으로 대체하지 않는다.
+- 테스트용 합성 DB·사고·파일 외에 실사용 자료, 의료정보, 실제 업로드, 파일다운로드, Production DB/Storage, 서버 cron 및 배포 환경변수는 변경하지 않았다.
+- 실제 개인정보 접근로그의 영속·복제·키/암호화·보존주기·접근권한/불변성, 장애 경보·재처리 워커와 외부 싱크의 재시도 멱등 검증이 별도로 필요하다.
+- 원본 검증·악성코드 검사기·다중 현장 실계정 QA와 사용자 최종 승인 이전에 \`main\` 병합, Production 배포, 운영 SQL/Storage, feature flag 활성화 금지.
+- 다음 18차 권장: 합성 PGlite 기반 claim SKIP LOCKED·TTL·중복 ACK·대량 재시도/경보를 검증하는 실제 비공개 서버 어댑터, 운영 서비스 키 관리 설계/제한, 기존 취약 npm 의존성 해결.
