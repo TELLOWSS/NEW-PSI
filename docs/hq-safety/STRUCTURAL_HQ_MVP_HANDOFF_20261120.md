@@ -77,3 +77,26 @@
 
 **적용 금지:** 해당 SQL은 이미 운영 중인 migrations에 추가하지 않았음. 기존 psi_tenant_sites 및 psi_tenant_site_memberships 자체가 proposal인 상태이므로 별도 선행 정책·마이그레이션 및 기존자료 재분류 승인 없이는 운영 적용 불가.
 **QA:** 2026-11-20 이전 3차 HEAD 9ece715의 RLS 합성 테스트는 PASS. 같은 HEAD 전체 CI는 조사 안내 문구 mismatch 2건으로 FAIL; 이어지는 9067de2 커밋에서 문구 수정. 고위험 npm 의존성 취약점은 별도 해결 전까지 릴리스 차단.
+
+## 2026-11-20 4차: 사고별 개선조치·재점검 세션 시제품
+
+구현 파일:
+- components/hq/correctiveActionModel.ts: 조치계획 등록, 임시통제, 이행자료 제출, 재점검 요청, 보완 재제출, 기한경과 미종결 판단의 순수 상태모델
+- components/hq/CorrectiveActionWorkbench.tsx: 사고사례 선택→유형·담당 역할·기한 입력→임시통제·이행·재점검·보완 인터랙티브 화면
+- components/hq/CorrectiveActionWorkbench.css: 데스크톱 2열, 모바일 1열, 단계별 상태와 이력 표시
+- components/hq/StructuralHQWorkbench.tsx/.css: 6번째 탭 '조치·재점검' 진입, 다른 탭 이동 시에도 세션 상태 유지, 6개 타일 3×2 정렬
+- tests/hq-corrective-action.test.ts: 상태 전이, 자료번호 누락 차단, 임시통제, 보완, 기한경과 및 완료 미확정 검증
+
+실제 서버 데이터/권한/원본 보존/담당자 알림/현장검증/조치 완료/작업재개 승인 기능이 아님. 임시통제 기록 및 이행자료 번호 입력은 현장 이행 사실을 입증하지 않음. 새로고침 시 데이터 소실. 테스트는 합성 사건만 사용.
+
+### 보안 릴리스 차단 근거 및 업데이트 원칙
+2026-11-20 이전 release verification에서 Vitest 총 1952건 PASS, npm audit --omit=dev --audit-level=high FAILED(의존성 6건: high 1, moderate 5). 취약 패키지와 현재 lock version:
+- effect 3.21.2 (간접 의존성 solapi ^3.19.14): GHSA-7589-6fvf-x4pw, 수정 버전 3.22.1 이상
+- fast-uri 3.1.8 (ajv ^3.0.1): 관련 GHSA 다수, 수정 3.1.9 이상
+- glob 10.5.0 (rimraf ^10.3.7): GHSA-3g3m-2fjr-6pw4, 14.0.2 이상 필요(주버전 업그레이드 위험)
+- minimatch 9.0.9 (glob ^9.0.4): GHSA-g3hv-75wg-m249, 11.0.1 이상 필요(주버전 업그레이드 위험)
+상기 설명은 npm 보안 공지에 기반한 업데이트 방향이며, 실제 package-lock.json은 아직 수정되지 않음.
+
+개선 절차: 깨끗한 별도 테스트 환경에서 npm install --package-lock-only 후 lockfile 변경과 라이선스/OSS 심사 확인→npm ci→npm audit --omit=dev --audit-level=high→npm run verify:ci→PC/모바일 Chromium 7흐름→사용자 승인 뒤 배포. rimraf/glob/minimatch 상위 라이브러리의 주버전 호환성 확인 없이 overrides를 강제하지 않음. GitHub 도구만으로 신뢰할 수 있는 npm integrity를 재생성할 수 없으므로 잠금파일을 추측으로 고쳐서 배포하지 않음.
+
+최종 상태는 최신 CI 실행을 별도로 확인해야 하며, main 병합·운영 적용은 계속 보류.
