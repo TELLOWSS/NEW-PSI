@@ -3,6 +3,7 @@ import {afterEach,describe,expect,it,vi} from 'vitest';
 import {createHqEvidenceReadRoute} from '../lib/server/hqEvidenceReadRoute';
 import accessHandler from '../api/saas/access';
 import type {EvidenceReadPorts} from '../lib/server/hqEvidenceAccessGate';
+import type {EvidenceCapacityPorts} from '../lib/server/hqEvidenceReadAdmission';
 
 const tenant='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const site='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -15,12 +16,19 @@ const request=(method='GET',other:Record<string,unknown>={})=>({
  method,headers:{'authorization':'Bearer synthetically-verified','x-psi-tenant-id':tenant},
  query:{resource:'hq-evidence-read',siteId:site,caseId:incident,evidenceId:evidence,...other}
 });
-const response=()=>({
+const response=(autoFinish=true)=>({
  statusCode:0,headers:[] as [string,string][],payload:null as any,
+ listeners:{} as Record<string,()=>void>,
+ once(event:string,callback:()=>void){this.listeners[event]=callback;return this;},
+ emit(event:string){this.listeners[event]?.();return this;},
  setHeader(name:string,val:string){this.headers.push([name,val]);return this;},
  status(code:number){this.statusCode=code;return this;},
  json(payload:any){this.payload=payload;return this;},
- send(payload:any){this.payload=payload;return this;}
+ send(payload:any){this.payload=payload;if(autoFinish)this.emit('finish');return this;}
+});
+const admission=():EvidenceCapacityPorts=>({
+ acquire:async()=>({granted:true,leaseId:'ffffffff-ffff-4fff-8fff-ffffffffffff'}),
+ release:async()=>{}
 });
 const authenticated=vi.fn(async()=>({
  tenantId:tenant,userId:author,role:'reviewer' as const,client:{} as any
@@ -65,7 +73,7 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
  it('rejects non-GET and forged query scope without authentication or storage activity',async()=>{
   const build=vi.fn(async()=>makePorts().ports);
   const handler=createHqEvidenceReadRoute({
-    authenticate:authenticated,buildPorts:build,flagEnabled:()=>true
+    authenticate:authenticated,buildPorts:build,admission:admission(),flagEnabled:()=>true
   });
   for(const method of ['POST','PUT','PATCH','DELETE']){
    const res=response();await handler(request(method),res);
@@ -82,7 +90,7 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
  it('authenticates and sends verified bytes only after before/after audit success',async()=>{
   const mem=makePorts();
   const handler=createHqEvidenceReadRoute({
-   authenticate:authenticated,buildPorts:async()=>mem.ports,flagEnabled:()=>true
+   authenticate:authenticated,buildPorts:async()=>mem.ports,admission:admission(),flagEnabled:()=>true
   });
   const res=response();await handler(request(),res);
   expect(authenticated,'unexpected response '+JSON.stringify(res.payload)).toHaveBeenCalledTimes(1);
@@ -104,7 +112,7 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
   for(const scenario of scenarios){
    const mem=makePorts(scenario.options);
    const handler=createHqEvidenceReadRoute({
-    authenticate:authenticated,buildPorts:async()=>mem.ports,flagEnabled:()=>true
+    authenticate:authenticated,buildPorts:async()=>mem.ports,admission:admission(),flagEnabled:()=>true
    });
    const res=response();await handler(request(),res);
    expect(res.statusCode).toBe(scenario.status);
@@ -123,7 +131,7 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
   const privateHandler=createHqEvidenceReadRoute({
     authenticate:async()=>{throw new Error('INTERNAL_JWT_SECRET');},
     buildPorts:async()=>makePorts().ports,
-    flagEnabled:()=>true
+    admission:admission(),flagEnabled:()=>true
   });
   const response2=response();await privateHandler(request(),response2);
   expect(response2.statusCode).toBe(503);
