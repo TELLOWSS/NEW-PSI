@@ -388,8 +388,8 @@ export default function StructuralHQWorkbench(): React.ReactElement {
         </div>
       </div>}
 
-      {tab === 'investigation' && <EvidenceLedgerWorkbench key={selectedCase?.id??'none'} selected={selectedCase ? {id:selectedCase.id,summary:selectedCase.summary}:null} records={evidenceRecords} onRecordsChange={setEvidenceRecords} links={currentEvidenceLinks} readOnly={investigationDraft?.status==='requested'}/>}
-      {tab === 'investigation' && <IncidentSequenceWorkbench key={selectedCase?.id??'none'} selected={selectedCase ? {id:selectedCase.id,date:selectedCase.date,zone:selectedCase.zone,processId:selectedCase.processId,summary:selectedCase.summary} : null} drafts={sequenceDrafts} onDraftsChange={setSequenceDrafts} controls={controlMaps} onControlsChange={setControlMaps} readOnly={investigationDraft?.status==='requested'}/> }
+      {tab === 'investigation' && <EvidenceLedgerWorkbench selected={selectedCase ? {id:selectedCase.id,summary:selectedCase.summary}:null} records={evidenceRecords} onRecordsChange={setEvidenceRecords} links={currentEvidenceLinks} readOnly={investigationDraft?.status==='requested'}/>}
+      {tab === 'investigation' && <IncidentSequenceWorkbench selected={selectedCase ? {id:selectedCase.id,date:selectedCase.date,zone:selectedCase.zone,processId:selectedCase.processId,summary:selectedCase.summary} : null} drafts={sequenceDrafts} onDraftsChange={setSequenceDrafts} controls={controlMaps} onControlsChange={setControlMaps} readOnly={investigationDraft?.status==='requested'}/> }
       {tab === 'investigation' && selectedCase && investigationDraft && reviewReadiness && <section className="hq-review-board" aria-label="사고 원인조사 증빙·검토 시연">
         <div className="hq-review-heading">
           <div><span className="hq-eyebrow">EVIDENCE & HUMAN REVIEW</span><h4>사실·가설·미확인 사항 분리</h4></div>
