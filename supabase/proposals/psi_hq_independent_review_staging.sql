@@ -15,6 +15,7 @@ create table hq_safe_staging.review_assignments (
   case_id uuid not null,
   id uuid not null default gen_random_uuid(),
   -- A report number is a reference LABEL, not a trusted verified report.
+  -- Browser accounts are never granted assignment INSERT.
   report_version integer not null check(report_version between 1 and 100000),
   report_ref text not null check(length(btrim(report_ref)) between 8 and 120),
   author_id uuid not null references auth.users(id) on delete restrict,
@@ -59,9 +60,8 @@ revoke all on hq_safe_staging.review_assignments,hq_safe_staging.review_feedback
 -- created_at and recorded_at, which MUST come from the database defaults.
 grant select on hq_safe_staging.review_assignments,hq_safe_staging.review_feedback
   to authenticated;
-grant insert (tenant_id,site_id,case_id,report_version,report_ref,
-  author_id,site_reviewer_id,hq_reviewer_id)
-  on hq_safe_staging.review_assignments to authenticated;
+-- No INSERT privilege on assignments for authenticated browsers.
+-- A separate trusted operator must create them after validating real identities.
 grant insert (tenant_id,site_id,case_id,assignment_id,
   reviewer_role,topic,note_kind,note,evidence_ref)
   on hq_safe_staging.review_feedback to authenticated;
@@ -81,42 +81,53 @@ for select to authenticated using (
       and s.active=true)
 );
 
--- Only an authenticated, active HQ supervisor in the SAME site may assign.
--- The case author must match the actual recorded creator.
--- Site reviewer: tenant reviewer role; HQ reviewer: tenant owner/admin role.
--- Both must have active site membership and be different from the author.
-create policy hq_assignments_insert on hq_safe_staging.review_assignments
-for insert to authenticated with check (
-  assigned_by=(select auth.uid())
-  and exists(select 1 from public.psi_tenant_memberships tm
-    where tm.tenant_id=review_assignments.tenant_id
-      and tm.user_id=(select auth.uid()) and tm.status='active'
-      and tm.role in ('owner','admin'))
-  and exists(select 1 from public.psi_tenant_site_memberships sm
-    where sm.tenant_id=review_assignments.tenant_id and sm.site_id=review_assignments.site_id
-      and sm.user_id=(select auth.uid()) and sm.status='active')
-  and exists(select 1 from public.psi_tenant_sites s
-    where s.tenant_id=review_assignments.tenant_id and s.id=review_assignments.site_id
-      and s.active=true)
-  and exists(select 1 from public.psi_hq_incident_cases c
-    where c.tenant_id=review_assignments.tenant_id
-      and c.site_id=review_assignments.site_id
-      and c.id=review_assignments.case_id and c.created_by=review_assignments.author_id)
-  and exists(select 1 from public.psi_tenant_memberships tm
-    join public.psi_tenant_site_memberships sm
-      on sm.tenant_id=tm.tenant_id and sm.user_id=tm.user_id
-    where tm.tenant_id=review_assignments.tenant_id
-      and sm.site_id=review_assignments.site_id
-      and tm.user_id=review_assignments.site_reviewer_id
-      and tm.status='active' and sm.status='active' and tm.role='reviewer')
-  and exists(select 1 from public.psi_tenant_memberships tm
-    join public.psi_tenant_site_memberships sm
-      on sm.tenant_id=tm.tenant_id and sm.user_id=tm.user_id
-    where tm.tenant_id=review_assignments.tenant_id
-      and sm.site_id=review_assignments.site_id
-      and tm.user_id=review_assignments.hq_reviewer_id
-      and tm.status='active' and sm.status='active' and tm.role in ('owner','admin'))
-);
+-- SECURITY INVOKER trigger: used ONLY during trusted operator provisioning.
+-- It rejects a forged author, same-person reviewers or an inactive/unassigned site.
+-- Current self-read membership RLS intentionally does not allow a browser administrator
+-- to enumerate other users' memberships. Do not widen it just to assign reviewers.
+create function hq_safe_staging.check_review_assignment()
+returns trigger language plpgsql security invoker as $$
+begin
+ if not exists(select 1 from public.psi_hq_incident_cases c
+     where c.tenant_id=new.tenant_id and c.site_id=new.site_id
+       and c.id=new.case_id and c.created_by=new.author_id) then
+   raise exception 'case author does not match incident' using errcode='23514';
+ end if;
+ if not exists(select 1 from public.psi_tenant_sites s
+     where s.tenant_id=new.tenant_id and s.id=new.site_id and s.active=true) then
+   raise exception 'inactive or missing site' using errcode='23514';
+ end if;
+ if not exists(select 1 from public.psi_tenant_memberships tm
+     join public.psi_tenant_site_memberships sm
+       on sm.tenant_id=tm.tenant_id and sm.user_id=tm.user_id
+     where tm.tenant_id=new.tenant_id and sm.site_id=new.site_id
+       and tm.user_id=new.site_reviewer_id
+       and tm.status='active' and sm.status='active' and tm.role='reviewer') then
+   raise exception 'site reviewer is not actively assigned' using errcode='23514';
+ end if;
+ if not exists(select 1 from public.psi_tenant_memberships tm
+     join public.psi_tenant_site_memberships sm
+       on sm.tenant_id=tm.tenant_id and sm.user_id=tm.user_id
+     where tm.tenant_id=new.tenant_id and sm.site_id=new.site_id
+       and tm.user_id=new.hq_reviewer_id
+       and tm.status='active' and sm.status='active' and tm.role in ('owner','admin')) then
+   raise exception 'HQ reviewer is not actively assigned' using errcode='23514';
+ end if;
+ if not exists(select 1 from public.psi_tenant_memberships tm
+     join public.psi_tenant_site_memberships sm
+       on sm.tenant_id=tm.tenant_id and sm.user_id=tm.user_id
+     where tm.tenant_id=new.tenant_id and sm.site_id=new.site_id
+       and tm.user_id=new.assigned_by
+       and tm.status='active' and sm.status='active' and tm.role in ('owner','admin')) then
+   raise exception 'assignment operator is not an active HQ supervisor' using errcode='23514';
+ end if;
+ return new;
+end $$;
+revoke execute on function hq_safe_staging.check_review_assignment()
+ from public,anon,authenticated,service_role;
+create trigger hq_review_assignment_operator_check
+ before insert on hq_safe_staging.review_assignments
+ for each row execute function hq_safe_staging.check_review_assignment();
 
 -- A feedback row can be viewed only by an authorized assignment participant.
 create policy hq_feedback_read on hq_safe_staging.review_feedback
