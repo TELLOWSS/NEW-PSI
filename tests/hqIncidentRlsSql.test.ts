@@ -66,9 +66,10 @@ it('staging incident SQL enforces per-site RLS and independent reviewer without 
     await expect(asUser(author,claim(''))).rejects.toThrow();
     await asUser(author,claim('DOC-001'));
     const review='insert into public.psi_hq_incident_review_events (tenant_id,site_id,case_id,event_type,reason) values ('+
-      [tenant,siteA,incident,'review_completed','합성 시연 검토 결과'].map(q).join(',')+');';
+      [tenant,siteA,incident,'review_observed','합성 시연 검토 결과'].map(q).join(',')+');';
     await expect(asUser(author,review)).rejects.toThrow();
     await asUser(reviewer,review);
+    await expect(asUser(reviewer,review.replace('review_observed','review_completed'))).rejects.toThrow();
     const approvals=await asUser(reviewer,count('psi_hq_incident_review_events'));
     expect((approvals.rows[0] as {count:number}).count).toBe(1);
     const hiddenReview=await asUser(outsider,count('psi_hq_incident_review_events'));
