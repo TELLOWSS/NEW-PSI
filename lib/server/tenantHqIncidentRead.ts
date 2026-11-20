@@ -17,8 +17,8 @@ const MAX_PAGE = 99;
 const COLUMNS = 'tenant_id,site_id,id,occurred_on,construction_zone,process_code,incident_type,created_at';
 const PAGE_SIZE = 25;
 
-function invalid():never {
-  throw new TenantAccessError(400,'HQ_INVALID_QUERY','기업, 현장 또는 조회 조건을 확인해 주세요.');
+function invalid(stage='QUERY'):never {
+  throw new TenantAccessError(400,'HQ_INVALID_'+stage,'기업, 현장 또는 조회 조건을 확인해 주세요.');
 }
 function unavailable():never {
   throw new TenantAccessError(503,'HQ_SCOPE_UNAVAILABLE','사고사례 현장별 조회 준비가 완료되지 않았습니다.');
@@ -27,7 +27,7 @@ function forbidden():never {
   throw new TenantAccessError(403,'HQ_SITE_FORBIDDEN','이 현장의 사고사례 조회 권한이 없습니다.');
 }
 function exactText(value:unknown,max:number):string {
-  if(typeof value!=='string'||!value||value!==value.trim()||value.length>max)return invalid();
+  if(typeof value!=='string'||!value||value!==value.trim()||value.length>max)return invalid('TEXT');
   return value;
 }
 function dateOnly(value:unknown):value is string {
@@ -36,19 +36,19 @@ function dateOnly(value:unknown):value is string {
     && new Date(value+'T00:00:00.000Z').toISOString().slice(0,10)===value;
 }
 function parseQuery(query:Record<string,unknown>) {
-  if(Object.keys(query).some(key=>!QUERY_KEYS.has(key)))return invalid();
+  if(Object.keys(query).some(key=>!QUERY_KEYS.has(key)))return invalid('KEYS');
   const siteId=exactText(query.siteId,36);
-  if(!UUID.test(siteId))return invalid();
+  if(!UUID.test(siteId))return invalid('SITE_ID');
   const zone=query.zone===undefined?null:exactText(query.zone,8);
-  if(zone!==null&&!ZONES.has(zone))return invalid();
+  if(zone!==null&&!ZONES.has(zone))return invalid('ZONE');
   const processId=query.processId===undefined?null:exactText(query.processId,40);
-  if(processId!==null&&!PROCESSES.has(processId))return invalid();
+  if(processId!==null&&!PROCESSES.has(processId))return invalid('PROCESS');
   const caseId=query.caseId===undefined?null:exactText(query.caseId,36);
-  if(caseId!==null&&!UUID.test(caseId))return invalid();
+  if(caseId!==null&&!UUID.test(caseId))return invalid('CASE');
   const rawPage=query.page===undefined?'0':exactText(query.page,2);
-  if(!/^(0|[1-9][0-9]?)$/.test(rawPage))return invalid();
+  if(!/^(0|[1-9][0-9]?)$/.test(rawPage))return invalid('PAGE_FORMAT');
   const page=Number(rawPage);
-  if(page>MAX_PAGE||(caseId!==null&&page!==0))return invalid();
+  if(page>MAX_PAGE||(caseId!==null&&page!==0))return invalid('PAGE_RANGE');
   return {siteId,zone,processId,caseId,page};
 }
 async function requireSite(context:TenantContext,siteId:string):Promise<void> {
