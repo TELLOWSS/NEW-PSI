@@ -56,7 +56,7 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
   for(const enabled of ['false','true']){
    vi.stubEnv('PSI_HQ_EVIDENCE_READ_ENABLED',enabled);
    const res=response();await accessHandler(request(),res);
-   expect(res.statusCode).toBe(503);
+   expect(res.statusCode,'unexpected code '+JSON.stringify(res.payload)).toBe(503);
    expect(res.payload.code).toBe('HQ_EVIDENCE_NOT_READY');
    expect(res.headers).toContainEqual(['X-Content-Type-Options','nosniff']);
    expect(res.headers.some(([k])=>k==='Content-Disposition')).toBe(false);
@@ -85,7 +85,7 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
    authenticate:authenticated,buildPorts:async()=>mem.ports,flagEnabled:()=>true
   });
   const res=response();await handler(request(),res);
-  expect(authenticated).toHaveBeenCalledTimes(1);
+  expect(authenticated,'unexpected response '+JSON.stringify(res.payload)).toHaveBeenCalledTimes(1);
   expect(res.statusCode).toBe(200);
   expect(Buffer.isBuffer(res.payload)).toBe(true);
   expect(res.payload).toEqual(Buffer.from(bytes));
