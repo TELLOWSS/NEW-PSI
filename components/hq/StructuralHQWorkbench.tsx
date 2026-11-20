@@ -4,6 +4,8 @@ import CorrectiveActionWorkbench from './CorrectiveActionWorkbench';
 import IncidentSequenceWorkbench from './IncidentSequenceWorkbench';
 import EvidenceLedgerWorkbench from './EvidenceLedgerWorkbench';
 import IncidentReportRevisionWorkbench from './IncidentReportRevisionWorkbench';
+import IndependentReviewWorkbench from './IndependentReviewWorkbench';
+import type {IndependentReviewCycle} from './independentReviewCycleModel';
 import {checkReportVersionFreshness,type IncidentReportVersion} from './incidentReportRevisionModel';
 import {checkEvidenceLinks,type EvidenceManifestRecord,type EvidenceLink} from './evidenceManifestModel';
 import type {EvidenceKind} from './accidentSequenceModel';
@@ -146,6 +148,7 @@ export default function StructuralHQWorkbench(): React.ReactElement {
   const [controlMaps,setControlMaps] = useState<Record<number,CorrectiveCoverage[]>>({});
   const [evidenceRecords,setEvidenceRecords] = useState<Record<number,readonly EvidenceManifestRecord[]>>({});
   const [reportVersions,setReportVersions] = useState<Record<number,IncidentReportVersion[]>>({});
+  const [independentCycles,setIndependentCycles] = useState<Record<number,IndependentReviewCycle[]>>({});
   const [investigationDrafts, setInvestigationDrafts] = useState<Record<number, InvestigationDraft>>({});
   const [hqActions, setHqActions] = useState<CorrectiveAction[]>([]);
   const [reviewKind, setReviewKind] = useState<ReviewKind>('fact');
@@ -453,11 +456,19 @@ export default function StructuralHQWorkbench(): React.ReactElement {
         </div>
         <p className="hq-review-footnote">이 화면은 개발 시연입니다. 자료번호·확인 상태는 원본 진위나 근로자 진술을 증명하지 않습니다. 실제 조사책임자 인증, 원본 파일 무결성, 교차검증, 최종 결재 및 AI 처리는 아직 구현하지 않았습니다.</p>
       </section>}
+      {tab === 'investigation' && <IndependentReviewWorkbench key={selectedCaseId??'no-review-case'}
+        incidentId={selectedCaseId}
+        report={selectedCase?(reportVersions[selectedCase.id]?.slice(-1)[0]||null):null}
+        reportIsFresh={Boolean(reportFreshness?.ready)}
+        requestMarked={investigationDraft?.status==='requested'}
+        cycles={selectedCase?(independentCycles[selectedCase.id]||[]):[]}
+        onCyclesChange={next=>{if(selectedCase)setIndependentCycles(old=>({...old,[selectedCase.id]:next}));}}
+      />}
       <div hidden={tab !== 'actions'}>
         <CorrectiveActionWorkbench cases={incidents.map((item)=>({id:item.id,date:item.date,zone:item.zone,process:STRUCTURAL_PROCESSES.find(p=>p.id===item.processId)?.title || item.processId,summary:item.summary}))} onOpenCases={()=>changeTab('cases')} actions={hqActions} onActionsChange={setHqActions}/>
       </div>
       {notice && <p role="status" className="hq-notice">{notice}</p>}
     </div>
-    <div className="hq-bottom"><strong>구현 범위: 본사 관제·사고행동 시퀀스·증빙참조대장·6하원칙 조사보고서 개정비교·교육초안·조치/재점검 시연</strong><span>미구현: 실제 중앙 저장·현장별 권한·AI 호출·PPT 내보내기·법정 보고·승인 워크플로</span></div>
+    <div className="hq-bottom"><strong>구현 범위: 본사 관제·사고 시퀀스·증빙대장·6하원칙 보고서·현장/본사 독립 검토역할 시연·교육·재점검</strong><span>미구현: 실제 중앙 저장·현장별 권한·AI 호출·PPT 내보내기·법정 보고·승인 워크플로</span></div>
   </section>;
 }
