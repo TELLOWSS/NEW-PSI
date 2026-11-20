@@ -413,3 +413,11 @@
 - 실제 사용자 계정으로 조사결과를 승인하거나 사고원인을 확정하지 않음. 본사 대표이사 교육/법정 보고는 별도 절차.
 - 코드는 사용자 승인 전까지 **Draft PR에서만 유지**. main 병합/Production 배포/운영 DB·Storage 변경/feature flag 활성화는 실시하지 않는다.
 - 최신 15차 CI에서 기능·타입/격리 SQL 및 부서별 회귀검증을 확인하며, 과거 CI 통과 수치를 최신 결과로 대체하지 않는다.
+
+
+### 15차 검증 결과 및 오류 수정 인계 (2026-11-21)
+- 첫 HTTP 테스트에서 정상 요청도 400으로 거부됨: \`hqEvidenceReadRoute.ts\` UUID 정규식에 5개 그룹 중 1개가 누락된 것이 원인이었다. 5개 그룹(8-4-4-4-12)을 검증하도록 수정하고 재실행.
+- **검증 코드 HEAD \`1fb817c\`**: Vitest **264개 파일 / 2,016개 테스트 전부 PASS**, 타입·제품 경계 검사 PASS. 신규 서버 요청 테스트 5개 및 15차 접근차단·SQL 검증 포함.
+- \`npm run verify:ci\` 최종 FAIL은 기존 production 의존성 \`npm audit --omit=dev\` **6건(High 1 / Moderate 5)** 으로 인한 출시 차단으로, 해당 보안검사 실패를 기능 합격으로 포장하지 않음.
+- 최신 전제품 Chromium/부서별 cross-department CI는 별도 결과를 확인하며, 실행 중인 경우 PASS라고 기록하지 않는다.
+- 비공개 Storage/감사기록 서버 운영 어댑터 미연결, 기본 플래그 OFF. main/Production/운영 DB·Storage·환경변수 미변경.
