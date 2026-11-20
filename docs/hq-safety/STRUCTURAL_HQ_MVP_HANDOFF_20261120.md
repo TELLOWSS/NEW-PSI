@@ -64,3 +64,16 @@
 - release verification 전체 결과는 실패: npm audit에서 effect <=3.22.0 high(RedOS) 1건, fast-uri/glob/minimatch 등 moderate 5건(6 vulnerabilities) 감지
 - 의존성 잠금파일을 임의 수정하거나 audit을 비활성화하여 통과 처리하지 말 것. 별도 재현·패치 버전과 의존성 전파 영향 검토 후 해결
 - 위 결과는 첫 구현본 시점이며 2차 최신 커밋의 검증 결과를 별도로 확인해야 함
+
+
+## 2026-11-20 3차: 운영 미적용 현장별 사고기록 SQL 및 실제 RLS 시뮬레이션
+- supabase/proposals/psi_hq_incident_case_staging.sql: 사고 기본기록, 사실/가설/미확인 분류자료, 독립 검토 이력을 append-only 별도 테이블로 정의
+- 사고 발생 구간(construction_zone)과 공정(process_code)은 별도 데이터 필드
+- 필수 tenant_id+site_id 복합 FK, 기업·현장 활성 소속 모두 필요, owner/admin이라도 담당 현장 없는 경우 접근 금지
+- 사건·근거·검토 이력은 인증 사용자 INSERT/SELECT만 허용하고 UPDATE/DELETE 미허용
+- 독립 검토자가 사건 작성자와 다른 경우에만 review_observed 이력 생성 가능
+- SQL에는 review_completed/공식 승인 상태가 아예 존재하지 않음: 원본 검증·승인 서비스 미구현 상태에서 잘못된 확정 불허
+- tests/hqIncidentRlsSql.test.ts: 격리 PGlite로 같은 기업 내 현장 간 읽기/쓰기 차단, 기록 불변, 미출처 사실차단, 독립 검토자, 허위 승인 이벤트 차단 검사
+
+**적용 금지:** 해당 SQL은 이미 운영 중인 migrations에 추가하지 않았음. 기존 psi_tenant_sites 및 psi_tenant_site_memberships 자체가 proposal인 상태이므로 별도 선행 정책·마이그레이션 및 기존자료 재분류 승인 없이는 운영 적용 불가.
+**QA:** 2026-11-20 이전 3차 HEAD 9ece715의 RLS 합성 테스트는 PASS. 같은 HEAD 전체 CI는 조사 안내 문구 mismatch 2건으로 FAIL; 이어지는 9067de2 커밋에서 문구 수정. 고위험 npm 의존성 취약점은 별도 해결 전까지 릴리스 차단.
