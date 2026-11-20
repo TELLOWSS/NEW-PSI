@@ -137,4 +137,83 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
   expect(response2.statusCode).toBe(503);
   expect(JSON.stringify(response2.payload)).not.toContain('INTERNAL_JWT_SECRET');
  });
+ it('denies private reads when a distributed admission adapter is missing',async()=>{
+  const privateStorage=makePorts();
+  const handler=createHqEvidenceReadRoute({
+   authenticate:authenticated,buildPorts:async()=>privateStorage.ports,
+   flagEnabled:()=>true
+  });
+  const out=response();await handler(request(),out);
+  expect(out.statusCode).toBe(503);
+  expect(out.payload.code).toBe('HQ_EVIDENCE_NOT_READY');
+  expect(privateStorage.events).toEqual([]);
+  expect(authenticated).not.toHaveBeenCalled();
+ });
+
+ it('limits concurrent reads across synthetic responses and releases only on finish or close',async()=>{
+  const live=new Set<string>();
+  const released:string[]=[];
+  const ids=[
+   '11111111-1111-4111-8111-111111111111',
+   '22222222-2222-4222-8222-222222222222',
+   '33333333-3333-4333-8333-333333333333'
+  ];
+  let i=0;
+  const gate:EvidenceCapacityPorts={
+   acquire:async()=>{
+    if(live.size>=2)return {granted:false as const,retryAfterSeconds:30};
+    const leaseId=ids[i++];
+    live.add(leaseId);
+    return {granted:true as const,leaseId};
+   },
+   release:async(_scope,leaseId)=>{live.delete(leaseId);released.push(leaseId);}
+  };
+  const calls=makePorts();
+  const handler=createHqEvidenceReadRoute({
+   authenticate:authenticated,buildPorts:async()=>calls.ports,
+   admission:gate,flagEnabled:()=>true
+  });
+  const a=response(false),b=response(false),c=response(false);
+  await handler(request(),a);
+  await handler(request(),b);
+  expect(a.statusCode).toBe(200);
+  expect(b.statusCode).toBe(200);
+  expect(live.size).toBe(2);
+  await handler(request(),c);
+  expect(c.statusCode).toBe(429);
+  expect(c.payload.code).toBe('HQ_EVIDENCE_RATE_LIMITED');
+  expect(c.headers).toContainEqual(['Retry-After','30']);
+  expect(c.payload).not.toBeInstanceOf(Buffer);
+  expect(calls.events.filter(x=>x==='storage')).toHaveLength(2);
+
+  a.emit('finish');a.emit('close');
+  await Promise.resolve();
+  expect(released).toEqual([ids[0]]);
+  const d=response(false);
+  await handler(request(),d);
+  expect(d.statusCode).toBe(200);
+  b.emit('close');d.emit('finish');
+  await Promise.resolve();
+  expect(live.size).toBe(0);
+  expect(released).toEqual(ids);
+ });
+
+ it('blocks access when capacity storage fails or lease token is forged',async()=>{
+  for(const admission of [
+   {acquire:async()=>{throw Error('PRIVATE_LIMITER_SECRET');},release:async()=>{}},
+   {acquire:async()=>({granted:true as const,leaseId:'NOT-A-UUID'}),release:async()=>{}}
+  ] as EvidenceCapacityPorts[]){
+   const mem=makePorts();
+   const handler=createHqEvidenceReadRoute({
+    authenticate:authenticated,buildPorts:async()=>mem.ports,
+    admission,flagEnabled:()=>true
+   });
+   const out=response();await handler(request(),out);
+   expect(out.statusCode).toBe(503);
+   expect(out.payload.code).toBe('HQ_EVIDENCE_CAPACITY_UNAVAILABLE');
+   expect(JSON.stringify(out.payload)).not.toContain('PRIVATE_LIMITER_SECRET');
+   expect(mem.events).toEqual([]);
+  }
+ });
+
 });
