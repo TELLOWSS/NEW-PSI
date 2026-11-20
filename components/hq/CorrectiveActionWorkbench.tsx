@@ -14,7 +14,7 @@ export interface CaseOption {
   process: string;
   summary: string;
 }
-interface Props { cases: readonly CaseOption[]; onOpenCases:()=>void }
+interface Props { cases: readonly CaseOption[]; onOpenCases:()=>void; actions?:CorrectiveAction[]; onActionsChange?:(next:CorrectiveAction[])=>void }
 const eventId = () => 'synthetic-' + Date.now() + '-' + Math.random().toString(36).slice(2,9);
 const localDate = () => {
   const t = new Date();
@@ -22,8 +22,10 @@ const localDate = () => {
 };
 
 /** Session-only UI: an action may be submitted for reinspection but NEVER automatically verified. */
-export default function CorrectiveActionWorkbench({cases,onOpenCases}:Props):React.ReactElement {
-  const [actions,setActions] = useState<CorrectiveAction[]>([]);
+export default function CorrectiveActionWorkbench({cases,onOpenCases,actions:controlledActions,onActionsChange}:Props):React.ReactElement {
+  const [localActions,setLocalActions] = useState<CorrectiveAction[]>([]);
+  const actions=controlledActions??localActions;
+  const persistActions=(next:CorrectiveAction[])=>{if(onActionsChange)onActionsChange(next);else setLocalActions(next);};
   const [caseId,setCaseId] = useState<number | null>(null);
   const [selectedId,setSelectedId] = useState<string | null>(null);
   const [title,setTitle] = useState('');
@@ -46,7 +48,7 @@ export default function CorrectiveActionWorkbench({cases,onOpenCases}:Props):Rea
     try {
       const id=eventId();
       const created=createCorrectiveAction({id,incidentId:caseId,title,controlClass,ownerRole,dueOn},eventId(),new Date().toISOString());
-      setActions(prev=>[created,...prev]);
+      persistActions([created,...actions]);
       setSelectedId(created.id);setTitle('');setNotice('새 개선조치 계획을 세션에 등록했습니다. 실제 DB에 저장되지 않습니다.');
     }catch(error){setNotice(error instanceof Error?error.message:'등록하지 못했습니다.');}
   };
@@ -54,7 +56,7 @@ export default function CorrectiveActionWorkbench({cases,onOpenCases}:Props):Rea
     if(!selected)return;
     try{
       const updated=transition(selected,eventId(),new Date().toISOString());
-      setActions(prev=>prev.map(a=>a.id===selected.id?updated:a));
+      persistActions(actions.map(a=>a.id===selected.id?updated:a));
       setNotice(success+' 실제 조치 완료나 현장 재점검을 증명하지 않습니다.');
     }catch(error){setNotice(error instanceof Error?error.message:'상태를 변경하지 못했습니다.');}
   };
