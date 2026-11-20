@@ -9,12 +9,16 @@ describe('HQ structural workbench reference taxonomy', () => {
     expect(byId['formwork'].area).toBe('일반 형틀');
     expect(byId['alform'].area).toBe('지상 골조');
     expect(byId['formwork'].id).not.toBe(byId['alform'].id);
+    expect(byId['underground-wall'].zones).toEqual(['지하']);
+    expect(byId['formwork'].zones).toEqual(['기초', '지하', '지상', '옥탑']);
   });
 
   it('contains ten distinct structural processes with meaningful inspection and evidence controls', () => {
     expect(STRUCTURAL_PROCESSES).toHaveLength(10);
     expect(new Set(STRUCTURAL_PROCESSES.map((item) => item.id)).size).toBe(10);
     STRUCTURAL_PROCESSES.forEach((item) => {
+      expect(item.zones.length).toBeGreaterThan(0);
+      expect(item.zones.every((zone) => ['기초', '지하', '지상', '옥탑'].includes(zone))).toBe(true);
       expect(item.hazards.length).toBeGreaterThanOrEqual(3);
       expect(item.inspection.length).toBeGreaterThanOrEqual(3);
       expect(item.evidence.length).toBeGreaterThanOrEqual(2);
