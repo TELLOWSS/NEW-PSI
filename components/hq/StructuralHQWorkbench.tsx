@@ -146,7 +146,7 @@ export default function StructuralHQWorkbench(): React.ReactElement {
     event.preventDefault();
     if (!incidentDate || summary.trim().length < 8) { setNotice('날짜와 8자 이상의 비식별 사고 개요를 입력하세요.'); return; }
     const id = Date.now();
-    setIncidents((previous) => [{ id, date: incidentDate, processId: incidentProcess, kind: incidentKind, summary: summary.trim().slice(0, 220), state: '조사 필요' }, ...previous]);
+    setIncidents((previous) => [{ id, date: incidentDate, processId: incidentProcess, kind: incidentKind, summary: summary.trim().slice(0, 220), state: '조사 필요' as const }, ...previous]);
     setSelectedCaseId(id);
     setSummary('');
     setNotice('사례를 임시 등록했습니다. 조사 결과나 법적 사실이 확정된 것은 아닙니다.');
