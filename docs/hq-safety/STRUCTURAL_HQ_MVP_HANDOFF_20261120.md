@@ -554,3 +554,36 @@
 - 다음 차수 우선: 독립 연결 기반 동시성/크래시 QA 전용 격리 하네스, 멱등 외부 경보와 dead-letter 복구 정책, 의존성 보안 취약점 해결.
 - 기존 골조 10개 공정 중 지하 RC·일반 형틀·AL폼의 독립 분류, NEW-PSI 운영 기능 유지.
 - main 병합, Production 배포, 운영 DB/Storage/환경변수/feature flag 변경 또는 worker/cron 활성화 모두 보류.
+
+## 2026-11-21 20차: 실제 PostgreSQL 독립 세션 동시성·세션 강제 종료 복구·최소권한 작업자 검증
+
+### 인계 기준과 이번 해결 범위
+19차까지는 격리 PGlite에서 두 **논리 작업자**의 순차적인 선점·임대만료·ACK와 backlog 감시까지만 검증했다. 20차는 이를 진짜 별도 PostgreSQL 프로세스/연결 두 개가 같은 테이블을 동시에 건드리는 환경으로 확장했다. 다만 실제 운영 DB, Supabase 사용자, Storage 및 외부 네트워크는 사용하지 않는다.
+
+### 구현 파일
+- supabase/proposals/psi_hq_outbox_least_privilege_staging.sql
+  - 비공개 NOLOGIN / NOBYPASSRLS 역할 hq_safe_outbox_operator 정의. 감사 transport_outbox에만 SELECT, 지정 열 INSERT 및 지정 상태 열 UPDATE 권한과 RLS 정책 부여. DELETE와 사건·현장·증빙 식별자 UPDATE, 원본 evidence_manifest, 다른 데이터 접근 권한은 부여하지 않음.
+  - 서비스 키, 로그인 계정 비밀번호, 사용자에게 role 부여, 실제 Production DB 적용 없음. 역할은 승인된 배포용 신뢰된 DB 사용자와 별도 연결/보안 감사가 필요.
+- scripts/qa-hq-evidence-pg-concurrency.mjs
+  - **실제 PostgreSQL 16** 컨테이너 내 독립 psql 연결을 사용. 테스트는 18차 어댑터 소스의 CLAIM_DUE_SQL을 그대로 추출해서 실행하고, 가상 사용자·기업·현장·사고·증빙 UUID만 사용.
+  - 최소권한 작업자가 실제 RLS 정책 아래 SELECT/UPDATE 선점을 할 수 있는지, 일반 사용자 및 service_role이 직접 접근할 수 없는지 확인.
+  - 두 독립 연결이 동시에 동일 기록을 claim할 때 정확히 한 연결만 처리.
+  - 다른 연결이 row lock을 유지하는 동안 SKIP LOCKED가 중복선점을 막는지 검증.
+  - PostgreSQL의 pg_terminate_backend로 작업 중 DB 세션을 강제 종료해 미커밋 트랜잭션이 롤백되는지 확인한 후 다른 연결이 다시 작업을 선점.
+  - 임대 만료 후 재선점 시 UUID fencing token이 교체되고, 이전 토큰의 ACK는 거절되며 최신 토큰만 ACK할 수 있음을 확인.
+- .github/workflows/hq-safe-postgres-concurrency.yml
+  - Draft PR 전용(파일변경 트리거) GitHub Actions. 인터넷 연결 없이 운영되는 네트워크 차단 --network none / 메모리 tmpfs 기반 일회용 PostgreSQL 컨테이너만 사용. 프로덕션 연결 문자열이나 서비스키를 읽지 않음. 완료 후 컨테이너 강제 삭제.
+
+### 검증 결과
+- **전용 GitHub Actions 실 PostgreSQL 시험 PASS**: 최신 코드 e45baa1의 workflow run 44830996837, job 136615605013.
+- CI 기록 PASS: 비공개 스키마/최소권한 NOLOGIN 역할, 서비스·일반 사용자 차단, 독립 세션 동시선점 1건만 성공, 세션 강제종료 롤백·재선점, 임대 토큰 교체와 과거 토큰 ACK 차단.
+- 19차 코드 기준 전체 Vitest는 267개 파일·2,037개 PASS였음. 20차 신규 파일은 별도의 실제 Postgres 전용 CI에서 검증하므로 2,037건을 신규 기능 테스트 수에 중복합산하지 않음. 최신 문서 커밋 이후의 전체 Vitest, Chromium/cross-department와 npm 취약점 상태는 해당 실행 결과로만 판정.
+- **중요한 검증 한계:** pg_terminate_backend는 PostgreSQL 백엔드 세션 종료 시뮬레이션이다. 운영 애플리케이션 프로세스 kill -9, Kubernetes 롤링 재시작, 네트워크 분할/멀티리전, 외부 감사 싱크의 정확히 한 번 수신, 백업/복구 및 복합 트래픽 부하는 아직 검증하지 않았다.
+- 신규 NOLOGIN 운영자 역할은 격리 CI에서만 생성. 실제 운영 DB/Storage에는 테이블/역할/정책/키/배포/실데이터/cron/worker 적용 없음.
+
+### 다음 차수 / 출시 차단
+1. 실서버 비밀키 관리·최소권한 작업자 로그인 자격의 발급·회수/감사, 외부 감사 저장소의 멱등성·WORM 보존·백업/복구 설계.
+2. 실제 HTTP 전송도 포함한 앱 프로세스 강제종료·중복 이벤트·네트워크 단절과 부하/복구 검증.
+3. npm audit 프로덕션 의존성 취약점 해결(기존 6건 보고), 전제품 Chromium·Android 현장 QA.
+4. 현장별 실제 계정 2기업×2현장 검증 및 개인정보/기록보존 법규 검토.
+5. 기존 골조 10개 공정 분류 중 지하 RC·일반 형틀·AL폼 독립 관리와 NEW-PSI 운영기능 유지. main 병합, Production 배포, 운영 DB/Storage 및 env/feature flag 변경 **모두 보류**.
