@@ -22,7 +22,7 @@ describe('HQ outbox backlog health monitor - server-only contract',()=>{
   expect(health.counts).toEqual(empty);
   expect(send).not.toHaveBeenCalled();
  });
- it('marks stale prepared, exhausted retries and overdue work critical without any personal data',()=>{
+ it('marks stale prepared, exhausted retries and overdue work critical without any personal data',async()=>{
   const send=vi.fn(async()=>{});
   const counts={...empty,unacked:6,stalePrepared:1,exhausted:2,overdue:3};
   const db={query:async()=>({rows:[{
