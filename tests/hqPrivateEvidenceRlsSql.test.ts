@@ -1,6 +1,7 @@
 import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {PGlite} from '@electric-sql/pglite';
+import {createPrivatePgEvidenceOutboxAdapter} from '../lib/server/hqEvidencePgOutboxAdapter';
 import {expect,it} from 'vitest';
 
 const tenant='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -143,6 +144,69 @@ it('HQ private evidence proposal keeps sealed metadata/site scope and append-onl
    'insert into '+transport+'(tenant_id,site_id,case_id,evidence_id,actor_id) values ('+
     [tenant,site,caseId,neverExisted,author].map(quote).join(',')+');'
   )).rejects.toThrow();
+
+  // Phase 18: fully parameterized PostgreSQL SKIP LOCKED worker adapter.
+  const auditDelivered:string[]=[],alerts:string[]=[];
+  const dbPort={query:async(sql:string,params?:unknown[])=>{
+   const result=await db.query(sql,params as any[]);
+   return {rows:result.rows as Record<string,unknown>[]};
+  }};
+  const sink=async(_event:any,idempotencyKey:string)=>{auditDelivered.push(idempotencyKey);};
+  const alert=async(event:any)=>{alerts.push(event.code);};
+  const workerA=createPrivatePgEvidenceOutboxAdapter(dbPort,sink,alert);
+  const workerB=createPrivatePgEvidenceOutboxAdapter(dbPort,sink,alert);
+  const preparedScope={
+   tenantId:tenant,siteId:site,caseId,evidenceId:fileId,actorId:author
+  };
+  const recovered=await workerA.prepare(preparedScope);
+  expect(recovered.id).toMatch(/^[0-9a-f-]{36}$/);
+  // An in-flight PREPARED event is invisible until its age grace elapses.
+  expect(await workerA.claimDue(10)).toEqual([]);
+  await db.query('update '+transport+" set created_at=clock_timestamp()-interval '3 minutes' where id=$1",
+   [recovered.id]);
+  const claimedA=await workerA.claimDue(10);
+  expect(claimedA).toHaveLength(1);
+  expect(claimedA[0]).toMatchObject({id:recovered.id,state:'prepared'});
+  expect(await workerB.claimDue(10)).toEqual([]);
+  await workerA.markUnconfirmed(recovered.id);
+  await workerA.deliver({...claimedA[0],state:'unconfirmed'});
+  await workerA.acknowledge(recovered.id);
+  expect(auditDelivered).toEqual([recovered.id]);
+  expect(await workerB.claimDue(10)).toEqual([]);
+  const confirmed=await db.query('select state,acked_at is not null as acknowledged from '+
+   transport+' where id=$1',[recovered.id]);
+  expect(confirmed.rows).toEqual([{state:'unconfirmed',acknowledged:true}]);
+  // A stale worker cannot write/ACK a row after another worker reclaims it.
+  const stolen=await workerA.prepare(preparedScope);
+  await workerA.settle(stolen.id,'response_flushed');
+  const first=await workerA.claimDue(10);
+  expect(first.map(x=>x.id)).toContain(stolen.id);
+  await db.query('update '+transport+
+   " set claim_expires_at=clock_timestamp()-interval '1 second' where id=$1",[stolen.id]);
+  const second=await workerB.claimDue(10);
+  expect(second.map(x=>x.id)).toContain(stolen.id);
+  await expect(workerA.acknowledge(stolen.id)).rejects.toThrow('HQ_OUTBOX_STALE');
+  await expect(workerA.deliver(first.find(x=>x.id===stolen.id)!))
+   .rejects.toThrow('HQ_OUTBOX_STALE');
+  await workerB.deliver(second.find(x=>x.id===stolen.id)!);
+  await workerB.acknowledge(stolen.id);
+  expect(auditDelivered).toEqual([recovered.id,stolen.id]);
+  // RETRY clears the claim and delays re-acquisition until DB clock due.
+  const delayed=await workerA.prepare(preparedScope);
+  await workerA.settle(delayed.id,'response_aborted');
+  const retryClaim=await workerA.claimDue(10);
+  expect(retryClaim.map(x=>x.id)).toContain(delayed.id);
+  await workerA.retry(delayed.id,30);
+  expect(await workerB.claimDue(10)).toEqual([]);
+  await db.query('update '+transport+
+   " set next_attempt_at=clock_timestamp()-interval '1 second' where id=$1",[delayed.id]);
+  const retryAgain=await workerB.claimDue(10);
+  expect(retryAgain.map(x=>x.id)).toContain(delayed.id);
+  await workerB.acknowledge(delayed.id);
+  expect(alerts).toEqual([]);
+  // Browser / unassigned users cannot claim through direct SQL either.
+  await expect(asUser(author,'select * from '+transport+' for update skip locked'))
+   .rejects.toThrow();
 
   // Revocation is effective even while a previously assigned review row remains.
   await db.exec('update public.psi_tenant_site_memberships set status='+quote('suspended')+
