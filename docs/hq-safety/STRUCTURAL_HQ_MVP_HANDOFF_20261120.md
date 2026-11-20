@@ -421,3 +421,47 @@
 - \`npm run verify:ci\` 최종 FAIL은 기존 production 의존성 \`npm audit --omit=dev\` **6건(High 1 / Moderate 5)** 으로 인한 출시 차단으로, 해당 보안검사 실패를 기능 합격으로 포장하지 않음.
 - 최신 전제품 Chromium/부서별 cross-department CI는 별도 결과를 확인하며, 실행 중인 경우 PASS라고 기록하지 않는다.
 - 비공개 Storage/감사기록 서버 운영 어댑터 미연결, 기본 플래그 OFF. main/Production/운영 DB·Storage·환경변수 미변경.
+
+
+## 2026-11-21 16차: 고위험 증빙 조회의 분산형 요청량/동시성 예약·HTTP 전송 감사 계약 (운영 미적용)
+
+### 15차 인계 기반으로 선택한 최우선 보완
+15차에서는 기본 OFF의 GET 조회 API와 인증/사고/증빙/악성검사/해시/감사 게이트를 구축했으나, 동시 조회로 인한 서버 메모리 부담과 반복 조회·열거 시도에 대한 분산형 용량 제한, 파일 바이트를 서버가 응답한 이후의 전송 상태 구분이 없었다. 다중 Vercel 인스턴스에서는 서버 함수 메모리에 저장한 카운터가 정확한 전역 제한이 될 수 없으므로 **외부 원자적 저장소를 반드시 주입해야 하는 예약 계약**을 추가했다.
+
+### 구현 파일
+1. \`lib/server/hqEvidenceReadAdmission.ts\`
+   - 로그인으로 확인된 tenantId+userId에 대해 60초간 6요청, 사용자 동시 2개, 기업 동시 8개, 예약 120초 TTL **시연 정책값**을 외부 분산 저장소의 원자적 acquire/release 포트로 전달.
+   - 저장소 오류·형식이 잘못된 반환·부적합 예약 토큰·잘못된 신원은 503으로 fail-closed. 초과 요청은 429 및 제한된 Retry-After만 반환.
+   - 이 모듈은 **실제 Redis/DB/분산 저장소 어댑터를 만들거나 붙이지 않는다.** 향후 구현은 원자적 요청횟수+기업/사용자 동시수 검사, 예약 토큰의 멱등 release, 시간 만료 및 장애 대응을 보장해야 함.
+
+2. \`lib/server/hqEvidenceReadRoute.ts\`
+   - 서비스가 승인한 \`admission\` 포트가 없으면, 플래그를 실수로 true로 설정해도 503. 기존 \`buildPorts\`와 인증, 자체 근거 조회 게이트도 모두 필수.
+   - 인증 이후·개인정보/Storage 조회 이전에 분산형 용량 예약. 실패하면 실제 사고·증빙자료 조회로 넘어가지 않음.
+   - 응답 객체가 Node 서버의 \`once('finish'|'close')\`를 지원하는 경우에만 바이트 전송. 예약 토큰은 응답 완료 신호 또는 연결 종료 신호에서 **한 번만** 해제하고, 장애 시 TTL 만료를 전제로 설계.
+   - 파일 전송 직전에 \`response_send_started\` 감사 기록이 지속 저장되지 못하면 503으로 바이트 반환 차단.
+   - 종료 이벤트는 \`response_flushed\`(HTTP 서버 출력 종료 신호), \`response_aborted\`(finish 전 close)로 각각 별도 기록. **어떤 경우에도 \`download_completed\`를 기록하지 않음.** 서버 finish는 브라우저 수신·열람·실제 증거 인수 여부를 증명하지 않기 때문.
+   - 종료 이벤트는 바이트 전송 뒤 작성되므로 로그가 실패해도 이미 보낸 바이트를 취소할 수 없다. 현재 \`appendAudit\`가 실패하면 조용히 누락될 수 있어, 실운영 전에 **영속 아웃박스·오류 알림·누락 재처리**를 제공해야 함.
+
+3. \`lib/server/hqEvidenceAccessGate.ts\`, \`supabase/proposals/psi_hq_evidence_private_staging.sql\`
+   - 기존 비공개 증빙 접근 감사 타입에 \`response_send_started\`, \`response_flushed\`, \`response_aborted\` 추가.
+   - SQL은 proposal에만 있으며 운영 DB에 적용하지 않음. 기존 \`download_completed\` enum은 사용하지 않으며 자동 기록하지 않는다.
+
+4. 자동 테스트
+   - \`tests/hq-evidence-read-admission.test.ts\`: 정책값/예약·해제·429/503/위조 토큰/저장소 오류/민감정보 누출 금지 테스트
+   - \`tests/hq-evidence-read-route.test.ts\`: 합성 분산형 동시예약 2개 한도, 추가 요청 429, finish/close 해제, 잘못된 저장소 응답 503, 전송 직전 감사 저장 장애에서 바이트 전송 차단, 전송 종료와 중단 신호 구분
+   - 기존 private metadata·RLS·시연 화면 및 전제품 회귀를 함께 검증해야 함.
+
+### 기능/보안의 정확한 경계
+- 신규 분산 제한은 **설계 계약과 합성 테스트**로만 존재. 영속적인 실제 Redis/Postgres 제한 저장소, 운영 정책 승인, 본사 접근 승인, rate-limit 및 abuse 알림, PII 파일실제다운로드는 미구현.
+- 제한 정책값(6/분, 동시 2/8, TTL 120초)은 개발 기본안이며 조직별/트래픽별 실측·운영 검토가 필요. 2개의 제한 단위 모두 실제 어댑터에서 *하나의 원자적 예약*으로 집행되지 않으면 출시 금지.
+- \`response_flushed\`는 서버 소켓 종료에 대한 이벤트일 뿐 이용자 단말 수신의 증거가 아님. \`download_completed\`로 의미를 바꾸지 않는다. 완료 감사의 보존·복구, 개인정보 접근기록의 법률적 신뢰성은 아직 확보되지 않음.
+- 저장소가 반환한 이미 로딩된 8MiB 파일은 메모리로 다루므로 향후 상한/동시성 검증과 스트리밍 메모리 예산·전송 중 취소 테스트가 더 필요.
+- 기본 운영 라우트는 \`buildPorts\`도 \`admission\`도 제공하지 않으며 플래그 OFF 상태. 실제 사고·근로자 자료, 운영 DB/Storage, Production과 기존 main은 변경하지 않음.
+- npm audit에서 전차에 발견된 프로덕션 의존성 취약점(High 1/Moderate 5)을 별도 차단조건으로 유지; 강제 패키지 override나 감사검사 비활성화 금지.
+- 사용자 최종 승인 전 main 병합·Production 배포·운영 DB/Storage 변경·feature flag 활성화 금지.
+
+### 다음 단계
+1. 사용자가 보안 설계 승인 후 원자적 분산 제한 저장소 및 TTL/정리 회복 테스트, 2기업×2현장 실계정 권한 검증.
+2. 서버 전송 상태 감사의 durable outbox·실패 경보·누락 재처리, 증빙 접근·열람의 종단간 감사 로그 보존.
+3. 비공개 악성검사 저장소와 업로드·다운로드 포트, 현장관리자/독립 검토자 본인인증, 백업·복구.
+4. 전체 Vitest/부서별 Chromium/Android 실기기 및 npm 보안 취약점 해결, 승인 후 단계적 배포.
