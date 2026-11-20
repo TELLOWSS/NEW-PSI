@@ -2,6 +2,7 @@ import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {PGlite} from '@electric-sql/pglite';
 import {createPrivatePgEvidenceOutboxAdapter} from '../lib/server/hqEvidencePgOutboxAdapter';
+import {inspectPrivateOutboxHealth} from '../lib/server/hqEvidenceOutboxHealth';
 import {expect,it} from 'vitest';
 
 const tenant='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -204,6 +205,36 @@ it('HQ private evidence proposal keeps sealed metadata/site scope and append-onl
   expect(retryAgain.map(x=>x.id)).toContain(delayed.id);
   await workerB.acknowledge(delayed.id);
   expect(alerts).toEqual([]);
+  // Phase 19: real PostgreSQL aggregate health query, no sensitive row payload.
+  const healthAlerts:any[]=[];
+  const healthSink={send:async(a:any)=>{healthAlerts.push(a);}};
+  const beforeHealth=await inspectPrivateOutboxHealth(dbPort,healthSink);
+  expect(beforeHealth.severity).toBe('healthy');
+  expect(beforeHealth.counts.unacked).toBe(0);
+
+  const staleReceipt=await workerA.prepare(preparedScope);
+  await db.query('update '+transport+
+   " set created_at=clock_timestamp()-interval '15 minutes' where id=$1",[staleReceipt.id]);
+  const maxedReceipt=await workerA.prepare(preparedScope);
+  await workerA.settle(maxedReceipt.id,'response_aborted');
+  await db.query('update '+transport+
+   ' set delivery_attempts=1000 where id=$1',[maxedReceipt.id]);
+  const leasedReceipt=await workerA.prepare(preparedScope);
+  await workerA.settle(leasedReceipt.id,'response_flushed');
+  await db.query('update '+transport+
+   " set claim_token=gen_random_uuid(),claim_expires_at=clock_timestamp()-interval '1 minute' where id=$1",
+   [leasedReceipt.id]);
+  const health=await inspectPrivateOutboxHealth(dbPort,healthSink);
+  expect(health.severity).toBe('critical');
+  expect(health.counts.unacked).toBe(3);
+  expect(health.counts.stalePrepared).toBe(1);
+  expect(health.counts.exhausted).toBe(1);
+  expect(health.counts.expiredLeases).toBe(1);
+  expect(healthAlerts).toHaveLength(1);
+  expect(healthAlerts[0].code).toBe('HQ_OUTBOX_BACKLOG_CRITICAL');
+  expect(JSON.stringify(healthAlerts)).not.toContain(staleReceipt.id);
+  await expect(asUser(author,'select count(*) from '+transport)).rejects.toThrow();
+
   // Browser / unassigned users cannot claim through direct SQL either.
   await expect(asUser(author,'select * from '+transport+' for update skip locked'))
    .rejects.toThrow();
