@@ -61,7 +61,7 @@ export function buildSiteTrainingBrief(input:SiteTrainingInput):TrainingBrief{
   'AI 사고원인 확정, 교육 승인·이수 확인 및 대표이사 실제 지시사항은 미연결입니다.'
  ];
  const lines=[
-   '[대표이사 / 본사 현장 맞춤 안전교육 · 검토 초안]',
+   '[대표이사 / 본사 현장 맞춤 안전교육 · 공식 승인 전 검토 초안]',
    '현장: '+siteAlias+' / 예정일: '+input.visitDate+' / 사고자료 연도: '+input.year,
    '현장 공사진행: '+(stageNote||'미입력 · 현장 확인 필요'),
    '자료 범위: 해당 현장 별칭과 해당 연도에 등록한 비식별 시연 사고만 포함',
