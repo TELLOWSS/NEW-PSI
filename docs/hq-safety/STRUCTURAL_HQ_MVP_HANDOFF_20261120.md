@@ -1,0 +1,589 @@
+# NEW-PSI · HQ-SAFE 골조·형틀 특화 통합 안전관리 1차 구현 인계
+
+작성 기준: 2026-11-20
+작업 브랜치: feat/hq-structural-safety-mvp-20261120
+제품: TELLOWSS/NEW-PSI (PSI : ZERO DAY / SMART TBM / SMART-SFCS와 별개)
+
+## 본 요청에서 확정한 영역
+- 본사 현장점검·행선지 보고
+- 사고사례의 기초·지하·지상·옥탑 등 공사구간 / 공종 / 작업별 구조화
+- 대표이사 및 본사 주관 교육자료 표준화
+- AI 활용 사고조사 및 6하원칙·직접원인·기여요인·근본원인 분리
+- 현장 사진점검, 위험성평가, TBM, 조치·재점검·인계 연동 목표
+- 골조 특화 공정: 지하 RC 구조물과 일반 형틀 및 지상층 AL폼은 별도 구분
+
+## 실제 변경 파일
+- components/hq/StructuralHQWorkbench.tsx — 10개 공정과 위험·확인·증빙 기준정보, 화면 조작, 세션 전용 방문보고·사례등록, 교육 초안, 사고조사 질문 흐름
+- components/hq/StructuralHQWorkbench.css — SAFETY NEXUS 톤을 계승하는 반응형 PC·모바일 UI
+- pages/SafetyNexus.tsx — 기존 5단계/6대 지표 시제품을 유지하며 새 작업대를 화면 하단에 연결
+- tests/hq-structural-workbench.test.ts — 분류 독립성 및 지하 RC 주요 점검 항목의 자동 검사
+
+## 구현된 범위와 경계
+구현됨(코드 작성): 공정 분류 탐색, 공사구간(기초·지하·지상·옥탑)과 공정군의 독립 필터, 공정별 위험·점검·증빙 확인, 화면 세션 내 점검 항목 표시, 방문 일정 임시 입력, 사고사례 임시 입력·구간별 분류, 표준 교육자료 텍스트 생성/복사, 정형화된 사고조사 확인질문.
+
+연결하지 않음: 서버 저장, 공동 계정, 현장별 인증 범위, 실제 산재·사고자료, AI 외부 모델 호출, AI 원인 확정, 사고 법정 보고, 교육 승인, PPT 출력, 외부 알림, 기존 근로자 DB 수정.
+
+중요: 비식별·합성 자료만 사용할 수 있는 검토용 시제품. 브라우저 새로고침 시 입력기록이 초기화된다. 점검 체크와 화면 상태는 실제 안전·적합·작업중지/재개 승인 의미가 아니다.
+
+## 다음 개발 단계
+1. 본사·현장 역할과 실제 인증 모델 / 데이터 소유권 / 접근통제 설계
+2. 방문·점검·사고·교육·조치·재점검의 서버 스키마와 감사로그 설계
+3. 산재 신청·승인과 사내 조사·법정 보고상태의 독립 필드 정의
+4. 지하 RC 구조물 / 일반 형틀 / AL폼의 공사구간·공종·세부 작업 다차원 분류
+5. AI 조사 근거 링크·사실/가설/미확인 구분, 사람 검토·승인, 개인정보 전송 통제
+6. PDF/PPT 및 실제 교육 이행 기록, 조치 독립 검증·재확인 기능
+7. PC/Android 실기기, 접근성, 보안, 기존 NEW-PSI 회귀 테스트
+
+## 품질 확인 순서
+- npm run check:types
+- npx vitest run tests/hq-structural-workbench.test.ts
+- npm run verify:ci
+- node scripts/check-psi-company-ownership.cjs
+- node scripts/verify-psi-company-browser.mjs
+- GitHub PR CI 및 Vercel Preview의 실제 커밋을 확인
+
+검증을 실제 실행하지 않았으면 완료로 보고하지 않는다. 사용자 최종 승인 전 main 병합·Production 배포 금지.
+
+
+## 2026-11-20 2차: 사고조사 검토 이력 시제품
+구현 파일:
+- components/hq/investigationReviewModel.ts — 사고별 독립 검토 초안, 사실 주장(근거번호 의무)/원인 가설/미확인 사항 3분류, 검토 요청 사전조건, 보완 사유, 순차 이력
+- components/hq/StructuralHQWorkbench.tsx — 사고 선택 후 증빙항목 입력·참고번호·검토 요청/보완 전환, 항목별 분류 카운트와 변경 이력
+- components/hq/StructuralHQWorkbench.css — 작은 화면에서도 동작하는 2단 조사입력·조사목록 UI
+- tests/hq-investigation-review.test.ts — 사건 분리, 중복 식별자, 근거누락 차단, 검토 요청 게이트, 수정이력 검증
+
+구현하지 않음: 실제 사진/진술 원본 첨부, 자료번호의 실재 여부 검증, 로그인한 본사 조사책임자의 승인, 외부 AI 호출, 실제 DB 저장/열람/보고. 화면의 '검토 요청 표시'는 현재 브라우저 세션 내 상태 변화일 뿐 실제 결재나 통지가 아니다.
+
+### 기존 인증·현장 RLS 확인 결과
+기존 lib/server/tenantAuth.ts의 기업 역할은 owner/admin/reviewer/viewer이고 사용자 세션을 통해 인증한다. 반면 현장 단위 psi_tenant_sites, psi_tenant_site_memberships, 현장 증빙 RLS 제안은 supabase/proposals 아래 보관된 미운영 SQL이며 실제 전현장 API 격리가 완성되지 않았다. 따라서 이 브랜치에서 기업·현장별 권한을 UI 수치나 임의 필터로 대체하지 않으며, 실제 사고 데이터 서버 저장과 운영 적용을 보류한다.
+
+다음 서버 개발은 (1) 인증된 본사/현장 역할과 업무 권한표, (2) 엄격한 tenant_id + site_id FK·RLS, (3) 사고기록과 근거의 불변 원본 및 버전 기록, (4) 작성자와 검토자 분리, (5) 개인정보 최소화/조회 감사, (6) 합성 2현장 교차접근 차단 테스트를 선행해야 한다.
+
+### CI 관찰 기록 (첫 구현본 HEAD 0ee2d49b)
+- tests/hq-structural-workbench.test.ts 포함 1,947개 자동 테스트 통과
+- release verification 전체 결과는 실패: npm audit에서 effect <=3.22.0 high(RedOS) 1건, fast-uri/glob/minimatch 등 moderate 5건(6 vulnerabilities) 감지
+- 의존성 잠금파일을 임의 수정하거나 audit을 비활성화하여 통과 처리하지 말 것. 별도 재현·패치 버전과 의존성 전파 영향 검토 후 해결
+- 위 결과는 첫 구현본 시점이며 2차 최신 커밋의 검증 결과를 별도로 확인해야 함
+
+
+## 2026-11-20 3차: 운영 미적용 현장별 사고기록 SQL 및 실제 RLS 시뮬레이션
+- supabase/proposals/psi_hq_incident_case_staging.sql: 사고 기본기록, 사실/가설/미확인 분류자료, 독립 검토 이력을 append-only 별도 테이블로 정의
+- 사고 발생 구간(construction_zone)과 공정(process_code)은 별도 데이터 필드
+- 필수 tenant_id+site_id 복합 FK, 기업·현장 활성 소속 모두 필요, owner/admin이라도 담당 현장 없는 경우 접근 금지
+- 사건·근거·검토 이력은 인증 사용자 INSERT/SELECT만 허용하고 UPDATE/DELETE 미허용
+- 독립 검토자가 사건 작성자와 다른 경우에만 review_observed 이력 생성 가능
+- SQL에는 review_completed/공식 승인 상태가 아예 존재하지 않음: 원본 검증·승인 서비스 미구현 상태에서 잘못된 확정 불허
+- tests/hqIncidentRlsSql.test.ts: 격리 PGlite로 같은 기업 내 현장 간 읽기/쓰기 차단, 기록 불변, 미출처 사실차단, 독립 검토자, 허위 승인 이벤트 차단 검사
+
+**적용 금지:** 해당 SQL은 이미 운영 중인 migrations에 추가하지 않았음. 기존 psi_tenant_sites 및 psi_tenant_site_memberships 자체가 proposal인 상태이므로 별도 선행 정책·마이그레이션 및 기존자료 재분류 승인 없이는 운영 적용 불가.
+**QA:** 2026-11-20 이전 3차 HEAD 9ece715의 RLS 합성 테스트는 PASS. 같은 HEAD 전체 CI는 조사 안내 문구 mismatch 2건으로 FAIL; 이어지는 9067de2 커밋에서 문구 수정. 고위험 npm 의존성 취약점은 별도 해결 전까지 릴리스 차단.
+
+## 2026-11-20 4차: 사고별 개선조치·재점검 세션 시제품
+
+구현 파일:
+- components/hq/correctiveActionModel.ts: 조치계획 등록, 임시통제, 이행자료 제출, 재점검 요청, 보완 재제출, 기한경과 미종결 판단의 순수 상태모델
+- components/hq/CorrectiveActionWorkbench.tsx: 사고사례 선택→유형·담당 역할·기한 입력→임시통제·이행·재점검·보완 인터랙티브 화면
+- components/hq/CorrectiveActionWorkbench.css: 데스크톱 2열, 모바일 1열, 단계별 상태와 이력 표시
+- components/hq/StructuralHQWorkbench.tsx/.css: 6번째 탭 '조치·재점검' 진입, 다른 탭 이동 시에도 세션 상태 유지, 6개 타일 3×2 정렬
+- tests/hq-corrective-action.test.ts: 상태 전이, 자료번호 누락 차단, 임시통제, 보완, 기한경과 및 완료 미확정 검증
+
+실제 서버 데이터/권한/원본 보존/담당자 알림/현장검증/조치 완료/작업재개 승인 기능이 아님. 임시통제 기록 및 이행자료 번호 입력은 현장 이행 사실을 입증하지 않음. 새로고침 시 데이터 소실. 테스트는 합성 사건만 사용.
+
+### 보안 릴리스 차단 근거 및 업데이트 원칙
+2026-11-20 이전 release verification에서 Vitest 총 1952건 PASS, npm audit --omit=dev --audit-level=high FAILED(의존성 6건: high 1, moderate 5). 취약 패키지와 현재 lock version:
+- effect 3.21.2 (간접 의존성 solapi ^3.19.14): GHSA-7589-6fvf-x4pw, 수정 버전 3.22.1 이상
+- fast-uri 3.1.8 (ajv ^3.0.1): 관련 GHSA 다수, 수정 3.1.9 이상
+- glob 10.5.0 (rimraf ^10.3.7): GHSA-3g3m-2fjr-6pw4, 14.0.2 이상 필요(주버전 업그레이드 위험)
+- minimatch 9.0.9 (glob ^9.0.4): GHSA-g3hv-75wg-m249, 11.0.1 이상 필요(주버전 업그레이드 위험)
+상기 설명은 npm 보안 공지에 기반한 업데이트 방향이며, 실제 package-lock.json은 아직 수정되지 않음.
+
+개선 절차: 깨끗한 별도 테스트 환경에서 npm install --package-lock-only 후 lockfile 변경과 라이선스/OSS 심사 확인→npm ci→npm audit --omit=dev --audit-level=high→npm run verify:ci→PC/모바일 Chromium 7흐름→사용자 승인 뒤 배포. rimraf/glob/minimatch 상위 라이브러리의 주버전 호환성 확인 없이 overrides를 강제하지 않음. GitHub 도구만으로 신뢰할 수 있는 npm integrity를 재생성할 수 없으므로 잠금파일을 추측으로 고쳐서 배포하지 않음.
+
+최종 상태는 최신 CI 실행을 별도로 확인해야 하며, main 병합·운영 적용은 계속 보류.
+
+
+## 2026-11-20 5차: 본사 통합관제 세션 현황판
+신규 파일:
+- components/hq/hqOverviewModel.ts: 현재 세션 기록만으로 방문 예정, 사고사례, 조사 검토요청, 미종결 개선조치, 기한초과, 재점검 요청을 집계하며 공사구간과 공정군을 각각 조회
+- components/hq/HQOverviewDashboard.tsx/.css: 진입 시 첫 화면을 본사 관제 화면으로 구성, KPI 5종, 기초·지하·지상·옥탑 높이별 위험사례 지도, 지하 RC·형틀·지상 골조·가설/장비 공정군별 사례 분포, 업무 화면 바로가기
+- tests/hq-overview-model.test.ts: 공사구간 및 공정군의 독립 집계, 사고사례 연계되지 않은 개선조치 제외, 기한 경과, 중복 사고번호 거부, 0건 표시에 대한 조건 확인
+
+기존 변경:
+- components/hq/CorrectiveActionWorkbench.tsx: parent-controlled 개선조치 상태 허용. 같은 브라우저 세션 내 조치·재점검 입력을 본사 대시보드로 즉시 환류
+- components/hq/StructuralHQWorkbench.tsx/.css: 본사 관제를 기본 진입으로 변경, 7개 업무 타일, 클릭 시 공사구간·공정군 필터 연계
+- tests/hq-structural-ui.test.tsx: 본사 대시보드가 포함된 7개 모듈 SSR 회귀 확인
+
+품질·데이터 경계:
+- 등록 데이터 0건은 실제 현장 사고/위험이 0이라는 뜻이 아님. 대시보드는 실시간 본사 통계나 안전도 순위가 아니라 브라우저 세션 시연 전용
+- 공정별 건수는 근로자 수, 근로시간, 작업량 등의 노출 분모 없는 단순 사고사례 건수
+- 행선지와 사고사례는 임의 시연용. 담당자 승인, 실제 증빙 무결성, 회사별 DB·현장 RLS, 개인정보 취급, AI 분석은 아직 연결되지 않음
+- 5차 단계에서 신규 API/실 DB 쓰기, 권한 변경, PR 병합, Production 배포 없음
+- 배포 차단 중인 npm audit 6건은 lockfile, 상위 라이브러리 영향 확인 없이 강제로 숨기거나 수정하지 않음
+- 최신 PR 검증 결과는 각 HEAD에 대해 별도로 확인하고, 확정 결과만 보고
+
+
+## 2026-11-20 6차: 기업·현장 범위 사고사례 읽기 API 계약 (운영 비활성)
+추가:
+- lib/server/tenantHqIncidentRead.ts — 기본 OFF인 GET 전용 사고 메타데이터 조회 핸들러
+- api/saas/access.ts?resource=hq-incidents — 기존 기업 로그인 인증 뒤 별도 현장 소속 검증·활성 현장 검증
+- tests/hq-incident-read-api.test.ts — 미활성/쓰기차단/위조·누락·타 현장 접근 차단/PII 비노출/미적용 테이블 오류 처리 검증
+
+**기본 플래그:** \`PSI_HQ_INCIDENT_READ_ENABLED\`가 서버 환경변수로 정확히 \`true\`일 때에만 처리. 현재 개발·운영 환경을 변경하거나 플래그를 활성화하지 않음. 이 옵션을 활성화하더라도 데이터 스키마 proposal과 운영 권한 설계가 선행 적용되지 않았다면 503을 내는 fail-closed 계약이다.
+
+**권한 검증:** verified JWT 인증 \`requireTenantContext\`, tenant_id+site_id+user_id 의 활성 소속 기록, tenant_id+site_id의 활성 현장 기록을 모두 검증. owner/admin도 담당 현장에 배정되지 않았다면 해당 현장 자료 접근 불가. 클라이언트가 보낸 역할·기업 ID·임의 SQL 필터를 입력으로 받지 않음.
+
+**출력:** 사고ID, 날짜, 공사구간, 공정코드, 재해유형, 등록시각만 최소 메타데이터 출력. 사고내용, 성명, 주민번호, 상병, 진술, 의료정보 및 증빙 원본은 반환하지 않음. 최대 25건의 목록만 조회, 전체 건수/공식 통계·AI 검증·사내 승인 여부는 표시하지 않음. 무자료는 0사고/무위험이 아닌 미확인 가능성. 운영 API가 완성되기 전 보편적으로 사용 가능한 실제 조회 화면이라고 주장하지 않는다.
+
+**후속 선행조건:** 현장 membership 및 HQ incident case SQL의 보안 검토·독립 승인, 실제 운영 DB에 대한 테스트/백업/복구 시나리오, 실 계정 두 현장의 읽기/쓰기·해제/재인증 회귀 테스트, 개인정보 영향검토 및 로깅 제한, 페이징·데이터 최신성 기준 검증 후 별도 승인을 받아 활성화. 기존 DB 자동 마이그레이션/병합/운영 배포는 보류.
+
+**보안:** 서비스 역할키나 관리자 공용 비밀번호로 우회하지 않음. 이전 세션의 실제 사고데이터를 시연 UI에 가져오지 않음. 서버 필터/반환값에서 tenant_id/site_id 범위 불일치 시 503으로 거부하고 내부 DB 메시지는 사용자에게 노출하지 않음.
+
+
+
+### 6차 보완: API 보안 분류 및 제한형 페이징
+- GET query: resource=hq-incidents, siteId(필수 UUID), zone(선택), processId(선택), caseId(선택), page(선택·문자열 0~99)
+- 25행 단위 정렬(created_at DESC,id DESC), 페이지 인덱스는 0부터. 응답의 nextPage 및 hasMore는 읽은 구간의 일부 여부만 의미하며 정확한 전체 건수 또는 동일 스냅샷을 보장하지 않음.
+- 25개 초과 시 hasMore와 nextPage 반환, 100번째 페이지 이후 더 있다면 운영 준비 전 커서 기반 보완 필요. response의 pageWindowIsSnapshot은 언제나 false.
+- 사고유형을 서버의 허용 분류 목록으로 제한하고 임의 의료정보·성명 문구 등을 오류로 차단. 중복 사고ID나 타 현장·타 공정·타 구간 레코드가 한 행이라도 나타나면 전부 반환 거부.
+- 민감한 사고 상세·진술·원본 증빙은 절대 목록 반환하지 않는다. caseId 상세 선택이라도 메타데이터만 반환.
+- DB에 저장된 기록의 수, 산업재해 접수·승인, 법적 보고 여부, 원인 확정, 검토·재점검 승인 여부를 API가 추론하지 않는다.
+
+**운영 활성화 금지 조건:** 운영 현장 멤버십 SQL이 아직 proposal인 동안, 실제 개인정보 분류/업무 권한 검토 전, 본사 타 현장 겸임 권한의 명시적 등록 전에 이 API를 활성화하지 않는다.
+
+
+## 2026-11-20 7차: 안전보건이사 통화 기반 사고조사 시퀀스·현장 맞춤 교육
+
+### 근거(제공된 통화 음성·전사 내용)
+- 데크 바닥 돌출부에 걸린 와이어 관련 사고에서 '일어나는 도중'과 '일어난 이후 이동 중'의 사고 시점·동작 차이를 명확히 구분하도록 강조
+- 사고보고서의 경위가 사진/현장설명/진술과 실제로 일치하는지 의심·확인하여 본사에서도 쉽게 이해할 수 있도록 시퀀스로 재구성
+- 대책은 와이어의 걸림 위험 자체를 제거·고정하는 기술/관리 대책과 동작·이동 전 주의 교육을 구분. 찍찍이(벨크로) 고정은 통화에서 언급된 제안으로, 현장 구조에 적합한지는 별도 확인 필요
+- 연도별(2026년 우선), 현장별·월별·공사구간별 사고사례와 대책을 정리해 대표이사 방문 시 현장 진행 상황에 맞춰 교육안을 사전 준비
+- 대표이사 업무 진행 시퀀스는 추후 임원 협의로 확정 예정. 확정되지 않은 절차를 시스템 기본 승인으로 간주 금지
+
+### 실제 추가 소스
+- components/hq/accidentSequenceModel.ts: 사고 전/당시/직후 사건·동작·순번 및 보고서/진술/사진/계획서/현장확인 출처, 자료번호, 원본 확인 필요 상태. 같은 순서에서 서로 다른 행동 분류의 기록만 '불일치 의심'으로 안내하는 결정적 규칙
+- components/hq/IncidentSequenceWorkbench.tsx/.css: 사고별 시퀀스 입력·정렬, 출처 간 불일치/확인 누락, 원인–대책(기술/관리/교육) 연결 검토. 통화 와이어 사례는 설명용 참조로만 표시, 실제 사고 DB에 자동 추가하지 않음
+- components/hq/siteTrainingBriefModel.ts: 현장 별칭 + 자료연도(기본 2026) + 방문예정일 + 공사진행 상태를 입력한 뒤 같은 현장·연도에 등록한 시연 사고만 집계; 월별·구간별·공정별 데이터 및 조치·재점검 정보를 교육자료 초안으로 작성
+- components/hq/SiteTrainingWorkbench.tsx/.css: 본사/대표이사 교육 편성 화면, 12개월 시각화 및 위험관리 확인항목, 승인 전 초안 복사
+- components/hq/StructuralHQWorkbench.tsx: 사고 등록에 현장 별칭 필수화, 조사 시퀀스 세션 데이터와 교육안 현장 단위 입력 연결
+- tests/hq-accident-sequence.test.ts 및 tests/hq-site-education-brief.test.ts: 다중 근거의 동일 행동순서 불일치, 미확인 구간, 근거번호, 기술적 조치 없는 교육 편중, 다른 현장·연도 자료 제외, 월별/지하 RC·일반 형틀 구분, 실사고 0건 오해 금지
+
+### 구현·검증 경계
+**구현은 아직 '세션 시연' 수준**이며 AI 의미 분석/판독, 사고 진위 판정, 법정 사고보고, 실제 사고 DB 이관, 근로자 사진/영상 원본 업로드, 유효한 본사 검토자 인증, PPT/PDF 파일 출력, 대표이사 공식 교육 승인/배포 및 이수 실적은 구현되지 않음.
+
+시퀀스는 주장+출처 참조번호일 뿐 원본 무결성이 확인된 증거가 아니며, '자료번호 기록'을 사실 확정으로 표시하지 않는다. 충돌 탐지는 행동 카테고리·시점·순번이 명시적으로 서로 다를 때만 제안하고 서로 다른 순서의 행위를 AI가 임의로 원인 추정하지 않는다. 원인–대책 검사는 기술·관리·교육 편중 및 누락에 대한 체크리스트만 제공하며 실제 안전성 검증·재가동 승인을 뜻하지 않는다.
+
+교육자료의 등록건수는 현재 브라우저 세션의 일부 합성 사고 자료만 집계하므로 공식 사고통계나 위험도 순위가 아니다. 다른 현장 별칭·다른 연도 기록은 기본 문서에서 배제하고 신규 본사 승인/실데이터 연동 전까지 사람 검토가 필요하다.
+
+### 다음 개발 게이트
+1. 실제 사고보고서·증빙 원본 수집/보존과 사건별 출처 문서 검증, 수정 이력 및 원본 지문
+2. 현장별 RBAC/RLS 및 본사 겸임 권한 승인, 실제 데이터 유출 방지 검사
+3. 원인–대책 검토를 사람 검토자에게 할당하고 재검증 결과 보완 이력
+4. 대표이사 임원협의 후 최종 지시 시퀀스 등록·버전관리. 아직 확인되지 않은 지시는 강제 자동화 금지
+5. 대표이사 현장 방문 교육자료 PPT/PDF, 교육 실시·사진·참석/전파·개선지시 원본 기록
+6. CI/브라우저·모바일 QA, npm audit 보안취약점 해결 및 사용자 승인 전에는 main 병합/Production 배포 보류
+
+
+## 2026-11-20 8차: 사고별 증빙참조대장·시퀀스 연결 확인·검토 잠금
+
+**7차 통화 요구와 인계문서 차이:** 기존 시퀀스의 사고보고서·진술·사진 자료번호는 문자열일 뿐 다른 사고의 자료인지, 실제로 어떤 자료형인지 구분되지 않았다. 통화 요구처럼 사고경위의 불일치를 검증하기 위해 자료 출처를 사고별로 추적하는 진입점이 필요했다.
+
+### 구현한 파일과 데이터 흐름
+- components/hq/evidenceManifestModel.ts: 비식별 사고별 증빙 메타데이터. 시연 ID \`DEMO-...\` 필수, 사고ID/유형/설명/등록시각/원본 미제출 또는 로컬 지문 상태. 동일 사고 자료번호·로컬 SHA-256 중복 차단, 다른 사고 증빙 혼합 차단
+- components/hq/EvidenceLedgerWorkbench.tsx/.css: 사고별 사고보고서·진술·사진·작업계획서·현장확인 자료번호 등록. 비식별 테스트 파일만 사용하도록 안내, 선택한 파일의 8MiB 이하 로컬 SHA-256 계산. 파일 원본·파일명·파일내용은 서버로 업로드하지 않으며 세션 밖으로 보관하지 않음
+- components/hq/StructuralHQWorkbench.tsx: 사고별 세션 대장, 조사 사실 주장·사고시퀀스의 \`sourceRef\` 및 자료형과 대장 연결 검사. 조사 사실 출처 유형에 \`사고보고서\` 별도 추가. 조사 검토 요청 표시 시 적어도 하나의 시퀀스 동작 및 모든 참조번호·자료유형의 대장 일치 요구
+- components/hq/IncidentSequenceWorkbench.tsx/.css: 조사 검토 요청 상태에 들어가면 자료·시퀀스/원인–대책 추가 입력을 잠금. 보완 상태로 되돌린 뒤 다시 작성 가능
+- components/hq/investigationReviewModel.ts: \`사고보고서\` 출처 유형 추가
+- tests/hq-evidence-manifest.test.ts: 사고 격리, 중복·잘못된 자료번호, 유형 불일치, 누락, 해시 중복, 빈 파일·최대 용량 제한 확인
+
+### 엄격한 한계
+- \`자료번호 일치\`는 **형식과 연결성**만 의미하며 원본의 실제 존재, 촬영·작성 시각, 동일인 진술, 자료변조 유무, 진위, 발생원인, 책임과 법적 보고 여부를 검증하지 않음
+- 로컬 SHA-256은 사용자가 선택한 파일의 해당 시점 바이트 지문일 뿐 원본/증거보존/보관자/체인 오브 커스터디를 증명하지 않음. 파일 내용·파일명/경로 저장 불가. 운영 사고자료를 입력하지 말 것
+- 별도의 계정/기업·현장 역할 검증, 서버 스토리지, 원본해시 독립 검증, 관리자 결재/법정 보고, 현장 책임자 확인 및 AI 의미 분석은 **미구현**. 이전 시연과 동일하게 브라우저 새로고침 시 모든 신규 자료가 소실됨
+- 실제 사고 파일을 선택하지 말 것. 파일 지문 연산은 비식별 연습 파일로만 진행, 크기 8MiB 초과 시 실행 전 차단
+- 정식 출시 전 기업·현장 RBAC, 저장 원본 보존정책, 저장·조회 감사로그와 자료 보존기간, 증거보관 체계, 정확성·권한 검증을 먼저 완성해야 함
+- \`main\` 병합, Production 배포, DB 마이그레이션 및 기능 플래그 활성화 모두 보류. 보안 의존성 \`npm audit\` 취약점 6건 미해결
+
+### 다음 준비 단계
+1. 운영 전용 비공개 증빙 원본 스토리지/암호화/해시 재확인/접근 감사/사고별 권한 검증 설계
+2. 작성자·독립 검토자 검토 승인/보완 이력(실제 로그인 인증), 미확인 증빙이 있으면 확정 결론 금지
+3. 6하원칙 조사결과·직접/기여/근본 원인의 증빙 근거 연결과 사고보고서 내용 버전 비교
+4. 본사 대표이사 교육자료의 실제 현장 ID·공정 현황·증빙 검증/승인 연계 및 PPT/PDF 출력
+5. 의존성 보안 해결, PC/모바일·전현장 RLS 2현장 검증, 최종 사용자 승인 후에만 배포
+
+
+## 2026-11-20 9차: 6하원칙 사고조사 보고서 버전관리·차이 비교
+
+### 근거와 개발 판단
+2026-11-20 안전보건이사 통화 취지: '일어나는 중 넘어짐'과 '일어난 후 이동 중 와이어에 걸림'의 경위 차이를 문서로 이해할 수 있어야 하며, 보고서를 그대로 믿지 말고 현장 근거를 바탕으로 확인한다. 현장별 사고사례·개선조치를 본사 및 대표이사 교육자료에 연결한다. 8차 증빙참조대장/시퀀스 분리 검토를 먼저 수행했고, 9차에는 보고서 버전 비교와 직접·기여·근본원인 근거 연결을 구축한다.
+
+### 이번에 구현한 코드
+- components/hq/incidentReportRevisionModel.ts: 누가(실명 아닌 작업역할), 언제, 어디서, 무엇을, 어떻게, 왜(원인 가설) 6하원칙을 분리. 직접원인/기여요인/근본원인은 서로 다른 기재란과 시연 증빙참조번호가 필요하며, 관련 사고 시퀀스 및 사고별 증빙대장 연결 검사를 통과해야 미승인 버전을 기록할 수 있다.
+- components/hq/IncidentReportRevisionWorkbench.tsx/.css: 6하원칙·원인별 근거·미확인 사항·예방대책 입력, 최초/개정 이유, 이전 버전 불러오기, 최신 버전과 이전 버전의 변경 항목 비교, 검토용 텍스트 복사.
+- components/hq/StructuralHQWorkbench.tsx: 사고별 보고서 버전 세션 상태를 분리. 다른 사고로 바꾸면 작성 폼을 다시 초기화. 기존 검토 요청(시연) 조건에 보고서 버전 1건 이상 추가. 검토 요청 표시 이후 입력 잠금.
+- tests/hq-incident-report-revisions.test.ts: 6하원칙 필수성, 근거 참조번호 및 사고별 분리, 잘못된 근거 차단, 직접/기여/근본원인 구분, 이전 버전 내용 불변, 개정 차이 비교 검증.
+
+### 정확성/법률/보안 주의
+* 조회·저장하는 정보는 실명·개인정보 없는 합성 세션 데이터로 제한. 새로고침 시 기록 소실.
+* '누가' 항목은 개인 성명이 아닌 역할/공종만 사용. '왜'는 확정 원인이 아닌 가설.
+* 보고서 버전은 참조번호/형식으로만 연결되며, 원본 진위·독립검토자 서명·원인 확정·책임·산재 승인·법정 조사표 제출·작업재개 승인 등은 전혀 수행하지 않음.
+* 변경 비교는 브라우저의 비식별 편집본의 필드별 차이만 의미하며, 실제 수정 전후 원본 변경이력/증거보존/법적 감사로그를 구성하지 않음.
+* 결론을 자동 확정하는 AI 호출 없음. 실제 책임자 검증·본사 승인·교육 배포는 권한체계/RLS 및 원본 저장이 완료된 뒤 별도로 진행.
+* 본사 대표이사의 업무 절차는 통화에서 아직 확정 전이므로 임의로 승인 프로세스에 고정하지 않음.
+* main 병합, Production 배포, SQL 운영 적용, 조회 API 플래그 활성화는 계속 금지.
+
+
+## 2026-11-20 10차: 사고조사 보고서 검토 요청 시 '최신 근거 일치' 차단 게이트
+
+### 문제와 수정 이유
+9차는 사고별 6하원칙 보고서 버전 존재 여부만 확인하고 검토 요청을 표시했다. 따라서 사고 보고서 버전 저장 이후 새로운 사진·증빙참조대장 항목이 추가되거나 사고 시퀀스·사실 주장 내용이 바뀌어도 이전 보고서로 검토 요청이 가능했다. 이는 안전보건이사 통화에서 강조한 '사고 경위의 정확성 재확인' 취지에 맞지 않아 10차에서 보완.
+
+### 실제 구현 파일
+- components/hq/incidentReportRevisionModel.ts: \`reportSourceStateStamp()\` — 동일 사고번호 아래 증빙참조대장(번호/유형/상태/시연지문), 사고 행동 시퀀스(단계/순서/주장/참조번호), 사실·가설·미확인 조사항목(내용/출처)을 정규화하여 브라우저 메모리의 **동등성 비교 토큰**으로 기록. 안전성 보장·해시/서명·원본무결성 증명이 아님.
+- reportSourceStateStamp가 다른 사고번호 자료 혼합을 차단. \`recordReportVersion\`은 해당 시점 조사자료의 sourceStateStamp를 보고서 버전에 함께 저장.
+- \`checkReportVersionFreshness()\` — 최신 보고서 버전이 현재 사고자료와 일치하는지 확인. 다른 사고 번호, 수정되거나 새로 추가된 증빙자료, 바뀐 행동 시퀀스, 추가된 조사문장, 잘못된 버전 순서, 미승인 초안 외 상태를 모두 거부.
+- components/hq/IncidentReportRevisionWorkbench.tsx: 보고서 저장 시 사고별 증빙·시퀀스·사실 주장 현재 상태를 함께 기록.
+- components/hq/StructuralHQWorkbench.tsx: 검토 요청 단추 사전 조건뿐 아니라 검토 요청 함수의 실제 상태변경 지점에서도 최신 버전 일치 조건을 강제. 불일치 시 보고서 개정 후 재요청 안내.
+- tests/hq-report-review-freshness.test.ts: 구형 보고서, 다른 사고 섞임, 사고 근거/시퀀스/조사항목 수정 및 새 버전 발행 뒤 재요청 가능을 검증.
+
+### 핵심 한계 및 다음 게이트
+- 이는 **같은 브라우저 세션의 자료가 바뀌었는지 비교하는 검토 편의 기능**일 뿐 임의 변경·조작을 방어할 수 있는 암호학적 증빙·서명 또는 서버 감사로그가 아니다.
+- 검토 요청 표시 자체도 실제 본사 직원에게 전송되지 않으며, 담당자 신원·독립 검토자 여부를 검증하지 않는다. 실제 승인/작업재개/법정 보고/대표이사 교육 이수와 무관.
+- 실제 원본 비공개 저장소·자료 취득 시점 기록·서버 불변 감사로그·두 명의 독립 본사/현장 검토자 승인·사업장 RLS·개인정보 정책은 **미구현**.
+- 검토 요청 시 자료번호 일치(원본 존재 여부 미검증), 6하원칙 보고서 초안, 최신 근거 일치를 모두 요구하지만 사고경위·원인에 대한 참/거짓 판정은 하지 않는다.
+- main 병합, 운영 DB 변경, API feature flag 활성화, Production 배포는 계속 보류. 기존 npm audit 보안취약점(높음 1건/중간 5건) 해결이 최종 출시의 독립 차단조건.
+
+
+## 2026-11-20 11차: 현장·본사 독립 검토자 역할 배정 및 확인·보완 의견 시연
+
+### 인계문서 기반 우선순위
+10차 검토 요청 최신성 게이트 이후 남은 핵심 과제는 (1) 사고조사 작성자와 현장/본사 검토자 분리 (2) 근거와 연결된 검토의견·보완요구 기록 (3) 실제 운영 인증·원본 보존·법정 승인과 시연 상태를 엄격히 구분하는 것이다. tenant/site membership과 증빙 원본 서버 보존은 아직 proposal 단계이므로 **실제 본사 결재 API나 임의 서비스 역할 우회는 구현하지 않는다.**
+
+### 구현 파일
+- components/hq/independentReviewCycleModel.ts: 사건별 독립 검토계획 모델. 작성자, 현장 검토자, 본사 검토자는 서로 다른 \`DEMO-...\` 가상 코드가 필수. 사고 ID·최신 보고서 버전·10차 근거상태 비교 토큰을 계획에 묶는다.
+- 신규 \`checkIndependentReviewCycle()\`: 기존 '검토 요청 표시'가 유효하고 최신 보고서 ID/버전 및 동일 브라우저 세션의 근거상태가 유지되는지 확인. 조사자료 변경/보고서 교체/보완 상태 전환 시 새 검토의견 추가 차단.
+- \`appendIndependentReviewFeedback()\`: 현장/본사 검토자 시연 코드만 질문 및 보완 의견을 기록 가능. 작성자나 미배정 코드 차단, 원인·시퀀스·증빙·개선조치·6하원칙 중 검토 대상과 증빙 번호 참조 연결, 사건/버전별 의견 이력 보존.
+- components/hq/IndependentReviewWorkbench.tsx/.css: 모의 작성자/현장/본사 검토 계획, 각 역할별 질문·보완 의견, 사고별 이전 검토계획·의견 이력 표시(모바일 1열 UI).
+- components/hq/StructuralHQWorkbench.tsx: 기존 조사 검토 요청 다음에 별도의 독립 검토 작업대 연결. 사고별 계획을 상위 컴포넌트 세션 상태로 분리; 다른 사고를 선택하면 UI의 임시 편집값 초기화.
+- tests/hq-independent-review-cycle.test.ts 및 tests/hq-structural-ui.test.tsx: 역할 3자 분리, 작성자/타인 위장코드 거부, 타 사건/구버전/근거상태 변경 차단, 의견 기록 불변성, 실제 승인 불가 상태, SSR 안내 문구 검증.
+
+### 출시 경계와 주의
+- **DEMO 코드는 단순 가상 문자열**이며 누구든 화면에서 선택/입력할 수 있다. 실제 작성자/검토자 신원 또는 독립성을 입증하지 않으며 이력도 서버/감사 기록이 아니다.
+- 검토 요청은 실제 직원에게 전달되지 않는다. 이 단계에서는 \`approved\`, \`verified\`, \`work_restart_authorized\` 등의 결과 상태를 절대 생성하지 않고, \`formalApprovalAvailable=false\`, \`realIdentityVerified=false\`를 고정한다.
+- 보고서가 개정되거나 새로운 증빙이 등록되면 이전 계획의 추가 의견을 막고 새 계획을 작성하게 한다. 이전 의견은 브라우저 세션에서만 유지되며 새로고침 시 소실.
+- 실명·사번·전화번호 및 실제 사고자료를 시연코드/의견으로 입력해서는 안 된다. 실제 AI 판독/책임 확정/서명/현장 점검/법정 조사·신고/안전조치 완료 승인은 무관하다.
+- 기존 골조 공정(지하 RC·일반 형틀·AL폼)과 기존 PSI 운영 기록은 변경하지 않았다.
+
+### 다음 작업의 필수 선행조건
+1. 신원 인증·현장별 RLS/기업별 RBAC 실제 적용, 운영 전 별도 2현장·작성자/검토자 권한분리 실계정 테스트
+2. 비공개 원본 증빙 스토리지·암호화·해시 재검증·추가전용 감사로그·복구계획
+3. 권한 있는 작성자/독립 검토자 실명 최소화 및 검토 이력 불변 저장, 원본 부족 시 결론/조치완료 차단
+4. 대표이사 현장 맞춤 교육 PPT/PDF 출력 및 교육 실시·지시·이행관리 연결
+5. npm audit 취약 의존성 해결, full CI/PC+Android QA, 사용자 최종 승인. 그 전까지 \`main\` 병합·Production 배포·운영 DB 변경·API 플래그 활성화 금지.
+
+
+## 2026-11-20 12차: 실제 ID 기반 독립 검토 RLS/추가전용 기록 — 운영 미적용 보안 제안 + PostgreSQL 격리검증
+
+### 11차 이후 우선순위 판단 및 기존 기반 확인
+11차 독립 검토자 \`DEMO-\` 코드는 본인 인증 없이 바꿀 수 있어 정식 검토/배정을 의미하지 않는다. 첫 단계로 실제 운영에 연결 가능한 **권한 제약 스키마**를 별도 private schema 제안 파일로 작성하여 격리 PostgreSQL에서 검증했다. 기존 tenant identity foundation의 \`psi_tenant_memberships\`는 **본인 레코드만 조회할 수 있는 RLS**이므로, 일반 관리자 로그인 계정이 다른 직원의 멤버십을 조회해 임의로 검토자를 배정하는 설계는 채택하지 않았다.
+
+### 구현 파일 및 설계 결정
+1. \`supabase/proposals/psi_hq_independent_review_staging.sql\`
+   - 운영으로 자동 이관하지 않는 \`hq_safe_staging\` 비공개 스키마; \`review_assignments\`(작성자/현장 검토자/본사 검토자 실계정 UUID, 사건과 버전, 배정자), \`review_feedback\`(검토자 ID/질문/보완 의견/근거 참조번호)로 분리.
+   - 실제 DB에 있는 \`auth.uid()\`를 기반으로 조회·의견 작성 시 신원 확인. \`TO authenticated\` 및 기업·현장 활성 멤버십·활성 현장·배정 담당자 조건을 모두 사용; 본사 역할이라도 임의 현장 접근 불가.
+   - 검토자 배정 테이블에 일반 \`authenticated\` INSERT 권한을 **부여하지 않는다**. 별도로 승인된 신뢰 가능한 관리자/운영자만 세 가지 검토 역할을 검증한 후 배정 생성할 수 있다. 이 브랜치에는 그 실무자 배정 서비스·비밀번호·관리자 키가 없음.
+   - 배정 생성 전에 \`SECURITY INVOKER\` 비공개 트리거로 실제 사고 작성자, 활성 기업/현장 소속, 현장 \`reviewer\` 및 본사 \`owner/admin\` 역할과 배정자 소속을 검증. 작성자·현장 검토자·본사 검토자 중복은 CHECK로 거부. 현재 기업 역할 4단계 기준을 사용하며 실제 본사/현장 조직별 역할 매핑은 보안승인 시 재확정해야 함.
+   - 의견 작성자는 테이블의 \`reviewed_by DEFAULT auth.uid()\`로 기록되며 **클라이언트에 reviewed_by/recorded_at INSERT 컬럼 권한을 부여하지 않는다**. 배정된 현장/본사 검토자만 \`question\` 또는 \`revision_suggested\`를 INSERT 가능. 다른 직원/작성자/타 현장/비활성 소속/역할 불일치 거부.
+   - 두 표에 FORCE RLS 적용. 읽기 역시 동일 현장 소속의 직접 배정 참여자로 제한. UPDATE/DELETE 권한과 policy 없음. \`approved\`, \`review_completed\`, \`verified\`, \`work_restart_authorized\` 등 승인 상태 또는 이벤트를 만들지 않음.
+   - **주의:** \`report_ref\` 및 \`evidence_ref\`는 문자열 참조일 뿐 실제 원본 존재·지문/서명·최신 보고서 검증이 아니다. 문구에 개인식별정보를 저장하지 않을 정식 개인정보 정책 필요.
+
+2. \`tests/hqIndependentReviewerRlsSql.test.ts\`
+   - 전부 가상 사용자·현장·사고로 PGlite 격리 Postgres에서 운영 인증 foundation과 기존 미운영 사고 SQL 및 새 private-schema SQL을 실제 실행.
+   - 케이스 작성자/현장 검토자/본사 검토자/관리자/타 현장 관리자/조회 전용 사용자 각각의 role switching으로 SQL \`INSERT/SELECT/UPDATE/DELETE\` 검증.
+   - 일반 로그인 계정의 배정 금지, 별도 관리자 배정 시 작성자·소속·역할 검증, 동일인 중복·타 현장·사칭 차단, 담당 검토자의 의견만 허용, 비담당자/작성자/다른 현장 제출·승인 타입 거부, 서명 없는 변경·삭제 차단, 현장 소속 해제 후 읽기/쓰기 차단 검증.
+   - 테스트 기반 현장명/사건/직원 ID는 모두 합성값이며 운영 DB 연결 없음.
+
+### 검증 결과 (코드 HEAD 8a5f0be)
+- 전체 Vitest **260개 파일, 1,997개 테스트 PASS**, 위 PGlite 검토자 RLS 테스트 포함; 타입/제품 경계 검사 PASS.
+- \`npm run verify:ci\` 최종 FAIL은 동일한 기존 \`npm audit\` 6건(High 1 / Moderate 5)으로 인한 릴리스 차단. 공급망 보안검사를 우회하지 않는다.
+- 기존 기업 단위 브라우저 회귀검사는 같은 HEAD의 별도 GitHub Actions에서 결과 확인 필요.
+
+### 미구현 / 보안 출시 게이트 (명시적)
+- **실제 원본 증빙의 비공개 스토리지/보존·해시 재검증/암호화/독립 감사로그/백업·복구**
+- 운영 tenant/site schema 실제 적용·현장 소속관리·신규 읽기/쓰기 API 및 신뢰 가능한 관리자 배정 서비스
+- 서버에서 보고서 버전의 실재성과 현재 원본 지문을 검증하는 조사 근거 승인 프로세스, 실제 사용자 본인 인증과 검토 보고(보완 이력 불변)
+- 개인·민감정보 처리 기준, 보존기간·법정 보고 분류, 담당자 접근/변경 이력 점검
+- 실계정 2기업·2현장 격리, 안드로이드 현장 화면, 장애/백업 복구, 패키지 보안 취약점 해결
+- 대표이사 지시 시퀀스는 최종 협의 전 미확정이며 실제 결재·교육·작업재개 승인 기능은 구축하지 않음.
+- **원칙 유지: \`main\` 병합·Production 배포·운영 DB·환경변수/feature flag 활성화 금지.** 이 브랜치의 SQL은 \`supabase/proposals\` 파일로만 존재한다.
+
+
+## 2026-11-20 13차: 비공개 증빙 보관계약·서버 지문 재검증·접근감사 — 운영 미적용
+
+### 인계문서 기준 범위
+12차는 작성자/현장/본사 검토 실사용자 ID 및 현장별 RLS를 **운영 미적용 SQL proposal**로 구축했다. 남은 최우선 과제인 사고 사진·진술·보고서 **원본 증빙의 비공개 저장·무결성·접근 이력**을 준비한다. 원본을 바로 서비스에 업로드할 수 있게 열면 개인정보/민감정보 및 법정 문서가 유출될 수 있으므로 13차는 안전한 서버 처리 계약과 DB 메타데이터·로그 권한 경계를 구현·격리검증한다.
+
+### 실제 구현 파일
+- \`lib/server/hqEvidenceIntake.ts\`
+  - Node 서버 전용 순수 함수 \`prepareEvidenceIntake\`: 권한 확인 **이후** 호출해야 하는 계약으로, tenant/site/case UUID 검증, 파일 크기 1~8MiB, 실제 바이트 식별 서명 기반 PDF/JPEG/PNG 감지, 선언 MIME과 불일치 차단, 서버 SHA-256 및 클라이언트 사전 지문 대조.
+  - 사람의 원본 파일명은 사용하지 않고 서버 측 임의 UUID로 \`tenant/site/case/objectId.ext\` 경로 생성. \`hq-incident-evidence-private\`라는 **예정 버킷 ID 문자열**만 생성한다. 버킷 실생성/업로드는 수행하지 않는다.
+  - \`verifyRetrievedEvidence\`: 다운로드한 바이트를 저장된 byte_count+MIME+SHA-256 메타데이터와 다시 비교. 일치가 **원본 촬영·작성 진위나 증거 연속 보존(chain of custody)을 뜻하지 않음**을 타입에 명시.
+- \`supabase/proposals/psi_hq_evidence_private_staging.sql\`
+  - 독립 비공개 \`hq_evidence_staging\` 스키마와 \`evidence_manifest\`(사고별 비식별 오브젝트 ID/버킷·경로/byte_count/SHA-256/검증시각·검증자) 및 \`access_events\`(접근 요청·거부·다운로드·해시불일치 등).
+  - 원본 파일 바이트나 URL/개인정보·상병·진술 텍스트는 DB에 보관하지 않는다.
+  - 두 테이블 모두 \`FORCE RLS\`, 조회는 기업 활성 소속 + 현장 활성 소속 + 사고 작성자 또는 해당 사고의 검토 참여자만 가능. 감사이력은 브라우저 SELECT 불허. 모든 브라우저 INSERT/UPDATE/DELETE 불허, 로그·메타데이터는 신뢰된 승인된 서버 운영자만 등록한다.
+  - 운영에 SQL 마이그레이션하지 않으며 실제 Supabase Storage \`storage.buckets\` / \`storage.objects\` / 다운로드 RLS 정책을 생성·변경하지 않는다.
+- \`tests/hq-evidence-intake-contract.test.ts\`: 파일 크기/형식 위조/경로·사고번호 조작/SHA 불일치, 재조회 시 원본과 다른 바이트 탐지, 정상 지문≠사고 사실 검증.
+- \`tests/hqPrivateEvidenceRlsSql.test.ts\`: 완전 합성 2개 현장/서로 다른 신원 및 기존 12차 schema를 PGlite 격리 PostgreSQL에서 실행, 작성자/배정 검토자만 메타데이터 조회, 권한 없는 쓰기·수정·삭제·감사내역 조회 차단, 타 현장 차단, 소속 해제 시 접근 폐쇄.
+
+### 실제 운영 도입 전 강제 게이트
+1. 사용자가 승인한 **비공개 Supabase Storage 버킷** 생성·객체 경로별 RLS와 개인별 읽기/쓰기 범위 적용. 기본 공개 URL 및 클라이언트 소유권만으로 보호했다고 주장 금지.
+2. 업로드/다운로드 서버 API는 실제 로그인 재인증·tenant/site/case 소속·검토자 역할 확인 후만 허용. 서버 바이트 MIME/크기/해시 검증, 악성 파일 스캔, 암호화·개인정보 분류, DB 감사이력 등록과 버킷 객체 상태 일관성(고아 파일 복구) 검증.
+3. 표준화된 원본 채증시각·수집자·파일 취득 경로와 보존기간/보존 해제 정책, 이중백업 및 복구 테스트, 열람·내보내기 감사로그의 삭제·변조 저항성 강화.
+4. 실제 DB 권한 테스트는 두 기업/두 현장/직무 분리 실계정으로 재수행. 서버 권한을 우회하는 공용 서비스키·서명 URL 유출 금지. URL이 일단 발급되면 권한 해제 시 즉각 폐기되지 않을 수 있으므로 민감 증빙은 짧은 접근창과 서버측 재승인·캐시 통제를 우선 검토.
+5. 사진/영상/스캔의 콘텐츠 진위와 원인 판정은 AI 또는 지문 일치만으로 결론내리지 않으며 실제 조사자 승인·노동관계 법정 보고 절차는 별개.
+6. \`main\` 병합/Production 배포/운영 DB 변경/Storage 버킷 생성/환경변수 변경/feature-flag 활성화 **전부 보류**. 기존 npm audit 보안 취약점 해결과 전제품 회귀 QA가 우선.
+
+### Supabase 자료 검토
+- Private Storage buckets / Access Control: https://supabase.com/docs/guides/storage/buckets/fundamentals , https://supabase.com/docs/guides/storage/security/access-control
+- Signed URL/캐시·접근철회 한계: https://supabase.com/docs/guides/storage/serving/downloads , https://supabase.com/kb/troubleshooting/storage-private-bucket-files-still-accessible-after-remove-access-or-logout
+- 외부 서비스에 서명 URL을 오래 공유하는 방식은 사고 증빙 보호 기준으로 사용하지 않음.
+
+
+## 2026-11-21 14차: 사고 증빙의 서버 접근허가·무결성 재검증·강제 감사 게이트 (운영 미활성)
+
+### 13차 인계 기반의 실제 구현 판단
+13차 서버 파일 전처리 함수와 비공개 증빙대장/접근 이벤트 SQL 제안은 있었으나, **원본 열람 직전의 사용 권한·사고 소속·파일 상태·감사기록**을 함께 강제하는 서버 흐름이 없었다. 14차에는 기능을 억지로 Production API에 연결하지 않고, 실제 서버 컨트롤러에 안전하게 조립할 수 있는 독립 모듈과 합성 회귀 테스트를 개발했다.
+
+### 구현 파일
+- \`lib/server/hqEvidenceAccessGate.ts\`
+  - 서버 전용 \`readScopedEvidence(actor, request, ports)\`. \`actor.tenantId\`·\`actor.userId\`·\`actor.role\`은 **검증된 로그인 서버 문맥에서만 전달**해야 하며 사용자가 보낸 역할/기업ID는 절대 신뢰하지 않는다.
+  - UUID와 허용 역할 검증 → **기업 소속·역할을 서버에서 재확인** → 현장 활성 소속 → 활성 현장 → 요청한 사고번호·작성자 교차검증 → 해당 사고 작성자 또는 배정된 현장 reviewer / 본사 owner·admin 역할 검증 → 증빙대장 테넌트/현장/사고/객체 식별자·경로·버킷·MIME·길이·SHA-256·원본진위 미확정 값 일치 확인.
+  - 추가 **악성파일 검사상태가 명시적으로 \`clean\`**인 경우만 파일 열람 가능. \`pending\`/ \`blocked\`/값 누락은 열람 금지. 이 값은 향후 신뢰된 스캐너만 기록해야 하며 현재 시제품에 실 스캐너는 연결되지 않음.
+  - **조회 시도 감사 \`read_requested\` 기록 성공 전** 원본 바이트 읽기 금지. 비공개 저장소 바이트를 받은 뒤 13차 \`verifyRetrievedEvidence\`로 MIME/크기/SHA-256을 재검증, 불일치 시 \`digest_mismatch\` 감사 시도 후 응답 차단. 정상 바이트라도 \`read_verified\` 감사 기록 실패 시 서버 검증 결과 반환 차단. \`download_completed\`는 실제 HTTP 전송 완료가 확인되는 별도 후속 단계에서만 기록하며 **14차는 아직 사용자 전송 기능을 구현하지 않았다**.
+  - 요청·저장소 실패 시 provider 오류/원본경로/토큰을 노출하지 않고 범용 오류코드로 거부. 파일명·원본 경로·서명 URL을 결과에 포함하지 않음; 서버 측 결과는 파일 바이트와 MIME/크기/지문 및 미검증 상태뿐. 실제 HTTP \`Cache-Control: no-store\`, 본인 인증, 데이터베이스/Storage 어댑터는 아직 연결 전이므로 서버 컨트롤러 구현 시 반드시 강제해야 함.
+  - 원본 지문 일치는 사고 현장과 촬영시각의 진위를 의미하지 않으며 실제 사고조사 확정/산재·법정 신고/작업재개 승인과 연결하지 않는다.
+- \`supabase/proposals/psi_hq_evidence_private_staging.sql\`
+  - \`malware_scan_status\` 컬럼 추가, 기본 \`pending\`, 허용 \`pending/clean/blocked\` CHECK. 클라이언트의 직접 INSERT/UPDATE 권한 없음.
+  - **신뢰된 스캐너가 사전 검사 후 CLEAN 상태로 보관**하는 실제 라이프사이클은 아직 구현하지 않음. Storage 버킷, 공개 정책, signed URL, 암호화 키를 만들지 않음.
+- \`tests/hq-evidence-access-gate.test.ts\`
+  - 작성자/현장·본사 배정 검토자 접근, 다른 역할·미배정자·타 현장/사고/객체 위조 차단, 세션/사이트 비활성 차단.
+  - 적절한 스캔결과 없으면 비공개 저장소 접근 자체를 금지. **조회 전/조회 후 감사 실패·원본 변조·서버 저장소 장애** 시 파일 반환 금지. 정상 조회에도 sourceAuthenticityVerified=false.
+  - 테스트는 합성 파일과 임시 포트 어댑터를 이용하며 실 사용자·실 사고파일 및 서비스키 미사용.
+
+### 검증 및 배포 게이트
+- 최신 HEAD 14차 CI 결과는 검사 후 이 문서의 완료 판정과 별도로 판단해야 함. 성공한 과거 커밋의 자동검증을 최신 성공으로 간주하지 않는다.
+- 실다운로드 기능을 위한 다음 준비: 사용자 계정의 재인증/현장 접근재검증, 서버 비공개 Storage 어댑터, 파일 악성검사·분류·격리 처리, DB에 **실제 지속 기록되는 감사 파이프라인**, Storage/DB 일관성 및 장애·재시도 시 중복검증, 동시성·범위별 부하 제한, 파일 크기 제한과 스트리밍·메모리 예산.
+- 현재 13차 \`access_events\`는 \`evidence_manifest\` FK를 필요로 하므로 **존재하지 않는 자료 요청이나 인증 실패의 상세 감사 수집은 별도 보안 시도 로그 설계가 필요하다.** 이번 모듈의 초기 거부는 파일 반환을 막지만 완전한 불변 감사 체인 구축을 뜻하지 않는다.
+- 현장별 독립 2기업·2현장/실계정 RLS, 개인정보 접근권한·보존기간/백업복구, 오프라인 모바일, npm audit 미해결 취약점과 전제품 브라우저 QA를 출시 전 차단 조건으로 유지.
+- 본사 대표이사 지시 업무 흐름·본사 최종 승인과 회사별 법정 신고 상태는 아직 별도 검토/결재 전이며 자동화하지 않았다.
+- **main 병합, Production 배포, 운영 DB/Storage/환경변수/feature flag 변경, 실제 원본 업로드·다운로드 전부 보류.**
+
+
+## 2026-11-21 15차: 존재하지 않는 사고·증빙 접근 시도 별도 보안감사 + 기본 OFF HTTP 연결부
+
+### 착수 판단
+14차 \`readScopedEvidence\`에서는 접근요청·파일 지문 검증 로그가 실제 \`evidence_manifest\` 레코드를 참조하므로, **사고가 아직 등록되지 않았거나 증빙번호가 존재하지 않는 접근 시도는 같은 감사대장에 저장할 수 없다**. 또한 검증 완료된 증빙 바이트를 HTTP 계층으로 전달하는 컨트롤러가 없었다. 15차에서는 이 두 공백을 분리하여 해결하되 운영데이터/Storage 연결은 보류한다.
+
+### 실제 코드 및 테스트
+1. \`supabase/proposals/psi_hq_evidence_private_staging.sql\`
+   - \`hq_evidence_staging.security_attempts\` 추가. 실제 사고·증빙·현장의 존재와 무관하게 거부 요청을 기록할 수 있도록 **case/manifest FK를 두지 않는다**. 다만 \`actor_id\`는 존재하는 \`auth.users\` ID를 요구하므로 익명·검증 전 요청의 포괄적 보안로그가 아니다.
+   - action은 \`evidence_read_denied\`만 허용하고 거부 원인은 제한된 기계 코드로만 저장한다. 파일명·진술/상병정보·서명URL·IP·토큰을 저장하지 않는다.
+   - \`FORCE RLS\`와 anon/authenticated/service_role 직접 CRUD 권한 전부 REVOKE. DB 관리자나 승인된 사설 서버 기록 계층에서만 별도 처리하도록 준비. 운영 서버 write adapter와 원격 불변 감사 보관은 **미구현**.
+2. \`lib/server/hqEvidenceAccessGate.ts\`
+   - 독립 \`appendSecurityAttempt\` 포트를 추가해 **기업/현장 소속 비활성, 사건 미존재, 배정 검토자 불일치, 증빙 없음, 스캔 미완료, 내부 저장소 장애** 등 거부 상황을 메타데이터 FK 없이 구분해 기록하도록 한다.
+   - 보안감사 기록 자체가 실패해도 파일을 내주지 않는다. 단, 기록은 best-effort로서 장애 시 보안 감사 완전성을 보장하지 않는다. malformed UUID는 DB 기록 전에 거부하므로 별도 API edge 로그가 필요하다.
+3. \`lib/server/hqEvidenceReadRoute.ts\` + \`api/saas/access.ts\`
+   - \`resource=hq-evidence-read\` 라우팅/GET 전용/엄격한 UUID·query allowlist/인증된 \`requireTenantContext\` 적용 구조 추가.
+   - \`PSI_HQ_EVIDENCE_READ_ENABLED\`는 **기본 OFF**이고 기존 운영환경에서 설정하지 않는다. 기본 런타임은 인증/저장소/감사 포트의 운영 구성을 **전혀 제공하지 않으므로**, 실수로 환경플래그를 true로 바꾸더라도 \`503 HQ_EVIDENCE_NOT_READY\`로 차단한다.
+   - 내부 합성 테스트용 주입 포트가 모두 존재할 때만 기업/현장·사건·원본 메타데이터·악성 스캔 clean·SHA 재검증·조회 전후 감사 통과 후 비공개 바이트 전송을 시연한다.
+   - HTTP \`Cache-Control: private, no-store\`, \`nosniff\`, \`Content-Disposition: attachment\`, 일반화된 서버 오류 처리. 실제 사용자 브라우저 파일 기능과 운영 private Storage는 여전히 연결하지 않음.
+4. \`tests/hq-evidence-access-gate.test.ts\`
+   - 누락된 사고/증빙에도 보안감사 시도, 역할 해제/배정 실패/차단된 스캔/감사 저장 장애에 대해 반환 차단 및 거부 코드 기록 검사 추가.
+5. \`tests/hqPrivateEvidenceRlsSql.test.ts\`
+   - PGlite 격리 PostgreSQL에서 존재하지 않는 사고/파일 UUID에 대한 별도 \`security_attempts\` INSERT 성공, 브라우저의 조회/작성/변조/삭제 거부 확인.
+6. \`tests/hq-evidence-read-route.test.ts\`
+   - 기본 OFF, 플래그를 잘못 ON 해도 runtime private adapter 없으면 503, 비정상 HTTP 메서드·권한 사칭·query 위조 차단, 가상 권한/감사 성공 후 합성 PDF 바이트 응답, 권한 해제·위변조·감사 실패 시 응답 차단 검증.
+
+### 실제 운영 적용까지 남은 필수조건
+- 운영 DB/Storage에 SQL을 적용하지 않았고 실제 private bucket, 파일 intake, 악성파일 스캐너, 서버 운영자 DB port 및 영속화된 감사 저장 서비스는 없음. 이번 설계는 서비스키를 임의로 활성화하지 않으며 서버 포트의 기술 승인 후 연결해야 한다.
+- 감사 기록은 DB 관리자의 수정/삭제를 물리적으로 막는 WORM/외부 불변 로그가 아니다. retention/보관기간·개인정보 영향평가·접근 로그의 독립 백업 및 복구 검증 필요.
+- 인증되지 않은/UUID가 잘못된 시도의 보안 텔레메트리, 속도 제한, 용량 초과·동시요청 보호, 다운로드 완료 확인(지금은 \`read_verified\`만 기록) 추가 필요.
+- 악성코드 검사기가 없는 상태에서는 기록 상태가 \`pending\`으로만 남으므로 운영본 다운로드 불가. 실계정 다중 기업·현장 승인/감사 경계와 보안/PC·모바일 QA를 독립 검증.
+- 실제 사용자 계정으로 조사결과를 승인하거나 사고원인을 확정하지 않음. 본사 대표이사 교육/법정 보고는 별도 절차.
+- 코드는 사용자 승인 전까지 **Draft PR에서만 유지**. main 병합/Production 배포/운영 DB·Storage 변경/feature flag 활성화는 실시하지 않는다.
+- 최신 15차 CI에서 기능·타입/격리 SQL 및 부서별 회귀검증을 확인하며, 과거 CI 통과 수치를 최신 결과로 대체하지 않는다.
+
+
+### 15차 검증 결과 및 오류 수정 인계 (2026-11-21)
+- 첫 HTTP 테스트에서 정상 요청도 400으로 거부됨: \`hqEvidenceReadRoute.ts\` UUID 정규식에 5개 그룹 중 1개가 누락된 것이 원인이었다. 5개 그룹(8-4-4-4-12)을 검증하도록 수정하고 재실행.
+- **검증 코드 HEAD \`1fb817c\`**: Vitest **264개 파일 / 2,016개 테스트 전부 PASS**, 타입·제품 경계 검사 PASS. 신규 서버 요청 테스트 5개 및 15차 접근차단·SQL 검증 포함.
+- \`npm run verify:ci\` 최종 FAIL은 기존 production 의존성 \`npm audit --omit=dev\` **6건(High 1 / Moderate 5)** 으로 인한 출시 차단으로, 해당 보안검사 실패를 기능 합격으로 포장하지 않음.
+- 최신 전제품 Chromium/부서별 cross-department CI는 별도 결과를 확인하며, 실행 중인 경우 PASS라고 기록하지 않는다.
+- 비공개 Storage/감사기록 서버 운영 어댑터 미연결, 기본 플래그 OFF. main/Production/운영 DB·Storage·환경변수 미변경.
+
+
+## 2026-11-21 16차: 고위험 증빙 조회의 분산형 요청량/동시성 예약·HTTP 전송 감사 계약 (운영 미적용)
+
+### 15차 인계 기반으로 선택한 최우선 보완
+15차에서는 기본 OFF의 GET 조회 API와 인증/사고/증빙/악성검사/해시/감사 게이트를 구축했으나, 동시 조회로 인한 서버 메모리 부담과 반복 조회·열거 시도에 대한 분산형 용량 제한, 파일 바이트를 서버가 응답한 이후의 전송 상태 구분이 없었다. 다중 Vercel 인스턴스에서는 서버 함수 메모리에 저장한 카운터가 정확한 전역 제한이 될 수 없으므로 **외부 원자적 저장소를 반드시 주입해야 하는 예약 계약**을 추가했다.
+
+### 구현 파일
+1. \`lib/server/hqEvidenceReadAdmission.ts\`
+   - 로그인으로 확인된 tenantId+userId에 대해 60초간 6요청, 사용자 동시 2개, 기업 동시 8개, 예약 120초 TTL **시연 정책값**을 외부 분산 저장소의 원자적 acquire/release 포트로 전달.
+   - 저장소 오류·형식이 잘못된 반환·부적합 예약 토큰·잘못된 신원은 503으로 fail-closed. 초과 요청은 429 및 제한된 Retry-After만 반환.
+   - 이 모듈은 **실제 Redis/DB/분산 저장소 어댑터를 만들거나 붙이지 않는다.** 향후 구현은 원자적 요청횟수+기업/사용자 동시수 검사, 예약 토큰의 멱등 release, 시간 만료 및 장애 대응을 보장해야 함.
+
+2. \`lib/server/hqEvidenceReadRoute.ts\`
+   - 서비스가 승인한 \`admission\` 포트가 없으면, 플래그를 실수로 true로 설정해도 503. 기존 \`buildPorts\`와 인증, 자체 근거 조회 게이트도 모두 필수.
+   - 인증 이후·개인정보/Storage 조회 이전에 분산형 용량 예약. 실패하면 실제 사고·증빙자료 조회로 넘어가지 않음.
+   - 응답 객체가 Node 서버의 \`once('finish'|'close')\`를 지원하는 경우에만 바이트 전송. 예약 토큰은 응답 완료 신호 또는 연결 종료 신호에서 **한 번만** 해제하고, 장애 시 TTL 만료를 전제로 설계.
+   - 파일 전송 직전에 \`response_send_started\` 감사 기록이 지속 저장되지 못하면 503으로 바이트 반환 차단.
+   - 종료 이벤트는 \`response_flushed\`(HTTP 서버 출력 종료 신호), \`response_aborted\`(finish 전 close)로 각각 별도 기록. **어떤 경우에도 \`download_completed\`를 기록하지 않음.** 서버 finish는 브라우저 수신·열람·실제 증거 인수 여부를 증명하지 않기 때문.
+   - 종료 이벤트는 바이트 전송 뒤 작성되므로 로그가 실패해도 이미 보낸 바이트를 취소할 수 없다. 현재 \`appendAudit\`가 실패하면 조용히 누락될 수 있어, 실운영 전에 **영속 아웃박스·오류 알림·누락 재처리**를 제공해야 함.
+
+3. \`lib/server/hqEvidenceAccessGate.ts\`, \`supabase/proposals/psi_hq_evidence_private_staging.sql\`
+   - 기존 비공개 증빙 접근 감사 타입에 \`response_send_started\`, \`response_flushed\`, \`response_aborted\` 추가.
+   - SQL은 proposal에만 있으며 운영 DB에 적용하지 않음. 기존 \`download_completed\` enum은 사용하지 않으며 자동 기록하지 않는다.
+
+4. 자동 테스트
+   - \`tests/hq-evidence-read-admission.test.ts\`: 정책값/예약·해제·429/503/위조 토큰/저장소 오류/민감정보 누출 금지 테스트
+   - \`tests/hq-evidence-read-route.test.ts\`: 합성 분산형 동시예약 2개 한도, 추가 요청 429, finish/close 해제, 잘못된 저장소 응답 503, 전송 직전 감사 저장 장애에서 바이트 전송 차단, 전송 종료와 중단 신호 구분
+   - 기존 private metadata·RLS·시연 화면 및 전제품 회귀를 함께 검증해야 함.
+
+### 기능/보안의 정확한 경계
+- 신규 분산 제한은 **설계 계약과 합성 테스트**로만 존재. 영속적인 실제 Redis/Postgres 제한 저장소, 운영 정책 승인, 본사 접근 승인, rate-limit 및 abuse 알림, PII 파일실제다운로드는 미구현.
+- 제한 정책값(6/분, 동시 2/8, TTL 120초)은 개발 기본안이며 조직별/트래픽별 실측·운영 검토가 필요. 2개의 제한 단위 모두 실제 어댑터에서 *하나의 원자적 예약*으로 집행되지 않으면 출시 금지.
+- \`response_flushed\`는 서버 소켓 종료에 대한 이벤트일 뿐 이용자 단말 수신의 증거가 아님. \`download_completed\`로 의미를 바꾸지 않는다. 완료 감사의 보존·복구, 개인정보 접근기록의 법률적 신뢰성은 아직 확보되지 않음.
+- 저장소가 반환한 이미 로딩된 8MiB 파일은 메모리로 다루므로 향후 상한/동시성 검증과 스트리밍 메모리 예산·전송 중 취소 테스트가 더 필요.
+- 기본 운영 라우트는 \`buildPorts\`도 \`admission\`도 제공하지 않으며 플래그 OFF 상태. 실제 사고·근로자 자료, 운영 DB/Storage, Production과 기존 main은 변경하지 않음.
+- npm audit에서 전차에 발견된 프로덕션 의존성 취약점(High 1/Moderate 5)을 별도 차단조건으로 유지; 강제 패키지 override나 감사검사 비활성화 금지.
+- 사용자 최종 승인 전 main 병합·Production 배포·운영 DB/Storage 변경·feature flag 활성화 금지.
+
+### 다음 단계
+1. 사용자가 보안 설계 승인 후 원자적 분산 제한 저장소 및 TTL/정리 회복 테스트, 2기업×2현장 실계정 권한 검증.
+2. 서버 전송 상태 감사의 durable outbox·실패 경보·누락 재처리, 증빙 접근·열람의 종단간 감사 로그 보존.
+3. 비공개 악성검사 저장소와 업로드·다운로드 포트, 현장관리자/독립 검토자 본인인증, 백업·복구.
+4. 전체 Vitest/부서별 Chromium/Android 실기기 및 npm 보안 취약점 해결, 승인 후 단계적 배포.
+
+
+## 2026-11-21 17차: 증빙 전송감사 durable outbox / 미확인 상태 / 재시도 계약
+
+### 기존 16차를 중복 구현하지 않은 이유
+최신 인계 시 16차에서 분산 입장 예약(6회/60초, 사용자 동시 2건, 기업 동시 8건) 및 \`response_send_started\`, \`response_flushed\`, \`response_aborted\` 분리까지 이미 구현된 것을 확인했다. 남아 있던 가장 큰 문제는 **finish/close 이후 감사 기록이 실패하면 조용히 누락될 수 있고, 서버가 전송 중 종료돼 종료 신호가 없다면 이를 복구할 기준이 없다**는 점이다.
+
+### 17차 실제 구현
+- \`lib/server/hqEvidenceTransportOutbox.ts\`
+  - **서버가 바이트를 내보내기 전에** 영속 DB 저장을 보장해야 하는 \`prepareTransportOutbox()\` 계약. 저장 실패·유효하지 않은 UUID 영수증은 503 성격의 실패닫힘으로 처리하고 별도 알림을 요청.
+  - \`settleTransportOutbox()\`: 응답 \`finish\`와 \`close\`를 \`response_flushed\` / \`response_aborted\`로 기록. 실패 시 독립 alert 포트 호출. 단말 수신 완료나 작업재개 승인을 의미하지 않음.
+  - \`reconcileTransportOutbox()\`: 승인된 후속 서버작업에서 **명시적으로만 호출**하는 계약. 기한을 넘겼는데 종료 신호가 없는 \`prepared\`는 \`unconfirmed\`로 기록(임의 다운로드 완료 처리 금지), 외부 감사 싱크에 UUID 멱등키로 전달·ACK, 실패 시 최대 3,600초의 제한된 재시도 예약과 독립 경보.
+  - 주의: 아직 실제 Redis·Postgres 서버 클라이언트, 외부 로그 보관업체, 백그라운드 작업이나 cron을 만들거나 실행하지 않음. 재처리 데이터의 원자적 claim/ack/retry/임대만료는 **실제 운영 어댑터의 필수 구현 계약**.
+- \`lib/server/hqEvidenceReadRoute.ts\`
+  - 기존 분산 admission, 로그인·권한·악성파일 상태·해시·\`read_verified\` 경계를 유지하고, **추가로 \`transportOutbox\` 포트가 없으면 503**.
+  - HTTP 응답 전에 \`prepare\` 영수증을 받고, 전송 완료/중단 이벤트에서 \`settle\`·기존 감사 이벤트 기록·용량 예약 해제를 호출. 기존 \`download_completed\`는 사용하지 않음.
+  - 실제 배포 entrypoint는 \`buildPorts\`, \`admission\`, \`transportOutbox\` 모두 미설정이며 기본 플래그 OFF. 따라서 실수로 플래그를 켜도 운영 파일은 응답할 수 없음.
+- \`supabase/proposals/psi_hq_transport_outbox_staging.sql\`
+  - 실제로 운영 DB에 적용하지 않는 비공개 \`hq_evidence_staging.transport_outbox\` proposal. 사전 \`prepared\` 상태, \`response_flushed\`/\`response_aborted\`/\`unconfirmed\` 상태와 settled_at 일관성 CHECK, claim_token/claim_expires_at, retry attempt/next_attempt_at, ACK 시각, 제한된 실패 코드 및 사고별 FK. 일반 로그인과 익명 사용자의 직접 읽기/쓰기/수정/삭제 REVOKE, FORCE RLS.
+  - 이 테이블 자체만으로 **불변(WORM) 외부 감사 저장소, 실제 전송 완료 증빙, 장애 복구 보장 또는 데이터 복제/백업을 구현한 것이 아님**. 어댑터는 신뢰된 비공개 서버 작업으로만 만들어야 함.
+- \`tests/hq-evidence-transport-outbox.test.ts\`: 저장 영수증 거부, 종료 처리 실패·경보, 미확인 구분, 외부 싱크 전달/재시도 및 부적절한 어댑터 응답 차단.
+- \`tests/hq-evidence-read-route.test.ts\`: outbox 없는 서버 차단, DB 저장 장애 발생 시 전송 중단, 종결 처리 실패 시 독립 알림. 기존 16차 요청량/전송·반환 테스트 유지.
+- \`tests/hqPrivateEvidenceRlsSql.test.ts\`: 격리 PGlite에서 SQL 생성·prepare/settle/ACK·수정 제약/현장·사용자 접근 거부 및 미존재 증빙 FK 차단 검증.
+
+### 검증 및 보안 출시 게이트
+- 최신 코드 HEAD의 CI 완료 결과를 확인해 확정한다. 이전 16차 결과를 17차 합격으로 대체하지 않는다.
+- 테스트용 합성 DB·사고·파일 외에 실사용 자료, 의료정보, 실제 업로드, 파일다운로드, Production DB/Storage, 서버 cron 및 배포 환경변수는 변경하지 않았다.
+- 실제 개인정보 접근로그의 영속·복제·키/암호화·보존주기·접근권한/불변성, 장애 경보·재처리 워커와 외부 싱크의 재시도 멱등 검증이 별도로 필요하다.
+- 원본 검증·악성코드 검사기·다중 현장 실계정 QA와 사용자 최종 승인 이전에 \`main\` 병합, Production 배포, 운영 SQL/Storage, feature flag 활성화 금지.
+- 다음 18차 권장: 합성 PGlite 기반 claim SKIP LOCKED·TTL·중복 ACK·대량 재시도/경보를 검증하는 실제 비공개 서버 어댑터, 운영 서비스 키 관리 설계/제한, 기존 취약 npm 의존성 해결.
+
+
+### 17차 코드 검증 결과(2026-11-21)
+- \`02da204\` 커밋에서 \`npm run verify:ci\` 실행. TypeScript/제품 경계 검사 통과, **Vitest 266개 파일 2,032개 테스트 전부 PASS**.
+- 신규 \`hq-evidence-transport-outbox.test.ts\` 5건, 기존 \`hq-evidence-read-route.test.ts\` 12건, 격리 \`hqPrivateEvidenceRlsSql.test.ts\` 1건이 포함된다.
+- 초기 CI에서는 새로운 라우트 테스트 wrapper가 자기 자신을 호출해 재귀 오류 발생. 실제 라우트 팩토리를 호출하도록 수정 후 재검증 통과. 17차 테스트 싱크 콜백 인자 타입 오류 역시 수정 완료.
+- 전체 릴리스 판정 FAIL: \`npm audit --omit=dev\` **6건(High 1, Moderate 5)**. 보안 검사를 건너뛰거나 통과로 표시하지 않는다.
+- 회사 전체 Chromium/cross-department 검사는 별도 워크플로 결과가 나올 때까지 진행 중으로 구분.
+- 원본 증빙 바이트 전송은 실제 운영에 비활성화돼 있으며, 비공개 어댑터·원자적 claim/retry/ACK worker와 불변 저장은 미구현.
+
+
+## 2026-11-21 18차: PostgreSQL 원자적 감사 재처리 작업자 / 임대 토큰 보호 — 운영 미연결
+
+### 인계문서 확인 및 실제 선정
+17차의 \`reconcileTransportOutbox()\`는 인터페이스/시연이었고 다중 서버 사이에서 claim/lease/ack/retry가 충돌하지 않도록 DB에서 강제하는 구현이 남아 있었다. 18차는 **새 UI 기능 대신 기존 증빙 전송 감사의 안전성**을 높이는 비공개 PostgreSQL 작업자 어댑터에 집중했다.
+
+### 구현 파일·행위
+- \`lib/server/hqEvidencePgOutboxAdapter.ts\`
+  - \`createPrivatePgEvidenceOutboxAdapter(db,sink,securityAlert)\`를 추가. 프로젝트의 실제 DB 연결정보를 하드코딩하지 않고 **신뢰된 PostgreSQL 쿼리 포트/외부 멱등감사 싱크/독립 경보 포트**를 요구한다. 기존 17차 \`EvidenceTransportOutboxPorts\` 및 \`EvidenceOutboxReconcilePorts\` 계약을 구현하는 **실제 매개변수화 SQL**이며 이 단계에 Production connection은 없음.
+  - \`prepare\`: 해당 사고·증빙 FK가 있는 경우 INSERT 단일 SQL 커밋 응답의 UUID 영수증 필수. 등록되지 않은 사고·증빙이나 권한 미확인 입력은 별도 본인인증/접근검사 위반으로 간주하며 서버 연결 전에 차단해야 한다.
+  - \`CLAIM_DUE_SQL\`: PostgreSQL의 \`WITH due AS (SELECT id ... FOR UPDATE SKIP LOCKED LIMIT $1) UPDATE ... RETURNING\`으로 조회 및 선점 한 번에 원자 수행. \`acked_at is null\`, \`next_attempt_at<=DB clock\`, 임대 미존재/만료, \`prepared\` 120초 이상 경과, 재시도 1000회 미만을 검사. 대상별 \`gen_random_uuid()\` 임대 토큰과 DB 기준 90초 임대 적용. 다른 작업자의 미만료 claim은 중복 선점 불가.
+  - \`markUnconfirmed\`: \`prepared\`를 정상 다운로드 완료로 위조하지 않고 \`unconfirmed\`으로 표시. 요청을 선점한 **동일 임대 토큰이 DB에서 현재 유효할 때만** 변경 가능.
+  - \`deliver\`: DB에서 선점 토큰·미만료 임대를 재확인한 뒤 외부 싱크 전달. 외부 싱크는 **사고 파일 바이트가 아닌 상태 기록만** 받고, 이벤트 UUID를 idempotency key로 사용하여 중복 전송을 제거해야 한다.
+  - \`acknowledge\`와 \`retry\`: 후속 DB UPDATE에 claim_token+claim_expires_at을 모두 대조. 임대가 만료되어 다른 서버에 인계된 이전 작업자의 ACK/재시도/전송은 거부. 재시도는 DB 기준 next_attempt_at 설정과 claim 해제를 동일 UPDATE에서 수행. 동일한 응답종결 신호의 중복 settle은 허용하되 서로 다른 종결/미확인 상태 덮어쓰기 불가.
+  - 브라우저 권한, 인메모리 전역 락, 사용자 제공 tenantId/서비스키를 신뢰하지 않으며 실제 Production worker/cron은 만들지 않는다. 이 어댑터가 동작하려면 별도 최소권한 DB operator 계정과 안전한 composition root, 백업·경보가 필요하다.
+- \`tests/hqPrivateEvidenceRlsSql.test.ts\`
+  - **실제 격리 PGlite PostgreSQL**에서 기존 17차 제안 스키마에 신규 어댑터를 연결. 저장 직후 \`prepared\`는 120초 유예 전 선점 안 됨; 경과 후 worker A 선점, worker B 중복 선점 금지; \`unconfirmed\` 변환·감사 싱크 멱등키 전달·ACK; 임대가 만료된 A가 재선점 B의 ACK 및 외부 전송을 수행할 수 없음; 재시도 30초 예약과 DB clock 기준 재선점; 타 사용자 직접 UPDATE/SELECT/DELETE 차단을 검증.
+  - 합성 사건/가상 사용자·파일 UUID만 사용, 운영 DB에는 쿼리 실행 안 함.
+- \`supabase/proposals/psi_hq_transport_outbox_staging.sql\`: 17차의 비공개 테이블 제안 유지(무단 접근 차단). 18차 어댑터는 그 구조를 사용하며 스키마를 운영 이관하지 않음.
+
+### 검증 결과 / 출하 금지
+- 검증 코드 HEAD \`e2d771d\`: 타입 검사 및 **Vitest 266개 파일, 2,032건 모두 PASS**. 새 어댑터의 합성 DB 조회 및 실제 SQL ACK/임대 경계 검증이 기존 1건 PGlite 통합 테스트에 포함.
+- 릴리스 전체 FAIL: 기존 \`npm audit --omit=dev\` **High 1 / Moderate 5 = 6건**. 공급망 감사 우회 금지.
+- 전제품 Chromium/cross-department 결과는 최신 커밋의 워크플로가 완료될 때까지 미확정(이전 성공/취소 결과 대체 금지).
+- **특히 정확한 한계:** PGlite는 단일 격리 DB로 두 작업자의 순차적 claim·재선점·토큰보호를 검증한 것. **서로 다른 실제 PostgreSQL 연결에서 동시에 경쟁하는 분산 부하·프로세스 강제 종료·멀티리전 네트워크 분할 테스트는 미실시**. 완전한 외부 감사 싱크, 재시도 임대 재연장/대량 backlog 모니터링, 1000회 초과 dead-letter/수동 복구 정책, 운영 키/역할 격리 및 백업·복구도 미구현.
+- \`main\` 병합, Production 배포, 실계정 연결, 운영 DB/Storage 변경, cron/worker 실행, env/feature flag 활성화 **모두 금지**. 사용자의 최종 승인을 받기 전 Draft PR에서만 유지.
+- 다음 19차 제안: **서로 다른 PostgreSQL 세션의 실동시성·크래시 복원·fencing 검증, 후속 재처리 알림과 backlog 감시, 최소권한 DB operator 인증**, 그리고 npm 취약점 안전한 범위의 의존성 업데이트 및 Chromium/Android 실기기 검증.
+
+## 2026-11-21 19차: 감사 아웃박스 적체 감시·경보 계약 (운영 미연결)
+
+### 18차 인계 기준 작업
+18차에는 동일한 PGlite 격리 DB의 두 논리 작업자가 순차 선점·임대 만료·ACK·재시도를 검증했다. 실제 별도 PostgreSQL 연결에서 동시 잠금 경쟁이나 프로세스 강제 종료 복구는 **아직 수행하지 않았다**. 19차는 현장에서 조용히 쌓일 위험이 높은 미처리·한도 소진·임대 만료 감시를 구현했다.
+
+### 구현 코드
+- lib/server/hqEvidenceOutboxHealth.ts: 비공개 PostgreSQL 집계 쿼리와 경보 계약. 건수 집계만 전송하고 파일/근로자/사고 개별 식별자는 경보에 넣지 않음.
+- 탐지: 미처리 개수, 10분 이상 prepared 상태, delivery_attempts 1000 이상, 임대 만료, 처리예정시각 5분 초과, 미확인(unconfirmed) 개수.
+- 초기 긴급 판단: 미종결·재시도 소진·기한 지연이 하나라도 있으면 긴급. 임대 만료 또는 미처리 100건 이상 또는 미확인 20건 이상이면 주의. 운영량과 본사 정책 검토 전 임시 기준임.
+- DB 조회 실패/변조된 집계/경보 전송 실패 시 성공 또는 정상 상태로 판단하지 않고 오류를 반환. **알림 공급자·스케줄러·운영 DB 연결은 하지 않았다.**
+- tests/hq-evidence-outbox-health.test.ts: 정상, 긴급, 주의, DB 데이터 이상, 경보 통신 실패 5건 검증.
+- tests/hqPrivateEvidenceRlsSql.test.ts: PGlite에서 실제 SQL 집계 후 15분 경과 준비 상태, 1000회 소진, 만료된 lease 자료 3건 탐지와 비식별 경보를 확인. 일반 사용자 직접 SELECT 금지 유지.
+
+### 자동검증 및 남은 출시 차단
+- 기능 검증 코드 HEAD 60f1cd4: TypeScript 검사 및 Vitest **267개 파일 / 2,037개 테스트 전체 PASS**.
+- 전체 릴리스 검증 FAIL: 기존 npm audit --omit=dev 취약점 **6건(High 1, Moderate 5)**. 검사를 우회하지 않음.
+- 전제품 Chromium/cross-department 상태는 최신 CI 결과 별도 확인 필요. 이전 결과를 최신 통과로 간주 금지.
+- **미구현:** 서로 다른 실제 PostgreSQL 세션의 물리적 동시성 시험, 프로세스 강제 종료·네트워크 장애, 실제 최소권한 DB operator·외부 WORM 감사 저장소, 자동 경보 전송·중복 알림 방지, 백업/복구, 1000회 소진 기록의 수동 승인 절차.
+- 다음 차수 우선: 독립 연결 기반 동시성/크래시 QA 전용 격리 하네스, 멱등 외부 경보와 dead-letter 복구 정책, 의존성 보안 취약점 해결.
+- 기존 골조 10개 공정 중 지하 RC·일반 형틀·AL폼의 독립 분류, NEW-PSI 운영 기능 유지.
+- main 병합, Production 배포, 운영 DB/Storage/환경변수/feature flag 변경 또는 worker/cron 활성화 모두 보류.
+
+## 2026-11-21 20차: 실제 PostgreSQL 독립 세션 동시성·세션 강제 종료 복구·최소권한 작업자 검증
+
+### 인계 기준과 이번 해결 범위
+19차까지는 격리 PGlite에서 두 **논리 작업자**의 순차적인 선점·임대만료·ACK와 backlog 감시까지만 검증했다. 20차는 이를 진짜 별도 PostgreSQL 프로세스/연결 두 개가 같은 테이블을 동시에 건드리는 환경으로 확장했다. 다만 실제 운영 DB, Supabase 사용자, Storage 및 외부 네트워크는 사용하지 않는다.
+
+### 구현 파일
+- supabase/proposals/psi_hq_outbox_least_privilege_staging.sql
+  - 비공개 NOLOGIN / NOBYPASSRLS 역할 hq_safe_outbox_operator 정의. 감사 transport_outbox에만 SELECT, 지정 열 INSERT 및 지정 상태 열 UPDATE 권한과 RLS 정책 부여. DELETE와 사건·현장·증빙 식별자 UPDATE, 원본 evidence_manifest, 다른 데이터 접근 권한은 부여하지 않음.
+  - 서비스 키, 로그인 계정 비밀번호, 사용자에게 role 부여, 실제 Production DB 적용 없음. 역할은 승인된 배포용 신뢰된 DB 사용자와 별도 연결/보안 감사가 필요.
+- scripts/qa-hq-evidence-pg-concurrency.mjs
+  - **실제 PostgreSQL 16** 컨테이너 내 독립 psql 연결을 사용. 테스트는 18차 어댑터 소스의 CLAIM_DUE_SQL을 그대로 추출해서 실행하고, 가상 사용자·기업·현장·사고·증빙 UUID만 사용.
+  - 최소권한 작업자가 실제 RLS 정책 아래 SELECT/UPDATE 선점을 할 수 있는지, 일반 사용자 및 service_role이 직접 접근할 수 없는지 확인.
+  - 두 독립 연결이 동시에 동일 기록을 claim할 때 정확히 한 연결만 처리.
+  - 다른 연결이 row lock을 유지하는 동안 SKIP LOCKED가 중복선점을 막는지 검증.
+  - PostgreSQL의 pg_terminate_backend로 작업 중 DB 세션을 강제 종료해 미커밋 트랜잭션이 롤백되는지 확인한 후 다른 연결이 다시 작업을 선점.
+  - 임대 만료 후 재선점 시 UUID fencing token이 교체되고, 이전 토큰의 ACK는 거절되며 최신 토큰만 ACK할 수 있음을 확인.
+- .github/workflows/hq-safe-postgres-concurrency.yml
+  - Draft PR 전용(파일변경 트리거) GitHub Actions. 인터넷 연결 없이 운영되는 네트워크 차단 --network none / 메모리 tmpfs 기반 일회용 PostgreSQL 컨테이너만 사용. 프로덕션 연결 문자열이나 서비스키를 읽지 않음. 완료 후 컨테이너 강제 삭제.
+
+### 검증 결과
+- **전용 GitHub Actions 실 PostgreSQL 시험 PASS**: 최신 코드 e45baa1의 workflow run 44830996837, job 136615605013.
+- CI 기록 PASS: 비공개 스키마/최소권한 NOLOGIN 역할, 서비스·일반 사용자 차단, 독립 세션 동시선점 1건만 성공, 세션 강제종료 롤백·재선점, 임대 토큰 교체와 과거 토큰 ACK 차단.
+- 19차 코드 기준 전체 Vitest는 267개 파일·2,037개 PASS였음. 20차 신규 파일은 별도의 실제 Postgres 전용 CI에서 검증하므로 2,037건을 신규 기능 테스트 수에 중복합산하지 않음. 최신 문서 커밋 이후의 전체 Vitest, Chromium/cross-department와 npm 취약점 상태는 해당 실행 결과로만 판정.
+- **중요한 검증 한계:** pg_terminate_backend는 PostgreSQL 백엔드 세션 종료 시뮬레이션이다. 운영 애플리케이션 프로세스 kill -9, Kubernetes 롤링 재시작, 네트워크 분할/멀티리전, 외부 감사 싱크의 정확히 한 번 수신, 백업/복구 및 복합 트래픽 부하는 아직 검증하지 않았다.
+- 신규 NOLOGIN 운영자 역할은 격리 CI에서만 생성. 실제 운영 DB/Storage에는 테이블/역할/정책/키/배포/실데이터/cron/worker 적용 없음.
+
+### 다음 차수 / 출시 차단
+1. 실서버 비밀키 관리·최소권한 작업자 로그인 자격의 발급·회수/감사, 외부 감사 저장소의 멱등성·WORM 보존·백업/복구 설계.
+2. 실제 HTTP 전송도 포함한 앱 프로세스 강제종료·중복 이벤트·네트워크 단절과 부하/복구 검증.
+3. npm audit 프로덕션 의존성 취약점 해결(기존 6건 보고), 전제품 Chromium·Android 현장 QA.
+4. 현장별 실제 계정 2기업×2현장 검증 및 개인정보/기록보존 법규 검토.
+5. 기존 골조 10개 공정 분류 중 지하 RC·일반 형틀·AL폼 독립 관리와 NEW-PSI 운영기능 유지. main 병합, Production 배포, 운영 DB/Storage 및 env/feature flag 변경 **모두 보류**.

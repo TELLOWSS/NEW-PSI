@@ -1,0 +1,28 @@
+.hq-sequence{margin:16px 0;padding:18px;border:1px solid rgba(124,214,243,.32);border-radius:14px;background:#11283e;color:#e9f6ff}
+.hq-sequence-header{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:16px}
+.hq-sequence-header h4{font-size:1.15rem;margin:5px 0;color:#eff9ff}
+.hq-sequence-header p{color:#b8d4e5;font-size:.82rem;line-height:1.6;margin:0}
+.hq-sequence-header>span{border:1px solid #6c9ab2;border-radius:22px;padding:7px 11px;white-space:nowrap;font-size:.72rem;color:#ccecff}
+.hq-sequence-grid{display:grid;grid-template-columns:minmax(220px,40%) minmax(0,1fr);gap:13px}
+.hq-sequence-grid>.hq-form{background:#17364f}
+.hq-sequence-register{border:1px solid #3c627d;border-radius:12px;padding:16px;min-width:0;background:#17364f}
+.hq-sequence-register h4{display:flex;justify-content:space-between}
+.hq-sequence-register h4 small{color:#b6d2e4;font-size:.7rem}
+.hq-sequence-register h5{margin-top:20px;color:#e8f9ff}
+.hq-sequence-step{display:flex;flex-direction:column;gap:5px;padding:11px 12px;margin-bottom:8px;border-left:3px solid #80d3e9;border-radius:0 8px 8px 0;background:#1e435d;font-size:.82rem;overflow-wrap:anywhere}
+.hq-sequence-step b{font-size:.8rem;color:#b7edff}
+.hq-sequence-step span{line-height:1.6;color:#f1faff}
+.hq-sequence-step small{font-size:.73rem;color:#b4d1e4}
+.hq-sequence-mismatch{list-style:none;padding:0;margin:8px 0}
+.hq-sequence-mismatch li{padding:9px 11px;margin-bottom:7px;background:#374359;border:1px solid #63758c;border-radius:8px;font-size:.78rem;line-height:1.6}
+.hq-sequence-mismatch li strong{color:#ffdc9a}
+.hq-sequence-example{border-radius:11px;background:#223449;border:1px dashed #8aa9bd;padding:12px;margin-top:16px}
+.hq-sequence-example strong{color:#bceefe;font-size:.82rem}
+.hq-sequence-example p{line-height:1.55;font-size:.78rem;margin:8px 0;color:#dfebf5}
+.hq-sequence-example small{color:#b8cede;font-size:.72rem}
+.hq-sequence-controls{margin-top:15px}
+.hq-sequence-controls textarea{max-width:100%}
+@media(max-width:780px){.hq-sequence-grid{grid-template-columns:1fr}.hq-sequence-header{align-items:flex-start;flex-direction:column}}
+
+.hq-sequence-fieldset{border:0;margin:0;padding:0;min-width:0;display:flex;flex-direction:column;gap:12px}
+.hq-sequence-fieldset:disabled{opacity:.65}
