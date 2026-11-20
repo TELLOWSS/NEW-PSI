@@ -24,6 +24,8 @@ export type ScopedManifest = Readonly<{
   tenantId:string;siteId:string;caseId:string;evidenceId:string;
   storageBucket:string;storageKey:string;
   mediaType:EvidenceMime;byteCount:number;sha256:string;
+  /** Pending or blocked objects are NEVER released, regardless of hash. */
+  malwareScanStatus:'pending'|'clean'|'blocked';
   sourceAuthenticityVerified:false;
 }>;
 export type EvidenceAuditType = 'read_requested'|'read_denied'|'download_completed'|'digest_mismatch';
@@ -118,7 +120,7 @@ export async function readScopedEvidence(
   if(!manifest)throw new EvidenceReadFailure(404,'EVIDENCE_NOT_FOUND');
   if(!isInScope(manifest,actor,request)||manifest.caseId!==request.caseId||
     manifest.evidenceId!==request.evidenceId||manifest.storageBucket!=='hq-incident-evidence-private'||
-    !Object.hasOwn(extensions,manifest.mediaType)||
+    manifest.malwareScanStatus!=='clean'||!Object.hasOwn(extensions,manifest.mediaType)||
     manifest.storageKey!==expectedKey(actor,request,manifest.mediaType)||
     !Number.isSafeInteger(manifest.byteCount)||manifest.byteCount<1||
     manifest.byteCount>MAX_EVIDENCE_BYTES||!hash.test(manifest.sha256)||
