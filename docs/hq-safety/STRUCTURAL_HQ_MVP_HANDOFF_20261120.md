@@ -358,7 +358,7 @@
 ### 구현 파일
 - \`lib/server/hqEvidenceAccessGate.ts\`
   - 서버 전용 \`readScopedEvidence(actor, request, ports)\`. \`actor.tenantId\`·\`actor.userId\`·\`actor.role\`은 **검증된 로그인 서버 문맥에서만 전달**해야 하며 사용자가 보낸 역할/기업ID는 절대 신뢰하지 않는다.
-  - UUID와 허용 역할 검증 → 기업/현장 활성 소속 → 활성 현장 → 요청한 사고번호·작성자 교차검증 → 해당 사고 작성자 또는 배정된 현장 reviewer / 본사 owner·admin 역할 검증 → 증빙대장 테넌트/현장/사고/객체 식별자·경로·버킷·MIME·길이·SHA-256·원본진위 미확정 값 일치 확인.
+  - UUID와 허용 역할 검증 → **기업 소속·역할을 서버에서 재확인** → 현장 활성 소속 → 활성 현장 → 요청한 사고번호·작성자 교차검증 → 해당 사고 작성자 또는 배정된 현장 reviewer / 본사 owner·admin 역할 검증 → 증빙대장 테넌트/현장/사고/객체 식별자·경로·버킷·MIME·길이·SHA-256·원본진위 미확정 값 일치 확인.
   - 추가 **악성파일 검사상태가 명시적으로 \`clean\`**인 경우만 파일 열람 가능. \`pending\`/ \`blocked\`/값 누락은 열람 금지. 이 값은 향후 신뢰된 스캐너만 기록해야 하며 현재 시제품에 실 스캐너는 연결되지 않음.
   - **조회 시도 감사 \`read_requested\` 기록 성공 전** 원본 바이트 읽기 금지. 비공개 저장소 바이트를 받은 뒤 13차 \`verifyRetrievedEvidence\`로 MIME/크기/SHA-256을 재검증, 불일치 시 \`digest_mismatch\` 감사 시도 후 응답 차단. 정상 바이트라도 \`download_completed\` 감사 기록 실패 시 파일 응답 차단.
   - 요청·저장소 실패 시 provider 오류/원본경로/토큰을 노출하지 않고 범용 오류코드로 거부. 파일명·원본 경로·서명 URL을 결과에 포함하지 않음; 서버 측 결과는 파일 바이트와 MIME/크기/지문 및 미검증 상태뿐. 실제 HTTP \`Cache-Control: no-store\`, 본인 인증, 데이터베이스/Storage 어댑터는 아직 연결 전이므로 서버 컨트롤러 구현 시 반드시 강제해야 함.
