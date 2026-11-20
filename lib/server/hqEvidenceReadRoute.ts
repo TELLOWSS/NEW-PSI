@@ -1,5 +1,9 @@
 import {requireTenantContext,sendTenantError,TenantAccessError} from './tenantAuth.js';
 import {
+ reserveEvidenceRead,releaseEvidenceRead,EvidenceCapacityFailure,
+ type EvidenceCapacityPorts,type EvidenceCapacityLease
+} from './hqEvidenceReadAdmission.js';
+import {
   readScopedEvidence,EvidenceReadFailure,
   type EvidenceReadPorts,type EvidenceActor,type EvidenceReadRequest
 } from './hqEvidenceAccessGate.js';
@@ -22,6 +26,7 @@ type ReadContext=Awaited<ReturnType<typeof requireTenantContext>>;
 type Dependencies={
  authenticate:(req:any)=>Promise<ReadContext>;
  buildPorts?:()=>Promise<EvidenceReadPorts>;
+ admission?:EvidenceCapacityPorts;
  flagEnabled:()=>boolean;
 };
 function parse(req:any):EvidenceReadRequest {
@@ -45,6 +50,13 @@ const unavailable=(res:any)=>res.status(503).json({
 });
 export function createHqEvidenceReadRoute(deps:Dependencies) {
  return async function hqEvidenceRead(req:any,res:any) {
+  let lease:EvidenceCapacityLease|null=null;
+  let released=false;
+  const releaseOnce=async()=>{
+   if(!lease||released)return;
+   released=true;
+   if(deps.admission)await releaseEvidenceRead(lease,deps.admission);
+  };
   res.setHeader('Cache-Control','private, no-store, max-age=0');
   res.setHeader('Pragma','no-cache');
   res.setHeader('Vary','Authorization, X-PSI-Tenant-ID, X-PSI-Site-ID');
@@ -60,9 +72,12 @@ export function createHqEvidenceReadRoute(deps:Dependencies) {
    const request=parse(req);
    // Ports are not available in production until a separately reviewed,
    // server-only implementation is installed. No service key is accepted.
-   if(!deps.buildPorts)return unavailable(res);
+   if(!deps.buildPorts||!deps.admission)return unavailable(res);
+   if(typeof res.once!=='function')return unavailable(res);
    const context=await deps.authenticate(req);
    const actor:EvidenceActor={tenantId:context.tenantId,userId:context.userId,role:context.role};
+   // Distributed capacity reservation precedes authorization lookups and private Storage.
+   lease=await reserveEvidenceRead({tenantId:actor.tenantId,userId:actor.userId},deps.admission);
    const ports=await deps.buildPorts();
    const verified=await readScopedEvidence(actor,request,ports);
    if(!mimetypes.has(verified.mediaType))return unavailable(res);
@@ -70,10 +85,17 @@ export function createHqEvidenceReadRoute(deps:Dependencies) {
    res.setHeader('Content-Length',String(verified.byteCount));
    res.setHeader('Content-Disposition',
      'attachment; filename="hq-evidence.'+extension[verified.mediaType]+'"');
-   // These are verified BYTES only; transmission completion is not audited by
-   // this handler and should never be reported as download_completed.
+   // Release only after server response termination. Neither 'finish' nor 'close'
+   // proves a browser received the bytes; download_completed is NEVER recorded.
+   res.once('finish',()=>{void releaseOnce();});
+   res.once('close',()=>{void releaseOnce();});
    return res.status(200).send(Buffer.from(verified.bytes));
   }catch(error){
+   await releaseOnce();
+   if(error instanceof EvidenceCapacityFailure){
+    if(error.retryAfterSeconds!==null)res.setHeader('Retry-After',String(error.retryAfterSeconds));
+    return res.status(error.status).json({ok:false,code:error.code});
+   }
    if(error instanceof EvidenceReadFailure){
     return res.status(error.status).json({ok:false,code:error.code});
    }
