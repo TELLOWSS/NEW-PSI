@@ -77,8 +77,9 @@ export function createPrivatePgEvidenceOutboxAdapter(
     `insert into ${table}(tenant_id,site_id,case_id,evidence_id,actor_id)
       values($1,$2,$3,$4,$5) returning id`,
     [scope.tenantId,scope.siteId,scope.caseId,scope.evidenceId,scope.actorId]);
-   if(result.rows.length!==1||!uuidOk(result.rows[0].id))fail('PREPARE_NOT_COMMITTED');
-   return {id:result.rows[0].id};
+   const receiptId=result.rows[0]?.id;
+   if(result.rows.length!==1||!uuidOk(receiptId))fail('PREPARE_NOT_COMMITTED');
+   return {id:receiptId as string};
   },
   settle:async(id:string,outcome:TransportResult)=>{
    requireUuid(id);
@@ -100,12 +101,13 @@ export function createPrivatePgEvidenceOutboxAdapter(
    const result=await db.query(CLAIM_DUE_SQL,[max]);
    const output:PendingTransportEvent[]=[];
    for(const row of result.rows){
-    if(!uuidOk(row.id)||!uuidOk(row.claim_token)||
+    const claimId=row.id,claimToken=row.claim_token;
+    if(!uuidOk(claimId)||!uuidOk(claimToken)||
       typeof row.state!=='string'||!['prepared','response_flushed','response_aborted','unconfirmed'].includes(row.state)
       ||!Number.isSafeInteger(Number(row.delivery_attempts)))fail('INVALID_CLAIM');
-    leases.set(row.id,row.claim_token);
+    leases.set(claimId as string,claimToken as string);
     output.push({
-     id:row.id,
+     id:claimId as string,
      createdAt:row.created_at instanceof Date?row.created_at.toISOString():String(row.created_at),
      state:row.state as PendingTransportEvent['state'],
      attempts:Number(row.delivery_attempts)-1
