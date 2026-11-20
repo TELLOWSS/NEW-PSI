@@ -8,7 +8,7 @@ import type {EvidenceAuditEvent} from './hqEvidenceAccessGate.js';
  * in a private, persistent DB. No successful response may be sent without a
  * persisted PREPARED receipt. 'finish' is not evidence of client receipt.
  */
-const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export type TransportResult='response_flushed'|'response_aborted';
 export type EvidenceTransportScope=Readonly<Pick<EvidenceAuditEvent,
   'tenantId'|'siteId'|'caseId'|'evidenceId'|'actorId'>>;
