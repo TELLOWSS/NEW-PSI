@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
 import StructuralHQWorkbench from '../components/hq/StructuralHQWorkbench';
 import CorrectiveActionWorkbench from '../components/hq/CorrectiveActionWorkbench';
+import IndependentReviewWorkbench from '../components/hq/IndependentReviewWorkbench';
 
 it('renders seven HQ modules without accessing live incident data or AI providers',()=>{
   const markup=renderToStaticMarkup(React.createElement(StructuralHQWorkbench));
@@ -25,4 +26,15 @@ it('renders the corrective action empty state and no authenticated completion co
   expect(markup).toContain('실제 완료·작업재개 승인 기능이 없습니다');
   expect(markup).toContain('사고사례 임시 등록 화면으로 이동');
   expect(markup).not.toContain('검증완료');
+});
+
+it('renders independent-review planning as a simulated, unauthenticated workflow',()=>{
+  const markup=renderToStaticMarkup(React.createElement(IndependentReviewWorkbench,{
+    incidentId:null,report:null,reportIsFresh:false,requestMarked:false,
+    cycles:[],onCyclesChange:()=>{}
+  }));
+  expect(markup).toContain('본사 검토자');
+  expect(markup).toContain('실제 계정 인증·결재 없음');
+  expect(markup).toContain('사고사례를 선택');
+  expect(markup).not.toContain('공식 승인 완료');
 });
