@@ -4,6 +4,7 @@ import {createHqEvidenceReadRoute} from '../lib/server/hqEvidenceReadRoute';
 import accessHandler from '../api/saas/access';
 import type {EvidenceReadPorts} from '../lib/server/hqEvidenceAccessGate';
 import type {EvidenceCapacityPorts} from '../lib/server/hqEvidenceReadAdmission';
+import type {EvidenceTransportOutboxPorts} from '../lib/server/hqEvidenceTransportOutbox';
 
 const tenant='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const site='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -30,6 +31,12 @@ const admission=():EvidenceCapacityPorts=>({
  acquire:async()=>({granted:true,leaseId:'ffffffff-ffff-4fff-8fff-ffffffffffff'}),
  release:async()=>{}
 });
+const syntheticOutbox=():EvidenceTransportOutboxPorts=>({
+  prepare:async()=>({id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'}),
+  settle:async()=>{},alert:async()=>{}
+});
+const createTestRoute=(deps:Parameters<typeof createHqEvidenceReadRoute>[0])=>
+  createTestRoute({...deps,transportOutbox:syntheticOutbox()});
 const authenticated=vi.fn(async()=>({
  tenantId:tenant,userId:author,role:'reviewer' as const,client:{} as any
 }));
@@ -72,7 +79,7 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
  });
  it('rejects non-GET and forged query scope without authentication or storage activity',async()=>{
   const build=vi.fn(async()=>makePorts().ports);
-  const handler=createHqEvidenceReadRoute({
+  const handler=createTestRoute({
     authenticate:authenticated,buildPorts:build,admission:admission(),flagEnabled:()=>true
   });
   for(const method of ['POST','PUT','PATCH','DELETE']){
@@ -89,7 +96,7 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
  });
  it('authenticates and sends verified bytes only after before/after audit success',async()=>{
   const mem=makePorts();
-  const handler=createHqEvidenceReadRoute({
+  const handler=createTestRoute({
    authenticate:authenticated,buildPorts:async()=>mem.ports,admission:admission(),flagEnabled:()=>true
   });
   const res=response();await handler(request(),res);
@@ -112,7 +119,7 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
   ] as const;
   for(const scenario of scenarios){
    const mem=makePorts(scenario.options);
-   const handler=createHqEvidenceReadRoute({
+   const handler=createTestRoute({
     authenticate:authenticated,buildPorts:async()=>mem.ports,admission:admission(),flagEnabled:()=>true
    });
    const res=response();await handler(request(),res);
@@ -123,13 +130,13 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
   }
  });
  it('treats login failure and missing trusted private ports as closed',async()=>{
-  const disabledBuild=createHqEvidenceReadRoute({
+  const disabledBuild=createTestRoute({
     authenticate:authenticated,flagEnabled:()=>true
   });
   const res=response();await disabledBuild(request(),res);
   expect(res.statusCode).toBe(503);
   expect(authenticated).not.toHaveBeenCalled();
-  const privateHandler=createHqEvidenceReadRoute({
+  const privateHandler=createTestRoute({
     authenticate:async()=>{throw new Error('INTERNAL_JWT_SECRET');},
     buildPorts:async()=>makePorts().ports,
     admission:admission(),flagEnabled:()=>true
@@ -140,7 +147,7 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
  });
  it('denies private reads when a distributed admission adapter is missing',async()=>{
   const privateStorage=makePorts();
-  const handler=createHqEvidenceReadRoute({
+  const handler=createTestRoute({
    authenticate:authenticated,buildPorts:async()=>privateStorage.ports,
    flagEnabled:()=>true
   });
@@ -154,7 +161,7 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
  it('blocks byte transmission if durable pre-send audit write fails',async()=>{
   const mem=makePorts({failOnAudit:'response_send_started'});
   const release=vi.fn(async()=>{});
-  const handler=createHqEvidenceReadRoute({
+  const handler=createTestRoute({
    authenticate:authenticated,
    admission:{acquire:async()=>({granted:true,leaseId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'}),release},
    buildPorts:async()=>mem.ports,flagEnabled:()=>true
@@ -185,7 +192,7 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
    release:async(_scope,leaseId)=>{live.delete(leaseId);released.push(leaseId);}
   };
   const calls=makePorts();
-  const handler=createHqEvidenceReadRoute({
+  const handler=createTestRoute({
    authenticate:authenticated,buildPorts:async()=>calls.ports,
    admission:gate,flagEnabled:()=>true
   });
@@ -223,7 +230,7 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
    {acquire:async()=>({granted:true as const,leaseId:'NOT-A-UUID'}),release:async()=>{}}
   ] as EvidenceCapacityPorts[]){
    const mem=makePorts();
-   const handler=createHqEvidenceReadRoute({
+   const handler=createTestRoute({
     authenticate:authenticated,buildPorts:async()=>mem.ports,
     admission,flagEnabled:()=>true
    });
@@ -233,6 +240,57 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
    expect(JSON.stringify(out.payload)).not.toContain('PRIVATE_LIMITER_SECRET');
    expect(mem.events).toEqual([]);
   }
+ });
+
+ it('fails closed when the durable outbox adapter is not installed',async()=>{
+  const mem=makePorts();
+  const handler=createHqEvidenceReadRoute({
+   authenticate:authenticated,buildPorts:async()=>mem.ports,
+   admission:admission(),flagEnabled:()=>true
+  });
+  const out=response();await handler(request(),out);
+  expect(out.statusCode).toBe(503);
+  expect(out.payload.code).toBe('HQ_EVIDENCE_NOT_READY');
+  expect(mem.events).toEqual([]);
+  expect(authenticated).not.toHaveBeenCalled();
+ });
+ it('prevents bytes when outbox receipt persistence fails before HTTP send',async()=>{
+  const mem=makePorts(),alert=vi.fn(async()=>{});
+  const handler=createHqEvidenceReadRoute({
+   authenticate:authenticated,buildPorts:async()=>mem.ports,
+   admission:admission(),flagEnabled:()=>true,
+   transportOutbox:{
+    prepare:async()=>{throw new Error('SECRET_DB_ERROR');},
+    settle:async()=>{},alert
+   }
+  });
+  const out=response();await handler(request(),out);
+  expect(out.statusCode).toBe(503);
+  expect(Buffer.isBuffer(out.payload)).toBe(false);
+  expect(mem.events).toEqual(['read_requested','storage','read_verified']);
+  expect(alert).toHaveBeenCalledWith({eventId:null,stage:'prepare',code:'PERSISTENCE_FAILED'});
+  expect(JSON.stringify(out.payload)).not.toContain('SECRET_DB_ERROR');
+ });
+ it('alerts on a failed terminal settlement without claiming a completed download',async()=>{
+  const mem=makePorts(),alert=vi.fn(async()=>{});
+  const settle=vi.fn(async()=>{throw new Error('SECRET_SETTLEMENT_ERROR');});
+  const handler=createHqEvidenceReadRoute({
+   authenticate:authenticated,buildPorts:async()=>mem.ports,
+   admission:admission(),flagEnabled:()=>true,
+   transportOutbox:{
+    prepare:async()=>({id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'}),
+    settle,alert
+   }
+  });
+  const out=response(false);await handler(request(),out);
+  expect(out.statusCode).toBe(200);
+  out.emit('finish');out.emit('close');
+  await vi.waitFor(()=>expect(alert).toHaveBeenCalledWith({
+   eventId:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+   stage:'settle',code:'PERSISTENCE_FAILED'
+  }));
+  expect(settle).toHaveBeenCalledTimes(1);
+  expect(mem.events).not.toContain('download_completed');
  });
 
 });
