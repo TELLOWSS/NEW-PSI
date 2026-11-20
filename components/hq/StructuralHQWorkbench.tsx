@@ -1,6 +1,9 @@
 import React, { useMemo, useState, type FormEvent } from 'react';
 import './StructuralHQWorkbench.css';
 import CorrectiveActionWorkbench from './CorrectiveActionWorkbench';
+import HQOverviewDashboard, {type HqDestination} from './HQOverviewDashboard';
+import type {HqZone} from './hqOverviewModel';
+import type {CorrectiveAction} from './correctiveActionModel';
 import {
   appendInvestigationEntry,
   createInvestigationDraft,
@@ -95,7 +98,7 @@ export const STRUCTURAL_PROCESSES: readonly StructuralProcess[] = [
   }
 ];
 
-type Tab = 'process' | 'visit' | 'cases' | 'training' | 'investigation' | 'actions';
+type Tab = 'overview' | 'process' | 'visit' | 'cases' | 'training' | 'investigation' | 'actions';
 type Visit = { id: number; site: string; date: string; objective: string; status: '예정' | '방문 기록' };
 type Incident = { id: number; date: string; zone: ConstructionZone; processId: string; kind: string; summary: string; state: '조사 필요' };
 const AREAS: readonly (StructuralArea | '전체')[] = ['전체', '지하 RC', '일반 형틀', '지상 골조', '가설·장비'];
@@ -107,7 +110,7 @@ const today = () => {
 };
 
 export default function StructuralHQWorkbench(): React.ReactElement {
-  const [tab, setTab] = useState<Tab>('process');
+  const [tab, setTab] = useState<Tab>('overview');
   const [area, setArea] = useState<StructuralArea | '전체'>('전체');
   const [zone, setZone] = useState<ConstructionZone | '전체'>('전체');
   const [processId, setProcessId] = useState('underground-wall');
@@ -128,6 +131,7 @@ export default function StructuralHQWorkbench(): React.ReactElement {
   const [notice, setNotice] = useState('');
   const [trainingProcessId, setTrainingProcessId] = useState('underground-wall');
   const [investigationDrafts, setInvestigationDrafts] = useState<Record<number, InvestigationDraft>>({});
+  const [hqActions, setHqActions] = useState<CorrectiveAction[]>([]);
   const [reviewKind, setReviewKind] = useState<ReviewKind>('fact');
   const [reviewDescription, setReviewDescription] = useState('');
   const [reviewSource, setReviewSource] = useState<ReviewSource>('작업문서');
@@ -163,6 +167,20 @@ export default function StructuralHQWorkbench(): React.ReactElement {
   ].join('\n');
 
   const changeTab = (next: Tab) => { setTab(next); setNotice(''); };
+  const navigateOverview = (next: HqDestination) => changeTab(next);
+  const jumpToZone = (target: HqZone) => {
+    setZone(target); setArea('전체');
+    const first=STRUCTURAL_PROCESSES.find(p=>p.zones.includes(target));
+    if(first)setProcessId(first.id);
+    changeTab('process');
+  };
+  const jumpToTrade = (name: string) => {
+    if(!AREAS.includes(name as StructuralArea)){setArea('전체');} else {setArea(name as StructuralArea);}
+    setZone('전체');
+    const first=STRUCTURAL_PROCESSES.find(p=>p.area===name);
+    if(first)setProcessId(first.id);
+    changeTab('process');
+  };
   const addVisit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!site.trim() || !visitDate) { setNotice('현장 구분명과 방문일을 입력하세요.'); return; }
@@ -235,7 +253,7 @@ export default function StructuralHQWorkbench(): React.ReactElement {
         <p>기존 안전지능 네트워크의 위험 인식·조치·재확인 개념을 바탕으로, 지하 RC와 일반 형틀·지상 골조를 구분한 첫 실행형 화면입니다.</p>
       </div>
       <div className="hq-hero-side" aria-label="개발 범위">
-        <span>10개 공정 기준정보</span><span>4개 본사 업무 영역</span><strong>1차 개발 시제품</strong>
+        <span>10개 공정 기준정보</span><span>본사 통합관제 + 6대 업무</span><strong>5차 개발 시제품</strong>
       </div>
     </div>
 
@@ -245,6 +263,7 @@ export default function StructuralHQWorkbench(): React.ReactElement {
 
     <div className="hq-tiles" aria-label="업무 모듈">
       {([
+        ['overview','본사 통합관제','방문 · 사고 · 조치 · 공정'],
         ['process','공정별 위험지도','지하 RC · 일반 형틀 · 골조'],
         ['visit','본사 행선지·점검','일정 등록과 방문상태'],
         ['cases','사고사례 DB','구간·공종별 임시 분류'],
@@ -260,10 +279,21 @@ export default function StructuralHQWorkbench(): React.ReactElement {
 
     <div className="hq-workspace">
       <div className="hq-panel-top">
-        <div><span className="hq-eyebrow">STRUCTURAL SAFETY / HQ CONSOLE</span><h3>{tab === 'process' ? '골조·형틀 공정별 위험관리' : tab === 'visit' ? '본사 현장점검·행선지 보고' : tab === 'cases' ? '구간·공종별 사고사례 등록' : tab === 'training' ? '대표이사·본사 교육자료 제작' : tab === 'investigation' ? '사고조사 검토 지원' : '개선조치·재점검 흐름'}</h3></div>
+        <div><span className="hq-eyebrow">STRUCTURAL SAFETY / HQ CONSOLE</span><h3>{tab === 'overview' ? '본사 안전관리 통합관제' : tab === 'process' ? '골조·형틀 공정별 위험관리' : tab === 'visit' ? '본사 현장점검·행선지 보고' : tab === 'cases' ? '구간·공종별 사고사례 등록' : tab === 'training' ? '대표이사·본사 교육자료 제작' : tab === 'investigation' ? '사고조사 검토 지원' : '개선조치·재점검 흐름'}</h3></div>
         <span className="hq-session">임시 세션 · 예시 데이터 0건부터 시작</span>
       </div>
 
+      {tab === 'overview' && <HQOverviewDashboard
+        processes={STRUCTURAL_PROCESSES}
+        cases={incidents}
+        visits={visits}
+        actions={hqActions}
+        reviews={Object.values(investigationDrafts)}
+        asOf={today()}
+        onNavigate={navigateOverview}
+        onSelectZone={jumpToZone}
+        onSelectProcessGroup={jumpToTrade}
+      />}
       {tab === 'process' && <div className="hq-process-layout">
         <div className="hq-process-menu">
           <p className="hq-filter-label">공사구간 (기초·지하·지상·옥탑)</p>
@@ -414,10 +444,10 @@ export default function StructuralHQWorkbench(): React.ReactElement {
         <p className="hq-review-footnote">이 화면은 개발 시연입니다. 자료번호·확인 상태는 원본 진위나 근로자 진술을 증명하지 않습니다. 실제 조사책임자 인증, 원본 파일 무결성, 교차검증, 최종 결재 및 AI 처리는 아직 구현하지 않았습니다.</p>
       </section>}
       <div hidden={tab !== 'actions'}>
-        <CorrectiveActionWorkbench cases={incidents.map((item)=>({id:item.id,date:item.date,zone:item.zone,process:STRUCTURAL_PROCESSES.find(p=>p.id===item.processId)?.title || item.processId,summary:item.summary}))} onOpenCases={()=>changeTab('cases')}/>
+        <CorrectiveActionWorkbench cases={incidents.map((item)=>({id:item.id,date:item.date,zone:item.zone,process:STRUCTURAL_PROCESSES.find(p=>p.id===item.processId)?.title || item.processId,summary:item.summary}))} onOpenCases={()=>changeTab('cases')} actions={hqActions} onActionsChange={setHqActions}/>
       </div>
       {notice && <p role="status" className="hq-notice">{notice}</p>}
     </div>
-    <div className="hq-bottom"><strong>구현 범위: 골조 분류·방문·사고사례·교육초안·사고조사·조치/재점검 시연</strong><span>미구현: 실제 중앙 저장·현장별 권한·AI 호출·PPT 내보내기·법정 보고·승인 워크플로</span></div>
+    <div className="hq-bottom"><strong>구현 범위: 본사 통합관제 + 골조 분류·방문·사고사례·교육·조사·조치/재점검 시연</strong><span>미구현: 실제 중앙 저장·현장별 권한·AI 호출·PPT 내보내기·법정 보고·승인 워크플로</span></div>
   </section>;
 }
