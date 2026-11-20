@@ -23,3 +23,6 @@
 .hq-sequence-controls{margin-top:15px}
 .hq-sequence-controls textarea{max-width:100%}
 @media(max-width:780px){.hq-sequence-grid{grid-template-columns:1fr}.hq-sequence-header{align-items:flex-start;flex-direction:column}}
+
+.hq-sequence-fieldset{border:0;margin:0;padding:0;min-width:0;display:flex;flex-direction:column;gap:12px}
+.hq-sequence-fieldset:disabled{opacity:.65}
