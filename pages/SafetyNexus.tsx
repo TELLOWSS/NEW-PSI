@@ -6,6 +6,7 @@ import { buildMonthlyFieldFollowupSummary, collectMonthlyFollowupCases, getKorea
 import { buildPracticeVerificationSummary, collectOverduePracticeRechecks, PRACTICE_RESULT_LABELS } from '../utils/practiceVerification';
 import { FOLLOWUP_STATUS_LABELS } from '../utils/workerRiskFollowup';
 import WebGLNexusCore from './NexusWebGLCore';
+import StructuralHQWorkbench from '../components/hq/StructuralHQWorkbench';
 import { ScoreMetricEvidencePanel } from '../components/shared/ScoreMetricEvidencePanel';
 import { PracticeEvidencePanel, type PracticeEvidenceSelection } from '../components/shared/PracticeEvidencePanel';
 import { nexusFeatureFlags } from '../config/nexusFeatureFlags';
@@ -250,6 +251,7 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',initialTrade
     <header className="nexus-header">
       <div className="nexus-brand"><span className="nexus-symbol">Ψ</span><div><small>PROACTIVE SAFETY INTELLIGENCE</small><h1>SAFETY <b>NEXUS</b></h1></div></div>
       <div className="nexus-header-right"><span className="nexus-status"><i/>VISUAL GATE 02 · GPU 시제품</span>
+        <a href="#hq-structural-workbench" className="nexus-hq-entry" onClick={()=>{if(immersive)setImmersive(false);}}>본사·골조 특화 작업대 ↘</a>
         <button ref={immersiveToggleRef} type="button" className="nexus-immersive-toggle" aria-pressed={immersive} onClick={()=>setImmersive(v=>!v)}>{immersive?'몰입 화면 종료 ↙':'전체 화면 몰입 보기 ⤢'}</button>
         <button type="button" onClick={()=>onReturnDashboard ? onReturnDashboard(filterTrade) : onNavigateToPage('dashboard')}>기존 관제센터로 돌아가기 ↗</button></div>
     </header>
@@ -339,6 +341,7 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',initialTrade
         <div className="nexus-next"><span>SAFETY LOOP · NEXT ACTION</span><ol><li>근로자 위험 인식</li><li>AI 구조화 · 관리자 대조</li><li>조치 · 기한 · 재점검</li><li>교육 · 재확인 · 환류</li></ol></div>
       </aside>
     </div>
+    <StructuralHQWorkbench/>
     <section id="nexus-followup-details" tabIndex={-1} className="nexus-followup" aria-label="근로자 위험성평가 후속조치 익명 집계">
       <div className="nexus-followup-header">
         <div><span>VERIFIABLE READ-ONLY SIGNALS</span><h2>후속조치 현황 <small>불러온 기록의 관리자 이력 기준</small></h2></div>
