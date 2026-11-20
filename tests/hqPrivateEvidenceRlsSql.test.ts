@@ -52,6 +52,7 @@ it('HQ private evidence proposal keeps sealed metadata/site scope and append-onl
   await db.exec(await readFile(resolve('supabase/proposals/psi_hq_incident_case_staging.sql'),'utf8'));
   await db.exec(await readFile(resolve('supabase/proposals/psi_hq_independent_review_staging.sql'),'utf8'));
   await db.exec(await readFile(resolve('supabase/proposals/psi_hq_evidence_private_staging.sql'),'utf8'));
+  await db.exec(await readFile(resolve('supabase/proposals/psi_hq_transport_outbox_staging.sql'),'utf8'));
   const asUser=async(uid:string,sql:string)=>{
    await db.exec('set role authenticated;');
    await db.exec('set request.jwt.claim.sub = '+quote(uid)+';');
@@ -114,6 +115,34 @@ it('HQ private evidence proposal keeps sealed metadata/site scope and append-onl
   await expect(asUser(hqReviewer,'select * from '+securityTable)).rejects.toThrow();
   await expect(asUser(supervisor,"update "+securityTable+" set denial_code='other_denied'")).rejects.toThrow();
   await expect(asUser(outsider,"delete from "+securityTable)).rejects.toThrow();
+
+  // Phase 17: transport outbox persistence is independent of the worker process.
+  const transport='hq_evidence_staging.transport_outbox';
+  const receiptId='aaaaaaaa-dddd-4aaa-8aaa-aaaaaaaaaaaa';
+  const addReceipt='insert into '+transport+
+   '(id,tenant_id,site_id,case_id,evidence_id,actor_id) values ('+
+   [receiptId,tenant,site,caseId,fileId,author].map(quote).join(',')+');';
+  await db.query(addReceipt);
+  const prepared=await db.query('select state,acked_at from '+transport+' where id='+quote(receiptId));
+  expect(prepared.rows).toEqual([{state:'prepared',acked_at:null}]);
+  await expect(asUser(author,addReceipt)).rejects.toThrow();
+  await expect(asUser(hqReviewer,'select * from '+transport)).rejects.toThrow();
+  await expect(asUser(supervisor,"update "+transport+" set state='response_flushed'")).rejects.toThrow();
+  await expect(asUser(outsider,"delete from "+transport)).rejects.toThrow();
+  // An operator may settle only after a distinct server finish/close signal.
+  await db.query('update '+transport+" set state='response_flushed',settled_at=now() where id="+quote(receiptId));
+  const settled=await db.query('select state,settled_at is not null as settled from '+transport+' where id='+quote(receiptId));
+  expect(settled.rows).toEqual([{state:'response_flushed',settled:true}]);
+  await expect(db.query('update '+transport+" set state='prepared' where id="+quote(receiptId))).rejects.toThrow();
+  await db.query('update '+transport+' set delivery_attempts=1,next_attempt_at=now() where id='+quote(receiptId));
+  await db.query('update '+transport+' set acked_at=now() where id='+quote(receiptId));
+  const acknowledged=await db.query('select acked_at is not null as acked from '+transport+' where id='+quote(receiptId));
+  expect(acknowledged.rows).toEqual([{acked:true}]);
+  const neverExisted='bbbbbbbb-dddd-4bbb-8bbb-bbbbbbbbbbbb';
+  await expect(db.query(
+   'insert into '+transport+'(tenant_id,site_id,case_id,evidence_id,actor_id) values ('+
+    [tenant,site,caseId,neverExisted,author].map(quote).join(',')+');'
+  )).rejects.toThrow();
 
   // Revocation is effective even while a previously assigned review row remains.
   await db.exec('update public.psi_tenant_site_memberships set status='+quote('suspended')+
