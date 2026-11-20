@@ -1,0 +1,24 @@
+.hq-training-brief{color:#e5f5ff}
+.hq-training-brief-heading{margin-bottom:16px}
+.hq-training-brief-heading h4{font-size:1.25rem;margin:8px 0}
+.hq-training-brief-heading p{font-size:.84rem;color:#bad4e5;line-height:1.7}
+.hq-training-brief-layout{display:grid;grid-template-columns:minmax(240px,36%) minmax(0,1fr);gap:15px}
+.hq-training-brief-preview{border:1px solid #3b6680;background:#17334e;padding:18px;border-radius:14px;min-width:0}
+.hq-training-brief-preview h4{color:#f4faff}
+.hq-training-brief-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:12px 0}
+.hq-training-brief-metrics>div{border:1px solid #3e7895;border-radius:9px;background:#1a425e;padding:11px;display:flex;flex-direction:column;gap:9px}
+.hq-training-brief-metrics span{font-size:.7rem;line-height:1.5;color:#bdd6e5}
+.hq-training-brief-metrics strong{font-size:1.03rem;color:#bcf1ff}
+.hq-training-brief-preview h5{margin:18px 0 10px}
+.hq-month-chart{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));align-items:end;gap:4px;border-radius:11px;background:#0b2741;padding:12px}
+.hq-month-chart>div{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px}
+.hq-month-chart b,.hq-month-chart small{font-size:.65rem;white-space:nowrap}
+.hq-month-chart span{background:linear-gradient(#6be0f3,#2877a0);border-radius:4px 4px 0 0;width:70%;max-width:25px;min-height:8px}
+.hq-training-zone-row{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.hq-training-zone-row span{text-align:center;border:1px solid #44677f;border-radius:8px;background:#24465f;padding:9px 3px;font-size:.79rem}
+.hq-training-brief-preview pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f8fc;color:#102f48;padding:15px;border-radius:10px;max-height:540px;overflow:auto;font:inherit;font-size:.78rem;line-height:1.75}
+.hq-training-brief-preview details{font-size:.78rem;line-height:1.7;color:#bcd8e8}
+.hq-training-brief-preview details summary{cursor:pointer;font-weight:700}
+.hq-training-brief-preview details li{margin-bottom:5px}
+@media(max-width:810px){.hq-training-brief-layout{grid-template-columns:1fr}.hq-training-brief-metrics{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:430px){.hq-month-chart{grid-template-columns:repeat(6,1fr);row-gap:12px}.hq-training-zone-row{grid-template-columns:repeat(2,1fr)}}
