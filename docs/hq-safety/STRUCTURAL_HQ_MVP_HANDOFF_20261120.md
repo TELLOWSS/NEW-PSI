@@ -100,3 +100,23 @@
 개선 절차: 깨끗한 별도 테스트 환경에서 npm install --package-lock-only 후 lockfile 변경과 라이선스/OSS 심사 확인→npm ci→npm audit --omit=dev --audit-level=high→npm run verify:ci→PC/모바일 Chromium 7흐름→사용자 승인 뒤 배포. rimraf/glob/minimatch 상위 라이브러리의 주버전 호환성 확인 없이 overrides를 강제하지 않음. GitHub 도구만으로 신뢰할 수 있는 npm integrity를 재생성할 수 없으므로 잠금파일을 추측으로 고쳐서 배포하지 않음.
 
 최종 상태는 최신 CI 실행을 별도로 확인해야 하며, main 병합·운영 적용은 계속 보류.
+
+
+## 2026-11-20 5차: 본사 통합관제 세션 현황판
+신규 파일:
+- components/hq/hqOverviewModel.ts: 현재 세션 기록만으로 방문 예정, 사고사례, 조사 검토요청, 미종결 개선조치, 기한초과, 재점검 요청을 집계하며 공사구간과 공정군을 각각 조회
+- components/hq/HQOverviewDashboard.tsx/.css: 진입 시 첫 화면을 본사 관제 화면으로 구성, KPI 5종, 기초·지하·지상·옥탑 높이별 위험사례 지도, 지하 RC·형틀·지상 골조·가설/장비 공정군별 사례 분포, 업무 화면 바로가기
+- tests/hq-overview-model.test.ts: 공사구간 및 공정군의 독립 집계, 사고사례 연계되지 않은 개선조치 제외, 기한 경과, 중복 사고번호 거부, 0건 표시에 대한 조건 확인
+
+기존 변경:
+- components/hq/CorrectiveActionWorkbench.tsx: parent-controlled 개선조치 상태 허용. 같은 브라우저 세션 내 조치·재점검 입력을 본사 대시보드로 즉시 환류
+- components/hq/StructuralHQWorkbench.tsx/.css: 본사 관제를 기본 진입으로 변경, 7개 업무 타일, 클릭 시 공사구간·공정군 필터 연계
+- tests/hq-structural-ui.test.tsx: 본사 대시보드가 포함된 7개 모듈 SSR 회귀 확인
+
+품질·데이터 경계:
+- 등록 데이터 0건은 실제 현장 사고/위험이 0이라는 뜻이 아님. 대시보드는 실시간 본사 통계나 안전도 순위가 아니라 브라우저 세션 시연 전용
+- 공정별 건수는 근로자 수, 근로시간, 작업량 등의 노출 분모 없는 단순 사고사례 건수
+- 행선지와 사고사례는 임의 시연용. 담당자 승인, 실제 증빙 무결성, 회사별 DB·현장 RLS, 개인정보 취급, AI 분석은 아직 연결되지 않음
+- 5차 단계에서 신규 API/실 DB 쓰기, 권한 변경, PR 병합, Production 배포 없음
+- 배포 차단 중인 npm audit 6건은 lockfile, 상위 라이브러리 영향 확인 없이 강제로 숨기거나 수정하지 않음
+- 최신 PR 검증 결과는 각 HEAD에 대해 별도로 확인하고, 확정 결과만 보고
