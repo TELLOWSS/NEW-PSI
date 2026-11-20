@@ -80,7 +80,7 @@ export function createHqEvidenceReadRoute(deps:Dependencies) {
    lease=await reserveEvidenceRead({tenantId:actor.tenantId,userId:actor.userId},deps.admission);
    const ports=await deps.buildPorts();
    const verified=await readScopedEvidence(actor,request,ports);
-   if(!mimetypes.has(verified.mediaType))return unavailable(res);
+   if(!mimetypes.has(verified.mediaType))throw new EvidenceReadFailure(503,'EVIDENCE_UNAVAILABLE');
    res.setHeader('Content-Type',verified.mediaType);
    res.setHeader('Content-Length',String(verified.byteCount));
    res.setHeader('Content-Disposition',
