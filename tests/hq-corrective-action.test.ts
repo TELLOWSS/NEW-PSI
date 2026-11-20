@@ -54,7 +54,7 @@ describe('HQ corrective action/reinspection prototype safety contracts',()=>{
     expect(d.state).toBe('evidence_submitted');
     expect(d.events).toHaveLength(4);
     expect(d.events[2].type).toBe('revision_required');
-    expect(()=>requestActionRevision(d,'재확인','E4',at)).toThrow('중복 이력');
+    expect(()=>requestActionRevision(d,'재확인 필요','E4',at)).toThrow('중복 이력');
   });
 
   it('treats overdue submissions and reinspection requests as NOT verified',()=>{
