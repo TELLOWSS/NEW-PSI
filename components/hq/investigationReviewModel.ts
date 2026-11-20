@@ -6,7 +6,7 @@
  * no upload, source integrity check, authenticating reviewer or approval.
  */
 export type ReviewKind = 'fact' | 'hypothesis' | 'unknown';
-export type ReviewSource = '사진·영상' | '작업문서' | '진술' | '현장확인' | '기타';
+export type ReviewSource = '사고보고서' | '사진·영상' | '작업문서' | '진술' | '현장확인' | '기타';
 export type ReviewStatus = 'draft' | 'requested' | 'needs_revision';
 export type ReviewEntry = {
   id: string;
