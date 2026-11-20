@@ -532,3 +532,25 @@
 - **특히 정확한 한계:** PGlite는 단일 격리 DB로 두 작업자의 순차적 claim·재선점·토큰보호를 검증한 것. **서로 다른 실제 PostgreSQL 연결에서 동시에 경쟁하는 분산 부하·프로세스 강제 종료·멀티리전 네트워크 분할 테스트는 미실시**. 완전한 외부 감사 싱크, 재시도 임대 재연장/대량 backlog 모니터링, 1000회 초과 dead-letter/수동 복구 정책, 운영 키/역할 격리 및 백업·복구도 미구현.
 - \`main\` 병합, Production 배포, 실계정 연결, 운영 DB/Storage 변경, cron/worker 실행, env/feature flag 활성화 **모두 금지**. 사용자의 최종 승인을 받기 전 Draft PR에서만 유지.
 - 다음 19차 제안: **서로 다른 PostgreSQL 세션의 실동시성·크래시 복원·fencing 검증, 후속 재처리 알림과 backlog 감시, 최소권한 DB operator 인증**, 그리고 npm 취약점 안전한 범위의 의존성 업데이트 및 Chromium/Android 실기기 검증.
+
+## 2026-11-21 19차: 감사 아웃박스 적체 감시·경보 계약 (운영 미연결)
+
+### 18차 인계 기준 작업
+18차에는 동일한 PGlite 격리 DB의 두 논리 작업자가 순차 선점·임대 만료·ACK·재시도를 검증했다. 실제 별도 PostgreSQL 연결에서 동시 잠금 경쟁이나 프로세스 강제 종료 복구는 **아직 수행하지 않았다**. 19차는 현장에서 조용히 쌓일 위험이 높은 미처리·한도 소진·임대 만료 감시를 구현했다.
+
+### 구현 코드
+- lib/server/hqEvidenceOutboxHealth.ts: 비공개 PostgreSQL 집계 쿼리와 경보 계약. 건수 집계만 전송하고 파일/근로자/사고 개별 식별자는 경보에 넣지 않음.
+- 탐지: 미처리 개수, 10분 이상 prepared 상태, delivery_attempts 1000 이상, 임대 만료, 처리예정시각 5분 초과, 미확인(unconfirmed) 개수.
+- 초기 긴급 판단: 미종결·재시도 소진·기한 지연이 하나라도 있으면 긴급. 임대 만료 또는 미처리 100건 이상 또는 미확인 20건 이상이면 주의. 운영량과 본사 정책 검토 전 임시 기준임.
+- DB 조회 실패/변조된 집계/경보 전송 실패 시 성공 또는 정상 상태로 판단하지 않고 오류를 반환. **알림 공급자·스케줄러·운영 DB 연결은 하지 않았다.**
+- tests/hq-evidence-outbox-health.test.ts: 정상, 긴급, 주의, DB 데이터 이상, 경보 통신 실패 5건 검증.
+- tests/hqPrivateEvidenceRlsSql.test.ts: PGlite에서 실제 SQL 집계 후 15분 경과 준비 상태, 1000회 소진, 만료된 lease 자료 3건 탐지와 비식별 경보를 확인. 일반 사용자 직접 SELECT 금지 유지.
+
+### 자동검증 및 남은 출시 차단
+- 기능 검증 코드 HEAD 60f1cd4: TypeScript 검사 및 Vitest **267개 파일 / 2,037개 테스트 전체 PASS**.
+- 전체 릴리스 검증 FAIL: 기존 npm audit --omit=dev 취약점 **6건(High 1, Moderate 5)**. 검사를 우회하지 않음.
+- 전제품 Chromium/cross-department 상태는 최신 CI 결과 별도 확인 필요. 이전 결과를 최신 통과로 간주 금지.
+- **미구현:** 서로 다른 실제 PostgreSQL 세션의 물리적 동시성 시험, 프로세스 강제 종료·네트워크 장애, 실제 최소권한 DB operator·외부 WORM 감사 저장소, 자동 경보 전송·중복 알림 방지, 백업/복구, 1000회 소진 기록의 수동 승인 절차.
+- 다음 차수 우선: 독립 연결 기반 동시성/크래시 QA 전용 격리 하네스, 멱등 외부 경보와 dead-letter 복구 정책, 의존성 보안 취약점 해결.
+- 기존 골조 10개 공정 중 지하 RC·일반 형틀·AL폼의 독립 분류, NEW-PSI 운영 기능 유지.
+- main 병합, Production 배포, 운영 DB/Storage/환경변수/feature flag 변경 또는 worker/cron 활성화 모두 보류.
