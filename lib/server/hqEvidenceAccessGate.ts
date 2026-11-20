@@ -31,7 +31,8 @@ export type ScopedManifest = Readonly<{
   malwareScanStatus:'pending'|'clean'|'blocked';
   sourceAuthenticityVerified:false;
 }>;
-export type EvidenceAuditType = 'read_requested'|'read_denied'|'read_verified'|'digest_mismatch';
+export type EvidenceAuditType = 'read_requested'|'read_denied'|'read_verified'|'digest_mismatch'|
+ 'response_send_started'|'response_flushed'|'response_aborted';
 /** Internal reason codes; the user-facing response stays generic. */
 export type SecurityDenialCode =
  'scope_invalid'|'tenant_inactive'|'site_inactive'|'case_unavailable'|
@@ -44,7 +45,8 @@ export type EvidenceSecurityAttempt = Readonly<{
 export type EvidenceAuditEvent = Readonly<{
   tenantId:string;siteId:string;caseId:string;evidenceId:string;
   actorId:string;eventType:EvidenceAuditType;
-  eventCode:'AUTHZ_ALLOWED'|'AUTHZ_DENIED'|'BYTE_VERIFIED'|'HASH_MISMATCH';
+  eventCode:'AUTHZ_ALLOWED'|'AUTHZ_DENIED'|'BYTE_VERIFIED'|'HASH_MISMATCH'|
+  'HTTP_SEND_PREPARED'|'HTTP_RESPONSE_FINISHED'|'HTTP_RESPONSE_ABORTED';
 }>;
 export type EvidenceReadPorts = Readonly<{
   lookupTenantMembership:(actor:EvidenceActor)=>Promise<ScopedTenantMembership|null>;
