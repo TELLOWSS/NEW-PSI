@@ -95,4 +95,36 @@ create policy hq_evidence_metadata_read on hq_evidence_staging.evidence_manifest
 -- No INSERT/UPDATE/DELETE grants or policies for either table.
 -- A trusted operator alone provisionally writes metadata/events, after verifying
 -- bytes, authenticated scope, malware scanning and actual private object existence.
+
+-- PHASE 15: denied security attempts must be independently auditable even if
+-- the incident, evidence manifest or storage object DOES NOT EXIST.
+-- No FK to incident/manifest/site on purpose; only authenticated user identity
+-- can be linked, so bad ID probes cannot prevent a security event being written.
+-- Do not store requested filenames, URLs, bearer tokens, IP addresses or medical data.
+create table hq_evidence_staging.security_attempts (
+ id uuid primary key default gen_random_uuid(),
+ tenant_id uuid not null,
+ site_id uuid not null,
+ case_id uuid not null,
+ evidence_id uuid not null,
+ actor_id uuid not null references auth.users(id) on delete restrict,
+ action text not null check(action='evidence_read_denied'),
+ denial_code text not null check(denial_code in (
+   'scope_invalid','tenant_inactive','site_inactive','case_unavailable',
+   'not_assigned','manifest_unavailable','scan_not_clean',
+   'provider_unavailable','other_denied'
+ )),
+ occurred_at timestamptz not null default now()
+);
+create index hq_evidence_denied_by_scope_time on hq_evidence_staging.security_attempts
+ (tenant_id,site_id,occurred_at);
+
+alter table hq_evidence_staging.security_attempts enable row level security;
+alter table hq_evidence_staging.security_attempts force row level security;
+revoke all on hq_evidence_staging.security_attempts
+ from public,anon,authenticated,service_role;
+-- No anon/authenticated SELECT/INSERT/UPDATE/DELETE and no Data API exposure.
+-- An independently authenticated private operator must append the record.
+-- PostgreSQL owner-level writes here are a STAGING verification aid, not
+-- a production authorization implementation or tamper-proof external log.
 commit;
