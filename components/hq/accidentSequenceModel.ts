@@ -30,7 +30,7 @@ export const ACTION_LABELS:Record<EventAction,string>={
   standing:'일어서는 동작',moving:'이동 중',contact:'걸림·접촉',falling:'균형상실·넘어짐',other:'기타',unknown:'미확인'
 };
 export const SOURCE_LABELS:Record<EvidenceKind,string>={
-  report:'사고보고서',statement:'진술',photo:'사진·영상',plan:'작업계획·TBM',inspection:'현장확인'
+  report:'사고보고서',statement:'진술',photo:'사진·영상',plan:'작업계획서',inspection:'현장확인'
 };
 const exact=(v:string,max:number)=>v.trim().slice(0,max);
 export const createSequence=(incidentId:number):InvestigationSequence=>({incidentId,claims:[]});
