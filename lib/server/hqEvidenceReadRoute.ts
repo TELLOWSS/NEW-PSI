@@ -81,14 +81,36 @@ export function createHqEvidenceReadRoute(deps:Dependencies) {
    const ports=await deps.buildPorts();
    const verified=await readScopedEvidence(actor,request,ports);
    if(!mimetypes.has(verified.mediaType))throw new EvidenceReadFailure(503,'EVIDENCE_UNAVAILABLE');
+   // Persist the intent to send before any private bytes leave this controller.
+   // Terminal events are SERVER transport signals, NOT proof of client receipt.
+   const auditCode={
+    response_send_started:'HTTP_SEND_PREPARED',
+    response_flushed:'HTTP_RESPONSE_FINISHED',
+    response_aborted:'HTTP_RESPONSE_ABORTED'
+   } as const;
+   const writeHttpAudit=(type:keyof typeof auditCode)=>ports.appendAudit({
+    tenantId:actor.tenantId,siteId:request.siteId,caseId:request.caseId,
+    evidenceId:request.evidenceId,actorId:actor.userId,
+    eventType:type,eventCode:auditCode[type]
+   });
+   try{await writeHttpAudit('response_send_started');}
+   catch{throw new EvidenceReadFailure(503,'EVIDENCE_UNAVAILABLE');}
+   let terminal=false;
+   const complete=(type:'response_flushed'|'response_aborted')=>{
+    if(terminal)return;
+    terminal=true;
+    // An after-send log failure cannot retract bytes: future production adapters
+    // must alert and reconcile missing events from a durable outbox.
+    void writeHttpAudit(type).catch(()=>{});
+    void releaseOnce();
+   };
+   res.once('finish',()=>complete('response_flushed'));
+   res.once('close',()=>complete('response_aborted'));
    res.setHeader('Content-Type',verified.mediaType);
    res.setHeader('Content-Length',String(verified.byteCount));
    res.setHeader('Content-Disposition',
      'attachment; filename="hq-evidence.'+extension[verified.mediaType]+'"');
-   // Release only after server response termination. Neither 'finish' nor 'close'
-   // proves a browser received the bytes; download_completed is NEVER recorded.
-   res.once('finish',()=>{void releaseOnce();});
-   res.once('close',()=>{void releaseOnce();});
+   // Neither 'finish' nor 'close' proves a browser received the bytes.
    return res.status(200).send(Buffer.from(verified.bytes));
   }catch(error){
    await releaseOnce();
