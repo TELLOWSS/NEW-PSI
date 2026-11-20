@@ -87,3 +87,31 @@
 @media(prefers-reduced-motion:reduce){.hq-tile{transition:none}.hq-tile:hover{transform:none}}
 
 .hq-filter-label{color:#b3d8ee;margin:12px 0 7px;font-size:.78rem;font-weight:800;letter-spacing:.01em}
+
+/* HQ investigation evidence and human-review prototype */
+.hq-review-board{border:1px solid rgba(121,215,246,.3);border-radius:16px;margin-top:17px;padding:18px;background:#0f253c}
+.hq-review-heading{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:12px}
+.hq-review-heading h4{margin:6px 0 0}
+.hq-review-status{font-size:.74rem;border:1px solid #a3d9f0;background:#153e59;color:#dbf7ff;border-radius:40px;padding:8px 12px;white-space:nowrap}
+.hq-review-counters{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:14px}
+.hq-review-counters span{border-radius:9px;background:#193850;border:1px solid #345b72;padding:9px 12px;font-size:.83rem}
+.hq-review-counters b{color:#9defff;font-size:1rem;margin-left:3px}
+.hq-review-grid{display:grid;grid-template-columns:minmax(230px,40%) minmax(0,1fr);gap:14px}
+.hq-review-register{padding:18px;border:1px solid var(--hq-line);border-radius:14px;background:#142d45;min-width:0}
+.hq-review-entry{border-left:3px solid #85cce7;border-radius:0 10px 10px 0;background:#1c3850;padding:12px;margin-bottom:9px;overflow-wrap:anywhere}
+.hq-review-kind{display:inline-block;font-size:.74rem;border-radius:20px;padding:4px 9px;font-weight:800;background:#315274;color:#e4f3ff}
+.hq-review-kind.hypothesis{background:#51462b;color:#ffe2a5}
+.hq-review-kind.unknown{background:#643943;color:#ffe0e5}
+.hq-review-entry p{font-size:.85rem;line-height:1.6;margin:10px 0}
+.hq-review-entry small{display:block;color:#aecbdc;font-size:.76rem;line-height:1.5}
+.hq-review-gate{border:1px solid #567c93;border-radius:11px;padding:14px;margin-top:15px;background:#11283e}
+.hq-review-gate p,.hq-review-gate li{font-size:.82rem;line-height:1.7;color:#d2e9f8}
+.hq-review-gate ul{padding-left:18px;margin:8px 0}
+.hq-review-gate label{display:block;font-size:.78rem;color:#cee6f3;margin-top:15px}
+.hq-review-gate input{margin-top:7px}
+.hq-secondary{padding:10px 13px;border:1px solid #8ecfe4;border-radius:10px;cursor:pointer;margin-top:9px;background:#234d68;color:#fff;font-weight:700}
+.hq-workbench button:disabled{cursor:not-allowed;opacity:.5;transform:none}
+.hq-review-history{margin-top:15px;padding:12px;border-top:1px solid #476780}
+.hq-review-history ol{padding-left:20px;font-size:.78rem;line-height:1.7;color:#cfe3f1}
+.hq-review-footnote{font-size:.78rem;line-height:1.65;color:#b5cbd9;margin:13px 0 0}
+@media(max-width:760px){.hq-review-grid{grid-template-columns:minmax(0,1fr)}.hq-review-heading{align-items:flex-start;flex-direction:column}}
