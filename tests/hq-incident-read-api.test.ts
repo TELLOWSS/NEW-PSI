@@ -138,7 +138,8 @@ describe('HQ-SAFE read-only tenant/site access gate (default disabled)',()=>{
     for(const modified of [
       {site_id:other},{tenant_id:'b9600000-0000-4000-8000-000000000002'},
       {construction_zone:'지상'},{process_code:'alform'},
-      {occurred_on:'2026-02-30'}
+      {occurred_on:'2026-02-30'},
+      {incident_type:'SECRET_PERSONAL_ID_MUST_NOT_LEAK'}
     ]){
       replies({data:membership(),error:null},{data:siteRow(),error:null},
         {data:[incident(modified)],error:null});
