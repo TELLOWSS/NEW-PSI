@@ -28,6 +28,7 @@ type Settings={
  role?:EvidenceActor['role'];userId?:string;tenantMembershipActive?:boolean;
  tenantRole?:EvidenceActor['role'];membershipActive?:boolean;siteActive?:boolean;
  authorId?:string;assignment?:boolean;manifest?:Partial<ScopedManifest>|null;
+ caseMissing?:boolean;securityAuditFails?:boolean;
  auditFailsOn?:string;readFails?:boolean;payload?:Uint8Array;
 };
 function setup(overrides:Settings={}){
@@ -44,7 +45,7 @@ function setup(overrides:Settings={}){
     status:overrides.membershipActive===false?'inactive':'active'};
   },
   lookupSite:async(a,s)=>{calls.push('site');return {tenantId:a.tenantId,siteId:s,active:overrides.siteActive!==false};},
-  lookupIncident:async(a,s,c)=>{calls.push('incident');return {
+  lookupIncident:async(a,s,c)=>{calls.push('incident');return overrides.caseMissing?null:{
    tenantId:a.tenantId,siteId:s,caseId:c,createdBy:overrides.authorId||author
   };},
   lookupAssignment:async(a,s,c)=>{calls.push('assignment');return overrides.assignment===false?null:{
@@ -55,6 +56,12 @@ function setup(overrides:Settings={}){
    {...manifest,...(overrides.manifest||{})};},
   appendAudit:async(event)=>{calls.push('audit:'+event.eventType);
    if(event.eventType===overrides.auditFailsOn)throw new Error('PRIVATE_PROVIDER_ERROR_SECRET');
+  },
+  appendSecurityAttempt:async(event)=>{
+   calls.push('security:'+event.denialCode);
+   expect(event.action).toBe('evidence_read_denied');
+   expect(event.actorId).toBe(acting.userId);
+   if(overrides.securityAuditFails)throw new Error('AUDIT_STORE_SECRET_UNAVAILABLE');
   },
   getPrivateBytes:async(bucket,objectKey)=>{calls.push('storage');
    expect(bucket).toBe(manifest.storageBucket);expect(objectKey).toBe(key);
@@ -139,6 +146,39 @@ describe('HQ restricted evidence read gate (no API route, no actual storage)',()
   await expect(readScopedEvidence(state.acting,{...request,siteId:'../etc/passwd'},state.ports))
    .rejects.toMatchObject({code:'EVIDENCE_ACCESS_DENIED'});
   expect(state.calls).toEqual([]);
+ });
+ it('audits missing incidents and evidence IDs without needing a manifest record',async()=>{
+  const missingCase=setup({caseMissing:true});
+  await denied(missingCase,'EVIDENCE_ACCESS_DENIED');
+  expect(missingCase.calls).toContain('security:case_unavailable');
+  expect(missingCase.calls).not.toContain('manifest');
+  expect(missingCase.calls).not.toContain('storage');
+  const missingEvidence=setup({manifest:null});
+  await denied(missingEvidence,'EVIDENCE_NOT_FOUND');
+  expect(missingEvidence.calls).toContain('security:manifest_unavailable');
+  expect(missingEvidence.calls).not.toContain('storage');
+ });
+ it('records role revocation, non-assignments and blocked scans without opening storage',async()=>{
+  for(const [settings,expectedReason] of [
+   [{tenantMembershipActive:false},'tenant_inactive'],
+   [{siteActive:false},'site_inactive'],
+   [{userId:outsider,role:'owner' as const},'not_assigned'],
+   [{manifest:{malwareScanStatus:'blocked' as const}},'scan_not_clean']
+  ] as const){
+   const state=setup(settings);
+   await expect(readScopedEvidence(state.acting,request,state.ports)).rejects.toBeInstanceOf(EvidenceReadFailure);
+   expect(state.calls).toContain('security:'+expectedReason);
+   expect(state.calls).not.toContain('storage');
+  }
+ });
+ it('denies missing/invalid evidence even when the independent security audit is down',async()=>{
+  const missing=setup({manifest:null,securityAuditFails:true});
+  await denied(missing,'EVIDENCE_NOT_FOUND');
+  expect(missing.calls).toContain('security:manifest_unavailable');
+  expect(missing.calls).not.toContain('storage');
+  const unknown=setup({caseMissing:true,securityAuditFails:true});
+  await denied(unknown,'EVIDENCE_ACCESS_DENIED');
+  expect(unknown.calls).not.toContain('storage');
  });
  it('never returns secrets in an exception when a provider query fails',async()=>{
   const state=setup();
