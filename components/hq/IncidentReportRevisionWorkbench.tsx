@@ -6,6 +6,7 @@ import {
 } from './incidentReportRevisionModel';
 import type {EvidenceManifestRecord} from './evidenceManifestModel';
 import type {InvestigationSequence} from './accidentSequenceModel';
+import type {ReviewEntry} from './investigationReviewModel';
 import './IncidentReportRevisionWorkbench.css';
 
 interface Props{
@@ -14,6 +15,7 @@ interface Props{
  selectedCaseId:number|null;
  evidence:readonly EvidenceManifestRecord[];
  sequence:InvestigationSequence|null;
+ reviewEntries:readonly ReviewEntry[];
  versions:readonly IncidentReportVersion[];
  onVersionsChange:(next:IncidentReportVersion[])=>void;
  readOnly?:boolean;
@@ -26,7 +28,7 @@ const emptyCauses=():CauseClaim[]=>[
 ];
 const localDate=()=>new Date().toISOString();
 export default function IncidentReportRevisionWorkbench({
- selectedCaseId,evidence,sequence,versions,onVersionsChange,readOnly=false
+ selectedCaseId,evidence,sequence,reviewEntries,versions,onVersionsChange,readOnly=false
 }:Props):React.ReactElement {
  const [sixW,setSixW]=useState<SixWFields>(emptySixW);
  const [causes,setCauses]=useState<CauseClaim[]>(emptyCauses);
@@ -51,7 +53,7 @@ export default function IncidentReportRevisionWorkbench({
   event.preventDefault();
   if(!current||readOnly)return;
   try{
-   const next=recordReportVersion(versions,current,evidence,sequence,id(),localDate());
+   const next=recordReportVersion(versions,current,evidence,sequence,id(),localDate(),reviewEntries);
    onVersionsChange(next);
    setNotice('사고조사 버전 '+next.length+'을 현재 브라우저 세션에 등록했습니다. 본사 승인·원본 진위 확인은 아닙니다.');
   }catch(error){setNotice(error instanceof Error?error.message:'초안 버전을 만들 수 없습니다.');}
