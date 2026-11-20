@@ -1,4 +1,4 @@
-import React,{useMemo,useState,type FormEvent} from 'react';
+import React,{useEffect,useMemo,useState,type FormEvent} from 'react';
 import {
  addSequenceClaim,checkSequence,checkControlCoverage,createSequence,
  PHASE_LABELS,ACTION_LABELS,SOURCE_LABELS,WIRE_EXAMPLE,
@@ -32,6 +32,9 @@ export default function IncidentSequenceWorkbench({selected,drafts,onDraftsChang
  const [measure,setMeasure]=useState('');
  const [controlRef,setControlRef]=useState('');
  const [notice,setNotice]=useState('');
+ useEffect(()=>{
+  setSourceRef('');setDescription('');setIssue('');setMeasure('');setControlRef('');setHazard('');setNotice('');
+ },[selected?.id]);
  const draft=selected?(drafts[selected.id]||createSequence(selected.id)):null;
  const actions=selected?(controls[selected.id]||[]):[];
  const mismatches=useMemo(()=>draft?checkSequence(draft):[],[draft]);
