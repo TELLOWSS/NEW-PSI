@@ -52,10 +52,11 @@ export async function reserveEvidenceRead(
   if(!uuid.test(decision.leaseId))return unavailable();
   return {scope,leaseId:decision.leaseId};
  }
- if(!Number.isSafeInteger(decision.retryAfterSeconds)||
-    decision.retryAfterSeconds<1||decision.retryAfterSeconds>HQ_EVIDENCE_CAPACITY_POLICY.windowSeconds)
-  return unavailable();
- throw new EvidenceCapacityFailure(429,'HQ_EVIDENCE_RATE_LIMITED',decision.retryAfterSeconds);
+ if(!('retryAfterSeconds' in decision))return unavailable();
+ const retry=decision.retryAfterSeconds;
+ if(typeof retry!=='number'||!Number.isSafeInteger(retry)||
+    retry<1||retry>HQ_EVIDENCE_CAPACITY_POLICY.windowSeconds)return unavailable();
+ throw new EvidenceCapacityFailure(429,'HQ_EVIDENCE_RATE_LIMITED',retry);
 }
 /** Never throws into an HTTP response after sending bytes. Expiring leases are mandatory. */
 export async function releaseEvidenceRead(lease:EvidenceCapacityLease,ports:EvidenceCapacityPorts):Promise<boolean>{
