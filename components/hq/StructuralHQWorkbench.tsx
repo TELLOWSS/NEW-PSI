@@ -411,7 +411,7 @@ export default function StructuralHQWorkbench(): React.ReactElement {
         </div>
         <p className="hq-review-footnote">이 화면은 개발 시연입니다. 자료번호·확인 상태는 원본 진위나 근로자 진술을 증명하지 않습니다. 실제 조사책임자 인증, 원본 파일 무결성, 교차검증, 최종 결재 및 AI 처리는 아직 구현하지 않았습니다.</p>
       </section>}
-      {notice && <p role="status" className="hq-notice">{notice}</p>
+      {notice && <p role="status" className="hq-notice">{notice}</p>}
     </div>
     <div className="hq-bottom"><strong>구현 범위: 공정 분류·위험 체크리스트·세션 방문보고·세션 사고분류·교육 초안·조사 질문</strong><span>미구현: 실제 중앙 저장·현장별 권한·AI 호출·PPT 내보내기·법정 보고·승인 워크플로</span></div>
   </section>;
