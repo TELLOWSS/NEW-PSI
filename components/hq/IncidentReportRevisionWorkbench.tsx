@@ -9,6 +9,8 @@ import type {InvestigationSequence} from './accidentSequenceModel';
 import './IncidentReportRevisionWorkbench.css';
 
 interface Props{
+ /** React reconciliation key keeps unsaved incident fields isolated. */
+ key?: React.Key;
  selectedCaseId:number|null;
  evidence:readonly EvidenceManifestRecord[];
  sequence:InvestigationSequence|null;
