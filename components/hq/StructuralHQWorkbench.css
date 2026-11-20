@@ -85,3 +85,5 @@
 @media(max-width:760px){.hq-workbench{padding:0 10px;margin-top:18px}.hq-hero{padding:22px 19px}.hq-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.hq-workspace{padding:14px}.hq-panel-top{align-items:flex-start;flex-direction:column}.hq-process-layout,.hq-two-column,.hq-training,.hq-investigation{grid-template-columns:minmax(0,1fr)}.hq-process-list{max-height:280px}.hq-data-grid{grid-template-columns:1fr}.hq-session{white-space:normal}}
 @media(max-width:430px){.hq-tiles{grid-template-columns:1fr 1fr;gap:7px}.hq-tile{padding:11px;min-height:105px}.hq-tile strong{font-size:.82rem}.hq-tile small{font-size:.7rem}.hq-hero h2{font-size:1.5rem}.hq-question{flex-wrap:wrap}.hq-question em{margin-left:27px}}
 @media(prefers-reduced-motion:reduce){.hq-tile{transition:none}.hq-tile:hover{transform:none}}
+
+.hq-filter-label{color:#b3d8ee;margin:12px 0 7px;font-size:.78rem;font-weight:800;letter-spacing:.01em}
