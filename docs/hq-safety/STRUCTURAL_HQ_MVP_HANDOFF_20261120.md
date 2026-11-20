@@ -504,3 +504,31 @@
 - 전체 릴리스 판정 FAIL: \`npm audit --omit=dev\` **6건(High 1, Moderate 5)**. 보안 검사를 건너뛰거나 통과로 표시하지 않는다.
 - 회사 전체 Chromium/cross-department 검사는 별도 워크플로 결과가 나올 때까지 진행 중으로 구분.
 - 원본 증빙 바이트 전송은 실제 운영에 비활성화돼 있으며, 비공개 어댑터·원자적 claim/retry/ACK worker와 불변 저장은 미구현.
+
+
+## 2026-11-21 18차: PostgreSQL 원자적 감사 재처리 작업자 / 임대 토큰 보호 — 운영 미연결
+
+### 인계문서 확인 및 실제 선정
+17차의 \`reconcileTransportOutbox()\`는 인터페이스/시연이었고 다중 서버 사이에서 claim/lease/ack/retry가 충돌하지 않도록 DB에서 강제하는 구현이 남아 있었다. 18차는 **새 UI 기능 대신 기존 증빙 전송 감사의 안전성**을 높이는 비공개 PostgreSQL 작업자 어댑터에 집중했다.
+
+### 구현 파일·행위
+- \`lib/server/hqEvidencePgOutboxAdapter.ts\`
+  - \`createPrivatePgEvidenceOutboxAdapter(db,sink,securityAlert)\`를 추가. 프로젝트의 실제 DB 연결정보를 하드코딩하지 않고 **신뢰된 PostgreSQL 쿼리 포트/외부 멱등감사 싱크/독립 경보 포트**를 요구한다. 기존 17차 \`EvidenceTransportOutboxPorts\` 및 \`EvidenceOutboxReconcilePorts\` 계약을 구현하는 **실제 매개변수화 SQL**이며 이 단계에 Production connection은 없음.
+  - \`prepare\`: 해당 사고·증빙 FK가 있는 경우 INSERT 단일 SQL 커밋 응답의 UUID 영수증 필수. 등록되지 않은 사고·증빙이나 권한 미확인 입력은 별도 본인인증/접근검사 위반으로 간주하며 서버 연결 전에 차단해야 한다.
+  - \`CLAIM_DUE_SQL\`: PostgreSQL의 \`WITH due AS (SELECT id ... FOR UPDATE SKIP LOCKED LIMIT $1) UPDATE ... RETURNING\`으로 조회 및 선점 한 번에 원자 수행. \`acked_at is null\`, \`next_attempt_at<=DB clock\`, 임대 미존재/만료, \`prepared\` 120초 이상 경과, 재시도 1000회 미만을 검사. 대상별 \`gen_random_uuid()\` 임대 토큰과 DB 기준 90초 임대 적용. 다른 작업자의 미만료 claim은 중복 선점 불가.
+  - \`markUnconfirmed\`: \`prepared\`를 정상 다운로드 완료로 위조하지 않고 \`unconfirmed\`으로 표시. 요청을 선점한 **동일 임대 토큰이 DB에서 현재 유효할 때만** 변경 가능.
+  - \`deliver\`: DB에서 선점 토큰·미만료 임대를 재확인한 뒤 외부 싱크 전달. 외부 싱크는 **사고 파일 바이트가 아닌 상태 기록만** 받고, 이벤트 UUID를 idempotency key로 사용하여 중복 전송을 제거해야 한다.
+  - \`acknowledge\`와 \`retry\`: 후속 DB UPDATE에 claim_token+claim_expires_at을 모두 대조. 임대가 만료되어 다른 서버에 인계된 이전 작업자의 ACK/재시도/전송은 거부. 재시도는 DB 기준 next_attempt_at 설정과 claim 해제를 동일 UPDATE에서 수행. 동일한 응답종결 신호의 중복 settle은 허용하되 서로 다른 종결/미확인 상태 덮어쓰기 불가.
+  - 브라우저 권한, 인메모리 전역 락, 사용자 제공 tenantId/서비스키를 신뢰하지 않으며 실제 Production worker/cron은 만들지 않는다. 이 어댑터가 동작하려면 별도 최소권한 DB operator 계정과 안전한 composition root, 백업·경보가 필요하다.
+- \`tests/hqPrivateEvidenceRlsSql.test.ts\`
+  - **실제 격리 PGlite PostgreSQL**에서 기존 17차 제안 스키마에 신규 어댑터를 연결. 저장 직후 \`prepared\`는 120초 유예 전 선점 안 됨; 경과 후 worker A 선점, worker B 중복 선점 금지; \`unconfirmed\` 변환·감사 싱크 멱등키 전달·ACK; 임대가 만료된 A가 재선점 B의 ACK 및 외부 전송을 수행할 수 없음; 재시도 30초 예약과 DB clock 기준 재선점; 타 사용자 직접 UPDATE/SELECT/DELETE 차단을 검증.
+  - 합성 사건/가상 사용자·파일 UUID만 사용, 운영 DB에는 쿼리 실행 안 함.
+- \`supabase/proposals/psi_hq_transport_outbox_staging.sql\`: 17차의 비공개 테이블 제안 유지(무단 접근 차단). 18차 어댑터는 그 구조를 사용하며 스키마를 운영 이관하지 않음.
+
+### 검증 결과 / 출하 금지
+- 검증 코드 HEAD \`e2d771d\`: 타입 검사 및 **Vitest 266개 파일, 2,032건 모두 PASS**. 새 어댑터의 합성 DB 조회 및 실제 SQL ACK/임대 경계 검증이 기존 1건 PGlite 통합 테스트에 포함.
+- 릴리스 전체 FAIL: 기존 \`npm audit --omit=dev\` **High 1 / Moderate 5 = 6건**. 공급망 감사 우회 금지.
+- 전제품 Chromium/cross-department 결과는 최신 커밋의 워크플로가 완료될 때까지 미확정(이전 성공/취소 결과 대체 금지).
+- **특히 정확한 한계:** PGlite는 단일 격리 DB로 두 작업자의 순차적 claim·재선점·토큰보호를 검증한 것. **서로 다른 실제 PostgreSQL 연결에서 동시에 경쟁하는 분산 부하·프로세스 강제 종료·멀티리전 네트워크 분할 테스트는 미실시**. 완전한 외부 감사 싱크, 재시도 임대 재연장/대량 backlog 모니터링, 1000회 초과 dead-letter/수동 복구 정책, 운영 키/역할 격리 및 백업·복구도 미구현.
+- \`main\` 병합, Production 배포, 실계정 연결, 운영 DB/Storage 변경, cron/worker 실행, env/feature flag 활성화 **모두 금지**. 사용자의 최종 승인을 받기 전 Draft PR에서만 유지.
+- 다음 19차 제안: **서로 다른 PostgreSQL 세션의 실동시성·크래시 복원·fencing 검증, 후속 재처리 알림과 backlog 감시, 최소권한 DB operator 인증**, 그리고 npm 취약점 안전한 범위의 의존성 업데이트 및 Chromium/Android 실기기 검증.
