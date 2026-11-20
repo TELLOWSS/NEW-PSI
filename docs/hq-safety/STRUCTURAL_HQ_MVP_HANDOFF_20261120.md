@@ -495,3 +495,12 @@
 - 실제 개인정보 접근로그의 영속·복제·키/암호화·보존주기·접근권한/불변성, 장애 경보·재처리 워커와 외부 싱크의 재시도 멱등 검증이 별도로 필요하다.
 - 원본 검증·악성코드 검사기·다중 현장 실계정 QA와 사용자 최종 승인 이전에 \`main\` 병합, Production 배포, 운영 SQL/Storage, feature flag 활성화 금지.
 - 다음 18차 권장: 합성 PGlite 기반 claim SKIP LOCKED·TTL·중복 ACK·대량 재시도/경보를 검증하는 실제 비공개 서버 어댑터, 운영 서비스 키 관리 설계/제한, 기존 취약 npm 의존성 해결.
+
+
+### 17차 코드 검증 결과(2026-11-21)
+- \`02da204\` 커밋에서 \`npm run verify:ci\` 실행. TypeScript/제품 경계 검사 통과, **Vitest 266개 파일 2,032개 테스트 전부 PASS**.
+- 신규 \`hq-evidence-transport-outbox.test.ts\` 5건, 기존 \`hq-evidence-read-route.test.ts\` 12건, 격리 \`hqPrivateEvidenceRlsSql.test.ts\` 1건이 포함된다.
+- 초기 CI에서는 새로운 라우트 테스트 wrapper가 자기 자신을 호출해 재귀 오류 발생. 실제 라우트 팩토리를 호출하도록 수정 후 재검증 통과. 17차 테스트 싱크 콜백 인자 타입 오류 역시 수정 완료.
+- 전체 릴리스 판정 FAIL: \`npm audit --omit=dev\` **6건(High 1, Moderate 5)**. 보안 검사를 건너뛰거나 통과로 표시하지 않는다.
+- 회사 전체 Chromium/cross-department 검사는 별도 워크플로 결과가 나올 때까지 진행 중으로 구분.
+- 원본 증빙 바이트 전송은 실제 운영에 비활성화돼 있으며, 비공개 어댑터·원자적 claim/retry/ACK worker와 불변 저장은 미구현.
