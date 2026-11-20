@@ -25,7 +25,8 @@ const manifest:ScopedManifest={
  malwareScanStatus:'clean',sourceAuthenticityVerified:false
 };
 type Settings={
- role?:EvidenceActor['role'];userId?:string;membershipActive?:boolean;siteActive?:boolean;
+ role?:EvidenceActor['role'];userId?:string;tenantMembershipActive?:boolean;
+ tenantRole?:EvidenceActor['role'];membershipActive?:boolean;siteActive?:boolean;
  authorId?:string;assignment?:boolean;manifest?:Partial<ScopedManifest>|null;
  auditFailsOn?:string;readFails?:boolean;payload?:Uint8Array;
 };
@@ -33,6 +34,11 @@ function setup(overrides:Settings={}){
  const acting:EvidenceActor={...actor,userId:overrides.userId||author,role:overrides.role||'reviewer'};
  const calls:string[]=[];
  const ports:EvidenceReadPorts={
+  lookupTenantMembership:async(a)=>{
+   calls.push('tenant');return {tenantId:a.tenantId,userId:a.userId,
+    role:overrides.tenantRole||a.role,
+    status:overrides.tenantMembershipActive===false?'inactive':'active'};
+  },
   lookupSiteMembership:async(a,s)=>{
    calls.push('membership');return {tenantId:a.tenantId,siteId:s,userId:a.userId,
     status:overrides.membershipActive===false?'inactive':'active'};
@@ -72,7 +78,7 @@ describe('HQ restricted evidence read gate (no API route, no actual storage)',()
    mediaType:'application/pdf',sha256,sourceAuthenticityVerified:false,
    signedUrlIssued:false,browserCacheAllowed:false
   });
-  expect(state.calls).toEqual(['membership','site','incident','manifest',
+  expect(state.calls).toEqual(['tenant','membership','site','incident','manifest',
    'audit:read_requested','storage','audit:download_completed']);
  });
  it('permits separately assigned site and HQ reviewers but not the submitter role by itself',async()=>{
@@ -90,6 +96,8 @@ describe('HQ restricted evidence read gate (no API route, no actual storage)',()
    {userId:hqReviewer,role:'reviewer' as const},
    {userId:siteReviewer,role:'reviewer' as const,assignment:false},
    {userId:author,role:'viewer' as const},
+   {tenantMembershipActive:false},
+   {tenantRole:'viewer' as const},
    {membershipActive:false},
    {siteActive:false}
   ]){
