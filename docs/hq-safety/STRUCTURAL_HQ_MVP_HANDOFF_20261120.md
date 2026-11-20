@@ -378,3 +378,38 @@
 - 현장별 독립 2기업·2현장/실계정 RLS, 개인정보 접근권한·보존기간/백업복구, 오프라인 모바일, npm audit 미해결 취약점과 전제품 브라우저 QA를 출시 전 차단 조건으로 유지.
 - 본사 대표이사 지시 업무 흐름·본사 최종 승인과 회사별 법정 신고 상태는 아직 별도 검토/결재 전이며 자동화하지 않았다.
 - **main 병합, Production 배포, 운영 DB/Storage/환경변수/feature flag 변경, 실제 원본 업로드·다운로드 전부 보류.**
+
+
+## 2026-11-21 15차: 존재하지 않는 사고·증빙 접근 시도 별도 보안감사 + 기본 OFF HTTP 연결부
+
+### 착수 판단
+14차 \`readScopedEvidence\`에서는 접근요청·파일 지문 검증 로그가 실제 \`evidence_manifest\` 레코드를 참조하므로, **사고가 아직 등록되지 않았거나 증빙번호가 존재하지 않는 접근 시도는 같은 감사대장에 저장할 수 없다**. 또한 검증 완료된 증빙 바이트를 HTTP 계층으로 전달하는 컨트롤러가 없었다. 15차에서는 이 두 공백을 분리하여 해결하되 운영데이터/Storage 연결은 보류한다.
+
+### 실제 코드 및 테스트
+1. \`supabase/proposals/psi_hq_evidence_private_staging.sql\`
+   - \`hq_evidence_staging.security_attempts\` 추가. 실제 사고·증빙·현장의 존재와 무관하게 거부 요청을 기록할 수 있도록 **case/manifest FK를 두지 않는다**. 다만 \`actor_id\`는 존재하는 \`auth.users\` ID를 요구하므로 익명·검증 전 요청의 포괄적 보안로그가 아니다.
+   - action은 \`evidence_read_denied\`만 허용하고 거부 원인은 제한된 기계 코드로만 저장한다. 파일명·진술/상병정보·서명URL·IP·토큰을 저장하지 않는다.
+   - \`FORCE RLS\`와 anon/authenticated/service_role 직접 CRUD 권한 전부 REVOKE. DB 관리자나 승인된 사설 서버 기록 계층에서만 별도 처리하도록 준비. 운영 서버 write adapter와 원격 불변 감사 보관은 **미구현**.
+2. \`lib/server/hqEvidenceAccessGate.ts\`
+   - 독립 \`appendSecurityAttempt\` 포트를 추가해 **기업/현장 소속 비활성, 사건 미존재, 배정 검토자 불일치, 증빙 없음, 스캔 미완료, 내부 저장소 장애** 등 거부 상황을 메타데이터 FK 없이 구분해 기록하도록 한다.
+   - 보안감사 기록 자체가 실패해도 파일을 내주지 않는다. 단, 기록은 best-effort로서 장애 시 보안 감사 완전성을 보장하지 않는다. malformed UUID는 DB 기록 전에 거부하므로 별도 API edge 로그가 필요하다.
+3. \`lib/server/hqEvidenceReadRoute.ts\` + \`api/saas/access.ts\`
+   - \`resource=hq-evidence-read\` 라우팅/GET 전용/엄격한 UUID·query allowlist/인증된 \`requireTenantContext\` 적용 구조 추가.
+   - \`PSI_HQ_EVIDENCE_READ_ENABLED\`는 **기본 OFF**이고 기존 운영환경에서 설정하지 않는다. 기본 런타임은 인증/저장소/감사 포트의 운영 구성을 **전혀 제공하지 않으므로**, 실수로 환경플래그를 true로 바꾸더라도 \`503 HQ_EVIDENCE_NOT_READY\`로 차단한다.
+   - 내부 합성 테스트용 주입 포트가 모두 존재할 때만 기업/현장·사건·원본 메타데이터·악성 스캔 clean·SHA 재검증·조회 전후 감사 통과 후 비공개 바이트 전송을 시연한다.
+   - HTTP \`Cache-Control: private, no-store\`, \`nosniff\`, \`Content-Disposition: attachment\`, 일반화된 서버 오류 처리. 실제 사용자 브라우저 파일 기능과 운영 private Storage는 여전히 연결하지 않음.
+4. \`tests/hq-evidence-access-gate.test.ts\`
+   - 누락된 사고/증빙에도 보안감사 시도, 역할 해제/배정 실패/차단된 스캔/감사 저장 장애에 대해 반환 차단 및 거부 코드 기록 검사 추가.
+5. \`tests/hqPrivateEvidenceRlsSql.test.ts\`
+   - PGlite 격리 PostgreSQL에서 존재하지 않는 사고/파일 UUID에 대한 별도 \`security_attempts\` INSERT 성공, 브라우저의 조회/작성/변조/삭제 거부 확인.
+6. \`tests/hq-evidence-read-route.test.ts\`
+   - 기본 OFF, 플래그를 잘못 ON 해도 runtime private adapter 없으면 503, 비정상 HTTP 메서드·권한 사칭·query 위조 차단, 가상 권한/감사 성공 후 합성 PDF 바이트 응답, 권한 해제·위변조·감사 실패 시 응답 차단 검증.
+
+### 실제 운영 적용까지 남은 필수조건
+- 운영 DB/Storage에 SQL을 적용하지 않았고 실제 private bucket, 파일 intake, 악성파일 스캐너, 서버 운영자 DB port 및 영속화된 감사 저장 서비스는 없음. 이번 설계는 서비스키를 임의로 활성화하지 않으며 서버 포트의 기술 승인 후 연결해야 한다.
+- 감사 기록은 DB 관리자의 수정/삭제를 물리적으로 막는 WORM/외부 불변 로그가 아니다. retention/보관기간·개인정보 영향평가·접근 로그의 독립 백업 및 복구 검증 필요.
+- 인증되지 않은/UUID가 잘못된 시도의 보안 텔레메트리, 속도 제한, 용량 초과·동시요청 보호, 다운로드 완료 확인(지금은 \`read_verified\`만 기록) 추가 필요.
+- 악성코드 검사기가 없는 상태에서는 기록 상태가 \`pending\`으로만 남으므로 운영본 다운로드 불가. 실계정 다중 기업·현장 승인/감사 경계와 보안/PC·모바일 QA를 독립 검증.
+- 실제 사용자 계정으로 조사결과를 승인하거나 사고원인을 확정하지 않음. 본사 대표이사 교육/법정 보고는 별도 절차.
+- 코드는 사용자 승인 전까지 **Draft PR에서만 유지**. main 병합/Production 배포/운영 DB·Storage 변경/feature flag 활성화는 실시하지 않는다.
+- 최신 15차 CI에서 기능·타입/격리 SQL 및 부서별 회귀검증을 확인하며, 과거 CI 통과 수치를 최신 결과로 대체하지 않는다.
