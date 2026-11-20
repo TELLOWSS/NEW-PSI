@@ -8,6 +8,8 @@ import type {IncidentReportVersion} from './incidentReportRevisionModel';
 import './IndependentReviewWorkbench.css';
 
 type Props={
+ /** Remount on incident change, preventing unsaved cross-incident draft mixing. */
+ key?:React.Key;
  incidentId:number|null;
  report:IncidentReportVersion|null;
  reportIsFresh:boolean;
