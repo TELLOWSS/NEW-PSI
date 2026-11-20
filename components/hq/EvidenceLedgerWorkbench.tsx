@@ -1,9 +1,9 @@
-import React,{useMemo,useRef,useState,type FormEvent} from 'react';
+import React,{useEffect,useMemo,useRef,useState,type FormEvent} from 'react';
 import {
   addEvidenceRecord,calculateLocalFingerprint,checkEvidenceLinks,EVIDENCE_KINDS,MAX_DEMO_EVIDENCE_BYTES,
-  type EvidenceKind,type EvidenceLink,type EvidenceManifestRecord
+  type EvidenceLink,type EvidenceManifestRecord
 } from './evidenceManifestModel';
-import {SOURCE_LABELS} from './accidentSequenceModel';
+import {SOURCE_LABELS,type EvidenceKind} from './accidentSequenceModel';
 import './EvidenceLedgerWorkbench.css';
 
 type CaseIdentity={id:number;summary:string};
@@ -24,6 +24,10 @@ export default function EvidenceLedgerWorkbench({
  const [notice,setNotice]=useState('');
  const [working,setWorking]=useState(false);
  const fileInput=useRef<HTMLInputElement>(null);
+ useEffect(()=>{
+  setRef('DEMO-');setNote('');setPicked(null);setNotice('');
+  if(fileInput.current)fileInput.current.value='';
+ },[selected?.id]);
  const scoped=selected?(records[selected.id]||[]):[];
  const audit=useMemo(()=>selected?checkEvidenceLinks(selected.id,scoped,links):null,[selected,scoped,links]);
  const add=async(e:FormEvent<HTMLFormElement>)=>{
