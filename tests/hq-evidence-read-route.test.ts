@@ -33,7 +33,7 @@ const admission=():EvidenceCapacityPorts=>({
 const authenticated=vi.fn(async()=>({
  tenantId:tenant,userId:author,role:'reviewer' as const,client:{} as any
 }));
-function makePorts(options:{tampered?:boolean;scopeDenied?:boolean;noAudit?:boolean}={}){
+function makePorts(options:{tampered?:boolean;scopeDenied?:boolean;noAudit?:boolean;failOnAudit?:string}={}){
  const events:string[]=[];
  const ports:EvidenceReadPorts={
   lookupTenantMembership:async()=>({tenantId:tenant,userId:author,role:'reviewer',status:'active'}),
@@ -50,7 +50,7 @@ function makePorts(options:{tampered?:boolean;scopeDenied?:boolean;noAudit?:bool
    malwareScanStatus:'clean',sourceAuthenticityVerified:false
   }),
   appendAudit:async e=>{events.push(e.eventType);
-   if(options.noAudit)throw new Error('PROVIDER_SECRET_LOG_FAILURE');
+   if(options.noAudit||options.failOnAudit===e.eventType)throw new Error('PROVIDER_SECRET_LOG_FAILURE');
   },
   appendSecurityAttempt:async e=>{events.push('denied:'+e.denialCode);},
   getPrivateBytes:async()=>{events.push('storage');
@@ -97,7 +97,8 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
   expect(res.statusCode).toBe(200);
   expect(Buffer.isBuffer(res.payload)).toBe(true);
   expect(res.payload).toEqual(Buffer.from(bytes));
-  expect(mem.events).toEqual(['read_requested','storage','read_verified']);
+  expect(mem.events).toEqual(['read_requested','storage','read_verified',
+   'response_send_started','response_flushed']);
   expect(res.headers).toContainEqual(['Content-Type','application/pdf']);
   expect(res.headers).toContainEqual(['Cache-Control','private, no-store, max-age=0']);
   expect(res.headers).toContainEqual(['Content-Disposition','attachment; filename="hq-evidence.pdf"']);
@@ -150,6 +151,21 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
   expect(authenticated).not.toHaveBeenCalled();
  });
 
+ it('blocks byte transmission if durable pre-send audit write fails',async()=>{
+  const mem=makePorts({failOnAudit:'response_send_started'});
+  const release=vi.fn(async()=>{});
+  const handler=createHqEvidenceReadRoute({
+   authenticate:authenticated,
+   admission:{acquire:async()=>({granted:true,leaseId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'}),release},
+   buildPorts:async()=>mem.ports,flagEnabled:()=>true
+  });
+  const out=response();await handler(request(),out);
+  expect(out.statusCode).toBe(503);
+  expect(Buffer.isBuffer(out.payload)).toBe(false);
+  expect(mem.events).toEqual(['read_requested','storage','read_verified','response_send_started','denied:provider_unavailable']);
+  expect(release).toHaveBeenCalledTimes(1);
+ });
+
  it('limits concurrent reads across synthetic responses and releases only on finish or close',async()=>{
   const live=new Set<string>();
   const released:string[]=[];
@@ -194,6 +210,9 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
   expect(d.statusCode).toBe(200);
   b.emit('close');d.emit('finish');
   await Promise.resolve();
+  expect(calls.events.filter(x=>x==='response_flushed')).toHaveLength(2);
+  expect(calls.events.filter(x=>x==='response_aborted')).toHaveLength(1);
+  expect(calls.events).not.toContain('download_completed');
   expect(live.size).toBe(0);
   expect(released).toEqual(ids);
  });
