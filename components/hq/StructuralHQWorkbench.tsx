@@ -184,14 +184,14 @@ export default function StructuralHQWorkbench(): React.ReactElement {
   const addVisit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!site.trim() || !visitDate) { setNotice('현장 구분명과 방문일을 입력하세요.'); return; }
-    setVisits((previous) => [{ id: Date.now(), site: site.trim().slice(0, 40), date: visitDate, objective, status: '예정' }, ...previous]);
+    setVisits((previous) => [{ id: Math.max(Date.now(), ...previous.map(v => v.id)) + 1, site: site.trim().slice(0, 40), date: visitDate, objective, status: '예정' }, ...previous]);
     setSite('');
     setNotice('이 브라우저 화면에만 임시로 등록했습니다. 서버에는 저장되지 않습니다.');
   };
   const addIncident = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!incidentDate || summary.trim().length < 8) { setNotice('날짜와 8자 이상의 비식별 사고 개요를 입력하세요.'); return; }
-    const id = Date.now();
+    const id = Math.max(Date.now(), ...incidents.map(item => item.id)) + 1;
     setIncidents((previous) => [{ id, date: incidentDate, zone: incidentZone, processId: incidentProcess, kind: incidentKind, summary: summary.trim().slice(0, 220), state: '조사 필요' as const }, ...previous]);
     setSelectedCaseId(id);
     setSummary('');
