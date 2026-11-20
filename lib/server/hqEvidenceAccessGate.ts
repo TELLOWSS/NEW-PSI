@@ -137,7 +137,8 @@ export async function readScopedEvidence(
   // This durable event MUST succeed before any storage fetch. A failure closes access.
   await ports.appendAudit(event('read_requested','AUTHZ_ALLOWED'));
   const bytes=await ports.getPrivateBytes(manifest.storageBucket,manifest.storageKey);
-  if(!verifyRetrievedEvidence(bytes,manifest)){
+  if(!verifyRetrievedEvidence(bytes,{sha256:manifest.sha256,
+      byteCount:manifest.byteCount,contentType:manifest.mediaType})){
     await ports.appendAudit(event('digest_mismatch','HASH_MISMATCH'));
     throw new EvidenceReadFailure(503,'EVIDENCE_INTEGRITY_FAILURE');
   }
