@@ -75,7 +75,7 @@ export const investigationReadiness = (draft: InvestigationDraft): {
   };
   const messages: string[] = [];
   if (counts.fact === 0) messages.push('근거 자료가 기재된 사실 항목을 최소 1개 추가해야 합니다.');
-  if (counts.unknown === 0) messages.push('확인되지 않은 사항 또는 추가 조사 필요 여부를 항목으로 기록해야 합니다.');
+  if (counts.unknown === 0) messages.push('미확인 사항 또는 추가 조사 필요 여부를 항목으로 기록해야 합니다.');
   if (draft.entries.some((x) => x.kind === 'fact' && (!x.source || x.sourceRef.trim().length < 4))) {
     messages.push('사실 항목 중 근거 종류 또는 자료번호가 누락됐습니다.');
   }
