@@ -31,7 +31,7 @@ export type ScopedManifest = Readonly<{
   malwareScanStatus:'pending'|'clean'|'blocked';
   sourceAuthenticityVerified:false;
 }>;
-export type EvidenceAuditType = 'read_requested'|'read_denied'|'download_completed'|'digest_mismatch';
+export type EvidenceAuditType = 'read_requested'|'read_denied'|'read_verified'|'digest_mismatch';
 export type EvidenceAuditEvent = Readonly<{
   tenantId:string;siteId:string;caseId:string;evidenceId:string;
   actorId:string;eventType:EvidenceAuditType;
@@ -142,7 +142,7 @@ export async function readScopedEvidence(
     await ports.appendAudit(event('digest_mismatch','HASH_MISMATCH'));
     throw new EvidenceReadFailure(503,'EVIDENCE_INTEGRITY_FAILURE');
   }
-  await ports.appendAudit(event('download_completed','BYTE_VERIFIED'));
+  await ports.appendAudit(event('read_verified','BYTE_VERIFIED'));
   // Own a detached copy; never expose an adapter's mutable backing buffer.
   return Object.freeze({
    bytes:Uint8Array.from(bytes),mediaType:manifest.mediaType,byteCount:manifest.byteCount,
