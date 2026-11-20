@@ -122,8 +122,15 @@ export function createPrivatePgEvidenceOutboxAdapter(
   },
   deliver:async(event:PendingTransportEvent)=>{
    requireUuid(event.id);
-   if(!leases.has(event.id))fail('NO_OWNED_LEASE');
-   // Never deliver the actual evidence bytes, names, PII or a signed URL.
+   const token=leases.get(event.id);
+   if(!token)fail('NO_OWNED_LEASE');
+   // Recheck DB fencing before invoking the idempotent external sink.
+   const current=await db.query(`select id from ${table}
+     where id=$1 and claim_token=$2 and claim_expires_at>clock_timestamp()
+       and acked_at is null`,[event.id,token]);
+   expectChanged(current.rows,'DELIVERY');
+   // The sink must additionally deduplicate by event.id if the lease expires
+   // while a network request is in flight.
    await sink(event,event.id);
   },
   acknowledge:async(id:string)=>{
