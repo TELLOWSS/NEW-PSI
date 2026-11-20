@@ -316,3 +316,35 @@
 - 실계정 2기업·2현장 격리, 안드로이드 현장 화면, 장애/백업 복구, 패키지 보안 취약점 해결
 - 대표이사 지시 시퀀스는 최종 협의 전 미확정이며 실제 결재·교육·작업재개 승인 기능은 구축하지 않음.
 - **원칙 유지: \`main\` 병합·Production 배포·운영 DB·환경변수/feature flag 활성화 금지.** 이 브랜치의 SQL은 \`supabase/proposals\` 파일로만 존재한다.
+
+
+## 2026-11-20 13차: 비공개 증빙 보관계약·서버 지문 재검증·접근감사 — 운영 미적용
+
+### 인계문서 기준 범위
+12차는 작성자/현장/본사 검토 실사용자 ID 및 현장별 RLS를 **운영 미적용 SQL proposal**로 구축했다. 남은 최우선 과제인 사고 사진·진술·보고서 **원본 증빙의 비공개 저장·무결성·접근 이력**을 준비한다. 원본을 바로 서비스에 업로드할 수 있게 열면 개인정보/민감정보 및 법정 문서가 유출될 수 있으므로 13차는 안전한 서버 처리 계약과 DB 메타데이터·로그 권한 경계를 구현·격리검증한다.
+
+### 실제 구현 파일
+- \`lib/server/hqEvidenceIntake.ts\`
+  - Node 서버 전용 순수 함수 \`prepareEvidenceIntake\`: 권한 확인 **이후** 호출해야 하는 계약으로, tenant/site/case UUID 검증, 파일 크기 1~8MiB, 실제 바이트 식별 서명 기반 PDF/JPEG/PNG 감지, 선언 MIME과 불일치 차단, 서버 SHA-256 및 클라이언트 사전 지문 대조.
+  - 사람의 원본 파일명은 사용하지 않고 서버 측 임의 UUID로 \`tenant/site/case/objectId.ext\` 경로 생성. \`hq-incident-evidence-private\`라는 **예정 버킷 ID 문자열**만 생성한다. 버킷 실생성/업로드는 수행하지 않는다.
+  - \`verifyRetrievedEvidence\`: 다운로드한 바이트를 저장된 byte_count+MIME+SHA-256 메타데이터와 다시 비교. 일치가 **원본 촬영·작성 진위나 증거 연속 보존(chain of custody)을 뜻하지 않음**을 타입에 명시.
+- \`supabase/proposals/psi_hq_evidence_private_staging.sql\`
+  - 독립 비공개 \`hq_evidence_staging\` 스키마와 \`evidence_manifest\`(사고별 비식별 오브젝트 ID/버킷·경로/byte_count/SHA-256/검증시각·검증자) 및 \`access_events\`(접근 요청·거부·다운로드·해시불일치 등).
+  - 원본 파일 바이트나 URL/개인정보·상병·진술 텍스트는 DB에 보관하지 않는다.
+  - 두 테이블 모두 \`FORCE RLS\`, 조회는 기업 활성 소속 + 현장 활성 소속 + 사고 작성자 또는 해당 사고의 검토 참여자만 가능. 감사이력은 브라우저 SELECT 불허. 모든 브라우저 INSERT/UPDATE/DELETE 불허, 로그·메타데이터는 신뢰된 승인된 서버 운영자만 등록한다.
+  - 운영에 SQL 마이그레이션하지 않으며 실제 Supabase Storage \`storage.buckets\` / \`storage.objects\` / 다운로드 RLS 정책을 생성·변경하지 않는다.
+- \`tests/hq-evidence-intake-contract.test.ts\`: 파일 크기/형식 위조/경로·사고번호 조작/SHA 불일치, 재조회 시 원본과 다른 바이트 탐지, 정상 지문≠사고 사실 검증.
+- \`tests/hqPrivateEvidenceRlsSql.test.ts\`: 완전 합성 2개 현장/서로 다른 신원 및 기존 12차 schema를 PGlite 격리 PostgreSQL에서 실행, 작성자/배정 검토자만 메타데이터 조회, 권한 없는 쓰기·수정·삭제·감사내역 조회 차단, 타 현장 차단, 소속 해제 시 접근 폐쇄.
+
+### 실제 운영 도입 전 강제 게이트
+1. 사용자가 승인한 **비공개 Supabase Storage 버킷** 생성·객체 경로별 RLS와 개인별 읽기/쓰기 범위 적용. 기본 공개 URL 및 클라이언트 소유권만으로 보호했다고 주장 금지.
+2. 업로드/다운로드 서버 API는 실제 로그인 재인증·tenant/site/case 소속·검토자 역할 확인 후만 허용. 서버 바이트 MIME/크기/해시 검증, 악성 파일 스캔, 암호화·개인정보 분류, DB 감사이력 등록과 버킷 객체 상태 일관성(고아 파일 복구) 검증.
+3. 표준화된 원본 채증시각·수집자·파일 취득 경로와 보존기간/보존 해제 정책, 이중백업 및 복구 테스트, 열람·내보내기 감사로그의 삭제·변조 저항성 강화.
+4. 실제 DB 권한 테스트는 두 기업/두 현장/직무 분리 실계정으로 재수행. 서버 권한을 우회하는 공용 서비스키·서명 URL 유출 금지. URL이 일단 발급되면 권한 해제 시 즉각 폐기되지 않을 수 있으므로 민감 증빙은 짧은 접근창과 서버측 재승인·캐시 통제를 우선 검토.
+5. 사진/영상/스캔의 콘텐츠 진위와 원인 판정은 AI 또는 지문 일치만으로 결론내리지 않으며 실제 조사자 승인·노동관계 법정 보고 절차는 별개.
+6. \`main\` 병합/Production 배포/운영 DB 변경/Storage 버킷 생성/환경변수 변경/feature-flag 활성화 **전부 보류**. 기존 npm audit 보안 취약점 해결과 전제품 회귀 QA가 우선.
+
+### Supabase 자료 검토
+- Private Storage buckets / Access Control: https://supabase.com/docs/guides/storage/buckets/fundamentals , https://supabase.com/docs/guides/storage/security/access-control
+- Signed URL/캐시·접근철회 한계: https://supabase.com/docs/guides/storage/serving/downloads , https://supabase.com/kb/troubleshooting/storage-private-bucket-files-still-accessible-after-remove-access-or-logout
+- 외부 서비스에 서명 URL을 오래 공유하는 방식은 사고 증빙 보호 기준으로 사용하지 않음.
