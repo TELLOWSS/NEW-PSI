@@ -43,7 +43,7 @@ describe('HQ durable evidence transport outbox contract (no live database)',()=>
   });
  });
  it('marks a stale PREPARED event unconfirmed rather than fabricating a completed download',async()=>{
-  const changed:string[]=[],sink=vi.fn(async()=>{});
+  const changed:string[]=[],sink=vi.fn(async(_event:PendingTransportEvent)=>{});
   const result=await reconcileTransportOutbox({
    claimDue:async()=>[entry('prepared'),{...entry('response_aborted'),id:scope.actorId}],
    markUnconfirmed:async key=>{changed.push('unknown:'+key);},
