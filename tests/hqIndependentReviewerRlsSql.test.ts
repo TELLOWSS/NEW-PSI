@@ -58,26 +58,29 @@ it('private HQ review proposal enforces authenticated tenant/site identity and i
   const makeCase='insert into public.psi_hq_incident_cases(tenant_id,site_id,id,occurred_on,construction_zone,process_code,incident_type,summary) values ('+
     [tenant,siteA,incident,'2026-11-20','지하','formwork','끼임','완전 가상의 일반 형틀 작업중 사고 사례'].map(quote).join(',')+');';
   await asUser(author,makeCase);
-  const insertAssignment=(options:{user?:string;site?:string;authorId?:string;siteReviewerId?:string;hqReviewerId?:string;extra?:string}={})=>{
-   const columns=cols+(options.extra?',assigned_by':'');
+  const insertAssignment=(options:{site?:string;authorId?:string;siteReviewerId?:string;hqReviewerId?:string;operatorId?:string}={})=>{
+   const columns=cols+',assigned_by';
    const values=[tenant,options.site||siteA,incident,'1','DEMO-REPORT-V1',
-    options.authorId||author,options.siteReviewerId||siteReviewer,options.hqReviewerId||hqReviewer]
+    options.authorId||author,options.siteReviewerId||siteReviewer,options.hqReviewerId||hqReviewer,
+    options.operatorId||supervisor]
     .map((x,i)=>i===3?x:quote(x)).join(',');
-   const raw=values+(options.extra?','+quote(options.extra):'');
-   return 'insert into '+assignmentTable+'('+columns+') values ('+raw+') returning id;';
+   return 'insert into '+assignmentTable+'('+columns+') values ('+values+') returning id;';
   };
-  // Only active same-site HQ supervisor can assign, and creator must match the incident.
+  // All browser accounts (including owner/admin) are denied assignment INSERT.
   await expect(asUser(author,insertAssignment())).rejects.toThrow();
   await expect(asUser(siteReviewer,insertAssignment())).rejects.toThrow();
   await expect(asUser(viewer,insertAssignment())).rejects.toThrow();
   await expect(asUser(outsider,insertAssignment())).rejects.toThrow();
-  await expect(asUser(supervisor,insertAssignment({site:siteB}))).rejects.toThrow();
-  await expect(asUser(supervisor,insertAssignment({authorId:viewer}))).rejects.toThrow();
-  await expect(asUser(supervisor,insertAssignment({siteReviewerId:author}))).rejects.toThrow();
-  await expect(asUser(supervisor,insertAssignment({siteReviewerId:hqReviewer}))).rejects.toThrow();
-  await expect(asUser(supervisor,insertAssignment({hqReviewerId:viewer}))).rejects.toThrow();
-  await expect(asUser(supervisor,insertAssignment({extra:outsider}))).rejects.toThrow(); // column-grant spoof protection
-  const created=await asUser(supervisor,insertAssignment());
+  await expect(asUser(supervisor,insertAssignment())).rejects.toThrow();
+  // Separate, trusted operator provisions assignments; invoker trigger validates
+  // author identity, site membership, correct role and active HQ operator.
+  await expect(db.query(insertAssignment({site:siteB}))).rejects.toThrow();
+  await expect(db.query(insertAssignment({authorId:viewer}))).rejects.toThrow();
+  await expect(db.query(insertAssignment({siteReviewerId:author}))).rejects.toThrow();
+  await expect(db.query(insertAssignment({siteReviewerId:hqReviewer}))).rejects.toThrow();
+  await expect(db.query(insertAssignment({hqReviewerId:viewer}))).rejects.toThrow();
+  await expect(db.query(insertAssignment({operatorId:outsider}))).rejects.toThrow();
+  const created=await db.query(insertAssignment());
   const assignmentId=(created.rows[0] as {id:string}).id;
   expect(assignmentId).toMatch(/^[a-f0-9-]{36}$/);
 
