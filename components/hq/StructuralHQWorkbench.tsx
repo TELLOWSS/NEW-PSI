@@ -1,5 +1,16 @@
 import React, { useMemo, useState, type FormEvent } from 'react';
 import './StructuralHQWorkbench.css';
+import {
+  appendInvestigationEntry,
+  createInvestigationDraft,
+  investigationReadiness,
+  requestInvestigationReview,
+  returnInvestigationForRevision,
+  REVIEW_KIND_LABELS,
+  type InvestigationDraft,
+  type ReviewKind,
+  type ReviewSource
+} from './investigationReviewModel';
 
 /**
  * HQ-SAFE exploratory workbench.
@@ -115,6 +126,12 @@ export default function StructuralHQWorkbench(): React.ReactElement {
   const [selectedCaseId, setSelectedCaseId] = useState<number | null>(null);
   const [notice, setNotice] = useState('');
   const [trainingProcessId, setTrainingProcessId] = useState('underground-wall');
+  const [investigationDrafts, setInvestigationDrafts] = useState<Record<number, InvestigationDraft>>({});
+  const [reviewKind, setReviewKind] = useState<ReviewKind>('fact');
+  const [reviewDescription, setReviewDescription] = useState('');
+  const [reviewSource, setReviewSource] = useState<ReviewSource>('작업문서');
+  const [reviewSourceRef, setReviewSourceRef] = useState('');
+  const [revisionReason, setRevisionReason] = useState('');
 
   const process = STRUCTURAL_PROCESSES.find((item) => item.id === processId) || STRUCTURAL_PROCESSES[0];
   const trainingProcess = STRUCTURAL_PROCESSES.find((item) => item.id === trainingProcessId) || STRUCTURAL_PROCESSES[0];
@@ -123,6 +140,8 @@ export default function StructuralHQWorkbench(): React.ReactElement {
   const selectedCase = incidents.find((item) => item.id === selectedCaseId);
   const selectedIncidentProcess = STRUCTURAL_PROCESSES.find((item) => item.id === incidentProcess) || STRUCTURAL_PROCESSES[0];
   const selectedCaseProcess = STRUCTURAL_PROCESSES.find((p) => p.id === selectedCase?.processId);
+  const investigationDraft = selectedCase ? investigationDrafts[selectedCase.id] || createInvestigationDraft(selectedCase.id) : null;
+  const reviewReadiness = investigationDraft ? investigationReadiness(investigationDraft) : null;
   const checkCount = process.inspection.filter((_, index) => checked[process.id + ':' + index]).length;
   const educationDraft = [
     '본사 안전교육 자료 초안 · 내부 검토용',
@@ -158,6 +177,49 @@ export default function StructuralHQWorkbench(): React.ReactElement {
     setSelectedCaseId(id);
     setSummary('');
     setNotice('사례를 임시 등록했습니다. 조사 결과나 법적 사실이 확정된 것은 아닙니다.');
+  };
+  const addReviewEntry = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedCase || !investigationDraft) return;
+    try {
+      const entry = {
+        id: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8),
+        incidentId: selectedCase.id,
+        kind: reviewKind,
+        description: reviewDescription,
+        source: reviewKind === 'fact' ? reviewSource : null,
+        sourceRef: reviewKind === 'fact' ? reviewSourceRef : '',
+        registeredAt: new Date().toISOString()
+      };
+      const updated = appendInvestigationEntry(investigationDraft, entry);
+      setInvestigationDrafts((previous) => ({...previous, [selectedCase.id]: updated}));
+      setReviewDescription('');
+      setReviewSourceRef('');
+      setNotice('조사 항목을 세션에 추가했습니다. 자료번호 입력만으로 사실이 검증되는 것은 아닙니다.');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '조사 항목을 추가하지 못했습니다.');
+    }
+  };
+  const requestReview = () => {
+    if (!selectedCase || !investigationDraft) return;
+    try {
+      const updated = requestInvestigationReview(investigationDraft, crypto.randomUUID(), new Date().toISOString());
+      setInvestigationDrafts((previous) => ({...previous, [selectedCase.id]: updated}));
+      setNotice('검토 요청 상태를 시연했습니다. 실제 담당자에게 알림이나 결재 요청이 전송되지는 않습니다.');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '검토 요청 표시를 할 수 없습니다.');
+    }
+  };
+  const reviseReview = () => {
+    if (!selectedCase || !investigationDraft) return;
+    try {
+      const updated = returnInvestigationForRevision(investigationDraft, crypto.randomUUID(), new Date().toISOString(), revisionReason);
+      setInvestigationDrafts((previous) => ({...previous, [selectedCase.id]: updated}));
+      setRevisionReason('');
+      setNotice('검토 보완 상태를 시연했습니다. 실제 담당자 승인이나 검토를 뜻하지 않습니다.');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '보완 상태 변경에 실패했습니다.');
+    }
   };
   const copyDraft = async () => {
     try { await navigator.clipboard.writeText(educationDraft); setNotice('교육자료 초안을 복사했습니다.'); }
@@ -299,7 +361,57 @@ export default function StructuralHQWorkbench(): React.ReactElement {
         </div>
       </div>}
 
-      {notice && <p role="status" className="hq-notice">{notice}</p>}
+      {tab === 'investigation' && selectedCase && investigationDraft && reviewReadiness && <section className="hq-review-board" aria-label="사고 원인조사 증빙·검토 시연">
+        <div className="hq-review-heading">
+          <div><span className="hq-eyebrow">EVIDENCE & HUMAN REVIEW</span><h4>사실·가설·미확인 사항 분리</h4></div>
+          <span className="hq-review-status">{investigationDraft.status === 'requested' ? '사내 검토 요청 표시' : investigationDraft.status === 'needs_revision' ? '보완 필요' : '조사 초안'}</span>
+        </div>
+        <div className="hq-review-counters">
+          <span>사실 주장 <b>{reviewReadiness.counts.fact}</b></span>
+          <span>원인 가설 <b>{reviewReadiness.counts.hypothesis}</b></span>
+          <span>미확인 항목 <b>{reviewReadiness.counts.unknown}</b></span>
+        </div>
+        <div className="hq-review-grid">
+          <form className="hq-form" onSubmit={addReviewEntry}>
+            <h4>조사 항목 입력</h4>
+            <label>자료 분류 <select value={reviewKind} onChange={(event)=>setReviewKind(event.target.value as ReviewKind)}>
+              {(Object.keys(REVIEW_KIND_LABELS) as ReviewKind[]).map((kind)=><option key={kind} value={kind}>{REVIEW_KIND_LABELS[kind]}</option>)}
+            </select></label>
+            <label>조사 내용 (8자 이상) <textarea rows={3} required minLength={8} maxLength={500} value={reviewDescription} onChange={(event)=>setReviewDescription(event.target.value)} placeholder="확인된 내용, 원인 가능성 또는 추가 조사 필요사항을 구체적으로 기술"/></label>
+            {reviewKind === 'fact' && <>
+              <label>근거 종류 <select value={reviewSource} onChange={(event)=>setReviewSource(event.target.value as ReviewSource)}>{(['사진·영상','작업문서','진술','현장확인','기타'] as ReviewSource[]).map((kind)=><option key={kind}>{kind}</option>)}</select></label>
+              <label>근거 자료번호·원본 위치 <input required minLength={4} maxLength={180} value={reviewSourceRef} onChange={(event)=>setReviewSourceRef(event.target.value)} placeholder="예: DOC-001 / 시연용 번호만 입력"/></label>
+            </>}
+            <button type="submit" className="hq-primary" disabled={investigationDraft.status === 'requested'}>조사 항목 임시 추가</button>
+            {investigationDraft.status === 'requested' && <p className="hq-hint">검토 요청 중에는 수정할 수 없습니다. 보완 상태로 변경한 뒤 추가하세요.</p>}
+          </form>
+          <div className="hq-review-register">
+            <h4>조사 근거 목록 <small>{investigationDraft.entries.length}건</small></h4>
+            {investigationDraft.entries.length === 0 ? <p className="hq-empty">등록된 사실·가설·미확인 항목이 없습니다.</p> :
+              investigationDraft.entries.map((entry)=><article className="hq-review-entry" key={entry.id}>
+                <span className={'hq-review-kind ' + entry.kind}>{REVIEW_KIND_LABELS[entry.kind]}</span>
+                <p>{entry.description}</p>
+                {entry.source && <small>근거: {entry.source} / {entry.sourceRef}</small>}
+                <small>조사 항목 작성 시각: {entry.registeredAt.slice(0, 16).replace('T',' ')}</small>
+              </article>)}
+            <div className="hq-review-gate">
+              <h5>사내 검토 요청 사전 점검</h5>
+              {reviewReadiness.messages.length ? <ul>{reviewReadiness.messages.map((message)=><li key={message}>{message}</li>)}</ul> : <p>검토 요청용 필수 입력 조건을 충족했습니다. 원인 진위나 법적 적합성은 검증되지 않았습니다.</p>}
+              <button type="button" className="hq-primary" disabled={!reviewReadiness.readyToRequest || investigationDraft.status === 'requested'} onClick={requestReview}>검토 요청 표시 (실제 결재 아님)</button>
+              {investigationDraft.status === 'requested' && <>
+                <label>보완 사유 <input maxLength={200} minLength={4} value={revisionReason} onChange={(event)=>setRevisionReason(event.target.value)} placeholder="확인이 필요한 자료나 조사항목"/></label>
+                <button type="button" className="hq-secondary" onClick={reviseReview}>보완 상태로 되돌리기</button>
+              </>}
+            </div>
+            {investigationDraft.events.length > 0 && <div className="hq-review-history">
+              <h5>세션 내 검토 상태 변경이력</h5>
+              <ol>{investigationDraft.events.map((event)=><li key={event.eventId}>{event.eventType === 'request' ? '검토 요청 표시' : '보완 상태로 변경'} · {event.reason}</li>)}</ol>
+            </div>}
+          </div>
+        </div>
+        <p className="hq-review-footnote">이 화면은 개발 시연입니다. 자료번호·확인 상태는 원본 진위나 근로자 진술을 증명하지 않습니다. 실제 조사책임자 인증, 원본 파일 무결성, 교차검증, 최종 결재 및 AI 처리는 아직 구현하지 않았습니다.</p>
+      </section>}
+      {notice && <p role="status" className="hq-notice">{notice}</p>
     </div>
     <div className="hq-bottom"><strong>구현 범위: 공정 분류·위험 체크리스트·세션 방문보고·세션 사고분류·교육 초안·조사 질문</strong><span>미구현: 실제 중앙 저장·현장별 권한·AI 호출·PPT 내보내기·법정 보고·승인 워크플로</span></div>
   </section>;
