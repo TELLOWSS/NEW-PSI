@@ -36,7 +36,7 @@ const syntheticOutbox=():EvidenceTransportOutboxPorts=>({
   settle:async()=>{},alert:async()=>{}
 });
 const createTestRoute=(deps:Parameters<typeof createHqEvidenceReadRoute>[0])=>
-  createTestRoute({...deps,transportOutbox:syntheticOutbox()});
+  createHqEvidenceReadRoute({...deps,transportOutbox:syntheticOutbox()});
 const authenticated=vi.fn(async()=>({
  tenantId:tenant,userId:author,role:'reviewer' as const,client:{} as any
 }));
