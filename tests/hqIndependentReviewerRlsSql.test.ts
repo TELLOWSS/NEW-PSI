@@ -38,6 +38,10 @@ it('private HQ review proposal enforces authenticated tenant/site identity and i
    'alter table public.psi_tenant_site_memberships force row level security;',
    'grant select on public.psi_tenant_site_memberships to authenticated;',
    "create policy site_self_read on public.psi_tenant_site_memberships for select to authenticated using (user_id=auth.uid() and status='active' and exists(select 1 from public.psi_tenant_memberships m where m.tenant_id=psi_tenant_site_memberships.tenant_id and m.user_id=auth.uid() and m.status='active'));",
+   'alter table public.psi_tenant_sites enable row level security;',
+   'alter table public.psi_tenant_sites force row level security;',
+   'grant select on public.psi_tenant_sites to authenticated;',
+   "create policy site_active_member_read on public.psi_tenant_sites for select to authenticated using (active=true and exists(select 1 from public.psi_tenant_site_memberships m where m.tenant_id=psi_tenant_sites.tenant_id and m.site_id=psi_tenant_sites.id and m.user_id=auth.uid() and m.status='active'));",
    'insert into auth.users(id) values ('+[author,siteReviewer,hqReviewer,supervisor,outsider,viewer].map(quote).join('),(')+');',
    'insert into public.psi_tenants(id,name) values ('+quote(tenant)+",'Fictional HQ');",
    'insert into public.psi_tenant_memberships(tenant_id,user_id,role,status) values '+
