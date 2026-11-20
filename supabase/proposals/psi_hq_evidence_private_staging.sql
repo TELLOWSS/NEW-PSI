@@ -40,11 +40,18 @@ create table hq_evidence_staging.evidence_manifest (
 );
 create index hq_evidence_case_idx on hq_evidence_staging.evidence_manifest(tenant_id,site_id,case_id);
 
+-- PHASE 16: response_flushed records a server HTTP finish event only;
+-- it is not proof of recipient receipt and MUST NOT be converted to download_completed.
+-- response_aborted records close-before-finish, which can happen after partial bytes.
+-- Post-response event persistence can fail after transmission; production requires
+-- a durable outbox, reconciliation and operational alerts rather than claiming completeness.
+
 create table hq_evidence_staging.access_events (
  tenant_id uuid not null,site_id uuid not null,case_id uuid not null,
  evidence_id uuid not null,id uuid not null default gen_random_uuid(),
  event_type text not null check(event_type in (
-   'intake_verified','read_requested','read_denied','read_verified','download_completed','digest_mismatch')),
+   'intake_verified','read_requested','read_denied','read_verified','download_completed','digest_mismatch',
+   'response_send_started','response_flushed','response_aborted')),
  actor_id uuid not null references auth.users(id) on delete restrict,
  occurred_at timestamptz not null default now(),
  -- No raw filenames, signed URLs, bearer tokens, narrative or medical details.
