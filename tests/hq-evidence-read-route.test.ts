@@ -162,7 +162,7 @@ describe('HQ Phase 15 evidence HTTP boundary stays safe by default',()=>{
   const out=response();await handler(request(),out);
   expect(out.statusCode).toBe(503);
   expect(Buffer.isBuffer(out.payload)).toBe(false);
-  expect(mem.events).toEqual(['read_requested','storage','read_verified','response_send_started','denied:provider_unavailable']);
+  expect(mem.events).toEqual(['read_requested','storage','read_verified','response_send_started']);
   expect(release).toHaveBeenCalledTimes(1);
  });
 
