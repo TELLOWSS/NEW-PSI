@@ -5,6 +5,7 @@ import tenantTrainingDrafts from '../../lib/server/tenantTrainingDrafts.js';
 import tenantSafetyActions from '../../lib/server/tenantSafetyActions.js';
 import tenantEvidenceReceipts from '../../lib/server/tenantEvidenceReceipts.js';
 import tenantNexusSiteRead from '../../lib/server/tenantNexusSiteRead.js';
+import tenantHqIncidentRead from '../../lib/server/tenantHqIncidentRead.js';
 
 export default async function handler(req: any, res: any) {
     res.setHeader('Cache-Control', 'no-store');
@@ -17,6 +18,7 @@ export default async function handler(req: any, res: any) {
     if (req.query?.resource === 'actions') return tenantSafetyActions(req, res);
     if (req.query?.resource === 'evidence-receipts') return tenantEvidenceReceipts(req, res);
     if (req.query?.resource === 'nexus-site-aggregates') return tenantNexusSiteRead(req, res);
+    if (req.query?.resource === 'hq-incidents') return tenantHqIncidentRead(req, res);
     if (req.query?.resource !== undefined) {
         return res.status(404).json({ ok: false, code: 'SAAS_RESOURCE_NOT_FOUND' });
     }
