@@ -12,7 +12,8 @@ const PROCESSES = new Set(['underground-wall','underground-slab','formwork','gan
   'rebar','pour','shoring','scaffold','lifting']);
 const INCIDENT_TYPES = new Set(['추락','넘어짐','미끄러짐','낙하·비래','맞음','끼임','끼임·협착',
   '무너짐·전도','충돌','감전','절단','절단·베임','화재·폭발','질식','화상','교통사고','기타·아차사고']);
-const QUERY_KEYS = new Set(['resource','siteId','zone','processId','caseId']);
+const QUERY_KEYS = new Set(['resource','siteId','zone','processId','caseId','page']);
+const MAX_PAGE = 99;
 const COLUMNS = 'tenant_id,site_id,id,occurred_on,construction_zone,process_code,incident_type,created_at';
 const PAGE_SIZE = 25;
 
@@ -44,7 +45,11 @@ function parseQuery(query:Record<string,unknown>) {
   if(processId!==null&&!PROCESSES.has(processId))return invalid();
   const caseId=query.caseId===undefined?null:exactText(query.caseId,36);
   if(caseId!==null&&!UUID.test(caseId))return invalid();
-  return {siteId,zone,processId,caseId};
+  const rawPage=query.page===undefined?'0':exactText(query.page,2);
+  if(!/^(0|[1-9][0-9]?)$/.test(rawPage))return invalid();
+  const page=Number(rawPage);
+  if(page>MAX_PAGE||(caseId!==null&&page!==0))return invalid();
+  return {siteId,zone,processId,caseId,page};
 }
 async function requireSite(context:TenantContext,siteId:string):Promise<void> {
   let member;
@@ -103,10 +108,12 @@ export default async function tenantHqIncidentRead(req:any,res:any) {
     if(filter.caseId!==null)query=query.eq('id',filter.caseId);
     let result;
     try{
-      result=await query.order('created_at',{ascending:false}).order('id',{ascending:false}).limit(PAGE_SIZE+1);
+      result=await query.order('created_at',{ascending:false}).order('id',{ascending:false})
+        .range(filter.page*PAGE_SIZE,filter.page*PAGE_SIZE+PAGE_SIZE);
     }catch{return unavailable();}
     if(result.error||!Array.isArray(result.data)||result.data.length>PAGE_SIZE+1)return unavailable();
     const validated=result.data.map((r:unknown)=>safeCase(r,context,filter.siteId));
+    if(new Set(validated.map(item=>item.id)).size!==validated.length)return unavailable();
     if(filter.caseId!==null&&(validated.length>1||validated.some(x=>x.id!==filter.caseId)))return unavailable();
     if(filter.zone!==null&&validated.some(x=>x.zone!==filter.zone))return unavailable();
     if(filter.processId!==null&&validated.some(x=>x.processId!==filter.processId))return unavailable();
@@ -114,7 +121,10 @@ export default async function tenantHqIncidentRead(req:any,res:any) {
     return res.status(200).json({
       ok:true,scope:'AUTHENTICATED_TENANT_AND_SITE',source:'HQ_INCIDENT_STAGING',
       siteId:filter.siteId,filters:{zone:filter.zone,processId:filter.processId,caseId:filter.caseId},
-      items:validated.slice(0,PAGE_SIZE),hasMore,returnedCount:Math.min(PAGE_SIZE,validated.length),
+      items:validated.slice(0,PAGE_SIZE),page:filter.page,
+      nextPage:hasMore&&filter.page<MAX_PAGE?String(filter.page+1):null,
+      pageWindowIsSnapshot:false,
+      hasMore,returnedCount:Math.min(PAGE_SIZE,validated.length),
       totalCount:null,independentVerification:false,officialAccidentStatistics:false,
       workRestartAuthorized:false
     });
