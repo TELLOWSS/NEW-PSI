@@ -1,0 +1,50 @@
+name: HQ-SAFE isolated PostgreSQL concurrency
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/hq-safe-postgres-concurrency.yml"
+      - "scripts/qa-hq-evidence-pg-concurrency.mjs"
+      - "lib/server/hqEvidencePgOutboxAdapter.ts"
+      - "supabase/proposals/psi_hq_transport_outbox_staging.sql"
+      - "supabase/proposals/psi_hq_outbox_least_privilege_staging.sql"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hq-safe-pg-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postgres-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout PR source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Start disposable offline PostgreSQL (no ports and no production credentials)
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm -d --name hq-safe-pg-concurrency \
+            --network none \
+            --tmpfs /var/lib/postgresql/data:rw,exec,nosuid,size=512m \
+            -e POSTGRES_PASSWORD=synthetic-ephemeral-only \
+            -e POSTGRES_DB=hq_safe_concurrency \
+            postgres:16-alpine
+          ready=0
+          for i in $(seq 1 60); do
+            if docker exec hq-safe-pg-concurrency pg_isready -q -U postgres -d hq_safe_concurrency; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1
+      - name: Real independent session / crash rollback / RLS fencing tests
+        run: node scripts/qa-hq-evidence-pg-concurrency.mjs
+      - name: Dispose of all ephemeral test data
+        if: always()
+        run: docker rm -f hq-safe-pg-concurrency >/dev/null 2>&1 || true
