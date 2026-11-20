@@ -86,6 +86,12 @@ assertDenied('set role hq_safe_outbox_operator;delete from '+table);
 assertDenied('set role hq_safe_outbox_operator;update '+table+' set evidence_id='+q(evidence));
 assert.ok(sql('set role hq_safe_outbox_operator;select count(*) from '+table).endsWith('0'));
 console.log('PASS private schema, NOLOGIN operator, restricted UPDATE/DELETE grants');
+assertDenied('set role service_role; select count(*) from '+table);
+const roleRecord=seed();
+assert.equal(idOf(sql('set role hq_safe_outbox_operator;'+claim)),roleRecord,
+ 'worker role must be able to claim with actual RLS + limited UPDATE grants');
+sql('truncate '+table);
+console.log('PASS non-login operator can claim, public/service roles cannot access');
 
 const original=seed();
 const claims=await Promise.all([sqlAsync(claim),sqlAsync(claim)]);
