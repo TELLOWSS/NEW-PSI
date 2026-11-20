@@ -8,6 +8,7 @@
  */
 import {checkEvidenceLinks, type EvidenceManifestRecord, type EvidenceLink} from './evidenceManifestModel';
 import {checkSequence, type InvestigationSequence} from './accidentSequenceModel';
+import type {ReviewEntry} from './investigationReviewModel';
 
 export const SIX_W_FIELDS = [
   {key:'who',label:'누가',hint:'개인 실명 대신 작업 역할·담당 공종'},
@@ -44,6 +45,8 @@ export interface IncidentReportVersion {
   preventionSummary:string;
   evidenceRefs:readonly string[];
   sequenceDiscrepancies:number;
+  /** Session-only comparison token; it is NOT a hash, signature or evidence-integrity proof. */
+  sourceStateStamp:string;
   status:'unverified_review_draft';
 }
 export type ReportChange={label:string;before:string;after:string};
@@ -54,6 +57,46 @@ export function emptySixW():SixWFields{
 const clean=(s:string,limit:number)=>s.trim().slice(0,limit);
 const demoRef=/^DEMO-[A-Z0-9][A-Z0-9_-]{3,35}$/;
 const validTime=(v:string)=>v.length>0&&Number.isFinite(Date.parse(v));
+/** Synchronous stable equality snapshot for DEMO gating only; never a security hash. */
+export function reportSourceStateStamp(
+ incidentId:number,records:readonly EvidenceManifestRecord[],
+ timeline:InvestigationSequence|null,entries:readonly ReviewEntry[]=[]
+):string{
+ if(records.some(r=>r.incidentId!==incidentId)||
+   (timeline!==null&&timeline.incidentId!==incidentId)||
+   entries.some(e=>e.incidentId!==incidentId))throw new Error('다른 사고 자료를 비교할 수 없습니다.');
+ return JSON.stringify({
+  incidentId,
+  records:records.map(r=>[r.ref,r.kind,r.note,r.sha256,r.byteCount,r.recordedAt,r.status])
+   .sort((a,b)=>String(a[0]).localeCompare(String(b[0]))),
+  sequence:(timeline?.claims||[]).map(c=>[
+    c.id,c.phase,c.order,c.description,c.action,c.source,c.sourceRef,c.confidence
+  ]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))),
+  review:entries.map(e=>[e.id,e.kind,e.description,e.source,e.sourceRef,e.registeredAt])
+   .sort((a,b)=>String(a[0]).localeCompare(String(b[0])))
+ });
+}
+
+export function checkReportVersionFreshness(
+ incidentId:number,versions:readonly IncidentReportVersion[],
+ records:readonly EvidenceManifestRecord[],timeline:InvestigationSequence|null,
+ entries:readonly ReviewEntry[]=[]
+):{ready:boolean;messages:readonly string[]}{
+ const messages:string[]=[];
+ if(!versions.length)return {ready:false,messages:['6하원칙 조사보고서의 미승인 버전을 먼저 등록하세요.']};
+ if(versions.some(v=>v.incidentId!==incidentId)){
+  return {ready:false,messages:['다른 사고 보고서가 포함되어 검토를 중단했습니다.']};
+ }
+ const latest=versions[versions.length-1];
+ if(latest.version!==versions.length||versions.some((v,i)=>v.version!==i+1))
+  messages.push('조사보고서 버전 순서가 올바르지 않습니다.');
+ if(latest.status!=='unverified_review_draft')messages.push('미승인 검토 초안만 사용할 수 있습니다.');
+ try{
+  const current=reportSourceStateStamp(incidentId,records,timeline,entries);
+  if(latest.sourceStateStamp!==current)messages.push('보고서 버전 등록 후 증빙·행동 시퀀스·조사 근거가 변경됐습니다. 최신 자료로 새 보고서 버전을 작성하세요.');
+ }catch{messages.push('현재 사고자료의 소속이 맞지 않아 검토할 수 없습니다.');}
+ return {ready:messages.length===0,messages};
+}
 export function checkReportReadiness(
   input:IncidentReportInput,
   records:readonly EvidenceManifestRecord[],
@@ -102,7 +145,7 @@ export function checkReportReadiness(
 export function recordReportVersion(
   versions:readonly IncidentReportVersion[],input:IncidentReportInput,
   records:readonly EvidenceManifestRecord[],timeline:InvestigationSequence|null,
-  id:string,createdAt:string
+  id:string,createdAt:string,entries:readonly ReviewEntry[]=[]
 ):IncidentReportVersion[]{
  if(!id.trim()||!validTime(createdAt))throw new Error('보고서 버전 등록 정보를 확인하세요.');
  if(versions.some(v=>v.id===id))throw new Error('같은 버전 식별자를 다시 사용할 수 없습니다.');
@@ -120,7 +163,9 @@ export function recordReportVersion(
   openQuestions:clean(input.openQuestions,500),
   preventionSummary:clean(input.preventionSummary,500),
   evidenceRefs:check.linkedRefs,
-  sequenceDiscrepancies:check.sequenceDiscrepancies,status:'unverified_review_draft'
+  sequenceDiscrepancies:check.sequenceDiscrepancies,
+  sourceStateStamp:reportSourceStateStamp(input.incidentId,records,timeline,entries),
+  status:'unverified_review_draft'
  };
  return [...versions,next];
 }
