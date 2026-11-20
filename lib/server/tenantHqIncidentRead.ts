@@ -6,7 +6,7 @@ import { requireTenantContext, sendTenantError, TenantAccessError, type TenantCo
  * No writes, no service-role client, no free-text narratives / injury or personal data.
  * Explicit tenant + site membership is required even for owner/admin.
  */
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ZONES = new Set(['기초','지하','지상','옥탑']);
 const PROCESSES = new Set(['underground-wall','underground-slab','formwork','gangform','alform',
   'rebar','pour','shoring','scaffold','lifting']);
@@ -17,8 +17,8 @@ const MAX_PAGE = 99;
 const COLUMNS = 'tenant_id,site_id,id,occurred_on,construction_zone,process_code,incident_type,created_at';
 const PAGE_SIZE = 25;
 
-function invalid(stage='QUERY'):never {
-  throw new TenantAccessError(400,'HQ_INVALID_'+stage,'기업, 현장 또는 조회 조건을 확인해 주세요.');
+function invalid(_stage='QUERY'):never {
+  throw new TenantAccessError(400,'HQ_INVALID_QUERY','기업, 현장 또는 조회 조건을 확인해 주세요.');
 }
 function unavailable():never {
   throw new TenantAccessError(503,'HQ_SCOPE_UNAVAILABLE','사고사례 현장별 조회 준비가 완료되지 않았습니다.');
