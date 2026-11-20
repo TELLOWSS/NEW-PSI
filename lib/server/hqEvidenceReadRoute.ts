@@ -1,5 +1,9 @@
 import {requireTenantContext,sendTenantError,TenantAccessError} from './tenantAuth.js';
 import {
+ prepareTransportOutbox,settleTransportOutbox,alertTransportAuditFailure,EvidenceOutboxUnavailable,
+ type EvidenceTransportOutboxPorts,type EvidenceOutboxReceipt
+} from './hqEvidenceTransportOutbox.js';
+import {
  reserveEvidenceRead,releaseEvidenceRead,EvidenceCapacityFailure,
  type EvidenceCapacityPorts,type EvidenceCapacityLease
 } from './hqEvidenceReadAdmission.js';
@@ -27,6 +31,7 @@ type Dependencies={
  authenticate:(req:any)=>Promise<ReadContext>;
  buildPorts?:()=>Promise<EvidenceReadPorts>;
  admission?:EvidenceCapacityPorts;
+ transportOutbox?:EvidenceTransportOutboxPorts;
  flagEnabled:()=>boolean;
 };
 function parse(req:any):EvidenceReadRequest {
@@ -72,7 +77,7 @@ export function createHqEvidenceReadRoute(deps:Dependencies) {
    const request=parse(req);
    // Ports are not available in production until a separately reviewed,
    // server-only implementation is installed. No service key is accepted.
-   if(!deps.buildPorts||!deps.admission)return unavailable(res);
+   if(!deps.buildPorts||!deps.admission||!deps.transportOutbox)return unavailable(res);
    if(typeof res.once!=='function')return unavailable(res);
    const context=await deps.authenticate(req);
    const actor:EvidenceActor={tenantId:context.tenantId,userId:context.userId,role:context.role};
@@ -93,15 +98,23 @@ export function createHqEvidenceReadRoute(deps:Dependencies) {
     evidenceId:request.evidenceId,actorId:actor.userId,
     eventType:type,eventCode:auditCode[type]
    });
+   // Persist an independent receipt BEFORE sending any sensitive bytes.
+   // A crashed server leaves PREPARED for the trusted reconciliation worker.
+   const outboxReceipt:EvidenceOutboxReceipt=await prepareTransportOutbox({
+     tenantId:actor.tenantId,siteId:request.siteId,caseId:request.caseId,
+     evidenceId:request.evidenceId,actorId:actor.userId
+   },deps.transportOutbox);
    try{await writeHttpAudit('response_send_started');}
    catch{throw new EvidenceReadFailure(503,'EVIDENCE_UNAVAILABLE');}
    let terminal=false;
    const complete=(type:'response_flushed'|'response_aborted')=>{
     if(terminal)return;
     terminal=true;
-    // An after-send log failure cannot retract bytes: future production adapters
-    // must alert and reconcile missing events from a durable outbox.
-    void writeHttpAudit(type).catch(()=>{});
+    // The response may already be sent. Persist terminal state and independently
+    // alert on failed event writes; never claim client receipt from 'finish'.
+    void settleTransportOutbox(outboxReceipt,type,deps.transportOutbox!);
+    void writeHttpAudit(type).catch(()=>alertTransportAuditFailure(
+      outboxReceipt,deps.transportOutbox!));
     void releaseOnce();
    };
    res.once('finish',()=>complete('response_flushed'));
@@ -114,6 +127,7 @@ export function createHqEvidenceReadRoute(deps:Dependencies) {
    return res.status(200).send(Buffer.from(verified.bytes));
   }catch(error){
    await releaseOnce();
+   if(error instanceof EvidenceOutboxUnavailable)return unavailable(res);
    if(error instanceof EvidenceCapacityFailure){
     if(error.retryAfterSeconds!==null)res.setHeader('Retry-After',String(error.retryAfterSeconds));
     return res.status(error.status).json({ok:false,code:error.code});
