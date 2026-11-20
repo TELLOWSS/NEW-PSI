@@ -37,7 +37,7 @@ export default function HQOverviewDashboard({
         <span>{item.label}</span><strong>{item.value}<small>{item.unit}</small></strong><em>{item.note}</em>
       </button>)}
     </div>
-    {totalWork===0&&<p className="hq-executive-empty">등록된 시연 기록이 없습니다. 표시된 0은 **현재 세션의 입력건수**이며 실제 현장 사고 0건이나 안전 확보를 의미하지 않습니다. 아래 공정도를 선택하거나 방문·사고사례를 임시 등록해 화면 흐름을 확인하세요.</p>}
+    {totalWork===0&&<p className="hq-executive-empty">등록된 시연 기록이 없습니다. 표시된 0은 현재 세션의 입력건수이며 실제 현장 사고 0건이나 안전 확보를 의미하지 않습니다. 아래 공정도를 선택하거나 방문·사고사례를 임시 등록해 화면 흐름을 확인하세요.</p>}
     <div className="hq-executive-columns">
       <section className="hq-executive-panel" aria-label="공사구간별 사고 건수">
         <div className="hq-executive-panel-title"><div><span className="hq-eyebrow">STRUCTURAL ZONES</span><h5>공사구간별 사고 분포</h5></div><small>세션 등록건 기준</small></div>
