@@ -47,7 +47,7 @@ create table public.psi_hq_incident_review_events (
   site_id uuid not null,
   case_id uuid not null,
   id uuid not null default gen_random_uuid(),
-  event_type text not null check(event_type in ('review_requested','revision_required','review_completed')),
+  event_type text not null check(event_type in ('review_requested','revision_required','review_observed')),
   reason text not null check(length(btrim(reason)) between 4 and 1000),
   acted_by uuid not null default auth.uid() references auth.users(id) on delete restrict,
   recorded_at timestamptz not null default now(),
@@ -126,7 +126,7 @@ for insert to authenticated with check (
     where sm.tenant_id=psi_hq_incident_review_events.tenant_id and sm.site_id=psi_hq_incident_review_events.site_id
       and sm.user_id=(select auth.uid()) and sm.status='active')
   and (
-    event_type <> 'review_completed'
+    event_type <> 'review_observed'
     or exists(select 1 from public.psi_hq_incident_cases incident
       where incident.tenant_id=psi_hq_incident_review_events.tenant_id
         and incident.site_id=psi_hq_incident_review_events.site_id
@@ -135,8 +135,9 @@ for insert to authenticated with check (
   )
 );
 
+-- 'review_observed' is an independent review note only, not a signoff/approval.
 -- Append-only case/evidence/review event records: no UPDATE/DELETE privileges or RLS policy.
 -- Client can never overwrite a source or turn a recorded claim into a verified finding.
 -- A separate authenticated approval service must validate case readiness and source integrity
--- before any review_completed event becomes authoritative. This SQL does NOT provide it.
+-- before a case can ever be approved. This SQL has NO approval event or approval status.
 commit;
