@@ -14,10 +14,11 @@ type Props={
  onDraftsChange:(next:Record<number,InvestigationSequence>)=>void;
  controls:Record<number,CorrectiveCoverage[]>;
  onControlsChange:(next:Record<number,CorrectiveCoverage[]>)=>void;
+ readOnly?:boolean;
 };
 const shortId=()=>Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
 
-export default function IncidentSequenceWorkbench({selected,drafts,onDraftsChange,controls,onControlsChange}:Props):React.ReactElement{
+export default function IncidentSequenceWorkbench({selected,drafts,onDraftsChange,controls,onControlsChange,readOnly=false}:Props):React.ReactElement{
  const [phase,setPhase]=useState<SequencePhase>('during');
  const [order,setOrder]=useState(1);
  const [action,setAction]=useState<EventAction>('unknown');
@@ -39,7 +40,7 @@ export default function IncidentSequenceWorkbench({selected,drafts,onDraftsChang
   ['before','during','after'].indexOf(a.phase)-['before','during','after'].indexOf(b.phase)
  )||a.order-b.order):[],[draft]);
  const addClaim=(event:FormEvent)=>{
-  event.preventDefault();if(!selected||!draft)return;
+  event.preventDefault();if(!selected||!draft||readOnly)return;
   try{
    const updated=addSequenceClaim(draft,{
     id:shortId(),incidentId:selected.id,phase,order,action,source,sourceRef,description,confidence
@@ -49,7 +50,7 @@ export default function IncidentSequenceWorkbench({selected,drafts,onDraftsChang
   }catch(error){setNotice(error instanceof Error?error.message:'등록에 실패했습니다.');}
  };
  const addControl=(event:FormEvent)=>{
-  event.preventDefault();if(!selected)return;
+  event.preventDefault();if(!selected||readOnly)return;
   const candidate:CorrectiveCoverage={category:controlType,issue:issue.trim().slice(0,300),
    measure:measure.trim().slice(0,300),reference:controlRef.trim().slice(0,120)};
   if(candidate.issue.length<8||candidate.measure.length<8||candidate.reference.length<4){
@@ -69,6 +70,7 @@ export default function IncidentSequenceWorkbench({selected,drafts,onDraftsChang
   {!selected?<p className="hq-empty">먼저 사고조사 대상 사례를 선택하세요. 비식별 시연용입니다.</p>:<>
    <div className="hq-sequence-grid">
     <form className="hq-form" onSubmit={addClaim}>
+     <fieldset disabled={readOnly} className="hq-sequence-fieldset">
      <h4>사고 전·당시·직후 행동 기록</h4>
      <label>발생 구간
       <select value={phase} onChange={e=>setPhase(e.target.value as SequencePhase)}>
@@ -97,6 +99,7 @@ export default function IncidentSequenceWorkbench({selected,drafts,onDraftsChang
       </select>
      </label>
      <button type="submit" className="hq-primary">시퀀스 항목 임시 등록</button>
+     </fieldset>
     </form>
     <div className="hq-sequence-register">
      <h4>사고 행동 흐름 <small>{sorted.length}개 입력</small></h4>
@@ -121,6 +124,7 @@ export default function IncidentSequenceWorkbench({selected,drafts,onDraftsChang
    </div>
    <div className="hq-sequence-grid hq-sequence-controls">
     <form className="hq-form" onSubmit={addControl}>
+     <fieldset disabled={readOnly} className="hq-sequence-fieldset">
      <h4>원인과 개선대책 연결 검토</h4>
      <label>위험 발생 메커니즘 <textarea rows={2} minLength={8} maxLength={300} value={hazard}
       onChange={e=>setHazard(e.target.value)} placeholder="예: 데크 통로 바닥 돌출물에 와이어 걸림 가능성"/></label>
@@ -131,6 +135,7 @@ export default function IncidentSequenceWorkbench({selected,drafts,onDraftsChang
      <label>예방·개선대책 <textarea required minLength={8} rows={2} maxLength={300} value={measure} onChange={e=>setMeasure(e.target.value)}/></label>
      <label>대책 근거번호 <input required minLength={4} maxLength={120} value={controlRef} onChange={e=>setControlRef(e.target.value)} placeholder="예: DEMO-ACT-01"/></label>
      <button type="submit" className="hq-primary">원인–대책 연결 임시 등록</button>
+     </fieldset>
     </form>
     <div className="hq-sequence-register">
      <h4>예방대책 정합성 검토 <small>{actions.length}건</small></h4>
