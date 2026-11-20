@@ -348,3 +348,33 @@
 - Private Storage buckets / Access Control: https://supabase.com/docs/guides/storage/buckets/fundamentals , https://supabase.com/docs/guides/storage/security/access-control
 - Signed URL/캐시·접근철회 한계: https://supabase.com/docs/guides/storage/serving/downloads , https://supabase.com/kb/troubleshooting/storage-private-bucket-files-still-accessible-after-remove-access-or-logout
 - 외부 서비스에 서명 URL을 오래 공유하는 방식은 사고 증빙 보호 기준으로 사용하지 않음.
+
+
+## 2026-11-21 14차: 사고 증빙의 서버 접근허가·무결성 재검증·강제 감사 게이트 (운영 미활성)
+
+### 13차 인계 기반의 실제 구현 판단
+13차 서버 파일 전처리 함수와 비공개 증빙대장/접근 이벤트 SQL 제안은 있었으나, **원본 열람 직전의 사용 권한·사고 소속·파일 상태·감사기록**을 함께 강제하는 서버 흐름이 없었다. 14차에는 기능을 억지로 Production API에 연결하지 않고, 실제 서버 컨트롤러에 안전하게 조립할 수 있는 독립 모듈과 합성 회귀 테스트를 개발했다.
+
+### 구현 파일
+- \`lib/server/hqEvidenceAccessGate.ts\`
+  - 서버 전용 \`readScopedEvidence(actor, request, ports)\`. \`actor.tenantId\`·\`actor.userId\`·\`actor.role\`은 **검증된 로그인 서버 문맥에서만 전달**해야 하며 사용자가 보낸 역할/기업ID는 절대 신뢰하지 않는다.
+  - UUID와 허용 역할 검증 → 기업/현장 활성 소속 → 활성 현장 → 요청한 사고번호·작성자 교차검증 → 해당 사고 작성자 또는 배정된 현장 reviewer / 본사 owner·admin 역할 검증 → 증빙대장 테넌트/현장/사고/객체 식별자·경로·버킷·MIME·길이·SHA-256·원본진위 미확정 값 일치 확인.
+  - 추가 **악성파일 검사상태가 명시적으로 \`clean\`**인 경우만 파일 열람 가능. \`pending\`/ \`blocked\`/값 누락은 열람 금지. 이 값은 향후 신뢰된 스캐너만 기록해야 하며 현재 시제품에 실 스캐너는 연결되지 않음.
+  - **조회 시도 감사 \`read_requested\` 기록 성공 전** 원본 바이트 읽기 금지. 비공개 저장소 바이트를 받은 뒤 13차 \`verifyRetrievedEvidence\`로 MIME/크기/SHA-256을 재검증, 불일치 시 \`digest_mismatch\` 감사 시도 후 응답 차단. 정상 바이트라도 \`download_completed\` 감사 기록 실패 시 파일 응답 차단.
+  - 요청·저장소 실패 시 provider 오류/원본경로/토큰을 노출하지 않고 범용 오류코드로 거부. 파일명·원본 경로·서명 URL을 결과에 포함하지 않음; 서버 측 결과는 파일 바이트와 MIME/크기/지문 및 미검증 상태뿐. 실제 HTTP \`Cache-Control: no-store\`, 본인 인증, 데이터베이스/Storage 어댑터는 아직 연결 전이므로 서버 컨트롤러 구현 시 반드시 강제해야 함.
+  - 원본 지문 일치는 사고 현장과 촬영시각의 진위를 의미하지 않으며 실제 사고조사 확정/산재·법정 신고/작업재개 승인과 연결하지 않는다.
+- \`supabase/proposals/psi_hq_evidence_private_staging.sql\`
+  - \`malware_scan_status\` 컬럼 추가, 기본 \`pending\`, 허용 \`pending/clean/blocked\` CHECK. 클라이언트의 직접 INSERT/UPDATE 권한 없음.
+  - **신뢰된 스캐너가 사전 검사 후 CLEAN 상태로 보관**하는 실제 라이프사이클은 아직 구현하지 않음. Storage 버킷, 공개 정책, signed URL, 암호화 키를 만들지 않음.
+- \`tests/hq-evidence-access-gate.test.ts\`
+  - 작성자/현장·본사 배정 검토자 접근, 다른 역할·미배정자·타 현장/사고/객체 위조 차단, 세션/사이트 비활성 차단.
+  - 적절한 스캔결과 없으면 비공개 저장소 접근 자체를 금지. **조회 전/조회 후 감사 실패·원본 변조·서버 저장소 장애** 시 파일 반환 금지. 정상 조회에도 sourceAuthenticityVerified=false.
+  - 테스트는 합성 파일과 임시 포트 어댑터를 이용하며 실 사용자·실 사고파일 및 서비스키 미사용.
+
+### 검증 및 배포 게이트
+- 최신 HEAD 14차 CI 결과는 검사 후 이 문서의 완료 판정과 별도로 판단해야 함. 성공한 과거 커밋의 자동검증을 최신 성공으로 간주하지 않는다.
+- 실다운로드 기능을 위한 다음 준비: 사용자 계정의 재인증/현장 접근재검증, 서버 비공개 Storage 어댑터, 파일 악성검사·분류·격리 처리, DB에 **실제 지속 기록되는 감사 파이프라인**, Storage/DB 일관성 및 장애·재시도 시 중복검증, 동시성·범위별 부하 제한, 파일 크기 제한과 스트리밍·메모리 예산.
+- 현재 13차 \`access_events\`는 \`evidence_manifest\` FK를 필요로 하므로 **존재하지 않는 자료 요청이나 인증 실패의 상세 감사 수집은 별도 보안 시도 로그 설계가 필요하다.** 이번 모듈의 초기 거부는 파일 반환을 막지만 완전한 불변 감사 체인 구축을 뜻하지 않는다.
+- 현장별 독립 2기업·2현장/실계정 RLS, 개인정보 접근권한·보존기간/백업복구, 오프라인 모바일, npm audit 미해결 취약점과 전제품 브라우저 QA를 출시 전 차단 조건으로 유지.
+- 본사 대표이사 지시 업무 흐름·본사 최종 승인과 회사별 법정 신고 상태는 아직 별도 검토/결재 전이며 자동화하지 않았다.
+- **main 병합, Production 배포, 운영 DB/Storage/환경변수/feature flag 변경, 실제 원본 업로드·다운로드 전부 보류.**
