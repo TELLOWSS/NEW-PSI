@@ -32,7 +32,7 @@ function expectChanged(rows:Record<string,unknown>[],action:string){
  if(rows.length!==1)throw new Error('HQ_OUTBOX_STALE_OR_UNAUTHORIZED_'+action);
 }
 /** SELECT+UPDATE is ONE atomic statement, not a distributed in-memory counter. */
-export const CLAIM_DUE_SQL=String.raw\`
+export const CLAIM_DUE_SQL=String.raw`
 with due as (
  select id from hq_evidence_staging.transport_outbox
  where acked_at is null and next_attempt_at <= clock_timestamp()
@@ -49,7 +49,7 @@ update hq_evidence_staging.transport_outbox o
      delivery_attempts=o.delivery_attempts+1
  from due where o.id=due.id
  returning o.id,o.state,o.created_at,o.delivery_attempts,o.claim_token
-\`;
+`;
 /**
  * Returns both ports. The in-process map contains *only claim fencing tokens*,
  * not security records; no authorization or concurrency counters rely on it.
@@ -74,8 +74,8 @@ export function createPrivatePgEvidenceOutboxAdapter(
   prepare:async(scope:EvidenceTransportScope):Promise<EvidenceOutboxReceipt>=>{
    for(const v of Object.values(scope))requireUuid(v);
    const result=await db.query(
-    \`insert into \${table}(tenant_id,site_id,case_id,evidence_id,actor_id)
-      values($1,$2,$3,$4,$5) returning id\`,
+    `insert into ${table}(tenant_id,site_id,case_id,evidence_id,actor_id)
+      values($1,$2,$3,$4,$5) returning id`,
     [scope.tenantId,scope.siteId,scope.caseId,scope.evidenceId,scope.actorId]);
    if(result.rows.length!==1||!uuidOk(result.rows[0].id))fail('PREPARE_NOT_COMMITTED');
    return {id:result.rows[0].id};
@@ -84,14 +84,14 @@ export function createPrivatePgEvidenceOutboxAdapter(
    requireUuid(id);
    if(outcome!=='response_flushed'&&outcome!=='response_aborted')fail('INVALID_TERMINAL');
    const result=await db.query(
-    \`update \${table} set state=$2,settled_at=clock_timestamp()
+    `update ${table} set state=$2,settled_at=clock_timestamp()
      where id=$1 and acked_at is null and claim_token is null
        and state='prepared'
-     returning id\`,[id,outcome]);
+     returning id`,[id,outcome]);
    if(result.rows.length===1)return;
    // A repeat terminal callback with the SAME state is harmless, but an
    // aborted->flushed or unconfirmed->flushed rewrite is NOT allowed.
-   const row=await db.query(\`select state from \${table} where id=$1\`,[id]);
+   const row=await db.query(`select state from ${table} where id=$1`,[id]);
    if(row.rows.length===1&&row.rows[0].state===outcome)return;
    fail('CONFLICTING_TERMINAL');
   },
@@ -114,11 +114,11 @@ export function createPrivatePgEvidenceOutboxAdapter(
    return output;
   },
   markUnconfirmed:async(id:string)=>{
-   await guarded(\`update \${table}
+   await guarded(`update ${table}
      set state='unconfirmed',settled_at=clock_timestamp()
      where id=$1 and claim_token=$2 and claim_expires_at>clock_timestamp()
        and state='prepared' and acked_at is null
-     returning id\`,id);
+     returning id`,id);
   },
   deliver:async(event:PendingTransportEvent)=>{
    requireUuid(event.id);
@@ -127,24 +127,24 @@ export function createPrivatePgEvidenceOutboxAdapter(
    await sink(event,event.id);
   },
   acknowledge:async(id:string)=>{
-   await guarded(\`update \${table}
+   await guarded(`update ${table}
      set acked_at=clock_timestamp(),claim_token=null,claim_expires_at=null,
          last_failure_code=null
      where id=$1 and claim_token=$2 and claim_expires_at>clock_timestamp()
        and state<>'prepared' and acked_at is null
-     returning id\`,id);
+     returning id`,id);
    leases.delete(id);
   },
   retry:async(id:string,afterSeconds:number)=>{
    if(!Number.isSafeInteger(afterSeconds)||afterSeconds<1||afterSeconds>3600)
     fail('INVALID_BACKOFF');
-   await guarded(\`update \${table}
+   await guarded(`update ${table}
      set next_attempt_at=clock_timestamp()+($3::integer * interval '1 second'),
        claim_token=null,claim_expires_at=null,
        last_failure_code='SINK_UNAVAILABLE'
      where id=$1 and claim_token=$2 and claim_expires_at>clock_timestamp()
        and acked_at is null
-     returning id\`,id,[afterSeconds]);
+     returning id`,id,[afterSeconds]);
    leases.delete(id);
   },
   alert:securityAlert
