@@ -3,6 +3,8 @@ import './StructuralHQWorkbench.css';
 import CorrectiveActionWorkbench from './CorrectiveActionWorkbench';
 import IncidentSequenceWorkbench from './IncidentSequenceWorkbench';
 import EvidenceLedgerWorkbench from './EvidenceLedgerWorkbench';
+import IncidentReportRevisionWorkbench from './IncidentReportRevisionWorkbench';
+import type {IncidentReportVersion} from './incidentReportRevisionModel';
 import {checkEvidenceLinks,type EvidenceManifestRecord,type EvidenceLink} from './evidenceManifestModel';
 import type {EvidenceKind} from './accidentSequenceModel';
 import SiteTrainingWorkbench from './SiteTrainingWorkbench';
@@ -143,6 +145,7 @@ export default function StructuralHQWorkbench(): React.ReactElement {
   const [sequenceDrafts,setSequenceDrafts] = useState<Record<number,InvestigationSequence>>({});
   const [controlMaps,setControlMaps] = useState<Record<number,CorrectiveCoverage[]>>({});
   const [evidenceRecords,setEvidenceRecords] = useState<Record<number,readonly EvidenceManifestRecord[]>>({});
+  const [reportVersions,setReportVersions] = useState<Record<number,IncidentReportVersion[]>>({});
   const [investigationDrafts, setInvestigationDrafts] = useState<Record<number, InvestigationDraft>>({});
   const [hqActions, setHqActions] = useState<CorrectiveAction[]>([]);
   const [reviewKind, setReviewKind] = useState<ReviewKind>('fact');
@@ -390,6 +393,7 @@ export default function StructuralHQWorkbench(): React.ReactElement {
 
       {tab === 'investigation' && <EvidenceLedgerWorkbench selected={selectedCase ? {id:selectedCase.id,summary:selectedCase.summary}:null} records={evidenceRecords} onRecordsChange={setEvidenceRecords} links={currentEvidenceLinks} readOnly={investigationDraft?.status==='requested'}/>}
       {tab === 'investigation' && <IncidentSequenceWorkbench selected={selectedCase ? {id:selectedCase.id,date:selectedCase.date,zone:selectedCase.zone,processId:selectedCase.processId,summary:selectedCase.summary} : null} drafts={sequenceDrafts} onDraftsChange={setSequenceDrafts} controls={controlMaps} onControlsChange={setControlMaps} readOnly={investigationDraft?.status==='requested'}/> }
+      {tab === 'investigation' && <IncidentReportRevisionWorkbench key={selectedCaseId??'no-case'} selectedCaseId={selectedCaseId} evidence={selectedCase?(evidenceRecords[selectedCase.id]||[]):[]} sequence={selectedCase?(sequenceDrafts[selectedCase.id]||null):null} versions={selectedCase?(reportVersions[selectedCase.id]||[]):[]} onVersionsChange={next=>{if(selectedCase)setReportVersions(prev=>({...prev,[selectedCase.id]:next}));}} readOnly={investigationDraft?.status==='requested'}/>}
       {tab === 'investigation' && selectedCase && investigationDraft && reviewReadiness && <section className="hq-review-board" aria-label="사고 원인조사 증빙·검토 시연">
         <div className="hq-review-heading">
           <div><span className="hq-eyebrow">EVIDENCE & HUMAN REVIEW</span><h4>사실·가설·미확인 사항 분리</h4></div>
@@ -426,8 +430,8 @@ export default function StructuralHQWorkbench(): React.ReactElement {
             <div className="hq-review-gate">
               <h5>사내 검토 요청 사전 점검</h5>
               {reviewReadiness.messages.length ? <ul>{reviewReadiness.messages.map((message)=><li key={message}>{message}</li>)}</ul> : <p>검토 요청용 필수 입력 조건을 충족했습니다. 원인 진위나 법적 적합성은 검증되지 않았습니다.</p>}
-              <button type="button" className="hq-primary" disabled={!reviewReadiness.readyToRequest || !hasSequenceClaim || !currentEvidenceAudit?.readyToRequestDemoReview || investigationDraft.status === 'requested'} onClick={requestReview}>검토 요청 표시 (실제 결재 아님)</button>
-              {(!hasSequenceClaim || !currentEvidenceAudit?.readyToRequestDemoReview)&&<p className="hq-hint">추가 조건: 사고 전후 행동 시퀀스 1건 이상 및 모든 사실 주장·시퀀스 항목의 증빙대장 연결 필요. 파일 진위 확인이나 공식 승인을 뜻하지 않습니다.</p>}
+              <button type="button" className="hq-primary" disabled={!reviewReadiness.readyToRequest || !hasSequenceClaim || !currentEvidenceAudit?.readyToRequestDemoReview || !(reportVersions[selectedCase.id]?.length) || investigationDraft.status === 'requested'} onClick={requestReview}>검토 요청 표시 (실제 결재 아님)</button>
+              {(!hasSequenceClaim || !currentEvidenceAudit?.readyToRequestDemoReview || !(reportVersions[selectedCase.id]?.length))&&<p className="hq-hint">추가 조건: 행동 시퀀스·증빙대장 연결 및 6하원칙·직접/기여/근본 원인 근거가 포함된 조사보고서 버전 1건 이상 필요. 서면 검토·원본 진위를 의미하지 않습니다.</p>}
               {investigationDraft.status === 'requested' && <>
                 <label>보완 사유 <input maxLength={200} minLength={4} value={revisionReason} onChange={(event)=>setRevisionReason(event.target.value)} placeholder="확인이 필요한 자료나 조사항목"/></label>
                 <button type="button" className="hq-secondary" onClick={reviseReview}>보완 상태로 되돌리기</button>
@@ -446,6 +450,6 @@ export default function StructuralHQWorkbench(): React.ReactElement {
       </div>
       {notice && <p role="status" className="hq-notice">{notice}</p>}
     </div>
-    <div className="hq-bottom"><strong>구현 범위: 본사 관제·골조/형틀 사고자료·행동 시퀀스·증빙대장·원인대책 연결·교육 초안·조치/재점검 시연</strong><span>미구현: 실제 중앙 저장·현장별 권한·AI 호출·PPT 내보내기·법정 보고·승인 워크플로</span></div>
+    <div className="hq-bottom"><strong>구현 범위: 본사 관제·사고행동 시퀀스·증빙참조대장·6하원칙 조사보고서 개정비교·교육초안·조치/재점검 시연</strong><span>미구현: 실제 중앙 저장·현장별 권한·AI 호출·PPT 내보내기·법정 보고·승인 워크플로</span></div>
   </section>;
 }
