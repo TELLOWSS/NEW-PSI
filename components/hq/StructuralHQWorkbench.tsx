@@ -1,5 +1,6 @@
 import React, { useMemo, useState, type FormEvent } from 'react';
 import './StructuralHQWorkbench.css';
+import CorrectiveActionWorkbench from './CorrectiveActionWorkbench';
 import {
   appendInvestigationEntry,
   createInvestigationDraft,
@@ -94,7 +95,7 @@ export const STRUCTURAL_PROCESSES: readonly StructuralProcess[] = [
   }
 ];
 
-type Tab = 'process' | 'visit' | 'cases' | 'training' | 'investigation';
+type Tab = 'process' | 'visit' | 'cases' | 'training' | 'investigation' | 'actions';
 type Visit = { id: number; site: string; date: string; objective: string; status: '예정' | '방문 기록' };
 type Incident = { id: number; date: string; zone: ConstructionZone; processId: string; kind: string; summary: string; state: '조사 필요' };
 const AREAS: readonly (StructuralArea | '전체')[] = ['전체', '지하 RC', '일반 형틀', '지상 골조', '가설·장비'];
@@ -248,7 +249,8 @@ export default function StructuralHQWorkbench(): React.ReactElement {
         ['visit','본사 행선지·점검','일정 등록과 방문상태'],
         ['cases','사고사례 DB','구간·공종별 임시 분류'],
         ['training','대표이사·본사 교육','관리항목 기반 자료 초안'],
-        ['investigation','사고조사 지원','원인 확정 전 누락사항 확인']
+        ['investigation','사고조사 지원','원인 확정 전 누락사항 확인'],
+        ['actions','조치·재점검','임시통제 · 이행자료 · 보완']
       ] as const).map(([key,title,detail],index)=>
         <button key={key} type="button" className={'hq-tile' + (tab===key?' is-active':'')} onClick={()=>changeTab(key)} aria-pressed={tab===key}>
           <span className="hq-tile-number">0{index+1}</span><strong>{title}</strong><small>{detail}</small>
@@ -258,7 +260,7 @@ export default function StructuralHQWorkbench(): React.ReactElement {
 
     <div className="hq-workspace">
       <div className="hq-panel-top">
-        <div><span className="hq-eyebrow">STRUCTURAL SAFETY / HQ CONSOLE</span><h3>{tab === 'process' ? '골조·형틀 공정별 위험관리' : tab === 'visit' ? '본사 현장점검·행선지 보고' : tab === 'cases' ? '구간·공종별 사고사례 등록' : tab === 'training' ? '대표이사·본사 교육자료 제작' : '사고조사 검토 지원'}</h3></div>
+        <div><span className="hq-eyebrow">STRUCTURAL SAFETY / HQ CONSOLE</span><h3>{tab === 'process' ? '골조·형틀 공정별 위험관리' : tab === 'visit' ? '본사 현장점검·행선지 보고' : tab === 'cases' ? '구간·공종별 사고사례 등록' : tab === 'training' ? '대표이사·본사 교육자료 제작' : tab === 'investigation' ? '사고조사 검토 지원' : '개선조치·재점검 흐름'}</h3></div>
         <span className="hq-session">임시 세션 · 예시 데이터 0건부터 시작</span>
       </div>
 
@@ -411,8 +413,11 @@ export default function StructuralHQWorkbench(): React.ReactElement {
         </div>
         <p className="hq-review-footnote">이 화면은 개발 시연입니다. 자료번호·확인 상태는 원본 진위나 근로자 진술을 증명하지 않습니다. 실제 조사책임자 인증, 원본 파일 무결성, 교차검증, 최종 결재 및 AI 처리는 아직 구현하지 않았습니다.</p>
       </section>}
+      <div hidden={tab !== 'actions'}>
+        <CorrectiveActionWorkbench cases={incidents.map((item)=>({id:item.id,date:item.date,zone:item.zone,process:STRUCTURAL_PROCESSES.find(p=>p.id===item.processId)?.title || item.processId,summary:item.summary}))} onOpenCases={()=>changeTab('cases')}/>
+      </div>
       {notice && <p role="status" className="hq-notice">{notice}</p>}
     </div>
-    <div className="hq-bottom"><strong>구현 범위: 공정 분류·위험 체크리스트·세션 방문보고·세션 사고분류·교육 초안·조사 질문</strong><span>미구현: 실제 중앙 저장·현장별 권한·AI 호출·PPT 내보내기·법정 보고·승인 워크플로</span></div>
+    <div className="hq-bottom"><strong>구현 범위: 골조 분류·방문·사고사례·교육초안·사고조사·조치/재점검 시연</strong><span>미구현: 실제 중앙 저장·현장별 권한·AI 호출·PPT 내보내기·법정 보고·승인 워크플로</span></div>
   </section>;
 }
