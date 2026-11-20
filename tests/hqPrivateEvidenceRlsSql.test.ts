@@ -93,6 +93,28 @@ it('HQ private evidence proposal keeps sealed metadata/site scope and append-onl
   await expect(asUser(author,"delete from "+manifest)).rejects.toThrow();
   await expect(asUser(supervisor,"update "+events+" set event_code='TAMPER'")).rejects.toThrow();
   await expect(asUser(outsider,"delete from "+events)).rejects.toThrow();
+
+  // Phase 15: denied attempts are still auditable when case/evidence IDs
+  // do not exist, because security_attempts deliberately has no manifest FK.
+  const securityTable='hq_evidence_staging.security_attempts';
+  const nonexistentCase='aaaaaaaa-bbbb-4aaa-8aaa-aaaaaaaaaaaa';
+  const nonexistentEvidence='bbbbbbbb-cccc-4bbb-8bbb-bbbbbbbbbbbb';
+  const deniedSql=(action='evidence_read_denied',denialCode='manifest_unavailable')=>
+   'insert into '+securityTable+
+   '(tenant_id,site_id,case_id,evidence_id,actor_id,action,denial_code) values ('+
+   [tenant,site,nonexistentCase,nonexistentEvidence,author,action,denialCode].map(quote).join(',')+');';
+  await db.query(deniedSql());
+  const recorded=await db.query('select case_id,evidence_id,denial_code from '+securityTable+';');
+  expect(recorded.rows).toEqual([{
+   case_id:nonexistentCase,evidence_id:nonexistentEvidence,denial_code:'manifest_unavailable'
+  }]);
+  await expect(db.query(deniedSql('approved'))).rejects.toThrow();
+  await expect(db.query(deniedSql('evidence_read_denied','UNKNOWN_REASON'))).rejects.toThrow();
+  await expect(asUser(author,deniedSql())).rejects.toThrow();
+  await expect(asUser(hqReviewer,'select * from '+securityTable)).rejects.toThrow();
+  await expect(asUser(supervisor,"update "+securityTable+" set denial_code='other_denied'")).rejects.toThrow();
+  await expect(asUser(outsider,"delete from "+securityTable)).rejects.toThrow();
+
   // Revocation is effective even while a previously assigned review row remains.
   await db.exec('update public.psi_tenant_site_memberships set status='+quote('suspended')+
    ' where tenant_id='+quote(tenant)+' and site_id='+quote(site)+
