@@ -13,7 +13,7 @@ it('renders six HQ modules without accessing live incident data or AI providers'
   for(const name of ['공정별 위험지도','본사 행선지·점검','사고사례 DB','대표이사·본사 교육','사고조사 지원','조치·재점검']) {
     expect(markup).toContain(name);
   }
-  expect(markup).toContain('브라우저 화면의 메모리');
+  expect(markup).toContain('현재 화면의 메모리에만 존재');
   expect(markup).not.toContain('작업재개 승인 완료');
 });
 
