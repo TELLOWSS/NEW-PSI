@@ -1,6 +1,9 @@
 import React, { useMemo, useState, type FormEvent } from 'react';
 import './StructuralHQWorkbench.css';
 import CorrectiveActionWorkbench from './CorrectiveActionWorkbench';
+import IncidentSequenceWorkbench from './IncidentSequenceWorkbench';
+import SiteTrainingWorkbench from './SiteTrainingWorkbench';
+import type {InvestigationSequence,CorrectiveCoverage} from './accidentSequenceModel';
 import HQOverviewDashboard, {type HqDestination} from './HQOverviewDashboard';
 import type {HqZone} from './hqOverviewModel';
 import type {CorrectiveAction} from './correctiveActionModel';
@@ -100,7 +103,7 @@ export const STRUCTURAL_PROCESSES: readonly StructuralProcess[] = [
 
 type Tab = 'overview' | 'process' | 'visit' | 'cases' | 'training' | 'investigation' | 'actions';
 type Visit = { id: number; site: string; date: string; objective: string; status: '예정' | '방문 기록' };
-type Incident = { id: number; date: string; zone: ConstructionZone; processId: string; kind: string; summary: string; state: '조사 필요' };
+type Incident = { id: number; date: string; siteAlias: string; zone: ConstructionZone; processId: string; kind: string; summary: string; state: '조사 필요' };
 const AREAS: readonly (StructuralArea | '전체')[] = ['전체', '지하 RC', '일반 형틀', '지상 골조', '가설·장비'];
 const ZONES: readonly (ConstructionZone | '전체')[] = ['전체', '기초', '지하', '지상', '옥탑'];
 const today = () => {
@@ -121,6 +124,7 @@ export default function StructuralHQWorkbench(): React.ReactElement {
   const [objective, setObjective] = useState('정기 안전점검');
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [incidentDate, setIncidentDate] = useState(today);
+  const [incidentSiteAlias,setIncidentSiteAlias] = useState('');
   const [incidentProcess, setIncidentProcess] = useState('underground-wall');
   const [incidentZone, setIncidentZone] = useState<ConstructionZone>('지하');
   const [incidentKind, setIncidentKind] = useState('추락');
@@ -129,7 +133,8 @@ export default function StructuralHQWorkbench(): React.ReactElement {
   const [caseZoneFilter, setCaseZoneFilter] = useState<ConstructionZone | '전체'>('전체');
   const [selectedCaseId, setSelectedCaseId] = useState<number | null>(null);
   const [notice, setNotice] = useState('');
-  const [trainingProcessId, setTrainingProcessId] = useState('underground-wall');
+  const [sequenceDrafts,setSequenceDrafts] = useState<Record<number,InvestigationSequence>>({});
+  const [controlMaps,setControlMaps] = useState<Record<number,CorrectiveCoverage[]>>({});
   const [investigationDrafts, setInvestigationDrafts] = useState<Record<number, InvestigationDraft>>({});
   const [hqActions, setHqActions] = useState<CorrectiveAction[]>([]);
   const [reviewKind, setReviewKind] = useState<ReviewKind>('fact');
@@ -139,7 +144,6 @@ export default function StructuralHQWorkbench(): React.ReactElement {
   const [revisionReason, setRevisionReason] = useState('');
 
   const process = STRUCTURAL_PROCESSES.find((item) => item.id === processId) || STRUCTURAL_PROCESSES[0];
-  const trainingProcess = STRUCTURAL_PROCESSES.find((item) => item.id === trainingProcessId) || STRUCTURAL_PROCESSES[0];
   const filteredProcesses = useMemo(() => STRUCTURAL_PROCESSES.filter((item) => (area === '전체' || item.area === area) && (zone === '전체' || item.zones.includes(zone))), [area, zone]);
   const visibleCases = incidents.filter((item) => (caseFilter === '전체' || STRUCTURAL_PROCESSES.find((p) => p.id === item.processId)?.area === caseFilter) && (caseZoneFilter === '전체' || item.zone === caseZoneFilter));
   const selectedCase = incidents.find((item) => item.id === selectedCaseId);
@@ -148,24 +152,6 @@ export default function StructuralHQWorkbench(): React.ReactElement {
   const investigationDraft = selectedCase ? investigationDrafts[selectedCase.id] || createInvestigationDraft(selectedCase.id) : null;
   const reviewReadiness = investigationDraft ? investigationReadiness(investigationDraft) : null;
   const checkCount = process.inspection.filter((_, index) => checked[process.id + ':' + index]).length;
-  const educationDraft = [
-    '본사 안전교육 자료 초안 · 내부 검토용',
-    '공정: ' + trainingProcess.title,
-    '작업범위: ' + trainingProcess.caption,
-    '적용 가능 공사구간: ' + trainingProcess.zones.join('·'),
-    '',
-    '주요 위험요인',
-    ...trainingProcess.hazards.map((text, index) => String(index + 1) + '. ' + text),
-    '',
-    '교육 시 확인할 관리항목',
-    ...trainingProcess.inspection.map((text, index) => String(index + 1) + '. ' + text),
-    '',
-    '확인할 증빙',
-    ...trainingProcess.evidence.map((text) => '- ' + text),
-    '',
-    '※ 표준 참고 초안입니다. 현장별 계획·실제 조건·최신 법령을 대조하고 본사 책임자가 최종 승인해야 합니다.'
-  ].join('\n');
-
   const changeTab = (next: Tab) => { setTab(next); setNotice(''); };
   const navigateOverview = (next: HqDestination) => changeTab(next);
   const jumpToZone = (target: HqZone) => {
@@ -190,9 +176,9 @@ export default function StructuralHQWorkbench(): React.ReactElement {
   };
   const addIncident = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!incidentDate || summary.trim().length < 8) { setNotice('날짜와 8자 이상의 비식별 사고 개요를 입력하세요.'); return; }
+    if (!incidentDate || incidentSiteAlias.trim().length < 2 || summary.trim().length < 8) { setNotice('현장 구분명·날짜와 8자 이상의 비식별 사고 개요를 입력하세요.'); return; }
     const id = Math.max(Date.now(), ...incidents.map(item => item.id)) + 1;
-    setIncidents((previous) => [{ id, date: incidentDate, zone: incidentZone, processId: incidentProcess, kind: incidentKind, summary: summary.trim().slice(0, 220), state: '조사 필요' as const }, ...previous]);
+    setIncidents((previous) => [{ id, date: incidentDate, siteAlias: incidentSiteAlias.trim().slice(0,40), zone: incidentZone, processId: incidentProcess, kind: incidentKind, summary: summary.trim().slice(0, 220), state: '조사 필요' as const }, ...previous]);
     setSelectedCaseId(id);
     setSummary('');
     setNotice('사례를 임시 등록했습니다. 조사 결과나 법적 사실이 확정된 것은 아닙니다.');
@@ -240,11 +226,6 @@ export default function StructuralHQWorkbench(): React.ReactElement {
       setNotice(error instanceof Error ? error.message : '보완 상태 변경에 실패했습니다.');
     }
   };
-  const copyDraft = async () => {
-    try { await navigator.clipboard.writeText(educationDraft); setNotice('교육자료 초안을 복사했습니다.'); }
-    catch { setNotice('복사가 차단되었습니다. 아래 초안을 직접 선택하여 복사해 주세요.'); }
-  };
-
   return <section id="hq-structural-workbench" className="hq-workbench" aria-label="본사 골조·형틀 안전관리 개발 시제품">
     <div className="hq-hero">
       <div className="hq-hero-copy">
@@ -253,7 +234,7 @@ export default function StructuralHQWorkbench(): React.ReactElement {
         <p>기존 안전지능 네트워크의 위험 인식·조치·재확인 개념을 바탕으로, 지하 RC와 일반 형틀·지상 골조를 구분한 첫 실행형 화면입니다.</p>
       </div>
       <div className="hq-hero-side" aria-label="개발 범위">
-        <span>10개 공정 기준정보</span><span>본사 통합관제 + 6대 업무</span><strong>5차 개발 시제품</strong>
+        <span>10개 공정 기준정보</span><span>사고 시퀀스·현장별 교육자료</span><strong>7차 개발 시제품</strong>
       </div>
     </div>
 
@@ -348,6 +329,7 @@ export default function StructuralHQWorkbench(): React.ReactElement {
       {tab === 'cases' && <div className="hq-two-column">
         <form className="hq-form" onSubmit={addIncident}>
           <h4>사고·아차사고 구조화 등록 · 비식별 시연</h4>
+          <label>현장 구분명 <input required minLength={2} maxLength={40} value={incidentSiteAlias} onChange={event=>setIncidentSiteAlias(event.target.value)} placeholder="예: A현장 (비식별 별칭)"/></label>
           <label>발생일 <input type="date" required value={incidentDate} onChange={(event)=>setIncidentDate(event.target.value)}/></label>
           <label>공정 <select value={incidentProcess} onChange={(event)=>{const next=STRUCTURAL_PROCESSES.find((p)=>p.id===event.target.value);setIncidentProcess(event.target.value);if(next)setIncidentZone(next.zones[0]);}}>{STRUCTURAL_PROCESSES.map((item)=><option key={item.id} value={item.id}>{item.area} / {item.title}</option>)}</select></label>
           <label>발생 공사구간 <select value={incidentZone} onChange={(event)=>setIncidentZone(event.target.value as ConstructionZone)}>{selectedIncidentProcess.zones.map((item)=><option key={item}>{item}</option>)}</select></label>
@@ -360,21 +342,13 @@ export default function StructuralHQWorkbench(): React.ReactElement {
           <label>공정군 필터 <select value={caseFilter} onChange={(event)=>setCaseFilter(event.target.value as StructuralArea | '전체')}>{AREAS.map((item)=><option key={item}>{item}</option>)}</select></label>
           <label>공사구간 필터 <select value={caseZoneFilter} onChange={(event)=>setCaseZoneFilter(event.target.value as ConstructionZone | "전체")}>{ZONES.map((item)=><option key={item}>{item}</option>)}</select></label>
           {visibleCases.length===0 ? <p className="hq-empty">현재 등록된 사례가 없습니다. 실제 사고통계가 0건이라는 뜻은 아닙니다.</p> : visibleCases.map((item)=><button className="hq-record hq-record-action" type="button" key={item.id} onClick={()=>{setSelectedCaseId(item.id);changeTab('investigation');}}>
-            <span><strong>{STRUCTURAL_PROCESSES.find((p)=>p.id===item.processId)?.title}</strong><small>{item.date} · {item.zone} · {item.kind} · {item.state}</small><p>{item.summary}</p></span><b>조사 검토 ›</b>
+            <span><strong>{STRUCTURAL_PROCESSES.find((p)=>p.id===item.processId)?.title}</strong><small>{item.siteAlias} · {item.date} · {item.zone} · {item.kind} · {item.state}</small><p>{item.summary}</p></span><b>조사 검토 ›</b>
           </button>)}
           <p className="hq-hint">사고의 산재 승인 여부, 법정 보고 여부, 조사 진행상태는 정식 DB에서 서로 다른 필드로 관리할 예정입니다.</p>
         </div>
       </div>}
 
-      {tab === 'training' && <div className="hq-training">
-        <div className="hq-form">
-          <h4>골조·형틀 표준 교육자료 초안</h4>
-          <label>교육 대상 공정 <select value={trainingProcessId} onChange={(event)=>setTrainingProcessId(event.target.value)}>{STRUCTURAL_PROCESSES.map((item)=><option key={item.id} value={item.id}>{item.area} / {item.title}</option>)}</select></label>
-          <p className="hq-hint">사고사례 DB 연계, PPT 자동 생성, 교육 승인·배포·이수 증빙은 후속 개발 범위입니다.</p>
-          <button className="hq-primary" type="button" onClick={()=>void copyDraft()}>표준 교육 초안 복사</button>
-        </div>
-        <div className="hq-training-preview"><h4>교육자료 미리보기</h4><pre>{educationDraft}</pre></div>
-      </div>}
+      {tab === 'training' && <SiteTrainingWorkbench incidents={incidents} processes={STRUCTURAL_PROCESSES} actions={hqActions} visits={visits}/>}
 
       {tab === 'investigation' && <div className="hq-investigation">
         <div className="hq-form">
@@ -393,6 +367,7 @@ export default function StructuralHQWorkbench(): React.ReactElement {
         </div>
       </div>}
 
+      {tab === 'investigation' && <IncidentSequenceWorkbench selected={selectedCase ? {id:selectedCase.id,date:selectedCase.date,zone:selectedCase.zone,processId:selectedCase.processId,summary:selectedCase.summary} : null} drafts={sequenceDrafts} onDraftsChange={setSequenceDrafts} controls={controlMaps} onControlsChange={setControlMaps}/>}
       {tab === 'investigation' && selectedCase && investigationDraft && reviewReadiness && <section className="hq-review-board" aria-label="사고 원인조사 증빙·검토 시연">
         <div className="hq-review-heading">
           <div><span className="hq-eyebrow">EVIDENCE & HUMAN REVIEW</span><h4>사실·가설·미확인 사항 분리</h4></div>
@@ -448,6 +423,6 @@ export default function StructuralHQWorkbench(): React.ReactElement {
       </div>
       {notice && <p role="status" className="hq-notice">{notice}</p>}
     </div>
-    <div className="hq-bottom"><strong>구현 범위: 본사 통합관제 + 골조 분류·방문·사고사례·교육·조사·조치/재점검 시연</strong><span>미구현: 실제 중앙 저장·현장별 권한·AI 호출·PPT 내보내기·법정 보고·승인 워크플로</span></div>
+    <div className="hq-bottom"><strong>구현 범위: 본사 관제·현장별/월별 사고자료·행동 시퀀스·대책 연계·교육 초안·조치/재점검 시연</strong><span>미구현: 실제 중앙 저장·현장별 권한·AI 호출·PPT 내보내기·법정 보고·승인 워크플로</span></div>
   </section>;
 }
