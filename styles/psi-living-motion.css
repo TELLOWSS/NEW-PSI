@@ -59,3 +59,27 @@
     opacity: 1 !important;
   }
 }
+
+/* L04: Mobile manager rail uses explicit active state even when the current
+   route was opened from the full menu. The More control is a dialog trigger,
+   not an invented "current page". */
+.psi-app-shell.psi-platform-field-canvas .psi-mobile-nav-tab[data-active="true"] {
+  position: relative;
+  color: var(--psi-brand);
+  background: var(--psi-surface-selected);
+}
+.psi-app-shell.psi-platform-field-canvas .psi-mobile-nav-tab[data-active="true"]::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  width: 22px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--psi-brand);
+  transform: translateX(-50%);
+}
+.psi-app-shell.psi-platform-field-canvas .psi-mobile-nav-tab:focus-visible {
+  outline: 3px solid var(--psi-focus);
+  outline-offset: -2px;
+}
