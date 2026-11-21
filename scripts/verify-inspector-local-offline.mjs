@@ -604,7 +604,7 @@ try{
  await panel.getByText('이 조치의 이전 사진 1장').waitFor();
  await panel.getByText('이전 기본 사진 1장').waitFor();
  await panel.getByText('이 조치의 사진: action-two.jpg').waitFor();
- await panel.getByText('확인 완료',{exact:true}).waitFor();
+ await panel.getByRole('region',{name:'추가 조치 항목'}).getByText('확인 완료',{exact:true}).waitFor();
  // Revisit the same issue with the camera and preserve a cancelled replacement.
  const restoredRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
  await restoredRow.getByRole('button',{name:'조치 후 사진 촬영'}).click();
