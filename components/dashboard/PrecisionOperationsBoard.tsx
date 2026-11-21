@@ -6,6 +6,7 @@ import { useAssessmentCycle } from '../../hooks/useAssessmentCycle';
 import { resolveAssessmentPeriod } from '../../utils/assessmentCycle';
 import { getSafetyLevelThresholds } from '../../utils/safetyLevelUtils';
 import { buildOperationsTrend, TREND_PERIODS, type TrendGranularity } from '../../utils/operationsTrend';
+import { OperationsDecisionFocus } from './OperationsDecisionFocus';
 import {
     isOperationsRecordCompleted,
     isOperationsRecordInProgress,
@@ -366,6 +367,18 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                     </button>
                 </div>
             </section>
+
+            <OperationsDecisionFocus
+                selectedCount={filteredRecords.length}
+                protectionPriorityCount={statusCounts.immediate}
+                pendingReviewCount={statusCounts.pending}
+                inProgressCount={statusCounts.progress}
+                sourceReviewCount={sourceReviewCount}
+                periodLabel={periodScopeLabel[periodFilter]}
+                tradeLabel={tradeFilter === 'all' ? '전체 공종' : tradeFilter}
+                latestRecordLabel={latestRecordLabel}
+                onNavigate={setCurrentPage}
+            />
 
             <section className="psi-ops-field-route" aria-labelledby="psi-field-route-title">
                 <div className="psi-ops-field-route-heading">
