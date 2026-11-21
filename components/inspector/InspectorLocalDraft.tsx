@@ -5,6 +5,8 @@ import {sourceReviewState} from '../../lib/inspector/sourceReview';
 import {FOLLOWUP_STATES, FOLLOWUP_LABELS, validateFollowup, validateAdditionalActions, overdue} from '../../lib/inspector/localFollowup.mjs';
 import {prepareFollowupChange,analyzeFollowupChangeTrace,TEMPORARY_CONTROL_REVIEWS} from '../../lib/inspector/localFollowupChangeTrace.mjs';
 import {buildDeferredActionGuide,buildDeferredActionAttention} from '../../lib/inspector/localDeferredActionGuide.mjs';
+import {buildLocalNextCheckPrompt} from '../../lib/inspector/localNextCheckPrompt.mjs';
+import LocalNextCheckPanel from './LocalNextCheckPanel';
 import {buildLocalRecheckQueue,summarizeLocalRecheckQueue,LOCAL_RECHECK_BUCKETS,LOCAL_RECHECK_LABELS,localCalendarDate} from '../../lib/inspector/localRecheckQueue.mjs';
 import {classifyLocalRestoreError,verifyLocalRestoreReadback} from '../../lib/inspector/localRestoreRecovery.mjs';
 import {localRecordMayDelete} from '../../lib/inspector/localRecordDeletionGuard.mjs';
@@ -861,6 +863,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   setHandoffReceiptMessage('');
  },[rows,filter,handoffScope]);
  const recheckQueue=buildLocalRecheckQueue(rows);
+ const nextCheckPrompt=buildLocalNextCheckPrompt(recheckQueue);
  const recheckSummary=summarizeLocalRecheckQueue(recheckQueue) as Record<string, number> & {total:number};
  const recheckFilter=filter.startsWith('recheck:')?filter.slice('recheck:'.length):null;
  const recheckRecordIds=new Set(recheckQueue.filter(item=>item.bucket===recheckFilter).map(item=>item.recordId));
@@ -2176,6 +2179,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     <h4>F10 · 지연 조치와 재점검 예정 관리</h4>
     <p>기기 날짜 {localCalendarDate()} 기준 · 재점검/조치 대상 {recheckSummary.total}건. 하나의 점검에 여러 조치 대상이 포함될 수 있습니다.</p>
     <p>기한 도래는 재점검 필요성을 알리는 <strong>조회용 분류</strong>입니다. 실제 통보·안전 확인·조치 완료·작업 재개 승인이 아닙니다.</p>
+    <LocalNextCheckPanel prompt={nextCheckPrompt} busy={busy} onOpen={jumpToHandoffRecheck}/>
     {(recheckSummary.conflict+recheckSummary.overdue+recheckSummary.today)>0&&<p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-amber-950">
      관리상 우선 확인: 기록 상충 {recheckSummary.conflict}건 · 기한 초과 {recheckSummary.overdue}건 · 오늘 확인 {recheckSummary.today}건.
      아래 상태별 버튼으로 점검 대상을 확인하세요. 이 집계는 실제 위험의 크기나 작업 재개 가능 여부를 자동 판정하지 않습니다.
