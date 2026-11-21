@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Sidebar } from './Sidebar';
+import { Sidebar, getSidebarVisibleMenuItems } from './Sidebar';
+import { NavigationQuickFind } from './shell/NavigationQuickFind';
 import { Footer } from './Footer';
 import { AppShell } from './shell/AppShell';
 import { TopBar } from './shell/TopBar';
@@ -145,6 +146,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const siteTitle = resolveSiteTitle();
     const todayLabel = formatTodayLabel();
     const analysisModeLabel = isPaidApiMode ? '고급 분석 사용' : '기본 분석 사용';
+    const quickFindOptions = getSidebarVisibleMenuItems(operationalMode, uiAudienceMode, uiCompositionConfig)
+        .map(({ id }) => ({
+            page: id,
+            label: resolvePageLabel(id),
+            group: getProductGroupLabel(getRouteMeta(id).productGroup),
+        }));
 
     const mobilePageGroupsBase: Record<MobileTabId, Page[]> = {
         home: ['dashboard'],
@@ -549,6 +556,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                     analysisModeLabel={analysisModeLabel}
                     isMobileMenuOpen={isMobileMenuOpen}
                     onOpenMobileMenu={handleOpenMobileMenu}
+                    quickFind={<NavigationQuickFind options={quickFindOptions} onNavigate={handlePageChange} shortcutsDisabled={isMobileMenuOpen} />}
                     isDark={isDark}
                     themeMode={themeMode}
                     onToggleTheme={handleToggleTheme}
