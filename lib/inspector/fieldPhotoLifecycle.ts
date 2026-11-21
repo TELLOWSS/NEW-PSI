@@ -40,10 +40,11 @@ export const getFieldPhotoLifecycleStages = ({
         tone: photoCount > 0 ? 'ready' : 'pending',
     };
     if (!localStoreAvailable) {
-        local = {
-            ...local, status: '사진함 읽기 확인 필요', tone: 'review',
-            detail: '사진함을 조회하지 못했으며, 기존 파일의 유무도 확정할 수 없습니다.',
-        };
+        local = photoSaving
+            ? { ...local, status: '사진함 확인 중', tone: 'pending',
+                detail: '브라우저 저장소를 읽고 있습니다. 확인 전에는 보관 결과를 표시하지 않습니다.' }
+            : { ...local, status: '사진함 읽기 확인 필요', tone: 'review',
+                detail: '사진함을 조회하지 못했으며, 기존 파일의 유무도 확정할 수 없습니다.' };
     } else if (photoPending) {
         local = {
             ...local, status: photoSaving ? '새 사진 보관 중' : '새 사진 보관 재시도 필요',
