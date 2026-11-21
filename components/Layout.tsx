@@ -731,7 +731,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                             ? 'bg-blue-50 text-blue-800 dark:bg-blue-500/15 dark:text-blue-200'
                                             : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
                                     }`}
-                                    aria-current={isActive && tab.id !== 'more' ? 'page' : undefined}
+                                    aria-current={tab.page === currentPage ? 'page' : undefined}
                                     data-active={isActive ? 'true' : undefined}
                                     aria-haspopup={tab.id === 'more' ? 'dialog' : undefined}
                                     aria-expanded={tab.id === 'more' ? isMobileMenuOpen : undefined}
