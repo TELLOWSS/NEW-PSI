@@ -46,7 +46,7 @@ describe('L09 local deferred-action next confirmation',()=>{
         expect(status.openCount).toBe(2);
         expect(status.isSafetyApproved).toBe(false);
     });
-    it('prioritizes overdue before today's recheck and names the correct date type',()=>{
+    it('prioritizes overdue before a recheck due today and names the correct date type',()=>{
         const status=buildLocalNextCheckPrompt(buildLocalRecheckQueue([
             record('000000000001','in_progress','2026-11-22'),
             record('000000000002','pending','2026-11-18',{
