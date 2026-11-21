@@ -20,8 +20,9 @@ const consumers = [
     {
         file: 'components/charts/MonthlyTrendChart.tsx',
         metrics: ['월 평균 응답품질'],
-        required: ['buildMonthlyCoreMetricSeries'],
-        forbidden: [/totalScore\s*\/\s*monthlyData/],
+        // L11 passes through a verified adapter; the core engine still owns the calculation.
+        required: ['buildMonthlyScoreEvidencePoints'],
+        forbidden: [/totalScore\s*\/\s*monthlyData/, /dataPoints\s*=\s*\[0\]/],
     },
     {
         file: 'utils/reportBuilders.ts',
@@ -43,10 +44,17 @@ const consumers = [
     },
 ];
 
+// Verify the delegated chart adapter cannot silently replace core calculations.
+const trendAdapterSource = await readFile('utils/livingChartEvidenceL11.ts', 'utf8');
+const trendAdapterOwnsNoNewAverage = trendAdapterSource.includes('buildMonthlyCoreMetricSeries(')
+    && trendAdapterSource.includes('validScoreRecordCount > 0 ? point.averageScore : null');
 const results = [];
 for (const consumer of consumers) {
     const source = await readFile(consumer.file, 'utf8');
     const missingRequired = consumer.required.filter((token) => !source.includes(token));
+    if (consumer.file === 'components/charts/MonthlyTrendChart.tsx' && !trendAdapterOwnsNoNewAverage) {
+        missingRequired.push('L11 adapter must reuse core monthly average and preserve null when no valid score');
+    }
     const forbiddenMatches = consumer.forbidden
         .filter((pattern) => pattern.test(source))
         .map((pattern) => String(pattern));
