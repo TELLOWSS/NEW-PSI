@@ -97,21 +97,22 @@ void main() {
     screen.y += (smoothstep(0.0,6.0,u_story)-.5)*radius*.083;
   }
   gl_Position=vec4(screen.x/(u_size.x*.5),-screen.y/(u_size.y*.5),0.,1.);
-  vec3 goldBase = vec3(1.0, 0.73, 0.39);
-  vec3 cyanBase = vec3(0.28, 0.88, 0.94);
-  vec3 violetBase = vec3(0.76, 0.62, 0.98);
+  vec3 goldBase = vec3(1.0, 0.77, 0.42);
+  vec3 champagneGold = vec3(1.0, 0.89, 0.66);
+  vec3 cyanBase = vec3(0.36, 0.90, 0.96);
+  vec3 violetBase = vec3(0.80, 0.66, 0.99);
   vec3 layerAccent = u_tone > 1.5 ? violetBase : u_tone > 0.5 ? cyanBase : goldBase;
   if(kind < .5) {
     float near = clamp((p.z+1.)*.5,0.,1.);
-    float rim = pow(clamp(1.0 - abs(p.z), 0.0, 1.0), 1.6);
-    v_color = seed < .08 ? cyanBase : seed > .87 ? mix(goldBase, layerAccent, 0.45) : mix(goldBase, vec3(1.0, 0.84, 0.58), rim*0.35);
-    v_alpha = mix(.22,.78,near)*(0.68 + .32*sin(t*1.6+seed*31.0)*sin(t*1.6+seed*31.0)) * (kind > .1 ? .50 : 0.94) * u_intensity;
-    gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 12.0+seed*10.0 : 1.4+seed*2.1);
+    float rim = pow(clamp(1.0 - abs(p.z), 0.0, 1.0), 1.45);
+    v_color = seed < .09 ? cyanBase : seed > .84 ? mix(champagneGold, layerAccent, 0.38) : mix(goldBase, champagneGold, rim*0.48);
+    v_alpha = mix(.25,.82,near)*(0.70 + .30*sin(t*1.6+seed*31.0)*sin(t*1.6+seed*31.0)) * (kind > .1 ? .52 : 0.96) * u_intensity;
+    gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 12.5+seed*10.5 : 1.5+seed*2.2);
   } else if(isGeodesic) {
-    float near = clamp((p.z+1.2)*.45,0.12,1.0);
-    v_color = seed > 0.5 ? layerAccent : goldBase;
-    v_alpha = near * 0.42 * u_intensity;
-    gl_PointSize = u_ratio * 1.4;
+    float near = clamp((p.z+1.2)*.45,0.16,1.0);
+    v_color = seed > 0.5 ? layerAccent : champagneGold;
+    v_alpha = near * 0.48 * u_intensity;
+    gl_PointSize = u_ratio * 1.55;
   } else if(isSurfaceNode) {
     float front = clamp((p.z+1.1)*.5, 0.18, 1.0);
     v_color = isActiveNode ? vec3(1.0, 0.86, 0.55) : layerAccent;

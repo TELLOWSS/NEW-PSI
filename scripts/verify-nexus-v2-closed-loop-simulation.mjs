@@ -140,9 +140,36 @@ try {
     if (vp.width === 390) {
       const tabBox = await root.getByRole('tab', { name: /04 대표이사 다국어 안전교육/ }).boundingBox();
       recordCheck('390px mobile workbench tab touch target height >= 48px', Boolean(tabBox && tabBox.height >= 48), tabBox);
+      // Verify active node button does NOT overlap the central PSI emblem wordmark
+      const psiBox = await root.locator('.nexus-core-label strong').boundingBox();
+      const activeNodeBox = await root.locator('.nexus-node.selected').boundingBox();
+      const overlapsPsi390 = Boolean(
+        psiBox &&
+          activeNodeBox &&
+          activeNodeBox.x < psiBox.x + psiBox.width &&
+          activeNodeBox.x + activeNodeBox.width > psiBox.x &&
+          activeNodeBox.y < psiBox.y + psiBox.height &&
+          activeNodeBox.y + activeNodeBox.height > psiBox.y,
+      );
+      recordCheck('390px selected node pill never overlaps central PSI emblem', !overlapsPsi390, { psiBox, activeNodeBox });
+      await root.locator('.nexus-header').scrollIntoViewIfNeeded();
+      await page.screenshot({ path: resolve(outDir, 'nexus-v2-hero-390.png'), fullPage: false });
       await page.screenshot({ path: resolve(outDir, 'nexus-v2-mobile-390.png'), fullPage: true });
     }
     if (vp.width === 1440) {
+      const psiBox = await root.locator('.nexus-core-label strong').boundingBox();
+      const activeNodeBox = await root.locator('.nexus-node.selected').boundingBox();
+      const overlapsPsi1440 = Boolean(
+        psiBox &&
+          activeNodeBox &&
+          activeNodeBox.x < psiBox.x + psiBox.width &&
+          activeNodeBox.x + activeNodeBox.width > psiBox.x &&
+          activeNodeBox.y < psiBox.y + psiBox.height &&
+          activeNodeBox.y + activeNodeBox.height > psiBox.y,
+      );
+      recordCheck('1440px selected node pill never overlaps central PSI emblem', !overlapsPsi1440, { psiBox, activeNodeBox });
+      await root.locator('.nexus-header').scrollIntoViewIfNeeded();
+      await page.screenshot({ path: resolve(outDir, 'nexus-v2-hero-1440.png'), fullPage: false });
       await page.screenshot({ path: resolve(outDir, 'nexus-v2-desktop-1440.png'), fullPage: true });
     }
   }

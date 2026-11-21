@@ -48,6 +48,17 @@ describe('Safety Nexus 3D spherical projection & multi-layer orbit model', () =>
         const projected = projectNodeToStage(node.latDeg, node.lonDeg, target.yaw, target.pitch);
         expect(projected.isFront).toBe(true);
         expect(projected.depthZ).toBeGreaterThan(0.85);
+        // Never overlap the sacred central PSI emblem box at (50%, 50%)
+        const clearOfPsiDesktop =
+          Math.abs(projected.leftPct - 50) >= 24.5 || Math.abs(projected.topPct - 50) >= 15.5;
+        expect(clearOfPsiDesktop).toBe(true);
+
+        const projectedMobile = projectNodeToStage(node.latDeg, node.lonDeg, target.yaw, target.pitch, {
+          isMobile: true,
+        });
+        const clearOfPsiMobile =
+          Math.abs(projectedMobile.leftPct - 50) >= 33.5 || Math.abs(projectedMobile.topPct - 50) >= 18.5;
+        expect(clearOfPsiMobile).toBe(true);
       }
     }
   });

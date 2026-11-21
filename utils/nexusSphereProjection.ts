@@ -22,6 +22,8 @@ export interface NexusProjectedNode {
   topPct: number;
   svgX: number;
   svgY: number;
+  surfaceSvgX: number;
+  surfaceSvgY: number;
   depthZ: number;
   scale: number;
   opacity: number;
@@ -475,8 +477,9 @@ export const rotateVec3YawPitch = (
 
 /**
  * Computes target yaw and pitch so that a node at (latDeg, lonDeg) rotates
- * directly into the front focal hemisphere (z > 0.85) while keeping a slight
- * vertical offset so the central PSI wordmark remains legible.
+ * directly into the front focal hemisphere (z > 0.85) while keeping a
+ * comfortable framing angle so its surface beacon sits on the upper-right
+ * or lower-right crown of the sphere, never covering the central PSI emblem.
  */
 export const computeTargetAnglesForLatLon = (
   latDeg: number,
@@ -484,9 +487,12 @@ export const computeTargetAnglesForLatLon = (
 ): { yaw: number; pitch: number } => {
   const lat = clamp(latDeg, -80, 80) * DEG_TO_RAD;
   const lon = lonDeg * DEG_TO_RAD;
+  // Partial pitch compensation (-0.58 * lat) keeps rz > 0.94 (front focal hemisphere)
+  // while preserving each node's natural northern/southern hemisphere separation.
+  const pitchOffset = Math.abs(latDeg) < 10 ? (latDeg >= 0 ? -0.26 : 0.26) : 0;
   return {
     yaw: normalizeAngleRad(-lon),
-    pitch: clamp(-lat * 0.72, -0.68, 0.68),
+    pitch: clamp(-lat * 0.58 + pitchOffset, -0.56, 0.56),
   };
 };
 
@@ -495,18 +501,33 @@ export const projectNodeToStage = (
   lonDeg: number,
   yawRad: number,
   pitchRad: number,
-  options?: { isMobile?: boolean; orbitScale?: number },
+  options?: { isMobile?: boolean; orbitScale?: number; nodeIndex?: number; totalNodes?: number },
 ): NexusProjectedNode => {
   const isMobile = Boolean(options?.isMobile);
-  const orbitScale = options?.orbitScale ?? 1.18;
+  const orbitScale = options?.orbitScale ?? 1;
   const unit = latLonToUnitVec3(latDeg, lonDeg);
   const [rx, ry, rz] = rotateVec3YawPitch(unit, yawRad, pitchRad);
   const lens = 2.95 / (2.95 - rz * 0.43);
 
-  const spreadX = isMobile ? 25.5 : 31.5;
-  const spreadY = isMobile ? 26.5 : 30.5;
-  const rawLeft = 50 + rx * orbitScale * spreadX * (lens * 0.92);
-  const rawTop = 50 + ry * orbitScale * spreadY * (lens * 0.92);
+  // Actual 3D surface beacon position on the golden sphere (in 1000x700 SVG space)
+  const surfaceSvgX = Math.round(500 + rx * 175 * (lens * 0.92));
+  const surfaceSvgY = Math.round(350 + ry * 175 * (lens * 0.92));
+
+  // Natural 3D perspective projection across the stage
+  const spreadX = (isMobile ? 35.5 : 37.5) * orbitScale;
+  const spreadY = (isMobile ? 35.5 : 36.5) * orbitScale;
+  const rawLeft = 50 + rx * spreadX * (lens * 0.94);
+  let rawTop = 50 + ry * spreadY * (lens * 0.94);
+
+  // Central PSI Emblem Sanctuary Guard:
+  // If a node pill falls within the horizontal span of the central PSI wordmark,
+  // keep it vertically clear (above or below the emblem) so it never covers "PSI".
+  const psiHorizSpan = isMobile ? 33.5 : 24.5;
+  const psiVertClearance = isMobile ? 18.5 : 15.5;
+  if (Math.abs(rawLeft - 50) < psiHorizSpan && Math.abs(rawTop - 50) < psiVertClearance) {
+    const hemisphereSign = Math.abs(ry) > 0.02 ? (ry >= 0 ? 1 : -1) : latDeg >= 0 ? -1 : 1;
+    rawTop = 50 + hemisphereSign * psiVertClearance;
+  }
 
   const minLeft = isMobile ? 22 : 15;
   const maxLeft = isMobile ? 78 : 85;
@@ -514,14 +535,16 @@ export const projectNodeToStage = (
   const topPct = clamp(rawTop, 15, 83);
 
   const depthFactor = clamp((rz + 1) * 0.5, 0, 1);
-  const scale = Number((0.84 + depthFactor * 0.24).toFixed(3));
-  const opacity = Number((rz >= -0.08 ? 0.78 + depthFactor * 0.22 : 0.34 + depthFactor * 0.32).toFixed(3));
+  const scale = Number((0.86 + depthFactor * 0.22).toFixed(3));
+  const opacity = Number((rz >= -0.08 ? 0.82 + depthFactor * 0.18 : 0.36 + depthFactor * 0.3).toFixed(3));
 
   return {
     leftPct: Number(leftPct.toFixed(2)),
     topPct: Number(topPct.toFixed(2)),
     svgX: Math.round((leftPct / 100) * 1000),
     svgY: Math.round((topPct / 100) * 700),
+    surfaceSvgX,
+    surfaceSvgY,
     depthZ: Number(rz.toFixed(4)),
     scale,
     opacity,
