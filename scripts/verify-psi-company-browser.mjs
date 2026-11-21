@@ -16,6 +16,7 @@ const scenarios=[
  {owner:'product-ux',name:'multilingual-worker-report',script:'scripts/verify-worker-report-ui.mjs'},
  {owner:'safety-ai',name:'safety-case-closed-loop',script:'scripts/verify-safety-case-closed-loop-ui.mjs'},
  {owner:'qa',name:'department-visibility',script:'scripts/verify-psi-company-visibility-ui.mjs'},
+ {owner:'qa',name:'field-camera-local-delivery-states',script:'scripts/verify-field-camera-delivery-preflight.mjs'},
  {owner:'design',name:'safety-nexus-visual-pilot',script:'scripts/verify-safety-nexus-browser.mjs'}
 ];
 const output='artifacts/audit/psi-company';
