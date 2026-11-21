@@ -97,7 +97,7 @@
 | L00 | 사용자 정정/페르소나·제품 경계 명시 | PLANNED → 인계서 기록 | 현장 관리자 장갑 가정 제거, 역할 분리 UX 검토 |
 | L01 | 기존 코드·디자인·미완료 항목 감사 | IMPLEMENTED(1차 읽기만) | 모든 해당 화면, PR/CI/운영 상태 확인과 영향표 작성 |
 | L02 | 공통 모션 기반·페이지 전환 | IMPLEMENTED / QA 대기 | CSS·컴포넌트 연결·회귀 테스트·기기 검증 |
-| L03 | PC 사이드바·상단바·검색 | PLANNED | 기존 메뉴/권한/다크모드/반응형 회귀 |
+| L03 | PC 사이드바·상단바·검색 | IMPLEMENTED(접힘형 사이드바) / 나머지 PLANNED / QA 대기 | 기존 메뉴/권한·검색/단축키·다크모드/반응형 회귀 |
 | L04 | 모바일 관리자 홈·탭·탐색 | PLANNED | 기기별 고정 메뉴, 업무 경로, 저장 중 이탈 검증 |
 | L05 | 운영 대시보드 | PLANNED | 실제 상태/추세·근거·다음 행동, 비용 호출 0 추가 |
 | L06 | 5문항 자기규율 입력 | PLANNED | 원본 보존·모바일 입력·다국어 검수 |
@@ -126,6 +126,18 @@
 - `tests/psiLivingMotionContract.test.ts`: 관리 셸 범위·모션 감소·네트워크 자원 불포함·페이지 변경 연결을 검사하는 회귀 테스트 코드 추가.
 - **검증상태:** 브랜치 소스 파일 작성 완료. 실제 `npm run verify:ci` 및 Chromium/Android 시각·사용성 확인 전이므로 QA 미검증. `main`/Production 미반영.
 
+### 구현 2차 — L03 PC 접힘형 사이드바 (2026-11-21)
+
+- `components/Sidebar.tsx`: PC 전용 `allowCollapse` 옵션, 아이콘 도크(76px)/전체 메뉴(248px) 전환. 현행 역할별 메뉴 접근 제한·사용자 숨김/정렬·현재 페이지 강조를 유지.
+- `components/Layout.tsx`: 데스크톱 사이드바에만 `allowCollapse` 전달. 모바일 오버레이와 모바일 하단 탐색에는 접힘 로직 미적용.
+- `styles/psi-living-motion.css`: 너비 이동 1회 모션, `prefers-reduced-motion`에서 애니메이션 중단.
+- 접힌 상태에서도 각 메뉴에 `title`/접근성 이름을 제공. 메뉴 편집 진입 시 전체 메뉴를 다시 펼침.
+- `tests/psiSidebarDockContract.test.ts`: 모바일 분리, 메뉴 권한·편집 경로, 접근성 레이블 및 저동작 CSS의 소스 계약 검사.
+- **QA 제한:** 파일 작성/브랜치 변경은 확인. CI·브라우저·실기기 모양과 기능의 최종 검증 전. L03은 전체 완료가 아닌 부분 구현이며, 검색·상단바 UX는 별도 과제.
+
+**PR:** https://github.com/TELLOWSS/NEW-PSI/pull/237 (Draft, 운영 병합 금지).  
+**1차 CI 이력:** HEAD `baa9eade`에 대한 `npm run verify:ci` 검사 성공(릴리스 워크플로), cross-department 브라우저 검사는 조회 당시 진행 중. **2차 변경을 포함한 최신 HEAD에 대한 검사 결과가 별도로 필요**하다. 중간 커밋의 성공을 현재 HEAD의 성공으로 대체하지 않는다.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -149,7 +161,7 @@
 
 ## 9. 다음 착수 과제
 
-**L02 QA 증거 확보 → L03 공통 내비게이션 고도화.**
+**L02·L03 최신 HEAD QA 증거 확보 → L03 상단바/검색 검토 및 L04 모바일 관리자 UX.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
