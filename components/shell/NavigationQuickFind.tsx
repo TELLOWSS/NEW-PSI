@@ -84,12 +84,11 @@ export const NavigationQuickFind: React.FC<NavigationQuickFindProps> = ({ option
             const focusableNodes = dialogRef.current?.querySelectorAll<HTMLElement>(
                 'input:not([disabled]),button:not([disabled]),[tabindex]:not([tabindex="-1"])',
             );
-            const focusable: HTMLElement[] = focusableNodes
-                ? Array.from(focusableNodes).filter((element) => element.getClientRects().length > 0)
-                : [];
-            if (focusable.length === 0) return;
-            const first = focusable[0];
-            const last = focusable[focusable.length - 1];
+            const focusable = (focusableNodes ? Array.from(focusableNodes) : []) as HTMLElement[];
+            const visibleFocusable = focusable.filter((element) => element.getClientRects().length > 0);
+            if (visibleFocusable.length === 0) return;
+            const first = visibleFocusable[0];
+            const last = visibleFocusable[visibleFocusable.length - 1];
             if (event.shiftKey && document.activeElement === first) {
                 event.preventDefault();
                 last.focus();
