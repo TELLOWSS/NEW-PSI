@@ -79,10 +79,10 @@ export interface NexusPipelineCreateInput {
 }
 
 const ZONE_RULES: readonly { axis: NexusZoneAxis; tokens: readonly string[] }[] = [
-  { axis: 'substructure_rc', tokens: ['지하', 'b1', 'b2', 'b3', 'b4', '합벽', '외벽', '부력', '측압', '피트', '밀폐', '환기', '방수'] },
+  { axis: 'substructure_rc', tokens: ['지하', 'b1', 'b2', 'b3', 'b4', '합벽', '지하외벽', '부력', '측압', '피트', '밀폐', '환기', '방수'] },
   { axis: 'foundation', tokens: ['기초', '흙막이', '터파기', '굴착', '어스앵커', '띠장', '버팀보'] },
   { axis: 'rooftop_special', tokens: ['옥탑', '전이층', '고층고', '특수', '지붕', '파라펫'] },
-  { axis: 'superstructure_std', tokens: ['지상', '기준층', '슬래브', '코어', '계단실', '외벽'] },
+  { axis: 'superstructure_std', tokens: ['지상', '기준층', '슬래브', '코어', '계단실', '외벽', '갱폼', '알폼'] },
 ];
 
 const PROCESS_RULES: readonly { axis: NexusProcessAxis; tokens: readonly string[] }[] = [
@@ -95,7 +95,7 @@ const PROCESS_RULES: readonly { axis: NexusProcessAxis; tokens: readonly string[
 ];
 
 const EQUIPMENT_RULES: readonly { axis: NexusHazardEquipmentAxis; tokens: readonly string[] }[] = [
-  { axis: 'confined_earth_pressure', tokens: ['측압', '부력', '밀폐', '유해가스', '환기', '산소', '지하외벽', '외벽', '합벽', '타이볼트', '누수'] },
+  { axis: 'confined_earth_pressure', tokens: ['측압', '부력', '밀폐', '유해가스', '환기', '산소', '지하외벽', '합벽', '타이볼트', '누수'] },
   { axis: 'system_shoring', tokens: ['시스템동바리', '동바리', '서포트', '가새', 'u헤드', '자키베이스', '지지체'] },
   { axis: 'system_scaffold', tokens: ['시스템비계', '외부비계', '비계', '벽이음', '수직보호망', '발끝막이판'] },
   { axis: 'tower_crane_rigging', tokens: ['타워크레인', '양중', '크레인', '줄걸이', '슬링벨트', '샤클', '신호수', '인양'] },

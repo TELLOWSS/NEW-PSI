@@ -22,7 +22,17 @@
 .nexus-immersive-toggle[aria-pressed="true"]{background:#b77c3c29!important}
 .safety-nexus *{box-sizing:border-box}
 .safety-nexus button{font:inherit;cursor:pointer}
-.safety-nexus button:focus-visible,.safety-nexus input:focus-visible{outline:2px solid #8decef;outline-offset:4px}
+.safety-nexus input:not([type="checkbox"]),.safety-nexus select{
+  background-color:#0c1b29!important;
+  color:#eef6fb!important;
+  border-color:#64869d66!important;
+  color-scheme:dark;
+}
+.safety-nexus input:not([type="checkbox"])::placeholder{
+  color:#7e9bb0!important;
+  opacity:1;
+}
+.safety-nexus button:focus-visible,.safety-nexus input:focus-visible,.safety-nexus select:focus-visible{outline:2px solid #8decef;outline-offset:3px}
 .safety-nexus button:disabled{opacity:.35;cursor:not-allowed}
 .nexus-priority-summary{margin:16px 35px 10px;padding:16px 18px;border:1px solid #c69062;border-radius:8px;background:#182a39;color:#eef5f8}
 .nexus-priority-summary strong{font-size:16px}.nexus-priority-summary p{font-size:13px;line-height:1.6;color:#d2dee5;margin:6px 0}
@@ -201,6 +211,52 @@
 }
 @media(max-width:520px){
   .nexus-ceo-lang-pills{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+/* Slice 4 · Unified Closed-Loop Command Workbench & PC/Mobile UX Optimization */
+.nexus-workbench{margin:0 35px 24px;padding:20px 22px;border:1px solid #d9a5664d;border-radius:12px;background:linear-gradient(125deg,#122436e6,#091422f2);box-shadow:0 14px 36px #03070d45}
+.safety-nexus.is-immersive .nexus-workbench{max-width:1770px;margin-left:auto;margin-right:auto}
+.nexus-workbench-header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+.nexus-workbench-header h2,.nexus-3axis-bridge-head h3,.nexus-ceo-training-head h3{margin:4px 0 0;font-size:clamp(16px,1.7vw,20px);color:#f4f8fb;font-weight:750;word-break:keep-all;line-height:1.38}
+.nexus-workbench-header p{margin:0;font-size:11.5px;color:#9bb3c2;max-width:480px;line-height:1.55;word-break:keep-all}
+.nexus-workbench-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:16px}
+.nexus-workbench-tab{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-height:62px;padding:10px 12px;border-radius:8px;border:1px solid #5a768a4d;background:#0b1723cc;color:#c3d4df;text-align:left;transition:border-color .2s,background .2s,box-shadow .2s}
+.nexus-workbench-tab small{font-size:9.5px;letter-spacing:.08em;color:#d6ae7a;font-weight:700}
+.nexus-workbench-tab span{font-size:12px;font-weight:750;color:#eef5f9;line-height:1.35;word-break:keep-all}
+.nexus-workbench-tab b{margin-top:auto;font-size:10.5px;padding:2px 7px;border-radius:999px;background:#16293a;color:#93e3eb;font-weight:700}
+.nexus-workbench-tab.is-active{border-color:#f3bf7d;background:linear-gradient(130deg,#34231399,#10273be6);box-shadow:0 0 18px #e4a35426}
+.nexus-workbench-tab.is-active b{background:#3c2915;color:#ffe5be}
+.nexus-workbench-panel{padding-top:4px}
+
+.nexus-hq-visit-studio,.nexus-ai-investigation-studio{display:grid;gap:12px}
+.nexus-visit-form-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.nexus-visit-form-grid label,.nexus-inv-summary-field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.nexus-visit-form-grid span,.nexus-inv-summary-field span{font-size:10px;color:#b8cdd8;font-weight:650}
+.nexus-visit-form-grid input,.nexus-inv-summary-field input{width:100%;min-width:0;min-height:38px;padding:7px 9px;border-radius:5px;border:1px solid #5f7f9459;background:#0c1b29;color:#edf5fa;font-size:12px}
+.nexus-previsit-briefing-box{padding:12px 14px;border-radius:8px;background:#0c1b2acc;border-left:3px solid #76e3ec;display:grid;gap:8px}
+.nexus-previsit-briefing-box ul{margin:0;padding-left:18px;display:grid;gap:5px;font-size:11.5px;color:#d0e1ea;line-height:1.5}
+.nexus-inv-preview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.nexus-inv-card{padding:12px;border-radius:8px;background:#0b1724cc;border:1px solid #617e9245;display:flex;flex-direction:column;gap:8px;min-width:0}
+.nexus-inv-card>strong{font-size:12px;color:#ffe2b8}
+.nexus-inv-card .nexus-3axis-submit{margin-top:auto}
+.nexus-inv-error{margin:0;padding:8px 11px;border-radius:6px;background:#3a181e;border:1px solid #f0757566;color:#ffd8d8;font-size:12px}
+
+@media(max-width:1100px){
+  .nexus-workbench-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .nexus-visit-form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .nexus-inv-preview-grid{grid-template-columns:1fr}
+}
+@media(max-width:790px){
+  .nexus-workbench{margin:0 12px 18px;padding:15px 12px}
+  .nexus-detail-signals{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:520px){
+  .nexus-workbench-tabs{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+  .nexus-visit-form-grid{grid-template-columns:1fr}
+  .nexus-workbench-tab{min-height:58px;padding:8px 9px}
+  .nexus-workbench-tab span{font-size:11px}
+  .nexus-3axis-quick-inputs input,.nexus-3axis-tags select,.nexus-3axis-action-form input,.nexus-visit-form-grid input,.nexus-inv-summary-field input,.nexus-axis-bar select{min-height:42px;font-size:13px}
+  .nexus-3axis-submit,.nexus-ceo-studio-btn,.nexus-3axis-case-row-actions button,.nexus-orbit-controls button{min-height:42px}
 }
 
 .nexus-stage{position:relative;height:min(550px,55vw);min-height:455px;overflow:hidden;cursor:grab;touch-action:pan-y}

@@ -39,8 +39,20 @@ import {
   summarizeExecutiveTrainingForOrbitLayer,
   type NexusExecutiveTrainingCampaign,
 } from '../utils/nexusExecutiveTrainingPipeline';
-import { InspectorNexus3AxisBridge } from '../components/inspector/InspectorNexus3AxisBridge';
-import { NexusExecutiveTrainingBridge } from '../components/inspector/NexusExecutiveTrainingBridge';
+import {
+  NEXUS_HQ_LOOP_UPDATED_EVENT,
+  readAiInvestigations,
+  readApprovedCustomIncidentSeeds,
+  readHqVisitPlans,
+  summarizeHqLoopForOrbitLayer,
+  type NexusAiInvestigationRecord,
+  type NexusHqVisitPlan,
+} from '../utils/nexusHqCommandLoop';
+import type { NexusStructuralIncidentSeed } from '../utils/nexusStructuralTaxonomy';
+import {
+  NexusHqCommandWorkbench,
+  type NexusWorkbenchTab,
+} from '../components/inspector/NexusHqCommandWorkbench';
 import WebGLNexusCore from './NexusWebGLCore';
 import { ScoreMetricEvidencePanel } from '../components/shared/ScoreMetricEvidencePanel';
 import { PracticeEvidencePanel, type PracticeEvidenceSelection } from '../components/shared/PracticeEvidencePanel';
@@ -268,12 +280,22 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',initialTrade
   },[]);
   useEffect(()=>{if(reduced)setCinematicPlaying(false);},[reduced]);
 
-  const lockOntoNode = (nextIndex: number, nextLayer: NexusOrbitLayer = orbitLayer) => {
+  const lockOntoNode = (
+    nextIndex: number,
+    nextLayer: NexusOrbitLayer = orbitLayer,
+    options?: { syncWorkbenchTab?: boolean },
+  ) => {
     const list = NEXUS_SPHERE_NODES_BY_LAYER[nextLayer];
     const bounded = ((nextIndex % list.length) + list.length) % list.length;
     const targetNode = list[bounded];
     setActive(bounded);
     setSphereAngles(computeTargetAnglesForLatLon(targetNode.latDeg, targetNode.lonDeg));
+    if (options?.syncWorkbenchTab && nextLayer === 'modules') {
+      if (bounded === 0) setWorkbenchTab('visit_01');
+      else if (bounded === 1 || bounded === 4) setWorkbenchTab('investigate_05_02');
+      else if (bounded === 3) setWorkbenchTab('training_04');
+      else setWorkbenchTab('inspect_03_06');
+    }
   };
 
   const handleLayerSwitch = (nextLayer: NexusOrbitLayer) => {
@@ -329,18 +351,33 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',initialTrade
   const [trainingCampaigns, setTrainingCampaigns] = useState<NexusExecutiveTrainingCampaign[]>(() =>
     readExecutiveTrainingCampaigns(),
   );
+  const [visitPlans, setVisitPlans] = useState<NexusHqVisitPlan[]>(() => readHqVisitPlans());
+  const [investigations, setInvestigations] = useState<NexusAiInvestigationRecord[]>(() => readAiInvestigations());
+  const [approvedCustomSeeds, setApprovedCustomSeeds] = useState<NexusStructuralIncidentSeed[]>(() =>
+    readApprovedCustomIncidentSeeds(),
+  );
+  const [workbenchTab, setWorkbenchTab] = useState<NexusWorkbenchTab>('inspect_03_06');
   useEffect(() => {
     const syncPipeline = () => setPipelineCases(readNexusPipelineCases());
     const syncTraining = () => setTrainingCampaigns(readExecutiveTrainingCampaigns());
+    const syncHqLoop = () => {
+      setVisitPlans(readHqVisitPlans());
+      setInvestigations(readAiInvestigations());
+      setApprovedCustomSeeds(readApprovedCustomIncidentSeeds());
+    };
     window.addEventListener(NEXUS_PIPELINE_UPDATED_EVENT, syncPipeline);
     window.addEventListener(NEXUS_CEO_TRAINING_UPDATED_EVENT, syncTraining);
+    window.addEventListener(NEXUS_HQ_LOOP_UPDATED_EVENT, syncHqLoop);
     window.addEventListener('storage', syncPipeline);
     window.addEventListener('storage', syncTraining);
+    window.addEventListener('storage', syncHqLoop);
     return () => {
       window.removeEventListener(NEXUS_PIPELINE_UPDATED_EVENT, syncPipeline);
       window.removeEventListener(NEXUS_CEO_TRAINING_UPDATED_EVENT, syncTraining);
+      window.removeEventListener(NEXUS_HQ_LOOP_UPDATED_EVENT, syncHqLoop);
       window.removeEventListener('storage', syncPipeline);
       window.removeEventListener('storage', syncTraining);
+      window.removeEventListener('storage', syncHqLoop);
     };
   }, []);
   useEffect(()=>{onViewChange?.({month:filterMonth,trade:filterTrade,active:safeActive,flat,question:selectedQuestion,priority:priorityFilter,practice:practiceFilter,orbitLayer});},[filterMonth,filterTrade,safeActive,flat,selectedQuestion,priorityFilter,practiceFilter,orbitLayer,onViewChange]);
@@ -404,8 +441,15 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',initialTrade
 
   const currentLayerMeta = NEXUS_ORBIT_LAYERS.find(layer => layer.id === orbitLayer) ?? NEXUS_ORBIT_LAYERS[0];
   const layerLiveSignals = useMemo(
-    () => buildOrbitLayerLiveSignals(orbitLayer, filteredRecords, axisFilter, followup.asOfDate),
-    [orbitLayer, filteredRecords, axisFilter, followup.asOfDate],
+    () =>
+      buildOrbitLayerLiveSignals(
+        orbitLayer,
+        filteredRecords,
+        axisFilter,
+        followup.asOfDate,
+        approvedCustomSeeds,
+      ),
+    [orbitLayer, filteredRecords, axisFilter, followup.asOfDate, approvedCustomSeeds],
   );
   const pipelineNodeSummaries = useMemo(
     () => summarizePipelineForOrbitLayer(orbitLayer, pipelineCases, followup.asOfDate),
@@ -415,9 +459,14 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',initialTrade
     () => summarizeExecutiveTrainingForOrbitLayer(orbitLayer, trainingCampaigns),
     [orbitLayer, trainingCampaigns],
   );
+  const hqLoopNodeSummaries = useMemo(
+    () => summarizeHqLoopForOrbitLayer(orbitLayer, visitPlans, investigations),
+    [orbitLayer, visitPlans, investigations],
+  );
   const activeSignal = layerLiveSignals[safeActive] ?? layerLiveSignals[0];
   const activePipelineSummary = pipelineNodeSummaries[safeActive] ?? pipelineNodeSummaries[0];
   const activeTrainingSummary = trainingNodeSummaries[safeActive] ?? trainingNodeSummaries[0];
+  const activeHqLoopSummary = hqLoopNodeSummaries[safeActive] ?? hqLoopNodeSummaries[0];
   const activeSeed = activeSignal?.linkedSeeds[selectedSeedIdx < (activeSignal?.linkedSeeds.length ?? 0) ? selectedSeedIdx : 0] ?? activeSignal?.linkedSeeds[0];
 
   const handleAxisFilterChange = (patch: Partial<NexusThreeAxisFilter>) => {
@@ -633,7 +682,7 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',initialTrade
                 data-axis-match={nodeSig?.matchesAxisFilter ? 'true' : 'false'}
                 className={'nexus-node node-'+i+(safeActive===i?' selected':'')}
                 aria-pressed={safeActive===i}
-                onClick={()=>{ setSelectedSeedIdx(0); lockOntoNode(i); }}
+                onClick={()=>{ setSelectedSeedIdx(0); lockOntoNode(i, orbitLayer, { syncWorkbenchTab: true }); }}
               >
                 <b>{topic.index}</b>
                 <span>{topic.title}</span>
@@ -670,14 +719,20 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',initialTrade
         </div>
         {activeSignal && (
           <div className="nexus-detail-signals" aria-label="선택 포인트 3축 연동 현황">
-            <div><span>연계 기록</span><strong>{activeSignal.matchedRecords + (activePipelineSummary?.totalCases ?? 0)}건</strong></div>
-            <div><span>미완료·인계</span><strong>{activeSignal.unresolvedActions + (activePipelineSummary?.openCases ?? 0)}건</strong></div>
+            <div>
+              <span>연계 기록·순회</span>
+              <strong>{activeSignal.matchedRecords + (activePipelineSummary?.totalCases ?? 0) + (activeHqLoopSummary?.visitCount ?? 0)}건</strong>
+            </div>
+            <div>
+              <span>미완료·인계</span>
+              <strong>{activeSignal.unresolvedActions + (activePipelineSummary?.openCases ?? 0) + (activeHqLoopSummary?.pendingHqApprovals ?? 0)}건</strong>
+            </div>
             <div><span>기한 초과</span><strong>{activeSignal.overdueActions + (activePipelineSummary?.overdueCases ?? 0)}건</strong></div>
             <div>
-              <span>교육 이수율</span>
+              <span>교육·사례DB</span>
               <strong>
                 {activeTrainingSummary?.averageCompletionRatePct !== null && activeTrainingSummary?.averageCompletionRatePct !== undefined
-                  ? `${activeTrainingSummary.averageCompletionRatePct}%`
+                  ? `이수 ${activeTrainingSummary.averageCompletionRatePct}%`
                   : `시드 ${activeSignal.linkedSeeds.length}건`}
               </strong>
             </div>
@@ -722,7 +777,8 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',initialTrade
                     dispatchImmediately: true,
                   });
                   setTrainingCampaigns(readExecutiveTrainingCampaigns());
-                  const el = document.getElementById('nexus-ceo-training-section');
+                  setWorkbenchTab('training_04');
+                  const el = document.getElementById('nexus-closed-loop-workbench');
                   el?.scrollIntoView({ behavior: 'auto', block: 'start' });
                   if (created.structuralNodeIndex && orbitLayer === 'modules') {
                     lockOntoNode(3, 'modules'); // 04 대표이사 안전교육
@@ -752,37 +808,42 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',initialTrade
         <div className="nexus-next"><span>SAFETY LOOP · NEXT ACTION</span><ol><li>현장 위험·사진 수집</li><li>AI 구조화 · 본사 대조</li><li>시정조치 · 재점검·인계</li><li>다국어 교육 · 전 현장 환류</li></ol></div>
       </aside>
     </div>
-    <section className="nexus-pipeline-section" aria-label="30초 현장 사진점검 3축 자동분류 및 조치·인계 구체 환류">
-      <InspectorNexus3AxisBridge
-        note=""
-        source="safety-nexus-quick"
-        cases={pipelineCases}
-        onCaseCreated={created => {
+    <div id="nexus-closed-loop-workbench">
+      <NexusHqCommandWorkbench
+        activeTab={workbenchTab}
+        onTabChange={setWorkbenchTab}
+        activeSeed={activeSeed}
+        pipelineCases={pipelineCases}
+        onPipelineCreated={created => {
           setPipelineCases(readNexusPipelineCases());
           const targetIdx = Math.max(0, Number(created.structuralNodeIndex) - 1);
           if (orbitLayer === 'structural') {
             lockOntoNode(targetIdx, 'structural');
           } else if (orbitLayer === 'modules') {
-            lockOntoNode(5, 'modules'); // 06 조치·재점검·인계
+            lockOntoNode(5, 'modules');
           } else {
-            lockOntoNode(3, 'cycle'); // 04 안전조치
+            lockOntoNode(3, 'cycle');
           }
         }}
-        onCaseUpdated={updated => setPipelineCases([...updated])}
-      />
-    </section>
-    <section
-      id="nexus-ceo-training-section"
-      className="nexus-pipeline-section nexus-ceo-section"
-      aria-label="04 대표이사 안전교육 12개국어 전파 및 이수율 구체 환류"
-    >
-      <NexusExecutiveTrainingBridge
-        activeSeed={activeSeed}
-        campaigns={trainingCampaigns}
-        onCampaignsChange={next => setTrainingCampaigns([...next])}
+        onPipelineUpdated={updated => setPipelineCases([...updated])}
+        trainingCampaigns={trainingCampaigns}
+        onTrainingCampaignsChange={next => setTrainingCampaigns([...next])}
         onOpenAdminTraining={() => onNavigateToPage('admin-training')}
+        visitPlans={visitPlans}
+        onVisitPlansChange={next => setVisitPlans([...next])}
+        investigations={investigations}
+        onInvestigationsChange={next => {
+          setInvestigations([...next]);
+          setApprovedCustomSeeds(readApprovedCustomIncidentSeeds());
+        }}
+        onLockOntoStructuralNode={nodeIndexStr => {
+          const targetIdx = Math.max(0, Number(nodeIndexStr) - 1);
+          if (orbitLayer === 'structural') {
+            lockOntoNode(targetIdx, 'structural');
+          }
+        }}
       />
-    </section>
+    </div>
     <section id="nexus-followup-details" tabIndex={-1} className="nexus-followup" aria-label="근로자 위험성평가 후속조치 익명 집계">
       <div className="nexus-followup-header">
         <div><span>VERIFIABLE READ-ONLY SIGNALS</span><h2>후속조치 현황 <small>불러온 기록의 관리자 이력 기준</small></h2></div>

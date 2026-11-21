@@ -1,0 +1,600 @@
+import React, { useMemo, useState } from 'react';
+import { getKoreanCalendarDay } from '../../utils/monthlyFieldFollowup';
+import type { NexusExecutiveTrainingCampaign } from '../../utils/nexusExecutiveTrainingPipeline';
+import {
+  NEXUS_INVESTIGATION_STATUS_LABELS,
+  NEXUS_VISIT_STATUS_LABELS,
+  approveAiInvestigationAndPropagate,
+  buildAiInvestigationDraft,
+  buildPreVisitBriefing,
+  completeHqVisitWithFieldAction,
+  createHqVisitPlan,
+  submitAiInvestigationRecord,
+  type NexusAiInvestigationRecord,
+  type NexusHqVisitPlan,
+} from '../../utils/nexusHqCommandLoop';
+import type { NexusPipelineCase } from '../../utils/nexusQuickPipeline';
+import {
+  NEXUS_HAZARD_EQUIPMENT_AXIS_OPTIONS,
+  NEXUS_PROCESS_AXIS_OPTIONS,
+  NEXUS_ZONE_AXIS_OPTIONS,
+  type NexusHazardEquipmentAxis,
+  type NexusProcessAxis,
+  type NexusStructuralIncidentSeed,
+  type NexusZoneAxis,
+} from '../../utils/nexusStructuralTaxonomy';
+import { InspectorNexus3AxisBridge } from './InspectorNexus3AxisBridge';
+import { NexusExecutiveTrainingBridge } from './NexusExecutiveTrainingBridge';
+
+export type NexusWorkbenchTab =
+  | 'visit_01'
+  | 'inspect_03_06'
+  | 'investigate_05_02'
+  | 'training_04';
+
+interface Props {
+  activeTab: NexusWorkbenchTab;
+  onTabChange: (tab: NexusWorkbenchTab) => void;
+  activeSeed?: NexusStructuralIncidentSeed;
+  pipelineCases: readonly NexusPipelineCase[];
+  onPipelineCreated: (created: NexusPipelineCase) => void;
+  onPipelineUpdated: (updated: NexusPipelineCase[]) => void;
+  trainingCampaigns: readonly NexusExecutiveTrainingCampaign[];
+  onTrainingCampaignsChange: (next: NexusExecutiveTrainingCampaign[]) => void;
+  onOpenAdminTraining: () => void;
+  visitPlans: readonly NexusHqVisitPlan[];
+  onVisitPlansChange: (next: NexusHqVisitPlan[]) => void;
+  investigations: readonly NexusAiInvestigationRecord[];
+  onInvestigationsChange: (next: NexusAiInvestigationRecord[]) => void;
+  onLockOntoStructuralNode: (structuralNodeIndex: string) => void;
+}
+
+export const NexusHqCommandWorkbench: React.FC<Props> = ({
+  activeTab,
+  onTabChange,
+  activeSeed,
+  pipelineCases,
+  onPipelineCreated,
+  onPipelineUpdated,
+  trainingCampaigns,
+  onTrainingCampaignsChange,
+  onOpenAdminTraining,
+  visitPlans,
+  onVisitPlansChange,
+  investigations,
+  onInvestigationsChange,
+  onLockOntoStructuralNode,
+}) => {
+  // 01 행선지·순회점검 state
+  const [visitDate, setVisitDate] = useState(() => getKoreanCalendarDay());
+  const [inspectorRole, setInspectorRole] = useState('본사 안전보건팀 순회점검자');
+  const [visitSiteName, setVisitSiteName] = useState('');
+  const [visitPurpose, setVisitPurpose] = useState('');
+  const [visitZone, setVisitZone] = useState<NexusZoneAxis | ''>('');
+  const [visitProcess, setVisitProcess] = useState<NexusProcessAxis | ''>('');
+  const [visitEquip, setVisitEquip] = useState<NexusHazardEquipmentAxis | ''>('');
+  const [visitNotice, setVisitNotice] = useState('');
+
+  // 05 AI 사고조사·원인분석 state
+  const [invSiteName, setInvSiteName] = useState('');
+  const [invTitle, setInvTitle] = useState('');
+  const [invSummary, setInvSummary] = useState('');
+  const [invAuthor, setInvAuthor] = useState('현장 안전관리자');
+  const [invApprover, setInvApprover] = useState('본사 CSO·안전보건실장');
+  const [invZone, setInvZone] = useState<NexusZoneAxis | ''>('');
+  const [invProcess, setInvProcess] = useState<NexusProcessAxis | ''>('');
+  const [invEquip, setInvEquip] = useState<NexusHazardEquipmentAxis | ''>('');
+  const [invNotice, setInvNotice] = useState('');
+  const [invError, setInvError] = useState('');
+
+  const livePreVisitPreview = useMemo(
+    () =>
+      buildPreVisitBriefing(
+        {
+          siteName: visitSiteName,
+          purpose: visitPurpose || activeSeed?.preVisitBriefingPoint || '',
+          zoneAxis: visitZone,
+          processAxis: visitProcess,
+          hazardEquipmentAxis: visitEquip,
+        },
+        pipelineCases,
+      ),
+    [visitSiteName, visitPurpose, activeSeed, visitZone, visitProcess, visitEquip, pipelineCases],
+  );
+
+  const liveInvestigationPreview = useMemo(
+    () =>
+      buildAiInvestigationDraft({
+        siteName: invSiteName || '골조·형틀 현장',
+        incidentTitle: invTitle,
+        rawSummary: invSummary || activeSeed?.title || '',
+        authorLabel: invAuthor,
+        zoneAxis: invZone,
+        processAxis: invProcess,
+        hazardEquipmentAxis: invEquip,
+      }),
+    [invSiteName, invTitle, invSummary, activeSeed, invAuthor, invZone, invProcess, invEquip],
+  );
+
+  const handleCreateVisitPlan = () => {
+    const plan = createHqVisitPlan(
+      {
+        visitDate,
+        inspectorRole,
+        siteName: visitSiteName.trim() || '제1현장 골조·형틀 중점구간',
+        purpose: visitPurpose.trim() || livePreVisitPreview.classification.primarySeed.preVisitBriefingPoint,
+        zoneAxis: visitZone,
+        processAxis: visitProcess,
+        hazardEquipmentAxis: visitEquip,
+      },
+      pipelineCases,
+    );
+    onVisitPlansChange([plan, ...visitPlans.filter(v => v.visitId !== plan.visitId)]);
+    onLockOntoStructuralNode(plan.structuralNodeIndex);
+    setVisitNotice(
+      `[01 행선지·순회점검] ${plan.siteName} 방문 일정과 사전 위험 브리핑(미결 ${plan.preVisitBriefing.openPipelineActionsCount}건·시드 ${plan.preVisitBriefing.matchedCaseCode})이 구체 #${plan.structuralNodeIndex}에 등록되었습니다.`,
+    );
+    setVisitSiteName('');
+    setVisitPurpose('');
+  };
+
+  const handleCompleteVisitWithAction = (plan: NexusHqVisitPlan) => {
+    const { updatedPlans, createdPipelineCase } = completeHqVisitWithFieldAction(
+      plan.visitId,
+      `[본사 순회점검 결과] ${plan.siteName} · ${plan.purpose} 현장 확인 및 시정조치·인계 발령`,
+    );
+    onVisitPlansChange([...updatedPlans]);
+    if (createdPipelineCase) {
+      onPipelineCreated(createdPipelineCase);
+    }
+    setVisitNotice(
+      `[${plan.siteName}] 순회점검 결과가 06 조치·재점검·인계 파이프라인으로 즉시 환류되었습니다.`,
+    );
+  };
+
+  const handleCreateAiInvestigation = () => {
+    setInvError('');
+    const created = submitAiInvestigationRecord({
+      siteName: invSiteName.trim() || '제1현장 골조·형틀 구간',
+      incidentTitle: invTitle.trim(),
+      rawSummary: invSummary.trim() || `${liveInvestigationPreview.sixW.where} ${liveInvestigationPreview.hazardMechanism} 아차사고`,
+      authorLabel: invAuthor.trim() || '현장 안전관리자',
+      zoneAxis: invZone,
+      processAxis: invProcess,
+      hazardEquipmentAxis: invEquip,
+    });
+    onInvestigationsChange([created, ...investigations.filter(i => i.investigationId !== created.investigationId)]);
+    onLockOntoStructuralNode(created.structuralNodeIndex);
+    setInvNotice(
+      `[05 AI 사고조사 초안] 6하원칙·시계열·3단계 원인(직접/기여/근본) 구조화가 완료되었습니다. 본사 승인 시 02 사고사례 DB 및 04 대표이사 12개국어 안전교육으로 자동 편입됩니다.`,
+    );
+    setInvTitle('');
+    setInvSummary('');
+  };
+
+  const handleApproveInvestigation = (inv: NexusAiInvestigationRecord) => {
+    setInvError('');
+    try {
+      const result = approveAiInvestigationAndPropagate(inv.investigationId, {
+        approverLabel: invApprover.trim() || '본사 CSO·안전보건실장',
+      });
+      onInvestigationsChange([...result.updatedInvestigations]);
+      onPipelineCreated(result.promotedPipelineCase);
+      onTrainingCampaignsChange([
+        result.promotedTrainingCampaign,
+        ...trainingCampaigns.filter(c => c.campaignId !== result.promotedTrainingCampaign.campaignId),
+      ]);
+      onLockOntoStructuralNode(inv.structuralNodeIndex);
+      setInvNotice(
+        `[본사 승인 완료] 사례코드 [${result.promotedSeed.caseCode}]가 02 사고사례 DB에 편입되었고, 04 대표이사 12개국어 안전교육 및 06 시정조치·인계로 동시 전파되었습니다.`,
+      );
+    } catch (err) {
+      setInvError(err instanceof Error ? err.message : '본사 승인 처리 중 확인이 필요합니다.');
+    }
+  };
+
+  const openActionsCount = pipelineCases.filter(c => c.status !== 'closed').length;
+  const pendingApprovalCount = investigations.filter(i => i.status === 'ai_draft_pending_hq').length;
+
+  return (
+    <section className="nexus-workbench" aria-label="SAFETY NEXUS 6대 핵심기능 폐루프 통합 워크벤치">
+      <div className="nexus-workbench-header">
+        <div>
+          <span className="nexus-3axis-kicker">CLOSED-LOOP COMMAND WORKBENCH · SLICE 1–4 완결 파이프라인</span>
+          <h2>본사 주도 · 현장 실행 · AI 분석 · 12개국어 교육 · 재발방지 통합 스튜디오</h2>
+        </div>
+        <p>상단 3D 황금 구체 포인트와 실시간 동기화됩니다. 탭을 전환해 6대 핵심기능 폐루프를 한 화면에서 실행하세요.</p>
+      </div>
+
+      <div className="nexus-workbench-tabs" role="tablist" aria-label="6대 핵심기능 폐루프 모듈 선택">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'inspect_03_06'}
+          className={'nexus-workbench-tab' + (activeTab === 'inspect_03_06' ? ' is-active' : '')}
+          onClick={() => onTabChange('inspect_03_06')}
+        >
+          <small>03 · 02 · 06 현장 실행 루프</small>
+          <span>30초 사진점검 · 3축분류 · 조치·인계</span>
+          <b>미결 {openActionsCount}건</b>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'training_04'}
+          className={'nexus-workbench-tab' + (activeTab === 'training_04' ? ' is-active' : '')}
+          onClick={() => onTabChange('training_04')}
+        >
+          <small>04 대표이사 다국어 안전교육</small>
+          <span>12개국어·음성 전파 및 서명 이수율</span>
+          <b>캠페인 {trainingCampaigns.length}건</b>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'visit_01'}
+          className={'nexus-workbench-tab' + (activeTab === 'visit_01' ? ' is-active' : '')}
+          onClick={() => onTabChange('visit_01')}
+        >
+          <small>01 본사 행선지 · 순회점검</small>
+          <span>방문 사전 위험브리핑 & 현장 지시</span>
+          <b>일정 {visitPlans.length}건</b>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'investigate_05_02'}
+          className={'nexus-workbench-tab' + (activeTab === 'investigate_05_02' ? ' is-active' : '')}
+          onClick={() => onTabChange('investigate_05_02')}
+        >
+          <small>05 · 02 AI 사고조사 · 본사 승인</small>
+          <span>6하원칙·원인분석 승인 → 사례DB·교육 편입</span>
+          <b>승인대기 {pendingApprovalCount}건</b>
+        </button>
+      </div>
+
+      <div className="nexus-workbench-panel">
+        {activeTab === 'inspect_03_06' && (
+          <InspectorNexus3AxisBridge
+            note=""
+            source="safety-nexus-quick"
+            cases={pipelineCases}
+            onCaseCreated={onPipelineCreated}
+            onCaseUpdated={onPipelineUpdated}
+          />
+        )}
+
+        {activeTab === 'training_04' && (
+          <NexusExecutiveTrainingBridge
+            activeSeed={activeSeed}
+            campaigns={trainingCampaigns}
+            onCampaignsChange={onTrainingCampaignsChange}
+            onOpenAdminTraining={onOpenAdminTraining}
+          />
+        )}
+
+        {activeTab === 'visit_01' && (
+          <div className="nexus-hq-visit-studio" aria-label="01 본사 행선지·순회점검 사전 브리핑 스튜디오">
+            <div className="nexus-3axis-bridge-head">
+              <div>
+                <span className="nexus-3axis-kicker">
+                  SLICE 4A · 01 행선지·현장점검 → 방문 전 미해결 위험·유사사고 자동 브리핑 → 현장 점검·조치 환류
+                </span>
+                <h3>01 본사 행선지 등록 및 방문 전 자동 위험 브리핑 (Pre-Visit Briefing)</h3>
+              </div>
+              <span className="nexus-3axis-confidence">
+                연계 구체 포인트 #{livePreVisitPreview.classification.structuralNodeIndex} · 시드 [{livePreVisitPreview.briefing.matchedCaseCode}]
+              </span>
+            </div>
+
+            <div className="nexus-visit-form-grid">
+              <label>
+                <span>방문 예정일</span>
+                <input
+                  type="date"
+                  aria-label="순회점검 방문 예정일"
+                  value={visitDate}
+                  onChange={e => setVisitDate(e.target.value)}
+                />
+              </label>
+              <label>
+                <span>본사 점검자·직책</span>
+                <input
+                  type="text"
+                  aria-label="본사 점검자 직책"
+                  value={inspectorRole}
+                  maxLength={60}
+                  onChange={e => setInspectorRole(e.target.value)}
+                />
+              </label>
+              <label>
+                <span>대상 현장·구간명</span>
+                <input
+                  type="text"
+                  aria-label="순회점검 대상 현장명"
+                  value={visitSiteName}
+                  maxLength={100}
+                  onChange={e => setVisitSiteName(e.target.value)}
+                  placeholder="예: 제1현장 지하 2층 RC외벽 / 제2현장 15층 갱폼"
+                />
+              </label>
+              <label>
+                <span>방문 목적·중점 확인사항</span>
+                <input
+                  type="text"
+                  aria-label="순회점검 방문 목적"
+                  value={visitPurpose}
+                  maxLength={200}
+                  onChange={e => setVisitPurpose(e.target.value)}
+                  placeholder="예: 지하 외벽 합벽 거푸집 측압·개구부 방호 확인"
+                />
+              </label>
+            </div>
+
+            <div className="nexus-3axis-tags" role="group" aria-label="순회점검 3축 대상 분류">
+              <label>
+                <span>점검 축1 · 구간</span>
+                <select
+                  aria-label="순회점검 구간 축"
+                  value={livePreVisitPreview.classification.zoneAxis}
+                  onChange={e => setVisitZone(e.target.value as NexusZoneAxis)}
+                >
+                  {NEXUS_ZONE_AXIS_OPTIONS.map(o => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>점검 축2 · 세부작업</span>
+                <select
+                  aria-label="순회점검 작업 축"
+                  value={livePreVisitPreview.classification.processAxis}
+                  onChange={e => setVisitProcess(e.target.value as NexusProcessAxis)}
+                >
+                  {NEXUS_PROCESS_AXIS_OPTIONS.map(o => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>점검 축3 · 가설·장비</span>
+                <select
+                  aria-label="순회점검 가설장비 축"
+                  value={livePreVisitPreview.classification.hazardEquipmentAxis}
+                  onChange={e => setVisitEquip(e.target.value as NexusHazardEquipmentAxis)}
+                >
+                  {NEXUS_HAZARD_EQUIPMENT_AXIS_OPTIONS.map(o => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="nexus-previsit-briefing-box">
+              <div className="nexus-3axis-matched-title">
+                <strong>
+                  이동 중 자동 사전 브리핑 · [{livePreVisitPreview.briefing.matchedCaseCode}] {livePreVisitPreview.briefing.matchedCaseTitle}
+                </strong>
+                <small>
+                  미결 조치 {livePreVisitPreview.briefing.openPipelineActionsCount}건 · 기한초과 {livePreVisitPreview.briefing.overdueActionsCount}건
+                </small>
+              </div>
+              <ul>
+                {livePreVisitPreview.briefing.keyBriefingPoints.map((pt, idx) => (
+                  <li key={idx}>{pt}</li>
+                ))}
+              </ul>
+              <button type="button" className="nexus-3axis-submit" onClick={handleCreateVisitPlan}>
+                01 행선지·사전브리핑 등록 및 구체 포인트 록온 ↗
+              </button>
+            </div>
+
+            {visitNotice && <p role="status" className="nexus-3axis-feedback">{visitNotice}</p>}
+
+            {visitPlans.length > 0 && (
+              <div className="nexus-3axis-case-list" aria-label="본사 행선지 및 순회점검 이행 목록">
+                <strong>등록된 본사 행선지 · 순회점검 브리핑 및 조치 이행 ({visitPlans.length}건)</strong>
+                <ul>
+                  {visitPlans.slice(0, 5).map(plan => (
+                    <li key={plan.visitId} data-status={plan.status}>
+                      <div className="nexus-3axis-case-row-top">
+                        <span>
+                          <b>[{plan.visitDate} · 구체 #{plan.structuralNodeIndex}]</b> {plan.siteName} ({plan.inspectorRole}) — {plan.purpose}
+                        </span>
+                        <em className={'status-pill status-' + plan.status}>
+                          {NEXUS_VISIT_STATUS_LABELS[plan.status]}
+                        </em>
+                      </div>
+                      <p className="nexus-3axis-case-row-meta">
+                        사전 브리핑 시드: [{plan.preVisitBriefing.matchedCaseCode}] · 미결 {plan.preVisitBriefing.openPipelineActionsCount}건
+                      </p>
+                      {plan.status !== 'action_issued_closed' && (
+                        <div className="nexus-3axis-case-row-actions">
+                          <button type="button" onClick={() => handleCompleteVisitWithAction(plan)}>
+                            현장 점검 완료 · 즉시 시정조치·인계 발령 ↗
+                          </button>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'investigate_05_02' && (
+          <div className="nexus-ai-investigation-studio" aria-label="05 AI 사고조사·원인분석 및 본사 승인 환류 스튜디오">
+            <div className="nexus-3axis-bridge-head">
+              <div>
+                <span className="nexus-3axis-kicker">
+                  SLICE 4B · 05 AI 사고조사(6하원칙·시계열·직접/기여/근본원인) → 본사 승인 → 02 사고사례 DB & 04 대표이사 교육 자동 편입
+                </span>
+                <h3>05 AI 사고조사·원인분석 구조화 및 본사 승인·전 현장 환류 스튜디오</h3>
+              </div>
+              <span className="nexus-3axis-confidence">
+                AI 초안 · 본사 승인 전 확정 아님 · 구체 #{liveInvestigationPreview.structuralNodeIndex}
+              </span>
+            </div>
+
+            <div className="nexus-visit-form-grid">
+              <label>
+                <span>발생·접수 현장명</span>
+                <input
+                  type="text"
+                  aria-label="사고조사 현장명"
+                  value={invSiteName}
+                  maxLength={80}
+                  onChange={e => setInvSiteName(e.target.value)}
+                  placeholder="예: 제1현장 지하 2층 북측 외벽"
+                />
+              </label>
+              <label>
+                <span>사건·아차사고 제목 (선택)</span>
+                <input
+                  type="text"
+                  aria-label="사고조사 제목"
+                  value={invTitle}
+                  maxLength={120}
+                  onChange={e => setInvTitle(e.target.value)}
+                  placeholder="미입력 시 3축·위험유형 기준 자동 생성"
+                />
+              </label>
+              <label>
+                <span>초안 작성자 (현장)</span>
+                <input
+                  type="text"
+                  aria-label="사고조사 작성자"
+                  value={invAuthor}
+                  maxLength={60}
+                  onChange={e => setInvAuthor(e.target.value)}
+                />
+              </label>
+              <label>
+                <span>본사 승인권자 (작성자와 분리 필수)</span>
+                <input
+                  type="text"
+                  aria-label="본사 승인권자"
+                  value={invApprover}
+                  maxLength={60}
+                  onChange={e => setInvApprover(e.target.value)}
+                />
+              </label>
+            </div>
+
+            <label className="nexus-inv-summary-field">
+              <span>현장 사고·아차사고 경위 원문 (입력 즉시 6하원칙·시계열·3단계 원인 자동 구조화)</span>
+              <input
+                type="text"
+                aria-label="사고조사 경위 원문"
+                value={invSummary}
+                maxLength={400}
+                onChange={e => setInvSummary(e.target.value)}
+                placeholder="예: 지하 2층 외벽 합벽 거푸집 조립 중 타이볼트 간격 미흡으로 배부름 변형 및 피트 개구부 덮개 미고정 발견"
+              />
+            </label>
+
+            <div className="nexus-3axis-tags" role="group" aria-label="사고조사 3축 분류">
+              <label>
+                <span>조사 축1 · 구간</span>
+                <select
+                  aria-label="사고조사 구간 축"
+                  value={liveInvestigationPreview.zoneAxis}
+                  onChange={e => setInvZone(e.target.value as NexusZoneAxis)}
+                >
+                  {NEXUS_ZONE_AXIS_OPTIONS.map(o => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>조사 축2 · 세부작업</span>
+                <select
+                  aria-label="사고조사 작업 축"
+                  value={liveInvestigationPreview.processAxis}
+                  onChange={e => setInvProcess(e.target.value as NexusProcessAxis)}
+                >
+                  {NEXUS_PROCESS_AXIS_OPTIONS.map(o => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>조사 축3 · 가설·장비</span>
+                <select
+                  aria-label="사고조사 가설장비 축"
+                  value={liveInvestigationPreview.hazardEquipmentAxis}
+                  onChange={e => setInvEquip(e.target.value as NexusHazardEquipmentAxis)}
+                >
+                  {NEXUS_HAZARD_EQUIPMENT_AXIS_OPTIONS.map(o => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="nexus-inv-preview-grid">
+              <div className="nexus-inv-card">
+                <strong>AI 6하원칙 · 시계열 분석 초안</strong>
+                <dl className="nexus-seed-tree">
+                  <div><dt>언제(When)</dt><dd>{liveInvestigationPreview.sixW.when}</dd></div>
+                  <div><dt>어디서(Where)</dt><dd>{liveInvestigationPreview.sixW.where}</dd></div>
+                  <div><dt>누가(Who)</dt><dd>{liveInvestigationPreview.sixW.who}</dd></div>
+                  <div><dt>무엇을(What)</dt><dd>{liveInvestigationPreview.sixW.what}</dd></div>
+                  <div><dt>어떻게(How)</dt><dd>{liveInvestigationPreview.sixW.how}</dd></div>
+                  <div><dt>왜(Why)</dt><dd>{liveInvestigationPreview.sixW.why}</dd></div>
+                </dl>
+              </div>
+              <div className="nexus-inv-card">
+                <strong>직접원인 → 기여요인 → 근본원인 구조화 초안</strong>
+                <dl className="nexus-seed-tree">
+                  <div><dt>직접원인</dt><dd>{liveInvestigationPreview.directCause}</dd></div>
+                  <div><dt>기여요인</dt><dd>{liveInvestigationPreview.contributingFactor}</dd></div>
+                  <div><dt>근본원인</dt><dd>{liveInvestigationPreview.rootCause}</dd></div>
+                  <div><dt>재발방지대책</dt><dd>{liveInvestigationPreview.preventiveMeasureDraft}</dd></div>
+                </dl>
+                <button type="button" className="nexus-3axis-submit" onClick={handleCreateAiInvestigation}>
+                  05 AI 사고조사 초안 등록 (본사 승인 요청) ↗
+                </button>
+              </div>
+            </div>
+
+            {invError && <p role="alert" className="nexus-inv-error">{invError}</p>}
+            {invNotice && <p role="status" className="nexus-3axis-feedback">{invNotice}</p>}
+
+            {investigations.length > 0 && (
+              <div className="nexus-3axis-case-list" aria-label="AI 사고조사 및 본사 승인·환류 내역">
+                <strong>05 AI 사고조사 · 본사 승인 및 02 사고사례 DB · 04 대표이사 교육 편입 현황 ({investigations.length}건)</strong>
+                <ul>
+                  {investigations.slice(0, 5).map(inv => (
+                    <li key={inv.investigationId} data-status={inv.status}>
+                      <div className="nexus-3axis-case-row-top">
+                        <span>
+                          <b>[{inv.matchedReferenceCode} · 구체 #{inv.structuralNodeIndex}]</b> {inv.incidentTitle} ({inv.siteName})
+                        </span>
+                        <em className={'status-pill status-' + inv.status}>
+                          {NEXUS_INVESTIGATION_STATUS_LABELS[inv.status]}
+                        </em>
+                      </div>
+                      <p className="nexus-3axis-case-row-meta">
+                        직접원인: {inv.directCause} → 근본원인: {inv.rootCause} · 작성: {inv.authorLabel}
+                        {inv.approverLabel ? ` · 승인: ${inv.approverLabel} (편입코드: ${inv.promotedSeedCode})` : ''}
+                      </p>
+                      {inv.status === 'ai_draft_pending_hq' && (
+                        <div className="nexus-3axis-case-row-actions">
+                          <button type="button" onClick={() => handleApproveInvestigation(inv)}>
+                            본사 최종 승인 · 02 사고사례 DB 편입 및 04 대표이사 12개국어 교육 자동 발령 ↗
+                          </button>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+};

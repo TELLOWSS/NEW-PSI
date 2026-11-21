@@ -1,0 +1,589 @@
+import { getKoreanCalendarDay } from './monthlyFieldFollowup';
+import {
+  stageExecutiveTrainingHandoff,
+  type NexusExecutiveTrainingCampaign,
+} from './nexusExecutiveTrainingPipeline';
+import type { NexusOrbitLayer } from './nexusSphereProjection';
+import {
+  classifyStructuralPhotoContext,
+  createNexusPipelineCase,
+  readNexusPipelineCases,
+  type NexusPipelineCase,
+} from './nexusQuickPipeline';
+import {
+  NEXUS_HAZARD_EQUIPMENT_AXIS_OPTIONS,
+  NEXUS_PROCESS_AXIS_OPTIONS,
+  NEXUS_STRUCTURAL_INCIDENT_SEEDS,
+  NEXUS_ZONE_AXIS_OPTIONS,
+  type NexusHazardEquipmentAxis,
+  type NexusHazardMechanism,
+  type NexusProcessAxis,
+  type NexusStructuralIncidentSeed,
+  type NexusZoneAxis,
+} from './nexusStructuralTaxonomy';
+
+export const NEXUS_HQ_VISITS_STORAGE_KEY = 'psi_nexus_hq_visit_plans_v1';
+export const NEXUS_AI_INVESTIGATIONS_STORAGE_KEY = 'psi_nexus_ai_investigations_v1';
+export const NEXUS_APPROVED_CUSTOM_SEEDS_KEY = 'psi_nexus_approved_custom_seeds_v1';
+export const NEXUS_HQ_LOOP_UPDATED_EVENT = 'psi-nexus-hq-loop-updated';
+
+export type NexusVisitStatus =
+  | 'scheduled_briefed'
+  | 'in_field_inspection'
+  | 'action_issued_closed';
+
+export const NEXUS_VISIT_STATUS_LABELS: Record<NexusVisitStatus, string> = {
+  scheduled_briefed: '방문 등록 · 사전브리핑 완료',
+  in_field_inspection: '현장 순회점검 진행 중',
+  action_issued_closed: '점검 완료 · 조치·인계 환류됨',
+};
+
+export interface NexusPreVisitBriefing {
+  matchedCaseCode: string;
+  matchedCaseTitle: string;
+  hazardMechanism: NexusHazardMechanism;
+  openPipelineActionsCount: number;
+  overdueActionsCount: number;
+  keyBriefingPoints: readonly string[];
+}
+
+export interface NexusHqVisitPlan {
+  visitId: string;
+  createdAt: string;
+  updatedAt: string;
+  visitDate: string;
+  inspectorRole: string;
+  siteName: string;
+  purpose: string;
+  zoneAxis: NexusZoneAxis;
+  processAxis: NexusProcessAxis;
+  hazardEquipmentAxis: NexusHazardEquipmentAxis;
+  structuralNodeIndex: string;
+  preVisitBriefing: NexusPreVisitBriefing;
+  fieldResultNote?: string;
+  linkedPipelineCaseId?: string;
+  status: NexusVisitStatus;
+}
+
+export type NexusInvestigationStatus =
+  | 'ai_draft_pending_hq'
+  | 'hq_approved_propagated'
+  | 'revision_requested';
+
+export const NEXUS_INVESTIGATION_STATUS_LABELS: Record<NexusInvestigationStatus, string> = {
+  ai_draft_pending_hq: 'AI 원인분석 초안 · 본사 승인 대기',
+  hq_approved_propagated: '본사 승인 완료 · 사례DB·교육 자동 편입',
+  revision_requested: '보완 요청됨',
+};
+
+export interface NexusSixW {
+  when: string;
+  where: string;
+  who: string;
+  what: string;
+  how: string;
+  why: string;
+}
+
+export interface NexusTimelineStep {
+  phase: string;
+  detail: string;
+}
+
+export interface NexusAiInvestigationRecord {
+  investigationId: string;
+  createdAt: string;
+  updatedAt: string;
+  siteName: string;
+  incidentTitle: string;
+  rawSummary: string;
+  zoneAxis: NexusZoneAxis;
+  processAxis: NexusProcessAxis;
+  hazardEquipmentAxis: NexusHazardEquipmentAxis;
+  structuralNodeIndex: string;
+  hazardMechanism: NexusHazardMechanism;
+  matchedReferenceCode: string;
+  sixW: NexusSixW;
+  timeline: readonly NexusTimelineStep[];
+  directCause: string;
+  contributingFactor: string;
+  rootCause: string;
+  preventiveMeasureDraft: string;
+  authorLabel: string;
+  approverLabel?: string;
+  approvedAt?: string;
+  approvalNote?: string;
+  promotedSeedCode?: string;
+  promotedTrainingCampaignId?: string;
+  promotedPipelineCaseId?: string;
+  status: NexusInvestigationStatus;
+}
+
+let memoryVisitStore: NexusHqVisitPlan[] = [];
+let memoryInvestigationStore: NexusAiInvestigationRecord[] = [];
+let memoryCustomSeedStore: NexusStructuralIncidentSeed[] = [];
+
+const emitHqLoopEvent = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(NEXUS_HQ_LOOP_UPDATED_EVENT));
+  }
+};
+
+export const readHqVisitPlans = (): NexusHqVisitPlan[] => {
+  if (typeof window === 'undefined' || !window.localStorage) return [...memoryVisitStore];
+  try {
+    const raw = window.localStorage.getItem(NEXUS_HQ_VISITS_STORAGE_KEY);
+    if (!raw) return [...memoryVisitStore];
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      memoryVisitStore = parsed;
+      return [...parsed];
+    }
+    return [...memoryVisitStore];
+  } catch {
+    return [...memoryVisitStore];
+  }
+};
+
+export const writeHqVisitPlans = (plans: readonly NexusHqVisitPlan[]): void => {
+  memoryVisitStore = [...plans];
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(NEXUS_HQ_VISITS_STORAGE_KEY, JSON.stringify(plans));
+    emitHqLoopEvent();
+  } catch {
+    // Ignore quota errors
+  }
+};
+
+export const readAiInvestigations = (): NexusAiInvestigationRecord[] => {
+  if (typeof window === 'undefined' || !window.localStorage) return [...memoryInvestigationStore];
+  try {
+    const raw = window.localStorage.getItem(NEXUS_AI_INVESTIGATIONS_STORAGE_KEY);
+    if (!raw) return [...memoryInvestigationStore];
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      memoryInvestigationStore = parsed;
+      return [...parsed];
+    }
+    return [...memoryInvestigationStore];
+  } catch {
+    return [...memoryInvestigationStore];
+  }
+};
+
+export const writeAiInvestigations = (records: readonly NexusAiInvestigationRecord[]): void => {
+  memoryInvestigationStore = [...records];
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(NEXUS_AI_INVESTIGATIONS_STORAGE_KEY, JSON.stringify(records));
+    emitHqLoopEvent();
+  } catch {
+    // Ignore quota errors
+  }
+};
+
+export const readApprovedCustomIncidentSeeds = (): NexusStructuralIncidentSeed[] => {
+  if (typeof window === 'undefined' || !window.localStorage) return [...memoryCustomSeedStore];
+  try {
+    const raw = window.localStorage.getItem(NEXUS_APPROVED_CUSTOM_SEEDS_KEY);
+    if (!raw) return [...memoryCustomSeedStore];
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      memoryCustomSeedStore = parsed;
+      return [...parsed];
+    }
+    return [...memoryCustomSeedStore];
+  } catch {
+    return [...memoryCustomSeedStore];
+  }
+};
+
+export const writeApprovedCustomIncidentSeeds = (
+  seeds: readonly NexusStructuralIncidentSeed[],
+): void => {
+  memoryCustomSeedStore = [...seeds];
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(NEXUS_APPROVED_CUSTOM_SEEDS_KEY, JSON.stringify(seeds));
+    emitHqLoopEvent();
+  } catch {
+    // Ignore quota errors
+  }
+};
+
+export const buildPreVisitBriefing = (
+  input: {
+    siteName?: string;
+    purpose?: string;
+    zoneAxis?: NexusZoneAxis | '';
+    processAxis?: NexusProcessAxis | '';
+    hazardEquipmentAxis?: NexusHazardEquipmentAxis | '';
+  },
+  pipelineCases: readonly NexusPipelineCase[] = readNexusPipelineCases(),
+  asOfDate = getKoreanCalendarDay(),
+): {
+  classification: ReturnType<typeof classifyStructuralPhotoContext>;
+  briefing: NexusPreVisitBriefing;
+} => {
+  const classification = classifyStructuralPhotoContext({
+    note: `${input.siteName || ''} ${input.purpose || ''}`.trim(),
+    overrideZone: input.zoneAxis || '',
+    overrideProcess: input.processAxis || '',
+    overrideEquipment: input.hazardEquipmentAxis || '',
+  });
+  const seed = classification.primarySeed;
+
+  const matchingCases = pipelineCases.filter(
+    c =>
+      c.status !== 'closed' &&
+      (c.structuralNodeIndex === classification.structuralNodeIndex ||
+        c.zoneAxis === classification.zoneAxis ||
+        c.processAxis === classification.processAxis),
+  );
+  const overdueCases = matchingCases.filter(c => c.dueDate && c.dueDate < asOfDate);
+
+  const keyBriefingPoints: string[] = [
+    `[사전 위험 브리핑] 해당 공정(${seed.caseCode}) 연계 미종결 조치 ${matchingCases.length}건 (기한초과 ${overdueCases.length}건) 우선 확인`,
+    `[중점 점검 사항] ${seed.preVisitBriefingPoint}`,
+    `[유사사례 원인다조] 직접원인(${seed.directCause}) 및 근본원인(${seed.rootCause}) 재발 여부 현장 대조`,
+  ];
+
+  return {
+    classification,
+    briefing: {
+      matchedCaseCode: seed.caseCode,
+      matchedCaseTitle: seed.title,
+      hazardMechanism: seed.hazardMechanism,
+      openPipelineActionsCount: matchingCases.length,
+      overdueActionsCount: overdueCases.length,
+      keyBriefingPoints,
+    },
+  };
+};
+
+export const createHqVisitPlan = (
+  input: {
+    visitDate?: string;
+    inspectorRole?: string;
+    siteName: string;
+    purpose: string;
+    zoneAxis?: NexusZoneAxis | '';
+    processAxis?: NexusProcessAxis | '';
+    hazardEquipmentAxis?: NexusHazardEquipmentAxis | '';
+  },
+  pipelineCases: readonly NexusPipelineCase[] = readNexusPipelineCases(),
+  nowIso = new Date().toISOString(),
+): NexusHqVisitPlan => {
+  const today = getKoreanCalendarDay(new Date(nowIso));
+  const { classification, briefing } = buildPreVisitBriefing(input, pipelineCases, today);
+
+  const plan: NexusHqVisitPlan = {
+    visitId: `NEXUS-VISIT-${classification.primarySeed.caseCode}-${Date.now().toString(36).toUpperCase()}`,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    visitDate: /^\d{4}-\d{2}-\d{2}$/.test(String(input.visitDate || '')) ? String(input.visitDate) : today,
+    inspectorRole: String(input.inspectorRole || '').trim() || '본사 안전보건팀 순회점검자',
+    siteName: String(input.siteName || '').trim() || '골조·형틀 중점관리 현장',
+    purpose: String(input.purpose || '').trim() || classification.primarySeed.preVisitBriefingPoint,
+    zoneAxis: classification.zoneAxis,
+    processAxis: classification.processAxis,
+    hazardEquipmentAxis: classification.hazardEquipmentAxis,
+    structuralNodeIndex: classification.structuralNodeIndex,
+    preVisitBriefing: briefing,
+    status: 'scheduled_briefed',
+  };
+
+  const existing = readHqVisitPlans();
+  writeHqVisitPlans([plan, ...existing].slice(0, 60));
+  return plan;
+};
+
+export const completeHqVisitWithFieldAction = (
+  visitId: string,
+  fieldResultNote: string,
+  nowIso = new Date().toISOString(),
+): {
+  updatedPlans: NexusHqVisitPlan[];
+  createdPipelineCase: NexusPipelineCase | null;
+} => {
+  const existing = readHqVisitPlans();
+  let createdPipelineCase: NexusPipelineCase | null = null;
+
+  const updatedPlans = existing.map(plan => {
+    if (plan.visitId !== visitId) return plan;
+    const note =
+      String(fieldResultNote || '').trim() ||
+      `[본사 순회점검] ${plan.siteName} · ${plan.purpose} 현장 점검 및 시정조치 지시`;
+    createdPipelineCase = createNexusPipelineCase(
+      {
+        locationLabel: `${plan.siteName} (${plan.inspectorRole})`,
+        observationNote: note,
+        zoneAxis: plan.zoneAxis,
+        processAxis: plan.processAxis,
+        hazardEquipmentAxis: plan.hazardEquipmentAxis,
+        handoverShift: '본사 순회점검 지시 → 현장 소장·안전팀 인계',
+      },
+      nowIso,
+    );
+    return {
+      ...plan,
+      fieldResultNote: note,
+      linkedPipelineCaseId: createdPipelineCase.caseId,
+      status: 'action_issued_closed' as const,
+      updatedAt: nowIso,
+    };
+  });
+
+  writeHqVisitPlans(updatedPlans);
+  return { updatedPlans, createdPipelineCase };
+};
+
+export const buildAiInvestigationDraft = (
+  input: {
+    siteName: string;
+    incidentTitle?: string;
+    rawSummary: string;
+    when?: string;
+    where?: string;
+    who?: string;
+    authorLabel?: string;
+    zoneAxis?: NexusZoneAxis | '';
+    processAxis?: NexusProcessAxis | '';
+    hazardEquipmentAxis?: NexusHazardEquipmentAxis | '';
+  },
+  nowIso = new Date().toISOString(),
+): NexusAiInvestigationRecord => {
+  const summary =
+    String(input.rawSummary || '').trim() ||
+    '지하 2층 외벽 합벽 거푸집 조립 중 타이볼트 간격 미흡 및 피트 개구부 덮개 미고정 아차사고';
+  const classification = classifyStructuralPhotoContext({
+    note: `${input.siteName || ''} ${input.incidentTitle || ''} ${summary}`,
+    overrideZone: input.zoneAxis || '',
+    overrideProcess: input.processAxis || '',
+    overrideEquipment: input.hazardEquipmentAxis || '',
+  });
+  const seed = classification.primarySeed;
+
+  const zoneLabel =
+    NEXUS_ZONE_AXIS_OPTIONS.find(z => z.id === classification.zoneAxis)?.shortLabel || '골조 구간';
+  const processLabel =
+    NEXUS_PROCESS_AXIS_OPTIONS.find(p => p.id === classification.processAxis)?.shortLabel || '형틀 작업';
+  const equipLabel =
+    NEXUS_HAZARD_EQUIPMENT_AXIS_OPTIONS.find(e => e.id === classification.hazardEquipmentAxis)?.shortLabel ||
+    '가설·장비';
+
+  const today = getKoreanCalendarDay(new Date(nowIso));
+  const when = String(input.when || '').trim() || `${today} 작업 진행 중`;
+  const where = String(input.where || '').trim() || `${input.siteName || '현장'} · ${zoneLabel} 구간`;
+  const who = String(input.who || '').trim() || `${processLabel} 작업팀`;
+
+  const record: NexusAiInvestigationRecord = {
+    investigationId: `NEXUS-INV-${seed.caseCode}-${Date.now().toString(36).toUpperCase()}`,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    siteName: String(input.siteName || '').trim() || '골조·형틀 현장',
+    incidentTitle:
+      String(input.incidentTitle || '').trim() ||
+      `[${zoneLabel} · ${processLabel}] ${seed.hazardMechanism} 아차사고·위험사례 원인조사`,
+    rawSummary: summary,
+    zoneAxis: classification.zoneAxis,
+    processAxis: classification.processAxis,
+    hazardEquipmentAxis: classification.hazardEquipmentAxis,
+    structuralNodeIndex: classification.structuralNodeIndex,
+    hazardMechanism: seed.hazardMechanism,
+    matchedReferenceCode: seed.caseCode,
+    sixW: {
+      when,
+      where,
+      who,
+      what: `${processLabel} 및 ${equipLabel} 취급·설치 작업`,
+      how: summary,
+      why: seed.rootCause,
+    },
+    timeline: [
+      { phase: '01 · 작업 전 단계', detail: `${where}에서 ${who} 투입 전 사전 구조·방호 상태 점검 미흡` },
+      { phase: '02 · 위험 노출 단계', detail: `${seed.directCause} 상태로 작업 진행` },
+      { phase: '03 · 사건·아차사고 인지', detail: `${summary} 확인 및 현장 작업 일시 중지·임시 통제` },
+      { phase: '04 · 원인분석·대책 수립', detail: `${seed.preventiveMeasure} 이행 및 본사 승인 후 전 현장 전파 대기` },
+    ],
+    directCause: seed.directCause,
+    contributingFactor: seed.contributingFactor,
+    rootCause: seed.rootCause,
+    preventiveMeasureDraft: seed.preventiveMeasure,
+    authorLabel: String(input.authorLabel || '').trim() || '현장 안전관리자',
+    status: 'ai_draft_pending_hq',
+  };
+
+  return record;
+};
+
+export const submitAiInvestigationRecord = (
+  input: Parameters<typeof buildAiInvestigationDraft>[0],
+  nowIso = new Date().toISOString(),
+): NexusAiInvestigationRecord => {
+  const draft = buildAiInvestigationDraft(input, nowIso);
+  const existing = readAiInvestigations();
+  writeAiInvestigations([draft, ...existing].slice(0, 60));
+  return draft;
+};
+
+/**
+ * Approves an AI Root-Cause Investigation (enforcing author != approver rule)
+ * and automatically propagates the approved lesson into:
+ * 1) `02 사고사례 데이터 DB` (Approved Custom Incident Seed)
+ * 2) `04 대표이사 12개국어 안전교육` (Dispatched Campaign)
+ * 3) `06 조치·재점검·인계` (Verification Action Item)
+ */
+export const approveAiInvestigationAndPropagate = (
+  investigationId: string,
+  approval: {
+    approverLabel: string;
+    approvalNote?: string;
+    directCause?: string;
+    contributingFactor?: string;
+    rootCause?: string;
+    preventiveMeasureDraft?: string;
+    targetWorkers?: number;
+  },
+  nowIso = new Date().toISOString(),
+): {
+  updatedInvestigations: NexusAiInvestigationRecord[];
+  promotedSeed: NexusStructuralIncidentSeed;
+  promotedTrainingCampaign: NexusExecutiveTrainingCampaign;
+  promotedPipelineCase: NexusPipelineCase;
+} => {
+  const existing = readAiInvestigations();
+  const target = existing.find(item => item.investigationId === investigationId);
+  if (!target) {
+    throw new Error('승인할 사고조사 초안을 찾을 수 없습니다.');
+  }
+
+  const approver = String(approval.approverLabel || '').trim();
+  if (!approver) {
+    throw new Error('본사 승인자 직책 또는 이름을 입력해 주세요.');
+  }
+  if (approver.toLowerCase() === target.authorLabel.trim().toLowerCase()) {
+    throw new Error('직무 분리 원칙에 따라 사고조사 작성자와 본사 최종 승인자는 서로 달라야 합니다.');
+  }
+
+  const finalDirect = String(approval.directCause || target.directCause).trim();
+  const finalContrib = String(approval.contributingFactor || target.contributingFactor).trim();
+  const finalRoot = String(approval.rootCause || target.rootCause).trim();
+  const finalPreventive = String(approval.preventiveMeasureDraft || target.preventiveMeasureDraft).trim();
+
+  const customSeeds = readApprovedCustomIncidentSeeds();
+  const promotedSeedCode = `HQ-${target.matchedReferenceCode}-${String(customSeeds.length + 1).padStart(2, '0')}`;
+  const baseSeed =
+    NEXUS_STRUCTURAL_INCIDENT_SEEDS.find(s => s.caseCode === target.matchedReferenceCode) ??
+    NEXUS_STRUCTURAL_INCIDENT_SEEDS[0];
+
+  const promotedSeed: NexusStructuralIncidentSeed = {
+    caseCode: promotedSeedCode,
+    title: `[본사승인 사례] ${target.incidentTitle}`,
+    zoneAxis: target.zoneAxis,
+    processAxis: target.processAxis,
+    hazardEquipmentAxis: target.hazardEquipmentAxis,
+    structuralNodeIndex: target.structuralNodeIndex,
+    moduleNodeIndex: '02', // 02 사고사례 데이터 DB
+    cycleNodeIndex: baseSeed.cycleNodeIndex,
+    hazardMechanism: target.hazardMechanism,
+    directCause: finalDirect,
+    contributingFactor: finalContrib,
+    rootCause: finalRoot,
+    preventiveMeasure: finalPreventive,
+    preVisitBriefingPoint: `[본사 승인 재발방지 중점] ${finalPreventive}`,
+    ceoTrainingPoint: `[본사 사고조사 환류 지시] ${finalDirect} 위험이 확인되면 즉시 작업을 중지하고 ${finalPreventive} 조치를 먼저 완료하십시오.`,
+    tradeKeywords: baseSeed.tradeKeywords,
+    sourceKind: '골조·형틀 표준 예방 시드 (실제 현장 사고 통계 아님)',
+  };
+
+  writeApprovedCustomIncidentSeeds([promotedSeed, ...customSeeds].slice(0, 40));
+
+  const promotedPipelineCase = createNexusPipelineCase(
+    {
+      locationLabel: `${target.siteName} (${target.sixW.where})`,
+      observationNote: `[본사 사고조사 승인 대책 이행] ${target.incidentTitle}`,
+      zoneAxis: target.zoneAxis,
+      processAxis: target.processAxis,
+      hazardEquipmentAxis: target.hazardEquipmentAxis,
+      actionTitle: finalPreventive,
+      assignee: `${target.sixW.who} 및 현장 안전담당`,
+      handoverShift: `본사 승인(${approver}) 재발방지대책 전 현장 교대 인계`,
+    },
+    nowIso,
+  );
+
+  const promotedTrainingCampaign = stageExecutiveTrainingHandoff(promotedSeed, {
+    pipelineCase: promotedPipelineCase,
+    targetWorkers: approval.targetWorkers ?? 15,
+    dispatchImmediately: true,
+    nowIso,
+  });
+
+  const updatedInvestigations = existing.map(item => {
+    if (item.investigationId !== investigationId) return item;
+    return {
+      ...item,
+      directCause: finalDirect,
+      contributingFactor: finalContrib,
+      rootCause: finalRoot,
+      preventiveMeasureDraft: finalPreventive,
+      approverLabel: approver,
+      approvedAt: nowIso,
+      approvalNote: String(approval.approvalNote || '본사 검토·승인 완료 및 전 현장 사례DB·대표이사 교육 전파').trim(),
+      promotedSeedCode,
+      promotedTrainingCampaignId: promotedTrainingCampaign.campaignId,
+      promotedPipelineCaseId: promotedPipelineCase.caseId,
+      status: 'hq_approved_propagated' as const,
+      updatedAt: nowIso,
+    };
+  });
+
+  writeAiInvestigations(updatedInvestigations);
+  return {
+    updatedInvestigations,
+    promotedSeed,
+    promotedTrainingCampaign,
+    promotedPipelineCase,
+  };
+};
+
+export interface NexusHqLoopNodeSummary {
+  nodeIndex: string;
+  visitCount: number;
+  pendingBriefingVisits: number;
+  investigationCount: number;
+  pendingHqApprovals: number;
+  approvedPropagatedCount: number;
+}
+
+export const summarizeHqLoopForOrbitLayer = (
+  layer: NexusOrbitLayer,
+  visits: readonly NexusHqVisitPlan[],
+  investigations: readonly NexusAiInvestigationRecord[],
+): readonly NexusHqLoopNodeSummary[] => {
+  const count = layer === 'cycle' ? 5 : layer === 'modules' ? 6 : 10;
+  return Array.from({ length: count }, (_, idx) => {
+    const nodeIndex = String(idx + 1).padStart(2, '0');
+    const matchedVisits = visits.filter(v => {
+      if (layer === 'structural') return v.structuralNodeIndex === nodeIndex;
+      if (layer === 'modules') return nodeIndex === '01' || nodeIndex === '06';
+      return nodeIndex === '01' || nodeIndex === '04';
+    });
+    const matchedInvs = investigations.filter(inv => {
+      if (layer === 'structural') return inv.structuralNodeIndex === nodeIndex;
+      if (layer === 'modules') return nodeIndex === '05' || nodeIndex === '02' || nodeIndex === '04';
+      return nodeIndex === '02' || nodeIndex === '05';
+    });
+
+    return {
+      nodeIndex,
+      visitCount: matchedVisits.length,
+      pendingBriefingVisits: matchedVisits.filter(v => v.status !== 'action_issued_closed').length,
+      investigationCount: matchedInvs.length,
+      pendingHqApprovals: matchedInvs.filter(inv => inv.status === 'ai_draft_pending_hq').length,
+      approvedPropagatedCount: matchedInvs.filter(inv => inv.status === 'hq_approved_propagated').length,
+    };
+  });
+};

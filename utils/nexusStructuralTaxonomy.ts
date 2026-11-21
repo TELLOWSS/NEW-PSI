@@ -297,8 +297,9 @@ export interface NexusNodeLiveSignal {
 
 export const filterStructuralIncidentSeeds = (
   filter: NexusThreeAxisFilter,
+  extraApprovedSeeds: readonly NexusStructuralIncidentSeed[] = [],
 ): readonly NexusStructuralIncidentSeed[] =>
-  NEXUS_STRUCTURAL_INCIDENT_SEEDS.filter(
+  [...extraApprovedSeeds, ...NEXUS_STRUCTURAL_INCIDENT_SEEDS].filter(
     seed =>
       (!filter.zoneAxis || seed.zoneAxis === filter.zoneAxis) &&
       (!filter.processAxis || seed.processAxis === filter.processAxis) &&
@@ -325,16 +326,18 @@ export const buildOrbitLayerLiveSignals = (
   records: readonly WorkerRecord[],
   axisFilter: NexusThreeAxisFilter,
   asOfDate = getKoreanCalendarDay(),
+  extraApprovedSeeds: readonly NexusStructuralIncidentSeed[] = [],
 ): readonly NexusNodeLiveSignal[] => {
   const nodeCount = layer === 'cycle' ? 5 : layer === 'modules' ? 6 : 10;
-  const activeSeeds = filterStructuralIncidentSeeds(axisFilter);
+  const allSeeds = [...extraApprovedSeeds, ...NEXUS_STRUCTURAL_INCIDENT_SEEDS];
+  const activeSeeds = filterStructuralIncidentSeeds(axisFilter, extraApprovedSeeds);
   const hasAxisFilter = Boolean(
     axisFilter.zoneAxis || axisFilter.processAxis || axisFilter.hazardEquipmentAxis,
   );
 
   return Array.from({ length: nodeCount }, (_, idx) => {
     const nodeIndex = String(idx + 1).padStart(2, '0');
-    const seedsForNode = NEXUS_STRUCTURAL_INCIDENT_SEEDS.filter(seed =>
+    const seedsForNode = allSeeds.filter(seed =>
       layer === 'structural'
         ? seed.structuralNodeIndex === nodeIndex
         : layer === 'modules'
