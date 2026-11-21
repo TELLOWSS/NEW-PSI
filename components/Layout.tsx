@@ -157,7 +157,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         currentPage,
     );
 
-    const mobileBottomTabs: Array<{ id: MobileTabId; label: string; page?: Page; icon: React.ReactNode }> = [
+    const allMobileBottomTabs: Array<{ id: MobileTabId; label: string; page?: Page; icon: React.ReactNode }> = [
         {
             id: 'home',
             label: '홈',
@@ -188,7 +188,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
             page: undefined,
             icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6h.01M12 12h.01M12 18h.01" /></svg>,
         },
-    ].filter((tab) => mobileNavigation.tabs.some((item) => item.id === tab.id));
+    ];
+    const mobileBottomTabs = allMobileBottomTabs.filter((tab) => mobileNavigation.tabs.some((item) => item.id === tab.id));
     const activeMobileTab = mobileNavigation.activeTab;
 
     const handlePageChange = (page: Page) => {
