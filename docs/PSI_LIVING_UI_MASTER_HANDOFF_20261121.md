@@ -101,7 +101,7 @@
 | L04 | 모바일 관리자 홈·탭·탐색 | IMPLEMENTED(탭 접근권한·현재위치·메뉴 복귀) / QA 대기 | 기존 대시보드 모바일 흐름 재사용, 브라우저·Android·이탈 회귀 검증 필요 |
 | L05 | 운영 대시보드 | IMPLEMENTED(기존 집계 기반 우선확인 안내 영역) / QA 대기 | 실제 필터·집계/안전 의미·반응형/Chromium·Android 검증; 기존 차트 유지 |
 | L06 | 5문항 자기규율 입력·검토 | IMPLEMENTED(기존 OCR 관리자 검토의 Q1~Q5 내비게이터) / 근로자 직접 입력 PLANNED / QA 대기 | 원본 편집·모국어 보존, 직접 제출 인증·저장·동의 설계 분리, 모바일 실기기 미검증 |
-| L07 | OCR 원문 대조·수정·승인 | PLANNED | AI/관리자 권한 분리, 원본 이력·감사 회귀 |
+| L07 | OCR 원문 대조·수정·승인 | IMPLEMENTED(원본/인식/해석/미저장 상태 안내와 사진 포커스) / QA 대기 | 기존 승인·이력 불변, 신뢰도·문서 종류·다국어/320–390px 확인 및 Android 실기기 미검증 |
 | L08 | 사진점검 카메라·오프라인·업로드 상태 | PLANNED | 로컬/전송/수신/검증 구분 및 통신 장애 복구 |
 | L09 | 조치 배정·대기·진행·재점검 | PLANNED | 임시조치·책임·일시·검증 상태 정확성 |
 | L10 | 교육 환류·다국어 전달 | PLANNED | 다음 월 위험 반복 추적 및 인쇄물 검증 |
@@ -194,6 +194,19 @@
 
 **다음:** 최신 L06 HEAD 자동검증 결과·모바일 RecordDetailModal 390px 검수 → 실제 근로자 Q1~Q5 입력 경로 설계(기존 종이·OCR 기반과 병렬, 개인정보/권한/오프라인 전략 먼저) → L07 OCR 검수·원문 대조 정밀 UI. 새 라이브 데이터, 유료 API 또는 업로드 엔드포인트 임의 생성 금지.
 
+### 구현 7차 — L07 OCR 사진·인식문장·해석·관리자 수정의 증거 경계 (2026-11-22)
+
+- **착수 상태:** 이전 L06 HEAD `a18598ef941c3d468487f67ae2e432fd0cd34b8f` GitHub `PSI release verification` (#44952513667), 전사 Chromium (#44952513706) 모두 SUCCESS. `main`은 `8aa4dea89f789d569a715386e1646d848ceb17c1`; 확인한 Vercel Production READY `dpl_HYUrvRfaqfqLmKdDNpQ8MATxhquw`도 동일 SHA. 운영 미반영.
+- **현재 코드 감사:** `components/modals/RecordDetailModal.tsx`는 왼쪽 자필 원본 이미지, 오른쪽 원문 비교 Q&A, 기존 `evaluateOcrVerificationCompleteness`/`evaluateOcrVerificationQuality`, 관리자 수정 시 재검토·저장 사유·최종 승인 게이트, auditTrail/approvalHistory를 이미 운영한다. 판정과 저장 엔진을 대체하거나 덧씌우지 않고 **증거의 의미를 오인하기 쉬운 안내 부분만** 개선한다.
+- **`utils/psiOcrEvidenceReview.ts`:** 기존 필드만으로 `documentRejected` → 원본 이미지 미연결 → OCR 오류/낮은 신뢰도 → Q1~Q5 인식 문장 누락 → 한글/모국어 해석 누락 → 미저장 수정 → 육안 대조 필요 순으로 '다음 확인 안내'를 만든다. 단일 기준은 이미 만든 `buildFiveQuestionReviewItems`이며 **OCR 문장 존재는 사진 원본 확인과 다르다**는 것을 명시한다. 인식 신뢰도 0–1 범위 외 값은 미산정으로 표시하며 위험 해소/최종 승인을 판정하지 않는다.
+- **`components/ocr/PsiOcrEvidenceReviewPanel.tsx`:** 관리자 원문 비교 화면에 5영역(원본 이미지, OCR 신뢰 신호, Q1~Q5 원문/한글 해석, 모국어 전달, 미저장 수정)을 좁은 화면에서도 한 줄씩 검토할 수 있게 배치. 연결된 사진만 '원본 사진 대조' 버튼 제공. 사전 생성 모델·인증 경로·서버 API·새 DB 테이블·추가 비용 없음.
+- **`RecordDetailModal.tsx`:** `activeTab === 'qna'` 영역에 위 패널 추가, 기존 왼쪽 원본 사진 컨테이너에 `data-psi-original-document`·`tabIndex=-1`을 부여해 버튼으로 실제 사진 위치 이동/키보드 포커스. 기존 편집용 `answerText`, `koreanTranslation`, `nativeTranslation`, `handleSave`, `handleApprove`, 증빙/이력 원본 불변.
+- **`tests/psiOcrEvidenceReviewL07.test.ts`:** 문서 부적합·원본 이미지 없음·신뢰도 저하/오류·원문 없는 번역문·외국어 번역 부족·미저장 수정·신뢰도 범위 밖·원본 배열 불변·독립 API/저장 없음 점검. 0.7 기준은 관리자 기존 `PrecisionOperationsBoard`의 OCR 원본 확인 신호와 일치.
+- **범위/QA 경계:** 서식 부적합·결측 안내는 관리자의 사진 확인 우선순위일 뿐 새로운 승인 차단 규칙을 만들지 않는다. 사진이 미연결된 기록의 실제 원본 파일 유무를 단정하지 않는다. L07은 UI 보강 구현 완료·신규 HEAD `verify:ci`/전사 브라우저 검증 및 실제 Android/Samsung Internet 키보드/포커스/스크롤 QA 대기. 모국어 자연스러움·현장 관리자 대조 완료 여부도 미검증.
+- **L06 잔여:** 근로자 직접 Q1~Q5 작성·서명·개인정보 수집/보관·인증·오프라인 복구·승인 결과 전달 기능은 미구현; QR 전파교육 서명과 혼동하지 않는다.
+
+**다음 한 작업:** L07 최신 HEAD `verify:ci`와 Chromium 회귀 확인, 실패 시 수정·재실행 → L06 직접 근로자 입력의 접근권한·동의·오프라인 원본 보존 설계 및 L08 사진점검 업로드/저장/인계의 상태 라벨 정합성 점검. 최종 사용자 승인 전 `main` 병합·Production 배포하지 않는다.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -217,7 +230,7 @@
 
 ## 9. 다음 착수 과제
 
-**L06 신규 HEAD CI·브라우저/Android 검수 → 근로자 직접 Q1~Q5 입력·보관 정책 설계 및 L07 OCR 원문 대조 고도화.**
+**L07 최신 HEAD CI·Chromium 검증 → L06 근로자 직접 작성 입력 정책·L08 사진점검 저장/전송 상태 정합성.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
