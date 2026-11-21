@@ -97,7 +97,7 @@
 | L00 | 사용자 정정/페르소나·제품 경계 명시 | PLANNED → 인계서 기록 | 현장 관리자 장갑 가정 제거, 역할 분리 UX 검토 |
 | L01 | 기존 코드·디자인·미완료 항목 감사 | IMPLEMENTED(1차 읽기만) | 모든 해당 화면, PR/CI/운영 상태 확인과 영향표 작성 |
 | L02 | 공통 모션 기반·페이지 전환 | IMPLEMENTED / QA 대기 | CSS·컴포넌트 연결·회귀 테스트·기기 검증 |
-| L03 | PC 사이드바·상단바·검색 | IMPLEMENTED(접힘형 사이드바) / 나머지 PLANNED / QA 대기 | 기존 메뉴/권한·검색/단축키·다크모드/반응형 회귀 |
+| L03 | PC 사이드바·상단바·검색 | IMPLEMENTED(도크+상단 빠른 메뉴검색) / 전체 QA 대기 | 역할·숨김 동기화/키보드·다크모드/반응형 회귀 및 실기기 확인 |
 | L04 | 모바일 관리자 홈·탭·탐색 | PLANNED | 기기별 고정 메뉴, 업무 경로, 저장 중 이탈 검증 |
 | L05 | 운영 대시보드 | PLANNED | 실제 상태/추세·근거·다음 행동, 비용 호출 0 추가 |
 | L06 | 5문항 자기규율 입력 | PLANNED | 원본 보존·모바일 입력·다국어 검수 |
@@ -138,6 +138,19 @@
 **PR:** https://github.com/TELLOWSS/NEW-PSI/pull/237 (Draft, 운영 병합 금지).  
 **1차 CI 이력:** HEAD `baa9eade`에 대한 `npm run verify:ci` 검사 성공(릴리스 워크플로), cross-department 브라우저 검사는 조회 당시 진행 중. **2차 변경을 포함한 최신 HEAD에 대한 검사 결과가 별도로 필요**하다. 중간 커밋의 성공을 현재 HEAD의 성공으로 대체하지 않는다.
 
+### 구현 3차 — L03 상단바 메뉴 빠른 찾기 (2026-11-22)
+
+- 기존 인계서 원칙과 GitHub `main` `8aa4dea`, Draft PR #237을 실제 재확인. 이전 2차 HEAD `3eabe178`에 대한 `PSI release verification`, `PSI company-wide cross-department verification` 모두 CI SUCCESS 확인. 그 결과를 **이번 새 HEAD의 검증 성공으로 재사용하지 않는다**.
+- Vercel의 최신 확인 Production READY 커밋은 `8aa4dea89f789d569a715386e1646d848ceb17c1` (배포 `dpl_HYUrvRfaqfqLmKdDNpQ8MATxhquw`). Living UI 브랜치는 운영 미반영.
+- `components/Sidebar.tsx`: `getSidebarVisibleMenuItems`를 추출해 사용자에게 표시되는 메뉴 목록을 검색과 사이드바가 **동일한 필터**로 계산. 기존 역할 허용, 운영 모드, 숨김/순서 설정을 존중.
+- `components/shell/NavigationQuickFind.tsx`: 로컬 메뉴 검색 창. 한글 메뉴/분야 입력, 위/아래 화살표 선택, Enter 이동, Esc 종료, 포커스 복귀·Tab 포커스 순환, Ctrl/⌘+K 호출(입력 필드에서는 가로채지 않음). 모바일 전체 메뉴가 열린 경우 단축키 차단. 실근로자 기록·사진·위험 데이터 검색이 아니며 네트워크·저장소 호출 없음.
+- `components/shell/TopBar.tsx`: PC/모바일 상단바 검색 진입점 추가.
+- `components/Layout.tsx`: 실제 접근 가능한 메뉴만 검색 후보로 제공하고 기존 `handlePageChange` 동작(스크롤 보존 등) 사용.
+- `tests/psiNavigationQuickFind.test.ts`: 역할/숨김 분리, 한글 검색, 이벤트 및 데이터 경계 소스 계약 테스트.
+- **현재 판정:** 소스 IMPLEMENTED. 새 HEAD의 CI·Chromium·모바일 실기기 UX 검증 전이며 L03 `VERIFIED`·`RELEASED`가 아님. `main` 병합/Production 배포는 승인 전 보류.
+
+**다음 실행:** 최신 HEAD의 `npm run verify:ci` 및 7개 업무 흐름·대시보드 반응형/저동작 QA 확인. UI가 변경된 PC/모바일 메뉴검색의 실제 포커스·검색·숨김·키보드 동작을 브라우저에서 검증한 후 L04 모바일 관리자 홈·탭 탐색 구조 개선에 착수. 개발 외부 서비스를 호출하거나 독립 앱을 무단 통합하지 않는다.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -161,7 +174,7 @@
 
 ## 9. 다음 착수 과제
 
-**L02·L03 최신 HEAD QA 증거 확보 → L03 상단바/검색 검토 및 L04 모바일 관리자 UX.**
+**L02·L03 최신 HEAD CI/실제 브라우저 QA 증거 확보 → L04 모바일 관리자 업무 홈·탭 탐색 개선.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
