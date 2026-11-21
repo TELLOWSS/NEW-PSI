@@ -75,7 +75,7 @@ describe('L11 chart evidence uses observed denominators rather than invented zer
   expect(monthly).toContain('buildMonthlyScoreEvidencePoints(records)');
   expect(monthly).toContain('data-l11-trend-empty="true"');
   expect(monthly).not.toContain('dataPoints = [0]');
-  expect(radar).toContain('buildGroupScoreChartEvidence(records, mode)');
+  expect(radar).toContain("buildGroupScoreChartEvidence(records, mode === 'team' ? 'team' : 'field')");
   expect(radar).toContain('data-l11-group-chart="empty"');
   expect(radar).not.toContain("labels: labels.length > 0 ? labels : ['데이터 없음']");
   expect(panel).toContain('data-monthly-guidance="l11-six-metric-evidence"');
