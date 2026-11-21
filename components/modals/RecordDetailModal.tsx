@@ -71,6 +71,7 @@ import { getHarnessVersionDescriptors } from '../../utils/harnessVersionCatalog'
 import { deriveCompetencyProfile, getApprovalBlockers } from '../../utils/evidenceUtils';
 import { getSafetyLevelDisplayLabel, getSafetyLevelThresholds, getSafetyLevelFromScore, SAFETY_SIGNAL_COPY } from '../../utils/safetyLevelUtils';
 import { getPsiQuestionLabel } from '../../config/psiFormMaster';
+import { PsiFiveQuestionReviewNavigator } from '../assessment/PsiFiveQuestionReviewNavigator';
 import {
     getManagerReviewApprovalBlockers,
     getManagerReviewApprovalReadiness,
@@ -3571,6 +3572,15 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         >
                                             <></>
                                         </SectionPanelCard>
+                                        <PsiFiveQuestionReviewNavigator
+                                            answers={record.handwrittenAnswers}
+                                            onFocusAnswer={(index) => {
+                                                const source = document.querySelector<HTMLTextAreaElement>(
+                                                    `[data-psi-question-original="${index}"]`,
+                                                );
+                                                source?.focus({ preventScroll: false });
+                                            }}
+                                        />
                                         {record.handwrittenAnswers.map((ans, idx) => {
                                             const isKorean = isKoreanNationality(record.nationality);
                                             const flag = getNationalityFlag(record.nationality);
@@ -3606,6 +3616,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                                 bodyClassName="mt-3"
                                                             >
                                                                 <textarea
+                                                                    data-psi-question-original={idx}
                                                                     value={ans.answerText}
                                                                     onChange={(e) => handleAnswerChange(idx, 'answerText', e.target.value)}
                                                                     className="w-full min-h-[110px] text-sm text-slate-600 bg-white border border-slate-200 rounded-lg p-3 font-medium focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
