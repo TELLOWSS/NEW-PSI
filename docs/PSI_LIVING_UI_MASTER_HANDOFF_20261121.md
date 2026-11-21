@@ -104,7 +104,7 @@
 | L07 | OCR 원문 대조·수정·승인 | IMPLEMENTED(원본/인식/해석/미저장 상태 안내와 사진 포커스) / QA 대기 | 기존 승인·이력 불변, 신뢰도·문서 종류·다국어/320–390px 확인 및 Android 실기기 미검증 |
 | L08 | 사진점검 카메라·오프라인·업로드 상태 | IMPLEMENTED(`/camera` 브라우저 사진함 저장·공유·수신·검수 표시) / QA 대기 | FieldCamera 한정, 실기기/저장실패/독립 점검앱 연계·오프라인 복구 미검증 |
 | L09 | 조치 배정·대기·진행·재점검 | IMPLEMENTED(`/field-local/` F10 기존 대장의 최우선 다음확인·기록 재조회 이동 UI) / QA 대기 | 실시간 현장·수신 여부는 미확인, Android 실기기·오프라인 복구·모든 조치 유형 회귀 대기 |
-| L10 | 교육 환류·다국어 전달 | PLANNED | 다음 월 위험 반복 추적 및 인쇄물 검증 |
+| L10 | 교육 환류·다국어 전달 | IMPLEMENTED(교육 환류센터 6단계 근거 상태/언어별 A4 검수 이동) / QA 대기 | 외국어 자연스러움·A4 실물·교육 배포·서명/출석·Android 실기기 미검증 |
 | L11 | 6대 지표·차트 | PLANNED | 집계의 실데이터 일치·가독성·낙인 방지 |
 | L12 | 보고서·공유·다운로드 | PLANNED | 실제 발행/다운로드/외부 수신 상태 분리 |
 | L13 | 제품 소개/온보딩 | PLANNED | 홍보 연출 격리·정확한 기능 설명 |
@@ -238,6 +238,21 @@
 
 **다음 한 작업:** L09 HEAD의 릴리스·모바일/전사 Chromium 검증 결과를 확인하고 실패 시 수정한다. 기기 점검 조치 목록의 필터·키보드/390px 동작을 확인한 뒤 L10 교육 환류·다국어 전달 시 근로자 작성 답변을 낙인 없이 전달하는 경계를 점검한다. L08 Android 실기기/오프라인 복구와 L06 근로자 직접 입력은 잔여 게이트로 유지한다.
 
+### 구현 10차 — L10 원본 대조 → 교육자료 → 다국어 검수 → 전달·이해 → 재점검 근거 분리 (2026-11-22)
+
+- **기준 상태:** 직전 L09 HEAD `81eda3152fc0dcdad8d9f00dde0ae6cd5a18e941`의 `PSI release verification` #44954855857 및 `PSI company-wide cross-department verification` #44954855906은 **SUCCESS**; `PSI inspector mobile browser QA` #44954855843은 **FAIL**. GitHub 로그에서 기존 백업 복원 테스트 607행 `panel.getByText('확인 완료',{exact:true})`가 새 L09 카드+기존 등록 조치에 둘 다 일치하는 strict mode violation을 확인. `scripts/verify-inspector-local-offline.mjs`의 기존 검증을 `추가 조치 항목` 영역으로 제한하는 수정 `6764253e1c08b9f4d51b0e3c9d451a83480b69b3` 반영. **이 변경을 포함한 최신 모바일 QA 성공 여부는 재실행으로 별도 확정할 것.** `main`과 Vercel Production READY SHA `8aa4dea89f789d569a715386e1646d848ceb17c1`, Draft PR #237 유지.
+- **기존 제품 흐름 감사:** `pages/EducationReturn.tsx`의 `buildEducationReturnSummary`는 현재 로드된 기록의 관리자 승인·미확인 및 '기록에 쓰인 언어' 개수만 집계한다. `utils/practiceVerification.ts`는 교육 전달·이해 확인·현장 관찰·재점검 관련 **이벤트 건수**와 상충 이력을 따로 집계한다. `pages/A4EducationMaterial.tsx`의 `MultilingualEducationAuditPanel`은 한국어+현장 외국어 10개 **형식/누락/원문변경** 검사이며 자연스러운 모국어 의미 검증은 할 수 없다. A4 출력물의 수동 확인 장부 `educationA4ReviewLedger`도 **기기 자체 입력**이지 서버 승인·배포·출석 증빙이 아니다.
+- **L10 사용성 목표:** 월간 위험성평가 원본·승인 기록이 다음 달 1장 교육자료, 각 언어 번역, 실제 교육 전달·이해, 작업구간 재점검으로 이어지는 과정에서 '자료 존재'를 '교육 완료'로 착각하지 않도록 한다. 근로자 개인 점수·이름·원문 개인 응답을 교육 상태 카드에 표시하지 않는다.
+- **`utils/educationReturnEvidenceOverview.ts`:** 새 서버 없이 기존 `EducationReturnSummary`+ `PracticeVerificationSummary` 값으로 6단계 **읽기 전용** 모델 도출. ① 원본 관리자 대조(승인/확인 필요) ② 월간 A4 교육자료 작성 경로(발행 미확인) ③ 근로자 기록 언어 수 ≠ 번역본 수 및 외국어 의미·출력 별도 검수 ④ 교육 전달 **이벤트 횟수** ≠ 전체 근로자 이수/수신 ⑤ 이해 확인/설명 보완 ≠ 행동 관찰 ⑥ 재점검·상충 이력 ≠ 위험 제거/작업재개 승인. 반복 위험 키워드가 여러 운영 구간에 등장한 수는 실제 사고 감소 효과가 아님. 반환 `guarantee:'not-approved'`.
+- **`components/education/EducationReturnEvidencePanel.tsx`:** PC 3열/태블릿 2열/모바일 1열의 6단계 관리자용 카드, 상태 텍스트와 다음 행동. 원본 확인은 기존 `ocr-analysis`, 언어별 검수는 기존 `a4-education-material`로 실제 `onNavigateToPage` 수행. 새로운 QR 링크, 교육 세션·외부 전달/유료 번역 API/로컬 개인자료 저장 없음.
+- **`pages/EducationReturn.tsx`:** 기존 페이지 구조와 3단계 히어로·실천 확인·3개 결과카드 보존, `EvidenceScopePanel` 뒤에 6단계 실제 근거 카드 삽입. 기존 기간·표본·서버 최신성 경계 정보 유지. 근로자 페이지에 개인 평가/점수를 추가하지 않음.
+- **`tests/educationReturnEvidenceL10.test.ts`:** 6단계 순서, 원본 승인 vs 발행, 기록 언어 수 vs 번역본, 전달 30회여도 미확인 이해·실천, 상충·미해결·결측 시 위험 없음 자동판정 금지, 원본 불변·추가 API/기기 저장 없음 확인.
+- **`scripts/verify-psi-platform-workspaces.mjs`:** 합성 Chromium 320/390/768/1440px 교육 환류에서 6단계·언어 검수 상태 검사, 390px 버튼 클릭→실제 A4 스튜디오 진입·가독성 스크린샷. 기존 월간 교육·보고서·Q&A 작업 경로 그대로 검증.
+- **L10 QA 미완:** 최신 HEAD `npm run verify:ci`, 전사 Chromium, L09 수정 후 사진점검 모바일 전체를 실행/재확인하여 실패 수정. 실제 교육자료 한국어/중국어/베트남어/캄보디아어 등 자연어 의미·안전지시, A4 인쇄·폰트 깨짐, 다양한 Android 브라우저·개인별 수신/출석, 다음 달 실제 현장 위험 감소는 자동 테스트로 검증 불가. 기존 관리자 승인/개인정보·테넌트 격리 변경 없음.
+- **출시 경계:** `main` 병합 및 Vercel Production 배포 최종 승인 전 보류. L06 근로자 직접 Q1~Q5 작성/제출 미구현, L08 실제 오프라인/외부 수신 QA 대기.
+
+**다음 한 작업:** L10 CI·독립 Chromium 결과 확인/실패 수정 → L11 6대 지표·반복위험 차트가 실제 집계와 일치하고 개인 낙인/가짜 성과를 만들지 않는지 검증. L10 실제 원어민/인쇄물 최종 검수는 별도 운영 게이트.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -261,7 +276,7 @@
 
 ## 9. 다음 착수 과제
 
-**L09 최신 HEAD 릴리스·전사 Chromium·모바일 오프라인 조치 점검 검증 → L10 교육 환류·다국어 전달의 근거/승인 의미 감사.**
+**L10 최신 HEAD 릴리스·전사 Chromium·모바일 오프라인 테스트 결과 확인 → L11 6대 지표·반복위험 차트 실데이터 정합성 및 낙인 방지 검증.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
