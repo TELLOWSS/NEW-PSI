@@ -52,7 +52,7 @@
 .field-camera-lifecycle-label{display:block;color:#567469;font-size:11px;font-weight:750}
 .field-camera-lifecycle-stage strong{display:block;margin-top:7px;color:#16392f;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
 .field-camera-lifecycle-stage p{margin:5px 0 0;color:#536a62;font-size:11px;line-height:1.55;overflow-wrap:anywhere}
-@media(min-width:960px){.field-camera-lifecycle-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+/* Inner camera canvas is at most 700px wide: keep two readable columns on desktop. */
 @media(max-width:400px){.field-camera-lifecycle{padding:16px}.field-camera-lifecycle-grid{grid-template-columns:minmax(0,1fr)}}
 .dark .field-camera-lifecycle{background:#193731;border-color:#355e51}
 .dark .field-camera-lifecycle-head span{color:#99e1c0}
