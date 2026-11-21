@@ -99,7 +99,7 @@
 | L02 | 공통 모션 기반·페이지 전환 | IMPLEMENTED / QA 대기 | CSS·컴포넌트 연결·회귀 테스트·기기 검증 |
 | L03 | PC 사이드바·상단바·검색 | IMPLEMENTED(도크+상단 빠른 메뉴검색) / 전체 QA 대기 | 역할·숨김 동기화/키보드·다크모드/반응형 회귀 및 실기기 확인 |
 | L04 | 모바일 관리자 홈·탭·탐색 | IMPLEMENTED(탭 접근권한·현재위치·메뉴 복귀) / QA 대기 | 기존 대시보드 모바일 흐름 재사용, 브라우저·Android·이탈 회귀 검증 필요 |
-| L05 | 운영 대시보드 | PLANNED | 실제 상태/추세·근거·다음 행동, 비용 호출 0 추가 |
+| L05 | 운영 대시보드 | IMPLEMENTED(기존 집계 기반 우선확인 안내 영역) / QA 대기 | 실제 필터·집계/안전 의미·반응형/Chromium·Android 검증; 기존 차트 유지 |
 | L06 | 5문항 자기규율 입력 | PLANNED | 원본 보존·모바일 입력·다국어 검수 |
 | L07 | OCR 원문 대조·수정·승인 | PLANNED | AI/관리자 권한 분리, 원본 이력·감사 회귀 |
 | L08 | 사진점검 카메라·오프라인·업로드 상태 | PLANNED | 로컬/전송/수신/검증 구분 및 통신 장애 복구 |
@@ -165,6 +165,19 @@
 
 **후속:** L04의 모바일 실제 UX·현장 대시보드 경로·사진점검 복귀 동작을 검증하고, 이어 L05 실제 데이터 기반 운영 대시보드 컴포넌트를 현재 구조와 비교해 개선한다. 현장 관리자가 장갑을 낀다는 가정을 하지 않는다.
 
+### 구현 5차 — L05 기존 운영 대시보드의 근거·다음 행동 연결 (2026-11-22)
+
+- **기준 재조회:** GitHub `main` SHA `8aa4dea89f789d569a715386e1646d848ceb17c1`, Draft PR #237 HEAD `3eb6f437f31e7ee5bc38f21c287ad524a8da0c40` 확인. 해당 이전 HEAD의 `PSI release verification`(#44940642605) 및 `PSI company-wide cross-department verification`(#44940642677) 모두 SUCCESS. Vercel Production READY 배포 `dpl_HYUrvRfaqfqLmKdDNpQ8MATxhquw`은 기존 main `8aa4dea` 기준. **이번 신규 코드 HEAD의 검증은 별개**이다.
+- **기존 대시보드 보호:** `pages/Dashboard.tsx`는 기본 `PrecisionOperationsBoard`와 상세 분석 콘솔을 이미 제공하고 있다. 수치·기간·공종 필터, 우선순위 목록, 6단계 업무 흐름, AI 설명, 차트 등을 삭제하거나 구조 개편하지 않는다. 사용자 승인 없이 기본 대시보드 대수술 금지 원칙 준수.
+- **데이터 근거:** 기존 `components/dashboard/PrecisionOperationsBoard.tsx`의 `filteredRecords`, `statusCounts`, `sourceReviewCount`, `periodScopeLabel`, `tradeFilter`, `latestRecordLabel`만 사용한다. 서버 요청, 외부 API, 통신 폴링, 임의 데이터, 신규 DB 필드 없음. 수치에 사용한 기간·공종·조회 기록 수·원문 확인 신호·최근 기록일을 함께 보여준다.
+- **핵심 로직:** `utils/operationsDecisionFocus.ts`가 선택 범위 기록 없음→보호 우선→관리자 검토 대기→원문 확인→분석 진행→후속 교육 환류의 우선순위를 구분한다. 상태는 **관리자에게 다음 확인 행동을 제안**할 뿐 실제 현장 위험 해소·작업중지/재개·AI 자동 승인 아님. 선택 기록 0건에서 ‘현장 안전’ 결론을 금지.
+- **화면:** `components/dashboard/OperationsDecisionFocus.tsx`를 새 컴포넌트로 만들고 기존 대시보드 첫 단락과 3단계 업무 경로 사이에 붙였다. 선택 상태, 설명, 기간/공종/건수 등 증거 범위, 검토/조치/교육 원래 화면으로 이동하는 버튼을 표시한다.
+- **디자인:** `styles/psi-living-motion.css`에 운영자 셸 내에서만 적용되는 반응형 패널, 브랜드 토큰·키보드 포커스·`prefers-reduced-motion`·인쇄 폴백을 적용했다.
+- **회귀:** `tests/psiOperationsDecisionFocus.test.ts`는 기록 없음/보호 우선/검토대기/OCR 원문/분석 진행/교육 연결, 근거 필터 연동, 외부 호출·개인정보 저장소 불변 계약을 검사한다.
+- **현재 판정:** 새 코드가 개발 브랜치에 반영된 `IMPLEMENTED` 단계. GitHub Actions 최신 SHA의 `verify:ci`, 브라우저 실제 확인, Android/Samsung Internet 확인을 실행·기록해야 `VERIFIED` 처리 가능. 상용 안전판정이나 현장 배포 완료로 오인하지 않는다.
+
+**다음:** 최신 HEAD 릴리스/전사 Chromium 회귀 확인 → 대시보드 360/390/768/1280px·다크·저동작에서 집계 필터 변화와 CTA 이동 재검증 → L06 근로자 5문항 자기규율 입력과 관리자 검증 경로의 디자인·다국어 감사. L04 실기기 검증 잔여 병행. main 병합/Production 배포는 사용자 최종 승인 전 보류.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -188,7 +201,7 @@
 
 ## 9. 다음 착수 과제
 
-**L04 최신 HEAD CI·브라우저/Android 회귀검증 → L05 데이터 기반 운영 대시보드 개선.**
+**L05 최신 HEAD CI·브라우저/실기기 검증 → L06 근로자 5문항 입력·관리자 검증 UX 확인.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
