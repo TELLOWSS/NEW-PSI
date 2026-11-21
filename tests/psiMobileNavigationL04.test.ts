@@ -58,7 +58,7 @@ describe('L04 manager mobile navigation', () => {
         expect(layout).toContain('resolveMobileNavigation(');
         expect(layout).toContain('quickFindOptions.map(({ page }) => page)');
         expect(layout).toContain('handleOpenMobileMenu();');
-        expect(layout).toContain("isActive && tab.id !== 'more' ? 'page' : undefined");
+        expect(layout).toContain("tab.page === currentPage ? 'page' : undefined");
         expect(layout).toContain('gridTemplateColumns:');
         expect(css).toContain('.psi-mobile-nav-tab[data-active="true"]');
         expect(css).toContain('var(--psi-brand)');
