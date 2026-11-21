@@ -20,8 +20,19 @@ export const OperationsDecisionFocus: React.FC<OperationsDecisionFocusProps> = (
     tradeLabel,
     latestRecordLabel,
     onNavigate,
-    ...counts
+    selectedCount,
+    protectionPriorityCount,
+    pendingReviewCount,
+    inProgressCount,
+    sourceReviewCount,
 }) => {
+    const counts: OperationsDecisionFocusInput = {
+        selectedCount,
+        protectionPriorityCount,
+        pendingReviewCount,
+        inProgressCount,
+        sourceReviewCount,
+    };
     const model = buildOperationsDecisionFocus(counts);
     return (
         <section
