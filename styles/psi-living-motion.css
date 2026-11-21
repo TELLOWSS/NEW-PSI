@@ -1,0 +1,51 @@
+/* NEW-PSI Living UI Foundation · 2026-11-21
+   Opt-in visual motion, scoped exclusively to the operational AppShell.
+   No new dependencies, network calls, storage writes or safety-state changes.
+   Motion communicates a user-initiated screen change, never a risk verdict.
+*/
+.psi-app-shell.psi-platform-field-canvas {
+  --psi-motion-fast: 140ms;
+  --psi-motion-standard: 240ms;
+  --psi-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Animated only on a fresh PageHeader mount after navigation. */
+@media (prefers-reduced-motion: no-preference) {
+  .psi-app-shell.psi-platform-field-canvas .psi-page-header.psi-living-page-enter {
+    animation: psi-living-page-enter var(--psi-motion-standard) var(--psi-motion-ease) both;
+  }
+
+  .psi-app-shell.psi-platform-field-canvas .psi-sidebar-item > span:first-child,
+  .psi-app-shell.psi-platform-field-canvas .psi-mobile-nav :is(button, a) {
+    transition: color var(--psi-motion-fast) ease,
+                background-color var(--psi-motion-fast) ease,
+                transform var(--psi-motion-fast) var(--psi-motion-ease);
+  }
+
+  .psi-app-shell.psi-platform-field-canvas .psi-mobile-nav :is(button, a):active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  @keyframes psi-living-page-enter {
+    from { opacity: 0.55; transform: translate3d(0, 5px, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .psi-app-shell.psi-platform-field-canvas .psi-page-header.psi-living-page-enter,
+  .psi-app-shell.psi-platform-field-canvas .psi-sidebar-item > span:first-child,
+  .psi-app-shell.psi-platform-field-canvas .psi-mobile-nav :is(button, a) {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}
+
+@media print {
+  .psi-app-shell.psi-platform-field-canvas .psi-page-header.psi-living-page-enter {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}
