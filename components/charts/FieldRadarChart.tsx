@@ -15,7 +15,7 @@ export const FieldRadarChart: React.FC<ChartProps> = ({ records, mode = 'field' 
     const isDark = theme === 'dark';
     const chartRef = useRef<HTMLCanvasElement>(null);
     const chartInstance = useRef<Chart | null>(null);
-    const chartEvidence = useMemo(() => buildGroupScoreChartEvidence(records, mode), [records, mode]);
+    const chartEvidence = useMemo(() => buildGroupScoreChartEvidence(records, mode === 'team' ? 'team' : 'field'), [records, mode]);
     const hasChartData = chartEvidence.rows.length > 0;
 
     useEffect(() => {
