@@ -789,6 +789,9 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [singleDraftState,setSingleDraftState]=useState<'loading'|'ready'|'saving'|'error'|'conflict'>('loading');
  const [singleSavedAt,setSingleSavedAt]=useState('');
  const noteEntryRef=useRef<HTMLTextAreaElement|null>(null);
+ // Focus is requested only after the photo readback and React's busy/disabled
+ // state have both committed. A rAF in the pending save can race disabled UI.
+ const focusSingleAfterCommitRef=useRef(false);
  const [finalSaveState,setFinalSaveState]=useState<'idle'|'saving'|'verified'|'error'>('idle');
  const [singleDraftMessage,setSingleDraftMessage]=useState('');
  const [unfinishedBusy,setUnfinishedBusy]=useState(false);
@@ -1215,6 +1218,15 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  useEffect(()=>{if(!photo){setUrl('');return;}const next=URL.createObjectURL(photo);setUrl(next);return()=>URL.revokeObjectURL(next);},[photo]);
  useEffect(()=>{setAfterReferenceChoice('primary');if(!afterCamera){setAfterReferences({primary:'',context:''});return;}const primary=URL.createObjectURL(afterCamera.photo),context=afterCamera.contextPhoto&&!afterCamera.contextDetached?URL.createObjectURL(afterCamera.contextPhoto):'';setAfterReferences({primary,context});return()=>{URL.revokeObjectURL(primary);if(context)URL.revokeObjectURL(context);};},[afterCamera]);
  useEffect(()=>{if(!photo&&!capturedAfter&&!localInputDraftHasContent({note,action,photoRole,siteContext:siteContextInput}))return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[photo,note,action,photoRole,siteContextInput,capturedAfter]);
+ useEffect(()=>{
+  if(!focusSingleAfterCommitRef.current||busy||singleDraftState!=='ready'||inputDraftState!=='ready')return;
+  focusSingleAfterCommitRef.current=false;
+  if(note.trim())return; // Never override a worker's existing or newly typed note.
+  const field=noteEntryRef.current;
+  if(!field||field.disabled)return;
+  field.focus({preventScroll:true});
+  field.scrollIntoView({block:'center',behavior:'auto'});
+ },[busy,singleDraftState,inputDraftState,note]);
  const reference=legalForText(note,new Date().toISOString());
  // Do not present legacy, unreviewed, expired, or withdrawn material as guidance.
  const reviewedCards=reference.cards.filter(card=>sourceReviewState(card.sourceReview).code==='reviewed');
@@ -1262,7 +1274,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    singleDraftRef.current=next;setSingleSavedAt(next.savedAt);
    setSingleDraftState('ready');
    setSingleDraftMessage('사진을 이 브라우저에 임시 보관하고 다시 읽어 확인했습니다. 점검 기록 저장은 별도로 필요합니다.');
-   focusUnwrittenObservation();
+   focusSingleAfterCommitRef.current=true;
   }catch(error){
    setSingleDraftState(conflict?'conflict':'error');
    setSingleDraftMessage(conflict
