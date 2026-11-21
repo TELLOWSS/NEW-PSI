@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  NEXUS_QUICK_FIELD_PRESETS,
   advanceNexusPipelineCaseStatus,
   classifyStructuralPhotoContext,
   createNexusPipelineCase,
@@ -16,6 +17,7 @@ describe('Slice 2 · 30s Photo Inspection -> 3-Axis Auto-Classification -> Incid
   });
 
   it('auto-classifies substructure RC, gangform, and system shoring contexts into 3 axes and matches incident seeds', () => {
+    expect(NEXUS_QUICK_FIELD_PRESETS).toHaveLength(6);
     const subRc = classifyStructuralPhotoContext({
       note: '지하 2층 외벽 합벽 거푸집 측압 변형 우려 및 지하 피트 개구부 환기 확인',
     });
@@ -86,5 +88,6 @@ describe('Slice 2 · 30s Photo Inspection -> 3-Axis Auto-Classification -> Incid
     expect(closedSummary[0].openCases).toBe(0);
     expect(closedSummary[0].closedCases).toBe(1);
     expect(readNexusPipelineCases()[0]?.status).toBe('closed');
+    expect(readNexusPipelineCases()[0]?.auditTrail).toHaveLength(4);
   });
 });

@@ -1,22 +1,33 @@
 import React, { useMemo, useState } from 'react';
 import { getKoreanCalendarDay } from '../../utils/monthlyFieldFollowup';
-import type { NexusExecutiveTrainingCampaign } from '../../utils/nexusExecutiveTrainingPipeline';
+import {
+  type NexusExecutiveTrainingCampaign,
+  stageExecutiveTrainingHandoff,
+} from '../../utils/nexusExecutiveTrainingPipeline';
 import {
   NEXUS_INVESTIGATION_STATUS_LABELS,
+  NEXUS_SITE_PORTFOLIO,
   NEXUS_VISIT_STATUS_LABELS,
   approveAiInvestigationAndPropagate,
   buildAiInvestigationDraft,
   buildPreVisitBriefing,
+  buildRoleCommandDigest,
   completeHqVisitWithFieldAction,
   createHqVisitPlan,
+  matchesPortfolioSite,
+  requestAiInvestigationRevision,
+  resubmitAiInvestigationRecord,
+  startHqFieldInspection,
   submitAiInvestigationRecord,
   type NexusAiInvestigationRecord,
+  type NexusCommandRoleMode,
   type NexusHqVisitPlan,
 } from '../../utils/nexusHqCommandLoop';
 import type { NexusPipelineCase } from '../../utils/nexusQuickPipeline';
 import {
   NEXUS_HAZARD_EQUIPMENT_AXIS_OPTIONS,
   NEXUS_PROCESS_AXIS_OPTIONS,
+  NEXUS_STRUCTURAL_INCIDENT_SEEDS,
   NEXUS_ZONE_AXIS_OPTIONS,
   type NexusHazardEquipmentAxis,
   type NexusProcessAxis,
@@ -65,6 +76,10 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
   onInvestigationsChange,
   onLockOntoStructuralNode,
 }) => {
+  // Role Perspective (통합 / 본사 CSO·순회점검 / 현장 안전관리자) & Multi-Site Portfolio Filter
+  const [roleMode, setRoleMode] = useState<NexusCommandRoleMode>('unified');
+  const [selectedSiteId, setSelectedSiteId] = useState<string>('');
+
   // 01 행선지·순회점검 state
   const [visitDate, setVisitDate] = useState(() => getKoreanCalendarDay());
   const [inspectorRole, setInspectorRole] = useState('본사 안전보건팀 순회점검자');
@@ -74,6 +89,7 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
   const [visitProcess, setVisitProcess] = useState<NexusProcessAxis | ''>('');
   const [visitEquip, setVisitEquip] = useState<NexusHazardEquipmentAxis | ''>('');
   const [visitNotice, setVisitNotice] = useState('');
+  const [visitDirectiveNotes, setVisitDirectiveNotes] = useState<Record<string, string>>({});
 
   // 05 AI 사고조사·원인분석 state
   const [invSiteName, setInvSiteName] = useState('');
@@ -86,6 +102,61 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
   const [invEquip, setInvEquip] = useState<NexusHazardEquipmentAxis | ''>('');
   const [invNotice, setInvNotice] = useState('');
   const [invError, setInvError] = useState('');
+  const [invReviewNotes, setInvReviewNotes] = useState<Record<string, string>>({});
+  const [invPreventiveEdits, setInvPreventiveEdits] = useState<Record<string, string>>({});
+
+  const roleDigest = useMemo(
+    () =>
+      buildRoleCommandDigest(
+        roleMode,
+        selectedSiteId,
+        pipelineCases,
+        visitPlans,
+        investigations,
+        trainingCampaigns,
+      ),
+    [roleMode, selectedSiteId, pipelineCases, visitPlans, investigations, trainingCampaigns],
+  );
+
+  const scopedPipelineCases = useMemo(
+    () =>
+      pipelineCases.filter(c =>
+        matchesPortfolioSite(`${c.locationLabel} ${c.observationNote}`, selectedSiteId),
+      ),
+    [pipelineCases, selectedSiteId],
+  );
+  const scopedVisitPlans = useMemo(
+    () => visitPlans.filter(v => matchesPortfolioSite(`${v.siteName} ${v.purpose}`, selectedSiteId)),
+    [visitPlans, selectedSiteId],
+  );
+  const scopedInvestigations = useMemo(
+    () =>
+      investigations.filter(i =>
+        matchesPortfolioSite(`${i.siteName} ${i.incidentTitle} ${i.rawSummary}`, selectedSiteId),
+      ),
+    [investigations, selectedSiteId],
+  );
+
+  const handleSelectPortfolioSite = (siteId: string) => {
+    setSelectedSiteId(siteId);
+    const found = NEXUS_SITE_PORTFOLIO.find(s => s.siteId === siteId);
+    if (found) {
+      setVisitSiteName(found.siteName);
+      setInvSiteName(found.siteName);
+      onLockOntoStructuralNode(found.focusNodeIndex);
+    }
+  };
+
+  const handleSwitchRoleMode = (nextRole: NexusCommandRoleMode) => {
+    setRoleMode(nextRole);
+    if (nextRole === 'hq_cso') {
+      if (activeTab === 'inspect_03_06') {
+        onTabChange(investigations.some(i => i.status === 'ai_draft_pending_hq') ? 'investigate_05_02' : 'visit_01');
+      }
+    } else if (nextRole === 'field_manager') {
+      onTabChange('inspect_03_06');
+    }
+  };
 
   const livePreVisitPreview = useMemo(
     () =>
@@ -138,10 +209,22 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
     setVisitPurpose('');
   };
 
+  const handleStartVisitInspection = (plan: NexusHqVisitPlan) => {
+    const note = visitDirectiveNotes[plan.visitId]?.trim();
+    const updated = startHqFieldInspection(plan.visitId, note);
+    onVisitPlansChange([...updated]);
+    onLockOntoStructuralNode(plan.structuralNodeIndex);
+    setVisitNotice(
+      `[${plan.siteName}] 현장 순회점검이 개시되었습니다. 사전 브리핑 위험요인과 현장 상태를 대조한 뒤 시정조치·인계를 발령하세요.`,
+    );
+  };
+
   const handleCompleteVisitWithAction = (plan: NexusHqVisitPlan) => {
+    const customDirective = visitDirectiveNotes[plan.visitId]?.trim();
     const { updatedPlans, createdPipelineCase } = completeHqVisitWithFieldAction(
       plan.visitId,
-      `[본사 순회점검 결과] ${plan.siteName} · ${plan.purpose} 현장 확인 및 시정조치·인계 발령`,
+      customDirective ||
+        `[본사 순회점검 결과] ${plan.siteName} · ${plan.purpose} 현장 확인 및 시정조치·인계 발령`,
     );
     onVisitPlansChange([...updatedPlans]);
     if (createdPipelineCase) {
@@ -150,6 +233,72 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
     setVisitNotice(
       `[${plan.siteName}] 순회점검 결과가 06 조치·재점검·인계 파이프라인으로 즉시 환류되었습니다.`,
     );
+  };
+
+  const handleRequestInvestigationRevision = (inv: NexusAiInvestigationRecord) => {
+    setInvError('');
+    try {
+      const note =
+        invReviewNotes[inv.investigationId]?.trim() ||
+        '근본원인(작업절차·구조검토) 및 현장 재발방지대책의 구체적 실행 기준을 보완하여 재상신 바랍니다.';
+      const updated = requestAiInvestigationRevision(inv.investigationId, {
+        reviewerLabel: invApprover.trim() || '본사 CSO·안전보건실장',
+        revisionNote: note,
+      });
+      onInvestigationsChange([...updated]);
+      setInvNotice(
+        `[본사 보완 요청 발령] ${inv.siteName} (${inv.matchedReferenceCode}) 사고조사 초안에 대해 현장 안전관리자 보완 지시가 전달되었습니다.`,
+      );
+    } catch (err) {
+      setInvError(err instanceof Error ? err.message : '보완 요청 처리 중 확인이 필요합니다.');
+    }
+  };
+
+  const handleResubmitInvestigation = (inv: NexusAiInvestigationRecord) => {
+    setInvError('');
+    const updated = resubmitAiInvestigationRecord(inv.investigationId, {
+      preventiveMeasureDraft: invPreventiveEdits[inv.investigationId] || inv.preventiveMeasureDraft,
+      supplementNote:
+        invReviewNotes[inv.investigationId]?.trim() ||
+        '본사 지적사항 반영: 작업 전 인양·지지체 구조 안전성 확인 및 신호수·감시자 배치 절차 보강 완료',
+    });
+    onInvestigationsChange([...updated]);
+    setInvNotice(
+      `[현장 보완 완료 · 본사 재상신] ${inv.siteName} (${inv.matchedReferenceCode}) 보완 내역이 반영되어 본사 승인 대기 상태로 전환되었습니다.`,
+    );
+  };
+
+  const handleEscalateCaseToInvestigation = (item: NexusPipelineCase) => {
+    const created = submitAiInvestigationRecord({
+      siteName: item.locationLabel,
+      incidentTitle: `[현장 에스컬레이션] ${item.locationLabel} · ${item.matchedCaseCode} 중대 위험·아차사고 원인조사`,
+      rawSummary: `${item.observationNote} (초기 조치: ${item.actionTitle})`,
+      authorLabel: item.assignee || '현장 안전관리자',
+      zoneAxis: item.zoneAxis,
+      processAxis: item.processAxis,
+      hazardEquipmentAxis: item.hazardEquipmentAxis,
+    });
+    onInvestigationsChange([created, ...investigations.filter(i => i.investigationId !== created.investigationId)]);
+    onLockOntoStructuralNode(created.structuralNodeIndex);
+    onTabChange('investigate_05_02');
+    setInvNotice(
+      `[03→05 원클릭 에스컬레이션] 현장 점검 건(${item.matchedCaseCode})이 6하원칙·3단계 원인분석 초안으로 자동 변환되어 본사 승인 대기에 등록되었습니다.`,
+    );
+  };
+
+  const handleDispatchTrainingFromCase = (item: NexusPipelineCase) => {
+    const seed =
+      NEXUS_STRUCTURAL_INCIDENT_SEEDS.find(s => s.caseCode === item.matchedCaseCode) ??
+      activeSeed ??
+      NEXUS_STRUCTURAL_INCIDENT_SEEDS[0];
+    const created = stageExecutiveTrainingHandoff(seed, {
+      pipelineCase: item,
+      targetWorkers: 12,
+      dispatchImmediately: true,
+    });
+    onTrainingCampaignsChange([created, ...trainingCampaigns.filter(c => c.campaignId !== created.campaignId)]);
+    onLockOntoStructuralNode(item.structuralNodeIndex);
+    onTabChange('training_04');
   };
 
   const handleCreateAiInvestigation = () => {
@@ -177,6 +326,8 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
     try {
       const result = approveAiInvestigationAndPropagate(inv.investigationId, {
         approverLabel: invApprover.trim() || '본사 CSO·안전보건실장',
+        approvalNote: invReviewNotes[inv.investigationId]?.trim() || undefined,
+        preventiveMeasureDraft: invPreventiveEdits[inv.investigationId]?.trim() || undefined,
       });
       onInvestigationsChange([...result.updatedInvestigations]);
       onPipelineCreated(result.promotedPipelineCase);
@@ -203,7 +354,72 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
           <span className="nexus-3axis-kicker">CLOSED-LOOP COMMAND WORKBENCH · SLICE 1–4 완결 파이프라인</span>
           <h2>본사 주도 · 현장 실행 · AI 분석 · 12개국어 교육 · 재발방지 통합 스튜디오</h2>
         </div>
-        <p>상단 3D 황금 구체 포인트와 실시간 동기화됩니다. 탭을 전환해 6대 핵심기능 폐루프를 한 화면에서 실행하세요.</p>
+        <p>상단 3D 황금 구체 포인트와 실시간 동기화됩니다. 본사 CSO 시점과 현장 안전관리자 시점을 전환하며 6대 핵심기능 폐루프를 지휘하세요.</p>
+      </div>
+
+      <div className="nexus-role-command-bar" role="region" aria-label="본사 및 현장 안전관리자 역할 시점·다현장 지휘 바">
+        <div className="nexus-role-Command-top">
+          <div className="nexus-role-switcher" role="group" aria-label="본사·현장 운영 시점 전환">
+            <button
+              type="button"
+              aria-pressed={roleMode === 'unified'}
+              onClick={() => handleSwitchRoleMode('unified')}
+            >
+              ◈ 통합 폐루프 지휘
+            </button>
+            <button
+              type="button"
+              aria-pressed={roleMode === 'hq_cso'}
+              onClick={() => handleSwitchRoleMode('hq_cso')}
+            >
+              🏛️ 본사 CSO · 순회점검 입장
+            </button>
+            <button
+              type="button"
+              aria-pressed={roleMode === 'field_manager'}
+              onClick={() => handleSwitchRoleMode('field_manager')}
+            >
+              🦺 현장 안전관리자 실행 입장
+            </button>
+          </div>
+
+          <div className="nexus-site-portfolio-bar" role="group" aria-label="다현장 포트폴리오 선택">
+            <button
+              type="button"
+              aria-pressed={selectedSiteId === ''}
+              onClick={() => handleSelectPortfolioSite('')}
+            >
+              전체 현장 통합
+            </button>
+            {NEXUS_SITE_PORTFOLIO.map(site => (
+              <button
+                key={site.siteId}
+                type="button"
+                aria-pressed={selectedSiteId === site.siteId}
+                onClick={() => handleSelectPortfolioSite(site.siteId)}
+              >
+                {site.shortLabel}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="nexus-role-digest" aria-live="polite">
+          <strong>{roleDigest.headline}</strong>
+          <div className="nexus-role-priority-grid">
+            {roleDigest.priorities.map(p => (
+              <button
+                key={p.id}
+                type="button"
+                className="nexus-role-priority-card"
+                onClick={() => onTabChange(p.targetTab)}
+              >
+                <b>{p.badge}</b>
+                <span>{p.text}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="nexus-workbench-tabs" role="tablist" aria-label="6대 핵심기능 폐루프 모듈 선택">
@@ -258,9 +474,11 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
           <InspectorNexus3AxisBridge
             note=""
             source="safety-nexus-quick"
-            cases={pipelineCases}
+            cases={scopedPipelineCases}
             onCaseCreated={onPipelineCreated}
             onCaseUpdated={onPipelineUpdated}
+            onEscalateToInvestigation={handleEscalateCaseToInvestigation}
+            onDispatchTrainingForCase={handleDispatchTrainingFromCase}
           />
         )}
 
@@ -391,11 +609,11 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
 
             {visitNotice && <p role="status" className="nexus-3axis-feedback">{visitNotice}</p>}
 
-            {visitPlans.length > 0 && (
+            {scopedVisitPlans.length > 0 && (
               <div className="nexus-3axis-case-list" aria-label="본사 행선지 및 순회점검 이행 목록">
-                <strong>등록된 본사 행선지 · 순회점검 브리핑 및 조치 이행 ({visitPlans.length}건)</strong>
+                <strong>등록된 본사 행선지 · 순회점검 브리핑 및 조치 이행 ({scopedVisitPlans.length}건)</strong>
                 <ul>
-                  {visitPlans.slice(0, 5).map(plan => (
+                  {scopedVisitPlans.slice(0, 5).map(plan => (
                     <li key={plan.visitId} data-status={plan.status}>
                       <div className="nexus-3axis-case-row-top">
                         <span>
@@ -407,13 +625,37 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
                       </div>
                       <p className="nexus-3axis-case-row-meta">
                         사전 브리핑 시드: [{plan.preVisitBriefing.matchedCaseCode}] · 미결 {plan.preVisitBriefing.openPipelineActionsCount}건
+                        {plan.fieldResultNote ? ` · 점검 기록: ${plan.fieldResultNote}` : ''}
                       </p>
                       {plan.status !== 'action_issued_closed' && (
-                        <div className="nexus-3axis-case-row-actions">
-                          <button type="button" onClick={() => handleCompleteVisitWithAction(plan)}>
-                            현장 점검 완료 · 즉시 시정조치·인계 발령 ↗
-                          </button>
-                        </div>
+                        <>
+                          <div className="nexus-case-evidence-row">
+                            <input
+                              type="text"
+                              aria-label={`순회점검 현장 지적·지시 메모 ${plan.siteName}`}
+                              value={visitDirectiveNotes[plan.visitId] ?? ''}
+                              maxLength={200}
+                              onChange={e =>
+                                setVisitDirectiveNotes(prev => ({ ...prev, [plan.visitId]: e.target.value }))
+                              }
+                              placeholder="본사 순회점검 현장 지적·시정지시 메모 입력 (예: 북측 합벽 타이볼트 4개소 즉시 보강 및 개구부 덮개 볼트 고정)"
+                            />
+                          </div>
+                          <div className="nexus-3axis-case-row-actions">
+                            {plan.status === 'scheduled_briefed' && (
+                              <button
+                                type="button"
+                                className="is-secondary-action"
+                                onClick={() => handleStartVisitInspection(plan)}
+                              >
+                                현장 도착 · 순회점검 개시
+                              </button>
+                            )}
+                            <button type="button" onClick={() => handleCompleteVisitWithAction(plan)}>
+                              현장 점검 완료 · 즉시 시정조치·인계 발령 ↗
+                            </button>
+                          </div>
+                        </>
                       )}
                     </li>
                   ))}
@@ -562,11 +804,11 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
             {invError && <p role="alert" className="nexus-inv-error">{invError}</p>}
             {invNotice && <p role="status" className="nexus-3axis-feedback">{invNotice}</p>}
 
-            {investigations.length > 0 && (
+            {scopedInvestigations.length > 0 && (
               <div className="nexus-3axis-case-list" aria-label="AI 사고조사 및 본사 승인·환류 내역">
-                <strong>05 AI 사고조사 · 본사 승인 및 02 사고사례 DB · 04 대표이사 교육 편입 현황 ({investigations.length}건)</strong>
+                <strong>05 AI 사고조사 · 본사 승인 및 02 사고사례 DB · 04 대표이사 교육 편입 현황 ({scopedInvestigations.length}건)</strong>
                 <ul>
-                  {investigations.slice(0, 5).map(inv => (
+                  {scopedInvestigations.slice(0, 5).map(inv => (
                     <li key={inv.investigationId} data-status={inv.status}>
                       <div className="nexus-3axis-case-row-top">
                         <span>
@@ -577,15 +819,81 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
                         </em>
                       </div>
                       <p className="nexus-3axis-case-row-meta">
-                        직접원인: {inv.directCause} → 근본원인: {inv.rootCause} · 작성: {inv.authorLabel}
+                        직접원인: {inv.directCause} → 근본원인: {inv.rootCause} · 재발방지: {inv.preventiveMeasureDraft} · 작성: {inv.authorLabel}
                         {inv.approverLabel ? ` · 승인: ${inv.approverLabel} (편입코드: ${inv.promotedSeedCode})` : ''}
                       </p>
+                      {inv.revisionNote && (
+                        <p className="nexus-inv-revision-banner">
+                          <b>[본사 보완 지시 · {inv.revisionReviewerLabel || '본사 CSO'}]</b> {inv.revisionNote}
+                        </p>
+                      )}
                       {inv.status === 'ai_draft_pending_hq' && (
-                        <div className="nexus-3axis-case-row-actions">
-                          <button type="button" onClick={() => handleApproveInvestigation(inv)}>
-                            본사 최종 승인 · 02 사고사례 DB 편입 및 04 대표이사 12개국어 교육 자동 발령 ↗
-                          </button>
-                        </div>
+                        <>
+                          <div className="nexus-case-evidence-row nexus-inv-hq-edit-row">
+                            <input
+                              type="text"
+                              aria-label={`본사 재발방지대책 보정 ${inv.matchedReferenceCode}`}
+                              value={invPreventiveEdits[inv.investigationId] ?? inv.preventiveMeasureDraft}
+                              maxLength={240}
+                              onChange={e =>
+                                setInvPreventiveEdits(prev => ({
+                                  ...prev,
+                                  [inv.investigationId]: e.target.value,
+                                }))
+                              }
+                              placeholder="본사 승인 전 재발방지대책 문구 보정"
+                            />
+                            <input
+                              type="text"
+                              aria-label={`본사 승인·보완 지시 코멘트 ${inv.matchedReferenceCode}`}
+                              value={invReviewNotes[inv.investigationId] ?? ''}
+                              maxLength={200}
+                              onChange={e =>
+                                setInvReviewNotes(prev => ({
+                                  ...prev,
+                                  [inv.investigationId]: e.target.value,
+                                }))
+                              }
+                              placeholder="본사 승인 지시사항 또는 현장 보완 요청 사유 입력"
+                            />
+                          </div>
+                          <div className="nexus-3axis-case-row-actions">
+                            <button type="button" onClick={() => handleApproveInvestigation(inv)}>
+                              본사 최종 승인 · 02 사고사례 DB 편입 및 04 대표이사 12개국어 교육 자동 발령 ↗
+                            </button>
+                            <button
+                              type="button"
+                              className="is-revision-btn"
+                              onClick={() => handleRequestInvestigationRevision(inv)}
+                            >
+                              본사 보완 요청 (현장 재조사 지시)
+                            </button>
+                          </div>
+                        </>
+                      )}
+                      {inv.status === 'revision_requested' && (
+                        <>
+                          <div className="nexus-case-evidence-row">
+                            <input
+                              type="text"
+                              aria-label={`현장 보완 내역 입력 ${inv.matchedReferenceCode}`}
+                              value={invReviewNotes[inv.investigationId] ?? ''}
+                              maxLength={220}
+                              onChange={e =>
+                                setInvReviewNotes(prev => ({
+                                  ...prev,
+                                  [inv.investigationId]: e.target.value,
+                                }))
+                              }
+                              placeholder="현장 안전관리자 보완 조사 내역 입력 (예: 구조검토서 대조 및 신호수 무전 교신 절차 보강 완료)"
+                            />
+                          </div>
+                          <div className="nexus-3axis-case-row-actions">
+                            <button type="button" onClick={() => handleResubmitInvestigation(inv)}>
+                              현장 보완 완료 · 본사 재승인 요청 ↗
+                            </button>
+                          </div>
+                        </>
                       )}
                     </li>
                   ))}

@@ -496,9 +496,9 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
     <div className="nexus-background" aria-hidden="true" />
     <header className="nexus-header">
       <div className="nexus-brand"><span className="nexus-symbol">Ψ</span><div><small>SOVEREIGN SAFETY INTELLIGENCE</small><h1>SAFETY <b>NEXUS</b></h1></div></div>
-      <div className="nexus-header-right"><span className="nexus-status"><i/>GOLD ASTROLABE · 골조·형틀 3D 통합관제</span>
-        <button ref={immersiveToggleRef} type="button" className="nexus-immersive-toggle" aria-pressed={immersive} onClick={()=>setImmersive(v=>!v)}>{immersive?'몰입 화면 종료 ↙':'전체 화면 몰입 보기 ⤢'}</button>
-        <button type="button" onClick={()=>onReturnDashboard ? onReturnDashboard(filterTrade) : onNavigateToPage('dashboard')}>기존 관제센터로 돌아가기 ↗</button></div>
+      <div className="nexus-header-right"><span className="nexus-status"><i />GOLD ASTROLABE · 골조·형틀 3D 통합관제</span>
+        <button ref={immersiveToggleRef} type="button" className="nexus-immersive-toggle" aria-pressed={immersive} onClick={() => setImmersive(v => !v)}>{immersive ? '몰입 화면 종료 ↙' : '전체 화면 몰입 보기 ⤢'}</button>
+        <button type="button" onClick={() => onReturnDashboard ? onReturnDashboard(filterTrade) : onNavigateToPage('dashboard')}>기존 관제센터로 돌아가기 ↗</button></div>
     </header>
     <div className="nexus-lead"><span>ARCHITECTURAL RISK &amp; FORMWORK INTELLIGENCE</span><p>본사 주도 · 현장 실행 · AI 분석 · 12개국어 교육 · 재발방지까지 연결하는 골조·형틀·지하 RC 특화 안전지능 플랫폼</p></div>
     <section className="nexus-priority-summary" aria-label="우선 확인할 후속조치">
@@ -509,25 +509,25 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
       <div className="nexus-priority-counts"><button type="button" aria-pressed={priorityFilter === 'overdue'} onClick={() => setPriorityFilter('overdue')}>기한 초과 <b>{followup.overdue}</b>건</button><button type="button" aria-pressed={priorityFilter === 'unresolved'} onClick={() => setPriorityFilter('unresolved')}>미완료 <b>{followup.unresolved}</b>건</button><button type="button" aria-pressed={priorityFilter === 'recheck'} onClick={() => setPriorityFilter('recheck')}>재확인 기한초과 <b>{practice.overdueFieldRecheck}</b>건</button></div>
       <button type="button" className="nexus-priority-jump" onClick={showFollowupDetails}>조치 내역과 범위 확인</button>
       {recordNotice && <p role="alert">{recordNotice}</p>}
-      {practice.conflictingRecords>0 && <p role="alert">재확인 이력의 내용이 충돌한 기록 {practice.conflictingRecords}건은 집계에서 제외했습니다. 원본을 확인해 주세요.</p>}
-      {followup.conflictingRecords>0 && <p role="alert">조치 이력의 내용이 충돌한 기록 {followup.conflictingRecords}건은 집계에서 제외했습니다. 원본을 확인해 주세요.</p>}
-      {priorityFilter==='recheck' && <div className="nexus-priority-drawer" aria-live="polite"><h3>재확인 기한초과 {overdueRechecks.length}건</h3>
-        {overdueRechecks.length===0 ? <p>선택 범위에 해당 기록이 없습니다.</p> : <ul>{overdueRechecks.map(item=>{
-          const record=filteredRecords.find(row=>row.id===item.recordId);
-          return <li key={item.recordId+'-'+item.question}>Q{item.question} · {PRACTICE_RESULT_LABELS[item.latest.result] || '확인 필요'} · 예정일 {item.latest.nextCheckDueDate} {record && onOpenRecord && <button type="button" onClick={()=>onOpenRecord(record)}>관련 기록 열기</button>}</li>;
+      {practice.conflictingRecords > 0 && <p role="alert">재확인 이력의 내용이 충돌한 기록 {practice.conflictingRecords}건은 집계에서 제외했습니다. 원본을 확인해 주세요.</p>}
+      {followup.conflictingRecords > 0 && <p role="alert">조치 이력의 내용이 충돌한 기록 {followup.conflictingRecords}건은 집계에서 제외했습니다. 원본을 확인해 주세요.</p>}
+      {priorityFilter === 'recheck' && <div className="nexus-priority-drawer" aria-live="polite"><h3>재확인 기한초과 {overdueRechecks.length}건</h3>
+        {overdueRechecks.length === 0 ? <p>선택 범위에 해당 기록이 없습니다.</p> : <ul>{overdueRechecks.map(item => {
+          const record = filteredRecords.find(row => row.id === item.recordId);
+          return <li key={item.recordId + '-' + item.question}>Q{item.question} · {PRACTICE_RESULT_LABELS[item.latest.result] || '확인 필요'} · 예정일 {item.latest.nextCheckDueDate} {record && onOpenRecord && <button type="button" onClick={() => onOpenRecord(record)}>관련 기록 열기</button>}</li>;
         })}</ul>}
       </div>}
-      {priorityFilter && priorityFilter!=='recheck' && <div className="nexus-priority-drawer" aria-live="polite"><h3>{FOLLOWUP_FILTER_LABELS[priorityFilter]} 조치 {priorityCases.length}건</h3>
-        {priorityCases.length===0 ? <p>선택 범위에 해당 조치가 없습니다.</p> : <ul>{priorityCases.map(({recordId,item,dueDate})=>{
-          const record=filteredRecords.find(row=>String(row.id || '').trim()===recordId);
-          return <li key={recordId+'-'+item.caseId}>Q{item.opened.questionNumber} · {FOLLOWUP_STATUS_LABELS[item.latest.status] || '상태 확인 필요'} · 기한 {dueDate || '미지정'} {record && onOpenRecord && <button type="button" onClick={()=>onOpenRecord(record)}>관련 기록 열기</button>}</li>;
+      {priorityFilter && priorityFilter !== 'recheck' && <div className="nexus-priority-drawer" aria-live="polite"><h3>{FOLLOWUP_FILTER_LABELS[priorityFilter]} 조치 {priorityCases.length}건</h3>
+        {priorityCases.length === 0 ? <p>선택 범위에 해당 조치가 없습니다.</p> : <ul>{priorityCases.map(({ recordId, item, dueDate }) => {
+          const record = filteredRecords.find(row => String(row.id || '').trim() === recordId);
+          return <li key={recordId + '-' + item.caseId}>Q{item.opened.questionNumber} · {FOLLOWUP_STATUS_LABELS[item.latest.status] || '상태 확인 필요'} · 기한 {dueDate || '미지정'} {record && onOpenRecord && <button type="button" onClick={() => onOpenRecord(record)}>관련 기록 열기</button>}</li>;
         })}</ul>}
       </div>}
     </section>
     <div className="nexus-main">
       <aside className="nexus-aside">
-        <div className="nexus-section-title"><span>01 / EXECUTIVE COMMAND</span><i/></div>
-        <h2>골조·형틀 안전지능을<br/><em>하나의 황금 구체로.</em></h2>
+        <div className="nexus-section-title"><span>01 / EXECUTIVE COMMAND</span><i /></div>
+        <h2>골조·형틀 안전지능을<br /><em>하나의 황금 구체로.</em></h2>
         <p>지하 RC구조물부터 상부 갱폼·동바리·타설까지, 현장 점검과 AI 분석·12개국어 교육·본사 승인을 하나의 궤도로 통합합니다.</p>
         <div className="nexus-aside-rule" />
         <div className="nexus-record-count"><span>연동된 위험성평가 레코드</span><strong>{count.toLocaleString('ko-KR')}<small> 건</small></strong></div>
@@ -538,7 +538,7 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
             <b>{level}</b><div className="nexus-perception-track"><i className={'risk-' + level} style={{ width: (count ? snapshot.selfRiskLevels[level] / count * 100 : 0) + '%' }} /></div>
             <strong>{snapshot.selfRiskLevels[level]}</strong>
           </div>)}
-          <p>유효 {count-snapshot.unclassifiedRows} / 전체 {count}건</p>
+          <p>유효 {count - snapshot.unclassifiedRows} / 전체 {count}건</p>
         </div>
         <div className="nexus-aside-note"><b>◈ 3-ORBIT ASTROLABE</b><p>궤도 탭을 전환하거나 황금 구체를 드래그해 5단계 순환·6대 핵심기능·10대 골조 공정을 입체적으로 지휘하세요.</p></div>
       </aside>
@@ -645,27 +645,27 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
             nodeVecs={nodeUnitVecs}
             fallback={<CoreArt active={safeActive} paused={paused} reduced={reduced} sequenceNonce={cinematicNonce} cinematicActive={cinematicPlaying} yaw={sphereAngles.yaw} pitch={sphereAngles.pitch} />}
           />}
-          {!flat&&<div className="nexus-nucleus" aria-hidden="true"/>}
-          {!flat&&<svg className="nexus-hud-orbits" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          {!flat && <div className="nexus-nucleus" aria-hidden="true" />}
+          {!flat && <svg className="nexus-hud-orbits" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
             <defs>
               <linearGradient id="nexusGoldRing" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#ffe3b3" stopOpacity="0.48"/>
-                <stop offset="50%" stopColor="#e5a253" stopOpacity="0.18"/>
-                <stop offset="100%" stopColor="#74e5ec" stopOpacity="0.38"/>
+                <stop offset="0%" stopColor="#ffe3b3" stopOpacity="0.48" />
+                <stop offset="50%" stopColor="#e5a253" stopOpacity="0.18" />
+                <stop offset="100%" stopColor="#74e5ec" stopOpacity="0.38" />
               </linearGradient>
               <radialGradient id="nexusCrownHalo" cx="50%" cy="50%" r="50%">
-                <stop offset="68%" stopColor="#e5a253" stopOpacity="0"/>
-                <stop offset="92%" stopColor="#f5c47e" stopOpacity="0.14"/>
-                <stop offset="100%" stopColor="#ffe7c2" stopOpacity="0.34"/>
+                <stop offset="68%" stopColor="#e5a253" stopOpacity="0" />
+                <stop offset="92%" stopColor="#f5c47e" stopOpacity="0.14" />
+                <stop offset="100%" stopColor="#ffe7c2" stopOpacity="0.34" />
               </radialGradient>
             </defs>
-            <ellipse cx="500" cy="350" rx="340" ry="134" transform="rotate(-29 500 350)" stroke="url(#nexusGoldRing)"/>
-            <ellipse cx="500" cy="350" rx="292" ry="106" transform="rotate(55 500 350)"/>
-            <ellipse cx="500" cy="350" rx="368" ry="182" transform="rotate(9 500 350)"/>
-            <circle cx="500" cy="350" r="244" className="nexus-astrolabe-outer"/>
-            <circle cx="500" cy="350" r="232" className="nexus-astrolabe-ticks"/>
-            <circle cx="500" cy="350" r="172" fill="url(#nexusCrownHalo)" className="nexus-geodesic-ring"/>
-            <circle cx="500" cy="350" r="96" className="nexus-core-shield-ring"/>
+            <ellipse cx="500" cy="350" rx="340" ry="134" transform="rotate(-29 500 350)" stroke="url(#nexusGoldRing)" />
+            <ellipse cx="500" cy="350" rx="292" ry="106" transform="rotate(55 500 350)" />
+            <ellipse cx="500" cy="350" rx="368" ry="182" transform="rotate(9 500 350)" />
+            <circle cx="500" cy="350" r="244" className="nexus-astrolabe-outer" />
+            <circle cx="500" cy="350" r="232" className="nexus-astrolabe-ticks" />
+            <circle cx="500" cy="350" r="172" fill="url(#nexusCrownHalo)" className="nexus-geodesic-ring" />
+            <circle cx="500" cy="350" r="96" className="nexus-core-shield-ring" />
           </svg>}
           {!flat && <svg className="nexus-focus-link" viewBox="0 0 1000 700" preserveAspectRatio="none" aria-hidden="true">
             <path key={`${orbitLayer}-${selected.index}`} d={dynamicFocusPath} />
@@ -691,9 +691,16 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
             <strong>PSI</strong>
             <small>SAFETY NEXUS</small>
           </div>
-          {layerNodes.map((topic,i)=>{
+          {layerNodes.map((topic, i) => {
             const proj = projectedNodes[i];
             const nodeSig = layerLiveSignals[i];
+            const nodePipe = pipelineNodeSummaries[i];
+            const nodeHq = hqLoopNodeSummaries[i];
+            const liveCount =
+              (nodeSig?.unresolvedActions ?? 0) +
+              (nodePipe?.openCases ?? 0) +
+              (nodeHq?.pendingHqApprovals ?? 0) +
+              (nodeHq?.pendingBriefingVisits ?? 0);
             const dimmedByAxis = nodeSig && !nodeSig.matchesAxisFilter;
             const style: React.CSSProperties | undefined = flat ? undefined : {
               left: `${proj.leftPct}%`,
@@ -709,12 +716,14 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
                 data-front={proj?.isFront ? 'true' : 'false'}
                 data-tone={topic.tone}
                 data-axis-match={nodeSig?.matchesAxisFilter ? 'true' : 'false'}
+                data-live-count={liveCount > 0 ? String(liveCount) : undefined}
                 className={'nexus-node node-' + i + (safeActive === i ? ' selected' : '')}
                 aria-pressed={safeActive === i}
                 onClick={() => { setSelectedSeedIdx(0); lockOntoNode(i, orbitLayer, { syncWorkbenchTab: true }); }}
               >
                 <b>{topic.index}</b>
                 <span>{topic.title}</span>
+                {liveCount > 0 && <em className="nexus-node-signal" aria-hidden="true">{liveCount}</em>}
               </button>
             );
           })}

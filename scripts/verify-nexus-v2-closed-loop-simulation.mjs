@@ -44,13 +44,24 @@ try {
     (await root.getByRole('tab', { name: /01 본사 행선지/ }).getAttribute('aria-selected')) === 'true',
   );
 
-  // Slice 4A: Register HQ Visit Plan & Pre-Visit Briefing
+  // Slice 4A: HQ CSO Persona — Switch to HQ CSO role mode, register Visit Plan, start field inspection, and issue directive
+  await root.getByRole('button', { name: /본사 CSO · 순회점검 입장/ }).click();
+  recordCheck(
+    'HQ CSO role perspective digest active',
+    (await root.locator('.nexus-role-digest').getByText(/본사 CSO · 순회점검 지휘 시점/).count()) === 1,
+  );
+  await root.getByRole('tab', { name: /01 본사 행선지/ }).click();
   await root.getByLabel('순회점검 대상 현장명').fill('제1현장 지하 2층 RC외벽');
   await root.getByLabel('순회점검 방문 목적').fill('지하 외벽 합벽 거푸집 측압·개구부 방호 확인');
   await root.getByRole('button', { name: /01 행선지·사전브리핑 등록 및 구체 포인트 록온/ }).click();
   recordCheck(
     'Slice 4A pre-visit briefing registered',
     (await root.getByText(/사전 위험 브리핑.*등록되었습니다/).count()) === 1,
+  );
+  await root.getByRole('button', { name: '현장 도착 · 순회점검 개시' }).first().click();
+  recordCheck(
+    'Slice 4A HQ field inspection started',
+    (await root.getByText(/현장 순회점검이 개시되었습니다/).count()) === 1,
   );
   await root.getByRole('button', { name: /현장 점검 완료 · 즉시 시정조치·인계 발령/ }).first().click();
   recordCheck(
@@ -71,11 +82,15 @@ try {
   );
   await root.getByRole('button', { name: '3축 필터 초기화' }).click();
 
-  // Slice 2: 30s Photo Inspection -> 3-Axis Auto-Classification -> Action/Recheck/Handover progression
-  await root.getByRole('tab', { name: /30초 사진점검 · 3축분류 · 조치·인계/ }).click();
-  await root.getByPlaceholder(/예: 지하 2층 외벽 거푸집 타이볼트/).fill('103동 15층 외벽 갱폼 인양고리 및 앵커볼트 점검');
+  // Slice 2: Field Safety Manager Persona — Switch to Field Manager mode, use 1-second preset, record evidence & progress lifecycle
+  await root.getByRole('button', { name: /현장 안전관리자 실행 입장/ }).click();
   recordCheck(
-    'Slice 2 auto-matches GF-LIFT-03 seed for gangform observation',
+    'Field Safety Manager role perspective digest active',
+    (await root.locator('.nexus-role-digest').getByText(/현장 안전관리자 실행 시점/).count()) === 1,
+  );
+  await root.getByRole('button', { name: /#03 갱폼.*15F 외벽 갱폼 인양고리·앵커/ }).click();
+  recordCheck(
+    'Slice 2 1-second quick preset auto-matches GF-LIFT-03 seed for gangform observation',
     (await root.locator('.nexus-3axis-matched-case').getByText(/GF-LIFT-03/).count()) === 1,
   );
   await root.getByRole('button', { name: /30초 조치·재점검·인계 등록 및 구체 환류/ }).click();
@@ -83,15 +98,16 @@ try {
     'Slice 2 case registered and sphere locked onto node #03',
     (await root.locator('.nexus-node.node-2').getAttribute('aria-pressed')) === 'true',
   );
+  await root.getByLabel('조치·재점검 증빙 메모 GF-LIFT-03').first().fill('인양고리 샤클 체결 및 무전 신호수 배치 완료');
   await root.getByRole('button', { name: '교대 인계 대기 전환' }).first().click();
   await root.getByRole('button', { name: '조치완료 · 재점검 요청' }).first().click();
   await root.getByRole('button', { name: '현장 재점검 확인 · 종결' }).first().click();
   recordCheck(
-    'Slice 2 lifecycle progressed to closed',
+    'Slice 2 lifecycle progressed to closed with field evidence note',
     (await root.locator('.nexus-3axis-case-list').getByText('재점검 확인 종결').count()) >= 1,
   );
 
-  // Slice 4B: 05 AI Root-Cause Investigation -> HQ Approval -> 02 Incident DB & 04 Training Auto-Propagation
+  // Slice 4B: 05 AI Root-Cause Investigation -> HQ Revision Request -> Field Supplement Resubmission -> HQ Approval
   await root.getByRole('tab', { name: /05 · 02 AI 사고조사 · 본사 승인/ }).click();
   await root.getByLabel('사고조사 현장명').fill('제1현장 지하 2층 북측 외벽');
   await root.getByLabel('사고조사 경위 원문').fill('지하 2층 외벽 합벽 거푸집 타이볼트 간격 미흡 배부름 및 피트 개구부 덮개 미고정 아차사고');
@@ -99,6 +115,17 @@ try {
   recordCheck(
     'Slice 4B AI investigation 6W & 3-tier root cause draft created',
     (await root.getByText(/6하원칙·시계열·3단계 원인\(직접\/기여\/근본\) 구조화가 완료/).count()) === 1,
+  );
+  await root.getByRole('button', { name: '본사 보완 요청 (현장 재조사 지시)' }).first().click();
+  recordCheck(
+    'Slice 4B HQ requests revision on field investigation draft',
+    (await root.getByText(/\[본사 보완 요청 발령\]/).count()) === 1,
+  );
+  await root.getByLabel('현장 보완 내역 입력 RC-SUB-01').first().fill('타이볼트 간격 구조검토서 실측 대조 및 개구부 잠금 볼트 체결 절차 보강');
+  await root.getByRole('button', { name: /현장 보완 완료 · 본사 재승인 요청/ }).first().click();
+  recordCheck(
+    'Slice 4B Field Safety Manager resubmits supplemented investigation to HQ',
+    (await root.getByText(/\[현장 보완 완료 · 본사 재상신\]/).count()) === 1,
   );
   await root.getByRole('button', { name: /본사 최종 승인 · 02 사고사례 DB 편입 및 04 대표이사 12개국어 교육 자동 발령/ }).first().click();
   recordCheck(

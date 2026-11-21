@@ -27,6 +27,57 @@ export const NEXUS_AI_INVESTIGATIONS_STORAGE_KEY = 'psi_nexus_ai_investigations_
 export const NEXUS_APPROVED_CUSTOM_SEEDS_KEY = 'psi_nexus_approved_custom_seeds_v1';
 export const NEXUS_HQ_LOOP_UPDATED_EVENT = 'psi-nexus-hq-loop-updated';
 
+export type NexusCommandRoleMode = 'unified' | 'hq_cso' | 'field_manager';
+
+export interface NexusSitePortfolioItem {
+  siteId: string;
+  siteName: string;
+  shortLabel: string;
+  focusZone: NexusZoneAxis;
+  focusProcess: NexusProcessAxis;
+  focusNodeIndex: string;
+  matchTokens: readonly string[];
+}
+
+export const NEXUS_SITE_PORTFOLIO: readonly NexusSitePortfolioItem[] = [
+  {
+    siteId: 'SITE-01-SUBRC',
+    siteName: '제1현장 지하 2층 RC구간',
+    shortLabel: '제1현장 · 지하2층 RC외벽',
+    focusZone: 'substructure_rc',
+    focusProcess: 'formwork_general',
+    focusNodeIndex: '01',
+    matchTokens: ['제1현장', '지하', 'b1', 'b2', '합벽', '피트'],
+  },
+  {
+    siteId: 'SITE-02-GANGFORM',
+    siteName: '제2현장 103동 15층 갱폼',
+    shortLabel: '제2현장 · 103동 갱폼·AL폼',
+    focusZone: 'superstructure_std',
+    focusProcess: 'gangform',
+    focusNodeIndex: '03',
+    matchTokens: ['제2현장', '103동', '14층', '15층', '갱폼', 'al폼', '알폼'],
+  },
+  {
+    siteId: 'SITE-03-SHORING',
+    siteName: '제3현장 전이층 시스템동바리',
+    shortLabel: '제3현장 · 전이층 동바리·타설',
+    focusZone: 'rooftop_special',
+    focusProcess: 'concrete_pour',
+    focusNodeIndex: '07',
+    matchTokens: ['제3현장', '전이층', '동바리', '타설', '고층고'],
+  },
+];
+
+export const matchesPortfolioSite = (text: string, siteId: string): boolean => {
+  if (!siteId) return true;
+  const site = NEXUS_SITE_PORTFOLIO.find(s => s.siteId === siteId);
+  if (!site) return true;
+  const normalized = String(text || '').toLowerCase();
+  if (!normalized) return false;
+  return site.matchTokens.some(tok => normalized.includes(tok.toLowerCase()));
+};
+
 export type NexusVisitStatus =
   | 'scheduled_briefed'
   | 'in_field_inspection'
@@ -113,6 +164,9 @@ export interface NexusAiInvestigationRecord {
   approverLabel?: string;
   approvedAt?: string;
   approvalNote?: string;
+  revisionReviewerLabel?: string;
+  revisionNote?: string;
+  revisionRequestedAt?: string;
   promotedSeedCode?: string;
   promotedTrainingCampaignId?: string;
   promotedPipelineCaseId?: string;
@@ -297,6 +351,27 @@ export const createHqVisitPlan = (
   const existing = readHqVisitPlans();
   writeHqVisitPlans([plan, ...existing].slice(0, 60));
   return plan;
+};
+
+export const startHqFieldInspection = (
+  visitId: string,
+  checkpointNote?: string,
+  nowIso = new Date().toISOString(),
+): NexusHqVisitPlan[] => {
+  const existing = readHqVisitPlans();
+  const updated = existing.map(plan => {
+    if (plan.visitId !== visitId) return plan;
+    return {
+      ...plan,
+      status: 'in_field_inspection' as const,
+      fieldResultNote:
+        String(checkpointNote || '').trim() ||
+        `[현장 도착·순회점검 개시] ${plan.preVisitBriefing.matchedCaseCode} 중점 항목 및 미결 위험 현장 대조 중`,
+      updatedAt: nowIso,
+    };
+  });
+  writeHqVisitPlans(updated);
+  return updated;
 };
 
 export const completeHqVisitWithFieldAction = (
@@ -546,6 +621,238 @@ export const approveAiInvestigationAndPropagate = (
     promotedSeed,
     promotedTrainingCampaign,
     promotedPipelineCase,
+  };
+};
+
+export const requestAiInvestigationRevision = (
+  investigationId: string,
+  revision: {
+    reviewerLabel: string;
+    revisionNote: string;
+  },
+  nowIso = new Date().toISOString(),
+): NexusAiInvestigationRecord[] => {
+  const existing = readAiInvestigations();
+  const target = existing.find(item => item.investigationId === investigationId);
+  if (!target) {
+    throw new Error('보완 요청할 사고조사 초안을 찾을 수 없습니다.');
+  }
+  const reviewer = String(revision.reviewerLabel || '').trim() || '본사 CSO·안전보건실장';
+  if (reviewer.toLowerCase() === target.authorLabel.trim().toLowerCase()) {
+    throw new Error('직무 분리 원칙에 따라 작성자 본인이 보완 요청자를 겸할 수 없습니다.');
+  }
+  const note =
+    String(revision.revisionNote || '').trim() ||
+    '현장 작업절차 준수 여부 및 근본원인·재발방지대책의 구체적 실행 기준을 보완하여 재상신 바랍니다.';
+
+  const updated = existing.map(item => {
+    if (item.investigationId !== investigationId) return item;
+    return {
+      ...item,
+      status: 'revision_requested' as const,
+      revisionReviewerLabel: reviewer,
+      revisionNote: note,
+      revisionRequestedAt: nowIso,
+      updatedAt: nowIso,
+    };
+  });
+  writeAiInvestigations(updated);
+  return updated;
+};
+
+export const resubmitAiInvestigationRecord = (
+  investigationId: string,
+  patch: {
+    directCause?: string;
+    contributingFactor?: string;
+    rootCause?: string;
+    preventiveMeasureDraft?: string;
+    supplementNote?: string;
+  },
+  nowIso = new Date().toISOString(),
+): NexusAiInvestigationRecord[] => {
+  const existing = readAiInvestigations();
+  const updated = existing.map(item => {
+    if (item.investigationId !== investigationId) return item;
+    const supp = String(patch.supplementNote || '').trim();
+    return {
+      ...item,
+      directCause: String(patch.directCause || item.directCause).trim(),
+      contributingFactor: String(patch.contributingFactor || item.contributingFactor).trim(),
+      rootCause: String(patch.rootCause || item.rootCause).trim(),
+      preventiveMeasureDraft:
+        String(patch.preventiveMeasureDraft || item.preventiveMeasureDraft).trim() +
+        (supp ? ` [현장 보완: ${supp}]` : ''),
+      status: 'ai_draft_pending_hq' as const,
+      updatedAt: nowIso,
+    };
+  });
+  writeAiInvestigations(updated);
+  return updated;
+};
+
+export interface NexusRoleCommandDigest {
+  roleMode: NexusCommandRoleMode;
+  siteId: string;
+  siteLabel: string;
+  openActionsCount: number;
+  overdueActionsCount: number;
+  handoverPendingCount: number;
+  recheckPendingCount: number;
+  pendingHqApprovalsCount: number;
+  revisionRequestedCount: number;
+  activeVisitsCount: number;
+  incompleteTrainingCount: number;
+  headline: string;
+  priorities: readonly {
+    id: string;
+    badge: string;
+    text: string;
+    targetTab: 'visit_01' | 'inspect_03_06' | 'investigate_05_02' | 'training_04';
+  }[];
+}
+
+export const buildRoleCommandDigest = (
+  roleMode: NexusCommandRoleMode,
+  siteId: string,
+  pipelineCases: readonly NexusPipelineCase[],
+  visitPlans: readonly NexusHqVisitPlan[],
+  investigations: readonly NexusAiInvestigationRecord[],
+  trainingCampaigns: readonly NexusExecutiveTrainingCampaign[],
+  asOfDate = getKoreanCalendarDay(),
+): NexusRoleCommandDigest => {
+  const siteObj = NEXUS_SITE_PORTFOLIO.find(s => s.siteId === siteId);
+  const siteLabel = siteObj ? siteObj.shortLabel : '전 현장 통합 포트폴리오';
+
+  const scopedCases = pipelineCases.filter(c =>
+    matchesPortfolioSite(`${c.locationLabel} ${c.observationNote}`, siteId),
+  );
+  const scopedVisits = visitPlans.filter(v => matchesPortfolioSite(`${v.siteName} ${v.purpose}`, siteId));
+  const scopedInvs = investigations.filter(i =>
+    matchesPortfolioSite(`${i.siteName} ${i.incidentTitle} ${i.rawSummary}`, siteId),
+  );
+  const scopedTraining = siteObj
+    ? trainingCampaigns.filter(
+        t => t.structuralNodeIndex === siteObj.focusNodeIndex || matchesPortfolioSite(t.title, siteId),
+      )
+    : trainingCampaigns;
+
+  const openCases = scopedCases.filter(c => c.status !== 'closed');
+  const overdueCases = openCases.filter(c => c.dueDate && c.dueDate < asOfDate);
+  const handoverPending = openCases.filter(c => c.status === 'handover_pending');
+  const recheckPending = openCases.filter(c => c.status === 'recheck_pending');
+  const pendingHqApprovals = scopedInvs.filter(i => i.status === 'ai_draft_pending_hq');
+  const revisionRequested = scopedInvs.filter(i => i.status === 'revision_requested');
+  const activeVisits = scopedVisits.filter(v => v.status !== 'action_issued_closed');
+  const incompleteTraining = scopedTraining.filter(t => (t.completionRatePct ?? 0) < 100);
+
+  if (roleMode === 'hq_cso') {
+    return {
+      roleMode,
+      siteId,
+      siteLabel,
+      openActionsCount: openCases.length,
+      overdueActionsCount: overdueCases.length,
+      handoverPendingCount: handoverPending.length,
+      recheckPendingCount: recheckPending.length,
+      pendingHqApprovalsCount: pendingHqApprovals.length,
+      revisionRequestedCount: revisionRequested.length,
+      activeVisitsCount: activeVisits.length,
+      incompleteTrainingCount: incompleteTraining.length,
+      headline: `[본사 CSO · 순회점검 지휘 시점] ${siteLabel} — 승인대기 조사 ${pendingHqApprovals.length}건 · 순회점검 ${activeVisits.length}건 · 기한초과 ${overdueCases.length}건`,
+      priorities: [
+        {
+          id: 'hq-p1',
+          badge: `05 본사승인 대기 ${pendingHqApprovals.length}건`,
+          text: '현장 AI 사고조사 초안의 근본원인·재발방지대책을 검토하여 승인(02 DB·04 교육 편입) 또는 보완지시',
+          targetTab: 'investigate_05_02',
+        },
+        {
+          id: 'hq-p2',
+          badge: `01 순회점검 ${activeVisits.length}건`,
+          text: '방문 전 미결·유사사례 자동 브리핑을 확인하고 현장 순회점검 개시 및 시정조치 지시 발령',
+          targetTab: 'visit_01',
+        },
+        {
+          id: 'hq-p3',
+          badge: `04 미완료 교육 ${incompleteTraining.length}건`,
+          text: '대표이사 12개국어 안전교육 캠페인의 다국적 작업팀 서명 이수율 점검 및 전 현장 전파',
+          targetTab: 'training_04',
+        },
+      ],
+    };
+  }
+
+  if (roleMode === 'field_manager') {
+    return {
+      roleMode,
+      siteId,
+      siteLabel,
+      openActionsCount: openCases.length,
+      overdueActionsCount: overdueCases.length,
+      handoverPendingCount: handoverPending.length,
+      recheckPendingCount: recheckPending.length,
+      pendingHqApprovalsCount: pendingHqApprovals.length,
+      revisionRequestedCount: revisionRequested.length,
+      activeVisitsCount: activeVisits.length,
+      incompleteTrainingCount: incompleteTraining.length,
+      headline: `[현장 안전관리자 실행 시점] ${siteLabel} — 미결·인계 조치 ${openCases.length}건 · 재점검 대기 ${recheckPending.length}건 · 본사 보완요청 ${revisionRequested.length}건`,
+      priorities: [
+        {
+          id: 'field-p1',
+          badge: `03·06 현장 미결 ${openCases.length}건 (인계 ${handoverPending.length}·재점검 ${recheckPending.length})`,
+          text: '30초 원탭 프리셋으로 골조·형틀 위험을 즉시 등록하고 조치 증빙·교대 인계·재점검 종결 처리',
+          targetTab: 'inspect_03_06',
+        },
+        {
+          id: 'field-p2',
+          badge: `05 보완요청 ${revisionRequested.length}건 · 아차사고 보고`,
+          text: '본사 보완요청 사고조사를 즉시 보강하여 재상신하거나 현장 아차사고를 6하원칙으로 상신',
+          targetTab: 'investigate_05_02',
+        },
+        {
+          id: 'field-p3',
+          badge: `04 외국인팀 서명대기 ${incompleteTraining.length}건`,
+          text: '본사·대표이사 하달 12개국어 안전교육을 현장 외국인 작업팀에 음성 안내하고 모바일 서명 수집',
+          targetTab: 'training_04',
+        },
+      ],
+    };
+  }
+
+  return {
+    roleMode: 'unified',
+    siteId,
+    siteLabel,
+    openActionsCount: openCases.length,
+    overdueActionsCount: overdueCases.length,
+    handoverPendingCount: handoverPending.length,
+    recheckPendingCount: recheckPending.length,
+    pendingHqApprovalsCount: pendingHqApprovals.length,
+    revisionRequestedCount: revisionRequested.length,
+    activeVisitsCount: activeVisits.length,
+    incompleteTrainingCount: incompleteTraining.length,
+    headline: `[본사·현장 통합 폐루프 지휘] ${siteLabel} — 현장 미결 ${openCases.length}건 · 본사 순회 ${activeVisits.length}건 · 승인대기 ${pendingHqApprovals.length}건 · 교육 미이수 ${incompleteTraining.length}건`,
+    priorities: [
+      {
+        id: 'uni-p1',
+        badge: `03·06 현장 조치·인계 ${openCases.length}건`,
+        text: '현장 30초 사진점검 · 3축 자동분류 · 교대 인계 · 재점검 종결 루프',
+        targetTab: 'inspect_03_06',
+      },
+      {
+        id: 'uni-p2',
+        badge: `01 본사 순회점검 ${activeVisits.length}건`,
+        text: '본사 행선지 사전 위험브리핑 · 현장 점검 개시 · 시정조치 지시 환류',
+        targetTab: 'visit_01',
+      },
+      {
+        id: 'uni-p3',
+        badge: `05 사고조사 승인대기 ${pendingHqApprovals.length}건`,
+        text: 'AI 6하원칙 원인분석 · 본사 검토/승인/보완지시 · 02 사례DB & 04 교육 자동 편입',
+        targetTab: 'investigate_05_02',
+      },
+    ],
   };
 };
 

@@ -2,10 +2,12 @@ import React, { useMemo, useState } from 'react';
 import { getKoreanCalendarDay } from '../../utils/monthlyFieldFollowup';
 import {
   NEXUS_PIPELINE_STATUS_LABELS,
+  NEXUS_QUICK_FIELD_PRESETS,
   advanceNexusPipelineCaseStatus,
   classifyStructuralPhotoContext,
   createNexusPipelineCase,
   type NexusPipelineCase,
+  type NexusQuickFieldPreset,
 } from '../../utils/nexusQuickPipeline';
 import {
   NEXUS_HAZARD_EQUIPMENT_AXIS_OPTIONS,
@@ -26,6 +28,8 @@ interface Props {
   cases?: readonly NexusPipelineCase[];
   onCaseCreated?: (created: NexusPipelineCase) => void;
   onCaseUpdated?: (cases: NexusPipelineCase[]) => void;
+  onEscalateToInvestigation?: (item: NexusPipelineCase) => void;
+  onDispatchTrainingForCase?: (item: NexusPipelineCase) => void;
 }
 
 export const InspectorNexus3AxisBridge: React.FC<Props> = ({
@@ -38,6 +42,8 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
   cases = [],
   onCaseCreated,
   onCaseUpdated,
+  onEscalateToInvestigation,
+  onDispatchTrainingForCase,
 }) => {
   const [quickNote, setQuickNote] = useState('');
   const [locationLabel, setLocationLabel] = useState('');
@@ -49,6 +55,19 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
   const [dueDate, setDueDate] = useState(() => getKoreanCalendarDay());
   const [handoverShift, setHandoverShift] = useState('다음 교대 작업팀·안전담당 인계');
   const [feedbackNotice, setFeedbackNotice] = useState('');
+  const [stepEvidenceByCase, setStepEvidenceByCase] = useState<Record<string, string>>({});
+
+  const handleApplyQuickPreset = (preset: NexusQuickFieldPreset) => {
+    setLocationLabel(preset.locationLabel);
+    setQuickNote(preset.observationNote);
+    setOverrideZone(preset.zoneAxis);
+    setOverrideProcess(preset.processAxis);
+    setOverrideEquipment(preset.hazardEquipmentAxis);
+    setCustomAction('');
+    setFeedbackNotice(
+      `[1초 현장 프리셋 적용] ${preset.badge} ${preset.label} — 위치·관찰내용·3축 분류 및 시정조치 초안이 자동 입력되었습니다.`,
+    );
+  };
 
   const effectiveNote = (note || quickNote).trim();
   const classification = useMemo(
@@ -102,28 +121,46 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
       </div>
 
       {source === 'safety-nexus-quick' && (
-        <div className="nexus-3axis-quick-inputs">
-          <label>
-            <span>점검 구간·위치</span>
-            <input
-              type="text"
-              value={locationLabel}
-              maxLength={100}
-              onChange={e => setLocationLabel(e.target.value)}
-              placeholder="예: B2층 북측 외벽 / 103동 14층 갱폼 구간"
-            />
-          </label>
-          <label className="nexus-3axis-quick-note-field">
-            <span>30초 현장 관찰·사진 한 줄 요약 (입력 즉시 3축·유사사례 자동 매칭)</span>
-            <input
-              type="text"
-              value={quickNote}
-              maxLength={300}
-              onChange={e => setQuickNote(e.target.value)}
-              placeholder="예: 지하 2층 외벽 거푸집 타이볼트 간격 미흡 및 개구부 난간 해체"
-            />
-          </label>
-        </div>
+        <>
+          <div className="nexus-quick-preset-bar" role="group" aria-label="현장 안전관리자 1초 원탭 위험 프리셋">
+            <span className="nexus-quick-preset-title">⚡ 현장 1초 원탭 프리셋</span>
+            <div className="nexus-quick-preset-chips">
+              {NEXUS_QUICK_FIELD_PRESETS.map(preset => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  className="nexus-quick-preset-chip"
+                  onClick={() => handleApplyQuickPreset(preset)}
+                >
+                  <b>{preset.badge}</b>
+                  <span>{preset.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="nexus-3axis-quick-inputs">
+            <label>
+              <span>점검 구간·위치</span>
+              <input
+                type="text"
+                value={locationLabel}
+                maxLength={100}
+                onChange={e => setLocationLabel(e.target.value)}
+                placeholder="예: B2층 북측 외벽 / 103동 14층 갱폼 구간"
+              />
+            </label>
+            <label className="nexus-3axis-quick-note-field">
+              <span>30초 현장 관찰·사진 한 줄 요약 (입력 즉시 3축·유사사례 자동 매칭)</span>
+              <input
+                type="text"
+                value={quickNote}
+                maxLength={300}
+                onChange={e => setQuickNote(e.target.value)}
+                placeholder="예: 지하 2층 외벽 거푸집 타이볼트 간격 미흡 및 개구부 난간 해체"
+              />
+            </label>
+          </div>
+        </>
       )}
 
       <div className="nexus-3axis-tags" role="group" aria-label="자동 추천 3축 태그 (1탭 수정 가능)">
@@ -232,12 +269,35 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
                 </div>
                 <p className="nexus-3axis-case-row-meta">
                   조치: {item.actionTitle} · 담당: {item.assignee} · 기한: {item.dueDate} · 인계: {item.handoverShift}
+                  {item.recheckNote ? ` · 최근 확인: ${item.recheckNote}` : ''}
                 </p>
+                {item.status !== 'closed' && (
+                  <div className="nexus-case-evidence-row">
+                    <input
+                      type="text"
+                      aria-label={`조치·재점검 증빙 메모 ${item.matchedCaseCode}`}
+                      value={stepEvidenceByCase[item.caseId] ?? ''}
+                      maxLength={180}
+                      onChange={e =>
+                        setStepEvidenceByCase(prev => ({ ...prev, [item.caseId]: e.target.value }))
+                      }
+                      placeholder="현장 조치·인계·재점검 확인 메모 입력 (예: 타이볼트 12개소 재체결 및 수직도 확인 완료)"
+                    />
+                  </div>
+                )}
                 <div className="nexus-3axis-case-row-actions">
                   {item.status === 'action_required' && (
                     <button
                       type="button"
-                      onClick={() => onCaseUpdated?.(advanceNexusPipelineCaseStatus(item.caseId, 'handover_pending'))}
+                      onClick={() =>
+                        onCaseUpdated?.(
+                          advanceNexusPipelineCaseStatus(
+                            item.caseId,
+                            'handover_pending',
+                            stepEvidenceByCase[item.caseId],
+                          ),
+                        )
+                      }
                     >
                       교대 인계 대기 전환
                     </button>
@@ -245,7 +305,15 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
                   {(item.status === 'action_required' || item.status === 'handover_pending') && (
                     <button
                       type="button"
-                      onClick={() => onCaseUpdated?.(advanceNexusPipelineCaseStatus(item.caseId, 'recheck_pending'))}
+                      onClick={() =>
+                        onCaseUpdated?.(
+                          advanceNexusPipelineCaseStatus(
+                            item.caseId,
+                            'recheck_pending',
+                            stepEvidenceByCase[item.caseId],
+                          ),
+                        )
+                      }
                     >
                       조치완료 · 재점검 요청
                     </button>
@@ -253,9 +321,35 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
                   {item.status !== 'closed' && (
                     <button
                       type="button"
-                      onClick={() => onCaseUpdated?.(advanceNexusPipelineCaseStatus(item.caseId, 'closed', '현장 재점검 확인 종결'))}
+                      onClick={() =>
+                        onCaseUpdated?.(
+                          advanceNexusPipelineCaseStatus(
+                            item.caseId,
+                            'closed',
+                            stepEvidenceByCase[item.caseId] || '현장 재점검 확인 종결',
+                          ),
+                        )
+                      }
                     >
                       현장 재점검 확인 · 종결
+                    </button>
+                  )}
+                  {onEscalateToInvestigation && (
+                    <button
+                      type="button"
+                      className="is-escalate"
+                      onClick={() => onEscalateToInvestigation(item)}
+                    >
+                      05 아차사고 원인조사 상신 ↗
+                    </button>
+                  )}
+                  {onDispatchTrainingForCase && (
+                    <button
+                      type="button"
+                      className="is-training"
+                      onClick={() => onDispatchTrainingForCase(item)}
+                    >
+                      04 작업팀 12개국어 교육 발령 ↗
                     </button>
                   )}
                 </div>

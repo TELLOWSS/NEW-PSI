@@ -38,6 +38,101 @@ export interface NexusAutoClassificationResult {
   confidenceLabel: '키워드·문맥 3축 매칭' | '기본 골조·형틀 표준 매칭';
 }
 
+export interface NexusPipelineAuditEntry {
+  status: NexusPipelineStatus;
+  note: string;
+  actor: string;
+  timestamp: string;
+}
+
+export interface NexusQuickFieldPreset {
+  id: string;
+  badge: string;
+  label: string;
+  siteName: string;
+  locationLabel: string;
+  observationNote: string;
+  zoneAxis: NexusZoneAxis;
+  processAxis: NexusProcessAxis;
+  hazardEquipmentAxis: NexusHazardEquipmentAxis;
+  structuralNodeIndex: string;
+}
+
+export const NEXUS_QUICK_FIELD_PRESETS: readonly NexusQuickFieldPreset[] = [
+  {
+    id: 'preset-sub-rc-01',
+    badge: '#01 지하RC',
+    label: 'B2 지하외벽 합벽 타이볼트·측압',
+    siteName: '제1현장 지하 2층 RC구간',
+    locationLabel: '제1현장 지하 2층 북측 합벽 구간',
+    observationNote: '지하 2층 외벽 합벽 거푸집 타이볼트 간격 미흡 및 지하 피트 개구부 덮개 미고정 확인',
+    zoneAxis: 'substructure_rc',
+    processAxis: 'formwork_general',
+    hazardEquipmentAxis: 'confined_earth_pressure',
+    structuralNodeIndex: '01',
+  },
+  {
+    id: 'preset-gangform-03',
+    badge: '#03 갱폼',
+    label: '15F 외벽 갱폼 인양고리·앵커',
+    siteName: '제2현장 103동 15층 갱폼',
+    locationLabel: '제2현장 103동 15층 외벽 갱폼 구간',
+    observationNote: '15층 외벽 갱폼 인상 전 타워크레인 인양고리 장력 미확인 상태에서 고정 앵커볼트 선해체 위험',
+    zoneAxis: 'superstructure_std',
+    processAxis: 'gangform',
+    hazardEquipmentAxis: 'tower_crane_rigging',
+    structuralNodeIndex: '03',
+  },
+  {
+    id: 'preset-alform-04',
+    badge: '#04 AL폼',
+    label: '기준층 AL폼 해체 서포트·패널',
+    siteName: '제2현장 103동 기준층 골조',
+    locationLabel: '제2현장 103동 12층 AL폼 해체 구간',
+    observationNote: '기준층 AL폼 데크 패널 해체 중 잔류 서포트 미유지 및 하부 출입통제 미흡',
+    zoneAxis: 'superstructure_std',
+    processAxis: 'alform',
+    hazardEquipmentAxis: 'opening_edge',
+    structuralNodeIndex: '04',
+  },
+  {
+    id: 'preset-shoring-07',
+    badge: '#07 동바리',
+    label: '전이층 시스템동바리 가새·U헤드',
+    siteName: '제3현장 전이층 시스템동바리',
+    locationLabel: '제3현장 전이층 고층고 슬래브 하부',
+    observationNote: '전이층 고층고 슬래브 하부 시스템동바리 수평연결재·가새 핀 잠금 누락 및 U헤드 편심 확인',
+    zoneAxis: 'rooftop_special',
+    processAxis: 'formwork_general',
+    hazardEquipmentAxis: 'system_shoring',
+    structuralNodeIndex: '07',
+  },
+  {
+    id: 'preset-pour-06',
+    badge: '#06 타설',
+    label: '슬래브 집중타설·펌프카 호스',
+    siteName: '제3현장 전이층 시스템동바리',
+    locationLabel: '제3현장 상부 슬래브 타설 구간',
+    observationNote: '슬래브 콘크리트 집중 타설에 따른 하부 거푸집 배부름 감시 필요 및 펌프카 엔드호스 요동방지 로프 미체결',
+    zoneAxis: 'superstructure_std',
+    processAxis: 'concrete_pour',
+    hazardEquipmentAxis: 'system_shoring',
+    structuralNodeIndex: '06',
+  },
+  {
+    id: 'preset-opening-02',
+    badge: '#02 형틀·개구부',
+    label: '코어·피트 개구부 덮개·난간',
+    siteName: '제1현장 지하 2층 RC구간',
+    locationLabel: '제1현장 코어 엘리베이터 피트·단부',
+    observationNote: '형틀 자재 반입을 위해 해체한 슬래브 단부 안전난간 미복구 및 엘리베이터 피트 개구부 추락방지망 미결속',
+    zoneAxis: 'superstructure_std',
+    processAxis: 'formwork_general',
+    hazardEquipmentAxis: 'opening_edge',
+    structuralNodeIndex: '02',
+  },
+];
+
 export interface NexusPipelineCase {
   caseId: string;
   createdAt: string;
@@ -59,6 +154,7 @@ export interface NexusPipelineCase {
   handoverShift: string;
   handoverNote: string;
   recheckNote?: string;
+  auditTrail?: readonly NexusPipelineAuditEntry[];
   status: NexusPipelineStatus;
   source: 'safety-inspector' | 'safety-nexus-quick';
 }
@@ -249,6 +345,14 @@ export const createNexusPipelineCase = (
         : today,
     handoverShift: String(input.handoverShift || '').trim() || '다음 교대 작업팀·안전담당 인계',
     handoverNote: String(input.handoverNote || '').trim() || classification.recommendedHandoverNote,
+    auditTrail: [
+      {
+        status: 'action_required',
+        note: String(input.actionTitle || '').trim() || classification.recommendedActionDraft,
+        actor: String(input.assignee || '').trim() || '형틀·골조 담당반장',
+        timestamp: nowIso,
+      },
+    ],
     status: 'action_required',
     source: input.source || 'safety-nexus-quick',
   };
@@ -263,14 +367,33 @@ export const advanceNexusPipelineCaseStatus = (
   nextStatus: NexusPipelineStatus,
   recheckNote?: string,
   nowIso = new Date().toISOString(),
+  actor = '현장 안전관리자',
 ): NexusPipelineCase[] => {
   const existing = readNexusPipelineCases();
   const updated = existing.map(item => {
     if (item.caseId !== caseId) return item;
+    const stepNote =
+      recheckNote !== undefined && String(recheckNote).trim()
+        ? String(recheckNote).trim()
+        : nextStatus === 'handover_pending'
+          ? `${item.handoverShift} 대상 미종결 위험·임시통제 구간 인계 기록`
+          : nextStatus === 'recheck_pending'
+            ? `${item.assignee} 시정조치 이행 완료 보고 및 안전관리자 재점검 요청`
+            : '현장 재점검 결과 조치 상태 및 방호 기준 충족 확인 종결';
+    const priorTrail = Array.isArray(item.auditTrail) ? item.auditTrail : [];
     return {
       ...item,
       status: nextStatus,
-      recheckNote: recheckNote !== undefined ? recheckNote : item.recheckNote,
+      recheckNote: stepNote,
+      auditTrail: [
+        ...priorTrail,
+        {
+          status: nextStatus,
+          note: stepNote,
+          actor,
+          timestamp: nowIso,
+        },
+      ],
       updatedAt: nowIso,
     };
   });
