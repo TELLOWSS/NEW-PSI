@@ -72,6 +72,8 @@ import { deriveCompetencyProfile, getApprovalBlockers } from '../../utils/eviden
 import { getSafetyLevelDisplayLabel, getSafetyLevelThresholds, getSafetyLevelFromScore, SAFETY_SIGNAL_COPY } from '../../utils/safetyLevelUtils';
 import { getPsiQuestionLabel } from '../../config/psiFormMaster';
 import { PsiFiveQuestionReviewNavigator } from '../assessment/PsiFiveQuestionReviewNavigator';
+import { buildPsiOcrEvidenceReview } from '../../utils/psiOcrEvidenceReview';
+import { PsiOcrEvidenceReviewPanel } from '../ocr/PsiOcrEvidenceReviewPanel';
 import {
     getManagerReviewApprovalBlockers,
     getManagerReviewApprovalReadiness,
@@ -1929,6 +1931,15 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             originalReady,
         };
     }, [record.handwrittenAnswers]);
+    const ocrEvidenceReview = useMemo(() => buildPsiOcrEvidenceReview({
+        hasOriginalImage,
+        documentRejected: record.ocrDocumentValidation?.isPsiForm === false,
+        ocrConfidence: record.ocrConfidence,
+        ocrErrorType: record.ocrErrorType,
+        answers: record.handwrittenAnswers,
+        hasUnsavedEdits: hasChanges,
+        isForeignLanguage: !isKoreanNationality(record.nationality, record.language),
+    }), [hasOriginalImage, hasChanges, record]);
     const verificationAudit = useMemo(() => evaluateOcrVerificationCompleteness(record), [record]);
     const qualityAudit = useMemo(() => evaluateOcrVerificationQuality(record), [record]);
     const nativeWritingGuide = useMemo(() => getNativeWritingGuide(record.nationality), [record.nationality]);
@@ -2208,11 +2219,11 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                         </div>
                         
                         {hasOriginalImage ? (
-                            <div className="w-full max-w-2xl bg-white shadow-2xl p-1 animate-fade-in group relative">
+                            <div className="w-full max-w-2xl bg-white shadow-2xl p-1 animate-fade-in group relative" data-psi-original-document="true" tabIndex={-1} aria-label="자필 위험성평가 기록지 원본 이미지">
                                 <img 
                                     src={record.originalImage} 
                                     className="w-full h-auto block" 
-                                    alt="Scanned Document"
+                                    alt="자필 위험성평가 기록지 원본 사진"
                                 />
                             </div>
                         ) : (
@@ -3572,6 +3583,15 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         >
                                             <></>
                                         </SectionPanelCard>
+                                        <PsiOcrEvidenceReviewPanel
+                                            review={ocrEvidenceReview}
+                                            canInspectOriginal={hasOriginalImage}
+                                            onInspectOriginal={() => {
+                                                const source = document.querySelector<HTMLElement>('[data-psi-original-document="true"]');
+                                                source?.scrollIntoView({ behavior: 'auto', block: 'start' });
+                                                source?.focus({ preventScroll: true });
+                                            }}
+                                        />
                                         <PsiFiveQuestionReviewNavigator
                                             answers={record.handwrittenAnswers}
                                             onFocusAnswer={(index) => {
