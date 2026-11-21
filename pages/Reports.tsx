@@ -55,6 +55,8 @@ import { useJudgmentTaggingQuality } from '../hooks/useJudgmentTaggingQuality';
 import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
 import { EmptyState, SectionCard, MetricCard, StatusPill } from '../components/common';
 import { ReportActionBar } from '../components/common/ReportActionBar';
+import ReportDeliveryEvidencePanel from '../components/report/ReportDeliveryEvidencePanel';
+import { buildReportDeliveryEvidence } from '../utils/reportDeliveryEvidenceL12';
 import { evaluateOcrVerificationCompleteness, getNativeLanguageLabel } from '../utils/ocrVerificationLanguageUtils';
 import { isSameWorkerTimeline } from '../utils/workerIdentity';
 import { buildWorkerReportTargets } from '../utils/workerReportTargets';
@@ -1631,7 +1633,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         {
             key: 'generation-status',
             eyebrow: '지금 상태',
-            title: reportGenerationUi.status === 'running' ? '보고서 생성이 진행 중입니다.' : reportGenerationUi.status === 'success' ? '보고서 생성이 완료되었습니다.' : reportGenerationUi.status === 'error' ? '생성 흐름 점검이 필요합니다.' : '아직 생성 전 대기 상태입니다.',
+            title: reportGenerationUi.status === 'running' ? '보고서 생성이 진행 중입니다.' : reportGenerationUi.status === 'success' ? '파일 생성·브라우저 저장 요청을 실행했습니다.' : reportGenerationUi.status === 'error' ? '생성 흐름 점검이 필요합니다.' : '아직 생성 전 대기 상태입니다.',
             description: reportGenerationUi.status === 'idle'
                 ? '생성 버튼을 누르면 데이터 수집, 렌더링, PDF/ZIP 패키징 순서로 진행됩니다.'
                 : `${reportGenerationUi.phaseLabel} 단계이며 진행률은 ${reportGenerationUi.progress}%입니다.`,
@@ -2125,7 +2127,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 setReportGenerationUi({
                     status: 'success',
                     progress: 100,
-                    phaseLabel: '완료',
+                    phaseLabel: '브라우저 저장 요청됨 · 실제 파일 미확인',
                 });
                 
                 // [IMPROVED] Show detailed completion message with failed records
@@ -2135,9 +2137,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     const remainingCount = failedRecords.length - displayLimit;
                     const failureList = displayedFailures.join(', ') + (remainingCount > 0 ? `\n... 외 ${remainingCount}건` : '');
                     
-                    alert(`생성이 완료되었습니다.\n\n성공: ${filteredRecords.length - failedRecords.length}건\n${BRAND_STATUS_LABELS.attention}: ${failedRecords.length}건\n\n${BRAND_STATUS_LABELS.attention}가 필요한 근로자:\n${failureList}\n\n다운로드 폴더를 확인해주세요.`);
+                    alert(`파일 생성·브라우저 저장 요청을 실행했습니다.\n\n처리: ${filteredRecords.length - failedRecords.length}건\n${BRAND_STATUS_LABELS.attention}: ${failedRecords.length}건\n\n${BRAND_STATUS_LABELS.attention}가 필요한 근로자:\n${failureList}\n\n기기 다운로드 목록에서 실제 파일이 있는지 확인하세요. 발송·수신·검수는 별도입니다.`);
                 } else {
-                    alert(`생성이 완료되었습니다.\n\n총 ${filteredRecords.length}건 성공\n\n다운로드 폴더를 확인해주세요.`);
+                    alert(`파일 생성·브라우저 저장 요청을 실행했습니다.\n\n처리 대상: ${filteredRecords.length}건\n\n기기 다운로드 목록에서 실제 파일이 있는지 확인하세요. 발송·수신·검수는 별도입니다.`);
                 }
             } else {
                 setReportGenerationUi({
@@ -3905,6 +3907,18 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 </div>
             </section>
 
+            <ReportDeliveryEvidencePanel
+                evidence={buildReportDeliveryEvidence({
+                    generationStatus: reportGenerationUi.status,
+                    generationProgress: reportGenerationUi.progress,
+                    isGenerating,
+                    isPackagingEvidence,
+                    verificationChecked: Boolean(verificationResult),
+                    verificationPassed: Boolean(verificationResult?.isValid),
+                })}
+                canNavigateToVerification={isDevMode && !isImmediateOperationalMode}
+            />
+
             {reportGenerationUi.status !== 'idle' && (
                 <div className="no-print space-y-3">
                     <InterpretationCardGrid
@@ -3935,7 +3949,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             )}
 
             {isDevMode && !isImmediateOperationalMode && (
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 no-print space-y-4">
+            <div id="psi-report-package-verification" className="scroll-mt-20 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 no-print space-y-4">
                 <InterpretationCardGrid
                     items={verificationInterpretationCards}
                     cardClassName="rounded-2xl border p-4"
