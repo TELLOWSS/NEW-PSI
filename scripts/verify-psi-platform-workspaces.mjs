@@ -104,6 +104,15 @@ try {
    await goEducation();
    await page.getByRole('button',{name:/추적 보기/}).click();
    await inspect('monthly-guidance','[data-psi-screen="monthly-guidance"]');
+   const sixMetrics=page.locator('[data-monthly-guidance="l11-six-metric-evidence"]');
+   await sixMetrics.waitFor();
+   assert.equal(await sixMetrics.locator('[data-metric-key]').count(),6,
+    'L11 must display all six existing scored fields with observed denominators');
+   await sixMetrics.getByText('6개 평가점수 · 표본과 결측 근거',{exact:true}).waitFor();
+   await sixMetrics.locator('[data-metric-key="repeatViolationPenalty"]')
+    .getByText('감점 크기:',{exact:false}).waitFor();
+   assert.equal(await page.locator('[data-l11-group-chart="empty"]').count(),1,
+    'empty group charts must show no evidence rather than fabricated zero');
    assert.ok(await page.getByText('관리자 승인 전 초안',{exact:false}).count()>0,'Unapproved guidance must remain draft');
 
    await goEducation();
