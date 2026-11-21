@@ -100,7 +100,11 @@ describe('L09 local deferred-action next confirmation',()=>{
         expect(panel).toContain('data-psi-l09-next-check');
         expect(panel).toContain('onOpen(prompt.target.recordId,prompt.target.actionId)');
         expect(page).toContain('const nextCheckPrompt=buildLocalNextCheckPrompt(recheckQueue)');
-        expect(page).toContain('<LocalNextCheckPanel prompt={nextCheckPrompt} busy={busy} onOpen={jumpToHandoffRecheck}/>');
+        expect(page).toContain('<LocalNextCheckPanel prompt={nextCheckPrompt} busy={busy} onOpen={(recordId,actionId)=>{void jumpToNextSavedRecheck(recordId,actionId);}}/>');
+        expect(page).toContain('const fresh=await list()');
+        expect(page).toContain('current.target.recordId!==recordId||current.target.actionId!==actionId');
+        expect(page).toContain('setMessage(\'다른 탭 또는 기기 저장 기록이 바뀌었습니다.');
+        expect(page).toContain('setRecheckJumpTarget({recordId,actionId})');
         expect(page).toContain("setRecheckJumpTarget({recordId,actionId})");
         expect(page).toContain('<FollowupEditor row={row} busy={busy} onSave={saveFollowup}/>');
         expect(logic).not.toMatch(/fetch\s*\(|indexedDB\.|localStorage|sessionStorage|setInterval\s*\(/i);
