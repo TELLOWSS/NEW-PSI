@@ -15,6 +15,10 @@
     animation: psi-living-page-enter var(--psi-motion-standard) var(--psi-motion-ease) both;
   }
 
+  .psi-app-shell.psi-platform-field-canvas .psi-sidebar {
+    transition: width var(--psi-motion-standard) var(--psi-motion-ease);
+  }
+
   .psi-app-shell.psi-platform-field-canvas .psi-sidebar-item > span:first-child,
   .psi-app-shell.psi-platform-field-canvas .psi-mobile-nav :is(button, a) {
     transition: color var(--psi-motion-fast) ease,
@@ -34,12 +38,18 @@
 
 @media (prefers-reduced-motion: reduce) {
   .psi-app-shell.psi-platform-field-canvas .psi-page-header.psi-living-page-enter,
+  .psi-app-shell.psi-platform-field-canvas .psi-sidebar,
   .psi-app-shell.psi-platform-field-canvas .psi-sidebar-item > span:first-child,
   .psi-app-shell.psi-platform-field-canvas .psi-mobile-nav :is(button, a) {
     animation: none !important;
     transition: none !important;
     transform: none !important;
   }
+}
+
+/* Dock affects only desktop Sidebar with explicit allowCollapse, never the mobile overlay. */
+.psi-app-shell.psi-platform-field-canvas .psi-sidebar--collapsed .psi-sidebar-item {
+  overflow: visible;
 }
 
 @media print {
