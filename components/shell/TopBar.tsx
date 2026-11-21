@@ -13,6 +13,7 @@ interface TopBarProps {
     themeMode: ThemeMode;
     onToggleTheme: () => void;
     patentBadge?: React.ReactNode;
+    quickFind?: React.ReactNode;
     controls?: React.ReactNode;
     statusLabel?: string;
     onGoToDashboard?: () => void;
@@ -29,6 +30,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     themeMode,
     onToggleTheme,
     patentBadge,
+    quickFind,
     controls,
     statusLabel = '관리자 확인 기준',
     onGoToDashboard,
@@ -102,6 +104,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                     </div>
 
                     {patentBadge}
+                    {quickFind}
 
                     <button
                         type="button"
