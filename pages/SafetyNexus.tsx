@@ -32,7 +32,15 @@ import {
   summarizePipelineForOrbitLayer,
   type NexusPipelineCase,
 } from '../utils/nexusQuickPipeline';
+import {
+  NEXUS_CEO_TRAINING_UPDATED_EVENT,
+  readExecutiveTrainingCampaigns,
+  stageExecutiveTrainingHandoff,
+  summarizeExecutiveTrainingForOrbitLayer,
+  type NexusExecutiveTrainingCampaign,
+} from '../utils/nexusExecutiveTrainingPipeline';
 import { InspectorNexus3AxisBridge } from '../components/inspector/InspectorNexus3AxisBridge';
+import { NexusExecutiveTrainingBridge } from '../components/inspector/NexusExecutiveTrainingBridge';
 import WebGLNexusCore from './NexusWebGLCore';
 import { ScoreMetricEvidencePanel } from '../components/shared/ScoreMetricEvidencePanel';
 import { PracticeEvidencePanel, type PracticeEvidenceSelection } from '../components/shared/PracticeEvidencePanel';
@@ -318,13 +326,21 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',initialTrade
   });
   const [selectedSeedIdx, setSelectedSeedIdx] = useState(0);
   const [pipelineCases, setPipelineCases] = useState<NexusPipelineCase[]>(() => readNexusPipelineCases());
+  const [trainingCampaigns, setTrainingCampaigns] = useState<NexusExecutiveTrainingCampaign[]>(() =>
+    readExecutiveTrainingCampaigns(),
+  );
   useEffect(() => {
     const syncPipeline = () => setPipelineCases(readNexusPipelineCases());
+    const syncTraining = () => setTrainingCampaigns(readExecutiveTrainingCampaigns());
     window.addEventListener(NEXUS_PIPELINE_UPDATED_EVENT, syncPipeline);
+    window.addEventListener(NEXUS_CEO_TRAINING_UPDATED_EVENT, syncTraining);
     window.addEventListener('storage', syncPipeline);
+    window.addEventListener('storage', syncTraining);
     return () => {
       window.removeEventListener(NEXUS_PIPELINE_UPDATED_EVENT, syncPipeline);
+      window.removeEventListener(NEXUS_CEO_TRAINING_UPDATED_EVENT, syncTraining);
       window.removeEventListener('storage', syncPipeline);
+      window.removeEventListener('storage', syncTraining);
     };
   }, []);
   useEffect(()=>{onViewChange?.({month:filterMonth,trade:filterTrade,active:safeActive,flat,question:selectedQuestion,priority:priorityFilter,practice:practiceFilter,orbitLayer});},[filterMonth,filterTrade,safeActive,flat,selectedQuestion,priorityFilter,practiceFilter,orbitLayer,onViewChange]);
@@ -395,8 +411,13 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',initialTrade
     () => summarizePipelineForOrbitLayer(orbitLayer, pipelineCases, followup.asOfDate),
     [orbitLayer, pipelineCases, followup.asOfDate],
   );
+  const trainingNodeSummaries = useMemo(
+    () => summarizeExecutiveTrainingForOrbitLayer(orbitLayer, trainingCampaigns),
+    [orbitLayer, trainingCampaigns],
+  );
   const activeSignal = layerLiveSignals[safeActive] ?? layerLiveSignals[0];
   const activePipelineSummary = pipelineNodeSummaries[safeActive] ?? pipelineNodeSummaries[0];
+  const activeTrainingSummary = trainingNodeSummaries[safeActive] ?? trainingNodeSummaries[0];
   const activeSeed = activeSignal?.linkedSeeds[selectedSeedIdx < (activeSignal?.linkedSeeds.length ?? 0) ? selectedSeedIdx : 0] ?? activeSignal?.linkedSeeds[0];
 
   const handleAxisFilterChange = (patch: Partial<NexusThreeAxisFilter>) => {
@@ -652,7 +673,14 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',initialTrade
             <div><span>연계 기록</span><strong>{activeSignal.matchedRecords + (activePipelineSummary?.totalCases ?? 0)}건</strong></div>
             <div><span>미완료·인계</span><strong>{activeSignal.unresolvedActions + (activePipelineSummary?.openCases ?? 0)}건</strong></div>
             <div><span>기한 초과</span><strong>{activeSignal.overdueActions + (activePipelineSummary?.overdueCases ?? 0)}건</strong></div>
-            <div><span>표준 예방시드</span><strong>{activeSignal.linkedSeeds.length}건</strong></div>
+            <div>
+              <span>교육 이수율</span>
+              <strong>
+                {activeTrainingSummary?.averageCompletionRatePct !== null && activeTrainingSummary?.averageCompletionRatePct !== undefined
+                  ? `${activeTrainingSummary.averageCompletionRatePct}%`
+                  : `시드 ${activeSignal.linkedSeeds.length}건`}
+              </strong>
+            </div>
           </div>
         )}
         {activeSeed && (
@@ -684,6 +712,39 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',initialTrade
               <div><dt>순회점검 브리핑</dt><dd>{activeSeed.preVisitBriefingPoint}</dd></div>
               <div><dt>대표이사 교육</dt><dd>{activeSeed.ceoTrainingPoint}</dd></div>
             </dl>
+            <div className="nexus-seed-ceo-actions">
+              <button
+                type="button"
+                className="nexus-seed-ceo-btn"
+                onClick={() => {
+                  const created = stageExecutiveTrainingHandoff(activeSeed, {
+                    targetWorkers: 12,
+                    dispatchImmediately: true,
+                  });
+                  setTrainingCampaigns(readExecutiveTrainingCampaigns());
+                  const el = document.getElementById('nexus-ceo-training-section');
+                  el?.scrollIntoView({ behavior: 'auto', block: 'start' });
+                  if (created.structuralNodeIndex && orbitLayer === 'modules') {
+                    lockOntoNode(3, 'modules'); // 04 대표이사 안전교육
+                  }
+                }}
+              >
+                04 대표이사 12개국어 안전교육 초안 즉시 생성 ↓
+              </button>
+              <button
+                type="button"
+                className="nexus-seed-ceo-btn is-secondary"
+                onClick={() => {
+                  stageExecutiveTrainingHandoff(activeSeed, {
+                    targetWorkers: 12,
+                    dispatchImmediately: true,
+                  });
+                  onNavigateToPage('admin-training');
+                }}
+              >
+                QR·음성 스튜디오 열기 ↗
+              </button>
+            </div>
           </div>
         )}
         <div className="nexus-detail-notice"><b>!</b><span>시각적 강조는 위험확정 또는 개선완료를 뜻하지 않습니다.</span></div>
@@ -708,6 +769,18 @@ const SafetyNexus:React.FC<Props>=({workerRecords,loadState='ready',initialTrade
           }
         }}
         onCaseUpdated={updated => setPipelineCases([...updated])}
+      />
+    </section>
+    <section
+      id="nexus-ceo-training-section"
+      className="nexus-pipeline-section nexus-ceo-section"
+      aria-label="04 대표이사 안전교육 12개국어 전파 및 이수율 구체 환류"
+    >
+      <NexusExecutiveTrainingBridge
+        activeSeed={activeSeed}
+        campaigns={trainingCampaigns}
+        onCampaignsChange={next => setTrainingCampaigns([...next])}
+        onOpenAdminTraining={() => onNavigateToPage('admin-training')}
       />
     </section>
     <section id="nexus-followup-details" tabIndex={-1} className="nexus-followup" aria-label="근로자 위험성평가 후속조치 익명 집계">

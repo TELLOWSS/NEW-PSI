@@ -16,6 +16,12 @@ import {
     SAFETY_CASE_TRAINING_HANDOFF_KEY,
     upsertSafetyCase,
 } from '../utils/safetyCase';
+import {
+    clearPendingExecutiveTrainingHandoff,
+    readPendingExecutiveTrainingHandoff,
+    recordExecutiveTrainingSignatureProgress,
+    type NexusExecutiveTrainingCampaign,
+} from '../utils/nexusExecutiveTrainingPipeline';
 import { saveSafetyCaseToServer } from '../services/safetyCaseService';
 
 type UiLocale = 'ko' | 'en' | 'vi' | 'zh';
@@ -604,6 +610,7 @@ const AdminTraining: React.FC = () => {
     const [selectedLanguages, setSelectedLanguages] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
     const [recentSessions, setRecentSessions] = useState<TrainingSessionRow[]>([]);
     const [linkedSafetyCase, setLinkedSafetyCase] = useState<SafetyCaseTrainingHandoff | null>(null);
+    const [linkedNexusCampaign, setLinkedNexusCampaign] = useState<NexusExecutiveTrainingCampaign | null>(null);
     const uiLocale = resolveAdminLocale();
     const t = UI_TEXT[uiLocale];
 
@@ -855,6 +862,14 @@ const AdminTraining: React.FC = () => {
                 unconfirmedTargetWorkerIdsTruncated: Boolean(data.unconfirmedTargetWorkerIdsTruncated),
             });
             setAwarenessLastFetchedAt(Date.now());
+            if (linkedNexusCampaign?.campaignId) {
+                recordExecutiveTrainingSignatureProgress(linkedNexusCampaign.campaignId, {
+                    exactConfirmedWorkers: Number(data.confirmedWorkers || 0),
+                    exactTargetWorkers: typeof data.targetWorkers === 'number' ? data.targetWorkers : linkedNexusCampaign.targetWorkers,
+                    nationalityCount: Number(data.nationalityCount || 0),
+                    linkedSessionId: sessionId,
+                });
+            }
         } catch (error: any) {
             setAwarenessStats(null);
             setAwarenessError(error?.message || t.createFail);
@@ -992,6 +1007,23 @@ const AdminTraining: React.FC = () => {
 
     useEffect(() => {
         void fetchTargetWorkers();
+    }, []);
+
+    useEffect(() => {
+        const handoff = readPendingExecutiveTrainingHandoff();
+        if (!handoff) return;
+        setLinkedNexusCampaign(handoff);
+        setTrainingTitle(handoff.title);
+        setTrainingCategory('special_safety');
+        setSourceTextKo(handoff.sourceTextKo);
+        setPretranslatedTexts(handoff.multilingualPreviews || {});
+        const validLangs = (handoff.selectedLanguages || []).filter(isValidLanguageCode);
+        if (validLangs.length > 0) {
+            setSelectedLanguages(validLangs);
+        }
+        setMessage(
+            `SAFETY NEXUS 3D 구체 [${handoff.matchedCaseCode} · 구체 #${handoff.structuralNodeIndex}]에서 04 대표이사 안전교육 12개 국어 초안을 불러왔습니다.`,
+        );
     }, []);
 
     useEffect(() => {
@@ -1294,6 +1326,13 @@ const AdminTraining: React.FC = () => {
                     setLinkedSafetyCase(null);
                 }
             }
+            if (linkedNexusCampaign?.campaignId && data.sessionId) {
+                recordExecutiveTrainingSignatureProgress(linkedNexusCampaign.campaignId, {
+                    addSignatures: 0,
+                    linkedSessionId: String(data.sessionId),
+                });
+                clearPendingExecutiveTrainingHandoff();
+            }
             const failed = Array.isArray(data.failedLanguages) ? data.failedLanguages : [];
             setFailedLanguages(failed);
             setFailedLanguageAttempts(data?.failedLanguageAttempts && typeof data.failedLanguageAttempts === 'object' ? data.failedLanguageAttempts : {});
@@ -1517,6 +1556,20 @@ const AdminTraining: React.FC = () => {
                             {linkedSafetyCase.workerName} · {linkedSafetyCase.jobField} · {linkedSafetyCase.riskLabel}
                         </p>
                         <p className="mt-1 text-[11px] font-bold text-violet-700">세션 생성이 완료되면 사건 타임라인의 교육 단계가 자동 완료됩니다.</p>
+                    </div>
+                )}
+
+                {linkedNexusCampaign && (
+                    <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-500/40 dark:bg-amber-500/10">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-800 dark:text-amber-200">
+                            SAFETY NEXUS 3D 구체 · 04 대표이사 안전교육 연동
+                        </p>
+                        <p className="mt-1 text-sm font-black text-slate-900 dark:text-slate-100">
+                            [{linkedNexusCampaign.matchedCaseCode} · 구체 포인트 #{linkedNexusCampaign.structuralNodeIndex}] {linkedNexusCampaign.title}
+                        </p>
+                        <p className="mt-1 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                            12개 국어 모국어 보호 안내 초안이 자동 탑재되었습니다. 세션 생성 및 근로자 전자서명 확약 시 이수율이 황금 구체로 자동 환류됩니다.
+                        </p>
                     </div>
                 )}
 

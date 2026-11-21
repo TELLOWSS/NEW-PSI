@@ -166,6 +166,43 @@
   .nexus-3axis-quick-inputs,.nexus-3axis-tags,.nexus-3axis-action-form{grid-template-columns:1fr}
 }
 
+/* Slice 3 · 04 Executive Multilingual Safety Training & Completion Rate Feedback */
+.nexus-seed-ceo-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;padding-top:8px;border-top:1px solid #6b889c30}
+.nexus-seed-ceo-btn{flex:1 1 140px;padding:6px 9px;border-radius:5px;border:1px solid #e6b26d80;background:linear-gradient(120deg,#3a2713,#152a3c);color:#ffe7c4;font-size:11px;font-weight:750;text-align:center}
+.nexus-seed-ceo-btn.is-secondary{border-color:#74dce666;background:#0e2536;color:#d6f6fa}
+.nexus-ceo-section{border-color:#82dce645}
+.nexus-ceo-training-bridge{display:grid;gap:12px}
+.nexus-ceo-training-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.nexus-ceo-training-head h3{margin:4px 0 0;font-size:16px;color:#f3f7fa;font-weight:700}
+.nexus-ceo-draft-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.nexus-ceo-draft-ko,.nexus-ceo-draft-multilingual{padding:12px;border-radius:8px;background:#0b1724cc;border:1px solid #617e9245;min-width:0;display:flex;flex-direction:column;gap:8px}
+.nexus-ceo-box-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.nexus-ceo-box-head strong{font-size:12px;color:#ffe2b8}
+.nexus-ceo-target-input{display:flex;align-items:center;gap:5px;font-size:10.5px;color:#b8cdd8}
+.nexus-ceo-target-input input{width:58px;padding:4px 6px;border-radius:4px;border:1px solid #6b889c66;background:#0f2233;color:#f1f7fa;font-size:11px}
+.nexus-ceo-pre{margin:0;padding:10px;border-radius:6px;background:#07111bcc;border:1px solid #546e8036;color:#d5e4ed;font-family:inherit;font-size:11.5px;line-height:1.58;white-space:pre-wrap;word-break:keep-all;max-height:190px;overflow-y:auto}
+.nexus-ceo-pre.is-native{border-color:#72dce640;color:#e7f7fa}
+.nexus-ceo-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
+.nexus-ceo-studio-btn{padding:8px 12px;border-radius:6px;border:1px solid #78dfe873;background:#102b3c;color:#dff8fb;font-size:11.5px;font-weight:750}
+.nexus-ceo-tts-btn{padding:4px 9px;border-radius:5px;border:1px solid #e5b26d73;background:#2b1f13;color:#ffe3ba;font-size:10.5px;font-weight:700}
+.nexus-ceo-lang-pills{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px}
+.nexus-ceo-lang-pills button{display:flex;align-items:center;justify-content:center;gap:4px;padding:5px 4px;border-radius:5px;border:1px solid #5a75884d;background:#0e1e2e;color:#c7d8e2;font-size:10.5px;min-width:0}
+.nexus-ceo-lang-pills button small{font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nexus-ceo-lang-pills button[aria-pressed="true"]{border-color:#76e4ec;background:#153647;color:#fff;font-weight:750}
+.nexus-ceo-campaign-list{border-top:1px solid #6b889c33;padding-top:10px}
+.nexus-ceo-campaign-list>strong{display:block;font-size:12px;color:#bfeef4;margin-bottom:8px}
+.nexus-ceo-campaign-list ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.nexus-ceo-campaign-list li{padding:10px 12px;border-radius:6px;background:#0b1723cc;border:1px solid #5c788b40}
+.nexus-ceo-progress-track{height:5px;border-radius:999px;background:#1b2e3e;overflow:hidden;margin:7px 0}
+.nexus-ceo-progress-track i{display:block;height:100%;background:linear-gradient(90deg,#f2b86d,#6ee7e7);transition:width .25s}
+@media(max-width:1024px){
+  .nexus-ceo-draft-grid{grid-template-columns:1fr}
+  .nexus-ceo-lang-pills{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+@media(max-width:520px){
+  .nexus-ceo-lang-pills{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
 .nexus-stage{position:relative;height:min(550px,55vw);min-height:455px;overflow:hidden;cursor:grab;touch-action:pan-y}
 .nexus-stage.is-dragging{cursor:grabbing}
 .nexus-stage::after{content:"";position:absolute;inset:9% 8% 8%;pointer-events:none;
