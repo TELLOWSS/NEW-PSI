@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { Page } from '../types';
 import { BrandPhilosophyLogo } from './shared/BrandPhilosophyLogo';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
-import { isPageVisibleByOperationalMode } from '../utils/operationalModeUtils';
+import { isPageVisibleByOperationalMode, type OperationalMode } from '../utils/operationalModeUtils';
 import {
     applySidebarComposition,
     reorderSidebarPage,
@@ -110,6 +110,19 @@ const sidebarMenuItems: SidebarMenuItem[] = [
     },
 ];
 
+// Shared source of truth for both sidebar and quick navigation.
+// Never expose pages that are hidden by mode, role or user's menu composition.
+export const getSidebarVisibleMenuItems = (
+    mode: OperationalMode,
+    uiMode: UiAudienceMode,
+    compositionConfig: UiCompositionConfig,
+): SidebarMenuItem[] => applySidebarComposition(
+    sidebarMenuItems.filter((item) =>
+        isPageVisibleByOperationalMode(item.id, mode) && isRouteVisibleInMode(item.id, uiMode),
+    ),
+    compositionConfig,
+);
+
 const SIDEBAR_GROUP_ORDER: ProductGroup[] = [
     'dashboard',
     'tbm',
@@ -149,8 +162,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     );
 
     const visibleMenuItems = useMemo(
-        () => applySidebarComposition(modeVisibleMenuItems, compositionConfig),
-        [modeVisibleMenuItems, compositionConfig],
+        () => getSidebarVisibleMenuItems(mode, resolvedUiMode, compositionConfig),
+        [mode, resolvedUiMode, compositionConfig],
     );
 
     const editRows = useMemo(
