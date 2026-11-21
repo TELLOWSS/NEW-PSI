@@ -493,6 +493,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         <AppShell
             desktopSidebar={
                 <Sidebar
+                    allowCollapse
                     currentPage={currentPage}
                     setCurrentPage={handlePageChange}
                     uiMode={uiAudienceMode}
@@ -703,6 +704,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                             </section>
                         )}
                         <PageHeader
+                            key={currentPage}
                             show={showCommonPageHeader}
                             groupLabel={currentProductGroupLabel}
                             title={currentPageTitle}
