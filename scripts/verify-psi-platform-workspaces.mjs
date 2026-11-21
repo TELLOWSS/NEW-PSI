@@ -99,6 +99,19 @@ try {
   await page.getByRole('button',{name:'보호 리포트 확인'}).click();
   await inspect('reports','[data-psi-screen="reports"]');
   assert.ok(await page.getByRole('heading',{name:'안전 리포트 센터'}).count()>0,'Report center did not open');
+  const reportDelivery=page.locator('[data-psi-report-delivery-l12="true"]');
+  await reportDelivery.waitFor();
+  assert.equal(await reportDelivery.locator('[data-psi-l12-stage]').count(),6,
+   'L12 must separate report creation, device saving, external handoff, recipient receipt, validation and approval');
+  await reportDelivery.locator('[data-psi-l12-stage="device"]')
+   .getByText('실제 다운로드·보관 미확인',{exact:true}).waitFor();
+  await reportDelivery.locator('[data-psi-l12-stage="receipt"]')
+   .getByText('열람·접수 근거 없음',{exact:true}).waitFor();
+  await reportDelivery.getByText('배포·수신 자동 확인 없음',{exact:true}).waitFor();
+  if(width===390){
+   await reportDelivery.scrollIntoViewIfNeeded();
+   await page.screenshot({path:`${out}/reports-delivery-l12-390.png`,fullPage:false});
+  }
 
   if(width===390||width===1440){
    await goEducation();
