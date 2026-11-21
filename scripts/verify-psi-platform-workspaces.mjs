@@ -60,6 +60,19 @@ try {
   };
   await goEducation();
   const edu=await inspect('education','[data-psi-screen="education-return"]');
+  const educationEvidence=page.locator('[data-education-return="evidence-loop-l10"]');
+  await educationEvidence.waitFor();
+  assert.equal(await educationEvidence.locator('[data-return-stage]').count(),6,
+   'L10 must retain six distinct source, authoring, language, delivery, understanding and field states');
+  await educationEvidence.getByText('기록 현황 · 배포 승인 아님',{exact:true}).waitFor();
+  assert.equal(await educationEvidence.locator('[data-return-stage="language"]').getByText('언어별 출력·의미 검증 별도',{exact:true}).count(),1);
+  if(width===390){
+   await educationEvidence.scrollIntoViewIfNeeded();
+   await page.screenshot({path:`${out}/education-l10-evidence-390.png`,fullPage:false});
+   await educationEvidence.getByRole('button',{name:'언어별 확인'}).click();
+   await page.locator('[data-psi-screen="a4-education-studio"]').waitFor();
+   await goEducation();
+  }
   assert.ok(await page.locator('[data-education-return="three-step-flow"]').count()>0,'Education 3-step verification missing');
   assert.ok(await page.getByText('교육 이수·이해 답변과 작업 중 실제 안전행동 관찰은 별개입니다.',{exact:false}).count()>0,'Education completion is not field completion');
   const eduBg=await page.locator('[data-education-return="hero"]').evaluate(el=>getComputedStyle(el).backgroundImage);
