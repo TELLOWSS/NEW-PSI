@@ -43,14 +43,14 @@ export function buildGroupScoreChartEvidence(
     mode: 'field' | 'team' = 'field',
 ): GroupScoreChartEvidence {
     const latest = selectLatestCoreMetricRecords([...records]);
-    const groups = new Map<string, { label: string; scores: number[]; total: number }>();
+    const groups = new Map<string, { label: string; trade: string; scores: number[]; total: number }>();
     for (const record of latest) {
         const trade = String(record.jobField || '').trim() || '미분류 공종';
         const leader = String(record.teamLeader || '').trim();
         if (mode === 'team' && (!leader || leader === '미지정')) continue;
         const key = mode === 'team' ? JSON.stringify([leader, trade]) : trade;
         const label = mode === 'team' ? `${leader} (${trade})` : trade;
-        const group = groups.get(key) || { label, scores: [], total: 0 };
+        const group = groups.get(key) || { label, trade, scores: [], total: 0 };
         group.total++;
         if (hasValidSafetyScore(record)) group.scores.push(record.safetyScore);
         groups.set(key, group);
@@ -58,11 +58,11 @@ export function buildGroupScoreChartEvidence(
     const sorted = [...groups.values()].sort((a, b) => b.total - a.total || a.label.localeCompare(b.label, 'ko'));
     const excludedNoScore = sorted.filter(group => !group.scores.length).length;
     const limit = mode === 'team' ? 8 : 10;
-    const rows = sorted.filter(group => group.scores.length).slice(0, limit).map(group => {
+    const rows = sorted.filter(group => group.scores.length).slice(0, limit).map((group,index) => {
         const average = group.scores.reduce((a, b) => a + b, 0) / group.scores.length;
         const variance = group.scores.reduce((sum, score) => sum + (score - average) ** 2, 0) / group.scores.length;
         return {
-            label: group.label, average: Math.round(average * 10) / 10,
+            label: mode === 'team' ? `작업팀 ${index + 1} · ${group.trade}` : group.label, average: Math.round(average * 10) / 10,
             spreadReference: group.scores.length > 1 ? Math.round(Math.max(0, 100 - Math.sqrt(variance) * 2.5) * 10) / 10 : null,
             valid: group.scores.length, total: group.total, excluded: group.total - group.scores.length,
         };
