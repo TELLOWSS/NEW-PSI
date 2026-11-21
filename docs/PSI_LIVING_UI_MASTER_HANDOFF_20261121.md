@@ -103,7 +103,7 @@
 | L06 | 5문항 자기규율 입력·검토 | IMPLEMENTED(기존 OCR 관리자 검토의 Q1~Q5 내비게이터) / 근로자 직접 입력 PLANNED / QA 대기 | 원본 편집·모국어 보존, 직접 제출 인증·저장·동의 설계 분리, 모바일 실기기 미검증 |
 | L07 | OCR 원문 대조·수정·승인 | IMPLEMENTED(원본/인식/해석/미저장 상태 안내와 사진 포커스) / QA 대기 | 기존 승인·이력 불변, 신뢰도·문서 종류·다국어/320–390px 확인 및 Android 실기기 미검증 |
 | L08 | 사진점검 카메라·오프라인·업로드 상태 | IMPLEMENTED(`/camera` 브라우저 사진함 저장·공유·수신·검수 표시) / QA 대기 | FieldCamera 한정, 실기기/저장실패/독립 점검앱 연계·오프라인 복구 미검증 |
-| L09 | 조치 배정·대기·진행·재점검 | PLANNED | 임시조치·책임·일시·검증 상태 정확성 |
+| L09 | 조치 배정·대기·진행·재점검 | IMPLEMENTED(`/field-local/` F10 기존 대장의 최우선 다음확인·기록 재조회 이동 UI) / QA 대기 | 실시간 현장·수신 여부는 미확인, Android 실기기·오프라인 복구·모든 조치 유형 회귀 대기 |
 | L10 | 교육 환류·다국어 전달 | PLANNED | 다음 월 위험 반복 추적 및 인쇄물 검증 |
 | L11 | 6대 지표·차트 | PLANNED | 집계의 실데이터 일치·가독성·낙인 방지 |
 | L12 | 보고서·공유·다운로드 | PLANNED | 실제 발행/다운로드/외부 수신 상태 분리 |
@@ -221,6 +221,21 @@
 
 **다음 한 작업:** L08 최신 CI·실제 합성 Chromium 검증·실패 수정 → `/field-local/` 기기 점검 자체의 임시조치/진행/재점검 상태(L09) 확인, 별도 `/inspector` 클라우드 수신 상태와 구분. 근로자 직접 Q1~Q5 작성/제출 경로의 권한·보존 설계는 L06 잔여 과제로 계속 보유.
 
+### 구현 9차 — L09 기기 점검의 지연 조치 '다음 확인 1건'·저장본 재조회 이동 (2026-11-22)
+
+- **최신 근거:** L08 마지막 HEAD `2c13d579ae485b83135290e90376b0c5229d8a9a`의 `PSI release verification` #44953844041, `PSI company-wide cross-department verification` #44953844004는 **SUCCESS**로 재확인했다. `PSI inspector mobile browser QA` #44953843995는 후속 브랜치 변경으로 **CANCELLED**, PASS 아님. GitHub `main` / Vercel Production READY는 기존 `8aa4dea89f789d569a715386e1646d848ceb17c1` 유지. Draft PR #237 메인 병합 없음.
+- **기존 L09 기능 감사(중복 제작 금지):** `components/inspector/InspectorLocalDraft.tsx`의 `/field-local/`은 이미 F10 기반 `FollowupEditor`(미조치/진행/완료 확인 요청/보완/확인 완료 기록), `buildDeferredActionGuide`(담당자·임시 안전조치·조치 목표일·재점검), `buildDeferredActionAttention`(현장 확인 수준·누락/기한), `buildLocalRecheckQueue`(상태 충돌/초과/오늘/예정/미정/완료), `RecheckEditor`, 조치별 추가기록, 인계 초안/수신 체크, 버전 이력·백업을 갖추고 있다. 이것을 다시 만들거나 DB 스키마를 변경하지 않는다.
+- **실제 문제:** 관리자에게 긴 F10 재점검 관리판과 다수 점검 목록을 모두 열게 하는 대신, **바로 확인할 대상 한 건과 그 다음 조치**를 즉시 보여줄 필요가 있다. 기한 초과·재점검 누락은 화면 안내이지 안전 위험등급 자동평가가 아니다.
+- **`lib/inspector/localNextCheckPrompt.mjs`:** 기존 `buildLocalRecheckQueue` 결과 및 `selectLocalHandoffTargets`의 우선순위 규칙을 사용해 `상태 충돌 → 기한 초과 → 오늘 확인 → 3일 내 → 일정 미정 → 장래 예정` 대상을 한 건 선정한다. 담당자·임시조치 미기록/확인일 미정은 서로 구분한다. 재점검일과 조치 목표일을 혼용하지 않는다. 빈 목록·'확인 완료 입력'만 있는 경우도 현장 안전·조치 완료를 단정하지 않는다. 오직 읽기 전용, 자동 통보·승인 없음.
+- **`components/inspector/LocalNextCheckPanel.tsx`:** 저장된 조치 기록 1건의 범주/예정일 유형/기록 상태/다음 확인 조언과 관리상 미결·확인 입력 수를 표시. 기존 모바일/PC의 `si-btn` 버튼을 이용해 실제 재점검 입력 위치로 연결. 사진, 성명, 상세 자유기입 원문 등 외부로 전송하지 않음.
+- **`InspectorLocalDraft.tsx`:** 저장된 `recheckQueue` 옆에 `nextCheckPrompt`를 계산하고 기존 F10 재점검 섹션 앞부분에 새 안내를 노출. **검증 중 발견한 결함:** 기존 `jumpToHandoffRecheck`는 준비된 인계문서 `handoffPrepared`가 없으면 `withVerifiedHandoff`가 즉시 종료하므로 일반 다음 확인 버튼에 재사용 불가. `jumpToNextSavedRecheck`를 **별도로 구현**해 클릭 시 실제 IndexedDB의 최신 `list()`를 읽고 변경/삭제·다른 탭 갱신으로 우선 대상이 달라지면 **이동을 중단하고 목록을 갱신**한다. 일치할 때만 저장된 기록의 재점검 영역으로 이동/키보드 포커스, 임시 인계 확인 체크는 초기화한다. 기존 인계 발송/수신 스냅샷 검수와 저장 함수는 수정하지 않음.
+- **`tests/localNextCheckPromptL09.test.ts`:** 빈/확인 완료 단독/상태 상충/기한 초과와 정확한 기한 유형/담당자·임시조치·일자 누락/장래 예정 대비 미정 우선/추가 조치 별도 타깃/저장본 재조회 확인을 검증. 추가 외부 API·AI·서버 요청 없음.
+- **`scripts/verify-inspector-local-offline.mjs`:** 실제 합성 Chromium 기기 점검에서 ① 최초 기록 시 다음 조치 없음, ② 지연조치 저장 뒤 올바른 현황과 입력 경로에 클릭·포커스, ③ 재점검 이력 추가 후 날짜 유형 갱신을 검증하는 회귀를 기존 현장 저장·오프라인 QA에 추가. 테스트는 사진·성명 등 실근로자 데이터 사용하지 않으며 `PSI inspector mobile browser QA`에 포함된다.
+- **범위/판정:** 브랜치 구현만 완료했으며 신규 HEAD의 `npm run verify:ci`, 부서별 Chromium, 모바일 사진점검 QA의 최종 PASS와 실제 Android/Samsung Internet·기기 저장공간 부족·오프라인 재개 및 점검자 육안확인을 **별도로 검증**해야 한다. 조치 전/후 사진의 해시 일치는 실제 장소·위험 제거나 승인 증명이 아니다. `/camera` 사진은 자동 이관되지 않는다.
+- **L06 잔여:** 근로자 직접 Q1~Q5 입력/언어 검수/안전 보관·제출 경로 별도 미구현. `main` 병합·Production 배포 사용자 최종 승인 전 보류.
+
+**다음 한 작업:** L09 HEAD의 릴리스·모바일/전사 Chromium 검증 결과를 확인하고 실패 시 수정한다. 기기 점검 조치 목록의 필터·키보드/390px 동작을 확인한 뒤 L10 교육 환류·다국어 전달 시 근로자 작성 답변을 낙인 없이 전달하는 경계를 점검한다. L08 Android 실기기/오프라인 복구와 L06 근로자 직접 입력은 잔여 게이트로 유지한다.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -244,7 +259,7 @@
 
 ## 9. 다음 착수 과제
 
-**L08 최신 HEAD 자동검증·390/1280px 카메라 업무흐름 확인 → L09 기기 점검의 조치 배정·대기·재점검 상태 감사.**
+**L09 최신 HEAD 릴리스·전사 Chromium·모바일 오프라인 조치 점검 검증 → L10 교육 환류·다국어 전달의 근거/승인 의미 감사.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
