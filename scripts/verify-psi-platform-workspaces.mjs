@@ -58,6 +58,23 @@ try {
    checks.push({viewportWidth:width,id,...metrics});
    return metrics;
   };
+  await goHome();
+  await page.locator('summary[aria-label="운영자 메뉴 열기"]').click();
+  await page.getByRole('button',{name:/PSI 브랜드 스토리/}).click();
+  const introGuide=page.locator('[data-psi-onboarding-l13="true"]');
+  await introGuide.waitFor({timeout:32000});
+  await inspect('introduction-l13','[data-psi-onboarding-l13="true"]');
+  assert.equal(await introGuide.getByRole('tab').count(),5,'L13 must offer five actual step navigation choices');
+  await introGuide.getByRole('tab',{name:/교육/}).click();
+  await introGuide.locator('[data-psi-onboarding-stage="education"]')
+   .getByText(/교육 발행/).waitFor();
+  await introGuide.getByText('실제 메뉴 연결 · 자동 완료 아님',{exact:true}).waitFor();
+  if(width===390){
+   await introGuide.scrollIntoViewIfNeeded();
+   await page.screenshot({path:`${out}/introduction-first-use-l13-390.png`,fullPage:false});
+   await introGuide.getByRole('button',{name:'교육 환류 확인'}).click();
+   await page.locator('[data-psi-screen="education-return"]').waitFor({timeout:32000});
+  }
   await goEducation();
   const edu=await inspect('education','[data-psi-screen="education-return"]');
   const educationEvidence=page.locator('[data-education-return="evidence-loop-l10"]');
