@@ -1,7 +1,7 @@
 import {createServer} from 'vite';
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import {readFile,mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import JSZip from 'jszip';
 
@@ -10,6 +10,7 @@ await server.listen();
 const url='http://127.0.0.1:'+server.httpServer.address().port+'/camera';
 let browser;
 const results=[];
+await mkdir('artifacts/audit/field-camera-l08',{recursive:true});
 const fileBytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAOz6Xl0AAAAASUVORK5CYII=','base64');
 
 try{
@@ -35,12 +36,20 @@ try{
    });
    await page.goto(url);
    await page.getByRole('heading',{name:'현장 사진을 간편하게'}).waitFor();
+   const lifecycle=page.locator('[data-psi-photo-lifecycle]');
+   await lifecycle.locator('[data-stage="local"]').getByText('보관 사진 없음',{exact:true}).waitFor();
+   assert.equal(await lifecycle.locator('[data-stage="receipt"]').getByText('수신 기록 없음',{exact:true}).count(),1);
+   assert.equal(await lifecycle.locator('[data-stage="review"]').getByText('별도 점검 필요',{exact:true}).count(),1);
    await page.getByLabel('사진첩에서 선택').setInputFiles({
     name:'synthetic-no-people.png',mimeType:'image/png',buffer:fileBytes,
    });
    await page.getByRole('heading',{name:'이 브라우저의 사진 1장'}).waitFor();
+   await lifecycle.locator('[data-stage="local"]').getByText('사진 1장 이 브라우저 보관',{exact:true}).waitFor();
    await page.getByRole('button',{name:'사진 공유',exact:true}).click();
    await page.getByText('공유 앱에 전달했습니다.',{exact:false}).waitFor();
+   await lifecycle.locator('[data-stage="handoff"]').getByText('공유앱 인계 · 수신 미확인',{exact:true}).waitFor();
+   assert.equal(await lifecycle.locator('[data-stage="receipt"]').getByText('수신 기록 없음',{exact:true}).count(),1);
+   await page.screenshot({path:`artifacts/audit/field-camera-l08/field-camera-${viewport.width}.png`,fullPage:true});
    assert.equal(await page.evaluate(()=>window.__deliveries.length),1);
    results.push({view:viewport.width,case:'verified-single-share',status:'PASS'});
    // Synthetic OS sharing refusal after async hashing. The second tap must
@@ -49,9 +58,11 @@ try{
    await page.getByRole('button',{name:'사진 공유',exact:true}).click();
    const reopen=page.getByRole('button',{name:'검증 완료 · 공유창 다시 열기'});
    await reopen.waitFor();
+   await lifecycle.locator('[data-stage="handoff"]').getByText('공유 미완료 · 다시 확인',{exact:true}).waitFor();
    await reopen.click();
    await page.waitForFunction(()=>window.__deliveries.length===2);
    assert.equal(await reopen.count(),0);
+   await lifecycle.locator('[data-stage="handoff"]').getByText('공유앱 인계 · 수신 미확인',{exact:true}).waitFor();
    results.push({view:viewport.width,case:'mobile-share-activation-recovery',status:'PASS'});
    await page.getByLabel('사진 1 선택').check();
    await page.getByRole('button',{name:'선택 사진 ZIP 준비 (1)'}).click();
@@ -87,6 +98,9 @@ try{
    });
    await page.getByRole('button',{name:'선택 사진 공유 (1)'}).click();
    await page.getByText('기기 사진함의 실제 파일 해시가 달라 공유를 중단했습니다.',{exact:true}).waitFor();
+   await lifecycle.locator('[data-stage="local"]').getByText('선택 사진 보관 정보 불일치',{exact:true}).waitFor();
+   await lifecycle.locator('[data-stage="handoff"]').getByText('공유 미완료 · 다시 확인',{exact:true}).waitFor();
+   assert.equal(await lifecycle.locator('[data-stage="receipt"]').getByText('수신 기록 없음',{exact:true}).count(),1);
    assert.equal(await page.evaluate(()=>window.__deliveries.length),2,
     'changed photo must not be sent through OS share');
    assert.equal(await page.getByRole('link',{name:'ZIP 기기에 저장'}).count(),0,
