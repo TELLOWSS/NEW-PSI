@@ -34,6 +34,7 @@ uniform float u_tone;
 uniform float u_bloom;
 uniform float u_intensity;
 uniform float u_story;
+uniform vec3 u_activeVec;
 varying vec3 v_color;
 varying float v_alpha;
 varying float v_kind;
@@ -105,14 +106,18 @@ void main() {
   if(kind < .5) {
     float near = clamp((p.z+1.)*.5,0.,1.);
     float rim = pow(clamp(1.0 - abs(p.z), 0.0, 1.0), 1.45);
-    v_color = seed < .09 ? cyanBase : seed > .84 ? mix(champagneGold, layerAccent, 0.38) : mix(goldBase, champagneGold, rim*0.48);
-    v_alpha = mix(.25,.82,near)*(0.70 + .30*sin(t*1.6+seed*31.0)*sin(t*1.6+seed*31.0)) * (kind > .1 ? .52 : 0.96) * u_intensity;
-    gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 12.5+seed*10.5 : 1.5+seed*2.2);
+    float resDot = clamp(dot(normalize(a_data.xyz), u_activeVec), -1.0, 1.0);
+    float resWave = smoothstep(0.48, 0.995, resDot) * (0.5 + 0.5 * sin(acos(resDot) * 18.0 - t * 3.4));
+    vec3 baseCol = seed < .09 ? cyanBase : seed > .84 ? mix(champagneGold, layerAccent, 0.38) : mix(goldBase, champagneGold, rim*0.48);
+    v_color = mix(baseCol, mix(champagneGold, layerAccent, 0.35), resWave * 0.52);
+    v_alpha = mix(.25,.82,near)*(0.70 + .30*sin(t*1.6+seed*31.0)*sin(t*1.6+seed*31.0)) * (kind > .1 ? .52 : 0.96) * (1.0 + resWave * 0.16) * u_intensity;
+    gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 12.5+seed*10.5 : 1.5+seed*2.2)*(1.0 + resWave * 0.24);
   } else if(isGeodesic) {
     float near = clamp((p.z+1.2)*.45,0.16,1.0);
+    float geoPulse = 0.78 + 0.22 * sin(t * 2.2 + seed * 18.84);
     v_color = seed > 0.5 ? layerAccent : champagneGold;
-    v_alpha = near * 0.48 * u_intensity;
-    gl_PointSize = u_ratio * 1.55;
+    v_alpha = near * 0.50 * geoPulse * u_intensity;
+    gl_PointSize = u_ratio * 1.6;
   } else if(isSurfaceNode) {
     float front = clamp((p.z+1.1)*.5, 0.18, 1.0);
     v_color = isActiveNode ? vec3(1.0, 0.86, 0.55) : layerAccent;
@@ -376,6 +381,7 @@ const WebGLNexusCore: React.FC<Props> = ({
       const locLine = gl.getUniformLocation(program, 'u_line');
       const locIntensity = gl.getUniformLocation(program, 'u_intensity');
       const locStory = gl.getUniformLocation(program, 'u_story');
+      const locActiveVec = gl.getUniformLocation(program, 'u_activeVec');
 
       const shortestDelta = (from: number, to: number) => {
         let d = ((to - from + Math.PI) % (Math.PI * 2));
@@ -414,6 +420,8 @@ const WebGLNexusCore: React.FC<Props> = ({
         gl.uniform1f(locYaw, currentYaw);
         gl.uniform1f(locPitch, currentPitch);
         gl.uniform1f(locTone, toneRef.current);
+        const activeVec = safeNodes[Math.max(0, Math.min(safeNodes.length - 1, focus.current))] ?? DEFAULT_NODE_VECS[0];
+        gl.uniform3f(locActiveVec, activeVec[0], activeVec[1], activeVec[2]);
         const storyTime = story.current.active
           ? Math.min(12, Math.max(0, (performance.now() - story.current.started) / 1000))
           : -1;

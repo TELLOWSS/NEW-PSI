@@ -44,11 +44,15 @@ try {
     (await root.getByRole('tab', { name: /01 본사 행선지/ }).getAttribute('aria-selected')) === 'true',
   );
 
-  // Slice 4A: HQ CSO Persona — Switch to HQ CSO role mode, register Visit Plan, start field inspection, and issue directive
+  // Slice 4A: HQ CSO Persona — Switch to HQ CSO role mode, verify 3-site matrix, register Visit Plan, start field inspection, and issue directive
   await root.getByRole('button', { name: /본사 CSO · 순회점검 입장/ }).click();
   recordCheck(
     'HQ CSO role perspective digest active',
     (await root.locator('.nexus-role-digest').getByText(/본사 CSO · 순회점검 지휘 시점/).count()) === 1,
+  );
+  recordCheck(
+    '3-Site Portfolio Comparison Matrix renders 3 sites',
+    (await root.locator('.nexus-site-matrix-card').count()) === 3,
   );
   await root.getByRole('tab', { name: /01 본사 행선지/ }).click();
   await root.getByLabel('순회점검 대상 현장명').fill('제1현장 지하 2층 RC외벽');
@@ -103,12 +107,17 @@ try {
   await root.getByRole('button', { name: '조치완료 · 재점검 요청' }).first().click();
   await root.getByRole('button', { name: '현장 재점검 확인 · 종결' }).first().click();
   recordCheck(
-    'Slice 2 lifecycle progressed to closed with field evidence note',
-    (await root.locator('.nexus-3axis-case-list').getByText('재점검 확인 종결').count()) >= 1,
+    'Slice 2 lifecycle progressed to closed with field evidence note and audit trail strip',
+    (await root.locator('.nexus-3axis-case-list').getByText('재점검 확인 종결').count()) >= 1 &&
+      (await root.locator('.nexus-audit-trail-strip').count()) >= 1,
   );
 
-  // Slice 4B: 05 AI Root-Cause Investigation -> HQ Revision Request -> Field Supplement Resubmission -> HQ Approval
+  // Slice 4B: 05 AI Root-Cause Investigation -> 4-stage timeline -> HQ Revision Request -> Field Supplement Resubmission -> HQ Approval
   await root.getByRole('tab', { name: /05 · 02 AI 사고조사 · 본사 승인/ }).click();
+  recordCheck(
+    'Slice 4B 4-stage AI timeline strip rendered',
+    (await root.locator('.nexus-inv-timeline-step').count()) === 4,
+  );
   await root.getByLabel('사고조사 현장명').fill('제1현장 지하 2층 북측 외벽');
   await root.getByLabel('사고조사 경위 원문').fill('지하 2층 외벽 합벽 거푸집 타이볼트 간격 미흡 배부름 및 피트 개구부 덮개 미고정 아차사고');
   await root.getByRole('button', { name: /05 AI 사고조사 초안 등록/ }).click();

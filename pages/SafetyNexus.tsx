@@ -662,22 +662,30 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
             <ellipse cx="500" cy="350" rx="340" ry="134" transform="rotate(-29 500 350)" stroke="url(#nexusGoldRing)" />
             <ellipse cx="500" cy="350" rx="292" ry="106" transform="rotate(55 500 350)" />
             <ellipse cx="500" cy="350" rx="368" ry="182" transform="rotate(9 500 350)" />
+            <circle cx="500" cy="350" r="256" className="nexus-astrolabe-vernier" />
             <circle cx="500" cy="350" r="244" className="nexus-astrolabe-outer" />
             <circle cx="500" cy="350" r="232" className="nexus-astrolabe-ticks" />
             <circle cx="500" cy="350" r="172" fill="url(#nexusCrownHalo)" className="nexus-geodesic-ring" />
             <circle cx="500" cy="350" r="96" className="nexus-core-shield-ring" />
+            <g className="nexus-astrolabe-cardinals">
+              <text x="500" y="84" textAnchor="middle">000° N</text>
+              <text x="772" y="353" textAnchor="start">090° E</text>
+              <text x="500" y="622" textAnchor="middle">180° S</text>
+              <text x="228" y="353" textAnchor="end">270° W</text>
+            </g>
           </svg>}
           {!flat && <svg className="nexus-focus-link" viewBox="0 0 1000 700" preserveAspectRatio="none" aria-hidden="true">
             <path key={`${orbitLayer}-${selected.index}`} d={dynamicFocusPath} />
             {activeProjection && (
               <>
                 <g className="nexus-surface-pin" transform={`translate(${activeProjection.surfaceSvgX} ${activeProjection.surfaceSvgY})`}>
+                  <circle r="17" className="pin-pulse" />
                   <circle r="11" className="pin-halo" />
                   <circle r="4.5" className="pin-core" />
                 </g>
                 <g className="nexus-target-reticle" transform={`translate(${activeProjection.svgX} ${activeProjection.svgY})`}>
-                  <circle r="32" className="reticle-outer" />
-                  <circle r="19" className="reticle-inner" />
+                  <circle r="34" className="reticle-outer" />
+                  <circle r="20" className="reticle-inner" />
                 </g>
               </>
             )}

@@ -56,6 +56,12 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
   const [handoverShift, setHandoverShift] = useState('다음 교대 작업팀·안전담당 인계');
   const [feedbackNotice, setFeedbackNotice] = useState('');
   const [stepEvidenceByCase, setStepEvidenceByCase] = useState<Record<string, string>>({});
+  const [statusFilter, setStatusFilter] = useState<'all' | 'action_required' | 'handover_pending' | 'recheck_pending' | 'closed'>('all');
+
+  const filteredCases = useMemo(
+    () => (statusFilter === 'all' ? cases : cases.filter(c => c.status === statusFilter)),
+    [cases, statusFilter],
+  );
 
   const handleApplyQuickPreset = (preset: NexusQuickFieldPreset) => {
     setLocationLabel(preset.locationLabel);
@@ -257,9 +263,29 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
 
       {cases.length > 0 && (
         <div className="nexus-3axis-case-list" aria-label="시정조치·재점검·교대 인계 진행 현황">
-          <strong>실시간 조치 · 재점검 · 교대 인계 파이프라인 ({cases.length}건)</strong>
+          <div className="nexus-case-list-head">
+            <strong>실시간 조치 · 재점검 · 교대 인계 파이프라인 ({cases.length}건)</strong>
+            <div className="nexus-case-status-filters" role="group" aria-label="조치·인계 상태별 필터">
+              {[
+                ['all', `전체 (${cases.length})`],
+                ['action_required', `조치진행 (${cases.filter(c => c.status === 'action_required').length})`],
+                ['handover_pending', `교대·인계 (${cases.filter(c => c.status === 'handover_pending').length})`],
+                ['recheck_pending', `재점검대기 (${cases.filter(c => c.status === 'recheck_pending').length})`],
+                ['closed', `종결 (${cases.filter(c => c.status === 'closed').length})`],
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={statusFilter === key}
+                  onClick={() => setStatusFilter(key as typeof statusFilter)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           <ul>
-            {cases.slice(0, 6).map(item => (
+            {filteredCases.slice(0, 6).map(item => (
               <li key={item.caseId} data-status={item.status}>
                 <div className="nexus-3axis-case-row-top">
                   <span>
@@ -271,6 +297,15 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
                   조치: {item.actionTitle} · 담당: {item.assignee} · 기한: {item.dueDate} · 인계: {item.handoverShift}
                   {item.recheckNote ? ` · 최근 확인: ${item.recheckNote}` : ''}
                 </p>
+                {item.auditTrail && item.auditTrail.length > 0 && (
+                  <div className="nexus-audit-trail-strip" aria-label="조치·인계·재점검 감사 타임라인">
+                    {item.auditTrail.map((entry, idx) => (
+                      <span key={idx} className={'nexus-audit-chip status-' + entry.status}>
+                        <b>{NEXUS_PIPELINE_STATUS_LABELS[entry.status]}</b> {entry.note}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 {item.status !== 'closed' && (
                   <div className="nexus-case-evidence-row">
                     <input

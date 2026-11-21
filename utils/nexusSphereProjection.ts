@@ -37,28 +37,28 @@ export const NEXUS_ORBIT_LAYERS: readonly {
   subtitle: string;
   tone: 'gold' | 'cyan' | 'violet';
 }[] = [
-  {
-    id: 'cycle',
-    code: 'ORBIT 01',
-    label: '5단계 안전지능 순환',
-    subtitle: 'Q1–Q5 자기규율 위험성평가 코어 루프',
-    tone: 'gold',
-  },
-  {
-    id: 'modules',
-    code: 'ORBIT 02',
-    label: '6대 핵심기능 궤도',
-    subtitle: '본사 주도 · 현장 실행 · AI 분석 · 재발방지',
-    tone: 'cyan',
-  },
-  {
-    id: 'structural',
-    code: 'ORBIT 03',
-    label: '골조·형틀·지하RC 10대 공정',
-    subtitle: '지하 RC 별도 관리 및 상부 골조·형틀 중점 포인트',
-    tone: 'violet',
-  },
-];
+    {
+      id: 'cycle',
+      code: 'ORBIT 01',
+      label: '5단계 안전지능 순환',
+      subtitle: 'Q1–Q5 자기규율 위험성평가 코어 루프',
+      tone: 'gold',
+    },
+    {
+      id: 'modules',
+      code: 'ORBIT 02',
+      label: '6대 핵심기능 궤도',
+      subtitle: '본사 주도 · 현장 실행 · AI 분석 · 재발방지',
+      tone: 'cyan',
+    },
+    {
+      id: 'structural',
+      code: 'ORBIT 03',
+      label: '골조·형틀·지하RC 10대 공정',
+      subtitle: '지하 RC 별도 관리 및 상부 골조·형틀 중점 포인트',
+      tone: 'violet',
+    },
+  ];
 
 export const NEXUS_SPHERE_NODES_BY_LAYER: Record<NexusOrbitLayer, readonly NexusSphereNode[]> = {
   cycle: [

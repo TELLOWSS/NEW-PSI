@@ -10,6 +10,7 @@ import {
   NEXUS_VISIT_STATUS_LABELS,
   approveAiInvestigationAndPropagate,
   buildAiInvestigationDraft,
+  buildMultiSitePortfolioMatrix,
   buildPreVisitBriefing,
   buildRoleCommandDigest,
   completeHqVisitWithFieldAction,
@@ -17,6 +18,7 @@ import {
   matchesPortfolioSite,
   requestAiInvestigationRevision,
   resubmitAiInvestigationRecord,
+  seedMultiSiteOperationalSimulation,
   startHqFieldInspection,
   submitAiInvestigationRecord,
   type NexusAiInvestigationRecord,
@@ -117,6 +119,26 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
       ),
     [roleMode, selectedSiteId, pipelineCases, visitPlans, investigations, trainingCampaigns],
   );
+
+  const siteMatrix = useMemo(
+    () =>
+      buildMultiSitePortfolioMatrix(
+        pipelineCases,
+        visitPlans,
+        investigations,
+        trainingCampaigns,
+      ),
+    [pipelineCases, visitPlans, investigations, trainingCampaigns],
+  );
+
+  const handleLoadMultiSiteSimulation = () => {
+    const seeded = seedMultiSiteOperationalSimulation();
+    onPipelineUpdated([...seeded.cases]);
+    onVisitPlansChange([...seeded.visits]);
+    onInvestigationsChange([...seeded.investigations]);
+    onTrainingCampaignsChange([...seeded.campaigns]);
+    onLockOntoStructuralNode('01');
+  };
 
   const scopedPipelineCases = useMemo(
     () =>
@@ -219,19 +241,29 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
     );
   };
 
-  const handleCompleteVisitWithAction = (plan: NexusHqVisitPlan) => {
+  const handleCompleteVisitWithAction = (plan: NexusHqVisitPlan, dispatchEmergencyTraining = false) => {
     const customDirective = visitDirectiveNotes[plan.visitId]?.trim();
-    const { updatedPlans, createdPipelineCase } = completeHqVisitWithFieldAction(
+    const { updatedPlans, createdPipelineCase, createdTrainingCampaign } = completeHqVisitWithFieldAction(
       plan.visitId,
       customDirective ||
         `[본사 순회점검 결과] ${plan.siteName} · ${plan.purpose} 현장 확인 및 시정조치·인계 발령`,
+      new Date().toISOString(),
+      { dispatchEmergencyTraining, targetWorkers: 15 },
     );
     onVisitPlansChange([...updatedPlans]);
     if (createdPipelineCase) {
       onPipelineCreated(createdPipelineCase);
     }
+    if (createdTrainingCampaign) {
+      onTrainingCampaignsChange([
+        createdTrainingCampaign,
+        ...trainingCampaigns.filter(c => c.campaignId !== createdTrainingCampaign.campaignId),
+      ]);
+    }
     setVisitNotice(
-      `[${plan.siteName}] 순회점검 결과가 06 조치·재점검·인계 파이프라인으로 즉시 환류되었습니다.`,
+      dispatchEmergencyTraining
+        ? `[${plan.siteName}] 순회점검 결과가 06 조치·재점검·인계 및 04 대표이사 12개국어 특별안전교육으로 동시 환류되었습니다.`
+        : `[${plan.siteName}] 순회점검 결과가 06 조치·재점검·인계 파이프라인으로 즉시 환류되었습니다.`,
     );
   };
 
@@ -401,7 +433,45 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
                 {site.shortLabel}
               </button>
             ))}
+            <button
+              type="button"
+              className="nexus-sim-seed-btn"
+              onClick={handleLoadMultiSiteSimulation}
+            >
+              ⚡ 3대 현장 실전 시뮬레이션 로드
+            </button>
           </div>
+        </div>
+
+        <div className="nexus-site-matrix-grid" role="group" aria-label="본사·현장 3대 골조 포트폴리오 실시간 비교 매트릭스">
+          {siteMatrix.map(card => (
+            <button
+              key={card.siteId}
+              type="button"
+              className={
+                'nexus-site-matrix-card urgency-' +
+                card.urgencyLevel +
+                (selectedSiteId === card.siteId ? ' is-selected' : '')
+              }
+              aria-pressed={selectedSiteId === card.siteId}
+              onClick={() =>
+                handleSelectPortfolioSite(selectedSiteId === card.siteId ? '' : card.siteId)
+              }
+            >
+              <div className="nexus-site-matrix-top">
+                <strong>{card.shortLabel}</strong>
+                <em className={'urgency-badge urgency-' + card.urgencyLevel}>
+                  {card.urgencyLabel}
+                </em>
+              </div>
+              <div className="nexus-site-matrix-metrics">
+                <span>미결 <b>{card.openActionsCount}</b></span>
+                <span>순회 <b>{card.activeVisitsCount}</b></span>
+                <span>승인·보완 <b>{card.pendingApprovalsCount + card.revisionRequestedCount}</b></span>
+                <span>교육 <b>{card.avgTrainingCompletionPct !== null ? `${card.avgTrainingCompletionPct}%` : '대기'}</b></span>
+              </div>
+            </button>
+          ))}
         </div>
 
         <div className="nexus-role-digest" aria-live="polite">
@@ -651,8 +721,15 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
                                 현장 도착 · 순회점검 개시
                               </button>
                             )}
-                            <button type="button" onClick={() => handleCompleteVisitWithAction(plan)}>
+                            <button type="button" onClick={() => handleCompleteVisitWithAction(plan, false)}>
                               현장 점검 완료 · 즉시 시정조치·인계 발령 ↗
+                            </button>
+                            <button
+                              type="button"
+                              className="is-training"
+                              onClick={() => handleCompleteVisitWithAction(plan, true)}
+                            >
+                              시정조치 + 04 대표이사 12개국어 특별교육 동시 발령 ↗
                             </button>
                           </div>
                         </>
@@ -799,6 +876,15 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
                   05 AI 사고조사 초안 등록 (본사 승인 요청) ↗
                 </button>
               </div>
+            </div>
+
+            <div className="nexus-inv-timeline-strip" aria-label="AI 4단계 시계열 사고 경위 분석">
+              {liveInvestigationPreview.timeline.map((step, idx) => (
+                <div key={idx} className="nexus-inv-timeline-step">
+                  <b>{step.phase}</b>
+                  <span>{step.detail}</span>
+                </div>
+              ))}
             </div>
 
             {invError && <p role="alert" className="nexus-inv-error">{invError}</p>}

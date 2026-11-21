@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   approveAiInvestigationAndPropagate,
+  buildMultiSitePortfolioMatrix,
   buildRoleCommandDigest,
   completeHqVisitWithFieldAction,
   createHqVisitPlan,
   readApprovedCustomIncidentSeeds,
   requestAiInvestigationRevision,
   resubmitAiInvestigationRecord,
+  seedMultiSiteOperationalSimulation,
   startHqFieldInspection,
   submitAiInvestigationRecord,
   summarizeHqLoopForOrbitLayer,
@@ -26,7 +28,7 @@ describe('Slice 4 · 01 HQ Pre-Visit Briefing + 05 AI Root-Cause Investigation A
     writeExecutiveTrainingCampaigns([]);
   });
 
-  it('registers an HQ visit plan with automatic pre-visit risk briefing, starts field inspection, and issues field inspection actions into Slice 2', () => {
+  it('registers an HQ visit plan with automatic pre-visit risk briefing, starts field inspection, and issues field inspection actions + emergency 12-lang training into Slice 2 & 3', () => {
     const visit = createHqVisitPlan(
       {
         visitDate: '2026-11-22',
@@ -50,15 +52,41 @@ describe('Slice 4 · 01 HQ Pre-Visit Briefing + 05 AI Root-Cause Investigation A
     );
     expect(started[0].status).toBe('in_field_inspection');
 
-    const { updatedPlans, createdPipelineCase } = completeHqVisitWithFieldAction(
+    const { updatedPlans, createdPipelineCase, createdTrainingCampaign } = completeHqVisitWithFieldAction(
       visit.visitId,
       '지하 2층 북측 타이볼트 2개소 보강 및 피트 개구부 덮개 즉시 고정 지시',
       '2026-11-22T11:00:00Z',
+      { dispatchEmergencyTraining: true, targetWorkers: 14 },
     );
     expect(updatedPlans[0].status).toBe('action_issued_closed');
     expect(createdPipelineCase).not.toBeNull();
     expect(createdPipelineCase?.structuralNodeIndex).toBe('01');
+    expect(createdTrainingCampaign).not.toBeNull();
+    expect(createdTrainingCampaign?.targetWorkers).toBe(14);
     expect(readNexusPipelineCases()).toHaveLength(1);
+    expect(readExecutiveTrainingCampaigns()).toHaveLength(1);
+  });
+
+  it('seeds a 3-site operational portfolio simulation and computes multi-site urgency matrix scorecards', () => {
+    const seeded = seedMultiSiteOperationalSimulation('2026-11-21T08:00:00Z');
+    expect(seeded.cases.length).toBeGreaterThanOrEqual(3);
+    expect(seeded.visits.length).toBeGreaterThanOrEqual(2);
+    expect(seeded.investigations.length).toBeGreaterThanOrEqual(2);
+    expect(seeded.campaigns.length).toBeGreaterThanOrEqual(1);
+
+    const matrix = buildMultiSitePortfolioMatrix(
+      seeded.cases,
+      seeded.visits,
+      seeded.investigations,
+      seeded.campaigns,
+      '2026-11-21',
+    );
+    expect(matrix).toHaveLength(3);
+    expect(matrix[0].siteId).toBe('SITE-01-SUBRC');
+    expect(matrix[0].openActionsCount).toBeGreaterThanOrEqual(1);
+    expect(matrix[0].revisionRequestedCount).toBe(1);
+    expect(matrix[1].siteId).toBe('SITE-02-GANGFORM');
+    expect(matrix[1].pendingApprovalsCount).toBe(1);
   });
 
   it('supports HQ revision request -> field manager supplement & resubmission -> HQ CSO approval & auto-propagation', () => {

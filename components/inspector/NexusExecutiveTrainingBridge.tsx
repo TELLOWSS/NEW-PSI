@@ -200,6 +200,14 @@ export const NexusExecutiveTrainingBridge: React.FC<Props> = ({
                 <div className="nexus-ceo-progress-track" aria-hidden="true">
                   <i style={{ width: `${camp.completionRatePct ?? 0}%` }} />
                 </div>
+                {camp.signedLanguages && camp.signedLanguages.length > 0 && (
+                  <div className="nexus-ceo-signed-langs" aria-label="서명 완료 국적 작업팀">
+                    <span>서명 참여 국적:</span>
+                    {camp.signedLanguages.map(code => (
+                      <em key={code}>{formatLanguageBadge(code)}</em>
+                    ))}
+                  </div>
+                )}
                 <div className="nexus-3axis-case-row-actions">
                   <button
                     type="button"
@@ -207,6 +215,19 @@ export const NexusExecutiveTrainingBridge: React.FC<Props> = ({
                   >
                     + {formatLanguageBadge(selectedLang)} 작업팀 3명 서명 환류
                   </button>
+                  {(['vi-VN', 'cmn-CN', 'uz-UZ', 'km-KH'] as const)
+                    .filter(code => code !== selectedLang && !camp.signedLanguages?.includes(code))
+                    .slice(0, 2)
+                    .map(code => (
+                      <button
+                        key={code}
+                        type="button"
+                        className="is-quick-nationality"
+                        onClick={() => handleRecordWorkerSignature(camp.campaignId, code, 3)}
+                      >
+                        + {formatLanguageBadge(code)} 3명 서명
+                      </button>
+                    ))}
                   {camp.confirmedSignatures < camp.targetWorkers && (
                     <button
                       type="button"

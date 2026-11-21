@@ -3492,9 +3492,246 @@
 
 @media(max-width:1100px) {
   .nexus-role-priority-grid,
+  .nexus-site-matrix-grid,
+  .nexus-inv-timeline-strip,
   .nexus-case-evidence-row.nexus-inv-hq-edit-row {
     grid-template-columns: 1fr;
   }
+}
+
+/* Multi-Site Portfolio Scoreboard Matrix & Simulation Loader */
+.nexus-sim-seed-btn {
+  padding: 6px 12px !important;
+  border-radius: 999px !important;
+  border: 1px solid #f4c27f99 !important;
+  background: linear-gradient(120deg, #422b14, #163044) !important;
+  color: #ffe9c7 !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  box-shadow: 0 0 14px rgba(244, 194, 127, .24);
+}
+
+.nexus-sim-seed-btn:hover {
+  filter: brightness(1.1);
+}
+
+.nexus-site-matrix-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.nexus-site-matrix-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #5f7f9447;
+  background: linear-gradient(135deg, #091622e6, #0e2030cc);
+  color: #dceaf2;
+  text-align: left;
+  min-width: 0;
+  transition: border-color .2s, box-shadow .2s, background .2s;
+}
+
+.nexus-site-matrix-card.is-selected,
+.nexus-site-matrix-card:hover {
+  border-color: #f4c27f;
+  background: linear-gradient(135deg, #271d14eb, #102638eb);
+  box-shadow: 0 0 16px rgba(244, 194, 127, .22);
+}
+
+.nexus-site-matrix-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.nexus-site-matrix-top strong {
+  font-size: 11.5px;
+  color: #f4f8fb;
+  font-weight: 750;
+}
+
+.urgency-badge {
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #172e3e;
+  color: #9de5ee;
+}
+
+.urgency-badge.urgency-critical {
+  background: #3d2118;
+  color: #ffc8a8;
+  border: 1px solid #f29d7266;
+}
+
+.urgency-badge.urgency-watch {
+  background: #352714;
+  color: #ffe2b3;
+  border: 1px solid #f0be7759;
+}
+
+.nexus-site-matrix-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  width: 100%;
+  font-size: 10.5px;
+  color: #9fb7c7;
+}
+
+.nexus-site-matrix-metrics b {
+  color: #ffe3b8;
+  font-weight: 800;
+  margin-left: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Field Case Status Filter Tabs, Audit Trail Strip & 4-Stage Timeline */
+.nexus-case-list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.nexus-case-list-head>strong {
+  font-size: 12px;
+  color: #f1dcb8;
+}
+
+.nexus-case-status-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.nexus-case-status-filters button {
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid #5f7f9452;
+  background: #0b1825;
+  color: #b8ccd8;
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+.nexus-case-status-filters button[aria-pressed="true"] {
+  border-color: #f3bf7d;
+  background: #2f2214;
+  color: #ffe9c7;
+  font-weight: 750;
+}
+
+.nexus-audit-trail-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 5px 0 7px;
+}
+
+.nexus-audit-chip {
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: #0d1e2e;
+  border: 1px solid #5a778b47;
+  color: #bfd2de;
+  line-height: 1.35;
+}
+
+.nexus-audit-chip b {
+  color: #ffd9a3;
+  margin-right: 4px;
+}
+
+.nexus-inv-timeline-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.nexus-inv-timeline-step {
+  padding: 9px 11px;
+  border-radius: 7px;
+  background: #0a1622cc;
+  border: 1px solid #6381963d;
+  border-top: 2px solid #e7b57280;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.nexus-inv-timeline-step b {
+  font-size: 10.5px;
+  color: #ffdba6;
+  font-weight: 780;
+}
+
+.nexus-inv-timeline-step span {
+  font-size: 11px;
+  color: #b7cad6;
+  line-height: 1.42;
+  word-break: keep-all;
+}
+
+.nexus-ceo-signed-langs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 4px 0 7px;
+  font-size: 10.5px;
+  color: #9fb8c8;
+}
+
+.nexus-ceo-signed-langs em {
+  font-style: normal;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #14323f;
+  border: 1px solid #72dfe752;
+  color: #d9faff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.nexus-3axis-case-row-actions button.is-quick-nationality {
+  border-color: #74e3ec59;
+  background: #0e2433;
+  color: #d2f7fb;
+}
+
+/* Astrolabe Compass Dial & Resonance Pin Upgrades */
+.nexus-astrolabe-vernier {
+  fill: none;
+  stroke: rgba(116, 229, 236, .18);
+  stroke-width: 1;
+  stroke-dasharray: 2 10;
+}
+
+.nexus-astrolabe-cardinals text {
+  fill: rgba(246, 206, 146, .46);
+  font: 700 9px ui-monospace, Consolas, monospace;
+  letter-spacing: .16em;
+}
+
+.nexus-surface-pin .pin-pulse {
+  fill: none;
+  stroke: rgba(255, 216, 152, .36);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
 }
 
 @media print {

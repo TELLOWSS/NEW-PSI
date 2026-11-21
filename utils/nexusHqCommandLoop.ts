@@ -1,5 +1,6 @@
 import { getKoreanCalendarDay } from './monthlyFieldFollowup';
 import {
+  readExecutiveTrainingCampaigns,
   stageExecutiveTrainingHandoff,
   type NexusExecutiveTrainingCampaign,
 } from './nexusExecutiveTrainingPipeline';
@@ -378,19 +379,22 @@ export const completeHqVisitWithFieldAction = (
   visitId: string,
   fieldResultNote: string,
   nowIso = new Date().toISOString(),
+  options?: { dispatchEmergencyTraining?: boolean; targetWorkers?: number },
 ): {
   updatedPlans: NexusHqVisitPlan[];
   createdPipelineCase: NexusPipelineCase | null;
+  createdTrainingCampaign: NexusExecutiveTrainingCampaign | null;
 } => {
   const existing = readHqVisitPlans();
   let createdPipelineCase: NexusPipelineCase | null = null;
+  let createdTrainingCampaign: NexusExecutiveTrainingCampaign | null = null;
 
   const updatedPlans = existing.map(plan => {
     if (plan.visitId !== visitId) return plan;
     const note =
       String(fieldResultNote || '').trim() ||
       `[본사 순회점검] ${plan.siteName} · ${plan.purpose} 현장 점검 및 시정조치 지시`;
-    createdPipelineCase = createNexusPipelineCase(
+    const newCase = createNexusPipelineCase(
       {
         locationLabel: `${plan.siteName} (${plan.inspectorRole})`,
         observationNote: note,
@@ -401,17 +405,27 @@ export const completeHqVisitWithFieldAction = (
       },
       nowIso,
     );
+    createdPipelineCase = newCase;
+    if (options?.dispatchEmergencyTraining) {
+      const newCampaign = stageExecutiveTrainingHandoff(plan.preVisitBriefing.matchedCaseCode, {
+        pipelineCase: newCase,
+        targetWorkers: options.targetWorkers ?? 15,
+        dispatchImmediately: true,
+        nowIso,
+      });
+      createdTrainingCampaign = newCampaign;
+    }
     return {
       ...plan,
       fieldResultNote: note,
-      linkedPipelineCaseId: createdPipelineCase.caseId,
+      linkedPipelineCaseId: newCase.caseId,
       status: 'action_issued_closed' as const,
       updatedAt: nowIso,
     };
   });
 
   writeHqVisitPlans(updatedPlans);
-  return { updatedPlans, createdPipelineCase };
+  return { updatedPlans, createdPipelineCase, createdTrainingCampaign };
 };
 
 export const buildAiInvestigationDraft = (
@@ -853,6 +867,217 @@ export const buildRoleCommandDigest = (
         targetTab: 'investigate_05_02',
       },
     ],
+  };
+};
+
+export interface NexusSitePortfolioScorecard {
+  siteId: string;
+  siteName: string;
+  shortLabel: string;
+  focusNodeIndex: string;
+  focusZone: NexusZoneAxis;
+  openActionsCount: number;
+  overdueActionsCount: number;
+  handoverPendingCount: number;
+  activeVisitsCount: number;
+  pendingApprovalsCount: number;
+  revisionRequestedCount: number;
+  avgTrainingCompletionPct: number | null;
+  urgencyLevel: 'critical' | 'watch' | 'stable';
+  urgencyLabel: string;
+}
+
+export const buildMultiSitePortfolioMatrix = (
+  pipelineCases: readonly NexusPipelineCase[],
+  visitPlans: readonly NexusHqVisitPlan[],
+  investigations: readonly NexusAiInvestigationRecord[],
+  trainingCampaigns: readonly NexusExecutiveTrainingCampaign[],
+  asOfDate = getKoreanCalendarDay(),
+): readonly NexusSitePortfolioScorecard[] =>
+  NEXUS_SITE_PORTFOLIO.map(site => {
+    const cases = pipelineCases.filter(c =>
+      matchesPortfolioSite(`${c.locationLabel} ${c.observationNote}`, site.siteId),
+    );
+    const visits = visitPlans.filter(v =>
+      matchesPortfolioSite(`${v.siteName} ${v.purpose}`, site.siteId),
+    );
+    const invs = investigations.filter(i =>
+      matchesPortfolioSite(`${i.siteName} ${i.incidentTitle} ${i.rawSummary}`, site.siteId),
+    );
+    const trainings = trainingCampaigns.filter(
+      t => t.structuralNodeIndex === site.focusNodeIndex || matchesPortfolioSite(t.title, site.siteId),
+    );
+
+    const openCases = cases.filter(c => c.status !== 'closed');
+    const overdueCases = openCases.filter(c => c.dueDate && c.dueDate < asOfDate);
+    const handoverPending = openCases.filter(c => c.status === 'handover_pending');
+    const activeVisits = visits.filter(v => v.status !== 'action_issued_closed');
+    const pendingApprovals = invs.filter(i => i.status === 'ai_draft_pending_hq');
+    const revisionRequested = invs.filter(i => i.status === 'revision_requested');
+
+    const validRates = trainings
+      .map(t => t.completionRatePct)
+      .filter((r): r is number => typeof r === 'number' && Number.isFinite(r));
+    const avgTrainingCompletionPct = validRates.length
+      ? Math.round(validRates.reduce((a, b) => a + b, 0) / validRates.length)
+      : null;
+
+    const riskScore =
+      overdueCases.length * 3 +
+      pendingApprovals.length * 2 +
+      revisionRequested.length * 2 +
+      openCases.length;
+    const urgencyLevel: 'critical' | 'watch' | 'stable' =
+      riskScore >= 3 ? 'critical' : riskScore >= 1 ? 'watch' : 'stable';
+    const urgencyLabel =
+      urgencyLevel === 'critical'
+        ? '집중 지휘 필요'
+        : urgencyLevel === 'watch'
+          ? '현장 조치·관찰 중'
+          : '안정 폐루프 유지';
+
+    return {
+      siteId: site.siteId,
+      siteName: site.siteName,
+      shortLabel: site.shortLabel,
+      focusNodeIndex: site.focusNodeIndex,
+      focusZone: site.focusZone,
+      openActionsCount: openCases.length,
+      overdueActionsCount: overdueCases.length,
+      handoverPendingCount: handoverPending.length,
+      activeVisitsCount: activeVisits.length,
+      pendingApprovalsCount: pendingApprovals.length,
+      revisionRequestedCount: revisionRequested.length,
+      avgTrainingCompletionPct,
+      urgencyLevel,
+      urgencyLabel,
+    };
+  });
+
+export const seedMultiSiteOperationalSimulation = (
+  nowIso = new Date().toISOString(),
+): {
+  cases: NexusPipelineCase[];
+  visits: NexusHqVisitPlan[];
+  investigations: NexusAiInvestigationRecord[];
+  campaigns: NexusExecutiveTrainingCampaign[];
+} => {
+  // 1. Create 3 realistic pipeline cases across Site 1 (Substructure RC), Site 2 (Gangform), Site 3 (System Shoring)
+  const case1 = createNexusPipelineCase(
+    {
+      locationLabel: '제1현장 지하 2층 북측 합벽 구간',
+      observationNote: '지하 2층 외벽 합벽 거푸집 타이볼트 간격 미흡 및 피트 개구부 덮개 고정 볼트 누락',
+      zoneAxis: 'substructure_rc',
+      processAxis: 'formwork_general',
+      hazardEquipmentAxis: 'confined_earth_pressure',
+      assignee: '제1현장 지하RC 형틀반장',
+      handoverShift: '주간→야간 지하RC 합벽팀 인계',
+    },
+    nowIso,
+  );
+  const case2 = createNexusPipelineCase(
+    {
+      locationLabel: '제2현장 103동 15층 외벽 갱폼 구간',
+      observationNote: '15층 외벽 갱폼 인상 작업 전 타워크레인 샤클 장력 미확인 상태에서 고정 앵커 선해체 위험',
+      zoneAxis: 'superstructure_std',
+      processAxis: 'gangform',
+      hazardEquipmentAxis: 'tower_crane_rigging',
+      assignee: '제2현장 갱폼인양 팀장',
+      handoverShift: '인양 신호수·크레인 기사 교차 인계',
+    },
+    nowIso,
+  );
+  const case3 = createNexusPipelineCase(
+    {
+      locationLabel: '제3현장 전이층 고층고 슬래브 하부',
+      observationNote: '전이층 시스템동바리 수평연결재 핀 잠금 누락 및 상부 U헤드 편심 보강 필요',
+      zoneAxis: 'rooftop_special',
+      processAxis: 'formwork_general',
+      hazardEquipmentAxis: 'system_shoring',
+      assignee: '제3현장 가설·동바리 안전담당',
+      handoverShift: '타설 전 동바리 감시팀 인계',
+    },
+    nowIso,
+  );
+
+  // 2. Create 2 HQ Visit Plans (Site 1 in_field_inspection, Site 3 scheduled_briefed)
+  const visit1 = createHqVisitPlan(
+    {
+      inspectorRole: '본사 CSO·안전보건실 순회점검단',
+      siteName: '제1현장 지하 2층 RC구간',
+      purpose: '지하 외벽 합벽 거푸집 측압·부력 대응 및 밀폐 피트 환기·개구부 방호 특별점검',
+      zoneAxis: 'substructure_rc',
+      processAxis: 'formwork_general',
+      hazardEquipmentAxis: 'confined_earth_pressure',
+    },
+    [case1, case2, case3],
+    nowIso,
+  );
+  startHqFieldInspection(
+    visit1.visitId,
+    '현장 도착 완료 · 지하 2층 북측 합벽 타이볼트 체결 간격 및 개구부 잠금 상태 대조 점검 중',
+    nowIso,
+  );
+  const visit2 = createHqVisitPlan(
+    {
+      inspectorRole: '본사 구조·가설 기술지원팀장',
+      siteName: '제3현장 전이층 시스템동바리',
+      purpose: '전이층 슬래브 콘크리트 타설 전 시스템동바리 조립도 대조 및 가새·U헤드 편심 점검',
+      zoneAxis: 'rooftop_special',
+      processAxis: 'concrete_pour',
+      hazardEquipmentAxis: 'system_shoring',
+    },
+    [case1, case2, case3],
+    nowIso,
+  );
+
+  // 3. Create 2 AI Root-Cause Investigations (Site 2 pending HQ approval, Site 1 revision requested)
+  const inv1 = submitAiInvestigationRecord(
+    {
+      siteName: '제2현장 103동 15층 갱폼',
+      incidentTitle: '[제2현장 15F 갱폼] 타워크레인 인양고리 체결 전 앵커볼트 선해체 아차사고',
+      rawSummary: '103동 15층 외벽 갱폼 인상 준비 중 무전 신호 혼선으로 인양 샤클 장력 확보 전 앵커볼트 2개소 선해체',
+      authorLabel: '제2현장 안전관리자 이현장',
+      zoneAxis: 'superstructure_std',
+      processAxis: 'gangform',
+      hazardEquipmentAxis: 'tower_crane_rigging',
+    },
+    nowIso,
+  );
+  const inv2 = submitAiInvestigationRecord(
+    {
+      siteName: '제1현장 지하 2층 RC구간',
+      incidentTitle: '[제1현장 B2 합벽] 지하외벽 합벽 타설 중 타이볼트 이완·배부름 변형 아차사고',
+      rawSummary: '지하 2층 북측 외벽 콘크리트 타설 중 하부 폼타이·타이볼트 간격 미준수로 국부 배부름 감지 후 타설 즉시 일시중지',
+      authorLabel: '제1현장 안전관리자 김안전',
+      zoneAxis: 'substructure_rc',
+      processAxis: 'concrete_pour',
+      hazardEquipmentAxis: 'confined_earth_pressure',
+    },
+    nowIso,
+  );
+  requestAiInvestigationRevision(
+    inv2.investigationId,
+    {
+      reviewerLabel: '본사 CSO·안전보건실장',
+      revisionNote: '타설 속도(m/hr) 제한 기준과 하부 동바리·합벽 변위 감시자 전담 배치 절차를 구체적으로 명시하여 재상신 바랍니다.',
+    },
+    nowIso,
+  );
+
+  // 4. Create 12-Language Executive Safety Training Campaign for Site 1 Substructure RC
+  const campaign1 = stageExecutiveTrainingHandoff('RC-SUB-01', {
+    pipelineCase: case1,
+    targetWorkers: 16,
+    dispatchImmediately: true,
+    nowIso,
+  });
+
+  return {
+    cases: readNexusPipelineCases(),
+    visits: readHqVisitPlans(),
+    investigations: readAiInvestigations(),
+    campaigns: [campaign1, ...readExecutiveTrainingCampaigns().filter(c => c.campaignId !== campaign1.campaignId)],
   };
 };
 
