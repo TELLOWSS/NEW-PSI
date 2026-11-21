@@ -45,11 +45,13 @@ export const buildPsiOcrEvidenceReview = ({
     const translatedCount = questions.filter((step) => step.state === 'translation-only' || step.state === 'comparison-ready').length;
     const nativeTranslatedCount = questions.filter((step) => step.hasNativeTranslation).length;
 
-    const confidenceUsable = typeof ocrConfidence === 'number'
+    const normalizedConfidence = typeof ocrConfidence === 'number'
         && Number.isFinite(ocrConfidence)
         && ocrConfidence >= 0
-        && ocrConfidence <= 1;
-    const lowConfidence = Boolean(ocrErrorType) || (confidenceUsable && ocrConfidence < 0.7);
+        && ocrConfidence <= 1
+        ? ocrConfidence
+        : null;
+    const lowConfidence = Boolean(ocrErrorType) || (normalizedConfidence !== null && normalizedConfidence < 0.7);
 
     let attention: PsiOcrEvidenceAttention = 'compare';
     let headline = '원본 이미지와 인식 문장을 직접 대조해 주세요';
@@ -81,8 +83,8 @@ export const buildPsiOcrEvidenceReview = ({
         instruction = '화면의 수정은 원본 이미지와 별도입니다. 수정 근거를 확인하고 기존 저장 절차로 저장한 후 최종 승인 여부를 판단해 주세요.';
     }
 
-    const confidenceLabel = confidenceUsable
-        ? `인식 참고값 ${Math.round(ocrConfidence * 100)}%${lowConfidence ? ' · 원본 재대조' : ''}`
+    const confidenceLabel = normalizedConfidence !== null
+        ? `인식 참고값 ${Math.round(normalizedConfidence * 100)}%${lowConfidence ? ' · 원본 재대조' : ''}`
         : '인식 신뢰도 미산정 · 원본 확인 필요';
 
     return {
