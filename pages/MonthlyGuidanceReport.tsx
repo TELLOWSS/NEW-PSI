@@ -5,6 +5,7 @@ import type { MonthlyGuidanceReport as StoredGuidanceData, SixMetricBreakdown, W
 import { summarizeScoreMetricEvidence, type ScoreMetricEvidence, SCORE_EVIDENCE_VERSION } from '../utils/scoreMetricEvidence';
 import { hasValidSafetyScore } from '../utils/coreMetrics';
 import { FieldRadarChart } from '../components/charts/FieldRadarChart';
+import SixMetricCoverageL11 from '../components/charts/SixMetricCoverageL11';
 import { useAssessmentCycle } from '../hooks/useAssessmentCycle';
 import { buildMonthlyFieldFollowupSummary, formatMonthlyFollowupEducationLines, getKoreanCalendarDay } from '../utils/monthlyFieldFollowup';
 import { buildPracticeVerificationSummary, formatPracticeVerificationEducationLines } from '../utils/practiceVerification';
@@ -108,16 +109,19 @@ const TrackingAnalysisPanel: React.FC<{
     const currentAverage = monthlyPoints[monthlyPoints.length - 1]?.value ?? null;
     const maxRiskCount = Math.max(1, ...report.topRiskFactors.map((risk) => risk.count));
     const weakestMetrics = metrics
-        .map((metric) => {
-            const value = report.sixMetricTrends[`${metric.key}Avg` as keyof GuidanceData['sixMetricTrends']];
-            return { ...metric, value, percent: metric.max > 0 ? (Math.abs(value ?? 0) / metric.max) * 100 : 0 };
+        .filter(metric => metric.key !== 'repeatViolationPenalty')
+        .map(metric => {
+            const evidence = report.metricEvidence.find(row => row.key === metric.key);
+            const value = evidence?.average ?? null;
+            return { ...metric, value, valid: evidence?.valid ?? 0, total: evidence?.total ?? 0,
+                percent: value === null ? null : (value / metric.max) * 100 };
         })
-        .filter(metric => metric.value !== null)
-        .sort((a, b) => a.percent - b.percent)
+        .filter(metric => metric.value !== null && metric.valid > 0)
+        .sort((a, b) => a.percent! - b.percent!)
         .slice(0, 3);
     const worsenedCount = report.repeatedIssues.filter((issue) => issue.trend === 'worsened' || issue.trend === 'same').length;
     const trendTone = delta === null ? 'text-slate-700' : delta > 0 ? 'text-emerald-700' : delta < 0 ? 'text-rose-700' : 'text-slate-700';
-    const trendLabel = delta === null ? '비교 불가' : delta > 0 ? '개선 흐름' : delta < 0 ? '추가 확인' : '유지';
+    const trendLabel = delta === null ? '비교 불가' : delta > 0 ? '응답점수 상승' : delta < 0 ? '응답점수 하락' : '점수 변화 없음';
 
     return (
         <section data-monthly-guidance="tracking-analysis" className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -152,8 +156,8 @@ const TrackingAnalysisPanel: React.FC<{
             <article className="grid gap-4">
                 <div data-monthly-guidance="risk-bars" className="rounded-2xl border border-rose-100 bg-white p-5">
                     <div className="flex items-center justify-between gap-3">
-                        <h3 className="psi-section-title">반복 위험 막대 분석</h3>
-                        <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700">{worsenedCount}개 유지·증가</span>
+                        <h3 className="psi-section-title">현 구간 위험 언급 건수</h3>
+                        <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700">{worsenedCount}개 언급 유지·증가</span>
                     </div>
                     <div className="mt-4 space-y-3">
                         {report.topRiskFactors.length ? report.topRiskFactors.slice(0, 5).map((risk) => (
@@ -172,19 +176,20 @@ const TrackingAnalysisPanel: React.FC<{
 
                 <div data-monthly-guidance="metric-bars" className="rounded-2xl border border-amber-100 bg-white p-5">
                     <h3 className="psi-section-title">보강 우선 지표 TOP3</h3>
-                    <p className="psi-small-note mt-1">낮은 지표부터 다음 교육 문구와 예시를 보강합니다.</p>
+                    <p className="psi-small-note mt-1">유효 점수가 있는 5개 양의 평가 항목만 비교합니다. 반복위반 감점은 낮을수록 좋아 별도로 표시합니다.</p>
                     <div className="mt-4 space-y-3">
                         {weakestMetrics.map((metric) => (
                             <div key={metric.key} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
                                 <div className="flex justify-between gap-3 text-xs font-bold">
                                     <span className="text-slate-800">{metric.label}</span>
-                                    <span className="text-amber-700">{metric.value} / {metric.max}</span>
+                                    <span className="text-amber-700">{metric.value} / {metric.max} · 유효 {metric.valid}/{metric.total}</span>
                                 </div>
                                 <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white">
-                                    <div className="h-full rounded-full bg-amber-500" style={{ width: `${clampPercent(metric.percent)}%` }} />
+                                    <div className="h-full rounded-full bg-amber-500" style={{ width: `${clampPercent(metric.percent ?? 0)}%` }} />
                                 </div>
                             </div>
                         ))}
+                        {!weakestMetrics.length&&<p role="status" className="psi-small-note">이 구간에 비교 가능한 지표 점수가 없어 TOP3를 임의로 지정하지 않습니다.</p>}
                     </div>
                 </div>
             </article>
@@ -442,11 +447,12 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
                 <p className="psi-small-note mt-3">재확인 필요는 현장 행동 관찰에서 파생된 신호입니다. 실제 현장 조치 완료·공식 위험등급과는 별개의 자료입니다.</p>
             </section>
             <TrackingAnalysisPanel report={report} monthlyPoints={monthlyChartPoints} delta={monthlyDelta} cycleCopy={cycleCopy} />
+            <SixMetricCoverageL11 rows={report.metricEvidence} period={assessmentPeriodLabel}/>
             <section data-monthly-guidance="group-radar" className="rounded-2xl border border-indigo-100 bg-white p-5">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                         <p className="psi-eyebrow text-indigo-700">공종·팀 레이더 분석</p>
-                        <h3 className="psi-section-title mt-1">위험인식 신호와 응답 일관성 비교</h3>
+                        <h3 className="psi-section-title mt-1">공종·팀 응답점수와 점수 편차 참고</h3>
                         <p className="psi-body-compact mt-1">
                             레이더차트를 {cycleCopy.trackingLabel}에 연결했습니다. 공종별 흐름과 팀별 편차를 같은 화면에서 전환해 확인합니다.
                         </p>
@@ -480,8 +486,8 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
                         <div className="mt-3 space-y-3">
                             {[
                                 ['평균 위험인식 신호', '작성된 위험성평가 기록의 평균 흐름입니다. 낮은 축은 다음 교육의 우선 보강 대상입니다.'],
-                                ['응답 일관성 지수', '같은 공종·팀 안에서 응답 편차가 큰지 확인합니다. 편차가 크면 교육 전달 방식이나 작업 이해도 차이를 점검합니다.'],
-                                [radarMode === 'team' ? '팀별 비교' : '공종별 비교', radarMode === 'team' ? '팀장 기준으로 묶어 팀별 편차를 봅니다. 팀명이 없으면 분석에서 제외됩니다.' : '공종 기준으로 묶어 어떤 작업군에 교육 보강이 필요한지 봅니다.'],
+                                ['점수 편차 참고값(비공식)', '같은 공종·팀 안의 유효 점수 표준편차에서 만든 보조 표시입니다. 기록이 1건이면 산출하지 않으며 6대 지표 또는 안전등급이 아닙니다.'],
+                                [radarMode === 'team' ? '팀별 비교' : '공종별 비교', radarMode === 'team' ? '팀장 식별값으로 그룹화하되 표시 화면에는 실명을 노출하지 않고 익명 팀 번호만 보여줍니다. 팀 미지정은 제외합니다.' : '공종별로 묶고 유효 점수만 계산합니다. 결과를 개인 평가나 현장 조치 완료로 해석하지 않습니다.'],
                             ].map(([title, body]) => (
                                 <div key={title} className="rounded-xl bg-white px-3 py-3">
                                     <p className="psi-item-title">{title}</p>
