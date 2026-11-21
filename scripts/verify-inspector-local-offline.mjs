@@ -577,7 +577,7 @@ try{
   if(version<3)delete legacy.record.afterPhoto;
   await panel.getByLabel('백업 파일 복원').setInputFiles({name:`legacy-${version}.json`,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(legacy))});
   await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
-  if(version>=2)await panel.getByText('조치 진행 중',{exact:true}).waitFor();
+  if(version>=2)await panel.getByRole('region',{name:'후속 조치 관리'}).first().getByText('조치 진행 중',{exact:true}).waitFor();
   if(version===3)await panel.getByText('조치 후 사진: synthetic-after-v2.png').waitFor();
   page.once('dialog',d=>d.accept());await panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'}).getByRole('button',{name:'이 기기 기록 삭제'}).click();
   await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
@@ -590,7 +590,7 @@ try{
  await panel.getByText('추가 사진: 위험 부위 · '+replacementName,{exact:false}).waitFor();
  await panel.getByText('이전 현장 사진 1장').waitFor();
  assert.deepEqual(await panel.locator('[aria-label="현장 사진 표시 순서"] img').evaluateAll(nodes=>nodes.map(n=>n.alt)),['추가 현장 사진','기본 사진']);
- await panel.getByText('조치 진행 중',{exact:true}).waitFor();
+ await panel.getByRole('region',{name:'후속 조치 관리'}).first().getByText('조치 진행 중',{exact:true}).waitFor();
  await panel.getByText('현재 기록된 임시 안전조치: 위험 구역 출입 통제 및 안내 표지 유지',{exact:false}).waitFor();
  await panel.getByRole('region',{name:'점검 전체 재점검·지연 사유'}).getByText('재점검 1건',{exact:false}).waitFor();
  await panel.getByRole('region',{name:'조치별 재점검·지연 사유'}).first().getByText('재점검 1건',{exact:false}).waitFor();
