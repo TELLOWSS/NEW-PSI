@@ -81,9 +81,12 @@ export const NavigationQuickFind: React.FC<NavigationQuickFindProps> = ({ option
                 return;
             }
             if (event.key !== 'Tab') return;
-            const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+            const focusableNodes = dialogRef.current?.querySelectorAll<HTMLElement>(
                 'input:not([disabled]),button:not([disabled]),[tabindex]:not([tabindex="-1"])',
-            ) || []).filter((element) => element.getClientRects().length > 0);
+            );
+            const focusable: HTMLElement[] = focusableNodes
+                ? Array.from(focusableNodes).filter((element) => element.getClientRects().length > 0)
+                : [];
             if (focusable.length === 0) return;
             const first = focusable[0];
             const last = focusable[focusable.length - 1];
