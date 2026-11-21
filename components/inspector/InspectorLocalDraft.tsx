@@ -1027,6 +1027,28 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   }
  });
  // A recheck jump never implies corrective action completion.
+ const jumpToNextSavedRecheck=async(recordId:string,actionId:string)=>{
+  if(busy||readState!=='ready')return;
+  try{
+   // Read the saved device version before navigating; another tab may have
+   // completed, deleted or reassigned the queue target since this render.
+   const fresh=await list();
+   const current=buildLocalNextCheckPrompt(buildLocalRecheckQueue(fresh));
+   if(!current.target||current.target.recordId!==recordId||current.target.actionId!==actionId){
+    setRows(fresh);
+    setMessage('다른 탭 또는 기기 저장 기록이 바뀌었습니다. 새 확인 대상을 다시 살펴보세요. 이전 우선순위로 이동하지 않았습니다.');
+    return;
+   }
+   // This is navigation, not an operator acknowledgement or server handoff.
+   setHandoffPrepared(null);setHandoffDeliveredByOperator(false);setHandoffReceivedByOperator(false);
+   setHandoffItemReports({});setHandoffReceiptMessage('');
+   setRows(fresh);
+   setRecheckJumpTarget({recordId,actionId});
+   setFilter('all');
+  }catch{
+   setMessage('기기 저장본을 다시 조회하지 못했습니다. 확인 대상을 열지 않았습니다. 저장 공간을 확인하고 다시 조회하세요.');
+  }
+ };
  const jumpToHandoffRecheck=(recordId:string,actionId:string)=>{
   void withVerifiedHandoff(()=>{
    // Even when the filter already equals 'all', temporary acknowledgements
@@ -2179,7 +2201,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     <h4>F10 · 지연 조치와 재점검 예정 관리</h4>
     <p>기기 날짜 {localCalendarDate()} 기준 · 재점검/조치 대상 {recheckSummary.total}건. 하나의 점검에 여러 조치 대상이 포함될 수 있습니다.</p>
     <p>기한 도래는 재점검 필요성을 알리는 <strong>조회용 분류</strong>입니다. 실제 통보·안전 확인·조치 완료·작업 재개 승인이 아닙니다.</p>
-    <LocalNextCheckPanel prompt={nextCheckPrompt} busy={busy} onOpen={jumpToHandoffRecheck}/>
+    <LocalNextCheckPanel prompt={nextCheckPrompt} busy={busy} onOpen={(recordId,actionId)=>{void jumpToNextSavedRecheck(recordId,actionId);}}/>
     {(recheckSummary.conflict+recheckSummary.overdue+recheckSummary.today)>0&&<p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-amber-950">
      관리상 우선 확인: 기록 상충 {recheckSummary.conflict}건 · 기한 초과 {recheckSummary.overdue}건 · 오늘 확인 {recheckSummary.today}건.
      아래 상태별 버튼으로 점검 대상을 확인하세요. 이 집계는 실제 위험의 크기나 작업 재개 가능 여부를 자동 판정하지 않습니다.
