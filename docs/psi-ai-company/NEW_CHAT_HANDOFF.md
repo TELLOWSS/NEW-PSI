@@ -36,3 +36,12 @@ config/psi-company-product-registry.json 을 먼저 읽어.
 - **기타 제품:** `package.json`·기존 테스트·배포 절차를 읽은 다음만 실행 명령 결정
 
 참고: `config/psi-company-progress.json`은 마지막 검토 순간의 기록 **스냅샷**이다. GitHub Actions의 최신 리포트를 우선한다.
+
+## NEW-PSI Living UI UI·UX 고도화 작업 재개 (2026-11-21 추가)
+
+NEW-PSI의 Code and Chill 템플릿 참조 기반 PC·모바일 디자인 고도화는 별도 단일 인계서를 사용한다.
+
+- 필독: [Living UI 통합 설계·구현·검증 인계서](../PSI_LIVING_UI_MASTER_HANDOFF_20261121.md)
+- 작업 브랜치: `feat/psi-living-ui-design-foundation-20261121`
+- 사용자 정정: **현장 관리자의 장갑 착용을 UX의 일반적 필수 전제로 가정하지 말 것.** 역할·업무·기기 맥락을 실제 검증한다.
+- `L00~L18` 추적표를 읽고, 완료 판정과 배포 SHA는 실시간 재확인한다. Main 병합·Production 배포는 승인 전 보류.
