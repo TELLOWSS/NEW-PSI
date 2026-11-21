@@ -293,7 +293,9 @@
 - **`pages/Introduction.tsx`:** 기존 브랜드 시각·상세 시연·현장 메뉴·4단계 원포인트 데모/운영 승인 유지, 상단에 첫 사용 실메뉴 안내 연결. 핵심 타이틀/칩을 'Q1~Q5 + 관리자 원본 대조 + 별도 교육/조치 확인'으로 교정하고 6대 지표·리포트/교육 자동 완료 표현을 축소. 기존 시연 '2분' 수치 대신 '직접 확인' 설명. 관리자 소개 미리보기의 결측 점수를 안전점수 0으로 오인해 고위험 대상에 더하는 로직을 기존 `hasValidSafetyScore`로 제한. 실제 0점 기록은 유효 값으로 유지.
 - **`tests/introTrustFlowL13.test.tsx`:** 5개 실메뉴 경로, 역할/승인·전달 경계, 기획 6대 관점 vs 기존 6개 점수, SSR의 5탭/44px/하나의 CTA·근거, 새로운 외부 API·저장 없음과 결측 점수 회귀.
 - **`scripts/verify-psi-platform-workspaces.mjs`:** 기존 합성 Chromium 320/390/768/1440px에서 실제 `운영자 메뉴 → PSI 브랜드 스토리` 진입, 5단계 탭·선택 시 주의 문구, 390px 교육 환류 페이지 이동과 스크린샷, 기존 L10~L12 교육·보고·A4 회귀 유지.
-- **검증 상태:** 이 기록 시점 L13 최신 HEAD CI 대기. `npm run verify:ci`, 전사 Chromium, 사진점검 모바일 QA를 실제 HEAD에서 재확인/실패 수정하기 전 PASS 승격 금지. 직원 직접 수기 기록의 실제 OCR 해석·원어민/폰트·현장 교육 전달, Android 실기기·데이터 동기화·조치 실효성은 별도 QA 필수.
+- **L13 최초 QA:** `33a09368d19e66a568b3c6ba032e9ce845d440ba`의 `PSI release verification` #44959977741 **SUCCESS**. `PSI inspector mobile browser QA` #44959977745 **FAIL** — 새 L13 소개 코드가 아닌 기존 `scripts/verify-inspector-unfinished-recovery.mjs:482`의 F08-55 합성 사진 임시저장 후 입력란 자동 초점(30초) 대기 초과. 기존 `InspectorLocalDraft.tsx`에서 사진 해시·IndexedDB 재조회 완료 즉시 `requestAnimationFrame`으로 `noteEntryRef.focus()`를 호출해 `busy`/disabled React 상태 해제보다 먼저 실행할 수 있음을 확인.
+- **실제 회귀 수정:** `components/inspector/InspectorLocalDraft.tsx`에서 단건 사진이 해시 검증+IndexedDB readback 성공한 후 `focusSingleAfterCommitRef` 표시, `singleDraftState==='ready' && !busy && inputDraftState==='ready'`가 React UI에 반영된 effect 단계에서만 빈 관찰 입력에 초점 이동. 원문 내용 비어 있지 않으면 자동 초점이 기록을 덮거나 간섭하지 않음. 사진 저장, 충돌 감지·사진 해시·완료 승인·전송 규칙 불변. 두 장 연속 촬영의 기존 초점 흐름은 그대로 보존.
+- **검증 상태:** 위 수정이 포함된 최신 HEAD의 릴리스·전사 Chromium·독립 사진점검 모바일 QA를 다시 확인하기 전 전체 PASS로 승격 금지.  직원 직접 수기 기록의 실제 OCR 해석·원어민/폰트·현장 교육 전달, Android 실기기·데이터 동기화·조치 실효성은 별도 QA 필수.
 - **운영 경계:** 본 PR은 개발 검수 후보이고 `main` 및 Vercel Production 병합·배포는 사용자 최종 승인 전 보류.
 
 **다음 한 작업:** L13 전체 QA 확인·오류 보수 후 L14 PWA/설치형 모바일 앱 결정을 실제 기능·네트워크 음영·브라우저 저장소·비용·Android 실기기 결과에 근거해 단계별 검토. 브라우저 실기기 직접 검수와 L06 근로자 직접 Q1~Q5 입력, L10 모국어 안전지시 의미 검수는 유지 과제.
