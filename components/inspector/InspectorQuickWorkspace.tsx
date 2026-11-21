@@ -43,6 +43,7 @@ import InspectorNoviceSteps from './InspectorNoviceSteps';
 import {noviceStep} from '../../lib/inspector/noviceExperience';
 import type {ReportPhotoLoadState} from '../../lib/inspector/noviceFollowThrough';
 import InspectorShareButton from './InspectorShareButton';
+import {InspectorNexus3AxisBridge} from './InspectorNexus3AxisBridge';
 import {sharePhotoFile} from '../../lib/inspector/sharing';
 import {duplicateAction,findingActionEntry,type FindingActionEntry} from '../../lib/inspector/actionPlan';
 import {sameAction} from '../../lib/inspector/actionFollowup';
@@ -550,6 +551,17 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
                     {apiEnabled&&!(ready===true&&!cost.allowed)&&<InspectorAiCostNotice cost={cost} checking={ready===null} ready={ready!==false} busy={busy} retention={retention} onRefresh={refreshAnalysisStatus} onManual={continueManually}/>}
                     <details className="si-api-explanation"><summary>운영자 전용 · 연결 작동 시험</summary><InspectorAiDiagnostics disabled={busy||!ready||!cost.allowed||!apiEnabled} onCost={setCost}/></details>
                 </details>
+            <details className="si-inspection-context si-nexus-bridge-details">
+                <summary>골조·형틀·지하 RC 3축 자동분류 · 유사사례 매칭 및 황금 구체 환류</summary>
+                <InspectorNexus3AxisBridge
+                    note={note}
+                    fileName={local?.file.name}
+                    riskTopic={riskTopic}
+                    workType={workType}
+                    aiFindingsText={analysis?.risk_findings?.map(f => `${f.problem} ${f.risk} ${f.action}`).join(' ')}
+                    source="safety-inspector"
+                />
+            </details>
                 <label className="si-quick-consent" data-stage={local&&!consent?'pending':local&&consent?'ready':'neutral'}><input ref={consentRef} className="si-consent-input" type="checkbox" checked={consent} disabled={busy} aria-describedby="si-start-guide" onChange={e=>setConsent(e.target.checked)}/><span>{local&&!consent&&<strong className="si-consent-cue">다음 단계 · 이 사진의 보관 안내 확인</strong>}{local&&consent&&<strong className="si-consent-cue">확인 완료 · 이제 점검할 수 있습니다</strong>}이 사진의 보관을 허용합니다. AI 사진 분석을 실행할 때에만 외부 서비스로 사진을 전송합니다. 이 사진의 얼굴·명찰 등 불필요한 개인정보는 가렸습니다.</span></label>
                 {onePhotoEligible&&<div className="si-one-photo-action" data-psi-one-photo-action="true">
                     <button type="button" className="si-btn si-primary si-one-photo-report" disabled={busy||storageBusy||!consent||(!note.trim()&&!photoOnlyAcknowledged)} onClick={createOnePhotoReport}>
