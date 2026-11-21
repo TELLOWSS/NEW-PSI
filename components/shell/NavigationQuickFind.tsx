@@ -11,6 +11,7 @@ export type NavigationOption = {
 interface NavigationQuickFindProps {
     options: NavigationOption[];
     onNavigate: (page: Page) => void;
+    shortcutsDisabled?: boolean;
 }
 
 const normalizeQuery = (value: string): string => value.normalize('NFKC').trim().toLocaleLowerCase();
@@ -32,7 +33,7 @@ const isTypingTarget = (target: EventTarget | null): boolean => {
  * A local-only menu finder, NOT a global search of worker/evidence records.
  * Search options must already be filtered using the same access rules as Sidebar.
  */
-export const NavigationQuickFind: React.FC<NavigationQuickFindProps> = ({ options, onNavigate }) => {
+export const NavigationQuickFind: React.FC<NavigationQuickFindProps> = ({ options, onNavigate, shortcutsDisabled = false }) => {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [activeIndex, setActiveIndex] = useState(0);
@@ -56,7 +57,7 @@ export const NavigationQuickFind: React.FC<NavigationQuickFindProps> = ({ option
 
     useEffect(() => {
         const handleShortcut = (event: KeyboardEvent) => {
-            if (event.defaultPrevented || event.altKey || event.shiftKey) return;
+            if (shortcutsDisabled || event.defaultPrevented || event.altKey || event.shiftKey) return;
             if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'k') return;
             if (isTypingTarget(event.target)) return;
             event.preventDefault();
@@ -64,7 +65,7 @@ export const NavigationQuickFind: React.FC<NavigationQuickFindProps> = ({ option
         };
         window.addEventListener('keydown', handleShortcut);
         return () => window.removeEventListener('keydown', handleShortcut);
-    }, [show]);
+    }, [show, shortcutsDisabled]);
 
     useEffect(() => {
         if (!open) return;
