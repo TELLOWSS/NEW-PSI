@@ -174,6 +174,8 @@
 - **화면:** `components/dashboard/OperationsDecisionFocus.tsx`를 새 컴포넌트로 만들고 기존 대시보드 첫 단락과 3단계 업무 경로 사이에 붙였다. 선택 상태, 설명, 기간/공종/건수 등 증거 범위, 검토/조치/교육 원래 화면으로 이동하는 버튼을 표시한다.
 - **디자인:** `styles/psi-living-motion.css`에 운영자 셸 내에서만 적용되는 반응형 패널, 브랜드 토큰·키보드 포커스·`prefers-reduced-motion`·인쇄 폴백을 적용했다.
 - **회귀:** `tests/psiOperationsDecisionFocus.test.ts`는 기록 없음/보호 우선/검토대기/OCR 원문/분석 진행/교육 연결, 근거 필터 연동, 외부 호출·개인정보 저장소 불변 계약을 검사한다.
+- **실제 합성 브라우저 회귀:** `scripts/verify-psi-current-metrics-ui.mjs`의 기존 기본/상세/모바일 관제 시나리오에 L05 DOM 렌더링, 기간 '전체' 전환 시 3건 합성 기록 반영, 390px 너비 가로 스크롤 검사 및 합성 스크린샷 `living-l05-basic-dashboard-mobile.png`을 연결. 기존 실제 근로자 데이터 사용 없음.
+- **실패/수정 이력:** 최초 L05 통합 HEAD `e6baf062`의 `PSI release verification` (#44947084821)에서 `OperationsDecisionFocus.tsx` props rest를 `OperationsDecisionFocusInput`으로 추론하지 못해 TS2345 실패. 필수 5개 숫자를 명시적으로 전달하는 코드로 수정(`4823c611`). 이후 브라우저 실검증 보강(`c9d565b9`). 최초 실패를 PASS로 기록하지 않음.
 - **현재 판정:** 새 코드가 개발 브랜치에 반영된 `IMPLEMENTED` 단계. GitHub Actions 최신 SHA의 `verify:ci`, 브라우저 실제 확인, Android/Samsung Internet 확인을 실행·기록해야 `VERIFIED` 처리 가능. 상용 안전판정이나 현장 배포 완료로 오인하지 않는다.
 
 **다음:** 최신 HEAD 릴리스/전사 Chromium 회귀 확인 → 대시보드 360/390/768/1280px·다크·저동작에서 집계 필터 변화와 CTA 이동 재검증 → L06 근로자 5문항 자기규율 입력과 관리자 검증 경로의 디자인·다국어 감사. L04 실기기 검증 잔여 병행. main 병합/Production 배포는 사용자 최종 승인 전 보류.
