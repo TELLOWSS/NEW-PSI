@@ -102,7 +102,7 @@
 | L05 | 운영 대시보드 | IMPLEMENTED(기존 집계 기반 우선확인 안내 영역) / QA 대기 | 실제 필터·집계/안전 의미·반응형/Chromium·Android 검증; 기존 차트 유지 |
 | L06 | 5문항 자기규율 입력·검토 | IMPLEMENTED(기존 OCR 관리자 검토의 Q1~Q5 내비게이터) / 근로자 직접 입력 PLANNED / QA 대기 | 원본 편집·모국어 보존, 직접 제출 인증·저장·동의 설계 분리, 모바일 실기기 미검증 |
 | L07 | OCR 원문 대조·수정·승인 | IMPLEMENTED(원본/인식/해석/미저장 상태 안내와 사진 포커스) / QA 대기 | 기존 승인·이력 불변, 신뢰도·문서 종류·다국어/320–390px 확인 및 Android 실기기 미검증 |
-| L08 | 사진점검 카메라·오프라인·업로드 상태 | PLANNED | 로컬/전송/수신/검증 구분 및 통신 장애 복구 |
+| L08 | 사진점검 카메라·오프라인·업로드 상태 | IMPLEMENTED(`/camera` 브라우저 사진함 저장·공유·수신·검수 표시) / QA 대기 | FieldCamera 한정, 실기기/저장실패/독립 점검앱 연계·오프라인 복구 미검증 |
 | L09 | 조치 배정·대기·진행·재점검 | PLANNED | 임시조치·책임·일시·검증 상태 정확성 |
 | L10 | 교육 환류·다국어 전달 | PLANNED | 다음 월 위험 반복 추적 및 인쇄물 검증 |
 | L11 | 6대 지표·차트 | PLANNED | 집계의 실데이터 일치·가독성·낙인 방지 |
@@ -207,6 +207,20 @@
 
 **다음 한 작업:** L07 최신 HEAD `verify:ci`와 Chromium 회귀 확인, 실패 시 수정·재실행 → L06 직접 근로자 입력의 접근권한·동의·오프라인 원본 보존 설계 및 L08 사진점검 업로드/저장/인계의 상태 라벨 정합성 점검. 최종 사용자 승인 전 `main` 병합·Production 배포하지 않는다.
 
+### 구현 8차 — L08 FieldCamera 저장·공유·수신·검수의 의미 분리 (2026-11-22)
+
+- **기준 상태:** 이전 L07 HEAD `9de75057926828a1ac46977eae49fe005ff4c6dd`의 `PSI release verification` (#44953136656), `PSI company-wide cross-department verification` (#44953136669)은 **둘 다 SUCCESS** 확인. `main` SHA `8aa4dea89f789d569a715386e1646d848ceb17c1`, Vercel Production READY `dpl_HYUrvRfaqfqLmKdDNpQ8MATxhquw` 동일. Draft PR #237 운영 병합 없음. 이번 L08 최신 HEAD의 검증은 별개로 기록.
+- **기존 기능 감사:** `pages/FieldCamera.tsx`의 `/camera`는 비로그인 촬영·파일 선택 → `addFieldPhoto` IndexedDB 기록 → 저장 파일 재열기+SHA-256 검증 → 기기 공유창/ZIP 내보내기이며, **서버 업로드 및 수신 ACK 기능이 없다**. `/field-local/` 독립 기기 점검으로 사진/현장정보를 자동 이관하지 않는다. 이 제한을 속이지 않고 기존 경계를 보존한다.
+- **구현:** `lib/inspector/fieldPhotoLifecycle.ts`에 로컬 보관(초기 읽기/보관 중/완료/실패/해시 불일치), 공유 앱(시도 전/검증 중/앱 인계·수신 미확인/취소·불가), **서버 수신 기록 없음**, **현장 검수·조치 별도 필요**의 4상태 읽기 전용 모델 추가. 공유앱 호출 반환을 수신자 전달 증명으로 승격하지 않는다.
+- **화면:** `components/inspector/FieldPhotoLifecyclePanel.tsx`에서 4단계 상태를 390/1280 대응 그리드로 표시. `pages/field-camera.css`에 비장식 최소 강조·다크·인쇄·모바일 폭 대응. 촬영 조작이나 사진함 목록·원본은 변화 없음.
+- **상태 연결:** `pages/FieldCamera.tsx`는 기존 `available`, `busy`, `pending`, `photos`, `invalidPhotos`, `transferring`, `shareInspectorPacket` 반환값을 이용해 화면 상태를 갱신하고 사진 선택/현장 문구/목록이 바뀌면 과거 공유 성공 상태를 초기화. 공유 실패/파일 검증 오류는 실패 상태로 두고 기존 실제 공유/재시도 버튼에 연결. 서버 API/외부 AI 호출 및 DB 스키마 추가 없음.
+- **계약 회귀:** `tests/fieldPhotoLifecycleL08.test.ts`에서 IndexedDB≠기기 사진첩, 저장 준비/실패, 해시 불일치, 성공한 OS 공유와 서버 수신 구분, 취소/미지원/실패, 공유 중 상태, 화면 연동·부작용 없음 확인.
+- **실제 합성 Chromium 회귀:** `scripts/verify-field-camera-delivery-preflight.mjs`에 390·1280px의 브라우저 사진함→공유앱 호출 성공→공유창 재시도→IndexedDB 저장 파일 변조 차단 및 상태 UI 검증을 추가, 합성 스크린샷을 `artifacts/audit/field-camera-l08/`에 생성. `scripts/verify-psi-company-browser.mjs` 독립 `qa` 시나리오에 연결. 네트워크 `/api/` 호출 0, 수신 ACK 없음이 원래 기능의 정확한 상태.
+- **범위 경계:** 이번 L08은 **`/camera`** 사용자 경로의 상태 안내 개선이다. `/inspector` 로그인 관리자 사진점검, `/field-local/` 독립 오프라인 점검의 모든 상태, 실기기 카메라 센서, 브라우저 저장소 정리·용량 초과·재시도, 실제 카톡 수신·업로드, 자동 인계/재점검은 **별도 QA/후속 범위**. 완성됐다고 표현하지 않는다.
+- **출시 게이트:** 최신 HEAD의 `npm run verify:ci`, 부서별 Chromium 11흐름, 320/390/768px·다크/저동작·실제 Android/Samsung Internet·오프라인 복구는 검증 결과에 따라 명시. 사용자 승인 전 `main`/Vercel Production 보류.
+
+**다음 한 작업:** L08 최신 CI·실제 합성 Chromium 검증·실패 수정 → `/field-local/` 기기 점검 자체의 임시조치/진행/재점검 상태(L09) 확인, 별도 `/inspector` 클라우드 수신 상태와 구분. 근로자 직접 Q1~Q5 작성/제출 경로의 권한·보존 설계는 L06 잔여 과제로 계속 보유.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -230,7 +244,7 @@
 
 ## 9. 다음 착수 과제
 
-**L07 최신 HEAD CI·Chromium 검증 → L06 근로자 직접 작성 입력 정책·L08 사진점검 저장/전송 상태 정합성.**
+**L08 최신 HEAD 자동검증·390/1280px 카메라 업무흐름 확인 → L09 기기 점검의 조치 배정·대기·재점검 상태 감사.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
