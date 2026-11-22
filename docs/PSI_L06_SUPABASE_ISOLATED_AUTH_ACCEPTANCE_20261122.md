@@ -78,3 +78,10 @@
 - `tests/psiL06IsolatedAuthAcceptance.test.ts`의 합성 5건: 쿼리 토큰, 사용자정보·fragment·localhost, JWT 형태 경로, bearer 형태 검토메모, 일반 비밀 없는 HTTPS 참조를 통과시켜도 `RELEASE=BLOCKED`인지를 검증한다. 기존 7+5=**12개 source-only 테스트 목표**. 실제 JWT/키/사용자 데이터는 포함하지 않는다.
 - **한계:** URL의 도메인 접근제어/증빙 진위·위조된 검토자, DNS가 내부 주소로 향하는 경우는 오프라인 정적검사로 보장할 수 없다. 증빙은 별도 통제된 저장소에 두고 Git에는 **비밀 없는 안정적인 참조**만 기록한다. 외부 서명 링크·실제 개인 기록의 스냅샷은 PR·CI 로그에 보존하지 않는다.
 - **결정권:** 대장 형식검증은 실제 A01~A25 수행이나 독립 보안검사를 대체하지 않는다. 전체 증빙 입력 때에도 `EVIDENCE_REVIEW_REQUIRED; RELEASE=BLOCKED`; 실 Supabase 인수 25개는 계속 `NOT RUN`, `L18` 인간 13개 승인 대기.
+
+## 6. 19차 — 원문 반환 직전 서버시각 재검증
+
+- **발견한 순서 경계:** `lib/server/workerRiskManagerReadL06.ts`의 SOURCE-ONLY 관리자 조회는 원문을 읽은 후 두 번째 서버시각으로 JWT/DB 세션 만료를 확인하지만, 그 후 `activeSession`·기업권한·현장배정·현장 활성여부를 비동기로 재확인한다. 마지막 현장 확인이 늦어져 만료시각을 넘더라도 반환 직전 시각을 확인하지 않으면 원문 반환 가능성이 남는다.
+- **19차 서버 계약 변경:** 마지막 현장 상태까지 확인한 **직후 세 번째 신뢰된 서버시각**을 채취하고, 최초/중간시각보다 역행하거나 유효하지 않거나 `principal.expiresAt` 또는 재확인된 `activeSession.expiresAt`에 도달했다면 `SESSION_INVALID`, `dataReleased=false`로 원문을 차단한다. 실제 DB RPC 내부의 원자적 인가를 대체하지 않는다.
+- `tests/psiWorkerRiskManagerReadL06.test.ts` 합성 5개: 정상 3회 시계 확인, 마지막 현장 확인에서 JWT 만료, 마지막 기업권한 검사 지연으로 만료, 세 번째 시계 역행·손상·예외, 세션 만료가 JWT보다 먼저 발생하는 경우. 기존 13개→**18개** SOURCE-ONLY 관리자 조회 시험, 전체 Vitest 2,173개 목표. 동일 최종 HEAD CI 검증 전 PASS 확정 금지.
+- 이 변경은 **실 Supabase의 JWT·행잠금·교차테넌트 권한 자체를 검증하지 못한다**. 독립 테스트환경 승인 전 A01~A25는 모두 `NOT RUN`이며, 배포·작업재개 허가가 아님.
