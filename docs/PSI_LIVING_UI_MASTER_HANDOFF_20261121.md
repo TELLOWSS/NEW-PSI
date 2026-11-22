@@ -859,6 +859,18 @@
 
 **다음 한 작업:** 40차 동일 HEAD 브라우저 선택·무저장·비식별 회귀 결과 확인/실패 수정 → 실제 현장 Android 시험 사용자의 7개 항목 자기보고·독립 관찰 증거 검토 → P4 다국어/A4 실제 출력 및 지연조치 담당자 인수. 실데이터·Auth/DB·운영 배포 금지.
 
+### L41 — P4 다국어 A4 현장 확인기록의 역할·모국어 의미 검토 상태 분리 (2026-11-23)
+
+- **40차 최종 동일 HEAD 확인:** `48ad945390babeb55d63f320d36682b6161d44d2` release #45073845616 **SUCCESS** (282 파일, 2,207 테스트), company Chromium #45073845617 **SUCCESS** (L40 7개 수동 검수 선택/집계, 기존 L16 오프라인 복원), Inspector mobile #45073845603 **SUCCESS**. 실제 Samsung Internet/Android·원어민 실사/실물 인쇄는 실시한 적 없음.
+- **기존 기능 중복 회피:** A4 스튜디오 `utils/educationA4LocalReview.ts`에는 이미 문서 SHA-256 검증, 역할/시간만의 로컬 자가기록, stale 번역 무효화가 존재. `utils/multilingualEducationAudit.ts`에는 11개 현장언어 구조 검사·`semanticReviewRequired=true`; 글꼴 사전점검·A4 출력·CSV 현황 내보내기도 기구현. 재작성 대신 **역할별 상태의 모호함을 수정**.
+- **확인된 결함:** 기존 `buildA4ReviewLedger`는 비한국어 A4 출력물을 `site-manager` 역할로 자가기록해도 `recorded`로 분류하고 녹색 언어 칩·'현재 자료 확인기록 N개'에 포함했다. 파일·글꼴 형식확인과 모국어 안전지시 의미 대조를 같은 완료로 오인할 여지가 있음.
+- **41차 개선:** 관리자 단독 기기 확인기록(비한국어)은 `native-review-needed`로 별도 표시, `role`·`checkedAt`은 정직하게 보존하되 '모국어 의미 대조 필요'로 구분. 모국어 확인자·공동 역할의 기록은 `recorded`로 유지하지만 **실제 원어민 정확성/교육 이수 인증 아님**. 번역 원문 SHA나 번역 갱신 상태가 달라지면 기존과 같이 `recheck` 처리하며 오래된 역할·시각은 무효화. 한국어 관리자 확인 흐름은 그대로 유지.
+- **UI·CSV 반영:** A4 출력물 검수 현황표, 개별 언어 칩(관리자 단독 시 황색/추가 확인 필요), 확인 건수/대기 건수, 현재 언어 안내, 관리자 역할 선택 시 경고, 기기 저장 후 안내를 분리. CSV·복사 현황에서 새 상태 문자열이 나오므로 현장 인수자가 누락된 모국어 확인을 구분 가능. `utils/educationA4ReviewLedger.ts`, `pages/A4EducationMaterial.tsx`, `tests/psiA4NativeMeaningGateL41.test.ts`.
+- **안전/보안/데이터:** 기존 로컬 기록과 3항목 자가확인 구조 불변, 신규 API·서버 동기화·자동 번역/외부 모델·실근로자 정보·원본/사진 저장 없음. 실제 11개 원어민 언어 검수·문구 수정·실물 A4 출력/현장 교육 수신 확인 별도. P4/L18 사람 승인 여전히 pending, P2 독립 격리 Auth 0/25, PR #237 Draft/`RELEASE=BLOCKED`.
+- **새 HEAD 검증 판정:** 동일 HEAD release/Vitest·company Chromium·Inspector mobile 3종이 모두 종료 SUCCESS 후에만 L41 자동검증 PASS. 새로운 CI 실패는 원인 수정 후 재검증, 기존 40차 PASS를 41차로 승격하지 않는다.
+
+**다음 작업:** L41 최신 CI와 실제 A4 화면 소스계약 결과 확정 → P4 지연조치/임시 감소대책에서 미완료를 안전확보 완료처럼 오인하지 않는지 기존 로직 감사·개선 → 실제 모국어·A4 인수 시험 및 P2 격리 Auth 승인 절차 별도 수행. main/Production/실DB/실현장 자료 변경 금지.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -882,7 +894,7 @@
 
 ## 9. 다음 착수 과제
 
-**L39 동일 HEAD 3종 CI SUCCESS 확정. L40 P3 현장 수동 자기보고 7단계(별도 브라우저 합성 QA/인계 문서)를 개발 브랜치에 추가. L40 최신 HEAD CI 3종 종료 전 자동 QA 판정 보류. P3 실제 Android/삼성 인터넷 인수·P4 원어민/A4·지연조치 인수, P2 승인 격리 Auth, P5 보안/13개 사람 승인은 미완료. PR #237 Draft·RELEASE=BLOCKED, main/Production/실 DB 변경 금지.**
+**L40 동일 HEAD 3종 CI SUCCESS 확정. L41 P4 다국어 A4 검수대장에 관리자 단독 형식확인 vs 모국어 안전의미 대조 대기를 구분하는 신규 상태를 구현하고 CI 검증 대기. 실제 원어민 11개 언어/A4 실물 검수, 지연조치 현장검증, P3 실제 Android, P2 격리 Auth(0/25), P5 인간 13항목(0/13)은 미완료. PR #237 Draft·RELEASE=BLOCKED, main/Production/실DB 변경 금지.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**

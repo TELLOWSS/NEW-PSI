@@ -1,6 +1,6 @@
 import { a4ReviewKey, validA4Review, type A4ReviewStore, type A4ReviewerRole } from './educationA4LocalReview';
 
-export type A4ReviewLedgerStatus = 'recorded' | 'recheck' | 'pending' | 'calculating';
+export type A4ReviewLedgerStatus = 'recorded' | 'native-review-needed' | 'recheck' | 'pending' | 'calculating';
 export interface A4ReviewLedgerRow {
     language: string;
     languageLabel: string;
@@ -11,7 +11,8 @@ export interface A4ReviewLedgerRow {
 }
 
 export const A4_REVIEW_LEDGER_STATUSES: Readonly<Record<A4ReviewLedgerStatus, string>> = {
-    recorded: '이 기기 확인기록 있음',
+    recorded: '이 기기의 해당 역할 확인기록 있음',
+    'native-review-needed': '관리자 기기 확인 · 모국어 의미 대조 필요',
     recheck: '변경됨 · 다시 확인',
     pending: '미확인',
     calculating: '내용 확인 중',
@@ -22,7 +23,7 @@ export const A4_REVIEW_ROLE_LABELS: Readonly<Record<A4ReviewerRole, string>> = {
     'joint-review': '관리자와 모국어 확인자 공동',
 };
 
-/** Only current-scope languages are exported. Invalidated records never inherit an old timestamp/role. */
+/** Only current-scope languages are exported. Invalidated records never inherit an old timestamp/role. On translated posters, manager-only self-check is explicitly still awaiting native-language meaning review. */
 export const buildA4ReviewLedger = (options: {
     educationMonth: string;
     workType: string;
@@ -39,15 +40,21 @@ export const buildA4ReviewLedger = (options: {
         const saved = stored[key];
         const valid = sha ? validA4Review(stored, key, sha) : null;
         const translationStale = language !== 'ko-KR' && translationNeedsRefresh;
+        // A manager's valid file/glyph check is preserved, but on a translated
+        // poster it cannot be presented as native-language meaning review.
+        // Native/joint roles are still local self-reports, NOT linguistic certification.
+        const managerOnlyTranslation = language !== 'ko-KR' && valid?.role === 'site-manager';
         const status: A4ReviewLedgerStatus = !/^[0-9a-f]{64}$/.test(sha) ? 'calculating'
             : translationStale || (saved && !valid) ? 'recheck'
-            : valid ? 'recorded' : 'pending';
+            : valid ? (managerOnlyTranslation ? 'native-review-needed' : 'recorded') : 'pending';
         return {
             language,
             languageLabel: labels[language] || language,
             status,
-            role: status === 'recorded' ? valid!.role : null,
-            checkedAt: status === 'recorded' ? valid!.checkedAt : null,
+            // Do not erase honest manager-only evidence; it simply does not
+            // satisfy the native meaning-review step. Stale evidence stays blank.
+            role: status === 'recorded' || status === 'native-review-needed' ? valid!.role : null,
+            checkedAt: status === 'recorded' || status === 'native-review-needed' ? valid!.checkedAt : null,
             sourceSha256: sha,
         };
     });
