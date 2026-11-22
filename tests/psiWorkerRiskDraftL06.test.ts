@@ -130,9 +130,10 @@ describe('L06 Q1-Q5 worker self-writing pilot without submission', () => {
         expect(browser).toContain('390-unsaved-warning.png');
         expect(browser).toContain('hiddenUnsavedStatus: true');
         expect(browser).toContain('unsavedHidden: true');
-        expect(browser).toContain("nativePage.close({ runBeforeUnload: true })");
-        expect(browser).toContain("nativeDialog.type(), 'beforeunload'");
-        expect(browser).toContain('Dismissed native Chromium close must preserve practice data');
+        expect(browser).toContain("nativePage.goto(host + '/worker-risk-draft?leave-attempt=1'");
+        expect(browser).toContain("nativeDialogTypes.includes('beforeunload')");
+        expect(browser).toContain('Dismissed real browser navigation must preserve the in-memory Q1 answer');
+        expect(browser).toContain("nativePage.goto(host + '/worker-risk-draft?after-confirmed-reset=1'");
         expect(browser).toContain('L29 final confirmed reset must clear the unsaved warning');
     });
 
