@@ -118,6 +118,24 @@ describe('L06 Q1-Q5 worker self-writing pilot without submission', () => {
         expect(ui).not.toMatch(/window\.confirm|window\.alert|navigator\.sendBeacon|localStorage|sessionStorage|indexedDB/);
     });
 
+    it('shows an explicit unsaved status on narrow screens but excludes it from A4 and confirms real Chromium close', () => {
+        const ui = source('pages/WorkerRiskDraft.tsx');
+        const css = source('styles.css');
+        const browser = source('scripts/verify-psi-l06-worker-draft.mjs');
+        expect(ui).toContain('hasInMemoryAnswers && (');
+        expect(ui).toContain('data-testid="l06-unsaved-status"');
+        expect(ui).toContain('임시 작성 중 · 저장되지 않음');
+        expect(ui).toContain('검토 후 인쇄해도 정식 제출·접수는 아닙니다');
+        expect(css).toContain('.psi-l06-worker-draft .psi-l06-unsaved-status,');
+        expect(browser).toContain('390-unsaved-warning.png');
+        expect(browser).toContain('hiddenUnsavedStatus: true');
+        expect(browser).toContain('unsavedHidden: true');
+        expect(browser).toContain("nativePage.close({ runBeforeUnload: true })");
+        expect(browser).toContain("nativeDialog.type(), 'beforeunload'");
+        expect(browser).toContain('Dismissed native Chromium close must preserve practice data');
+        expect(browser).toContain('L29 final confirmed reset must clear the unsaved warning');
+    });
+
     it('remains explicitly identity-free, in-memory and unconnected to submission APIs', () => {
         const ui = source('pages/WorkerRiskDraft.tsx');
         const helper = source('utils/workerRiskDraftL06.ts');
