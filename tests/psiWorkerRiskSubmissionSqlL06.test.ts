@@ -38,6 +38,13 @@ async function user(id:string) {
   await db.exec('set local role authenticated');
   await db.query("select set_config('request.jwt.claim.sub',$1,true)",[id]);
   await db.query("select set_config('request.jwt.claim.session_id',$1,true)",[SESSION_FOR(id)]);
+  // Simulate required Supabase JWT numeric exp/iat claims using DATABASE time.
+  // No signed tokens or actual Supabase Auth service are involved.
+  await db.query(`select
+    set_config('request.jwt.claim.exp',
+      (floor(extract(epoch from clock_timestamp()))+3600)::bigint::text,true),
+    set_config('request.jwt.claim.iat',
+      (floor(extract(epoch from clock_timestamp()))-60)::bigint::text,true)`);
 }
 async function deny(query:string,args:unknown[]=[]){
   await db.exec('savepoint l06_deny');
@@ -75,8 +82,10 @@ beforeAll(async()=>{
     create function auth.uid() returns uuid language sql stable as
       $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
     create function auth.jwt() returns jsonb language sql stable as
-      $$ select pg_catalog.jsonb_build_object('session_id',
-        nullif(current_setting('request.jwt.claim.session_id',true),'')) $$;
+      $$ select pg_catalog.jsonb_build_object(
+        'session_id',nullif(current_setting('request.jwt.claim.session_id',true),''),
+        'exp',nullif(current_setting('request.jwt.claim.exp',true),'')::jsonb,
+        'iat',nullif(current_setting('request.jwt.claim.iat',true),'')::jsonb) $$;
     grant usage on schema auth to authenticated;
     grant execute on function auth.uid() to authenticated;
     grant execute on function auth.jwt() to authenticated;`);
@@ -214,6 +223,60 @@ describe('L06 staged PostgreSQL atomic worker self-entry (NOT a live migration)'
     await db.exec('reset role');
     expect((await db.query('select * from public.psi_worker_risk_resubmission_links')).rows).toHaveLength(0);
     expect((await db.query('select * from public.psi_worker_risk_submissions')).rows).toHaveLength(1);
+    expect((await db.query('select * from public.psi_worker_risk_receipt_events')).rows).toHaveLength(1);
+  });
+  it('refuses an expired worker JWT even while its auth.sessions row still exists',async()=>{
+    await user(USER_A);
+    await db.query(`select set_config('request.jwt.claim.exp',
+      (floor(extract(epoch from clock_timestamp()))-1)::bigint::text,true)`);
+    await deny(sql,params());
+    await db.exec('reset role');
+    expect((await db.query('select * from public.psi_worker_risk_submissions')).rows).toHaveLength(0);
+    expect((await db.query('select * from public.psi_worker_risk_receipt_events')).rows).toHaveLength(0);
+  });
+  it('rejects a future-issued or inverted JWT time window for worker receipt',async()=>{
+    await user(USER_A);
+    await db.query(`select set_config('request.jwt.claim.iat',
+      (floor(extract(epoch from clock_timestamp()))+90)::bigint::text,true)`);
+    await deny(sql,params());
+    await user(USER_A);
+    await db.query("select set_config('request.jwt.claim.iat',$1,true)",['2000000000']);
+    await db.query("select set_config('request.jwt.claim.exp',$1,true)",['1999999999']);
+    await deny(sql,params());
+    await db.exec('reset role');
+    expect((await db.query('select * from public.psi_worker_risk_submissions')).rows).toHaveLength(0);
+  });
+  it('rejects missing or string-typed JWT lifetime claims without leaking a receipt',async()=>{
+    for(const [claim,bad] of [
+      ['exp',''],['iat',''],['exp','"not-a-number"'],['iat','"not-a-number"'],
+    ] as const){
+      await user(USER_A);
+      await db.query("select set_config('request.jwt.claim." + claim + "',$1,true)",[bad]);
+      await deny(sql,params());
+    }
+    await db.exec('reset role');
+    expect((await db.query('select * from public.psi_worker_risk_receipt_events')).rows).toHaveLength(0);
+  });
+  it('prevents an expired reviewer JWT from reading or approving unchanged Q1-Q5 evidence',async()=>{
+    const id=await submitA();
+    await user(REVIEWER_A);
+    await db.query(`select set_config('request.jwt.claim.exp',
+      (floor(extract(epoch from clock_timestamp()))-1)::bigint::text,true)`);
+    await deny(readReviewSql,[TENANT_A,SITE_A,id]);
+    await deny(reviewSql,reviewParams(id));
+    await db.exec('reset role');
+    expect((await db.query('select * from public.psi_worker_risk_review_events')).rows).toHaveLength(0);
+    expect((await db.query('select * from public.psi_worker_risk_submissions')).rows).toHaveLength(1);
+  });
+  it('blocks expired-token replay of a previously accepted nonce without changing original receipt',async()=>{
+    await user(USER_A);
+    const first=(await submit(...params())).rows[0].receipt;
+    await db.query(`select set_config('request.jwt.claim.exp',
+      (floor(extract(epoch from clock_timestamp()))-1)::bigint::text,true)`);
+    await deny(sql,params());
+    await db.exec('reset role');
+    const stored=await db.query<{id:string}>('select id from public.psi_worker_risk_submissions');
+    expect(stored.rows).toEqual([{id:first.receiptId}]);
     expect((await db.query('select * from public.psi_worker_risk_receipt_events')).rows).toHaveLength(1);
   });
   it('denies A→B and B→A, same-tenant other site and unlinked account',async()=>{
