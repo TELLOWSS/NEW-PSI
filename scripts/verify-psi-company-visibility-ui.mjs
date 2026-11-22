@@ -56,6 +56,15 @@ try{
  await mobileDrawer.waitFor({state:'visible'});
  const phoneOpen=await page.evaluate(()=>document.body.style.overflow==='hidden');
  check('모바일 전체메뉴 진입 시 실제 body 스크롤 잠금',phoneOpen,{width:390});
+ check('모바일 모달에서 뒤쪽 본문·데스크톱 메뉴·본문 바로가기가 inert',await page.evaluate(()=>{
+    const background=document.querySelector('[data-psi-shell-background]');
+    const desktop=document.querySelector('[data-psi-desktop-sidebar]');
+    const skipLink=document.querySelector('a[href="#psi-main-content"]');
+    const button=background?.querySelector('button');
+    button?.focus();
+    return Boolean(background?.inert && desktop?.inert && skipLink?.inert &&
+        button && document.activeElement!==button);
+ }),{mode:'synthetic Chromium native inert'});
  await page.setViewportSize({width:1200,height:850});
  await page.waitForFunction(()=>!document.getElementById('psi-mobile-navigation-dialog'));
  const restored=await page.evaluate(()=>({
@@ -65,6 +74,12 @@ try{
  }));
  check('1024px 전환에서 숨겨진 메뉴 종료·body 스크롤 복원',
     restored.bodyOverflow!=='hidden',restored);
+ check('모바일 모달 종료 시 본문·데스크톱 메뉴·본문 바로가기 inert 해제',
+    await page.evaluate(()=>{
+       return ['[data-psi-shell-background]','[data-psi-desktop-sidebar]',
+           'a[href="#psi-main-content"]'].every(selector=>
+               document.querySelector(selector)?.inert===false);
+    }),{width:1200});
  check('모바일 opener가 사라진 뒤 활성 데스크톱 메뉴에 키보드 포커스 복귀',
     restored.desktopFocused,restored);
  await page.setViewportSize({width:390,height:850});
@@ -76,6 +91,9 @@ try{
     '.psi-mobile-nav button[aria-haspopup="dialog"]')===true &&
     document.body.style.overflow!=='hidden');
  check('Escape 닫기 시 모바일 더보기 버튼·스크롤 복귀',escReturn,{width:390});
+ check('Escape 종료 후 모바일 배경 inert 제거',await page.evaluate(()=>
+     document.querySelector('[data-psi-shell-background]')?.inert===false
+ ),{width:390});
 
  await page.emulateMedia({colorScheme:'dark',reducedMotion:'reduce'});
  await page.screenshot({path:resolve(outputDir,'dark.png')});
