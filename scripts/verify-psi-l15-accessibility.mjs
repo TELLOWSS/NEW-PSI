@@ -125,6 +125,37 @@ try{
    await drawer.waitFor({state:'hidden'});
    await page.waitForFunction(()=>document.activeElement?.getAttribute('aria-label')==='메뉴 열기');
   }
+  // L33: the desktop menu composition editor must remain usable with
+  // large, accessible label and reordering targets at both desktop widths.
+  if(c.width>=1024){
+   const sidebar=page.locator('[data-psi-desktop-sidebar]');
+   await sidebar.getByRole('button',{name:'시스템 설정',exact:true}).click();
+   await page.getByRole('button',{name:'메뉴 구성 편집 열기'}).click();
+   const editor=sidebar.locator('section').filter({has:sidebar.getByRole('heading',{name:'메뉴 구성 편집'})}).first();
+   await editor.getByRole('heading',{name:'메뉴 구성 편집'}).waitFor();
+   const boxes=editor.getByRole('checkbox');
+   assert.ok(await boxes.count()>0,'L33 desktop menu editor must retain user visibility checkboxes');
+   const targets=await editor.evaluate(section=>
+    Array.from(section.querySelectorAll('label,input[type="checkbox"],button')).map(el=>({
+     kind:el.tagName.toLowerCase(),
+     label:el.getAttribute('aria-label')||el.textContent?.trim().slice(0,28)||'',
+     width:el.getBoundingClientRect().width,
+     height:el.getBoundingClientRect().height,
+    }))
+   );
+   assert.ok(targets.some(x=>x.kind==='button' && x.label.includes('위로 이동')),
+    'L33 existing user-specific menu reorder actions must remain available');
+   for(const target of targets){
+    const minimum=target.kind==='input'?20:44;
+    assert.ok(target.width>=minimum && target.height>=minimum,
+     'L33 menu editor target below '+minimum+'px: '+JSON.stringify({c,target}));
+   }
+   await editor.getByRole('button',{name:/아래로 이동/}).first().click();
+   assert.ok(await editor.getByRole('checkbox').count()>0,
+    'L33 menu reordering should retain the existing edit controls');
+   await page.screenshot({path:`${out}/sidebar-composition-${c.width}-${c.mode}.png`,fullPage:false});
+   await page.getByRole('button',{name:'메뉴 구성 편집 닫기'}).click();
+  }
   const checks=await page.evaluate(()=>{
    const shell=document.querySelector('.psi-app-shell.psi-platform-field-canvas');
    const main=document.querySelector('#psi-main-content');
@@ -150,7 +181,7 @@ try{
   await context.close();
  }
  await writeFile(`${out}/result.json`,JSON.stringify({result:'PASS',notes:['Device scale factor 2/640 CSS px is a reflow proxy, not actual 200% browser zoom','Synthetic Chromium does not prove Android/iOS, mother-tongue accuracy, or screen-reader behavior'],checks:results},null,2));
- console.log('PASS PSI L15 scoped accessibility/reflow audit: '+results.length+' synthetic browser cases');
+ console.log('PASS PSI L15/L33 accessibility/reflow and desktop composition 44px targets: '+results.length+' synthetic browser cases');
 }catch(error){
  await writeFile(`${out}/result.json`,JSON.stringify({result:'FAIL',message:error?.message||String(error),checks:results},null,2));
  throw error;
