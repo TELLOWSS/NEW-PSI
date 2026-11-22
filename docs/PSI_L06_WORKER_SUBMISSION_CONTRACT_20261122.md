@@ -194,3 +194,14 @@
 - **변경 제한:** `supabase/proposals` 미배포 SQL + 합성 시험 + 인계 문서만 수정. 실 Supabase Auth/보관 근거/개인정보·현장 사용/운영 API·RLS·키·마이그레이션·`main`·Production 미변경, L18 13개 인간 인수 pending.
 
 **다음:** 16차 동일 HEAD release/company Chromium/Inspector QA 완료·실패 보완 → 승인된 독립 Supabase 실제 timeout/jwt/RLS A01~A25 → 실기기·11개 언어/법무 및 L18 13개 사람 승인 후에만 운영 연결 검토.
+
+## 19. 2026-11-22 — 17차: A01~A25 실제 Auth 수용 증빙 원장·정적 검증
+
+- **16차 릴리스 확인:** `88babff` #44993898854 **SUCCESS**(276개 파일/2,156개 테스트, L06 PGlite 50/50). 전사/Inspector 2종은 후속 개발로 취소됨; 같은 커밋 3종 CI를 모두 SUCCESS라 표시하지 않는다.
+- **검증 전제:** 현재 승인된 L06 독립 Supabase 테스트 프로젝트는 없다. 실서명 JWT/Auth signOut, time-box `not_after`, 실제 RLS/GRANT 및 2개 기업/현장 교차 조회와 트랜잭션 동시성 인수 A01~A25는 **25개 모두 NOT RUN**이다. 기존 연결 `PSI-Database` 및 `TELLOWSS's Project`는 실험 프로젝트로 사용하지 않는다.
+- **구현:** `config/psi-l06-isolated-auth-acceptance-ledger.json`에 25개 `not-run` 결과·null 증빙을 명시, `scripts/check-psi-l06-isolated-auth-acceptance.mjs`가 사용자 승인된 격리 프로젝트 아닌 운영 프로젝트 ref·임의 PASS·문서/대장의 누락·중복·증빙 위조 입력을 거부하도록 정적 검사한다. 각 `pass`에는 HTTPS 증빙참조, 개별 검토자, UTC 검토 시각, source SHA, 결정근거가 필요하다.
+- **실제 적용:** `npm run check:l06:auth-acceptance` 추가, `verify:fast`의 필수 첫 관문으로 연결. 신규 `tests/psiL06IsolatedAuthAcceptance.test.ts` 7개 fixture-only 테스트로 기본 미실시, 운영 project ref 차단 2종, 승인 없는 PASS·가짜 증빙·누락/중복 및 25건 기재 시에도 `RELEASE=BLOCKED` 유지 검증. 기존 L06 PGlite 50개는 변경하지 않음. 최신 HEAD CI 결론 전 최종 PASS 판정 금지.
+- **표시 경계:** 정상 소스 계약 검사의 `LEDGER_SOURCE_CONTRACT_PASS`는 **검증기 형식 및 안전장치 통과**일 뿐 진짜 Supabase 실험완료가 아니다. 심사와 증빙 링크 진위는 사람의 독립 검토가 필요하다. 모든 25건이 형식상 PASS여도 `EVIDENCE_REVIEW_REQUIRED`이고 `RELEASE=BLOCKED`이다. L18 13개 인간 게이트, Android 실기기, 11개 언어 원어민, 개인정보 처리·삭제 기준 선행.
+- **운영 보호:** 운영 DB/키·계정·사진·SQL migrations·RLS/GRANT/실API·`main`·Production 미변경, PR #237 Draft.
+
+**다음:** 17차 최종 SHA release/company Chromium/Inspector 결론 확인·필요한 코드 보완 → 사용자 지정 독립 격리 Supabase 승인 후 A01~A25 실증 결과와 검토자가 기록 → 정보보호/현장/L18 인수 뒤 운영 연결 가능 여부 결정.
