@@ -49,6 +49,10 @@ const reviewParams=(submission:string,nonce=REVIEW_NONCE_1,action='reviewed',
   [tenant,site,submission,nonce,action,note,expected];
 const review=(args:unknown[])=>db.query<{receipt:Record<string,unknown>}>(reviewSql,args);
 const readReviewSql='select public.psi_read_worker_risk_review_l06($1,$2,$3) as snapshot';
+const revisionSql='select public.psi_submit_worker_risk_revision_l06($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10) as receipt';
+const revisionParams=(parent:string,nonce=NONCE_B,answers:unknown={...ANSWERS,Q4:'안전난간을 설치하고 관리자 확인 후 작업'}) =>
+  [TENANT_A,SITE_A,CYCLE_A,parent,nonce,VERSION,'ko',JSON.stringify(answers),'상','개구부'];
+const readChainSql='select public.psi_read_worker_risk_revision_chain_l06($1,$2,$3) as chain';
 async function submitA(){await user(USER_A);return (await submit(...params())).rows[0].receipt.receiptId as string;}
 
 beforeAll(async()=>{
@@ -70,6 +74,7 @@ beforeAll(async()=>{
   try {
     await db.exec(await readFile(resolve('supabase/proposals/psi_worker_risk_submission_l06_staging.sql'),'utf8'));
     await db.exec(await readFile(resolve('supabase/proposals/psi_worker_risk_manager_review_l06_staging.sql'),'utf8'));
+    await db.exec(await readFile(resolve('supabase/proposals/psi_worker_risk_resubmission_l06_staging.sql'),'utf8'));
   } catch (error) {
     // The staging SQL runs only in PGlite. This marker identifies the exact
     // failed stage without printing source data or credentials.
@@ -404,5 +409,106 @@ describe('L06 staged PostgreSQL atomic worker self-entry (NOT a live migration)'
     expect(event).toMatchObject({action:'reviewed',revision:1});
     const snapshot=(await db.query<{snapshot:Record<string,unknown>}>(readReviewSql,[TENANT_A,SITE_A,id])).rows[0].snapshot;
     expect(snapshot).toMatchObject({selfRiskGrade:'상',answers:ANSWERS,workClearanceGranted:false});
+  });
+
+  it('links a new worker Q1-Q5 source only after a terminal manager change request',async()=>{
+    const parent=await submitA();
+    await user(REVIEWER_A);
+    await review(reviewParams(parent,REVIEW_NONCE_1,'request_changes',REVIEW_NOTE,0));
+    await user(USER_A);
+    const response=(await db.query<{receipt:Record<string,unknown>}>(
+      revisionSql,revisionParams(parent))).rows[0].receipt;
+    expect(response).toMatchObject({schema:'psi-worker-risk-resubmission-receipt-v1',
+      originalSubmissionId:parent,relation:'immutable-replacement-link',workClearanceGranted:false});
+    const child=response.replacementSubmissionId as string;
+    expect(child).not.toBe(parent);
+    await user(OWNER_A);
+    const chain=(await db.query<{chain:Record<string,any>}>(
+      readChainSql,[TENANT_A,SITE_A,parent])).rows[0].chain;
+    expect(chain).toMatchObject({schema:'psi-worker-risk-revision-chain-v1',workClearanceGranted:false});
+    expect(chain.original).toMatchObject({submissionId:parent,answers:ANSWERS,workClearanceGranted:false,
+      events:[{action:'request_changes',note:REVIEW_NOTE}]});
+    expect(chain.replacement).toMatchObject({submissionId:child,
+      answers:{...ANSWERS,Q4:'안전난간을 설치하고 관리자 확인 후 작업'},events:[],workClearanceGranted:false});
+    await db.exec('reset role');
+    expect((await db.query('select * from public.psi_worker_risk_resubmission_links')).rows).toHaveLength(1);
+    expect((await db.query('select * from public.psi_worker_risk_receipt_events')).rows).toHaveLength(2);
+  });
+
+  it('does not let a worker revise a record without request_changes or after approval',async()=>{
+    const parent=await submitA();
+    await user(USER_A);
+    await deny(revisionSql,revisionParams(parent));
+    await user(REVIEWER_A);
+    await review(reviewParams(parent));
+    await user(USER_A);
+    await deny(revisionSql,revisionParams(parent));
+    await user(OWNER_A);
+    await review(reviewParams(parent,REVIEW_NONCE_2,'approved',APPROVAL_NOTE,1));
+    await user(USER_A);
+    await deny(revisionSql,revisionParams(parent));
+    await db.exec('reset role');
+    expect((await db.query('select * from public.psi_worker_risk_submissions')).rows).toHaveLength(1);
+  });
+
+  it('rejects cross-tenant, cross-site, wrong-cycle and other-user replacement attempts',async()=>{
+    const parent=await submitA();
+    await user(REVIEWER_A);
+    await review(reviewParams(parent,REVIEW_NONCE_1,'request_changes',REVIEW_NOTE,0));
+    await user(USER_B);
+    await deny(revisionSql,revisionParams(parent));
+    await user(USER_A);
+    await deny(revisionSql,[...revisionParams(parent).slice(0,1),SITE_A2,CYCLE_A2,...revisionParams(parent).slice(3)]);
+    await deny(revisionSql,[TENANT_B,SITE_B,CYCLE_B,...revisionParams(parent).slice(3)]);
+    await user(OUTSIDER);
+    await deny(readChainSql,[TENANT_A,SITE_A,parent]);
+    await user(USER_A);
+    await deny(readChainSql,[TENANT_A,SITE_A,parent]);
+    await db.exec('reset role');
+    expect((await db.query('select * from public.psi_worker_risk_resubmission_links')).rows).toHaveLength(0);
+  });
+
+  it('retries the same request exactly once, never creates competing child records',async()=>{
+    const parent=await submitA();
+    await user(REVIEWER_A);
+    await review(reviewParams(parent,REVIEW_NONCE_1,'request_changes',REVIEW_NOTE,0));
+    await user(USER_A);
+    const first=(await db.query<{receipt:Record<string,unknown>}>(
+      revisionSql,revisionParams(parent))).rows[0].receipt;
+    const second=(await db.query<{receipt:Record<string,unknown>}>(
+      revisionSql,revisionParams(parent))).rows[0].receipt;
+    expect(second).toEqual(first);
+    await deny(revisionSql,revisionParams(parent,NONCE_B,{...ANSWERS,Q4:'원래와 다른 재전송 값'}));
+    await deny(revisionSql,revisionParams(parent,REVIEW_NONCE_3));
+    await db.exec('reset role');
+    expect((await db.query('select id from public.psi_worker_risk_submissions')).rows).toHaveLength(2);
+    expect((await db.query('select * from public.psi_worker_risk_resubmission_links')).rows).toHaveLength(1);
+  });
+
+  it('keeps parent/child/link immutable and fails closed if link insert fails',async()=>{
+    const parent=await submitA();
+    await user(REVIEWER_A);
+    await review(reviewParams(parent,REVIEW_NONCE_1,'request_changes',REVIEW_NOTE,0));
+    await db.exec('reset role');
+    await db.exec("alter table public.psi_worker_risk_resubmission_links add constraint l06_synthetic_link_failure check(false)");
+    await user(USER_A);
+    await deny(revisionSql,revisionParams(parent));
+    await db.exec('reset role');
+    expect((await db.query('select id from public.psi_worker_risk_submissions')).rows).toHaveLength(1);
+    expect((await db.query('select * from public.psi_worker_risk_receipt_events')).rows).toHaveLength(1);
+    await db.exec('alter table public.psi_worker_risk_resubmission_links drop constraint l06_synthetic_link_failure');
+    await user(USER_A);
+    await db.query(revisionSql,revisionParams(parent));
+    await deny('select * from public.psi_worker_risk_resubmission_links');
+    await deny('delete from public.psi_worker_risk_resubmission_links');
+    await db.exec('reset role');
+    await deny('delete from public.psi_worker_risk_resubmission_links');
+    await deny("update public.psi_worker_risk_resubmission_links set worker_id=$1",[WORKER_B]);
+    const policy=(await db.query<{relrowsecurity:boolean;relforcerowsecurity:boolean}>(
+      "select relrowsecurity,relforcerowsecurity from pg_class where relname='psi_worker_risk_resubmission_links'")).rows[0];
+    expect(policy).toEqual({relrowsecurity:true,relforcerowsecurity:true});
+    const grants=(await db.query<{allowed:boolean}>(
+      "select has_table_privilege('authenticated','public.psi_worker_risk_resubmission_links','SELECT') as allowed")).rows[0];
+    expect(grants.allowed).toBe(false);
   });
 },60000);
