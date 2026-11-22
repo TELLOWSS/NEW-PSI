@@ -95,6 +95,28 @@ try{
      document.querySelector('[data-psi-shell-background]')?.inert===false
  ),{width:390});
 
+ // L22: Choosing a route must focus the content, not return to '더보기'.
+ // Test both the already-current page and a new route; the former does not
+ // trigger Layout's currentPage effect and used to leave focus on the opener.
+ await moreButton.click();
+ await mobileDrawer.waitFor({state:'visible'});
+ await mobileDrawer.locator('.psi-sidebar-item[aria-current="page"]').first().click();
+ await mobileDrawer.waitFor({state:'detached'});
+ await page.waitForFunction(()=>document.activeElement?.id==='psi-main-content',null,{timeout:3000}).catch(()=>{});
+ check('모바일 메뉴에서 현재 페이지 선택 시 새 작업화면으로 포커스 이동',
+     await page.evaluate(()=>document.activeElement?.id==='psi-main-content' &&
+         document.querySelector('[data-psi-shell-background]')?.inert===false),{type:'same-route'});
+ await moreButton.click();
+ await mobileDrawer.waitFor({state:'visible'});
+ const otherRoute=mobileDrawer.locator('.psi-sidebar-item:not([aria-current="page"])').first();
+ await otherRoute.click();
+ await mobileDrawer.waitFor({state:'detached'});
+ await page.waitForFunction(()=>document.activeElement?.id==='psi-main-content',null,{timeout:3000}).catch(()=>{});
+ check('모바일 메뉴로 다른 페이지 이동 시 포커스·스크롤 잠금·inert 복원',
+     await page.evaluate(()=>document.activeElement?.id==='psi-main-content' &&
+         document.body.style.overflow!=='hidden' &&
+         document.querySelector('[data-psi-shell-background]')?.inert===false),{type:'route-change'});
+
  await page.emulateMedia({colorScheme:'dark',reducedMotion:'reduce'});
  await page.screenshot({path:resolve(outputDir,'dark.png')});
  check('스크립트 오류 없음',pageErrors.length===0,pageErrors);
