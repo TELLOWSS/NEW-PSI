@@ -19,6 +19,7 @@ export default function WorkerRiskDraft() {
     const [step, setStep] = useState(0);
     const [furthestStep, setFurthestStep] = useState(0);
     const [notice, setNotice] = useState('');
+    const [invalidQuestion, setInvalidQuestion] = useState<PsiQuestionKey | null>(null);
     const [resetPending, setResetPending] = useState(false);
     const resetCancelRef = useRef<HTMLButtonElement>(null);
     const resetTriggerRef = useRef<HTMLButtonElement>(null);
@@ -27,6 +28,7 @@ export default function WorkerRiskDraft() {
     const status = checkWorkerRiskDraft(draft);
     const rows = printableWorkerRiskDraft(draft);
     const currentQuestion = PSI_FORM_QUESTIONS[step];
+    const showCurrentValidation = invalidQuestion === currentQuestion.key && status.missing.includes(currentQuestion.key);
     // L28: the form is intentionally in-memory only. Warn before a real
     // browser navigation discards entered answers; never autosave the text.
     const hasInMemoryAnswers = PSI_FORM_QUESTIONS.some(question => draft.answers[question.key].trim().length > 0)
@@ -74,10 +76,12 @@ export default function WorkerRiskDraft() {
         setStep(index);
         setReview(false);
         setNotice('');
+        setInvalidQuestion(null);
     };
 
     const updateAnswer = (key: PsiQuestionKey, value: string) => {
         setResetPending(false);
+        if (value.trim().length >= 2) setInvalidQuestion(previous => previous === key ? null : previous);
         setDraft(previous => ({
             ...previous,
             answers: { ...previous.answers, [key]: value.slice(0, 500) },
@@ -90,6 +94,7 @@ export default function WorkerRiskDraft() {
         if (!status.readyForReview) {
             const missingIndex = PSI_FORM_QUESTIONS.findIndex(question => question.key === status.missing[0]);
             goToStep(Math.max(0, missingIndex));
+            setInvalidQuestion(status.missing[0]);
             setNotice('작성하지 않은 문항을 확인해 주세요: ' + status.missing.join(', '));
             return;
         }
@@ -105,7 +110,11 @@ export default function WorkerRiskDraft() {
     };
     const nextStep = () => {
         if (status.missing.includes(currentQuestion.key)) {
-            setNotice(currentQuestion.key + ' 문항을 먼저 작성해 주세요. 입력 내용은 화면 이동 중에만 유지됩니다.');
+            // L31: focus the existing required field, not the submit button.
+            // The inline error is tied to this field using aria-describedby.
+            setInvalidQuestion(currentQuestion.key);
+            setNotice('');
+            document.getElementById(currentQuestion.key === 'Q3' ? 'psi-l06-grade' : 'psi-l06-' + currentQuestion.key)?.focus();
             return;
         }
         if (step === PSI_FORM_QUESTIONS.length - 1) {
@@ -120,6 +129,7 @@ export default function WorkerRiskDraft() {
         resetTriggerRef.current?.focus({ preventScroll: true });
         setResetPending(false);
         setDraft(emptyWorkerRiskDraft());
+        setInvalidQuestion(null);
         setStep(0);
         setFurthestStep(0);
         setReview(false);
@@ -199,7 +209,10 @@ export default function WorkerRiskDraft() {
                                             setDraft(previous => ({ ...previous, grade, answers: { ...previous.answers, Q3: grade } }));
                                             setReview(false);
                                             setResetPending(false);
-                                        }} className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-base" required>
+                                            if (grade) setInvalidQuestion(previous => previous === 'Q3' ? null : previous);
+                                        }} aria-invalid={showCurrentValidation || undefined}
+                                            aria-describedby={showCurrentValidation ? 'psi-l06-error-Q3' : undefined}
+                                            className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-base" required>
                                             <option value="">위험수준 선택</option>
                                             <option value="상">상 · 매우 위험하다고 느낍니다</option>
                                             <option value="중">중 · 주의가 필요합니다</option>
@@ -216,6 +229,8 @@ export default function WorkerRiskDraft() {
                                     <>
                                         <label htmlFor={'psi-l06-' + question.key} className="mt-2 block text-sm font-medium text-slate-600">근로자 본인의 말로 구체적으로 적어주세요.</label>
                                         <textarea id={'psi-l06-' + question.key} rows={3} maxLength={500} required
+                                            aria-invalid={showCurrentValidation || undefined}
+                                            aria-describedby={showCurrentValidation ? 'psi-l06-error-' + question.key : undefined}
                                             value={draft.answers[question.key]} onChange={event => updateAnswer(question.key, event.target.value)}
                                             placeholder={question.key === 'Q1' ? '예: 00층 벽체 거푸집 설치 작업'
                                                 : question.key === 'Q2' ? '예: 작업발판 단부에 난간이 없어 추락할 위험'
@@ -224,6 +239,15 @@ export default function WorkerRiskDraft() {
                                             className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-3 text-base leading-6" />
                                         <p className="mt-1 text-right text-xs text-slate-500">{draft.answers[question.key].length}/500</p>
                                     </>
+                                )}
+                                {showCurrentValidation && (
+                                    <p id={'psi-l06-error-' + question.key} role="alert"
+                                        className="mt-3 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm font-bold text-rose-900"
+                                        data-testid="l06-question-error">
+                                        {question.key === 'Q3'
+                                            ? 'Q3 위험수준은 상·중·하 중 하나를 선택해 주세요.'
+                                            : question.key + ' 문항을 두 글자 이상 구체적으로 작성해 주세요.'}
+                                    </p>
                                 )}
                             </fieldset>
                         ))}
