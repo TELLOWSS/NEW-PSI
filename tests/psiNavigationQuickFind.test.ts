@@ -36,6 +36,19 @@ describe('Living UI L03 quick navigation', () => {
         expect(filterNavigationOptions(options, '')).toHaveLength(3);
     });
 
+    it('isolates background focus and distinguishes quick-search route selection from cancel', () => {
+        const quick = source('components/shell/NavigationQuickFind.tsx');
+        const browser = source('scripts/verify-psi-l15-accessibility.mjs');
+        expect(quick).toContain("const appRoot = document.getElementById('root')");
+        expect(quick).toContain('if (appRoot) appRoot.inert = true');
+        expect(quick).toContain('if (appRoot) appRoot.inert = rootWasInert');
+        expect(quick).toContain('navigatedRef.current = true');
+        expect(quick).toContain("document.getElementById('psi-main-content')?.focus({ preventScroll: true })");
+        expect(browser).toContain("'quick finder must make ONLY its nonportal app background inert'");
+        expect(browser).toContain("'QuickFind current-page selection must release inert'");
+        expect(quick).not.toMatch(/fetch\\s*\\(|localStorage|sessionStorage|indexedDB/i);
+    });
+
     it('wires the keyboard-safe search control into TopBar without exposing private records', () => {
         const quick = source('components/shell/NavigationQuickFind.tsx');
         const layout = source('components/Layout.tsx');
