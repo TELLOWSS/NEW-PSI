@@ -185,7 +185,7 @@ begin
     'state','received-pending-manager-review'
  );
 end;
-$;
+$$;
 revoke all on function public.psi_submit_worker_risk_l06(
  uuid,uuid,uuid,uuid,text,text,jsonb,text,text
 ) from public,anon;
