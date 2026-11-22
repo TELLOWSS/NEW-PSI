@@ -27,7 +27,7 @@ export const AppShell: React.FC<AppShellProps> = ({
             >
                 본문으로 바로가기
             </a>
-            <div className="no-print hidden h-full lg:block">{desktopSidebar}</div>
+            <div data-psi-desktop-sidebar className="no-print hidden h-full lg:block">{desktopSidebar}</div>
             {mobileSidebarOverlay}
 
             <div className="flex w-full flex-1 flex-col overflow-hidden">
