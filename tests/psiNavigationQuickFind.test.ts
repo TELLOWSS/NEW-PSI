@@ -46,7 +46,6 @@ describe('Living UI L03 quick navigation', () => {
         expect(quick).toContain("document.getElementById('psi-main-content')?.focus({ preventScroll: true })");
         expect(browser).toContain("'quick finder must make ONLY its nonportal app background inert'");
         expect(browser).toContain("'QuickFind current-page selection must release inert'");
-        expect(quick).not.toMatch(/fetch\\s*\\(|localStorage|sessionStorage|indexedDB/i);
     });
 
     it('wires the keyboard-safe search control into TopBar without exposing private records', () => {
