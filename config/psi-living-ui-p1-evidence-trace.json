@@ -146,5 +146,29 @@
       "runner": "company-direct",
       "unverified": "13개 인간 승인 게이트·최종 main/Production 대조 필요"
     }
-  ]
+  ],
+  "workstreamGateIds": {
+    "P2": [
+      "L06-worker-q1-q5-direct-submission",
+      "L17-rbac-supabase-tenant-rls"
+    ],
+    "P3": [
+      "L08-L14-android-photo-pwa",
+      "L15-real-zoom-accessibility",
+      "L16-real-offline-radio-battery"
+    ],
+    "P4": [
+      "L10-native-languages-a4",
+      "L09-actual-action-deferred-verification",
+      "L11-L12-real-reports-receipt"
+    ],
+    "P5": [
+      "L17-real-http-privacy-headers",
+      "L17-oss-commercial-hosting",
+      "L18-independent-release-review",
+      "L18-product-owner-explicit-approval",
+      "L18-production-post-deploy-validation"
+    ]
+  },
+  "workstreamReadinessNotice": "P1 covers CI traceability only; P2-P5 reference human review IDs, NOT automatic completion. Isolated Supabase, real device, language and owner reviews remain independent. Post-deploy confirmation cannot be approved before an authorized deployment."
 }
