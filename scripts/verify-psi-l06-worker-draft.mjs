@@ -135,6 +135,7 @@ try {
     assert.equal(await page.locator('#psi-l06-Q1').inputValue(), '가설 작업발판 설치',
         'First reset tap must preserve typed Q1 and every other answer');
     assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '5 / 5문항');
+    await page.waitForFunction(() => document.activeElement?.textContent?.trim() === '취소하고 계속 작성');
     assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()),
         '취소하고 계속 작성', 'Keyboard focus should start on the safer Cancel action');
     await resetPrompt.getByRole('button', { name: '취소하고 계속 작성' }).click();
