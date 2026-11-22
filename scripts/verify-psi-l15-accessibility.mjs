@@ -131,8 +131,11 @@ try{
    const sidebar=page.locator('[data-psi-desktop-sidebar]');
    await sidebar.getByRole('button',{name:'시스템 설정',exact:true}).click();
    await page.getByRole('button',{name:'메뉴 구성 편집 열기'}).click();
-   const editor=sidebar.locator('section').filter({has:sidebar.getByRole('heading',{name:'메뉴 구성 편집'})}).first();
-   await editor.getByRole('heading',{name:'메뉴 구성 편집'}).waitFor();
+   // Locate the actual heading first, then its parent section. A has()
+   // locator rooted at sidebar accidentally scopes twice inside section.
+   const editorHeading=sidebar.getByRole('heading',{name:'메뉴 구성 편집'});
+   await editorHeading.waitFor();
+   const editor=editorHeading.locator('xpath=..');
    const boxes=editor.getByRole('checkbox');
    assert.ok(await boxes.count()>0,'L33 desktop menu editor must retain user visibility checkboxes');
    const targets=await editor.evaluate(section=>
