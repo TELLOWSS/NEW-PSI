@@ -485,6 +485,18 @@
 
 **다음 한 작업:** 동일 최신 HEAD의 릴리스·전사 Chromium·Inspector 3종 결과 확인하고 실패 시 코드 수정·재검증 → 승인된 **별도 Supabase 테스트 프로젝트**의 실제 Auth/RLS/GRANT·중복 경합·현장범위 및 UI 연결 보안 검증 → 관리자가 실제 등록된 새 원문을 안전하게 대조하는 통합 화면 개발 및 Android/11개 언어/개인정보 보존·삭제 인수. 최종 제품 소유자 승인 전 main·Production/운영 DB 보류.
 
+### L06 후속 — 재제출 선행접수 차단 + 모바일 관리자 비교 개발용 실브라우저 검수 (8차, 2026-11-22)
+
+- **시작 점검:** 7차 최종 HEAD `526113d`의 릴리스 CI #44986443448 SUCCESS (PGlite 25/25, Vitest 2,118/2,118 및 빌드·L17/L18 소스 게이트 성공). 전사 Chromium #44986443491 및 Inspector 모바일 #44986443447은 후속 푸시 시 완료 전 취소되어 **3종 동일 HEAD 검증 완료로 주장 불가**.
+- **실제 발견한 무결성 누락:** 기존 보완 제출 RPC는 최초 `request_changes` 시점보다 먼저 접수된 독립 원본도 동일 `requestId`로 다시 불러와 보완본으로 연결 가능했음. 신규 제출 기록이 실제 보완요청 이후 생성되었는지 판정하지 못하는 문제. `supabase/proposals/psi_worker_risk_resubmission_l06_staging.sql`에서 검토 이벤트 `occurred_at`을 조회하고 `replacement.received_at > request_changes.occurred_at`을 필수로 하여 **선행 접수 재사용 거부**. 원본·이력 변경이나 운영 DB 적용 없음.
+- **회귀:** `tests/psiWorkerRiskSubmissionSqlL06.test.ts` 신규 부정 사례 1건(원본과 별개의 선행 접수증을 보완요청 뒤 연결 시도 → 거부; 원본 둘과 링크 무변경). 목표 26개 PGlite 가상 테스트. 마지막 HEAD CI 성공 전에는 신규 테스트 PASS 판정 유보.
+- **개발용 화면 경로:** `pages/PsiRevisionLabL06.tsx`에 실제 `PsiRevisionEvidencePanelL06` 컴포넌트와 **가상의 근로자·현장·Q1~Q5**를 연결. 5문항 원문·변경 2문항·보완 사유·미승인 상태를 모바일 1열/데스크톱 2열로 실제 렌더. ‘정상 기록’ ↔ ‘다른 현장 연결 차단’ 시나리오를 선택할 수 있음. `index.tsx`의 `/_dev/psi-l06-revisions`는 **`import.meta.env.DEV` 조건에서만 렌더**하며 Production 경로는 명시적 비제공 메시지. 실제 관리자 인증·업무 메뉴/서버 API·프로덕션 DB와 절대 연결하지 않음.
+- **진짜 Chromium QA 확장:** `scripts/verify-psi-l06-revision-lab.mjs`은 Vite dev에서 390px/1280px 렌더·5문항 비교·두 문항 변경 표시·가로 넘침·시나리오 전환·다른 현장 기록 비표시·API/외부 호출 0을 확인하고 화면 4장·JSON을 산출. 별도 `vite preview` 빌드에서 같은 경로가 차단됨도 확인. `.github/workflows/psi-company-wide.yml`에 단계와 artifact 추가; `tests/psiRevisionEvidencePanelL06.test.tsx`에 개발 전용 경로·비송신 정적 검사 추가.
+- **현재 범위의 명확한 한계:** 이것은 관리자 화면의 **시각적 실동작 검수용 개발 전용 샘플**이지 인증된 현장 관리자에게 실원문을 조회하는 ‘운영 관리자 화면’이 아님. 후자는 P05/L06 제안 SQL의 실 Supabase 테스트 Auth/RLS/GRANT·2개 기업 교차 시나리오와 개인정보 보유정책·최종 배포승인이 선행돼야 함. 개발비용·개인정보 전송/저장·외부 OCR/API 호출 없음. 기존 운영 `main`·Vercel Production·Supabase migration/실DB 변경 없음.
+- **검증 게이트:** 이번 8차 최종 HEAD 3종 CI를 같은 SHA로 재조회. 소스 코드/스크립트 작성만으로 브라우저 QA 완료 또는 L18 출시 승인이라 하지 않음. 사용자 인수 13건 전부 pending, PR #237 Draft 유지.
+
+**다음 한 작업:** 최신 HEAD 릴리스·전사 Chromium·Inspector 결과를 실제 확인해 오류 수정 → 승인된 격리 Supabase 테스트 프로젝트 존재/권한 정책 read-only 확인 → 2개 기업의 실제 Auth/RLS/GRANT 및 동시 경합 재현 → 그 검증된 서버 읽기 경계와 관리자 실화면 연동 검토. 현장 Android·11개 언어 A4/원어민·보관기한·보안/법무 검수 후에만 release 승인.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -508,7 +520,7 @@
 
 ## 9. 다음 착수 과제
 
-**L06 7차 원본 불변 재제출 parent-link SQL/관리자 비교 UI 3종 CI 확인 → 실 Supabase 인증/RLS/교차테넌트 별도 검증 승인 → 관리자 실화면 연결·Android/모국어·L18 인수 → 최종 승인 후에만 main/Production.**
+**L06 8차 보완 요청 후 접수시점 검증·DEV 전용 PC/모바일 QA의 최종 3종 CI 확인 → 승인된 격리 DB의 실제 Auth/RLS/GRANT 테스트 → 검증된 관리자 서버 조회에만 실UI 연결 → Android/모국어·L18 인수 완료 후 최종 승인 main/Production.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
