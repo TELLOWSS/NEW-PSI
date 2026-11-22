@@ -403,10 +403,10 @@ describe('L06 staged PostgreSQL atomic worker self-entry (NOT a live migration)'
     expect(row.rows[0].snapshot).toMatchObject({submissionId:id,workClearanceGranted:false});
     const functionText=(await db.query<{src:string}>(`select pg_catalog.pg_get_functiondef(
       'public.psi_l06_require_active_session()'::regprocedure) as src`)).rows[0].src;
-    expect(functionText).toContain('FOR KEY SHARE OF sess');
+    expect(functionText.toLowerCase()).toContain('for key share of sess');
     const readText=(await db.query<{src:string}>(`select pg_catalog.pg_get_functiondef(
       'public.psi_read_worker_risk_review_l06(uuid,uuid,uuid)'::regprocedure) as src`)).rows[0].src;
-    expect(readText).toContain('FOR SHARE OF m,sm,site');
+    expect(readText.toLowerCase()).toContain('for share of m,sm,site');
   });
 
   it('revoked tenant/site membership or disabled site prevents review and read',async()=>{
