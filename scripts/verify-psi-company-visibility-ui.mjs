@@ -47,6 +47,36 @@ try{
   check(width+'px 현황판 카드 넘침 없음',m.content<=m.box+2,{width,...m});
   if(width===390)await page.screenshot({path:resolve(outputDir,'mobile.png')});
  }
+ // L20: verify real Chromium focus/scroll behavior across CSS lg breakpoint.
+ // All test data are synthetic; no live Auth, Supabase, paid API or worker data.
+ await page.setViewportSize({width:390,height:850});
+ const moreButton=page.locator('.psi-mobile-nav button[aria-haspopup="dialog"]');
+ await moreButton.click();
+ const mobileDrawer=page.locator('#psi-mobile-navigation-dialog');
+ await mobileDrawer.waitFor({state:'visible'});
+ const phoneOpen=await page.evaluate(()=>document.body.style.overflow==='hidden');
+ check('모바일 전체메뉴 진입 시 실제 body 스크롤 잠금',phoneOpen,{width:390});
+ await page.setViewportSize({width:1200,height:850});
+ await page.waitForFunction(()=>!document.getElementById('psi-mobile-navigation-dialog'));
+ const restored=await page.evaluate(()=>({
+    bodyOverflow:document.body.style.overflow,
+    desktopFocused:Boolean(document.activeElement?.matches(
+        '[data-psi-desktop-sidebar] [aria-current="page"]')),
+ }));
+ check('1024px 전환에서 숨겨진 메뉴 종료·body 스크롤 복원',
+    restored.bodyOverflow!=='hidden',restored);
+ check('모바일 opener가 사라진 뒤 활성 데스크톱 메뉴에 키보드 포커스 복귀',
+    restored.desktopFocused,restored);
+ await page.setViewportSize({width:390,height:850});
+ await moreButton.click();
+ await mobileDrawer.waitFor({state:'visible'});
+ await page.keyboard.press('Escape');
+ await mobileDrawer.waitFor({state:'detached'});
+ const escReturn=await page.evaluate(()=>document.activeElement?.matches(
+    '.psi-mobile-nav button[aria-haspopup="dialog"]')===true &&
+    document.body.style.overflow!=='hidden');
+ check('Escape 닫기 시 모바일 더보기 버튼·스크롤 복귀',escReturn,{width:390});
+
  await page.emulateMedia({colorScheme:'dark',reducedMotion:'reduce'});
  await page.screenshot({path:resolve(outputDir,'dark.png')});
  check('스크립트 오류 없음',pageErrors.length===0,pageErrors);
