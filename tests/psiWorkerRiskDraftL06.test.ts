@@ -82,6 +82,24 @@ describe('L06 Q1-Q5 worker self-writing pilot without submission', () => {
         expect(browser).toContain("unfinishedText.includes('정식제출이아닙니다')");
     });
 
+    it('requires explicit cancelable confirmation before discarding in-memory answers', () => {
+        const ui = source('pages/WorkerRiskDraft.tsx');
+        const browser = source('scripts/verify-psi-l06-worker-draft.mjs');
+        expect(ui).toContain('const [resetPending, setResetPending] = useState(false)');
+        expect(ui).toContain('role="group" aria-label="작성 내용 초기화 확인"');
+        expect(ui).toContain('aria-expanded={resetPending}');
+        expect(ui).toContain('초기화 후에는 되돌릴 수 없습니다.');
+        expect(ui).toContain('취소하고 계속 작성');
+        expect(ui).toContain('초기화 확정');
+        expect(ui).toContain('onClick={reset}');
+        expect(ui).toContain("event.key === 'Escape'");
+        expect(ui).toContain('resetCancelRef.current?.focus()');
+        expect(browser).toContain('First reset tap must preserve typed Q1');
+        expect(browser).toContain('Cancel must preserve Q1');
+        expect(browser).toContain('Escape must dismiss reset confirmation');
+        expect(browser).toContain('Long Q1-Q5 record must survive until the explicit confirmation');
+    });
+
     it('remains explicitly identity-free, in-memory and unconnected to submission APIs', () => {
         const ui = source('pages/WorkerRiskDraft.tsx');
         const helper = source('utils/workerRiskDraftL06.ts');
