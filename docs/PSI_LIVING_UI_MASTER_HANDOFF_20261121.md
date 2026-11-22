@@ -633,6 +633,17 @@
 
 **다음 한 작업:** 20차 최종 동일 SHA release·전사 Chromium·Inspector QA 3종 결과 및 실패 원인 확인 → 사용자 승인된 별도 Supabase에서 실제 L06 A01~A25 Auth/RLS 증빙 → Android·모국어/정보보호/L18 사람 13개 승인 전 main/Production 및 실 DB 변경 금지.
 
+### L15·L21 후속 — 모바일 메뉴 열린 동안 배경 화면 원천 접근 차단 (21차, 2026-11-22)
+
+- **20차 동일 HEAD 3종 실조회:** `7c3136c268ff27f122e28c4cf25cd26518ac3215` release #44996840505 **SUCCESS**(278개 파일, **2,179/2,179** 단위, 신규 반응형 6/6, L15 3/3, L17 19/19), company Chromium #44996840520 **SUCCESS**(제품간 시나리오 **11/11**, 품질 현황 Chromium **24/24**: 390→1200px focus/scroll 복구 포함), Inspector 모바일 Chromium #44996840499 **SUCCESS**. 이들은 합성 자동화 QA이며 실제 Android/삼성 인터넷/스크린리더/운영 데이터 인수는 아님.
+- **21차 소스 결함:** `components/Layout.tsx` 모바일 전체메뉴에 `role="dialog"`, `aria-modal="true"`, Tab trap 및 body scroll lock이 있으나 **배경 자체를 `inert` 처리하지 않았음**. 사용자의 터치·보조기기 가상 탐색·스크립트 직접 focus는 배경으로 이동할 여지가 있어 실제 모달과 접근성 의미가 불일치할 수 있다.
+- **구현:** `components/shell/AppShell.tsx`의 선택 prop `mobileDialogOpen`을 `Layout`의 `isMobileMenuOpen`에 연동. 메뉴가 열리면 **뒤쪽 topbar+본문+하단 탐색 container**, 숨겨진 데스크톱 sidebar 및 `본문으로 바로가기` skip link를 native HTML `inert`로 처리한다. 모바일 dialog 자체는 inert 영역 **밖**에 두어 작동하게 유지하고, 메뉴가 닫히거나 1024px 반응형 전환/Escape 시 React가 inert를 제거한다. 다른 메뉴 정렬·가시성/RBAC·스크롤 복구·사용자 데이터·PSI 위험 판정 무변경.
+- **단위/통합 검증 목표:** `tests/psiMobileDialogInertBackground.test.tsx` 신규 **5건**(실제 서버 렌더링 시 backdrop inert, skip-link/desktop inert, 닫기 해제, default 호환성, 실제 Layout 연결). 전체 Vitest **2,184개/279파일 목표**. 기존 Chromium QA `scripts/verify-psi-company-visibility-ui.mjs` 3검사 추가(모바일 열린 동안 background `inert`와 programmatic focus 차단, 1200px 전환 후 inert 해제, Escape 후 inert 해제) → **27개 목표**. 최종 동일 SHA 3종 CI 완료 전 PASS 주장 금지.
+- **의미/한계:** inert를 DOM에 올린 **실행 가능 소스 변경**이며 `aria-modal`만 선언하는 것과 다르다. Chromium 합성시험만으로 Android TalkBack·삼성 인터넷·200% 확대·기기 회전·장갑 터치의 실제 보조공학 인수를 대신하지 않는다. Footer는 PC에서만 노출되는 비상호작용 저작권 문구이며 모바일 배경 상호작용 요소는 모달로 차단한다.
+- **출시 경계:** L06 실제 인증 A01~A25 전부 `NOT RUN`, 승인된 독립 Supabase 없음. L18 사람 승인 13개 `pending`, `RELEASE=BLOCKED`. PR #237 Draft, `main`/Vercel Production/실 Supabase Auth·RLS·키·근로자 기록·migrations/외부발송 변경 0.
+
+**다음 한 작업:** 21차 동일 HEAD release/company Chromium/Inspector 모바일 3종 CI 완결/실패 수리 → Android Chrome/삼성 인터넷 TalkBack·터치·회전 수동검증 및 승인된 독립 Supabase의 A01~A25 실제 Auth/RLS 테스트 → 개인정보·원어민·L18 13개 사람 인수와 소유자 승인 전 운영 연결/병합/배포 금지.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -656,7 +667,7 @@
 
 ## 9. 다음 착수 과제
 
-**L15·L20 모바일 전체메뉴 viewport 전환 시 포커스·스크롤 복구 + 6건 합성회귀·동일 HEAD CI 3종 확인 → 승인된 별도 Supabase A01~A25 실 Auth/RLS 인수 → Android/원어민/법무·L18 사람 13개 인수 및 소유자 명시승인 전 main/Production/실 DB 적용 보류.**
+**L15·L21 모바일 메뉴 배경 inert/포커스 차단 5개 SSR·3개 Chromium 검사와 동일 SHA CI 3종 판정 → Android TalkBack/삼성 인터넷 실기기 및 승인된 별도 Supabase A01~A25 실제 인수 → L18 13개 사람·정보보호·원어민 승인 전 main/Production/실 DB 연결 보류.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
