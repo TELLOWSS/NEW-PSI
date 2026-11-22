@@ -733,6 +733,16 @@
 
 **다음 한 작업:** 29차 수정된 최종 HEAD 릴리스·회사형 Chromium의 native 문서 이동 취소·Inspector QA 3종 결과 확정, 실패 시 원인수정·동일 SHA 재검증 → 승인된 별도 Supabase에서 A01~A25 실제 인증·권한 검증과 Android/삼성 인터넷의 실제 새로고침·강제종료·A4/원어민/정보보호·L18 13건 인수 → 명시적 사용자 승인 전 운영 병합/배포 금지.
 
+### L06·L30 후속 — Q1~Q5 검토·초기화 화면 전환의 키보드/스크린리더 포커스 복원 (30차, 2026-11-22)
+
+- **29차 동일 HEAD 최종 검증:** `8e36b946b9987f64b4c0834d4e72393f62bfb35b` release #45006256722 **SUCCESS** (279 파일, **2,191/2,191** unit, L17 source-only 19/19, L18 `RELEASE=BLOCKED`); company Chromium #45006256742 **SUCCESS** (기존 Q1~Q5 + 실제 Chromium 문서 이탈 `beforeunload` 취소 후 원문 보존 테스트 포함); Inspector mobile #45006256694 **SUCCESS**. 첫 29차 CI의 `page.close({runBeforeUnload:true})` 오류는 인계서 L29에 남겨둔다. 이 결과는 자동 합성 브라우저에 한정되고 실제 Android/원어민/서명/DB/Auth 인수 아님.
+- **이번 발견:** 기존 `pages/WorkerRiskDraft.tsx`는 Q5 ‘작성 내용 확인’을 누르면 해당 submit 버튼이 화면에서 사라지지만 **새 검토 화면으로 키보드 초점을 인계하지 않았다.** 또한 ‘전체 초기화’ 취소 버튼/확정 버튼 및 Esc가 사라지는 inline 확인 UI 내에 포커스가 남아, 키보드 사용자가 다음 이동 위치를 놓칠 수 있었다. 실제 TalkBack 장애 재현이 아니라 소스 기반으로 확인된 초점 생명주기 공백이다.
+- **30차 실제 구현:** `reviewHeadingRef`와 `useEffect([review])`로 검토 화면이 열릴 때 `내가 작성한 내용 확인` 제목에 programmatic focus, `tabIndex=-1`로 일상 Tab 순서에 가짜 정지점 추가하지 않음. 기존 뒤로 수정 시 Q1 입력 복귀 동작 유지. `resetTriggerRef`와 `cancelReset()`으로 취소·Esc에서 삭제 확인 그룹이 unmount되기 **직전** 포커스를 계속 존재하는 ‘전체 초기화’ 버튼으로 돌리고, 확정 삭제 시에도 초점을 같은 버튼에 복귀시킴. 초기화 취소는 Q1~Q5/자가등급/단계/미저장 경고를 변경하지 않음. 초점 관리 이외의 원문, validation, DB, 네트워크·공식 접수·A4 판정 로직 무변경.
+- **합성 Chromium 시험 강화:** `scripts/verify-psi-l06-worker-draft.mjs` 390px 화면에서 Q5→검토 제목이 실제 `document.activeElement`이고 `tabindex=-1`인지를 검증, 검토→수정에서 Q1 입력으로 복귀, 전체 초기화 확인에서 취소 기본 초점 유지, 취소/키보드 Escape/확정 각 동작 뒤 ‘전체 초기화’ 버튼으로 포커스가 돌아오는지 확인. 이전 Q1~Q5 텍스트 유지/삭제, A4 미완료 출력 차단·정상/장문 무손실, native Chromium 이탈 취소 후 원문, API·storage 0 회귀 경로는 보존. `tests/psiWorkerRiskDraftL06.test.ts` 소스 계약 1건 추가.
+- **검증/안전 제한:** **30차 최종 HEAD** 릴리스·전사 Chromium의 신규 포커스 시나리오·Inspector QA가 모두 종료한 다음에만 자동 3종 PASS. Chromium programmatic focus 성공은 실제 Android Chrome/삼성 인터넷/TalkBack·음성 안내의 사용성 검증을 대신하지 않는다. 독립 승인된 Supabase 테스트환경 **없음**, A01~A25 `not-run`, L18 인간 승인 13건 `pending`, `RELEASE=BLOCKED`; PR #237 Draft, `main` 병합/Production/운영 DB·Auth·키/실근로자 기록·외부 전송·유료 AI 호출 없음.
+
+**다음 한 작업:** 30차 최신 동일 SHA release·company Chromium(실제 키보드 이동/출력)/Inspector 3종 검증·실패 시 수리 → Android Chrome/삼성 인터넷·TalkBack 현장 실사용 검수와 승인된 별도 Supabase Auth/RLS A01~A25 실증 → L18 13개 사람/개인정보 보관·삭제/11개 모국어/A4 소유자 승인 전 운영 연결·main/Production 보류.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -756,7 +766,7 @@
 
 ## 9. 다음 착수 과제
 
-**L06·L29 모바일 5문항 임시기록 미저장 상태 가시화와 실제 Chromium 종료 확인창 취소/인쇄 분리, 29차 최종 동일 HEAD CI 3종 결과·실패시 수리 → 승인된 격리 Supabase A01~A25와 Android Chrome/삼성 인터넷·11개 언어 A4·개인정보 보존/삭제 검수 → L18 13개 사람·정보보호·소유자 승인 전 main/Production/실 DB 연결 보류.**
+**L06·L30 Q1~Q5 검토·초기화 확인의 키보드/스크린리더 초점 복원, 30차 최종 동일 HEAD CI 3종 검증 → 승인된 격리 Supabase A01~A25와 Android Chrome/삼성 인터넷·TalkBack·11개 언어 A4·개인정보 보존/삭제 인수 → L18 13개 사람·소유자 승인 전 main/Production/실 DB 연결 보류.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
