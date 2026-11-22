@@ -230,6 +230,41 @@ try{
   assert.equal(checks.reduced,true,'reduced motion unavailable');
   assert.notEqual(checks.scroll,'hidden','dialog scroll lock left behind');
   assert.deepEqual(errors,[],'browser errors '+JSON.stringify(c));
+  // L37: verify actual computed motion in Chromium, not only source text.
+  // Every case is initially prefers-reduced-motion:reduce; desktop checks
+  // then switch to normal motion on the same real rendered AppShell.
+  if(c.width>=1024){
+   const readMotion=()=>page.evaluate(()=>{
+    const shell=document.querySelector('.psi-app-shell.psi-platform-field-canvas');
+    const sidebar=shell?.querySelector('.psi-sidebar');
+    const header=shell?.querySelector('.psi-page-header.psi-living-page-enter');
+    return {
+     hasShell:!!shell,hasSidebar:!!sidebar,
+     headerVisible:!!header,
+     sidebarTransition:sidebar?getComputedStyle(sidebar).transitionDuration:null,
+     headerAnimation:header?getComputedStyle(header).animationName:null,
+     reduced:matchMedia('(prefers-reduced-motion: reduce)').matches,
+    };
+   });
+   const reducedMotion=await readMotion();
+   assert.equal(reducedMotion.hasShell,true,'L37 must inspect real operational shell');
+   assert.equal(reducedMotion.hasSidebar,true,'L37 desktop sidebar missing');
+   assert.equal(reducedMotion.reduced,true,'L37 context must start with reduced motion');
+   assert.ok(!reducedMotion.sidebarTransition || reducedMotion.sidebarTransition.split(',').every(x=>parseFloat(x)===0),
+    'L37 reduced motion must disable sidebar transitions: '+JSON.stringify(reducedMotion));
+   if(reducedMotion.headerVisible)
+    assert.equal(reducedMotion.headerAnimation,'none',
+     'L37 reduced-motion page header must not animate');
+   await page.emulateMedia({reducedMotion:'no-preference'});
+   const normalMotion=await readMotion();
+   assert.equal(normalMotion.reduced,false,'L37 normal motion media override failed');
+   assert.ok(normalMotion.sidebarTransition?.split(',').some(x=>parseFloat(x)>0),
+    'L37 desktop dock animation must be active in real CSS: '+JSON.stringify(normalMotion));
+   if(normalMotion.headerVisible)
+    assert.ok(normalMotion.headerAnimation?.includes('psi-living-page-enter'),
+     'L37 visible page header should use the scoped entrance animation');
+   await page.emulateMedia({reducedMotion:'reduce'});
+  }
   results.push({case:c,quickfind:size,shell:checks});
   await context.close();
  }
