@@ -252,8 +252,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 const isFirst = index === 0;
                                 const isLast = index === editRows.length - 1;
                                 return (
-                                    <div key={`edit-${item.id}`} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 dark:border-slate-700/70 dark:bg-slate-950/40">
-                                        <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                    <div key={`edit-${item.id}`} className="flex min-w-0 flex-col gap-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-700/70 dark:bg-slate-950/40">
+                                        <label className="flex min-h-11 min-w-0 items-center gap-2 rounded-md text-xs font-semibold leading-snug text-slate-700 dark:text-slate-200">
                                             <input
                                                 type="checkbox"
                                                 checked={!isHidden}
@@ -262,16 +262,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                                         setSidebarPageVisible(compositionConfig, item.id, event.target.checked),
                                                     )
                                                 }
-                                                className="h-3.5 w-3.5 rounded border-slate-400 dark:border-slate-500 bg-white dark:bg-slate-800 text-orange-500 focus:ring-orange-500"
+                                                className="h-5 w-5 shrink-0 rounded border-slate-400 bg-white text-orange-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--psi-focus)] dark:border-slate-500 dark:bg-slate-800"
                                             />
-                                            <span>{resolvePageLabel(item.id)}</span>
+                                            <span className="min-w-0 break-words">{resolvePageLabel(item.id)}</span>
                                         </label>
-                                        <div className="flex items-center gap-1">
+                                        <div className="flex items-center justify-end gap-2">
                                             <button
                                                 type="button"
                                                 disabled={isFirst}
                                                 onClick={() => onCompositionConfigChange(reorderSidebarPage(compositionConfig, item.id, 'up'))}
-                                                className="rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
+                                                className="flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-slate-300 bg-white text-base font-bold text-slate-600 transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--psi-focus)] disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                                                 aria-label={`${resolvePageLabel(item.id)} 위로 이동`}
                                             >
                                                 ▲
@@ -280,7 +280,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                                 type="button"
                                                 disabled={isLast}
                                                 onClick={() => onCompositionConfigChange(reorderSidebarPage(compositionConfig, item.id, 'down'))}
-                                                className="rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
+                                                className="flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-slate-300 bg-white text-base font-bold text-slate-600 transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--psi-focus)] disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                                                 aria-label={`${resolvePageLabel(item.id)} 아래로 이동`}
                                             >
                                                 ▼
