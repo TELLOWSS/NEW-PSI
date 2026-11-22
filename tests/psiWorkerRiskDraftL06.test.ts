@@ -100,6 +100,24 @@ describe('L06 Q1-Q5 worker self-writing pilot without submission', () => {
         expect(browser).toContain('Long Q1-Q5 record must survive until the explicit confirmation');
     });
 
+    it('guards unsaved browser navigation without adding persistence or a fake receipt', () => {
+        const ui = source('pages/WorkerRiskDraft.tsx');
+        const chromium = source('scripts/verify-psi-l06-worker-draft.mjs');
+        expect(ui).toContain('const hasInMemoryAnswers = Object.values(draft.answers).some(');
+        expect(ui).toContain("draft.gradeReason.trim().length > 0");
+        expect(ui).toContain('Boolean(draft.grade)');
+        expect(ui).toContain("window.addEventListener('beforeunload', warnBeforeUnload)");
+        expect(ui).toContain("window.removeEventListener('beforeunload', warnBeforeUnload)");
+        expect(ui).toContain("event.returnValue = '';");
+        expect(ui).toContain('모바일에서는 경고가 생략될 수 있습니다');
+        expect(chromium).toContain('const probeUnloadWarning = () => page.evaluate(');
+        expect(chromium).toContain('Blank practice form must not block browser navigation');
+        expect(chromium).toContain('Canceling reset must preserve the unload warning');
+        expect(chromium).toContain('After confirmed clear, navigation must no longer be warned');
+        expect(chromium).toContain('Final confirmed clear must release the beforeunload guard');
+        expect(ui).not.toMatch(/window\.confirm|window\.alert|navigator\.sendBeacon|localStorage|sessionStorage|indexedDB/);
+    });
+
     it('remains explicitly identity-free, in-memory and unconnected to submission APIs', () => {
         const ui = source('pages/WorkerRiskDraft.tsx');
         const helper = source('utils/workerRiskDraftL06.ts');
