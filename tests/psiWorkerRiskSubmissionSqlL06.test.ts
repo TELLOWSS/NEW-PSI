@@ -70,10 +70,17 @@ beforeEach(async()=>{
     ($3,'l06-owner@example.invalid',now()),($4,'l06-outsider@example.invalid',now())`,
     [USER_A,USER_B,OWNER_A,OUTSIDER]);
   await db.query("insert into public.psi_tenants(id,name) values($1,'Tenant A'),($2,'Tenant B')",[TENANT_A,TENANT_B]);
-  await db.query("insert into public.psi_tenant_memberships(tenant_id,user_id,role) values($1,$2,'owner')",[TENANT_A,OWNER_A]);
+  await db.query("insert into public.psi_tenant_memberships(tenant_id,user_id,role) values($1,$2,'owner'),($3,$4,'owner')",
+    [TENANT_A,OWNER_A,TENANT_B,OUTSIDER]);
+  // The existing tenant worker integrity trigger requires an active manager;
+  // provision both synthetic workers through their own tenant managers.
+  await user(OWNER_A);
   await db.query(`insert into public.psi_tenant_workers(tenant_id,id,name,worker_code,trade)
-    values($1,$2,'가상 근로자 A','A-1','형틀'),($3,$4,'가상 근로자 B','B-1','철근')`,
-    [TENANT_A,WORKER_A,TENANT_B,WORKER_B]);
+    values($1,$2,'가상 근로자 A','A-1','형틀')`,[TENANT_A,WORKER_A]);
+  await user(OUTSIDER);
+  await db.query(`insert into public.psi_tenant_workers(tenant_id,id,name,worker_code,trade)
+    values($1,$2,'가상 근로자 B','B-1','철근')`,[TENANT_B,WORKER_B]);
+  await db.exec('reset role');
   await db.query(`insert into public.psi_tenant_worker_accounts(tenant_id,worker_id,user_id,email,updated_by)
     values($1,$2,$3,'l06-a@example.invalid',$4),($5,$6,$7,'l06-b@example.invalid',$4)`,
     [TENANT_A,WORKER_A,USER_A,OWNER_A,TENANT_B,WORKER_B,USER_B]);
