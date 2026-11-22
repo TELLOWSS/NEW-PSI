@@ -30,7 +30,7 @@ describe('L35 Living UI P1 module-to-CI evidence boundary',()=>{
   expect(checker).toContain("authorizesRelease:false");
   expect(checker).toContain("manualAndLiveScope:'UNVERIFIED");
   expect(checker).toContain("existingL18Automation=evidence.automationStatus");
-  expect(checker).toContain("report.humanGatePending");
+  expect(checker).toContain("humanGatePending:humanPending.length");
   expect(checker).toContain("humanPending=release.gates.filter");
   expect(auth.environment.approved).toBe(false);
   expect(auth.cases.filter((x:{status:string})=>x.status==='not-run')).toHaveLength(25);
