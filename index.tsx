@@ -138,7 +138,7 @@ try {
         <React.Suspense fallback={<p role="status">현장 카메라를 준비합니다…</p>}><FieldCamera/></React.Suspense>
       ) : window.location.pathname.replace(/\/$/, '') === '/inspector' ? (
         <React.Suspense fallback={<p role="status">독립 사진점검 화면을 준비합니다…</p>}><InspectorStandalone/></React.Suspense>
-      ) : window.location.pathname.replace(/\\/$/, '') === '/worker-risk-draft' ? (
+      ) : window.location.pathname.replace(/\/$/, '') === '/worker-risk-draft' ? (
         <React.Suspense fallback={<p role="status">5문항 작성 연습 화면을 불러오는 중…</p>}><WorkerRiskDraft /></React.Suspense>
       ) : window.location.pathname === '/saas/education' ? (
         <React.Suspense fallback={<p role="status">개인 교육 화면을 불러오는 중…</p>}><WorkerTenantEducation /></React.Suspense>
