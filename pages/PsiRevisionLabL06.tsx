@@ -26,17 +26,20 @@ const original = {
   submissionId: 'synthetic-receipt-original',
   sourceLanguage: 'ko',
   gradeReason: '안전난간을 설치하지 못한 단부 작업',
+  receivedAt: '2026-11-22T03:45:00.000Z',
   answers: originalAnswers,
   workClearanceGranted: false,
   events: [{
     action: 'request_changes',
     note: 'Q4 안전대 사용만으로 충분한 대책인지 검토하고, 난간 설치·고정점 확인과 Q5 실제 행동을 구체적으로 작성해 주세요.',
     revision: 1,
+    recordedAt: '2026-11-22T03:50:00.000Z',
   }],
 };
 const replacement = {
   ...original,
   submissionId: 'synthetic-receipt-new',
+  receivedAt: '2026-11-22T03:57:00.000Z',
   answers: correction,
   events: [],
 };
