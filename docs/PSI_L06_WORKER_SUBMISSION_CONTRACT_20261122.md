@@ -90,3 +90,16 @@
 - **출시 금지 조건:** 연결된 실제 Supabase `PSI-Database`의 P05 개별 현장 배정/평가주기/접수/검토 테이블은 도입 승인 및 실제 Auth/RLS/GRANT 검증이 완료되지 않음. 실제 관리자/근로자 계정 두 기업의 격리 검증, 권한 철회/재인증, 원문·민감정보 처리근거/보존 및 삭제, 현장 Android 실기기·한국어 외 11개 모국어 인수, 보완 재제출 링크·작업허가 분리·실무 UX 등은 미완료. L18 사용자 인수 13건 모두 pending, PR #237 Draft 유지, `main`·Production/운영 DB 변경 보류.
 
 **다음 한 작업:** 신규 HEAD CI 3종 성공/실패를 같은 SHA로 검증 → 격리 승인 Supabase 테스트 환경에서 두 기업·현장·근로자 개인계정에 대한 실제 Auth/RLS/GRANT 및 서로 다른 관리자의 검토/승인을 검증 → 동일 근로자 보완 재제출 `original_submission_id` 연결과 관리자 보완·확인 UX (원문은 수정하지 않고 별도 이력) → 개인정보 정책/작업허가 분리·인적 검수 완료 전 운영 반영 금지.
+
+## 9. 2026-11-22 — L06 7차 보완 재제출 immutable parent-link 제안
+
+**현재 상태: STAGING SQL + 관리자 읽기전용 UI 컴포넌트 / 운영 미연결 / 실제 제출 불가.**
+
+- 신규 `supabase/proposals/psi_worker_risk_resubmission_l06_staging.sql`은 기존 제출/관리자 검토 제안 뒤에만 적용하는 독립 SQL. `psi_worker_risk_resubmission_links`의 두 복합 외래키가 **동일 기업·현장·근로자·주기** 원본/새 제출 ID만 연결하도록 하고 원본 1건→교체본 최대 1건, 교체본 1건→원본 최대 1건을 강제. 원본·접수·검토 이력은 변경하지 않으며 관계 INSERT 후 UPDATE/DELETE까지 트리거로 방어한다(슈퍼유저 변경방지·독립 해시앵커는 아님).
+- 인증된 작성자 `auth.uid()`가 기존 원본의 `account_user_id`와 일치하고 최신 관리자 검토가 **보완요청(`request_changes`)**일 때만 `psi_submit_worker_risk_revision_l06`이 새 Q1~Q5 원문을 기존 검증·원자적 접수 RPC로 제출할 수 있도록 **격리 SQL에서만 정의**. 새 데이터/링크가 하나의 트랜잭션에서 실패하면 모두 롤백. 동일 nonce와 동일 답안 재시도 외 다른 교체본을 거부한다. 작업허가·재개·위험 감소대책 실행확인과 완전히 분리.
+- 관리자가 원본/보완본을 볼 때 `psi_read_worker_risk_revision_chain_l06`은 **기존 관리자 현장 권한 조회 RPC를 양쪽 원문에 두 번 적용**하여 권한 확대를 금지한다. `PsiRevisionEvidencePanelL06`의 Q1~Q5·Q3 이유·변경 표식은 읽기전용이며 실제 관리자 메뉴와 DB 호출은 연결하지 않았다.
+- 검증: 기존 PostgreSQL 호환 PGlite 20건에 원본 연결, 교차접근 거부, 승인 후 보완 차단, 멱등·원자적 실패 롤백, 변경금지 5건을 확장. UI 독립 렌더·교차스코프·거짓 작업허가 차단 3건을 추가했다. **각 커밋과 동일한 최신 HEAD CI 전부 완료하기 전까지 PASS 미확정.**
+- `supabase/migrations` 추가 없음. 운영 PSI-Database, OAuth/Auth 계정·GRANT·RLS 변경 없음. `/worker-risk-draft`는 한국어 무저장 시범 그대로. 진짜 근로자 인증, 보완 요청 전달/열람/고지, 실제 2개 기업 Auth/RLS, 관리자 비교 UX 통합, 재제출 처리근거·개인정보 보관·삭제, Android/11개 언어 및 L18 13개 현장 인수 게이트 미완료.
+- 인계·상태·다음 작업: `docs/PSI_LIVING_UI_MASTER_HANDOFF_20261121.md` L06 7차. PR #237 Draft. main 병합, Production/실DB 변경은 최종 승인 전 금지.
+
+**다음:** 최종 HEAD 자동 QA 재확인·실패 보완 → 변경승인 받은 격리 Supabase 2개 기업/현장/근로자·관리자 계정으로 Auth/RLS/GRANT·중복 경합 실검증 → 확인된 서버 자료만 이용하는 관리자 비교 화면 통합 → Android/원어민·법무/보존기한·현장 안전 승인.
