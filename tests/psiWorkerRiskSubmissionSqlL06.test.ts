@@ -56,6 +56,12 @@ const revisionParams=(parent:string,nonce=NONCE_B,answers:unknown={...ANSWERS,Q4
   [TENANT_A,SITE_A,CYCLE_A,parent,nonce,VERSION,'ko',JSON.stringify(answers),'상','개구부'];
 const readChainSql='select public.psi_read_worker_risk_revision_chain_l06($1,$2,$3) as chain';
 async function submitA(){await user(USER_A);return (await submit(...params())).rows[0].receipt.receiptId as string;}
+/** Fixture clock boundary only: PGlite can timestamp back-to-back events equally.
+ * Preserve the PRODUCTION strict rule: child.received_at > request_changes.occurred_at.
+ * Do not mock or rewrite audit timestamps to make an invalid event pass. */
+const waitForDistinctReceiptClock = async () =>
+  new Promise<void>(resolve => setTimeout(resolve,20));
+
 
 beforeAll(async()=>{
   db=new PGlite();
@@ -388,6 +394,7 @@ describe('L06 staged PostgreSQL atomic worker self-entry (NOT a live migration)'
     const parent=await submitA();
     await user(REVIEWER_A);
     await review(reviewParams(parent,REVIEW_NONCE_1,'request_changes',REVIEW_NOTE,0));
+    await waitForDistinctReceiptClock();
     await user(USER_A);
     await db.query(revisionSql,revisionParams(parent));
     await db.exec('reset role');
@@ -411,6 +418,7 @@ describe('L06 staged PostgreSQL atomic worker self-entry (NOT a live migration)'
     const parent=await submitA();
     await user(REVIEWER_A);
     await review(reviewParams(parent,REVIEW_NONCE_1,'request_changes',REVIEW_NOTE,0));
+    await waitForDistinctReceiptClock();
     await user(USER_A);
     await db.query(revisionSql,revisionParams(parent));
     await db.exec('reset role');
@@ -519,6 +527,7 @@ describe('L06 staged PostgreSQL atomic worker self-entry (NOT a live migration)'
     const parent=await submitA();
     await user(REVIEWER_A);
     await review(reviewParams(parent,REVIEW_NONCE_1,'request_changes',REVIEW_NOTE,0));
+    await waitForDistinctReceiptClock();
     await user(USER_A);
     const response=(await db.query<{receipt:Record<string,unknown>}>(
       revisionSql,revisionParams(parent))).rows[0].receipt;
@@ -576,6 +585,7 @@ describe('L06 staged PostgreSQL atomic worker self-entry (NOT a live migration)'
     const parent=await submitA();
     await user(REVIEWER_A);
     await review(reviewParams(parent,REVIEW_NONCE_1,'request_changes',REVIEW_NOTE,0));
+    await waitForDistinctReceiptClock();
     await user(USER_A);
     const first=(await db.query<{receipt:Record<string,unknown>}>(
       revisionSql,revisionParams(parent))).rows[0].receipt;
@@ -597,6 +607,7 @@ describe('L06 staged PostgreSQL atomic worker self-entry (NOT a live migration)'
     expect(earlier.receiptId).not.toBe(parent);
     await user(REVIEWER_A);
     await review(reviewParams(parent,REVIEW_NONCE_1,'request_changes',REVIEW_NOTE,0));
+    await waitForDistinctReceiptClock();
     await user(USER_A);
     await deny(revisionSql,revisionParams(parent,NONCE_B));
     await db.exec('reset role');
@@ -608,6 +619,7 @@ describe('L06 staged PostgreSQL atomic worker self-entry (NOT a live migration)'
     const parent=await submitA();
     await user(REVIEWER_A);
     await review(reviewParams(parent,REVIEW_NONCE_1,'request_changes',REVIEW_NOTE,0));
+    await waitForDistinctReceiptClock();
     await db.exec('reset role');
     await db.exec("alter table public.psi_worker_risk_resubmission_links add constraint l06_synthetic_link_failure check(false)");
     await user(USER_A);
