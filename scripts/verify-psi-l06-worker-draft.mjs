@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 const host = 'http://127.0.0.1:5195';
 const delay = milliseconds => new Promise(done => setTimeout(done, milliseconds));
@@ -69,6 +70,34 @@ try {
     assert.deepEqual(apiCalls, [], 'Worksheet must not call any /api endpoint');
     assert.deepEqual(externalCalls, [], 'Worksheet must not call external services');
 
+    // L24: the shared report-print CSS hides #root. The trial route must be
+    // isolated so its own A4 printout contains the five written answers.
+    await page.emulateMedia({ media: 'print' });
+    const printStatus = await page.evaluate(() => ({
+        rootVisible: getComputedStyle(document.getElementById('root')).display !== 'none',
+        progressHidden: getComputedStyle(document.querySelector('.psi-l06-progress-screen')).display === 'none',
+        reviewVisible: getComputedStyle(document.querySelector('.psi-l06-review-print')).display !== 'none',
+        actionHidden: getComputedStyle(document.querySelector('.psi-l06-review-actions')).display === 'none',
+    }));
+    assert.deepEqual(printStatus, {
+        rootVisible: true, progressHidden: true, reviewVisible: true, actionHidden: true,
+    }, 'L06 print CSS must show ONLY the review, unlike the generic report print shell');
+    await mkdir('artifacts/audit/psi-l06-worker-risk-draft', { recursive: true });
+    const pdfBytes = await page.pdf({
+        path: 'artifacts/audit/psi-l06-worker-risk-draft/a4-five-question-trial.pdf',
+        format: 'A4', printBackground: true, preferCSSPageSize: true,
+    });
+    const pdf = await getDocument({ data: new Uint8Array(pdfBytes) }).promise;
+    assert.equal(pdf.numPages, 1, 'Normal-length five-question L06 trial must print as one A4 page');
+    const pageText = (await (await pdf.getPage(1)).getTextContent()).items
+        .map(item => 'str' in item ? item.str : '').join(' ');
+    for (const key of ['Q1', 'Q2', 'Q3', 'Q4', 'Q5']) {
+        assert.ok(pageText.includes(key), 'Trial print must contain ' + key);
+    }
+    assert.ok(!pageText.includes('서버 접수번호'), 'Practice print must not invent a server receipt');
+    await pdf.destroy();
+    await page.emulateMedia({ media: 'screen' });
+
     await page.getByRole('button', { name: '수정하기' }).click();
     assert.equal(await page.locator('#psi-l06-Q1').inputValue(), '가설 작업발판 설치', 'Review edit returns to preserved Q1');
     await page.getByRole('button', { name: '전체 초기화' }).click();
@@ -84,11 +113,12 @@ try {
         apiCalls: apiCalls.length,
         externalCalls: externalCalls.length,
         storageWrites: 0,
+        a4TrialPrint: { pages: 1, questions: 5, receiptCreated: false, syntheticOnly: true },
         navigation: 'one-question-at-a-time, incomplete-step-blocked, back-and-forth-preserved',
         note: 'In-memory trial only, no worker submission/identity/Android validation',
     }, null, 2) + '\n');
 
-    console.log('[PSI L06] SYNTHETIC_PASS: 5-step keyboard-accessible navigation/review/reset; zero API/storage calls');
+    console.log('[PSI L06] SYNTHETIC_PASS: 5-step review/reset + nonblank 1-page A4 trial print; zero API/storage calls');
 } finally {
     await browser?.close();
     server.kill('SIGTERM');
