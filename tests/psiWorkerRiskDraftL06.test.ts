@@ -103,7 +103,7 @@ describe('L06 Q1-Q5 worker self-writing pilot without submission', () => {
     it('guards unsaved browser navigation without adding persistence or a fake receipt', () => {
         const ui = source('pages/WorkerRiskDraft.tsx');
         const chromium = source('scripts/verify-psi-l06-worker-draft.mjs');
-        expect(ui).toContain('const hasInMemoryAnswers = Object.values(draft.answers).some(');
+        expect(ui).toContain('const hasInMemoryAnswers = PSI_FORM_QUESTIONS.some(');
         expect(ui).toContain("draft.gradeReason.trim().length > 0");
         expect(ui).toContain('Boolean(draft.grade)');
         expect(ui).toContain("window.addEventListener('beforeunload', warnBeforeUnload)");
