@@ -92,15 +92,24 @@ const recordValid = (v: unknown, tenantId:string, siteId:string): v is Record<st
 /**
  * This verifies the *output shape and scope* of a source-only read adapter,
  * NOT actual Supabase Auth/RLS or legal eligibility to display worker data.
- * No network/storage is performed by this function.
+ * No network/storage is performed directly by this function.
+ * Its injected server port can query a test data source. All real DB checks
+ * must be atomic/transactionally authorized before final production use.
  */
 export async function inspectL06ManagerRevisionRead(
     principal: L06VerifiedManagerPrincipal|null,
     req: L06ManagerRevisionRequest,
     port: L06ManagerRevisionReadPort,
-    now: Date,
+    clock: () => Date,
 ): Promise<L06ManagerReadResult> {
-    const nowMs = now instanceof Date ? now.getTime() : NaN;
+    // Only a trusted server supplies the clock. Never use a client timestamp.
+    let nowMs: number;
+    try {
+        const sampled = clock();
+        nowMs = sampled instanceof Date ? sampled.getTime() : NaN;
+    } catch {
+        return fail('SESSION_INVALID');
+    }
     if(!principal || !UUID.test(principal.userId) || !UUID.test(principal.sessionId) ||
         !Number.isFinite(nowMs) || utc(principal.expiresAt)===null ||
         (utc(principal.expiresAt) as number)<=nowMs) return fail('SESSION_INVALID');
@@ -141,7 +150,31 @@ export async function inspectL06ManagerRevisionRead(
              (utc(chain.original.receivedAt) as number) ||
            (utc(chain.original.events.at(-1)?.recordedAt) as number) >=
              (utc(chain.replacement.receivedAt) as number)) return fail('EVIDENCE_UNAVAILABLE');
-        // The real SQL read RPC must check manager's DB role AGAIN.
+        // TOCTOU defense in depth: a role, site or session can be revoked while
+        // a slow DB read is in flight. Recheck immediately BEFORE release.
+        // This does not replace a single-transaction SQL authorization proof.
+        const finished = clock();
+        const finalMs = finished instanceof Date ? finished.getTime() : NaN;
+        if(!Number.isFinite(finalMs) || finalMs<nowMs ||
+            (utc(principal.expiresAt) as number)<=finalMs) return fail('SESSION_INVALID');
+        const currentSession = await port.activeSession(userId,sessionId);
+        if(!exactly(currentSession,{userId,sessionId,active:true}) ||
+           !hasShape(currentSession) || utc(currentSession.expiresAt)===null ||
+           (utc(currentSession.expiresAt) as number)<=finalMs) return fail('SESSION_INVALID');
+        const currentMembership = await port.membership(tenantId,userId);
+        if(!hasShape(currentMembership) ||
+           !exactly(currentMembership,{tenantId,userId,status:'active'}) ||
+           !['owner','admin','reviewer'].includes(String(currentMembership.role)))
+            return fail('MANAGER_NOT_AUTHORIZED');
+        const currentAssignment = await port.siteMembership(tenantId,siteId,userId);
+        if(!exactly(currentAssignment,{tenantId,siteId,userId,status:'active'}))
+            return fail('SITE_NOT_AUTHORIZED');
+        const currentSite = await port.site(tenantId,siteId);
+        if(!exactly(currentSite,{tenantId,siteId,active:true}))
+            return fail('SITE_NOT_AUTHORIZED');
+
+        // The real SQL read RPC must independently verify caller credentials
+        // against the same tenant/site after acquiring its data.
         return {ok:true,evidence:chain,dataReleased:true,
             verification:'isolated-adapter-contract-only',workClearanceGranted:false};
     }catch{
