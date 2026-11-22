@@ -16,7 +16,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
     if (!show) return null;
 
     return (
-        <section className="psi-page-header mb-5">
+        <section className="psi-page-header psi-living-page-enter mb-5">
             <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                     {groupLabel ? (

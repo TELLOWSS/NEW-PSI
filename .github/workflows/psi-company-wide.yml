@@ -72,6 +72,8 @@ jobs:
         run: npm run build
       - name: Independently verify seven product and transparency journeys
         run: node scripts/verify-psi-company-browser.mjs
+      - name: Verify actual Living UI page animations and reduced-motion CSS in Chromium
+        run: node scripts/verify-psi-living-motion-browser.mjs
       - name: Verify Nexus evidence, navigation restoration and presentation rollback
         run: node scripts/verify-nexus-workflows.mjs
       - name: Test genuine synthetic PDF rendering and privacy postflight in desktop/mobile Chromium
@@ -92,6 +94,7 @@ jobs:
             artifacts/audit/psi-company/department-audit.json
             artifacts/audit/psi-company/department-audit.md
             artifacts/audit/browser/
+            artifacts/audit/psi-living-visual/
             artifacts/audit/psi-pdf/
             artifacts/audit/psi-platform-field-canvas/
             artifacts/audit/psi-platform-workspaces/
