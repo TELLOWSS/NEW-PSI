@@ -59,8 +59,9 @@ export const assessPsiDocumentEvidence = (raw: Record<string, unknown>): PsiDocu
     ].join(' ').normalize('NFKC');
     const compactEvidence = evidenceText.replace(/\s+/g, ' ');
     const hasPsiIdentifier = /(?:^|[^a-z0-9])(?:new[-\s]?psi|psi[-\s]?ra[-\s]?0?1|psi)(?:[^a-z0-9]|$)/i.test(markerEvidenceText);
-    const hasRiskAssessmentTitle = /위험성\s*평가/.test(markerEvidenceText);
-    const hasFooterEvidence = /(?:현장\s*등록\s*한글\s*이름|공종|작성자|근로자\s*이름)/.test(markerEvidenceText);
+    const hasRiskAssessmentTitle = /위험성\s*평가|风险评估记录(?:单|表)|лист\s+учета\s+оценки\s+риска|phiếu\s+ghi\s+chép\s+đánh\s+giá\s+rủi\s+ro|အန္တရာယ်အကဲဖြတ်မှတ်တမ်းစာရွက်/i.test(markerEvidenceText);
+    // Historical field name retained; legacy records place the trade label at the top.
+    const hasFooterEvidence = /(?:현장\s*등록\s*한글\s*이름|공종|작성자|근로자\s*이름|工作类型|тип\s+работы|loại\s+công\s+việc|အလုပ်အမျိုးအစား)/i.test(markerEvidenceText);
     const questionNumbers = getQuestionNumbers(raw.handwrittenAnswers);
     for (const matched of compactEvidence.matchAll(/(?:^|[^0-9a-z])q?\s*([1-5])(?:[^0-9]|$)/gi)) {
         if (matched[1]) questionNumbers.add(matched[1]);

@@ -145,7 +145,11 @@ export const getPsiQuestionLabel = (questionNumber: unknown): { title: string; s
 export const PSI_FORM_MASTER_PROMPT_BLOCK = [
     `[PSI 기록지 기준데이터 ${PSI_FORM_MASTER_VERSION}]`,
     `- 표준 공종: ${PSI_STANDARD_JOB_FIELDS.join(', ')}`,
-    '- jobField는 기록지 하단 "공종" 칸의 값만 사용한다. Q1 답변은 jobField를 대체하지 않는다.',
+    '- 최신 양식의 공종·현장 등록 한글이름은 하단, 초기 자기규율 위험성평가 기록표(2025년 수기 양식)의 교육일·이름·근무 공종/작업종류는 상단에 있다. 제목·공종/이름 레이블·1~5번 질문을 실제로 확인하되 NEW-PSI 로고 부재만으로 초기 기록지를 거부하지 않는다.',
+    '- 최초 양식의 한국어·중국어·러시아어·미얀마어·베트남어 1~5번 문항을 Q1 위험작업, Q2 위험요인, Q3 상/중/하, Q4 예방 안전조치, Q5 오늘 실천할 안전행동으로 보존한다.',
+    '- jobField는 명시적 "공종"/"근무 공종"/"工作类型"/"Тип работы"/"အလုပ်အမျိုးအစား"/"Loại công việc" 필드만 읽는다. Q1 위험작업을 공종으로 대체하지 않는다.',
+    '- name은 명시적 "이름"/"姓名"/"Имя"/"အမည်"/"Tên"/"현장 등록 한글이름" 필드만 읽는다. 이름과 하단 서명을 혼동하지 않는다.',
+    '- 보이지 않거나 불분명한 이름·공종·국적·서명은 추정하지 않고 관리자 검토한다. 일반 5문항 설문은 PSI 기록지로 인정하지 않는다.',
     ...PSI_FORM_QUESTIONS.map((question) => (
         `- ${question.key}: ${question.workerIntent} 분석 역할: ${question.analysisRole}`
     )),
