@@ -104,6 +104,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const operatorMenuRef = useRef<HTMLDetailsElement>(null);
     const mobileMenuDialogRef = useRef<HTMLDivElement>(null);
     const mobileMenuPreviousFocusRef = useRef<HTMLElement | null>(null);
+    // A menu route selection must focus the page, not the button that opened the drawer.
+    const mobileMenuNavigatingRef = useRef(false);
     const { isDevMode, toggle: toggleDevMode } = useDevMode();
     const { mode: operationalMode, cycleMode: cycleOperationalMode } = useOperationalMode();
     const { copy: assessmentCycleCopy } = useAssessmentCycle();
@@ -194,6 +196,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const activeMobileTab = mobileNavigation.activeTab;
 
     const handlePageChange = (page: Page) => {
+        if (isMobileMenuOpen) mobileMenuNavigatingRef.current = true;
         if (currentPage === 'dashboard' || currentPage === 'safety-nexus') {
             navigationScroll.current.set(currentPage, mainRef.current?.scrollTop || 0);
         }
@@ -343,7 +346,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
             const canFocus = (element: HTMLElement | null): element is HTMLElement =>
                 Boolean(element?.isConnected && element.getClientRects().length > 0 &&
                     getComputedStyle(element).visibility !== 'hidden');
-            if (canFocus(opener)) {
+            const navigatedFromDrawer = mobileMenuNavigatingRef.current;
+            mobileMenuNavigatingRef.current = false;
+            if (navigatedFromDrawer) {
+                // React has now removed inert from the page. Focus the destination
+                // even when the user selected the already-active route.
+                window.requestAnimationFrame(() => mainRef.current?.focus({ preventScroll: true }));
+            } else if (canFocus(opener)) {
                 opener.focus();
             } else {
                 const desktopRoute = document.querySelector<HTMLElement>(
