@@ -77,7 +77,8 @@ beforeAll(async()=>{
     create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz,
       deleted_at timestamptz,banned_until timestamptz);
     create table auth.sessions(
-      id uuid primary key,user_id uuid not null references auth.users(id) on delete cascade
+      id uuid primary key,user_id uuid not null references auth.users(id) on delete cascade,
+      not_after timestamptz
     );
     create function auth.uid() returns uuid language sql stable as
       $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
@@ -224,6 +225,68 @@ describe('L06 staged PostgreSQL atomic worker self-entry (NOT a live migration)'
     expect((await db.query('select * from public.psi_worker_risk_resubmission_links')).rows).toHaveLength(0);
     expect((await db.query('select * from public.psi_worker_risk_submissions')).rows).toHaveLength(1);
     expect((await db.query('select * from public.psi_worker_risk_receipt_events')).rows).toHaveLength(1);
+  });
+  it('rejects a time-boxed worker auth session past not_after even with unexpired JWT',async()=>{
+    await db.exec('reset role');
+    await db.query("update auth.sessions set not_after=now()-interval '1 second' where id=$1",
+      [SESSION_FOR(USER_A)]);
+    await user(USER_A);
+    await deny(sql,params());
+    await db.exec('reset role');
+    expect((await db.query('select * from public.psi_worker_risk_submissions')).rows).toHaveLength(0);
+    expect((await db.query('select * from public.psi_worker_risk_receipt_events')).rows).toHaveLength(0);
+  });
+  it('denies time-boxed reviewer read and review once not_after has passed',async()=>{
+    const id=await submitA();
+    await db.exec('reset role');
+    await db.query("update auth.sessions set not_after=now()-interval '1 second' where id=$1",
+      [SESSION_FOR(REVIEWER_A)]);
+    await user(REVIEWER_A);
+    await deny(readReviewSql,[TENANT_A,SITE_A,id]);
+    await deny(reviewSql,reviewParams(id));
+    await db.exec('reset role');
+    expect((await db.query('select * from public.psi_worker_risk_review_events')).rows).toHaveLength(0);
+    expect((await db.query('select * from public.psi_worker_risk_submissions')).rows).toHaveLength(1);
+  });
+  it('still allows a NULL not_after session and an unexpired time-box without granting work clearance',async()=>{
+    await user(USER_A);
+    const original=(await submit(...params())).rows[0].receipt;
+    await db.exec('reset role');
+    await db.query("update auth.sessions set not_after=now()+interval '1 day' where id=$1",
+      [SESSION_FOR(REVIEWER_A)]);
+    await user(REVIEWER_A);
+    const r=await db.query<{snapshot:Record<string,unknown>}>(
+      readReviewSql,[TENANT_A,SITE_A,original.receiptId]);
+    expect(r.rows[0].snapshot).toMatchObject({
+      submissionId:original.receiptId,workClearanceGranted:false,
+    });
+  });
+  it('rejects reusing a valid original receipt nonce after the session time-box expires',async()=>{
+    await user(USER_A);
+    const first=(await submit(...params())).rows[0].receipt;
+    await db.exec('reset role');
+    await db.query("update auth.sessions set not_after=now() where id=$1",[SESSION_FOR(USER_A)]);
+    await user(USER_A);
+    await deny(sql,params());
+    await db.exec('reset role');
+    expect((await db.query('select id from public.psi_worker_risk_submissions')).rows)
+      .toEqual([{id:first.receiptId}]);
+    expect((await db.query('select * from public.psi_worker_risk_receipt_events')).rows).toHaveLength(1);
+  });
+  it('blocks a time-boxed worker replacement after manager change request and preserves immutable history',async()=>{
+    const original=await submitA();
+    await user(REVIEWER_A);
+    await review(reviewParams(original,REVIEW_NONCE_1,'request_changes',REVIEW_NOTE,0));
+    await waitForDistinctReceiptClock();
+    await db.exec('reset role');
+    await db.query("update auth.sessions set not_after=now()-interval '1 second' where id=$1",
+      [SESSION_FOR(USER_A)]);
+    await user(USER_A);
+    await deny(revisionSql,revisionParams(original));
+    await db.exec('reset role');
+    expect((await db.query('select * from public.psi_worker_risk_resubmission_links')).rows).toHaveLength(0);
+    expect((await db.query('select * from public.psi_worker_risk_submissions')).rows).toHaveLength(1);
+    expect((await db.query('select * from public.psi_worker_risk_review_events')).rows).toHaveLength(1);
   });
   it('refuses an expired worker JWT even while its auth.sessions row still exists',async()=>{
     await user(USER_A);
