@@ -127,7 +127,29 @@ try {
 
     await page.getByRole('button', { name: '수정하기' }).click();
     assert.equal(await page.locator('#psi-l06-Q1').inputValue(), '가설 작업발판 설치', 'Review edit returns to preserved Q1');
+
+    // L27: one tap on reset cannot discard a completed worksheet.
     await page.getByRole('button', { name: '전체 초기화' }).click();
+    const resetPrompt = page.getByRole('group', { name: '작성 내용 초기화 확인' });
+    await resetPrompt.getByText('작성한 Q1~Q5 내용을 모두 지우시겠습니까?').waitFor();
+    assert.equal(await page.locator('#psi-l06-Q1').inputValue(), '가설 작업발판 설치',
+        'First reset tap must preserve typed Q1 and every other answer');
+    assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '5 / 5문항');
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()),
+        '취소하고 계속 작성', 'Keyboard focus should start on the safer Cancel action');
+    await resetPrompt.getByRole('button', { name: '취소하고 계속 작성' }).click();
+    assert.equal(await resetPrompt.count(), 0, 'Cancel dismisses the inline confirmation');
+    assert.equal(await page.locator('#psi-l06-Q1').inputValue(), '가설 작업발판 설치',
+        'Cancel must preserve Q1');
+
+    // Escape is another safe exit, with no new storage or API calls.
+    await page.getByRole('button', { name: '전체 초기화' }).click();
+    await resetPrompt.getByRole('button', { name: '취소하고 계속 작성' }).press('Escape');
+    assert.equal(await resetPrompt.count(), 0, 'Escape must dismiss reset confirmation');
+    assert.equal(await page.locator('#psi-l06-Q1').inputValue(), '가설 작업발판 설치');
+
+    await page.getByRole('button', { name: '전체 초기화' }).click();
+    await resetPrompt.getByRole('button', { name: '초기화 확정' }).click();
     assert.equal(await page.locator('#psi-l06-Q1').inputValue(), '');
     assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '0 / 5문항');
 
@@ -174,6 +196,10 @@ try {
     await page.emulateMedia({ media: 'screen' });
     await page.getByRole('button', { name: '수정하기' }).click();
     await page.getByRole('button', { name: '전체 초기화' }).click();
+    assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '5 / 5문항',
+        'Long Q1-Q5 record must survive until the explicit confirmation');
+    await page.getByRole('group', { name: '작성 내용 초기화 확인' })
+        .getByRole('button', { name: '초기화 확정' }).click();
     assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '0 / 5문항');
     assert.deepEqual(apiCalls, [], 'Long worksheet must never call any API');
     assert.deepEqual(externalCalls, [], 'Long worksheet must never call external services');
@@ -187,12 +213,13 @@ try {
         apiCalls: apiCalls.length,
         externalCalls: externalCalls.length,
         storageWrites: 0,
+        resetSafety: 'first-tap-prompt, cancel-preserves, Escape-preserves, confirmed-only-deletion',
         a4TrialPrint: { pages: 1, questions: 5, unfinishedWarningOnly: true, longAnswerPages: longPdf.numPages, longAnswersIntact: true, receiptCreated: false, syntheticOnly: true },
         navigation: 'one-question-at-a-time, incomplete-step-blocked, back-and-forth-preserved',
         note: 'In-memory trial only, no worker submission/identity/Android validation',
     }, null, 2) + '\n');
 
-    console.log('[PSI L06] SYNTHETIC_PASS: 5-step review/reset + 1-page A4 and full-length multipage A4; zero API/storage calls');
+    console.log('[PSI L06] SYNTHETIC_PASS: reset cancel/Escape/confirmation + A4 normal/long; zero API/storage calls');
 } finally {
     await browser?.close();
     server.kill('SIGTERM');
