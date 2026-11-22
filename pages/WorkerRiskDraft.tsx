@@ -25,6 +25,21 @@ export default function WorkerRiskDraft() {
     const status = checkWorkerRiskDraft(draft);
     const rows = printableWorkerRiskDraft(draft);
     const currentQuestion = PSI_FORM_QUESTIONS[step];
+    // L28: the form is intentionally in-memory only. Warn before a real
+    // browser navigation discards entered answers; never autosave the text.
+    const hasInMemoryAnswers = Object.values(draft.answers).some(answer => answer.trim().length > 0)
+        || draft.gradeReason.trim().length > 0
+        || Boolean(draft.grade);
+
+    useEffect(() => {
+        if (!hasInMemoryAnswers) return;
+        const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+            event.preventDefault();
+            event.returnValue = '';
+        };
+        window.addEventListener('beforeunload', warnBeforeUnload);
+        return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+    }, [hasInMemoryAnswers]);
 
     // Focus the new question only after deliberate navigation; never
     // raise the mobile keyboard automatically on the first page load.
@@ -109,7 +124,8 @@ export default function WorkerRiskDraft() {
                 </header>
                 <div className="psi-l06-screen-note mb-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950" role="note">
                     <strong>저장·제출 기능 없음</strong> — 이름, 생년월일, 전화번호 등 개인정보를 입력하지 마세요.
-                    작성한 내용은 이 화면에만 임시 표시되며 새로고침·이동 시 사라집니다.
+                    작성한 내용은 이 화면에만 임시 표시되며 새로고침·이동·탭 종료 시 사라집니다.
+                    작성 중 브라우저 이동 경고가 표시될 수 있으나, 모바일에서는 경고가 생략될 수 있습니다.
                     작업허가·작업재개 판단과 무관합니다.
                 </div>
                 <section aria-label="5단계 작성 현황" className="psi-l06-progress-screen mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
