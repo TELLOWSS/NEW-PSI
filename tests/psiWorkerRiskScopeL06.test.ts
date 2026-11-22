@@ -84,6 +84,26 @@ describe('L06 identity/site/cycle scope (two-tenant synthetic adapter; no live R
         expect(await resolveL06WorkerScope(principalA,reqA,port,NOW))
             .toMatchObject({ok:false,code:'SOURCE_UNAVAILABLE'});
     });
+    it('allows A→A and B→B separately but never A→B or B→A',async()=>{
+        const principalB={userId:USER_B,sessionExpiresAt:'2026-11-22T04:00:00.000Z'};
+        const scoped = validPort();
+        const accounts=[
+            {userId:USER_A,tenantId:TENANT_A,workerId:WORKER_A,active:true},
+            {userId:USER_B,tenantId:TENANT_B,workerId:WORKER_B,active:true},
+        ];
+        scoped.linkedAccountsForVerifiedUser=vi.fn(async userId=>accounts.filter(a=>a.userId===userId));
+        scoped.workerSiteAssignments=vi.fn(async(tenantId,workerId)=>[
+            {tenantId,workerId,siteId:tenantId===TENANT_A?SITE_A:SITE_B,active:true},
+        ]);
+        const forA={tenantId:TENANT_A,siteId:SITE_A,cycleId:CYCLE_A};
+        const forB={tenantId:TENANT_B,siteId:SITE_B,cycleId:CYCLE_B};
+        const a=await resolveL06WorkerScope(principalA,forA,scoped,NOW);
+        const b=await resolveL06WorkerScope(principalB,forB,scoped,NOW);
+        expect(a).toMatchObject({ok:true,submissionAuthorized:false,scope:{userId:USER_A,workerId:WORKER_A,tenantId:TENANT_A}});
+        expect(b).toMatchObject({ok:true,submissionAuthorized:false,scope:{userId:USER_B,workerId:WORKER_B,tenantId:TENANT_B}});
+        expect(await resolveL06WorkerScope(principalA,forB,scoped,NOW)).toMatchObject({ok:false,code:'NO_WORKER_LINK'});
+        expect(await resolveL06WorkerScope(principalB,forA,scoped,NOW)).toMatchObject({ok:false,code:'NO_WORKER_LINK'});
+    });
     it('rejects ambiguous active linked accounts for the same tenant',async()=>{
         const port=validPort();
         port.linkedAccountsForVerifiedUser=vi.fn(async userId=>[
