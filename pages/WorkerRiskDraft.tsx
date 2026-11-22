@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import '../styles.css';
+import './worker-risk-draft-print.css';
 import { PSI_FORM_QUESTIONS, type PsiQuestionKey } from '../config/psiFormMaster';
 import { prepareL06ClientSubmission } from '../utils/workerRiskSubmissionContractL06';
 import {
@@ -87,9 +88,9 @@ export default function WorkerRiskDraft() {
     };
 
     return (
-        <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900 sm:py-10" data-testid="worker-risk-draft-l06">
-            <div className="mx-auto max-w-2xl">
-                <header className="mb-5 rounded-3xl bg-slate-900 p-6 text-white">
+        <main className="psi-l06-worker-draft min-h-screen bg-slate-50 px-4 py-6 text-slate-900 sm:py-10" data-testid="worker-risk-draft-l06">
+            <div className="psi-l06-page-shell mx-auto max-w-2xl">
+                <header className="psi-l06-screen-header mb-5 rounded-3xl bg-slate-900 p-6 text-white">
                     <p className="text-xs font-black tracking-wide text-teal-200">PSI · Q1~Q5</p>
                     <h1 className="mt-2 text-2xl font-black sm:text-3xl">작업 전 위험성평가 직접 작성 연습</h1>
                     <p className="mt-3 text-sm leading-6 text-slate-200">
@@ -97,12 +98,12 @@ export default function WorkerRiskDraft() {
                         이 화면은 한국어 입력 시범이며 정식 근로자 제출·서명·교육 이수·관리자 승인 화면이 아닙니다.
                     </p>
                 </header>
-                <div className="mb-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950" role="note">
+                <div className="psi-l06-screen-note mb-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950" role="note">
                     <strong>저장·제출 기능 없음</strong> — 이름, 생년월일, 전화번호 등 개인정보를 입력하지 마세요.
                     작성한 내용은 이 화면에만 임시 표시되며 새로고침·이동 시 사라집니다.
                     작업허가·작업재개 판단과 무관합니다.
                 </div>
-                <section aria-label="5단계 작성 현황" className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <section aria-label="5단계 작성 현황" className="psi-l06-progress-screen mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="flex items-center justify-between gap-3">
                         <span className="text-sm font-bold text-slate-700">작성 진행 · {review ? '전체 검토' : `${step + 1}단계 / 5단계`}</span>
                         <output aria-live="polite" data-testid="l06-progress" className="font-black tabular-nums text-teal-800">{status.completedCount} / 5문항</output>
@@ -179,7 +180,7 @@ export default function WorkerRiskDraft() {
                         </div>
                     </form>
                 ) : (
-                    <section className="rounded-2xl border border-slate-300 bg-white p-5" aria-label="Q1~Q5 작성 내용 검토">
+                    <section className="psi-l06-review-print rounded-2xl border border-slate-300 bg-white p-5" aria-label="Q1~Q5 작성 내용 검토">
                         <h2 className="text-xl font-black">내가 작성한 내용 확인</h2>
                         <p className="mt-2 text-sm text-rose-800">작성 검토 화면일 뿐 서버 제출·관리자 확인·현장 조치 완료가 아닙니다.</p>
                         <dl className="mt-4 space-y-4">
@@ -190,14 +191,14 @@ export default function WorkerRiskDraft() {
                                 </div>
                             ))}
                         </dl>
-                        <div className="mt-5 flex flex-wrap gap-3 print:hidden">
+                        <div className="psi-l06-review-actions mt-5 flex flex-wrap gap-3 print:hidden">
                             <button type="button" onClick={() => goToStep(0)} className="min-h-12 flex-1 rounded-xl border border-slate-300 px-4 font-bold">수정하기</button>
                             <button type="button" onClick={() => window.print()} className="min-h-12 flex-1 rounded-xl bg-slate-800 px-4 font-bold text-white">화면 인쇄</button>
                         </div>
-                        <p className="mt-4 text-xs font-bold text-rose-800">인쇄한 종이도 정식 제출이 아닙니다. 실제 기록 절차는 현장 관리자에게 확인하세요.</p>
+                        <p className="psi-l06-review-disclaimer mt-4 text-xs font-bold text-rose-800">인쇄한 종이도 정식 제출이 아닙니다. 실제 기록 절차는 현장 관리자에게 확인하세요.</p>
                     </section>
                 )}
-                {notice && <p className="mt-4 rounded-xl border border-slate-200 bg-white p-3 text-sm font-bold" role="status">{notice}</p>}
+                {notice && <p className="psi-l06-screen-notice mt-4 rounded-xl border border-slate-200 bg-white p-3 text-sm font-bold" role="status">{notice}</p>}
             </div>
         </main>
     );
