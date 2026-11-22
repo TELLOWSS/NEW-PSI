@@ -82,7 +82,16 @@ try {
  // Exercise the actual React upload UI, not just the pure PDF split helper.
  // The original 3-page PDF must be blocked until explicitly split; after a
  // successful split it must be replaced atomically by three independent JPGs.
- await page.evaluate(async()=>{await import('/scripts/fixtures/legacy-pdf-fileupload-harness.tsx');});
+ await page.evaluate(async()=>{
+  // This test serves a minimal HTML shell, so explicitly initialize Vite's
+  // React refresh preamble before importing the actual TSX UI component.
+  const refresh=(await import('/@react-refresh')).default;
+  refresh.injectIntoGlobalHook(window);
+  window.$RefreshReg$=()=>{};
+  window.$RefreshSig$=()=>type=>type;
+  window.__vite_plugin_react_preamble_installed__=true;
+  await import('/scripts/fixtures/legacy-pdf-fileupload-harness.tsx');
+ });
  await page.locator('#ocr-harness-state').waitFor();
  const syntheticPdf=Buffer.from(buildPdf());
  const inputPdf={name:'synthetic-three-pages.pdf',mimeType:'application/pdf',buffer:syntheticPdf};
@@ -96,7 +105,7 @@ try {
   if(!el||el.getAttribute('data-file-count')!=='3')return false;
   const files=JSON.parse(el.textContent||'[]');
   return files.every(item=>item.name.endsWith('.jpg'))&&!files.some(item=>item.name.endsWith('.pdf'));
- },{timeout:20000});
+ },undefined,{timeout:20000});
  const uiPages=JSON.parse(await page.locator('#ocr-harness-state').textContent());
  assert.deepEqual(uiPages.map(item=>item.name),result.files.map(item=>item.name),'UI must replace blocked original with three ordered JPEGs');
  await splitInput.setInputFiles(inputPdf);
