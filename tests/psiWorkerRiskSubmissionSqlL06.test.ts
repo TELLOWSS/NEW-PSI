@@ -19,6 +19,7 @@ const USER_B='26064000-0000-4000-8000-000000000002';
 const OWNER_A='26064000-0000-4000-8000-000000000003';
 const REVIEWER_A='26064000-0000-4000-8000-000000000005';
 const OUTSIDER='26064000-0000-4000-8000-000000000004';
+const SESSION_FOR=(userId:string)=>userId.replace('26064000-','26069000-');
 const NONCE_A='26065000-0000-4000-8000-000000000001';
 const NONCE_B='26065000-0000-4000-8000-000000000002';
 const REVIEW_NONCE_1='26066000-0000-4000-8000-000000000001';
@@ -36,6 +37,7 @@ const params=(tenant=TENANT_A,site=SITE_A,cycle=CYCLE_A,nonce=NONCE_A,answers:un
 async function user(id:string) {
   await db.exec('set local role authenticated');
   await db.query("select set_config('request.jwt.claim.sub',$1,true)",[id]);
+  await db.query("select set_config('request.jwt.claim.session_id',$1,true)",[SESSION_FOR(id)]);
 }
 async function deny(query:string,args:unknown[]=[]){
   await db.exec('savepoint l06_deny');
@@ -61,10 +63,17 @@ beforeAll(async()=>{
     create schema auth;
     create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz,
       deleted_at timestamptz,banned_until timestamptz);
+    create table auth.sessions(
+      id uuid primary key,user_id uuid not null references auth.users(id) on delete cascade
+    );
     create function auth.uid() returns uuid language sql stable as
       $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+    create function auth.jwt() returns jsonb language sql stable as
+      $$ select pg_catalog.jsonb_build_object('session_id',
+        pg_catalog.nullif(current_setting('request.jwt.claim.session_id',true),'')) $$;
     grant usage on schema auth to authenticated;
-    grant execute on function auth.uid() to authenticated;`);
+    grant execute on function auth.uid() to authenticated;
+    grant execute on function auth.jwt() to authenticated;`);
   for(const file of ['20260929000000_tenant_identity_foundation.sql',
     '20260930010000_tenant_training_drafts.sql','20260930020000_tenant_training_audience.sql',
     '20260930030000_tenant_education_release.sql'])
@@ -89,6 +98,10 @@ beforeEach(async()=>{
     ($3,'l06-owner@example.invalid',now()),($4,'l06-outsider@example.invalid',now()),
     ($5,'l06-reviewer@example.invalid',now())`,
     [USER_A,USER_B,OWNER_A,OUTSIDER,REVIEWER_A]);
+  for(const identity of [USER_A,USER_B,OWNER_A,OUTSIDER,REVIEWER_A]){
+    await db.query('insert into auth.sessions(id,user_id) values($1,$2)',
+      [SESSION_FOR(identity),identity]);
+  }
   await db.query("insert into public.psi_tenants(id,name) values($1,'Tenant A'),($2,'Tenant B')",[TENANT_A,TENANT_B]);
   await db.query("insert into public.psi_tenant_memberships(tenant_id,user_id,role) values($1,$2,'owner'),($3,$4,'owner'),($1,$5,'reviewer')",
     [TENANT_A,OWNER_A,TENANT_B,OUTSIDER,REVIEWER_A]);
@@ -344,6 +357,58 @@ describe('L06 staged PostgreSQL atomic worker self-entry (NOT a live migration)'
       reviewParams(id,REVIEW_NONCE_1,'reviewed',REVIEW_NOTE,0,TENANT_A,SITE_B),
     ]) await deny(reviewSql,args);
   });
+  it('rejects missing session_id even with a valid auth.uid reviewer and active site',async()=>{
+    const id=await submitA();
+    await user(REVIEWER_A);
+    await db.query("select set_config('request.jwt.claim.session_id','',true)");
+    await deny(readReviewSql,[TENANT_A,SITE_A,id]);
+    await deny(reviewSql,reviewParams(id));
+    await db.exec('reset role');
+    expect((await db.query('select count(*)::int as n from public.psi_worker_risk_review_events')).rows[0]).toEqual({n:0});
+  });
+  it('rejects a revoked session row while the access-token uid still identifies the old reviewer',async()=>{
+    const id=await submitA();
+    await db.exec('reset role');
+    await db.query('delete from auth.sessions where id=$1',[SESSION_FOR(REVIEWER_A)]);
+    await user(REVIEWER_A);
+    await deny(readReviewSql,[TENANT_A,SITE_A,id]);
+    await deny(reviewSql,reviewParams(id));
+  });
+  it('rejects swapped session_id belonging to another actor even if manager tenant/site matches',async()=>{
+    const id=await submitA();
+    await user(REVIEWER_A);
+    await db.query("select set_config('request.jwt.claim.session_id',$1,true)",[SESSION_FOR(OWNER_A)]);
+    await deny(readReviewSql,[TENANT_A,SITE_A,id]);
+    await deny(reviewSql,reviewParams(id));
+    await user(OWNER_A);
+    const source=await db.query<{snapshot:Record<string,unknown>}>(readReviewSql,[TENANT_A,SITE_A,id]);
+    expect(source.rows[0].snapshot).toMatchObject({submissionId:id,workClearanceGranted:false});
+  });
+  it('revoked manager session prevents viewing both records of an immutable revision chain',async()=>{
+    const parent=await submitA();
+    await user(REVIEWER_A);
+    await review(reviewParams(parent,REVIEW_NONCE_1,'request_changes',REVIEW_NOTE,0));
+    await user(USER_A);
+    await db.query(revisionSql,revisionParams(parent));
+    await db.exec('reset role');
+    await db.query('delete from auth.sessions where id=$1',[SESSION_FOR(OWNER_A)]);
+    await user(OWNER_A);
+    await deny(readReviewSql,[TENANT_A,SITE_A,parent]);
+    await deny(readChainSql,[TENANT_A,SITE_A,parent]);
+  });
+  it('keeps session row and reviewer scope locked in a single database read RPC',async()=>{
+    const id=await submitA();
+    await user(REVIEWER_A);
+    const row=await db.query<{snapshot:Record<string,unknown>}>(readReviewSql,[TENANT_A,SITE_A,id]);
+    expect(row.rows[0].snapshot).toMatchObject({submissionId:id,workClearanceGranted:false});
+    const functionText=(await db.query<{src:string}>(`select pg_catalog.pg_get_functiondef(
+      'public.psi_l06_require_active_session()'::regprocedure) as src`)).rows[0].src;
+    expect(functionText).toContain('FOR KEY SHARE OF sess');
+    const readText=(await db.query<{src:string}>(`select pg_catalog.pg_get_functiondef(
+      'public.psi_read_worker_risk_review_l06(uuid,uuid,uuid)'::regprocedure) as src`)).rows[0].src;
+    expect(readText).toContain('FOR SHARE OF m,sm,site');
+  });
+
   it('revoked tenant/site membership or disabled site prevents review and read',async()=>{
     const id=await submitA();
     await db.exec('reset role');
