@@ -449,6 +449,18 @@
 
 **다음 한 작업:** 동일 최종 HEAD의 릴리스·전사 Chromium·Inspector CI 실패/오류 확인·수정 → 승인된 테스트 Supabase 2개 테넌트에서 실제 인증/RLS/원문 접수 경합 검증 → 관리자 보완/반려/승인 이력 및 정책·보존기간·현장 실기기 검수. 운영 DB·main·Production 미변경.
 
+
+### L06 후속 — 관리자 기록 검토·보완요청·2인 승인 원장 5차 (2026-11-22)
+
+- **4차 검증 재확인:** `9e0d10a` 릴리스 CI #44984047297 **SUCCESS**(PGlite 접수 SQL 9/9, 총 275 테스트 파일), 전사 Chromium #44984047259 **SUCCESS**; Inspector 모바일 #44984047268 **후속 커밋에 의해 CANCELLED**(실패 아님). 세 CI 통과라고 기록하지 않음.
+- **이번 실제 구현:** `supabase/proposals/psi_worker_risk_manager_review_l06_staging.sql`에 기업·현장·제출별 불변 관리자 이력, `psi_review_worker_risk_l06` 승인/보완요청/검토 함수, `psi_read_worker_risk_review_l06` 기업·현장별 제한된 원문/관리이력 조회 함수. 기존 Q1~Q5 제출·접수·이력 테이블의 UPDATE/DELETE 방지 트리거. **운영 migrations에 미편입**, 실 DB와 정식 제출/관리 API 연결 없음.
+- **업무 흐름:** `reviewed`(owner/admin/reviewer 가능) → **최초 검토자와 다른 현장 owner/admin**의 `approved`(오직 기록 검토 완료) 또는 `request_changes`. 보완요청 종료 후 원문 재작성은 새로운 제출/접수증으로 처리(링크 설계 미완). 근로자 자기 검토/승인, 현장 미배정자/타 기업/익명/권한 철회자, 검토 순서/중복 요청 위조, 확정 기록 변경을 거부. `approved`는 **위험 감소대책 실행 확인·작업허가·교육이수·작업중지 해제 아님**.
+- **실 엔진 회귀:** `tests/psiWorkerRiskSubmissionSqlL06.test.ts`를 총 20건(원문 접수 9 + 관리자 이력 11)으로 확장해 독립 가상 A/B 테넌트·현장·근로자·관리자의 교차 권한과 보완/검토·승인/이력·개인정보 미노출을 시험. 5차 첫 SHA `12b2a65`: 18/20 PASS, 조회 함수에서 `pg_catalog.coalesce` 잘못 한정한 동일 오류 2건. `17dfbf9`에서 이를 수정함. **최종 SHA 릴리스/전사 Chromium/Inspector 3종 CI를 별도 조회해 결과를 확정**.
+- **해소 안 된 운영 게이트:** 테스트 코드는 PGlite 합성 검증이며 실제 Supabase Auth/RLS, P05 테이블 이관·두 회사 교차 접근·동시 리뷰 부하·검토 재제출 링크·관리자 UX/인증/개인정보 보관·삭제·실 Android·외국어 11종 원어민 검수는 미완료. L18 13개 human gate 모두 pending, 출시 BLOCKED. PR #237 Draft / main 병합·Vercel Production·운영 DB SQL 실행 금지.
+- **상세:** `docs/PSI_L06_WORKER_SUBMISSION_CONTRACT_20261122.md` §8. 보안 정의 함수는 호출자의 JWT `user_metadata`/현장 주장값으로 신원을 확정하지 않고 검증된 `auth.uid()` 및 DB 관리자·현장 관계를 대조. 운영 연결 전 별도 역할/EXECUTE·실세션 철회 보안감사 필수.
+
+**다음 한 작업:** HEAD 3종 CI 및 실패 복구 → 승인받은 테스트 프로젝트의 실제 Auth/RLS/GRANT·2인 승인/동시 요청 안전성 검증 → Q1~Q5 보완 재제출의 immutable parent-link와 관리자 UX/감사 내역 → 실사용/개인정보·법률 인수 전 출시 차단 유지.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
