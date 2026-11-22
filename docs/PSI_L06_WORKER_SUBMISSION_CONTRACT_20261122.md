@@ -47,3 +47,17 @@
 - 실 원본 수기 2025년 문서의 인식률, Android/삼성 인터넷·스크린리더, 한국어 외 11개 언어 원어민 검수, 모바일 A4 출력, 개인정보 보존/실 RLS 권한, 서버 수신은 **모두 미검증**. `config/psi-living-ui-release-acceptance.json`의 human gate를 자동 변경하지 않는다.
 
 **다음 실제 개발:** 현장 사용자 인증 수단/본인 확인의 보안 설계와 개인정보 고지·보존 정책을 확정하고, 테스트 전용 테넌트 2개로 실제 역할별 읽기/접수/정정 경계를 검증. 그 다음 트랜잭션성 서버 접수 API·영수증·관리자 보완 이력을 구현. 배포/외부 전송은 별도 명시 승인 전 보류.
+
+
+## 6. 2026-11-22 — 두 테넌트·두 근로자/현장 범위검사 실구현 (3차)
+
+- `lib/server/workerRiskScopeL06.ts`: **서버 측 권한확인에 연결할 수 있는 실제 비동기 검사 로직**을 추가. 인자로 들어가는 principal은 **실제 서버가 인증기관에 검증한 사용자 ID/만료 시점만** 사용해야 하고, 브라우저가 전달한 사용자 ID·JWT 사용자 메타데이터·서명·기기 보관 키로 만들 수 없음. 현재는 어떤 실 서버 경로에도 연결하지 않음.
+- 검증 순서: ① 로그인 사용자 UUID/세션 만료와 테넌트·현장·주기 UUID ② DB 조회 어댑터로 확인한 활성 근로자 개인계정→근로자 ID 유일 연결 ③ 근로자 활성 상태 ④ **근로자별 현장 배정** 유일 일치 ⑤ 현장 활성 상태 ⑥ 운영주기 open/서버 기준시각 내 유효. 조건 누락·DB 오류·두 계정 중복·다른 테넌트·다른 현장·종료된 평가주기는 전부 DENY. **통과 시에도 `submissionAuthorized:false` 유지**.
+- `tests/psiWorkerRiskScopeL06.test.ts`: 개인정보 없는 가상 A/B 테넌트·현장·근로자·운영주기 어댑터로 A→A/B→B만 범위 일치, A→B/B→A·교차 현장·타 근로자·중복 연결·권한 만료·폐쇄 운영주기·누락 테이블/조회 오류 거부 등을 검사한다. 실제 데이터베이스의 RLS 정책 실행/실근로자 로그인을 **대신하지 않는다**.
+- **실 서비스 DB 읽기전용 메타데이터 재조회:** 연결된 `PSI-Database`의 public 테이블 49개 중 `psi_tenant_worker_accounts`, `psi_tenant_workers`, `psi_tenant_memberships` 존재. 반면 `psi_tenant_sites`, `psi_tenant_site_memberships`, 근로자 개별 현장 배정·평가주기 제출용 테이블은 확인되지 않음. 현재 `lib/server/tenantNexusSiteRead.ts`에서 참조하는 site 테이블도 존재를 확인하지 못해 **운영에서 그대로 활성화 금지**. 조회한 범위 밖 스키마나 향후 변경까지 부재 보증은 아님.
+- `psi_link_worker_account`·`psi_read_worker_education`·`psi_suspend_worker_account` 함수는 SECURITY DEFINER, `authenticated` EXECUTE 가능·`anon` EXECUTE 불가. `psi_lookup_worker_auth`는 두 역할 모두 EXECUTE 불가. 이는 **함수 내부 권한·재인증·실제 교차테넌트 안전성 보증이 아님**. 프로덕션 SQL 변경/새 로그인 계정 생성·테스트 개인정보 조회는 실행하지 않음.
+- 실제 운영 연결 전 필요한 것: 회원 본인에게만 허용되는 **검증된 근로자-계정-현장 배정 데이터 출처**, 평가주기 스키마, RLS+GRANT, 서버에서 세션 철회/만료·재인증 검증, 원문 불변 + 개인정보 처리근거·보유/삭제 정책, 원자적 중복방지·접수증·관리자 검토 이력, 가상 계정 2개 이상으로 실제 DB 역할별 실증.
+- 이번 변경은 별도 OSS·DB·배포 없이 소스/가상 테스트만 추가. 기존 worker 교육·OCR·정식 관리 기록은 불변. 13개 L18 human gates **pending**, main/Production 보류. PR #237 Draft.
+- 이전 `e945610` 동일 HEAD 릴리스/전사 Chromium/Inspector 3종 **SUCCESS** 확인. 신규 SHA CI 3종은 생성 후 최종 상태를 다시 확인하고 그 SHA 결과만 인계한다.
+
+**다음 단계:** 신규 HEAD CI 3종 통과·오류 수정 → 변경관리 승인을 받은 테스트 환경에서 근로자-현장 배정 및 평가주기 RLS를 재현, 두 가상 근로자의 허용·거부·기간 종료·중복요청 기록을 검증 → 인증된 서버 수신/원자적 저장 및 관리자 검토이력 구현. 실제 운영 DB 정책 변경·main 병합·Production 배포 금지.
