@@ -71,8 +71,12 @@ describe('mobile navigation desktop-breakpoint focus/scroll release',()=>{
         expect(layout).toContain('return closeMobileMenuOnDesktop(');
         expect(layout).toContain('id="psi-mobile-navigation-dialog"');
         expect(layout).toContain('aria-modal="true"');
-        expect(layout).toContain("mobileMenuPreviousFocusRef.current?.focus()");
+        expect(layout).toContain("mobileMenuPreviousFocusRef.current = null");
         expect(layout).toContain("document.body.style.overflow = previousOverflow");
+        expect(layout).toContain("const canFocus = (element: HTMLElement | null)");
+        expect(layout).toContain("'[data-psi-desktop-sidebar] [aria-current=\"page\"]'");
+        const appShell=readFileSync(resolve('components/shell/AppShell.tsx'),'utf8');
+        expect(appShell).toContain('data-psi-desktop-sidebar');
         expect(layout).toContain("aria-controls={tab.id === 'more' ? 'psi-mobile-navigation-dialog'");
         expect(topBar).toContain('aria-controls="psi-mobile-navigation-dialog"');
     });
