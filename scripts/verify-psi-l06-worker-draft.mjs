@@ -52,10 +52,24 @@ try {
     assert.equal(await page.locator('[data-testid=l06-unsaved-status]').count(), 0,
         'L29 blank form must not claim that unsaved text exists');
     assert.equal(await page.getByRole('button', { name: /Q5 5단계/ }).isDisabled(), true, 'Future steps must not be skipped');
+    // L31: blocked Q1 must focus the field, show contextual alert,
+    // and keep the question accessible to mobile keyboard/screen readers.
     await page.getByRole('button', { name: '다음 문항' }).click();
-    await page.getByRole('status').getByText(/Q1 문항을 먼저 작성/).waitFor();
-
-    await page.locator('#psi-l06-Q1').fill('가설 작업발판 설치');
+    const q1Field = page.locator('#psi-l06-Q1');
+    const fieldError = page.locator('[data-testid=l06-question-error]');
+    await fieldError.getByText(/Q1 문항을 두 글자 이상/).waitFor();
+    assert.equal(await q1Field.getAttribute('aria-invalid'), 'true');
+    assert.equal(await q1Field.getAttribute('aria-describedby'), 'psi-l06-error-Q1');
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'psi-l06-Q1',
+        'L31 missing Q1 should focus its required textarea, not the submit button');
+    await q1Field.fill('가');
+    assert.equal(await q1Field.getAttribute('aria-invalid'), 'true',
+        'L31 one-character Q1 must stay invalid');
+    await fieldError.getByText(/Q1 문항을 두 글자 이상/).waitFor();
+    await q1Field.fill('가설 작업발판 설치');
+    assert.equal(await fieldError.count(), 0, 'L31 valid Q1 clears its inline error');
+    assert.equal(await q1Field.getAttribute('aria-invalid'), null);
+    assert.equal(await q1Field.getAttribute('aria-describedby'), null);
     const unsavedStatus = page.locator('[data-testid=l06-unsaved-status]');
     await unsavedStatus.getByText('임시 작성 중 · 저장되지 않음').waitFor();
     await unsavedStatus.getByText(/새로고침·탭 종료·다른 페이지 이동 시/).waitFor();
@@ -102,7 +116,16 @@ try {
     assert.equal(await page.locator('#psi-l06-Q1').count(), 0, 'One question at a time');
     await page.locator('#psi-l06-Q2').fill('단부 안전난간 미설치로 추락 위험');
     await page.getByRole('button', { name: '다음 문항' }).click();
-    await page.locator('#psi-l06-grade').selectOption('상');
+    const q3Grade = page.locator('#psi-l06-grade');
+    await page.getByRole('button', { name: '다음 문항' }).click();
+    await fieldError.getByText(/Q3 위험수준은 상·중·하/).waitFor();
+    assert.equal(await q3Grade.getAttribute('aria-invalid'), 'true');
+    assert.equal(await q3Grade.getAttribute('aria-describedby'), 'psi-l06-error-Q3');
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'psi-l06-grade',
+        'L31 missing Q3 should focus its self-rated risk select');
+    await q3Grade.selectOption('상');
+    assert.equal(await fieldError.count(), 0, 'L31 choosing a self-reported grade clears the warning');
+    assert.equal(await q3Grade.getAttribute('aria-invalid'), null);
     await page.locator('#psi-l06-grade-reason').fill('단부가 개방되어 있습니다');
     await page.getByRole('button', { name: '이전 문항' }).click();
     assert.equal(await page.locator('#psi-l06-Q2').inputValue(), '단부 안전난간 미설치로 추락 위험', 'Back navigation keeps in-memory text');
@@ -325,6 +348,7 @@ try {
         storageWrites: 0,
         resetSafety: 'first-tap-prompt, cancel-preserves, Escape-preserves, confirmed-only-deletion',
         focusSafety: 'review-heading-focused; cancel-Escape-confirm-focus-restored-to-reset-button',
+        requiredFieldValidation: 'Q1 two-character and Q3 grade inline alert, aria-invalid/describedby, focus-to-field, reset-on-correction',
         unloadGuard: 'blank-allows, typed-warns, cancel-preserves, confirmed-reset-releases; mobile-prompt-not-guaranteed',
         visibleUnsavedNotice: true,
         nativeChromiumUnload: 'document-navigation-beforeunload-dismiss-preserves-Q1; confirmed-reset-navigates',
@@ -333,7 +357,7 @@ try {
         note: 'In-memory trial only, no worker submission/identity/Android validation',
     }, null, 2) + '\n');
 
-    console.log('[PSI L06] SYNTHETIC_PASS: L30 keyboard focus return + real Chromium navigation cancel + A4 print; zero API/storage calls');
+    console.log('[PSI L06] SYNTHETIC_PASS: L31 required-field focus/alerts + review/print/navigation safety; zero API/storage calls');
 } finally {
     await browser?.close();
     server.kill('SIGTERM');
