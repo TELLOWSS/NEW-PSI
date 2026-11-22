@@ -53,6 +53,7 @@ declare
  v_child public.psi_worker_risk_submissions;
  v_link public.psi_worker_risk_resubmission_links;
  v_review_action text;
+ v_change_requested_at timestamptz;
  v_receipt jsonb;
  v_child_id uuid;
 begin
@@ -70,7 +71,8 @@ begin
     raise exception 'L06 original is not owned in the same site/cycle' using errcode='42501';
  end if;
 
- select r.action into v_review_action from public.psi_worker_risk_review_events r
+ select r.action,r.occurred_at into v_review_action,v_change_requested_at
+ from public.psi_worker_risk_review_events r
  where r.tenant_id=p_tenant and r.site_id=p_site and r.submission_id=p_original
  order by r.revision desc limit 1;
  if not found or v_review_action<>'request_changes' then
@@ -99,6 +101,12 @@ begin
  if not found or v_child.id=p_original or v_child.worker_id<>v_original.worker_id
    or v_child.account_user_id<>v_actor or v_child.cycle_id<>v_original.cycle_id then
    raise exception 'L06 replacement scope mismatch' using errcode='42501';
+ end if;
+ -- An ordinary submission received BEFORE the manager asked for changes is
+ -- not a resubmission. Reusing its request nonce must never manufacture
+ -- a misleading corrective history. Exact retries retain the later timestamp.
+ if v_child.received_at <= v_change_requested_at then
+   raise exception 'L06 replacement predates manager change request' using errcode='42501';
  end if;
 
  if v_link.original_submission_id is not null then
