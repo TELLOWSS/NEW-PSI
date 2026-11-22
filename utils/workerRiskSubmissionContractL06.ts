@@ -119,11 +119,12 @@ export const L06_CLOSED_SERVER_GATE: Readonly<L06TrustedServerGate> = Object.fre
 });
 
 /** Advisory fail-closed checklist; NOT itself an authorization primitive. */
-export const evaluateL06ServerGate = (gate: L06TrustedServerGate) => ({
-    allowedForServerImplementation: Object.values(gate).every(value => value === true),
-    unmet: (Object.keys(L06_CLOSED_SERVER_GATE) as Array<keyof L06TrustedServerGate>)
-        .filter(key => gate[key] !== true),
-});
+export const evaluateL06ServerGate = (gate: L06TrustedServerGate) => {
+    // Never use Object.values(gate).every: {} would pass vacuously at runtime.
+    const unmet = (Object.keys(L06_CLOSED_SERVER_GATE) as Array<keyof L06TrustedServerGate>)
+        .filter(key => gate?.[key] !== true);
+    return { allowedForServerImplementation: unmet.length === 0, unmet };
+};
 
 export interface L06ExpectedReceiptContext {
     // Must be supplied by a trusted API caller, NEVER from form input.
