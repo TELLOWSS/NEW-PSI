@@ -172,3 +172,13 @@
 - **실검증 수용조건:** `docs/PSI_L06_SUPABASE_ISOLATED_AUTH_ACCEPTANCE_20261122.md` A19~A21 신규. **A01~A21 모두 NOT RUN**. 승인된 독립 Supabase 프로젝트·가상 2개 회사/현장/실서명 JWT/철회·권한 동시성 실험 및 인간 인수가 필요하다. 위험성평가 기록 승인/시각은 실제 감소대책 완료 또는 작업재개 승인과 다르다.
 
 **다음:** 동일 최종 HEAD 3종 CI 확인/실패 수리 → 명시적 승인된 격리 Supabase에서 실제 Auth/RLS/GRANT·21개 경계 검증 → L18 인간 인수·사용자 최종 승인 전 운영 DB/API 연결·main/Production 금지.
+
+## 17. 2026-11-22 — 15차: 공통 인증세션의 JWT 만료·발급시각 검사
+
+- **직전 14차 동일 HEAD 세 CI 전부 SUCCESS:** `376a32f`의 릴리스 #44991189656 (276개 테스트 파일/2,146개 PASS; L06 PGlite 40/40, source manager 13/13), 전사 Chromium #44991189589, Inspector 모바일 #44991189597. L18은 여전히 `RELEASE=BLOCKED`이며 실 Supabase·Android 인수는 아님.
+- **남은 SQL 공백:** `session_id`가 Auth 세션행에 남아 있는 것만으로는 토큰이 자체 만료(`exp`)되었는지 또는 발급시각(`iat`)이 미래인지 SQL 내부에서 단정할 수 없다. Supabase의 공식 <https://supabase.com/docs/guides/auth/jwt-fields>에서 두 값은 필수 **Unix timestamp 숫자**.
+- **실제 개발 브랜치 변경:** 공통 `psi_l06_require_active_session()`이 `auth.jwt()`의 `exp`/`iat` 두 필드를 numeric JSON으로 엄격 검사, `pg_catalog.clock_timestamp()` 서버 epoch와 비교해 `exp > now`, `iat <= now`, `iat < exp`를 만족해야 기존 세션/ban/deleted 검사 진행한다. 잘못된 클레임은 42501. 이 SQL은 **서명검증이 아니며 Supabase Auth와 RPC 게이트웨이의 정상 인증을 전제로 하는 추가 방어**다.
+- **가상 PGlite 인증회귀:** `tests/psiWorkerRiskSubmissionSqlL06.test.ts` fixture에 `iat`/`exp` 숫자 모사. (1) 만료 worker 접수, (2) 미래 발급·시간 역전, (3) missing/문자 클레임, (4) 만료 reviewer 읽기·검토, (5) 수신 후 만료/동일 nonce 재전송 거부, 원본·원장 1건 보존 등 5개 신규. L06 총 **45개**, 앱 전체 **2,151개 목표**. 동일 소스 HEAD 릴리스 결과 미확정이면 PASS 표기 금지.
+- **서명 검증·실험의 경계:** JWT 원문, service role 키를 수집·로깅·PR에 올리지 않는다. Supabase Auth 실제 exp/iat/세션 무효화·네트워크 경합은 승인된 독립 테스트환경에서만 실증하며 운영 `PSI-Database`와 목적 미확인 기존 프로젝트는 사용하지 않는다. L18 13개 사람 승인, 보유/삭제, Android/모국어 교육·작업허가 독립성 확인 전 정식 연결/출시 금지.
+
+**다음:** 동일 SHA 전체 CI 3종 판정/오류 수리 → 승인된 격리 Supabase에서 발행된 실제 JWT의 만료/서명/철회, 기업별 RLS·권한 경합 및 A01~A21 점검 → 사용자 승인 전 main/Production/운영 DB 변경 금지.
