@@ -70,6 +70,69 @@ describe('L06 isolated real Auth evidence ledger must fail closed',()=>{
     const repeated=invoke(l=>{l.cases[24].id='A01';});
     expect(repeated.exit).not.toBe(0);
   });
+  it('rejects temporary signed or token-bearing evidence links rather than committing their URL secrets',()=>{
+    const result=invoke(l=>{
+      l.environment={approved:true,projectRef:'abcdefghijklmnopqrst',
+        approvedBy:'independent reviewer',
+        approvalEvidence:'https://example.invalid/approval'};
+      l.cases[0]={id:'A01',status:'pass',evidence:'https://example.invalid/evidence?access_token=synthetic',
+        reviewedBy:'independent reviewer',reviewedAt:'2026-11-22T06:00:00Z',
+        sourceSha:'a'.repeat(40),reason:'test-only mock passed in isolated environment'};
+    });
+    expect(result.exit).not.toBe(0);
+    expect(result.output).toContain('stable, non-secret HTTPS evidence reference');
+    expect(result.output).not.toContain('access_token=synthetic');
+  });
+  it('rejects credential userinfo and fragments in an environment approval reference',()=>{
+    for(const unsafe of [
+      'https://user:credential@example.invalid/approval',
+      'https://example.invalid/approval#signed-token',
+      'https://127.0.0.1/approval',
+    ]){
+      const result=invoke(l=>{
+        l.environment={approved:true,projectRef:'abcdefghijklmnopqrst',
+          approvedBy:'independent reviewer',approvalEvidence:unsafe};
+      });
+      expect(result.exit).not.toBe(0);
+      expect(result.output).toContain('HTTPS approval evidence');
+      expect(result.output).not.toContain(unsafe);
+    }
+  });
+  it('rejects mock JWT-formatted credentials even if embedded in URL path',()=>{
+    const result=invoke(l=>{
+      l.environment={approved:true,projectRef:'abcdefghijklmnopqrst',
+        approvedBy:'independent reviewer',
+        approvalEvidence:'https://example.invalid/evidence/eyJdummyheader.payload12345.signature12345'};
+    });
+    expect(result.exit).not.toBe(0);
+    expect(result.output).toContain('HTTPS approval evidence');
+    expect(result.output).not.toContain('eyJdummyheader');
+  });
+  it('rejects bearer-shaped secrets in reviewer notes without logging the secret',()=>{
+    const result=invoke(l=>{
+      l.environment={approved:true,projectRef:'abcdefghijklmnopqrst',
+        approvedBy:'independent reviewer',approvalEvidence:'https://example.invalid/approval'};
+      l.cases[0]={id:'A01',status:'pass',evidence:'https://example.invalid/evidence',
+        reviewedBy:'independent reviewer',reviewedAt:'2026-11-22T06:00:00Z',
+        sourceSha:'a'.repeat(40),
+        reason:'simulated review Bearer ZZZZZZZZZZZZZZZZZZZZZZZZ'};
+    });
+    expect(result.exit).not.toBe(0);
+    expect(result.output).toContain('sensitive token-like content');
+    expect(result.output).not.toContain('ZZZZZZZZZZZZZZZZZZZZZZZZ');
+  });
+  it('retains a valid non-secret approval and proof reference yet keeps release blocked',()=>{
+    const result=invoke(l=>{
+      l.environment={approved:true,projectRef:'abcdefghijklmnopqrst',
+        approvedBy:'independent reviewer',approvalEvidence:'https://example.invalid/approval'};
+      l.cases[0]={id:'A01',status:'pass',evidence:'https://example.invalid/redacted-report',
+        reviewedBy:'independent reviewer',reviewedAt:'2026-11-22T06:00:00Z',
+        sourceSha:'a'.repeat(40),reason:'test-only synthetic evidence no real Auth'};
+    });
+    expect(result.exit).toBe(0);
+    expect(result.output).toContain('PASS=1; NOT_RUN=24');
+    expect(result.output).toContain('REAL_AUTH_ACCEPTANCE=BLOCKED; RELEASE=BLOCKED');
+  });
   it('even 25 manually PASS-stamped cases never bypass L18 human release gating',()=>{
     const result=invoke(l=>{
       l.environment={approved:true,projectRef:'abcdefghijklmnopqrst',
