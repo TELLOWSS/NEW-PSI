@@ -161,3 +161,14 @@
 - 승인된 격리 프로젝트 이전에는 실제 Supabase Auth·실계정·JWT/서비스키·GRANT/RLS/개인정보·관리자 API·main/Production 변경 없음. 실제 현장 작업허가/개선 조치 확인은 관리자 기록의 `approved` 상태와 별개의 업무다. Android/원어민 11개 언어, 개인정보 처리 및 L18 13개 사람 인수 계속 BLOCKED.
 
 **다음:** 같은 13차 최종 HEAD 릴리스·전사 Chromium·Inspector QA 3종 판정 → 사용자 승인 후 격리 Supabase A01~A18 실증 → 보안 및 현장 인수 후에만 정식 연결 검토.
+
+## 16. 2026-11-22 — 14차: 최초 Q1~Q5·보완본 제출의 실세션 철회 차단
+
+- **13차 실검증:** 최종 코드 `935e03f` 릴리스 #44990759592 **SUCCESS**(276개 파일/2,141개 PASS, L06 PGlite 35/35). 동일 SHA 전사/Inspector 전체는 후속 개발 push로 취소되어 3종 PASS 판정 아님.
+- **발견된 무결성 공백:** 근로자 최초 제출 `psi_submit_worker_risk_l06` 및 보완본 제출 `psi_submit_worker_risk_revision_l06`은 Auth의 `auth.uid()`와 계정·근로자 연동/현장배정을 확인하지만, JWT에 담긴 `session_id`가 **현재 실제 `auth.sessions`에 남아있는지** 추가 확인하지 않았다. 철회 후 남은 JWT로 이전 nonce 재전송/새 기록 접수를 시도할 가능성이 있었다.
+- **제안 SQL 변경:** `psi_l06_require_active_session()`을 `psi_worker_risk_submission_l06_staging.sql`에서 정의하며 manager_review 파일의 중복 정의는 제거했다. worker submit·worker resubmit·manager review·manager read 모두 같은 gate 사용. `auth.sessions`↔`auth.users` 일치/ban/deleted 검사와 `FOR SHARE OF sess,u` 행잠금, 거부 시 SQLSTATE 42501을 일원화했다. 미승인 계정·세션은 새 수신증·보완링크를 절대 생성하지 않는다.
+- **PGlite 합성 회귀 5건:** session_id 누락/잘못된 ID, 실제 `auth.sessions` 행 삭제, 철회 후 이전 nonce 재전송, 타인의 session_id, 보완요청 뒤 철회된 worker의 수정 재제출을 거부하고 원본·감사로그 불변을 확인한다. 기존 35건+신규5건=**40건 목표**. 최종 HEAD CI 성공 전 PASS로 간주하지 않음.
+- **실환경 구별:** 가상 PGlite 내부 모사와 실제 Auth signOut/JWT 서명, 서버 JWT 만료/비밀번호 변경·GRANT/RLS·교차회사·동시 DB 경합은 분리한다. 실 계정/프로덕션 데이터와 접촉하지 않았고, `supabase/proposals`의 세 SQL에만 수정했으며 운영 migrations/서버 API·Production은 불변이다.
+- **실검증 수용조건:** `docs/PSI_L06_SUPABASE_ISOLATED_AUTH_ACCEPTANCE_20261122.md` A19~A21 신규. **A01~A21 모두 NOT RUN**. 승인된 독립 Supabase 프로젝트·가상 2개 회사/현장/실서명 JWT/철회·권한 동시성 실험 및 인간 인수가 필요하다. 위험성평가 기록 승인/시각은 실제 감소대책 완료 또는 작업재개 승인과 다르다.
+
+**다음:** 동일 최종 HEAD 3종 CI 확인/실패 수리 → 명시적 승인된 격리 Supabase에서 실제 Auth/RLS/GRANT·21개 경계 검증 → L18 인간 인수·사용자 최종 승인 전 운영 DB/API 연결·main/Production 금지.
