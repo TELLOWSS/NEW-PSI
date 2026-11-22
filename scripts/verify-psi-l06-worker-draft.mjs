@@ -103,6 +103,53 @@ try {
     assert.equal(await page.locator('#psi-l06-Q1').inputValue(), '');
     assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '0 / 5문항');
 
+    // L25: all five answers may legally approach 500 characters. Long Korean
+    // responses must paginate instead of clipping the final safety promise.
+    // This is a synthetic print stress test, not a real worker submission.
+    const longAnswer = key => {
+        const endMarker = 'END' + key;
+        const line = key + ' 위험구역을 확인하고 안전조치를 다시 점검한 후 관리자와 공유한다.\n';
+        return line.repeat(20).slice(0, 500 - endMarker.length) + endMarker;
+    };
+    await page.locator('#psi-l06-Q1').fill(longAnswer('Q1'));
+    await page.getByRole('button', { name: '다음 문항' }).click();
+    await page.locator('#psi-l06-Q2').fill(longAnswer('Q2'));
+    await page.getByRole('button', { name: '다음 문항' }).click();
+    await page.locator('#psi-l06-grade').selectOption('상');
+    await page.locator('#psi-l06-grade-reason').fill(longAnswer('Q3'));
+    await page.getByRole('button', { name: '다음 문항' }).click();
+    await page.locator('#psi-l06-Q4').fill(longAnswer('Q4'));
+    await page.getByRole('button', { name: '다음 문항' }).click();
+    await page.locator('#psi-l06-Q5').fill(longAnswer('Q5'));
+    await page.getByRole('button', { name: '작성 내용 확인' }).click();
+    await page.getByRole('heading', { name: '내가 작성한 내용 확인' }).waitFor();
+    await page.emulateMedia({ media: 'print' });
+    const longPdfBytes = await page.pdf({
+        path: 'artifacts/audit/psi-l06-worker-risk-draft/a4-five-question-long-trial.pdf',
+        format: 'A4', printBackground: true, preferCSSPageSize: true,
+    });
+    const longPdf = await getDocument({ data: new Uint8Array(longPdfBytes) }).promise;
+    assert.ok(longPdf.numPages > 1 && longPdf.numPages <= 10,
+        'Five maximum-length Korean answers must paginate without excessive blank pages');
+    let fullLongText = '';
+    for (let n = 1; n <= longPdf.numPages; n++) {
+        fullLongText += (await (await longPdf.getPage(n)).getTextContent()).items
+            .map(item => 'str' in item ? item.str : '').join(' ') + ' ';
+    }
+    const normalizedLongText = fullLongText.replace(/\s+/g, '');
+    for (const key of ['Q1', 'Q2', 'Q3', 'Q4', 'Q5']) {
+        assert.ok(normalizedLongText.includes('END' + key),
+            'L25 long A4 output lost the ending of ' + key);
+    }
+    assert.ok(normalizedLongText.includes('정식제출이아닙니다'),
+        'L25 long print must retain unofficial-trial warning');
+    await page.emulateMedia({ media: 'screen' });
+    await page.getByRole('button', { name: '수정하기' }).click();
+    await page.getByRole('button', { name: '전체 초기화' }).click();
+    assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '0 / 5문항');
+    assert.deepEqual(apiCalls, [], 'Long worksheet must never call any API');
+    assert.deepEqual(externalCalls, [], 'Long worksheet must never call external services');
+
     await mkdir('artifacts/audit/psi-l06-worker-risk-draft', { recursive: true });
     await page.screenshot({ path: 'artifacts/audit/psi-l06-worker-risk-draft/390-empty.png', fullPage: true });
     await writeFile('artifacts/audit/psi-l06-worker-risk-draft/result.json', JSON.stringify({
@@ -112,12 +159,12 @@ try {
         apiCalls: apiCalls.length,
         externalCalls: externalCalls.length,
         storageWrites: 0,
-        a4TrialPrint: { pages: 1, questions: 5, receiptCreated: false, syntheticOnly: true },
+        a4TrialPrint: { pages: 1, questions: 5, longAnswerPages: longPdf.numPages, longAnswersIntact: true, receiptCreated: false, syntheticOnly: true },
         navigation: 'one-question-at-a-time, incomplete-step-blocked, back-and-forth-preserved',
         note: 'In-memory trial only, no worker submission/identity/Android validation',
     }, null, 2) + '\n');
 
-    console.log('[PSI L06] SYNTHETIC_PASS: 5-step review/reset + nonblank 1-page A4 trial print; zero API/storage calls');
+    console.log('[PSI L06] SYNTHETIC_PASS: 5-step review/reset + 1-page A4 and full-length multipage A4; zero API/storage calls');
 } finally {
     await browser?.close();
     server.kill('SIGTERM');
