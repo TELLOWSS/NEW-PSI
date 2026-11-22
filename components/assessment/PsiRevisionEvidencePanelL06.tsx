@@ -6,7 +6,12 @@ import { PSI_FORM_QUESTIONS, type PsiQuestionKey } from '../../config/psiFormMas
  * This component does NOT authenticate the viewer or fetch/save/review data.
  * Never mount it with untrusted query parameters or worker-supplied snapshots.
  */
-type ReviewEvent = { action: string; note: string; revision: number };
+type ReviewEvent = {
+  action: 'reviewed' | 'request_changes' | 'approved';
+  note: string;
+  revision: number;
+  recordedAt: string;
+};
 type ReviewSnapshot = {
   schema: string;
   tenantId: string;
@@ -15,6 +20,7 @@ type ReviewSnapshot = {
   workerId: string;
   sourceLanguage: string;
   gradeReason: string;
+  receivedAt: string;
   answers: Record<PsiQuestionKey, string>;
   events: ReviewEvent[];
   workClearanceGranted: false;
@@ -27,6 +33,17 @@ export type PsiRevisionChainL06 = {
   workClearanceGranted: false;
 };
 const keys: PsiQuestionKey[] = ['Q1','Q2','Q3','Q4','Q5'];
+const validUtc = (value: unknown): value is string => {
+  if (typeof value !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/.test(value)) return false;
+  const milliseconds = Date.parse(value);
+  return Number.isFinite(milliseconds) && new Date(milliseconds).toISOString() === value;
+};
+const asSeoulTime = (utc: string) => new Intl.DateTimeFormat('ko-KR', {
+  timeZone:'Asia/Seoul', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23',
+}).format(new Date(utc)) + ' KST';
+const actionLabel = (action: ReviewEvent['action']): string =>
+  action === 'approved' ? '평가자료 검토 승인 (작업허가 아님)'
+    : action === 'request_changes' ? '추가 보완요청' : '보완본 1차 검토';
 
 export const hasReadableL06RevisionChain = (candidate: unknown): candidate is PsiRevisionChainL06 => {
   if (!candidate || typeof candidate !== 'object') return false;
@@ -45,7 +62,27 @@ export const hasReadableL06RevisionChain = (candidate: unknown): candidate is Ps
       !old.tenantId || old.tenantId !== next.tenantId ||
       !old.sourceLanguage || !next.sourceLanguage ||
       !Array.isArray(old.events) || !Array.isArray(next.events) ||
-      old.events.at(-1)?.action !== 'request_changes') return false;
+      old.events.length < 1 || old.events.length > 2 || next.events.length > 2 ||
+      old.events.at(-1)?.action !== 'request_changes' ||
+      !validUtc(old.receivedAt) || !validUtc(next.receivedAt) || !validUtc(chain.linkedAt)) return false;
+  const firstReceipt = Date.parse(old.receivedAt);
+  const requestAt = old.events.at(-1)?.recordedAt;
+  if (!validUtc(requestAt) || !(firstReceipt < Date.parse(requestAt) &&
+      Date.parse(requestAt) < Date.parse(next.receivedAt) &&
+      Date.parse(next.receivedAt) <= Date.parse(chain.linkedAt))) return false;
+  for (const [record, floor] of [
+    [old, firstReceipt],
+    [next, Date.parse(chain.linkedAt)],
+  ] as const) {
+    let previousEventAt = floor;
+    for (const event of record.events) {
+      if (!event || !validUtc(event.recordedAt) ||
+          !['reviewed','request_changes','approved'].includes(event.action) ||
+          typeof event.note !== 'string' || !Number.isInteger(event.revision) ||
+          Date.parse(event.recordedAt) < previousEventAt) return false;
+      previousEventAt = Date.parse(event.recordedAt);
+    }
+  }
   for (const record of [old,next]) {
     if (!record.answers || typeof record.answers !== 'object' ||
         typeof record.gradeReason !== 'string' ||
@@ -80,6 +117,13 @@ export function PsiRevisionEvidencePanelL06({ chain }: {chain: unknown}) {
   });
   const changedCount = pairs.filter(pair => pair.changed).length;
   const visiblePairs = changedOnly ? pairs.filter(pair => pair.changed) : pairs;
+  const timeline = [
+    {label:'최초 원문 접수',at:chain.original.receivedAt},
+    {label:'관리자 보완요청',at:chain.original.events.at(-1)!.recordedAt},
+    {label:'보완본 별도 접수',at:chain.replacement.receivedAt},
+    {label:'원본·보완본 연결 기록',at:chain.linkedAt},
+    ...chain.replacement.events.map(event => ({label:actionLabel(event.action),at:event.recordedAt})),
+  ];
   return (
     <section aria-label="Q1부터 Q5까지 보완 전후 기록 대조" data-testid="psi-l06-revision-evidence"
       className="rounded-3xl border border-slate-200 bg-white p-4 text-slate-900 shadow-sm md:p-6">
@@ -95,6 +139,29 @@ export function PsiRevisionEvidencePanelL06({ chain }: {chain: unknown}) {
           <p className="mt-1 whitespace-pre-wrap break-words">{reason}</p>
         </div>
       </header>
+      <section className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:p-5"
+        aria-label="서버 기록 기준 보완 진행 이력" data-testid="psi-l06-evidence-timeline">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-base font-extrabold">원문을 보존하는 보완 기록 흐름</h3>
+          <span className="text-xs font-semibold text-slate-500">서버 기록시각 · 한국시간(KST)</span>
+        </div>
+        <ol className="mt-4 grid gap-3 md:grid-cols-2">
+          {timeline.map((item,index) => (
+            <li key={item.label + index} className="flex min-w-0 gap-3 rounded-xl bg-white p-3 shadow-sm">
+              <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-full bg-teal-100 text-sm font-extrabold text-teal-800">
+                {index+1}
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-bold">{item.label}</p>
+                <time dateTime={item.at} className="mt-1 block text-xs tabular-nums text-slate-600">{asSeoulTime(item.at)}</time>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-3 text-xs leading-5 text-slate-600">
+          기록 시각은 업무 진행의 순서를 보여줄 뿐, 감소대책의 실제 이행이나 작업 재개 허가를 증명하지 않습니다.
+        </p>
+      </section>
       <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3" aria-label="원문 비교 결과 요약">
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
           <p className="text-xs text-slate-600">전체 문항</p>
