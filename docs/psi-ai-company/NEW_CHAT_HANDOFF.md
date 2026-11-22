@@ -59,3 +59,5 @@ NEW-PSI의 Code and Chill 템플릿 참조 기반 PC·모바일 디자인 고도
 > 2026-11-22 최초 2025년 수기·다국어 위험성평가 양식 OCR 병행: PDF는 3쪽 스캔(각 1페이지/2.85MiB 제한), PPTX 6장(한국어·중국어2·러시아어·미얀마어·베트남어, 직접 OCR 불가). 최신 하단/구형 상단 인적사항·문항 Q1~Q5·다국어 기록표 제목 보강, 개인정보 실원본 GitHub 미업로드/실OCR 미검증. 상세 docs/PSI_OCR_LEGACY_SELFREGULATION_COMPAT_20261122.md; main/Production 보류.
 
 > 2026-11-22 기존 2025년 스캔 PDF 다쪽 파일은 명시적 로컬 분리 버튼으로 1쪽당 JPEG/독립 OCR 대기 기록. 12쪽/20MB/이미지 2.85MiB 상한과 원자적 실패, PDF 업로드 사전 페이지/용량 판정 추가. 자동 서버 OCR 실행·DB 변경 없음. CI/실기기·원본 3장 OCR 정확도 검증 대기. 상세 docs/PSI_OCR_LEGACY_SELFREGULATION_COMPAT_20261122.md, PR Draft, main/Production 보류.
+
+> 2026-11-22 L06 직접 작성→정식 제출 사전 권한계약 3차: PR #237 Draft. `/worker-risk-draft`는 한국어 5문항 작성/검토/인쇄 시범이며 **제출·서명·저장/개인정보 전송 없음**. `utils/workerRiskSubmissionContractL06.ts` 엄격한 원문 제출/접수증 구분과 `lib/server/workerRiskScopeL06.ts` 서버 계정→근로자→테넌트→현장→평가주기 접근범위 fail-closed 검사(합성 A/B 교차테넌트 회귀)를 추가. 실제 PSI-Database에는 근로자 계정 연결 테이블은 있지만 필요한 개별 현장배정·평가주기·접수 테이블은 아직 확인되지 않아 **실 서버/DB·정식 제출 API 연결 안 함**. 상세 `docs/PSI_L06_WORKER_SUBMISSION_CONTRACT_20261122.md`, `docs/PSI_LIVING_UI_MASTER_HANDOFF_20261121.md` L06 3차. 마지막 커밋 CI 3종 실조회 필수, L18 출시 BLOCKED, main/Production 승인 전 보류.
