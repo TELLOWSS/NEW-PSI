@@ -77,6 +77,42 @@ check('l06:isolated-auth-consent',
 check('l18:human-evidence-register',release.gates?.length===13 &&
  release.gates.every(item=>['pending','reviewed-with-evidence'].includes(item.status)),
  'The 13 real-world human review gates cannot be replaced by CI checks');
+// L36: P1-P5 status must be derived from the *existing* independent ledgers.
+// Gate mapping is complete and non-overlapping; do not create a second approval system.
+const workstreamIds=['P2','P3','P4','P5'];
+const mapped=workstreamIds.flatMap(id=>config.workstreamGateIds?.[id]||[]);
+const humanIds=release.gates.map(g=>g.id);
+check('program:human-gate-map-complete',
+ workstreamIds.every(id=>Array.isArray(config.workstreamGateIds?.[id]) &&
+   config.workstreamGateIds[id].length>0) &&
+ mapped.length===humanIds.length &&
+ mapped.every(id=>humanIds.includes(id)) &&
+ humanIds.every(id=>mapped.includes(id)),
+ 'P2-P5 must account for all L18 human gates without omission');
+check('program:human-gate-map-no-duplicates',
+ new Set(mapped).size===mapped.length &&
+ Object.keys(config.workstreamGateIds||{}).sort().join(',')===workstreamIds.join(','),
+ 'Each real-world acceptance gate has exactly one primary workstream');
+check('program:source-trace-not-acceptance',
+ config.workstreamReadinessNotice?.includes('NOT automatic completion') &&
+ typeof config.workstreams?.P1==='string' &&
+ typeof config.workstreams?.P5==='string',
+ 'The five workstreams cannot be declared completed by source trace or synthetic CI');
+const gateById=new Map(release.gates.map(g=>[g.id,g]));
+const readinessByStream=Object.fromEntries(workstreamIds.map(id=>{
+ const items=(config.workstreamGateIds?.[id]||[]).map(gateId=>gateById.get(gateId)).filter(Boolean);
+ return [id,{
+  mappedHumanGates:items.length,
+  humanPending:items.filter(g=>g.status==='pending').length,
+  humanReviewedWithEvidence:items.filter(g=>g.status==='reviewed-with-evidence').length,
+  postDeployPending:items.filter(g=>g.phase==='post-deploy'&&g.status==='pending').length,
+  realWorldAcceptance:'REQUIRES_INDEPENDENT_REVIEW',
+ }];
+}));
+readinessByStream.P2.isolatedAuthEnvironmentApproved=auth.environment?.approved===true;
+readinessByStream.P2.isolatedAuthCases=auth.cases.length;
+readinessByStream.P2.isolatedAuthNotRun=auth.cases.filter(c=>c.status==='not-run').length;
+readinessByStream.P2.isolatedAuthPassStamped=auth.cases.filter(c=>c.status==='pass').length;
 const humanPending=release.gates.filter(g=>g.status==='pending');
 const postDeployPending=humanPending.filter(g=>g.phase==='post-deploy');
 const authNotRun=auth.cases.filter(c=>c.status==='not-run');
@@ -86,6 +122,10 @@ const report={
  generatedAt:new Date().toISOString(),
  scope:browser?'source paths + CI wiring + existing L18 synthetic browser artifact':'source paths + CI wiring only',
  sourceTraceCount:config.areas.length,
+ workstreamReadiness:{
+  P1:{sourceAndCiPathsTraced:config.areas.length,expectedAreas:19,realWorldAcceptance:'UNVERIFIED'},
+  ...readinessByStream,
+ },
  sourceOnly:!browser,
  checks,
  humanGatePending:humanPending.length,
@@ -113,6 +153,9 @@ report.automationStatus=checks.every(item=>item.status==='PASS') ?
 const out='artifacts/audit/psi-p1-evidence/'+(browser?'browser-evidence.json':'source-only.json');
 await mkdir('artifacts/audit/psi-p1-evidence',{recursive:true});
 await writeFile(out,JSON.stringify(report,null,2)+'\n');
+console.log('[PSI P1-P5/L36] AUTH_NOT_RUN='+readinessByStream.P2.isolatedAuthNotRun+
+ '; HUMAN_PENDING_BY_STREAM='+workstreamIds.map(id=>id+':'+readinessByStream[id].humanPending).join(',')+
+ '; NONE_OF_THESE_COUNTS_AUTHORIZE_RELEASE');
 console.log('[PSI P1/L35] '+report.automationStatus+
  '; SOURCES='+report.sourceTraceCount+'/19; AUTH_NOT_RUN='+authNotRun.length+
  '; HUMAN_PENDING='+humanPending.length+'; RELEASE_AUTHORIZED=false');
