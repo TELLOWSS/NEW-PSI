@@ -16,7 +16,7 @@ describe('Living UI L06 Q1–Q5 original-preserving review', () => {
         expect(items.map(({ key }) => key)).toEqual(PSI_FORM_QUESTIONS.map((q) => q.key));
         expect(items).toHaveLength(5);
         expect(items.every((x) => x.state === 'missing' && x.sourceIndex === null)).toBe(true);
-        expect(PSI_FORM_MASTER_VERSION).toBe('psi-form-master-2026-07-14-v1');
+        expect(PSI_FORM_MASTER_VERSION).toBe('psi-form-master-2026-11-22-v2-legacy-compatible');
         expect(items[0].intent).toContain('가장 위험한 세부작업');
         expect(items[4].intent).toContain('내가 실제로 지킬 행동');
     });
