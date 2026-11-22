@@ -600,6 +600,16 @@
 
 **다음 한 작업:** 17차 최종 동일 SHA release/company Chromium/Inspector CI 3종 결론 확인·실패 시 수리 → 소유자 승인된 새로운 격리 Supabase Auth 프로젝트로 A01~A25 실증 (운영 ref 사용 금지) → 개인정보/법무·실기기/원어민·L18 사람 인수 및 사용자 승인이 끝나기 전 운영 연결/병합·배포 금지.
 
+### L06 후속 — 인증 인수 증빙 URL·검토 메모의 비밀정보 유출 차단 (18차, 2026-11-22)
+
+- **17차 동일 SHA 결과:** `585c5d7fdacf1eb205ade563be32b87d87fb9e7c` release #44994482035 **SUCCESS**(277개 테스트 파일/2,163개 단위테스트, L06 PGlite 50/50, 증빙 대장 7/7, L17 19/19). 전사 Chromium #44994482057 **SUCCESS**, Inspector 모바일 #44994482053은 후속 커밋으로 **CANCELLED**. 동일 SHA 3종 모두 SUCCESS로 표시하지 않음.
+- **17차 source-only 대장 결함 발견:** `scripts/check-psi-l06-isolated-auth-acceptance.mjs`에서 증빙·격리프로젝트 승인 링크를 `https://` 정규식만으로 검증했다. URL 쿼리·fragment·`user:password@host`·임시 서명 토큰을 코드 저장소에 넣을 여지가 있으며, 검사 로그에 인증정보를 출력하지 않도록 별도 방어가 필요했다.
+- **18차 구현:** 증빙 및 승인 링크를 JS `URL` 파서로 검사해 HTTPS만 허용하고 사용자정보·query·fragment·port·localhost/사설 IP·민감정보가 포함된 path를 거부. 검토 `reason`·`reviewedBy`에 베어러/JWT/키/DB 연결문자열 형태가 들어가도 거부하며 실제 값은 오류 로그에 출력하지 않는다. **이는 외부 URL의 진위/접근통제 확인이 아닌 로컬 데이터 누출 방지 검증**이다.
+- **합성 회귀:** `tests/psiL06IsolatedAuthAcceptance.test.ts` 5건 신규 (쿼리 서명 토큰, userinfo/fragment/내부주소, JWT 모양 경로, bearer 검토문구, 정상 비밀 없는 HTTPS 참조에도 release 차단). 기존 7개→**12개 목표**, 앱 전체 2,168개 목표. 최신 동일 HEAD CI 종료 전에는 PASS 미확정.
+- **인계 및 보호:** `docs/PSI_L06_SUPABASE_ISOLATED_AUTH_ACCEPTANCE_20261122.md` §5에 Git 증빙의 secret-free/문서 진위 인수 경계를 추가. A01~A25는 계속 모두 **NOT RUN**, 별도 L06 승인 Supabase sandbox 없음. PR #237 Draft, `main`/Vercel Production/운영 Supabase DB·실근로자 데이터/키/계정·RLS/GRANT/DDL 변경 0, L18 사람 13개 승인 대기.
+
+**다음 한 작업:** 18차 최종 동일 SHA release·전사 Chromium·Inspector 3종 CI 종료 결과 확인·실패 수리 → 승인된 독립 격리 Supabase에서 A01~A25 실제 인증/권한 시험·증빙 검토 → L18 13개 사람 인수/Android/11개 언어·개인정보/소유자 승인 전 운영 연결 및 병합·배포 금지.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -623,7 +633,7 @@
 
 ## 9. 다음 착수 과제
 
-**L06 17차 실 인증인수 25개 증빙대장 자동게이트 + 7개 회귀시험·동일 SHA 3종 CI 판정 → 승인된 독립 Supabase에서 A01~A25 실제 서명 JWT/세션·기업/현장 RLS/동시성 입증 → Android/모국어/정보보호/L18 13개 사람 인수 후 사용자 승인 전까지 main/Production 보류.**
+**L06 18차 실 Auth 인수 증빙 URL·리뷰의 비밀정보 노출차단 + source-only 12개 테스트·동일 SHA CI 3종 판정 → 승인된 독립 Supabase A01~A25 실검증/증빙 독립검토 → L18 사람 13개·Android/모국어/개인정보 및 사용자 최종승인 전 main/Production/실DB 적용 보류.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
