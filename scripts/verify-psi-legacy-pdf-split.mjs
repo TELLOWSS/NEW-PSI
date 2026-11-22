@@ -38,6 +38,17 @@ try {
  assert.ok(online,'Local Vite did not start');
  browser=await chromium.launch({headless:true});
  const page=await browser.newPage();
+ // Keep the browser origin for importing Vite modules, but do NOT mount the app,
+ // request the backend, or load personal workspace state during synthetic QA.
+ await page.route(host+'/',route=>route.fulfill({
+  status:200, contentType:'text/html',
+  body:'<!doctype html><html><body><p>Local PDF synthetic QA</p></body></html>',
+ }));
+ await page.route('**/*',route=>{
+  const url=route.request().url();
+  if(url.startsWith(host+'/')||url.startsWith('data:')||url.startsWith('blob:'))return route.continue();
+  return route.abort();
+ });
  await page.goto(host+'/',{waitUntil:'domcontentloaded'});
  const result=await page.evaluate(async bytes=>{
   const mod=await import('/utils/ocrLocalPdfSplit.ts');
@@ -45,6 +56,9 @@ try {
   const info=await mod.inspectLocalPdfForOcr(file);
   const progress=[];
   const images=await mod.splitOcrPdfLocally(file,(n,t)=>progress.push([n,t]));
+  const duplicates=await mod.splitOcrPdfLocally(file);
+  const dedup=await import('/utils/ocrUploadQuality.ts');
+  const merged=dedup.mergeUniqueOcrFiles(images,duplicates);
   const pixels=[];
   for(const image of images){
    const bitmap=await createImageBitmap(image);
@@ -54,10 +68,12 @@ try {
    pixels.push([...context.getImageData(0,0,1,1).data].slice(0,3));
    bitmap.close();
   }
-  return{info,progress,pixels,files:images.map(f=>({name:f.name,size:f.size,type:f.type}))};
+  return{info,progress,pixels,duplicateCount:merged.duplicateCount,addedCount:merged.addedCount,files:images.map(f=>({name:f.name,size:f.size,type:f.type,lastModified:f.lastModified}))};
  },buildPdf());
  assert.equal(result.info.pages,3);assert.equal(result.info.sizeOk,true);
  assert.deepEqual(result.progress,[[1,3],[2,3],[3,3]]);
+ assert.equal(result.duplicateCount,3,'Repeat split must not add duplicate pages');
+ assert.equal(result.addedCount,0,'Repeat split must not add new records');
  assert.deepEqual(result.files.map(f=>f.name),[
   'synthetic-three-pages__p01_of_03.jpg','synthetic-three-pages__p02_of_03.jpg','synthetic-three-pages__p03_of_03.jpg'
  ]);

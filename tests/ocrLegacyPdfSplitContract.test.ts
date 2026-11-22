@@ -18,12 +18,14 @@ describe('Legacy scanned multi-page PDF upload guard', () => {
         expect(ui).toContain('여러 장 PDF 페이지별 나누기');
         expect(ui).toContain('splitOcrPdfLocally');
         expect(ui).toContain('onFilesChange(merged.files)');
+        expect(source('utils/ocrLocalPdfSplit.ts')).toContain('lastModified: file.lastModified');
         expect(ui).not.toContain('await onAnalyze(');
     });
     it('requires real synthetic PDF raster verification in Chromium CI',()=>{
         const flow=source('.github/workflows/psi-company-wide.yml');
         expect(flow).toContain('node scripts/verify-psi-legacy-pdf-split.mjs');
         expect(flow).toContain('artifacts/audit/psi-legacy-pdf-split/');
+        expect(source('scripts/verify-psi-legacy-pdf-split.mjs')).toContain('Repeat split must not add duplicate pages');
     });
     it('does not display multi-page, oversize or damaged PDF as ready', () => {
         const preflight = source('utils/ocrUploadQuality.ts');

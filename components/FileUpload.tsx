@@ -40,6 +40,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     const streamRef = useRef<MediaStream | null>(null);
 
     const handleFileSelect = useCallback((selectedFiles: FileList | null) => {
+        if (isAnalyzing || isSplittingPdf) return;
         if (selectedFiles && selectedFiles.length > 0) {
             const fileArray = Array.from(selectedFiles);
             const supportedFiles = fileArray.filter(isSupportedOcrFile);
@@ -61,7 +62,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                 ? messages.join(' · ')
                 : `${merged.addedCount}개 파일을 목록에 추가했습니다.`);
         }
-    }, [files, onFilesChange]);
+    }, [files, isAnalyzing, isSplittingPdf, onFilesChange]);
 
     const handleLocalPdfSplit = async (pdf: File | undefined) => {
         if (!pdf || isAnalyzing || isSplittingPdf) return;
@@ -72,7 +73,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                 setSelectionMessage('기기에서 페이지 변환 중: ' + page + '/' + total));
             const merged = mergeUniqueOcrFiles(files, images);
             onFilesChange(merged.files);
-            setSelectionMessage(String(images.length) + '페이지를 각각 별도 기록으로 준비했습니다. 원본을 확인한 후 분석을 직접 시작하세요.');
+            setSelectionMessage(String(images.length) + '페이지를 각각 별도 기록으로 준비했습니다. '
+                + (merged.duplicateCount ? String(merged.duplicateCount) + '개는 중복으로 제외했습니다. ' : '')
+                + '원본을 확인한 후 분석을 직접 시작하세요.');
         } catch (error) {
             setSelectionMessage('페이지 분리 실패: ' + (error instanceof Error ? error.message : '파일을 읽을 수 없습니다.') + ' 기존 선택 파일은 유지됩니다.');
         } finally {
@@ -365,7 +368,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                                         : 'border-emerald-300 bg-emerald-50';
                             const statusLabel = !report || isCheckingQuality
                                 ? '점검 중'
-                                : report.status === 'blocked' ? '다시 촬영 필요' : report.status === 'warning' ? '원본 확인 필요' : '분석 가능';
+                                : report.status === 'blocked'
+                    ? report.issues.some(issue => issue.code.startsWith('PDF_')) ? 'PDF 분리·확인 필요' : '다시 촬영 필요'
+                    : report.status === 'warning' ? '원본 확인 필요' : '분석 가능';
 
                             return (
                                 <div key={key} className={`overflow-hidden rounded-2xl border ${tone}`}>

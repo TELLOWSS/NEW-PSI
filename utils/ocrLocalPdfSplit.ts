@@ -93,7 +93,12 @@ export const splitOcrPdfLocally = async (
             }
             if (!jpeg || jpeg.size > OCR_GATEWAY_TARGET_BYTES)
                 throw new Error(String(n) + '페이지의 이미지 용량을 줄이지 못했습니다. 원본을 별도로 분리해 주세요.');
-            images.push(new File([jpeg], getOcrPdfPageName(file.name, n, doc.numPages), { type: 'image/jpeg' }));
+            images.push(new File([jpeg], getOcrPdfPageName(file.name, n, doc.numPages), {
+                type: 'image/jpeg',
+                // Preserve source identity for getOcrFileKey; repeated splits must not
+                // create a new selection just because File() defaulted to Date.now().
+                lastModified: file.lastModified,
+            }));
         }
         return images;
     } finally {
