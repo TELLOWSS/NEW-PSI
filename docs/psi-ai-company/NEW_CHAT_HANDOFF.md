@@ -45,3 +45,5 @@ NEW-PSI의 Code and Chill 템플릿 참조 기반 PC·모바일 디자인 고도
 - 작업 브랜치: `feat/psi-living-ui-design-foundation-20261121`
 - 사용자 정정: **현장 관리자의 장갑 착용을 UX의 일반적 필수 전제로 가정하지 말 것.** 역할·업무·기기 맥락을 실제 검증한다.
 - `L00~L18` 추적표를 읽고, 완료 판정과 배포 SHA는 실시간 재확인한다. Main 병합·Production 배포는 승인 전 보류.
+
+> 2026-11-22 L14 추가: Living UI Draft PR #237에서 `/field-local/` 전용 PWA 설치형 파일럿 구현. 실제 Android 설치/비행기모드/IndexedDB 사진 복원은 미검증. 상세 결정서 `docs/PSI_L14_PWA_DECISION_AND_FIELD_TEST_20261122.md` 및 Living UI 마스터 인계서 L14 절 참조. main/Production 최종 승인 전 보류.
