@@ -805,6 +805,17 @@
 
 **다음 한 작업:** 35차 신규 `source-only`·`browser-evidence` 게이트가 릴리스·회사형 Chromium·Inspector QA **동일 HEAD에서 통과하는지** 실제 GitHub Actions 로그·JSON로 검증하고 누락/실패를 수리 → P1 더 이상의 중복 체크 대신 P2 격리 인증 승인환경과 P3 실기기·P4 원어민/안전조치·P5 보안·사람 승인 증빙으로 인계. 승인 전 운영 병합·배포 금지.
 
+
+### L36 — P1~P5 출시 인수 잔여 추적의 단일 출처화 (2026-11-22)
+
+- **선행 기준:** L35 최종 동일 HEAD `fac5a755300aef4a486d3457ad560657951ce34f` release #45018709568 **SUCCESS**(280 파일·2,199/2,199), company Chromium #45018709584 **SUCCESS**, Inspector mobile #45018709578 **SUCCESS**. 19/19은 소스/CI 추적, **RELEASED 19/19이 아님**. Auth A01~A25 0/25, 인간 L18 0/13.
+- **36차 단일 출처 구조:** `config/psi-living-ui-p1-evidence-trace.json`의 기존 P1~P5 명세에 `workstreamGateIds`를 추가하여 기존 `config/psi-living-ui-release-acceptance.json`의 13개 인간 게이트를 **P2 2개, P3 3개, P4 3개, P5 5개**로 중복 없이 분류한다. P1은 19개 L00~L18 소스·CI 연결 추적만 뜻하고 실사용 인수가 아님. 독립된 신규 승인 원장이나 UI의 완료율을 만들지 않는다.
+- **검증기 확장:** `scripts/verify-psi-p1-evidence.mjs`에서 L18 인간 게이트 13개의 유실·중복·새 ID 매핑 오류를 **실패 처리**, 각 묶음별 `mappedHumanGates`, `humanPending`, `humanReviewedWithEvidence`, `postDeployPending`을 출력한다. P2는 기존 격리 Auth 원장의 승인 유무·25개 실행상태도 함께 출력하며 `realWorldAcceptance:'REQUIRES_INDEPENDENT_REVIEW'`, `authorizesRelease:false`를 유지한다. `tests/psiLivingP1Evidence.test.ts`에 13개 완전·유일 매핑과 출시 자동승인 금지 회귀를 추가.
+- **36차 작업 범위:** 구성/정적 집계/계약 테스트만 변경. 실제 근로자 입력·서버·실 Supabase/RLS·현장 사진·운영 HTTP 헤더·사용자 승인이나 배포를 수행하지 않음. P2 격리 Auth 시험은 `approved=false`에 따라 아직 착수 불가. 물리 Android/TalkBack·원어민·실 A4/보고서 수신은 인간 수행 필요.
+- **36차 검증 판정:** 소스 커밋 완료는 CI 통과와 다르다. **최종 변경 HEAD**에서 릴리스·전사 Chromium·Inspector 모바일 3종이 모두 완료하고 SUCCESS로 확인된 뒤에만 '36차 자동검증 완료'로 표시. 후속 푸시로 취소된 실행은 성공으로 간주하지 않는다. `RELEASE=BLOCKED`, Draft PR #237, main/Production/실 DB 미변경.
+
+**다음 실제 인수:** P2의 **승인된 독립 Supabase 프로젝트/예산·파기·담당자** 확보 전에는 25개 실 Auth/RLS 검증을 실행하지 않는다. 승인 없이 진행 가능한 작업은 P3 Android·삼성 인터넷·확대/접근성 검수 기록 템플릿 정리와 P4 다국어 기록지 의미·글꼴·A4 결함 목록의 비개인정보 감사. P5 소유자 최종 승인·운영 반영은 보류.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -828,7 +839,7 @@
 
 ## 9. 다음 착수 과제
 
-**P1·L35 L00~L18 19개 영역 실제 소스·CI 연결 증거대장(source-only/browser-evidence), 35차 동일 최종 HEAD 자동검증 3종을 확인하고 실패 수리 → P1 추적대장은 비배포 내부 증빙으로 유지하고, P2 승인 독립 Supabase Auth A01~A25·P3 Android/TalkBack·P4 11개 모국어/A4/현장 위험조치·P5 실 RLS/보안·사람 13개 승인 게이트 인수 → 제품 소유자 승인 전 main/Production/실 DB 변경 금지. 고정 최종 개발 차수 없음.**
+**P1·L35 동일 HEAD 3종 CI SUCCESS 확인. L36 P2~P5 인간 승인 게이트 13개 완전·중복 없는 매핑/잔여 산출을 PR #237 개발 브랜치에 추가했고 36차 최신 HEAD CI 확인 전. 다음은 실제 승인 가능한 P2 격리 Auth/현장 검증, 승인 없이 진행 가능한 P3 실기기 검수표와 P4 언어·A4 자료 감사를 우선한다. P5 제품 소유자 승인 전 main/Production/실 DB 변경 금지. 최종 개발 차수는 고정되지 않음.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
