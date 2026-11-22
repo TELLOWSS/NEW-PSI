@@ -25,6 +25,7 @@ try {
     }
     assert.ok(online, 'Local worker-draft UI did not start');
     browser = await chromium.launch({ headless: true });
+    await mkdir('artifacts/audit/psi-l06-worker-risk-draft', { recursive: true });
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
     const apiCalls = [];
     const externalCalls = [];
@@ -48,11 +49,19 @@ try {
     assert.equal(await probeUnloadWarning(), false,
         'Blank practice form must not block browser navigation');
     assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '0 / 5문항');
+    assert.equal(await page.locator('[data-testid=l06-unsaved-status]').count(), 0,
+        'L29 blank form must not claim that unsaved text exists');
     assert.equal(await page.getByRole('button', { name: /Q5 5단계/ }).isDisabled(), true, 'Future steps must not be skipped');
     await page.getByRole('button', { name: '다음 문항' }).click();
     await page.getByRole('status').getByText(/Q1 문항을 먼저 작성/).waitFor();
 
     await page.locator('#psi-l06-Q1').fill('가설 작업발판 설치');
+    const unsavedStatus = page.locator('[data-testid=l06-unsaved-status]');
+    await unsavedStatus.getByText('임시 작성 중 · 저장되지 않음').waitFor();
+    await unsavedStatus.getByText(/새로고침·탭 종료·다른 페이지 이동 시/).waitFor();
+    await page.screenshot({
+        path: 'artifacts/audit/psi-l06-worker-risk-draft/390-unsaved-warning.png', fullPage: true,
+    });
     await page.waitForFunction(() => {
         const event = new Event('beforeunload', { cancelable: true });
         window.dispatchEvent(event);
@@ -68,8 +77,9 @@ try {
         visibleRoot: getComputedStyle(document.getElementById('root')).display !== 'none',
         hiddenEditForm: getComputedStyle(document.querySelector('.psi-l06-edit-form')).display === 'none',
         visibleWarning: getComputedStyle(document.querySelector('.psi-l06-incomplete-print-warning')).display !== 'none',
+        hiddenUnsavedStatus: getComputedStyle(document.querySelector('.psi-l06-unsaved-status')).display === 'none',
     }));
-    assert.deepEqual(unfinishedStyles, { visibleRoot: true, hiddenEditForm: true, visibleWarning: true },
+    assert.deepEqual(unfinishedStyles, { visibleRoot: true, hiddenEditForm: true, visibleWarning: true, hiddenUnsavedStatus: true },
         'L26 unfinished Q1-Q5 print must replace partial inputs with a visible warning');
     await mkdir('artifacts/audit/psi-l06-worker-risk-draft', { recursive: true });
     const unfinishedBytes = await page.pdf({
@@ -106,6 +116,8 @@ try {
 
     await page.getByRole('button', { name: '작성 내용 확인' }).click();
     await page.getByRole('heading', { name: '내가 작성한 내용 확인' }).waitFor();
+    assert.equal(await unsavedStatus.count(), 1,
+        'L29 review alone is not an official save and must retain the unsaved warning');
     await page.getByText('가설 작업발판 설치', { exact: true }).waitFor();
     await page.getByText(/서버 제출·관리자 확인·현장 조치 완료가 아닙니다/).waitFor();
     assert.equal(await page.locator('dl dt').count(), 5);
@@ -122,9 +134,10 @@ try {
         progressHidden: getComputedStyle(document.querySelector('.psi-l06-progress-screen')).display === 'none',
         reviewVisible: getComputedStyle(document.querySelector('.psi-l06-review-print')).display !== 'none',
         actionHidden: getComputedStyle(document.querySelector('.psi-l06-review-actions')).display === 'none',
+        unsavedHidden: getComputedStyle(document.querySelector('.psi-l06-unsaved-status')).display === 'none',
     }));
     assert.deepEqual(printStatus, {
-        rootVisible: true, progressHidden: true, reviewVisible: true, actionHidden: true,
+        rootVisible: true, progressHidden: true, reviewVisible: true, actionHidden: true, unsavedHidden: true,
     }, 'L06 print CSS must show ONLY the review, unlike the generic report print shell');
     await mkdir('artifacts/audit/psi-l06-worker-risk-draft', { recursive: true });
     const pdfBytes = await page.pdf({
@@ -171,6 +184,8 @@ try {
     await resetPrompt.getByRole('button', { name: '초기화 확정' }).click();
     assert.equal(await page.locator('#psi-l06-Q1').inputValue(), '');
     assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '0 / 5문항');
+    assert.equal(await unsavedStatus.count(), 0,
+        'L29 confirmed reset must remove the unsaved warning');
     await page.waitForFunction(() => {
         const event = new Event('beforeunload', { cancelable: true });
         window.dispatchEvent(event);
@@ -232,6 +247,8 @@ try {
     await page.getByRole('group', { name: '작성 내용 초기화 확인' })
         .getByRole('button', { name: '초기화 확정' }).click();
     assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '0 / 5문항');
+    assert.equal(await unsavedStatus.count(), 0,
+        'L29 final confirmed reset must clear the unsaved warning');
     await page.waitForFunction(() => {
         const event = new Event('beforeunload', { cancelable: true });
         window.dispatchEvent(event);
@@ -244,6 +261,30 @@ try {
 
     await mkdir('artifacts/audit/psi-l06-worker-risk-draft', { recursive: true });
     await page.screenshot({ path: 'artifacts/audit/psi-l06-worker-risk-draft/390-empty.png', fullPage: true });
+    // L29: genuine Chromium beforeunload, unlike dispatchEvent-only L28.
+    // Playwright's runBeforeUnload flow returns when the dialog appears.
+    const nativePage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await nativePage.goto(host + '/worker-risk-draft', { waitUntil: 'domcontentloaded' });
+    await nativePage.locator('#psi-l06-Q1').click();
+    await nativePage.keyboard.type('가상 작업발판 안전 확인');
+    await nativePage.locator('[data-testid=l06-unsaved-status]').waitFor();
+    const dialogPending = nativePage.waitForEvent('dialog', { timeout: 10000 });
+    await nativePage.close({ runBeforeUnload: true });
+    const nativeDialog = await dialogPending;
+    assert.equal(nativeDialog.type(), 'beforeunload',
+        'L29 real Chromium close must show an unsaved-data beforeunload dialog');
+    await nativeDialog.dismiss();
+    assert.equal(nativePage.isClosed(), false,
+        'Dismissed native Chromium close must preserve practice data');
+    assert.equal(await nativePage.locator('#psi-l06-Q1').inputValue(), '가상 작업발판 안전 확인');
+    await nativePage.getByRole('button', { name: '전체 초기화' }).click();
+    await nativePage.getByRole('group', { name: '작성 내용 초기화 확인' })
+        .getByRole('button', { name: '초기화 확정' }).click();
+    assert.equal(await nativePage.locator('[data-testid=l06-unsaved-status]').count(), 0);
+    const closed = nativePage.waitForEvent('close', { timeout: 10000 });
+    await nativePage.close({ runBeforeUnload: true });
+    await closed;
+
     await writeFile('artifacts/audit/psi-l06-worker-risk-draft/result.json', JSON.stringify({
         result: 'SYNTHETIC_PASS',
         route: '/worker-risk-draft',
@@ -253,12 +294,14 @@ try {
         storageWrites: 0,
         resetSafety: 'first-tap-prompt, cancel-preserves, Escape-preserves, confirmed-only-deletion',
         unloadGuard: 'blank-allows, typed-warns, cancel-preserves, confirmed-reset-releases; mobile-prompt-not-guaranteed',
+        visibleUnsavedNotice: true,
+        nativeChromiumUnload: 'beforeunload-dialog-dismiss-preserves-text; confirmed-reset-closes',
         a4TrialPrint: { pages: 1, questions: 5, unfinishedWarningOnly: true, longAnswerPages: longPdf.numPages, longAnswersIntact: true, receiptCreated: false, syntheticOnly: true },
         navigation: 'one-question-at-a-time, incomplete-step-blocked, back-and-forth-preserved',
         note: 'In-memory trial only, no worker submission/identity/Android validation',
     }, null, 2) + '\n');
 
-    console.log('[PSI L06] SYNTHETIC_PASS: unsaved unload protection + safe reset + A4 normal/long; zero API/storage calls');
+    console.log('[PSI L06] SYNTHETIC_PASS: native Chromium unload dialog + visible unsaved notice + A4 normal/long; zero API/storage calls');
 } finally {
     await browser?.close();
     server.kill('SIGTERM');
