@@ -243,6 +243,86 @@ describe('L06 manager Q1-Q5 revision read, fail-closed SOURCE-ONLY server adapte
         const result=await read(port,principal,request,()=>new Date('invalid'));
         expect(result).toEqual({ok:false,code:'SESSION_INVALID',dataReleased:false});
     });
+    it('rechecks trusted clock a third time only after all asynchronous permission checks pass',async()=>{
+        const {port}=makePort();
+        const instants=['2026-11-22T12:00:00.000Z','2026-11-22T12:30:00.000Z',
+            '2026-11-22T12:40:00.000Z'];
+        let samples=0;
+        const result=await read(port,principal,request,()=>{
+            return new Date(instants[samples++]||'invalid');
+        });
+        expect(result).toMatchObject({ok:true,dataReleased:true,
+            workClearanceGranted:false,verification:'isolated-adapter-contract-only'});
+        expect(samples).toBe(3);
+    });
+    it('blocks data release when JWT expires during the LAST asynchronous site recheck',async()=>{
+        const {port,calls}=makePort();
+        let releaseNow='2026-11-22T12:35:00.000Z';
+        let siteCalls=0;
+        port.site=async()=>{
+            calls.push('site');
+            if(++siteCalls===2) releaseNow='2026-11-22T13:00:00.000Z';
+            return {tenantId:tenant,siteId:site,active:true};
+        };
+        let samples=0;
+        const result=await read(port,principal,request,()=>{
+            samples++;
+            return new Date(samples===1?'2026-11-22T12:00:00.000Z':
+                samples===2?'2026-11-22T12:30:00.000Z':releaseNow);
+        });
+        expect(result).toEqual({ok:false,code:'SESSION_INVALID',dataReleased:false});
+        expect(calls.at(-1)).toBe('site');
+        expect(samples).toBe(3);
+        expect('evidence' in result).toBe(false);
+    });
+    it('blocks release when a final tenant membership lookup completes after JWT expiry',async()=>{
+        const {port}=makePort();
+        let currentTime='2026-11-22T12:35:00.000Z';
+        let membershipCalls=0;
+        port.membership=async()=>{
+            if(++membershipCalls===2) currentTime='2026-11-22T13:01:00.000Z';
+            return {tenantId:tenant,userId:actor,status:'active',role:'reviewer'};
+        };
+        let samples=0;
+        const result=await read(port,principal,request,()=>{
+            samples++;
+            return new Date(samples===1?'2026-11-22T12:00:00.000Z':
+                samples===2?'2026-11-22T12:30:00.000Z':currentTime);
+        });
+        expect(result).toEqual({ok:false,code:'SESSION_INVALID',dataReleased:false});
+        expect(samples).toBe(3);
+    });
+    it('rejects final-release clock rollback, invalid date and thrown clock without evidence',async()=>{
+        for(const final of ['2026-11-22T12:29:59.000Z','invalid',null]){
+            const {port}=makePort();
+            let samples=0;
+            const result=await read(port,principal,request,()=>{
+                samples++;
+                if(samples===1) return now;
+                if(samples===2) return new Date('2026-11-22T12:30:00.000Z');
+                if(final===null) throw new Error('trusted clock unavailable on release');
+                return new Date(final);
+            });
+            expect(result).toEqual({ok:false,code:'SESSION_INVALID',dataReleased:false});
+            expect(samples).toBe(3);
+            expect('evidence' in result).toBe(false);
+        }
+    });
+    it('rejects session expiry crossing during final async checks even before principal JWT expires',async()=>{
+        const {port}=makePort();
+        port.activeSession=async()=>({userId:actor,sessionId:session,
+            active:true,expiresAt:'2026-11-22T12:40:00.000Z'});
+        let samples=0;
+        const result=await read(port,principal,request,()=>{
+            samples++;
+            return new Date(samples===1?'2026-11-22T12:00:00.000Z':
+                samples===2?'2026-11-22T12:30:00.000Z':
+                    '2026-11-22T12:40:00.000Z');
+        });
+        expect(result).toEqual({ok:false,code:'SESSION_INVALID',dataReleased:false});
+        expect(samples).toBe(3);
+        expect('evidence' in result).toBe(false);
+    });
     it('refuses a final-session recheck fault without releasing partial evidence',async()=>{
         let attempts=0;
         const {port}=makePort();
