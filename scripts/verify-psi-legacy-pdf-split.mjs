@@ -44,7 +44,7 @@ try {
   const url=route.request().url();
   if(url===host+'/'&&route.request().isNavigationRequest())return route.fulfill({
    status:200,contentType:'text/html',
-   body:'<!doctype html><html><body><p>Local PDF synthetic QA</p></body></html>',
+   body:'<!doctype html><html><body><p>Local PDF synthetic QA</p><div id="ocr-harness-root"></div></body></html>',
   });
   if(url.startsWith(host+'/')||url.startsWith('data:')||url.startsWith('blob:'))return route.continue();
   return route.abort();
@@ -79,6 +79,33 @@ try {
  ]);
  assert.ok(result.files.every(f=>f.type==='image/jpeg'&&f.size>0&&f.size<=2.85*1024*1024));
  for(let i=0;i<3;i++)assert.ok(result.pixels[i][i]>result.pixels[i][(i+1)%3]&&result.pixels[i][i]>result.pixels[i][(i+2)%3],'Page '+(i+1)+' color');
+ // Exercise the actual React upload UI, not just the pure PDF split helper.
+ // The original 3-page PDF must be blocked until explicitly split; after a
+ // successful split it must be replaced atomically by three independent JPGs.
+ await page.evaluate(async()=>{await import('/scripts/fixtures/legacy-pdf-fileupload-harness.tsx');});
+ await page.locator('#ocr-harness-state').waitFor();
+ const syntheticPdf=Buffer.from(buildPdf());
+ const inputPdf={name:'synthetic-three-pages.pdf',mimeType:'application/pdf',buffer:syntheticPdf};
+ await page.locator('input[type=file]').first().setInputFiles(inputPdf);
+ await page.waitForFunction(()=>document.querySelector('#ocr-harness-state')?.getAttribute('data-file-count')==='1');
+ await page.getByText('PDF 분리·확인 필요',{exact:true}).waitFor({timeout:20000});
+ const splitInput=page.locator('input[aria-label="여러 장 PDF의 기기 내 페이지 분리"]');
+ await splitInput.setInputFiles(inputPdf);
+ await page.waitForFunction(()=>{
+  const el=document.querySelector('#ocr-harness-state');
+  if(!el||el.getAttribute('data-file-count')!=='3')return false;
+  const files=JSON.parse(el.textContent||'[]');
+  return files.every(item=>item.name.endsWith('.jpg'))&&!files.some(item=>item.name.endsWith('.pdf'));
+ },{timeout:20000});
+ const uiPages=JSON.parse(await page.locator('#ocr-harness-state').textContent());
+ assert.deepEqual(uiPages.map(item=>item.name),result.files.map(item=>item.name),'UI must replace blocked original with three ordered JPEGs');
+ await splitInput.setInputFiles(inputPdf);
+ await page.getByText(/3개는 중복으로 제외했습니다/).waitFor({timeout:20000});
+ assert.deepEqual(JSON.parse(await page.locator('#ocr-harness-state').textContent()),uiPages,'Repeat UI split must not duplicate records');
+ await splitInput.setInputFiles({name:'corrupt.pdf',mimeType:'application/pdf',buffer:Buffer.from('not a PDF')});
+ await page.getByText(/페이지 분리 실패:/).waitFor({timeout:20000});
+ assert.deepEqual(JSON.parse(await page.locator('#ocr-harness-state').textContent()),uiPages,'Failed split must preserve previous files');
+ assert.equal(await page.locator('#ocr-harness-state').getAttribute('data-analysis-clicks'),'0','Split must not trigger paid OCR analysis');
  await mkdir('artifacts/audit/psi-legacy-pdf-split',{recursive:true});
  await writeFile('artifacts/audit/psi-legacy-pdf-split/result.json',JSON.stringify({result:'SYNTHETIC_PASS',pages:3,names:result.files.map(f=>f.name),sizes:result.files.map(f=>f.size),note:'Synthetic browser pages only; not real handwriting accuracy.'},null,2)+'\n');
  console.log('[PSI LEGACY PDF] SYNTHETIC_PASS: three independent page JPGs');
