@@ -61,3 +61,17 @@
 - 이전 `e945610` 동일 HEAD 릴리스/전사 Chromium/Inspector 3종 **SUCCESS** 확인. 신규 SHA CI 3종은 생성 후 최종 상태를 다시 확인하고 그 SHA 결과만 인계한다.
 
 **다음 단계:** 신규 HEAD CI 3종 통과·오류 수정 → 변경관리 승인을 받은 테스트 환경에서 근로자-현장 배정 및 평가주기 RLS를 재현, 두 가상 근로자의 허용·거부·기간 종료·중복요청 기록을 검증 → 인증된 서버 수신/원자적 저장 및 관리자 검토이력 구현. 실제 운영 DB 정책 변경·main 병합·Production 배포 금지.
+
+
+## 7. 2026-11-22 — 서버 수신·중복방지·원장 트랜잭션의 PostgreSQL 검증 초안 (4차)
+
+**운영 연결 상태: NOT APPLIED / NO API.** 2026-11-22 최신 PR #237 Draft에 아래 SQL과 실제 PostgreSQL 호환 PGlite 회귀를 추가했다. 이 소스가 있다는 사실은 현장 근로자가 위험성평가를 정식 제출했다는 뜻이 아니다.
+
+- **기존 제안 재사용:** `supabase/proposals/psi_tenant_site_memberships_staging.sql`, `psi_site_worker_read_policy_staging.sql`에 이미 `psi_tenant_sites`, `psi_tenant_site_memberships`, `psi_tenant_site_worker_assignments` 제안과 현장 접근 테스트가 존재함을 확인했다. 중복 테이블을 새로 설계하지 않고 이 제안을 **선행조건**으로 참조한다. 실제 연결된 PSI-Database에는 아직 이 테이블들이 없으므로 적용 여부·순서를 별도 승인해야 한다.
+- **새 격리 SQL:** `supabase/proposals/psi_worker_risk_submission_l06_staging.sql` — `psi_tenant_risk_cycles`(기업·현장·평가주기·열림/만료), `psi_worker_risk_submissions`(원문 Q1~Q5·자가 상/중/하·언어·formVersion·개인 근로자/현장·서버 접수시각), `psi_worker_risk_receipt_events`(최초 수신 1건의 별도 감사 원장). 세 테이블 모두 RLS ENABLE+FORCE. `anon`·`authenticated`는 테이블 직접 SELECT/INSERT/UPDATE/DELETE 권한 없음. 영속 수신이 되어야만 `received-pending-manager-review` 상태로 기록되고 교육 이수·감소대책 완료·작업 재개 승인으로 처리하지 않는다.
+- **원자적 함수 (제안 SQL 내부만):** `psi_submit_worker_risk_l06` — 인증 토큰에서 `auth.uid()`만 추출; 서버 DB의 활성 근로자 계정과 실제 근로자·현장 배정·현장 활성·열린 평가주기를 대조. 신원/현장/근로자 ID를 외부 답안 객체에서 받지 않고 DB에서 도출. 5문항 원문, Q3 등급, 언어/버전/입력 길이를 재검증한다. 첫 수신 INSERT + 감사 원장 INSERT가 같은 DB 트랜잭션에 있고 감사 기록 실패 시 전체 취소. `(tenant_id,worker_id,request_id)`에 DB UNIQUE 제약을 두어 동일 요청·동일 내용의 재시도는 접수 ID·수신시각 재사용, 다른 내용의 재시도는 충돌 거부. 서버가 생성한 receipt만 반환. 함수는 `authenticated`만 실행할 수 있게 제안하나 **실제 RPC 노출/실환경 보안 승인 전 사용 금지**.
+- **실 PostgreSQL 테스트:** `tests/psiWorkerRiskSubmissionSqlL06.test.ts`가 PGlite에서 운영 테이블과 **완전히 분리된 가상 A/B 테넌트, 두 근로자/로그인/현장/평가주기**를 생성. A→A/B→B, A→B·B→A/같은 기업의 다른 현장/외부 사용자 차단, Q1~Q5 변조·Q6/신분 삽입 차단, 불일치 재전송·동일 재전송, 만료·비활성 근로자/계정/현장/주기, 직접 DB 조작 차단, 감사 INSERT 오류 시 전체 롤백까지 검사한다. **CI에서 실제 성공한 커밋·로그를 확인하기 전에는 PASS라 부르지 않는다.**
+- **제한 및 다음 감사:** SOURCE-ONLY 가상 데이터 검증은 실 PSI-Database의 Auth/RLS/GRANT/CSP/현장 관리·개인정보 정책·원어민 문항 검수를 보증하지 않는다. 보안정의(`SECURITY DEFINER`) 함수의 서명·EXECUTE 최소권한, 잠금 순서/중복 요청 경합, 계정 철회·실세션 검증, 원문 보존·삭제 기한, 관리자 검토/승인 이벤트 및 기록 무결성을 보안·법무·현장 책임자가 별도 확인해야 한다. 기능을 직접 `api/saas/access.ts`에 연결하지 않았으며 실제 임시저장·작업 중지/재개·인적사항 수집 기능도 없음.
+- **승인 조건:** 두 가상 근로자로 분리된 실제 Supabase 테스트 프로젝트에서 Auth/GRANT/RLS·교차 현장/기업·관리자 읽기/보완·중복 전송 경합/취소·보존 기간을 **검증 승인 받은 뒤에만** 신규 마이그레이션·API 배포 검토. PR #237 Draft, `main` 병합·Production·운영 DB 변경은 최종 승인까지 보류. L18 human acceptance 13건 모두 pending.
+
+**다음 한 작업:** 최신 HEAD 릴리스/전사 Chromium/Inspector CI 중 실패 원인을 수정하고 동일 SHA 3종 판정 → 승인받은 격리 DB 실증에서 진짜 RLS/권한/동시 요청 충돌 보완 → 관리자 보완·반려·승인 이력을 원문과 별도 변경불가 이벤트로 추가. 운영 적용 전 개인정보 처리근거/보관기한·원어민/Android·제품 소유자 최종 검수 필수.
