@@ -96,7 +96,7 @@ declare
  v_new public.psi_worker_risk_review_events;
  v_revision integer := 0;
 begin
- v_actor := auth.uid();
+ v_actor := public.psi_l06_require_active_session();
  if v_actor is null or p_tenant is null or p_site is null
    or p_submission is null or p_action_request is null
    or p_expected_revision is null or p_expected_revision not between 0 and 1
@@ -215,7 +215,7 @@ declare
  v_data public.psi_worker_risk_submissions;
  v_events jsonb;
 begin
- v_actor := auth.uid();
+ v_actor := public.psi_l06_require_active_session();
  if v_actor is null or p_tenant is null or p_site is null or p_submission is null then
    raise exception 'L06 verified reviewer required' using errcode='42501';
  end if;
@@ -226,7 +226,8 @@ begin
    on site.tenant_id=sm.tenant_id and site.id=sm.site_id
  where m.tenant_id=p_tenant and m.user_id=v_actor and m.status='active'
   and m.role in ('owner','admin','reviewer') and sm.site_id=p_site
-  and sm.status='active' and site.active=true;
+  and sm.status='active' and site.active=true
+ for share of m,sm,site;
  if not found then
    raise exception 'L06 reviewer read denied' using errcode='42501';
  end if;
