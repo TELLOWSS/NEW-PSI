@@ -103,3 +103,12 @@
 - 인계·상태·다음 작업: `docs/PSI_LIVING_UI_MASTER_HANDOFF_20261121.md` L06 7차. PR #237 Draft. main 병합, Production/실DB 변경은 최종 승인 전 금지.
 
 **다음:** 최종 HEAD 자동 QA 재확인·실패 보완 → 변경승인 받은 격리 Supabase 2개 기업/현장/근로자·관리자 계정으로 Auth/RLS/GRANT·중복 경합 실검증 → 확인된 서버 자료만 이용하는 관리자 비교 화면 통합 → Android/원어민·법무/보존기한·현장 안전 승인.
+
+## 10. 2026-11-22 — 8차: 보완요청 선행접수 재사용 거부·관리자 시각 QA
+
+- 7차의 기록 연결 SQL에는 **보완요청 전에 별도로 접수한 문서를** 동일 요청번호로 불러와 보완본으로 연결할 여지가 있었음. `psi_submit_worker_risk_revision_l06`의 기존 parent/child 트랜잭션 및 권한 체크를 유지하면서 `request_changes.occurred_at` 이전 또는 동일 시점에 수신된 child 접수증을 거부하도록 원칙 강화. 해당 회귀 1건 추가(기존 25건 → 26건 목표).
+- 관리자 읽기 UI `PsiRevisionEvidencePanelL06`을 개발 전용 `pages/PsiRevisionLabL06.tsx`에 **가상 Q1~Q5·보완요청 샘플**로 실제 마운트. 라벨·대조·다른 현장 자료 거부를 390/1280 Chromium에서 테스트하는 `scripts/verify-psi-l06-revision-lab.mjs`와 CI 스텝 추가. 정상/교차현장 거부 화면 증빙 4개 및 JSON. `/_dev/psi-l06-revisions`는 Vite **DEV 모드에서만** 표시; Production Vite Preview는 비제공 검증. 원본 컴포넌트의 실제 관리자 인증·업무 데이터 접속 능력은 여전히 없음.
+- **운영 실DB/RPC/API/현장 개인정보·migrations 변경 0.** 실제 관리자 메뉴/권한 연결은 미실시. 승인받은 테스트 Supabase 2개 테넌트에 대한 Auth/RLS/GRANT, 서비스 토큰 유출 방지, 실계정 재인증·보관기한·Android/원어민 검수 후 별도 구현 가능. `main`/Vercel Production 유지, Draft PR #237, 13개 L18 사람 인수 전부 pending.
+- **QA 상태:** 최종 HEAD 동일 SHA 릴리스·전사 Chromium·Inspector 브라우저 CI 완료 판정 전에는 PASS로 보고하지 않음. 검증 오류는 수정 후 새 HEAD 재판정.
+
+**다음:** 8차 CI 3종·브라우저 결과 확인 → 격리 승인 Supabase 테스트환경 실제 보안 검증 → 인증된 읽기 데이터만 실관리자 화면에 연결할지 검토.
