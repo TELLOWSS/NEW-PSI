@@ -645,6 +645,17 @@
 
 **다음 한 작업:** 21차 동일 HEAD release/company Chromium/Inspector 모바일 3종 CI 완결/실패 수리 → Android Chrome/삼성 인터넷 TalkBack·터치·회전 수동검증 및 승인된 독립 Supabase의 A01~A25 실제 Auth/RLS 테스트 → 개인정보·원어민·L18 13개 사람 인수와 소유자 승인 전 운영 연결/병합/배포 금지.
 
+### L15·L22 후속 — 모바일 메뉴의 '페이지 선택'과 '닫기' 포커스 분기 (22차, 2026-11-22)
+
+- **21차 CI 동일 SHA 실조회:** `49017e56ad27c59d98e01b39143f0b4f44bbd56a`의 release #44998077476 **SUCCESS**, company Chromium #44998077510 **SUCCESS**, Inspector 모바일 #44998077464 **SUCCESS**. 21차 3종 합성 브라우저/소스 검증 확정. Android·Samsung Internet·TalkBack 실기기/현장 승인과 다름.
+- **발견:** 기존 `handlePageChange`가 모바일 메뉴를 닫는 경우에도 `Layout`의 cleanup은 닫기 버튼·Escape와 동일하게 기존 모바일 '더보기' opener에 초점을 복귀시킨다. 특히 **이미 활성화된 같은 메뉴를 다시 선택**하면 `currentPage`가 달라지지 않아 새 페이지 `useEffect`의 `main.focus`가 다시 실행되지 않고, 사용자가 요청한 콘텐츠가 아닌 메뉴 버튼에 포커스가 남을 수 있다.
+- **22차 실제 소스 변경:** `components/Layout.tsx`에 `mobileMenuNavigatingRef`를 추가하여 모바일 메뉴에서 **페이지 선택**을 명시적으로 표시. drawer cleanup은 단순 닫기일 때 opener/desktop active-route 복구를 유지하되, 페이지 선택이면 inert 제거 뒤 다음 프레임에서 `#psi-main-content`에 `preventScroll` focus를 시행한다. 같은 페이지 재선택과 다른 페이지 전환 모두 대상. 메뉴 가시성, RBAC, 스크롤위치, 다른 제품·DB·API·데이터 처리 변경 0.
+- **검증 추가:** `tests/psiMobileDialogInertBackground.test.ts` 정적 계약 1건(기존 5→6); `scripts/verify-psi-company-visibility-ui.mjs` 실제 Playwright 합성 시나리오 2건(현재 페이지 재선택/다른 페이지 전환; 메뉴 분리·포커스·inert 및 스크롤 해제). 진짜 Android 터치·스크린리더는 아직 미검증.
+- **CI 판정:** 추가 검증을 반영한 **최종 22차 HEAD**의 릴리스·전사 Chromium·Inspector 모바일 3종 종료 결과를 **실조회하기 전에는 PASS로 기록하지 않는다**. 실패 시 검사나 동작의 원인을 고친 뒤 최종 SHA 재검증. 인계서 변경은 검증 성공을 뜻하지 않는다.
+- **출시 경계:** PR #237 Draft 유지. `main`/Production/Supabase·근로자 데이터/외부 호출 무변경. L06 A01~A25 실제 Supabase Auth/RLS 인수 `NOT RUN`, L18 사람 인수 13건 `pending`, `RELEASE=BLOCKED`.
+
+**다음 한 작업:** 최종 22차 HEAD 릴리스/회사형 Chromium/Inspector 모바일 3종 결과 확인·실패 시 보수 → 미검증 Android Chrome/삼성 인터넷·TalkBack 수동 QA 및 별도 승인된 Supabase A01~A25 실제 인증 인수 → 11개 언어/보유·삭제/현장 UAT·L18 승인 완료 전 운영 병합·배포 금지.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -668,7 +679,7 @@
 
 ## 9. 다음 착수 과제
 
-**L15·L21 모바일 메뉴 배경 inert/포커스 차단 5개 SSR·3개 Chromium 검사와 동일 SHA CI 3종 판정 → Android TalkBack/삼성 인터넷 실기기 및 승인된 별도 Supabase A01~A25 실제 인수 → L18 13개 사람·정보보호·원어민 승인 전 main/Production/실 DB 연결 보류.**
+**L15·L22 메뉴 선택 후 본문 포커스(같은 페이지/다른 페이지) 회귀 검증과 동일 SHA CI 3종 판정 → Android TalkBack/삼성 인터넷 실기기 및 승인된 별도 Supabase A01~A25 실제 인수 → L18 13개 사람·정보보호·원어민 승인 전 main/Production/실 DB 연결 보류.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
