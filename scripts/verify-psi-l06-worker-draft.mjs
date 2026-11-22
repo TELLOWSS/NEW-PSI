@@ -95,7 +95,6 @@ try {
         assert.ok(pageText.includes(key), 'Trial print must contain ' + key);
     }
     assert.ok(!pageText.includes('서버 접수번호'), 'Practice print must not invent a server receipt');
-    await pdf.destroy();
     await page.emulateMedia({ media: 'screen' });
 
     await page.getByRole('button', { name: '수정하기' }).click();
