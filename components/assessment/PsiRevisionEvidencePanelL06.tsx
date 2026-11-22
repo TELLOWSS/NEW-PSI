@@ -34,7 +34,7 @@ export type PsiRevisionChainL06 = {
 };
 const keys: PsiQuestionKey[] = ['Q1','Q2','Q3','Q4','Q5'];
 const validUtc = (value: unknown): value is string => {
-  if (typeof value !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/.test(value)) return false;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) return false;
   const milliseconds = Date.parse(value);
   return Number.isFinite(milliseconds) && new Date(milliseconds).toISOString() === value;
 };
