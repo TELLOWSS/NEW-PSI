@@ -63,7 +63,7 @@ try{
   const background=await page.evaluate(()=>{
    const root=document.getElementById('root');
    const dialog=document.querySelector('[role="dialog"][aria-labelledby="psi-quickfind-title"]');
-   const underlyingButton=root?.querySelector('button');
+   const underlyingButton=root?.querySelector('.psi-quickfind-trigger');
    underlyingButton?.focus();
    return {
     inert:root?.inert===true,
