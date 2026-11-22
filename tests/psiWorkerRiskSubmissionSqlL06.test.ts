@@ -485,6 +485,21 @@ describe('L06 staged PostgreSQL atomic worker self-entry (NOT a live migration)'
     expect((await db.query('select * from public.psi_worker_risk_resubmission_links')).rows).toHaveLength(1);
   });
 
+  it('rejects a submission already received before the manager requested changes',async()=>{
+    const parent=await submitA();
+    await user(USER_A);
+    const earlier=(await submit(...params(TENANT_A,SITE_A,CYCLE_A,NONCE_B,
+      {...ANSWERS,Q4:'안전난간을 설치하고 관리자 확인 후 작업'}))).rows[0].receipt;
+    expect(earlier.receiptId).not.toBe(parent);
+    await user(REVIEWER_A);
+    await review(reviewParams(parent,REVIEW_NONCE_1,'request_changes',REVIEW_NOTE,0));
+    await user(USER_A);
+    await deny(revisionSql,revisionParams(parent,NONCE_B));
+    await db.exec('reset role');
+    expect((await db.query('select * from public.psi_worker_risk_submissions')).rows).toHaveLength(2);
+    expect((await db.query('select * from public.psi_worker_risk_resubmission_links')).rows).toHaveLength(0);
+    expect((await db.query('select * from public.psi_worker_risk_receipt_events')).rows).toHaveLength(2);
+  });
   it('keeps parent/child/link immutable and fails closed if link insert fails',async()=>{
     const parent=await submitA();
     await user(REVIEWER_A);
