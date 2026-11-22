@@ -5,6 +5,8 @@ import '../styles.css';
 import '../styles/psi-platform-field-canvas.css';
 // R74-R77 operator-only secondary workspaces; never shared with public or worker routes.
 import '../styles/psi-platform-workspaces.css';
+// Living UI: accessible, no-dependency page transitions, scoped to the admin shell.
+import '../styles/psi-living-motion.css';
 import {DevModeProvider} from '../contexts/DevModeContext';
 import {OperationalModeProvider} from '../contexts/OperationalModeContext';
 
