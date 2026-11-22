@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import '../styles.css';
 import { PSI_FORM_QUESTIONS, type PsiQuestionKey } from '../config/psiFormMaster';
+import { prepareL06ClientSubmission } from '../utils/workerRiskSubmissionContractL06';
 import {
     checkWorkerRiskDraft,
     emptyWorkerRiskDraft,
@@ -30,6 +31,13 @@ export default function WorkerRiskDraft() {
     const openReview = () => {
         if (!status.readyForReview) {
             setNotice('아직 작성하지 않은 문항을 확인해 주세요: ' + status.missing.join(', '));
+            return;
+        }
+        // Apply the same source-text validation expected at a future trusted
+        // server boundary. This only opens a local preview; no request is sent.
+        const prepared = prepareL06ClientSubmission(draft, 'ko');
+        if (!prepared.ok) {
+            setNotice('작성 내용을 다시 확인해 주세요. 제출 또는 서버 저장은 진행되지 않았습니다.');
             return;
         }
         setReview(true);
