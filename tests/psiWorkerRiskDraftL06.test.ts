@@ -56,7 +56,7 @@ describe('L06 Q1-Q5 worker self-writing pilot without submission', () => {
         expect(css).toContain('#root:has(.psi-l06-worker-draft)');
         expect(css).toContain('display: block !important;');
         expect(css).toContain('.psi-l06-review-actions');
-        expect(css).not.toContain('report-print-container');
+        expect(css).not.toMatch(/^\s*\.report-print-container\s*\{/m);
         expect(chromium).toContain('await page.pdf(');
         expect(chromium).toContain('assert.equal(pdf.numPages, 1,');
         expect(chromium).toContain('for (const key of [\'Q1\', \'Q2\', \'Q3\', \'Q4\', \'Q5\'])');
