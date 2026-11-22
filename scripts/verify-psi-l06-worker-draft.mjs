@@ -349,6 +349,21 @@ try {
         await responsivePage.goto(host + '/worker-risk-draft', { waitUntil: 'domcontentloaded' });
         await responsivePage.getByRole('heading', { name: '작업 전 위험성평가 직접 작성 연습' }).waitFor();
         await inspectReflow(responsivePage, width, 'blank');
+        await responsivePage.keyboard.press('Tab');
+        const keyboardFocus = await responsivePage.evaluate(() => {
+            const target = document.activeElement;
+            return {
+                tag: target?.tagName,
+                visible: target?.matches(':focus-visible'),
+                outlineWidth: parseFloat(getComputedStyle(target).outlineWidth),
+            };
+        });
+        assert.equal(keyboardFocus.tag, 'BUTTON',
+            'L32 ' + width + 'px keyboard Tab must reach a question navigation button');
+        assert.equal(keyboardFocus.visible, true,
+            'L32 ' + width + 'px first keyboard focus must use :focus-visible');
+        assert.ok(keyboardFocus.outlineWidth >= 3,
+            'L32 ' + width + 'px keyboard focus ring must be at least 3px');
         await responsivePage.locator('#psi-l06-Q1').fill('가상 작업발판 설치');
         await inspectReflow(responsivePage, width, 'unsaved');
         if (width === 320) await responsivePage.screenshot({
@@ -436,7 +451,7 @@ try {
         resetSafety: 'first-tap-prompt, cancel-preserves, Escape-preserves, confirmed-only-deletion',
         focusSafety: 'review-heading-focused; cancel-Escape-confirm-focus-restored-to-reset-button',
         requiredFieldValidation: 'Q1 two-character and Q3 grade inline alert, aria-invalid/describedby, focus-to-field, reset-on-correction',
-        responsiveAudit: { widths: responsiveWidths, states: ['blank', 'unsaved', 'review', 'reset-confirmation'], samples: responsiveResults, sidewaysOverflow: false, minTouchTargetPx: 44, externalRequests: auditedRequests.length },
+        responsiveAudit: { widths: responsiveWidths, states: ['blank', 'unsaved', 'review', 'reset-confirmation'], samples: responsiveResults, sidewaysOverflow: false, minTouchTargetPx: 44, keyboardFocusRingPx: 3, externalRequests: auditedRequests.length },
         unloadGuard: 'blank-allows, typed-warns, cancel-preserves, confirmed-reset-releases; mobile-prompt-not-guaranteed',
         visibleUnsavedNotice: true,
         nativeChromiumUnload: 'document-navigation-beforeunload-dismiss-preserves-Q1; confirmed-reset-navigates',
