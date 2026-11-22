@@ -137,6 +137,24 @@ describe('L06 Q1-Q5 worker self-writing pilot without submission', () => {
         expect(browser).toContain('L29 final confirmed reset must clear the unsaved warning');
     });
 
+    it('returns accessible keyboard focus to the review heading and persistent reset trigger', () => {
+        const ui = source('pages/WorkerRiskDraft.tsx');
+        const chromium = source('scripts/verify-psi-l06-worker-draft.mjs');
+        expect(ui).toContain('const reviewHeadingRef = useRef<HTMLHeadingElement>(null)');
+        expect(ui).toContain('const resetTriggerRef = useRef<HTMLButtonElement>(null)');
+        expect(ui).toContain('if (review) reviewHeadingRef.current?.focus()');
+        expect(ui).toContain('resetTriggerRef.current?.focus({ preventScroll: true })');
+        expect(ui).toContain('ref={reviewHeadingRef} tabIndex={-1}');
+        expect(ui).toContain('ref={resetTriggerRef} type="button"');
+        expect(ui).toContain('onClick={cancelReset}');
+        expect(ui).toContain("event.stopPropagation(); cancelReset();");
+        expect(chromium).toContain("document.activeElement?.textContent?.trim() === '내가 작성한 내용 확인'");
+        expect(chromium).toContain('L30 review heading must accept programmatic focus');
+        expect(chromium).toContain('L30 cancelled confirmation must return keyboard focus');
+        expect(chromium).toContain('L30 Escape must restore reset button focus');
+        expect(chromium).toContain('L30 confirmed reset must retain a meaningful keyboard focus');
+    });
+
     it('remains explicitly identity-free, in-memory and unconnected to submission APIs', () => {
         const ui = source('pages/WorkerRiskDraft.tsx');
         const helper = source('utils/workerRiskDraftL06.ts');
