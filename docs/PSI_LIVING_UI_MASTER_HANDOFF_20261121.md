@@ -709,6 +709,17 @@
 
 **다음 한 작업:** 27차 최신 HEAD release/company Chromium(취소·Escape·확정 및 장문 Q1~Q5 회귀)/Inspector 3종 종료와 실패 교정 → 승인된 별도 Supabase Auth/RLS A01~A25 실제 인수·Android/삼성 인터넷·원어민/출력·개인정보·L18 13개 사람 승인 전 운영 반영 금지.
 
+### L06·L28 후속 — 새로고침·탭 이탈 시 임시 입력 소실 경고 (28차, 2026-11-22)
+
+- **27차 동일 HEAD CI 3종 최종 판정:** `d9c8cdce925ae2124c24a1c24c71916e7871b490` release #45002446792 **SUCCESS**(279개 테스트 파일, **2,189/2,189**, L17 source 보안 19/19), company Chromium #45002446760 **SUCCESS**(Q1~Q5 초기화 첫 탭 보존·취소·Esc·확정 및 인쇄 회귀), Inspector 모바일 #45002446775 **SUCCESS**. 이는 개발 SHA의 **합성 CI 검증**으로 실기기/실 프린터/실 Auth/RLS 인수는 아님.
+- **확인한 사용성 위험:** L06 `/worker-risk-draft`는 Q1~Q5를 서버·localStorage에 **전혀 저장하지 않으므로**, 작업자가 실수로 브라우저 새로고침·닫기·외부 사이트 이동을 실행하면 27차의 '전체 초기화' 확인 경로를 거치지 않고 작성 중인 답변 전체가 사라진다. 기존 화면에는 자료가 새로고침/이동 때 소실됨만 안내됐다.
+- **28차 코드 변경:** `pages/WorkerRiskDraft.tsx`에서 `draft.answers`의 실제 텍스트, Q3 자가등급 또는 선택 위험이유 중 어느 하나라도 입력되면 `beforeunload` 취소 가능 이벤트를 등록하고, React 정리 시 리스너 제거. 초깃값/초기화 확정 이후에는 경고가 동작하지 않음. 내용은 **메모리에만 유지**, 브라우저 저장·서버 제출·보존·공유·개인정보 필드 추가 0. 안내문에는 브라우저별 이탈 경고가 나타날 수 있으나 **모바일에서는 표시 보장 불가**를 명시. 정상 저장/복구 또는 작성중 자료의 지속성 보장으로 표현하지 않는다.
+- **실제 합성 Chromium 수용시험:** `scripts/verify-psi-l06-worker-draft.mjs`에서 cancelable `beforeunload` 브라우저 이벤트를 직접 발생시키되 페이지 이동을 **수행하지 않고**, 빈 화면에서 경고 없음 → Q1 입력 후 경고 등록 → 초기화 확인 취소 시 경고 유지 → 명시적 확정 삭제 후 경고 제거 → 500자 장문 입력에 다시 경고 → 최종 확정 삭제 후 해제를 확인. 기존 Q1~Q5 단계/진행률, 미완료 Ctrl+P A4 면책, 일반 1쪽·500자 다페이지 Q5 무손실, API/외부 요청 및 storage 0 계약 유지. `tests/psiWorkerRiskDraftL06.test.ts`에 source 계약 1건 추가.
+- **성공 판정:** 28차 최종 HEAD의 릴리스/전사 Chromium(L06 동작)/Inspector QA 3종 종료 및 실패 검증이 필요하다. 합성 `beforeunload` 취소 여부는 **실제 Android Chrome·삼성 인터넷·PWA 강제종료의 경고 UI**를 보장하지 않는다. 실제 Android/Chrome, 페이지 이동, 브라우저 프로세스 종료·비행기모드·새 탭, 불러오기·삭제 실사용자 관찰은 L18 수동 게이트.
+- **운영/승인:** 기존 독립 Supabase 실 Auth 인수 A01~A25 **25건 not-run**, `environment.approved=false`. L18 실제 현장·실기기·11개 언어·보관·삭제·보안·소유자 승인 13개 pending 및 `RELEASE=BLOCKED`. PR #237 Draft 유지. `main`/Production, 실 Supabase Auth/RLS/GRANT/SQL·API/키, 개인기록·외부 OCR/AI·유료 호출, SMART TBM/ZERO DAY 변경 0.
+
+**다음 한 작업:** 28차 최신 HEAD 릴리스·회사형 Chromium·Inspector QA 3종 판정/실패 수리 → 승인된 별도 Supabase 환경에서 실제 A01~A25 권한·세션 인수 및 Android/삼성 인터넷의 이탈 경고·새로고침·복구 수동 시험 → L18 13개 사람 승인·원어민/A4/개인정보 삭제·소유자 최종 서명 전 운영 반영 금지.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -732,7 +743,7 @@
 
 ## 9. 다음 착수 과제
 
-**L06·L27 Q1~Q5 작성 연습의 전체 초기화 오조작 방지(취소·Escape·확정 후에만 삭제), 최신 SHA 3종 CI 회귀 판정 → 승인된 별도 Supabase A01~A25와 Android/삼성 인터넷·11개 언어 실제 A4·보존/삭제 인수 → L18 13개 사람·정보보호·소유자 승인 전 main/Production/실 DB 연결 보류.**
+**L06·L28 Q1~Q5 임시 입력 새로고침/이탈 경고(모바일 미보장), 28차 최종 동일 HEAD CI 3종 검증 → 승인된 격리 Supabase A01~A25와 Android Chrome/삼성 인터넷·11개 언어 실제 A4·개인정보 보존/삭제 검수 → L18 13개 사람·정보보호·소유자 승인 전 main/Production/실 DB 연결 보류.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
