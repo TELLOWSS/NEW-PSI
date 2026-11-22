@@ -589,6 +589,17 @@
 
 **다음 한 작업:** 16차 최종 HEAD 동일 SHA 릴리스·전사 Chromium·Inspector 모바일 CI 성공/실패 확정 → 허가된 독립 Supabase에서 실제 `not_after`·refresh/cleanup·JWT 만료/세션 철회와 현장 권한/RLS A01~A25 실증 → 보안/법무·Android·모국어·L18 13개 사람 승인 전 메인·운영 배포 불가.
 
+### L06 후속 — 실 Auth 25개 인수 증빙 대장·운영 DB 오선택 차단 게이트 (17차, 2026-11-22)
+
+- **16차 결과 재조회:** `88babff14c7ba4a7533272ac335748fbddd23001` 릴리스 #44993898854 **SUCCESS**(276개 파일, **2,156/2,156** 테스트, L06 PGlite 50/50, source manager 13/13, L17 19/19). 전사 Chromium #44993898834과 Inspector 모바일 #44993898842는 **17차 후속 커밋으로 CANCELLED**. 릴리스·전사·모바일이 모두 동일 SHA에서 SUCCESS였다고 주장하지 않음.
+- **실행 불가능한 선행 과제:** 실제 Supabase 인수 A01~A25에는 사용자 승인된 **독립 격리 Supabase 환경**이 필요하나 기존 연결 `PSI-Database` 및 `TELLOWSS's Project` 어느 것도 승인된 전용 실험실이 아님. 개인정보·기존 운영 RLS/GRANT·Auth 세션·마이그레이션을 변경하여 실험하지 않음. A01~A25 전부 **NOT RUN**.
+- **17차 소스 구현:** `config/psi-l06-isolated-auth-acceptance-ledger.json` 신규(25건 전부 `not-run`/증빙 null). `scripts/check-psi-l06-isolated-auth-acceptance.mjs` 신규: 실제 승인환경 지정 전 `PASS` 금지, 두 기존 운영 프로젝트 ref 금지, A01~A25 원문 인수 문서의 행 ID 대조, 빠진/중복 항목 거부, `not-run`임에도 증빙을 붙이는 오류 거부. 나중에 `pass`를 기록하더라도 reviewer, UTC review time, source commit SHA, HTTPS 증빙을 필수로 하고 수동 독립 검수 전 최종 증빙 인정 금지.
+- **CI 통합:** `package.json`의 `verify:fast` 시작에 `npm run check:l06:auth-acceptance` 연결; `tests/psiL06IsolatedAuthAcceptance.test.ts`에 7건 추가. 기본 ledger가 `A01-A25=25; PASS=0; NOT_RUN=25; REAL_AUTH_ACCEPTANCE=BLOCKED; RELEASE=BLOCKED`로 남는 것이 의도된 정상 소스 검증 결과. 모두 `PASS`라고 기재해도 검증기는 `EVIDENCE_REVIEW_REQUIRED; RELEASE=BLOCKED`로만 표시.
+- **증명 범위 주의:** JSON은 인수증빙 **대장**, 테스트 자체가 아님. `PASS`의 증빙 링크 유효성/독립 검수자의 실제 승인·실서명 JWT·실 RLS/2연결 경합을 자동 검사로 증명했다고 주장하지 않음. `docs/PSI_L06_SUPABASE_ISOLATED_AUTH_ACCEPTANCE_20261122.md` §4의 사용/보안 경계와 연계.
+- **출시:** PR #237 Draft, `main` 병합·Vercel Production·실 Supabase/Auth·원도급 현장정보/근로자 사진 데이터·기존 게임/SMART TBM 변경 0. `L18 RELEASE=BLOCKED`, 인간 인수 13개, Android/11개 언어·보관삭제 등 별도 필수.
+
+**다음 한 작업:** 17차 최종 동일 SHA release/company Chromium/Inspector CI 3종 결론 확인·실패 시 수리 → 소유자 승인된 새로운 격리 Supabase Auth 프로젝트로 A01~A25 실증 (운영 ref 사용 금지) → 개인정보/법무·실기기/원어민·L18 사람 인수 및 사용자 승인이 끝나기 전 운영 연결/병합·배포 금지.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -612,7 +623,7 @@
 
 ## 9. 다음 착수 과제
 
-**L06 16차 time-box 세션 `auth.sessions.not_after` 지연정리 경계검사 + PGlite 50개와 동일 SHA 3종 CI 확인 → 승인된 독립 Supabase에서 실제 Auth 세션/JWT/RLS·기업/현장 A01~A25 실증 → L18 사람 13개·Android·원어민·개인정보 검수 및 최종 사용자 승인 전 main/Production/운영 DB 연결 보류.**
+**L06 17차 실 인증인수 25개 증빙대장 자동게이트 + 7개 회귀시험·동일 SHA 3종 CI 판정 → 승인된 독립 Supabase에서 A01~A25 실제 서명 JWT/세션·기업/현장 RLS/동시성 입증 → Android/모국어/정보보호/L18 13개 사람 인수 후 사용자 승인 전까지 main/Production 보류.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
