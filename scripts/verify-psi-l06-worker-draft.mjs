@@ -295,6 +295,93 @@ try {
 
     await mkdir('artifacts/audit/psi-l06-worker-risk-draft', { recursive: true });
     await page.screenshot({ path: 'artifacts/audit/psi-l06-worker-risk-draft/390-empty.png', fullPage: true });
+
+    // L32: genuine responsive Chromium audit, including 320px/200%-zoom
+    // reflow equivalent. The five-question practice page must not introduce
+    // sideways scrolling or inaccessible controls as it changes state.
+    const responsiveWidths = [320, 360, 390, 768, 1024, 1440];
+    const responsiveResults = [];
+    const auditedRequests = [];
+    const inspectReflow = async (responsivePage, width, state) => {
+        const result = await responsivePage.evaluate(() => {
+            const doc = document.documentElement;
+            const main = document.querySelector('.psi-l06-worker-draft');
+            const buttons = Array.from(main.querySelectorAll('button')).filter(button =>
+                getComputedStyle(button).display !== 'none' && !button.disabled);
+            const rect = element => {
+                const box = element.getBoundingClientRect();
+                return { left: box.left, right: box.right, height: box.height };
+            };
+            return {
+                pageWidth: window.innerWidth,
+                scrollWidth: Math.max(doc.scrollWidth, document.body.scrollWidth),
+                controls: buttons.map(button => ({
+                    name: button.textContent.trim(),
+                    ...rect(button),
+                })),
+                content: rect(main),
+            };
+        });
+        assert.ok(result.scrollWidth <= width + 1,
+            'L32 ' + width + 'px ' + state + ' must not scroll horizontally (actual ' + result.scrollWidth + ')');
+        assert.ok(result.controls.length > 0, 'L32 ' + width + 'px ' + state + ' has no enabled controls');
+        for (const button of result.controls) {
+            assert.ok(button.left >= -1 && button.right <= width + 1,
+                'L32 ' + width + 'px ' + state + ' button outside viewport: ' + button.name);
+            assert.ok(button.height >= 44,
+                'L32 ' + width + 'px ' + state + ' touch target below 44px: ' + button.name);
+        }
+        responsiveResults.push({
+            width, state, documentWidth: result.scrollWidth,
+            enabledButtons: result.controls.length, minimumButtonHeight: Math.min(...result.controls.map(x => x.height)),
+        });
+    };
+    for (const width of responsiveWidths) {
+        const responsivePage = await browser.newPage({ viewport: { width, height: 800 } });
+        await responsivePage.route('**/*', async route => {
+            const url = route.request().url();
+            if (url.includes('/api/') || (!url.startsWith(host + '/') && !url.startsWith('blob:') && !url.startsWith('data:'))) {
+                auditedRequests.push(url);
+                return route.abort();
+            }
+            return route.continue();
+        });
+        await responsivePage.goto(host + '/worker-risk-draft', { waitUntil: 'domcontentloaded' });
+        await responsivePage.getByRole('heading', { name: '작업 전 위험성평가 직접 작성 연습' }).waitFor();
+        await inspectReflow(responsivePage, width, 'blank');
+        await responsivePage.locator('#psi-l06-Q1').fill('가상 작업발판 설치');
+        await inspectReflow(responsivePage, width, 'unsaved');
+        if (width === 320) await responsivePage.screenshot({
+            path: 'artifacts/audit/psi-l06-worker-risk-draft/320-unsaved.png', fullPage: true,
+        });
+        await responsivePage.getByRole('button', { name: '다음 문항' }).click();
+        await responsivePage.locator('#psi-l06-Q2').fill('가상 단부 개방 위험');
+        await responsivePage.getByRole('button', { name: '다음 문항' }).click();
+        await responsivePage.locator('#psi-l06-grade').selectOption('상');
+        await responsivePage.getByRole('button', { name: '다음 문항' }).click();
+        await responsivePage.locator('#psi-l06-Q4').fill('가상 난간 설치 확인');
+        await responsivePage.getByRole('button', { name: '다음 문항' }).click();
+        await responsivePage.locator('#psi-l06-Q5').fill('가상 작업 전 확인 실천');
+        await responsivePage.getByRole('button', { name: '작성 내용 확인' }).click();
+        await responsivePage.getByRole('heading', { name: '내가 작성한 내용 확인' }).waitFor();
+        await inspectReflow(responsivePage, width, 'review');
+        if (width === 320 || width === 1440) await responsivePage.screenshot({
+            path: 'artifacts/audit/psi-l06-worker-risk-draft/' + width + '-review.png', fullPage: true,
+        });
+        await responsivePage.getByRole('button', { name: '수정하기' }).click();
+        await responsivePage.getByRole('button', { name: '전체 초기화' }).click();
+        await responsivePage.getByRole('group', { name: '작성 내용 초기화 확인' })
+            .getByRole('button', { name: '취소하고 계속 작성' }).waitFor();
+        await inspectReflow(responsivePage, width, 'reset-confirmation');
+        await responsivePage.getByRole('group', { name: '작성 내용 초기화 확인' })
+            .getByRole('button', { name: '초기화 확정' }).click();
+        assert.equal(await responsivePage.locator('[data-testid=l06-progress]').textContent(),
+            '0 / 5문항', 'L32 responsive reset must clear the synthetic trial');
+        await responsivePage.close();
+    }
+    assert.deepEqual(auditedRequests, [],
+        'L32 multi-viewport practice audit must not send API requests or load external services');
+
     // L29: actual document navigation, not dispatchEvent-only. Playwright's
     // page.close({runBeforeUnload:true}) may auto-close in headless Chromium,
     // so it is NOT an appropriate oracle for cancel-and-preserve behavior.
@@ -349,6 +436,7 @@ try {
         resetSafety: 'first-tap-prompt, cancel-preserves, Escape-preserves, confirmed-only-deletion',
         focusSafety: 'review-heading-focused; cancel-Escape-confirm-focus-restored-to-reset-button',
         requiredFieldValidation: 'Q1 two-character and Q3 grade inline alert, aria-invalid/describedby, focus-to-field, reset-on-correction',
+        responsiveAudit: { widths: responsiveWidths, states: ['blank', 'unsaved', 'review', 'reset-confirmation'], samples: responsiveResults, sidewaysOverflow: false, minTouchTargetPx: 44, externalRequests: auditedRequests.length },
         unloadGuard: 'blank-allows, typed-warns, cancel-preserves, confirmed-reset-releases; mobile-prompt-not-guaranteed',
         visibleUnsavedNotice: true,
         nativeChromiumUnload: 'document-navigation-beforeunload-dismiss-preserves-Q1; confirmed-reset-navigates',
@@ -357,7 +445,7 @@ try {
         note: 'In-memory trial only, no worker submission/identity/Android validation',
     }, null, 2) + '\n');
 
-    console.log('[PSI L06] SYNTHETIC_PASS: L31 required-field focus/alerts + review/print/navigation safety; zero API/storage calls');
+    console.log('[PSI L06] SYNTHETIC_PASS: L32 320–1440px reflow/touch QA + Q1/Q3 focus + A4; zero API/storage calls');
 } finally {
     await browser?.close();
     server.kill('SIGTERM');
