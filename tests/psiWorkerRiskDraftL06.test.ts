@@ -174,6 +174,26 @@ describe('L06 Q1-Q5 worker self-writing pilot without submission', () => {
         expect(chromium).toContain('L31 choosing a self-reported grade clears the warning');
     });
 
+    it('audits six actual Chromium widths, touch controls and visible keyboard focus without changing submission rules', () => {
+        const css = source('styles.css');
+        const chromium = source('scripts/verify-psi-l06-worker-draft.mjs');
+        expect(css).toContain('L32: keyboard focus is visible across the worker practice form');
+        expect(css).toContain('.psi-l06-worker-draft :is(button, textarea, select):focus-visible');
+        expect(css).toContain('outline: 3px solid #4338ca;');
+        expect(css).toContain('.psi-l06-worker-draft [aria-invalid="true"]:focus-visible');
+        expect(chromium).toContain('const responsiveWidths = [320, 360, 390, 768, 1024, 1440]');
+        expect(chromium).toContain('async (responsivePage, width, state)');
+        expect(chromium).toContain('result.scrollWidth <= width + 1');
+        expect(chromium).toContain('button.height >= 44');
+        expect(chromium).toContain("await responsivePage.keyboard.press('Tab')");
+        expect(chromium).toContain('keyboardFocus.outlineWidth >= 3');
+        expect(chromium).toContain("await inspectReflow(responsivePage, width, 'review')");
+        expect(chromium).toContain("await inspectReflow(responsivePage, width, 'reset-confirmation')");
+        expect(chromium).toContain('auditedRequests, []');
+        expect(chromium).toContain('320-unsaved.png');
+        expect(chromium).toContain("width + '-review.png'");
+    });
+
     it('remains explicitly identity-free, in-memory and unconnected to submission APIs', () => {
         const ui = source('pages/WorkerRiskDraft.tsx');
         const helper = source('utils/workerRiskDraftL06.ts');
