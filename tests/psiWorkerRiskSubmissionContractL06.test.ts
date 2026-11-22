@@ -94,6 +94,10 @@ describe('L06 worker-risk official-submission boundary (closed; no endpoint)', (
         expect(result.unmet).toContain('workerAuthenticated');
         expect(result.unmet).toContain('tenantRlsAndStorageVerified');
         expect(result.unmet).toContain('featureOwnerApproved');
+        // Runtime inputs may be malformed despite the TypeScript type.
+        const missing = evaluateL06ServerGate({} as Parameters<typeof evaluateL06ServerGate>[0]);
+        expect(missing.allowedForServerImplementation).toBe(false);
+        expect(missing.unmet).toHaveLength(8);
     });
     it('does not confuse browser preview, mismatched receipts, or approval with verified server receipt', () => {
         expect(matchL06PendingReviewReceipt(receipt(), { ...ctx, authenticatedTransport: false })).toBeNull();
@@ -110,5 +114,6 @@ describe('L06 worker-risk official-submission boundary (closed; no endpoint)', (
         expect(source).not.toMatch(/\bfetch\s*\(|XMLHttpRequest|localStorage|sessionStorage|worker\.authenticate/);
         expect(boundary).not.toMatch(/\bfetch\s*\(|XMLHttpRequest|sendBeacon|createClient\s*\(/);
         expect(source).not.toContain('matchL06PendingReviewReceipt');
+        expect(source).toContain("prepareL06ClientSubmission(draft, 'ko')");
     });
 });
