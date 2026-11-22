@@ -161,9 +161,13 @@ describe('L06 staged PostgreSQL atomic worker self-entry (NOT a live migration)'
       ['psi_tenant_site_worker_assignments',"set active=false where tenant_id=$1"],
       ['psi_tenant_sites',"set active=false where tenant_id=$1"],
     ]){
+      if(table==='psi_tenant_workers')
+        await db.query("select set_config('request.jwt.claim.sub',$1,true)",[OWNER_A]);
       await db.query(`update public.${table} ${update}`,[TENANT_A]);
       await user(USER_A);await deny(sql,params());
       await db.exec('reset role');
+      if(table==='psi_tenant_workers')
+        await db.query("select set_config('request.jwt.claim.sub',$1,true)",[OWNER_A]);
       await db.query(`update public.${table} set active=true where tenant_id=$1`,[TENANT_A]);
     }
     for(const [field,value] of [['email_confirmed_at',null],['banned_until','infinity']]){
@@ -173,7 +177,7 @@ describe('L06 staged PostgreSQL atomic worker self-entry (NOT a live migration)'
     }
   });
   it('rejects closed, expired and not-yet-open cycles',async()=>{
-    for(const change of ["status='closed'","opens_at=now()+interval '1 hour'","closes_at=now()-interval '1 minute'"]){
+    for(const change of ["status='closed'","opens_at=now()+interval '2 hours',closes_at=now()+interval '3 hours'","closes_at=now()-interval '1 minute'"]){
       await db.query(`update public.psi_tenant_risk_cycles set ${change} where tenant_id=$1`,[TENANT_A]);
       await user(USER_A);await deny(sql,params());await db.exec('reset role');
       await db.query(`update public.psi_tenant_risk_cycles set status='open',
