@@ -82,7 +82,10 @@ revoke all on public.psi_tenant_risk_cycles,
 -- Scope is read within SECURITY DEFINER RPC and both the auth session and
 -- manager account rows are SHARE-locked until the transaction finishes.
 -- This closes a gap where an otherwise-valid session remains stored after
--- the account has been banned or soft-deleted. Even if a session row remains,
+-- the account has been banned, soft-deleted, or its time-box has elapsed.
+-- The auth.sessions.not_after field is set for bounded sessions; NULL is
+-- allowed for sessions without a configured fixed expiration.
+-- Even if a session row remains,
 -- a missing/expired/future-issued JWT must not authorize a new database read
 -- or receipt. Supabase's signed JWT verification at its gateway is still
 -- mandatory; these DB checks are defense in depth, not signature verification.
@@ -122,6 +125,9 @@ begin
  where sess.id=v_session and sess.user_id=v_actor
    and u.deleted_at is null
    and (u.banned_until is null or u.banned_until <= pg_catalog.clock_timestamp())
+   -- Auth may retain expired time-boxed sessions for deferred cleanup.
+   -- A matching session row alone is not proof of current session validity.
+   and (sess.not_after is null or sess.not_after > pg_catalog.clock_timestamp())
  for share of sess,u;
  if not found or v_exists is distinct from true then
    raise exception 'L06 active auth session required' using errcode='42501';
