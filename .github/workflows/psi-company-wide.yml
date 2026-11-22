@@ -84,6 +84,8 @@ jobs:
         run: node scripts/verify-psi-platform-workspaces.mjs
       - name: L15 keyboard modal and narrow viewport regression (synthetic Chromium)
         run: node scripts/verify-psi-l15-accessibility.mjs
+      - name: L16 throttled-entry, offline-record reopen and zero server sync (synthetic)
+        run: node scripts/verify-psi-l16-resilience.mjs
       - name: Upload synthetic-only cross-department evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -98,5 +100,6 @@ jobs:
             artifacts/audit/psi-platform-field-canvas/
             artifacts/audit/psi-platform-workspaces/
             artifacts/audit/psi-l15-accessibility/
+            artifacts/audit/psi-l16-resilience/
           if-no-files-found: ignore
           retention-days: 7

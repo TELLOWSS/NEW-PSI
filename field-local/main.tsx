@@ -16,6 +16,14 @@ async function verifyWorker(worker:ServiceWorker):Promise<boolean>{
 function LocalEntry(){
  const [status,setStatus]=useState('이 기기에서 오프라인으로 열려면 온라인에서 먼저 준비해 주세요.');
  const [storageStatus,setStorageStatus]=useState('');
+ // L16: navigator.onLine is only a browser signal, never a successful server request.
+ const [browserOnline,setBrowserOnline]=useState(()=>navigator.onLine);
+ useEffect(()=>{
+  const update=()=>setBrowserOnline(navigator.onLine);
+  window.addEventListener('online',update);
+  window.addEventListener('offline',update);
+  return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update);};
+ },[]);
  const [installPrompt,setInstallPrompt]=useState<FieldInstallPromptEvent|null>(null);
  const [installStatus,setInstallStatus]=useState('설치 메뉴는 브라우저·기기에 따라 다릅니다. 설치하지 않아도 웹으로 점검할 수 있습니다.');
  useEffect(()=>{
@@ -96,6 +104,10 @@ function LocalEntry(){
  };
  return <main className="si-workspace si-quick si-refresh" style={{maxWidth:820,margin:'auto',padding:16}}>
   <h1>PSI 기기 점검</h1><p><strong>체험·직접 점검 · 이 기기 저장</strong></p><p>이 화면은 이 브라우저에 저장한 직접 점검만 엽니다. 관리자 클라우드 기록과 자동 동기화되지 않으며 유료 AI 분석을 호출하지 않습니다. 같은 브라우저 프로필을 공유하는 사람도 기록을 볼 수 있습니다. 휴대전화 사진첩에는 자동 저장되지 않습니다.</p><nav aria-label="점검 방식 이동"><a href="/camera">간편 현장 카메라</a> · <a href="/product">샘플 체험</a> · <a href="/inspector">관리자 클라우드 로그인</a></nav>
+  <section aria-label="현장 통신 상태" data-psi-l16-connectivity={browserOnline?'browser-online':'browser-offline'} style={{padding:'12px 14px',margin:'12px 0',border:'1px solid currentColor',borderRadius:12}}>
+   <strong role="status" aria-live="polite">{browserOnline?'브라우저 연결 신호: 온라인':'브라우저 연결 신호: 오프라인'}</strong>
+   <p style={{margin:'6px 0 0'}}>브라우저 신호일 뿐 현장 인터넷 속도·서버 접속 성공을 확인하지 않습니다. 통신이 끊겨도 기기 저장은 별도로 진행할 수 있지만, 사전 오프라인 준비가 없으면 이 페이지를 재실행하지 못할 수 있습니다. 연결 복구 시 클라우드로 자동 전송되지 않습니다.</p>
+  </section>
   <section aria-label="기기 점검 설치 안내" style={{padding:'12px 0'}}>
    <h2 style={{fontSize:'1.125rem',fontWeight:700}}>기기 점검을 홈 화면에서 열기</h2>
    <p>설치는 진입 방식만 바꿉니다. 인터넷 없이 점검하려면 아래 '이 기기 오프라인 준비'가 별도로 성공해야 합니다. 설치·오프라인 준비 모두 서버 자동 전송이나 영구 보존을 뜻하지 않습니다.</p>

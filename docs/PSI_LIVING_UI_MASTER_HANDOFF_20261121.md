@@ -110,7 +110,7 @@
 | L13 | 제품 소개/온보딩 | IMPLEMENTED(소개 첫 화면 실제 5단계 메뉴·근거 한계·Q1~Q5/6점수 구분, 결측점수 오분류 방지) / QA 대기 | 홍보 시연·실제 발행/수신 구분 필요, Android·음성/다국어·200% 확대 QA 대기 |
 | L14 | PWA/모바일 앱 결정·실행 | IMPLEMENTED(기기점검 설치형 파일럿) / Android QA 대기 | 전용 manifest·실제 PNG·명시적 설치·SW 캐시와 회귀 테스트, 모바일 실제 설치·저장복원 및 비용 승인 잔여 |
 | L15 | 접근성·다국어·다크/저동작 | IMPLEMENTED(관리자 메뉴·검색·viewport 부분 보강) / 전체 QA 대기 | 320~1440px 합성 Chromium·Tab/ShiftTab·다크/저동작·포커스 복귀 테스트 추가, 실제 200% 확대·원어민/스크린리더/Android 미검증 |
-| L16 | 오프라인·저속망·성능·배터리 | PLANNED | 외부 폰트/API/서버 호출 증가 없는지 비교 |
+| L16 | 오프라인·저속망·성능·배터리 | IMPLEMENTED(브라우저 연결 신호·합성 재연결 QA) / 실기기·계측 대기 | 느린 문서 요청 지연·오프라인 재진입·사진 저장 재조회·재연결 후 API 미발송, 배터리·실제 3G 측정은 별도 |
 | L17 | 권한·데이터무결성·OSS 라이선스 | PLANNED | 실자료 미사용 QA, 보안·법무 승인이 필요한 경계 |
 | L18 | 통합 회귀·실기기 QA·승인·운영 배포 | PLANNED | `npm run verify:ci`, 필수 브라우저 QA, PR 리뷰, SHA 대조 |
 
@@ -323,6 +323,17 @@
 
 **다음 한 작업:** 최신 L15 HEAD 릴리스/전사 Chromium/Inspector CI 결과 확인해 실패 보수 → 실제 200% 확대·Android/스크린리더·다국어 검수 → L16 저속망·오프라인·성능/배터리, 외부 API 증가 감사. 기존 L06·L08·L10 미완료 항목 유지.
 
+### 구현 16차 — L16 음영/저속망·기기 저장 독립성·성능 측정 근거 (2026-11-22)
+
+- **L15 선행 검증:** HEAD `28142524623f81d77fd4a99e784f9df3b4f1f09a`의 `PSI release verification` #44968888709 **SUCCESS**, `PSI company-wide cross-department verification` #44968888758 **SUCCESS**. `PSI inspector mobile browser QA` #44968888757은 최신 상태 재확인 필요. 실제 200% 확대·원어민·Android QA는 대체되지 않는다.
+- **현장 핵심 문제:** 기기 점검 화면의 오프라인 준비·저장소 정보는 있었지만, 브라우저 연결 신호와 실제 서버 접속 성공을 구분한 안내가 부족했다. 느린 통신 중 로컬 기기 저장을 서버 수신과 혼동하거나, 온라인 복구 후 자동 발송된다고 오인할 위험이 있었다.
+- **실제 UI 코드:** `field-local/main.tsx`에 `navigator.onLine`/브라우저 `online/offline` 이벤트를 읽는 **표시 전용** 현장 통신 상태 패널을 추가. 이는 접속 성공/속도/배터리 측정이 아닌 브라우저의 추정 신호이며, 기존 IndexedDB 사진·메모의 직접 저장/재조회 및 수동 SW 준비 로직은 변경하지 않는다. 재연결 후 자동 업로드·AI 호출 없음.
+- **검증 코드:** `tests/psiL16ResilienceContract.test.ts`, `scripts/verify-psi-l16-resilience.mjs`, `.github/workflows/psi-company-wide.yml`: 합성 Chromium에서 요청 지연 150ms 주입, 로컬 PWA 캐시 준비, 강제 오프라인 재시작, 오프라인 사진/메모 기기 저장·재실행 후 조회, 재연결 후 1건 유지, 외부 도메인/API 자동 호출 0 확인. 성능 시간은 CI 참고치이고 현장 3G/배터리 보증이 아니다.
+- **실사용·비용:** `docs/PSI_L16_NETWORK_BATTERY_FIELD_QA_20261122.md`에 현장 저속망·배터리·저장소·통신 재연결 QA, 기록 보존/개인정보·정확한 범위를 정리. 네이티브 패키지·유료 API·텔레메트리 수집/전송·백그라운드 동기화·새 DB 불변.
+- **검증 게이트:** L16 최신 HEAD 자동 CI와 독립 Chromium 결과/오류는 실제 다시 조회 후 기록. 최신 QA PASS 전까지 L16을 전면 VERIFIED/실기기 통과로 주장 금지. PR #237 Draft, main/Production 최종 승인 전 보류.
+
+**다음 한 작업:** L16 신규 Chromium 합성 테스트 및 `npm run verify:ci` 결과 확인·실패 보수 → Android 현장 음영·저속망/배터리 실제 계측 및 백업/복구 → L17 접근권한·원본 무결성·OSS 라이선스/최소 수집 보안 감사. L06 Q1~Q5 직접 입력, L08 Android 저장, L10 모국어·A4, L15 실확대 검수 유지.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -346,7 +357,7 @@
 
 ## 9. 다음 착수 과제
 
-**L15 최신 HEAD Chromium·릴리스/모바일 회귀 확인 및 Android·200% 확대·원어민/스크린리더 잔여 게이트 → L16 성능·저속망·오프라인·배터리 점검.**
+**L16 최신 HEAD CI·합성 Chromium(지연/오프라인/재접속) 확인 → Android 실기기 저속망/저장 복원·배터리 실측 → L17 보안·권한·무결성·OSS 감사.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
