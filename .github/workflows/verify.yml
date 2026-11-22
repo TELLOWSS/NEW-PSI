@@ -28,6 +28,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify:ci
+      - name: L17 privacy, authorization-boundary and OSS source audit
+        run: node scripts/verify-psi-l17-security.mjs
       - name: Offline F10 state-matrix and privacy simulation (no Vercel)
         run: node scripts/verify-field-camera-batch33.mjs
       - name: Preserve source-only integration review manifest (never a deploy approval)
@@ -35,6 +37,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: psi-field-camera-integration-source-manifest
-          path: artifacts/audit/field-camera/32-integration-source-manifest.json
+          path: |
+            artifacts/audit/field-camera/32-integration-source-manifest.json
+            artifacts/audit/psi-l17-security/result.json
           if-no-files-found: ignore
           retention-days: 7

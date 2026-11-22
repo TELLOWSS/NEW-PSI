@@ -51,3 +51,5 @@ NEW-PSI의 Code and Chill 템플릿 참조 기반 PC·모바일 디자인 고도
 > 2026-11-22 L15 추가: Draft PR #237에서 관리자 모바일 메뉴/QuickFind의 초점 트랩·44px/작은 viewport·100dvh 및 합성 브라우저 QA를 추가. 실제 200% 줌/Android/스크린리더/다국어 검증은 별도. 상세 `docs/PSI_L15_ACCESSIBILITY_FIELD_QA_20261122.md`. L16 성능·저속망/오프라인 검토가 다음 독립 작업이며 main/Production 운영 승인 보류.
 
 > 2026-11-22 L16 추가: `/field-local/`의 브라우저 연결 신호 구분 UI 및 오프라인 캐시·합성 사진 저장/복원·재연결 시 자동 API 0 검증을 추가. 실제 3G/Android 배터리·iOS 실측은 미검증. `docs/PSI_L16_NETWORK_BATTERY_FIELD_QA_20261122.md` 및 Living UI 마스터 인계서 L16 참조. 다음 L17 보안·권한·무결성·OSS. main/Production 반영 보류.
+
+> 2026-11-22 L17 추가: `/field-local` 관련 경로의 noindex/no-referrer, OSS 후보 런타임 미도입·API/공유·인증·PWA 범위의 source-only 정적 보안 게이트 추가. CSP 광범위 허용, 실 HTTP 헤더, Supabase RLS/현장별 권한 및 상용 라이선스는 미검증. 상세 `docs/PSI_L17_SECURITY_OSS_GATE_20261122.md`. 다음 L18 통합 품질·실기기·승인 검토. main/Production 보류.

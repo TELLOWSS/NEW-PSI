@@ -111,7 +111,7 @@
 | L14 | PWA/모바일 앱 결정·실행 | IMPLEMENTED(기기점검 설치형 파일럿) / Android QA 대기 | 전용 manifest·실제 PNG·명시적 설치·SW 캐시와 회귀 테스트, 모바일 실제 설치·저장복원 및 비용 승인 잔여 |
 | L15 | 접근성·다국어·다크/저동작 | IMPLEMENTED(관리자 메뉴·검색·viewport 부분 보강) / 전체 QA 대기 | 320~1440px 합성 Chromium·Tab/ShiftTab·다크/저동작·포커스 복귀 테스트 추가, 실제 200% 확대·원어민/스크린리더/Android 미검증 |
 | L16 | 오프라인·저속망·성능·배터리 | IMPLEMENTED(브라우저 연결 신호·합성 재연결 QA) / 실기기·계측 대기 | 느린 문서 요청 지연·오프라인 재진입·사진 저장 재조회·재연결 후 API 미발송, 배터리·실제 3G 측정은 별도 |
-| L17 | 권한·데이터무결성·OSS 라이선스 | PLANNED | 실자료 미사용 QA, 보안·법무 승인이 필요한 경계 |
+| L17 | 권한·데이터무결성·OSS 라이선스 | IMPLEMENTED(source-only 헤더·OSS·보안 경계 자동감사) / 운영 보안 미승인 | 기기 점검 noindex/no-referrer 및 공유·관리자 인증/OSS 회귀 감시; 라이브 DB RLS·실 HTTP 헤더·라이선스 최신성 확인 잔여 |
 | L18 | 통합 회귀·실기기 QA·승인·운영 배포 | PLANNED | `npm run verify:ci`, 필수 브라우저 QA, PR 리뷰, SHA 대조 |
 
 **주의:** 표의 `IMPLEMENTED`는 **이번 브랜치에서 파일이 생성·변경된 범위**만 의미한다. 실제 브라우저/CI/운영 검증의 PASS가 아니다. 기존 구현의 완성도를 재평가한 표로 오인하지 않는다.
@@ -334,6 +334,16 @@
 
 **다음 한 작업:** L16 신규 Chromium 합성 테스트 및 `npm run verify:ci` 결과 확인·실패 보수 → Android 현장 음영·저속망/배터리 실제 계측 및 백업/복구 → L17 접근권한·원본 무결성·OSS 라이선스/최소 수집 보안 감사. L06 Q1~Q5 직접 입력, L08 Android 저장, L10 모국어·A4, L15 실확대 검수 유지.
 
+### 구현 17차 — L17 정적 보안·OSS 허가 경계 점검 (2026-11-22)
+
+- **전제 확인:** `AGENTS.md` 및 `.agents/skills/psi-ai-company/SKILL.md`, `docs/psi-ai-company/OSS_SOURCE_REVIEW_20261026.md`, `config/psi-oss-candidate-manifest.json` 원문 검토. 다른 제품과 코드·데이터 혼합 없음.
+- **선행 L16:** HEAD `82d1a1dbc9313fb27c90f4766411eeebce6aee56`에서 릴리스 #44969367072 **SUCCESS**. 전사 Chromium #44969367040/Inspector 모바일 #44969367047의 결과는 별도 최종 재조회. PR push로 구버전 작업이 취소되면 이전 SHA 통과라고 오인하지 않음.
+- **구체 변경:** `vercel.json`의 기기 점검 3경로 `X-Robots-Tag: noindex,nofollow,noarchive`, `Referrer-Policy:no-referrer`; `scripts/verify-psi-l17-security.mjs` 및 `tests/psiL17SecurityGuard.test.ts`, `.github/workflows/verify.yml` 릴리스 보안 정적 게이트. 원본/권한·DB·유료 API·새 OSS 런타임·실제 전송 변경 없음.
+- **검토 발견:** `api/inspection-share.ts` 소스에 토큰 해시·만료 RPC·레이트 제한·개인 응답 캐시 금지 확인. 하지만 전역 CSP의 `connect-src 'self' https: wss:`·`unsafe-inline` 범위가 넓으므로 사용처·호환성 분석 후 별도 축소 필요. 실제 RLS/테넌트 접근 격리·배포 HTTP 응답, 법률 라이선스 승인을 자동 정적 검사로 보증하지 않음.
+- **L17 검토표:** `docs/PSI_L17_SECURITY_OSS_GATE_20261122.md`. QA 실패 시 최신 HEAD 로그에 따른 보수, 완료 전 릴리스 승격 금지. Draft PR #237, main/Production 승인 전 보류.
+
+**다음 한 작업:** 최신 L17 릴리스/전사 Chromium/Inspector CI 및 보안 산출물 확인·오류 수정 → 실제 Vercel HTTP 헤더·관리자/RLS/원본/OSS 라이선스 검토 → L18 통합·실기기·사용자 최종 승인 게이트. L06·L08·L10·L15·L16 미완료 조건 불변.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -357,7 +367,7 @@
 
 ## 9. 다음 착수 과제
 
-**L16 최신 HEAD CI·합성 Chromium(지연/오프라인/재접속) 확인 → Android 실기기 저속망/저장 복원·배터리 실측 → L17 보안·권한·무결성·OSS 감사.**
+**L17 정적 보안 경계와 릴리스/전사/모바일 CI 검증 → 실제 API·Supabase RLS·HTTP 헤더·라이선스/실기기 확인 → L18 통합 승인·Production 보류 판단.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
