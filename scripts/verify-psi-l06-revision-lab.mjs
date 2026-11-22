@@ -50,6 +50,12 @@ try {
     assert.equal(await page.locator('article').count(),5);
     assert.ok(await page.getByText('문구 변경').count()>=2);
     assert.ok(await page.getByText('원문 동일').count()>=1);
+    assert.equal(await page.getByTestId('psi-l06-changed-count').textContent(),'2');
+    await page.getByRole('button',{name:'변경 문항만 보기 (2)'}).click();
+    assert.equal(await page.locator('article').count(),2,'Changed-only manager review must show exactly 2 paragraphs');
+    await page.screenshot({path:`artifacts/audit/psi-l06-revision-lab/${width}-changed-only.png`,fullPage:true});
+    await page.getByRole('button',{name:'전체 5문항 보기'}).click();
+    assert.equal(await page.locator('article').count(),5,'Manager review must restore every original paragraph');
     assert.equal(await page.locator('button[aria-pressed="true"]').count(),1);
     assert.ok((await page.evaluate(()=>document.documentElement.scrollWidth))<=width+2,
       'Unexpected horizontal overflow: '+width);
@@ -62,7 +68,8 @@ try {
     await page.getByTestId('psi-l06-revision-evidence').waitFor();
     assert.deepEqual(api,[],'No backend access allowed in synthetic lab');
     assert.deepEqual(external,[],'No external services allowed in synthetic lab');
-    results.push({width,questionPairs:5,crossSiteBlocked:true,apiCalls:0,externalCalls:0});
+    results.push({width,questionPairs:5,changedOnlyPairs:2,changeFilterRestoresOriginals:true,
+      crossSiteBlocked:true,apiCalls:0,externalCalls:0});
     await page.close();
   }
   const prod = server('preview',5198);
