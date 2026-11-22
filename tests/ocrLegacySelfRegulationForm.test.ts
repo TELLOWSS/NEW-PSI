@@ -47,6 +47,22 @@ describe('2025 legacy handwritten self-regulation risk assessment OCR compatibil
    expect(code).toContain('서명');expect(code).toContain('식별 대기');
   }
  });
+ it('counts original one-letter Q3 risk grade as a completed answer but not arbitrary one-letter responses',()=>{
+  const graded=answers.map((a,i)=>i===2?{...a,answerText:'상',koreanTranslation:'상'}:a);
+  const quality=assessOcrRoutingQuality({
+   isPsiForm:true,documentMarkers:['위험성평가 기록표','근무 공종'],handwrittenAnswers:graded,
+   name:'합성 이름',jobField:'갱폼',date:'2025-02-13',nationality:'대한민국',
+   ocrConfidence:1,fieldConfidences:{name:1,jobField:1,date:1,nationality:1,handwrittenAnswers:1},
+  });
+  expect(quality.answerCount).toBe(5);
+  expect(quality.reasons).not.toContain('incomplete-q1-q5');
+  const invalid=graded.map((a,i)=>i===1?{...a,answerText:'상',koreanTranslation:'상'}:a);
+  expect(assessOcrRoutingQuality({
+   isPsiForm:true,documentMarkers:['위험성평가 기록표','근무 공종'],handwrittenAnswers:invalid,
+   name:'합성 이름',jobField:'갱폼',date:'2025-02-13',nationality:'대한민국',
+   ocrConfidence:1,fieldConfidences:{name:1,jobField:1,date:1,nationality:1,handwrittenAnswers:1},
+  }).reasons).toContain('incomplete-q1-q5');
+ });
  it('keeps 1-page PDF input gate and rejects direct PPTX',()=>{
   const pdf=src('utils/ocrGatewayPayload.ts'),p=src('utils/ocrFilePolicy.ts');
   expect(pdf).toContain('OCR_GATEWAY_MAX_PDF_PAGES = 1');

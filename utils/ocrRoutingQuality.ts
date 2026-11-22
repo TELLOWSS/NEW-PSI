@@ -54,11 +54,15 @@ const clampConfidence = (value: unknown): number => {
 
 const getNonEmptyAnswerCount = (value: unknown): number => {
     if (!Array.isArray(value)) return 0;
-    return value.slice(0, 5).filter((answer) => {
+    return value.slice(0, 5).filter((answer, index) => {
         if (!answer || typeof answer !== 'object') return false;
         const row = answer as Record<string, unknown>;
-        return [row.answerText, row.koreanTranslation, row.nativeTranslation]
-            .some((item) => String(item || '').trim().length >= 2);
+        const values = [row.answerText, row.koreanTranslation, row.nativeTranslation];
+        if (values.some((item) => String(item || '').trim().length >= 2)) return true;
+        // The original 2025 handwritten form uses a single-character risk grade in Q3.
+        // Never waive the two-character rule for Q1/Q2/Q4/Q5 or unrecognized Q3 content.
+        const question = String(row.questionNumber || index + 1).match(/[1-5]/)?.[0];
+        return question === '3' && /^(상|중|하|高|中|低)$/.test(String(row.answerText || '').trim());
     }).length;
 };
 
