@@ -164,6 +164,58 @@ describe('L06 staged PostgreSQL atomic worker self-entry (NOT a live migration)'
     const audit=await db.query('select * from public.psi_worker_risk_receipt_events');
     expect(audit.rows).toHaveLength(2);
   });
+  it('rejects a worker receipt with missing or malformed session_id even when auth.uid is valid',async()=>{
+    await user(USER_A);
+    for(const badSession of ['', 'not-a-uuid']){
+      await db.query("select set_config('request.jwt.claim.session_id',$1,true)",[badSession]);
+      await deny(sql,params());
+    }
+    await db.exec('reset role');
+    expect((await db.query('select id from public.psi_worker_risk_submissions')).rows).toHaveLength(0);
+    expect((await db.query('select * from public.psi_worker_risk_receipt_events')).rows).toHaveLength(0);
+  });
+  it('rejects a worker session row revoked before initial Q1-Q5 receipt',async()=>{
+    await db.exec('reset role');
+    await db.query('delete from auth.sessions where id=$1',[SESSION_FOR(USER_A)]);
+    await user(USER_A);
+    await deny(sql,params());
+    await db.exec('reset role');
+    expect((await db.query('select id from public.psi_worker_risk_submissions')).rows).toHaveLength(0);
+    expect((await db.query('select * from public.psi_worker_risk_receipt_events')).rows).toHaveLength(0);
+  });
+  it('rejects an already-used worker receipt nonce replay after the original session was revoked',async()=>{
+    await user(USER_A);
+    const first=(await submit(...params())).rows[0].receipt;
+    await db.exec('reset role');
+    await db.query('delete from auth.sessions where id=$1',[SESSION_FOR(USER_A)]);
+    await user(USER_A);
+    await deny(sql,params());
+    await db.exec('reset role');
+    expect((await db.query('select * from public.psi_worker_risk_submissions')).rows).toHaveLength(1);
+    expect((await db.query('select * from public.psi_worker_risk_receipt_events')).rows).toHaveLength(1);
+    expect(first).toMatchObject({state:'received-pending-manager-review'});
+  });
+  it('blocks an authenticated worker submitting under a different user session_id',async()=>{
+    await user(USER_A);
+    await db.query("select set_config('request.jwt.claim.session_id',$1,true)",[SESSION_FOR(USER_B)]);
+    await deny(sql,params());
+    await db.exec('reset role');
+    expect((await db.query('select * from public.psi_worker_risk_submissions')).rows).toHaveLength(0);
+  });
+  it('rejects a revoked worker session before an immutable Q1-Q5 replacement can be linked',async()=>{
+    const original=await submitA();
+    await user(REVIEWER_A);
+    await review(reviewParams(original,REVIEW_NONCE_1,'request_changes',REVIEW_NOTE,0));
+    await waitForDistinctReceiptClock();
+    await db.exec('reset role');
+    await db.query('delete from auth.sessions where id=$1',[SESSION_FOR(USER_A)]);
+    await user(USER_A);
+    await deny(revisionSql,revisionParams(original));
+    await db.exec('reset role');
+    expect((await db.query('select * from public.psi_worker_risk_resubmission_links')).rows).toHaveLength(0);
+    expect((await db.query('select * from public.psi_worker_risk_submissions')).rows).toHaveLength(1);
+    expect((await db.query('select * from public.psi_worker_risk_receipt_events')).rows).toHaveLength(1);
+  });
   it('denies A→B and B→A, same-tenant other site and unlinked account',async()=>{
     await user(USER_A);
     await deny(sql,params(TENANT_B,SITE_B,CYCLE_B));
