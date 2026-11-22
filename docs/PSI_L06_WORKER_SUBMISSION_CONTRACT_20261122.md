@@ -75,3 +75,18 @@
 - **승인 조건:** 두 가상 근로자로 분리된 실제 Supabase 테스트 프로젝트에서 Auth/GRANT/RLS·교차 현장/기업·관리자 읽기/보완·중복 전송 경합/취소·보존 기간을 **검증 승인 받은 뒤에만** 신규 마이그레이션·API 배포 검토. PR #237 Draft, `main` 병합·Production·운영 DB 변경은 최종 승인까지 보류. L18 human acceptance 13건 모두 pending.
 
 **다음 한 작업:** 최신 HEAD 릴리스/전사 Chromium/Inspector CI 중 실패 원인을 수정하고 동일 SHA 3종 판정 → 승인받은 격리 DB 실증에서 진짜 RLS/권한/동시 요청 충돌 보완 → 관리자 보완·반려·승인 이력을 원문과 별도 변경불가 이벤트로 추가. 운영 적용 전 개인정보 처리근거/보관기한·원어민/Android·제품 소유자 최종 검수 필수.
+
+
+## 8. 2026-11-22 — 관리자 검토·보완·독립 승인 원장 5차 (격리 SQL / 운영 미적용)
+
+- **실제 신규 소스:** `supabase/proposals/psi_worker_risk_manager_review_l06_staging.sql`. L06 4차 `psi_worker_risk_submissions`와 P05 현장 배정 SQL에 의존하되, `supabase/migrations/`에는 편입하지 않았으며 실제 PSI-Database 스키마·근로자 계정·API·운영 기록은 변경하지 않는다.
+- **원문 불변·검토 이력 분리:** `psi_worker_risk_review_events`는 기업/현장/제출ID·검토 순번·멱등 요청ID·작성 관리자·행동·판단 근거·서버 기록시각을 INSERT 전용으로 저장. Q1~Q5 원문과 접수 원장/검토 이벤트에 별도의 UPDATE/DELETE 차단 트리거를 제안했고 세 테이블에 일반 사용자 직접 쓰기/열람 허용 없음. PostgreSQL 최고권한자 수준의 조작까지 차단하는 외부 독립 해시 앵커는 **아직 미구현**.
+- **검토 흐름:** 최초 `reviewed`→**다른 관리자**의 `approved` 또는 `request_changes`. `request_changes`는 즉시 보완요청 완료 상태로 종료되며 기존 원문을 덮어 쓰거나 같은 제출본을 다시 승인할 수 없다. 보완된 답변은 새로운 근로자 제출과 새 접수증으로 연결하는 모델은 **별도 후속**. 관리자 승인 자체는 **기록 검토 승인**일 뿐 작업허가, 위험 제거 입증, 교육이수, 작업중지 해제 승인으로 사용 금지.
+- **권한·서명:** `psi_review_worker_risk_l06`은 `auth.uid()`와 실제 기업/현장/관리자 권한을 DB에서 확인. 기업 `owner/admin/reviewer` + 해당 활성 현장 소속/활성 현장 필수, 최종 `approved`는 `owner/admin`만 가능. 제출한 근로자와 동일 로그인은 거부하고 최초 검토자와 최종 승인자도 달라야 함. 신청자(브라우저) 주장 신원·역할은 인가 근거로 사용하지 않는다.
+- **동시성·감사:** 원문 행 `FOR UPDATE` 잠금과 `expected_revision`으로 동일 제출의 검토 경쟁을 직렬화하며, `action_request_id` 중복에 대해 인자·검토자·검토 순번이 완전히 같을 때만 기존 접수증을 반환한다. 변경 재전송·확정 이후 재승인·오래된 순번을 거부한다. PostgreSQL 트랜잭션 밖 외부 전달이나 실제 동시 세션 부하 검증은 아직 완료되지 않음.
+- **관리자 최소 조회:** `psi_read_worker_risk_review_l06`는 정확히 그 기업/현장의 활성 관리자로만 Q1~Q5 원문과 검토 이벤트를 제한된 JSON으로 반환. 답안 데이터에 이름·이메일은 포함하지 않고 `workClearanceGranted:false`를 고정 반환. 개인정보·실계정/모국어 원문 공개 허용 정책 확인과 법적 고지·보존기간 검수는 필수.
+- **PostgreSQL 엔진 회귀:** `tests/psiWorkerRiskSubmissionSqlL06.test.ts` 기존 격리 PGlite를 재사용해 전체 20개 테스트(4차 9개+5차 11개)로 두 기업 A/B·다른 현장/근로자/승인자·교차 읽기/쓰기·익명 차단, 2인 검토, 자기승인 거부, 이력 멱등/변조·수정/삭제 차단, 보완요청 종료, 계정 권한 철회, 접수 원문 보존, 감사 실패/과거 주기 종료 이후 검토를 확인한다. 새 SHA 전체 CI 최종 판정을 반드시 조회한다.
+- **CI 기록:** 직전 `9e0d10a` 릴리스 #44984047297와 전사 Chromium #44984047259 **SUCCESS**, Inspector #44984047268은 후속 푸시로 CANCELLED. 5차 첫 SHA `12b2a65`에서 PGlite **18/20 PASS**, 조회 경로 2개가 `pg_catalog.coalesce` SQL 호환성 오류로 FAIL. `17dfbf9`에서 SQL 호출을 수정했다. 5차 최종 HEAD의 성공 결과는 실조회 전 **미확정**으로 유지.
+- **출시 금지 조건:** 연결된 실제 Supabase `PSI-Database`의 P05 개별 현장 배정/평가주기/접수/검토 테이블은 도입 승인 및 실제 Auth/RLS/GRANT 검증이 완료되지 않음. 실제 관리자/근로자 계정 두 기업의 격리 검증, 권한 철회/재인증, 원문·민감정보 처리근거/보존 및 삭제, 현장 Android 실기기·한국어 외 11개 모국어 인수, 보완 재제출 링크·작업허가 분리·실무 UX 등은 미완료. L18 사용자 인수 13건 모두 pending, PR #237 Draft 유지, `main`·Production/운영 DB 변경 보류.
+
+**다음 한 작업:** 신규 HEAD CI 3종 성공/실패를 같은 SHA로 검증 → 격리 승인 Supabase 테스트 환경에서 두 기업·현장·근로자 개인계정에 대한 실제 Auth/RLS/GRANT 및 서로 다른 관리자의 검토/승인을 검증 → 동일 근로자 보완 재제출 `original_submission_id` 연결과 관리자 보완·확인 UX (원문은 수정하지 않고 별도 이력) → 개인정보 정책/작업허가 분리·인적 검수 완료 전 운영 반영 금지.
