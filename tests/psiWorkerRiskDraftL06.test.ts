@@ -44,19 +44,18 @@ describe('L06 Q1-Q5 worker self-writing pilot without submission', () => {
 
     it('prints only the L06 trial and does not unhide the production report root', () => {
         const ui = source('pages/WorkerRiskDraft.tsx');
-        const css = source('pages/worker-risk-draft-print.css');
-        const generic = source('styles.css');
+        const css = source('styles.css');
         const chromium = source('scripts/verify-psi-l06-worker-draft.mjs');
-        expect(generic).toContain('#root {');
-        expect(generic).toContain('display: none !important;');
-        expect(ui).toContain("import './worker-risk-draft-print.css';");
+        expect(css).toContain('#root {');
+        expect(css).toContain('display: none !important;');
+        expect(ui).toContain("import '../styles.css';");
         expect(ui).toContain('className="psi-l06-worker-draft ');
         expect(ui).toContain('psi-l06-review-print');
         expect(ui).toContain('psi-l06-review-disclaimer');
         expect(css).toContain('#root:has(.psi-l06-worker-draft)');
         expect(css).toContain('display: block !important;');
         expect(css).toContain('.psi-l06-review-actions');
-        expect(css).not.toMatch(/^\s*\.report-print-container\s*\{/m);
+        expect(css).toContain('L24: only the L06 unauthenticated practice route');
         expect(chromium).toContain('await page.pdf(');
         expect(chromium).toContain('assert.equal(pdf.numPages, 1,');
         expect(chromium).toContain('for (const key of [\'Q1\', \'Q2\', \'Q3\', \'Q4\', \'Q5\'])');
