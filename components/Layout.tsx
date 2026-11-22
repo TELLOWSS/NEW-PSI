@@ -21,6 +21,7 @@ import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { getOperationalModeLabel, isPageVisibleByOperationalMode } from '../utils/operationalModeUtils';
 import { resolveMobileNavigation, type MobileTabId } from '../utils/mobileNavigationUtils';
+import { closeMobileMenuOnDesktop } from '../utils/mobileMenuViewportGuard';
 import {
     clearOnePointProofSession,
     getNextOnePointProofStage,
@@ -276,6 +277,16 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         };
     }, []);
 
+    // A phone dialog becomes CSS-hidden at lg, but would otherwise leave the
+    // focus trap and body scroll lock active after landscape/desktop resize.
+    useEffect(() => {
+        if (!isMobileMenuOpen) return;
+        return closeMobileMenuOnDesktop(
+            (query) => window.matchMedia(query),
+            () => setIsMobileMenuOpen(false),
+        );
+    }, [isMobileMenuOpen]);
+
     // L15: Modal navigation must never tab into CSS-hidden elements or the page behind it.
     useEffect(() => {
         if (!isMobileMenuOpen) return;
@@ -499,6 +510,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                         ref={mobileMenuDialogRef}
                         className="fixed inset-0 z-50 no-print lg:hidden"
                         role="dialog"
+                        id="psi-mobile-navigation-dialog"
                         aria-modal="true"
                         aria-label="전체 메뉴"
                         tabIndex={-1}
@@ -733,6 +745,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                     aria-current={tab.page === currentPage ? 'page' : undefined}
                                     data-active={isActive ? 'true' : undefined}
                                     aria-haspopup={tab.id === 'more' ? 'dialog' : undefined}
+                                    aria-controls={tab.id === 'more' ? 'psi-mobile-navigation-dialog' : undefined}
                                     aria-expanded={tab.id === 'more' ? isMobileMenuOpen : undefined}
                                 >
                                     <span>{tab.icon}</span>
