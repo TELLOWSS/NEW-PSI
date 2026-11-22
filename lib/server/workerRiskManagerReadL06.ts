@@ -173,6 +173,23 @@ export async function inspectL06ManagerRevisionRead(
         if(!exactly(currentSite,{tenantId,siteId,active:true}))
             return fail('SITE_NOT_AUTHORIZED');
 
+        // Final-release clock gate. The rechecks above are asynchronous: a
+        // session can expire while the last site/role lookup is still pending.
+        // Sampling only before those awaits is NOT sufficient for data release.
+        // This is defense in depth; real tenant/site authorization must remain
+        // atomic in the database RPC, not inferred from these port calls.
+        let releasedAtMs: number;
+        try {
+            const releaseTime = clock();
+            releasedAtMs = releaseTime instanceof Date ? releaseTime.getTime() : NaN;
+        } catch {
+            return fail('SESSION_INVALID');
+        }
+        if(!Number.isFinite(releasedAtMs) || releasedAtMs<finalMs ||
+           (utc(principal.expiresAt) as number)<=releasedAtMs ||
+           (utc(currentSession.expiresAt) as number)<=releasedAtMs)
+            return fail('SESSION_INVALID');
+
         // The real SQL read RPC must independently verify caller credentials
         // against the same tenant/site after acquiring its data.
         return {ok:true,evidence:chain,dataReleased:true,
