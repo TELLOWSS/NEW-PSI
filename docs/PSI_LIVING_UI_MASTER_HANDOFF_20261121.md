@@ -437,6 +437,18 @@
 
 **다음 한 작업:** 최신 SHA 3종 CI·오류 해결 → 승인된 별도 테스트 테넌트 2개에서 실제 개인계정-현장/평가주기 RLS 실증 및 원자적 접수/감사/승인 데이터 모델을 개발·검수. 실제 운영 DB 쓰기/GRANT·RLS 변경, main 병합, Vercel Production 배포는 사용자 최종 승인 전 보류.
 
+
+### L06 후속 — PostgreSQL 원문 접수·중복방지·감사 원장 격리 검증 4차 (2026-11-22)
+
+- **직전 HEAD 재확인:** `91e4f0d` 릴리스 #44980846186 / 전사 Chromium #44980846199 / Inspector 모바일 #44980846187 **동일 SHA 3종 SUCCESS**. 이는 4차 신규 소스의 검증이 아니므로 새 SHA CI 별도 판정.
+- **기존 설계 재사용:** `supabase/proposals/psi_tenant_site_memberships_staging.sql`, `psi_site_worker_read_policy_staging.sql`에서 현장·근로자 배정 기반을 발견. 운영 DB에 아직 배포되지 않았으므로 선행 마이그레이션으로 간주하지 않음.
+- **이번 실소스:** `supabase/proposals/psi_worker_risk_submission_l06_staging.sql` (운영 migrations 아님)는 주기·5문항 원문 접수·서버 수신시각·immutable 수신 감사 원장. 세 테이블 ENABLE/FORCE RLS 및 직접 테이블 권한 부재, UUID 요청번호 유일성, 동일 요청·동일 내용에만 접수증 재사용, 변조된 재요청 거부, 감사 원장 실패 시 원자적 롤백을 제안. `psi_submit_worker_risk_l06` 보안정의 RPC는 **SQL 제안에서만 존재**하며 실제 운영 RPC는 배포되지 않음.
+- **독립 실DB 엔진 시험:** `tests/psiWorkerRiskSubmissionSqlL06.test.ts`에서 @electric-sql/pglite로 가상 A/B 기업·근로자/개인 계정·현장·평가주기를 구성하여 교차 기업/현장·원문 위조·권한 만료/비활성·테이블 직접 접근·감사 실패·중복 요청을 PostgreSQL 엔진으로 검증한다. 첫 성공 CI가 나오기 전에는 PASS 미확정.
+- **안전·보안:** L06 시범 웹 UI는 오프라인 메모리 5문항 검토만 가능, **실서버 정식 제출/관리자 승인 기능 없음**. SQL은 절대 운영 DB에 적용하지 않았고, 새 API/GRANT/키/테스트 계정이나 실개인정보 전송·Production 배포 없음. 실제 세션 철회, RLS/역할/교차기업 실인증, 원문·개인정보 법적처리근거/보유기간/삭제, 운영 주기, 관리자 보완·검토·승인, Android·모국어 11개 언어 인수 전부 미완료. L18 13 human gates pending.
+- **상세 인계:** `docs/PSI_L06_WORKER_SUBMISSION_CONTRACT_20261122.md` §7. PR #237 Draft, `main`·Vercel Production 최종 사용자 승인 전 보류.
+
+**다음 한 작업:** 동일 최종 HEAD의 릴리스·전사 Chromium·Inspector CI 실패/오류 확인·수정 → 승인된 테스트 Supabase 2개 테넌트에서 실제 인증/RLS/원문 접수 경합 검증 → 관리자 보완/반려/승인 이력 및 정책·보존기간·현장 실기기 검수. 운영 DB·main·Production 미변경.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
