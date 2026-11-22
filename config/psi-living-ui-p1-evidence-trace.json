@@ -1,0 +1,150 @@
+{
+  "schema": "psi-living-ui-p1-evidence-trace-v1",
+  "product": "NEW-PSI",
+  "repository": "TELLOWSS/NEW-PSI",
+  "candidatePr": 237,
+  "notice": "This is source-to-CI wiring traceability, not 19 completed features, real-device UAT, real worker submission, permission proof or release approval. Never upgrade UNVERIFIED manual checks from a source/path match.",
+  "coverageDefinition": "Every L00-L18 row must identify an existing on-branch evidence source; runnable rows must be connected to a currently configured CI workflow. The independent run result must be checked at the same commit SHA outside this file.",
+  "workstreams": {
+    "P1": "UI·source/CI evidence",
+    "P2": "approved isolated Auth/RLS, worker submission",
+    "P3": "Android/Samsung Internet/PWA/AT",
+    "P4": "native language, field deferred action, print and real receipt",
+    "P5": "security, licensing, human gates and release"
+  },
+  "areas": [
+    {
+      "id": "L00",
+      "area": "사용자 정정·안전 의미",
+      "source": "docs/PSI_LIVING_UI_MASTER_HANDOFF_20261121.md",
+      "runner": "policy",
+      "unverified": "사용자 역할·현장 사실·최종 판단은 사람이 검수"
+    },
+    {
+      "id": "L01",
+      "area": "기존 코드·업무 흐름 감사",
+      "source": "scripts/verify-psi-company-browser.mjs",
+      "runner": "company-direct",
+      "unverified": "전체 화면 영향·현장 업무 영향표는 별도 검토"
+    },
+    {
+      "id": "L02",
+      "area": "공통 모션·화면 전환",
+      "source": "tests/psiLivingMotionContract.test.ts",
+      "runner": "release-vitest",
+      "unverified": "실제 모션·기기 체감 및 OS 저동작 확인 필요"
+    },
+    {
+      "id": "L03",
+      "area": "PC 사이드바·메뉴 검색",
+      "source": "scripts/verify-psi-l15-accessibility.mjs",
+      "runner": "company-direct",
+      "unverified": "실사용 권한·화면 확대·키보드 UAT 필요"
+    },
+    {
+      "id": "L04",
+      "area": "모바일 관리자 홈·탭",
+      "source": "scripts/verify-psi-l15-accessibility.mjs",
+      "runner": "company-direct",
+      "unverified": "실 Android·삼성 인터넷 현장 탐색 UAT 필요"
+    },
+    {
+      "id": "L05",
+      "area": "안전 대시보드·근거",
+      "source": "scripts/verify-psi-platform-field-canvas.mjs",
+      "runner": "company-direct",
+      "unverified": "실현장 집계·필터·판단 근거 확인 필요"
+    },
+    {
+      "id": "L06",
+      "area": "근로자 5문항 자기기입",
+      "source": "scripts/verify-psi-l06-worker-draft.mjs",
+      "runner": "company-direct",
+      "unverified": "한국어 무저장 연습만; 실제 인증·동의·접수 승인 없음"
+    },
+    {
+      "id": "L07",
+      "area": "OCR 원문 대조·검수",
+      "source": "scripts/verify-psi-platform-workspaces.mjs",
+      "runner": "company-direct",
+      "unverified": "원본·번역·실관리자 승인과 실사진 UAT 필요"
+    },
+    {
+      "id": "L08",
+      "area": "사진점검·오프라인·공유",
+      "source": "scripts/verify-inspector-mobile-ux.mjs",
+      "runner": "inspector-direct",
+      "unverified": "실기기 촬영·저장·수신·오프라인·개인정보 UAT 필요"
+    },
+    {
+      "id": "L09",
+      "area": "조치 대기·담당자·재점검",
+      "source": "scripts/verify-safety-case-closed-loop-ui.mjs",
+      "runner": "company-scenarios",
+      "unverified": "현장 조치 대기·임시조치·사람의 완료 판정 필요"
+    },
+    {
+      "id": "L10",
+      "area": "월간 교육·다국어 환류",
+      "source": "scripts/verify-psi-platform-workspaces.mjs",
+      "runner": "company-direct",
+      "unverified": "11개 모국어 자연스러움·A4 실인쇄·교육 전달 검수 필요"
+    },
+    {
+      "id": "L11",
+      "area": "6대 지표·집계",
+      "source": "scripts/verify-psi-current-metrics-ui.mjs",
+      "runner": "company-scenarios",
+      "unverified": "6대 안전인식 기준·유효분모·실데이터 점검 필요"
+    },
+    {
+      "id": "L12",
+      "area": "보고서·다운로드·수신",
+      "source": "scripts/verify-psi-pdf-privacy-browser.mjs",
+      "runner": "company-direct",
+      "unverified": "실제 PDF 파일 보존·수신 확인·권한 검토 필요"
+    },
+    {
+      "id": "L13",
+      "area": "제품 소개·온보딩",
+      "source": "scripts/verify-plain-language-ui.mjs",
+      "runner": "company-scenarios",
+      "unverified": "현장 이해도·음성·다국어·광고 문구 검수 필요"
+    },
+    {
+      "id": "L14",
+      "area": "기기 설치형 오프라인 파일럿",
+      "source": "scripts/verify-psi-l16-resilience.mjs",
+      "runner": "company-direct",
+      "unverified": "실 Android 설치·PWA 복원·배터리·요금 승인 필요"
+    },
+    {
+      "id": "L15",
+      "area": "접근성·다크·반응형",
+      "source": "scripts/verify-psi-l15-accessibility.mjs",
+      "runner": "company-direct",
+      "unverified": "실제 200% 확대·TalkBack/VoiceOver·원어민 검수 필요"
+    },
+    {
+      "id": "L16",
+      "area": "저속망·오프라인·성능",
+      "source": "scripts/verify-psi-l16-resilience.mjs",
+      "runner": "company-direct",
+      "unverified": "실제 LTE 음영·발열·배터리·실기기 측정 필요"
+    },
+    {
+      "id": "L17",
+      "area": "권한·보안·OSS 경계",
+      "source": "scripts/verify-psi-l17-security.mjs",
+      "runner": "release-direct",
+      "unverified": "실 RLS/RBAC·실 HTTP 헤더·상용 라이선스 승인 필요"
+    },
+    {
+      "id": "L18",
+      "area": "전체 통합 검증·출시",
+      "source": "scripts/verify-psi-l18-release-gate.mjs",
+      "runner": "company-direct",
+      "unverified": "13개 인간 승인 게이트·최종 main/Production 대조 필요"
+    }
+  ]
+}
