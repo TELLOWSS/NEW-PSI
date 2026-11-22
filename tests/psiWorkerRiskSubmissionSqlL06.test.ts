@@ -70,7 +70,7 @@ beforeAll(async()=>{
       $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
     create function auth.jwt() returns jsonb language sql stable as
       $$ select pg_catalog.jsonb_build_object('session_id',
-        pg_catalog.nullif(current_setting('request.jwt.claim.session_id',true),'')) $$;
+        nullif(current_setting('request.jwt.claim.session_id',true),'')) $$;
     grant usage on schema auth to authenticated;
     grant execute on function auth.uid() to authenticated;
     grant execute on function auth.jwt() to authenticated;`);
