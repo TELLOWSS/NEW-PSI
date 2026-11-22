@@ -96,6 +96,8 @@ jobs:
         run: node scripts/verify-psi-l17-security.mjs
       - name: L18 integrate synthetic evidence and keep field/owner approval BLOCKED
         run: node scripts/verify-psi-l18-release-gate.mjs --browser-evidence
+      - name: L35 P1 19-area evidence linkage after L18 synthetic Chromium gate
+        run: node scripts/verify-psi-p1-evidence.mjs --browser-evidence
       - name: Upload synthetic-only cross-department evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -113,6 +115,7 @@ jobs:
             artifacts/audit/psi-l16-resilience/
             artifacts/audit/psi-l17-security/
             artifacts/audit/psi-l18-release-gate/
+            artifacts/audit/psi-p1-evidence/
             artifacts/audit/psi-legacy-pdf-split/
             artifacts/audit/psi-l06-worker-risk-draft/
             artifacts/audit/psi-l06-revision-lab/
