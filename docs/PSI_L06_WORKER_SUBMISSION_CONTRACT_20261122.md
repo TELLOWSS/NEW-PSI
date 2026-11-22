@@ -205,3 +205,14 @@
 - **운영 보호:** 운영 DB/키·계정·사진·SQL migrations·RLS/GRANT/실API·`main`·Production 미변경, PR #237 Draft.
 
 **다음:** 17차 최종 SHA release/company Chromium/Inspector 결론 확인·필요한 코드 보완 → 사용자 지정 독립 격리 Supabase 승인 후 A01~A25 실증 결과와 검토자가 기록 → 정보보호/현장/L18 인수 뒤 운영 연결 가능 여부 결정.
+
+## 20. 2026-11-22 — 18차: 증빙 URL의 서명정보·자격증명 유출 차단
+
+- **17차 실검증:** HEAD `585c5d7` release #44994482035 **SUCCESS**(277개 파일/2,163개 테스트, ledger 7/7); 전사 Chromium #44994482057 **SUCCESS**; Inspector 모바일 #44994482053은 18차 후속 push로 **CANCELLED**. 동일 SHA CI 3종 완료라고 보고하지 않음.
+- **소스 결함:** 실 Auth 인수증빙이 저장되는 Git 추적 JSON의 `evidence`/`approvalEvidence`가 과거 단순 HTTPS regex를 통과하면, URL query에 access_token, fragment에 signed token, `user:password@host`, 내부 URL/토큰 경로를 실수로 커밋할 수 있음.
+- **18차 수정:** `scripts/check-psi-l06-isolated-auth-acceptance.mjs`에서 URL parser 기반 HTTPS 전용 검사, 사용자정보·query·fragment·port·로컬/사설 IP·localhost·민감정보 경로/검토자 메모의 토큰 형태 차단. 오류는 항목 ID와 일반 원인만 표시하고 원문 URL·secret은 출력하지 않는다.
+- **새 합성시험 5개:** 토큰 있는 임시 링크, userinfo·fragment·localhost, JWT 패턴 URL 경로, Bearer 검토 메모, 정상 공개/비밀 없는 HTTPS 링크도 최종 RELEASE BLOCKED 유지 확인. `tests/psiL06IsolatedAuthAcceptance.test.ts` **총 12개 목표**, 전체 Vitest **2,168개 목표**. 동일 SHA 최종 CI 전 통과 여부 미확정.
+- **중요 한계:** regex/URL 파서는 기밀값 전체 유형을 탐지할 수 없고 URL 실접근권한·사람 승인 진위를 확인하지 않는다. 증빙 원본은 별도 권한통제 보관하고 Git에는 안전한 비밀 없는 위치 참조만. 25개 실제 인증/RLS 인수 모두 NOT RUN, 격리 Supabase 프로젝트 승인 대기.
+- **운영 보호:** 실 Supabase 프로젝트/토큰/Auth/RLS/키·실근로자 기록·migrations·API·main/Production 변경 없음. PR #237 Draft, L18 사람 승인 13개와 현장·Android/언어/개인정보 인수 미완.
+
+**다음:** 18차 동일 최종 SHA 릴리스·전사 Chromium·Inspector 결과와 실패수정 → 승인된 독립 Supabase에서 A01~A25 JWT/RLS/동시성 실증 및 독립 증빙심사 → 사람 인수 완료 전 운영 연결·병합·배포 보류.
