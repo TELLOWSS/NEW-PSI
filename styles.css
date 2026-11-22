@@ -389,6 +389,34 @@
           display: none !important;
         }
 
+        /* L26: Ctrl+P on an unfinished trial prints an explanation, not
+           incomplete safety answers or form fields. Review mode is unchanged. */
+        .psi-l06-worker-draft .psi-l06-edit-form {
+          display: none !important;
+        }
+
+        .psi-l06-worker-draft .psi-l06-incomplete-print-warning {
+          display: block !important;
+          padding: 10mm 0 !important;
+          margin: 0 !important;
+          background: #ffffff !important;
+          color: #0f172a !important;
+          break-inside: avoid;
+        }
+
+        .psi-l06-worker-draft .psi-l06-incomplete-print-warning h2 {
+          font-size: 15pt !important;
+          font-weight: 700 !important;
+          line-height: 1.35 !important;
+          margin: 0 0 6mm !important;
+        }
+
+        .psi-l06-worker-draft .psi-l06-incomplete-print-warning p {
+          font-size: 10pt !important;
+          line-height: 1.6 !important;
+          margin: 0 0 3mm !important;
+        }
+
         .report-print-container {
             display: block !important;
             position: absolute !important;
