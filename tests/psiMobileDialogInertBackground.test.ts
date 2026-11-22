@@ -41,6 +41,17 @@ describe('L21 phone modal navigation makes the app background genuinely inert',(
     expect(html).not.toContain(' inert=""');
     expect(html).toContain('psi-main-content');
   });
+  it('routes focus to the page after a mobile navigation choice, including same-page choice',()=>{
+    const layout=readFileSync(resolve('components/Layout.tsx'),'utf8');
+    const browser=readFileSync(resolve('scripts/verify-psi-company-visibility-ui.mjs'),'utf8');
+    expect(layout).toContain('if (isMobileMenuOpen) mobileMenuNavigatingRef.current = true;');
+    expect(layout).toContain('const navigatedFromDrawer = mobileMenuNavigatingRef.current;');
+    expect(layout).toContain('mobileMenuNavigatingRef.current = false;');
+    expect(layout).toContain('mainRef.current?.focus({ preventScroll: true })');
+    expect(browser).toContain(".psi-sidebar-item[aria-current=\"page\"]");
+    expect(browser).toContain(".psi-sidebar-item:not([aria-current=\"page\"])");
+    expect(browser).toContain("document.activeElement?.id==='psi-main-content'");
+  });
   it('binds the real dialog open state and retains Tab/Escape focus handling',()=>{
     const layout=readFileSync(resolve('components/Layout.tsx'),'utf8');
     expect(layout).toContain('mobileDialogOpen={isMobileMenuOpen}');
