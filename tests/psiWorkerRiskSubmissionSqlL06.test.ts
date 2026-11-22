@@ -396,6 +396,45 @@ describe('L06 staged PostgreSQL atomic worker self-entry (NOT a live migration)'
     await deny(readReviewSql,[TENANT_A,SITE_A,parent]);
     await deny(readChainSql,[TENANT_A,SITE_A,parent]);
   });
+  it('blocks a banned reviewer account even with a live session and site membership',async()=>{
+    const id=await submitA();
+    await db.exec('reset role');
+    await db.query("update auth.users set banned_until=now()+interval '2 days' where id=$1",[REVIEWER_A]);
+    await user(REVIEWER_A);
+    await deny(readReviewSql,[TENANT_A,SITE_A,id]);
+    await deny(reviewSql,reviewParams(id));
+    await db.exec('reset role');
+    const audit=await db.query('select * from public.psi_worker_risk_review_events');
+    expect(audit.rows).toHaveLength(0);
+  });
+  it('blocks soft-deleted owner from reading the original and replacement history',async()=>{
+    const parent=await submitA();
+    await user(REVIEWER_A);
+    await review(reviewParams(parent,REVIEW_NONCE_1,'request_changes',REVIEW_NOTE,0));
+    await user(USER_A);
+    await db.query(revisionSql,revisionParams(parent));
+    await db.exec('reset role');
+    await db.query("update auth.users set deleted_at=now() where id=$1",[OWNER_A]);
+    await user(OWNER_A);
+    await deny(readReviewSql,[TENANT_A,SITE_A,parent]);
+    await deny(readChainSql,[TENANT_A,SITE_A,parent]);
+  });
+  it('treats an expired ban date as not currently banned without granting work clearance',async()=>{
+    const id=await submitA();
+    await db.exec('reset role');
+    await db.query("update auth.users set banned_until=now()-interval '1 day' where id=$1",[REVIEWER_A]);
+    await user(REVIEWER_A);
+    const row=await db.query<{snapshot:Record<string,unknown>}>(
+      readReviewSql,[TENANT_A,SITE_A,id]);
+    expect(row.rows[0].snapshot).toMatchObject({submissionId:id,workClearanceGranted:false});
+  });
+  it('keeps the privileged active-session helper unavailable as a direct callable RPC',async()=>{
+    for(const role of ['anon','authenticated','service_role']){
+      const result=await db.query<{allowed:boolean}>(`select has_function_privilege(
+        $1,'public.psi_l06_require_active_session()','EXECUTE') as allowed`,[role]);
+      expect(result.rows[0].allowed).toBe(false);
+    }
+  });
   it('keeps session row and reviewer scope locked in a single database read RPC',async()=>{
     const id=await submitA();
     await user(REVIEWER_A);
@@ -403,7 +442,7 @@ describe('L06 staged PostgreSQL atomic worker self-entry (NOT a live migration)'
     expect(row.rows[0].snapshot).toMatchObject({submissionId:id,workClearanceGranted:false});
     const functionText=(await db.query<{src:string}>(`select pg_catalog.pg_get_functiondef(
       'public.psi_l06_require_active_session()'::regprocedure) as src`)).rows[0].src;
-    expect(functionText.toLowerCase()).toContain('for key share of sess');
+    expect(functionText.toLowerCase()).toContain('for share of sess,u');
     const readText=(await db.query<{src:string}>(`select pg_catalog.pg_get_functiondef(
       'public.psi_read_worker_risk_review_l06(uuid,uuid,uuid)'::regprocedure) as src`)).rows[0].src;
     expect(readText.toLowerCase()).toContain('for share of m,sm,site');
