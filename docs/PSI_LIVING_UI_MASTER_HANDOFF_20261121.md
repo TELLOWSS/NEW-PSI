@@ -413,6 +413,18 @@
 - **상태 구분:** **직접 작성·화면 검토 코드 IMPLEMENTED / 정식 현장 제출 NOT IMPLEMENTED / 출시 L18 BLOCKED**. 새로운 HEAD의 CI는 독립 최종 결과를 재조회해야 하며, 합성 QA가 Android 실기기·다국어·서버 수신의 증거는 아니다. PR #237 Draft, main/Production 변경 금지.
 - **다음 한 작업:** 새 HEAD 3종 CI 완료/실패 로그 확인·수정 → 근로자 정식 로그인 또는 현장 토큰·개인정보 동의·다국어 원문 Q1~Q5·오프라인 보존/폐기 정책·관리자 승인 대기 원본·서버 수신 영수증/RLS 간 분리된 L06 제출 계약 설계와 실환경 권한 QA. 이후 실제 현장 승인 전까지 제출 API/QR 배포하지 않음.
 
+
+### L06 후속 — 정식 제출 신뢰경계·서버 수신 전 계약 2차 (2026-11-22)
+
+- **직전 기준 실조회:** 1차 직접 작성 HEAD `c86019d` 릴리스 `#44977391960` SUCCESS; 전사 Chromium `#44977391971`/Inspector 모바일 `#44977391895`는 새 커밋 진행 중 실행 취소. 1차 L06 실 Chromium 스텝은 통과했지만, **해당 커밋 전체 3종 QA PASS라는 의미 아님**. 현재 작업 HEAD로 CI 전부 새로 판정할 것.
+- **2차 실제 구현:** `utils/workerRiskSubmissionContractL06.ts`는 Q1~Q5 원문만 담는 strict allowlist 스키마·기존 양식 버전·원문 언어코드·500자 상한·단일 Q3 등급 검증, 식별정보/번역/추가 Q6 거부, 8개 신뢰 서버 필수조건 **전부 false 기본값**, 자기기입 원문과 관리자 검토를 분리한 `received-pending-manager-review` 수신정보 범위 검사 추가.
+- **화면 연결:** `pages/WorkerRiskDraft.tsx`의 화면 미제출 검토 진입 전 `prepareL06ClientSubmission(draft, 'ko')`를 사용하여 동일 원문 검증 규칙 적용. 함수는 전송/저장/인증하지 않음. 8개 서버 조건은 런타임에서 빈 객체도 FAIL 처리.
+- **독립 단위 회귀:** `tests/psiWorkerRiskSubmissionContractL06.test.ts`에 비정상 Q3, Q6/번역만 존재, 임의 worker/site/tenant ID 주입, 과대 문항, 무허가/위조 접수, 다른 현장/근로자 ID·승인 상태 변조를 차단하는 합성 테스트 추가. 기존 L06 브라우저 CI는 변경 없음.
+- **실무·안전 인계:** `docs/PSI_L06_WORKER_SUBMISSION_CONTRACT_20261122.md`. 인증/개인정보 법적 처리근거·보유기한·데이터 정합·현장별 실제 RLS와 서버 영수증·관리자 수정/승인·다국어/Android는 **아직 미구현·미검증**. 실제 worker/session/DB/API/OSS 비용·Production 변경 없음. 기존 13개 human gate 변경 금지.
+- **판정:** 소스 계약 구현, 실서비스 접수 NOT IMPLEMENTED, L18 출시 BLOCKED, Draft PR #237. 최신 HEAD의 릴리스/전사 Chromium/Inspector CI 완료/실패 로그 실조회 필수.
+
+**다음 한 작업:** 최신 HEAD CI 3종 확인·실패 보수 → 승인된 테스트 계정으로 근로자 인증/현장 2개 RLS 권한 경계·처리근거/보존정책 실제 검증 → 별도 승인 후에만 서버 접수·수신증·관리자 보완/승인 연계 구현. main·운영 배포 보류.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
