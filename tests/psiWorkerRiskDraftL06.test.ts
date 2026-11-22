@@ -155,6 +155,25 @@ describe('L06 Q1-Q5 worker self-writing pilot without submission', () => {
         expect(chromium).toContain('L30 confirmed reset must retain a meaningful keyboard focus');
     });
 
+    it('describes required-field validation and refocuses Q1/Q3 without inventing a submission', () => {
+        const ui = source('pages/WorkerRiskDraft.tsx');
+        const chromium = source('scripts/verify-psi-l06-worker-draft.mjs');
+        expect(ui).toContain('const [invalidQuestion, setInvalidQuestion] = useState<PsiQuestionKey | null>(null)');
+        expect(ui).toContain('const showCurrentValidation = invalidQuestion === currentQuestion.key');
+        expect(ui).toContain('setInvalidQuestion(currentQuestion.key)');
+        expect(ui).toContain('setInvalidQuestion(status.missing[0])');
+        expect(ui).toContain('aria-invalid={showCurrentValidation || undefined}');
+        expect(ui).toContain("aria-describedby={showCurrentValidation ? 'psi-l06-error-Q3' : undefined}");
+        expect(ui).toContain("aria-describedby={showCurrentValidation ? 'psi-l06-error-' + question.key : undefined}");
+        expect(ui).toContain('data-testid="l06-question-error"');
+        expect(ui).toContain('Q3 위험수준은 상·중·하 중 하나를 선택해 주세요.');
+        expect(ui).toContain('문항을 두 글자 이상 구체적으로 작성해 주세요.');
+        expect(chromium).toContain('L31 missing Q1 should focus its required textarea');
+        expect(chromium).toContain('L31 one-character Q1 must stay invalid');
+        expect(chromium).toContain('L31 missing Q3 should focus its self-rated risk select');
+        expect(chromium).toContain('L31 choosing a self-reported grade clears the warning');
+    });
+
     it('remains explicitly identity-free, in-memory and unconnected to submission APIs', () => {
         const ui = source('pages/WorkerRiskDraft.tsx');
         const helper = source('utils/workerRiskDraftL06.ts');
