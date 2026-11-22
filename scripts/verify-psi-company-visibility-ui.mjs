@@ -95,6 +95,8 @@ try{
      document.querySelector('[data-psi-shell-background]')?.inert===false
  ),{width:390});
 
+ await page.emulateMedia({colorScheme:'dark',reducedMotion:'reduce'});
+ await page.screenshot({path:resolve(outputDir,'dark.png')});
  // L22: Choosing a route must focus the content, not return to '더보기'.
  // Test both the already-current page and a new route; the former does not
  // trigger Layout's currentPage effect and used to leave focus on the opener.
@@ -117,8 +119,6 @@ try{
          document.body.style.overflow!=='hidden' &&
          document.querySelector('[data-psi-shell-background]')?.inert===false),{type:'route-change'});
 
- await page.emulateMedia({colorScheme:'dark',reducedMotion:'reduce'});
- await page.screenshot({path:resolve(outputDir,'dark.png')});
  check('스크립트 오류 없음',pageErrors.length===0,pageErrors);
  const result={pass:checks.every(c=>c.passed),passedCount:checks.filter(c=>c.passed).length,totalCount:checks.length,checks,fixtureOnly:true,source:'settings read-only reviewed snapshot'};
  await writeFile(resolve(outputDir,'result.json'),JSON.stringify(result,null,2)+'\n');
