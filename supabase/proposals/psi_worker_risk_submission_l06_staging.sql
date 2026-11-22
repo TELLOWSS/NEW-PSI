@@ -110,10 +110,13 @@ begin
     raise exception 'L06 invalid submission' using errcode='23514';
  end if;
  foreach v_key in array array['Q1','Q2','Q3','Q4','Q5'] loop
-   if not (p_answers ? v_key) or pg_catalog.jsonb_typeof(p_answers->v_key)<>'string'
-      or length(p_answers->>v_key)>500 or length(btrim(p_answers->>v_key))<
-          case when v_key='Q3' then 1 else 2 end
-   then raise exception 'L06 incomplete five-question entry' using errcode='23514'; end if;
+   if pg_catalog.jsonb_typeof(p_answers->v_key) is distinct from 'string'
+      or length(p_answers->>v_key)>500
+      or (v_key='Q3' and length(pg_catalog.btrim(p_answers->>v_key))<1)
+      or (v_key<>'Q3' and length(pg_catalog.btrim(p_answers->>v_key))<2)
+   then
+     raise exception 'L06 incomplete five-question entry' using errcode='23514';
+   end if;
  end loop;
  if p_answers->>'Q3' <> p_grade then
    raise exception 'L06 self-assessed grade mismatch' using errcode='23514';
