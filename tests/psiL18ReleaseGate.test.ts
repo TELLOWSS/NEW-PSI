@@ -30,6 +30,9 @@ describe('L18 independent non-release readiness gate',()=>{
   expect(source).toContain('mainMerged:null');
   expect(source).toContain('productionReleased:null');
   expect(source).toContain('company.realWorkerRecords===false');
+  expect(source).toContain('company.completedScenarios===company.plannedScenarios');
+  expect(source).toContain('company.results.length===company.plannedScenarios');
+  expect(source).not.toContain('company.plannedScenarios===7');
   expect(source).toContain('offline.result');
   expect(source).toContain('e.networkCalls===0');
   expect(source).toContain('security.sourceOnly===true');

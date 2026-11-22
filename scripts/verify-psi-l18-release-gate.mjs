@@ -72,7 +72,7 @@ if(browser){
  const access=await json('artifacts/audit/psi-l15-accessibility/result.json');
  const offline=await json('artifacts/audit/psi-l16-resilience/result.json');
  const security=await json('artifacts/audit/psi-l17-security/result.json');
- check('company-synthetic-7-journeys',company.status==='PASS'&&company.syntheticOnly===true&&company.realWorkerRecords===false&&company.plannedScenarios===7&&company.completedScenarios===7&&company.results.every(x=>x.status==='PASS'),'7 synthetic cross-product journeys, no real worker records');
+ check('company-synthetic-all-journeys',company.status==='PASS'&&company.syntheticOnly===true&&company.realWorkerRecords===false&&Number.isInteger(company.plannedScenarios)&&company.plannedScenarios>=7&&company.completedScenarios===company.plannedScenarios&&Array.isArray(company.results)&&company.results.length===company.plannedScenarios&&company.results.every(x=>x.status==='PASS'),'All planned synthetic journeys must complete and PASS; no real worker records');
  check('education-ocr-report-workspaces',workspace.result==='PASS'&&Array.isArray(workspace.checks)&&workspace.checks.length>=4,'Independent education, OCR, A4 and reports browser evidence');
  check('l15-accessibility-8-viewports',access.result==='PASS'&&Array.isArray(access.checks)&&access.checks.length===8,'8 synthetic layouts, not real 200% zoom or Android');
  const stages=offline.evidence||[];
