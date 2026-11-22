@@ -70,6 +70,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Build production client for full-product browser checks
         run: npm run build
+      - name: L38 verify Living UI real CSS animation and reduced-motion on current main baseline
+        run: node scripts/verify-psi-living-motion-browser.mjs
       - name: Independently render legacy three-page synthetic PDF in Chromium
         run: node scripts/verify-psi-legacy-pdf-split.mjs
       - name: L06 Q1-Q5 worker trial entry, review and no-server-receipt (synthetic Chromium)
@@ -108,6 +110,7 @@ jobs:
             artifacts/audit/psi-company/department-audit.json
             artifacts/audit/psi-company/department-audit.md
             artifacts/audit/browser/
+            artifacts/audit/psi-living-visual/
             artifacts/audit/psi-pdf/
             artifacts/audit/psi-platform-field-canvas/
             artifacts/audit/psi-platform-workspaces/

@@ -827,6 +827,16 @@
 
 **다음 작업:** #238 동일 최종 SHA 자동 테스트·브라우저/애니메이션 검증 결과 확인 및 실패 수정 → UI-only 승인범위에 한해 main/Production 동기화·정확한 SHA 확인 → #237 L37 동일 HEAD 검증과 남은 P2~P5 현장 인수 진행. 운영 DB·근로자 기록·다른 제품은 변경 금지.
 
+
+### L38 — 시각효과 한정 main/Production 배포 이후 개발 브랜치 상속 (2026-11-22)
+
+- 제품 소유자 요청으로 별도 PR #238의 시각효과 단독 변경을 **동일 SHA의 릴리스 CI 및 회사형 Chromium SUCCESS** 뒤 `main`에 Squash Merge: `2d40971658d208c8b941892adbc5e2cd8778ec6d`. 전용 Chromium은 일반 모션/동작 줄이기, 페이지 진입, 데스크톱 사이드바 CSS 실제 계산값 PASS. 이는 현장 Android·실근로자/원어민 실증이 아님.
+- Vercel Production deployment `dpl_2Kk3BYn4NM3u66MqE23Qeoyn1wRh` READY, `new-psi-eta.vercel.app`과 `new-psi-git-main-tellowss-projects.vercel.app` 두 별칭이 동일 배포 ID를 가리키는 것을 실제 확인. 전체 L00~L18은 여전히 미출시.
+- #237의 개발상태를 최신 main과 분리하지 않도록, main에만 새로 들어간 전용 애니메이션 브라우저 검증기·CI 단계·시각효과 릴리스 경계문서를 개발 HEAD에 상속하고 **두 부모 병합 커밋**으로 기록. 기존 L06 무저장 연습·OCR/AI·DB 제안/사진/보안·검수 차단, L18 13개 인간 gate, A01~A25 25개 실인증 NOT RUN을 유지한다.
+- 실 데이터/DB/Auth·Vercel 운영에 새 쓰기 없음. #237 Draft, `RELEASE=BLOCKED` 유지. 이 상속 HEAD에 대한 릴리스/Chromium/Inspector CI 최종 재검증 전 전체 PASS 금지.
+
+**다음:** #237 최신 병합 HEAD의 3종 CI 판정 및 UI 출입/컴포넌트 변경 충돌 감시 → 승인된 독립 P2 Auth 실증/실기기 P3/모국어·A4·조치 P4/보안·라이선스 P5 인수를 차례로 진행. 운영 DB·정식 제출 연결은 별도 인간 승인 전 금지.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
