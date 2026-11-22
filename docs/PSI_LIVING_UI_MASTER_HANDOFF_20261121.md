@@ -425,6 +425,18 @@
 
 **다음 한 작업:** 최신 HEAD CI 3종 확인·실패 보수 → 승인된 테스트 계정으로 근로자 인증/현장 2개 RLS 권한 경계·처리근거/보존정책 실제 검증 → 별도 승인 후에만 서버 접수·수신증·관리자 보완/승인 연계 구현. main·운영 배포 보류.
 
+
+### L06 후속 — 두 테넌트·현장·근로자 접근범위 사전검사 3차 (2026-11-22)
+
+- **전 단계 검증 완료:** HEAD `e945610` 릴리스 #44977795570, 전사 Chromium #44977795620, Inspector 모바일 #44977795574 **동일 SHA 3종 SUCCESS** 재확인. 단 출시인수 13개 human gate는 여전히 모두 pending.
+- **핵심 소스 구현:** `lib/server/workerRiskScopeL06.ts`는 신뢰된 서버 principal 기반으로 로그인 만료·테넌트·현장·주기 ID → 유효한 근로자 개인계정 유일 연결 → 활성 근로자 → **근로자별 해당 현장 배정** → 현장 활성 → 평가주기 open/시각을 순차 확인. 이중 계정·다른 테넌트/현장/근로자·만료/폐쇄 주기·DB 오류는 기본 거부. **정상 범위 확인 결과에도 `submissionAuthorized:false`로 서버 수신/승인 권한을 주지 않음.**
+- **합성 보안 회귀:** `tests/psiWorkerRiskScopeL06.test.ts`에 개인정보 없는 가상 A/B 테넌트·근로자·현장/운영주기 교차 권한·양쪽 정상 허용 및 서로 간 거부/비활성·모호한 링크·스키마 누락/오류 사례. 현재는 의존성 주입형 소스·테스트로, 직접 실행하는 운영 서버 URL/DB 연결/신규 사용자 인증/SQL 변경 없음.
+- **실 DB 읽기 전용 메타데이터 확인:** PSI-Database public 49개 테이블 중 `psi_tenant_worker_accounts`, `psi_tenant_workers`, `psi_tenant_memberships` 확인. 신규 제출에 필요한 개인별 현장 배정 및 주기·접수 테이블은 현재 확인되지 않음. `psi_read_worker_education` 등 보안정의 함수 실행권한 메타데이터 확인했으나 함수 내부·RLS 실증 미완료.
+- **상세:** `docs/PSI_L06_WORKER_SUBMISSION_CONTRACT_20261122.md` §6. 사업장별 RLS/근로자 실계정·처리근거·원문 증거/접수증 및 관리자 승인·Android/모국어 QA는 여전히 미구현/미검증. L18 출시=BLOCKED, PR #237 Draft, main/Production 보류.
+- **CI:** 신규 최신 HEAD에서 릴리스/전사 Chromium/Inspector 3종 **실조회 전이면 PASS 미확정**. 완료 로그·커밋 SHA를 반드시 맞춰 재확인.
+
+**다음 한 작업:** 최신 SHA 3종 CI·오류 해결 → 승인된 별도 테스트 테넌트 2개에서 실제 개인계정-현장/평가주기 RLS 실증 및 원자적 접수/감사/승인 데이터 모델을 개발·검수. 실제 운영 DB 쓰기/GRANT·RLS 변경, main 병합, Vercel Production 배포는 사용자 최종 승인 전 보류.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
