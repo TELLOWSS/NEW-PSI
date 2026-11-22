@@ -27,7 +27,7 @@ const loadPdf = async (file: File) => {
     pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
     return pdfjs.getDocument({
         data: new Uint8Array(await file.arrayBuffer()),
-        stopAtErrors: true, isEvalSupported: false, enableXfa: false,
+        stopAtErrors: true, enableXfa: false,
         maxImageSize: 16_000_000,
     });
 };
