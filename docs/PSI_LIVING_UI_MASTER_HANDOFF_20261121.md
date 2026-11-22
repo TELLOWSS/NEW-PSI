@@ -689,6 +689,16 @@
 
 **다음 한 작업:** 25차 최종 SHA 릴리스/회사형 Chromium의 다페이지 PDF/Inspector QA 결과 확정 및 실패 수정 → 승인된 독립 Supabase A01~A25·실제 Android/삼성 인터넷·11개 언어 A4 인쇄, 개인정보·L18 13개 사람 승인 전 운영 병합·배포 금지.
 
+### L06·L26 후속 — 검토 전 Ctrl+P 미완료 답변 노출 차단 (26차, 2026-11-22)
+
+- **25차 동일 HEAD 검증 확정:** `2ca12613f9dacbf96e23cb0007dbcc236d436166`에서 release #45000611800 **SUCCESS** (279 파일·2,187/2,187 unit, L17 19/19), company Chromium #45000611797 **SUCCESS** (Q1~Q5 500자 장문 PDF 자동검사 포함), Inspector mobile #45000611787 **SUCCESS**. 동일 SHA 자동 3종 PASS이지만 Android·실 프린터·실 DB 인증/현장 인수 PASS가 아니다.
+- **새로 확인한 출력 문제:** 기존 L06 연습 화면은 작성 **검토 단계 이전**에도 브라우저 Ctrl+P 호출이 가능하며, L24 스타일은 `#root` 출력만 복구하고 **작성 폼 자체는 숨기지 않았다**. 완료되지 않은 위험성평가 입력 화면 일부가 인쇄되면서 Q5 실천행동 등이 누락될 수 있었고, 검토 화면에만 있는 '인쇄한 종이도 정식 제출이 아닙니다' 안내가 없는 종이로 출력될 위험이 있었다.
+- **26차 소스 수정:** `pages/WorkerRiskDraft.tsx`에서 검토 전 화면에만 `psi-l06-incomplete-print-warning` 안내문을 삽입하고 작성 폼에 `psi-l06-edit-form` 스코프 부여. `styles.css` 기존 L06 프린트 전용 범위에서 작성 폼을 비표시, 안내문을 명확히 출력한다. 검토 완료 화면에만 Q1~Q5 원문 및 면책 안내 출력. **사용자 작성 중 답변 자체를 삭제하거나 네트워크에 업로드하지 않으며**, 앱의 공식 위험등급·접수·교육 이수·작업허가 기능으로 연결하지 않는다.
+- **합성 Chromium 수용시험:** `scripts/verify-psi-l06-worker-draft.mjs`에서 Q1 한 문항에 가상의 입력값을 넣고 **검토 전에** print 미디어에서 폼 숨김·경고 표출을 검사한다. 생성된 A4 `a4-unfinished-trial-no-answers.pdf`는 **1쪽**, 경고 '작성 중인 연습 기록은 인쇄할 수 없습니다'·'정식 제출이 아닙니다' 포함, 가상 Q1 답변 문자 불포함이어야 한다. 이어서 기존 5문항 1쪽 및 500자 다페이지 PDF, API/외부 호출 0 확인. `tests/psiWorkerRiskDraftL06.test.ts`에 소스 계약 1건 추가. CI 결과를 **최종 HEAD 별도 확인하기 전 PASS 처리 금지.**
+- **운영 차단:** 실 근로자/사진·개인정보·서명/OCR·서버 접수·실 Supabase Auth/RLS/GRANT·migrations 변경 0. PR #237 Draft, main/Production 보류. L06 승인 독립 Supabase Auth A01~A25 `NOT RUN`, L18 사람 승인 13개 `pending` 및 RELEASE=BLOCKED.
+
+**다음 한 작업:** 26차 최종 HEAD release·company Chromium(미완료 Ctrl+P A4 PDF 증빙)·Inspector 모바일 3종 실행 종료/실패 원인 확인 → 필요시 개발 브랜치 수리 후 동일 SHA 재검증 → 사용자 승인된 격리 Supabase A01~A25 및 실제 Android/삼성 인터넷/11개 언어 A4/개인정보·L18 인수 완료 전 운영 배포/병합 금지.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -712,7 +722,7 @@
 
 ## 9. 다음 착수 과제
 
-**L06·L25 500자 장문 Q1~Q5 A4 인쇄의 다페이지/말미 표식·비공식 경고 무손실, 25차 동일 HEAD CI 3종 최종 판정 → 승인된 별도 Supabase A01~A25와 Android/11개 언어 실제 A4 인수 → L18 13개 사람·정보보호·소유자 승인 전 main/Production/실 DB 연결 보류.**
+**L06·L26 검토 전 Ctrl+P 미완료 기록 출력 차단과 검토 후 정상·500자 장문 A4 회귀, 26차 동일 HEAD CI 3종 판정 → 승인된 격리 Supabase A01~A25와 Android/삼성 인터넷·11개 언어 실제 A4 인수 → L18 13개 사람·정보보호·소유자 승인 전 main/Production/실 DB 연결 보류.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
