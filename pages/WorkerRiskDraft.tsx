@@ -27,7 +27,7 @@ export default function WorkerRiskDraft() {
     const currentQuestion = PSI_FORM_QUESTIONS[step];
     // L28: the form is intentionally in-memory only. Warn before a real
     // browser navigation discards entered answers; never autosave the text.
-    const hasInMemoryAnswers = Object.values(draft.answers).some(answer => answer.trim().length > 0)
+    const hasInMemoryAnswers = PSI_FORM_QUESTIONS.some(question => draft.answers[question.key].trim().length > 0)
         || draft.gradeReason.trim().length > 0
         || Boolean(draft.grade);
 
