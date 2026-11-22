@@ -111,7 +111,7 @@ begin
  -- Trust the database clock, never a client-provided time.
  v_exp := (v_claims->>'exp')::numeric;
  v_iat := (v_claims->>'iat')::numeric;
- v_now_epoch := pg_catalog.extract(epoch from pg_catalog.clock_timestamp());
+ v_now_epoch := pg_catalog.date_part('epoch',pg_catalog.clock_timestamp());
  if v_exp <= v_now_epoch or v_iat > v_now_epoch or v_iat >= v_exp then
    raise exception 'L06 JWT lifetime invalid' using errcode='42501';
  end if;
