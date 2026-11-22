@@ -129,6 +129,23 @@ try{
   // large, accessible label and reordering targets at both desktop widths.
   if(c.width>=1024){
    const sidebar=page.locator('[data-psi-desktop-sidebar]');
+   // L34: verify the actual desktop dock toggles without hiding routes,
+   // preserves the active navigation, and meets the same 44px target policy.
+   const panel=sidebar.locator('.psi-sidebar');
+   const dockToggle=sidebar.getByRole('button',{name:'메뉴 접기'});
+   const toggleSize=await dockToggle.boundingBox();
+   assert.ok(toggleSize && toggleSize.height>=44 && toggleSize.width>=44,
+    'L34 desktop menu collapse button must have a 44px touch target');
+   await dockToggle.click();
+   await sidebar.getByRole('button',{name:'메뉴 펼치기'}).waitFor();
+   await page.waitForFunction(()=>
+    Math.abs(document.querySelector('[data-psi-desktop-sidebar] .psi-sidebar')?.getBoundingClientRect().width-76)<2);
+   await sidebar.getByRole('button',{name:'시스템 설정',exact:true}).waitFor();
+   await sidebar.getByRole('button',{name:'메뉴 펼치기'}).click();
+   await page.waitForFunction(()=>
+    Math.abs(document.querySelector('[data-psi-desktop-sidebar] .psi-sidebar')?.getBoundingClientRect().width-248)<2);
+   assert.equal(await panel.getAttribute('class')?.then(x=>x.includes('psi-sidebar--collapsed')),false,
+    'L34 desktop dock should be expanded before menu editing');
    await sidebar.getByRole('button',{name:'시스템 설정',exact:true}).click();
    await page.getByRole('button',{name:'메뉴 구성 편집 열기'}).click();
    // Locate the actual heading first, then its parent section. A has()
@@ -153,6 +170,39 @@ try{
     assert.ok(target.width>=minimum && target.height>=minimum,
      'L33 menu editor target below '+minimum+'px: '+JSON.stringify({c,target}));
    }
+   // L34: hide an editable, originally visible menu item and verify
+   // that both the actual sidebar and local-only quick finder agree.
+   // Restore it before the remaining visual audit.
+   const editable=boxes.first();
+   const editableName=(await editable.evaluate(el=>el.closest('label')?.textContent?.trim()))||'';
+   assert.ok(editableName,'L34 edited menu entry needs a readable accessible label');
+   const originallyVisible=await editable.isChecked();
+   assert.equal(originallyVisible,true,'L34 first editor item should be visible initially');
+   await editable.uncheck();
+   await page.waitForFunction(name=>
+    !Array.from(document.querySelectorAll('[data-psi-desktop-sidebar] nav button'))
+     .some(button=>button.textContent?.trim()===name),editableName);
+   const storedHidden=await page.evaluate(name=>{
+    const saved=JSON.parse(localStorage.getItem('psi_ui_composition_v1')||'{}');
+    return Array.isArray(saved.hiddenSidebarPages) && saved.hiddenSidebarPages.includes('dashboard');
+   },editableName);
+   assert.equal(storedHidden,true,'L34 hidden menu selection must persist in existing composition settings');
+   await modalTrigger.click();
+   await modal.waitFor();
+   const hiddenOptions=await modal.getByRole('option').allTextContents();
+   assert.ok(!hiddenOptions.some(label=>label.includes(editableName)),
+    'L34 quick finder must not reveal a user-hidden sidebar menu item');
+   await page.keyboard.press('Escape');
+   await modal.waitFor({state:'hidden'});
+   await editable.check();
+   await sidebar.getByRole('button',{name:editableName,exact:true}).waitFor();
+   await modalTrigger.click();
+   await modal.waitFor();
+   const restoredOptions=await modal.getByRole('option').allTextContents();
+   assert.ok(restoredOptions.some(label=>label.includes(editableName)),
+    'L34 restored menu must reappear in quick finder without a reload');
+   await page.keyboard.press('Escape');
+   await modal.waitFor({state:'hidden'});
    await editor.getByRole('button',{name:/아래로 이동/}).first().click();
    assert.ok(await editor.getByRole('checkbox').count()>0,
     'L33 menu reordering should retain the existing edit controls');
@@ -184,7 +234,7 @@ try{
   await context.close();
  }
  await writeFile(`${out}/result.json`,JSON.stringify({result:'PASS',notes:['Device scale factor 2/640 CSS px is a reflow proxy, not actual 200% browser zoom','Synthetic Chromium does not prove Android/iOS, mother-tongue accuracy, or screen-reader behavior'],checks:results},null,2));
- console.log('PASS PSI L15/L33 accessibility/reflow and desktop composition 44px targets: '+results.length+' synthetic browser cases');
+ console.log('PASS PSI L15/L33/L34 desktop dock, editable menu/quickfind sync and 44px accessibility: '+results.length+' synthetic browser cases');
 }catch(error){
  await writeFile(`${out}/result.json`,JSON.stringify({result:'FAIL',message:error?.message||String(error),checks:results},null,2));
  throw error;
