@@ -667,6 +667,17 @@
 
 **다음 한 작업:** 23차 최종 동일 HEAD release/company Chromium/Inspector 모바일 3종 실제 결과와 스크린샷/실패 항목 확정 → 필요시 개발 브랜치 수정·동일 SHA 재검증 → 승인된 격리 Supabase A01~A25, Android Chrome/삼성 인터넷/TalkBack, 11개 모국어/A4·개인정보 보유·삭제/L18 13개 사람 인수 후에만 운영 반영 검토.
 
+### L06·L24 후속 — 자기기입 Q1~Q5 연습 기록 A4 인쇄 공백 방지 (24차, 2026-11-22)
+
+- **23차 CI 재조회:** HEAD `68eb1415bf040e08e1abfc20366108c82ce5e01c`의 release #44999382595 **SUCCESS**(279개 파일/2,186개 테스트, L17 19/19, L18 RELEASE=BLOCKED), 전사 Chromium #44999382605 **SUCCESS**. Inspector 모바일 #44999382570은 후속 24차 코드 push로 **CANCELLED**. 이 SHA의 3종 전체 PASS는 성립하지 않음.
+- **실제 확인한 출력 결함:** `pages/WorkerRiskDraft.tsx`의 한국어 무인증·무저장 5문항 연습 화면은 '화면 인쇄' 버튼(`window.print()`)을 제공했으나, 공통 `styles.css`의 기존 `@layer base/@media print`가 `#root { display:none!important; }`를 적용한다. L06에는 보고서용 별도 `report-print-container`가 없어 브라우저 인쇄물이 **빈 페이지가 될 수 있는 구조**였다.
+- **24차 소스 구현:** 새 `pages/worker-risk-draft-print.css`를 L06 화면에서만 import. 같은 `@layer base`에서 `#root:has(.psi-l06-worker-draft)`만 print display 복구, A4 너비·10/12mm 여백, 질문 5개 답변·인쇄 경고만 출력하고 모바일 네비게이션·진행표·버튼·상단 안내는 숨김. 기존 관리자 보고서 `#root` 비표시/별도 인쇄 컨테이너 로직은 변경하지 않음. `WorkerRiskDraft.tsx`에는 기존 요소의 scope class만 추가; 입력·Q3 판정·답변·서버/스토리지 0 정책은 불변.
+- **실제 브라우저 검증 추가:** 기존 `scripts/verify-psi-l06-worker-draft.mjs`의 합성 근로자 5문항 검토 단계에서 print CSS visibility와 Chromium `page.pdf` A4 출력을 검사한다. `pdfjs-dist`로 PDF가 빈 문서가 아니며 Q1~Q5 텍스트를 포함한 **통상 길이 답변 1페이지**인지 확인. 출력물에 가짜 서버접수증/서명이 없고, 화면 문구 '인쇄한 종이도 정식 제출이 아닙니다'가 유지되어야 한다. 해당 PDF·JSON은 개인정보 없는 CI artifact이며 현장 서류가 아님.
+- **단위 계약:** `tests/psiWorkerRiskDraftL06.test.ts`에 기존 공통 보고서와의 CSS 분리, print 버튼/면책, 실제 PDF 생성 회귀를 소스 기준으로 추가. **최종 HEAD** 릴리스·전사 Chromium·Inspector CI 실행이 끝나기 전에는 PASS 확정 금지. Chromium PDF 1쪽 검사는 한국어 실제 프린터/Android 브라우저/A4 인쇄 드라이버 및 답변 최대길이 전체 조합의 1쪽 보증과 다르다.
+- **변경 경계:** 실제 Q1~Q5 접수 API/서명/이수·작업허가, 실근로자 개인정보·RLS/GRANT/Auth·Supabase/migrations, Vercel Production/`main`, 외부 OCR/AI·과금·공유 기능 변경 없음. L06 A01~A25 실 Supabase 승인시험 **NOT RUN**, L18 13건 현장·실기기/원어민/보안 승인 **pending**, RELEASE=BLOCKED 및 PR #237 Draft 유지.
+
+**다음 한 작업:** 최종 24차 동일 SHA 릴리스·전사 Chromium(실제 L06 PDF 검증 포함)·Inspector 모바일 3종 종료 확인 및 실패 시 실제 로그 기준 수정 → L06 실제 인쇄물 검수 및 승인된 독립 Supabase Auth/RLS A01~A25 시험, Android Chrome/삼성 인터넷·11개 모국어/A4/개인정보·L18 사람 인수 후 운영 반영 검토.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -690,7 +701,7 @@
 
 ## 9. 다음 착수 과제
 
-**L15·L23 QuickFind 앱 배경 inert/검색 선택 포커스(390px 포함) 회귀 검증과 동일 HEAD CI 3종 판정 → Android TalkBack/삼성 인터넷 실기기 및 승인된 별도 Supabase A01~A25 실제 인수 → L18 13개 사람·정보보호·원어민 승인 전 main/Production/실 DB 연결 보류.**
+**L06·L24 A4 연습 기록 출력 5문항 PDF·공통 보고서 인쇄 비회귀, 24차 동일 HEAD CI 3종 최종 판정 → 승인된 별도 Supabase A01~A25와 Android/11개 언어 실기기·A4 인수 → L18 13개 사람·정보보호·제품 소유자 승인 전 main/Production/실 DB 연결 보류.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
