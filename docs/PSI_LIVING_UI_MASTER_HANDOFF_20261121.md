@@ -743,6 +743,16 @@
 
 **다음 한 작업:** 30차 최신 동일 SHA release·company Chromium(실제 키보드 이동/출력)/Inspector 3종 검증·실패 시 수리 → Android Chrome/삼성 인터넷·TalkBack 현장 실사용 검수와 승인된 별도 Supabase Auth/RLS A01~A25 실증 → L18 13개 사람/개인정보 보관·삭제/11개 모국어/A4 소유자 승인 전 운영 연결·main/Production 보류.
 
+### L06·L31 후속 — 5문항 필수 입력 누락 시 오류 초점·수정 안내 (31차, 2026-11-22)
+
+- **30차 동일 HEAD 최종 CI 3종 확정:** `e81ef732867389b282d1ff57b327c9547294523f` release #45008741376 **SUCCESS** (279개 테스트 파일, **2,192/2,192** unit, L17 source-only 19/19, L18 RELEASE=BLOCKED); company Chromium #45008741392 **SUCCESS** (L06 Q5 검토 제목 초점, 수정 시 Q1 복귀, 삭제 확인 취소/Esc/확정 초점 회귀 포함); Inspector 모바일 #45008741394 **SUCCESS**. 같은 SHA의 자동 합성 QA이며 실 Android·TalkBack·Supabase 인수가 아니다.
+- **소스에서 발견한 공백:** L06 연습 기록은 공란/한 글자 입력(Q1/Q2/Q4/Q5) 및 Q3 자가등급 미선택을 차단하지만, 기존 `nextStep()`는 화면 하단 `role=status` 안내만 갱신했다. 필수 입력란으로 초점을 돌리거나 `aria-invalid`·오류 문구와 필드의 접근성 관계를 제공하지 않아, 작은 모바일 화면·키보드·스크린리더 사용자에게 정확한 수정 위치가 전달되지 않을 수 있다. 공식 제출 과정이 아닌 **한국어 무저장 연습 화면**에 한정한 소스 진단이며 실제 TalkBack 장애가 재현되었다는 뜻은 아님.
+- **31차 실제 코드:** `pages/WorkerRiskDraft.tsx`에 `invalidQuestion` 상태를 추가, `nextStep` 검증 실패 시 현재 실제 입력란(Q1/Q2/Q4/Q5 textarea 또는 Q3 select)에 직접 `.focus()`, 필드 `aria-invalid`와 `aria-describedby`를 오류 `role=alert` 텍스트에 연결. Q1/Q2/Q4/Q5는 **두 글자 이상 구체적 작성**, Q3은 **상/중/하 중 직접 선택**을 안내. 유효한 답/등급을 입력하면 오류 표시·잘못됨 상태 즉시 해제. 문항 이동/전체 초기화에서 이전 오류 상태를 버리고, 검토 시 누락 발견 시 첫 누락 문항으로 이동해 해당 오류를 표시한다. Q3의 '위험도가 공식 등급/작업허가가 아님' 문구 및 Q1~Q5 원문·행동/감소대책 판단을 변경하지 않음.
+- **31차 검증 계약:** `scripts/verify-psi-l06-worker-draft.mjs` 실제 합성 Chromium 390px에서 Q1 공란 → `aria-invalid=true`, 오류 ID 연결, 입력 초점, 한 글자 미완성 유지, 두 글자 이상 수정 후 해제를 확인. Q3 미선택 → 선택란 초점·연결 오류, 상 자가등급 선택 → 오류 해제. 이후 기존 Q1~Q5 전 과정, Q5 검토 제목·확정 초기화 취소/Esc 초점, A4 일반/500자 다페이지 원문·공식 접수 아님, 실제 Chromium 이탈 취소 후 원문 유지, 외부/API/스토리지 요청 0 회귀 유지. `tests/psiWorkerRiskDraftL06.test.ts`에 정적 접근성 경계 1건 추가.
+- **품질/보안 경계:** 31차 최종 HEAD 릴리스·전사 Chromium·Inspector 자동검증 **동일 SHA 3종 완료 전 PASS 주장 금지**. 합성 Chromium focus·aria 수용은 실제 Android Chrome/삼성 인터넷·TalkBack·11개 언어/원어민 인수가 아니며 개인정보/전파교육/작업허가·정식 접수 증빙 아님. L06 승인 독립 Supabase Auth A01~A25 **모두 not-run**, `environment.approved=false`, L18 사람 게이트 **13개 pending**, RELEASE=BLOCKED. PR #237 Draft, `main`/Production/실 DB·Auth/RLS·근로자 기록·외부 AI·유료 호출 무변경.
+
+**다음 한 작업:** 31차 새 HEAD CI 3종 릴리스/Chromium Q1 한 글자·Q3 미선택·오류 초점 및 Inspector 검증 종료/필요 시 로그 기반 수리 → 승인된 독립 Supabase A01~A25 및 Android/삼성 인터넷/TalkBack·11개 언어/현장 A4·정보보호/보존삭제 실증 → L18 사람 13건 및 소유자 승인 전 운영 병합·배포 금지.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -766,7 +776,7 @@
 
 ## 9. 다음 착수 과제
 
-**L06·L30 Q1~Q5 검토·초기화 확인의 키보드/스크린리더 초점 복원, 30차 최종 동일 HEAD CI 3종 검증 → 승인된 격리 Supabase A01~A25와 Android Chrome/삼성 인터넷·TalkBack·11개 언어 A4·개인정보 보존/삭제 인수 → L18 13개 사람·소유자 승인 전 main/Production/실 DB 연결 보류.**
+**L06·L31 Q1~Q5 필수 입력 누락 시 Q1~Q5 입력칸 직접 초점/aria-invalid·오류 메시지 연결, 31차 동일 최종 HEAD CI 3종 검증 → 승인된 독립 Supabase A01~A25와 Android Chrome/삼성 인터넷·TalkBack·11개 언어 A4·개인정보 보존/삭제 인수 → L18 13개 사람·소유자 승인 전 main/Production/실 DB 연결 보류.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
