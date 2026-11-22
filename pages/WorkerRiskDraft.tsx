@@ -19,6 +19,8 @@ export default function WorkerRiskDraft() {
     const [step, setStep] = useState(0);
     const [furthestStep, setFurthestStep] = useState(0);
     const [notice, setNotice] = useState('');
+    const [resetPending, setResetPending] = useState(false);
+    const resetCancelRef = useRef<HTMLButtonElement>(null);
     const navigated = useRef(false);
     const status = checkWorkerRiskDraft(draft);
     const rows = printableWorkerRiskDraft(draft);
@@ -32,7 +34,12 @@ export default function WorkerRiskDraft() {
         }
     }, [step, review, currentQuestion.key]);
 
+    useEffect(() => {
+        if (resetPending) resetCancelRef.current?.focus();
+    }, [resetPending]);
+
     const goToStep = (index: number) => {
+        setResetPending(false);
         navigated.current = true;
         setStep(index);
         setReview(false);
@@ -40,6 +47,7 @@ export default function WorkerRiskDraft() {
     };
 
     const updateAnswer = (key: PsiQuestionKey, value: string) => {
+        setResetPending(false);
         setDraft(previous => ({
             ...previous,
             answers: { ...previous.answers, [key]: value.slice(0, 500) },
@@ -48,6 +56,7 @@ export default function WorkerRiskDraft() {
         setNotice('');
     };
     const openReview = () => {
+        setResetPending(false);
         if (!status.readyForReview) {
             const missingIndex = PSI_FORM_QUESTIONS.findIndex(question => question.key === status.missing[0]);
             goToStep(Math.max(0, missingIndex));
@@ -78,6 +87,7 @@ export default function WorkerRiskDraft() {
         goToStep(next);
     };
     const reset = () => {
+        setResetPending(false);
         setDraft(emptyWorkerRiskDraft());
         setStep(0);
         setFurthestStep(0);
@@ -148,6 +158,7 @@ export default function WorkerRiskDraft() {
                                             const grade = event.target.value as WorkerRiskDraftGrade;
                                             setDraft(previous => ({ ...previous, grade, answers: { ...previous.answers, Q3: grade } }));
                                             setReview(false);
+                                            setResetPending(false);
                                         }} className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-base" required>
                                             <option value="">위험수준 선택</option>
                                             <option value="상">상 · 매우 위험하다고 느낍니다</option>
@@ -156,7 +167,7 @@ export default function WorkerRiskDraft() {
                                         </select>
                                         <label htmlFor="psi-l06-grade-reason" className="mt-4 block text-sm font-bold">그렇게 생각한 이유 (선택)</label>
                                         <textarea id="psi-l06-grade-reason" rows={2} maxLength={500} value={draft.gradeReason}
-                                            onChange={event => setDraft(previous => ({ ...previous, gradeReason: event.target.value.slice(0, 500) }))}
+                                            onChange={event => { setResetPending(false); setDraft(previous => ({ ...previous, gradeReason: event.target.value.slice(0, 500) })); }}
                                             placeholder="어떤 상황에서 특히 위험한지 적어주세요"
                                             className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-3 text-base" />
                                         <p className="mt-2 text-xs text-slate-500">상·중·하는 근로자 본인의 위험인식입니다. 공식 위험등급이나 작업 허가를 결정하지 않습니다.</p>
@@ -182,8 +193,26 @@ export default function WorkerRiskDraft() {
                             <button type="submit" className="min-h-12 flex-1 rounded-xl bg-indigo-700 px-5 font-black text-white hover:bg-indigo-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-700">
                                 {step === 4 ? '작성 내용 확인' : '다음 문항'}
                             </button>
-                            <button type="button" onClick={reset} className="min-h-12 rounded-xl border border-slate-300 bg-white px-5 font-bold">전체 초기화</button>
+                            <button type="button" onClick={() => { setResetPending(true); setNotice(''); }}
+                                aria-expanded={resetPending} aria-controls="psi-l06-reset-confirmation"
+                                className="min-h-12 rounded-xl border border-slate-300 bg-white px-5 font-bold">전체 초기화</button>
                         </div>
+                        {resetPending && (
+                            <div id="psi-l06-reset-confirmation" role="group" aria-label="작성 내용 초기화 확인"
+                                onKeyDown={event => {
+                                    if (event.key === 'Escape') { event.stopPropagation(); setResetPending(false); }
+                                }}
+                                className="rounded-2xl border border-rose-300 bg-rose-50 p-4 text-rose-950">
+                                <p className="font-extrabold">작성한 Q1~Q5 내용을 모두 지우시겠습니까?</p>
+                                <p className="mt-1 text-sm">초기화 후에는 되돌릴 수 없습니다. 취소하면 작성 내용이 그대로 유지됩니다.</p>
+                                <div className="mt-3 flex flex-wrap gap-3">
+                                    <button ref={resetCancelRef} type="button" onClick={() => setResetPending(false)}
+                                        className="min-h-12 flex-1 rounded-xl border border-rose-300 bg-white px-5 font-bold">취소하고 계속 작성</button>
+                                    <button type="button" onClick={reset}
+                                        className="min-h-12 flex-1 rounded-xl bg-rose-800 px-5 font-extrabold text-white">초기화 확정</button>
+                                </div>
+                            </div>
+                        )}
                     </form>
                 ) : (
                     <section className="psi-l06-review-print rounded-2xl border border-slate-300 bg-white p-5" aria-label="Q1~Q5 작성 내용 검토">
