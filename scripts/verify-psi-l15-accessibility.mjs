@@ -74,7 +74,7 @@ try{
   assert.notEqual(await page.evaluate(()=>document.body.style.overflow),'hidden','quick find must restore scroll');
 
   if(c.width<1024){
-   const menuTrigger=page.getByRole('button',{name:'메뉴 열기'});
+   const menuTrigger=page.getByRole('button',{name:'메뉴 열기',exact:true});
    await menuTrigger.click();
    const drawer=page.getByRole('dialog',{name:'전체 메뉴'});
    await drawer.waitFor();
