@@ -70,3 +70,11 @@
 - GitHub `verify:fast`에 정적 검사 연결. 7개 합성 회귀는 위조된 제출성공·운영프로젝트 선택·미실시 증빙·항목 누락을 실패로 처리하는지 증명한다. 이것은 **실제 A01~A25 실행 결과가 아니며** `L18` 사람 13개·Android·11개 언어·정보보호 검수와 독립이다.
 
 **현재:** 독립 시험 프로젝트 사용자 승인 없음. 모든 A01~A25 `NOT RUN`, `L18 RELEASE=BLOCKED`, 운영 DB·실근로자 정보·인증키 접근 없음.
+
+## 5. 18차 — 증빙 URL·검수기록의 자격증명 노출 방지
+
+- 17차 검증 대장은 승인 전 PASS를 거부하지만 HTTPS URL을 정규표현식으로만 검사해 **토큰이 포함된 임시 서명 링크, `?access_token=`, `#fragment`, `https://user:password@host/`** 등이 Git에 저장될 수 있는 잔여 위험이 있었다.
+- 18차 `scripts/check-psi-l06-isolated-auth-acceptance.mjs`는 HTTPS 증빙·승인 링크를 **URL 구조로 검사**하여 쿼리/프래그먼트/사용자정보/별도 포트/내부 IP·localhost/민감정보 형태의 경로를 거부한다. 검토 의견·검수자 필드의 bearer/JWT·키·DB 연결문자열 형태도 거부한다. 오류 메시지에는 **실제 URL·비밀값을 출력하지 않는다**.
+- `tests/psiL06IsolatedAuthAcceptance.test.ts`의 합성 5건: 쿼리 토큰, 사용자정보·fragment·localhost, JWT 형태 경로, bearer 형태 검토메모, 일반 비밀 없는 HTTPS 참조를 통과시켜도 `RELEASE=BLOCKED`인지를 검증한다. 기존 7+5=**12개 source-only 테스트 목표**. 실제 JWT/키/사용자 데이터는 포함하지 않는다.
+- **한계:** URL의 도메인 접근제어/증빙 진위·위조된 검토자, DNS가 내부 주소로 향하는 경우는 오프라인 정적검사로 보장할 수 없다. 증빙은 별도 통제된 저장소에 두고 Git에는 **비밀 없는 안정적인 참조**만 기록한다. 외부 서명 링크·실제 개인 기록의 스냅샷은 PR·CI 로그에 보존하지 않는다.
+- **결정권:** 대장 형식검증은 실제 A01~A25 수행이나 독립 보안검사를 대체하지 않는다. 전체 증빙 입력 때에도 `EVIDENCE_REVIEW_REQUIRED; RELEASE=BLOCKED`; 실 Supabase 인수 25개는 계속 `NOT RUN`, `L18` 인간 13개 승인 대기.
