@@ -261,29 +261,49 @@ try {
 
     await mkdir('artifacts/audit/psi-l06-worker-risk-draft', { recursive: true });
     await page.screenshot({ path: 'artifacts/audit/psi-l06-worker-risk-draft/390-empty.png', fullPage: true });
-    // L29: genuine Chromium beforeunload, unlike dispatchEvent-only L28.
-    // Playwright's runBeforeUnload flow returns when the dialog appears.
+    // L29: actual document navigation, not dispatchEvent-only. Playwright's
+    // page.close({runBeforeUnload:true}) may auto-close in headless Chromium,
+    // so it is NOT an appropriate oracle for cancel-and-preserve behavior.
     const nativePage = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await nativePage.goto(host + '/worker-risk-draft', { waitUntil: 'domcontentloaded' });
     await nativePage.locator('#psi-l06-Q1').click();
     await nativePage.keyboard.type('가상 작업발판 안전 확인');
     await nativePage.locator('[data-testid=l06-unsaved-status]').waitFor();
-    const dialogPending = nativePage.waitForEvent('dialog', { timeout: 10000 });
-    await nativePage.close({ runBeforeUnload: true });
-    const nativeDialog = await dialogPending;
-    assert.equal(nativeDialog.type(), 'beforeunload',
-        'L29 real Chromium close must show an unsaved-data beforeunload dialog');
-    await nativeDialog.dismiss();
-    assert.equal(nativePage.isClosed(), false,
-        'Dismissed native Chromium close must preserve practice data');
-    assert.equal(await nativePage.locator('#psi-l06-Q1').inputValue(), '가상 작업발판 안전 확인');
+    await nativePage.waitForFunction(() => {
+        const event = new Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(event);
+        return event.defaultPrevented && navigator.userActivation.hasBeenActive;
+    });
+    const nativeDialogTypes = [];
+    nativePage.on('dialog', async dialog => {
+        nativeDialogTypes.push(dialog.type());
+        await dialog.dismiss();
+    });
+    try {
+        await nativePage.goto(host + '/worker-risk-draft?leave-attempt=1', {
+            waitUntil: 'domcontentloaded', timeout: 10000,
+        });
+    } catch (error) {
+        // Dismissed beforeunload can abort a Playwright navigation. The
+        // dialog type and retained input below are the authoritative checks.
+        if (!nativeDialogTypes.includes('beforeunload')) throw error;
+    }
+    assert.ok(nativeDialogTypes.includes('beforeunload'),
+        'L29 real Chromium navigation must show an unsaved-data beforeunload dialog');
+    assert.equal(await nativePage.locator('#psi-l06-Q1').inputValue(), '가상 작업발판 안전 확인',
+        'Dismissed real browser navigation must preserve the in-memory Q1 answer');
     await nativePage.getByRole('button', { name: '전체 초기화' }).click();
     await nativePage.getByRole('group', { name: '작성 내용 초기화 확인' })
         .getByRole('button', { name: '초기화 확정' }).click();
     assert.equal(await nativePage.locator('[data-testid=l06-unsaved-status]').count(), 0);
-    const closed = nativePage.waitForEvent('close', { timeout: 10000 });
-    await nativePage.close({ runBeforeUnload: true });
-    await closed;
+    nativeDialogTypes.length = 0;
+    await nativePage.goto(host + '/worker-risk-draft?after-confirmed-reset=1', {
+        waitUntil: 'domcontentloaded', timeout: 10000,
+    });
+    await nativePage.locator('#psi-l06-Q1').waitFor();
+    assert.deepEqual(nativeDialogTypes, [], 'Cleared practice must navigate without a native dialog');
+    assert.equal(await nativePage.locator('#psi-l06-Q1').inputValue(), '');
+    await nativePage.close();
 
     await writeFile('artifacts/audit/psi-l06-worker-risk-draft/result.json', JSON.stringify({
         result: 'SYNTHETIC_PASS',
@@ -295,13 +315,13 @@ try {
         resetSafety: 'first-tap-prompt, cancel-preserves, Escape-preserves, confirmed-only-deletion',
         unloadGuard: 'blank-allows, typed-warns, cancel-preserves, confirmed-reset-releases; mobile-prompt-not-guaranteed',
         visibleUnsavedNotice: true,
-        nativeChromiumUnload: 'beforeunload-dialog-dismiss-preserves-text; confirmed-reset-closes',
+        nativeChromiumUnload: 'document-navigation-beforeunload-dismiss-preserves-Q1; confirmed-reset-navigates',
         a4TrialPrint: { pages: 1, questions: 5, unfinishedWarningOnly: true, longAnswerPages: longPdf.numPages, longAnswersIntact: true, receiptCreated: false, syntheticOnly: true },
         navigation: 'one-question-at-a-time, incomplete-step-blocked, back-and-forth-preserved',
         note: 'In-memory trial only, no worker submission/identity/Android validation',
     }, null, 2) + '\n');
 
-    console.log('[PSI L06] SYNTHETIC_PASS: native Chromium unload dialog + visible unsaved notice + A4 normal/long; zero API/storage calls');
+    console.log('[PSI L06] SYNTHETIC_PASS: real Chromium navigation cancel + visible unsaved notice + A4 normal/long; zero API/storage calls');
 } finally {
     await browser?.close();
     server.kill('SIGTERM');
