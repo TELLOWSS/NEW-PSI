@@ -13,8 +13,8 @@ const server = (mode, port) => {
   const args = mode === 'dev'
     ? [vite,'--host','127.0.0.1','--port',String(port),'--strictPort']
     : [vite,'preview','--host','127.0.0.1','--port',String(port),'--strictPort'];
-  const process = spawn(process.execPath,args,{stdio:'ignore'});
-  servers.push(process);
+  const child = spawn(process.execPath,args,{stdio:'ignore'});
+  servers.push(child);
   return 'http://127.0.0.1:' + port;
 };
 async function ready(host) {
