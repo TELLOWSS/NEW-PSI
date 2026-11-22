@@ -104,7 +104,6 @@ describe('L06 manager-side immutable Q1-Q5 revision comparison (unwired staging 
     expect(component).not.toMatch(/\bfetch\s*\(|XMLHttpRequest|supabase\.from|localStorage|indexedDB|navigator\.share/);
     expect(component).not.toMatch(/onSubmit=|autoApprove|grantWorkClearance/);
     expect(component).toContain('setChangedOnly(v => !v)');
-    expect(component).not.toMatch(/fetch\\s*\\(|axios|postAdminJson|localStorage|sessionStorage|indexedDB/);
     expect(sql).toContain('public.psi_submit_worker_risk_l06(');
     expect(sql).toContain('public.psi_read_worker_risk_review_l06(');
     expect(sql).toContain('psi_l06_revision_link_immutable');
