@@ -13,7 +13,12 @@ describe('L15 narrow viewport and keyboard focus safeguards',()=>{
   expect(layout).toContain("!element.closest('[hidden],[inert],[aria-hidden=\"true\"]')");
   expect(layout).toContain('!dialog?.contains(document.activeElement)');
   expect(layout).toContain('document.body.style.overflow = previousOverflow');
-  expect(layout).toContain('mobileMenuPreviousFocusRef.current?.focus()');
+  // An opener can disappear at lg; do not force focus to display:none.
+  expect(layout).toContain('if (canFocus(opener))');
+  expect(layout).toContain('opener.focus()');
+  expect(layout).toContain('if (canFocus(desktopRoute)) desktopRoute.focus()');
+  expect(layout).toContain('mobileMenuPreviousFocusRef.current = null');
+  expect(layout).toContain('return closeMobileMenuOnDesktop(');
   expect(layout).toContain('window.cancelAnimationFrame(focusFrame)');
   expect(layout).toContain('shortcutsDisabled={isMobileMenuOpen}');
  });
