@@ -33,6 +33,10 @@ describe('L06 manager-side immutable Q1-Q5 revision comparison (unwired staging 
     expect(markup).toContain('지정된 고정점 확인 후 안전고리 체결');
     expect(markup).toContain('문구 변경');
     expect(markup).toContain('원문 동일');
+    expect(markup).toContain('변경 문항만 보기 (1)');
+    expect(markup).toContain('신규 보완본 접수 · 검토 대기');
+    expect(markup).toContain('data-testid="psi-l06-changed-count"');
+    expect(markup).toContain('data-testid="psi-l06-changes-filter"');
     expect(markup).toContain('작업 재개 승인');
     expect((markup.match(/<article/g)||[])).toHaveLength(PSI_FORM_QUESTIONS.length);
     expect(markup).toContain('md:grid-cols-2');
@@ -79,11 +83,28 @@ describe('L06 manager-side immutable Q1-Q5 revision comparison (unwired staging 
     expect(browser).toContain('crossSiteBlocked:true');
   });
 
+  it('uses each child review event as record-only status, never as field work authorization',()=>{
+    const first=valid();
+    const reviewed={...first,replacement:{...first.replacement,
+      events:[{action:'reviewed',note:'위험요인과 안전조치 원문을 확인했습니다.',revision:1}]}};
+    const approved={...first,replacement:{...first.replacement,
+      events:[{action:'reviewed',note:'위험요인과 안전조치 원문을 확인했습니다.',revision:1},
+        {action:'approved',note:'기록 검토만 승인했으며 작업 재개 허가가 아닙니다.',revision:2}]}};
+    const reviseAgain={...first,replacement:{...first.replacement,
+      events:[{action:'request_changes',note:'Q5의 점검시점을 추가 작성 바랍니다.',revision:1}]}};
+    expect(renderToStaticMarkup(<PsiRevisionEvidencePanelL06 chain={reviewed}/>)).toContain('1차 검토 완료 · 최종 검토 대기');
+    expect(renderToStaticMarkup(<PsiRevisionEvidencePanelL06 chain={approved}/>)).toContain('평가자료 검토 승인 · 작업허가 아님');
+    expect(renderToStaticMarkup(<PsiRevisionEvidencePanelL06 chain={reviseAgain}/>)).toContain('추가 보완요청 · 미완료');
+    expect(renderToStaticMarkup(<PsiRevisionEvidencePanelL06 chain={approved}/>)).toContain('기록 검토와 현장 조치는 별개입니다');
+  });
+
   it('never creates a worker submission, a network call or writable manager approval',()=>{
     const component=source('components/assessment/PsiRevisionEvidencePanelL06.tsx');
     const sql=source('supabase/proposals/psi_worker_risk_resubmission_l06_staging.sql');
     expect(component).not.toMatch(/\bfetch\s*\(|XMLHttpRequest|supabase\.from|localStorage|indexedDB|navigator\.share/);
-    expect(component).not.toMatch(/onClick=|onSubmit=|autoApprove|grantWorkClearance/);
+    expect(component).not.toMatch(/onSubmit=|autoApprove|grantWorkClearance/);
+    expect(component).toContain('setChangedOnly(v => !v)');
+    expect(component).not.toMatch(/fetch\\s*\\(|axios|postAdminJson|localStorage|sessionStorage|indexedDB/);
     expect(sql).toContain('public.psi_submit_worker_risk_l06(');
     expect(sql).toContain('public.psi_read_worker_risk_review_l06(');
     expect(sql).toContain('psi_l06_revision_link_immutable');
