@@ -511,6 +511,17 @@
 
 **다음 한 작업:** 9차 최종 SHA 전체 CI·신규 실브라우저 단계를 확인하고 실패 수정 → 승인받은 완전히 격리된 Supabase 테스트 프로젝트의 2개 기업 Auth/RLS·세션 철회·현장 관리자 조회/권한 경합 실증 → 사람 승인 후에만 운영 관리자 UI/서버 API 연결 검토. main 병합·Production/실DB 쓰기 보류.
 
+### L06 후속 — 접수·보완요청·재제출의 출처시각 타임라인 및 검증 10차 (2026-11-22)
+
+- **착수 동일 HEAD 증빙:** 9차 HEAD `349f316` GitHub 릴리스 #44988085522 **SUCCESS**(Vitest 276개 파일/2,128개 테스트 PASS, 관리자 SOURCE-ONLY 권한계약 9/9, L06 PGlite 26/26), 전사 Chromium #44988085507 **SUCCESS**. Inspector 모바일 #44988085533은 마지막 조회 시 **in_progress**. 신규 푸시가 이를 취소할 수 있으므로 3종 PASS로 기록하지 않음.
+- **실제 UI 구현:** `components/assessment/PsiRevisionEvidencePanelL06.tsx`에 `receivedAt`(원본 접수), `original.events[-1].recordedAt`(관리자 보완 요청), 보완본 `receivedAt`, immutable 링크 `linkedAt`, 후속 검토 이벤트 `recordedAt`을 순서대로 보여주는 모바일 1열/PC 2열 타임라인 추가. 서버 원문 시각은 UTC 기반으로 받아 `Asia/Seoul` 표시로 변환하며 ‘KST’를 명시. 임의의 현재시각·실제 현장조치완료시각 생성 금지. `기록 시간표시=작업 재개 승인` 착오를 막는 문구 유지.
+- **데이터 정합·안전:** 입력 체인은 정확한 밀리초 단위 UTC 수신/검토/연결 시각이어야 하며, `원본 접수 < 관리자 보완요청 < 보완본 접수 <= 링크 기록 <= 이후 검토 이력` 및 이벤트 시각 오름차순을 거부형으로 검사. 필수시각 누락/위조, 교차 현장·근로자, 보완요청 전 선행 접수를 확인하면 **일체 원문/타임라인 미출력**. 이것은 화면의 단일 독립검증이며 실 Auth/RLS가 아님.
+- **합성 데이터·회귀:** `pages/PsiRevisionLabL06.tsx`는 사실성 있는 **가상 시각**만 추가, 실근로자 정보/서버 API 없음. `tests/psiRevisionEvidencePanelL06.test.tsx`는 시간순서·누락/위조 차단·검토 단계·서울 시간표시/원문 불변을 확인. `scripts/verify-psi-l06-revision-lab.mjs`은 390px/1280px Chromium에서 4개 원본시간, 변경문항 필터/복귀, 타 현장 거부 시 타임라인·원문 유출 0 및 Production 경로 비제공을 다시 검사.
+- **변경 파일:** 해당 컴포넌트, 개발전용 fixture, 정적 React 테스트, 합성 Chromium 검사, 인계서만. SQL·`supabase/migrations`/운영 DB·실제 API·인증·Production 미변경. L18 13개 human gate 전부 pending.
+- **QA 판정:** 10차 최종 HEAD **릴리스·전사 Chromium·Inspector 모바일 3종 동일 SHA 결과를 실조회한 후에만 PASS**. 자동 테스트는 화면·합성 DB/세션 시험이며 현장 Android 및 실제 기업별 Auth/RLS/보존기한/다국어·실제 사고감소 효과를 증명하지 않음.
+
+**다음 한 작업:** 새 HEAD 전체 CI 결론과 스크린샷/스크립트 실패 확인·보수 → 승인된 별도 Supabase 테스트 프로젝트의 실제 session-id 철회/RLS/2개 기업 권한 검증 → 검증된 진짜 읽기 포트와 관리자 UI를 사전 승인 후에만 연결. 원본·메인·Production 미변경 유지.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -534,7 +545,7 @@
 
 ## 9. 다음 착수 과제
 
-**L06 9차 관리자 권한 조회 SOURCE-ONLY 검증 + 변경문항 모바일 UX의 최종 CI 판정 → 독립 승인 Supabase 환경의 실 Auth/RLS·세션 철회 실증 → 인증된 서버자료만 관리자 실화면에 연결 검토 → Android/모국어·13개 인수 완료 후 사용자 승인 main/Production.**
+**L06 10차 서버 기록시각 기반 불변 보완 타임라인 모바일/PC QA의 최종 3종 CI 판정 → 별도 승인된 테스트 Supabase 실제 Auth/RLS/세션 철회 실증 → 관리자 실조회 통합 → Android/11개 원어민·13개 인수 완료 후 사용자 승인 main/Production.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
