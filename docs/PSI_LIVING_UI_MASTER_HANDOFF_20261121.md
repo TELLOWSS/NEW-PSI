@@ -499,6 +499,18 @@
 
 **다음 한 작업:** 최신 HEAD 릴리스·전사 Chromium·Inspector 결과를 실제 확인해 오류 수정 → 승인된 격리 Supabase 테스트 프로젝트 존재/권한 정책 read-only 확인 → 2개 기업의 실제 Auth/RLS/GRANT 및 동시 경합 재현 → 그 검증된 서버 읽기 경계와 관리자 실화면 연동 검토. 현장 Android·11개 언어 A4/원어민·보관기한·보안/법무 검수 후에만 release 승인.
 
+### L06 후속 — 서버 확인 관리자 원문 조회계약·변경문항 UX 9차 (2026-11-22)
+
+- **착수 실조회:** 8차 최종 HEAD `6c87abf`의 GitHub 릴리스 #44987283271 **SUCCESS**, 전사 Chromium #44987283222 **SUCCESS** 확인. Inspector 모바일 #44987283264는 후속 푸시가 이어지면서 최종 **CANCELLED**, 동일 SHA 3종 PASS는 성립하지 않음. PR #237 Draft, 운영 `main`·Vercel Production SHA `8aa4dea` 불변 재확인.
+- **실구현(보안·신뢰 경계):** `lib/server/workerRiskManagerReadL06.ts`는 **API 없는 SOURCE-ONLY** 관리자 원문 조회 검증계약. 서버가 확인한 신원+세션 ID/만료와 **세션 재조회 결과**를 대조하고 기업 `owner/admin/reviewer` 활성 멤버십→활성 현장 소속→현장 상태→독립적으로 권한 재검증한 관리자 전용 DB 읽기 포트 순서. 거절·계정 철회·교차기업/현장·원본 불일치·DB 오류에 대해 데이터 미반환, 코드만 반환.
+- **원문·보완 무결성:** 읽기 포트가 넘긴 결과는 strict allowlist(`schema, tenantId, siteId, originalSubmissionId, reviewer` 등 브라우저 주장을 신뢰하지 않음). 원본과 변경본의 동일 테넌트·현장·근로자 ID, 분리된 제출ID, Q1~Q5 정확한 원문, 동일 selfRiskGrade/Q3, 승인 기록/감사 이벤트의 순번·담당자·시각, 보완요청 이후 새 수신과 연결시각의 전후관계 확인. 원문·답변 외 이름/이메일/토큰 등 예상치 못한 필드는 **원문 전체 반환 거부**. `approved`도 현장 작업허가가 아니며 응답에 `workClearanceGranted:false` 고정.
+- **권한 구현 진실성:** 위 코드는 `L06ManagerRevisionReadPort`로 주입되는 순수 함수이며 **실 Supabase Auth/RLS·GRANT·JWT·세션 재인증을 실제로 검증/조회하지 않음**. 그 포트의 `authorizedRevisionChain`은 향후 실제 SQL `psi_read_worker_risk_revision_chain_l06` 자체의 현장 인가도 통과해야 한다. 현재는 승인된 별도 Supabase 테스트 프로젝트를 확인하지 못했으며 운영 DB에는 L06 테이블 없음. 운영 API·실자료·개인정보·GRANT/migrations/Production 변경 없음.
+- **독립 합성 테스트:** `tests/psiWorkerRiskManagerReadL06.test.ts` 신규. 만료/위조·철회 세션, 개인 근로자 계정의 관리자 역할 사칭, 타 기업·다른 현장, 불완전/다른 근로자 원문/원장, 이력·시각 조작, 가짜 `workClearanceGranted`, 예상 외 개인정보 포함, DB 읽기 오류를 거부하고 조회 시도 순서와 원문 미반환 검사. L06 기존 PGlite 26건은 그대로 유지.
+- **실제 PC·모바일 UX:** `components/assessment/PsiRevisionEvidencePanelL06.tsx`에 변경 문항 수/기록검토 상태 카드와 **44px 이상 ‘변경 문항만 보기↔전체 5문항’** 접근성 토글 구현. 변경된 텍스트 수는 단순 원문 차이이며 조치 이행 완료 아님. 새 기록 이벤트별 `접수/1차 검토/평가자료 승인/추가 보완요청`을 구별하고 **작업허가/작업 재개는 불인정**. `scripts/verify-psi-l06-revision-lab.mjs`에 390px·1280px 필터 전환·전 문항 복구 및 합성 스크린샷 증빙 추가.
+- **계약/CI:** `tests/psiRevisionEvidencePanelL06.test.tsx` 렌더 상태 및 읽기/상태 불변 테스트 보강. 신규 HEAD의 릴리스·전사 Chromium·Inspector 3종 종료 후 실제 결과 조회 전에는 **9차 PASS 미확정**. 원어민 11개 언어·실 Android·실 Supabase Auth/RLS·보존/삭제·L18 human gate 13개 모두 pending.
+
+**다음 한 작업:** 9차 최종 SHA 전체 CI·신규 실브라우저 단계를 확인하고 실패 수정 → 승인받은 완전히 격리된 Supabase 테스트 프로젝트의 2개 기업 Auth/RLS·세션 철회·현장 관리자 조회/권한 경합 실증 → 사람 승인 후에만 운영 관리자 UI/서버 API 연결 검토. main 병합·Production/실DB 쓰기 보류.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -522,7 +534,7 @@
 
 ## 9. 다음 착수 과제
 
-**L06 8차 보완 요청 후 접수시점 검증·DEV 전용 PC/모바일 QA의 최종 3종 CI 확인 → 승인된 격리 DB의 실제 Auth/RLS/GRANT 테스트 → 검증된 관리자 서버 조회에만 실UI 연결 → Android/모국어·L18 인수 완료 후 최종 승인 main/Production.**
+**L06 9차 관리자 권한 조회 SOURCE-ONLY 검증 + 변경문항 모바일 UX의 최종 CI 판정 → 독립 승인 Supabase 환경의 실 Auth/RLS·세션 철회 실증 → 인증된 서버자료만 관리자 실화면에 연결 검토 → Android/모국어·13개 인수 완료 후 사용자 승인 main/Production.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
