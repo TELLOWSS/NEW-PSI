@@ -46,8 +46,9 @@ const makePort = (snapshot:unknown=chain()) => {
     return {calls,port};
 };
 const clone = <T>(v:T):T=>JSON.parse(JSON.stringify(v));
-const read = async(port:L06ManagerRevisionReadPort,who=principal,scope=request)=>
-    inspectL06ManagerRevisionRead(who,scope,port,now);
+const read = async(port:L06ManagerRevisionReadPort,who=principal,scope=request,
+    clock:()=>Date=()=>now)=>
+    inspectL06ManagerRevisionRead(who,scope,port,clock);
 
 describe('L06 manager Q1-Q5 revision read, fail-closed SOURCE-ONLY server adapter',()=>{
     it('releases source evidence only after server session, tenant role, site and scoped SQL read',async()=>{
@@ -55,7 +56,8 @@ describe('L06 manager Q1-Q5 revision read, fail-closed SOURCE-ONLY server adapte
         const result=await read(port);
         expect(result).toMatchObject({ok:true,dataReleased:true,
             verification:'isolated-adapter-contract-only',workClearanceGranted:false});
-        expect(calls).toEqual(['session','membership','siteMembership','site','chain']);
+        expect(calls).toEqual(['session','membership','siteMembership','site','chain',
+            'session','membership','siteMembership','site']);
         if(result.ok) {
             expect(result.evidence.original).toMatchObject({submissionId:parent,workerId:worker});
             expect(result.evidence.replacement).toMatchObject({submissionId:child,workerId:worker});
@@ -68,7 +70,7 @@ describe('L06 manager Q1-Q5 revision read, fail-closed SOURCE-ONLY server adapte
             {...principal,expiresAt:'invalid'}
         ]){
             const {calls,port}=makePort();
-            expect(await inspectL06ManagerRevisionRead(who,request,port,now))
+            expect(await inspectL06ManagerRevisionRead(who,request,port,()=>now))
                 .toEqual({ok:false,code:'SESSION_INVALID',dataReleased:false});
             expect(calls).toHaveLength(0);
         }
@@ -184,6 +186,74 @@ describe('L06 manager Q1-Q5 revision read, fail-closed SOURCE-ONLY server adapte
         const {port}=makePort();
         port.authorizedRevisionChain=async()=>{throw new Error('private database error');};
         expect(await read(port)).toEqual({ok:false,code:'EVIDENCE_UNAVAILABLE',dataReleased:false});
+    });
+    it('rejects a session revoked during a slow manager read without releasing Q1-Q5',async()=>{
+        let active=true;
+        const {port,calls}=makePort();
+        port.activeSession=async()=>{calls.push('session');return {
+            userId:actor,sessionId:session,active,expiresAt:principal.expiresAt,
+        };};
+        port.authorizedRevisionChain=async()=>{calls.push('chain');active=false;return chain();};
+        const result=await read(port);
+        expect(result).toEqual({ok:false,code:'SESSION_INVALID',dataReleased:false});
+        expect('evidence' in result).toBe(false);
+        expect(calls).toEqual(['session','membership','siteMembership','site','chain','session']);
+    });
+    it('rejects tenant role or site assignment withdrawn mid-read (TOCTOU defense)',async()=>{
+        for(const revoke of ['membership','siteMembership','site'] as const){
+            let current=true;
+            const {port,calls}=makePort();
+            port.authorizedRevisionChain=async()=>{calls.push('chain');current=false;return chain();};
+            if(revoke==='membership') port.membership=async()=>{
+                calls.push('membership');
+                return {tenantId:tenant,userId:actor,status:current?'active':'suspended',role:'reviewer'};
+            };
+            if(revoke==='siteMembership') port.siteMembership=async()=>{
+                calls.push('siteMembership');
+                return {tenantId:tenant,siteId:site,userId:actor,status:current?'active':'suspended'};
+            };
+            if(revoke==='site') port.site=async()=>{
+                calls.push('site');
+                return {tenantId:tenant,siteId:site,active:current};
+            };
+            const result=await read(port);
+            expect(result).toEqual({ok:false,code:revoke==='membership'
+                ?'MANAGER_NOT_AUTHORIZED':'SITE_NOT_AUTHORIZED',dataReleased:false});
+            expect('evidence' in result).toBe(false);
+            expect(calls).toContain('chain');
+        }
+    });
+    it('re-samples trusted server time and blocks expiry, clock rollback or clock failure',async()=>{
+        for(const later of [
+            '2026-11-22T13:00:00.000Z','2026-11-22T11:59:59.000Z',null,
+        ]){
+            let samples=0;
+            const clock=()=>{samples++;
+                if(samples===1) return now;
+                if(later===null) throw new Error('trusted clock unavailable');
+                return new Date(later);
+            };
+            const {port}=makePort();
+            const result=await read(port,principal,request,clock);
+            expect(result).toMatchObject({ok:false,dataReleased:false});
+            expect('evidence' in result).toBe(false);
+            expect(samples).toBe(2);
+        }
+        const {port}=makePort();
+        const result=await read(port,principal,request,()=>new Date('invalid'));
+        expect(result).toEqual({ok:false,code:'SESSION_INVALID',dataReleased:false});
+    });
+    it('refuses a final-session recheck fault without releasing partial evidence',async()=>{
+        let attempts=0;
+        const {port}=makePort();
+        port.activeSession=async()=>{
+            attempts++;
+            if(attempts===2) throw new Error('test database connection interrupted');
+            return {userId:actor,sessionId:session,expiresAt:principal.expiresAt,active:true};
+        };
+        const result=await read(port);
+        expect(result).toEqual({ok:false,code:'EVIDENCE_UNAVAILABLE',dataReleased:false});
+        expect('evidence' in result).toBe(false);
     });
     it('never exposes a live endpoint, service role, browser secrets or automatic work clearance',()=>{
         const source=readFileSync(resolve('lib/server/workerRiskManagerReadL06.ts'),'utf8');
