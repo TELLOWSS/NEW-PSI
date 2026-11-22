@@ -70,6 +70,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Build production client for full-product browser checks
         run: npm run build
+      - name: Independently render legacy three-page synthetic PDF in Chromium
+        run: node scripts/verify-psi-legacy-pdf-split.mjs
       - name: Independently verify seven product and transparency journeys
         run: node scripts/verify-psi-company-browser.mjs
       - name: Verify Nexus evidence, navigation restoration and presentation rollback
@@ -107,5 +109,6 @@ jobs:
             artifacts/audit/psi-l16-resilience/
             artifacts/audit/psi-l17-security/
             artifacts/audit/psi-l18-release-gate/
+            artifacts/audit/psi-legacy-pdf-split/
           if-no-files-found: ignore
           retention-days: 7

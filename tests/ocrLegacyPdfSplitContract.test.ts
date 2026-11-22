@@ -20,6 +20,11 @@ describe('Legacy scanned multi-page PDF upload guard', () => {
         expect(ui).toContain('onFilesChange(merged.files)');
         expect(ui).not.toContain('await onAnalyze(');
     });
+    it('requires real synthetic PDF raster verification in Chromium CI',()=>{
+        const flow=source('.github/workflows/psi-company-wide.yml');
+        expect(flow).toContain('node scripts/verify-psi-legacy-pdf-split.mjs');
+        expect(flow).toContain('artifacts/audit/psi-legacy-pdf-split/');
+    });
     it('does not display multi-page, oversize or damaged PDF as ready', () => {
         const preflight = source('utils/ocrUploadQuality.ts');
         for (const item of ['PDF_PAGE_SPLIT_REQUIRED', 'PDF_TOO_LARGE', 'PDF_OPEN_FAILED'])

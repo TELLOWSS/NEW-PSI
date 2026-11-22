@@ -380,6 +380,11 @@
 - 최신 CI 3종과 실제 2025 스캔 브라우저 분리·손글씨 OCR 정확도는 별도 확인. 관리자 원본 대조·원어민/A4·현장 Android 검수 미완료. main/Production 보류.
 - 다음 한 작업: 최신 HEAD 릴리스/전사 Chromium/Inspector QA 및 분리 기능 오류 보수 → 승인된 기기에서 실제 3장 PDF 분리/판독 원본 비교 → L06 근로자 직접 입력 병행.
 
+### 브라우저 PDF 실렌더 합성 QA 보강 (2026-11-22)
+
+- `scripts/verify-psi-legacy-pdf-split.mjs`를 전사 Chromium CI에 추가. 개인정보 없는 RGB 3페이지 합성 PDF를 실제 PDF.js로 로컬 렌더링해 순서/이름/개수/JPEG 용량/서로 다른 픽셀색을 검사하고 JSON audit에 남긴다. **실제 2025년 필기 인식률, Android 실기기, 관리자 대조 검증이 아니다.**
+- 새 커밋 CI 3종 및 분리 스크립트 실동작 결과는 반드시 재조회하고 오류가 있으면 수정. main/Production 보류.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
