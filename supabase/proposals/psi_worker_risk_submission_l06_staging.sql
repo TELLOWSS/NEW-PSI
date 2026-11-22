@@ -75,6 +75,44 @@ revoke all on public.psi_tenant_risk_cycles,
  public.psi_worker_risk_submissions,public.psi_worker_risk_receipt_events
  from public,anon,authenticated,service_role;
 
+-- Shared active-session gate for BOTH worker submission and manager review.
+-- Staging order: submission → manager_review → resubmission.
+-- L06 staged session revocation gate. auth.uid() alone is insufficient
+-- after JWT issue when the underlying session has been revoked.
+-- Scope is read within SECURITY DEFINER RPC and both the auth session and
+-- manager account rows are SHARE-locked until the transaction finishes.
+-- This closes a gap where an otherwise-valid manager session remains stored
+-- after the manager has been banned or soft-deleted.
+create function public.psi_l06_require_active_session() returns uuid
+language plpgsql security definer set search_path='' as $$
+declare
+ v_actor uuid;
+ v_claim text;
+ v_session uuid;
+ v_exists boolean;
+begin
+ v_actor := auth.uid();
+ v_claim := auth.jwt()->>'session_id';
+ if v_actor is null or v_claim is null
+    or v_claim !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+   raise exception 'L06 active auth session required' using errcode='42501';
+ end if;
+ v_session := v_claim::uuid;
+ select true into v_exists
+ from auth.sessions sess
+ join auth.users u on u.id=sess.user_id
+ where sess.id=v_session and sess.user_id=v_actor
+   and u.deleted_at is null
+   and (u.banned_until is null or u.banned_until <= pg_catalog.clock_timestamp())
+ for share of sess,u;
+ if not found or v_exists is distinct from true then
+   raise exception 'L06 active auth session required' using errcode='42501';
+ end if;
+ return v_actor;
+end;
+$$;
+revoke all on function public.psi_l06_require_active_session() from public,anon,authenticated,service_role;
+
 -- Security-definer is strictly an isolated PROPOSAL. The caller needs a
 -- Supabase-verified, authenticated session; never trust raw browser user IDs.
 -- No dynamic SQL, no user_metadata, no service-role client or arbitrary field update.
@@ -93,7 +131,7 @@ declare
  v_now timestamptz;
  v_key text;
 begin
- v_user := auth.uid();
+ v_user := public.psi_l06_require_active_session();
  v_now := pg_catalog.clock_timestamp();
  if v_user is null or p_tenant is null or p_site is null
     or p_cycle is null or p_request is null then
