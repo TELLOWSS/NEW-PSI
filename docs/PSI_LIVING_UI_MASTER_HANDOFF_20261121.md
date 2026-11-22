@@ -567,6 +567,17 @@
 
 **다음 한 작업:** 14차 최종 HEAD 릴리스·전사 Chromium·Inspector 모바일 3종 실제 결론과 실패 확인/수정 → 사용자 승인된 독립 Supabase에서 A01~A21 실제 Auth/RLS/철회·동시 접근 검증 → 관리자/근로자 진짜 API 연결, 13개 L18 인간 인수 및 사용자 승인 전까지 main/운영 배포 보류.
 
+### L06 후속 — JWT exp/iat 시간경계와 철회세션 독립 방어 (15차, 2026-11-22)
+
+- **14차 최종 동일 SHA 확정:** `376a32f48b8b171a6e658099bc754ed190998a73` **세 검증 모두 SUCCESS**: release #44991189656 (276개 파일, **2,146/2,146** unit, L06 PGlite 40/40, manager read 13/13, L17 19/19), company Chromium #44991189589, Inspector 모바일 Chromium #44991189597. 이것은 **소스/가상 브라우저 통과**이고 Android 실기기·실 Supabase 인증 인수가 아니다.
+- **15차 보안 공백:** 공통 `psi_l06_require_active_session()`이 JWT의 `session_id`를 실제 `auth.sessions`과 대조하고 계정 ban/deleted를 확인했으나, JWT 필수 숫자 `exp`(만료)·`iat`(발급) 클레임의 서버 현재시각 범위를 별도로 확인하지 않았다. API 게이트웨이의 서명/만료 검사와 별도로 SQL 제안의 fail-closed 방어 심화.
+- **SQL 개발:** `supabase/proposals/psi_worker_risk_submission_l06_staging.sql`의 공통 SECURITY DEFINER gate에서 `auth.jwt()` 한 번 획득해 `exp`/`iat`이 **JSON number**인지 요구; DB `clock_timestamp()`를 epoch 숫자로 변환해 `exp > now`, `iat <= now`, `iat < exp` 모두 만족해야 계속. null/문자/비정상·만료/미래 발급 시 42501 거부. 공통 검사를 최초 작성·재제출·관리자 검토·원문조회 4개 RPC가 공유하며 JWT 서명 자체를 검사한다고 주장하지 않는다. SQL 배포 대상은 계속 `supabase/proposals`뿐.
+- **가상 PostgreSQL 회귀:** `tests/psiWorkerRiskSubmissionSqlL06.test.ts` 최소 Auth JWT fixture에 숫자 `exp`/`iat` 추가; 데이터베이스 시각으로 기본 만료/발급 설정. 신규 5건 ① 유효 세션 행이 남은 만료 worker JWT 최초 접수 차단 ② 미래 `iat` 및 뒤집힌 시간범위 ③ missing·문자형 exp/iat 차단 ④ 만료 reviewer 원문 조회·승인 거부 ⑤ 만료 후 같은 nonce 재전송/원본 불변. 총 **L06 45개 목표**, 전체 2,151개 목표. 최종 동일 HEAD 릴리스 CI 끝나기 전 PASS 표시 금지.
+- **정확한 한계:** 실제 Supabase `auth.sessions` revocation, 서명된 JWT `exp`/clock skew, 실 Auth role/RLS/GRANT 및 PostgreSQL 두 연결의 일관성은 아직 검증하지 않았다. Supabase 공식 JWT claims reference에서 `exp`/`iat`가 숫자 Unix timestamp 필수 필드라는 문서적 근거만 확인(https://supabase.com/docs/guides/auth/jwt-fields). PGlite fixture는 서명/JWT 게이트웨이 모사이지 실 Auth가 아니다.
+- **출시 차단:** 별도 L06 격리 Supabase 프로젝트 소유자 승인 없음. A01~A21 실제 인수 `NOT RUN`, 개인정보·Android·11개 모국어/현장 UAT·L18 인간 인수 13개 대기. `main` 병합·운영 Vercel·`PSI-Database`/목적 미확인 프로젝트·운영 API/DDL/RLS/GRANT·실근로자 데이터 무변경, PR #237 Draft.
+
+**다음 한 작업:** 15차 최종 HEAD release/전사 Chromium/Inspector 동일 SHA 세 가지 CI 결과 확인·실패수정 → 승인된 독립 Supabase에서 실제 서명 JWT 만료·세션철회/기업·현장 접근/2커넥션 경합 A01~A21 실증 → Android·원어민·보관삭제·L18 13개 사용자 인수 전 운영 출시 금지.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -590,7 +601,7 @@
 
 ## 9. 다음 착수 과제
 
-**L06 14차 근로자·관리자 공통 session_id→auth.sessions 인증 및 계정잠금의 PGlite 40건 + 동일 SHA CI 3종 판정 → 승인된 격리 Supabase A01~A21 실증 → 안전관리·법무·Android/11개 원어민/L18 사람 인수 후 사용자 승인 전까지 운영 연결/main/Production 보류.**
+**L06 15차 공통 JWT exp/iat DB 시각 검증 + PGlite 45건의 동일 HEAD 3종 CI 최종 판정 → 승인된 격리 Supabase 실제 JWT/Auth/RLS·기업/현장·세션 철회 A01~A21 → Android/11개 모국어·개인정보/L18 13개 사람 인수 이후 사용자 승인 전까지 main·Production 보류.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
