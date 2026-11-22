@@ -753,6 +753,16 @@
 
 **다음 한 작업:** 31차 새 HEAD CI 3종 릴리스/Chromium Q1 한 글자·Q3 미선택·오류 초점 및 Inspector 검증 종료/필요 시 로그 기반 수리 → 승인된 독립 Supabase A01~A25 및 Android/삼성 인터넷/TalkBack·11개 언어/현장 A4·정보보호/보존삭제 실증 → L18 사람 13건 및 소유자 승인 전 운영 병합·배포 금지.
 
+### L06·L32 후속 — 320~1440px 반응형·터치 영역·키보드 초점 회귀 (32차, 2026-11-22)
+
+- **31차 동일 HEAD CI 실제 판정:** `18a266a67da0e67a8dc68f930479dba1c9a48b5f` release #45012456134 **SUCCESS**(279 파일·**2,193/2,193** 단위 테스트, L17 source-only 19/19, L18 RELEASE=BLOCKED); company Chromium #45012456097 **SUCCESS**(Q1 한 글자·Q3 미선택 inline 오류 초점·수정 해제, Q1~Q5 일반/장문 A4/이탈 취소 회귀 포함); Inspector mobile #45012456129 **CANCELLED**, 실패 단계 확인 없음. 31차 Inspector는 **PASS로 판정하지 않음**. 32차 새 SHA에서 3종 동일 HEAD 검증을 새로 수행한다.
+- **인계서 9항 우선 항목:** 기존 Q1~Q5 연습용 모바일의 한국어 입력 검사는 390px에 집중되어 있었음. 320px(브라우저 확대/좁은 단말), 360/768px, PC 1024/1440px의 **문항 이동/검토/초기화 확인 단계**가 가로 스크롤·가려진 버튼·작은 터치 영역 없이 동작하는지 실제 폭별 증거가 부족했다. 브라우저 실제 zoom은 별도 검증이며, 320px viewport는 축소 폭에서의 **리플로우 대리검증**으로만 해석한다.
+- **32차 독립 UI 코드:** `styles.css`에 L06 연습 화면만 대상으로 화면용 `button/textarea/select:focus-visible`에 3px 고대비 indigo 링·2px 오프셋 추가, `[aria-invalid=true]` 상태는 rose 링. 기존 `@media print` 정책과 보고서/운영자 UI에는 영향이 없도록 `@media screen .psi-l06-worker-draft` 스코프. 광범위 공통 컴포넌트 변경, 새 외부 아이콘/폰트/라이브러리/라이선스 없음.
+- **32차 실제 Chromium 6개 폭×4단계 수용 시험:** `scripts/verify-psi-l06-worker-draft.mjs`의 합성 시험에 **320·360·390·768·1024·1440px**, 각 **빈 기록·가상 Q1 입력/미저장 상태·Q1~Q5 검토·초기화 확인** 검사 추가. `document.documentElement/body.scrollWidth`가 viewport를 넘지 않는지, 노출된 사용 가능한 버튼이 화면 좌우 안에 있고 높이가 **44px 이상**인지 확인; 키보드 Tab의 첫 문항 이동 버튼에 `:focus-visible` 3px 이상 고대비 outline이 있는지도 실제 계산스타일로 검증. Q1~Q5 입력·검토·수정·확정 삭제를 각 폭별 실행하고 320px 미저장/검토, 1440px 검토 합성 스크린샷 및 result.json 감사항목 추가. 추가 Chromium page들의 API·외부 요청도 수집해 0 검증. 기존 L26 A4 미완료 비노출, L25 장문 보존, native beforeunload, reset/ARIA 회귀를 유지. `tests/psiWorkerRiskDraftL06.test.ts` source 계약 한 건을 신규 추가.
+- **검증·출시 제한:** **32차 최종 동일 SHA** release·company Chromium(6개 폭×4단계/초점/터치 실제 QA)·Inspector mobile 3종이 종료된 뒤에만 PASS 기록. 320px 합성 Chromium 합격을 삼성 인터넷, 실제 Android Chrome, OS 텍스트 크기 확대, 음성/TalkBack, 다국어 콘텐츠, 손가락 터치 사용성까지 검증한 것으로 주장하지 않음. 독립 Supabase 승인 환경 없음: A01–A25 **NOT RUN**, L18 사람 13건 **pending**, `RELEASE=BLOCKED`, PR #237 Draft. `main`/Vercel Production/실 DB/Auth/실근로자 기록/외부 OCR·AI·유료 서비스/SMART TBM/ZERO DAY 미변경.
+
+**다음 한 작업:** 32차 동일 HEAD 릴리스·전사 Chromium(320~1440px UI)/Inspector 3종 종료와 실패 로그 확인 → 발견된 화면 넘침/작은 버튼 문제를 개발 브랜치에서 고쳐 **같은 최종 SHA**로 재검증 → 승인 독립 Supabase 실제 A01~A25·Android/삼성 인터넷/TalkBack/11개 모국어·L18 13개 사람 게이트 충족 및 소유자 승인 전 운영 병합·배포 보류.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -776,7 +786,7 @@
 
 ## 9. 다음 착수 과제
 
-**L06·L31 Q1~Q5 필수 입력 누락 시 Q1~Q5 입력칸 직접 초점/aria-invalid·오류 메시지 연결, 31차 동일 최종 HEAD CI 3종 검증 → 승인된 독립 Supabase A01~A25와 Android Chrome/삼성 인터넷·TalkBack·11개 언어 A4·개인정보 보존/삭제 인수 → L18 13개 사람·소유자 승인 전 main/Production/실 DB 연결 보류.**
+**L06·L32 Q1~Q5 320~1440px 실제 리플로우/44px 터치 대상/키보드 3px 포커스 링, 최종 동일 HEAD CI 3종 검증 → 승인된 독립 Supabase A01~A25와 Android Chrome/삼성 인터넷·TalkBack·11개 언어 A4·개인정보 보존/삭제 인수 → L18 13개 사람·소유자 승인 전 main/Production/실 DB 연결 보류.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
