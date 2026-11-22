@@ -656,6 +656,17 @@
 
 **다음 한 작업:** 최종 22차 HEAD 릴리스/회사형 Chromium/Inspector 모바일 3종 결과 확인·실패 시 보수 → 미검증 Android Chrome/삼성 인터넷·TalkBack 수동 QA 및 별도 승인된 Supabase A01~A25 실제 인증 인수 → 11개 언어/보유·삭제/현장 UAT·L18 승인 완료 전 운영 병합·배포 금지.
 
+### L15·L23 후속 — QuickFind 모달 배경 비활성화 및 검색 선택 포커스 인계 (23차, 2026-11-22)
+
+- **22차 최신 결과 재조회:** `b9dcab577bd73a439c8a738009039b54b73a4550`의 release #44998832699 **SUCCESS**, company Chromium #44998832695 **SUCCESS**. Inspector #44998832710은 23차 후속 push로 **CANCELLED**. 따라서 22차 **동일 SHA 3종 전부 SUCCESS는 아님**, 테스트 실패와 취소를 구별한다. 21차 최종 HEAD `49017e56`의 3종 SUCCESS는 앞 절에 별도 기록되어 있다.
+- **확인된 접근성 위험:** `components/shell/NavigationQuickFind.tsx`는 `aria-modal="true"` 및 Tab 순환·스크롤 잠금이 있었지만, 화면 본문 자체는 `inert`가 아니었다. 실기기 보조기기/프로그램 포커스가 **뒤쪽 앱 버튼을 접근 가능**하게 취급할 가능성이 있고, 검색 결과에서 현재 페이지를 선택할 때 Escape와 동일하게 검색 열기 버튼으로 포커스를 되돌리는 문제가 있었다.
+- **23차 실제 구현:** QuickFind는 모달을 `document.body`에 portal로 유지하고, 열릴 때 기존 앱 `#root`에 native `inert=true`를 설정한다. 닫을 때 과거 `inert` 값을 복구한다. 검색 결과 선택 시에만 `navigatedRef`를 통해 복구 포커스를 `#psi-main-content`로 전환(같은 페이지 재선택 포함), Escape/닫기에서는 이전에 보이던 검색 트리거로 복귀. 기존 검색 대상은 접근권한/운영모드/사용자 숨김 설정을 통과한 **메뉴 항목만**; 검색 기록/실근로자 데이터 전송·저장·로그 없음.
+- **검증 범위 추가:** `scripts/verify-psi-l15-accessibility.mjs`의 Chromium 각 viewport 8조건에서 portal이 앱 외부인지, `#root.inert`, 실제 QuickFind 트리거 강제 focus 차단, 모달 내부 입력/Tab 동작, Escape 직후 inert·scroll/focus 복원을 검사. 390×844에서 현재 페이지 검색 선택 → 본문 초점/배경 복원도 확인. `tests/psiNavigationQuickFind.test.ts`에 소스 계약 회귀 1건 추가. **실 Android/Samsung Internet/TalkBack 또는 실제 200% 확대 증명은 아님.**
+- **최종 품질판정 주의:** 23차 최종 SHA의 릴리스/전사 Chromium/Inspector CI 3종을 새로 조회해 완료 전에 PASS라고 쓰지 않는다. 오류 발생 시 로그 기반 수리·재검증. 이 문서/PR 설명 갱신만으로 통과 증빙 생성 금지.
+- **범위·보안:** NEW-PSI 관리자 UI만 변경, SMART TBM/ZERO DAY 제외. `main`, Production, Supabase 스키마/RLS/Auth·실현장/근로자 개인정보, 유료 AI/OCR·외부 발송 0. L06 별도 Supabase Auth A01~A25는 **NOT RUN**, L18 13개 사용자/실기기/정보보호 인수는 **pending**, `RELEASE=BLOCKED`, PR #237 Draft.
+
+**다음 한 작업:** 23차 최종 동일 HEAD release/company Chromium/Inspector 모바일 3종 실제 결과와 스크린샷/실패 항목 확정 → 필요시 개발 브랜치 수정·동일 SHA 재검증 → 승인된 격리 Supabase A01~A25, Android Chrome/삼성 인터넷/TalkBack, 11개 모국어/A4·개인정보 보유·삭제/L18 13개 사람 인수 후에만 운영 반영 검토.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -679,7 +690,7 @@
 
 ## 9. 다음 착수 과제
 
-**L15·L22 메뉴 선택 후 본문 포커스(같은 페이지/다른 페이지) 회귀 검증과 동일 SHA CI 3종 판정 → Android TalkBack/삼성 인터넷 실기기 및 승인된 별도 Supabase A01~A25 실제 인수 → L18 13개 사람·정보보호·원어민 승인 전 main/Production/실 DB 연결 보류.**
+**L15·L23 QuickFind 앱 배경 inert/검색 선택 포커스(390px 포함) 회귀 검증과 동일 HEAD CI 3종 판정 → Android TalkBack/삼성 인터넷 실기기 및 승인된 별도 Supabase A01~A25 실제 인수 → L18 13개 사람·정보보호·원어민 승인 전 main/Production/실 DB 연결 보류.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
