@@ -58,6 +58,10 @@ describe('L06 Q1-Q5 worker self-writing pilot without submission', () => {
         expect(css).toContain('L24: only the L06 unauthenticated practice route');
         expect(chromium).toContain('await page.pdf(');
         expect(chromium).toContain('assert.equal(pdf.numPages, 1,');
+        expect(chromium).toContain('a4-five-question-long-trial.pdf');
+        expect(chromium).toContain('longPdf.numPages > 1');
+        expect(chromium).toContain("normalizedLongText.includes('END' + key)");
+        expect(chromium).toContain("normalizedLongText.includes('정식제출이아닙니다')");
         expect(chromium).toContain('for (const key of [\'Q1\', \'Q2\', \'Q3\', \'Q4\', \'Q5\'])');
         expect(ui).toContain('인쇄한 종이도 정식 제출이 아닙니다.');
     });
