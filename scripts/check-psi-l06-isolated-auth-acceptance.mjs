@@ -13,6 +13,34 @@ const expected=Array.from({length:25},(_,i)=>'A'+String(i+1).padStart(2,'0'));
 const statuses=new Set(['not-run','blocked','fail','pass']);
 const shaPattern=/^[0-9a-f]{40}$/;
 const errors=[];
+
+// Evidence is recorded in a Git-tracked manifest. Never permit signed URLs,
+// userinfo credentials, local-only URLs or bearer/JWT-like secrets in fields.
+// Offline structural checks cannot prove the external document exists.
+function isSafeEvidenceLink(value){
+  if(typeof value!=='string'||value.length>1024||!/^https:\/\//i.test(value))
+    return false;
+  try{
+    const url=new URL(value);
+    if(url.protocol!=='https:'||url.username||url.password||
+       url.search||url.hash||url.port||
+       !url.hostname.includes('.')||
+       /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|0\.|::1)/i.test(url.hostname)||
+       /(?:^|\.)localhost$/i.test(url.hostname)||
+       /(?:^|\.)internal$/i.test(url.hostname))return false;
+    // Do not commit a JWT or service key in a URL path either.
+    if(hasSensitiveValue(decodeURIComponent(url.pathname)))return false;
+    return true;
+  }catch{return false;}
+}
+function hasSensitiveValue(value){
+  if(typeof value!=='string')return false;
+  return /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/.test(value)||
+    /\bBearer\s+[A-Za-z0-9._~-]{12,}/i.test(value)||
+    /sb_(?:secret|publishable)_[A-Za-z0-9_-]{8,}/.test(value)||
+    /(?:postgres(?:ql)?:\/\/)[^\s]{6,}/i.test(value)||
+    /(?:password|refresh_token|access_token|service_role_key)\s*[:=]\s*["']?[^\s"']{6,}/i.test(value);
+}
 let ledger;
 try{
   ledger=JSON.parse(readFileSync(ledgerPath,'utf8'));
@@ -42,8 +70,8 @@ else{
   if(env.approved){
     if(typeof ref!=='string'||!ref.trim()||
        typeof env.approvedBy!=='string'||env.approvedBy.trim().length<3||
-       typeof env.approvalEvidence!=='string'||
-       !/^https:\/\/\S{8,}$/.test(env.approvalEvidence))
+       !isSafeEvidenceLink(env.approvalEvidence)||
+       hasSensitiveValue(env.approvedBy))
       errors.push('an approved test environment needs identifiable owner and HTTPS approval evidence');
   }else if(ref!==null||env.approvedBy!==null||env.approvalEvidence!==null){
     errors.push('an unapproved environment cannot have an assigned project or approval evidence');
@@ -74,8 +102,10 @@ for(const c of Array.isArray(ledger.cases)?ledger.cases:[]){
        !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(c.reviewedAt)||
        !Number.isFinite(Date.parse(c.reviewedAt)))
       errors.push(c.id+' needs a UTC review time');
-    if(typeof c.evidence!=='string'||!/^https:\/\/\S{8,}$/.test(c.evidence))
-      errors.push(c.id+' needs a non-secret HTTPS evidence reference');
+    if(!isSafeEvidenceLink(c.evidence))
+      errors.push(c.id+' needs a stable, non-secret HTTPS evidence reference without query/fragment/userinfo');
+    if(hasSensitiveValue(c.reason)||hasSensitiveValue(c.reviewedBy))
+      errors.push(c.id+' contains sensitive token-like content in a review field');
     if(!shaPattern.test(String(c.sourceSha||'')))
       errors.push(c.id+' needs a source commit SHA');
     if(c.status==='pass'&&env?.approved!==true)
