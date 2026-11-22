@@ -57,3 +57,5 @@ NEW-PSI의 Code and Chill 템플릿 참조 기반 PC·모바일 디자인 고도
 > 2026-11-22 L18: 동일 HEAD `639b861`에서 L17 릴리스·전사 Chromium·Inspector 모바일 QA 모두 PASS 확인. 실 Supabase PSI-Database 읽기 전용 RLS/GRANT/RPC 메타데이터 조사(PR #237 코멘트). 신설 `config/psi-living-ui-release-acceptance.json` 13개 human gate 전부 PENDING, `scripts/verify-psi-l18-release-gate.mjs` CI 합성 증거 집계 후에도 출시 BLOCKED를 보장. 최신 HEAD CI는 push 후 재조회. 상세 `docs/PSI_L18_RELEASE_READINESS_20261122.md`. 다음 L06 근로자 Q1~Q5 직접 입력/현장·Android·원어민/서버권한 실제 검증. main/Production 보류.
 
 > 2026-11-22 최초 2025년 수기·다국어 위험성평가 양식 OCR 병행: PDF는 3쪽 스캔(각 1페이지/2.85MiB 제한), PPTX 6장(한국어·중국어2·러시아어·미얀마어·베트남어, 직접 OCR 불가). 최신 하단/구형 상단 인적사항·문항 Q1~Q5·다국어 기록표 제목 보강, 개인정보 실원본 GitHub 미업로드/실OCR 미검증. 상세 docs/PSI_OCR_LEGACY_SELFREGULATION_COMPAT_20261122.md; main/Production 보류.
+
+> 2026-11-22 기존 2025년 스캔 PDF 다쪽 파일은 명시적 로컬 분리 버튼으로 1쪽당 JPEG/독립 OCR 대기 기록. 12쪽/20MB/이미지 2.85MiB 상한과 원자적 실패, PDF 업로드 사전 페이지/용량 판정 추가. 자동 서버 OCR 실행·DB 변경 없음. CI/실기기·원본 3장 OCR 정확도 검증 대기. 상세 docs/PSI_OCR_LEGACY_SELFREGULATION_COMPAT_20261122.md, PR Draft, main/Production 보류.

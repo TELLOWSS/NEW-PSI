@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { isSupportedOcrFile, OCR_FILE_ACCEPT, OCR_MAX_FILE_SIZE_BYTES } from '../utils/ocrFilePolicy';
+import { splitOcrPdfLocally } from '../utils/ocrLocalPdfSplit';
 import {
     assessOcrUploadBatch,
     getOcrFileKey,
@@ -32,6 +33,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     const [isCheckingQuality, setIsCheckingQuality] = useState(false);
     const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const pdfSplitInputRef = useRef<HTMLInputElement>(null);
+    const [isSplittingPdf, setIsSplittingPdf] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
@@ -59,6 +62,23 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                 : `${merged.addedCount}개 파일을 목록에 추가했습니다.`);
         }
     }, [files, onFilesChange]);
+
+    const handleLocalPdfSplit = async (pdf: File | undefined) => {
+        if (!pdf || isAnalyzing || isSplittingPdf) return;
+        setIsSplittingPdf(true);
+        setSelectionMessage('기기에서 PDF 페이지를 나누고 있습니다. 서버 전송은 하지 않습니다.');
+        try {
+            const images = await splitOcrPdfLocally(pdf, (page, total) =>
+                setSelectionMessage('기기에서 페이지 변환 중: ' + page + '/' + total));
+            const merged = mergeUniqueOcrFiles(files, images);
+            onFilesChange(merged.files);
+            setSelectionMessage(String(images.length) + '페이지를 각각 별도 기록으로 준비했습니다. 원본을 확인한 후 분석을 직접 시작하세요.');
+        } catch (error) {
+            setSelectionMessage('페이지 분리 실패: ' + (error instanceof Error ? error.message : '파일을 읽을 수 없습니다.') + ' 기존 선택 파일은 유지됩니다.');
+        } finally {
+            setIsSplittingPdf(false);
+        }
+    };
 
     const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -243,9 +263,23 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                 className="hidden"
                 accept={OCR_FILE_ACCEPT}
                 multiple
+                disabled={isAnalyzing || isSplittingPdf}
                 onChange={(e) => {
                     handleFileSelect(e.target.files);
                     e.currentTarget.value = '';
+                }}
+            />
+            <input
+                ref={pdfSplitInputRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                disabled={isAnalyzing || isSplittingPdf}
+                aria-label="여러 장 PDF의 기기 내 페이지 분리"
+                onChange={(event) => {
+                    const pdf = event.currentTarget.files?.[0];
+                    event.currentTarget.value = '';
+                    void handleLocalPdfSplit(pdf);
                 }}
             />
              <div className="flex flex-col items-center text-slate-500">
@@ -268,18 +302,33 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                 )}
 
                 <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
-                    <button type="button" onClick={onFileUploadClick} className="px-8 py-3.5 bg-slate-100 text-slate-700 rounded-2xl text-sm font-bold hover:bg-slate-200 transition-colors flex items-center justify-center gap-2">
+                    <button type="button" onClick={onFileUploadClick} disabled={isAnalyzing || isSplittingPdf} className="px-8 py-3.5 bg-slate-100 text-slate-700 rounded-2xl text-sm font-bold hover:bg-slate-200 transition-colors flex items-center justify-center gap-2">
                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
                         </svg>
                         <span>이미지 / PDF 찾기</span>
                     </button>
-                    <button type="button" onClick={startCamera} className="px-8 py-3.5 bg-indigo-600 text-white rounded-2xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
+                    <button type="button" onClick={startCamera} disabled={isAnalyzing || isSplittingPdf} className="px-8 py-3.5 bg-indigo-600 text-white rounded-2xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
                         </svg>
                         <span>카메라 촬영</span>
                     </button>
+                </div>
+                <div className="mt-4 w-full max-w-xl rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3 text-left">
+                    <button
+                        type="button"
+                        disabled={isAnalyzing || isSplittingPdf}
+                        onClick={() => pdfSplitInputRef.current?.click()}
+                        className="min-h-11 rounded-xl border border-indigo-200 bg-white px-4 py-2 text-sm font-black text-indigo-800 disabled:opacity-50"
+                    >
+                        {isSplittingPdf ? '페이지 나누는 중…' : '여러 장 PDF 페이지별 나누기'}
+                    </button>
+                    <p className="mt-2 text-xs font-medium text-slate-700">
+                        예전 수기 기록지 PDF를 기기에서 1페이지씩 이미지로 나눕니다.
+                        각 페이지는 별도 기록으로 준비되며, 선택만으로 분석·서버 전송하지 않습니다.
+                        글씨가 흐린 경우 원본과 대조해 주세요.
+                    </p>
                 </div>
                 {selectionMessage && (
                     <p role="status" className="mt-4 text-sm font-bold text-slate-600">{selectionMessage}</p>
@@ -296,7 +345,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                         <button
                             type="button"
                             onClick={() => onFilesChange([])}
-                            disabled={isAnalyzing}
+                            disabled={isAnalyzing || isSplittingPdf}
                             className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 disabled:opacity-50"
                         >
                             전체 비우기
@@ -340,7 +389,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                                                 <button
                                                     type="button"
                                                     onClick={() => removeFile(key)}
-                                                    disabled={isAnalyzing}
+                                                    disabled={isAnalyzing || isSplittingPdf}
                                                     aria-label={`${file.name} 제거`}
                                                     className="min-h-11 min-w-11 rounded-xl border border-slate-200 bg-white text-sm font-black text-slate-600 disabled:opacity-50"
                                                 >

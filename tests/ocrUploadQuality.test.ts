@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { assertOcrPdfSplitBounds, getOcrPdfPageName } from '../utils/ocrLocalPdfSplit';
 import {
     calculatePixelQualityMetrics,
     buildOcrUploadIssues,
@@ -29,6 +30,16 @@ describe('OCR upload preflight utilities', () => {
         expect(result.files).toEqual([first, second]);
         expect(result.addedCount).toBe(1);
         expect(result.duplicateCount).toBe(1);
+    });
+
+    it('supports 3-page legacy records without widening the server document contract', () => {
+        expect(getOcrPdfPageName('2025년기록.pdf', 1, 3)).toBe('2025년기록__p01_of_03.jpg');
+        expect(getOcrPdfPageName('기록표.PDF', 3, 3)).toBe('기록표__p03_of_03.jpg');
+        expect(() => getOcrPdfPageName('record.pdf', 4, 3)).toThrow();
+        expect(() => assertOcrPdfSplitBounds(3, 4.3 * 1024 * 1024)).not.toThrow();
+        expect(() => assertOcrPdfSplitBounds(13, 1000)).toThrow();
+        expect(() => assertOcrPdfSplitBounds(0, 1000)).toThrow();
+        expect(() => assertOcrPdfSplitBounds(3, 21 * 1024 * 1024)).toThrow();
     });
 
     it('detects a flat image as low contrast and low sharpness', () => {
