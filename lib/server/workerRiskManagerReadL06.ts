@@ -51,17 +51,25 @@ const utc = (v: unknown): number | null => {
 const exactly = (v: unknown, fields: Record<string, unknown>) =>
     hasShape(v) && Object.entries(fields).every(([k,val])=>v[k]===val);
 const keys = ['Q1','Q2','Q3','Q4','Q5'];
+const chainKeys=['schema','original','replacement','linkedAt','workClearanceGranted'];
+const recordKeys=['schema','tenantId','siteId','submissionId','workerId','formVersion',
+    'sourceLanguage','answers','selfRiskGrade','gradeReason','receivedAt','events','workClearanceGranted'];
+const eventKeys=['revision','action','note','reviewerId','recordedAt'];
+const exactKeys=(value:Record<string,unknown>,allowed:string[]) =>
+    Object.keys(value).length===allowed.length && Object.keys(value).every(k=>allowed.includes(k));
 const grades = ['상','중','하'];
 const revisionEventsValid = (events: unknown, terminalChanges: boolean): boolean => {
     if (!Array.isArray(events) || events.length>2) return false;
     if(terminalChanges && events.length===0) return false;
     for(let i=0;i<events.length;i++){
         const e=events[i];
-        if(!hasShape(e) || e.revision!==i+1 ||
+        if(!hasShape(e) || !exactKeys(e,eventKeys) || e.revision!==i+1 ||
+            !UUID.test(String(e.reviewerId||'')) || utc(e.recordedAt)===null ||
             typeof e.note!=='string' || e.note.trim().length<10 || e.note.length>800 ||
             !['reviewed','request_changes','approved'].includes(String(e.action))) return false;
         if(i===0 && e.action==='approved') return false;
-        if(i===1 && (events[0].action!=='reviewed' || e.action==='reviewed')) return false;
+        if(i===1 && (events[0].action!=='reviewed' || e.action==='reviewed' ||
+            (e.action==='approved' && e.reviewerId===events[0].reviewerId))) return false;
     }
     return !terminalChanges || events[events.length-1].action==='request_changes';
 };
@@ -69,7 +77,8 @@ const recordValid = (v: unknown, tenantId:string, siteId:string): v is Record<st
     if(!exactly(v,{schema:'psi-worker-risk-manager-review-v1',tenantId,siteId,workClearanceGranted:false})
         || !hasShape(v)) return false;
     const answers = hasShape(v.answers) ? v.answers : null;
-    if(!UUID.test(String(v.submissionId||'')) || !UUID.test(String(v.workerId||''))
+    if(!exactKeys(v,recordKeys) || !UUID.test(String(v.submissionId||'')) || !UUID.test(String(v.workerId||''))
+        || v.formVersion!=='psi-form-master-2026-11-22-v2-legacy-compatible'
         || !['ko','vi','zh','th','km','uz','id','mn','ru','my','kk','bn'].includes(String(v.sourceLanguage))
         || !grades.includes(String(v.selfRiskGrade))
         || typeof v.gradeReason!=='string' || v.gradeReason.length>500
@@ -116,7 +125,8 @@ export async function inspectL06ManagerRevisionRead(
 
         const chain=await port.authorizedRevisionChain(tenantId,siteId,originalSubmissionId,userId);
         if(!exactly(chain,{schema:'psi-worker-risk-revision-chain-v1',workClearanceGranted:false}) ||
-           !hasShape(chain) || !recordValid(chain.original,tenantId,siteId) ||
+           !hasShape(chain) || !exactKeys(chain,chainKeys) ||
+           !recordValid(chain.original,tenantId,siteId) ||
            !recordValid(chain.replacement,tenantId,siteId) ||
            !hasShape(chain.original)||!hasShape(chain.replacement) ||
            chain.original.submissionId!==originalSubmissionId ||
@@ -125,7 +135,12 @@ export async function inspectL06ManagerRevisionRead(
            !revisionEventsValid(chain.original.events,true) ||
            chain.original.workerId===userId || utc(chain.linkedAt)===null ||
            (utc(chain.original.receivedAt) as number)>=(utc(chain.replacement.receivedAt) as number) ||
-           (utc(chain.linkedAt) as number)<(utc(chain.replacement.receivedAt) as number)) return fail('EVIDENCE_UNAVAILABLE');
+           (utc(chain.linkedAt) as number)<(utc(chain.replacement.receivedAt) as number) ||
+           !Array.isArray(chain.original.events) ||
+           (utc(chain.original.events.at(-1)?.recordedAt) as number) <=
+             (utc(chain.original.receivedAt) as number) ||
+           (utc(chain.original.events.at(-1)?.recordedAt) as number) >=
+             (utc(chain.replacement.receivedAt) as number)) return fail('EVIDENCE_UNAVAILABLE');
         // The real SQL read RPC must check manager's DB role AGAIN.
         return {ok:true,evidence:chain,dataReleased:true,
             verification:'isolated-adapter-contract-only',workClearanceGranted:false};
