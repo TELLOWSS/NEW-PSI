@@ -61,6 +61,22 @@ describe('L06 manager-side immutable Q1-Q5 revision comparison (unwired staging 
     }
   });
 
+  it('keeps the demonstration out of production and connects browser QA to the real dev route',()=>{
+    const appEntry=source('index.tsx');
+    const demo=source('pages/PsiRevisionLabL06.tsx');
+    const workflow=source('.github/workflows/psi-company-wide.yml');
+    const browser=source('scripts/verify-psi-l06-revision-lab.mjs');
+    expect(appEntry).toContain("import.meta.env.DEV ? React.lazy(() => import('./pages/PsiRevisionLabL06')) : null");
+    expect(appEntry).toContain("'/_dev/psi-l06-revisions'");
+    expect(appEntry).toContain('해당 내부 검수 화면은 운영 환경에서 제공되지 않습니다');
+    expect(demo).toContain('<PsiRevisionEvidencePanelL06 chain={selected} />');
+    expect(demo).toContain('가상 데이터');
+    expect(demo).not.toMatch(/fetch\\s*\\(|supabase\\.from|localStorage|indexedDB|XMLHttpRequest/);
+    expect(workflow).toContain('node scripts/verify-psi-l06-revision-lab.mjs');
+    expect(browser).toContain('productionDenied:true');
+    expect(browser).toContain('crossSiteBlocked:true');
+  });
+
   it('never creates a worker submission, a network call or writable manager approval',()=>{
     const component=source('components/assessment/PsiRevisionEvidencePanelL06.tsx');
     const sql=source('supabase/proposals/psi_worker_risk_resubmission_l06_staging.sql');
