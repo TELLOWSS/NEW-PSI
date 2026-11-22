@@ -43,6 +43,22 @@ describe('PSI desktop navigation dock contract', () => {
     expect(browser).toContain("getByRole('button',{name:'메뉴 구성 편집 열기'})");
   });
 
+  it('verifies desktop dock state and user-hidden menu agreement with quick find in Chromium', () => {
+    const sidebar = source('components/Sidebar.tsx');
+    const chromium = source('scripts/verify-psi-l15-accessibility.mjs');
+    const layout = source('components/Layout.tsx');
+    expect(sidebar).toContain('psi-sidebar-dock-toggle flex min-h-11 min-w-11');
+    expect(sidebar).toContain('aria-label={docked ? \'메뉴 펼치기\' : \'메뉴 접기\'}');
+    expect(sidebar).toContain('getSidebarVisibleMenuItems(mode, resolvedUiMode, compositionConfig)');
+    expect(layout).toContain('getSidebarVisibleMenuItems(operationalMode, uiAudienceMode, uiCompositionConfig)');
+    expect(chromium).toContain('L34 desktop menu collapse button must have a 44px touch target');
+    expect(chromium).toContain('getBoundingClientRect().width-76');
+    expect(chromium).toContain('getBoundingClientRect().width-248');
+    expect(chromium).toContain('L34 hidden menu selection must persist');
+    expect(chromium).toContain('L34 quick finder must not reveal a user-hidden sidebar menu item');
+    expect(chromium).toContain('L34 restored menu must reappear in quick finder without a reload');
+  });
+
   it('uses reduced-motion-safe width animation without extra dependencies', () => {
     const css = source('styles/psi-living-motion.css');
     expect(css).toContain('.psi-sidebar--collapsed');
