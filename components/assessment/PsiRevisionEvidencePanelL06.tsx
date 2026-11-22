@@ -14,6 +14,7 @@ type ReviewSnapshot = {
   submissionId: string;
   workerId: string;
   sourceLanguage: string;
+  gradeReason: string;
   answers: Record<PsiQuestionKey, string>;
   events: ReviewEvent[];
   workClearanceGranted: false;
@@ -47,6 +48,7 @@ export const hasReadableL06RevisionChain = (candidate: unknown): candidate is Ps
       old.events.at(-1)?.action !== 'request_changes') return false;
   for (const record of [old,next]) {
     if (!record.answers || typeof record.answers !== 'object' ||
+        typeof record.gradeReason !== 'string' ||
         !keys.every(key => typeof record.answers[key] === 'string')) return false;
   }
   return true;
@@ -77,8 +79,12 @@ export function PsiRevisionEvidencePanelL06({ chain }: {chain: unknown}) {
       </header>
       <div className="mt-5 space-y-3">
         {PSI_FORM_QUESTIONS.map(question => {
-          const previous = chain.original.answers[question.key];
-          const updated = chain.replacement.answers[question.key];
+          const previous = question.key === 'Q3'
+            ? [chain.original.answers.Q3, chain.original.gradeReason].filter(Boolean).join(' · ')
+            : chain.original.answers[question.key];
+          const updated = question.key === 'Q3'
+            ? [chain.replacement.answers.Q3, chain.replacement.gradeReason].filter(Boolean).join(' · ')
+            : chain.replacement.answers[question.key];
           const changed = previous !== updated;
           return (
             <article className="rounded-2xl border border-slate-200 p-4" key={question.key}>
