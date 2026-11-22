@@ -229,7 +229,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className={`flex border-b border-slate-200 px-2 py-2 dark:border-slate-800/80 ${docked ? 'justify-center' : 'justify-end'}`}>
                     <button
                         type="button"
-                        className="psi-sidebar-dock-toggle flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--psi-focus)] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                        className="psi-sidebar-dock-toggle flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--psi-focus)] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
                         onClick={() => setIsCollapsed((prev) => !prev)}
                         aria-label={docked ? '메뉴 펼치기' : '메뉴 접기'}
                         aria-expanded={!docked}
