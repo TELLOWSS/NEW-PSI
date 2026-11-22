@@ -11,12 +11,12 @@
 
 ## 2. 이번 L18 실제 구현
 
-- `config/psi-living-ui-release-acceptance.json`: 검수 13개를 제품 기능/실기기/모국어·A4/접근성/안전조치/보고/서버 보안·RLS/상용 라이선스/독립 QA/제품 소유자 승인/배포 확인으로 분리. 전부 **pending**이며 실증 자료 없는 자동 완료 금지.
+- `config/psi-living-ui-release-acceptance.json`: 검수 13개를 제품 기능/실기기/모국어·A4/접근성/안전조치/보고/서버 보안·RLS/상용 라이선스/독립 QA/제품 소유자 승인/배포 확인으로 분리. **출시 전 12개 + 배포 후 확인 1개**를 별도 단계로 관리해, 사후 확인을 선행 승인 요구로 만드는 순환 차단 오류를 방지. 전부 **pending**이며 실증 자료 없는 자동 완료 금지.
 - `scripts/verify-psi-l18-release-gate.mjs`: GitHub API·현장 개인정보를 읽지 않는 로컬 검증기. 구성 파일 누락·중복·증빙 없는 verified 상태는 실패. 인증 승인의 증거는 독립 검토자·확인 일자·HTTPS 증거 링크를 요구. 실제 증거 링크를 읽고 검증하는 것은 아니므로 마지막 사람 승인/운영 검증을 대체하지 않음.
 - `--source-only`: 소스 체크/CI 워크플로 필수 조건을 보존했는지 검사한 후 `source-only.json` 생성.
 - `--browser-evidence`: 각 독립 테스트의 CI 합성 JSON 6종을 확인해 전제품 7흐름·교육/OCR/A4/보고·L15 8개 화면·L16 기기 사진 오프라인 복원/재연결 시 API 0·L17 소스 보안 검증을 취합하고 `browser-evidence.json` 생성. 320~1440px 테스트 성공을 실제 200% 확대, Android 실기기 통과로 승격하지 않음.
 - `tests/psiL18ReleaseGate.test.ts`의 계약검증과 릴리스/전사 Chromium CI에 **독립 게이트** 추가. 안전·사용자 승인 단계가 **BLOCKED**라 해도 기술 QA는 실패로 오도하지 않으며, 반대로 가짜 기술 증거가 있으면 CI 실패.
-- 결과의 `releaseDecision='BLOCKED'`, `releaseAuthorized=false`, `mainMerged=false`, `productionReleased=false`는 출시 승인 전제. 물리 기기/권한/원어민 확인이 불가능해도 자동 결과를 `RELEASED`로 만들지 않는다.
+- 결과의 `releaseDecision='BLOCKED'`, `releaseAuthorizedByThisJob=false`는 자동 승인 불가를 나타낸다. `mainMerged:null` / `productionReleased:null`은 CI 내부에서 운영 상태를 확인하지 않았다는 뜻이지, 운영 상태를 추측한 값이 아니다. 배포 후 검증은 독립 `postDeployPending`으로 유지하여 승인 전에 완료하라고 요구하지 않는다. 물리 기기/권한/원어민 확인이 불가능해도 자동 결과를 `RELEASED`로 만들지 않는다.
 
 ## 3. 차단 상태별 실제 추가 검수
 

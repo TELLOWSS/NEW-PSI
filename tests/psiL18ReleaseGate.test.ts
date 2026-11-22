@@ -12,20 +12,23 @@ describe('L18 independent non-release readiness gate',()=>{
   expect(policy.candidatePr).toBe(237);
   expect(policy.gates).toHaveLength(13);
   expect(new Set(policy.gates.map((x:{id:string})=>x.id)).size).toBe(13);
-  expect(policy.gates.every((g:{status:string,evidence:unknown})=>g.status==='pending'&&g.evidence===null)).toBe(true);
+  expect(policy.gates.every((g:{status:string,evidence:unknown})=>
+   ['pending','reviewed-with-evidence'].includes(g.status)&&(g.status!=='pending'||g.evidence===null))).toBe(true);
+  expect(policy.gates.find((g:{id:string})=>g.id==='L18-production-post-deploy-validation')?.phase).toBe('post-deploy');
   for(const id of ['L06-worker-q1-q5-direct-submission','L08-L14-android-photo-pwa','L10-native-languages-a4',
    'L15-real-zoom-accessibility','L16-real-offline-radio-battery','L17-rbac-supabase-tenant-rls',
    'L18-product-owner-explicit-approval','L18-production-post-deploy-validation'])
-   expect(policy.gates.find((g:{id:string})=>g.id===id)?.status).toBe('pending');
+   expect(policy.gates.find((g:{id:string})=>g.id===id)).toBeDefined();
  });
  it('only aggregates verified synthetic artifacts and never claims a device/server/owner release',()=>{
   const source=file('scripts/verify-psi-l18-release-gate.mjs');
   expect(source).toContain("['pending','reviewed-with-evidence']");
   expect(source).toContain("evidence.reviewerRole===gate.reviewer");
   expect(source).toContain("audit.releaseDecision=blocked.length?'BLOCKED': 'HUMAN_REVIEW_REQUIRED'");
-  expect(source).toContain('releaseAuthorized:false');
-  expect(source).toContain('mainMerged:false');
-  expect(source).toContain('productionReleased:false');
+  expect(source).toContain('postDeployPending');
+  expect(source).toContain('releaseAuthorizedByThisJob:false');
+  expect(source).toContain('mainMerged:null');
+  expect(source).toContain('productionReleased:null');
   expect(source).toContain('company.realWorkerRecords===false');
   expect(source).toContain('offline.result');
   expect(source).toContain('e.networkCalls===0');

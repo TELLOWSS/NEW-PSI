@@ -28,13 +28,17 @@ const ids=new Set(config.gates.map(g=>g.id));
 assert.equal(ids.size,mandatory.length,'Duplicate release gate IDs');
 for(const id of mandatory)assert.ok(ids.has(id),'Missing required release gate: '+id);
 const blocked=[];
+const postDeployPending=[];
 for(const gate of config.gates){
  assert.ok(['pending','reviewed-with-evidence'].includes(gate.status),'Unexpected gate status: '+gate.id);
+ const phase=gate.phase||'pre-release';
+ assert.ok(['pre-release','post-deploy'].includes(phase),'Invalid gate phase: '+gate.id);
+ if(phase==='post-deploy')assert.equal(gate.id,'L18-production-post-deploy-validation','Only final deployment validation may be post-deploy');
  assert.ok(typeof gate.description==='string'&&gate.description.length>=12,'Missing gate scope: '+gate.id);
  assert.ok(['product-ux','design','platform','safety-ai','security','qa','owner'].includes(gate.reviewer),'Unknown reviewer: '+gate.id);
  if(gate.status==='pending'){
   assert.equal(gate.evidence,null,'Pending gate cannot claim evidence: '+gate.id);
-  blocked.push({id:gate.id,area:gate.area,reason:gate.description});
+  (phase==='post-deploy'?postDeployPending:blocked).push({id:gate.id,area:gate.area,reason:gate.description});
  }else{
   const evidence=gate.evidence;
   assert.ok(evidence && typeof evidence==='object' && !Array.isArray(evidence),'Evidence record required: '+gate.id);
@@ -61,7 +65,7 @@ for(const [needle,source] of [
 }
 const audit={schema:'psi-l18-readiness-evidence-v1',headSha:process.env.GITHUB_SHA||null,sourceOnly:!browser,syntheticBrowserEvaluated:browser,generatedAt:new Date().toISOString(),
  evidence:{},checks:steps,humanGateTotal:config.gates.length,humanBlockers:blocked,productOwnerApproved:config.gates.find(g=>g.id==='L18-product-owner-explicit-approval')?.status==='reviewed-with-evidence',
- releaseAuthorized:false,mainMerged:false,productionReleased:false};
+ postDeployPending,releaseAuthorizedByThisJob:false,mainMerged:null,productionReleased:null};
 if(browser){
  const company=await json('artifacts/audit/psi-company/cross-module-browser.json');
  const workspace=await json('artifacts/audit/psi-platform-workspaces/result.json');
@@ -86,6 +90,7 @@ audit.reviewNote='Release cannot be approved by source code or synthetic CI alon
 const out='artifacts/audit/psi-l18-release-gate/'+(browser?'browser-evidence.json':'source-only.json');
 await mkdir('artifacts/audit/psi-l18-release-gate',{recursive:true});
 await writeFile(out,JSON.stringify(audit,null,2)+'\n');
-console.log('[PSI L18] '+audit.automationStatus+'; RELEASE='+audit.releaseDecision+'; pending='+blocked.length+'/'+config.gates.length+'; synthetic='+browser);
+console.log('[PSI L18] '+audit.automationStatus+'; RELEASE='+audit.releaseDecision+'; pre-release blockers='+blocked.length+'; post-deploy pending='+postDeployPending.length+'; synthetic='+browser);
 for(const item of blocked)console.log('[PSI L18 BLOCK] '+item.id);
+for(const item of postDeployPending)console.log('[PSI L18 POST-DEPLOY PENDING] '+item.id);
 if(audit.automationStatus==='FAIL')process.exitCode=1;

@@ -107,7 +107,8 @@
       "status": "pending",
       "evidence": null,
       "reviewer": "qa",
-      "description": "승인된 main 병합 뒤 Vercel Production READY·alias·SHA·오류 모니터링 실확인(배포 전에는 반드시 pending)"
+      "description": "승인된 main 병합 뒤 Vercel Production READY·alias·SHA·오류 모니터링 실확인(배포 전에는 반드시 pending)",
+      "phase": "post-deploy"
     }
   ]
 }

@@ -348,9 +348,9 @@
 
 - **선행 L17 최신 동일 HEAD 결과:** `639b8612a9ae65ac610b11bf21bb2287b5475e94`에서 릴리스 #44969831755, 전사 Chromium #44969831759, Inspector 모바일 합성 QA #44969831721 **3종 모두 SUCCESS**. L17 source-only 보안 검증 19/19 성공. 이는 이번 새 L18 커밋까지 검증한 증거가 아니므로 **최신 HEAD에서 다시 확인**.
 - **실 DB 독립 보안조사:** Supabase `PSI-Database`를 식별해 Security Advisors·RLS·GRANT·SECURITY DEFINER 함수 소스에 대한 읽기 전용 메타데이터 조사. RLS 없는 public 테이블 경고는 없으며, Advisor INFO 20(RLS on/policies 없음), WARN 5(authenticated 호출 가능한 SECURITY DEFINER), WARN 1(public.vector). 정책 없는 주요 테이블 익명·인증 직접 SELECT 권한 없음 확인. 관리자 함수 4개는 내부 멤버십 검사 호출, 근로자 교육 조회는 계정/만료/발행 관리자 멤버십을 검사. **실제 교차 테넌트 계정 QA 없이 무결성/권한/서비스 안전 승인 금지.** PR #237 별도 보안 코멘트 기록.
-- **정식 출시는 여전히 차단:** `config/psi-living-ui-release-acceptance.json`의 13개 미완료 실기기/근로자 직접 입력/모국어/안전조치/실 RLS·HTTP·OSS·사용자 승인/사후 Production 검증은 전부 pending. 기술 CI 통과를 실기기·원어민·권한·서버 수신·안전작업 재개 승인의 증거로 사용 금지.
+- **정식 출시는 여전히 차단:** `config/psi-living-ui-release-acceptance.json`의 13개 미완료 항목 중 **출시 전 12개 + 배포 후 사후 검증 1개**는 전부 pending. 배포 후 검증은 출시 전 승인을 영구 차단하는 순환 의존성으로 사용하지 않는다. 기술 CI 통과를 실기기·원어민·권한·서버 수신·안전작업 재개 승인의 증거로 사용 금지.
 - **검증 신설:** `scripts/verify-psi-l18-release-gate.mjs`에서 CI 보존 및 입력 증거의 누락·변조를 엄격 검사하고, 독립 Chromium 7흐름/교육·OCR·A4/L15 8개 조건/L16 사진 오프라인 저장 및 자동 API 0/L17 source-only 19개 검사 결과의 JSON을 연결. `--source-only`은 릴리스 CI, `--browser-evidence`는 전사 Chromium CI 후속. `tests/psiL18ReleaseGate.test.ts` 및 CI 증빙 업로드 보강. 외부 API/DB/배포/신규 OSS 없음.
-- **기계 판정의 의도:** 자동 검사 통과 시에도 `releaseDecision:'BLOCKED'`, `releaseAuthorized:false`, `mainMerged:false`, `productionReleased:false`. 자동 결과가 승인/서명을 위조하지 않는다. L18은 **IMPLEMENTED(사전 검수) / NOT RELEASED**.
+- **기계 판정의 의도:** 자동 검사 통과 시에도 출시 전 12개 미완료로 `releaseDecision:'BLOCKED'`, `releaseAuthorizedByThisJob:false`, `mainMerged:null`, `productionReleased:null`(확인 미실시). 배포 후 확인은 `postDeployPending`에 분리. 자동 결과가 승인/서명을 위조하지 않는다. L18은 **IMPLEMENTED(사전 검수) / NOT RELEASED**.
 - **확인 문서:** `docs/PSI_L18_RELEASE_READINESS_20261122.md`. `main` 및 Production은 사용자 승인 전 변경하지 않는다.
 
 **다음 한 작업:** 최신 L18 HEAD 릴리스/전사 Chromium/Inspector QA 확인 후 오류 수정 → L06 현장 근로자 Q1~Q5 직접 제출 설계/구현 (수기 OCR 원본·관리자 승인 유지), Android·모국어 A4·교차테넌트/상용 호스팅 실증을 병행. 사용자 최종 승인 없는 main 병합·배포 금지.
