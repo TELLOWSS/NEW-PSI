@@ -60,6 +60,20 @@ try{
   assert.ok(size.y>=-1 && size.y+size.height<=size.viewportH+2,
    'L15 quick find extends vertically: '+JSON.stringify({c,size}));
   assert.equal(await page.evaluate(()=>document.body.style.overflow),'hidden','menu search must lock page scroll');
+  const background=await page.evaluate(()=>{
+   const root=document.getElementById('root');
+   const dialog=document.querySelector('[role="dialog"][aria-labelledby="psi-quickfind-title"]');
+   const underlyingButton=root?.querySelector('button');
+   underlyingButton?.focus();
+   return {
+    inert:root?.inert===true,
+    portalOutsideRoot:!!dialog && !root?.contains(dialog),
+    focusBlocked:!!underlyingButton && document.activeElement!==underlyingButton,
+    dialogInteractive:!!dialog && !dialog.closest('[inert]'),
+   };
+  });
+  assert.deepEqual(background,{inert:true,portalOutsideRoot:true,focusBlocked:true,dialogInteractive:true},
+   'quick finder must make ONLY its nonportal app background inert');
   const close=modal.getByRole('button',{name:'검색 창 닫기'});
   const last=modal.getByRole('option').last();
   await last.focus();
@@ -72,6 +86,20 @@ try{
   await modal.waitFor({state:'hidden'});
   await page.waitForFunction(()=>document.activeElement?.getAttribute('aria-label')==='메뉴 빠른 찾기');
   assert.notEqual(await page.evaluate(()=>document.body.style.overflow),'hidden','quick find must restore scroll');
+  assert.equal(await page.evaluate(()=>document.getElementById('root')?.inert),false,
+   'quick find must release app inert after Escape');
+  if(c.width===390 && c.height===844){
+   // Current-page selection is a navigation, not an Escape/back action.
+   await modalTrigger.click();
+   await modal.waitFor();
+   await modal.getByRole('option').first().click();
+   await modal.waitFor({state:'hidden'});
+   await page.waitForFunction(()=>document.activeElement?.id==='psi-main-content');
+   assert.equal(await page.evaluate(()=>document.getElementById('root')?.inert),false,
+    'QuickFind current-page selection must release inert');
+   assert.notEqual(await page.evaluate(()=>document.body.style.overflow),'hidden',
+    'QuickFind route selection must restore scrolling');
+  }
 
   if(c.width<1024){
    const menuTrigger=page.getByRole('button',{name:'메뉴 열기',exact:true});
