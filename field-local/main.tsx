@@ -2,6 +2,7 @@ import React, {useEffect, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import InspectorLocalDraft from '../components/inspector/InspectorLocalDraft';
 import {runFieldDevicePreflight,formatFieldDeviceReport,type FieldDeviceReport} from './devicePreflight';
+import {FIELD_TRIAL_CASES,FIELD_TRIAL_OUTCOMES,initialFieldTrialAnswers,buildFieldTrialSummary,formatFieldTrialSummary,type FieldTrialAnswers,type FieldTrialOutcome} from './fieldManualTrial';
 import '../components/inspector/inspector-experience.css';
 import '../components/inspector/inspector-field-entry.css';
 import '../components/inspector/inspector-refresh.css';
@@ -45,6 +46,18 @@ function LocalEntry(){
    await navigator.clipboard.writeText(formatFieldDeviceReport(deviceReport));
    setDeviceReportStatus('진단 요약을 복사했습니다. 본문은 사진·기기 고유번호·근로자 기록을 포함하지 않습니다.');
   }catch{setDeviceReportStatus('복사가 허용되지 않았습니다. 아래 내용을 직접 확인해 주세요.');}
+ };
+ // L40: self-reported manual observations exist only in component memory.
+ // Reload/discard loses them, and no answer is ever promoted to L18 approval.
+ const [fieldTrialAnswers,setFieldTrialAnswers]=useState<FieldTrialAnswers>(initialFieldTrialAnswers);
+ const [fieldTrialMessage,setFieldTrialMessage]=useState('');
+ const fieldTrialSummary=buildFieldTrialSummary(fieldTrialAnswers);
+ const copyFieldTrial=async()=>{
+  try{
+   if(!navigator.clipboard?.writeText)throw new Error('clipboard-unavailable');
+   await navigator.clipboard.writeText(formatFieldTrialSummary(fieldTrialSummary));
+   setFieldTrialMessage('자기보고 검수 요약을 복사했습니다. 독립 승인 증빙으로 자동 등록되지 않습니다.');
+  }catch{setFieldTrialMessage('복사가 허용되지 않았습니다. 직접 확인해 주세요. 이 페이지를 새로고침하면 선택은 사라집니다.');}
  };
  const [installPrompt,setInstallPrompt]=useState<FieldInstallPromptEvent|null>(null);
  const [installStatus,setInstallStatus]=useState('설치 메뉴는 브라우저·기기에 따라 다릅니다. 설치하지 않아도 웹으로 점검할 수 있습니다.');
@@ -153,6 +166,27 @@ function LocalEntry(){
     <p>다음은 직접 검수해야 합니다: 설치·오프라인 재실행·사진/메모 복원·실제 배터리/발열·200% 확대·TalkBack. API 감지만으로 합격 처리하지 않습니다.</p>
     <button className="si-btn" type="button" onClick={()=>void copyDeviceReport()}>진단 요약 복사</button>
    </>}
+  </section>
+  <section aria-label="현장 실기기 수동 검수" data-psi-p3-manual-trial style={{border:'1px solid currentColor',borderRadius:12,padding:'12px 14px',margin:'14px 0'}}>
+   <details>
+    <summary style={{cursor:'pointer',fontSize:'1.125rem',fontWeight:700,minHeight:44,padding:'8px 0'}}>현장 실기기 수동 검수 · 7개 단계</summary>
+    <p>이 항목은 실제 시험을 마친 사람이 직접 선택하는 <strong>자기보고 기록</strong>입니다. 자동 합격·서버 저장·관리자 승인 기능이 아닙니다. 사진, 근로자 이름, 현장 주소 등 개인정보를 적지 마세요.</p>
+    <p>선택은 이 페이지에만 임시 유지됩니다. 새로고침·종료하면 사라지므로 필요하면 아래에서 직접 요약을 복사하세요. 전체 항목을 확인으로 표시해도 출시 승인은 되지 않습니다.</p>
+    <div>
+     {FIELD_TRIAL_CASES.map(step=><div key={step.id} data-psi-p3-trial={step.id} style={{padding:'10px 0',borderBottom:'1px solid #cbd5e1'}}>
+      <label style={{display:'block',fontWeight:700,marginBottom:5}} htmlFor={'psi-trial-'+step.id}>{step.label}</label>
+      <p style={{fontSize:13,margin:'0 0 8px'}}>{step.instruction}</p>
+      <select id={'psi-trial-'+step.id} className="si-input" style={{display:'block',width:'100%',minHeight:44,maxWidth:440}} value={fieldTrialAnswers[step.id]}
+       onChange={event=>{const outcome=event.target.value as FieldTrialOutcome;setFieldTrialAnswers(current=>({...current,[step.id]:outcome}));setFieldTrialMessage('검수 결과는 이 화면에만 임시 반영됩니다. 자동 승인이나 저장은 되지 않습니다.');}}>
+       {FIELD_TRIAL_OUTCOMES.map(choice=><option key={choice.value} value={choice.value}>{choice.label}</option>)}
+      </select>
+     </div>)}
+    </div>
+    <p data-psi-p3-trial-counts aria-live="polite">직접 확인(자기보고) {fieldTrialSummary.observed} / 문제 {fieldTrialSummary.issues} / 시험 불가 {fieldTrialSummary.blocked} / 미실시 {fieldTrialSummary.notRun} (총 {fieldTrialSummary.total})</p>
+    <p><strong>SELF_REPORTED_UNVERIFIED · RELEASE=BLOCKED</strong></p>
+    <button type="button" className="si-btn" onClick={()=>void copyFieldTrial()}>수동 검수 요약 복사</button>
+    <p role="status" aria-live="polite">{fieldTrialMessage}</p>
+   </details>
   </section>
   <InspectorLocalDraft offlineEntry/>
  </main>;

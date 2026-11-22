@@ -61,6 +61,23 @@ try{
  assert.deepEqual(localCheck,{fields:8,hasCamera:true,hasOfflineAssets:true,copyButton:true,disclaimer:true},
   'P3 local-only device capability audit must remain explanatory and non-authorizing');
  evidence.push({stage:'p3-synthetic-device-preflight',...localCheck,realAndroid:false,releaseAuthorized:false});
+ // L40: exercise real selection UI, keep all seven manual choices unverified.
+ const trial=page.getByRole('region',{name:'현장 실기기 수동 검수'});
+ await trial.locator('summary').click();
+ const selects=trial.locator('[data-psi-p3-trial] select');
+ assert.equal(await selects.count(),7,'L40 requires seven real manual observation controls');
+ assert.ok((await trial.locator('[data-psi-p3-trial-counts]').innerText()).includes('미실시 7'));
+ await trial.locator('[data-psi-p3-trial="android-chrome"] select').selectOption('observed');
+ await trial.locator('[data-psi-p3-trial="samsung-internet"] select').selectOption('issue');
+ assert.match(await trial.locator('[data-psi-p3-trial-counts]').innerText(),
+  /직접 확인\(자기보고\) 1 \/ 문제 1 \/ 시험 불가 0 \/ 미실시 5 \(총 7\)/);
+ assert.ok((await trial.innerText()).includes('SELF_REPORTED_UNVERIFIED · RELEASE=BLOCKED'));
+ assert.ok((await trial.innerText()).includes('새로고침·종료하면 사라지므로'));
+ const dimensions=await selects.first().boundingBox();
+ assert.ok(dimensions&&dimensions.height>=44,'L40 manual trial control below 44px');
+ evidence.push({stage:'p3-manual-trial-synthetic',options:7,observed:1,issues:1,remaining:5,
+  humanReleaseAuthorized:false,realAndroid:false});
+
 
  await page.getByRole('button',{name:'이 기기 오프라인 준비'}).click();
  await page.getByText('이 기기의 오프라인 점검 준비가 확인됐습니다.',{exact:false}).waitFor({timeout:35000});

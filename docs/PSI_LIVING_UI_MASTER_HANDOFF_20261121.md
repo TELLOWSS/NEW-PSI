@@ -848,6 +848,17 @@
 
 **다음:** 39차 동일 HEAD 3종 CI 결과·실제 Chromium 시나리오 로그 확인 및 오류 수정 → P3 실제 Android 사용자가 기록한 지원상태·오프라인/사진 복원 UAT 결과로 개선점 확정 → P4 11개 모국어·A4 실물/지연조치 사람 검수, P2 승인 격리 Supabase 실험 순으로 진행. 출시 승인은 별개.
 
+
+### L40 — P3 Android 실기기 수동 검수 7단계·자기보고 구분 및 복사 (2026-11-23)
+
+- **39차 동일 HEAD CI 확정:** `3eae8e2a0e14ab44f9a346df479ed7b8c458f5c0` 릴리스 #45022645985 **SUCCESS** (281 파일/2,203 테스트, L17 19/19, L18 RELEASE=BLOCKED), 전사 Chromium #45022645993 **SUCCESS** (L39 8개 기기 지원상태·L16 오프라인 재실행/사진 복구/자동 API 0), Inspector mobile #45022645988 **SUCCESS**. 이는 합성 자동검증이지 물리 Android 인수 완료 아님.
+- **40차 현장 수동 관찰 UI:** `/field-local/`의 L39 기기 지원상태 아래에 접을 수 있는 **7개 실제 시험 항목**을 추가. Android Chrome·삼성 인터넷 설치/재실행, 비행기 모드 오프라인 재실행, 실사진·메모 복원, 백업/저장공간, 200% 확대/TalkBack, 통신 음영·발열·배터리 항목별 **미실시/직접 확인함(자기보고)/문제 발견/시험 불가**만 선택한다.
+- **데이터·오인 방지:** 7개 모두 '직접 확인'으로 선택해도 `SELF_REPORTED_UNVERIFIED`, `humanReleaseAuthorized=false`, `RELEASE=BLOCKED`. 실제 승인자는 별도 실기기·시험 조건/증빙·사람 검증을 해야 한다. 선택은 React 화면 메모리에만 존재하며 새로고침/종료 시 삭제된다. 명시적 버튼 클릭으로만 비식별 요약 클립보드 복사, 자동 전송·계정/기기 식별·실사진·작업자 정보·새 의존성 없음.
+- **구현 파일:** `field-local/fieldManualTrial.ts` 순수 타입/7개 항목/자기보고 집계, `field-local/main.tsx` 44px 이상 선택 UI·접근성/복사, `tests/psiFieldManualTrial.test.ts` 4개 계약 검증, 기존 `scripts/verify-psi-l16-resilience.mjs` 실제 Chromium 7개 선택/집계/주의 문구/44px 검증, `docs/PSI_L14_PWA_DECISION_AND_FIELD_TEST_20261122.md` 갱신.
+- **40차 최종 검증 원칙:** 새 HEAD에서 릴리스·회사형 Chromium·Inspector 3종 **모두 SUCCESS**를 확인하기 전 40차 자동 QA 완료라 주장하지 않는다. 물리 Android·실제 200%/TalkBack·원어민·독립 인증/사용자 승인 13건은 여전히 0/13. P2 독립 Supabase 승인 없음(A01~A25 0/25). PR #237 Draft, main/Production 기존 배포 유지.
+
+**다음 한 작업:** 40차 동일 HEAD 브라우저 선택·무저장·비식별 회귀 결과 확인/실패 수정 → 실제 현장 Android 시험 사용자의 7개 항목 자기보고·독립 관찰 증거 검토 → P4 다국어/A4 실제 출력 및 지연조치 담당자 인수. 실데이터·Auth/DB·운영 배포 금지.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -871,7 +882,7 @@
 
 ## 9. 다음 착수 과제
 
-**L39 P3 비식별 기기 지원상태 진단을 /field-local/ 개발 브랜치에 구현했고, 39차 최종 HEAD 3종 CI 검증은 별도 판정한다. 38차의 이전 HEAD 릴리스·전사 Chromium은 통과했지만 Inspector 종료판정은 미확정이다. 다음은 실제 Android Chrome·삼성 인터넷에서 사진/오프라인 복원 검수 → P4 모국어/A4·지연조치 검수 → 승인된 격리 P2 Auth 25건·P5 보안/13개 인간 인수 순서. PR #237 Draft·RELEASE=BLOCKED, main/Production/실 DB 변경 금지.**
+**L39 동일 HEAD 3종 CI SUCCESS 확정. L40 P3 현장 수동 자기보고 7단계(별도 브라우저 합성 QA/인계 문서)를 개발 브랜치에 추가. L40 최신 HEAD CI 3종 종료 전 자동 QA 판정 보류. P3 실제 Android/삼성 인터넷 인수·P4 원어민/A4·지연조치 인수, P2 승인 격리 Auth, P5 보안/13개 사람 승인은 미완료. PR #237 Draft·RELEASE=BLOCKED, main/Production/실 DB 변경 금지.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
