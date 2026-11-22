@@ -336,7 +336,22 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
             window.cancelAnimationFrame(focusFrame);
             document.removeEventListener('keydown', handleKeyDown);
             document.body.style.overflow = previousOverflow;
-            mobileMenuPreviousFocusRef.current?.focus();
+            // The mobile opener is CSS-hidden after an lg breakpoint change.
+            // Restore focus to it only while visible; otherwise put keyboard
+            // focus on the active desktop route rather than a hidden control.
+            const opener = mobileMenuPreviousFocusRef.current;
+            const canFocus = (element: HTMLElement | null): element is HTMLElement =>
+                Boolean(element?.isConnected && element.getClientRects().length > 0 &&
+                    getComputedStyle(element).visibility !== 'hidden');
+            if (canFocus(opener)) {
+                opener.focus();
+            } else {
+                const desktopRoute = document.querySelector<HTMLElement>(
+                    '[data-psi-desktop-sidebar] [aria-current="page"]',
+                );
+                if (canFocus(desktopRoute)) desktopRoute.focus();
+            }
+            mobileMenuPreviousFocusRef.current = null;
         };
     }, [isMobileMenuOpen]);
 
