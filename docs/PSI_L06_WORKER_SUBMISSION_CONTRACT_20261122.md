@@ -182,3 +182,15 @@
 - **서명 검증·실험의 경계:** JWT 원문, service role 키를 수집·로깅·PR에 올리지 않는다. Supabase Auth 실제 exp/iat/세션 무효화·네트워크 경합은 승인된 독립 테스트환경에서만 실증하며 운영 `PSI-Database`와 목적 미확인 기존 프로젝트는 사용하지 않는다. L18 13개 사람 승인, 보유/삭제, Android/모국어 교육·작업허가 독립성 확인 전 정식 연결/출시 금지.
 
 **다음:** 동일 SHA 전체 CI 3종 판정/오류 수리 → 승인된 격리 Supabase에서 발행된 실제 JWT의 만료/서명/철회, 기업별 RLS·권한 경합 및 A01~A21 점검 → 사용자 승인 전 main/Production/운영 DB 변경 금지.
+
+## 18. 2026-11-22 — 16차: 지연정리된 time-boxed Supabase Auth 세션의 DB 접근 거부
+
+- **15차 실제 소스 검증:** `2e3326b` 릴리스 #44993293216 **SUCCESS**(276개 파일/2,151개, L06 PGlite 45/45), 전사 Chromium #44993293203 **SUCCESS**, Inspector 모바일 #44993293206은 후속 커밋으로 **CANCELLED**. 15차 3종 전체 PASS는 아님.
+- **근거 확인:** Supabase 공식 <https://supabase.com/docs/guides/auth/sessions>는 time-box/inactivity timeout의 Auth 세션 종료가 refresh에서 검사되고, 종료된 DB row의 삭제는 지연될 수 있다고 명시. GoTrue 최신 Session 모델 <https://pkg.go.dev/github.com/supabase/auth/internal/models>에 `auth.sessions.not_after`가 nullable fixed time-box 만료시각임을 확인. 단순 `auth.sessions` 행 실존은 시간제한을 만족한다는 뜻이 아님.
+- **실구현 proposal:** 공통 `psi_l06_require_active_session()`에서 기존 UUID/session/user 매핑, JWT exp/iat, banned/deleted 검사와 `FOR SHARE OF sess,u` 잠금을 유지하면서 `sess.not_after IS NULL OR sess.not_after > clock_timestamp()`를 추가. 해당 시간제한이 지났으나 행이 남은 계정은 신규 접수·기존 nonce 재전송·보완제출·관리자 검토/원문조회 **전부 42501 거부**.
+- **PGlite 5개 가상 테스트:** `auth.sessions` 모사 필드에 nullable `not_after timestamptz` 신설; time-box expired worker 최초 제출, expired reviewer 조회·검토, nullable/unexpired 정상조회, time-box 만료 후 기접수 nonce 재전송의 감사 원장 1건 유지, 보완 요청 후 expired worker가 보완링크 생성을 시도해도 원본 유지. 기존 45 + 5 = **L06 50개 목표**. 전체 앱 테스트 2,156개 목표로, 최종 동일 HEAD 릴리스 통과 전에는 PASS가 아니다.
+- **증명한계:** `not_after`는 configured fixed time-box에 해당한다. **inactivity timeout·single-session policy의 즉각적인 해제/삭제까지 보장하지 않는다.** Supabase gateway JWT 서명/실서버 refresh/계정상태·RLS/GRANT·별도 DB 두 커넥션은 승인된 전용 Supabase 환경에서 검증해야 하며 프로덕션 프로젝트 두 곳을 임의 테스트용으로 사용하지 않는다.
+- **실DB 인수:** `docs/PSI_L06_SUPABASE_ISOLATED_AUTH_ACCEPTANCE_20261122.md` A24 time-box 만료 + 지연 정리, A25 inactivity·single-session 설정/refresh 차이 추가, 총 **25개 NOT RUN**. 실제 프로젝트 플랜/설정에서 해당 정책이 미지원이면 PASS 대신 BLOCKED. 화면의 `approved`는 자료 검토 승인이지 안전조치 완료/작업허가가 아님.
+- **변경 제한:** `supabase/proposals` 미배포 SQL + 합성 시험 + 인계 문서만 수정. 실 Supabase Auth/보관 근거/개인정보·현장 사용/운영 API·RLS·키·마이그레이션·`main`·Production 미변경, L18 13개 인간 인수 pending.
+
+**다음:** 16차 동일 HEAD release/company Chromium/Inspector QA 완료·실패 보완 → 승인된 독립 Supabase 실제 timeout/jwt/RLS A01~A25 → 실기기·11개 언어/법무 및 L18 13개 사람 승인 후에만 운영 연결 검토.
