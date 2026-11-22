@@ -216,3 +216,13 @@
 - **운영 보호:** 실 Supabase 프로젝트/토큰/Auth/RLS/키·실근로자 기록·migrations·API·main/Production 변경 없음. PR #237 Draft, L18 사람 승인 13개와 현장·Android/언어/개인정보 인수 미완.
 
 **다음:** 18차 동일 최종 SHA 릴리스·전사 Chromium·Inspector 결과와 실패수정 → 승인된 독립 Supabase에서 A01~A25 JWT/RLS/동시성 실증 및 독립 증빙심사 → 사람 인수 완료 전 운영 연결·병합·배포 보류.
+
+## 21. 2026-11-22 — 19차: 관리자 원문 반환 직전 JWT·세션 재만료 검사
+
+- **18차 실검증:** SHA `926b10d` release #44995043422 **SUCCESS** (277개 파일/2,168 tests), 전사 Chromium #44995043395 **SUCCESS**, Inspector #44995043403 **CANCELLED**(19차 후속 커밋). 동일 SHA 세 가지 모두 성공 주장 금지.
+- **실질 문제:** `lib/server/workerRiskManagerReadL06.ts`에서 원문 Q1~Q5 검사 뒤 세션 유효시각을 2회째 채취하나 이후 기업/현장 권한을 비동기로 재검증한다. 마지막 `port.site()`가 오래 걸리면, 재검증 이전에 유효했던 JWT·세션이 이미 만료됐더라도 응답이 반환될 수 있었다.
+- **소스 변경:** 관리자 SOURCE-ONLY read 계약에서 마지막 현장 검사를 통과한 즉시 **3번째 trusted server clock** 샘플을 받아, 시각 역행/invalid/예외, `principal.expiresAt` 또는 마지막 검증 `activeSession.expiresAt`을 경과한 경우 모두 `SESSION_INVALID/dataReleased:false`. 인증·현장권한·데이터 구조 검증, `workClearanceGranted:false` 유지.
+- **가상 검증:** `tests/psiWorkerRiskManagerReadL06.test.ts` 신규 5건: 정상 3회 clock, 마지막 현장 체크에 걸린 JWT 만료, 마지막 기업권한 재체크 동안 만료, 최종 시계 역행/예외/NaN, 마지막 세션 만료가 JWT보다 먼저일 때 거부. 기존 13→**18개 목표**, 전체 **2,173개 목표**이며 최종 동일 HEAD CI 통과 전 PASS 표기 금지.
+- **실DB 구분:** 서버 계약은 실제 네트워크/API나 Supabase를 호출하지 않는다. DB 트랜잭션 내 인증·권한 원자성을 증명하지 못한다. 실 A01~A25 모두 NOT RUN, 증빙 대장 25 not-run, L18 13개 사람 승인·Android/원어민/법무·개인정보 삭제 미검증. 실 Auth/DB/DDL/키·운영 API·main/Production 무변경.
+
+**다음:** 최종 19차 SHA release/company Chromium/Inspector 결과 확인 → 승인된 신규 Supabase 격리환경에서 서명된 JWT·RLS·동시행 잠금 실제 검증 → 13개 사람 인수 후 사용자 승인 전 운영 연결·병합 금지.
