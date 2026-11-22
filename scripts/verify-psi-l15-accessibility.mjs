@@ -1,0 +1,132 @@
+import {preview} from 'vite';
+import {chromium} from 'playwright';
+import assert from 'node:assert/strict';
+import {mkdir,writeFile} from 'node:fs/promises';
+
+const root='http://127.0.0.1:3079';
+const out='artifacts/audit/psi-l15-accessibility';
+await mkdir(out,{recursive:true});
+const server=await preview({preview:{host:'127.0.0.1',port:3079,strictPort:true}});
+const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+const results=[];
+const cases=[
+ {width:320,height:568,mode:'light'},
+ {width:360,height:640,mode:'light'},
+ {width:390,height:420,mode:'light'},
+ {width:390,height:844,mode:'dark'},
+ {width:640,height:720,mode:'light',scale:2,proxy:true},
+ {width:768,height:844,mode:'light'},
+ {width:1280,height:800,mode:'dark'},
+ {width:1440,height:900,mode:'light'},
+];
+
+try{
+ for(const c of cases){
+  const context=await browser.newContext({
+   viewport:{width:c.width,height:c.height},
+   deviceScaleFactor:c.scale||1,
+   reducedMotion:'reduce',
+   colorScheme:c.mode,
+  });
+  const page=await context.newPage();
+  const errors=[];
+  page.setDefaultTimeout(32000);
+  page.on('pageerror',error=>errors.push(error.message));
+  await page.route('**/api/admin/auth',route=>route.fulfill({json:{ok:true,authenticated:true}}));
+  await page.route('**/api/admin/training',route=>route.fulfill({json:{ok:true,summary:{trainingSessions:0,trainingSubmissions:0}}}));
+  await page.route('https://fonts.googleapis.com/**',route=>route.fulfill({body:'',contentType:'text/css'}));
+  await page.route('https://fonts.gstatic.com/**',route=>route.fulfill({body:''}));
+  await page.route('https://cdn.jsdelivr.net/**',route=>route.fulfill({body:'',contentType:'text/css'}));
+  await page.addInitScript((mode)=>{
+   sessionStorage.setItem('isAdminAuthenticated','true');
+   localStorage.setItem('psi_theme_mode',mode);
+  },c.mode);
+  await page.goto(root+'/',{waitUntil:'domcontentloaded'});
+  await page.getByRole('heading',{name:'현장 안전, 한눈에.'}).waitFor({timeout:40000});
+  const modalTrigger=page.getByRole('button',{name:'메뉴 빠른 찾기'});
+  await modalTrigger.click();
+  const modal=page.getByRole('dialog',{name:'업무 메뉴 빠른 찾기'});
+  await modal.waitFor();
+  const input=modal.getByRole('combobox',{name:'업무 메뉴 검색어'});
+  await page.waitForFunction(()=>document.activeElement?.getAttribute('aria-label')==='업무 메뉴 검색어');
+  await input.fill('위험성');
+  await modal.getByRole('option').first().waitFor();
+  const size=await modal.evaluate(el=>{
+   const b=el.getBoundingClientRect();
+   return {x:b.left,y:b.top,width:b.width,height:b.height,viewportW:innerWidth,viewportH:innerHeight};
+  });
+  assert.ok(size.x>=-1 && size.x+size.width<=size.viewportW+1,
+   'L15 quick find extends horizontally: '+JSON.stringify({c,size}));
+  assert.ok(size.y>=-1 && size.y+size.height<=size.viewportH+2,
+   'L15 quick find extends vertically: '+JSON.stringify({c,size}));
+  assert.equal(await page.evaluate(()=>document.body.style.overflow),'hidden','menu search must lock page scroll');
+  const close=modal.getByRole('button',{name:'검색 창 닫기'});
+  const last=modal.getByRole('option').last();
+  await last.focus();
+  await page.keyboard.press('Tab');
+  assert.equal(await close.evaluate(el=>document.activeElement===el),true,'quick find Tab must wrap to first');
+  await page.keyboard.press('Shift+Tab');
+  assert.equal(await last.evaluate(el=>document.activeElement===el),true,'quick find Shift+Tab must wrap to last');
+  await page.screenshot({path:`${out}/quickfind-${c.width}-${c.height}-${c.mode}.png`,fullPage:false});
+  await page.keyboard.press('Escape');
+  await modal.waitFor({state:'hidden'});
+  await page.waitForFunction(()=>document.activeElement?.getAttribute('aria-label')==='메뉴 빠른 찾기');
+  assert.notEqual(await page.evaluate(()=>document.body.style.overflow),'hidden','quick find must restore scroll');
+
+  if(c.width<1024){
+   const menuTrigger=page.getByRole('button',{name:'메뉴 열기'});
+   await menuTrigger.click();
+   const drawer=page.getByRole('dialog',{name:'전체 메뉴'});
+   await drawer.waitFor();
+   const drawerClose=drawer.getByRole('button',{name:'전체 메뉴 닫기'});
+   await drawerClose.focus();
+   await drawer.evaluate(el=>{
+    const hidden=document.createElement('button');
+    hidden.textContent='검증용 숨김 버튼';
+    hidden.style.display='none';
+    el.appendChild(hidden);
+   });
+   await page.keyboard.press('Shift+Tab');
+   assert.equal(await drawer.evaluate(el=>el.contains(document.activeElement)),true,'mobile drawer focus escaped');
+   const lastVisible=drawer.locator('button:visible:not([disabled]),a:visible[href]').last();
+   await lastVisible.focus();
+   await page.keyboard.press('Tab');
+   assert.equal(await drawerClose.evaluate(el=>document.activeElement===el),true,
+    'CSS-hidden last control must not block Tab wrapping');
+   await page.keyboard.press('Escape');
+   await drawer.waitFor({state:'hidden'});
+   await page.waitForFunction(()=>document.activeElement?.getAttribute('aria-label')==='메뉴 열기');
+  }
+  const checks=await page.evaluate(()=>{
+   const shell=document.querySelector('.psi-app-shell.psi-platform-field-canvas');
+   const main=document.querySelector('#psi-main-content');
+   const top=document.querySelector('.psi-topbar');
+   return {
+    windowWidth:innerWidth,docWidth:document.documentElement.scrollWidth,
+    height:window.getComputedStyle(shell).height,
+    viewportHeight:window.innerHeight,
+    mainWidth:main?.getBoundingClientRect().width||0,
+    headerWidth:top?.getBoundingClientRect().width||0,
+    dark:document.documentElement.classList.contains('dark'),
+    scroll:document.body.style.overflow,
+    reduced:matchMedia('(prefers-reduced-motion: reduce)').matches,
+   };
+  });
+  assert.ok(checks.docWidth<=checks.windowWidth+2,'horizontal document overflow '+JSON.stringify({c,checks}));
+  assert.ok(checks.mainWidth>0 && checks.headerWidth>0,'shell main or topbar missing');
+  assert.equal(checks.dark,c.mode==='dark','dark mode state lost');
+  assert.equal(checks.reduced,true,'reduced motion unavailable');
+  assert.notEqual(checks.scroll,'hidden','dialog scroll lock left behind');
+  assert.deepEqual(errors,[],'browser errors '+JSON.stringify(c));
+  results.push({case:c,quickfind:size,shell:checks});
+  await context.close();
+ }
+ await writeFile(`${out}/result.json`,JSON.stringify({result:'PASS',notes:['Device scale factor 2/640 CSS px is a reflow proxy, not actual 200% browser zoom','Synthetic Chromium does not prove Android/iOS, mother-tongue accuracy, or screen-reader behavior'],checks:results},null,2));
+ console.log('PASS PSI L15 scoped accessibility/reflow audit: '+results.length+' synthetic browser cases');
+}catch(error){
+ await writeFile(`${out}/result.json`,JSON.stringify({result:'FAIL',message:error?.message||String(error),checks:results},null,2));
+ throw error;
+}finally{
+ await browser.close();
+ await new Promise(resolve=>server.httpServer.close(resolve));
+}

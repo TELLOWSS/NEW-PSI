@@ -213,3 +213,12 @@
   .psi-app-shell.psi-platform-field-canvas .psi-living-decision-focus { box-shadow: none !important; break-inside: avoid; }
   .psi-app-shell.psi-platform-field-canvas .psi-living-decision-focus__actions { display: none !important; }
 }
+
+/* L15: account for mobile browser toolbars without changing the document's
+   print dimensions or the separate /field-local/ entrypoint. */
+@supports (height: 100dvh) {
+  .psi-app-shell.psi-platform-field-canvas { height: 100dvh; }
+}
+@media print {
+  .psi-app-shell.psi-platform-field-canvas { height: auto !important; }
+}

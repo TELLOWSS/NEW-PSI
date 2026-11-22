@@ -109,7 +109,7 @@
 | L12 | 보고서·공유·다운로드 | IMPLEMENTED(보고서 6단계 작성·저장요청·발송·수신·검증·승인 구분 및 공유창 상태) / QA 대기 | 파일 기기 보존/실제 상대방 수신·전자서명/실기기 검수 미확인 |
 | L13 | 제품 소개/온보딩 | IMPLEMENTED(소개 첫 화면 실제 5단계 메뉴·근거 한계·Q1~Q5/6점수 구분, 결측점수 오분류 방지) / QA 대기 | 홍보 시연·실제 발행/수신 구분 필요, Android·음성/다국어·200% 확대 QA 대기 |
 | L14 | PWA/모바일 앱 결정·실행 | IMPLEMENTED(기기점검 설치형 파일럿) / Android QA 대기 | 전용 manifest·실제 PNG·명시적 설치·SW 캐시와 회귀 테스트, 모바일 실제 설치·저장복원 및 비용 승인 잔여 |
-| L15 | 접근성·다국어·다크/저동작 | PLANNED | 320/360/390/768/1280/1440 등, 200% 확대·키보드 |
+| L15 | 접근성·다국어·다크/저동작 | IMPLEMENTED(관리자 메뉴·검색·viewport 부분 보강) / 전체 QA 대기 | 320~1440px 합성 Chromium·Tab/ShiftTab·다크/저동작·포커스 복귀 테스트 추가, 실제 200% 확대·원어민/스크린리더/Android 미검증 |
 | L16 | 오프라인·저속망·성능·배터리 | PLANNED | 외부 폰트/API/서버 호출 증가 없는지 비교 |
 | L17 | 권한·데이터무결성·OSS 라이선스 | PLANNED | 실자료 미사용 QA, 보안·법무 승인이 필요한 경계 |
 | L18 | 통합 회귀·실기기 QA·승인·운영 배포 | PLANNED | `npm run verify:ci`, 필수 브라우저 QA, PR 리뷰, SHA 대조 |
@@ -312,6 +312,17 @@
 
 **다음 한 작업:** L14 최신 HEAD CI·빌드 산출물 manifest/SW 확인 → Android 설치·비행기모드·IndexedDB 사진 복구 실기기 검수 → 병행 가능한 L15 320~1440px·200% 확대·다크·저동작·키보드 QA. L06 직접 Q1~Q5 입력, L10 원어민 의미/A4 검수는 계속 미완료.
 
+### 구현 15차 — L15 관리자 메뉴·검색·동적 viewport 접근성 보강 (2026-11-22)
+
+- **선행 L14 최신 확인:** `99368d263d262cc8c75624d3ef68a1e247518b0e`의 `PSI release verification` #44968106397, `PSI company-wide cross-department verification` #44968106393 **SUCCESS**. `PSI inspector mobile browser QA` #44968106408은 이 작업 시작 시 **IN_PROGRESS**, 마지막 결과를 다시 조회해야 한다. 이전 실패는 테스트 소스 TypeScript 단언문 오류이고 `99368d2`에서 수정했다.
+- **실제 진단:** 모바일 메뉴 포커스 필터가 CSS로 숨겨진 버튼을 포함할 수 있었고, 외부 초점 복귀/이전 body overflow 복구/예약 애니메이션 취소가 부정확했다. QuickFind 입력의 명시 레이블·44px 닫기 버튼·짧은 화면 최대 높이·키보드 선택 자동 스크롤·배경 스크롤 잠금이 미흡했다.
+- **소스 보강:** `components/Layout.tsx`, `components/shell/NavigationQuickFind.tsx`, `styles/psi-living-motion.css`. 역할/숨김/권한·검색 대상·원본·외부 API·DB는 불변. 관리자 AppShell만 `100dvh` 사용 가능 시 적용; 인쇄 자동 높이.
+- **검증 추가:** `tests/psiL15AccessGuard.test.ts`, `scripts/verify-psi-l15-accessibility.mjs`, `.github/workflows/psi-company-wide.yml`. 합성 Chromium 320/360/390 저높이/390 다크/640 DPR2(확대 대리)/768/1280 다크/1440의 검색·모바일 메뉴 포커스/스크롤·가로 넘침 회귀를 별도 QA.
+- **검증 제한:** `640 CSS px + DPR2`는 **실제 200% 브라우저 줌이 아니다**. 한국어 이외 모든 언어의 길이·폰트·모국어 자연스러움, Android/iOS 기기·스크린리더·일반사용성, L14 실제 설치/사진 복원은 별도 증빙 필요.
+- **L15 검수표:** `docs/PSI_L15_ACCESSIBILITY_FIELD_QA_20261122.md`. CI 결과는 새 HEAD에서만 판정. 사용자 최종 승인 전 Draft PR #237, main/Production 미반영.
+
+**다음 한 작업:** 최신 L15 HEAD 릴리스/전사 Chromium/Inspector CI 결과 확인해 실패 보수 → 실제 200% 확대·Android/스크린리더·다국어 검수 → L16 저속망·오프라인·성능/배터리, 외부 API 증가 감사. 기존 L06·L08·L10 미완료 항목 유지.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -335,7 +346,7 @@
 
 ## 9. 다음 착수 과제
 
-**L14 설치형 기기점검 파일럿 최신 CI/manifest·SW 검증 및 Android 실기기 검수 → L15 전 화면 접근성·다국어·다크·저동작 QA.**
+**L15 최신 HEAD Chromium·릴리스/모바일 회귀 확인 및 Android·200% 확대·원어민/스크린리더 잔여 게이트 → L16 성능·저속망·오프라인·배터리 점검.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**

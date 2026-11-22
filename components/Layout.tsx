@@ -276,58 +276,52 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         };
     }, []);
 
-    // Keep keyboard focus inside the modal navigation and restore it when closed.
+    // L15: Modal navigation must never tab into CSS-hidden elements or the page behind it.
     useEffect(() => {
+        if (!isMobileMenuOpen) return;
+        const dialog = mobileMenuDialogRef.current;
+        const previousOverflow = document.body.style.overflow;
+        const getVisibleFocusable = () => Array.from(dialog?.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ) || []).filter((element) =>
+            element.getClientRects().length > 0 &&
+            getComputedStyle(element).visibility !== 'hidden' &&
+            !element.closest('[hidden],[inert],[aria-hidden="true"]'),
+        );
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape' && isMobileMenuOpen) {
+            if (event.key === 'Escape') {
+                event.preventDefault();
                 setIsMobileMenuOpen(false);
                 return;
             }
-
-            if (event.key === 'Tab' && isMobileMenuOpen) {
-                const dialog = mobileMenuDialogRef.current;
-                if (!dialog) return;
-                const focusable = Array.from(dialog.querySelectorAll(
-                    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-                )) as HTMLElement[];
-                const visibleFocusable = focusable.filter((element) => !element.hasAttribute('hidden') && element.getAttribute('aria-hidden') !== 'true');
-                if (visibleFocusable.length === 0) {
-                    event.preventDefault();
-                    dialog.focus();
-                    return;
-                }
-
-                const first = visibleFocusable[0];
-                const last = visibleFocusable[visibleFocusable.length - 1];
-                if (event.shiftKey && document.activeElement === first) {
-                    event.preventDefault();
-                    last.focus();
-                } else if (!event.shiftKey && document.activeElement === last) {
-                    event.preventDefault();
-                    first.focus();
-                }
+            if (event.key !== 'Tab') return;
+            const focusable = getVisibleFocusable();
+            if (focusable.length === 0) {
+                event.preventDefault();
+                dialog?.focus();
+                return;
+            }
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (!dialog?.contains(document.activeElement)) {
+                event.preventDefault();
+                (event.shiftKey ? last : first).focus();
+            } else if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
             }
         };
-
-        if (isMobileMenuOpen) {
-            document.addEventListener('keydown', handleKeyDown);
-            // Prevent body scroll when menu is open
-            document.body.style.overflow = 'hidden';
-            window.requestAnimationFrame(() => {
-                const dialog = mobileMenuDialogRef.current;
-                const firstFocusable = dialog?.querySelector<HTMLElement>('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])');
-                (firstFocusable || dialog)?.focus();
-            });
-        } else {
-            document.body.style.overflow = '';
-        }
-
+        document.body.style.overflow = 'hidden';
+        document.addEventListener('keydown', handleKeyDown);
+        const focusFrame = window.requestAnimationFrame(() => (getVisibleFocusable()[0] || dialog)?.focus());
         return () => {
+            window.cancelAnimationFrame(focusFrame);
             document.removeEventListener('keydown', handleKeyDown);
-            document.body.style.overflow = '';
-            if (isMobileMenuOpen) {
-                mobileMenuPreviousFocusRef.current?.focus();
-            }
+            document.body.style.overflow = previousOverflow;
+            mobileMenuPreviousFocusRef.current?.focus();
         };
     }, [isMobileMenuOpen]);
 

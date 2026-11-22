@@ -73,6 +73,8 @@ export const NavigationQuickFind: React.FC<NavigationQuickFindProps> = ({ option
             ? document.activeElement
             : triggerRef.current;
 
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
         const focusId = window.requestAnimationFrame(() => inputRef.current?.focus());
         const onKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
@@ -86,10 +88,17 @@ export const NavigationQuickFind: React.FC<NavigationQuickFindProps> = ({ option
             );
             const focusable = (focusableNodes ? Array.from(focusableNodes) : []) as HTMLElement[];
             const visibleFocusable = focusable.filter((element) => element.getClientRects().length > 0);
-            if (visibleFocusable.length === 0) return;
+            if (visibleFocusable.length === 0) {
+                event.preventDefault();
+                dialogRef.current?.focus();
+                return;
+            }
             const first = visibleFocusable[0];
             const last = visibleFocusable[visibleFocusable.length - 1];
-            if (event.shiftKey && document.activeElement === first) {
+            if (!dialogRef.current?.contains(document.activeElement)) {
+                event.preventDefault();
+                (event.shiftKey ? last : first).focus();
+            } else if (event.shiftKey && document.activeElement === first) {
                 event.preventDefault();
                 last.focus();
             } else if (!event.shiftKey && document.activeElement === last) {
@@ -101,9 +110,16 @@ export const NavigationQuickFind: React.FC<NavigationQuickFindProps> = ({ option
         return () => {
             window.cancelAnimationFrame(focusId);
             document.removeEventListener('keydown', onKeyDown);
+            document.body.style.overflow = previousOverflow;
             previousFocus?.focus();
         };
     }, [open, dismiss]);
+
+    useEffect(() => {
+        if (!open || results.length === 0) return;
+        dialogRef.current?.querySelector<HTMLElement>(`#psi-quickfind-option-${activeIndex}`)
+            ?.scrollIntoView({ block: 'nearest' });
+    }, [open, activeIndex, results.length]);
 
     useEffect(() => {
         if (open && results.length === 0) setActiveIndex(0);
@@ -128,7 +144,7 @@ export const NavigationQuickFind: React.FC<NavigationQuickFindProps> = ({ option
             </button>
 
             {open && createPortal(
-                <div className="fixed inset-0 z-[900] flex items-start justify-center px-3 pt-[min(16vh,120px)]">
+                <div className="fixed inset-0 z-[900] flex items-start justify-center overflow-y-auto px-3 py-3 sm:pt-[min(12vh,90px)]">
                     <button
                         type="button"
                         tabIndex={-1}
@@ -138,11 +154,12 @@ export const NavigationQuickFind: React.FC<NavigationQuickFindProps> = ({ option
                     />
                     <section
                         ref={dialogRef}
+                        tabIndex={-1}
                         role="dialog"
                         aria-modal="true"
                         aria-labelledby="psi-quickfind-title"
                         aria-describedby="psi-quickfind-help"
-                        className="relative z-10 w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50"
+                        className="relative z-10 flex max-h-[calc(100dvh-1.5rem)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50"
                     >
                         <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700">
                             <div className="mb-2 flex items-center justify-between gap-2">
@@ -151,7 +168,7 @@ export const NavigationQuickFind: React.FC<NavigationQuickFindProps> = ({ option
                                     type="button"
                                     onClick={dismiss}
                                     aria-label="검색 창 닫기"
-                                    className="min-h-9 min-w-9 rounded-lg border border-slate-200 text-lg text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                                    className="min-h-11 min-w-11 rounded-lg border border-slate-200 text-lg text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                                 >×</button>
                             </div>
                             <input
@@ -172,6 +189,7 @@ export const NavigationQuickFind: React.FC<NavigationQuickFindProps> = ({ option
                                 }}
                                 type="search"
                                 role="combobox"
+                                aria-label="업무 메뉴 검색어"
                                 aria-autocomplete="list"
                                 aria-controls="psi-quickfind-results"
                                 aria-expanded={true}
@@ -181,7 +199,7 @@ export const NavigationQuickFind: React.FC<NavigationQuickFindProps> = ({ option
                             />
                             <p id="psi-quickfind-help" className="mt-2 text-xs text-slate-500 dark:text-slate-400">표시 중인 메뉴에서만 검색합니다. ↑↓ 선택 · Enter 이동 · Esc 닫기</p>
                         </div>
-                        <div className="max-h-[min(55vh,400px)] overflow-y-auto p-2">
+                        <div className="min-h-0 flex-1 overflow-y-auto p-2">
                             <p role="status" aria-live="polite" className="px-3 py-1 text-xs text-slate-500 dark:text-slate-400">
                                 검색 가능한 메뉴 {results.length}개
                             </p>
@@ -195,7 +213,7 @@ export const NavigationQuickFind: React.FC<NavigationQuickFindProps> = ({ option
                                         aria-selected={index === activeIndex}
                                         onMouseEnter={() => setActiveIndex(index)}
                                         onClick={() => navigate(option.page)}
-                                        className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--psi-focus)] ${index === activeIndex ? 'bg-emerald-50 text-emerald-900 dark:bg-teal-900/50 dark:text-teal-100' : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'}`}
+                                        className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--psi-focus)] ${index === activeIndex ? 'bg-emerald-50 text-emerald-900 dark:bg-teal-900/50 dark:text-teal-100' : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'}`}
                                     >
                                         <span className="min-w-0 truncate text-sm font-semibold">{option.label}</span>
                                         <span className="shrink-0 text-xs opacity-65">{option.group}</span>
