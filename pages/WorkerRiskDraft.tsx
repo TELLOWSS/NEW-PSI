@@ -155,6 +155,14 @@ export default function WorkerRiskDraft() {
                         </nav>
                     )}
                 </section>
+                {hasInMemoryAnswers && (
+                    <aside className="psi-l06-unsaved-status mb-5 rounded-2xl border border-rose-300 bg-rose-50 p-4 text-sm leading-6 text-rose-950 print:hidden"
+                        role="status" aria-live="polite" data-testid="l06-unsaved-status">
+                        <strong className="block font-extrabold">임시 작성 중 · 저장되지 않음</strong>
+                        <p className="mt-1">새로고침·탭 종료·다른 페이지 이동 시 작성한 내용이 사라질 수 있습니다.
+                            검토 후 인쇄해도 정식 제출·접수는 아닙니다.</p>
+                    </aside>
+                )}
                 {!review && (
                     <section className="psi-l06-incomplete-print-warning hidden" aria-label="작성 중 인쇄 안내">
                         <h2>작성 중인 연습 기록은 인쇄할 수 없습니다.</h2>
