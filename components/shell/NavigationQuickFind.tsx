@@ -40,9 +40,12 @@ export const NavigationQuickFind: React.FC<NavigationQuickFindProps> = ({ option
     const triggerRef = useRef<HTMLButtonElement>(null);
     const dialogRef = useRef<HTMLElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    // Closing the search and choosing a destination need different focus targets.
+    const navigatedRef = useRef(false);
     const results = useMemo(() => filterNavigationOptions(options, query), [options, query]);
 
     const show = useCallback(() => {
+        navigatedRef.current = false;
         setQuery('');
         setActiveIndex(0);
         setOpen(true);
@@ -51,6 +54,7 @@ export const NavigationQuickFind: React.FC<NavigationQuickFindProps> = ({ option
     const navigate = useCallback((page: Page) => {
         // Guard against a stale row after a role/mode/composition change.
         if (!options.some((option) => option.page === page)) return;
+        navigatedRef.current = true;
         dismiss();
         onNavigate(page);
     }, [dismiss, onNavigate, options]);
@@ -74,6 +78,11 @@ export const NavigationQuickFind: React.FC<NavigationQuickFindProps> = ({ option
             : triggerRef.current;
 
         const previousOverflow = document.body.style.overflow;
+        // The portal is appended to document.body, OUTSIDE #root. Mark the
+        // entire operational app inert while this aria-modal dialog is open.
+        const appRoot = document.getElementById('root');
+        const rootWasInert = appRoot?.inert ?? false;
+        if (appRoot) appRoot.inert = true;
         document.body.style.overflow = 'hidden';
         const focusId = window.requestAnimationFrame(() => inputRef.current?.focus());
         const onKeyDown = (event: KeyboardEvent) => {
@@ -111,7 +120,19 @@ export const NavigationQuickFind: React.FC<NavigationQuickFindProps> = ({ option
             window.cancelAnimationFrame(focusId);
             document.removeEventListener('keydown', onKeyDown);
             document.body.style.overflow = previousOverflow;
-            previousFocus?.focus();
+            if (appRoot) appRoot.inert = rootWasInert;
+            const navigated = navigatedRef.current;
+            navigatedRef.current = false;
+            if (navigated) {
+                // Route selection (including the current page) is not a cancel:
+                // focus content after React releases the inert app background.
+                window.requestAnimationFrame(() =>
+                    document.getElementById('psi-main-content')?.focus({ preventScroll: true }),
+                );
+            } else if (previousFocus?.isConnected && previousFocus.getClientRects().length > 0 &&
+                getComputedStyle(previousFocus).visibility !== 'hidden') {
+                previousFocus.focus();
+            }
         };
     }, [open, dismiss]);
 
