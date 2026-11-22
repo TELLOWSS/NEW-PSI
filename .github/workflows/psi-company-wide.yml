@@ -74,6 +74,8 @@ jobs:
         run: node scripts/verify-psi-legacy-pdf-split.mjs
       - name: L06 Q1-Q5 worker trial entry, review and no-server-receipt (synthetic Chromium)
         run: node scripts/verify-psi-l06-worker-draft.mjs
+      - name: L06 manager read-only revision comparison lab and production denial (synthetic Chromium)
+        run: node scripts/verify-psi-l06-revision-lab.mjs
       - name: Independently verify seven product and transparency journeys
         run: node scripts/verify-psi-company-browser.mjs
       - name: Verify Nexus evidence, navigation restoration and presentation rollback
@@ -113,5 +115,6 @@ jobs:
             artifacts/audit/psi-l18-release-gate/
             artifacts/audit/psi-legacy-pdf-split/
             artifacts/audit/psi-l06-worker-risk-draft/
+            artifacts/audit/psi-l06-revision-lab/
           if-no-files-found: ignore
           retention-days: 7
