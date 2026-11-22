@@ -29,7 +29,7 @@ describe('L14 isolated field-local PWA pilot / no false offline or delivery clai
   const build=read('vite.config.ts');
   const entry=read('field-local/main.tsx');
   expect(build).toContain("const urls=['/field-local/index.html','/field-local-l14.webmanifest','/field-local-icon-l14-192.png','/field-local-icon-l14-512.png'");
-  expect(build).toContain("scope:'/field-local/'").toBe(false); // Scope belongs in entry registration, not build config
+  expect(build).not.toContain("scope:'/field-local/'"); // Scope belongs in entry registration, not build config
   expect(entry).toContain("scope:'/field-local/'");
   expect(entry).toContain("VERIFY_LOCAL_ASSETS");
   expect(entry).toContain("이 기기 오프라인 준비");
