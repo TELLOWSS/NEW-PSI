@@ -35,7 +35,7 @@
             }
             // The unauthenticated L06 worksheet contains no cloud draft or
             // personal identity. Avoid optional third-party font requests here.
-            if (location.pathname.replace(/\/$/, '') === '/worker-risk-draft') return;
+            if (['/worker-risk-draft', '/_dev/psi-l06-revisions'].includes(location.pathname.replace(/\/$/, ''))) return;
             var resources = [{"rel": "preconnect", "href": "https://fonts.googleapis.com"}, {"rel": "preconnect", "href": "https://fonts.gstatic.com"}, {"href": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans:wght@400;600;700;800;900&family=Noto+Sans+Arabic:wght@400;600;700;800;900&family=Noto+Sans+Bengali:wght@400;600;700;800;900&family=Noto+Sans+Devanagari:wght@400;600;700;800;900&family=Noto+Sans+Khmer:wght@400;600;700;800;900&family=Noto+Sans+KR:wght@400;600;700;800;900&family=Noto+Sans+Myanmar:wght@400;600;700;800;900&family=Noto+Sans+SC:wght@400;600;700;800;900&family=Noto+Sans+Sinhala:wght@400;600;700;800;900&family=Noto+Sans+Thai:wght@400;600;700;800;900&display=swap", "rel": "stylesheet"}, {"rel": "stylesheet", "as": "style", "href": "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css"}];
             resources.forEach(function (attrs) {
                 var link = document.createElement('link');
