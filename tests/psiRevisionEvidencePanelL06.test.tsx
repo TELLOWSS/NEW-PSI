@@ -71,7 +71,7 @@ describe('L06 manager-side immutable Q1-Q5 revision comparison (unwired staging 
     expect(appEntry).toContain('해당 내부 검수 화면은 운영 환경에서 제공되지 않습니다');
     expect(demo).toContain('<PsiRevisionEvidencePanelL06 chain={selected} />');
     expect(demo).toContain('가상 데이터');
-    expect(demo).not.toMatch(/fetch\\s*\\(|supabase\\.from|localStorage|indexedDB|XMLHttpRequest/);
+    expect(demo).not.toMatch(/fetch\s*\(|supabase\.from|localStorage|indexedDB|XMLHttpRequest/);
     expect(workflow).toContain('node scripts/verify-psi-l06-revision-lab.mjs');
     expect(browser).toContain('productionDenied:true');
     expect(browser).toContain('crossSiteBlocked:true');
