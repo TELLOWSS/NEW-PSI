@@ -837,6 +837,17 @@
 
 **다음:** #237 최신 병합 HEAD의 3종 CI 판정 및 UI 출입/컴포넌트 변경 충돌 감시 → 승인된 독립 P2 Auth 실증/실기기 P3/모국어·A4·조치 P4/보안·라이선스 P5 인수를 차례로 진행. 운영 DB·정식 제출 연결은 별도 인간 승인 전 금지.
 
+
+### L39 — P3 현장 실기기 검수를 위한 비식별 로컬 지원상태 진단 (2026-11-22)
+
+- **38차 동일 HEAD 사전 확인:** `95a1109821ae44919b50d7c06796f39dba172dde` release #45021954103 **SUCCESS**, company Chromium #45021954094 **SUCCESS**; Inspector #45021954112는 새 L39 작업 시작 시점 **IN_PROGRESS**. 따라서 38차의 동일 HEAD 3종 완료 판정은 확정하지 않는다.
+- **실제 구현:** 기존 `/field-local/`에 현장 담당자/검수자가 명시적으로 실행하는 **기기 지원상태 확인** 섹션 추가. 보안 컨텍스트·브라우저 연결신호·설치형 상태·활성 SW·캐시 파일 검증·IndexedDB API·지속 보관 허용·카메라 API **8개**, 결과에 각각 해석 한계를 명시. 복사는 사용자 버튼을 눌렀을 때만 클립보드에 전달. 검사 결과/사진/기록 자동 업로드·모델/API 호출·단말 식별/위치 수집·서버 수신 체크는 없으며 `DIAGNOSTIC_ONLY`, `realDeviceUatApproved=false` 고정.
+- **검증:** `tests/psiFieldDevicePreflight.test.ts`에서 8개 상태, 기능 감지≠실 Android 승인, unknown≠PASS·비식별·자동 전송 부재를 검증. 기존 L16 Chromium의 최초 진입·오프라인 준비·사진/메모 저장/복원 시나리오에 사전 진단 버튼 클릭/8개 출력/미승인 안내를 추가. 기존 위험·교육/공유·데이터 모델/권한 불변.
+- **남은 필수 실제 검수:** Android Chrome·삼성 인터넷에서 직접 실행, 비행기 모드 재시작, 원본 사진/메모·ZIP 재개/복구, 200% 확대/TalkBack, 배터리/발열/스토리지·개인정보/공용 단말, 11개 모국어/A4·P2 Auth A01~A25·P5 사람 승인 13항목. 기기 지원 감지 또는 합성 Chromium을 실사용 인수로 올리지 않는다.
+- **배포:** 개발 브랜치의 PR #237 Draft/RELEASE=BLOCKED 유지. `main`/Vercel Production 별도 변경하지 않음. 39차 신규 HEAD는 릴리스·company Chromium·Inspector 3종 **같은 SHA** 검증이 종료된 뒤 자동 기술 PASS 여부 판정.
+
+**다음:** 39차 동일 HEAD 3종 CI 결과·실제 Chromium 시나리오 로그 확인 및 오류 수정 → P3 실제 Android 사용자가 기록한 지원상태·오프라인/사진 복원 UAT 결과로 개선점 확정 → P4 11개 모국어·A4 실물/지연조치 사람 검수, P2 승인 격리 Supabase 실험 순으로 진행. 출시 승인은 별개.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -860,7 +871,7 @@
 
 ## 9. 다음 착수 과제
 
-**P1·L35 동일 HEAD 3종 CI SUCCESS 확인. L36 P2~P5 인간 승인 게이트 13개 완전·중복 없는 매핑/잔여 산출을 PR #237 개발 브랜치에 추가했고 36차 최신 HEAD CI 확인 전. 다음은 실제 승인 가능한 P2 격리 Auth/현장 검증, 승인 없이 진행 가능한 P3 실기기 검수표와 P4 언어·A4 자료 감사를 우선한다. P5 제품 소유자 승인 전 main/Production/실 DB 변경 금지. 최종 개발 차수는 고정되지 않음.**
+**L39 P3 비식별 기기 지원상태 진단을 /field-local/ 개발 브랜치에 구현했고, 39차 최종 HEAD 3종 CI 검증은 별도 판정한다. 38차의 이전 HEAD 릴리스·전사 Chromium은 통과했지만 Inspector 종료판정은 미확정이다. 다음은 실제 Android Chrome·삼성 인터넷에서 사진/오프라인 복원 검수 → P4 모국어/A4·지연조치 검수 → 승인된 격리 P2 Auth 25건·P5 보안/13개 인간 인수 순서. PR #237 Draft·RELEASE=BLOCKED, main/Production/실 DB 변경 금지.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**

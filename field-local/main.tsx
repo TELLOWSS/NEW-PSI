@@ -1,6 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import InspectorLocalDraft from '../components/inspector/InspectorLocalDraft';
+import {runFieldDevicePreflight,formatFieldDeviceReport,type FieldDeviceReport} from './devicePreflight';
 import '../components/inspector/inspector-experience.css';
 import '../components/inspector/inspector-field-entry.css';
 import '../components/inspector/inspector-refresh.css';
@@ -24,6 +25,27 @@ function LocalEntry(){
   window.addEventListener('offline',update);
   return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update);};
  },[]);
+ const [deviceReport,setDeviceReport]=useState<FieldDeviceReport|null>(null);
+ const [deviceReportStatus,setDeviceReportStatus]=useState('');
+ const checkDevice=async()=>{
+  setDeviceReportStatus('이 기기의 지원 API와 오프라인 준비 상태를 확인하고 있습니다.');
+  try{
+   const report=await runFieldDevicePreflight(verifyWorker);
+   setDeviceReport(report);
+   setDeviceReportStatus('지원상태 확인 완료. 아래 결과는 실제 현장 인수시험 통과가 아닙니다.');
+  }catch{
+   setDeviceReport(null);
+   setDeviceReportStatus('기기 지원상태를 확인하지 못했습니다. 실제 현장 시험을 별도 진행하세요.');
+  }
+ };
+ const copyDeviceReport=async()=>{
+  if(!deviceReport)return;
+  try{
+   if(!navigator.clipboard?.writeText)throw new Error('clipboard-unavailable');
+   await navigator.clipboard.writeText(formatFieldDeviceReport(deviceReport));
+   setDeviceReportStatus('진단 요약을 복사했습니다. 본문은 사진·기기 고유번호·근로자 기록을 포함하지 않습니다.');
+  }catch{setDeviceReportStatus('복사가 허용되지 않았습니다. 아래 내용을 직접 확인해 주세요.');}
+ };
  const [installPrompt,setInstallPrompt]=useState<FieldInstallPromptEvent|null>(null);
  const [installStatus,setInstallStatus]=useState('설치 메뉴는 브라우저·기기에 따라 다릅니다. 설치하지 않아도 웹으로 점검할 수 있습니다.');
  useEffect(()=>{
@@ -118,6 +140,20 @@ function LocalEntry(){
   <button type="button" className="si-btn si-primary" onClick={()=>void prepare()}>이 기기 오프라인 준비</button><p role="status">{status}</p>
   <p>최초 준비는 인터넷이 필요합니다. 브라우저 데이터 삭제·기기 분실 시 기록과 준비 파일이 사라질 수 있으므로 백업하세요.</p>
   <div aria-label="기기 저장 상태"><button type="button" className="si-btn" onClick={()=>void inspectStorage(false)}>저장 공간 확인</button> <button type="button" className="si-btn" onClick={()=>void inspectStorage(true)}>기록 지속 보관 요청</button>{storageStatus&&<p role="status">{storageStatus}</p>}</div>
+  <section aria-label="현장 기기 사전 점검" data-psi-p3-device-preflight style={{padding:'12px 14px',margin:'14px 0',border:'1px solid currentColor',borderRadius:12}}>
+   <h2 style={{fontSize:'1.125rem',fontWeight:700}}>현장 실기기 검수 준비</h2>
+   <p>이 기기의 브라우저 지원상태를 확인합니다. 자동 업로드·촬영·위치 조회 없이 실행하며, 결과는 서버 수신·현장 안전 승인·실기기 검수 완료를 뜻하지 않습니다.</p>
+   <button className="si-btn" type="button" onClick={()=>void checkDevice()}>기기 지원상태 확인</button>
+   <p role="status" aria-live="polite">{deviceReportStatus}</p>
+   {deviceReport&&<>
+    <p><strong>진단 전용 · 실기기 인수 미승인</strong></p>
+    <dl>{deviceReport.checks.map(item=><div data-psi-p3-check={item.id} key={item.id} style={{padding:'8px 0',borderBottom:'1px solid #cbd5e1'}}>
+      <dt style={{fontWeight:700}}>{item.label}</dt><dd style={{margin:0}}>{item.value} · {item.limit}</dd>
+    </div>)}</dl>
+    <p>다음은 직접 검수해야 합니다: 설치·오프라인 재실행·사진/메모 복원·실제 배터리/발열·200% 확대·TalkBack. API 감지만으로 합격 처리하지 않습니다.</p>
+    <button className="si-btn" type="button" onClick={()=>void copyDeviceReport()}>진단 요약 복사</button>
+   </>}
+  </section>
   <InspectorLocalDraft offlineEntry/>
  </main>;
 }

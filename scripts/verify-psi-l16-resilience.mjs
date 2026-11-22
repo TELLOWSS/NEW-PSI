@@ -46,6 +46,22 @@ try{
  assert.equal(initial.online,true);
  assert.ok(initial.documentWidth<=initial.viewportWidth+2,'initial local screen horizontal overflow');
  evidence.push({stage:'initial-online',documentReadyMs:initialMs,slowDocumentDelayApplied:delayCount>0,...initial});
+ // P3 L39: run the same user-invoked, read-only preflight on a rendered
+ // Chromium page. Feature detection is NOT physical Android acceptance.
+ const preflight=page.getByRole('region',{name:'현장 기기 사전 점검'});
+ await preflight.getByRole('button',{name:'기기 지원상태 확인'}).click();
+ await preflight.getByText('진단 전용 · 실기기 인수 미승인').waitFor();
+ const localCheck=await preflight.evaluate(el=>({
+  fields:el.querySelectorAll('[data-psi-p3-check]').length,
+  hasCamera:!!el.querySelector('[data-psi-p3-check="camera-api"]'),
+  hasOfflineAssets:!!el.querySelector('[data-psi-p3-check="offline-assets"]'),
+  copyButton:!!Array.from(el.querySelectorAll('button')).find(btn=>btn.textContent?.trim()==='진단 요약 복사'),
+  disclaimer:el.textContent?.includes('서버 수신·현장 안전 승인·실기기 검수 완료를 뜻하지 않습니다.')===true
+ }));
+ assert.deepEqual(localCheck,{fields:8,hasCamera:true,hasOfflineAssets:true,copyButton:true,disclaimer:true},
+  'P3 local-only device capability audit must remain explanatory and non-authorizing');
+ evidence.push({stage:'p3-synthetic-device-preflight',...localCheck,realAndroid:false,releaseAuthorized:false});
+
  await page.getByRole('button',{name:'이 기기 오프라인 준비'}).click();
  await page.getByText('이 기기의 오프라인 점검 준비가 확인됐습니다.',{exact:false}).waitFor({timeout:35000});
  const cache=await page.evaluate(async()=>{
