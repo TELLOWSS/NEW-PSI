@@ -578,6 +578,17 @@
 
 **다음 한 작업:** 15차 최종 HEAD release/전사 Chromium/Inspector 동일 SHA 세 가지 CI 결과 확인·실패수정 → 승인된 독립 Supabase에서 실제 서명 JWT 만료·세션철회/기업·현장 접근/2커넥션 경합 A01~A21 실증 → Android·원어민·보관삭제·L18 13개 사용자 인수 전 운영 출시 금지.
 
+### L06 후속 — 종료된 시간제한 Auth 세션의 지연정리 경계 차단 (16차, 2026-11-22)
+
+- **15차 CI 실조회:** 소스 커밋 `2e3326becdab302dde7473656c2abee6499e883c` release #44993293216 **SUCCESS**(276개 파일/2,151개 Vitest, L06 PGlite 45/45, server read 13/13, L17 19/19), 전사 Chromium #44993293203 **SUCCESS**, Inspector 모바일 #44993293206은 **후속 push로 CANCELLED**. 동일 SHA CI 3종 모두 SUCCESS는 아님.
+- **16차 신규 발견과 공식 근거:** Supabase 최신 <https://supabase.com/docs/guides/auth/sessions>는 시간제한/비활성 세션의 종료 검사가 refresh 시 이루어질 수 있고 **DB 행이 최대 약 24시간 지연 삭제될 수 있음**을 설명한다. 최신 GoTrue Session 모델의 `auth.sessions.not_after` nullable 시간 필드는 time-box 만료를 표시한다(<https://pkg.go.dev/github.com/supabase/auth/internal/models>). 종전 `session_id` 행 실존+JWT exp/iat/계정 ban 검사만으로는 **시간제한이 끝났지만 아직 삭제되지 않은 행**을 유효하다고 볼 수 있음.
+- **구현:** `supabase/proposals/psi_worker_risk_submission_l06_staging.sql` 공통 `psi_l06_require_active_session()`의 session/user 잠금 검사 `FOR SHARE OF sess,u` 안에 `sess.not_after IS NULL OR sess.not_after > clock_timestamp()` 추가. 만료 시간제한 세션의 근로자 최초 수신/재전송·보완본·관리자 검토·원문조회 모두 42501 거부. `not_after=NULL`인 무기한 session은 기존 세션/계정/JWT 검증 후 정상 허용. 실제 Supabase 별도 격리 프로젝트에서 schema field 및 timeout 동작 확인 전 운영 DB 미적용.
+- **PGlite 합성 검증:** `tests/psiWorkerRiskSubmissionSqlL06.test.ts`의 가짜 `auth.sessions`에 nullable `not_after timestamptz` 추가, 5개 신규 검증: 만료 worker 신규접수 0, 만료 reviewer 검토/조회 0, nullable/미만료 정상 접근, 기존 nonce 재송신 시 이전 원문/감사 1건 보존, 보완 요청 뒤 만료 worker 보완링크·추가수신 차단. 기존 45개 → **L06 50개 목표**(전체 2,156). 최종 HEAD CI 확인 전에는 PASS 주장 금지.
+- **제약/미검증:** `not_after`는 fixed time-box 만료에 대한 검사이고 **inactivity timeout, single-session 강제의 즉시 철회까지 모두 보장하지 않음**. Supabase에서는 일부 정책을 refresh 시 검사하며 늦게 행 삭제할 수 있음. `docs/PSI_L06_SUPABASE_ISOLATED_AUTH_ACCEPTANCE_20261122.md` A24~A25를 추가해 실제 time-box와 inactivity/single-session 설정을 **별개 검사**하도록 분리; 총 A01~A25 실제 Auth/RLS·두 커넥션 인수 전부 `NOT RUN`.
+- **운영 차단:** 두 연결 Supabase 프로젝트는 L06 전용 독립 sandbox 승인 대상 아님. 실제 운영 데이터/계정/DDL/RLS/GRANT·JWT·Vercel Production·`main` 미변경. PR #237 Draft. L18 사람 인수 13개 pending, Android·11개 모국어/실근로자 개인정보·보관삭제 검수 미완료.
+
+**다음 한 작업:** 16차 최종 HEAD 동일 SHA 릴리스·전사 Chromium·Inspector 모바일 CI 성공/실패 확정 → 허가된 독립 Supabase에서 실제 `not_after`·refresh/cleanup·JWT 만료/세션 철회와 현장 권한/RLS A01~A25 실증 → 보안/법무·Android·모국어·L18 13개 사람 승인 전 메인·운영 배포 불가.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -601,7 +612,7 @@
 
 ## 9. 다음 착수 과제
 
-**L06 15차 공통 JWT exp/iat DB 시각 검증 + PGlite 45건의 동일 HEAD 3종 CI 최종 판정 → 승인된 격리 Supabase 실제 JWT/Auth/RLS·기업/현장·세션 철회 A01~A21 → Android/11개 모국어·개인정보/L18 13개 사람 인수 이후 사용자 승인 전까지 main·Production 보류.**
+**L06 16차 time-box 세션 `auth.sessions.not_after` 지연정리 경계검사 + PGlite 50개와 동일 SHA 3종 CI 확인 → 승인된 독립 Supabase에서 실제 Auth 세션/JWT/RLS·기업/현장 A01~A25 실증 → L18 사람 13개·Android·원어민·개인정보 검수 및 최종 사용자 승인 전 main/Production/운영 DB 연결 보류.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
