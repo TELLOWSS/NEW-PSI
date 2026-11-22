@@ -68,14 +68,15 @@ const revisionEventsValid = (events: unknown, terminalChanges: boolean): boolean
 const recordValid = (v: unknown, tenantId:string, siteId:string): v is Record<string,unknown> => {
     if(!exactly(v,{schema:'psi-worker-risk-manager-review-v1',tenantId,siteId,workClearanceGranted:false})
         || !hasShape(v)) return false;
+    const answers = hasShape(v.answers) ? v.answers : null;
     if(!UUID.test(String(v.submissionId||'')) || !UUID.test(String(v.workerId||''))
         || !['ko','vi','zh','th','km','uz','id','mn','ru','my','kk','bn'].includes(String(v.sourceLanguage))
         || !grades.includes(String(v.selfRiskGrade))
         || typeof v.gradeReason!=='string' || v.gradeReason.length>500
-        || utc(v.receivedAt)===null || !hasShape(v.answers)
-        || Object.keys(v.answers).length!==5
-        || !keys.every(k=>typeof v.answers[k]==='string' && (v.answers[k] as string).length<=500 &&
-            (k==='Q3' ? v.answers[k]===v.selfRiskGrade : (v.answers[k] as string).trim().length>=2))) return false;
+        || utc(v.receivedAt)===null || !answers
+        || Object.keys(answers).length!==5
+        || !keys.every(k=>typeof answers[k]==='string' && (answers[k] as string).length<=500 &&
+            (k==='Q3' ? answers[k]===v.selfRiskGrade : (answers[k] as string).trim().length>=2))) return false;
     return revisionEventsValid(v.events,false);
 };
 
