@@ -47,6 +47,11 @@ try {
     await page.goto(dev+path,{waitUntil:'domcontentloaded'});
     await page.getByRole('heading',{name:'근로자 보완기록 대조 · 개발 검수'}).waitFor();
     await page.getByTestId('psi-l06-revision-evidence').waitFor();
+    const timeline = page.getByTestId('psi-l06-evidence-timeline');
+    await timeline.waitFor();
+    assert.equal(await timeline.locator('time').count(),4,'Four real-source evidence timestamps are expected');
+    assert.ok((await timeline.textContent()).includes('한국시간(KST)'),'Time zone must be visible');
+    assert.ok((await timeline.textContent()).includes('보완본 별도 접수'),'Show independent replacement receipt');
     assert.equal(await page.locator('article').count(),5);
     assert.ok(await page.getByText('문구 변경').count()>=2);
     assert.ok(await page.getByText('원문 동일').count()>=1);
@@ -62,13 +67,15 @@ try {
     await page.screenshot({path:`artifacts/audit/psi-l06-revision-lab/${width}-valid.png`,fullPage:true});
     await page.getByRole('button',{name:'다른 현장 연결 차단 시험'}).click();
     await page.getByTestId('psi-l06-revision-unavailable').waitFor();
+    assert.equal(await page.getByTestId('psi-l06-evidence-timeline').count(),0,
+      'Cross-site source chronology must not leak');
     assert.equal(await page.locator('article').count(),0,'Cross-site data must never be shown');
     await page.screenshot({path:`artifacts/audit/psi-l06-revision-lab/${width}-cross-site-blocked.png`,fullPage:true});
     await page.getByRole('button',{name:'정상 보완 대조'}).click();
     await page.getByTestId('psi-l06-revision-evidence').waitFor();
     assert.deepEqual(api,[],'No backend access allowed in synthetic lab');
     assert.deepEqual(external,[],'No external services allowed in synthetic lab');
-    results.push({width,questionPairs:5,changedOnlyPairs:2,changeFilterRestoresOriginals:true,
+    results.push({width,questionPairs:5,serverTimestamps:4,chronologyDisplay:'Asia/Seoul',changedOnlyPairs:2,changeFilterRestoresOriginals:true,
       crossSiteBlocked:true,apiCalls:0,externalCalls:0});
     await page.close();
   }
