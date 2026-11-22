@@ -54,7 +54,13 @@ beforeAll(async()=>{
     await db.exec(await readFile(resolve('supabase/migrations',file),'utf8'));
   await db.exec(await readFile(resolve('supabase/proposals/psi_tenant_site_memberships_staging.sql'),'utf8'));
   await db.exec(await readFile(resolve('supabase/proposals/psi_site_worker_read_policy_staging.sql'),'utf8'));
-  await db.exec(await readFile(resolve('supabase/proposals/psi_worker_risk_submission_l06_staging.sql'),'utf8'));
+  try {
+    await db.exec(await readFile(resolve('supabase/proposals/psi_worker_risk_submission_l06_staging.sql'),'utf8'));
+  } catch (error) {
+    // The staging SQL runs only in PGlite. This marker identifies the exact
+    // failed stage without printing source data or credentials.
+    throw new Error('L06_PGLITE_STAGING_SQL_INITIALIZATION_FAILED', { cause: error });
+  }
 },40000);
 
 beforeEach(async()=>{
