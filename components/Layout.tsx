@@ -507,6 +507,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
 
     return (
         <AppShell
+            mobileDialogOpen={isMobileMenuOpen}
             desktopSidebar={
                 <Sidebar
                     allowCollapse
