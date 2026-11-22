@@ -38,12 +38,28 @@ try {
     });
     await page.goto(host + '/worker-risk-draft', { waitUntil: 'domcontentloaded' });
     await page.getByRole('heading', { name: '작업 전 위험성평가 직접 작성 연습' }).waitFor();
+    // L28: simulate the native cancelable beforeunload event without actually
+    // navigating or saving safety answers. Real mobile prompt UI varies.
+    const probeUnloadWarning = () => page.evaluate(() => {
+        const event = new Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(event);
+        return event.defaultPrevented;
+    });
+    assert.equal(await probeUnloadWarning(), false,
+        'Blank practice form must not block browser navigation');
     assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '0 / 5문항');
     assert.equal(await page.getByRole('button', { name: /Q5 5단계/ }).isDisabled(), true, 'Future steps must not be skipped');
     await page.getByRole('button', { name: '다음 문항' }).click();
     await page.getByRole('status').getByText(/Q1 문항을 먼저 작성/).waitFor();
 
     await page.locator('#psi-l06-Q1').fill('가설 작업발판 설치');
+    await page.waitForFunction(() => {
+        const event = new Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(event);
+        return event.defaultPrevented;
+    });
+    assert.equal(await probeUnloadWarning(), true,
+        'After entering Q1, accidental refresh/tab close must request confirmation');
 
     // L26: browser Ctrl+P is available before a draft is complete. It must
     // print only a non-submission notice, never incomplete worker safety text.
@@ -142,6 +158,8 @@ try {
     assert.equal(await resetPrompt.count(), 0, 'Cancel dismisses the inline confirmation');
     assert.equal(await page.locator('#psi-l06-Q1').inputValue(), '가설 작업발판 설치',
         'Cancel must preserve Q1');
+    assert.equal(await probeUnloadWarning(), true,
+        'Canceling reset must preserve the unload warning and the user text');
 
     // Escape is another safe exit, with no new storage or API calls.
     await page.getByRole('button', { name: '전체 초기화' }).click();
@@ -153,6 +171,13 @@ try {
     await resetPrompt.getByRole('button', { name: '초기화 확정' }).click();
     assert.equal(await page.locator('#psi-l06-Q1').inputValue(), '');
     assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '0 / 5문항');
+    await page.waitForFunction(() => {
+        const event = new Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(event);
+        return !event.defaultPrevented;
+    });
+    assert.equal(await probeUnloadWarning(), false,
+        'After confirmed clear, navigation must no longer be warned');
 
     // L25: all five answers may legally approach 500 characters. Long Korean
     // responses must paginate instead of clipping the final safety promise.
@@ -163,6 +188,11 @@ try {
         return line.repeat(20).slice(0, 500 - endMarker.length) + endMarker;
     };
     await page.locator('#psi-l06-Q1').fill(longAnswer('Q1'));
+    await page.waitForFunction(() => {
+        const event = new Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(event);
+        return event.defaultPrevented;
+    });
     await page.getByRole('button', { name: '다음 문항' }).click();
     await page.locator('#psi-l06-Q2').fill(longAnswer('Q2'));
     await page.getByRole('button', { name: '다음 문항' }).click();
@@ -202,6 +232,13 @@ try {
     await page.getByRole('group', { name: '작성 내용 초기화 확인' })
         .getByRole('button', { name: '초기화 확정' }).click();
     assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '0 / 5문항');
+    await page.waitForFunction(() => {
+        const event = new Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(event);
+        return !event.defaultPrevented;
+    });
+    assert.equal(await probeUnloadWarning(), false,
+        'Final confirmed clear must release the beforeunload guard');
     assert.deepEqual(apiCalls, [], 'Long worksheet must never call any API');
     assert.deepEqual(externalCalls, [], 'Long worksheet must never call external services');
 
@@ -215,12 +252,13 @@ try {
         externalCalls: externalCalls.length,
         storageWrites: 0,
         resetSafety: 'first-tap-prompt, cancel-preserves, Escape-preserves, confirmed-only-deletion',
+        unloadGuard: 'blank-allows, typed-warns, cancel-preserves, confirmed-reset-releases; mobile-prompt-not-guaranteed',
         a4TrialPrint: { pages: 1, questions: 5, unfinishedWarningOnly: true, longAnswerPages: longPdf.numPages, longAnswersIntact: true, receiptCreated: false, syntheticOnly: true },
         navigation: 'one-question-at-a-time, incomplete-step-blocked, back-and-forth-preserved',
         note: 'In-memory trial only, no worker submission/identity/Android validation',
     }, null, 2) + '\n');
 
-    console.log('[PSI L06] SYNTHETIC_PASS: reset cancel/Escape/confirmation + A4 normal/long; zero API/storage calls');
+    console.log('[PSI L06] SYNTHETIC_PASS: unsaved unload protection + safe reset + A4 normal/long; zero API/storage calls');
 } finally {
     await browser?.close();
     server.kill('SIGTERM');
