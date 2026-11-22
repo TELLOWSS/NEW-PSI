@@ -403,6 +403,16 @@
 
 **다음 한 작업:** PDF 로컬 분리 최신 커밋 릴리스/전사 Chromium/Inspector 성공 여부 확인·오류 수정 → 실제 2025년 각 장 Q1~Q5 손글씨 판독·관리자 대조 및 구형 다국어/최신양식 A4 비교 시험 → L06 직접 입력 연계.
 
+
+### L06 후속 — 근로자 Q1~Q5 직접 작성 시범 1차 (2026-11-22)
+
+- **범위 확인:** 기존 L06은 관리자 OCR 원본/번역 비교 내비게이터만 구현. 근로자 본인의 입력 UX는 미구현이었다. 이번에는 `/worker-risk-draft` 독립 경로의 **한국어·인증 없는 시범 폼**을 추가. 교육 이수·정식 위험성평가 제출·현장 관리자 승인을 대체하지 않는다.
+- **실제 구현:** `pages/WorkerRiskDraft.tsx`는 기존 `PSI_FORM_QUESTIONS` 5문항을 재사용해 Q1 위험작업, Q2 위험원인, Q3 자가 상/중/하 및 이유, Q4 감소대책, Q5 실천행동을 직접 작성. 5문항 진행 표시·누락 문항 안내·입력 내용 검토/수정·초기화·브라우저 인쇄만 제공. `utils/workerRiskDraftL06.ts`의 공통 검사는 Q3 단일 등급 인정, 다른 문항 원문 최소 2문자 기준. **작성 완료 표시와 서버 수신/관리자 검수는 분리**한다.
+- **개인정보/권한 경계:** 이름·생년월일·근로자 인증/국적/서명 입력 없음. 페이지 메모리 상태만 사용하며 새로고침 시 소실. fetch/IndexedDB/localStorage/sessionStorage 신규 사용 없음. 자동 서버 업로드·전송·저장·OCR/API 과금·DB/RLS 변경 없음. `vercel.json`에서 새 경로 noindex/no-referrer/no-store 헤더를 정의. 공개 입력 시험이 개인정보 동의/현장 계정 권한을 대체하지 못한다.
+- **검수 코드:** `tests/psiWorkerRiskDraftL06.test.ts`(마스터 순서·등급·미제출/미승인·클라이언트 독립성), `scripts/verify-psi-l06-worker-draft.mjs`(390px 합성 Chromium: 누락 경고→5문항→검토→초기화, API/외부 호출 0, 브라우저 저장 없음). `.github/workflows/psi-company-wide.yml` 자동 게이트와 합성 JSON/화면 artifact 연결.
+- **상태 구분:** **직접 작성·화면 검토 코드 IMPLEMENTED / 정식 현장 제출 NOT IMPLEMENTED / 출시 L18 BLOCKED**. 새로운 HEAD의 CI는 독립 최종 결과를 재조회해야 하며, 합성 QA가 Android 실기기·다국어·서버 수신의 증거는 아니다. PR #237 Draft, main/Production 변경 금지.
+- **다음 한 작업:** 새 HEAD 3종 CI 완료/실패 로그 확인·수정 → 근로자 정식 로그인 또는 현장 토큰·개인정보 동의·다국어 원문 Q1~Q5·오프라인 보존/폐기 정책·관리자 승인 대기 원본·서버 수신 영수증/RLS 간 분리된 L06 제출 계약 설계와 실환경 권한 QA. 이후 실제 현장 승인 전까지 제출 API/QR 배포하지 않음.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
