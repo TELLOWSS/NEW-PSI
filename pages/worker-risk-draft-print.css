@@ -91,7 +91,7 @@
     }
 
     .psi-l06-worker-draft .psi-l06-review-print button,
-    .psi-l06-worker-draft .psi-l06-review-print .print\\:hidden {
+    .psi-l06-worker-draft .psi-l06-review-actions {
       display: none !important;
     }
   }
