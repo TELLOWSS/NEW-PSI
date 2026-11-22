@@ -27,6 +27,22 @@ describe('PSI desktop navigation dock contract', () => {
     expect(sidebar).not.toMatch(/localStorage\.setItem\s*\(/);
   });
 
+  it('provides full-size accessible menu composition controls for desktop and narrow layouts', () => {
+    const sidebar = source('components/Sidebar.tsx');
+    const browser = source('scripts/verify-psi-l15-accessibility.mjs');
+    expect(sidebar).toContain('flex min-w-0 flex-col gap-1.5 rounded-lg');
+    expect(sidebar).toContain('flex min-h-11 min-w-0 items-center gap-2');
+    expect(sidebar).toContain('h-5 w-5 shrink-0 rounded');
+    expect(sidebar).toContain('flex min-h-11 min-w-11 items-center justify-center rounded-lg');
+    expect(sidebar).toContain('aria-label={`${resolvePageLabel(item.id)} 위로 이동`}');
+    expect(sidebar).toContain('aria-label={`${resolvePageLabel(item.id)} 아래로 이동`}');
+    expect(sidebar).toContain('onCompositionConfigChange(reorderSidebarPage');
+    expect(browser).toContain('L33 menu editor target below');
+    expect(browser).toContain("c.width>=1024");
+    expect(browser).toContain('sidebar-composition-');
+    expect(browser).toContain("getByRole('button',{name:'메뉴 구성 편집 열기'})");
+  });
+
   it('uses reduced-motion-safe width animation without extra dependencies', () => {
     const css = source('styles/psi-living-motion.css');
     expect(css).toContain('.psi-sidebar--collapsed');
