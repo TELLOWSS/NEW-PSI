@@ -1,0 +1,239 @@
+{
+  "schema": "psi-l06-isolated-auth-evidence-ledger-v1",
+  "repository": "TELLOWSS/NEW-PSI",
+  "candidatePr": 237,
+  "purpose": "Review-only evidence register. No test has been run and no Supabase project is authorized.",
+  "environment": {
+    "approved": false,
+    "projectRef": null,
+    "approvalEvidence": null,
+    "approvedBy": null
+  },
+  "cases": [
+    {
+      "id": "A01",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A02",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A03",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A04",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A05",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A06",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A07",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A08",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A09",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A10",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A11",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A12",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A13",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A14",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A15",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A16",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A17",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A18",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A19",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A20",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A21",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A22",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A23",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A24",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    },
+    {
+      "id": "A25",
+      "status": "not-run",
+      "evidence": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "sourceSha": null,
+      "reason": null
+    }
+  ]
+}
