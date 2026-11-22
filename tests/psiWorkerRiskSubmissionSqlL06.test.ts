@@ -236,4 +236,173 @@ describe('L06 staged PostgreSQL atomic worker self-entry (NOT a live migration)'
       expect(access.rows[0].allowed).toBe(false);
     }
   });
+
+  it('records a two-person site-manager review and approval but never grants work clearance',async()=>{
+    const id=await submitA();
+    await user(REVIEWER_A);
+    const first=(await review(reviewParams(id))).rows[0].receipt;
+    expect(first).toMatchObject({schema:'psi-worker-risk-review-receipt-v1',
+      tenantId:TENANT_A,siteId:SITE_A,submissionId:id,revision:1,
+      action:'reviewed',scope:'record-review-only-no-work-clearance'});
+    await user(OWNER_A);
+    const second=(await review(reviewParams(id,REVIEW_NONCE_2,'approved',APPROVAL_NOTE,1))).rows[0].receipt;
+    expect(second).toMatchObject({revision:2,action:'approved',scope:'record-review-only-no-work-clearance'});
+    const snapshot=(await db.query<{snapshot:Record<string,unknown>}>(readReviewSql,[TENANT_A,SITE_A,id])).rows[0].snapshot;
+    expect(snapshot).toMatchObject({workerId:WORKER_A,answers:ANSWERS,sourceLanguage:'ko',
+      workClearanceGranted:false,events:[
+        {revision:1,action:'reviewed',reviewerId:REVIEWER_A},
+        {revision:2,action:'approved',reviewerId:OWNER_A}
+      ]});
+    expect(Object.keys(snapshot).sort()).toEqual(['answers','events','formVersion','gradeReason','receivedAt',
+      'schema','selfRiskGrade','siteId','sourceLanguage','submissionId','tenantId','workClearanceGranted','workerId']);
+    await db.exec('reset role');
+    const originals=await db.query('select answers,state from public.psi_worker_risk_submissions');
+    expect(originals.rows).toEqual([{answers:ANSWERS,state:'received-pending-manager-review'}]);
+    const events=await db.query('select action,revision from public.psi_worker_risk_review_events order by revision');
+    expect(events.rows).toEqual([{action:'reviewed',revision:1},{action:'approved',revision:2}]);
+  });
+  it('requires initial review before approval and an independent site manager',async()=>{
+    const id=await submitA();
+    await user(OWNER_A);
+    await deny(reviewSql,reviewParams(id,REVIEW_NONCE_2,'approved',APPROVAL_NOTE,0));
+    await review(reviewParams(id));
+    await deny(reviewSql,reviewParams(id,REVIEW_NONCE_2,'approved',APPROVAL_NOTE,1));
+    await user(REVIEWER_A);
+    await deny(reviewSql,reviewParams(id,REVIEW_NONCE_2,'approved',APPROVAL_NOTE,1));
+    await db.exec('reset role');
+    expect((await db.query('select * from public.psi_worker_risk_review_events')).rows).toHaveLength(1);
+  });
+  it('rejects reviewer from another tenant, another site, or a worker without manager role',async()=>{
+    const id=await submitA();
+    await user(OUTSIDER);
+    await deny(reviewSql,reviewParams(id));
+    await deny(readReviewSql,[TENANT_A,SITE_A,id]);
+    await user(REVIEWER_A);
+    await deny(reviewSql,reviewParams(id,REVIEW_NONCE_2,'reviewed',REVIEW_NOTE,0,TENANT_A,SITE_A2));
+    await deny(reviewSql,reviewParams(id,REVIEW_NONCE_2,'reviewed',REVIEW_NOTE,0,TENANT_B,SITE_B));
+    await deny(readReviewSql,[TENANT_A,SITE_A2,id]);
+    await user(USER_A);
+    await deny(reviewSql,reviewParams(id));
+    await deny(readReviewSql,[TENANT_A,SITE_A,id]);
+    await db.exec('set local role anon');
+    await deny(reviewSql,reviewParams(id));
+    await deny(readReviewSql,[TENANT_A,SITE_A,id]);
+  });
+  it('rejects a worker reviewing their own record even if the worker also has a reviewer membership',async()=>{
+    const id=await submitA();
+    await db.exec('reset role');
+    await db.query("insert into public.psi_tenant_memberships(tenant_id,user_id,role) values($1,$2,'reviewer')",[TENANT_A,USER_A]);
+    await db.query("insert into public.psi_tenant_site_memberships(tenant_id,site_id,user_id,status) values($1,$2,$3,'active')",
+      [TENANT_A,SITE_A,USER_A]);
+    await user(USER_A);
+    await deny(reviewSql,reviewParams(id));
+    await db.exec('reset role');
+    expect((await db.query('select * from public.psi_worker_risk_review_events')).rows).toHaveLength(0);
+  });
+  it('replays exact review request without duplicate revision, rejecting changed replay and stale revision',async()=>{
+    const id=await submitA();
+    await user(REVIEWER_A);
+    const first=(await review(reviewParams(id))).rows[0].receipt;
+    const again=(await review(reviewParams(id))).rows[0].receipt;
+    expect(again).toEqual(first);
+    await deny(reviewSql,reviewParams(id,REVIEW_NONCE_1,'request_changes',REVIEW_NOTE,0));
+    await deny(reviewSql,reviewParams(id,REVIEW_NONCE_1,'reviewed','변경된 검토 기록의 내용을 제출함',0));
+    await user(OWNER_A);
+    await deny(reviewSql,reviewParams(id,REVIEW_NONCE_2,'approved',APPROVAL_NOTE,0));
+    const approved=(await review(reviewParams(id,REVIEW_NONCE_2,'approved',APPROVAL_NOTE,1))).rows[0].receipt;
+    const duplicate=(await review(reviewParams(id,REVIEW_NONCE_2,'approved',APPROVAL_NOTE,1))).rows[0].receipt;
+    expect(duplicate).toEqual(approved);
+    await deny(reviewSql,reviewParams(id,REVIEW_NONCE_3,'approved',APPROVAL_NOTE,1));
+    await db.exec('reset role');
+    expect((await db.query('select revision from public.psi_worker_risk_review_events')).rows).toHaveLength(2);
+  });
+  it('request_changes is terminal on the old original: a replacement requires a new worker submission',async()=>{
+    const id=await submitA();
+    await user(REVIEWER_A);
+    const event=(await review(reviewParams(id,REVIEW_NONCE_1,'request_changes',REVIEW_NOTE,0))).rows[0].receipt;
+    expect(event).toMatchObject({action:'request_changes',revision:1});
+    await user(OWNER_A);
+    await deny(reviewSql,reviewParams(id,REVIEW_NONCE_2,'approved',APPROVAL_NOTE,1));
+    await deny(reviewSql,reviewParams(id,REVIEW_NONCE_2,'reviewed',REVIEW_NOTE,1));
+    await db.exec('reset role');
+    expect((await db.query('select * from public.psi_worker_risk_review_events')).rows).toHaveLength(1);
+  });
+  it('requires meaningful notes and declines forged actions, revisions and keys',async()=>{
+    const id=await submitA();
+    await user(REVIEWER_A);
+    for(const args of [
+      reviewParams(id,REVIEW_NONCE_1,'approve',REVIEW_NOTE,0),
+      reviewParams(id,REVIEW_NONCE_1,'reviewed','짧음',0),
+      reviewParams(id,REVIEW_NONCE_1,'reviewed','x'.repeat(801),0),
+      reviewParams(id,REVIEW_NONCE_1,'reviewed',REVIEW_NOTE,2),
+      reviewParams(id,REVIEW_NONCE_1,'reviewed',REVIEW_NOTE,-1),
+      reviewParams(id,REVIEW_NONCE_1,'reviewed',REVIEW_NOTE,0,TENANT_A,SITE_B),
+    ]) await deny(reviewSql,args);
+  });
+  it('revoked tenant/site membership or disabled site prevents review and read',async()=>{
+    const id=await submitA();
+    await db.exec('reset role');
+    await db.query("update public.psi_tenant_site_memberships set status='suspended' where tenant_id=$1 and site_id=$2 and user_id=$3",
+      [TENANT_A,SITE_A,REVIEWER_A]);
+    await user(REVIEWER_A);
+    await deny(reviewSql,reviewParams(id));
+    await deny(readReviewSql,[TENANT_A,SITE_A,id]);
+    await db.exec('reset role');
+    await db.query("update public.psi_tenant_site_memberships set status='active' where tenant_id=$1 and site_id=$2 and user_id=$3",
+      [TENANT_A,SITE_A,REVIEWER_A]);
+    await db.query("update public.psi_tenant_memberships set status='suspended' where tenant_id=$1 and user_id=$2",
+      [TENANT_A,REVIEWER_A]);
+    await user(REVIEWER_A);
+    await deny(reviewSql,reviewParams(id));
+    await deny(readReviewSql,[TENANT_A,SITE_A,id]);
+    await db.exec('reset role');
+    await db.query("update public.psi_tenant_memberships set status='active' where tenant_id=$1 and user_id=$2",
+      [TENANT_A,REVIEWER_A]);
+    await db.query("update public.psi_tenant_sites set active=false where tenant_id=$1 and id=$2",
+      [TENANT_A,SITE_A]);
+    await user(REVIEWER_A);
+    await deny(reviewSql,reviewParams(id));
+    await deny(readReviewSql,[TENANT_A,SITE_A,id]);
+  });
+  it('forbids direct SELECT/INSERT/DELETE and privileged mutation of source and review events',async()=>{
+    const id=await submitA();
+    await user(REVIEWER_A);
+    await review(reviewParams(id));
+    for(const table of ['psi_worker_risk_submissions','psi_worker_risk_receipt_events','psi_worker_risk_review_events']){
+      await deny('select * from public.'+table);
+      await deny('delete from public.'+table);
+    }
+    await db.exec('reset role');
+    await deny("update public.psi_worker_risk_submissions set answers='{}'::jsonb where id=$1",[id]);
+    await deny("delete from public.psi_worker_risk_receipt_events where submission_id=$1",[id]);
+    await deny("update public.psi_worker_risk_review_events set note='변조된 관리자 검토 기록' where submission_id=$1",[id]);
+    expect((await db.query('select * from public.psi_worker_risk_review_events')).rows).toHaveLength(1);
+    const check=await db.query<{relname:string;relrowsecurity:boolean;relforcerowsecurity:boolean}>(
+      "select relname,relrowsecurity,relforcerowsecurity from pg_class where relname='psi_worker_risk_review_events'");
+    expect(check.rows).toEqual([{relname:'psi_worker_risk_review_events',relrowsecurity:true,relforcerowsecurity:true}]);
+    const allowed=await db.query<{allowed:boolean}>(
+      "select has_table_privilege('authenticated','public.psi_worker_risk_review_events','SELECT') as allowed");
+    expect(allowed.rows[0].allowed).toBe(false);
+  });
+  it('rolls back failed review insert without affecting the original worker submission',async()=>{
+    const id=await submitA();
+    await db.exec('reset role');
+    await db.exec("alter table public.psi_worker_risk_review_events add constraint l06_synthetic_review_fail check(action<>'reviewed')");
+    await user(REVIEWER_A);
+    await deny(reviewSql,reviewParams(id));
+    await db.exec('reset role');
+    expect((await db.query('select * from public.psi_worker_risk_review_events')).rows).toHaveLength(0);
+    expect((await db.query('select answers from public.psi_worker_risk_submissions where id=$1',[id])).rows)
+      .toEqual([{answers:ANSWERS}]);
+  });
+  it('permits historical manager review after cycle is closed without changing worker self-assessment',async()=>{
+    const id=await submitA();
+    await db.exec('reset role');
+    await db.query("update public.psi_tenant_risk_cycles set status='closed' where tenant_id=$1",[TENANT_A]);
+    await user(REVIEWER_A);
+    const event=(await review(reviewParams(id))).rows[0].receipt;
+    expect(event).toMatchObject({action:'reviewed',revision:1});
+    const snapshot=(await db.query<{snapshot:Record<string,unknown>}>(readReviewSql,[TENANT_A,SITE_A,id])).rows[0].snapshot;
+    expect(snapshot).toMatchObject({selfRiskGrade:'상',answers:ANSWERS,workClearanceGranted:false});
+  });
 },60000);
