@@ -132,3 +132,13 @@
 - **운영:** SQL/RLS/GRANT/실DB·개인정보·정식 제출 API 변경 없음, PR #237 Draft, main/Production 사용자 승인 전 보류.
 
 **다음:** CI 증빙 확정 → 승인된 별도 Supabase 환경에서 실제 계정/현장별 Auth/RLS·세션 철회/원본 조회 강제 검사 → 관리자 운영 UI 정식 연동 여부 검토.
+
+## 13. 2026-11-22 — 11차: 관리자 원문 조회 중 권한철회·세션 만료 경합 차단
+
+- **발견:** 기존 L06 관리자 SOURCE-ONLY read 계약은 원문 읽기 **이전**에만 활성 세션·기업 owner/admin/reviewer·현장배정·활성현장을 확인했다. 검사 이후 원문을 가져오는 동안 현장 배정이 취소되는 시점을 포착하지 못할 수 있었다.
+- **개선:** `inspectL06ManagerRevisionRead`의 신뢰서버 시간 인자를 `clock: () => Date`로 명시하여 읽기 시작과 원문 검수 종료에 각각 현재시각을 독립 획득한다. 원문 방출 **직전** session-id 활성·JWT 만료·기업 관리자 역할/활성·현장배정/활성 및 현장상태를 재확인하고, 권한/시각 변화·인증 소스 오류가 있으면 `dataReleased:false`만 반환. 원문 유출/부분반환 없음. 실 서버 네트워크/DB/Auth 연결 자체는 하지 않는다.
+- **합성 테스트:** `tests/psiWorkerRiskManagerReadL06.test.ts` 가상 데이터로 원문 조회 중 세션 철회, 기업 관리자 역할 정지, 현장배정 해제, 현장 비활성, 요청 도중 만료/시계 후퇴/시계 장애 및 최종 재인증 DB 예외를 검증. 종전 9개에서 **13개 목표**. 최신 HEAD 전체 CI 및 브라우저 QA 결과를 실제 확인하기 전에는 PASS 미확정.
+- **운영 전 불가피한 잔여:** 순수 함수 재확인은 DB 트랜잭션의 원자적 권한·RLS·인증 세션 무효화 보증이 아니다. 실 운영에는 Supabase `auth.sessions`의 실제 `session_id` 철회 확인, 인가된 RPC의 role/현장 권한 검증, 응답 직전 경합·JWT 만료 처리에 대한 **서로 다른 기업 2개 이상** 실증이 선행돼야 한다. 연결된 프로젝트 목록에서 L06 전용 격리 테스트 승인은 확인되지 않았으므로 실제 DB/계정 변경 없음.
+- **계속 보류:** L06 SQL은 `supabase/proposals`에만 남아 있고 migrations·실 운영 API·근로자 데이터·GRANT/RLS·Production·main 변경 없음. 출시 L18 사람 인수 13개 pending.
+
+**다음:** 최종 SHA 3종 CI 확인 및 실패수정 → 안전하게 승인·격리된 Supabase 환경의 실제 Auth/RLS/session-id 동시 철회 검증 → 관리자 원문 실조회 API 연결 심사.
