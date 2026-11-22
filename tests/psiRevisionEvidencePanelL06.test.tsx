@@ -1,0 +1,75 @@
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { PsiRevisionEvidencePanelL06, hasReadableL06RevisionChain } from '../components/assessment/PsiRevisionEvidencePanelL06';
+import { PSI_FORM_QUESTIONS } from '../config/psiFormMaster';
+
+const source = (name: string) => readFileSync(resolve(process.cwd(),name),'utf8');
+const answers = {Q1:'갱폼 인상 작업',Q2:'단부 추락 위험',Q3:'상',Q4:'안전고리 체결',Q5:'작업 전 안전고리 점검'};
+const record = (id: string, update = answers, events: Array<{action:string;note:string;revision:number}> = []) => ({
+  schema:'psi-worker-risk-manager-review-v1',
+  tenantId:'tenant-a',siteId:'site-a',workerId:'worker-a',
+  submissionId:id,sourceLanguage:'ko',answers:update,events,workClearanceGranted:false as const,
+});
+const valid = () => ({
+  schema:'psi-worker-risk-revision-chain-v1',
+  original:record('original-a',answers,[{action:'request_changes',note:'위험 감소대책의 구체적인 체결 위치를 보완하세요.',revision:1}]),
+  replacement:record('replacement-b',{...answers,Q4:'지정된 고정점 확인 후 안전고리 체결'}),
+  linkedAt:'2026-11-22T00:00:00.000Z',
+  workClearanceGranted:false as const,
+});
+
+describe('L06 manager-side immutable Q1-Q5 revision comparison (unwired staging UI)',()=>{
+  it('shows five source pairs, meaningful change labels and no automatic approval',()=>{
+    const chain=valid();
+    const originalSnapshot=JSON.stringify(chain);
+    expect(hasReadableL06RevisionChain(chain)).toBe(true);
+    const markup=renderToStaticMarkup(<PsiRevisionEvidencePanelL06 chain={chain}/>);
+    expect(markup).toContain('data-testid="psi-l06-revision-evidence"');
+    expect(markup).toContain('보완요청 원문과 새 작성본 비교');
+    expect(markup).toContain('위험 감소대책의 구체적인 체결 위치를 보완하세요.');
+    expect(markup).toContain('지정된 고정점 확인 후 안전고리 체결');
+    expect(markup).toContain('문구 변경');
+    expect(markup).toContain('원문 동일');
+    expect(markup).toContain('작업 재개 승인');
+    expect((markup.match(/<article/g)||[])).toHaveLength(PSI_FORM_QUESTIONS.length);
+    expect(markup).toContain('md:grid-cols-2');
+    expect(JSON.stringify(chain)).toBe(originalSnapshot);
+  });
+
+  it('fails closed for wrong tenant/site/worker/identity, missing review, or forged work clearance',()=>{
+    const sample=valid();
+    const invalid = [
+      null,{}, {...sample,schema:'invented'},
+      {...sample,workClearanceGranted:true},
+      {...sample,replacement:{...sample.replacement,tenantId:'tenant-b'}},
+      {...sample,replacement:{...sample.replacement,siteId:'site-b'}},
+      {...sample,replacement:{...sample.replacement,workerId:'worker-b'}},
+      {...sample,replacement:{...sample.replacement,submissionId:'original-a'}},
+      {...sample,original:{...sample.original,events:[]}},
+      {...sample,original:{...sample.original,events:[{action:'approved',note:'최종 검토',revision:2}]}},
+      {...sample,original:{...sample.original,workClearanceGranted:true}},
+      {...sample,replacement:{...sample.replacement,answers:{Q1:'있음'}}},
+    ];
+    for(const candidate of invalid) {
+      expect(hasReadableL06RevisionChain(candidate)).toBe(false);
+      const markup=renderToStaticMarkup(<PsiRevisionEvidencePanelL06 chain={candidate}/>);
+      expect(markup).toContain('data-testid="psi-l06-revision-unavailable"');
+      expect(markup).not.toContain('갱폼 인상 작업');
+    }
+  });
+
+  it('never creates a worker submission, a network call or writable manager approval',()=>{
+    const component=source('components/assessment/PsiRevisionEvidencePanelL06.tsx');
+    const sql=source('supabase/proposals/psi_worker_risk_resubmission_l06_staging.sql');
+    expect(component).not.toMatch(/\bfetch\s*\(|XMLHttpRequest|supabase\.from|localStorage|indexedDB|navigator\.share/);
+    expect(component).not.toMatch(/onClick=|onSubmit=|autoApprove|grantWorkClearance/);
+    expect(sql).toContain('public.psi_submit_worker_risk_l06(');
+    expect(sql).toContain('public.psi_read_worker_risk_review_l06(');
+    expect(sql).toContain('psi_l06_revision_link_immutable');
+    expect(sql).toContain('force row level security');
+    expect(sql).not.toMatch(/create\s+policy\s+allow_all/i);
+  });
+});
