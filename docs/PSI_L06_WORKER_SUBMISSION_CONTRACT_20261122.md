@@ -112,3 +112,13 @@
 - **QA 상태:** 최종 HEAD 동일 SHA 릴리스·전사 Chromium·Inspector 브라우저 CI 완료 판정 전에는 PASS로 보고하지 않음. 검증 오류는 수정 후 새 HEAD 재판정.
 
 **다음:** 8차 CI 3종·브라우저 결과 확인 → 격리 승인 Supabase 테스트환경 실제 보안 검증 → 인증된 읽기 데이터만 실관리자 화면에 연결할지 검토.
+
+## 11. 2026-11-22 — 9차 SOURCE-ONLY 관리자 인증·권한 조회 계약과 원문 대조 UX
+
+- `lib/server/workerRiskManagerReadL06.ts`: **실 API/DB 클라이언트가 없는** 서버용 의존성 주입 읽기 경계. 신뢰된 principal의 유효한 ID/만료, 독립 세션 활성 여부, 기업 owner/admin/reviewer 활성 소속, 기업/현장 일치·활성 소속, 활성 현장, 실제 DB 함수 자체 인가를 **별도로 요구하는** 읽기 포트. 어느 단계든 실패 시 `dataReleased:false`/오류코드만 반환. 로그인 세션을 브라우저 query/메타데이터에서 신뢰하지 않는다.
+- 원본·보완본 JSON은 관리자 읽기 RPC의 **정해진 필드만 인정**. 근로자 이름/이메일·토큰 등 예상 외 필드를 추가한 결과, 교차기업/현장/근로자, 원본 ID/평가 양식/원문 등급 불일치, 위조 리뷰 상태·작성시점·원문 변경 및 `workClearanceGranted:true`이면 데이터 전체를 거부. 인가/출력 shape 테스트와 실제 Supabase RLS 실증은 **서로 다른 검증**이다.
+- `tests/psiWorkerRiskManagerReadL06.test.ts` 신규 합성 검증 및 `PsiRevisionEvidencePanelL06` UI에서 변경 문항 필터, 동일 문항 복구, 신규 보완본의 검토 단계와 실제 현장 허가 분리. `scripts/verify-psi-l06-revision-lab.mjs`이 390px/1280px Chromium 브라우저에서 필터 전환도 검증.
+- **운영 적용 여부:** 현재 source-only 실험. 테스트 port 성공은 DB 실제 로그인/GRANT/RLS/세션 철회·역할 검증 증명이 아니며 `psi_read_worker_risk_revision_chain_l06` 함수는 운영 DB에 존재하지 않는다. 근로자 Q1~Q5 정식 제출/API는 여전히 없음. 승인된 독립 Supabase 프로젝트·정책/처리근거·원어민/실기기 검증 전까지 운영 연결 금지.
+- 최종 HEAD 릴리스·전사 Chromium·Inspector CI를 실조회한 뒤 성공/실패를 기록할 것. `main`/Vercel Production/운영 Supabase DDL·GRANT/RLS/개인정보 변경 0, PR #237 Draft, L18 사람 승인 13개 모두 pending.
+
+**다음:** 최종 SHA 3종 QA 확인 → 승인된 2개 기업 격리 Supabase에서 진짜 Auth/RLS/세션 철회·현장 간 읽기 거부 검증 → 원문 열람 고지·보유기간·실관리자 UX 검수 후 운영 연결 승인 여부 검토.
