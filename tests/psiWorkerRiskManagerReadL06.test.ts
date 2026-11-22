@@ -21,7 +21,7 @@ const answers = {Q1:'2001동 갱폼 인상',Q2:'단부 난간 미설치 추락 �
 const reviewNote='추락위험 구간의 난간 설치와 고정점 확인을 추가 기재하세요.';
 const record = (id:string, receivedAt:string, changes:{[key:string]:unknown}={})=>({
     schema:'psi-worker-risk-manager-review-v1',tenantId:tenant,siteId:site,
-    submissionId:id,workerId:worker,sourceLanguage:'ko',
+    submissionId:id,workerId:worker,formVersion:'psi-form-master-2026-11-22-v2-legacy-compatible',sourceLanguage:'ko',
     selfRiskGrade:'상',gradeReason:'단부 추락 위험',receivedAt,answers,
     events:[],workClearanceGranted:false,...changes,
 });
@@ -130,6 +130,9 @@ describe('L06 manager Q1-Q5 revision read, fail-closed SOURCE-ONLY server adapte
             (s:any)=>{s.workClearanceGranted=true;},
             (s:any)=>{s.original.workClearanceGranted=true;},
             (s:any)=>{s.original.workerId=actor;},
+            (s:any)=>{s.original.name='PRIVATE-WORKER-NAME';},
+            (s:any)=>{s.original.events[0].email='hidden@example.invalid';},
+            (s:any)=>{s.replacement.accessToken='never expose';},
         ];
         for(const change of cases){
             const c=clone(chain());change(c);
@@ -151,6 +154,13 @@ describe('L06 manager Q1-Q5 revision read, fail-closed SOURCE-ONLY server adapte
             (s:any)=>{s.original.selfRiskGrade='최상';},
             (s:any)=>{s.original.receivedAt='invalid';},
             (s:any)=>{s.replacement.sourceLanguage='invalid';},
+            (s:any)=>{s.original.formVersion='untrusted-form-version';},
+            (s:any)=>{s.original.events[0].reviewerId='invalid-user';},
+            (s:any)=>{s.original.events[0].recordedAt='bad';},
+            (s:any)=>{s.replacement.events=[{revision:1,action:'reviewed',note:reviewNote,
+                reviewerId:actor,recordedAt:'2026-11-22T11:09:00.000Z'},
+                {revision:2,action:'approved',note:reviewNote,reviewerId:actor,
+                recordedAt:'2026-11-22T11:10:00.000Z'}];},
         ];
         for(const change of cases){
             const c=clone(chain());change(c);
@@ -163,6 +173,8 @@ describe('L06 manager Q1-Q5 revision read, fail-closed SOURCE-ONLY server adapte
             (s:any)=>{s.replacement.receivedAt='2026-11-22T10:59:00.000Z';},
             (s:any)=>{s.linkedAt='2026-11-22T11:01:00.000Z';},
             (s:any)=>{s.linkedAt='not-an-ISO-date';},
+            (s:any)=>{s.original.events[0].recordedAt='2026-11-22T10:58:00.000Z';},
+            (s:any)=>{s.original.events[0].recordedAt='2026-11-22T11:08:00.000Z';},
         ];
         for(const change of cases){
             const c=clone(chain());change(c);
