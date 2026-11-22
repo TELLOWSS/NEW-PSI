@@ -86,6 +86,10 @@ jobs:
         run: node scripts/verify-psi-l15-accessibility.mjs
       - name: L16 throttled-entry, offline-record reopen and zero server sync (synthetic)
         run: node scripts/verify-psi-l16-resilience.mjs
+      - name: Recheck L17 source-only privacy and OSS gate in full browser context
+        run: node scripts/verify-psi-l17-security.mjs
+      - name: L18 integrate synthetic evidence and keep field/owner approval BLOCKED
+        run: node scripts/verify-psi-l18-release-gate.mjs --browser-evidence
       - name: Upload synthetic-only cross-department evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -101,5 +105,7 @@ jobs:
             artifacts/audit/psi-platform-workspaces/
             artifacts/audit/psi-l15-accessibility/
             artifacts/audit/psi-l16-resilience/
+            artifacts/audit/psi-l17-security/
+            artifacts/audit/psi-l18-release-gate/
           if-no-files-found: ignore
           retention-days: 7

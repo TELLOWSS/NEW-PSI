@@ -1,0 +1,113 @@
+{
+  "schema": "psi-living-ui-release-acceptance-v1",
+  "project": "NEW-PSI",
+  "repository": "TELLOWSS/NEW-PSI",
+  "candidatePr": 237,
+  "notice": "Human gate evidence is NOT automatically checked; pending is the only evidence-backed state until independently reviewed. Automated CI must be rechecked against one HEAD. This file is a review checklist, never a merge/deploy command.",
+  "gates": [
+    {
+      "id": "L06-worker-q1-q5-direct-submission",
+      "area": "core-worker-flow",
+      "status": "pending",
+      "evidence": null,
+      "reviewer": "product-ux",
+      "description": "원본 보존·모국어·동의·정식 인증과 제출 경로의 근로자 Q1~Q5 직접 입력/서버 수신 독립 검증"
+    },
+    {
+      "id": "L08-L14-android-photo-pwa",
+      "area": "field-device",
+      "status": "pending",
+      "evidence": null,
+      "reviewer": "qa",
+      "description": "Android Chrome/삼성 인터넷 설치·카메라·오프라인 재실행·IndexedDB 사진/메모 복원·백업, 사진 저장과 서버 수신 구분"
+    },
+    {
+      "id": "L10-native-languages-a4",
+      "area": "language-print",
+      "status": "pending",
+      "evidence": null,
+      "reviewer": "product-ux",
+      "description": "한국어 기준 모국어 검수·문자 깨짐·11개 언어별 현장 안전 지시/월간교육 및 실제 A4 인쇄"
+    },
+    {
+      "id": "L15-real-zoom-accessibility",
+      "area": "accessibility",
+      "status": "pending",
+      "evidence": null,
+      "reviewer": "qa",
+      "description": "실제 브라우저 200% 확대·Android/iOS TalkBack/VoiceOver·좁은 화면·다크모드 기능 UAT"
+    },
+    {
+      "id": "L16-real-offline-radio-battery",
+      "area": "performance",
+      "status": "pending",
+      "evidence": null,
+      "reviewer": "platform",
+      "description": "실제 LTE 음영/혼잡/저속망·기기 저장용량/배터리/발열/재연결 복원 측정 및 기록"
+    },
+    {
+      "id": "L09-actual-action-deferred-verification",
+      "area": "safety-action",
+      "status": "pending",
+      "evidence": null,
+      "reviewer": "safety-ai",
+      "description": "지연된 조치/임시 위험감소조치·재확인·담당자·인계가 완료/작업 재개 승인으로 오인되지 않는 실사용 UAT"
+    },
+    {
+      "id": "L11-L12-real-reports-receipt",
+      "area": "report-sharing",
+      "status": "pending",
+      "evidence": null,
+      "reviewer": "qa",
+      "description": "점수 결측·근거 확인·실제 PDF/A4 파일 보존·실제 공유 수신과 관리자 검증 구분"
+    },
+    {
+      "id": "L17-rbac-supabase-tenant-rls",
+      "area": "authorization",
+      "status": "pending",
+      "evidence": null,
+      "reviewer": "security",
+      "description": "실제 권한별/현장별/테넌트별 RLS·SECURITY DEFINER RPC·스토리지·공유 토큰/해지 교차 검증"
+    },
+    {
+      "id": "L17-real-http-privacy-headers",
+      "area": "runtime-security",
+      "status": "pending",
+      "evidence": null,
+      "reviewer": "security",
+      "description": "현재 코드 SHA에 대응하는 Vercel Preview/운영 HTTP 헤더·CSP 허용 도메인·개인정보/스토리지 잔여 위험 검증"
+    },
+    {
+      "id": "L17-oss-commercial-hosting",
+      "area": "licensing-cost",
+      "status": "pending",
+      "evidence": null,
+      "reviewer": "security",
+      "description": "제3자 코드·모델·폰트·라이선스·Vercel Hobby 상업 사용 제한 및 요금계획 승인"
+    },
+    {
+      "id": "L18-independent-release-review",
+      "area": "governance",
+      "status": "pending",
+      "evidence": null,
+      "reviewer": "qa",
+      "description": "같은 최종 HEAD의 세 종류 CI + 보안 감사·브라우저 산출물·독립 검수, PR 리뷰 및 이력 확인"
+    },
+    {
+      "id": "L18-product-owner-explicit-approval",
+      "area": "approval",
+      "status": "pending",
+      "evidence": null,
+      "reviewer": "owner",
+      "description": "제품 소유자가 최종 릴리스 범위·잔여 위험·비용·권한·일정과 배포 승인 명시"
+    },
+    {
+      "id": "L18-production-post-deploy-validation",
+      "area": "release",
+      "status": "pending",
+      "evidence": null,
+      "reviewer": "qa",
+      "description": "승인된 main 병합 뒤 Vercel Production READY·alias·SHA·오류 모니터링 실확인(배포 전에는 반드시 pending)"
+    }
+  ]
+}
