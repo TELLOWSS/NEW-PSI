@@ -72,6 +72,8 @@ jobs:
         run: npm run build
       - name: Independently render legacy three-page synthetic PDF in Chromium
         run: node scripts/verify-psi-legacy-pdf-split.mjs
+      - name: L06 Q1-Q5 worker trial entry, review and no-server-receipt (synthetic Chromium)
+        run: node scripts/verify-psi-l06-worker-draft.mjs
       - name: Independently verify seven product and transparency journeys
         run: node scripts/verify-psi-company-browser.mjs
       - name: Verify Nexus evidence, navigation restoration and presentation rollback
@@ -110,5 +112,6 @@ jobs:
             artifacts/audit/psi-l17-security/
             artifacts/audit/psi-l18-release-gate/
             artifacts/audit/psi-legacy-pdf-split/
+            artifacts/audit/psi-l06-worker-risk-draft/
           if-no-files-found: ignore
           retention-days: 7
