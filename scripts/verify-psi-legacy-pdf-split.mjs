@@ -40,12 +40,12 @@ try {
  const page=await browser.newPage();
  // Keep the browser origin for importing Vite modules, but do NOT mount the app,
  // request the backend, or load personal workspace state during synthetic QA.
- await page.route(host+'/',route=>route.fulfill({
-  status:200, contentType:'text/html',
-  body:'<!doctype html><html><body><p>Local PDF synthetic QA</p></body></html>',
- }));
  await page.route('**/*',route=>{
   const url=route.request().url();
+  if(url===host+'/'&&route.request().isNavigationRequest())return route.fulfill({
+   status:200,contentType:'text/html',
+   body:'<!doctype html><html><body><p>Local PDF synthetic QA</p></body></html>',
+  });
   if(url.startsWith(host+'/')||url.startsWith('data:')||url.startsWith('blob:'))return route.continue();
   return route.abort();
  });
