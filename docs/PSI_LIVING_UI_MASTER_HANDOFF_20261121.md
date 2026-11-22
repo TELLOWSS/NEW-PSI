@@ -816,6 +816,17 @@
 
 **다음 실제 인수:** P2의 **승인된 독립 Supabase 프로젝트/예산·파기·담당자** 확보 전에는 25개 실 Auth/RLS 검증을 실행하지 않는다. 승인 없이 진행 가능한 작업은 P3 Android·삼성 인터넷·확대/접근성 검수 기록 템플릿 정리와 P4 다국어 기록지 의미·글꼴·A4 결함 목록의 비개인정보 감사. P5 소유자 최종 승인·운영 반영은 보류.
 
+
+### L37 — UI 애니메이션 실제 렌더링 검증 + 별도 안전범위 운영 반영 후보 (2026-11-22)
+
+- **사용자 요청:** 지금까지의 Living UI 고도화를 GitHub main/Vercel 운영에 동기화하고, 디자인 및 애니메이션 실제 구현 여부를 확인하도록 명시적으로 요청. 이는 제품 소유자의 배포 의향이지만 L18 13개 실기기·실인증·다국어·보안 독립 인수 증거를 대신하지 않는다.
+- **전체 PR #237의 진실:** L00~L18 19/19은 source/CI 추적, 근로자 정식 제출/현장별 RLS, 실기기·원어민·실 인쇄·상용 운영 13건 미승인. 격리 실 Auth A01~A25 `0/25`. `RELEASE=BLOCKED`; PR #237은 Draft/운영 미병합 유지. 전체 브랜치의 실제 배포/승인을 추정하지 않는다.
+- **L37 신규 독립 브라우저 검증:** `scripts/verify-psi-l15-accessibility.mjs` 기존 1280/1440px 관리자 합성 Chromium 동선 후 실제 렌더된 `.psi-sidebar`와 `.psi-page-header.psi-living-page-enter`의 CSS 계산값을 읽음. `prefers-reduced-motion: reduce`에서는 transitions/animations 0/none, `no-preference`에서는 240ms 메뉴 폭 transition 및 표시된 헤더의 keyframe 유효 여부 검증. 소스에 키프레임 문자열만 있는 것으로 정상 동작 처리하지 않음. **이 검증을 포함한 새 HEAD 회사형 CI 통과 전 PASS 금지**, 실제 Android/iOS·실사용 체감 검수 아님.
+- **범위축소 배포 후보:** `release/psi-living-visual-only-20261122`를 현행 main 원본에서 별도 생성하고 PR [#238](https://github.com/TELLOWSS/NEW-PSI/pull/238) 제출. `PageHeader`의 입장 애니메이션 클래스, `Layout`의 **기존 main 본문 유지+PageHeader key만 추가**, 운영 App CSS import, 동작 모션 CSS 및 실제 Chromium 정상/저동작 2상태 검증을 단독 커밋. `api`·Auth·RLS/SQL/DB·기존 업무상태·사진/OCR/정식 제출·외부 API는 변경하지 않음. 전체 고도화 완료처럼 표시하지 않는다.
+- **배포 원칙:** PR #238도 자체 동일 HEAD 릴리스/전사 Chromium/해당 독립 회귀 통과 후에만 main 병합 및 Vercel Production READY/alias/SHA 일치 확인. 별도 UI-only 배포 성공도 #237 보안/현장 승인 13개와 정식 제출을 완료 처리할 근거가 아님.
+
+**다음 작업:** #238 동일 최종 SHA 자동 테스트·브라우저/애니메이션 검증 결과 확인 및 실패 수정 → UI-only 승인범위에 한해 main/Production 동기화·정확한 SHA 확인 → #237 L37 동일 HEAD 검증과 남은 P2~P5 현장 인수 진행. 운영 DB·근로자 기록·다른 제품은 변경 금지.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
