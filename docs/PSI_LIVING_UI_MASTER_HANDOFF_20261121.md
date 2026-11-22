@@ -794,6 +794,17 @@
 
 **다음 한 작업:** 34차 최종 동일 SHA 3종 QA 확정/실패 수리 → P1 남은 비중복 소스·합성 검증과 P2~P5 실제 인수담당/승인 환경을 구분해 관리 → 실제 인수 증거·사용자 승인 전 운영 반영 보류.
 
+### P1·L35 후속 — L00~L18 전 기능 소스·CI 증거 추적대장과 미검증 분리 (35차, 2026-11-22)
+
+- **34차 동일 HEAD 최종 CI 3종 성공(기준 증거):** `0d469f4e03e5e4fe88ddcb12803bbe6fc021f1d6` release #45016794860 **SUCCESS** (279개 파일·**2,196/2,196** 단위 테스트, L17 source-only 19/19), company-wide Chromium #45016794825 **SUCCESS** (L15 1280·1440px 데스크톱 도크 248→76→248px·메뉴 숨김/로컬 검색 동시 제외/복원 확인), Inspector mobile #45016794804 **SUCCESS** (합성 사진/공유/복구 검증). 34차 QA는 3종 동일 SHA 종료 성공이지만, 현장·Android/TalkBack·실 DB 인수 증명은 아님.
+- **중복 구현 회피 감사:** 기존 `scripts/verify-psi-l18-release-gate.mjs`에 이미 릴리스 소스/합성 Chromium·보안·오프라인 집계와 13개 사람 승인 차단 기능이 있다. 새로운 출시 승인기로 대체하지 않는다. P1에서 부족한 것은 **L00~L18 각 기능의 소스·테스트·CI 경로가 실제 어떤 종류의 증거인지 비교 가능한 단일 추적대장**으로, 미실행·수동 인수를 코드 PASS로 혼동하지 못하게 하는 것이다.
+- **35차 신규 구조화 증거대장:** `config/psi-living-ui-p1-evidence-trace.json`에 `L00~L18` **정확히 19행**, 모듈명, **실재하는 소스/브라우저 검증기 1차 참조**, 실행 연결 유형(`policy`, `release-vitest`, `company-direct`, `company-scenarios`, `inspector-direct`, `release-direct`), `unverified` 실제 검수 잔여 조건을 기록. L00 정책문서도 별도 관리하고, 제품 외 SMART TBM/ZERO DAY는 제외. 대장이 기능 19개를 완료/RELEASED 처리하지 않음.
+- **35차 실제 검증기:** `scripts/verify-psi-p1-evidence.mjs`로 (1) 19개 ID 완전·중복 없음, (2) 소스 실제 존재·100자 이상·안전한 상대경로, (3) 기존 GitHub Action 워크플로 또는 `scripts/verify-psi-company-browser.mjs`의 자식 시나리오에 실제 연결되는지 검사. `--source-only`는 릴리스 CI에서 소스/배선만 검사하고 `artifacts/audit/psi-p1-evidence/source-only.json` 출력. `--browser-evidence`는 회사형 Chromium의 **기존 L18 합성 검증이 먼저 통과한 뒤** 해당 결과·13개 사람 승인 미완료 수가 일치하는지 확인하고 `browser-evidence.json`을 출력. 두 파일 모두 `authorizesRelease=false`, 실제 기기/실DB/원어민/승인 상태는 `UNVERIFIED`로 표시. 새 API·라이브 DB·외부 모델·비용·배포 없음.
+- **CI와 회귀 계약 반영:** `.github/workflows/verify.yml`의 L18 소스 게이트 다음에 P1 `--source-only`와 업로드 항목 추가; `.github/workflows/psi-company-wide.yml`의 L18 합성 Chromium 다음에 P1 `--browser-evidence`와 감사 산출물 업로드 연결. `tests/psiLivingP1Evidence.test.ts`는 19행/소스 존재/수동 미검증 경계/워크플로·순서를 검사. 실제 통합 효과/증거 확인은 **35차 최종 동일 HEAD CI 3종 종료 후 판정**하고, 새 로그 실패 시 동일 브랜치에서 수정 후 재검증할 것.
+- **상태 판정의 차이:** 19/19 `source-wired`는 `P1 소스와 CI 검증 연결을 추적할 수 있음`만 뜻한다. `L00~L18=RELEASED 19/19` 또는 근로자 실사용 검증 통과, 전체 실기기 합격이 아님. 5개 P1~P5 종료 묶음은 여전히 모두 실제 최종 인수 필요. `config/psi-l06-isolated-auth-acceptance-ledger.json` `environment.approved=false`, A01~A25 **0 PASS/25 NOT RUN**. `config/psi-living-ui-release-acceptance.json` 인간 13개 **0 PASS/13 pending** (사전 12, 사후 1). PR #237 Draft, `RELEASE=BLOCKED`, `main`/Production/운영 DB·Auth/RLS·개인정보 무변경.
+
+**다음 한 작업:** 35차 신규 `source-only`·`browser-evidence` 게이트가 릴리스·회사형 Chromium·Inspector QA **동일 HEAD에서 통과하는지** 실제 GitHub Actions 로그·JSON로 검증하고 누락/실패를 수리 → P1 더 이상의 중복 체크 대신 P2 격리 인증 승인환경과 P3 실기기·P4 원어민/안전조치·P5 보안·사람 승인 증빙으로 인계. 승인 전 운영 병합·배포 금지.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -817,7 +828,7 @@
 
 ## 9. 다음 착수 과제
 
-**L03·P1·L34 PC 사이드바 44px 도크 접기·펼치기와 사용자 숨김 메뉴/빠른 검색 동기화 실제 Chromium 1280·1440px 검증, 최종 HEAD CI 3종 → P1 나머지 자동 검수의 증거 대조 → P2~P5 실 DB/Auth·Android·TalkBack·다국어·현장·보안·13개 인간 승인 게이트 충족 전 main/Production/실 DB 연결 금지. 최종 개발 차수는 고정하지 않음.**
+**P1·L35 L00~L18 19개 영역 실제 소스·CI 연결 증거대장(source-only/browser-evidence), 35차 동일 최종 HEAD 자동검증 3종을 확인하고 실패 수리 → P1 추적대장은 비배포 내부 증빙으로 유지하고, P2 승인 독립 Supabase Auth A01~A25·P3 Android/TalkBack·P4 11개 모국어/A4/현장 위험조치·P5 실 RLS/보안·사람 13개 승인 게이트 인수 → 제품 소유자 승인 전 main/Production/실 DB 변경 금지. 고정 최종 개발 차수 없음.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
