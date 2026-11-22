@@ -286,7 +286,7 @@ const workerRecordSchema = {
             documentType: {
                 type: Type.STRING,
                 enum: ['psi-risk-assessment', 'other-safety-document', 'unknown'],
-                description: '문서 유형. PSI 또는 PSI-RA-01 위험성평가 기록지만 psi-risk-assessment',
+                description: '문서 유형. 최신 PSI/PSI-RA-01 또는 2025년 초기 자기규율 1~5문항 위험성평가 기록표만 psi-risk-assessment',
             },
             isPsiForm: { type: Type.BOOLEAN, description: 'PSI 위험성평가 기록지 여부. 확실하지 않으면 false' },
             documentValidationReason: { type: Type.STRING, description: '문서 유형 판정 근거' },

@@ -1,4 +1,4 @@
-export const PSI_FORM_MASTER_VERSION = 'psi-form-master-2026-07-14-v1';
+export const PSI_FORM_MASTER_VERSION = 'psi-form-master-2026-11-22-v2-legacy-compatible';
 
 export type PsiQuestionKey = 'Q1' | 'Q2' | 'Q3' | 'Q4' | 'Q5';
 
