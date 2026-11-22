@@ -49,4 +49,27 @@ describe('L35 Living UI P1 module-to-CI evidence boundary',()=>{
   expect(source('scripts/verify-psi-p1-evidence.mjs')).toContain("companyScenarios.includes");
   expect(source('scripts/verify-psi-p1-evidence.mjs')).toContain("browser?'SYNTHETIC_TRACE_PASS':'SOURCE_TRACE_PASS'");
  });
+ it('L36 maps every release gate once into P2-P5 without inventing approvals',()=>{
+  const manifest=JSON.parse(source('config/psi-living-ui-p1-evidence-trace.json')) as {
+   workstreamGateIds:Record<string,string[]>;
+   workstreamReadinessNotice:string;
+  };
+  const acceptance=JSON.parse(source('config/psi-living-ui-release-acceptance.json')) as {
+   gates:{id:string;status:string;phase?:string}[];
+  };
+  expect(Object.keys(manifest.workstreamGateIds).sort()).toEqual(['P2','P3','P4','P5']);
+  const mapped=Object.values(manifest.workstreamGateIds).flat();
+  expect(mapped).toHaveLength(13);
+  expect(new Set(mapped).size).toBe(13);
+  expect([...mapped].sort()).toEqual(acceptance.gates.map(g=>g.id).sort());
+  expect(manifest.workstreamReadinessNotice).toContain('NOT automatic completion');
+  expect(acceptance.gates.filter(g=>g.status==='pending')).toHaveLength(13);
+  expect(acceptance.gates.filter(g=>g.phase==='post-deploy')).toHaveLength(1);
+  const verifier=source('scripts/verify-psi-p1-evidence.mjs');
+  expect(verifier).toContain('program:human-gate-map-complete');
+  expect(verifier).toContain('program:human-gate-map-no-duplicates');
+  expect(verifier).toContain('realWorldAcceptance');
+  expect(verifier).toContain('REQUIRES_INDEPENDENT_REVIEW');
+  expect(verifier).toContain("authorizesRelease:false");
+ });
 });
