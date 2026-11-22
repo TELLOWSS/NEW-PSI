@@ -72,15 +72,16 @@ beforeEach(async()=>{
   await db.query("insert into public.psi_tenants(id,name) values($1,'Tenant A'),($2,'Tenant B')",[TENANT_A,TENANT_B]);
   await db.query("insert into public.psi_tenant_memberships(tenant_id,user_id,role) values($1,$2,'owner'),($3,$4,'owner')",
     [TENANT_A,OWNER_A,TENANT_B,OUTSIDER]);
-  // The existing tenant worker integrity trigger requires an active manager;
-  // provision both synthetic workers through their own tenant managers.
-  await user(OWNER_A);
+  // Fixture-only deterministic IDs require the setup owner (ordinary
+  // authenticated users lack INSERT privilege on the ID column). Preserve
+  // the REAL worker-integrity trigger by setting each active manager identity.
+  await db.exec('reset role');
+  await db.query("select set_config('request.jwt.claim.sub',$1,true)",[OWNER_A]);
   await db.query(`insert into public.psi_tenant_workers(tenant_id,id,name,worker_code,trade)
     values($1,$2,'가상 근로자 A','A-1','형틀')`,[TENANT_A,WORKER_A]);
-  await user(OUTSIDER);
+  await db.query("select set_config('request.jwt.claim.sub',$1,true)",[OUTSIDER]);
   await db.query(`insert into public.psi_tenant_workers(tenant_id,id,name,worker_code,trade)
     values($1,$2,'가상 근로자 B','B-1','철근')`,[TENANT_B,WORKER_B]);
-  await db.exec('reset role');
   // Use the actual existing audited account-binding RPC, not privileged
   // direct inserts that could seed cross-tenant test data unrealistically.
   await user(OWNER_A);
