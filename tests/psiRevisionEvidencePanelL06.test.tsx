@@ -8,7 +8,7 @@ import { PSI_FORM_QUESTIONS } from '../config/psiFormMaster';
 
 const source = (name: string) => readFileSync(resolve(process.cwd(),name),'utf8');
 const answers = {Q1:'갱폼 인상 작업',Q2:'단부 추락 위험',Q3:'상',Q4:'안전고리 체결',Q5:'작업 전 안전고리 점검'};
-const record = (id: string, update = answers, events: Array<{action:string;note:string;revision:number}> = []) => ({
+const record = (id: string, update = answers, events: Array<{action:string;note:string;revision:number;recordedAt:string}> = []) => ({
   schema:'psi-worker-risk-manager-review-v1',
   tenantId:'tenant-a',siteId:'site-a',workerId:'worker-a',
   submissionId:id,sourceLanguage:'ko',gradeReason:'추락 방지 대책 점검 필요',
