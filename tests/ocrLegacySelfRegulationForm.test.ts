@@ -4,6 +4,7 @@ import {resolve} from 'node:path';
 import {assessPsiDocumentEvidence,normalizeOcrDocumentMetadata} from '../utils/ocrDocumentValidation';
 import {assessOcrRoutingQuality} from '../utils/ocrRoutingQuality';
 import {PSI_FORM_MASTER_PROMPT_BLOCK,PSI_FORM_MASTER_VERSION} from '../config/psiFormMaster';
+import {getPsiWrittenAnswerCoverage} from '../utils/ocrQuestionCoverage';
 const src=(p:string)=>readFileSync(resolve(process.cwd(),p),'utf8');
 const answers=Array.from({length:5},(_,i)=>({questionNumber:String(i+1),answerText:'합성 답변 '+(i+1),koreanTranslation:'합성 답변 '+(i+1)}));
 const variants=[
@@ -62,6 +63,24 @@ describe('2025 legacy handwritten self-regulation risk assessment OCR compatibil
    name:'합성 이름',jobField:'갱폼',date:'2025-02-13',nationality:'대한민국',
    ocrConfidence:1,fieldConfidences:{name:1,jobField:1,date:1,nationality:1,handwrittenAnswers:1},
   }).reasons).toContain('incomplete-q1-q5');
+ });
+ it('uses visible source Q1-Q5 exactly once, not duplicated questions or translated-only content',()=>{
+  expect(getPsiWrittenAnswerCoverage(answers).answerCount).toBe(5);
+  const duplicate=answers.map((a)=>({...a,questionNumber:'1'}));
+  expect(getPsiWrittenAnswerCoverage(duplicate).presentQuestions).toEqual([1]);
+  expect(getPsiWrittenAnswerCoverage(duplicate).missingQuestions).toEqual([2,3,4,5]);
+  const translatedOnly=answers.map((a,i)=>i===3?{...a,answerText:'',koreanTranslation:'번역에만 있는 추정 답변'}:a);
+  expect(getPsiWrittenAnswerCoverage(translatedOnly).missingQuestions).toEqual([4]);
+  const wrongNumber=answers.map((a,i)=>i===4?{...a,questionNumber:'Q6'}:a);
+  expect(getPsiWrittenAnswerCoverage(wrongNumber).missingQuestions).toEqual([5]);
+  expect(getPsiWrittenAnswerCoverage([{questionNumber:'3',answerText:'상'}]).presentQuestions).toEqual([3]);
+  expect(getPsiWrittenAnswerCoverage([{questionNumber:'3',answerText:'高'}]).presentQuestions).toEqual([3]);
+  expect(getPsiWrittenAnswerCoverage([{questionNumber:'2',answerText:'상'}]).presentQuestions).toEqual([]);
+ });
+ it('shares one written-source coverage policy across server, fallback and administrator diagnostics',()=>{
+  for(const path of ['api/gateway.ts','services/geminiService.ts','pages/OcrAnalysis.tsx','utils/ocrRoutingQuality.ts']){
+   expect(src(path)).toContain('getPsiWrittenAnswerCoverage');
+  }
  });
  it('keeps 1-page PDF input gate and rejects direct PPTX',()=>{
   const pdf=src('utils/ocrGatewayPayload.ts'),p=src('utils/ocrFilePolicy.ts');

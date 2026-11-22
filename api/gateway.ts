@@ -31,6 +31,7 @@ import { enforceBreakdownDrivenScore } from '../utils/ocrSafetyScoreCalibration.
 import { normalizeNationality as importedNormalizeNationality } from '../utils/workerIdentity.js';
 import { normalizeOcrRecordMetadata } from '../utils/ocrRecordNormalization.js';
 import { PSI_FORM_MASTER_PROMPT_BLOCK } from '../config/psiFormMaster.js';
+import { getPsiWrittenAnswerCoverage } from '../utils/ocrQuestionCoverage.js';
 import { normalizeOcrConfidence, normalizeOcrDocumentMetadata } from '../utils/ocrDocumentValidation.js';
 import {
     buildWorkerAuthenticationProof,
@@ -1371,21 +1372,7 @@ const normalizeHandwrittenAnswers = (raw: unknown): Array<{ questionNumber: stri
         .filter((item) => item.answerText.length > 0 || item.koreanTranslation.length > 0 || String(item.nativeTranslation || '').trim().length > 0);
 };
 
-const REQUIRED_CHANGED_PSI_QUESTIONS = [1, 2, 3, 4, 5] as const;
-
 type RetryHandwrittenAnswer = ReturnType<typeof normalizeHandwrittenAnswers>[number];
-
-const normalizeQuestionNumber = (value: unknown): number | null => {
-    const digits = String(value || '').match(/\d+/)?.[0];
-    const questionNumber = Number(digits);
-    return Number.isInteger(questionNumber) && questionNumber >= 1 && questionNumber <= 5 ? questionNumber : null;
-};
-
-const getHandwrittenAnswerText = (answer: RetryHandwrittenAnswer): string => [
-    answer.answerText,
-    answer.koreanTranslation,
-    answer.nativeTranslation,
-].filter(Boolean).join(' ').trim();
 
 const evaluateChangedPsiFormCoverage = (record: {
     filename?: string;
@@ -1407,16 +1394,7 @@ const evaluateChangedPsiFormCoverage = (record: {
         /\bq[1-5]\b/i.test(searchableText) ||
         answers.length >= 3;
 
-    const present = new Set<number>();
-    answers.forEach((answer, index) => {
-        const questionNumber = normalizeQuestionNumber(answer.questionNumber) ?? (index >= 0 && index < 5 ? index + 1 : null);
-        if (questionNumber && getHandwrittenAnswerText(answer).length >= 2) {
-            present.add(questionNumber);
-        }
-    });
-
-    const presentQuestions = REQUIRED_CHANGED_PSI_QUESTIONS.filter((questionNumber) => present.has(questionNumber));
-    const missingQuestions = REQUIRED_CHANGED_PSI_QUESTIONS.filter((questionNumber) => !present.has(questionNumber));
+    const { presentQuestions, missingQuestions } = getPsiWrittenAnswerCoverage(answers);
     const isComplete = !looksLikeChangedPsiForm || missingQuestions.length === 0;
     const isAcceptable = !looksLikeChangedPsiForm || presentQuestions.length >= 4;
     const message = isComplete

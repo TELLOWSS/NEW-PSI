@@ -77,6 +77,7 @@ import { recoverBackupRecordsWithoutImages } from '../utils/streamingBackupRecov
 import LocalBackupArchivePanel from '../components/LocalBackupArchivePanel';
 import { prepareArchiveWorkRecord, normalizeArchiveWorkDate } from '../utils/archiveWorkResume';
 import { assessOcrRoutingQuality, getOcrQualityReviewMessage } from '../utils/ocrRoutingQuality';
+import { getPsiWrittenAnswerCoverage } from '../utils/ocrQuestionCoverage';
 import {
     buildMonthlyArchiveManifest,
     buildWorkerMonthlyContinuitySummaries,
@@ -1077,23 +1078,8 @@ const getScoringAnswerSignalText = (record: Partial<WorkerRecord>): string => (
         .join(' ')
 );
 
-const getChangedFormAnsweredQuestionCount = (record: Partial<WorkerRecord>): number => {
-    const present = new Set<number>();
-    (record.handwrittenAnswers || []).forEach((answer, index) => {
-        const questionNumberText = String(answer?.questionNumber || '').match(/\d+/)?.[0];
-        const questionNumber = Number(questionNumberText || (index < 5 ? index + 1 : NaN));
-        const answerText = [
-            answer?.answerText,
-            answer?.koreanTranslation,
-            answer?.nativeTranslation,
-        ].map(normalizeScoringSignalText).filter(Boolean).join(' ');
-
-        if (Number.isInteger(questionNumber) && questionNumber >= 1 && questionNumber <= 5 && answerText.length >= 2) {
-            present.add(questionNumber);
-        }
-    });
-    return present.size;
-};
+const getChangedFormAnsweredQuestionCount = (record: Partial<WorkerRecord>): number =>
+    getPsiWrittenAnswerCoverage(record.handwrittenAnswers).answerCount;
 
 const hasMeaningfulScoringInput = (record: Partial<WorkerRecord>): boolean => {
     const answerSignal = getScoringAnswerSignalText(record);
@@ -5911,18 +5897,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 searchableText.includes('psi-ra-01') ||
                 /\bq[1-5]\b/i.test(searchableText) ||
                 answers.length >= 3;
-            const present = new Set<number>();
-            answers.forEach((answer, index) => {
-                const questionNumberText = String(answer.questionNumber || '').match(/\d+/)?.[0];
-                const questionNumber = Number(questionNumberText || (index < 5 ? index + 1 : NaN));
-                const answerText = [answer.answerText, answer.koreanTranslation, answer.nativeTranslation].filter(Boolean).join(' ').trim();
-                if (Number.isInteger(questionNumber) && questionNumber >= 1 && questionNumber <= 5 && answerText.length >= 2) {
-                    present.add(questionNumber);
-                }
-            });
-
-            const presentQuestions = [1, 2, 3, 4, 5].filter((questionNumber) => present.has(questionNumber));
-            const missingQuestions = [1, 2, 3, 4, 5].filter((questionNumber) => !present.has(questionNumber));
+            const { presentQuestions, missingQuestions } = getPsiWrittenAnswerCoverage(answers);
 
             return {
                 looksLikeChangedPsiForm,

@@ -363,6 +363,15 @@
 - 사용자 개인정보/필기 원본 GitHub 미업로드. 실 OCR 호출·원어민/2026년 양식 비교/모바일 시험 미검증. 참고 docs/PSI_OCR_LEGACY_SELFREGULATION_COMPAT_20261122.md.
 - 다음 한 작업: 최신 HEAD verify:ci/Chromium/Inspector QA → 승인된 환경 실제 수기 OCR/외국어 6양식 실검증 → L06 근로자 직접 입력 병행. main/Production 보류.
 
+### 구형 수기 OCR 문항 인식 일관성 보강 (2026-11-22)
+
+- 2025년 최초 양식 Q3에 '상/중/하' 한 글자만 적힌 사례를 확인. 직전 `utils/ocrRoutingQuality.ts`에서는 인정했으나 서버 `api/gateway.ts`, 기존 Gemini `services/geminiService.ts`와 관리자 `pages/OcrAnalysis.tsx`의 두 문항 커버리지 판별은 여전히 두 글자 이상을 요구해 **동일 근거가 화면·엔진별로 서로 다르게 판정**될 수 있었음.
+- `utils/ocrQuestionCoverage.ts`를 단일 판독 헬퍼로 추가하고 4개 경로 모두 동일한 출력 사용. Q1·Q2·Q4·Q5는 원문 `answerText` 2글자 이상, Q3는 상/중/하·高/中/低 1글자를 정상 인정. **번역만 있고 원문이 비면 작성 완료로 보지 않음**. 중복 문항·Q6 등의 잘못된 번호를 5개 문항으로 대체/채우지 않음. 원래 문항 순서/원본 이미지를 자동 수정하지 않음.
+- `tests/ocrLegacySelfRegulationForm.test.ts`에 중복 문항, 번역만 존재, 잘못된 번호, 단일문자 위험등급, 공통 헬퍼 연결 회귀 추가. 개인정보 사진·서명/실제 OCR API·DB·유료 호출 변경 없음.
+- **검증:** 이번 커밋과 동일 SHA의 `verify:ci`/전사 Chromium/Inspector QA를 재조회해야 함. 실제 수기 OCR 정확도·원어민 문구·모바일 실기기 인수는 계속 미완료. L18 Release=BLOCKED, main/Production 변경 금지.
+
+**다음 한 작업:** 이번 최신 SHA CI 3종 실패를 보수하고, 구형 원본 3장(각 1페이지) 수기 OCR 필기·인적사항의 직접 대조와 2026 최신 양식 회귀를 승인된 환경에서 수행한다. 사용자 실제 기록·사진의 외부 API/유료 송신 동의·RLS/권한/원어민 검수는 별도.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.

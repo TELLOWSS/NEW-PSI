@@ -18,6 +18,7 @@ import { isGatewayProcessableOcrMimeType } from '../utils/ocrFilePolicy';
 import { detectOcrSourceMimeType } from '../utils/ocrGatewayPayload';
 import { normalizeOcrRecordMetadata } from '../utils/ocrRecordNormalization';
 import { PSI_FORM_MASTER_PROMPT_BLOCK } from '../config/psiFormMaster';
+import { getPsiWrittenAnswerCoverage } from '../utils/ocrQuestionCoverage';
 import { applyOcrDocumentGate, normalizeOcrDocumentMetadata } from '../utils/ocrDocumentValidation';
 import {
     calibrateScoreBreakdown,
@@ -518,8 +519,6 @@ const normalizeHandwrittenAnswers = (raw: unknown): HandwrittenAnswer[] => {
         .filter((item) => item.answerText.length > 0 || item.koreanTranslation.length > 0 || String(item.nativeTranslation || '').trim().length > 0);
 };
 
-const REQUIRED_CHANGED_PSI_QUESTIONS = [1, 2, 3, 4, 5] as const;
-
 type ChangedPsiQuestionCoverage = {
     looksLikeChangedPsiForm: boolean;
     presentQuestions: number[];
@@ -528,18 +527,6 @@ type ChangedPsiQuestionCoverage = {
     isComplete: boolean;
     message: string;
 };
-
-const normalizeQuestionNumber = (value: unknown): number | null => {
-    const digits = String(value || '').match(/\d+/)?.[0];
-    const questionNumber = Number(digits);
-    return Number.isInteger(questionNumber) && questionNumber >= 1 && questionNumber <= 5 ? questionNumber : null;
-};
-
-const getHandwrittenAnswerText = (answer: HandwrittenAnswer): string => [
-    answer.answerText,
-    answer.koreanTranslation,
-    answer.nativeTranslation,
-].filter(Boolean).join(' ').trim();
 
 const evaluateChangedPsiFormCoverage = (record: Pick<WorkerRecord, 'filename' | 'fullText' | 'koreanTranslation' | 'handwrittenAnswers'>): ChangedPsiQuestionCoverage => {
     const answers = Array.isArray(record.handwrittenAnswers) ? record.handwrittenAnswers : [];
@@ -556,16 +543,7 @@ const evaluateChangedPsiFormCoverage = (record: Pick<WorkerRecord, 'filename' | 
         /\bq[1-5]\b/i.test(searchableText) ||
         answers.length >= 3;
 
-    const present = new Set<number>();
-    answers.forEach((answer, index) => {
-        const questionNumber = normalizeQuestionNumber(answer.questionNumber) ?? (index >= 0 && index < 5 ? index + 1 : null);
-        if (questionNumber && getHandwrittenAnswerText(answer).length >= 2) {
-            present.add(questionNumber);
-        }
-    });
-
-    const presentQuestions = REQUIRED_CHANGED_PSI_QUESTIONS.filter((questionNumber) => present.has(questionNumber));
-    const missingQuestions = REQUIRED_CHANGED_PSI_QUESTIONS.filter((questionNumber) => !present.has(questionNumber));
+    const { presentQuestions, missingQuestions } = getPsiWrittenAnswerCoverage(answers);
     const isComplete = !looksLikeChangedPsiForm || missingQuestions.length === 0;
     const isAcceptable = !looksLikeChangedPsiForm || presentQuestions.length >= 4;
     const message = isComplete
