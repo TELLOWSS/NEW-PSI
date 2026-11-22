@@ -472,6 +472,19 @@
 
 **다음 한 작업:** 6차 최종 동일 SHA CI 3종 성공/실패를 재조회하고 모바일 단계형 브라우저 스크린샷·접근성·진행/뒤로가기 회귀를 확인. 이후 L06 보완요청 원문과 새 제출의 변경불가 parent-link 및 관리자 검토 UX를 **격리 검증**으로 설계/구현하고, 실제 Supabase Auth/RLS와 Android·11개 언어 원어민 검증은 별도 승인·실기기 게이트로 유지.
 
+### L06 후속 — 보완요청→신규 제출 관계원장·관리자 원문 비교 UI 7차 (2026-11-22)
+
+- **이전 상태 재조회:** 이전 최종 HEAD `0b1aa75` 릴리스 SUCCESS(#44985860642), 전사 Chromium SUCCESS(#44985860627), Inspector 모바일 브라우저 CANCELLED(#44985860647, 후속 푸시). 따라서 앞선 작업을 동일 HEAD **3종 전부 PASS로 승격하지 않음**.
+- **원본 불변 parent-link 격리 SQL:** `supabase/proposals/psi_worker_risk_resubmission_l06_staging.sql` 작성. 기존 5차 제출·관리자 검토 SQL을 **변경하지 않고 별도 제안 단계**로 연결. 기업·현장·근로자·평가주기가 정확히 일치하는 원본/보완본에 복합 FK를 두고, 원본별 교체본 최대 하나 및 교체본 재사용 금지, INSERT 전용 관계 원장 + UPDATE/DELETE 차단 트리거 + FORCE RLS·직접 접근 권한 차단.
+- **제출 RPC 초안:** `psi_submit_worker_risk_revision_l06`은 실제 인증주체 `auth.uid()`, 원본의 같은 계정·현장/평가주기, 최종 관리자 `request_changes` 확인 후에만 기존 `psi_submit_worker_risk_l06`을 재사용해 새 Q1~Q5 원문/수신 원장을 생성·연결(하나의 트랜잭션). 동일 `requestId`/동일 답안 재요청만 허용, 다른 교체본·변조·타 기업/현장/근로자·원본 승인후 재작성 차단. 응답은 parent/child 영수증 관계를 알리지만 **작업허가·재개·위험 제거 근거 아님**.
+- **관리자 read RPC 초안:** `psi_read_worker_risk_revision_chain_l06`은 기존 `psi_read_worker_risk_review_l06`의 현장 관리권한 검사를 **원본과 보완본 각각** 수행해 원문 Q1~Q5·검토 이벤트·연결시각을 반환. 추가 인증·역할을 임의로 생성하지 않음.
+- **실제 UI 컴포넌트:** `components/assessment/PsiRevisionEvidencePanelL06.tsx` 신규. Q1~Q5 원문 2열(모바일 1열), 변경/동일 표식, 보완 사유, Q3 위험등급과 이유, 검토 대기/안전판단 경계 명확히 표시. 교차 기업·현장·근로자/미완성·가짜 작업허가·승인 기록을 화면에서 거부. **관리자 인증된 API/실제 메뉴에 미연결이므로 화면 컴포넌트 준비 단계이지 운영 기능 아님.**
+- **회귀:** `tests/psiWorkerRiskSubmissionSqlL06.test.ts`에 PGlite 보완 원문 연결·관리자 대조·무권한/타 현장·중복재전송·원자적 실패 롤백·원본/링크 변경금지 5건 추가(기존 20건 포함 총 25건 의도); `tests/psiRevisionEvidencePanelL06.test.tsx`의 합성 렌더·위조 스코프/작업허가 차단·비송신 계약 3건 추가. **새 HEAD에서 자동 QA 완료·CI 로그를 조회하기 전에는 통과로 기록하지 않음.** Android/원어민·실 Supabase 통합/보안 검증은 미실시.
+- **변경 이력:** SQL `38c5a5e` → PGlite 테스트 `9706144` → 관리자 UI `d7d3b8d` → UI 테스트 `c66bd38` → Q3 사유 보강 `94a4c7e` → 테스트 보강 `040d576` (이후 인계 커밋 포함 최종 HEAD 기준으로 재판정).
+- **절대 보류:** `supabase/migrations/` 미편입, 실제 PSI-Database/운영 RPC·API·근로자 개인정보·외부 전송·Vercel Production 변경 0. 기존 `/worker-risk-draft`는 여전히 한국어 무저장 시범 입력이며 새 실서버 제출을 제공하지 않음. L18 human gate 13건 pending, Draft PR #237, 사용자 승인 없는 main 병합·운영 배포 금지.
+
+**다음 한 작업:** 동일 최신 HEAD의 릴리스·전사 Chromium·Inspector 3종 결과 확인하고 실패 시 코드 수정·재검증 → 승인된 **별도 Supabase 테스트 프로젝트**의 실제 Auth/RLS/GRANT·중복 경합·현장범위 및 UI 연결 보안 검증 → 관리자가 실제 등록된 새 원문을 안전하게 대조하는 통합 화면 개발 및 Android/11개 언어/개인정보 보존·삭제 인수. 최종 제품 소유자 승인 전 main·Production/운영 DB 보류.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -495,7 +508,7 @@
 
 ## 9. 다음 착수 과제
 
-**L06 단계형 모바일 입력 UX 최신 SHA의 3종 CI·실 브라우저 검증 → 원문 불변 보완 재제출 연결/관리자 UX 격리 검증 → Android·모국어 A4·실 Auth/RLS·출시인수 13개를 별도 검증 → 제품 소유자 최종 승인 후에만 main/Production.**
+**L06 7차 원본 불변 재제출 parent-link SQL/관리자 비교 UI 3종 CI 확인 → 실 Supabase 인증/RLS/교차테넌트 별도 검증 승인 → 관리자 실화면 연결·Android/모국어·L18 인수 → 최종 승인 후에만 main/Production.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
