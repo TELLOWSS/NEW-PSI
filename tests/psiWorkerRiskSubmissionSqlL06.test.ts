@@ -81,9 +81,13 @@ beforeEach(async()=>{
   await db.query(`insert into public.psi_tenant_workers(tenant_id,id,name,worker_code,trade)
     values($1,$2,'가상 근로자 B','B-1','철근')`,[TENANT_B,WORKER_B]);
   await db.exec('reset role');
-  await db.query(`insert into public.psi_tenant_worker_accounts(tenant_id,worker_id,user_id,email,updated_by)
-    values($1,$2,$3,'l06-a@example.invalid',$4),($5,$6,$7,'l06-b@example.invalid',$4)`,
-    [TENANT_A,WORKER_A,USER_A,OWNER_A,TENANT_B,WORKER_B,USER_B]);
+  // Use the actual existing audited account-binding RPC, not privileged
+  // direct inserts that could seed cross-tenant test data unrealistically.
+  await user(OWNER_A);
+  await db.query("select public.psi_link_worker_account($1,$2,'l06-a@example.invalid',0)",[TENANT_A,WORKER_A]);
+  await user(OUTSIDER);
+  await db.query("select public.psi_link_worker_account($1,$2,'l06-b@example.invalid',0)",[TENANT_B,WORKER_B]);
+  await db.exec('reset role');
   await db.query(`insert into public.psi_tenant_sites(tenant_id,id,name)
     values($1,$2,'Site A'),($3,$4,'Site B'),($1,$5,'Site A2')`,
     [TENANT_A,SITE_A,TENANT_B,SITE_B,SITE_A2]);
