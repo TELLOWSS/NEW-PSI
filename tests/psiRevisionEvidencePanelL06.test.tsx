@@ -11,7 +11,7 @@ const answers = {Q1:'갱폼 인상 작업',Q2:'단부 추락 위험',Q3:'상',Q4
 const record = (id: string, update = answers, events: Array<{action:string;note:string;revision:number}> = []) => ({
   schema:'psi-worker-risk-manager-review-v1',
   tenantId:'tenant-a',siteId:'site-a',workerId:'worker-a',
-  submissionId:id,sourceLanguage:'ko',answers:update,events,workClearanceGranted:false as const,
+  submissionId:id,sourceLanguage:'ko',gradeReason:'추락 방지 대책 점검 필요',answers:update,events,workClearanceGranted:false as const,
 });
 const valid = () => ({
   schema:'psi-worker-risk-revision-chain-v1',
