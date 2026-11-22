@@ -152,3 +152,12 @@
 - **업무 경계:** 원문/관리자 검토는 실 안전대책 이행 확인, 작업허가, 작업 재개, 위험 제거, 법정 교육이수와 분리. 정식 출시는 L18 13개 사람 승인, 개인정보 처리근거·원문 보관/삭제 및 Android·모국어 11개 언어 검수 필요. PR #237 Draft, main/Production/운영 DB 계속 차단.
 
 **다음:** 동일 최종 SHA 릴리스·전사 Chromium·Inspector 모바일 3종 확인/오류 해결 → 승인된 격리 Supabase 실 Auth/RLS/세션/기업·현장 격리 증거 생성 → 정식 관리자 조회 연결 보안심사.
+
+## 15. 2026-11-22 — 13차: 정지·soft-delete된 관리자 접근 차단
+
+- `psi_l06_require_active_session()`의 실제 세션 존재 검사에 `auth.users` 계정의 `deleted_at IS NULL` 및 `banned_until` 만료 여부 확인을 추가했다. `auth.sessions sess`와 `auth.users u`를 **동일 RPC 트랜잭션에서 `FOR SHARE OF sess,u`**로 잠가 관리자 승인·원문조회 중 세션/계정 변경 경합을 방어하도록 **미배포 SQL 제안**을 수정했다.
+- `tests/psiWorkerRiskSubmissionSqlL06.test.ts`: 가상 관리자 ban + session 유지, soft-delete + 원본·보완본 조회, ban 만료 시 복구, helper 직접 EXECUTE 불허 등 4개 합성 PGlite 케이스를 추가했다. 전체 L06 PGlite는 **35개 목표**(기존 31 + 신규 4). **최종 CI 성공 전 PASS로 표시하지 않음**.
+- `docs/PSI_L06_SUPABASE_ISOLATED_AUTH_ACCEPTANCE_20261122.md`에 **A01~A18 실제 인수 시나리오**를 명문화했다. 현재 모두 **NOT RUN**. 별도 승인된 신규 Supabase 프로젝트의 서명된 실제 로그인 JWT, 두 기업/현장 접근권한·RLS, session_id 로그아웃, ban/soft-delete, 두 독립 DB 커넥션에서 동시 잠금 경합을 시험하고 증빙을 남기도록 명시했다. 기존 연결 프로젝트 어느 곳에도 실행/쓰기하지 않는다.
+- 승인된 격리 프로젝트 이전에는 실제 Supabase Auth·실계정·JWT/서비스키·GRANT/RLS/개인정보·관리자 API·main/Production 변경 없음. 실제 현장 작업허가/개선 조치 확인은 관리자 기록의 `approved` 상태와 별개의 업무다. Android/원어민 11개 언어, 개인정보 처리 및 L18 13개 사람 인수 계속 BLOCKED.
+
+**다음:** 같은 13차 최종 HEAD 릴리스·전사 Chromium·Inspector QA 3종 판정 → 사용자 승인 후 격리 Supabase A01~A18 실증 → 보안 및 현장 인수 후에만 정식 연결 검토.
