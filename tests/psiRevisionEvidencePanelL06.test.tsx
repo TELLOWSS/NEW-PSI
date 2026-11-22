@@ -11,13 +11,15 @@ const answers = {Q1:'갱폼 인상 작업',Q2:'단부 추락 위험',Q3:'상',Q4
 const record = (id: string, update = answers, events: Array<{action:string;note:string;revision:number}> = []) => ({
   schema:'psi-worker-risk-manager-review-v1',
   tenantId:'tenant-a',siteId:'site-a',workerId:'worker-a',
-  submissionId:id,sourceLanguage:'ko',gradeReason:'추락 방지 대책 점검 필요',answers:update,events,workClearanceGranted:false as const,
+  submissionId:id,sourceLanguage:'ko',gradeReason:'추락 방지 대책 점검 필요',
+  receivedAt:id==='original-a' ? '2026-11-22T09:00:00.000Z' : '2026-11-22T09:06:00.000Z',
+  answers:update,events,workClearanceGranted:false as const,
 });
 const valid = () => ({
   schema:'psi-worker-risk-revision-chain-v1',
-  original:record('original-a',answers,[{action:'request_changes',note:'위험 감소대책의 구체적인 체결 위치를 보완하세요.',revision:1}]),
+  original:record('original-a',answers,[{action:'request_changes',note:'위험 감소대책의 구체적인 체결 위치를 보완하세요.',revision:1,recordedAt:'2026-11-22T09:03:00.000Z'}]),
   replacement:record('replacement-b',{...answers,Q4:'지정된 고정점 확인 후 안전고리 체결'}),
-  linkedAt:'2026-11-22T00:00:00.000Z',
+  linkedAt:'2026-11-22T09:07:00.000Z',
   workClearanceGranted:false as const,
 });
 
@@ -35,6 +37,12 @@ describe('L06 manager-side immutable Q1-Q5 revision comparison (unwired staging 
     expect(markup).toContain('원문 동일');
     expect(markup).toContain('변경 문항만 보기 (1)');
     expect(markup).toContain('신규 보완본 접수 · 검토 대기');
+    expect(markup).toContain('원문을 보존하는 보완 기록 흐름');
+    expect(markup).toContain('data-testid="psi-l06-evidence-timeline"');
+    expect((markup.match(/<time /g)||[])).toHaveLength(4);
+    expect(markup).toContain('2026-11-22T09:03:00.000Z');
+    expect(markup).toContain('한국시간(KST)');
+    expect(markup).toContain('작업 재개 허가를 증명하지 않습니다');
     expect(markup).toContain('data-testid="psi-l06-changed-count"');
     expect(markup).toContain('data-testid="psi-l06-changes-filter"');
     expect(markup).toContain('작업 재개 승인');
@@ -56,6 +64,12 @@ describe('L06 manager-side immutable Q1-Q5 revision comparison (unwired staging 
       {...sample,original:{...sample.original,events:[{action:'approved',note:'최종 검토',revision:2}]}},
       {...sample,original:{...sample.original,workClearanceGranted:true}},
       {...sample,replacement:{...sample.replacement,answers:{Q1:'있음'}}},
+      {...sample,linkedAt:'bad-date'},
+      {...sample,linkedAt:'2026-11-22T09:05:00.000Z'},
+      {...sample,replacement:{...sample.replacement,receivedAt:'2026-11-22T09:02:00.000Z'}},
+      {...sample,original:{...sample.original,receivedAt:'2026-11-22T09:05:00.000Z'}},
+      {...sample,original:{...sample.original,events:[{action:'request_changes',note:'요청 사유',revision:1,recordedAt:'invalid'}]}},
+      {...sample,replacement:{...sample.replacement,events:[{action:'reviewed',note:'검토 완료',revision:1,recordedAt:'2026-11-22T09:06:30.000Z'}]}},
     ];
     for(const candidate of invalid) {
       expect(hasReadableL06RevisionChain(candidate)).toBe(false);
@@ -86,16 +100,17 @@ describe('L06 manager-side immutable Q1-Q5 revision comparison (unwired staging 
   it('uses each child review event as record-only status, never as field work authorization',()=>{
     const first=valid();
     const reviewed={...first,replacement:{...first.replacement,
-      events:[{action:'reviewed',note:'위험요인과 안전조치 원문을 확인했습니다.',revision:1}]}};
+      events:[{action:'reviewed',note:'위험요인과 안전조치 원문을 확인했습니다.',revision:1,recordedAt:'2026-11-22T09:08:00.000Z'}]}};
     const approved={...first,replacement:{...first.replacement,
-      events:[{action:'reviewed',note:'위험요인과 안전조치 원문을 확인했습니다.',revision:1},
-        {action:'approved',note:'기록 검토만 승인했으며 작업 재개 허가가 아닙니다.',revision:2}]}};
+      events:[{action:'reviewed',note:'위험요인과 안전조치 원문을 확인했습니다.',revision:1,recordedAt:'2026-11-22T09:08:00.000Z'},
+        {action:'approved',note:'기록 검토만 승인했으며 작업 재개 허가가 아닙니다.',revision:2,recordedAt:'2026-11-22T09:10:00.000Z'}]}};
     const reviseAgain={...first,replacement:{...first.replacement,
-      events:[{action:'request_changes',note:'Q5의 점검시점을 추가 작성 바랍니다.',revision:1}]}};
+      events:[{action:'request_changes',note:'Q5의 점검시점을 추가 작성 바랍니다.',revision:1,recordedAt:'2026-11-22T09:08:00.000Z'}]}};
     expect(renderToStaticMarkup(<PsiRevisionEvidencePanelL06 chain={reviewed}/>)).toContain('1차 검토 완료 · 최종 검토 대기');
     expect(renderToStaticMarkup(<PsiRevisionEvidencePanelL06 chain={approved}/>)).toContain('평가자료 검토 승인 · 작업허가 아님');
     expect(renderToStaticMarkup(<PsiRevisionEvidencePanelL06 chain={reviseAgain}/>)).toContain('추가 보완요청 · 미완료');
     expect(renderToStaticMarkup(<PsiRevisionEvidencePanelL06 chain={approved}/>)).toContain('기록 검토와 현장 조치는 별개입니다');
+    expect((renderToStaticMarkup(<PsiRevisionEvidencePanelL06 chain={approved}/>)).match(/<time /g)||[]).toHaveLength(6);
   });
 
   it('never creates a worker submission, a network call or writable manager approval',()=>{
