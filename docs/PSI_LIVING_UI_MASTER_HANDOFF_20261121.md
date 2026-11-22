@@ -534,6 +534,17 @@
 
 **다음 한 작업:** 최신 11차 HEAD 릴리스·전사 Chromium·Inspector 모바일 3종 실제 결과 확인/실패수정 → 허가된 격리 Supabase 테스트 프로젝트에서 `auth.sessions` 기반 철회/관리자 권한 동시변경/RLS 거부 실증 → 승인된 사용자와 법무/안전관리자 권한 결정 후 진짜 관리자 화면 읽기 경로 연결 검토.
 
+### L06 후속 — DB 내부 활성 세션·기업/현장 잠금 보안 초안 (12차, 2026-11-22)
+
+- **11차 동일 SHA 판정:** `d2b42f8` 릴리스 #44989283398 **SUCCESS**(276개 파일·2,132개 단위 테스트, 관리자 SOURCE-ONLY 13/13, 기존 L06 PGlite 26/26). 전사 Chromium #44989283403과 Inspector 모바일 #44989283382는 12차 신규 커밋이 이어진 후 **CANCELLED** 확인. 동일 SHA 3종 통과라고 표시하지 않음.
+- **소스 점검 결과:** 관리자 읽기 `psi_read_worker_risk_review_l06`/리뷰 `psi_review_worker_risk_l06` RPC는 `auth.uid()`와 기업·현장 소속만 확인하므로, 이미 철회된 인증 세션의 아직 만료되지 않은 JWT를 `session_id`로 대조하지 못했음. 읽기 RPC는 변경 중인 현장 소속·현장 상태 행 잠금도 없었음. 실제 운영 이슈는 아닌 **미배포 SQL 제안의 잠재 취약점**.
+- **12차 구현:** `supabase/proposals/psi_worker_risk_manager_review_l06_staging.sql`에 `psi_l06_require_active_session` 보안정의 helper(직접 PUBLIC/anon/authenticated/service_role 실행권한 모두 철회). `auth.jwt()->>'session_id'`와 실제 `auth.uid()`를 `auth.sessions(id,user_id)`에서 대조하고 `FOR KEY SHARE OF sess` 잠금; 세션 없거나 다른 사용자의 세션이면 관리자 검토/읽기 모두 42501로 차단. 원문 읽기 `m,sm,site FOR SHARE`로 동시 권한 변경을 RPC 트랜잭션 안에서 직렬화. 노출된 원문과 작업 재개 허가 플래그는 기존과 동일.
+- **합성 PostgreSQL 실엔진 검증:** `tests/psiWorkerRiskSubmissionSqlL06.test.ts`의 격리 Auth fixture에 `auth.sessions`와 `auth.jwt()` 최소 모사, 실제 로그인 서명·RLS 아님. 추가된 가상 검증 5개는 `session_id` 누락, 세션 행 삭제(퇴장/로그아웃 모사), 다른 사용자 세션 ID, 불변 원본·보완본 함께 조회 차단, 실제 `pg_get_functiondef` 행잠금 정의 확인. 기존 PGlite 26건과 합계 **31건 목표**; 새 HEAD 릴리스 CI 완료 전에는 통과로 기록하지 않음.
+- **실제 DB/보안 범위:** PGlite는 SQL 엔진 단위 회귀이지 Supabase `auth.sessions`의 실제 사용계정 토큰/로그아웃/세션 삭제 행태·REST API·DB 잠금 경합(별도 연결 2개)·GRANT/RLS의 동등 검증이 아님. `auth.sessions`가 실제 프로젝트에서 어떻게 관리되는지 승인된 격리 환경에서 반드시 실증할 것. 임의의 `TELLOWSS's Project`를 sandbox로 단정하지 않음. 두 연결 Supabase 프로젝트 중 L06 별도 격리 승인환경 확인되지 않아 **SQL 실행·실근로자·실개인정보/테스트계정 생성·DB schema 변경 없음**.
+- **출시 차단 유지:** L06 SQL은 `supabase/proposals`에만 존재. `main` 병합·Vercel Production·운영 Supabase GRANT/RLS/SQL·실제 관리자 서버 API 연결 금지. 13개 L18 인간 인수(12개 사전·1개 사후), 실 Android, 원어민 11개 언어 및 개인정보 처리 근거·보존/삭제 승인 대기.
+
+**다음 한 작업:** 12차 최종 HEAD의 릴리스·전사 Chromium·Inspector 동일 SHA 3종 결론/실패 원인 확인·수정 → **사전 승인받은 격리된** Supabase 테스트 프로젝트에서 2개 기업/현장 JWT session_id→auth.sessions·권한 경합/원본 차단 실증 → 사람 인수·사용자 승인 후 운영 연결 여부 검토.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -557,7 +568,7 @@
 
 ## 9. 다음 착수 과제
 
-**L06 11차 관리자 세션·기업역할·현장접근 권한 재확인 및 철회경합 회귀의 최종 동일 HEAD 3종 CI 판정 → 승인된 격리 Supabase 실 Auth/RLS·session-id·동시철회 검증 → 사용자 승인 후 관리자 실조회 연결 → Android/원어민·L18 13개 인수 완료 후 main/Production.**
+**L06 12차 JWT session_id→auth.sessions·관리자 원문 읽기/권한 행잠금 proposal의 PGlite 31건 및 동일 SHA 3종 CI 판정 → 승인된 독립 Supabase 프로젝트에서 실제 Auth/RLS/session 철회·현장 경합 실증 → 사용자 승인 후 정식 관리자 조회 연결 → Android/원어민·L18 13개 인수 완료 후 main/Production.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
