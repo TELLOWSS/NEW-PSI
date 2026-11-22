@@ -18,6 +18,7 @@ describe('Legacy scanned multi-page PDF upload guard', () => {
         expect(ui).toContain('여러 장 PDF 페이지별 나누기');
         expect(ui).toContain('splitOcrPdfLocally');
         expect(ui).toContain('onFilesChange(merged.files)');
+        expect(ui).toContain('files.filter(item => getOcrFileKey(item) !== getOcrFileKey(pdf))');
         expect(source('utils/ocrLocalPdfSplit.ts')).toContain('lastModified: file.lastModified');
         expect(ui).not.toContain('await onAnalyze(');
     });

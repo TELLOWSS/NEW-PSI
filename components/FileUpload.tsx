@@ -71,7 +71,11 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         try {
             const images = await splitOcrPdfLocally(pdf, (page, total) =>
                 setSelectionMessage('기기에서 페이지 변환 중: ' + page + '/' + total));
-            const merged = mergeUniqueOcrFiles(files, images);
+            // A multi-page PDF already queued via the ordinary upload button
+            // must not remain as a blocked item after successful local splitting.
+            // All other queued records are preserved. Failure never reaches here.
+            const retainedFiles = files.filter(item => getOcrFileKey(item) !== getOcrFileKey(pdf));
+            const merged = mergeUniqueOcrFiles(retainedFiles, images);
             onFilesChange(merged.files);
             setSelectionMessage(String(images.length) + '페이지를 각각 별도 기록으로 준비했습니다. '
                 + (merged.duplicateCount ? String(merged.duplicateCount) + '개는 중복으로 제외했습니다. ' : '')
