@@ -66,6 +66,22 @@ describe('L06 Q1-Q5 worker self-writing pilot without submission', () => {
         expect(ui).toContain('인쇄한 종이도 정식 제출이 아닙니다.');
     });
 
+    it('refuses partial Ctrl+P trial answers while keeping an A4 non-submission notice', () => {
+        const ui = source('pages/WorkerRiskDraft.tsx');
+        const css = source('styles.css');
+        const browser = source('scripts/verify-psi-l06-worker-draft.mjs');
+        expect(ui).toContain('psi-l06-incomplete-print-warning hidden');
+        expect(ui).toContain('psi-l06-edit-form space-y-4');
+        expect(ui).toContain('작성 중인 연습 기록은 인쇄할 수 없습니다');
+        expect(ui).toContain('정식 제출이 아닙니다');
+        expect(css).toContain('.psi-l06-worker-draft .psi-l06-edit-form');
+        expect(css).toContain('.psi-l06-worker-draft .psi-l06-incomplete-print-warning');
+        expect(browser).toContain('a4-unfinished-trial-no-answers.pdf');
+        expect(browser).toContain('hiddenEditForm: true, visibleWarning: true');
+        expect(browser).toContain("!unfinishedText.includes('가설작업발판설치')");
+        expect(browser).toContain("unfinishedText.includes('정식제출이아닙니다')");
+    });
+
     it('remains explicitly identity-free, in-memory and unconnected to submission APIs', () => {
         const ui = source('pages/WorkerRiskDraft.tsx');
         const helper = source('utils/workerRiskDraftL06.ts');
