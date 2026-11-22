@@ -184,7 +184,8 @@ begin
     'receivedAt',pg_catalog.to_char(v_row.received_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
     'state','received-pending-manager-review'
  );
-end $$;
+end;
+$;
 revoke all on function public.psi_submit_worker_risk_l06(
  uuid,uuid,uuid,uuid,text,text,jsonb,text,text
 ) from public,anon;
