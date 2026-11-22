@@ -44,6 +44,34 @@ try {
     await page.getByRole('status').getByText(/Q1 문항을 먼저 작성/).waitFor();
 
     await page.locator('#psi-l06-Q1').fill('가설 작업발판 설치');
+
+    // L26: browser Ctrl+P is available before a draft is complete. It must
+    // print only a non-submission notice, never incomplete worker safety text.
+    await page.emulateMedia({ media: 'print' });
+    const unfinishedStyles = await page.evaluate(() => ({
+        visibleRoot: getComputedStyle(document.getElementById('root')).display !== 'none',
+        hiddenEditForm: getComputedStyle(document.querySelector('.psi-l06-edit-form')).display === 'none',
+        visibleWarning: getComputedStyle(document.querySelector('.psi-l06-incomplete-print-warning')).display !== 'none',
+    }));
+    assert.deepEqual(unfinishedStyles, { visibleRoot: true, hiddenEditForm: true, visibleWarning: true },
+        'L26 unfinished Q1-Q5 print must replace partial inputs with a visible warning');
+    await mkdir('artifacts/audit/psi-l06-worker-risk-draft', { recursive: true });
+    const unfinishedBytes = await page.pdf({
+        path: 'artifacts/audit/psi-l06-worker-risk-draft/a4-unfinished-trial-no-answers.pdf',
+        format: 'A4', printBackground: true, preferCSSPageSize: true,
+    });
+    const unfinishedPdf = await getDocument({ data: new Uint8Array(unfinishedBytes) }).promise;
+    assert.equal(unfinishedPdf.numPages, 1, 'Unfinished practice print should be a single A4 notice');
+    const unfinishedText = (await (await unfinishedPdf.getPage(1)).getTextContent()).items
+        .map(item => 'str' in item ? item.str : '').join(' ').replace(/\s+/g, '');
+    assert.ok(unfinishedText.includes('작성중인연습기록은인쇄할수없습니다'),
+        'Unfinished print must explain why the answers were not printed');
+    assert.ok(unfinishedText.includes('정식제출이아닙니다'),
+        'Unfinished print must clearly state this is not a formal submission');
+    assert.ok(!unfinishedText.includes('가설작업발판설치'),
+        'Unfinished print must not expose a partially-entered worker answer');
+    await page.emulateMedia({ media: 'screen' });
+
     await page.getByRole('button', { name: '다음 문항' }).click();
     assert.equal(await page.locator('#psi-l06-Q1').count(), 0, 'One question at a time');
     await page.locator('#psi-l06-Q2').fill('단부 안전난간 미설치로 추락 위험');
@@ -159,7 +187,7 @@ try {
         apiCalls: apiCalls.length,
         externalCalls: externalCalls.length,
         storageWrites: 0,
-        a4TrialPrint: { pages: 1, questions: 5, longAnswerPages: longPdf.numPages, longAnswersIntact: true, receiptCreated: false, syntheticOnly: true },
+        a4TrialPrint: { pages: 1, questions: 5, unfinishedWarningOnly: true, longAnswerPages: longPdf.numPages, longAnswersIntact: true, receiptCreated: false, syntheticOnly: true },
         navigation: 'one-question-at-a-time, incomplete-step-blocked, back-and-forth-preserved',
         note: 'In-memory trial only, no worker submission/identity/Android validation',
     }, null, 2) + '\n');
