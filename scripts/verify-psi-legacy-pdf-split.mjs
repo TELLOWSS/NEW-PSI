@@ -93,24 +93,61 @@ try {
   await import('/scripts/fixtures/legacy-pdf-fileupload-harness.tsx');
  });
  await page.locator('#ocr-harness-state').waitFor();
- const syntheticPdf=Buffer.from(buildPdf());
- const inputPdf={name:'synthetic-three-pages.pdf',mimeType:'application/pdf',buffer:syntheticPdf};
- await page.locator('input[type=file]').first().setInputFiles(inputPdf);
+ // Playwright buffer uploads manufacture a fresh mtime on each selection;
+ // a worker selecting the SAME on-disk PDF retains its File.lastModified.
+ // Reuse one exact browser File to exercise the real identity/dedup contract.
+ await page.evaluate(bytes=>{
+  const source=new File([new Uint8Array(bytes)],'synthetic-three-pages.pdf',{
+   type:'application/pdf',lastModified:1700000000000,
+  });
+  window.__ocrQASourcePdf=source;
+  const input=document.querySelector('input[type=file]');
+  const transfer=new DataTransfer();
+  transfer.items.add(source);
+  input.files=transfer.files;
+  input.dispatchEvent(new Event('change',{bubbles:true}));
+ },buildPdf());
  await page.waitForFunction(()=>document.querySelector('#ocr-harness-state')?.getAttribute('data-file-count')==='1');
  await page.getByText('PDF 분리·확인 필요',{exact:true}).waitFor({timeout:20000});
  const splitInput=page.locator('input[aria-label="여러 장 PDF의 기기 내 페이지 분리"]');
- await splitInput.setInputFiles(inputPdf);
+ await page.evaluate(()=>{
+  const input=document.querySelector('input[aria-label="여러 장 PDF의 기기 내 페이지 분리"]');
+  const transfer=new DataTransfer();
+  transfer.items.add(window.__ocrQASourcePdf);
+  input.files=transfer.files;
+  input.dispatchEvent(new Event('change',{bubbles:true}));
+ });
+ try{
  await page.waitForFunction(()=>{
   const el=document.querySelector('#ocr-harness-state');
   if(!el||el.getAttribute('data-file-count')!=='3')return false;
   const files=JSON.parse(el.textContent||'[]');
   return files.every(item=>item.name.endsWith('.jpg'))&&!files.some(item=>item.name.endsWith('.pdf'));
  },undefined,{timeout:20000});
+ }catch(error){
+  console.error('[PSI LEGACY PDF] UI selection diagnostic:',{
+   files:await page.locator('#ocr-harness-state').textContent(),
+   status:await page.locator('[role=status]').allTextContents(),
+  });
+  throw error;
+ }
  const uiPages=JSON.parse(await page.locator('#ocr-harness-state').textContent());
  assert.deepEqual(uiPages.map(item=>item.name),result.files.map(item=>item.name),'UI must replace blocked original with three ordered JPEGs');
- await splitInput.setInputFiles(inputPdf);
+ await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(
+  button=>button.textContent?.includes('여러 장 PDF 페이지별 나누기')&&!button.disabled
+ ));
+ await page.evaluate(()=>{
+  const input=document.querySelector('input[aria-label="여러 장 PDF의 기기 내 페이지 분리"]');
+  const transfer=new DataTransfer();
+  transfer.items.add(window.__ocrQASourcePdf);
+  input.files=transfer.files;
+  input.dispatchEvent(new Event('change',{bubbles:true}));
+ });
  await page.getByText(/3개는 중복으로 제외했습니다/).waitFor({timeout:20000});
  assert.deepEqual(JSON.parse(await page.locator('#ocr-harness-state').textContent()),uiPages,'Repeat UI split must not duplicate records');
+ await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(
+  button=>button.textContent?.includes('여러 장 PDF 페이지별 나누기')&&!button.disabled
+ ));
  await splitInput.setInputFiles({name:'corrupt.pdf',mimeType:'application/pdf',buffer:Buffer.from('not a PDF')});
  await page.getByText(/페이지 분리 실패:/).waitFor({timeout:20000});
  assert.deepEqual(JSON.parse(await page.locator('#ocr-harness-state').textContent()),uiPages,'Failed split must preserve previous files');
