@@ -38,14 +38,24 @@ try {
     await page.goto(host + '/worker-risk-draft', { waitUntil: 'domcontentloaded' });
     await page.getByRole('heading', { name: '작업 전 위험성평가 직접 작성 연습' }).waitFor();
     assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '0 / 5문항');
-    await page.getByRole('button', { name: '작성 내용 확인' }).click();
-    await page.getByRole('status').getByText(/Q1.*Q2.*Q3.*Q4.*Q5/).waitFor();
+    assert.equal(await page.getByRole('button', { name: /Q5 5단계/ }).isDisabled(), true, 'Future steps must not be skipped');
+    await page.getByRole('button', { name: '다음 문항' }).click();
+    await page.getByRole('status').getByText(/Q1 문항을 먼저 작성/).waitFor();
 
     await page.locator('#psi-l06-Q1').fill('가설 작업발판 설치');
+    await page.getByRole('button', { name: '다음 문항' }).click();
+    assert.equal(await page.locator('#psi-l06-Q1').count(), 0, 'One question at a time');
     await page.locator('#psi-l06-Q2').fill('단부 안전난간 미설치로 추락 위험');
+    await page.getByRole('button', { name: '다음 문항' }).click();
     await page.locator('#psi-l06-grade').selectOption('상');
     await page.locator('#psi-l06-grade-reason').fill('단부가 개방되어 있습니다');
+    await page.getByRole('button', { name: '이전 문항' }).click();
+    assert.equal(await page.locator('#psi-l06-Q2').inputValue(), '단부 안전난간 미설치로 추락 위험', 'Back navigation keeps in-memory text');
+    await page.getByRole('button', { name: '다음 문항' }).click();
+    assert.equal(await page.locator('#psi-l06-grade').inputValue(), '상', 'Back/forward keeps risk grade');
+    await page.getByRole('button', { name: '다음 문항' }).click();
     await page.locator('#psi-l06-Q4').fill('난간 설치 확인, 안전대 고정');
+    await page.getByRole('button', { name: '다음 문항' }).click();
     await page.locator('#psi-l06-Q5').fill('미설치 시 작업을 중단하고 관리자에게 보고');
     assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '5 / 5문항');
 
@@ -60,6 +70,7 @@ try {
     assert.deepEqual(externalCalls, [], 'Worksheet must not call external services');
 
     await page.getByRole('button', { name: '수정하기' }).click();
+    assert.equal(await page.locator('#psi-l06-Q1').inputValue(), '가설 작업발판 설치', 'Review edit returns to preserved Q1');
     await page.getByRole('button', { name: '전체 초기화' }).click();
     assert.equal(await page.locator('#psi-l06-Q1').inputValue(), '');
     assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '0 / 5문항');
@@ -73,10 +84,11 @@ try {
         apiCalls: apiCalls.length,
         externalCalls: externalCalls.length,
         storageWrites: 0,
+        navigation: 'one-question-at-a-time, incomplete-step-blocked, back-and-forth-preserved',
         note: 'In-memory trial only, no worker submission/identity/Android validation',
     }, null, 2) + '\n');
 
-    console.log('[PSI L06] SYNTHETIC_PASS: 5-question draft/review/reset; zero API/storage calls');
+    console.log('[PSI L06] SYNTHETIC_PASS: 5-step keyboard-accessible navigation/review/reset; zero API/storage calls');
 } finally {
     await browser?.close();
     server.kill('SIGTERM');
