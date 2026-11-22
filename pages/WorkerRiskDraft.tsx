@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import '../styles.css';
-import './worker-risk-draft-print.css';
 import { PSI_FORM_QUESTIONS, type PsiQuestionKey } from '../config/psiFormMaster';
 import { prepareL06ClientSubmission } from '../utils/workerRiskSubmissionContractL06';
 import {
