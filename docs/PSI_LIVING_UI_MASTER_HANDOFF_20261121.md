@@ -783,6 +783,17 @@
 
 **다음 한 작업:** 33차 릴리스/전사 Chromium(L15 PC 메뉴 편집 44px)/Inspector 같은 최종 HEAD 3종 확인 및 실패 수리 → P1의 남은 소스·자동 QA를 모아 검수하고, P2~P5의 사람/실 DB 환경 승인 없이는 운영 적용 금지.
 
+### L03·P1·L34 후속 — PC 내비게이션 접힘·메뉴 숨김·검색 연동 실제 Chromium 검증 (34차, 2026-11-22)
+
+- **33차 최종 동일 HEAD 확정:** `8d406fee5d2471eb3429de91404296ae2cdf0f23` release #45015703936 **SUCCESS** (279 테스트 파일·**2,195/2,195**), company-wide Chromium #45015703902 **SUCCESS** (L15 메뉴 편집 44px·순서 변경 실제 브라우저 합격), Inspector mobile #45015703946 **SUCCESS**. 첫 후보 `0cbfbce6`의 L15 잘못 중첩된 Playwright locator timeout 실패 #45015055971 및 `825f6150` 수정 이력은 L33에 보존. 이 성공은 자동 QA에 한정.
+- **P1의 실제 검증 공백 확인:** 기존 L03 데스크톱 사이드바 248px→76px 접기/펼치기는 source 계약 위주, L15 합성 Chromium에서는 메뉴 구성 편집·44px 버튼을 확인했지만 **접기/펼치기 실동작, 현재 메뉴 접근 가능 상태, 사용자 숨김에 따른 상단 빠른 검색 동시 반영을 E2E로 묶어 검증한 증거가 부족**했다. `psi-sidebar-dock-toggle` 자체가 `min-h-10`(40px)으로 L33 메뉴 편집 버튼 44px와 일관되지 않았다.
+- **34차 실제 코드/검증:** `components/Sidebar.tsx`의 **데스크톱 도크 버튼만 `min-h-11 min-w-11`(44×44px)**로 맞춤. `scripts/verify-psi-l15-accessibility.mjs` 1280·1440px/다크·라이트 합성 Chromium에서 (a) 버튼 실제 bounding box 44px 이상, (b) 메뉴 접기→폭 76px·`시스템 설정` 접근 가능, (c) 펼치기→248px, (d) 기존 설정 메뉴 구성 편집의 첫 번째 사용 가능 메뉴 체크 해제→사이드바에서 숨김 및 기존 `psi_ui_composition_v1` 로컬 설정 반영, (e) 빠른 메뉴 검색을 열어 해당 메뉴가 **검색 결과에도 노출되지 않는지** 확인, (f) 메뉴 표시 복원→사이드바/검색에 둘 다 복귀, (g) 순서 변경·닫기까지 기존 L33 검사 유지. `tests/psiSidebarDockContract.test.ts` 소스 계약 추가. 메뉴/권한 필터 `getSidebarVisibleMenuItems`, 편집 `setSidebarPageVisible`, 운영 모드·RBAC·데이터/저장 로직 불변. 본 테스트는 브라우저의 가상 관리자/빈 테스트 데이터만 사용.
+- **P1 기초 자동검수 상태 분리:** 이전 같은 HEAD 33차 3종 CI로 L02 모션·L03 검색·L04 모바일 내비게이션·L05 대시보드·L06 한국어 무저장 5문항·L07 OCR 관리자 검토·L08 사진점검·L09 조치 대기 UI·L10 교육 환류·L11 지표 산식·L12 A4 보고서·L13 제품 소개·L14 파일럿 PWA·L15 접근성 합성·L16 오프라인 합성·L17 소스 보안 감시의 **자동 코드 경로 증거**가 존재한다. 이 문장은 전 영역별 합성 E2E/정량 성능/실기기/현장·원어민 검수 완료를 뜻하지 않으며, L00~L18 통합 추적표의 별도 미완료 상태를 덮지 않는다.
+- **여전히 막힌 P2~P5:** L06 독립 Supabase 환경 `approved=false` / 실제 A01~A25 **0/25 PASS**. L18 13개 승인 게이트 **0/13 PASS**(배포 전 12, 배포 후 1). Android Chrome·삼성 인터넷·TalkBack·200% 실제 확대/배터리/실제 오프라인, 모국어 11개 자연스러움·A4 인쇄, 실제 보고서 수신·실 근로자 기록·운영 DB RLS/HTTP 헤더·라이선스 및 인간 승인 **미검증**. `RELEASE=BLOCKED`, PR #237 Draft. `main`/Production/실 DB/근로자 개인정보·별도 제품 미변경.
+- **검증 판정 원칙:** 34차 최종 HEAD의 릴리스, 전사 Chromium **L15 도크/메뉴 숨김·검색 연동 신규 시나리오**, Inspector 모바일 3종이 모두 완료·SUCCESS일 때만 34차 자동검수 완료. 실패 이력·원인·수정 SHA 인계서에 남긴다.
+
+**다음 한 작업:** 34차 최종 동일 SHA 3종 QA 확정/실패 수리 → P1 남은 비중복 소스·합성 검증과 P2~P5 실제 인수담당/승인 환경을 구분해 관리 → 실제 인수 증거·사용자 승인 전 운영 반영 보류.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -806,7 +817,7 @@
 
 ## 9. 다음 착수 과제
 
-**L03·L33 PC 관리자 사이드바 편집의 44px 체크박스 label/순서 이동 버튼 + Chromium 실동작 검증 → P1~P5 다섯 종료 기준별 실제 미완료 인수 → L06 격리 Supabase A01~A25·Android/TalkBack·11개 모국어/A4·L18 사람 13개 게이트 및 소유자 승인 전 main/Production/실 DB 연결 금지. 최종 개발 차수는 정해져 있지 않음.**
+**L03·P1·L34 PC 사이드바 44px 도크 접기·펼치기와 사용자 숨김 메뉴/빠른 검색 동기화 실제 Chromium 1280·1440px 검증, 최종 HEAD CI 3종 → P1 나머지 자동 검수의 증거 대조 → P2~P5 실 DB/Auth·Android·TalkBack·다국어·현장·보안·13개 인간 승인 게이트 충족 전 main/Production/실 DB 연결 금지. 최종 개발 차수는 고정하지 않음.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
