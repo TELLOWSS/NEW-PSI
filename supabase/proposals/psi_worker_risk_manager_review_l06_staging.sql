@@ -51,8 +51,10 @@ revoke all on function public.psi_l06_prevent_history_mutation()
 
 -- L06 staged session revocation gate. auth.uid() alone is insufficient
 -- after JWT issue when the underlying session has been revoked.
--- Scope is read within SECURITY DEFINER RPC and the auth row is key-share
--- locked until the enclosing transaction finishes.
+-- Scope is read within SECURITY DEFINER RPC and both the auth session and
+-- manager account rows are SHARE-locked until the transaction finishes.
+-- This closes a gap where an otherwise-valid manager session remains stored
+-- after the manager has been banned or soft-deleted.
 create function public.psi_l06_require_active_session() returns uuid
 language plpgsql security definer set search_path='' as $$
 declare
@@ -68,9 +70,13 @@ begin
    raise exception 'L06 active auth session required' using errcode='42501';
  end if;
  v_session := v_claim::uuid;
- select true into v_exists from auth.sessions sess
+ select true into v_exists
+ from auth.sessions sess
+ join auth.users u on u.id=sess.user_id
  where sess.id=v_session and sess.user_id=v_actor
- for key share of sess;
+   and u.deleted_at is null
+   and (u.banned_until is null or u.banned_until <= pg_catalog.clock_timestamp())
+ for share of sess,u;
  if not found or v_exists is distinct from true then
    raise exception 'L06 active auth session required' using errcode='42501';
  end if;
@@ -81,7 +87,7 @@ revoke all on function public.psi_l06_require_active_session() from public,anon,
 
 -- Only a verified active manager of THIS tenant and active site can
 -- review or read. Authorization is performed in the privileged function.
--- function. No reviewer identity or work site is accepted from the answers.
+-- No reviewer identity or work site is accepted from worker answers.
 create function public.psi_review_worker_risk_l06(
  p_tenant uuid,p_site uuid,p_submission uuid,p_action_request uuid,
  p_action text,p_note text,p_expected_revision integer
