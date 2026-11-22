@@ -42,6 +42,27 @@ describe('L06 Q1-Q5 worker self-writing pilot without submission', () => {
         expect(rows.map(item => item.key)).toEqual(['Q1','Q2','Q3','Q4','Q5']);
     });
 
+    it('prints only the L06 trial and does not unhide the production report root', () => {
+        const ui = source('pages/WorkerRiskDraft.tsx');
+        const css = source('pages/worker-risk-draft-print.css');
+        const generic = source('styles.css');
+        const chromium = source('scripts/verify-psi-l06-worker-draft.mjs');
+        expect(generic).toContain('#root {');
+        expect(generic).toContain('display: none !important;');
+        expect(ui).toContain("import './worker-risk-draft-print.css';");
+        expect(ui).toContain('className="psi-l06-worker-draft ');
+        expect(ui).toContain('psi-l06-review-print');
+        expect(ui).toContain('psi-l06-review-disclaimer');
+        expect(css).toContain('#root:has(.psi-l06-worker-draft)');
+        expect(css).toContain('display: block !important;');
+        expect(css).toContain('.psi-l06-review-actions');
+        expect(css).not.toContain('report-print-container');
+        expect(chromium).toContain('await page.pdf(');
+        expect(chromium).toContain('assert.equal(pdf.numPages, 1,');
+        expect(chromium).toContain('for (const key of [\'Q1\', \'Q2\', \'Q3\', \'Q4\', \'Q5\'])');
+        expect(ui).toContain('인쇄한 종이도 정식 제출이 아닙니다.');
+    });
+
     it('remains explicitly identity-free, in-memory and unconnected to submission APIs', () => {
         const ui = source('pages/WorkerRiskDraft.tsx');
         const helper = source('utils/workerRiskDraftL06.ts');
