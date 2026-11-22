@@ -699,6 +699,16 @@
 
 **다음 한 작업:** 26차 최종 HEAD release·company Chromium(미완료 Ctrl+P A4 PDF 증빙)·Inspector 모바일 3종 실행 종료/실패 원인 확인 → 필요시 개발 브랜치 수리 후 동일 SHA 재검증 → 사용자 승인된 격리 Supabase A01~A25 및 실제 Android/삼성 인터넷/11개 언어 A4/개인정보·L18 인수 완료 전 운영 배포/병합 금지.
 
+### L06·L27 후속 — 근로자 연습기록 전체 초기화 오조작 방지 (27차, 2026-11-22)
+
+- **26차 동일 HEAD 3종 CI 확정:** `8706361e7f0bc16ff3e0e060d911040fd81aaad4`의 릴리스 #45001446585 **SUCCESS**(279 파일, **2,188/2,188** Vitest, L17 보안 source-only 19/19, L18 여전히 RELEASE=BLOCKED), 회사형 Chromium #45001446605 **SUCCESS** (검토 전 Ctrl+P 미완료 문항 비노출 + 정상·장문 A4 시나리오 포함), Inspector 모바일 #45001446571 **SUCCESS**. 세 검증 모두 같은 개발 SHA에 대한 합성 자동회귀 시험이며 현장 승인/실기기 검증은 아니다.
+- **확인한 UX 위험:** 기존 `pages/WorkerRiskDraft.tsx` L06 한국어 자기기입 **연습 화면만** '전체 초기화' 버튼이 단일 `onClick={reset}`으로 연결되어 있음. Q1~Q5 내용을 화면 메모리에만 보존하므로, 모바일에서 버튼을 잘못 한 번 누르면 기록이 즉시 삭제되며 화면 복구·서버 저장 경로도 없다.
+- **27차 실제 구현:** `resetPending` 상태와 **전체 초기화 → 작성내용 삭제 확인 → 취소/확정** 2단계로 분리. 검토되지 않은 기록을 지우는 최종 동작은 별도 '초기화 확정' 클릭에만 연결. '취소하고 계속 작성'은 기존 텍스트·Q3 자가등급/이유·진행률·이동 가능 단계 불변. Esc는 확인 UI 닫기, 첫 번째 열린 확인창에서 키보드 초점은 **안전한 취소 버튼**으로 이동. 질문 이동/답변 편집/Q3 변경/검토 열기 시 이전 확인 상태 해제. 좁은 모바일 폭에서도 확인·취소 버튼 높이 48px 유지; 새 영속 저장/서버 요청 없음. 삭제 확정 시 기존 `reset()`가 Q1~Q5 및 진행단계 초기화.
+- **합성 Chromium QA:** `scripts/verify-psi-l06-worker-draft.mjs`에서 이미 5문항을 작성한 뒤 Q1 입력/진행률 5 유지 상태로 초기화 첫 탭 → 확인창/취소 기본 초점 검증 → 취소 후 Q1 보존 → Escape 후 Q1 보존 → 재확인 후 Q1 공란·진행률 0 검증. 다시 500자 수준 장문 Q1~Q5를 작성한 뒤에도 초기화 첫 탭에 5/5 유지, 명시적 확정 후 0/5를 검증. 기존 미완료 Ctrl+P 경고 A4·완료/장문 PDF·API/외부 요청 0 회귀 유지. `tests/psiWorkerRiskDraftL06.test.ts` 정적 계약 1건 추가.
+- **판정 및 제한:** 27차 **최종 HEAD 동일 SHA** 릴리스·전사 Chromium·Inspector CI 3종을 별도 조회·실패 로그 분석하기 전 성공으로 기록하지 않는다. 프로덕션/실기기/11개 언어/실근로자 보존·삭제 정책에 대한 승인 아님. L06 승인된 독립 Supabase 실 Auth A01~A25 = NOT RUN, L18 사람 게이트 13건 pending, RELEASE=BLOCKED. PR #237 Draft, `main`/Vercel Production/실 DB·실근로자·외부 AI/OCR·유료 호출 무변경.
+
+**다음 한 작업:** 27차 최신 HEAD release/company Chromium(취소·Escape·확정 및 장문 Q1~Q5 회귀)/Inspector 3종 종료와 실패 교정 → 승인된 별도 Supabase Auth/RLS A01~A25 실제 인수·Android/삼성 인터넷·원어민/출력·개인정보·L18 13개 사람 승인 전 운영 반영 금지.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -722,7 +732,7 @@
 
 ## 9. 다음 착수 과제
 
-**L06·L26 검토 전 Ctrl+P 미완료 기록 출력 차단과 검토 후 정상·500자 장문 A4 회귀, 26차 동일 HEAD CI 3종 판정 → 승인된 격리 Supabase A01~A25와 Android/삼성 인터넷·11개 언어 실제 A4 인수 → L18 13개 사람·정보보호·소유자 승인 전 main/Production/실 DB 연결 보류.**
+**L06·L27 Q1~Q5 작성 연습의 전체 초기화 오조작 방지(취소·Escape·확정 후에만 삭제), 최신 SHA 3종 CI 회귀 판정 → 승인된 별도 Supabase A01~A25와 Android/삼성 인터넷·11개 언어 실제 A4·보존/삭제 인수 → L18 13개 사람·정보보호·소유자 승인 전 main/Production/실 DB 연결 보류.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
