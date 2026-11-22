@@ -325,6 +325,7 @@
         .psi-l06-worker-draft .psi-l06-screen-header,
         .psi-l06-worker-draft .psi-l06-screen-note,
         .psi-l06-worker-draft .psi-l06-progress-screen,
+        .psi-l06-worker-draft .psi-l06-unsaved-status,
         .psi-l06-worker-draft .psi-l06-screen-notice {
           display: none !important;
         }
