@@ -57,7 +57,7 @@ declare
  v_receipt jsonb;
  v_child_id uuid;
 begin
- v_actor := auth.uid();
+ v_actor := public.psi_l06_require_active_session();
  if v_actor is null or p_tenant is null or p_site is null or p_cycle is null
    or p_original is null or p_request is null then
    raise exception 'L06 verified revision context required' using errcode='42501';
