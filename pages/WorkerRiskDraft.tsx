@@ -129,8 +129,15 @@ export default function WorkerRiskDraft() {
                         </nav>
                     )}
                 </section>
+                {!review && (
+                    <section className="psi-l06-incomplete-print-warning hidden" aria-label="작성 중 인쇄 안내">
+                        <h2>작성 중인 연습 기록은 인쇄할 수 없습니다.</h2>
+                        <p>Q1~Q5 전체 문항을 작성하고 '작성 내용 확인' 화면에서 인쇄해 주세요.</p>
+                        <p>이 화면은 정식 제출이 아닙니다. 제출·접수·안전조치 완료·교육 이수 증빙으로 사용할 수 없습니다.</p>
+                    </section>
+                )}
                 {!review ? (
-                    <form onSubmit={event => { event.preventDefault(); nextStep(); }} className="space-y-4" noValidate>
+                    <form onSubmit={event => { event.preventDefault(); nextStep(); }} className="psi-l06-edit-form space-y-4" noValidate>
                         {PSI_FORM_QUESTIONS.filter((_, index) => index === step).map(question => (
                             <fieldset key={question.key} className="rounded-2xl border border-slate-200 bg-white p-5">
                                 <legend className="px-1 text-lg font-black">{question.key} · {question.workerIntent}</legend>
