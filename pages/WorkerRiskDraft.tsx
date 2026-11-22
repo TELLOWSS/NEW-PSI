@@ -21,6 +21,8 @@ export default function WorkerRiskDraft() {
     const [notice, setNotice] = useState('');
     const [resetPending, setResetPending] = useState(false);
     const resetCancelRef = useRef<HTMLButtonElement>(null);
+    const resetTriggerRef = useRef<HTMLButtonElement>(null);
+    const reviewHeadingRef = useRef<HTMLHeadingElement>(null);
     const navigated = useRef(false);
     const status = checkWorkerRiskDraft(draft);
     const rows = printableWorkerRiskDraft(draft);
@@ -52,6 +54,19 @@ export default function WorkerRiskDraft() {
     useEffect(() => {
         if (resetPending) resetCancelRef.current?.focus();
     }, [resetPending]);
+
+    // L30: the submit button unmounts on review, so put keyboard and screen
+    // reader focus at the new preview heading rather than losing it to body.
+    useEffect(() => {
+        if (review) reviewHeadingRef.current?.focus();
+    }, [review]);
+
+    const cancelReset = () => {
+        // The cancel button and confirmation group disappear on close.
+        // Restore focus synchronously to the persistent trigger.
+        resetTriggerRef.current?.focus({ preventScroll: true });
+        setResetPending(false);
+    };
 
     const goToStep = (index: number) => {
         setResetPending(false);
@@ -102,6 +117,7 @@ export default function WorkerRiskDraft() {
         goToStep(next);
     };
     const reset = () => {
+        resetTriggerRef.current?.focus({ preventScroll: true });
         setResetPending(false);
         setDraft(emptyWorkerRiskDraft());
         setStep(0);
@@ -217,20 +233,20 @@ export default function WorkerRiskDraft() {
                             <button type="submit" className="min-h-12 flex-1 rounded-xl bg-indigo-700 px-5 font-black text-white hover:bg-indigo-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-700">
                                 {step === 4 ? '작성 내용 확인' : '다음 문항'}
                             </button>
-                            <button type="button" onClick={() => { setResetPending(true); setNotice(''); }}
+                            <button ref={resetTriggerRef} type="button" onClick={() => { setResetPending(true); setNotice(''); }}
                                 aria-expanded={resetPending} aria-controls="psi-l06-reset-confirmation"
                                 className="min-h-12 rounded-xl border border-slate-300 bg-white px-5 font-bold">전체 초기화</button>
                         </div>
                         {resetPending && (
                             <div id="psi-l06-reset-confirmation" role="group" aria-label="작성 내용 초기화 확인"
                                 onKeyDown={event => {
-                                    if (event.key === 'Escape') { event.stopPropagation(); setResetPending(false); }
+                                    if (event.key === 'Escape') { event.stopPropagation(); cancelReset(); }
                                 }}
                                 className="rounded-2xl border border-rose-300 bg-rose-50 p-4 text-rose-950">
                                 <p className="font-extrabold">작성한 Q1~Q5 내용을 모두 지우시겠습니까?</p>
                                 <p className="mt-1 text-sm">초기화 후에는 되돌릴 수 없습니다. 취소하면 작성 내용이 그대로 유지됩니다.</p>
                                 <div className="mt-3 flex flex-wrap gap-3">
-                                    <button ref={resetCancelRef} type="button" onClick={() => setResetPending(false)}
+                                    <button ref={resetCancelRef} type="button" onClick={cancelReset}
                                         className="min-h-12 flex-1 rounded-xl border border-rose-300 bg-white px-5 font-bold">취소하고 계속 작성</button>
                                     <button type="button" onClick={reset}
                                         className="min-h-12 flex-1 rounded-xl bg-rose-800 px-5 font-extrabold text-white">초기화 확정</button>
@@ -240,7 +256,8 @@ export default function WorkerRiskDraft() {
                     </form>
                 ) : (
                     <section className="psi-l06-review-print rounded-2xl border border-slate-300 bg-white p-5" aria-label="Q1~Q5 작성 내용 검토">
-                        <h2 className="text-xl font-black">내가 작성한 내용 확인</h2>
+                        <h2 ref={reviewHeadingRef} tabIndex={-1}
+                            className="text-xl font-black focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-700">내가 작성한 내용 확인</h2>
                         <p className="mt-2 text-sm text-rose-800">작성 검토 화면일 뿐 서버 제출·관리자 확인·현장 조치 완료가 아닙니다.</p>
                         <dl className="mt-4 space-y-4">
                             {rows.map(row => (
