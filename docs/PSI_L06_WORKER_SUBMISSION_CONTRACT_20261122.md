@@ -142,3 +142,13 @@
 - **계속 보류:** L06 SQL은 `supabase/proposals`에만 남아 있고 migrations·실 운영 API·근로자 데이터·GRANT/RLS·Production·main 변경 없음. 출시 L18 사람 인수 13개 pending.
 
 **다음:** 최종 SHA 3종 CI 확인 및 실패수정 → 안전하게 승인·격리된 Supabase 환경의 실제 Auth/RLS/session-id 동시 철회 검증 → 관리자 원문 실조회 API 연결 심사.
+
+## 14. 2026-11-22 — 12차: 미배포 SQL의 관리자 세션 유효성·권한 행잠금
+
+- **취약점 모형:** 단지 유효한 `auth.uid()`와 기업·현장 멤버십만으로는 이미 세션이 철회된 사용자의 미만료 JWT 원문 접근을 확실히 거부하지 못한다. 또한 관리자 읽기 중 기업/현장 소속 변경을 동일 RPC 안에서 직렬화해야 한다.
+- **안전한 제안:** `supabase/proposals/psi_worker_risk_manager_review_l06_staging.sql`에 `psi_l06_require_active_session()` 보안정의 내부 helper. `auth.jwt()->>'session_id'`를 실제 `auth.sessions(id,user_id)`의 동일 사용자 행과 확인하고 `FOR KEY SHARE`로 잠근다. 직접 실행을 `PUBLIC/anon/authenticated/service_role`에서 모두 거부하며, 관리자 리뷰/원문 조회 함수 내부에서만 호출한다. 관리자 조회의 tenant/site 멤버십·활성 현장 `FOR SHARE`도 적용하여 같은 트랜잭션의 권한 변경 경합을 막도록 제안.
+- **독립합성 시험:** `tests/psiWorkerRiskSubmissionSqlL06.test.ts`의 PGlite fixture는 허구의 2개 기업/계정만으로 `auth.sessions`와 JWT 함수의 최소 구조를 모사하고 세션 ID 누락·실제 행 삭제·다른 유저 세션 도용·원본과 보완본 동시조회 거부·잠금 정의를 검증한다. 합계 31개 대상(기존 26+신규 5). **최종 CI에서 검증되기 전에는 PASS 아님**.
+- **구분:** 이 PGlite fixture는 Supabase Auth 서비스의 실명 로그인, JWT 서명검증, 세션 수명/폐기·운영 프로젝트의 `auth.sessions` 실제 스키마를 입증하지 않는다. Supabase 운영 RLS·GRANT·트랜잭션 잠금 동시성·서버 API 검증을 대체하지 않으며, 승인되지 않은 기존 두 프로젝트 어느 곳에도 실행하지 않았다.
+- **업무 경계:** 원문/관리자 검토는 실 안전대책 이행 확인, 작업허가, 작업 재개, 위험 제거, 법정 교육이수와 분리. 정식 출시는 L18 13개 사람 승인, 개인정보 처리근거·원문 보관/삭제 및 Android·모국어 11개 언어 검수 필요. PR #237 Draft, main/Production/운영 DB 계속 차단.
+
+**다음:** 동일 최종 SHA 릴리스·전사 Chromium·Inspector 모바일 3종 확인/오류 해결 → 승인된 격리 Supabase 실 Auth/RLS/세션/기업·현장 격리 증거 생성 → 정식 관리자 조회 연결 보안심사.
