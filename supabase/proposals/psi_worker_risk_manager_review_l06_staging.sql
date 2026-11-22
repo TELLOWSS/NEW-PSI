@@ -205,7 +205,7 @@ begin
  if not found then
     raise exception 'L06 review source inaccessible' using errcode='42501';
  end if;
- select pg_catalog.coalesce(pg_catalog.jsonb_agg(
+ select coalesce(pg_catalog.jsonb_agg(
    pg_catalog.jsonb_build_object('revision',r.revision,'action',r.action,
     'note',r.note,'reviewerId',r.reviewer_user_id,
     'recordedAt',pg_catalog.to_char(r.occurred_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
