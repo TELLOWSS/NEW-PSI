@@ -17,9 +17,15 @@ const WORKER_B='26063000-0000-4000-8000-000000000002';
 const USER_A='26064000-0000-4000-8000-000000000001';
 const USER_B='26064000-0000-4000-8000-000000000002';
 const OWNER_A='26064000-0000-4000-8000-000000000003';
+const REVIEWER_A='26064000-0000-4000-8000-000000000005';
 const OUTSIDER='26064000-0000-4000-8000-000000000004';
 const NONCE_A='26065000-0000-4000-8000-000000000001';
 const NONCE_B='26065000-0000-4000-8000-000000000002';
+const REVIEW_NONCE_1='26066000-0000-4000-8000-000000000001';
+const REVIEW_NONCE_2='26066000-0000-4000-8000-000000000002';
+const REVIEW_NONCE_3='26066000-0000-4000-8000-000000000003';
+const REVIEW_NOTE='검토한 위험원인과 감소대책을 확인함';
+const APPROVAL_NOTE='작업허가와 분리하여 평가자료만 검토 승인';
 const VERSION='psi-form-master-2026-11-22-v2-legacy-compatible';
 const ANSWERS={Q1:'슬라브 철근 조립',Q2:'단부 개구부 추락 위험',Q3:'상',Q4:'안전난간 설치 후 작업',Q5:'관리자와 확인하고 작업'};
 let db:PGlite;
@@ -37,6 +43,13 @@ async function deny(query:string,args:unknown[]=[]){
   await db.exec('rollback to savepoint l06_deny; release savepoint l06_deny');
 }
 const submit=(...args:unknown[])=>db.query<{receipt:Record<string,unknown>}>(sql,args.length?args:params());
+const reviewSql='select public.psi_review_worker_risk_l06($1,$2,$3,$4,$5,$6,$7) as receipt';
+const reviewParams=(submission:string,nonce=REVIEW_NONCE_1,action='reviewed',
+  note=REVIEW_NOTE,expected=0,tenant=TENANT_A,site=SITE_A) =>
+  [tenant,site,submission,nonce,action,note,expected];
+const review=(args:unknown[])=>db.query<{receipt:Record<string,unknown>}>(reviewSql,args);
+const readReviewSql='select public.psi_read_worker_risk_review_l06($1,$2,$3) as snapshot';
+async function submitA(){await user(USER_A);return (await submit(...params())).rows[0].receipt.receiptId as string;}
 
 beforeAll(async()=>{
   db=new PGlite();
@@ -56,6 +69,7 @@ beforeAll(async()=>{
   await db.exec(await readFile(resolve('supabase/proposals/psi_site_worker_read_policy_staging.sql'),'utf8'));
   try {
     await db.exec(await readFile(resolve('supabase/proposals/psi_worker_risk_submission_l06_staging.sql'),'utf8'));
+    await db.exec(await readFile(resolve('supabase/proposals/psi_worker_risk_manager_review_l06_staging.sql'),'utf8'));
   } catch (error) {
     // The staging SQL runs only in PGlite. This marker identifies the exact
     // failed stage without printing source data or credentials.
@@ -67,11 +81,12 @@ beforeEach(async()=>{
   await db.exec('begin');
   await db.query(`insert into auth.users(id,email,email_confirmed_at)
     values($1,'l06-a@example.invalid',now()),($2,'l06-b@example.invalid',now()),
-    ($3,'l06-owner@example.invalid',now()),($4,'l06-outsider@example.invalid',now())`,
-    [USER_A,USER_B,OWNER_A,OUTSIDER]);
+    ($3,'l06-owner@example.invalid',now()),($4,'l06-outsider@example.invalid',now()),
+    ($5,'l06-reviewer@example.invalid',now())`,
+    [USER_A,USER_B,OWNER_A,OUTSIDER,REVIEWER_A]);
   await db.query("insert into public.psi_tenants(id,name) values($1,'Tenant A'),($2,'Tenant B')",[TENANT_A,TENANT_B]);
-  await db.query("insert into public.psi_tenant_memberships(tenant_id,user_id,role) values($1,$2,'owner'),($3,$4,'owner')",
-    [TENANT_A,OWNER_A,TENANT_B,OUTSIDER]);
+  await db.query("insert into public.psi_tenant_memberships(tenant_id,user_id,role) values($1,$2,'owner'),($3,$4,'owner'),($1,$5,'reviewer')",
+    [TENANT_A,OWNER_A,TENANT_B,OUTSIDER,REVIEWER_A]);
   // Fixture-only deterministic IDs require the setup owner (ordinary
   // authenticated users lack INSERT privilege on the ID column). Preserve
   // the REAL worker-integrity trigger by setting each active manager identity.
@@ -95,6 +110,9 @@ beforeEach(async()=>{
   await db.query(`insert into public.psi_tenant_site_worker_assignments(tenant_id,site_id,worker_id)
     values($1,$2,$3),($4,$5,$6)`,
     [TENANT_A,SITE_A,WORKER_A,TENANT_B,SITE_B,WORKER_B]);
+  await db.query(`insert into public.psi_tenant_site_memberships(tenant_id,site_id,user_id,status)
+    values($1,$2,$3,'active'),($1,$2,$4,'active'),($5,$6,$7,'active')`,
+    [TENANT_A,SITE_A,REVIEWER_A,OWNER_A,TENANT_B,SITE_B,OUTSIDER]);
   await db.query(`insert into public.psi_tenant_risk_cycles(tenant_id,site_id,id,label,status,opens_at,closes_at)
     values($1,$2,$3,'이번 주 안전점검','open',now()-interval '1 hour',now()+interval '1 hour'),
     ($4,$5,$6,'이번 주 안전점검','open',now()-interval '1 hour',now()+interval '1 hour'),
