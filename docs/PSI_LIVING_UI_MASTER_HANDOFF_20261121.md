@@ -610,6 +610,17 @@
 
 **다음 한 작업:** 18차 최종 동일 SHA release·전사 Chromium·Inspector 3종 CI 종료 결과 확인·실패 수리 → 승인된 독립 격리 Supabase에서 A01~A25 실제 인증/권한 시험·증빙 검토 → L18 13개 사람 인수/Android/11개 언어·개인정보/소유자 승인 전 운영 연결 및 병합·배포 금지.
 
+### L06 후속 — 최종 승인검사 지연 중 서버 JWT 만료/시계 역행 접근 차단 (19차, 2026-11-22)
+
+- **18차 동일 SHA 결과 재검증:** 최종 `926b10d89a9951be98a5f799925d3ed6230f588d`: 릴리스 #44995043422 **SUCCESS**(277개 파일/2,168개 테스트, Auth ledger 12/12, L06 PGlite 50/50, L17 19/19), 전사 Chromium #44995043395 **SUCCESS**, Inspector 모바일 #44995043403 **CANCELLED**(19차 후속 커밋). 동일 SHA 세 가지 모두 SUCCESS로 주장하지 않음.
+- **발견:** `lib/server/workerRiskManagerReadL06.ts`의 서버 어댑터 계약은 원문 조회 후 `clock()`으로 토큰/세션 유효시간을 확인하나 그 뒤 4개 비동기 함수로 세션·기업권한·현장배정·현장을 다시 확인한다. 이 네 조회가 오래 걸려서 JWT/세션 만료시각을 경과해도 **응답 직전 최종 시각 확인 없이 Q1~Q5 원문 반환**할 위험.
+- **19차 실제 구현:** 마지막 `port.site()` 확인을 통과한 **직후 세 번째 trusted clock** 표본을 채취해, `releasedAtMs`가 유효·단조 증가·`principal.expiresAt`/`currentSession.expiresAt` 모두보다 이른 경우만 반환. 이 중 하나라도 실패/예외면 `SESSION_INVALID`, `dataReleased:false`; 원문 반환 없음. 기존 기업/현장·SQL 원자 인가 이외의 조건을 약화하지 않았다.
+- **회귀시험:** `tests/psiWorkerRiskManagerReadL06.test.ts` source-only 5건 추가: 성공 시 3회 clock, 최종 site 호출 중 JWT 만료, 최종 membership 호출 중 JWT 만료, 반환시각 역행/손상/예외, 세션 시간이 JWT보다 먼저 만료되는 경계. 기존 13→**18개 목표**, 전체 앱 단위 **2,173개 목표**. CI 성공 전 PASS 선언 금지.
+- **한계:** 이 코드는 실제 HTTP 엔드포인트가 **아니며**, `port`의 연속 호출은 DB 권한을 원자적으로 보장하지 못한다. 실제 실명 근로자 기록·auth.session/기업RLS 실증은 금지. `docs/PSI_L06_SUPABASE_ISOLATED_AUTH_ACCEPTANCE_20261122.md` §6에 source-only/실DB 분리; A01~A25 전부 NOT RUN.
+- **운영/사람 인수:** SQL migrations/운영 API/운영 Supabase·Auth/RLS/GRANT·실사진/현장/개인정보·`main`·Vercel Production 변경 0. Draft PR #237. L18 사전 12+사후 1 사람 인수, Android·11개 원어민·개인정보 삭제/보관 검수 미완료 → `RELEASE=BLOCKED`.
+
+**다음 한 작업:** 19차 최종 동일 HEAD 릴리스/전사 Chromium/Inspector CI 결론 확인·실패 수정 → 사용자 승인된 신규 격리 Supabase에서 A01~A25 실제 서명 JWT, 세션 철회, 현장 접근 및 2연결 권한경합 실증 → 현장/법무·실기기·11개 언어 및 L18 인간 13개 인수 후에만 운영 연결·main/Production 검토.
+
 ## 7. 역할별 검수 책임(독립 자동 에이전트 실행 주장 아님)
 
 - ATLAS: 범위·상태·커밋·PR·배포 게이트.
@@ -633,7 +644,7 @@
 
 ## 9. 다음 착수 과제
 
-**L06 18차 실 Auth 인수 증빙 URL·리뷰의 비밀정보 노출차단 + source-only 12개 테스트·동일 SHA CI 3종 판정 → 승인된 독립 Supabase A01~A25 실검증/증빙 독립검토 → L18 사람 13개·Android/모국어/개인정보 및 사용자 최종승인 전 main/Production/실DB 적용 보류.**
+**L06 19차 관리자 Q1~Q5 원문 반환 직전 JWT·세션 만료시각 검증 및 18개 SOURCE-ONLY 테스트·최종 동일 SHA CI 3종 확인 → 승인된 격리 Supabase A01~A25 실검증 → Android·11개 모국어·개인정보/L18 사람 13개 인수 전 운영 DB/API/main·Production 반영 금지.**
 - 이 PR의 테스트가 동작하는지 `npm run verify:ci`, 브라우저의 실제 페이지 전환·키보드 탐색·다크/저동작·320~1440px 검증.
 - 신규 CSS와 기존 R70~R78 CSS 중복/우선순위 점검; 이상 시 회귀 수정.
 - 다음 범위는 `components/Sidebar.tsx`, `components/shell/TopBar.tsx`, `components/Layout.tsx`, 운영자 전용 CSS. **기존 기능/권한/순서·숨김 설정을 바꾸기 전 사용자 영향 검토.**
