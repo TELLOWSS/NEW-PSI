@@ -33,6 +33,7 @@ export const NEXUS_APPROVED_CUSTOM_SEEDS_KEY = 'psi_nexus_approved_custom_seeds_
 export const NEXUS_HQ_LOOP_UPDATED_EVENT = 'psi-nexus-hq-loop-updated';
 
 export type NexusCommandRoleMode = 'unified' | 'hq_cso' | 'field_manager';
+export type NexusWorkspaceAuthority = 'hq' | 'field';
 
 export interface NexusSitePortfolioItem {
   siteId: string;
@@ -83,6 +84,93 @@ export const matchesPortfolioSite = (text: string, siteId: string): boolean => {
   return site.matchTokens.some(tok => normalized.includes(tok.toLowerCase()));
 };
 
+export const matchesScopedSiteRecord = (
+  recordSiteId: string | undefined,
+  fallbackText: string,
+  targetSiteId: string,
+): boolean => {
+  if (!targetSiteId) return true;
+  if (recordSiteId) return recordSiteId === targetSiteId;
+  return matchesPortfolioSite(fallbackText, targetSiteId);
+};
+
+export const scopeNexusWorkspaceData = (params: {
+  workspaceRole: NexusWorkspaceAuthority;
+  selectedSiteId?: string;
+  assignedFieldSiteId?: string;
+  pipelineCases: readonly NexusPipelineCase[];
+  visitPlans: readonly NexusHqVisitPlan[];
+  investigations: readonly NexusAiInvestigationRecord[];
+  trainingCampaigns: readonly NexusExecutiveTrainingCampaign[];
+  equipmentReports: readonly NexusEquipmentPhotoSubmission[];
+}): {
+  effectiveSiteId: string;
+  activeSiteMeta: NexusSitePortfolioItem | null;
+  pipelineCases: NexusPipelineCase[];
+  visitPlans: NexusHqVisitPlan[];
+  investigations: NexusAiInvestigationRecord[];
+  trainingCampaigns: NexusExecutiveTrainingCampaign[];
+  equipmentReports: NexusEquipmentPhotoSubmission[];
+} => {
+  const effectiveSiteId =
+    params.workspaceRole === 'field'
+      ? params.assignedFieldSiteId || NEXUS_SITE_PORTFOLIO[0].siteId
+      : params.selectedSiteId || '';
+  const activeSiteMeta = NEXUS_SITE_PORTFOLIO.find(s => s.siteId === effectiveSiteId) ?? null;
+
+  if (!effectiveSiteId) {
+    return {
+      effectiveSiteId: '',
+      activeSiteMeta: null,
+      pipelineCases: [...params.pipelineCases],
+      visitPlans: [...params.visitPlans],
+      investigations: [...params.investigations],
+      trainingCampaigns: [...params.trainingCampaigns],
+      equipmentReports: [...params.equipmentReports],
+    };
+  }
+
+  const pipelineCases = params.pipelineCases.filter(c =>
+    matchesScopedSiteRecord(c.siteId, `${c.locationLabel} ${c.observationNote}`, effectiveSiteId),
+  );
+  const visitPlans = params.visitPlans.filter(v =>
+    matchesScopedSiteRecord(v.siteId, `${v.siteName} ${v.purpose}`, effectiveSiteId),
+  );
+  const investigations = params.investigations.filter(i =>
+    matchesScopedSiteRecord(
+      i.siteId,
+      `${i.siteName} ${i.incidentTitle} ${i.rawSummary}`,
+      effectiveSiteId,
+    ),
+  );
+  const equipmentReports = params.equipmentReports.filter(eq =>
+    matchesScopedSiteRecord(eq.siteId, `${eq.siteName} ${eq.workActivity}`, effectiveSiteId),
+  );
+  const trainingCampaigns = params.trainingCampaigns.filter(t => {
+    const combined = `${t.title || ''} ${t.sourceTextKo || ''}`;
+    if (matchesPortfolioSite(combined, effectiveSiteId)) return true;
+    if (String(t.matchedCaseCode || '').startsWith('HQ-')) return true;
+    const mentionsOtherSite = NEXUS_SITE_PORTFOLIO.some(
+      other => other.siteId !== effectiveSiteId && matchesPortfolioSite(combined, other.siteId),
+    );
+    if (mentionsOtherSite) return false;
+    return (
+      Boolean(activeSiteMeta && t.structuralNodeIndex === activeSiteMeta.focusNodeIndex) ||
+      NEXUS_SITE_PORTFOLIO.every(s => !matchesPortfolioSite(combined, s.siteId))
+    );
+  });
+
+  return {
+    effectiveSiteId,
+    activeSiteMeta,
+    pipelineCases,
+    visitPlans,
+    investigations,
+    trainingCampaigns,
+    equipmentReports,
+  };
+};
+
 export type NexusVisitStatus =
   | 'scheduled_briefed'
   | 'in_field_inspection'
@@ -105,6 +193,7 @@ export interface NexusPreVisitBriefing {
 
 export interface NexusHqVisitPlan {
   visitId: string;
+  siteId?: string;
   createdAt: string;
   updatedAt: string;
   visitDate: string;
@@ -148,6 +237,7 @@ export interface NexusTimelineStep {
 
 export interface NexusAiInvestigationRecord {
   investigationId: string;
+  siteId?: string;
   createdAt: string;
   updatedAt: string;
   siteName: string;
@@ -323,6 +413,7 @@ export const buildPreVisitBriefing = (
 
 export const createHqVisitPlan = (
   input: {
+    siteId?: string;
     visitDate?: string;
     inspectorRole?: string;
     siteName: string;
@@ -339,6 +430,7 @@ export const createHqVisitPlan = (
 
   const plan: NexusHqVisitPlan = {
     visitId: `NEXUS-VISIT-${classification.primarySeed.caseCode}-${Date.now().toString(36).toUpperCase()}`,
+    siteId: input.siteId || undefined,
     createdAt: nowIso,
     updatedAt: nowIso,
     visitDate: /^\d{4}-\d{2}-\d{2}$/.test(String(input.visitDate || '')) ? String(input.visitDate) : today,
@@ -400,6 +492,7 @@ export const completeHqVisitWithFieldAction = (
       `[본사 순회점검] ${plan.siteName} · ${plan.purpose} 현장 점검 및 시정조치 지시`;
     const newCase = createNexusPipelineCase(
       {
+        siteId: plan.siteId,
         locationLabel: `${plan.siteName} (${plan.inspectorRole})`,
         observationNote: note,
         zoneAxis: plan.zoneAxis,
@@ -434,6 +527,7 @@ export const completeHqVisitWithFieldAction = (
 
 export const buildAiInvestigationDraft = (
   input: {
+    siteId?: string;
     siteName: string;
     incidentTitle?: string;
     rawSummary: string;
@@ -473,6 +567,7 @@ export const buildAiInvestigationDraft = (
 
   const record: NexusAiInvestigationRecord = {
     investigationId: `NEXUS-INV-${seed.caseCode}-${Date.now().toString(36).toUpperCase()}`,
+    siteId: input.siteId || undefined,
     createdAt: nowIso,
     updatedAt: nowIso,
     siteName: String(input.siteName || '').trim() || '골조·형틀 현장',
@@ -595,6 +690,7 @@ export const approveAiInvestigationAndPropagate = (
 
   const promotedPipelineCase = createNexusPipelineCase(
     {
+      siteId: target.siteId,
       locationLabel: `${target.siteName} (${target.sixW.where})`,
       observationNote: `[본사 사고조사 승인 대책 이행] ${target.incidentTitle}`,
       zoneAxis: target.zoneAxis,
@@ -743,11 +839,13 @@ export const buildRoleCommandDigest = (
   const siteLabel = siteObj ? siteObj.shortLabel : '전 현장 통합 포트폴리오';
 
   const scopedCases = pipelineCases.filter(c =>
-    matchesPortfolioSite(`${c.locationLabel} ${c.observationNote}`, siteId),
+    matchesScopedSiteRecord(c.siteId, `${c.locationLabel} ${c.observationNote}`, siteId),
   );
-  const scopedVisits = visitPlans.filter(v => matchesPortfolioSite(`${v.siteName} ${v.purpose}`, siteId));
+  const scopedVisits = visitPlans.filter(v =>
+    matchesScopedSiteRecord(v.siteId, `${v.siteName} ${v.purpose}`, siteId),
+  );
   const scopedInvs = investigations.filter(i =>
-    matchesPortfolioSite(`${i.siteName} ${i.incidentTitle} ${i.rawSummary}`, siteId),
+    matchesScopedSiteRecord(i.siteId, `${i.siteName} ${i.incidentTitle} ${i.rawSummary}`, siteId),
   );
   const scopedTraining = siteObj
     ? trainingCampaigns.filter(
@@ -900,13 +998,13 @@ export const buildMultiSitePortfolioMatrix = (
 ): readonly NexusSitePortfolioScorecard[] =>
   NEXUS_SITE_PORTFOLIO.map(site => {
     const cases = pipelineCases.filter(c =>
-      matchesPortfolioSite(`${c.locationLabel} ${c.observationNote}`, site.siteId),
+      matchesScopedSiteRecord(c.siteId, `${c.locationLabel} ${c.observationNote}`, site.siteId),
     );
     const visits = visitPlans.filter(v =>
-      matchesPortfolioSite(`${v.siteName} ${v.purpose}`, site.siteId),
+      matchesScopedSiteRecord(v.siteId, `${v.siteName} ${v.purpose}`, site.siteId),
     );
     const invs = investigations.filter(i =>
-      matchesPortfolioSite(`${i.siteName} ${i.incidentTitle} ${i.rawSummary}`, site.siteId),
+      matchesScopedSiteRecord(i.siteId, `${i.siteName} ${i.incidentTitle} ${i.rawSummary}`, site.siteId),
     );
     const trainings = trainingCampaigns.filter(
       t => t.structuralNodeIndex === site.focusNodeIndex || matchesPortfolioSite(t.title, site.siteId),
@@ -970,6 +1068,7 @@ export const seedMultiSiteOperationalSimulation = (
   // 1. Create 3 realistic pipeline cases across Site 1 (Substructure RC), Site 2 (Gangform), Site 3 (System Shoring)
   const case1 = createNexusPipelineCase(
     {
+      siteId: 'SITE-01-SUBRC',
       locationLabel: '제1현장 지하 2층 북측 합벽 구간',
       observationNote: '지하 2층 외벽 합벽 거푸집 타이볼트 간격 미흡 및 피트 개구부 덮개 고정 볼트 누락',
       zoneAxis: 'substructure_rc',
@@ -982,6 +1081,7 @@ export const seedMultiSiteOperationalSimulation = (
   );
   const case2 = createNexusPipelineCase(
     {
+      siteId: 'SITE-02-GANGFORM',
       locationLabel: '제2현장 103동 15층 외벽 갱폼 구간',
       observationNote: '15층 외벽 갱폼 인상 작업 전 타워크레인 샤클 장력 미확인 상태에서 고정 앵커 선해체 위험',
       zoneAxis: 'superstructure_std',
@@ -994,6 +1094,7 @@ export const seedMultiSiteOperationalSimulation = (
   );
   const case3 = createNexusPipelineCase(
     {
+      siteId: 'SITE-03-SHORING',
       locationLabel: '제3현장 전이층 고층고 슬래브 하부',
       observationNote: '전이층 시스템동바리 수평연결재 핀 잠금 누락 및 상부 U헤드 편심 보강 필요',
       zoneAxis: 'rooftop_special',
@@ -1008,6 +1109,7 @@ export const seedMultiSiteOperationalSimulation = (
   // 2. Create 2 HQ Visit Plans (Site 1 in_field_inspection, Site 3 scheduled_briefed)
   const visit1 = createHqVisitPlan(
     {
+      siteId: 'SITE-01-SUBRC',
       inspectorRole: '본사 CSO·안전보건실 순회점검단',
       siteName: '제1현장 지하 2층 RC구간',
       purpose: '지하 외벽 합벽 거푸집 측압·부력 대응 및 밀폐 피트 환기·개구부 방호 특별점검',
@@ -1025,6 +1127,7 @@ export const seedMultiSiteOperationalSimulation = (
   );
   const visit2 = createHqVisitPlan(
     {
+      siteId: 'SITE-03-SHORING',
       inspectorRole: '본사 구조·가설 기술지원팀장',
       siteName: '제3현장 전이층 시스템동바리',
       purpose: '전이층 슬래브 콘크리트 타설 전 시스템동바리 조립도 대조 및 가새·U헤드 편심 점검',
@@ -1039,6 +1142,7 @@ export const seedMultiSiteOperationalSimulation = (
   // 3. Create 2 AI Root-Cause Investigations (Site 2 pending HQ approval, Site 1 revision requested)
   const inv1 = submitAiInvestigationRecord(
     {
+      siteId: 'SITE-02-GANGFORM',
       siteName: '제2현장 103동 15층 갱폼',
       incidentTitle: '[제2현장 15F 갱폼] 타워크레인 인양고리 체결 전 앵커볼트 선해체 아차사고',
       rawSummary: '103동 15층 외벽 갱폼 인상 준비 중 무전 신호 혼선으로 인양 샤클 장력 확보 전 앵커볼트 2개소 선해체',
@@ -1051,6 +1155,7 @@ export const seedMultiSiteOperationalSimulation = (
   );
   const inv2 = submitAiInvestigationRecord(
     {
+      siteId: 'SITE-01-SUBRC',
       siteName: '제1현장 지하 2층 RC구간',
       incidentTitle: '[제1현장 B2 합벽] 지하외벽 합벽 타설 중 타이볼트 이완·배부름 변형 아차사고',
       rawSummary: '지하 2층 북측 외벽 콘크리트 타설 중 하부 폼타이·타이볼트 간격 미준수로 국부 배부름 감지 후 타설 즉시 일시중지',

@@ -135,6 +135,7 @@ export const NEXUS_QUICK_FIELD_PRESETS: readonly NexusQuickFieldPreset[] = [
 
 export interface NexusPipelineCase {
   caseId: string;
+  siteId?: string;
   createdAt: string;
   updatedAt: string;
   locationLabel: string;
@@ -163,6 +164,7 @@ export interface NexusPipelineCase {
 }
 
 export interface NexusPipelineCreateInput {
+  siteId?: string;
   locationLabel?: string;
   observationNote: string;
   photoName?: string;
@@ -329,6 +331,7 @@ export const createNexusPipelineCase = (
   const today = getKoreanCalendarDay(new Date(nowIso));
   const record: NexusPipelineCase = {
     caseId: `NEXUS-3AX-${seed.caseCode}-${Date.now().toString(36).toUpperCase()}`,
+    siteId: input.siteId || undefined,
     createdAt: nowIso,
     updatedAt: nowIso,
     locationLabel: String(input.locationLabel || '').trim() || '골조·형틀 점검 구간',

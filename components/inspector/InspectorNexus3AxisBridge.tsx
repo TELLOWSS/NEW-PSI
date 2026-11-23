@@ -27,6 +27,8 @@ interface Props {
   workType?: string;
   aiFindingsText?: string;
   source: 'safety-inspector' | 'safety-nexus-quick';
+  lockedSiteId?: string;
+  lockedSiteName?: string;
   cases?: readonly NexusPipelineCase[];
   onCaseCreated?: (created: NexusPipelineCase) => void;
   onCaseUpdated?: (cases: NexusPipelineCase[]) => void;
@@ -41,6 +43,8 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
   workType,
   aiFindingsText,
   source,
+  lockedSiteId,
+  lockedSiteName,
   cases = [],
   onCaseCreated,
   onCaseUpdated,
@@ -71,7 +75,7 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
   );
 
   const handleApplyQuickPreset = (preset: NexusQuickFieldPreset) => {
-    setLocationLabel(preset.locationLabel);
+    setLocationLabel(lockedSiteName ? `${lockedSiteName} · ${preset.badge} 구간` : preset.locationLabel);
     setQuickNote(preset.observationNote);
     setOverrideZone(preset.zoneAxis);
     setOverrideProcess(preset.processAxis);
@@ -116,7 +120,7 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
   };
 
   const handleCopyShiftHandover = async () => {
-    const summary = buildShiftHandoverBriefingText(cases);
+    const summary = buildShiftHandoverBriefingText(cases, lockedSiteName || '전체 현장');
     setHandoverPreviewText(summary);
     try {
       if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
@@ -129,8 +133,17 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
   };
 
   const handleRegisterToNexus = () => {
+    const rawLoc = locationLabel.trim();
+    const boundLocation = lockedSiteName
+      ? rawLoc
+        ? rawLoc.includes(lockedSiteName)
+          ? rawLoc
+          : `${lockedSiteName} · ${rawLoc}`
+        : lockedSiteName
+      : rawLoc || '골조·형틀 점검 구간';
     const created = createNexusPipelineCase({
-      locationLabel: locationLabel.trim() || '골조·형틀 점검 구간',
+      siteId: lockedSiteId || undefined,
+      locationLabel: boundLocation,
       observationNote: effectiveNote || `${seed.title} 관련 현장 사진점검`,
       photoName: beforePhotoName || fileName,
       zoneAxis: classification.zoneAxis,

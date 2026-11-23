@@ -41,12 +41,17 @@ import {
 } from '../utils/nexusExecutiveTrainingPipeline';
 import {
   NEXUS_HQ_LOOP_UPDATED_EVENT,
+  NEXUS_SITE_PORTFOLIO,
+  buildMultiSitePortfolioMatrix,
   readAiInvestigations,
   readApprovedCustomIncidentSeeds,
   readHqVisitPlans,
+  scopeNexusWorkspaceData,
+  seedMultiSiteOperationalSimulation,
   summarizeHqLoopForOrbitLayer,
   type NexusAiInvestigationRecord,
   type NexusHqVisitPlan,
+  type NexusWorkspaceAuthority,
 } from '../utils/nexusHqCommandLoop';
 import {
   NEXUS_EQUIPMENT_PHOTO_UPDATED_EVENT,
@@ -69,7 +74,27 @@ import './SafetyNexus.css';
 const FOLLOWUP_FILTER_LABELS = { overdue: '기한 초과', unresolved: '미완료', interim_control: '임시 통제 중', scheduled: '조치 예정', reopened: '재개방 이력', completed: '완료로 기록된' } as const;
 type FollowupFilter = keyof typeof FOLLOWUP_FILTER_LABELS;
 export type NexusViewState = { month: string; trade: string; active: number; flat: boolean; question: number | null; priority: FollowupFilter | 'recheck' | null; practice?: PracticeEvidenceSelection | null; orbitLayer?: NexusOrbitLayer };
-type Props = { workerRecords: WorkerRecord[]; loadState?: 'loading' | 'ready' | 'error'; initialTrade?: string; initialView?: NexusViewState | null; onViewChange?: (view: NexusViewState) => void; onNavigateToPage: (page: Page) => void; onReturnDashboard?: (trade: string) => void; onOpenRecord?: (record: WorkerRecord) => void };
+export type NexusWorkspaceView =
+  | 'hq_command'
+  | 'hq_bi'
+  | 'hq_ops'
+  | 'hq_audit'
+  | 'field_ops'
+  | 'field_inbox'
+  | 'field_sphere';
+type Props = {
+  workerRecords: WorkerRecord[];
+  loadState?: 'loading' | 'ready' | 'error';
+  initialTrade?: string;
+  initialView?: NexusViewState | null;
+  lockedRole?: NexusWorkspaceAuthority;
+  lockedSiteId?: string;
+  initialRole?: NexusWorkspaceAuthority;
+  onViewChange?: (view: NexusViewState) => void;
+  onNavigateToPage: (page: Page) => void;
+  onReturnDashboard?: (trade: string) => void;
+  onOpenRecord?: (record: WorkerRecord) => void;
+};
 
 const METRICS = [
   ['01', '위험인지', 'Awareness'], ['02', '교육이해', 'Understanding'], ['03', '실천참여', 'Engagement'],
@@ -200,7 +225,19 @@ const CoreArt: React.FC<{ active: number; paused: boolean; reduced: boolean; seq
   return <canvas ref={ref} className="nexus-core-canvas" aria-hidden="true" />;
 };
 
-const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', initialTrade = '', initialView, onViewChange, onNavigateToPage, onReturnDashboard, onOpenRecord: requestOpenRecord }) => {
+const SafetyNexus: React.FC<Props> = ({
+  workerRecords,
+  loadState = 'ready',
+  initialTrade = '',
+  initialView,
+  lockedRole,
+  lockedSiteId,
+  initialRole = 'hq',
+  onViewChange,
+  onNavigateToPage,
+  onReturnDashboard,
+  onOpenRecord: requestOpenRecord,
+}) => {
   const [orbitLayer, setOrbitLayer] = useState<NexusOrbitLayer>(initialView?.orbitLayer ?? 'cycle');
   const layerNodes = NEXUS_SPHERE_NODES_BY_LAYER[orbitLayer];
   const [active, setActive] = useState(initialView?.active ?? 0);
@@ -366,8 +403,20 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
   const [equipmentReports, setEquipmentReports] = useState<NexusEquipmentPhotoSubmission[]>(() =>
     readEquipmentPhotoSubmissions(),
   );
-  const [selectedSiteId, setSelectedSiteId] = useState<string>('');
-  const [workbenchTab, setWorkbenchTab] = useState<NexusWorkbenchTab>('inspect_03_06');
+  const [workspaceRole, setWorkspaceRole] = useState<NexusWorkspaceAuthority>(lockedRole ?? initialRole);
+  const [hqSelectedSiteId, setHqSelectedSiteId] = useState<string>('');
+  const [assignedFieldSiteId, setAssignedFieldSiteId] = useState<string>(
+    lockedSiteId || NEXUS_SITE_PORTFOLIO[0].siteId,
+  );
+  const [activeView, setActiveView] = useState<NexusWorkspaceView>(
+    (lockedRole ?? initialRole) === 'field' ? 'field_ops' : 'hq_command',
+  );
+  const [showAxisFilterBar, setShowAxisFilterBar] = useState<boolean>(false);
+  const [workbenchTab, setWorkbenchTab] = useState<NexusWorkbenchTab>(
+    (lockedRole ?? initialRole) === 'field' ? 'inspect_03_06' : 'equipment_photo',
+  );
+  const effectiveRole: NexusWorkspaceAuthority = lockedRole ?? workspaceRole;
+  const effectiveFieldSiteId = lockedSiteId || assignedFieldSiteId;
   useEffect(() => {
     const syncPipeline = () => setPipelineCases(readNexusPipelineCases());
     const syncTraining = () => setTrainingCampaigns(readExecutiveTrainingCampaigns());
@@ -459,6 +508,30 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
     return `M${sx} ${sy} Q${cx} ${cy} ${tx} ${ty}`;
   }, [activeProjection]);
 
+  const scopedData = useMemo(
+    () =>
+      scopeNexusWorkspaceData({
+        workspaceRole: effectiveRole,
+        selectedSiteId: hqSelectedSiteId,
+        assignedFieldSiteId: effectiveFieldSiteId,
+        pipelineCases,
+        visitPlans,
+        investigations,
+        trainingCampaigns,
+        equipmentReports,
+      }),
+    [
+      effectiveRole,
+      hqSelectedSiteId,
+      effectiveFieldSiteId,
+      pipelineCases,
+      visitPlans,
+      investigations,
+      trainingCampaigns,
+      equipmentReports,
+    ],
+  );
+
   const currentLayerMeta = NEXUS_ORBIT_LAYERS.find(layer => layer.id === orbitLayer) ?? NEXUS_ORBIT_LAYERS[0];
   const layerLiveSignals = useMemo(
     () =>
@@ -472,16 +545,16 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
     [orbitLayer, filteredRecords, axisFilter, followup.asOfDate, approvedCustomSeeds],
   );
   const pipelineNodeSummaries = useMemo(
-    () => summarizePipelineForOrbitLayer(orbitLayer, pipelineCases, followup.asOfDate),
-    [orbitLayer, pipelineCases, followup.asOfDate],
+    () => summarizePipelineForOrbitLayer(orbitLayer, scopedData.pipelineCases, followup.asOfDate),
+    [orbitLayer, scopedData.pipelineCases, followup.asOfDate],
   );
   const trainingNodeSummaries = useMemo(
-    () => summarizeExecutiveTrainingForOrbitLayer(orbitLayer, trainingCampaigns),
-    [orbitLayer, trainingCampaigns],
+    () => summarizeExecutiveTrainingForOrbitLayer(orbitLayer, scopedData.trainingCampaigns),
+    [orbitLayer, scopedData.trainingCampaigns],
   );
   const hqLoopNodeSummaries = useMemo(
-    () => summarizeHqLoopForOrbitLayer(orbitLayer, visitPlans, investigations),
-    [orbitLayer, visitPlans, investigations],
+    () => summarizeHqLoopForOrbitLayer(orbitLayer, scopedData.visitPlans, scopedData.investigations),
+    [orbitLayer, scopedData.visitPlans, scopedData.investigations],
   );
   const activeSignal = layerLiveSignals[safeActive] ?? layerLiveSignals[0];
   const activePipelineSummary = pipelineNodeSummaries[safeActive] ?? pipelineNodeSummaries[0];
@@ -491,26 +564,43 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
 
   const bentoSnapshot = useMemo(
     () =>
-      buildExecutiveBentoSnapshot({
-        pipelineCases,
-        visitPlans,
-        investigations,
-        trainingCampaigns,
-        equipmentReports,
-        workerRecords: filteredRecords,
-        selectedSiteId,
-        asOfDate: followup.asOfDate,
-      }),
+      effectiveRole === 'hq'
+        ? buildExecutiveBentoSnapshot({
+            pipelineCases,
+            visitPlans,
+            investigations,
+            trainingCampaigns,
+            equipmentReports,
+            workerRecords: filteredRecords,
+            selectedSiteId: scopedData.effectiveSiteId,
+            asOfDate: followup.asOfDate,
+          })
+        : null,
     [
+      effectiveRole,
       pipelineCases,
       visitPlans,
       investigations,
       trainingCampaigns,
       equipmentReports,
       filteredRecords,
-      selectedSiteId,
+      scopedData.effectiveSiteId,
       followup.asOfDate,
     ],
+  );
+
+  const siteMatrix = useMemo(
+    () =>
+      effectiveRole === 'hq'
+        ? buildMultiSitePortfolioMatrix(
+            pipelineCases,
+            visitPlans,
+            investigations,
+            trainingCampaigns,
+            followup.asOfDate,
+          )
+        : [],
+    [effectiveRole, pipelineCases, visitPlans, investigations, trainingCampaigns, followup.asOfDate],
   );
 
   const handleAxisFilterChange = (patch: Partial<NexusThreeAxisFilter>) => {
@@ -526,13 +616,64 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
     }
   };
 
+  const handleSwitchAuthority = (nextRole: NexusWorkspaceAuthority) => {
+    if (lockedRole) return;
+    setWorkspaceRole(nextRole);
+    if (nextRole === 'hq') {
+      setActiveView('hq_command');
+      setWorkbenchTab('equipment_photo');
+    } else {
+      setActiveView('field_ops');
+      setWorkbenchTab('inspect_03_06');
+      const siteMeta = NEXUS_SITE_PORTFOLIO.find(s => s.siteId === effectiveFieldSiteId);
+      if (siteMeta) {
+        lockOntoNode(Math.max(0, Number(siteMeta.focusNodeIndex) - 1), 'structural');
+      }
+    }
+  };
+
+  const handleSelectWorkspaceView = (nextView: NexusWorkspaceView) => {
+    setActiveView(nextView);
+    if (nextView === 'field_ops' && workbenchTab !== 'inspect_03_06' && workbenchTab !== 'equipment_photo') {
+      setWorkbenchTab('inspect_03_06');
+    } else if (
+      nextView === 'field_inbox' &&
+      workbenchTab !== 'training_04' &&
+      workbenchTab !== 'investigate_05_02' &&
+      workbenchTab !== 'visit_01'
+    ) {
+      setWorkbenchTab('training_04');
+    }
+  };
+
+  const handleLoadMultiSiteSimulation = () => {
+    const seeded = seedMultiSiteOperationalSimulation();
+    setPipelineCases([...seeded.cases]);
+    setVisitPlans([...seeded.visits]);
+    setInvestigations([...seeded.investigations]);
+    setTrainingCampaigns([...seeded.campaigns]);
+    setEquipmentReports([...seeded.equipmentReports]);
+    lockOntoNode(0, orbitLayer === 'structural' ? 'structural' : orbitLayer);
+  };
+
   const showFollowupDetails = () => {
     const target = document.getElementById('nexus-followup-details');
-    target?.scrollIntoView({ behavior: 'auto', block: 'start' });
-    target?.focus({ preventScroll: true });
+    if (target) {
+      target.scrollIntoView({ behavior: 'auto', block: 'start' });
+      target.focus({ preventScroll: true });
+      return;
+    }
+    setActiveView(effectiveRole === 'hq' ? 'hq_audit' : 'field_ops');
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => {
+        const delayed = document.getElementById('nexus-followup-details');
+        delayed?.scrollIntoView({ behavior: 'auto', block: 'start' });
+        delayed?.focus({ preventScroll: true });
+      });
+    }
   };
   if (loadState !== 'ready') return <main className="safety-nexus" aria-label="PSI 안전지능 네트워크"><section className="nexus-followup" role="status"><h1>안전지능 네트워크</h1><p>{loadState === 'loading' ? '저장된 기록을 불러오고 있습니다.' : '기록을 불러오지 못했습니다. 화면을 다시 불러와 주세요.'}</p><button type="button" onClick={() => onNavigateToPage('dashboard')}>기존 관제센터로 돌아가기</button></section></main>;
-  const surface = <main role={immersive ? 'dialog' : undefined} aria-modal={immersive ? true : undefined} className={'safety-nexus' + (immersive ? ' is-immersive' : '')} data-reduced-motion={reduced ? 'true' : 'false'} data-motion-paused={paused ? 'true' : 'false'} aria-label="PSI 안전지능 네트워크">
+  const surface = <main role={immersive ? 'dialog' : undefined} aria-modal={immersive ? true : undefined} className={'safety-nexus' + (immersive ? ' is-immersive' : '')} data-workspace-role={effectiveRole} data-reduced-motion={reduced ? 'true' : 'false'} data-motion-paused={paused ? 'true' : 'false'} aria-label="PSI 안전지능 네트워크">
     <div className="nexus-background" aria-hidden="true" />
     <header className="nexus-header">
       <div className="nexus-brand"><span className="nexus-symbol">Ψ</span><div><small>SOVEREIGN SAFETY INTELLIGENCE</small><h1>SAFETY <b>NEXUS</b></h1></div></div>
@@ -564,7 +705,164 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
         })}</ul>}
       </div>}
     </section>
-    <div className="nexus-main">
+    <nav className="nexus-context-rail" aria-label="안전지능 권한 범위 및 워크스페이스 전환">
+      <div className="nexus-context-top">
+        {!lockedRole ? (
+          <div className="nexus-authority-switcher" role="group" aria-label="본사 · 현장 화면 권한 전환">
+            <button
+              type="button"
+              aria-pressed={effectiveRole === 'hq'}
+              onClick={() => handleSwitchAuthority('hq')}
+            >
+              🏛️ 본사 통합 관제 (전사)
+            </button>
+            <button
+              type="button"
+              aria-pressed={effectiveRole === 'field'}
+              onClick={() => handleSwitchAuthority('field')}
+            >
+              🦺 현장 안전관리자 (단일 현장 격리)
+            </button>
+          </div>
+        ) : (
+          <span className="nexus-field-lock-badge">
+            {effectiveRole === 'hq' ? '🏛️ 본사 통합 관제 권한 고정' : '🦺 현장 단일 현장 권한 고정'}
+          </span>
+        )}
+
+        {effectiveRole === 'hq' ? (
+          <div className="nexus-scope-strip" role="group" aria-label="본사 현장 범위 필터">
+            <button
+              type="button"
+              aria-pressed={!hqSelectedSiteId}
+              onClick={() => setHqSelectedSiteId('')}
+            >
+              전사 전체 ({NEXUS_SITE_PORTFOLIO.length}개 현장)
+            </button>
+            {NEXUS_SITE_PORTFOLIO.map(site => (
+              <button
+                key={site.siteId}
+                type="button"
+                aria-pressed={hqSelectedSiteId === site.siteId}
+                onClick={() => setHqSelectedSiteId(hqSelectedSiteId === site.siteId ? '' : site.siteId)}
+              >
+                {site.shortLabel.split(' · ')[0]}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="nexus-sim-seed-btn"
+              onClick={handleLoadMultiSiteSimulation}
+            >
+              체험 데이터 불러오기 (3개 현장·장비사진)
+            </button>
+          </div>
+        ) : (
+          <div className="nexus-scope-strip">
+            <span className="nexus-field-lock-badge">
+              🔒 단일 현장 격리 · {scopedData.activeSiteMeta?.shortLabel || '제1현장'} · 타현장 비노출
+            </span>
+            {!lockedSiteId && (
+              <label className="nexus-field-site-select">
+                <span>배정 현장</span>
+                <select
+                  aria-label="현장 관리자 소속 현장 선택"
+                  value={effectiveFieldSiteId}
+                  onChange={e => setAssignedFieldSiteId(e.target.value)}
+                >
+                  {NEXUS_SITE_PORTFOLIO.map(site => (
+                    <option key={site.siteId} value={site.siteId}>{site.siteName}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="nexus-context-views">
+        <div className="nexus-view-tabs" role="tablist" aria-label="안전지능 워크스페이스 화면 전환">
+          {effectiveRole === 'hq' ? (
+            <>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeView === 'hq_command'}
+                className={'nexus-view-tab' + (activeView === 'hq_command' ? ' is-active' : '')}
+                onClick={() => handleSelectWorkspaceView('hq_command')}
+              >
+                ① 3D 전사 지휘
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeView === 'hq_bi'}
+                className={'nexus-view-tab' + (activeView === 'hq_bi' ? ' is-active' : '')}
+                onClick={() => handleSelectWorkspaceView('hq_bi')}
+              >
+                ② 경영 브리핑 BI
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeView === 'hq_ops'}
+                className={'nexus-view-tab' + (activeView === 'hq_ops' ? ' is-active' : '')}
+                onClick={() => handleSelectWorkspaceView('hq_ops')}
+              >
+                ③ 본사 결재·보고·순회
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeView === 'hq_audit'}
+                className={'nexus-view-tab' + (activeView === 'hq_audit' ? ' is-active' : '')}
+                onClick={() => handleSelectWorkspaceView('hq_audit')}
+              >
+                ④ 원천 이력·감사
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeView === 'field_ops'}
+                className={'nexus-view-tab' + (activeView === 'field_ops' ? ' is-active' : '')}
+                onClick={() => handleSelectWorkspaceView('field_ops')}
+              >
+                ① 현장 즉시 실행
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeView === 'field_inbox'}
+                className={'nexus-view-tab' + (activeView === 'field_inbox' ? ' is-active' : '')}
+                onClick={() => handleSelectWorkspaceView('field_inbox')}
+              >
+                ② 본사 수신·교육·상신
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeView === 'field_sphere'}
+                className={'nexus-view-tab' + (activeView === 'field_sphere' ? ' is-active' : '')}
+                onClick={() => handleSelectWorkspaceView('field_sphere')}
+              >
+                ③ 내 현장 3D 구체
+              </button>
+            </>
+          )}
+        </div>
+        <button
+          type="button"
+          className="nexus-locked-node-pill"
+          onClick={() => handleSelectWorkspaceView(effectiveRole === 'hq' ? 'hq_command' : 'field_sphere')}
+        >
+          ◎ 록온: #{selected.index} {selected.title}
+        </button>
+      </div>
+    </nav>
+    {(activeView === 'hq_command' || activeView === 'field_sphere') && <div className="nexus-main">
       <aside className="nexus-aside">
         <div className="nexus-section-title"><span>01 / EXECUTIVE COMMAND</span><i /></div>
         <h2>골조·형틀 안전지능을<br /><em>하나의 황금 구체로.</em></h2>
@@ -606,9 +904,19 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
                 <span>{layer.label}</span>
               </button>
             ))}
+            {orbitLayer !== 'structural' && (
+              <button
+                type="button"
+                className="nexus-axis-toggle-btn"
+                aria-expanded={showAxisFilterBar}
+                onClick={() => setShowAxisFilterBar(v => !v)}
+              >
+                {showAxisFilterBar ? '3축 필터 접기' : '3축 필터 ▾'}
+              </button>
+            )}
           </div>
         </div>
-        <div className="nexus-axis-bar" role="group" aria-label="골조·형틀·지하 RC 3축 분류 필터">
+        {(orbitLayer === 'structural' || showAxisFilterBar) && <div className="nexus-axis-bar" role="group" aria-label="골조·형틀·지하 RC 3축 분류 필터">
           <label>
             <span>축1 · 구간</span>
             <select
@@ -657,7 +965,7 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
               3축 필터 초기화
             </button>
           )}
-        </div>
+        </div>}
         <div
           className={'nexus-stage' + (flat ? ' is-flat' : '') + (cinematicPlaying ? ' is-cinematic' : '') + (isDraggingSphere ? ' is-dragging' : '')}
           data-cinematic={cinematicPlaying ? 'playing' : 'idle'}
@@ -844,108 +1152,187 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
               </div>
             )}
             <h4>{activeSeed.title}</h4>
-            <dl className="nexus-seed-tree">
-              <div><dt>직접원인</dt><dd>{activeSeed.directCause}</dd></div>
-              <div><dt>기여요인</dt><dd>{activeSeed.contributingFactor}</dd></div>
-              <div><dt>근본원인</dt><dd>{activeSeed.rootCause}</dd></div>
-              <div><dt>재발방지</dt><dd>{activeSeed.preventiveMeasure}</dd></div>
-              <div><dt>순회점검 브리핑</dt><dd>{activeSeed.preVisitBriefingPoint}</dd></div>
-              <div><dt>대표이사 교육</dt><dd>{activeSeed.ceoTrainingPoint}</dd></div>
-            </dl>
+            <details className="nexus-detail-seed-drawer">
+              <summary>원인 · 재발방지 · 순회브리핑 6대 구조 펼쳐보기</summary>
+              <dl className="nexus-seed-tree">
+                <div><dt>직접원인</dt><dd>{activeSeed.directCause}</dd></div>
+                <div><dt>기여요인</dt><dd>{activeSeed.contributingFactor}</dd></div>
+                <div><dt>근본원인</dt><dd>{activeSeed.rootCause}</dd></div>
+                <div><dt>재발방지</dt><dd>{activeSeed.preventiveMeasure}</dd></div>
+                <div><dt>순회점검 브리핑</dt><dd>{activeSeed.preVisitBriefingPoint}</dd></div>
+                <div><dt>대표이사 교육</dt><dd>{activeSeed.ceoTrainingPoint}</dd></div>
+              </dl>
+            </details>
             <div className="nexus-seed-ceo-actions">
-              <button
-                type="button"
-                className="nexus-seed-ceo-btn"
-                onClick={() => {
-                  const created = stageExecutiveTrainingHandoff(activeSeed, {
-                    targetWorkers: 12,
-                    dispatchImmediately: true,
-                  });
-                  setTrainingCampaigns(readExecutiveTrainingCampaigns());
-                  setWorkbenchTab('training_04');
-                  const el = document.getElementById('nexus-closed-loop-workbench');
-                  el?.scrollIntoView({ behavior: 'auto', block: 'start' });
-                  if (created.structuralNodeIndex && orbitLayer === 'modules') {
-                    lockOntoNode(3, 'modules'); // 04 대표이사 안전교육
-                  }
-                }}
-              >
-                04 대표이사 12개국어 안전교육 초안 즉시 생성 ↓
-              </button>
-              <button
-                type="button"
-                className="nexus-seed-ceo-btn is-secondary"
-                onClick={() => {
-                  stageExecutiveTrainingHandoff(activeSeed, {
-                    targetWorkers: 12,
-                    dispatchImmediately: true,
-                  });
-                  onNavigateToPage('admin-training');
-                }}
-              >
-                QR·음성 스튜디오 열기 ↗
-              </button>
+              {effectiveRole === 'hq' ? (
+                <>
+                  <button
+                    type="button"
+                    className="nexus-seed-ceo-btn"
+                    onClick={() => {
+                      const created = stageExecutiveTrainingHandoff(activeSeed, {
+                        targetWorkers: 12,
+                        dispatchImmediately: true,
+                      });
+                      setTrainingCampaigns(readExecutiveTrainingCampaigns());
+                      setWorkbenchTab('training_04');
+                      setActiveView('hq_ops');
+                      if (created.structuralNodeIndex && orbitLayer === 'modules') {
+                        lockOntoNode(3, 'modules');
+                      }
+                    }}
+                  >
+                    04 대표이사 12개국어 안전교육 초안 즉시 생성 →
+                  </button>
+                  <button
+                    type="button"
+                    className="nexus-seed-ceo-btn is-secondary"
+                    onClick={() => {
+                      stageExecutiveTrainingHandoff(activeSeed, {
+                        targetWorkers: 12,
+                        dispatchImmediately: true,
+                      });
+                      onNavigateToPage('admin-training');
+                    }}
+                  >
+                    QR·음성 스튜디오 열기 ↗
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="nexus-seed-ceo-btn"
+                  onClick={() => {
+                    setWorkbenchTab('training_04');
+                    setActiveView('field_inbox');
+                  }}
+                >
+                  04 우리 현장 12개국어 교육·서명 열기 →
+                </button>
+              )}
             </div>
           </div>
         )}
+        <div className="nexus-detail-handoff-row">
+          {effectiveRole === 'hq' ? (
+            <>
+              <button type="button" onClick={() => handleSelectWorkspaceView('hq_bi')}>
+                📊 경영 브리핑 BI 분석 →
+              </button>
+              <button type="button" onClick={() => handleSelectWorkspaceView('hq_ops')}>
+                ⚡ 본사 결재·보고 스튜디오 →
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={() => handleSelectWorkspaceView('field_ops')}>
+              🦺 내 현장 즉시 실행·사진 전송 →
+            </button>
+          )}
+        </div>
         <button type="button" className="nexus-primary" onClick={() => onNavigateToPage(selected.page)}>{selected.action}<span>↗</span></button>
         <div className="nexus-next"><span>CLOSED-LOOP ARCHITECTURE</span><ol><li>현장 위험·사진 수집</li><li>AI 구조화 · 본사 대조</li><li>시정조치 · 재점검·인계</li><li>다국어 교육 · 전 현장 환류</li></ol></div>
       </aside>
-    </div>
-    <NexusExecutiveBentoBoard
-      snapshot={bentoSnapshot}
-      reducedMotion={reduced}
-      selectedZoneAxis={axisFilter.zoneAxis}
-      onSelectHeatmapCell={(zoneAxis, structuralNodeIndex) => {
-        setOrbitLayer('structural');
-        setAxisFilter(prev => ({ ...prev, zoneAxis }));
-        const idx = Math.max(0, Number(structuralNodeIndex) - 1);
-        lockOntoNode(idx, 'structural');
-      }}
-      onSelectSiteBar={siteId => {
-        setSelectedSiteId(siteId === selectedSiteId ? '' : siteId);
-      }}
-    />
-    <div id="nexus-closed-loop-workbench">
-      <NexusHqCommandWorkbench
-        activeTab={workbenchTab}
-        onTabChange={setWorkbenchTab}
-        activeSeed={activeSeed}
-        pipelineCases={pipelineCases}
-        onPipelineCreated={created => {
-          setPipelineCases(readNexusPipelineCases());
-          const targetIdx = Math.max(0, Number(created.structuralNodeIndex) - 1);
-          if (orbitLayer === 'structural') {
-            lockOntoNode(targetIdx, 'structural');
-          } else if (orbitLayer === 'modules') {
-            lockOntoNode(5, 'modules');
-          } else {
-            lockOntoNode(3, 'cycle');
-          }
-        }}
-        onPipelineUpdated={updated => setPipelineCases([...updated])}
-        trainingCampaigns={trainingCampaigns}
-        onTrainingCampaignsChange={next => setTrainingCampaigns([...next])}
-        onOpenAdminTraining={() => onNavigateToPage('admin-training')}
-        visitPlans={visitPlans}
-        onVisitPlansChange={next => setVisitPlans([...next])}
-        investigations={investigations}
-        onInvestigationsChange={next => {
-          setInvestigations([...next]);
-          setApprovedCustomSeeds(readApprovedCustomIncidentSeeds());
-        }}
-        equipmentReports={equipmentReports}
-        onEquipmentReportsChange={next => setEquipmentReports([...next])}
-        selectedSiteId={selectedSiteId}
-        onSelectedSiteIdChange={setSelectedSiteId}
-        onLockOntoStructuralNode={nodeIndexStr => {
-          const targetIdx = Math.max(0, Number(nodeIndexStr) - 1);
-          if (orbitLayer === 'structural') {
-            lockOntoNode(targetIdx, 'structural');
-          }
-        }}
-      />
-    </div>
+    </div>}
+    {effectiveRole === 'hq' && activeView === 'hq_bi' && bentoSnapshot && (
+      <div className="nexus-hq-bi-view" aria-label="본사 전사 경영 브리핑 BI 분석">
+        <div className="nexus-site-matrix-grid" role="group" aria-label="본사 3대 골조 포트폴리오 실시간 비교 매트릭스">
+          {siteMatrix.map(card => (
+            <button
+              key={card.siteId}
+              type="button"
+              className={
+                'nexus-site-matrix-card urgency-' +
+                card.urgencyLevel +
+                (hqSelectedSiteId === card.siteId ? ' is-selected' : '')
+              }
+              aria-pressed={hqSelectedSiteId === card.siteId}
+              onClick={() => {
+                setHqSelectedSiteId(hqSelectedSiteId === card.siteId ? '' : card.siteId);
+                lockOntoNode(Math.max(0, Number(card.focusNodeIndex) - 1), 'structural');
+              }}
+            >
+              <div className="nexus-site-matrix-top">
+                <strong>{card.shortLabel}</strong>
+                <em className={'urgency-badge urgency-' + card.urgencyLevel}>
+                  {card.urgencyLabel}
+                </em>
+              </div>
+              <div className="nexus-site-matrix-metrics">
+                <span>미결 <b>{card.openActionsCount}</b></span>
+                <span>순회 <b>{card.activeVisitsCount}</b></span>
+                <span>승인·보완 <b>{card.pendingApprovalsCount + card.revisionRequestedCount}</b></span>
+                <span>교육 <b>{card.avgTrainingCompletionPct !== null ? `${card.avgTrainingCompletionPct}%` : '대기'}</b></span>
+              </div>
+            </button>
+          ))}
+        </div>
+        <NexusExecutiveBentoBoard
+          snapshot={bentoSnapshot}
+          reducedMotion={reduced}
+          selectedZoneAxis={axisFilter.zoneAxis}
+          onSelectHeatmapCell={(zoneAxis, structuralNodeIndex) => {
+            setOrbitLayer('structural');
+            setAxisFilter(prev => ({ ...prev, zoneAxis }));
+            const idx = Math.max(0, Number(structuralNodeIndex) - 1);
+            lockOntoNode(idx, 'structural');
+            setActiveView('hq_command');
+          }}
+          onSelectSiteBar={siteId => {
+            setHqSelectedSiteId(siteId === hqSelectedSiteId ? '' : siteId);
+          }}
+        />
+      </div>
+    )}
+    {(activeView === 'hq_ops' || activeView === 'field_ops' || activeView === 'field_inbox') && (
+      <div id="nexus-closed-loop-workbench">
+        <NexusHqCommandWorkbench
+          workspaceRole={effectiveRole}
+          fieldSection={activeView === 'field_inbox' ? 'inbox' : 'execute'}
+          effectiveSiteId={scopedData.effectiveSiteId}
+          activeSiteLabel={scopedData.activeSiteMeta?.siteName || '전사 통합 포트폴리오'}
+          activeTab={workbenchTab}
+          onTabChange={setWorkbenchTab}
+          activeSeed={activeSeed}
+          pipelineCases={scopedData.pipelineCases}
+          onPipelineCreated={() => {
+            const latest = readNexusPipelineCases();
+            setPipelineCases(latest);
+            const created = latest[0];
+            if (created) {
+              const targetIdx = Math.max(0, Number(created.structuralNodeIndex) - 1);
+              if (orbitLayer === 'structural') {
+                lockOntoNode(targetIdx, 'structural');
+              } else if (orbitLayer === 'modules') {
+                lockOntoNode(5, 'modules');
+              } else {
+                lockOntoNode(3, 'cycle');
+              }
+            }
+          }}
+          onPipelineUpdated={() => setPipelineCases(readNexusPipelineCases())}
+          trainingCampaigns={scopedData.trainingCampaigns}
+          onTrainingCampaignsChange={() => setTrainingCampaigns(readExecutiveTrainingCampaigns())}
+          onOpenAdminTraining={() => onNavigateToPage('admin-training')}
+          visitPlans={scopedData.visitPlans}
+          onVisitPlansChange={() => setVisitPlans(readHqVisitPlans())}
+          investigations={scopedData.investigations}
+          onInvestigationsChange={() => {
+            setInvestigations(readAiInvestigations());
+            setApprovedCustomSeeds(readApprovedCustomIncidentSeeds());
+          }}
+          equipmentReports={scopedData.equipmentReports}
+          onEquipmentReportsChange={() => setEquipmentReports(readEquipmentPhotoSubmissions())}
+          onLockOntoStructuralNode={nodeIndexStr => {
+            const targetIdx = Math.max(0, Number(nodeIndexStr) - 1);
+            if (orbitLayer === 'structural') {
+              lockOntoNode(targetIdx, 'structural');
+            }
+          }}
+        />
+      </div>
+    )}
+    {effectiveRole === 'hq' && (activeView === 'hq_command' || activeView === 'hq_audit') && (
+    <>
     <section id="nexus-followup-details" tabIndex={-1} className="nexus-followup" aria-label="근로자 위험성평가 후속조치 익명 집계">
       <div className="nexus-followup-header">
         <div><span>VERIFIABLE READ-ONLY SIGNALS</span><h2>후속조치 현황 <small>불러온 기록의 관리자 이력 기준</small></h2></div>
@@ -1030,6 +1417,7 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
       <button type="button" onClick={() => onNavigateToPage('monthly-guidance-report')}>기존 평가 보고서 열기</button>
     </section>
     <ScoreMetricEvidencePanel records={filteredRecords} scopeLabel={`${filterMonth || '전체 작성기간'} · ${filterTrade || '전체 공종'}`} asOf={followup.asOfDate} loadState={loadState} onOpenRecord={onOpenRecord} />
+    </>)}
     <footer className="nexus-footer"><span>PSI / SAFETY NEXUS</span><span>현재 불러온 기록의 탐색 화면입니다. 실제 현장 승인 통계와의 대조는 미완료입니다.</span>
       <label><input type="checkbox" checked={reduced} onChange={e => setReduced(e.target.checked)} /> 움직임 줄이기</label></footer>
   </main>;

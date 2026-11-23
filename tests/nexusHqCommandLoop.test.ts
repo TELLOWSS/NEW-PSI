@@ -8,6 +8,7 @@ import {
   readApprovedCustomIncidentSeeds,
   requestAiInvestigationRevision,
   resubmitAiInvestigationRecord,
+  scopeNexusWorkspaceData,
   seedMultiSiteOperationalSimulation,
   startHqFieldInspection,
   submitAiInvestigationRecord,
@@ -17,7 +18,8 @@ import {
   writeHqVisitPlans,
 } from '../utils/nexusHqCommandLoop';
 import { readExecutiveTrainingCampaigns, writeExecutiveTrainingCampaigns } from '../utils/nexusExecutiveTrainingPipeline';
-import { readNexusPipelineCases, writeNexusPipelineCases } from '../utils/nexusQuickPipeline';
+import { createNexusPipelineCase, readNexusPipelineCases, writeNexusPipelineCases } from '../utils/nexusQuickPipeline';
+import { writeEquipmentPhotoSubmissions } from '../utils/nexusEquipmentPhotoReport';
 
 describe('Slice 4 · 01 HQ Pre-Visit Briefing + 05 AI Root-Cause Investigation Approval -> 02 Incident DB & 04 Training Auto-Propagation', () => {
   beforeEach(() => {
@@ -166,5 +168,66 @@ describe('Slice 4 · 01 HQ Pre-Visit Briefing + 05 AI Root-Cause Investigation A
     const moduleSummary = summarizeHqLoopForOrbitLayer('modules', [], approved.updatedInvestigations);
     expect(moduleSummary[4].nodeIndex).toBe('05'); // 05 AI 사고조사
     expect(moduleSummary[4].approvedPropagatedCount).toBe(1);
+  });
+
+  it('strictly isolates single-site records for field mode while allowing full all-site and drilldown views for HQ mode', () => {
+    writeEquipmentPhotoSubmissions([]);
+    const seeded = seedMultiSiteOperationalSimulation('2026-11-24T06:00:00Z');
+    // Also verify explicit siteId binding overrides misleading free-text keywords (e.g. '갱폼' in Site 1)
+    const miswordedSite1Case = createNexusPipelineCase(
+      {
+        siteId: 'SITE-01-SUBRC',
+        locationLabel: 'B2층 자재반입구 (갱폼 자재 적치 확인)',
+        observationNote: '갱폼 자재 임시 거치대 고정상태 점검',
+      },
+      '2026-11-24T06:05:00Z',
+    );
+    const allCases = [miswordedSite1Case, ...seeded.cases];
+
+    const site1Field = scopeNexusWorkspaceData({
+      workspaceRole: 'field',
+      assignedFieldSiteId: 'SITE-01-SUBRC',
+      pipelineCases: allCases,
+      visitPlans: seeded.visits,
+      investigations: seeded.investigations,
+      trainingCampaigns: seeded.campaigns,
+      equipmentReports: seeded.equipmentReports,
+    });
+
+    expect(site1Field.effectiveSiteId).toBe('SITE-01-SUBRC');
+    expect(site1Field.pipelineCases.some(c => c.caseId === miswordedSite1Case.caseId)).toBe(true);
+    expect(site1Field.pipelineCases.every(c => c.siteId === 'SITE-01-SUBRC')).toBe(true);
+    expect(site1Field.visitPlans.every(v => v.siteId === 'SITE-01-SUBRC')).toBe(true);
+    expect(site1Field.investigations.every(i => i.siteId === 'SITE-01-SUBRC')).toBe(true);
+    expect(site1Field.equipmentReports.every(e => e.siteId === 'SITE-01-SUBRC')).toBe(true);
+    expect(site1Field.investigations.some(i => i.siteName.includes('제2현장'))).toBe(false);
+    expect(site1Field.visitPlans.some(v => v.siteName.includes('제3현장'))).toBe(false);
+
+    const hqAll = scopeNexusWorkspaceData({
+      workspaceRole: 'hq',
+      selectedSiteId: '',
+      pipelineCases: allCases,
+      visitPlans: seeded.visits,
+      investigations: seeded.investigations,
+      trainingCampaigns: seeded.campaigns,
+      equipmentReports: seeded.equipmentReports,
+    });
+    expect(hqAll.pipelineCases).toHaveLength(allCases.length);
+    expect(hqAll.visitPlans).toHaveLength(seeded.visits.length);
+    expect(hqAll.investigations).toHaveLength(seeded.investigations.length);
+    expect(hqAll.equipmentReports).toHaveLength(seeded.equipmentReports.length);
+
+    const hqSite2Drill = scopeNexusWorkspaceData({
+      workspaceRole: 'hq',
+      selectedSiteId: 'SITE-02-GANGFORM',
+      pipelineCases: allCases,
+      visitPlans: seeded.visits,
+      investigations: seeded.investigations,
+      trainingCampaigns: seeded.campaigns,
+      equipmentReports: seeded.equipmentReports,
+    });
+    expect(hqSite2Drill.pipelineCases.every(c => c.siteId === 'SITE-02-GANGFORM')).toBe(true);
+    expect(hqSite2Drill.investigations.every(i => i.siteId === 'SITE-02-GANGFORM')).toBe(true);
+    expect(hqSite2Drill.equipmentReports.every(e => e.siteId === 'SITE-02-GANGFORM')).toBe(true);
   });
 });
