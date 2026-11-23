@@ -73,6 +73,7 @@ describe('Slice 4 · 01 HQ Pre-Visit Briefing + 05 AI Root-Cause Investigation A
     expect(seeded.visits.length).toBeGreaterThanOrEqual(2);
     expect(seeded.investigations.length).toBeGreaterThanOrEqual(2);
     expect(seeded.campaigns.length).toBeGreaterThanOrEqual(1);
+    expect(seeded.equipmentReports.length).toBeGreaterThanOrEqual(3);
 
     const matrix = buildMultiSitePortfolioMatrix(
       seeded.cases,

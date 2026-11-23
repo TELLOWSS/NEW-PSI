@@ -996,7 +996,8 @@
   color: #14202b !important;
   font-size: 12px !important;
   font-weight: 800 !important;
-  white-space: nowrap
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .nexus-3axis-feedback {
@@ -1387,7 +1388,7 @@
 
 .nexus-workbench-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 16px
 }
@@ -1444,7 +1445,8 @@
 }
 
 .nexus-workbench-panel {
-  padding-top: 4px
+  padding-top: 4px;
+  min-width: 0;
 }
 
 .nexus-hq-visit-studio,
@@ -2346,7 +2348,12 @@
 
   .nexus-focus-link path,
   .nexus-detail-intro,
-  .nexus-node {
+  .nexus-node,
+  .nexus-bento-card,
+  .nexus-bento-card::before,
+  .nexus-site-matrix-card,
+  .nexus-heatmap-cell,
+  .nexus-funnel-track i {
     animation: none;
     transition: none
   }
@@ -2949,9 +2956,18 @@
 /* The in-app motion preference takes precedence over OS animation settings. */
 .safety-nexus[data-reduced-motion="true"] .nexus-focus-link path,
 .safety-nexus[data-reduced-motion="true"] .nexus-detail-intro,
-.safety-nexus[data-reduced-motion="true"] .nexus-node {
+.safety-nexus[data-reduced-motion="true"] .nexus-node,
+.safety-nexus[data-reduced-motion="true"] .nexus-bento-card,
+.safety-nexus[data-reduced-motion="true"] .nexus-bento-card::before,
+.safety-nexus[data-reduced-motion="true"] .nexus-site-matrix-card,
+.safety-nexus[data-reduced-motion="true"] .nexus-heatmap-cell,
+.safety-nexus[data-reduced-motion="true"] .nexus-funnel-track i {
   animation: none !important;
   transition: none !important;
+}
+
+.safety-nexus[data-reduced-motion="true"] .nexus-bento-card::before {
+  opacity: 0 !important;
 }
 
 /* Independent evidence layer: education and recheck are not action-closure states. */
@@ -3732,6 +3748,993 @@
   stroke: rgba(255, 216, 152, .36);
   stroke-width: 1;
   stroke-dasharray: 3 4;
+}
+
+/* Orbit controls relocated into visual foot */
+.nexus-visual-foot {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.nexus-visual-foot .nexus-orbit-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+/* Sovereign Executive Bento Board */
+.nexus-bento-board {
+  margin: 0 35px 24px;
+  padding: 20px 22px;
+  border-radius: 14px;
+  border: 1px solid #f0be774d;
+  background: radial-gradient(circle at 86% 8%, #183246cc 0%, #0b1623eb 48%, #071019f5 100%);
+  box-shadow: 0 18px 46px #03070d66, inset 0 1px 0 #ffe4bc1a;
+  display: grid;
+  gap: 16px;
+}
+
+.nexus-bento-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.nexus-bento-header h2 {
+  margin: 5px 0 0;
+  font-size: 20px;
+  color: #f6fafd;
+  font-weight: 760;
+  letter-spacing: -.01em;
+}
+
+.nexus-bento-header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nexus-bento-scope-pill,
+.nexus-bento-stopwork-pill {
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.nexus-bento-scope-pill {
+  border: 1px solid #6b889c59;
+  background: #0d2030d9;
+  color: #cfe0ea;
+}
+
+.nexus-bento-stopwork-pill {
+  border: 1px solid #f17f7f7a;
+  background: #3d181ecc;
+  color: #ffd9d9;
+}
+
+.nexus-bento-csv-btn {
+  min-height: 36px;
+  padding: 6px 13px;
+  border-radius: 8px;
+  border: 1px solid #f2be787a;
+  background: linear-gradient(125deg, #3c2914, #142b3e);
+  color: #ffebc7;
+  font-size: 11.5px;
+  font-weight: 750;
+  transition: border-color .2s, filter .2s;
+}
+
+.nexus-bento-csv-btn:hover {
+  border-color: #ffd89b;
+  filter: brightness(1.08);
+}
+
+.nexus-bento-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.nexus-bento-card {
+  position: relative;
+  overflow: hidden;
+  padding: 14px 15px;
+  border-radius: 12px;
+  border: 1px solid #62809547;
+  background: linear-gradient(145deg, #0d1d2de6 0%, #09131fe6 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  transition: border-color .22s, transform .22s, box-shadow .22s;
+}
+
+.nexus-bento-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 50%), rgba(246, 199, 134, .14), transparent 65%);
+  transition: opacity .25s ease;
+}
+
+.nexus-bento-card:hover::before {
+  opacity: 1;
+}
+
+.nexus-bento-card:hover {
+  border-color: #f0be777a;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px #03081066;
+}
+
+.nexus-bento-card.tone-gold {
+  border-top: 2px solid #f6c786;
+}
+
+.nexus-bento-card.tone-cyan {
+  border-top: 2px solid #75e6ef;
+}
+
+.nexus-bento-card.tone-emerald {
+  border-top: 2px solid #68e3b0;
+}
+
+.nexus-bento-card.tone-violet {
+  border-top: 2px solid #c7a4ff;
+}
+
+.nexus-bento-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.nexus-bento-card-top small {
+  display: block;
+  font-size: 9px;
+  letter-spacing: .12em;
+  color: #9bb4c4;
+  font-weight: 740;
+}
+
+.nexus-bento-card-top h3 {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #edf5fb;
+  font-weight: 740;
+  line-height: 1.3;
+  word-break: keep-all;
+}
+
+.nexus-bento-ring {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.nexus-bento-ring .ring-bg {
+  fill: none;
+  stroke: #1b3146;
+  stroke-width: 3.4;
+}
+
+.nexus-bento-ring .ring-fg {
+  fill: none;
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 22px 22px;
+}
+
+.nexus-bento-ring .ring-fg.tone-gold {
+  stroke: #f6c786;
+}
+
+.nexus-bento-ring .ring-fg.tone-cyan {
+  stroke: #75e6ef;
+}
+
+.nexus-bento-ring .ring-fg.tone-emerald {
+  stroke: #68e3b0;
+}
+
+.nexus-bento-ring .ring-fg.tone-violet {
+  stroke: #c7a4ff;
+}
+
+.nexus-bento-ring text {
+  fill: #e8f2f8;
+  font-size: 9.5px;
+  font-weight: 800;
+}
+
+.nexus-bento-card-mid {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.nexus-bento-kpi-value {
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 820;
+  color: #fff3df;
+  font-variant-numeric: tabular-nums;
+}
+
+.nexus-bento-kpi-value small {
+  font-size: 13px;
+  color: #b7cad6;
+  font-weight: 700;
+  margin-left: 3px;
+}
+
+.nexus-bento-sparkline {
+  width: 96px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.nexus-bento-card-foot {
+  margin-top: auto;
+  display: grid;
+  gap: 5px;
+}
+
+.nexus-bento-delta-pill {
+  display: inline-block;
+  width: fit-content;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #132638;
+  border: 1px solid #6b889c47;
+  font-size: 10.5px;
+  font-weight: 720;
+  color: #ffe2b8;
+}
+
+.nexus-bento-card-foot p {
+  margin: 0;
+  font-size: 11px;
+  color: #a4bac8;
+  line-height: 1.45;
+  word-break: keep-all;
+}
+
+.nexus-bento-middle-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.nexus-bento-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.nexus-bento-panel-head strong {
+  display: block;
+  font-size: 13px;
+  color: #ffe2b8;
+  font-weight: 760;
+}
+
+.nexus-bento-panel-head small {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  color: #9cb3c2;
+  line-height: 1.45;
+  word-break: keep-all;
+}
+
+.nexus-heatmap-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #9cb3c2;
+}
+
+.nexus-heatmap-legend i {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  border: 1px solid #63829647;
+}
+
+.nexus-heatmap-table-wrap {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.nexus-heatmap-header-row,
+.nexus-heatmap-data-row {
+  display: grid;
+  grid-template-columns: minmax(76px, 1.1fr) repeat(5, minmax(52px, 1fr));
+  gap: 5px;
+  align-items: stretch;
+  min-width: 340px;
+}
+
+.nexus-heatmap-header-row span {
+  font-size: 10.5px;
+  font-weight: 750;
+  color: #b7ccd8;
+  text-align: center;
+  padding: 4px 2px;
+}
+
+.nexus-heatmap-corner {
+  text-align: left !important;
+  color: #8ea6b6 !important;
+}
+
+.nexus-heatmap-row-label {
+  display: flex;
+  align-items: center;
+  padding: 5px 7px;
+  border-radius: 6px;
+  background: #0a1723;
+  border: 1px solid #59768a3d;
+  font-size: 11px;
+  font-weight: 720;
+  color: #dbe8f0;
+  word-break: keep-all;
+}
+
+.nexus-heatmap-data-row.is-zone-active .nexus-heatmap-row-label {
+  border-color: #f3c17e;
+  background: #2f2113;
+  color: #ffe8c7;
+}
+
+.nexus-heatmap-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 44px;
+  padding: 4px 3px;
+  border-radius: 6px;
+  border: 1px solid #5c7a8e47;
+  color: #e4eff5;
+  transition: transform .15s, border-color .15s;
+}
+
+.nexus-heatmap-cell:hover {
+  transform: scale(1.03);
+  border-color: #ffd89b;
+}
+
+.nexus-heatmap-cell b {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.nexus-heatmap-cell small {
+  font-size: 9.5px;
+  color: #b8cdd9;
+}
+
+.heat-0 {
+  background: #0c1b29;
+}
+
+.heat-1 {
+  background: #133245;
+  border-color: #74e0ea4a;
+}
+
+.heat-2 {
+  background: #3a2a15;
+  border-color: #f0b96b6b;
+}
+
+.heat-3 {
+  background: linear-gradient(145deg, #4b201b, #361b12);
+  border-color: #f48d7588;
+}
+
+.nexus-bento-chart-box {
+  width: 100%;
+  height: 215px;
+  min-width: 0;
+}
+
+.nexus-bento-combo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.nexus-bento-combo-chips button {
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid #6382964f;
+  background: #0c1d2dcc;
+  color: #cfe0ea;
+  font-size: 10.5px;
+  font-weight: 680;
+}
+
+.nexus-bento-combo-chips button:hover {
+  border-color: #f3be78;
+  color: #ffebc8;
+}
+
+.nexus-funnel-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.nexus-funnel-stage {
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid #5e7c9045;
+  background: #0a1622cc;
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.nexus-funnel-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.nexus-funnel-top span {
+  font-size: 11px;
+  color: #cfe0eb;
+  font-weight: 680;
+}
+
+.nexus-funnel-top b {
+  font-size: 11.5px;
+  color: #ffe3b8;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.nexus-funnel-track {
+  height: 7px;
+  border-radius: 999px;
+  background: #142738;
+  overflow: hidden;
+}
+
+.nexus-funnel-track i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width .35s ease;
+}
+
+.nexus-funnel-stage.tone-amber .nexus-funnel-track i {
+  background: #f5b96f;
+}
+
+.nexus-funnel-stage.tone-gold .nexus-funnel-track i {
+  background: #ffd38c;
+}
+
+.nexus-funnel-stage.tone-cyan .nexus-funnel-track i {
+  background: #75e6ef;
+}
+
+.nexus-funnel-stage.tone-violet .nexus-funnel-track i {
+  background: #c7a4ff;
+}
+
+.nexus-funnel-stage.tone-emerald .nexus-funnel-track i {
+  background: #68e3b0;
+}
+
+/* Workbench UX Surgery, Stop-Work Toggle, Field Photos & Equipment Briefing Pack */
+.nexus-workbench-header-utils {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.nexus-site-reset-chip {
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid #75e3ed6b;
+  background: #113042;
+  color: #defafd;
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.nexus-role-action-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.nexus-role-action-strip button {
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid #607f9452;
+  background: #0a1622cc;
+  color: #cfe0ea;
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.nexus-role-action-strip button b {
+  color: #ffdba6;
+  margin-left: 3px;
+}
+
+.nexus-role-action-strip button:hover {
+  border-color: #f4c17e;
+}
+
+.nexus-3axis-field-extras {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.nexus-stopwork-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 1px solid #67839759;
+  background: #0b1825;
+  color: #d4e3ec;
+  font-size: 11.5px;
+  font-weight: 720;
+  cursor: pointer;
+}
+
+.nexus-stopwork-toggle.is-checked {
+  border-color: #f37d7d;
+  background: #3d181e;
+  color: #ffe0e0;
+}
+
+.nexus-photo-upload-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 1px dashed #76dfe873;
+  background: #0f2435;
+  color: #d7f7fb;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nexus-photo-upload-chip input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.nexus-inline-thumb {
+  width: 48px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #f0be777a;
+}
+
+.nexus-handover-copy-btn {
+  border-color: #f1be786b !important;
+  background: #2f2213 !important;
+  color: #ffe7c2 !important;
+}
+
+.nexus-handover-preview {
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border-radius: 7px;
+  border: 1px solid #f0be774f;
+  background: #08121d;
+  color: #e6eff5;
+  font-family: inherit;
+  font-size: 11.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: keep-all;
+}
+
+.is-stopwork-item {
+  border-left: 3px solid #f27a7a !important;
+  background: linear-gradient(125deg, #271319e6, #0d1c2ce6) !important;
+}
+
+.nexus-stopwork-badge {
+  font-style: normal;
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #4d1920;
+  border: 1px solid #f58a8a85;
+  color: #ffe0e0;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.nexus-before-after-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.nexus-before-after-thumbs figure {
+  margin: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.nexus-before-after-thumbs img {
+  width: 112px;
+  height: 70px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #6a879b66;
+}
+
+.nexus-before-after-thumbs figcaption {
+  font-size: 10px;
+  color: #adc4d2;
+  text-align: center;
+}
+
+.nexus-collapsible-form {
+  border-radius: 9px;
+  border: 1px dashed #6382965c;
+  background: #0a162399;
+  padding: 10px 13px;
+}
+
+.nexus-collapsible-form summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 740;
+  color: #ffe0b5;
+  list-style-position: inside;
+  padding: 4px 0;
+}
+
+.nexus-collapsible-form[open] summary {
+  margin-bottom: 10px;
+}
+
+/* Heavy Equipment Pre-Use Photo Upload & Executive Briefing Studio */
+.nexus-equip-studio {
+  display: grid;
+  gap: 13px;
+}
+
+.nexus-equip-upload-box {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 9px;
+  background: #0b1825cc;
+  border: 1px solid #6382964f;
+}
+
+.nexus-equip-upload-row {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.nexus-equip-checklist-input {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.nexus-equip-checklist-input span {
+  font-size: 10.5px;
+  color: #a9c1cf;
+  font-weight: 680;
+}
+
+.nexus-equip-checklist-input input {
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 9px;
+  border-radius: 5px;
+  border: 1px solid #5f7f9459;
+  background: #0c1b29;
+  color: #edf5fa;
+  font-size: 12px;
+}
+
+.nexus-equip-hq-section {
+  display: grid;
+  gap: 12px;
+}
+
+.nexus-equip-ceo-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 11px 13px;
+  border-radius: 9px;
+  border: 1px solid #f0be774d;
+  background: linear-gradient(120deg, #1b1815cc, #0d1d2dcc);
+}
+
+.nexus-equip-ceo-toolbar label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 0 1 240px;
+  min-width: 180px;
+}
+
+.nexus-equip-ceo-toolbar label span {
+  font-size: 10.5px;
+  color: #e9c996;
+  font-weight: 700;
+}
+
+.nexus-equip-ceo-toolbar input {
+  min-height: 38px;
+  padding: 6px 9px;
+  border-radius: 5px;
+  border: 1px solid #5f7f9459;
+  background: #0c1b29;
+  color: #edf5fa;
+  font-size: 12px;
+}
+
+.nexus-ceo-briefing-sheet {
+  padding: 13px 15px;
+  border-radius: 10px;
+  border: 1px solid #f4c17e73;
+  background: #091522eb;
+  display: grid;
+  gap: 9px;
+}
+
+.nexus-equip-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 11px;
+}
+
+.nexus-equip-photo-card {
+  border-radius: 10px;
+  border: 1px solid #617f9447;
+  background: #0b1724d9;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nexus-equip-thumb-wrap {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #071019;
+  overflow: hidden;
+}
+
+.nexus-equip-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.nexus-equip-status-tag {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 760;
+  backdrop-filter: blur(6px);
+}
+
+.nexus-equip-status-tag.status-submitted_to_hq {
+  background: #2e2412eb;
+  border: 1px solid #f0be7780;
+  color: #ffe4bc;
+}
+
+.nexus-equip-status-tag.status-hq_verified_for_ceo {
+  background: #102e3deb;
+  border: 1px solid #75e6ef80;
+  color: #d6fbff;
+}
+
+.nexus-equip-status-tag.status-revision_requested_hq {
+  background: #3d1920eb;
+  border: 1px solid #f27e7e80;
+  color: #ffd7d7;
+}
+
+.nexus-equip-status-tag.status-reported_to_ceo {
+  background: #103224eb;
+  border: 1px solid #68e3b080;
+  color: #d8ffed;
+}
+
+.nexus-equip-card-body {
+  padding: 11px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.nexus-equip-card-body small {
+  font-size: 10px;
+  color: #8fdbe3;
+  font-weight: 720;
+}
+
+.nexus-equip-card-body h4 {
+  margin: 0;
+  font-size: 13px;
+  color: #f0f6fa;
+  font-weight: 740;
+  line-height: 1.4;
+  word-break: keep-all;
+}
+
+.nexus-equip-card-body p {
+  margin: 0;
+  font-size: 11px;
+  color: #adc3d1;
+  line-height: 1.48;
+  word-break: keep-all;
+}
+
+.nexus-equip-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 10.5px;
+  color: #8da5b5;
+}
+
+.nexus-equip-review-note {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #102334;
+  border-left: 2px solid #f2be78;
+  color: #ffe3b8 !important;
+}
+
+.nexus-equip-review-controls {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid #5e7b8f38;
+  display: grid;
+  gap: 7px;
+}
+
+.nexus-equip-review-controls input {
+  width: 100%;
+  min-height: 34px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  border: 1px solid #5f7f9459;
+  background: #0c1b29;
+  color: #edf5fa;
+  font-size: 11.5px;
+}
+
+@media(max-width:1100px) {
+  .nexus-bento-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nexus-bento-middle-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nexus-funnel-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .nexus-equip-photo-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media(max-width:790px) {
+  .nexus-bento-board {
+    margin: 0 12px 18px;
+    padding: 15px 12px;
+  }
+
+  .nexus-bento-kpis,
+  .nexus-funnel-grid,
+  .nexus-equip-photo-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nexus-3axis-submit {
+    white-space: normal;
+    word-break: keep-all;
+    text-align: center;
+    line-height: 1.38;
+    width: 100%;
+  }
+
+  .nexus-equip-studio,
+  .nexus-equip-hq-section,
+  .nexus-equip-upload-box,
+  .nexus-ceo-briefing-sheet {
+    min-width: 0;
+  }
+
+  .nexus-equip-ceo-toolbar label,
+  .nexus-equip-checklist-input {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .nexus-ceo-pre {
+    overflow-wrap: anywhere;
+  }
+}
+
+@media(max-width:520px) {
+  .nexus-bento-header h2 {
+    font-size: 17px;
+  }
+
+  .nexus-heatmap-header-row,
+  .nexus-heatmap-data-row {
+    grid-template-columns: minmax(64px, 1fr) repeat(5, minmax(46px, 1fr));
+    min-width: 300px;
+    gap: 4px;
+  }
 }
 
 @media print {

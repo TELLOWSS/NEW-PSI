@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   NEXUS_QUICK_FIELD_PRESETS,
   advanceNexusPipelineCaseStatus,
+  buildShiftHandoverBriefingText,
   classifyStructuralPhotoContext,
   createNexusPipelineCase,
   readNexusPipelineCases,
@@ -89,5 +90,38 @@ describe('Slice 2 · 30s Photo Inspection -> 3-Axis Auto-Classification -> Incid
     expect(closedSummary[0].closedCases).toBe(1);
     expect(readNexusPipelineCases()[0]?.status).toBe('closed');
     expect(readNexusPipelineCases()[0]?.auditTrail).toHaveLength(4);
+  });
+
+  it('tracks stopWorkFlag, before/after photo data URLs, and builds 5-line shift handover briefing text', () => {
+    writeNexusPipelineCases([]);
+    const stoppedCase = createNexusPipelineCase(
+      {
+        locationLabel: '지하 2층 펌프실 개구부',
+        observationNote: '개구부 덮개 파손 및 난간 미설치로 즉각 작업중지',
+        dueDate: '2026-11-22',
+        handoverShift: '주간→야간 안전팀 인계',
+        stopWorkFlag: true,
+        beforePhotoDataUrl: 'data:image/jpeg;base64,BEFORE_MOCK',
+      },
+      '2026-11-22T09:00:00Z',
+    );
+    expect(stoppedCase.stopWorkFlag).toBe(true);
+    expect(stoppedCase.beforePhotoDataUrl).toBe('data:image/jpeg;base64,BEFORE_MOCK');
+
+    const handoverBrief = buildShiftHandoverBriefingText([stoppedCase], '제1현장 지하 2층 RC구간', '2026-11-22');
+    expect(handoverBrief.split('\n')).toHaveLength(5);
+    expect(handoverBrief).toContain('⛔ 임시통제·작업중지 (1건)');
+    expect(handoverBrief).toContain('지하 2층 펌프실 개구부');
+
+    const withAfterPhoto = advanceNexusPipelineCaseStatus(
+      stoppedCase.caseId,
+      'closed',
+      '덮개 앵커볼트 고정 및 조치 후 사진 확인',
+      '2026-11-22T11:30:00Z',
+      '현장 안전관리자',
+      'data:image/jpeg;base64,AFTER_MOCK',
+    );
+    expect(withAfterPhoto[0]?.afterPhotoDataUrl).toBe('data:image/jpeg;base64,AFTER_MOCK');
+    expect(withAfterPhoto[0]?.status).toBe('closed');
   });
 });

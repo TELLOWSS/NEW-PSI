@@ -51,15 +51,17 @@ void main() {
   float ring = kind >= 3.5 && kind < 6.5 ? kind-4.0 : kind-1.0;
   bool isAnchor = kind >= 3.5 && kind < 6.5;
   bool isGeodesic = kind >= 6.5 && kind < 7.5;
-  bool isSurfaceNode = kind >= 7.5;
-  bool isActiveNode = kind >= 8.5;
+  bool isSurfaceNode = kind >= 7.5 && kind < 9.5;
+  bool isActiveNode = kind >= 8.5 && kind < 9.5;
+  bool isDataArc = kind >= 9.5 && kind < 10.5;
+  bool isPhoton = kind >= 10.5;
   vec3 p = a_data.xyz;
   float t = u_time;
   float reveal = 1.0;
-  if(kind < 0.5 || isGeodesic || isSurfaceNode) {
+  if(kind < 0.5 || isGeodesic || isSurfaceNode || isDataArc || isPhoton) {
     float depthYaw = u_yaw + t*0.24 + u_focus*0.04;
     float depthPitch = u_pitch + sin(t*.35)*.08;
-    if(isSurfaceNode) {
+    if(isSurfaceNode || isDataArc || isPhoton) {
       depthYaw = u_yaw;
       depthPitch = u_pitch;
     }
@@ -70,7 +72,7 @@ void main() {
       p *= mix(.82,1.0,smoothstep(0.0,2.4,u_story));
     }
     p = yawPitch(p, depthYaw, depthPitch);
-    float pulseScale = isSurfaceNode ? (isActiveNode ? 1.04 : 0.98) : .83*(1.0 + .022*sin(t*2.0+seed*24.0));
+    float pulseScale = (isSurfaceNode || isDataArc || isPhoton) ? (isActiveNode ? 1.04 : 1.0) : .83*(1.0 + .022*sin(t*2.0+seed*24.0));
     p *= pulseScale;
   } else {
     float azimuth = ring < .5 ? .55 : ring < 1.5 ? -.91 : 1.18;
@@ -123,6 +125,18 @@ void main() {
     v_color = isActiveNode ? vec3(1.0, 0.86, 0.55) : layerAccent;
     v_alpha = clamp((isActiveNode ? 0.92 : 0.68) * front * u_intensity, 0.15, 0.94);
     gl_PointSize = u_ratio*lens*(isActiveNode ? (u_bloom > .5 ? 36.0 : 8.2) : (u_bloom > .5 ? 20.0 : 5.0));
+  } else if(isDataArc) {
+    float front = clamp((p.z+1.0)*.52, 0.12, 1.0);
+    float packetWave = 0.5 + 0.5 * sin(seed * 12.56 - t * 3.8);
+    v_color = mix(champagneGold, cyanBase, seed * 0.65);
+    v_alpha = front * (0.20 + packetWave * 0.22) * u_intensity;
+    gl_PointSize = u_ratio * 1.4;
+  } else if(isPhoton) {
+    float front = clamp((p.z+1.1)*.55, 0.22, 1.0);
+    float pulse = 0.65 + 0.35 * sin(t * 4.5 + seed * 6.2831);
+    v_color = seed > 0.5 ? cyanBase : champagneGold;
+    v_alpha = clamp(0.68 * front * pulse * u_intensity, 0.12, 0.82);
+    gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 16.0 : 4.2);
   } else {
     float travel=fract(seed-t*(.078+ring*.018)-ring*.23);
     float arc=min(travel,1.0-travel);
@@ -356,6 +370,49 @@ const WebGLNexusCore: React.FC<Props> = ({
         const [nx, ny, nz] = safeNodes[idx];
         raw.push(nx * 1.08, ny * 1.08, nz * 1.08, idx / Math.max(1, safeNodes.length), idx === active ? 9 : 8);
       }
+      // 3D Great-Circle Data Arcs & Flowing Photon Streams connecting closed-loop nodes
+      const arcPairs: [number, number][] = [];
+      const activeIdx = Math.max(0, Math.min(safeNodes.length - 1, active));
+      for (let idx = 0; idx < safeNodes.length && arcPairs.length < 4; idx++) {
+        arcPairs.push([idx, (idx + 1) % safeNodes.length]);
+      }
+      if (safeNodes.length >= 4) {
+        arcPairs.push([activeIdx, (activeIdx + 2) % safeNodes.length]);
+        arcPairs.push([activeIdx, (activeIdx + safeNodes.length - 2) % safeNodes.length]);
+      }
+      const arcSegments = lowBudget ? 18 : mobile ? 24 : 36;
+      const arcStart = raw.length / 5;
+      const arcSamples: { x: number; y: number; z: number }[][] = [];
+      for (let pIdx = 0; pIdx < arcPairs.length; pIdx++) {
+        const [fromIdx, toIdx] = arcPairs[pIdx];
+        const a = safeNodes[fromIdx];
+        const b = safeNodes[toIdx];
+        const curvePts: { x: number; y: number; z: number }[] = [];
+        for (let s = 0; s < arcSegments; s++) {
+          const u = s / (arcSegments - 1);
+          const mx = a[0] + (b[0] - a[0]) * u;
+          const my = a[1] + (b[1] - a[1]) * u;
+          const mz = a[2] + (b[2] - a[2]) * u;
+          const len = Math.hypot(mx, my, mz) || 1;
+          const elev = 1.06 + 0.34 * Math.sin(Math.PI * u);
+          const vx = (mx / len) * elev;
+          const vy = (my / len) * elev;
+          const vz = (mz / len) * elev;
+          raw.push(vx, vy, vz, u, 10);
+          curvePts.push({ x: vx, y: vy, z: vz });
+        }
+        arcSamples.push(curvePts);
+      }
+      // Static photon anchor vertices at key arc mid-points (plus smooth GPU travel wave)
+      for (let pIdx = 0; pIdx < arcSamples.length; pIdx++) {
+        const curve = arcSamples[pIdx];
+        const idxA = Math.floor(curve.length * 0.35);
+        const idxB = Math.floor(curve.length * 0.72);
+        const pa = curve[idxA] ?? curve[0];
+        const pb = curve[idxB] ?? curve[0];
+        if (pa) raw.push(pa.x, pa.y, pa.z, 0.25 + pIdx * 0.1, 11);
+        if (pb) raw.push(pb.x, pb.y, pb.z, 0.75 + pIdx * 0.1, 11);
+      }
 
       const data = new Float32Array(raw);
       buffer = gl.createBuffer();
@@ -442,6 +499,9 @@ const WebGLNexusCore: React.FC<Props> = ({
         }
         for (let g = 0; g < geoRingTotal; g++) {
           gl.drawArrays(gl.LINE_LOOP, geoStart + g * geoSegments, geoSegments);
+        }
+        for (let aIdx = 0; aIdx < arcPairs.length; aIdx++) {
+          gl.drawArrays(gl.LINE_STRIP, arcStart + aIdx * arcSegments, arcSegments);
         }
         gl.uniform1f(locLine, 0);
       };

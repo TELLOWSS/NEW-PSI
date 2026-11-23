@@ -86,7 +86,32 @@ try {
   );
   await root.getByRole('button', { name: '3축 필터 초기화' }).click();
 
-  // Slice 2: Field Safety Manager Persona — Switch to Field Manager mode, use 1-second preset, record evidence & progress lifecycle
+  // Verify Sovereign Executive Bento Dashboard (4 KPIs, 4x5 Heatmap click-to-lock, Recharts ComposedChart, 5-stage Funnel)
+  const bento = root.locator('.nexus-bento-board');
+  await bento.waitFor({ state: 'visible', timeout: 10000 });
+  recordCheck(
+    'Executive Bento Board displays 4 KPI cards',
+    (await bento.getByRole('group', { name: '핵심 성과 지표 4종' }).locator('.nexus-bento-card').count()) === 4,
+  );
+  recordCheck(
+    'Executive Bento Board displays 20 conditional heatmap cells (4x5)',
+    (await bento.getByRole('gridcell').count()) === 20,
+  );
+  await bento.getByRole('gridcell').first().click();
+  recordCheck(
+    'Clicking Bento heatmap cell locks onto matching 3D sphere node',
+    (await root.locator('.nexus-node.selected').count()) === 1,
+  );
+  recordCheck(
+    'Executive Bento Recharts ComposedChart SVG rendered',
+    (await bento.locator('.nexus-bento-chart-box svg').count()) >= 1,
+  );
+  recordCheck(
+    'Executive Bento displays 5-stage closed-loop conversion funnel',
+    (await bento.locator('.nexus-funnel-stage').count()) === 5,
+  );
+
+  // Slice 2: Field Safety Manager Persona — Switch to Field Manager mode, toggle stop-work, use 1-second preset, record evidence & progress lifecycle
   await root.getByRole('button', { name: /현장 안전관리자 실행 입장/ }).click();
   recordCheck(
     'Field Safety Manager role perspective digest active',
@@ -97,10 +122,17 @@ try {
     'Slice 2 1-second quick preset auto-matches GF-LIFT-03 seed for gangform observation',
     (await root.locator('.nexus-3axis-matched-case').getByText(/GF-LIFT-03/).count()) === 1,
   );
+  await root.locator('.nexus-stopwork-toggle input[type="checkbox"]').check();
   await root.getByRole('button', { name: /30초 조치·재점검·인계 등록 및 구체 환류/ }).click();
   recordCheck(
-    'Slice 2 case registered and sphere locked onto node #03',
-    (await root.locator('.nexus-node.node-2').getAttribute('aria-pressed')) === 'true',
+    'Slice 2 case registered with stop-work badge and sphere locked onto node #03',
+    (await root.locator('.nexus-node.node-2').getAttribute('aria-pressed')) === 'true' &&
+      (await root.locator('.nexus-stopwork-badge').count()) >= 1,
+  );
+  await root.getByRole('button', { name: /교대 인계서 5줄 복사/ }).click();
+  recordCheck(
+    'Field Safety Manager 5-line shift handover summary preview rendered',
+    (await root.locator('.nexus-handover-preview').count()) === 1,
   );
   await root.getByLabel('조치·재점검 증빙 메모 GF-LIFT-03').first().fill('인양고리 샤클 체결 및 무전 신호수 배치 완료');
   await root.getByRole('button', { name: '교대 인계 대기 전환' }).first().click();
@@ -111,6 +143,32 @@ try {
     (await root.locator('.nexus-3axis-case-list').getByText('재점검 확인 종결').count()) >= 1 &&
       (await root.locator('.nexus-audit-trail-strip').count()) >= 1,
   );
+
+  // Heavy Equipment Pre-Use Photo Upload -> HQ Verification -> Executive/CEO Reporting Pack Workflow
+  await root.getByRole('tab', { name: /건설기계 사용전 사진·경영진 보고/ }).click();
+  await root.getByLabel('건설기계 종류 선택').selectOption('concrete_pump_car');
+  await root.getByLabel('건설기계 작업 내용').fill('지하 2층 슬래브 콘크리트 타설 펌프카 아웃트리거 점검');
+  await root.getByLabel('건설기계 사진 업로더').fill('현장 안전관리자 김현장');
+  await root.getByRole('button', { name: /건설기계 사용전 점검 사진 본사 전송/ }).click();
+  recordCheck(
+    'Equipment photo uploaded by Field Manager as submitted_to_hq',
+    (await root.locator('.nexus-equip-photo-card[data-status="submitted_to_hq"]').count()) >= 1,
+  );
+  await root.getByRole('button', { name: /본사 CSO · 순회점검 입장/ }).click();
+  recordCheck(
+    'HQ CSO mode tucks equipment upload form into collapsible details element',
+    (await root.locator('.nexus-equip-studio .nexus-collapsible-form').count()) === 1,
+  );
+  await root.getByLabel('건설기계 사진 본사 검토자').fill('본사 안전보건실 박실장');
+  await root.getByRole('button', { name: /본사 적합 검토 \(경영진 보고 편입\)/ }).first().click();
+  await root.getByRole('button', { name: /선별 사진 대표이사·경영진 1장 보고서 발행/ }).click();
+  recordCheck(
+    'HQ verification compiles CEO briefing sheet and marks photos reported_to_ceo',
+    (await root.locator('.nexus-ceo-briefing-sheet').count()) === 1 &&
+      (await root.locator('.nexus-equip-photo-card[data-status="reported_to_ceo"]').count()) >= 1,
+  );
+  // Restore Field Manager mode for Step 4B investigation creation & Bento inspection
+  await root.getByRole('button', { name: /현장 안전관리자 실행 입장/ }).click();
 
   // Slice 4B: 05 AI Root-Cause Investigation -> 4-stage timeline -> HQ Revision Request -> Field Supplement Resubmission -> HQ Approval
   await root.getByRole('tab', { name: /05 · 02 AI 사고조사 · 본사 승인/ }).click();
@@ -165,6 +223,7 @@ try {
     await page.setViewportSize(vp);
     for (const tabName of [
       /30초 사진점검 · 3축분류 · 조치·인계/,
+      /건설기계 사용전 사진·경영진 보고/,
       /04 대표이사 다국어 안전교육/,
       /01 본사 행선지 · 순회점검/,
       /05 · 02 AI 사고조사 · 본사 승인/,
@@ -204,11 +263,27 @@ try {
           activeNodeBox.y + activeNodeBox.height > psiBox.y,
       );
       recordCheck('1440px selected node pill never overlaps central PSI emblem', !overlapsPsi1440, { psiBox, activeNodeBox });
+      await root.locator('.nexus-bento-board').scrollIntoViewIfNeeded();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: resolve(outDir, 'nexus-v2-bento-1440.png'), fullPage: false });
       await root.locator('.nexus-header').scrollIntoViewIfNeeded();
+      await page.waitForTimeout(200);
       await page.screenshot({ path: resolve(outDir, 'nexus-v2-hero-1440.png'), fullPage: false });
       await page.screenshot({ path: resolve(outDir, 'nexus-v2-desktop-1440.png'), fullPage: true });
     }
   }
+
+  // Verify Phase 2 Dashboard Bridge on PrecisionOperationsBoard
+  await root.getByRole('button', { name: /관제센터로 돌아가기/ }).click();
+  const dashboardBridge = page.locator('[aria-label="안전지능 네트워크 본사·현장 폐루프 요약 연동"]');
+  await dashboardBridge.waitFor({ state: 'visible', timeout: 10000 });
+  const kpiGridCount = await page.locator('.psi-ops-kpi-grid').count();
+  const equipCardCount = await dashboardBridge.getByText('건설기계 사용전 사진', { exact: true }).count();
+  recordCheck(
+    'Phase 2 Dashboard Sovereign Nexus Bridge visible alongside .psi-ops-kpi-grid',
+    kpiGridCount >= 1 && equipCardCount === 1,
+    { kpiGridCount, equipCardCount },
+  );
 
   recordCheck('Zero runtime page errors during full simulation', pageErrors.length === 0, pageErrors);
   await writeFile(

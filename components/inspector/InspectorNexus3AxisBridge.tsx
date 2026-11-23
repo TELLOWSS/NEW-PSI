@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { getKoreanCalendarDay } from '../../utils/monthlyFieldFollowup';
+import { compressImageFileToDataUrl } from '../../utils/nexusEquipmentPhotoReport';
 import {
   NEXUS_PIPELINE_STATUS_LABELS,
   NEXUS_QUICK_FIELD_PRESETS,
   advanceNexusPipelineCaseStatus,
+  buildShiftHandoverBriefingText,
   classifyStructuralPhotoContext,
   createNexusPipelineCase,
   type NexusPipelineCase,
@@ -57,6 +59,11 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
   const [feedbackNotice, setFeedbackNotice] = useState('');
   const [stepEvidenceByCase, setStepEvidenceByCase] = useState<Record<string, string>>({});
   const [statusFilter, setStatusFilter] = useState<'all' | 'action_required' | 'handover_pending' | 'recheck_pending' | 'closed'>('all');
+  const [stopWorkFlag, setStopWorkFlag] = useState(false);
+  const [beforePhotoUrl, setBeforePhotoUrl] = useState('');
+  const [beforePhotoName, setBeforePhotoName] = useState('');
+  const [afterPhotoByCase, setAfterPhotoByCase] = useState<Record<string, string>>({});
+  const [handoverPreviewText, setHandoverPreviewText] = useState('');
 
   const filteredCases = useMemo(
     () => (statusFilter === 'all' ? cases : cases.filter(c => c.status === statusFilter)),
@@ -93,11 +100,39 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
 
   const seed = classification.primarySeed;
 
+  const handleBeforePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBeforePhotoName(file.name);
+    const dataUrl = await compressImageFileToDataUrl(file);
+    setBeforePhotoUrl(dataUrl);
+  };
+
+  const handleAfterPhotoChange = async (caseId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const dataUrl = await compressImageFileToDataUrl(file);
+    setAfterPhotoByCase(prev => ({ ...prev, [caseId]: dataUrl }));
+  };
+
+  const handleCopyShiftHandover = async () => {
+    const summary = buildShiftHandoverBriefingText(cases);
+    setHandoverPreviewText(summary);
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(summary);
+      }
+      setFeedbackNotice('교대 인계서 5줄 요약이 클립보드에 복사되었습니다. 야간·다음 교대팀에 바로 공유하세요.');
+    } catch {
+      setFeedbackNotice('교대 인계서 5줄 요약이 생성되었습니다. 아래 요약 박스에서 복사하세요.');
+    }
+  };
+
   const handleRegisterToNexus = () => {
     const created = createNexusPipelineCase({
       locationLabel: locationLabel.trim() || '골조·형틀 점검 구간',
       observationNote: effectiveNote || `${seed.title} 관련 현장 사진점검`,
-      photoName: fileName,
+      photoName: beforePhotoName || fileName,
       zoneAxis: classification.zoneAxis,
       processAxis: classification.processAxis,
       hazardEquipmentAxis: classification.hazardEquipmentAxis,
@@ -106,6 +141,8 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
       dueDate,
       handoverShift: handoverShift.trim() || '다음 교대 작업팀·안전담당 인계',
       handoverNote: classification.recommendedHandoverNote,
+      stopWorkFlag,
+      beforePhotoDataUrl: beforePhotoUrl || undefined,
       source,
     });
     setFeedbackNotice(
@@ -113,6 +150,9 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
     );
     setQuickNote('');
     setCustomAction('');
+    setStopWorkFlag(false);
+    setBeforePhotoUrl('');
+    setBeforePhotoName('');
     onCaseCreated?.(created);
   };
 
@@ -254,6 +294,29 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
             onChange={e => setHandoverShift(e.target.value)}
           />
         </label>
+        <div className="nexus-3axis-field-extras">
+          <label className={'nexus-stopwork-toggle' + (stopWorkFlag ? ' is-checked' : '')}>
+            <input
+              type="checkbox"
+              checked={stopWorkFlag}
+              onChange={e => setStopWorkFlag(e.target.checked)}
+            />
+            <span>⛔ 임시통제·작업중지 구역 지정</span>
+          </label>
+          <label className="nexus-photo-upload-chip">
+            <span>📷 조치 전 현장 사진 첨부 {beforePhotoName ? `(${beforePhotoName.slice(0, 16)})` : ''}</span>
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              aria-label="조치 전 현장 점검 사진 첨부"
+              onChange={handleBeforePhotoChange}
+            />
+          </label>
+          {beforePhotoUrl && (
+            <img src={beforePhotoUrl} alt="조치 전 현장 사진 미리보기" className="nexus-inline-thumb" />
+          )}
+        </div>
         <button type="button" className="nexus-3axis-submit" onClick={handleRegisterToNexus}>
           30초 조치·재점검·인계 등록 및 구체 환류 ↗
         </button>
@@ -282,17 +345,42 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
                   {label}
                 </button>
               ))}
+              <button type="button" className="nexus-handover-copy-btn" onClick={handleCopyShiftHandover}>
+                📋 교대 인계서 5줄 복사
+              </button>
             </div>
           </div>
+          {handoverPreviewText && (
+            <pre className="nexus-handover-preview" aria-label="교대 인계서 요약 미리보기">
+              {handoverPreviewText}
+            </pre>
+          )}
           <ul>
             {filteredCases.slice(0, 6).map(item => (
-              <li key={item.caseId} data-status={item.status}>
+              <li key={item.caseId} data-status={item.status} className={item.stopWorkFlag ? 'is-stopwork-item' : undefined}>
                 <div className="nexus-3axis-case-row-top">
                   <span>
+                    {item.stopWorkFlag && <em className="nexus-stopwork-badge">⛔ 임시통제·작업중지</em>}{' '}
                     <b>[{item.matchedCaseCode} · 구체 #{item.structuralNodeIndex}]</b> {item.locationLabel} · {item.observationNote}
                   </span>
                   <em className={'status-pill status-' + item.status}>{NEXUS_PIPELINE_STATUS_LABELS[item.status]}</em>
                 </div>
+                {(item.beforePhotoDataUrl || item.afterPhotoDataUrl) && (
+                  <div className="nexus-before-after-thumbs">
+                    {item.beforePhotoDataUrl && (
+                      <figure>
+                        <img src={item.beforePhotoDataUrl} alt="조치 전 사진" />
+                        <figcaption>조치 전</figcaption>
+                      </figure>
+                    )}
+                    {item.afterPhotoDataUrl && (
+                      <figure>
+                        <img src={item.afterPhotoDataUrl} alt="조치 후 재점검 사진" />
+                        <figcaption>조치 후</figcaption>
+                      </figure>
+                    )}
+                  </div>
+                )}
                 <p className="nexus-3axis-case-row-meta">
                   조치: {item.actionTitle} · 담당: {item.assignee} · 기한: {item.dueDate} · 인계: {item.handoverShift}
                   {item.recheckNote ? ` · 최근 확인: ${item.recheckNote}` : ''}
@@ -318,6 +406,16 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
                       }
                       placeholder="현장 조치·인계·재점검 확인 메모 입력 (예: 타이볼트 12개소 재체결 및 수직도 확인 완료)"
                     />
+                    <label className="nexus-photo-upload-chip">
+                      <span>📷 조치 후 사진 첨부</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        aria-label={`조치 후 사진 첨부 ${item.matchedCaseCode}`}
+                        onChange={e => handleAfterPhotoChange(item.caseId, e)}
+                      />
+                    </label>
                   </div>
                 )}
                 <div className="nexus-3axis-case-row-actions">
@@ -330,6 +428,9 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
                             item.caseId,
                             'handover_pending',
                             stepEvidenceByCase[item.caseId],
+                            undefined,
+                            '현장 안전관리자',
+                            afterPhotoByCase[item.caseId],
                           ),
                         )
                       }
@@ -346,6 +447,9 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
                             item.caseId,
                             'recheck_pending',
                             stepEvidenceByCase[item.caseId],
+                            undefined,
+                            '현장 안전관리자',
+                            afterPhotoByCase[item.caseId],
                           ),
                         )
                       }
@@ -362,6 +466,9 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
                             item.caseId,
                             'closed',
                             stepEvidenceByCase[item.caseId] || '현장 재점검 확인 종결',
+                            undefined,
+                            '현장 안전관리자',
+                            afterPhotoByCase[item.caseId],
                           ),
                         )
                       }

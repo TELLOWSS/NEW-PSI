@@ -154,6 +154,9 @@ export interface NexusPipelineCase {
   handoverShift: string;
   handoverNote: string;
   recheckNote?: string;
+  stopWorkFlag?: boolean;
+  beforePhotoDataUrl?: string;
+  afterPhotoDataUrl?: string;
   auditTrail?: readonly NexusPipelineAuditEntry[];
   status: NexusPipelineStatus;
   source: 'safety-inspector' | 'safety-nexus-quick';
@@ -171,6 +174,8 @@ export interface NexusPipelineCreateInput {
   dueDate?: string;
   handoverShift?: string;
   handoverNote?: string;
+  stopWorkFlag?: boolean;
+  beforePhotoDataUrl?: string;
   source?: 'safety-inspector' | 'safety-nexus-quick';
 }
 
@@ -345,10 +350,12 @@ export const createNexusPipelineCase = (
         : today,
     handoverShift: String(input.handoverShift || '').trim() || '다음 교대 작업팀·안전담당 인계',
     handoverNote: String(input.handoverNote || '').trim() || classification.recommendedHandoverNote,
+    stopWorkFlag: Boolean(input.stopWorkFlag),
+    beforePhotoDataUrl: input.beforePhotoDataUrl || undefined,
     auditTrail: [
       {
         status: 'action_required',
-        note: String(input.actionTitle || '').trim() || classification.recommendedActionDraft,
+        note: `${input.stopWorkFlag ? '[임시통제·작업중지] ' : ''}${String(input.actionTitle || '').trim() || classification.recommendedActionDraft}`,
         actor: String(input.assignee || '').trim() || '형틀·골조 담당반장',
         timestamp: nowIso,
       },
@@ -368,6 +375,7 @@ export const advanceNexusPipelineCaseStatus = (
   recheckNote?: string,
   nowIso = new Date().toISOString(),
   actor = '현장 안전관리자',
+  afterPhotoDataUrl?: string,
 ): NexusPipelineCase[] => {
   const existing = readNexusPipelineCases();
   const updated = existing.map(item => {
@@ -385,6 +393,7 @@ export const advanceNexusPipelineCaseStatus = (
       ...item,
       status: nextStatus,
       recheckNote: stepNote,
+      afterPhotoDataUrl: afterPhotoDataUrl || item.afterPhotoDataUrl,
       auditTrail: [
         ...priorTrail,
         {
@@ -399,6 +408,43 @@ export const advanceNexusPipelineCaseStatus = (
   });
   writeNexusPipelineCases(updated);
   return updated;
+};
+
+export const buildShiftHandoverBriefingText = (
+  cases: readonly NexusPipelineCase[],
+  siteLabel = '전체 현장',
+  asOfDate = getKoreanCalendarDay(),
+): string => {
+  const open = cases.filter(c => c.status !== 'closed');
+  const stopWorks = open.filter(c => c.stopWorkFlag);
+  const handover = open.filter(c => c.status === 'handover_pending' && !c.stopWorkFlag);
+  const recheck = open.filter(c => c.status === 'recheck_pending' && !c.stopWorkFlag);
+  const inProgress = open.filter(c => c.status === 'action_required' && !c.stopWorkFlag);
+
+  const lines: string[] = [
+    `[교대 인계 브리핑] ${siteLabel} (${asOfDate} 기준 · 미결 총 ${open.length}건)`,
+  ];
+  if (stopWorks.length > 0) {
+    lines.push(`1) ⛔ 임시통제·작업중지 (${stopWorks.length}건): ${stopWorks.map(c => `[${c.matchedCaseCode}] ${c.locationLabel} - ${c.actionTitle}`).slice(0, 3).join(' / ')}`);
+  } else {
+    lines.push('1) ⛔ 임시통제·작업중지: 해당 없음');
+  }
+  lines.push(
+    `2) 🔄 교대·인계 대기 (${handover.length}건): ${
+      handover.length ? handover.map(c => `${c.locationLabel}(${c.handoverShift})`).slice(0, 3).join(' / ') : '없음'
+    }`,
+  );
+  lines.push(
+    `3) ✅ 재점검 확인 대기 (${recheck.length}건): ${
+      recheck.length ? recheck.map(c => `${c.locationLabel}(${c.matchedCaseCode})`).slice(0, 3).join(' / ') : '없음'
+    }`,
+  );
+  lines.push(
+    `4) 🛠️ 조치 진행 중 (${inProgress.length}건): ${
+      inProgress.length ? inProgress.map(c => `${c.locationLabel}·기한 ${c.dueDate}`).slice(0, 3).join(' / ') : '없음'
+    }`,
+  );
+  return lines.join('\n');
 };
 
 export interface NexusPipelineNodeSummary {

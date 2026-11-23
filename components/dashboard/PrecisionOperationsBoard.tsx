@@ -2,6 +2,28 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Page, SafetyCheckRecord, WorkerRecord } from '../../types';
 import { nexusFeatureFlags } from '../../config/nexusFeatureFlags';
 import { calculateCoreMetricSnapshot, isOperationalWorkerRecord } from '../../utils/coreMetrics';
+import {
+    NEXUS_EQUIPMENT_PHOTO_UPDATED_EVENT,
+    readEquipmentPhotoSubmissions,
+    type NexusEquipmentPhotoSubmission,
+} from '../../utils/nexusEquipmentPhotoReport';
+import {
+    NEXUS_CEO_TRAINING_UPDATED_EVENT,
+    readExecutiveTrainingCampaigns,
+    type NexusExecutiveTrainingCampaign,
+} from '../../utils/nexusExecutiveTrainingPipeline';
+import {
+    NEXUS_HQ_LOOP_UPDATED_EVENT,
+    readAiInvestigations,
+    readHqVisitPlans,
+    type NexusAiInvestigationRecord,
+    type NexusHqVisitPlan,
+} from '../../utils/nexusHqCommandLoop';
+import {
+    NEXUS_PIPELINE_UPDATED_EVENT,
+    readNexusPipelineCases,
+    type NexusPipelineCase,
+} from '../../utils/nexusQuickPipeline';
 import { useAssessmentCycle } from '../../hooks/useAssessmentCycle';
 import { resolveAssessmentPeriod } from '../../utils/assessmentCycle';
 import { getSafetyLevelThresholds } from '../../utils/safetyLevelUtils';
@@ -118,6 +140,38 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
     const [tradeFilter, setTradeFilter] = useState(initialTrade || 'all');
     const [trendPeriod, setTrendPeriod] = useState<TrendGranularity>(initialView?.trend ?? 'monthly');
     const protectionPriorityThreshold = getSafetyLevelThresholds().intermediateMin;
+
+    const [nexusCases, setNexusCases] = useState<NexusPipelineCase[]>(() => readNexusPipelineCases());
+    const [nexusEquipReports, setNexusEquipReports] = useState<NexusEquipmentPhotoSubmission[]>(() =>
+        readEquipmentPhotoSubmissions(),
+    );
+    const [nexusInvs, setNexusInvs] = useState<NexusAiInvestigationRecord[]>(() => readAiInvestigations());
+    const [nexusVisits, setNexusVisits] = useState<NexusHqVisitPlan[]>(() => readHqVisitPlans());
+    const [nexusTrainings, setNexusTrainings] = useState<NexusExecutiveTrainingCampaign[]>(() =>
+        readExecutiveTrainingCampaigns(),
+    );
+
+    useEffect(() => {
+        const sync = () => {
+            setNexusCases(readNexusPipelineCases());
+            setNexusEquipReports(readEquipmentPhotoSubmissions());
+            setNexusInvs(readAiInvestigations());
+            setNexusVisits(readHqVisitPlans());
+            setNexusTrainings(readExecutiveTrainingCampaigns());
+        };
+        window.addEventListener(NEXUS_PIPELINE_UPDATED_EVENT, sync);
+        window.addEventListener(NEXUS_EQUIPMENT_PHOTO_UPDATED_EVENT, sync);
+        window.addEventListener(NEXUS_HQ_LOOP_UPDATED_EVENT, sync);
+        window.addEventListener(NEXUS_CEO_TRAINING_UPDATED_EVENT, sync);
+        window.addEventListener('storage', sync);
+        return () => {
+            window.removeEventListener(NEXUS_PIPELINE_UPDATED_EVENT, sync);
+            window.removeEventListener(NEXUS_EQUIPMENT_PHOTO_UPDATED_EVENT, sync);
+            window.removeEventListener(NEXUS_HQ_LOOP_UPDATED_EVENT, sync);
+            window.removeEventListener(NEXUS_CEO_TRAINING_UPDATED_EVENT, sync);
+            window.removeEventListener('storage', sync);
+        };
+    }, []);
 
     const operationalRecords = useMemo(
         () => workerRecords.filter(isOperationalWorkerRecord),
@@ -430,6 +484,60 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                     </article>
                 ))}
             </section>
+
+            {nexusFeatureFlags.uiEnabled && (() => {
+                const openNexusCount = nexusCases.filter(c => c.status !== 'closed').length;
+                const stopWorkCount = nexusCases.filter(c => c.status !== 'closed' && c.stopWorkFlag).length;
+                const ceoPhotoReported = nexusEquipReports.filter(e => e.status === 'reported_to_ceo').length;
+                const hqPhotoPending = nexusEquipReports.filter(e => e.status === 'submitted_to_hq').length;
+                const hqPendingInvs = nexusInvs.filter(i => i.status === 'ai_draft_pending_hq').length;
+                const activeVisitsCount = nexusVisits.filter(v => v.status !== 'action_issued_closed').length;
+                const trainingTargets = nexusTrainings.reduce((s, t) => s + Math.max(1, t.targetWorkers || 0), 0);
+                const trainingSigned = nexusTrainings.reduce((s, t) => s + Math.max(0, t.confirmedSignatures || 0), 0);
+                const trainingPct = trainingTargets > 0 ? Math.min(100, Math.round((trainingSigned / trainingTargets) * 100)) : 0;
+                return (
+                    <section
+                        className="mb-4 rounded-2xl border border-amber-500/30 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 p-4 text-slate-100 shadow-lg"
+                        aria-label="안전지능 네트워크 본사·현장 폐루프 요약 연동"
+                    >
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="min-w-0">
+                                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">
+                                    SOVEREIGN NEXUS BRIDGE · 본사·현장 폐루프 연동
+                                </span>
+                                <h2 className="mt-1 text-base font-extrabold text-white">
+                                    골조·형틀·건설기계 사용전 사진 보고 &amp; 본사 결재 현황
+                                </h2>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => onOpenNexus ? onOpenNexus(tradeFilter === 'all' ? '' : tradeFilter, { period: periodFilter, trend: trendPeriod }) : setCurrentPage('safety-nexus')}
+                                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-amber-400/50 bg-amber-500/15 px-4 py-2 text-xs font-extrabold text-amber-200 transition hover:bg-amber-500/25"
+                            >
+                                3D 황금 구체 &amp; 경영 브리핑 열기 ↗
+                            </button>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                            <div className="rounded-xl border border-slate-700/80 bg-slate-900/80 px-3 py-2.5">
+                                <p className="text-[11px] font-bold text-slate-400">현장 미결·작업중지</p>
+                                <p className="mt-1 text-lg font-black text-amber-200">{openNexusCount}건 <small className="text-xs font-bold text-rose-300">({stopWorkCount > 0 ? `중지 ${stopWorkCount}` : '정상'})</small></p>
+                            </div>
+                            <div className="rounded-xl border border-slate-700/80 bg-slate-900/80 px-3 py-2.5">
+                                <p className="text-[11px] font-bold text-slate-400">건설기계 사용전 사진</p>
+                                <p className="mt-1 text-lg font-black text-cyan-200">{nexusEquipReports.length}건 <small className="text-xs font-bold text-slate-400">(CEO보고 {ceoPhotoReported} · 대기 {hqPhotoPending})</small></p>
+                            </div>
+                            <div className="rounded-xl border border-slate-700/80 bg-slate-900/80 px-3 py-2.5">
+                                <p className="text-[11px] font-bold text-slate-400">본사 결재·순회대기</p>
+                                <p className="mt-1 text-lg font-black text-violet-200">{hqPendingInvs + activeVisitsCount}건 <small className="text-xs font-bold text-slate-400">(조사 {hqPendingInvs} · 순회 {activeVisitsCount})</small></p>
+                            </div>
+                            <div className="rounded-xl border border-slate-700/80 bg-slate-900/80 px-3 py-2.5">
+                                <p className="text-[11px] font-bold text-slate-400">12개국어 교육 이수</p>
+                                <p className="mt-1 text-lg font-black text-emerald-200">{trainingPct}% <small className="text-xs font-bold text-slate-400">({trainingSigned}/{trainingTargets}명)</small></p>
+                            </div>
+                        </div>
+                    </section>
+                );
+            })()}
 
             <section className="psi-ops-main-grid" aria-label="안전 운영 상세">
                 <article className="psi-ops-panel psi-ops-priority">

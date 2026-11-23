@@ -48,6 +48,13 @@ import {
   type NexusAiInvestigationRecord,
   type NexusHqVisitPlan,
 } from '../utils/nexusHqCommandLoop';
+import {
+  NEXUS_EQUIPMENT_PHOTO_UPDATED_EVENT,
+  readEquipmentPhotoSubmissions,
+  type NexusEquipmentPhotoSubmission,
+} from '../utils/nexusEquipmentPhotoReport';
+import { buildExecutiveBentoSnapshot } from '../utils/nexusExecutiveBentoMetrics';
+import { NexusExecutiveBentoBoard } from '../components/shared/NexusExecutiveBentoBoard';
 import type { NexusStructuralIncidentSeed } from '../utils/nexusStructuralTaxonomy';
 import {
   NexusHqCommandWorkbench,
@@ -356,6 +363,10 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
   const [approvedCustomSeeds, setApprovedCustomSeeds] = useState<NexusStructuralIncidentSeed[]>(() =>
     readApprovedCustomIncidentSeeds(),
   );
+  const [equipmentReports, setEquipmentReports] = useState<NexusEquipmentPhotoSubmission[]>(() =>
+    readEquipmentPhotoSubmissions(),
+  );
+  const [selectedSiteId, setSelectedSiteId] = useState<string>('');
   const [workbenchTab, setWorkbenchTab] = useState<NexusWorkbenchTab>('inspect_03_06');
   useEffect(() => {
     const syncPipeline = () => setPipelineCases(readNexusPipelineCases());
@@ -365,19 +376,24 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
       setInvestigations(readAiInvestigations());
       setApprovedCustomSeeds(readApprovedCustomIncidentSeeds());
     };
+    const syncEquipment = () => setEquipmentReports(readEquipmentPhotoSubmissions());
     window.addEventListener(NEXUS_PIPELINE_UPDATED_EVENT, syncPipeline);
     window.addEventListener(NEXUS_CEO_TRAINING_UPDATED_EVENT, syncTraining);
     window.addEventListener(NEXUS_HQ_LOOP_UPDATED_EVENT, syncHqLoop);
+    window.addEventListener(NEXUS_EQUIPMENT_PHOTO_UPDATED_EVENT, syncEquipment);
     window.addEventListener('storage', syncPipeline);
     window.addEventListener('storage', syncTraining);
     window.addEventListener('storage', syncHqLoop);
+    window.addEventListener('storage', syncEquipment);
     return () => {
       window.removeEventListener(NEXUS_PIPELINE_UPDATED_EVENT, syncPipeline);
       window.removeEventListener(NEXUS_CEO_TRAINING_UPDATED_EVENT, syncTraining);
       window.removeEventListener(NEXUS_HQ_LOOP_UPDATED_EVENT, syncHqLoop);
+      window.removeEventListener(NEXUS_EQUIPMENT_PHOTO_UPDATED_EVENT, syncEquipment);
       window.removeEventListener('storage', syncPipeline);
       window.removeEventListener('storage', syncTraining);
       window.removeEventListener('storage', syncHqLoop);
+      window.removeEventListener('storage', syncEquipment);
     };
   }, []);
   useEffect(() => { onViewChange?.({ month: filterMonth, trade: filterTrade, active: safeActive, flat, question: selectedQuestion, priority: priorityFilter, practice: practiceFilter, orbitLayer }); }, [filterMonth, filterTrade, safeActive, flat, selectedQuestion, priorityFilter, practiceFilter, orbitLayer, onViewChange]);
@@ -473,6 +489,30 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
   const activeHqLoopSummary = hqLoopNodeSummaries[safeActive] ?? hqLoopNodeSummaries[0];
   const activeSeed = activeSignal?.linkedSeeds[selectedSeedIdx < (activeSignal?.linkedSeeds.length ?? 0) ? selectedSeedIdx : 0] ?? activeSignal?.linkedSeeds[0];
 
+  const bentoSnapshot = useMemo(
+    () =>
+      buildExecutiveBentoSnapshot({
+        pipelineCases,
+        visitPlans,
+        investigations,
+        trainingCampaigns,
+        equipmentReports,
+        workerRecords: filteredRecords,
+        selectedSiteId,
+        asOfDate: followup.asOfDate,
+      }),
+    [
+      pipelineCases,
+      visitPlans,
+      investigations,
+      trainingCampaigns,
+      equipmentReports,
+      filteredRecords,
+      selectedSiteId,
+      followup.asOfDate,
+    ],
+  );
+
   const handleAxisFilterChange = (patch: Partial<NexusThreeAxisFilter>) => {
     const nextFilter = { ...axisFilter, ...patch };
     setAxisFilter(nextFilter);
@@ -566,11 +606,6 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
                 <span>{layer.label}</span>
               </button>
             ))}
-          </div>
-          <div className="nexus-orbit-controls" role="group" aria-label="구체 포인트 회전 제어">
-            <button type="button" onClick={() => { setSelectedSeedIdx(0); lockOntoNode(safeActive - 1); }} aria-label="이전 구체 포인트">◀ 이전</button>
-            <button type="button" onClick={() => lockOntoNode(safeActive)} aria-label="선택 포인트 정면 정렬">◎ 정면 록온</button>
-            <button type="button" onClick={() => { setSelectedSeedIdx(0); lockOntoNode(safeActive + 1); }} aria-label="다음 구체 포인트">다음 ▶</button>
           </div>
         </div>
         <div className="nexus-axis-bar" role="group" aria-label="골조·형틀·지하 RC 3축 분류 필터">
@@ -739,8 +774,13 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
             {currentLayerMeta.label} · {formatSphericalCoord(selected.latDeg, selected.lonDeg)} · 드래그 회전 / 포인트 록온
           </div>
         </div>
-        <div className="nexus-visual-foot"><span>{currentLayerMeta.subtitle}</span>
-          <span>{cinematicPlaying ? '연출 재생 중 · 데이터는 변하지 않습니다.' : '구체를 드래그해 굴리거나 노드를 눌러 정면으로 록온하세요.'}</span>
+        <div className="nexus-visual-foot">
+          <span>{currentLayerMeta.subtitle}</span>
+          <div className="nexus-orbit-controls" role="group" aria-label="구체 포인트 회전 제어">
+            <button type="button" onClick={() => { setSelectedSeedIdx(0); lockOntoNode(safeActive - 1); }} aria-label="이전 구체 포인트">◀ 이전</button>
+            <button type="button" onClick={() => lockOntoNode(safeActive)} aria-label="선택 포인트 정면 정렬">◎ 정면 록온</button>
+            <button type="button" onClick={() => { setSelectedSeedIdx(0); lockOntoNode(safeActive + 1); }} aria-label="다음 구체 포인트">다음 ▶</button>
+          </div>
         </div>
       </section>
       <aside className="nexus-detail">
@@ -852,6 +892,20 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
         <div className="nexus-next"><span>CLOSED-LOOP ARCHITECTURE</span><ol><li>현장 위험·사진 수집</li><li>AI 구조화 · 본사 대조</li><li>시정조치 · 재점검·인계</li><li>다국어 교육 · 전 현장 환류</li></ol></div>
       </aside>
     </div>
+    <NexusExecutiveBentoBoard
+      snapshot={bentoSnapshot}
+      reducedMotion={reduced}
+      selectedZoneAxis={axisFilter.zoneAxis}
+      onSelectHeatmapCell={(zoneAxis, structuralNodeIndex) => {
+        setOrbitLayer('structural');
+        setAxisFilter(prev => ({ ...prev, zoneAxis }));
+        const idx = Math.max(0, Number(structuralNodeIndex) - 1);
+        lockOntoNode(idx, 'structural');
+      }}
+      onSelectSiteBar={siteId => {
+        setSelectedSiteId(siteId === selectedSiteId ? '' : siteId);
+      }}
+    />
     <div id="nexus-closed-loop-workbench">
       <NexusHqCommandWorkbench
         activeTab={workbenchTab}
@@ -880,6 +934,10 @@ const SafetyNexus: React.FC<Props> = ({ workerRecords, loadState = 'ready', init
           setInvestigations([...next]);
           setApprovedCustomSeeds(readApprovedCustomIncidentSeeds());
         }}
+        equipmentReports={equipmentReports}
+        onEquipmentReportsChange={next => setEquipmentReports([...next])}
+        selectedSiteId={selectedSiteId}
+        onSelectedSiteIdChange={setSelectedSiteId}
         onLockOntoStructuralNode={nodeIndexStr => {
           const targetIdx = Math.max(0, Number(nodeIndexStr) - 1);
           if (orbitLayer === 'structural') {

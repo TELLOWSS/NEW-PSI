@@ -1,5 +1,9 @@
 import { getKoreanCalendarDay } from './monthlyFieldFollowup';
 import {
+  seedEquipmentPhotoSimulation,
+  type NexusEquipmentPhotoSubmission,
+} from './nexusEquipmentPhotoReport';
+import {
   readExecutiveTrainingCampaigns,
   stageExecutiveTrainingHandoff,
   type NexusExecutiveTrainingCampaign,
@@ -961,6 +965,7 @@ export const seedMultiSiteOperationalSimulation = (
   visits: NexusHqVisitPlan[];
   investigations: NexusAiInvestigationRecord[];
   campaigns: NexusExecutiveTrainingCampaign[];
+  equipmentReports: NexusEquipmentPhotoSubmission[];
 } => {
   // 1. Create 3 realistic pipeline cases across Site 1 (Substructure RC), Site 2 (Gangform), Site 3 (System Shoring)
   const case1 = createNexusPipelineCase(
@@ -1073,11 +1078,15 @@ export const seedMultiSiteOperationalSimulation = (
     nowIso,
   });
 
+  // 5. Seed Construction Equipment Pre-Use Photo Reports across 3 sites
+  const equipmentReports = seedEquipmentPhotoSimulation(nowIso);
+
   return {
     cases: readNexusPipelineCases(),
     visits: readHqVisitPlans(),
     investigations: readAiInvestigations(),
     campaigns: [campaign1, ...readExecutiveTrainingCampaigns().filter(c => c.campaignId !== campaign1.campaignId)],
+    equipmentReports,
   };
 };
 
