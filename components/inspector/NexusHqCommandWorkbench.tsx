@@ -88,6 +88,7 @@ interface Props {
   onEquipmentReportsChange: (next: NexusEquipmentPhotoSubmission[]) => void;
   onLockOntoStructuralNode: (structuralNodeIndex: string) => void;
   onExportExecutivePptx?: () => Promise<void> | void;
+  onLoadDemoData?: () => void;
 }
 
 export const NexusHqCommandWorkbench: React.FC<Props> = ({
@@ -112,6 +113,7 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
   onEquipmentReportsChange,
   onLockOntoStructuralNode,
   onExportExecutivePptx,
+  onLoadDemoData,
 }) => {
   const isHq = workspaceRole === 'hq';
   const [managedSites, setManagedSites] = useState<NexusManagedSite[]>(() => readManagedNexusSites(true));
@@ -896,9 +898,16 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
         </ul>
       </div>
     ) : (
-      <p className="nexus-3axis-case-row-meta">
-        현재 선택된 범위에서 결재 대기 또는 승인 완료된 사고조사 건이 없습니다.
-      </p>
+      <div className="nexus-empty-action-box">
+        <p className="nexus-3axis-case-row-meta">
+          현재 선택된 범위에서 결재 대기 또는 승인 완료된 사고조사 건이 없습니다.
+        </p>
+        {showHqControls && onLoadDemoData && (
+          <button type="button" onClick={onLoadDemoData}>
+            체험 데이터 불러오기 (3개 현장·장비사진)
+          </button>
+        )}
+      </div>
     );
 
   const renderEquipmentUploadForm = (fieldLocked: boolean) => (
@@ -1067,13 +1076,25 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
       )}
 
       {filteredEquipmentReports.length === 0 ? (
-        <p className="nexus-3axis-case-row-meta">
-          {equipmentReports.length === 0
-            ? showHqControls
-              ? '접수된 건설기계 사용전 점검 사진이 없습니다. 상단 [체험 데이터 불러오기]로 3대 현장 예시를 확인하세요.'
-              : `${boundSiteMeta.shortLabel}에서 본사로 전송한 사용전 점검 사진이 아직 없습니다. 위 양식으로 펌프카·크레인·고소작업대 사진을 전송하세요.`
-            : '선택한 상태에 해당하는 건설기계 점검 사진이 없습니다.'}
-        </p>
+        <div className="nexus-empty-action-box">
+          <p className="nexus-3axis-case-row-meta">
+            {equipmentReports.length === 0
+              ? showHqControls
+                ? '접수된 건설기계 사용전 점검 사진이 없습니다. 아래 버튼으로 3대 현장 예시를 즉시 불러올 수 있습니다.'
+                : `${boundSiteMeta.shortLabel}에서 본사로 전송한 사용전 점검 사진이 아직 없습니다. 위 양식으로 펌프카·크레인·고소작업대 사진을 전송하세요.`
+              : '선택한 상태에 해당하는 건설기계 점검 사진이 없습니다.'}
+          </p>
+          {equipmentReports.length > 0 && eqStatusFilter !== 'all' && (
+            <button type="button" onClick={() => setEqStatusFilter('all')}>
+              전체 상태 보기
+            </button>
+          )}
+          {equipmentReports.length === 0 && showHqControls && onLoadDemoData && (
+            <button type="button" onClick={onLoadDemoData}>
+              체험 데이터 불러오기 (3개 현장·장비사진)
+            </button>
+          )}
+        </div>
       ) : (
         <div
           className="nexus-equip-photo-grid"

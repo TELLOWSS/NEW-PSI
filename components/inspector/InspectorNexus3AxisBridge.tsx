@@ -84,21 +84,70 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
   const [afterPhotoByCase, setAfterPhotoByCase] = useState<Record<string, string>>({});
   const [sliderViewByCase, setSliderViewByCase] = useState<Record<string, boolean>>({});
   const [handoverPreviewText, setHandoverPreviewText] = useState('');
+  const [showAdvancedFields, setShowAdvancedFields] = useState(source !== 'safety-nexus-quick');
+  const [caseSearchQuery, setCaseSearchQuery] = useState('');
+  const [isListeningVoice, setIsListeningVoice] = useState(false);
   const managedSites = useMemo(() => readManagedNexusSites(false), []);
   const [inspectorEqType, setInspectorEqType] = useState<NexusEquipmentType>('concrete_pump_car');
   const [inspectorEqSiteId, setInspectorEqSiteId] = useState<string>(
     lockedSiteId || managedSites[0]?.siteId || 'SITE-01-SUBRC',
   );
 
-  const filteredCases = useMemo(
-    () =>
+  const filteredCases = useMemo(() => {
+    const byStatus =
       statusFilter === 'all'
         ? cases
         : statusFilter === 'stop_work'
           ? cases.filter(c => Boolean(c.stopWorkFlag) && c.status !== 'closed')
-          : cases.filter(c => c.status === statusFilter),
-    [cases, statusFilter],
-  );
+          : cases.filter(c => c.status === statusFilter);
+    const q = caseSearchQuery.trim().toLowerCase();
+    if (!q) return byStatus;
+    return byStatus.filter(c =>
+      `${c.locationLabel} ${c.observationNote} ${c.actionTitle} ${c.assignee} ${c.matchedCaseCode}`
+        .toLowerCase()
+        .includes(q),
+    );
+  }, [cases, statusFilter, caseSearchQuery]);
+
+  const handleToggleVoiceInput = () => {
+    if (typeof window === 'undefined') return;
+    const SpeechRec =
+      (window as unknown as { SpeechRecognition?: new () => unknown; webkitSpeechRecognition?: new () => unknown })
+        .SpeechRecognition ??
+      (window as unknown as { webkitSpeechRecognition?: new () => unknown }).webkitSpeechRecognition;
+    if (!SpeechRec) {
+      setFeedbackNotice('이 브라우저는 현장 음성 입력을 지원하지 않습니다. 키보드 또는 1초 프리셋을 사용해 주세요.');
+      return;
+    }
+    try {
+      const recognition = new SpeechRec() as {
+        lang: string;
+        interimResults: boolean;
+        maxAlternatives: number;
+        onresult: ((ev: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+        onerror: (() => void) | null;
+        onend: (() => void) | null;
+        start: () => void;
+      };
+      recognition.lang = 'ko-KR';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+      recognition.onresult = ev => {
+        const transcript = String(ev.results?.[0]?.[0]?.transcript || '').trim();
+        if (transcript) {
+          setQuickNote(prev => (prev.trim() ? `${prev.trim()} ${transcript}` : transcript));
+          setFeedbackNotice(`[음성 입력 반영] "${transcript}" — 3축·유사사례가 자동 매칭되었습니다.`);
+        }
+      };
+      recognition.onerror = () => setIsListeningVoice(false);
+      recognition.onend = () => setIsListeningVoice(false);
+      setIsListeningVoice(true);
+      recognition.start();
+    } catch {
+      setIsListeningVoice(false);
+      setFeedbackNotice('음성 인식을 시작하지 못했습니다. 마이크 권한 또는 1초 프리셋을 확인해 주세요.');
+    }
+  };
 
   const handleApplyQuickPreset = (preset: NexusQuickFieldPreset) => {
     setLocationLabel(lockedSiteName ? `${lockedSiteName} · ${preset.badge} 구간` : preset.locationLabel);
@@ -271,56 +320,81 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
             </label>
             <label className="nexus-3axis-quick-note-field">
               <span>30초 현장 관찰·사진 한 줄 요약 (입력 즉시 3축·유사사례 자동 매칭)</span>
-              <input
-                type="text"
-                value={quickNote}
-                maxLength={300}
-                onChange={e => setQuickNote(e.target.value)}
-                placeholder="예: 지하 2층 외벽 거푸집 타이볼트 간격 미흡 및 개구부 난간 해체"
-              />
+              <div className="nexus-voice-input-row">
+                <input
+                  type="text"
+                  value={quickNote}
+                  maxLength={300}
+                  onChange={e => setQuickNote(e.target.value)}
+                  placeholder="예: 지하 2층 외벽 거푸집 타이볼트 간격 미흡 및 개구부 난간 해체"
+                />
+                <button
+                  type="button"
+                  className={'nexus-voice-btn' + (isListeningVoice ? ' is-listening' : '')}
+                  aria-label="현장 관찰 내용 한국어 음성 입력"
+                  onClick={handleToggleVoiceInput}
+                >
+                  {isListeningVoice ? '🎙️ 듣는 중…' : '🎤 음성'}
+                </button>
+              </div>
             </label>
+          </div>
+          <div className="nexus-advanced-toggle-bar">
+            <span className="nexus-advanced-summary">
+              자동입력 요약: 담당 <b>{assignee}</b> · 목표 <b>{dueDate}</b> · 코드 <b>{seed.caseCode}</b>
+            </span>
+            <button
+              type="button"
+              className="nexus-advanced-toggle-btn"
+              aria-expanded={showAdvancedFields}
+              onClick={() => setShowAdvancedFields(v => !v)}
+            >
+              {showAdvancedFields ? '⚙️ 세부 항목 접기 ▴' : '⚙️ 자동입력 세부 수정 ▾'}
+            </button>
           </div>
         </>
       )}
 
-      <div className="nexus-3axis-tags" role="group" aria-label="자동 추천 3축 태그 (1탭 수정 가능)">
-        <label>
-          <span>자동분류 축1 · 구간</span>
-          <select
-            aria-label="자동분류 구간 축"
-            value={classification.zoneAxis}
-            onChange={e => setOverrideZone(e.target.value as NexusZoneAxis)}
-          >
-            {NEXUS_ZONE_AXIS_OPTIONS.map(o => (
-              <option key={o.id} value={o.id}>{o.label}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>자동분류 축2 · 세부작업</span>
-          <select
-            aria-label="자동분류 작업 축"
-            value={classification.processAxis}
-            onChange={e => setOverrideProcess(e.target.value as NexusProcessAxis)}
-          >
-            {NEXUS_PROCESS_AXIS_OPTIONS.map(o => (
-              <option key={o.id} value={o.id}>{o.label}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>자동분류 축3 · 가설·장비</span>
-          <select
-            aria-label="자동분류 가설장비 축"
-            value={classification.hazardEquipmentAxis}
-            onChange={e => setOverrideEquipment(e.target.value as NexusHazardEquipmentAxis)}
-          >
-            {NEXUS_HAZARD_EQUIPMENT_AXIS_OPTIONS.map(o => (
-              <option key={o.id} value={o.id}>{o.label}</option>
-            ))}
-          </select>
-        </label>
-      </div>
+      {(source !== 'safety-nexus-quick' || showAdvancedFields) && (
+        <div className="nexus-3axis-tags" role="group" aria-label="자동 추천 3축 태그 (1탭 수정 가능)">
+          <label>
+            <span>자동분류 축1 · 구간</span>
+            <select
+              aria-label="자동분류 구간 축"
+              value={classification.zoneAxis}
+              onChange={e => setOverrideZone(e.target.value as NexusZoneAxis)}
+            >
+              {NEXUS_ZONE_AXIS_OPTIONS.map(o => (
+                <option key={o.id} value={o.id}>{o.label}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>자동분류 축2 · 세부작업</span>
+            <select
+              aria-label="자동분류 작업 축"
+              value={classification.processAxis}
+              onChange={e => setOverrideProcess(e.target.value as NexusProcessAxis)}
+            >
+              {NEXUS_PROCESS_AXIS_OPTIONS.map(o => (
+                <option key={o.id} value={o.id}>{o.label}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>자동분류 축3 · 가설·장비</span>
+            <select
+              aria-label="자동분류 가설장비 축"
+              value={classification.hazardEquipmentAxis}
+              onChange={e => setOverrideEquipment(e.target.value as NexusHazardEquipmentAxis)}
+            >
+              {NEXUS_HAZARD_EQUIPMENT_AXIS_OPTIONS.map(o => (
+                <option key={o.id} value={o.id}>{o.label}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
 
       <div className="nexus-3axis-matched-case">
         <div className="nexus-3axis-matched-title">
@@ -332,42 +406,46 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
       </div>
 
       <div className="nexus-3axis-action-form">
-        <label className="nexus-3axis-action-wide">
-          <span>06 시정조치 초안 (자동 제안 · 수정 가능)</span>
-          <input
-            type="text"
-            value={customAction}
-            maxLength={300}
-            onChange={e => setCustomAction(e.target.value)}
-            placeholder={classification.recommendedActionDraft}
-          />
-        </label>
-        <label>
-          <span>담당자·작업반</span>
-          <input
-            type="text"
-            value={assignee}
-            maxLength={60}
-            onChange={e => setAssignee(e.target.value)}
-          />
-        </label>
-        <label>
-          <span>재점검 목표일</span>
-          <input
-            type="date"
-            value={dueDate}
-            onChange={e => setDueDate(e.target.value)}
-          />
-        </label>
-        <label>
-          <span>교대·인계 대상</span>
-          <input
-            type="text"
-            value={handoverShift}
-            maxLength={80}
-            onChange={e => setHandoverShift(e.target.value)}
-          />
-        </label>
+        {(source !== 'safety-nexus-quick' || showAdvancedFields) && (
+          <>
+            <label className="nexus-3axis-action-wide">
+              <span>06 시정조치 초안 (자동 제안 · 수정 가능)</span>
+              <input
+                type="text"
+                value={customAction}
+                maxLength={300}
+                onChange={e => setCustomAction(e.target.value)}
+                placeholder={classification.recommendedActionDraft}
+              />
+            </label>
+            <label>
+              <span>담당자·작업반</span>
+              <input
+                type="text"
+                value={assignee}
+                maxLength={60}
+                onChange={e => setAssignee(e.target.value)}
+              />
+            </label>
+            <label>
+              <span>재점검 목표일</span>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={e => setDueDate(e.target.value)}
+              />
+            </label>
+            <label>
+              <span>교대·인계 대상</span>
+              <input
+                type="text"
+                value={handoverShift}
+                maxLength={80}
+                onChange={e => setHandoverShift(e.target.value)}
+              />
+            </label>
+          </>
+        )}
         <div className="nexus-3axis-field-extras">
           <label className={'nexus-stopwork-toggle' + (stopWorkFlag ? ' is-checked' : '')}>
             <input
@@ -453,6 +531,15 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
                   {label}
                 </button>
               ))}
+              <input
+                type="search"
+                className="nexus-case-search-input"
+                aria-label="조치·인계 파이프라인 검색"
+                value={caseSearchQuery}
+                maxLength={80}
+                onChange={e => setCaseSearchQuery(e.target.value)}
+                placeholder="위치·내용·담당자 검색..."
+              />
               <button type="button" className="nexus-handover-copy-btn" onClick={handleCopyShiftHandover}>
                 📋 교대 인계서 5줄 복사
               </button>
@@ -463,16 +550,52 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
               {handoverPreviewText}
             </pre>
           )}
-          <ul>
-            {filteredCases.slice(0, 6).map(item => (
-              <li key={item.caseId} data-status={item.status} className={item.stopWorkFlag ? 'is-stopwork-item' : undefined}>
-                <div className="nexus-3axis-case-row-top">
-                  <span>
-                    {item.stopWorkFlag && <em className="nexus-stopwork-badge">⛔ 임시통제·작업중지</em>}{' '}
-                    <b>[{item.matchedCaseCode} · 구체 #{item.structuralNodeIndex}]</b> {item.locationLabel} · {item.observationNote}
-                  </span>
-                  <em className={'status-pill status-' + item.status}>{NEXUS_PIPELINE_STATUS_LABELS[item.status]}</em>
-                </div>
+          {filteredCases.length === 0 ? (
+            <div className="nexus-empty-action-box">
+              <p>선택한 필터 또는 검색어와 일치하는 조치 건이 없습니다.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter('all');
+                  setCaseSearchQuery('');
+                }}
+              >
+                필터·검색 초기화
+              </button>
+            </div>
+          ) : (
+            <ul>
+              {filteredCases.slice(0, 6).map(item => {
+                const stepIdx =
+                  item.status === 'closed'
+                    ? 3
+                    : item.status === 'recheck_pending'
+                      ? 2
+                      : item.status === 'handover_pending'
+                        ? 1
+                        : 0;
+                return (
+                  <li key={item.caseId} data-status={item.status} className={item.stopWorkFlag ? 'is-stopwork-item' : undefined}>
+                    <div className="nexus-3axis-case-row-top">
+                      <span>
+                        {item.stopWorkFlag && <em className="nexus-stopwork-badge">⛔ 임시통제·작업중지</em>}{' '}
+                        <b>[{item.matchedCaseCode} · 구체 #{item.structuralNodeIndex}]</b> {item.locationLabel} · {item.observationNote}
+                      </span>
+                      <em className={'status-pill status-' + item.status}>{NEXUS_PIPELINE_STATUS_LABELS[item.status]}</em>
+                    </div>
+                    <div className="nexus-case-stepper" aria-label="조치 진행 단계">
+                      {(['조치등록', '교대인계', '재점검', '종결'] as const).map((stepLabel, sIdx) => (
+                        <span
+                          key={stepLabel}
+                          className={
+                            'nexus-stepper-node' +
+                            (sIdx < stepIdx ? ' is-done' : sIdx === stepIdx ? ' is-current' : '')
+                          }
+                        >
+                          <b>{sIdx + 1}</b> {stepLabel}
+                        </span>
+                      ))}
+                    </div>
                 {item.hqDirectiveNote && (
                   <p className="nexus-hq-directive-banner">
                     <b>[🏛️ 본사 긴급 지시 · {item.hqDirectiveActor || '본사 CSO'}]</b> {item.hqDirectiveNote}
@@ -656,8 +779,10 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
                   )}
                 </div>
               </li>
-            ))}
-          </ul>
+                );
+              })}
+            </ul>
+          )}
         </div>
       ) : (
         <p className="nexus-3axis-case-row-meta">

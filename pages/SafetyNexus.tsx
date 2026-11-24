@@ -336,6 +336,7 @@ const SafetyNexus: React.FC<Props> = ({
   const [reduced, setReduced] = useState(() => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
   const [cmdQuery, setCmdQuery] = useState('');
+  const [cmdActiveIdx, setCmdActiveIdx] = useState(0);
   const [floatingToast, setFloatingToast] = useState('');
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerToast = (msg: string) => {
@@ -661,15 +662,15 @@ const SafetyNexus: React.FC<Props> = ({
     () =>
       effectiveRole === 'hq'
         ? buildExecutiveBentoSnapshot({
-            pipelineCases,
-            visitPlans,
-            investigations,
-            trainingCampaigns,
-            equipmentReports,
-            workerRecords: filteredRecords,
-            selectedSiteId: scopedData.effectiveSiteId,
-            asOfDate: followup.asOfDate,
-          })
+          pipelineCases,
+          visitPlans,
+          investigations,
+          trainingCampaigns,
+          equipmentReports,
+          workerRecords: filteredRecords,
+          selectedSiteId: scopedData.effectiveSiteId,
+          asOfDate: followup.asOfDate,
+        })
         : null,
     [
       effectiveRole,
@@ -688,12 +689,12 @@ const SafetyNexus: React.FC<Props> = ({
     () =>
       effectiveRole === 'hq'
         ? buildMultiSitePortfolioMatrix(
-            pipelineCases,
-            visitPlans,
-            investigations,
-            trainingCampaigns,
-            followup.asOfDate,
-          )
+          pipelineCases,
+          visitPlans,
+          investigations,
+          trainingCampaigns,
+          followup.asOfDate,
+        )
         : [],
     [effectiveRole, pipelineCases, visitPlans, investigations, trainingCampaigns, followup.asOfDate],
   );
@@ -717,6 +718,7 @@ const SafetyNexus: React.FC<Props> = ({
     if (nextRole === 'hq') {
       setActiveView('hq_command');
       setWorkbenchTab('equipment_photo');
+      triggerToast('🏛️ 본사 전사 통합 관제 모드로 전환되었습니다');
     } else {
       setActiveView('field_ops');
       setWorkbenchTab('inspect_03_06');
@@ -724,6 +726,7 @@ const SafetyNexus: React.FC<Props> = ({
       if (siteMeta) {
         lockOntoNode(Math.max(0, Number(siteMeta.focusNodeIndex) - 1), 'structural');
       }
+      triggerToast(`🦺 ${siteMeta?.shortLabel || '단일 현장'} 격리 모드로 전환되었습니다`);
     }
   };
 
@@ -774,14 +777,69 @@ const SafetyNexus: React.FC<Props> = ({
     }
   };
 
+  const stopWorkCountLive = scopedData.pipelineCases.filter(
+    c => c.stopWorkFlag && c.status !== 'closed',
+  ).length;
+  const hqEquipPendingCount = scopedData.equipmentReports.filter(
+    e => e.status === 'submitted_to_hq',
+  ).length;
+  const hqInvPendingCount = scopedData.investigations.filter(
+    i => i.status === 'ai_draft_pending_hq',
+  ).length;
+  const hqUnackedVisitCount = scopedData.visitPlans.filter(
+    v => v.status !== 'action_issued_closed' && !v.fieldAcknowledgedAt,
+  ).length;
+  const hqOpsBadgeCount = stopWorkCountLive + hqEquipPendingCount + hqInvPendingCount;
+
+  const fieldOpenCount = scopedData.pipelineCases.filter(c => c.status !== 'closed').length;
+  const fieldStopCount = scopedData.pipelineCases.filter(
+    c => c.status !== 'closed' && c.stopWorkFlag,
+  ).length;
+  const fieldEquipRevCount = scopedData.equipmentReports.filter(
+    e => e.status === 'revision_requested_hq',
+  ).length;
+  const fieldInvRevCount = scopedData.investigations.filter(
+    i => i.status === 'revision_requested',
+  ).length;
+  const fieldTotalRevCount = fieldEquipRevCount + fieldInvRevCount;
+  const fieldUnackedVisitCount = hqUnackedVisitCount;
+  const fieldIncompleteTrainCount = scopedData.trainingCampaigns.filter(
+    t => (t.completionRatePct ?? 0) < 100,
+  ).length;
+  const fieldOpsBadgeCount = fieldOpenCount + fieldEquipRevCount;
+  const fieldInboxBadgeCount = fieldUnackedVisitCount + fieldIncompleteTrainCount + fieldInvRevCount;
+  const fieldDirectiveTotal =
+    scopedData.pipelineCases.filter(c => c.hqDirectiveNote && c.status !== 'closed').length +
+    fieldEquipRevCount;
+
   const paletteCommands = useMemo(
     () =>
       buildRoleScopedCommands({
         workspaceRole: effectiveRole,
         managedSites,
         query: cmdQuery,
+        pendingCounts: {
+          stopWork: stopWorkCountLive,
+          equipmentPending: hqEquipPendingCount,
+          investigationPending: hqInvPendingCount,
+          unackedVisits: fieldUnackedVisitCount,
+          fieldRevision: fieldTotalRevCount,
+          incompleteTraining: fieldIncompleteTrainCount,
+          offlinePending: offlinePendingCount,
+        },
       }),
-    [effectiveRole, managedSites, cmdQuery],
+    [
+      effectiveRole,
+      managedSites,
+      cmdQuery,
+      stopWorkCountLive,
+      hqEquipPendingCount,
+      hqInvPendingCount,
+      fieldUnackedVisitCount,
+      fieldTotalRevCount,
+      fieldIncompleteTrainCount,
+      offlinePendingCount,
+    ],
   );
 
   const executePaletteCommand = (cmd: NexusCommandAction) => {
@@ -848,11 +906,9 @@ const SafetyNexus: React.FC<Props> = ({
 
   useEffect(() => {
     if (!cmdPaletteOpen) setCmdQuery('');
-  }, [cmdPaletteOpen, effectiveRole]);
+    setCmdActiveIdx(0);
+  }, [cmdPaletteOpen, cmdQuery, effectiveRole]);
 
-  const stopWorkCountLive = scopedData.pipelineCases.filter(
-    c => c.stopWorkFlag && c.status !== 'closed',
-  ).length;
   const liveAlertLevel =
     stopWorkCountLive > 0
       ? Math.min(1, 0.65 + stopWorkCountLive * 0.15)
@@ -892,6 +948,7 @@ const SafetyNexus: React.FC<Props> = ({
     setTrainingCampaigns([...seeded.campaigns]);
     setEquipmentReports([...seeded.equipmentReports]);
     lockOntoNode(0, orbitLayer === 'structural' ? 'structural' : orbitLayer);
+    triggerToast('✅ 3개 현장 체험 데이터·건설기계 사진을 불러왔습니다');
   };
 
   const showFollowupDetails = () => {
@@ -1049,6 +1106,7 @@ const SafetyNexus: React.FC<Props> = ({
                 onClick={() => handleSelectWorkspaceView('hq_ops')}
               >
                 ③ 본사 결재·보고·순회
+                {hqOpsBadgeCount > 0 && <em className="nexus-tab-badge" aria-hidden="true">{hqOpsBadgeCount}</em>}
               </button>
               <button
                 type="button"
@@ -1070,6 +1128,7 @@ const SafetyNexus: React.FC<Props> = ({
                 onClick={() => handleSelectWorkspaceView('field_ops')}
               >
                 ① 현장 즉시 실행
+                {fieldOpsBadgeCount > 0 && <em className="nexus-tab-badge" aria-hidden="true">{fieldOpsBadgeCount}</em>}
               </button>
               <button
                 type="button"
@@ -1079,6 +1138,7 @@ const SafetyNexus: React.FC<Props> = ({
                 onClick={() => handleSelectWorkspaceView('field_inbox')}
               >
                 ② 본사 수신·교육·상신
+                {fieldInboxBadgeCount > 0 && <em className="nexus-tab-badge" aria-hidden="true">{fieldInboxBadgeCount}</em>}
               </button>
               <button
                 type="button"
@@ -1100,6 +1160,57 @@ const SafetyNexus: React.FC<Props> = ({
           ◎ 록온: #{selected.index} {selected.title}
         </button>
       </div>
+      {((effectiveRole === 'hq' && hqSelectedSiteId) || axisFilter.zoneAxis || axisFilter.processAxis || axisFilter.hazardEquipmentAxis) && (
+        <div className="nexus-active-filters-bar" role="region" aria-label="현재 적용 중인 필터 컨텍스트">
+          <span className="nexus-active-filters-label">적용 필터</span>
+          {effectiveRole === 'hq' && hqSelectedSiteId && (
+            <button
+              type="button"
+              className="nexus-active-filter-chip"
+              onClick={() => setHqSelectedSiteId('')}
+            >
+              📍 현장: {scopedData.activeSiteMeta?.shortLabel || hqSelectedSiteId} ×
+            </button>
+          )}
+          {axisFilter.zoneAxis && (
+            <button
+              type="button"
+              className="nexus-active-filter-chip"
+              onClick={() => handleAxisFilterChange({ zoneAxis: '' })}
+            >
+              축1: {NEXUS_ZONE_AXIS_OPTIONS.find(o => o.id === axisFilter.zoneAxis)?.label || axisFilter.zoneAxis} ×
+            </button>
+          )}
+          {axisFilter.processAxis && (
+            <button
+              type="button"
+              className="nexus-active-filter-chip"
+              onClick={() => handleAxisFilterChange({ processAxis: '' })}
+            >
+              축2: {NEXUS_PROCESS_AXIS_OPTIONS.find(o => o.id === axisFilter.processAxis)?.label || axisFilter.processAxis} ×
+            </button>
+          )}
+          {axisFilter.hazardEquipmentAxis && (
+            <button
+              type="button"
+              className="nexus-active-filter-chip"
+              onClick={() => handleAxisFilterChange({ hazardEquipmentAxis: '' })}
+            >
+              축3: {NEXUS_HAZARD_EQUIPMENT_AXIS_OPTIONS.find(o => o.id === axisFilter.hazardEquipmentAxis)?.label || axisFilter.hazardEquipmentAxis} ×
+            </button>
+          )}
+          <button
+            type="button"
+            className="nexus-active-filter-reset"
+            onClick={() => {
+              if (effectiveRole === 'hq') setHqSelectedSiteId('');
+              handleAxisFilterChange({ zoneAxis: '', processAxis: '', hazardEquipmentAxis: '' });
+            }}
+          >
+            필터 모두 해제
+          </button>
+        </div>
+      )}
       <div className="nexus-live-sync-bar" aria-label="지하·오프라인 큐 및 양방향 실시간 경보 상태">
         <div className="nexus-live-sync-badges">
           <span className={'nexus-sync-pill ' + (isOnlineState ? 'is-online' : 'is-offline')}>
@@ -1110,17 +1221,41 @@ const SafetyNexus: React.FC<Props> = ({
           </span>
           {effectiveRole === 'hq' ? (
             <>
-              <span className="nexus-sync-pill is-alert">
-                ⛔ 작업중지 <b>{scopedData.pipelineCases.filter(c => c.stopWorkFlag && c.status !== 'closed').length}건</b>
-              </span>
-              <span className="nexus-sync-pill">
-                🏗️ 사진 검토대기 <b>{scopedData.equipmentReports.filter(e => e.status === 'submitted_to_hq').length}건</b>
-              </span>
+              <button
+                type="button"
+                className="nexus-sync-pill is-alert is-interactive"
+                onClick={() => {
+                  setActiveView('hq_ops');
+                  setWorkbenchTab('inspect_03_06');
+                  triggerToast('⛔ 전 현장 작업중지·시정조치 관제로 이동');
+                }}
+              >
+                ⛔ 작업중지 <b>{stopWorkCountLive}건</b>
+              </button>
+              <button
+                type="button"
+                className="nexus-sync-pill is-interactive"
+                onClick={() => {
+                  setActiveView('hq_ops');
+                  setWorkbenchTab('equipment_photo');
+                  triggerToast('🏗️ 건설기계 사진 검토함으로 이동');
+                }}
+              >
+                🏗️ 사진 검토대기 <b>{hqEquipPendingCount}건</b>
+              </button>
             </>
           ) : (
-            <span className="nexus-sync-pill is-alert">
-              🏛️ 본사 지시·보완 <b>{scopedData.pipelineCases.filter(c => c.hqDirectiveNote && c.status !== 'closed').length + scopedData.equipmentReports.filter(e => e.status === 'revision_requested_hq').length}건</b>
-            </span>
+            <button
+              type="button"
+              className="nexus-sync-pill is-alert is-interactive"
+              onClick={() => {
+                setActiveView('field_ops');
+                setWorkbenchTab(fieldEquipRevCount > 0 ? 'equipment_photo' : 'inspect_03_06');
+                triggerToast('🏛️ 본사 지시·보완 처리함으로 이동');
+              }}
+            >
+              🏛️ 본사 지시·보완 <b>{fieldDirectiveTotal}건</b>
+            </button>
           )}
         </div>
         <button
@@ -1139,61 +1274,90 @@ const SafetyNexus: React.FC<Props> = ({
       </div>
       {syncNotice && <p role="status" className="nexus-3axis-feedback">{syncNotice}</p>}
     </nav>
-    {effectiveRole === 'field' && (() => {
-      const fieldOpenCount = scopedData.pipelineCases.filter(c => c.status !== 'closed').length;
-      const fieldStopCount = scopedData.pipelineCases.filter(c => c.status !== 'closed' && c.stopWorkFlag).length;
-      const fieldEquipRevCount = scopedData.equipmentReports.filter(e => e.status === 'revision_requested_hq').length;
-      const fieldInvRevCount = scopedData.investigations.filter(i => i.status === 'revision_requested').length;
-      const fieldTotalRevCount = fieldEquipRevCount + fieldInvRevCount;
-      const fieldUnackedVisitCount = scopedData.visitPlans.filter(v => v.status !== 'action_issued_closed' && !v.fieldAcknowledgedAt).length;
-      const fieldIncompleteTrainCount = scopedData.trainingCampaigns.filter(t => (t.completionRatePct ?? 0) < 100).length;
-      return (
-        <section className="nexus-field-morning-bar" aria-label="현장 안전관리자 출근 긴급 처리함">
-          <div className="nexus-field-morning-title">
-            <strong>🦺 오늘 출근 즉시 처리 큐</strong>
-            <small>{scopedData.activeSiteMeta?.shortLabel || '소속 현장'}</small>
-          </div>
-          <div className="nexus-field-morning-chips">
-            <button
-              type="button"
-              className={'nexus-morning-chip' + (fieldStopCount > 0 ? ' is-urgent' : '')}
-              onClick={() => { setActiveView('field_ops'); setWorkbenchTab('inspect_03_06'); }}
-            >
-              ⛔ 작업중지·미결 <b>{fieldOpenCount}건</b>{fieldStopCount > 0 ? ` (중지 ${fieldStopCount})` : ''}
-            </button>
-            <button
-              type="button"
-              className={'nexus-morning-chip' + (fieldTotalRevCount > 0 ? ' is-urgent' : '')}
-              onClick={() => {
-                if (fieldEquipRevCount > 0) {
-                  setActiveView('field_ops');
-                  setWorkbenchTab('equipment_photo');
-                } else {
-                  setActiveView('field_inbox');
-                  setWorkbenchTab('investigate_05_02');
-                }
-              }}
-            >
-              🔁 본사 보완요청 <b>{fieldTotalRevCount}건</b>
-            </button>
-            <button
-              type="button"
-              className={'nexus-morning-chip' + (fieldUnackedVisitCount > 0 ? ' is-warn' : '')}
-              onClick={() => { setActiveView('field_inbox'); setWorkbenchTab('visit_01'); }}
-            >
-              📋 본사 순회 미접수 <b>{fieldUnackedVisitCount}건</b>
-            </button>
-            <button
-              type="button"
-              className={'nexus-morning-chip' + (fieldIncompleteTrainCount > 0 ? ' is-warn' : '')}
-              onClick={() => { setActiveView('field_inbox'); setWorkbenchTab('training_04'); }}
-            >
-              🌐 미이수 12개국어 교육 <b>{fieldIncompleteTrainCount}건</b>
-            </button>
-          </div>
-        </section>
-      );
-    })()}
+    {effectiveRole === 'hq' && (stopWorkCountLive + hqEquipPendingCount + hqInvPendingCount + hqUnackedVisitCount > 0) && (
+      <section className="nexus-hq-morning-bar" aria-label="본사 안전보건실 긴급 결재·지휘 큐">
+        <div className="nexus-field-morning-title">
+          <strong>🏛️ 본사 긴급 결재 · 관제 큐</strong>
+          <small>{scopedData.activeSiteMeta?.shortLabel || '전사 통합'}</small>
+        </div>
+        <div className="nexus-field-morning-chips">
+          <button
+            type="button"
+            className={'nexus-morning-chip' + (stopWorkCountLive > 0 ? ' is-urgent' : '')}
+            onClick={() => { setActiveView('hq_ops'); setWorkbenchTab('inspect_03_06'); }}
+          >
+            ⛔ 작업중지 통제 <b>{stopWorkCountLive}건</b>
+          </button>
+          <button
+            type="button"
+            className={'nexus-morning-chip' + (hqEquipPendingCount > 0 ? ' is-warn' : '')}
+            onClick={() => { setActiveView('hq_ops'); setWorkbenchTab('equipment_photo'); }}
+          >
+            🏗️ 기계사진 검토대기 <b>{hqEquipPendingCount}건</b>
+          </button>
+          <button
+            type="button"
+            className={'nexus-morning-chip' + (hqInvPendingCount > 0 ? ' is-warn' : '')}
+            onClick={() => { setActiveView('hq_ops'); setWorkbenchTab('investigate_05_02'); }}
+          >
+            🔍 사고조사 결재대기 <b>{hqInvPendingCount}건</b>
+          </button>
+          <button
+            type="button"
+            className={'nexus-morning-chip' + (hqUnackedVisitCount > 0 ? ' is-warn' : '')}
+            onClick={() => { setActiveView('hq_ops'); setWorkbenchTab('visit_01'); }}
+          >
+            📋 미접수 순회점검 <b>{hqUnackedVisitCount}건</b>
+          </button>
+        </div>
+      </section>
+    )}
+    {effectiveRole === 'field' && (
+      <section className="nexus-field-morning-bar" aria-label="현장 안전관리자 출근 긴급 처리함">
+        <div className="nexus-field-morning-title">
+          <strong>🦺 오늘 출근 즉시 처리 큐</strong>
+          <small>{scopedData.activeSiteMeta?.shortLabel || '소속 현장'}</small>
+        </div>
+        <div className="nexus-field-morning-chips">
+          <button
+            type="button"
+            className={'nexus-morning-chip' + (fieldStopCount > 0 ? ' is-urgent' : '')}
+            onClick={() => { setActiveView('field_ops'); setWorkbenchTab('inspect_03_06'); }}
+          >
+            ⛔ 작업중지·미결 <b>{fieldOpenCount}건</b>{fieldStopCount > 0 ? ` (중지 ${fieldStopCount})` : ''}
+          </button>
+          <button
+            type="button"
+            className={'nexus-morning-chip' + (fieldTotalRevCount > 0 ? ' is-urgent' : '')}
+            onClick={() => {
+              if (fieldEquipRevCount > 0) {
+                setActiveView('field_ops');
+                setWorkbenchTab('equipment_photo');
+              } else {
+                setActiveView('field_inbox');
+                setWorkbenchTab('investigate_05_02');
+              }
+            }}
+          >
+            🔁 본사 보완요청 <b>{fieldTotalRevCount}건</b>
+          </button>
+          <button
+            type="button"
+            className={'nexus-morning-chip' + (fieldUnackedVisitCount > 0 ? ' is-warn' : '')}
+            onClick={() => { setActiveView('field_inbox'); setWorkbenchTab('visit_01'); }}
+          >
+            📋 본사 순회 미접수 <b>{fieldUnackedVisitCount}건</b>
+          </button>
+          <button
+            type="button"
+            className={'nexus-morning-chip' + (fieldIncompleteTrainCount > 0 ? ' is-warn' : '')}
+            onClick={() => { setActiveView('field_inbox'); setWorkbenchTab('training_04'); }}
+          >
+            🌐 미이수 12개국어 교육 <b>{fieldIncompleteTrainCount}건</b>
+          </button>
+        </div>
+      </section>
+    )}
     {(activeView === 'hq_command' || activeView === 'field_sphere') && <div className="nexus-main">
       <aside className="nexus-aside">
         <div className="nexus-section-title"><span>01 / EXECUTIVE COMMAND</span><i /></div>
@@ -1604,6 +1768,7 @@ const SafetyNexus: React.FC<Props> = ({
                 });
                 setDailyCeoBriefing(pack);
                 setDailyBriefingNotice('');
+                triggerToast('📋 대표이사 일일 통합 안전브리핑 1장 생성 완료');
               }}
             >
               🏛️ 대표이사 일일 통합 안전브리핑 1장 생성 ↗
@@ -1788,116 +1953,117 @@ const SafetyNexus: React.FC<Props> = ({
             }
           }}
           onExportExecutivePptx={handleExportCeoPptx}
+          onLoadDemoData={handleLoadMultiSiteSimulation}
         />
       </div>
     )}
     {effectiveRole === 'hq' && (activeView === 'hq_command' || activeView === 'hq_audit') && (
-    <>
-    <section id="nexus-followup-details" tabIndex={-1} className="nexus-followup" aria-label="근로자 위험성평가 후속조치 익명 집계">
-      <div className="nexus-followup-header">
-        <div><span>VERIFIABLE READ-ONLY SIGNALS</span><h2>후속조치 현황 <small>불러온 기록의 관리자 이력 기준</small></h2></div>
-        <p>이 화면은 현장 안전을 판정하거나 조치 완료를 승인하지 않습니다. <b>현장별 인증 범위는 아직 미연동</b>입니다.</p>
-      </div>
-      <div className="nexus-followup-filters">
-        <label>현장
-          <select disabled aria-label="현장 인증 범위 미연동"><option>현장 인증 범위 미연동</option></select>
-        </label>
-        <label>작성 월
-          <select value={filterMonth} onChange={event => { setFilterMonth(event.target.value); setSelectedQuestion(null) }} aria-label="작성 월 선택">
-            <option value="">전체 작성기간</option>
-            {filterMonth && !loadedSlice.monthOptions.includes(filterMonth) && <option value={filterMonth}>{filterMonth} · 현재 기록 없음</option>}
-            {loadedSlice.monthOptions.map(month => <option key={month} value={month}>{month}</option>)}
-          </select>
-        </label>
-        <label>공종
-          <select value={filterTrade} onChange={event => { setFilterTrade(event.target.value); setSelectedQuestion(null) }} aria-label="공종 선택">
-            <option value="">전체 공종</option>
-            {filterTrade && !loadedSlice.tradeOptions.includes(filterTrade) && <option value={filterTrade}>{filterTrade} · 현재 기록 없음</option>}
-            {loadedSlice.tradeOptions.map(trade => <option key={trade} value={trade}>{trade}</option>)}
-          </select>
-        </label>
-        <span className="nexus-followup-asof">조치 기준일 {followup.asOfDate} · 확인 범위: 현재 불러온 기록</span>
-      </div>
-      <div className="nexus-followup-cards">
-        {[
-          ['미완료', followup.unresolved, 'unresolved'],
-          ['기한 초과', followup.overdue, 'overdue'],
-          ['임시 통제 중', followup.interimControl, 'interim_control'],
-          ['조치 예정', followup.scheduled, 'scheduled'],
-          ['재개방 이력', followup.reopened, 'reopened'],
-          ['완료로 기록된 조치', followup.completed, 'completed'],
-        ].map(([label, value, tone]) =>
-          <button type="button" aria-pressed={priorityFilter === tone} onClick={() => { setPriorityFilter(tone as FollowupFilter); document.querySelector('.nexus-priority-summary')?.scrollIntoView({ block: 'start' }); }} className={'nexus-followup-card tone-' + tone} key={String(label)}>
-            <span>{label}</span><strong>{value}</strong><small>건</small>
-          </button>
-        )}
-      </div>
-      <div className="nexus-followup-breakdown" aria-label="문항별 후속조치 내역">
-        <h3>문항별 확인이 필요한 조치</h3>
-        <p>선택한 작성 기록과 연결된 조치입니다. 기한 초과와 재개방 이력은 미완료 건수와 겹칠 수 있습니다.</p>
-        {followup.totalCases === 0 ? <p>{followup.conflictingRecords ? '집계 가능한 조치 이력이 없습니다. 충돌 기록의 원본을 확인해 주세요.' : '선택한 기록에 연결된 조치 이력이 없습니다.'}</p> :
-          <ul>{followup.questionGroups.filter(group => group.unresolved || group.overdue || group.reopened).map(group =>
-            <li key={group.number}><button type="button" aria-pressed={selectedQuestion === group.number} onClick={() => setSelectedQuestion(group.number)}>Q{group.number} 관련 기록 보기</button> · 미완료 {group.unresolved}건 · 기한 초과 {group.overdue}건 · 재개방 이력 {group.reopened}건</li>
-          )}</ul>}
-        {followup.totalCases > 0 && followup.questionGroups.every(group => !group.unresolved && !group.overdue && !group.reopened) &&
-          <p>선택 범위에서 미완료 또는 재개방 이력이 집계되지 않았습니다.</p>}
-        {selectedQuestion !== null && <div>
-          <p>Q{selectedQuestion}에 연결된 이력이 있는 선택 범위의 기록입니다. 아래 이력은 조치 기준일 {followup.asOfDate}까지 표시하며, 완료 이력도 포함할 수 있습니다.</p>
-          {questionCases.length === 0 && <p>해당 문항에 집계 가능한 조치가 없습니다. 충돌한 이력은 표시하지 않습니다.</p>}
-          <ul>{questionCases.map(({ recordId, item }) => {
-            const record = filteredRecords.find(row => String(row.id || '').trim() === recordId);
-            return <li key={recordId + '-' + item.caseId}>{record?.date} · {record?.jobField || '공종 미확인'} · {record?.name || '이름 미확인'} {record && onOpenRecord && <button type="button" onClick={() => onOpenRecord(record)}>기록 상세 열기</button>}
-              <details><summary>해당 문항 조치 이력 보기</summary>
-                <ul>{item.events.map(event =>
-                  <li key={event.id}>{event.timestamp} · {FOLLOWUP_STATUS_LABELS[event.status] || '상태 확인 필요'} · {event.actionDetail || '내용 없음'}</li>
-                )}</ul>
-              </details>
-              {!record?.handwrittenAnswers?.some(answer => Boolean(String(answer.answerText || '').trim())) && <span> · 자필 답변이 없어 상세 화면의 조치 도구가 표시되지 않을 수 있습니다.</span>}</li>;
-          })}</ul>
-        </div>}
-      </div>
-      <div className="nexus-practice">
-        <div className="nexus-practice-heading">
-          <strong>현장 실천 확인 · 별도 재점검</strong>
-          <span>교육 전달과 조치 완료는 구별하며, 재점검은 관리자 이력 기준입니다.</span>
-        </div>
-        <PracticeEvidencePanel records={filteredRecords} summary={practice} selected={practiceFilter} onSelect={setPracticeFilter} onOpenRecord={onOpenRecord} />
-        <p>재확인 필요는 기록·문항의 마지막 현장 확인에서 개선 필요 또는 확인 불가로 남은 경우입니다.
-          안전행동이 관찰되었더라도 조치 완료·작업재개가 자동 승인되는 것은 아닙니다.</p>
-      </div>
-      <div className="nexus-followup-footer">
-        <span>조치 이력 {followup.totalCases}건 · 선택한 작성기록과 연결된 조치만 반영 · 이전 주기 미완료 {followup.carriedOver}건 · 선택 월말 또는 현재일 기준 상태입니다.</span>
-        <span>미완료·임시통제·기한초과는 완료로 처리하지 않습니다. 재개방은 이력 건수이며 현재 미완료와 중복될 수 있습니다.</span>
-        {loadedSlice.undatedRowsInAllPeriods > 0 && <span>작성일 확인 불가 {loadedSlice.undatedRowsInAllPeriods}행 · 특정 월로 임의 배정하지 않음</span>}
-      </div>
-    </section>
-    <section className="nexus-metrics" aria-label="6대 안전인식 지표">
-      <div className="nexus-metrics-caption"><span>THE SIX PROTECTION SIGNALS</span><strong>6대 안전인식 지표</strong><p>지표명 안내입니다. 점수와 유효 분모는 이 화면에 아직 연결되지 않았습니다.</p></div>
-      <div className="nexus-metrics-list">{METRICS.map(s => <div className="nexus-metric" key={s[0]}><span>{s[0]} <i /></span><strong>{s[1]}</strong><small>{s[2]}</small></div>)}</div>
-      <button type="button" onClick={() => onNavigateToPage('monthly-guidance-report')}>기존 평가 보고서 열기</button>
-    </section>
-    <ScoreMetricEvidencePanel records={filteredRecords} scopeLabel={`${filterMonth || '전체 작성기간'} · ${filterTrade || '전체 공종'}`} asOf={followup.asOfDate} loadState={loadState} onOpenRecord={onOpenRecord} />
-    <section className="nexus-compliance-panel" aria-label="중대재해처벌법 반기·월간 법적 이행 증빙 편철 센터">
-      <div className="nexus-3axis-bridge-head">
-        <div>
-          <span className="nexus-3axis-kicker">SAPA COMPLIANCE ARCHIVE · SHA-256 무결성 매니페스트 포함</span>
-          <h3>📦 중대재해처벌법 반기·월간 법적 이행 증빙 패키지 1클릭 편철</h3>
-          <p className="nexus-3axis-case-row-meta">
-            시정조치·작업중지 이력, 본사 검증 건설기계 점검 사진 원본, 12개국어 교육 자필 서명 PNG, 순회점검·사고조사 승인 기록을 단일 ZIP 아카이브로 묶습니다.
-          </p>
-        </div>
-        <div className="nexus-3axis-case-row-actions">
-          <button type="button" className="nexus-3axis-submit" onClick={() => void handleDownloadComplianceZip()}>
-            📦 증빙 ZIP 패키지 1클릭 편철 저장 ↗
-          </button>
-          <button type="button" onClick={() => void handleExportCeoPptx()}>
-            📽️ 경영진 보고 PPTX 저장
-          </button>
-        </div>
-      </div>
-      {complianceNotice && <p role="status" className="nexus-3axis-feedback">{complianceNotice}</p>}
-    </section>
-    </>)}
+      <>
+        <section id="nexus-followup-details" tabIndex={-1} className="nexus-followup" aria-label="근로자 위험성평가 후속조치 익명 집계">
+          <div className="nexus-followup-header">
+            <div><span>VERIFIABLE READ-ONLY SIGNALS</span><h2>후속조치 현황 <small>불러온 기록의 관리자 이력 기준</small></h2></div>
+            <p>이 화면은 현장 안전을 판정하거나 조치 완료를 승인하지 않습니다. <b>현장별 인증 범위는 아직 미연동</b>입니다.</p>
+          </div>
+          <div className="nexus-followup-filters">
+            <label>현장
+              <select disabled aria-label="현장 인증 범위 미연동"><option>현장 인증 범위 미연동</option></select>
+            </label>
+            <label>작성 월
+              <select value={filterMonth} onChange={event => { setFilterMonth(event.target.value); setSelectedQuestion(null) }} aria-label="작성 월 선택">
+                <option value="">전체 작성기간</option>
+                {filterMonth && !loadedSlice.monthOptions.includes(filterMonth) && <option value={filterMonth}>{filterMonth} · 현재 기록 없음</option>}
+                {loadedSlice.monthOptions.map(month => <option key={month} value={month}>{month}</option>)}
+              </select>
+            </label>
+            <label>공종
+              <select value={filterTrade} onChange={event => { setFilterTrade(event.target.value); setSelectedQuestion(null) }} aria-label="공종 선택">
+                <option value="">전체 공종</option>
+                {filterTrade && !loadedSlice.tradeOptions.includes(filterTrade) && <option value={filterTrade}>{filterTrade} · 현재 기록 없음</option>}
+                {loadedSlice.tradeOptions.map(trade => <option key={trade} value={trade}>{trade}</option>)}
+              </select>
+            </label>
+            <span className="nexus-followup-asof">조치 기준일 {followup.asOfDate} · 확인 범위: 현재 불러온 기록</span>
+          </div>
+          <div className="nexus-followup-cards">
+            {[
+              ['미완료', followup.unresolved, 'unresolved'],
+              ['기한 초과', followup.overdue, 'overdue'],
+              ['임시 통제 중', followup.interimControl, 'interim_control'],
+              ['조치 예정', followup.scheduled, 'scheduled'],
+              ['재개방 이력', followup.reopened, 'reopened'],
+              ['완료로 기록된 조치', followup.completed, 'completed'],
+            ].map(([label, value, tone]) =>
+              <button type="button" aria-pressed={priorityFilter === tone} onClick={() => { setPriorityFilter(tone as FollowupFilter); document.querySelector('.nexus-priority-summary')?.scrollIntoView({ block: 'start' }); }} className={'nexus-followup-card tone-' + tone} key={String(label)}>
+                <span>{label}</span><strong>{value}</strong><small>건</small>
+              </button>
+            )}
+          </div>
+          <div className="nexus-followup-breakdown" aria-label="문항별 후속조치 내역">
+            <h3>문항별 확인이 필요한 조치</h3>
+            <p>선택한 작성 기록과 연결된 조치입니다. 기한 초과와 재개방 이력은 미완료 건수와 겹칠 수 있습니다.</p>
+            {followup.totalCases === 0 ? <p>{followup.conflictingRecords ? '집계 가능한 조치 이력이 없습니다. 충돌 기록의 원본을 확인해 주세요.' : '선택한 기록에 연결된 조치 이력이 없습니다.'}</p> :
+              <ul>{followup.questionGroups.filter(group => group.unresolved || group.overdue || group.reopened).map(group =>
+                <li key={group.number}><button type="button" aria-pressed={selectedQuestion === group.number} onClick={() => setSelectedQuestion(group.number)}>Q{group.number} 관련 기록 보기</button> · 미완료 {group.unresolved}건 · 기한 초과 {group.overdue}건 · 재개방 이력 {group.reopened}건</li>
+              )}</ul>}
+            {followup.totalCases > 0 && followup.questionGroups.every(group => !group.unresolved && !group.overdue && !group.reopened) &&
+              <p>선택 범위에서 미완료 또는 재개방 이력이 집계되지 않았습니다.</p>}
+            {selectedQuestion !== null && <div>
+              <p>Q{selectedQuestion}에 연결된 이력이 있는 선택 범위의 기록입니다. 아래 이력은 조치 기준일 {followup.asOfDate}까지 표시하며, 완료 이력도 포함할 수 있습니다.</p>
+              {questionCases.length === 0 && <p>해당 문항에 집계 가능한 조치가 없습니다. 충돌한 이력은 표시하지 않습니다.</p>}
+              <ul>{questionCases.map(({ recordId, item }) => {
+                const record = filteredRecords.find(row => String(row.id || '').trim() === recordId);
+                return <li key={recordId + '-' + item.caseId}>{record?.date} · {record?.jobField || '공종 미확인'} · {record?.name || '이름 미확인'} {record && onOpenRecord && <button type="button" onClick={() => onOpenRecord(record)}>기록 상세 열기</button>}
+                  <details><summary>해당 문항 조치 이력 보기</summary>
+                    <ul>{item.events.map(event =>
+                      <li key={event.id}>{event.timestamp} · {FOLLOWUP_STATUS_LABELS[event.status] || '상태 확인 필요'} · {event.actionDetail || '내용 없음'}</li>
+                    )}</ul>
+                  </details>
+                  {!record?.handwrittenAnswers?.some(answer => Boolean(String(answer.answerText || '').trim())) && <span> · 자필 답변이 없어 상세 화면의 조치 도구가 표시되지 않을 수 있습니다.</span>}</li>;
+              })}</ul>
+            </div>}
+          </div>
+          <div className="nexus-practice">
+            <div className="nexus-practice-heading">
+              <strong>현장 실천 확인 · 별도 재점검</strong>
+              <span>교육 전달과 조치 완료는 구별하며, 재점검은 관리자 이력 기준입니다.</span>
+            </div>
+            <PracticeEvidencePanel records={filteredRecords} summary={practice} selected={practiceFilter} onSelect={setPracticeFilter} onOpenRecord={onOpenRecord} />
+            <p>재확인 필요는 기록·문항의 마지막 현장 확인에서 개선 필요 또는 확인 불가로 남은 경우입니다.
+              안전행동이 관찰되었더라도 조치 완료·작업재개가 자동 승인되는 것은 아닙니다.</p>
+          </div>
+          <div className="nexus-followup-footer">
+            <span>조치 이력 {followup.totalCases}건 · 선택한 작성기록과 연결된 조치만 반영 · 이전 주기 미완료 {followup.carriedOver}건 · 선택 월말 또는 현재일 기준 상태입니다.</span>
+            <span>미완료·임시통제·기한초과는 완료로 처리하지 않습니다. 재개방은 이력 건수이며 현재 미완료와 중복될 수 있습니다.</span>
+            {loadedSlice.undatedRowsInAllPeriods > 0 && <span>작성일 확인 불가 {loadedSlice.undatedRowsInAllPeriods}행 · 특정 월로 임의 배정하지 않음</span>}
+          </div>
+        </section>
+        <section className="nexus-metrics" aria-label="6대 안전인식 지표">
+          <div className="nexus-metrics-caption"><span>THE SIX PROTECTION SIGNALS</span><strong>6대 안전인식 지표</strong><p>지표명 안내입니다. 점수와 유효 분모는 이 화면에 아직 연결되지 않았습니다.</p></div>
+          <div className="nexus-metrics-list">{METRICS.map(s => <div className="nexus-metric" key={s[0]}><span>{s[0]} <i /></span><strong>{s[1]}</strong><small>{s[2]}</small></div>)}</div>
+          <button type="button" onClick={() => onNavigateToPage('monthly-guidance-report')}>기존 평가 보고서 열기</button>
+        </section>
+        <ScoreMetricEvidencePanel records={filteredRecords} scopeLabel={`${filterMonth || '전체 작성기간'} · ${filterTrade || '전체 공종'}`} asOf={followup.asOfDate} loadState={loadState} onOpenRecord={onOpenRecord} />
+        <section className="nexus-compliance-panel" aria-label="중대재해처벌법 반기·월간 법적 이행 증빙 편철 센터">
+          <div className="nexus-3axis-bridge-head">
+            <div>
+              <span className="nexus-3axis-kicker">SAPA COMPLIANCE ARCHIVE · SHA-256 무결성 매니페스트 포함</span>
+              <h3>📦 중대재해처벌법 반기·월간 법적 이행 증빙 패키지 1클릭 편철</h3>
+              <p className="nexus-3axis-case-row-meta">
+                시정조치·작업중지 이력, 본사 검증 건설기계 점검 사진 원본, 12개국어 교육 자필 서명 PNG, 순회점검·사고조사 승인 기록을 단일 ZIP 아카이브로 묶습니다.
+              </p>
+            </div>
+            <div className="nexus-3axis-case-row-actions">
+              <button type="button" className="nexus-3axis-submit" onClick={() => void handleDownloadComplianceZip()}>
+                📦 증빙 ZIP 패키지 1클릭 편철 저장 ↗
+              </button>
+              <button type="button" onClick={() => void handleExportCeoPptx()}>
+                📽️ 경영진 보고 PPTX 저장
+              </button>
+            </div>
+          </div>
+          {complianceNotice && <p role="status" className="nexus-3axis-feedback">{complianceNotice}</p>}
+        </section>
+      </>)}
     <footer className="nexus-footer"><span>PSI / SAFETY NEXUS</span><span>현재 불러온 기록의 탐색 화면입니다. 실제 현장 승인 통계와의 대조는 미완료입니다.</span>
       <label><input type="checkbox" checked={reduced} onChange={e => setReduced(e.target.checked)} /> 움직임 줄이기</label></footer>
 
@@ -1905,21 +2071,30 @@ const SafetyNexus: React.FC<Props> = ({
       <div className="nexus-mobile-thumb-dock" role="navigation" aria-label="현장 한손 엄지 빠른 작업 바">
         <button
           type="button"
+          className={activeView === 'field_ops' && workbenchTab === 'inspect_03_06' ? 'is-active' : undefined}
+          aria-current={activeView === 'field_ops' && workbenchTab === 'inspect_03_06' ? 'page' : undefined}
           onClick={() => { setActiveView('field_ops'); setWorkbenchTab('inspect_03_06'); }}
         >
           ⚡ 30초 점검
+          {fieldOpenCount > 0 && <em className="nexus-dock-badge">{fieldOpenCount}</em>}
         </button>
         <button
           type="button"
+          className={activeView === 'field_ops' && workbenchTab === 'equipment_photo' ? 'is-active' : undefined}
+          aria-current={activeView === 'field_ops' && workbenchTab === 'equipment_photo' ? 'page' : undefined}
           onClick={() => { setActiveView('field_ops'); setWorkbenchTab('equipment_photo'); }}
         >
           🏗️ 기계사진
+          {fieldEquipRevCount > 0 && <em className="nexus-dock-badge is-urgent">{fieldEquipRevCount}</em>}
         </button>
         <button
           type="button"
+          className={activeView === 'field_inbox' && workbenchTab === 'training_04' ? 'is-active' : undefined}
+          aria-current={activeView === 'field_inbox' && workbenchTab === 'training_04' ? 'page' : undefined}
           onClick={() => { setActiveView('field_inbox'); setWorkbenchTab('training_04'); }}
         >
           📱 QR 서명
+          {fieldIncompleteTrainCount > 0 && <em className="nexus-dock-badge">{fieldIncompleteTrainCount}</em>}
         </button>
       </div>
     )}
@@ -1940,6 +2115,21 @@ const SafetyNexus: React.FC<Props> = ({
               aria-label="빠른 실행 명령 검색"
               value={cmdQuery}
               onChange={e => setCmdQuery(e.target.value)}
+              onKeyDown={e => {
+                if (e.nativeEvent.isComposing) return;
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setCmdActiveIdx(i => (paletteCommands.length ? (i + 1) % paletteCommands.length : 0));
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setCmdActiveIdx(i =>
+                    paletteCommands.length ? (i - 1 + paletteCommands.length) % paletteCommands.length : 0,
+                  );
+                } else if (e.key === 'Enter' && paletteCommands[cmdActiveIdx]) {
+                  e.preventDefault();
+                  executePaletteCommand(paletteCommands[cmdActiveIdx]);
+                }
+              }}
               placeholder={
                 effectiveRole === 'hq'
                   ? '검색 (예: 제2현장, PPTX, 증빙 ZIP, 작업중지, 순회...)'
@@ -1952,9 +2142,15 @@ const SafetyNexus: React.FC<Props> = ({
             {paletteCommands.length === 0 ? (
               <li className="is-empty">일치하는 빠른 실행 명령이 없습니다.</li>
             ) : (
-              paletteCommands.map(cmd => (
+              paletteCommands.map((cmd, idx) => (
                 <li key={cmd.id}>
-                  <button type="button" onClick={() => executePaletteCommand(cmd)}>
+                  <button
+                    type="button"
+                    className={idx === cmdActiveIdx ? 'is-highlighted' : undefined}
+                    aria-selected={idx === cmdActiveIdx}
+                    onMouseEnter={() => setCmdActiveIdx(idx)}
+                    onClick={() => executePaletteCommand(cmd)}
+                  >
                     <div>
                       <strong>{cmd.label}</strong>
                       <small>{cmd.description}</small>
@@ -1965,6 +2161,9 @@ const SafetyNexus: React.FC<Props> = ({
               ))
             )}
           </ul>
+          <div className="nexus-cmd-palette-foot">
+            <span>↑↓ 이동 · Enter 실행 · Esc 닫기 · F 전체화면</span>
+          </div>
         </div>
       </div>
     )}

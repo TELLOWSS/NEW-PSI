@@ -41,6 +41,22 @@ try {
 
   await root.getByRole('button', { name: /체험 데이터 불러오기/ }).click();
 
+  recordCheck(
+    'UX-1 HQ urgent decision queue renders after loading demo data',
+    (await root.locator('.nexus-hq-morning-bar').count()) === 1,
+  );
+  await root.locator('.nexus-context-rail .nexus-scope-strip').getByRole('button', { name: '제1현장' }).click();
+  recordCheck(
+    'UX-1 Active Filter Context Ribbon appears on HQ site filter & resets cleanly',
+    (await root.locator('.nexus-active-filters-bar').count()) === 1,
+  );
+  await page.screenshot({ path: resolve(outDir, 'nexus-v4-hq-ux-1440.png'), fullPage: false });
+  await root.locator('.nexus-active-filter-reset').click();
+  recordCheck(
+    'UX-1 Active Filter Context Ribbon dismisses after reset click',
+    (await root.locator('.nexus-active-filters-bar').count()) === 0,
+  );
+
   await root.getByRole('button', { name: /ORBIT 02/ }).click();
   recordCheck('ORBIT 02 6 core module nodes', (await root.locator('.nexus-node').count()) === 6);
 
@@ -112,21 +128,26 @@ try {
       (await root.locator('.nexus-node.selected').count()) === 1,
   );
 
-  // U3 Ctrl+K Command Palette in HQ mode + capture screenshot
+  // U3 + UX-2 Ctrl+K Command Palette ArrowDown + Enter execution in HQ mode + capture screenshot
   await page.keyboard.press('Control+k');
   const cmdDialog = root.getByRole('dialog', { name: '안전지능 빠른 실행 커맨드 팔레트' });
   await cmdDialog.waitFor({ state: 'visible', timeout: 5000 });
-  await cmdDialog.getByLabel('빠른 실행 명령 검색').fill('PPTX');
+  const cmdSearchInput = cmdDialog.getByLabel('빠른 실행 명령 검색');
+  await cmdSearchInput.fill('PPTX');
   recordCheck(
     'U3 Ctrl+K Command Palette opens in HQ mode and filters CEO PPTX action',
     (await cmdDialog.getByRole('button', { name: /PPTX/ }).count()) >= 1,
   );
   await page.screenshot({ path: resolve(outDir, 'nexus-v3-palette-1440.png'), fullPage: false });
-  await page.keyboard.press('Escape');
+  await cmdSearchInput.fill('건설기계');
+  await cmdSearchInput.press('ArrowDown');
+  await cmdSearchInput.press('ArrowUp');
+  await cmdSearchInput.press('Enter');
   recordCheck(
-    'Pressing Escape closes Command Palette',
-    (await cmdDialog.count()) === 0,
+    'UX-2 Pressing Enter in Command Palette executes highlighted item & closes palette',
+    (await cmdDialog.count()) === 0 && (await root.locator('.nexus-workbench').isVisible()),
   );
+  await root.getByRole('tab', { name: '① 3D 전사 지휘' }).click();
 
   // View ③: HQ Approvals, Equipment Batch Verify, Lightbox Prev/Next & Inline Decision, CEO Pack & All-Sites Directive
   await root.getByRole('tab', { name: '③ 본사 결재·보고·순회' }).click();
@@ -243,7 +264,27 @@ try {
   await page.waitForTimeout(200);
   await page.screenshot({ path: resolve(outDir, 'nexus-v2-field-morning-1440.png'), fullPage: false });
 
-  // Field Stop-Work + Shift Handover 5-line copy
+  // Field Stop-Work + Progressive Disclosure + Pipeline Search + 4-step Stepper + Shift Handover 5-line copy
+  recordCheck(
+    'UX-3 Field 30s form hides secondary auto-filled inputs behind progressive disclosure toggle',
+    (await root.locator('.nexus-advanced-toggle-btn').getAttribute('aria-expanded')) === 'false' &&
+      (await root.locator('.nexus-case-stepper').count()) >= 1,
+  );
+  await root.locator('.nexus-advanced-toggle-btn').click();
+  recordCheck(
+    'UX-3 Progressive disclosure expands secondary 3-axis & assignee fields on click',
+    (await root.locator('.nexus-advanced-toggle-btn').getAttribute('aria-expanded')) === 'true' &&
+      (await root.getByLabel('자동분류 구간 축').isVisible()),
+  );
+  await root.locator('.nexus-advanced-toggle-btn').click();
+
+  await root.getByLabel('조치·인계 파이프라인 검색').fill('없는검색어xyz999');
+  recordCheck(
+    'UX-4 Pipeline search empty state renders filter reset button cleanly',
+    (await root.getByRole('button', { name: '필터·검색 초기화' }).count()) === 1,
+  );
+  await root.getByRole('button', { name: '필터·검색 초기화' }).click();
+
   await root.getByRole('button', { name: /#01 지하RC/ }).click();
   await root.locator('.nexus-stopwork-toggle input[type="checkbox"]').check();
   await root.getByRole('button', { name: /30초 조치·재점검·인계 등록 및 구체 환류/ }).click();
@@ -371,9 +412,14 @@ try {
           (await root.locator('.nexus-mobile-thumb-dock').isVisible()),
       );
       await root.getByRole('tab', { name: '① 현장 즉시 실행' }).click();
+      recordCheck(
+        'UX-5 390px mobile thumb dock marks active tab with .is-active',
+        (await root.locator('.nexus-mobile-thumb-dock button.is-active').count()) === 1,
+      );
       await root.locator('.nexus-header').scrollIntoViewIfNeeded();
       await page.waitForTimeout(150);
       await page.screenshot({ path: resolve(outDir, 'nexus-v3-mobile-field-390.png'), fullPage: false });
+      await page.screenshot({ path: resolve(outDir, 'nexus-v4-field-ux-390.png'), fullPage: false });
     }
     await root.getByRole('button', { name: /본사 통합 관제 \(전사\)/ }).click();
     for (const hView of ['① 3D 전사 지휘', '② 경영 브리핑 BI', '③ 본사 결재·보고·순회']) {

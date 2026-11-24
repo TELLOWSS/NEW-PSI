@@ -39,4 +39,37 @@ describe('Role-Scoped Command Palette & Visual UX Registry', () => {
     });
     expect(siteMatches.map(c => c.id)).toContain('hq-site-SITE-02-GANGFORM');
   });
+
+  it('enriches command palette badges with live pending queue counts while keeping field isolation', () => {
+    resetManagedNexusSites();
+    const sites = readManagedNexusSites(false);
+
+    const hqCommands = buildRoleScopedCommands({
+      workspaceRole: 'hq',
+      managedSites: sites,
+      pendingCounts: {
+        stopWork: 2,
+        equipmentPending: 3,
+        investigationPending: 1,
+        unackedVisits: 4,
+        offlinePending: 5,
+      },
+    });
+    expect(hqCommands.find(c => c.id === 'hq-tab-equip')?.badge).toBe('검토대기 3건');
+    expect(hqCommands.find(c => c.id === 'hq-tab-stopwork')?.badge).toBe('작업중지 2건');
+    expect(hqCommands.find(c => c.id === 'common-sync-queue')?.badge).toBe('미전송 5건');
+
+    const fieldCommands = buildRoleScopedCommands({
+      workspaceRole: 'field',
+      managedSites: sites,
+      pendingCounts: {
+        stopWork: 1,
+        fieldRevision: 2,
+        incompleteTraining: 3,
+      },
+    });
+    expect(fieldCommands.find(c => c.id === 'field-tab-equip')?.badge).toBe('보완 2건');
+    expect(fieldCommands.find(c => c.id === 'field-tab-training')?.badge).toBe('미이수 3건');
+    expect(fieldCommands.some(c => c.id.startsWith('hq-'))).toBe(false);
+  });
 });

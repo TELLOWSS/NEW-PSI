@@ -6025,10 +6025,323 @@
   font-size: 11.5px;
 }
 
+.nexus-tab-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: #f3bd76;
+  color: #13202d;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 850;
+  vertical-align: middle;
+}
+
+.safety-nexus[data-workspace-role="field"] .nexus-tab-badge {
+  background: #74e3ec;
+  color: #0b1c29;
+}
+
+.nexus-sync-pill.is-interactive {
+  cursor: pointer;
+  transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+
+.nexus-sync-pill.is-interactive:hover {
+  transform: translateY(-1px);
+  border-color: #f4c17e99;
+  box-shadow: 0 4px 12px #02080f80;
+}
+
+.nexus-active-filters-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px dashed #f3bd7659;
+  background: #141b24cc;
+}
+
+.nexus-active-filters-label {
+  font-size: 10.5px;
+  font-weight: 780;
+  color: #f3bd76;
+  letter-spacing: .04em;
+  margin-right: 4px;
+}
+
+.nexus-active-filter-chip {
+  min-height: 26px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid #75e6ef66;
+  background: #0d2433;
+  color: #dcf9fc;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.nexus-active-filter-reset {
+  margin-left: auto;
+  min-height: 26px;
+  padding: 2px 10px;
+  border-radius: 6px;
+  border: 1px solid #f0957766;
+  background: #2b181d;
+  color: #ffd8d8;
+  font-size: 10.5px;
+  font-weight: 740;
+}
+
+.nexus-hq-morning-bar {
+  margin: 0 35px 18px;
+  padding: 11px 16px;
+  border-radius: 12px;
+  border: 1px solid #f3bd7659;
+  background: linear-gradient(125deg, #1b1713eb, #0c1b29eb);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.nexus-cmd-palette-list button.is-highlighted {
+  border-color: #f3bf7db3;
+  background: #222d3e;
+}
+
+.nexus-cmd-palette-foot {
+  padding: 7px 14px;
+  border-top: 1px solid #4e6f853d;
+  background: #08121c;
+  color: #8fb0c2;
+  font-size: 10.5px;
+  font-weight: 640;
+  text-align: right;
+}
+
+.nexus-voice-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.nexus-voice-input-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.nexus-voice-btn {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 11px;
+  border-radius: 7px;
+  border: 1px solid #74e3ec66;
+  background: #0e2838;
+  color: #d9fbff;
+  font-size: 11.5px;
+  font-weight: 740;
+  white-space: nowrap;
+}
+
+.nexus-voice-btn.is-listening {
+  border-color: #f27575;
+  background: #40171d;
+  color: #ffe2e2;
+}
+
+.nexus-advanced-toggle-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid #597b914d;
+  background: #0a1826b8;
+}
+
+.nexus-advanced-summary {
+  font-size: 11px;
+  color: #b7cfdd;
+}
+
+.nexus-advanced-summary b {
+  color: #f6ca88;
+}
+
+.nexus-advanced-toggle-btn {
+  min-height: 28px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid #6b8ea566;
+  background: #102435;
+  color: #e4f4fa;
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.nexus-case-search-input {
+  min-height: 30px;
+  min-width: 150px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  border: 1px solid #5d7e9459;
+  background: #0a1724;
+  color: #ecf5fa;
+  font-size: 11.5px;
+}
+
+.nexus-case-stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 4px 0 6px;
+}
+
+.nexus-stepper-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #4c6a7e4d;
+  background: #0a1723;
+  color: #85a1b3;
+  font-size: 10px;
+  font-weight: 680;
+}
+
+.nexus-stepper-node b {
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #172b3d;
+  color: #9cb8c9;
+  font-size: 9px;
+}
+
+.nexus-stepper-node.is-done {
+  border-color: #48c99f66;
+  background: #0c2620;
+  color: #c5f7e6;
+}
+
+.nexus-stepper-node.is-done b {
+  background: #3eb98d;
+  color: #081913;
+}
+
+.nexus-stepper-node.is-current {
+  border-color: #f4c17e;
+  background: #2f2313;
+  color: #fff0d5;
+  font-weight: 780;
+}
+
+.nexus-stepper-node.is-current b {
+  background: #f4c17e;
+  color: #17120a;
+}
+
+.nexus-empty-action-box {
+  padding: 16px 14px;
+  border-radius: 10px;
+  border: 1px dashed #698ba159;
+  background: #0b182599;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.nexus-empty-action-box p {
+  margin: 0;
+  font-size: 12px;
+  color: #c4d8e4;
+}
+
+.nexus-empty-action-box button {
+  min-height: 34px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 1px solid #f4c17e80;
+  background: #2a2013;
+  color: #ffe8c2;
+  font-size: 11.5px;
+  font-weight: 740;
+}
+
+.nexus-ceo-head-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.nexus-tbm-jump-btn {
+  min-height: 32px;
+  padding: 5px 11px;
+  border-radius: 7px;
+  border: 1px solid #75e6ef73;
+  background: #0f2c3c;
+  color: #dbfbff;
+  font-size: 11.5px;
+  font-weight: 750;
+}
+
+.nexus-remaining-badge {
+  color: #ffd79e;
+  font-weight: 800;
+}
+
+.nexus-mobile-thumb-dock button {
+  position: relative;
+}
+
+.nexus-mobile-thumb-dock button.is-active {
+  border-color: #74e3ec;
+  background: #13394c;
+  color: #ffffff;
+  box-shadow: 0 0 12px #74e3ec33;
+}
+
+.nexus-dock-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: #f3bd76;
+  color: #13202d;
+  font-size: 9.5px;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.nexus-dock-badge.is-urgent {
+  background: #f27575;
+  color: #ffffff;
+}
+
 @media(max-width:790px) {
 
   .nexus-context-rail,
   .nexus-field-morning-bar,
+  .nexus-hq-morning-bar,
   .nexus-hq-bi-view,
   .nexus-compliance-panel {
     margin: 0 12px 16px;
@@ -6036,6 +6349,7 @@
 
   .nexus-context-rail,
   .nexus-field-morning-bar,
+  .nexus-hq-morning-bar,
   .nexus-compliance-panel {
     padding: 11px 12px;
   }

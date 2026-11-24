@@ -49,6 +49,7 @@ export const NexusExecutiveTrainingBridge: React.FC<Props> = ({
   const [workerNamesByCamp, setWorkerNamesByCamp] = useState<Record<string, string>>({});
   const sigCanvasRefs = useRef<Record<string, HTMLCanvasElement | null>>({});
   const sigDrawingState = useRef<Record<string, { drawing: boolean; hasInk: boolean; initialized: boolean }>>({});
+  const campaignListRef = useRef<HTMLDivElement>(null);
 
   const draftPreview = useMemo(
     () => buildExecutiveTrainingDraftFromSeed(seed, { targetWorkers }),
@@ -229,9 +230,20 @@ export const NexusExecutiveTrainingBridge: React.FC<Props> = ({
           </span>
           <h3>04 대표이사 안전교육 12개 국어 즉시 전파 & 이수율 환류 스튜디오</h3>
         </div>
-        <span className="nexus-3axis-confidence">
-          연계 시드 [{seed.caseCode}] · 구체 포인트 #{seed.structuralNodeIndex}
-        </span>
+        <div className="nexus-ceo-head-right">
+          <span className="nexus-3axis-confidence">
+            연계 시드 [{seed.caseCode}] · 구체 포인트 #{seed.structuralNodeIndex}
+          </span>
+          {campaigns.length > 0 && (
+            <button
+              type="button"
+              className="nexus-tbm-jump-btn"
+              onClick={() => campaignListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            >
+              📱 현장 QR·자필 서명 바로가기 ↓
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="nexus-ceo-draft-grid">
@@ -326,7 +338,7 @@ export const NexusExecutiveTrainingBridge: React.FC<Props> = ({
       )}
 
       {campaigns.length > 0 && (
-        <div className="nexus-ceo-campaign-list" aria-label="전 현장 대표이사 안전교육 서명·이수율 환류 현황">
+        <div ref={campaignListRef} className="nexus-ceo-campaign-list" aria-label="전 현장 대표이사 안전교육 서명·이수율 환류 현황">
           <strong>전 현장 12개 국어 대표이사 안전교육 전파 · 모바일 서명 이수율 환류 ({campaigns.length}건)</strong>
           <ul>
             {campaigns.slice(0, 5).map(camp => (
@@ -337,6 +349,9 @@ export const NexusExecutiveTrainingBridge: React.FC<Props> = ({
                   </span>
                   <em className={'status-pill status-' + camp.status}>
                     {NEXUS_TRAINING_STATUS_LABELS[camp.status]} · 이수율 {camp.completionRatePct ?? 0}% ({camp.confirmedSignatures}/{camp.targetWorkers}명 · {camp.participatingNationalities}개국)
+                    {camp.confirmedSignatures < camp.targetWorkers && (
+                      <span className="nexus-remaining-badge"> · 잔여 {camp.targetWorkers - camp.confirmedSignatures}명</span>
+                    )}
                   </em>
                 </div>
                 <div className="nexus-ceo-progress-track" aria-hidden="true">
