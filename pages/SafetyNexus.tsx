@@ -55,8 +55,10 @@ import {
 } from '../utils/nexusHqCommandLoop';
 import {
   NEXUS_EQUIPMENT_PHOTO_UPDATED_EVENT,
+  buildUnifiedCeoDailyBriefing,
   readEquipmentPhotoSubmissions,
   type NexusEquipmentPhotoSubmission,
+  type NexusUnifiedCeoDailyBriefing,
 } from '../utils/nexusEquipmentPhotoReport';
 import { buildExecutiveBentoSnapshot } from '../utils/nexusExecutiveBentoMetrics';
 import { NexusExecutiveBentoBoard } from '../components/shared/NexusExecutiveBentoBoard';
@@ -415,6 +417,8 @@ const SafetyNexus: React.FC<Props> = ({
   const [workbenchTab, setWorkbenchTab] = useState<NexusWorkbenchTab>(
     (lockedRole ?? initialRole) === 'field' ? 'inspect_03_06' : 'equipment_photo',
   );
+  const [dailyCeoBriefing, setDailyCeoBriefing] = useState<NexusUnifiedCeoDailyBriefing | null>(null);
+  const [dailyBriefingNotice, setDailyBriefingNotice] = useState<string>('');
   const effectiveRole: NexusWorkspaceAuthority = lockedRole ?? workspaceRole;
   const effectiveFieldSiteId = lockedSiteId || assignedFieldSiteId;
   useEffect(() => {
@@ -862,6 +866,61 @@ const SafetyNexus: React.FC<Props> = ({
         </button>
       </div>
     </nav>
+    {effectiveRole === 'field' && (() => {
+      const fieldOpenCount = scopedData.pipelineCases.filter(c => c.status !== 'closed').length;
+      const fieldStopCount = scopedData.pipelineCases.filter(c => c.status !== 'closed' && c.stopWorkFlag).length;
+      const fieldEquipRevCount = scopedData.equipmentReports.filter(e => e.status === 'revision_requested_hq').length;
+      const fieldInvRevCount = scopedData.investigations.filter(i => i.status === 'revision_requested').length;
+      const fieldTotalRevCount = fieldEquipRevCount + fieldInvRevCount;
+      const fieldUnackedVisitCount = scopedData.visitPlans.filter(v => v.status !== 'action_issued_closed' && !v.fieldAcknowledgedAt).length;
+      const fieldIncompleteTrainCount = scopedData.trainingCampaigns.filter(t => (t.completionRatePct ?? 0) < 100).length;
+      return (
+        <section className="nexus-field-morning-bar" aria-label="현장 안전관리자 출근 긴급 처리함">
+          <div className="nexus-field-morning-title">
+            <strong>🦺 오늘 출근 즉시 처리 큐</strong>
+            <small>{scopedData.activeSiteMeta?.shortLabel || '소속 현장'}</small>
+          </div>
+          <div className="nexus-field-morning-chips">
+            <button
+              type="button"
+              className={'nexus-morning-chip' + (fieldStopCount > 0 ? ' is-urgent' : '')}
+              onClick={() => { setActiveView('field_ops'); setWorkbenchTab('inspect_03_06'); }}
+            >
+              ⛔ 작업중지·미결 <b>{fieldOpenCount}건</b>{fieldStopCount > 0 ? ` (중지 ${fieldStopCount})` : ''}
+            </button>
+            <button
+              type="button"
+              className={'nexus-morning-chip' + (fieldTotalRevCount > 0 ? ' is-urgent' : '')}
+              onClick={() => {
+                if (fieldEquipRevCount > 0) {
+                  setActiveView('field_ops');
+                  setWorkbenchTab('equipment_photo');
+                } else {
+                  setActiveView('field_inbox');
+                  setWorkbenchTab('investigate_05_02');
+                }
+              }}
+            >
+              🔁 본사 보완요청 <b>{fieldTotalRevCount}건</b>
+            </button>
+            <button
+              type="button"
+              className={'nexus-morning-chip' + (fieldUnackedVisitCount > 0 ? ' is-warn' : '')}
+              onClick={() => { setActiveView('field_inbox'); setWorkbenchTab('visit_01'); }}
+            >
+              📋 본사 순회 미접수 <b>{fieldUnackedVisitCount}건</b>
+            </button>
+            <button
+              type="button"
+              className={'nexus-morning-chip' + (fieldIncompleteTrainCount > 0 ? ' is-warn' : '')}
+              onClick={() => { setActiveView('field_inbox'); setWorkbenchTab('training_04'); }}
+            >
+              🌐 미이수 12개국어 교육 <b>{fieldIncompleteTrainCount}건</b>
+            </button>
+          </div>
+        </section>
+      );
+    })()}
     {(activeView === 'hq_command' || activeView === 'field_sphere') && <div className="nexus-main">
       <aside className="nexus-aside">
         <div className="nexus-section-title"><span>01 / EXECUTIVE COMMAND</span><i /></div>
@@ -1235,6 +1294,99 @@ const SafetyNexus: React.FC<Props> = ({
     </div>}
     {effectiveRole === 'hq' && activeView === 'hq_bi' && bentoSnapshot && (
       <div className="nexus-hq-bi-view" aria-label="본사 전사 경영 브리핑 BI 분석">
+        <div className="nexus-hq-daily-bar">
+          <div>
+            <strong>🏛️ 대표이사 · 경영진 일일 전사 안전 통합 보고서</strong>
+            <small>전 현장의 작업중지·건설기계 사진·사고조사 승인·다국어 교육 이수율을 1장 보고서로 즉시 취합합니다.</small>
+          </div>
+          <button
+            type="button"
+            className="nexus-3axis-submit"
+            onClick={() => {
+              const pack = buildUnifiedCeoDailyBriefing({
+                asOfDate: followup.asOfDate,
+                reporterLabel: '본사 CSO · 안전보건실장',
+                pipelineCases: scopedData.pipelineCases,
+                visitPlans: scopedData.visitPlans,
+                investigations: scopedData.investigations,
+                trainingCampaigns: scopedData.trainingCampaigns,
+                equipmentReports: scopedData.equipmentReports,
+              });
+              setDailyCeoBriefing(pack);
+              setDailyBriefingNotice('');
+            }}
+          >
+            🏛️ 대표이사 일일 통합 안전브리핑 1장 생성 ↗
+          </button>
+        </div>
+
+        {dailyCeoBriefing && (
+          <section className="nexus-ceo-daily-sheet" aria-label="대표이사 일일 전사 안전 통합 브리핑 시트">
+            <div className="nexus-3axis-matched-title">
+              <strong>
+                📋 [{dailyCeoBriefing.briefingId}] 대표이사·경영진 일일 통합 안전브리핑 ({dailyCeoBriefing.siteCount}개 현장)
+              </strong>
+              <div className="nexus-3axis-case-row-actions">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                        await navigator.clipboard.writeText(dailyCeoBriefing.summaryText);
+                      }
+                      setDailyBriefingNotice('대표이사 일일 통합 안전브리핑 요약문을 클립보드에 복사했습니다.');
+                    } catch {
+                      setDailyBriefingNotice('아래 요약문 박스에서 복사해 주세요.');
+                    }
+                  }}
+                >
+                  📋 경영진 브리핑 복사
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      const blob = new Blob([dailyCeoBriefing.csvContent], { type: 'text/csv;charset=utf-8;' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${dailyCeoBriefing.briefingId}-통합안전브리핑.csv`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                      setDailyBriefingNotice(`${dailyCeoBriefing.briefingId} 엑셀(CSV) 파일을 저장했습니다.`);
+                    } catch {
+                      setDailyBriefingNotice('CSV 다운로드를 시작하지 못했습니다.');
+                    }
+                  }}
+                >
+                  📊 엑셀(CSV) 저장
+                </button>
+                <button type="button" onClick={() => setDailyCeoBriefing(null)}>✕ 닫기</button>
+              </div>
+            </div>
+            {dailyBriefingNotice && <p role="status" className="nexus-3axis-feedback">{dailyBriefingNotice}</p>}
+            <div className="nexus-ceo-daily-kpis">
+              <span>⛔ 작업중지 <b>{dailyCeoBriefing.stopWorkCount}건</b> (전체 미결 {dailyCeoBriefing.openActionsCount})</span>
+              <span>🏗️ 건설기계 사진 <b>{dailyCeoBriefing.equipReadyCount}건</b> (대기 {dailyCeoBriefing.equipPendingCount})</span>
+              <span>🔍 조사승인·순회 <b>{dailyCeoBriefing.pendingApprovalCount} / {dailyCeoBriefing.activeVisitCount}건</b> (접수 {dailyCeoBriefing.ackedVisitCount})</span>
+              <span>🌐 교육이수율 <b>{dailyCeoBriefing.trainingCompletionPct}%</b></span>
+            </div>
+            {dailyCeoBriefing.verifiedPhotoThumbs.length > 0 && (
+              <div className="nexus-ceo-daily-thumbs" aria-label="경영진 보고 편입 건설기계 점검 사진">
+                {dailyCeoBriefing.verifiedPhotoThumbs.map(th => (
+                  <figure key={th.submissionId}>
+                    <img src={th.photoDataUrl} alt={`${th.siteName} ${th.equipmentLabel}`} />
+                    <figcaption>{th.siteName.split(' ')[0]} · {th.equipmentLabel}</figcaption>
+                  </figure>
+                ))}
+              </div>
+            )}
+            <pre className="nexus-ceo-pre">{dailyCeoBriefing.summaryText}</pre>
+          </section>
+        )}
+
         <div className="nexus-site-matrix-grid" role="group" aria-label="본사 3대 골조 포트폴리오 실시간 비교 매트릭스">
           {siteMatrix.map(card => (
             <button

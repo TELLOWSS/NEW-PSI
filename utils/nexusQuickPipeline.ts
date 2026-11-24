@@ -156,6 +156,9 @@ export interface NexusPipelineCase {
   handoverNote: string;
   recheckNote?: string;
   stopWorkFlag?: boolean;
+  hqDirectiveNote?: string;
+  hqDirectiveActor?: string;
+  hqDirectiveAt?: string;
   beforePhotoDataUrl?: string;
   afterPhotoDataUrl?: string;
   auditTrail?: readonly NexusPipelineAuditEntry[];
@@ -402,6 +405,40 @@ export const advanceNexusPipelineCaseStatus = (
         {
           status: nextStatus,
           note: stepNote,
+          actor,
+          timestamp: nowIso,
+        },
+      ],
+      updatedAt: nowIso,
+    };
+  });
+  writeNexusPipelineCases(updated);
+  return updated;
+};
+
+export const addHqDirectiveToPipelineCase = (
+  caseId: string,
+  directive: { actorLabel?: string; note: string },
+  nowIso = new Date().toISOString(),
+): NexusPipelineCase[] => {
+  const actor = String(directive.actorLabel || '').trim() || '본사 CSO·안전보건실';
+  const note =
+    String(directive.note || '').trim() ||
+    '작업 구역 접근 통제 유지 및 보강 후 재점검 사진 첨부 보고 요망';
+  const existing = readNexusPipelineCases();
+  const updated = existing.map(item => {
+    if (item.caseId !== caseId) return item;
+    const priorTrail = Array.isArray(item.auditTrail) ? item.auditTrail : [];
+    return {
+      ...item,
+      hqDirectiveNote: note,
+      hqDirectiveActor: actor,
+      hqDirectiveAt: nowIso,
+      auditTrail: [
+        ...priorTrail,
+        {
+          status: item.status,
+          note: `[본사 지시] ${note}`,
           actor,
           timestamp: nowIso,
         },

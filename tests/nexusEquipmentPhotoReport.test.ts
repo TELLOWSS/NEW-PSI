@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  batchVerifyPendingEquipmentPhotosByHq,
+  buildUnifiedCeoDailyBriefing,
   compileExecutivePhotoBriefingPack,
   readEquipmentPhotoSubmissions,
+  resubmitEquipmentPhotoByField,
   reviewEquipmentPhotoByHq,
   seedEquipmentPhotoSimulation,
   submitEquipmentPhotoReport,
@@ -137,5 +140,67 @@ describe('Equipment Pre-Use Photo Report & Sovereign Executive Bento Metrics', (
     expect(csv.startsWith('\uFEFF')).toBe(true);
     expect(csv).toContain('전 현장 조치 종결률');
     expect(csv).toContain('건설기계 사용전 사진보고');
+  });
+
+  it('supports field equipment photo resubmission, HQ batch verification with separation-of-duty, and unified CEO daily briefing', () => {
+    const ownUpload = submitEquipmentPhotoReport(
+      {
+        siteId: 'SITE-01-SUBRC',
+        equipmentType: 'concrete_pump_car',
+        workActivity: '펌프카 아웃트리거 점검',
+        uploadedBy: '본사 안전보건실 박실장',
+      },
+      '2026-11-24T07:00:00Z',
+    );
+    const fieldUpload = submitEquipmentPhotoReport(
+      {
+        siteId: 'SITE-02-GANGFORM',
+        siteName: '=FORMULA() 제2현장 103동',
+        equipmentType: 'tower_crane',
+        workActivity: '타워크레인 샤클 근접 점검',
+        uploadedBy: '제2현장 안전관리자 이현장',
+      },
+      '2026-11-24T07:10:00Z',
+    );
+
+    // HQ requests revision on fieldUpload, then Field resubmits -> back to submitted_to_hq
+    reviewEquipmentPhotoByHq(
+      fieldUpload.submissionId,
+      { decision: 'revision_requested_hq', reviewerLabel: '본사 안전보건실 박실장', reviewNote: '샤클 핀 재촬영 요망' },
+      '2026-11-24T07:20:00Z',
+    );
+    const afterResubmit = resubmitEquipmentPhotoByField(
+      fieldUpload.submissionId,
+      { supplementNote: '샤클 핀 풀림방지 클로즈업 재촬영 완료', resubmittedBy: '제2현장 안전관리자 이현장' },
+      '2026-11-24T07:30:00Z',
+    );
+    const resubmittedItem = afterResubmit.find(i => i.submissionId === fieldUpload.submissionId);
+    expect(resubmittedItem?.status).toBe('submitted_to_hq');
+    expect(resubmittedItem?.fieldSupplementNote).toContain('재촬영');
+
+    // Batch verify by 박실장 should verify fieldUpload and skip ownUpload by separation-of-duty
+    const batch = batchVerifyPendingEquipmentPhotosByHq([], {
+      reviewerLabel: '본사 안전보건실 박실장',
+    });
+    expect(batch.verifiedCount).toBe(1);
+    expect(batch.skippedSelfCount).toBe(1);
+    expect(batch.updated.find(i => i.submissionId === ownUpload.submissionId)?.status).toBe('submitted_to_hq');
+    expect(batch.updated.find(i => i.submissionId === fieldUpload.submissionId)?.status).toBe('hq_verified_for_ceo');
+
+    const seeded = seedMultiSiteOperationalSimulation('2026-11-24T08:00:00Z');
+    const daily = buildUnifiedCeoDailyBriefing({
+      asOfDate: '2026-11-24',
+      reporterLabel: '본사 CSO',
+      pipelineCases: seeded.cases,
+      visitPlans: seeded.visits,
+      investigations: seeded.investigations,
+      trainingCampaigns: seeded.campaigns,
+      equipmentReports: batch.updated,
+    });
+    expect(daily.briefingId).toBe('CEO-DAILY-20261124');
+    expect(daily.equipReadyCount).toBeGreaterThanOrEqual(1);
+    expect(daily.summaryText).toContain('대표이사 · 경영진 일일 전사 안전 통합 브리핑');
+    expect(daily.csvContent.startsWith('\uFEFF')).toBe(true);
+    expect(daily.csvContent).toContain('\t=FORMULA()');
   });
 });

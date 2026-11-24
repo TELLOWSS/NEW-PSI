@@ -19,6 +19,8 @@ import {
 } from '../../utils/nexusStructuralTaxonomy';
 
 interface Props {
+  workspaceRole?: 'hq' | 'field';
+  siteLabel?: string;
   activeSeed?: NexusStructuralIncidentSeed;
   campaigns: readonly NexusExecutiveTrainingCampaign[];
   onCampaignsChange: (next: NexusExecutiveTrainingCampaign[]) => void;
@@ -26,11 +28,14 @@ interface Props {
 }
 
 export const NexusExecutiveTrainingBridge: React.FC<Props> = ({
+  workspaceRole = 'hq',
+  siteLabel,
   activeSeed,
   campaigns,
   onCampaignsChange,
   onOpenAdminTraining,
 }) => {
+  const isField = workspaceRole === 'field';
   const seed = activeSeed ?? NEXUS_STRUCTURAL_INCIDENT_SEEDS[0];
   const [selectedLang, setSelectedLang] = useState<TrainingLanguageCode>('vi-VN');
   const [targetWorkers, setTargetWorkers] = useState(12);
@@ -107,39 +112,51 @@ export const NexusExecutiveTrainingBridge: React.FC<Props> = ({
       <div className="nexus-ceo-draft-grid">
         <div className="nexus-ceo-draft-ko">
           <div className="nexus-ceo-box-head">
-            <strong>원클릭 생성 대표이사 안전교육 한국어 5단계 원문</strong>
-            <label className="nexus-ceo-target-input">
-              <span>지정 교육 대상(분모)</span>
-              <input
-                type="number"
-                min={1}
-                max={500}
-                aria-label="지정 교육 대상 인원"
-                value={targetWorkers}
-                onChange={e => setTargetWorkers(Math.max(1, Math.min(500, Number(e.target.value) || 1)))}
-              />
-              <small>명</small>
-            </label>
-          </div>
-          <pre className="nexus-ceo-pre">{draftPreview.sourceTextKo}</pre>
-          <div className="nexus-ceo-actions">
-            <button
-              type="button"
-              className="nexus-3axis-submit"
-              onClick={() => handleDispatch12Lang(false)}
-            >
-              12개국어 전 현장 즉시 발령 & 구체 환류 ↗
-            </button>
-            {onOpenAdminTraining && (
-              <button
-                type="button"
-                className="nexus-ceo-studio-btn"
-                onClick={() => handleDispatch12Lang(true)}
-              >
-                04 대표이사 안전교육 QR·음성 스튜디오로 초안 보내기 ↗
-              </button>
+            <strong>
+              {isField
+                ? `${siteLabel ? `${siteLabel} · ` : ''}본사 하달 대표이사 안전교육 5단계 안내`
+                : '원클릭 생성 대표이사 안전교육 한국어 5단계 원문'}
+            </strong>
+            {!isField && (
+              <label className="nexus-ceo-target-input">
+                <span>지정 교육 대상(분모)</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={500}
+                  aria-label="지정 교육 대상 인원"
+                  value={targetWorkers}
+                  onChange={e => setTargetWorkers(Math.max(1, Math.min(500, Number(e.target.value) || 1)))}
+                />
+                <small>명</small>
+              </label>
             )}
           </div>
+          <pre className="nexus-ceo-pre">{draftPreview.sourceTextKo}</pre>
+          {isField ? (
+            <p className="nexus-3axis-case-row-meta">
+              본사·대표이사에서 하달된 12개국어 안전교육 원문을 확인하고, 우측 모국어 음성 안내 후 아래 작업팀 서명 버튼으로 이수율을 실시간 환류하세요.
+            </p>
+          ) : (
+            <div className="nexus-ceo-actions">
+              <button
+                type="button"
+                className="nexus-3axis-submit"
+                onClick={() => handleDispatch12Lang(false)}
+              >
+                12개국어 전 현장 즉시 발령 & 구체 환류 ↗
+              </button>
+              {onOpenAdminTraining && (
+                <button
+                  type="button"
+                  className="nexus-ceo-studio-btn"
+                  onClick={() => handleDispatch12Lang(true)}
+                >
+                  04 대표이사 안전교육 QR·음성 스튜디오로 초안 보내기 ↗
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="nexus-ceo-draft-multilingual">

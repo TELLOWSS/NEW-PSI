@@ -1,5 +1,11 @@
 import { getKoreanCalendarDay } from './monthlyFieldFollowup';
-import { NEXUS_SITE_PORTFOLIO } from './nexusHqCommandLoop';
+import type { NexusExecutiveTrainingCampaign } from './nexusExecutiveTrainingPipeline';
+import {
+  NEXUS_SITE_PORTFOLIO,
+  type NexusAiInvestigationRecord,
+  type NexusHqVisitPlan,
+} from './nexusHqCommandLoop';
+import type { NexusPipelineCase } from './nexusQuickPipeline';
 import { escapeSpreadsheetCsvCell } from './spreadsheetCsv';
 
 export const NEXUS_EQUIPMENT_PHOTO_STORAGE_KEY = 'psi_nexus_equipment_photo_reports_v1';
@@ -89,6 +95,14 @@ export interface NexusEquipmentPhotoSubmission {
   hqReviewer?: string;
   hqReviewNote?: string;
   hqReviewedAt?: string;
+  fieldSupplementNote?: string;
+  resubmittedAt?: string;
+  revisionHistory?: readonly {
+    actor: string;
+    status: NexusEquipmentPhotoStatus;
+    note: string;
+    timestamp: string;
+  }[];
   ceoReportedAt?: string;
   executivePackId?: string;
   status: NexusEquipmentPhotoStatus;
@@ -311,18 +325,237 @@ export const reviewEquipmentPhotoByHq = (
 
   const updated = existing.map(item => {
     if (item.submissionId !== submissionId) return item;
+    const noteText = String(review.reviewNote || '').trim() || defaultNote;
+    const history = Array.isArray(item.revisionHistory) ? item.revisionHistory : [];
     return {
       ...item,
       status: review.decision,
       hqReviewer: reviewer,
-      hqReviewNote: String(review.reviewNote || '').trim() || defaultNote,
+      hqReviewNote: noteText,
       hqReviewedAt: nowIso,
+      revisionHistory: [
+        ...history,
+        { actor: reviewer, status: review.decision, note: noteText, timestamp: nowIso },
+      ],
       updatedAt: nowIso,
     };
   });
 
   writeEquipmentPhotoSubmissions(updated);
   return updated;
+};
+
+export const resubmitEquipmentPhotoByField = (
+  submissionId: string,
+  patch: {
+    photoName?: string;
+    photoDataUrl?: string;
+    supplementNote: string;
+    resubmittedBy?: string;
+  },
+  nowIso = new Date().toISOString(),
+): NexusEquipmentPhotoSubmission[] => {
+  const existing = readEquipmentPhotoSubmissions();
+  const target = existing.find(item => item.submissionId === submissionId);
+  if (!target) {
+    throw new Error('보완 재전송할 건설기계 점검 사진 건을 찾을 수 없습니다.');
+  }
+  const actor = String(patch.resubmittedBy || target.uploadedBy || '현장 안전관리자').trim();
+  const note =
+    String(patch.supplementNote || '').trim() ||
+    '현장 보완 촬영 완료 · 안전장치 체결 및 근접 확인 사진 재전송';
+
+  const updated = existing.map(item => {
+    if (item.submissionId !== submissionId) return item;
+    const history = Array.isArray(item.revisionHistory) ? item.revisionHistory : [];
+    return {
+      ...item,
+      photoName: String(patch.photoName || '').trim() || item.photoName,
+      photoDataUrl: String(patch.photoDataUrl || '').trim() || item.photoDataUrl,
+      fieldSupplementNote: note,
+      resubmittedAt: nowIso,
+      status: 'submitted_to_hq' as const,
+      revisionHistory: [
+        ...history,
+        { actor, status: 'submitted_to_hq' as const, note: `[현장 보완 재전송] ${note}`, timestamp: nowIso },
+      ],
+      updatedAt: nowIso,
+    };
+  });
+
+  writeEquipmentPhotoSubmissions(updated);
+  return updated;
+};
+
+export const batchVerifyPendingEquipmentPhotosByHq = (
+  submissionIds: readonly string[],
+  review: {
+    reviewerLabel: string;
+    reviewNote?: string;
+  },
+  nowIso = new Date().toISOString(),
+): {
+  updated: NexusEquipmentPhotoSubmission[];
+  verifiedCount: number;
+  skippedSelfCount: number;
+} => {
+  const existing = readEquipmentPhotoSubmissions();
+  const reviewer = String(review.reviewerLabel || '').trim() || '본사 안전보건실장 (CSO 보고)';
+  const reviewerLower = reviewer.toLowerCase();
+  const targetSet = submissionIds.length > 0 ? new Set(submissionIds) : null;
+  const note =
+    String(review.reviewNote || '').trim() ||
+    '본사 일괄 검토 적합 확인 → 대표이사·경영진 보고 대상 편입';
+
+  let verifiedCount = 0;
+  let skippedSelfCount = 0;
+
+  const updated = existing.map(item => {
+    if (item.status !== 'submitted_to_hq') return item;
+    if (targetSet && !targetSet.has(item.submissionId)) return item;
+    if (item.uploadedBy.trim().toLowerCase() === reviewerLower) {
+      skippedSelfCount++;
+      return item;
+    }
+    verifiedCount++;
+    const history = Array.isArray(item.revisionHistory) ? item.revisionHistory : [];
+    return {
+      ...item,
+      status: 'hq_verified_for_ceo' as const,
+      hqReviewer: reviewer,
+      hqReviewNote: note,
+      hqReviewedAt: nowIso,
+      revisionHistory: [
+        ...history,
+        { actor: reviewer, status: 'hq_verified_for_ceo' as const, note, timestamp: nowIso },
+      ],
+      updatedAt: nowIso,
+    };
+  });
+
+  writeEquipmentPhotoSubmissions(updated);
+  return { updated, verifiedCount, skippedSelfCount };
+};
+
+export interface NexusUnifiedCeoDailyBriefing {
+  briefingId: string;
+  asOfDate: string;
+  generatedAt: string;
+  reporterLabel: string;
+  siteCount: number;
+  stopWorkCount: number;
+  openActionsCount: number;
+  equipReadyCount: number;
+  equipPendingCount: number;
+  pendingApprovalCount: number;
+  activeVisitCount: number;
+  ackedVisitCount: number;
+  trainingCompletionPct: number;
+  verifiedPhotoThumbs: readonly {
+    submissionId: string;
+    siteName: string;
+    equipmentLabel: string;
+    workActivity: string;
+    photoDataUrl: string;
+    statusLabel: string;
+  }[];
+  summaryText: string;
+  csvContent: string;
+}
+
+export const buildUnifiedCeoDailyBriefing = (params: {
+  asOfDate?: string;
+  reporterLabel?: string;
+  pipelineCases: readonly NexusPipelineCase[];
+  visitPlans: readonly NexusHqVisitPlan[];
+  investigations: readonly NexusAiInvestigationRecord[];
+  trainingCampaigns: readonly NexusExecutiveTrainingCampaign[];
+  equipmentReports: readonly NexusEquipmentPhotoSubmission[];
+}): NexusUnifiedCeoDailyBriefing => {
+  const nowIso = new Date().toISOString();
+  const asOfDate = params.asOfDate || getKoreanCalendarDay(new Date(nowIso));
+  const reporterLabel = String(params.reporterLabel || '').trim() || '본사 안전보건실장 (CSO)';
+  const briefingId = `CEO-DAILY-${asOfDate.replace(/-/g, '')}`;
+
+  const openCases = params.pipelineCases.filter(c => c.status !== 'closed');
+  const stopWorkCases = openCases.filter(c => Boolean(c.stopWorkFlag));
+  const equipReady = params.equipmentReports.filter(
+    e => e.status === 'hq_verified_for_ceo' || e.status === 'reported_to_ceo',
+  );
+  const equipPending = params.equipmentReports.filter(e => e.status === 'submitted_to_hq');
+  const pendingInvs = params.investigations.filter(i => i.status === 'ai_draft_pending_hq');
+  const activeVisits = params.visitPlans.filter(v => v.status !== 'action_issued_closed');
+  const ackedVisits = activeVisits.filter(v => Boolean(v.fieldAcknowledgedAt));
+
+  const totalTargets = params.trainingCampaigns.reduce((s, c) => s + Math.max(1, c.targetWorkers || 0), 0);
+  const totalSignatures = params.trainingCampaigns.reduce(
+    (s, c) => s + Math.max(0, c.confirmedSignatures || 0),
+    0,
+  );
+  const trainingCompletionPct =
+    totalTargets > 0 ? Math.min(100, Math.round((totalSignatures / totalTargets) * 100)) : 0;
+
+  const lines: string[] = [
+    `[대표이사 · 경영진 일일 전사 안전 통합 브리핑] ${asOfDate} (${briefingId})`,
+    `보고 책임: ${reporterLabel} · 관제 대상: 전사 ${NEXUS_SITE_PORTFOLIO.length}대 현장 포트폴리오`,
+    '',
+    `1. ⛔ 임시통제·작업중지 & 현장 미결: 작업중지 ${stopWorkCases.length}건 / 전체 미결 ${openCases.length}건`,
+    ...(stopWorkCases.length > 0
+      ? stopWorkCases.slice(0, 3).map(c => `   - [${c.matchedCaseCode}] ${c.locationLabel}: ${c.actionTitle}`)
+      : ['   - 금일 발령 중인 작업중지 구간 없음']),
+    `2. 🏗️ 건설기계 사용전 점검 사진: 본사 적합·보고 ${equipReady.length}건 (검토대기 ${equipPending.length}건)`,
+    ...(equipReady.length > 0
+      ? equipReady.slice(0, 4).map(e => `   - [${e.siteName}] ${e.equipmentLabel}: ${e.workActivity}`)
+      : ['   - 본사 적합 승인된 장비 점검 사진 없음']),
+    `3. 🏛️ 05 사고조사 승인대기 ${pendingInvs.length}건 · 01 본사 순회점검 ${activeVisits.length}건 (현장 접수 ${ackedVisits.length}건)`,
+    `4. 🌐 04 대표이사 12개국어 안전교육 이수율: ${trainingCompletionPct}% (${totalSignatures}/${totalTargets}명 서명 완료)`,
+  ];
+
+  const rows: (string | number)[][] = [
+    ['브리핑ID', '기준일', '항목구분', '대상·현장', '세부내용', '상태·수치'],
+    ['', asOfDate, '요약KPI', '전 현장', '작업중지 / 미결조치', `${stopWorkCases.length}건 / ${openCases.length}건`],
+    ['', asOfDate, '요약KPI', '전 현장', '건설기계 사진 적합 / 대기', `${equipReady.length}건 / ${equipPending.length}건`],
+    ['', asOfDate, '요약KPI', '전 현장', '05 사고조사 승인대기', `${pendingInvs.length}건`],
+    ['', asOfDate, '요약KPI', '전 현장', '12개국어 교육 이수율', `${trainingCompletionPct}% (${totalSignatures}/${totalTargets})`],
+    ...stopWorkCases.map(c => [briefingId, asOfDate, '작업중지', c.locationLabel, c.actionTitle, '⛔ 중지']),
+    ...equipReady.map(e => [
+      briefingId,
+      asOfDate,
+      '건설기계사진',
+      e.siteName,
+      `${e.equipmentLabel} · ${e.workActivity}`,
+      NEXUS_EQUIPMENT_PHOTO_STATUS_LABELS[e.status],
+    ]),
+  ];
+
+  const csvContent =
+    '\uFEFF' + rows.map(row => row.map(cell => escapeSpreadsheetCsvCell(cell)).join(',')).join('\r\n');
+
+  return {
+    briefingId,
+    asOfDate,
+    generatedAt: nowIso,
+    reporterLabel,
+    siteCount: NEXUS_SITE_PORTFOLIO.length,
+    stopWorkCount: stopWorkCases.length,
+    openActionsCount: openCases.length,
+    equipReadyCount: equipReady.length,
+    equipPendingCount: equipPending.length,
+    pendingApprovalCount: pendingInvs.length,
+    activeVisitCount: activeVisits.length,
+    ackedVisitCount: ackedVisits.length,
+    trainingCompletionPct,
+    verifiedPhotoThumbs: equipReady.slice(0, 6).map(e => ({
+      submissionId: e.submissionId,
+      siteName: e.siteName,
+      equipmentLabel: e.equipmentLabel,
+      workActivity: e.workActivity,
+      photoDataUrl: e.photoDataUrl,
+      statusLabel: NEXUS_EQUIPMENT_PHOTO_STATUS_LABELS[e.status],
+    })),
+    summaryText: lines.join('\n'),
+    csvContent,
+  };
 };
 
 export const compileExecutivePhotoBriefingPack = (

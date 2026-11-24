@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  acknowledgeHqVisitByField,
   approveAiInvestigationAndPropagate,
   buildMultiSitePortfolioMatrix,
   buildRoleCommandDigest,
@@ -199,6 +200,17 @@ describe('Slice 4 · 01 HQ Pre-Visit Briefing + 05 AI Root-Cause Investigation A
     expect(site1Field.pipelineCases.every(c => c.siteId === 'SITE-01-SUBRC')).toBe(true);
     expect(site1Field.visitPlans.every(v => v.siteId === 'SITE-01-SUBRC')).toBe(true);
     expect(site1Field.investigations.every(i => i.siteId === 'SITE-01-SUBRC')).toBe(true);
+
+    // Field manager acknowledges HQ visit briefing
+    const site1Visit = site1Field.visitPlans[0];
+    expect(site1Visit).toBeDefined();
+    const acked = acknowledgeHqVisitByField(
+      site1Visit!.visitId,
+      { responderLabel: '제1현장 안전관리자', note: '사전 브리핑 미결 위험 확인 및 현장 안내 준비 완료' },
+      '2026-11-24T06:30:00Z',
+    );
+    expect(acked.find(v => v.visitId === site1Visit!.visitId)?.fieldAcknowledgedBy).toBe('제1현장 안전관리자');
+    expect(acked.find(v => v.visitId === site1Visit!.visitId)?.fieldAcknowledgeNote).toContain('준비 완료');
     expect(site1Field.equipmentReports.every(e => e.siteId === 'SITE-01-SUBRC')).toBe(true);
     expect(site1Field.investigations.some(i => i.siteName.includes('제2현장'))).toBe(false);
     expect(site1Field.visitPlans.some(v => v.siteName.includes('제3현장'))).toBe(false);

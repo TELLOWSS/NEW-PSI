@@ -3,10 +3,13 @@ import { getKoreanCalendarDay } from '../../utils/monthlyFieldFollowup';
 import {
   NEXUS_EQUIPMENT_PHOTO_STATUS_LABELS,
   NEXUS_EQUIPMENT_TYPE_OPTIONS,
+  batchVerifyPendingEquipmentPhotosByHq,
   compileExecutivePhotoBriefingPack,
   compressImageFileToDataUrl,
+  resubmitEquipmentPhotoByField,
   reviewEquipmentPhotoByHq,
   submitEquipmentPhotoReport,
+  type NexusEquipmentPhotoStatus,
   type NexusEquipmentPhotoSubmission,
   type NexusEquipmentType,
   type NexusExecutivePhotoBriefingPack,
@@ -19,6 +22,7 @@ import {
   NEXUS_INVESTIGATION_STATUS_LABELS,
   NEXUS_SITE_PORTFOLIO,
   NEXUS_VISIT_STATUS_LABELS,
+  acknowledgeHqVisitByField,
   approveAiInvestigationAndPropagate,
   buildAiInvestigationDraft,
   buildPreVisitBriefing,
@@ -141,6 +145,21 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
   const [eqNotice, setEqNotice] = useState('');
   const [eqError, setEqError] = useState('');
   const [latestExecutivePack, setLatestExecutivePack] = useState<NexusExecutivePhotoBriefingPack | null>(null);
+  const [eqStatusFilter, setEqStatusFilter] = useState<'all' | NexusEquipmentPhotoStatus>('all');
+  const [selectedEquipIds, setSelectedEquipIds] = useState<string[]>([]);
+  const [lightboxItem, setLightboxItem] = useState<NexusEquipmentPhotoSubmission | null>(null);
+  const [eqResubmitNotesById, setEqResubmitNotesById] = useState<Record<string, string>>({});
+  const [eqResubmitPhotosById, setEqResubmitPhotosById] = useState<Record<string, { name: string; url: string }>>({});
+  const [visitAckNotesById, setVisitAckNotesById] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!lightboxItem || typeof document === 'undefined') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightboxItem(null);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [lightboxItem]);
 
   useEffect(() => {
     if (effectiveSiteId) {
@@ -217,14 +236,17 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
     if (!isHq) return;
     setEqError('');
     try {
-      const readyIds = equipmentReports
+      const eligibleIds = equipmentReports
         .filter(e => e.status === 'hq_verified_for_ceo' || e.status === 'reported_to_ceo')
         .map(e => e.submissionId);
+      const selectedReadyIds = selectedEquipIds.filter(id => eligibleIds.includes(id));
+      const readyIds = selectedReadyIds.length > 0 ? selectedReadyIds : eligibleIds;
       const pack = compileExecutivePhotoBriefingPack(readyIds, {
         reporterLabel: eqReviewer.trim() || '본사 안전보건실장 (CSO 보고)',
         ceoAudienceLabel: '대표이사 · 경영진 일일 안전보고',
       });
       setLatestExecutivePack(pack);
+      setSelectedEquipIds([]);
       onEquipmentReportsChange([...pack.submissions]);
       setEqNotice(
         `[대표이사·경영진 보고 완료] ${pack.packId} (${pack.siteCoverageCount}개 현장 · ${pack.totalPhotos}건 사진 보고서) 발행 완료!`,
@@ -232,6 +254,69 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
     } catch (err) {
       setEqError(err instanceof Error ? err.message : '경영진 보고서 발행 중 확인이 필요합니다.');
     }
+  };
+
+  const handleBatchVerifyPendingEquipment = () => {
+    if (!isHq) return;
+    setEqError('');
+    const pendingIds = equipmentReports
+      .filter(e => e.status === 'submitted_to_hq')
+      .map(e => e.submissionId);
+    if (pendingIds.length === 0) {
+      setEqError('일괄 적합 처리할 본사 검토대기 사진이 없습니다.');
+      return;
+    }
+    const result = batchVerifyPendingEquipmentPhotosByHq(pendingIds, {
+      reviewerLabel: eqReviewer.trim() || '본사 안전보건실장 (CSO 보고)',
+    });
+    onEquipmentReportsChange([...result.updated]);
+    setEqNotice(
+      `[일괄 적합 검토 완료] ${result.verifiedCount}건이 경영진 보고 대상으로 편입되었습니다.${result.skippedSelfCount > 0 ? ` (직무분리 원칙으로 자가업로드 ${result.skippedSelfCount}건 제외)` : ''}`,
+    );
+  };
+
+  const handleResubmitPhotoFileChange = async (
+    submissionId: string,
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = await compressImageFileToDataUrl(file);
+    setEqResubmitPhotosById(prev => ({ ...prev, [submissionId]: { name: file.name, url } }));
+  };
+
+  const handleResubmitEquipmentPhoto = (item: NexusEquipmentPhotoSubmission) => {
+    setEqError('');
+    try {
+      const picked = eqResubmitPhotosById[item.submissionId];
+      const updated = resubmitEquipmentPhotoByField(item.submissionId, {
+        photoName: picked?.name,
+        photoDataUrl: picked?.url,
+        supplementNote:
+          eqResubmitNotesById[item.submissionId]?.trim() ||
+          '본사 지적사항 반영 보완 촬영 완료 · 안전장치 근접 확인 재전송',
+        resubmittedBy: `${boundSiteMeta.shortLabel} 안전관리자`,
+      });
+      onEquipmentReportsChange([...updated]);
+      setEqNotice(
+        `[현장 보완 사진 본사 재전송] ${item.siteName} · ${item.equipmentLabel} 건이 본사 검토대기로 재상신되었습니다.`,
+      );
+    } catch (err) {
+      setEqError(err instanceof Error ? err.message : '보완 사진 재전송 중 확인이 필요합니다.');
+    }
+  };
+
+  const handleAcknowledgeVisitByField = (plan: NexusHqVisitPlan) => {
+    const updated = acknowledgeHqVisitByField(plan.visitId, {
+      responderLabel: `${boundSiteMeta.shortLabel} 안전관리자`,
+      note:
+        visitAckNotesById[plan.visitId]?.trim() ||
+        '사전 브리핑 미결 위험·동선 확인 및 순회점검 현장 준비 완료',
+    });
+    onVisitPlansChange([...updated]);
+    setVisitNotice(
+      `[순회점검 현장 접수 확인] ${plan.siteName} (${plan.visitDate}) 본사 점검 사전 브리핑 확인 및 준비 완료 응답이 전달되었습니다.`,
+    );
   };
 
   const handleCopyExecutiveBriefingText = async () => {
@@ -823,6 +908,14 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
     </div>
   );
 
+  const filteredEquipmentReports = useMemo(
+    () =>
+      eqStatusFilter === 'all'
+        ? equipmentReports
+        : equipmentReports.filter(item => item.status === eqStatusFilter),
+    [equipmentReports, eqStatusFilter],
+  );
+
   const renderEquipmentGalleryAndCeoPack = (showHqControls: boolean) => (
     <div className="nexus-equip-hq-section">
       {showHqControls && (
@@ -838,14 +931,25 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
                 onChange={e => setEqReviewer(e.target.value)}
               />
             </label>
-            <button
-              type="button"
-              className="nexus-3axis-submit"
-              onClick={handleCompileExecutivePhotoPack}
-              disabled={equipVerifiedReadyCount === 0}
-            >
-              선별 사진 대표이사·경영진 1장 보고서 발행 &amp; 보고 완료 ({equipVerifiedReadyCount}건) ↗
-            </button>
+            <div className="nexus-equip-toolbar-actions">
+              {equipPendingCount > 0 && (
+                <button
+                  type="button"
+                  className="nexus-equip-batch-btn"
+                  onClick={handleBatchVerifyPendingEquipment}
+                >
+                  ✅ 대기 사진 일괄 적합 확인 ({equipPendingCount}건)
+                </button>
+              )}
+              <button
+                type="button"
+                className="nexus-3axis-submit"
+                onClick={handleCompileExecutivePhotoPack}
+                disabled={equipVerifiedReadyCount === 0}
+              >
+                선별 사진 대표이사·경영진 1장 보고서 발행 &amp; 보고 완료 ({selectedEquipIds.length > 0 ? selectedEquipIds.length : equipVerifiedReadyCount}건) ↗
+              </button>
+            </div>
           </div>
 
           {latestExecutivePack && (
@@ -865,21 +969,52 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
         </>
       )}
 
-      {equipmentReports.length === 0 ? (
+      {equipmentReports.length > 0 && (
+        <div className="nexus-equip-filter-bar" role="group" aria-label="건설기계 사진 상태별 필터">
+          {[
+            ['all', `전체 (${equipmentReports.length})`],
+            ['submitted_to_hq', `검토대기 (${equipmentReports.filter(e => e.status === 'submitted_to_hq').length})`],
+            ['revision_requested_hq', `보완요청 (${equipmentReports.filter(e => e.status === 'revision_requested_hq').length})`],
+            ['hq_verified_for_ceo', `본사적합 (${equipmentReports.filter(e => e.status === 'hq_verified_for_ceo').length})`],
+            ['reported_to_ceo', `CEO보고완료 (${equipmentReports.filter(e => e.status === 'reported_to_ceo').length})`],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={eqStatusFilter === key}
+              onClick={() => setEqStatusFilter(key as typeof eqStatusFilter)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {filteredEquipmentReports.length === 0 ? (
         <p className="nexus-3axis-case-row-meta">
-          {showHqControls
-            ? '접수된 건설기계 사용전 점검 사진이 없습니다. 상단 [체험 데이터 불러오기]로 3대 현장 예시를 확인하세요.'
-            : `${boundSiteMeta.shortLabel}에서 본사로 전송한 사용전 점검 사진이 아직 없습니다. 위 양식으로 펌프카·크레인·고소작업대 사진을 전송하세요.`}
+          {equipmentReports.length === 0
+            ? showHqControls
+              ? '접수된 건설기계 사용전 점검 사진이 없습니다. 상단 [체험 데이터 불러오기]로 3대 현장 예시를 확인하세요.'
+              : `${boundSiteMeta.shortLabel}에서 본사로 전송한 사용전 점검 사진이 아직 없습니다. 위 양식으로 펌프카·크레인·고소작업대 사진을 전송하세요.`
+            : '선택한 상태에 해당하는 건설기계 점검 사진이 없습니다.'}
         </p>
       ) : (
         <div
           className="nexus-equip-photo-grid"
           aria-label={showHqControls ? '전사 건설기계 사용전 점검 사진 목록' : '우리 현장 건설기계 사용전 점검 사진 전송 내역'}
         >
-          {equipmentReports.map(item => (
+          {filteredEquipmentReports.map(item => (
             <article key={item.submissionId} className="nexus-equip-photo-card" data-status={item.status}>
               <div className="nexus-equip-thumb-wrap">
-                <img src={item.photoDataUrl} alt={`${item.siteName} ${item.equipmentLabel} 사용전 점검 사진`} className="nexus-equip-thumb" />
+                <button
+                  type="button"
+                  className="nexus-equip-thumb-btn"
+                  aria-label={`${item.siteName} ${item.equipmentLabel} 점검 사진 확대 보기`}
+                  onClick={() => setLightboxItem(item)}
+                >
+                  <img src={item.photoDataUrl} alt={`${item.siteName} ${item.equipmentLabel} 사용전 점검 사진`} className="nexus-equip-thumb" />
+                  <span className="nexus-equip-zoom-hint">🔍 확대</span>
+                </button>
                 <span className={'nexus-equip-status-tag status-' + item.status}>
                   {NEXUS_EQUIPMENT_PHOTO_STATUS_LABELS[item.status]}
                 </span>
@@ -895,6 +1030,25 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
                 </div>
                 {item.hqReviewNote && (
                   <p className="nexus-equip-review-note"><b>본사 의견:</b> {item.hqReviewNote}</p>
+                )}
+                {item.fieldSupplementNote && (
+                  <p className="nexus-equip-supplement-note"><b>현장 보완:</b> {item.fieldSupplementNote}</p>
+                )}
+                {showHqControls && (item.status === 'hq_verified_for_ceo' || item.status === 'reported_to_ceo') && (
+                  <label className="nexus-equip-select-check">
+                    <input
+                      type="checkbox"
+                      checked={selectedEquipIds.includes(item.submissionId)}
+                      onChange={e =>
+                        setSelectedEquipIds(prev =>
+                          e.target.checked
+                            ? [...prev, item.submissionId]
+                            : prev.filter(id => id !== item.submissionId),
+                        )
+                      }
+                    />
+                    <span>CEO 일일 보고서 개별 선별 포함</span>
+                  </label>
                 )}
                 {showHqControls && item.status === 'submitted_to_hq' && (
                   <div className="nexus-equip-review-controls">
@@ -925,9 +1079,73 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
                     </div>
                   </div>
                 )}
+                {!showHqControls && item.status === 'revision_requested_hq' && (
+                  <div className="nexus-equip-field-resubmit">
+                    <div className="nexus-case-evidence-row">
+                      <input
+                        type="text"
+                        aria-label={`건설기계 사진 보완 메모 ${item.submissionId}`}
+                        value={eqResubmitNotesById[item.submissionId] ?? ''}
+                        maxLength={180}
+                        onChange={e =>
+                          setEqResubmitNotesById(prev => ({ ...prev, [item.submissionId]: e.target.value }))
+                        }
+                        placeholder="보완 촬영 조치 내용 입력 (예: 샤클 풀림방지 핀 근접 재촬영 완료)"
+                      />
+                      <label className="nexus-photo-upload-chip">
+                        <span>📷 보완 사진 재첨부 {eqResubmitPhotosById[item.submissionId]?.name ? `(${eqResubmitPhotosById[item.submissionId].name.slice(0, 12)})` : ''}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          aria-label={`보완 사진 재첨부 ${item.submissionId}`}
+                          onChange={e => handleResubmitPhotoFileChange(item.submissionId, e)}
+                        />
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      className="nexus-3axis-submit"
+                      onClick={() => handleResubmitEquipmentPhoto(item)}
+                    >
+                      현장 보완 사진 본사 재전송 ↗
+                    </button>
+                  </div>
+                )}
               </div>
             </article>
           ))}
+        </div>
+      )}
+
+      {lightboxItem && (
+        <div
+          className="nexus-equip-lightbox-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="건설기계 점검 사진 확대 보기"
+          onClick={() => setLightboxItem(null)}
+        >
+          <div className="nexus-equip-lightbox-dialog" onClick={e => e.stopPropagation()}>
+            <div className="nexus-equip-lightbox-head">
+              <div>
+                <small>{lightboxItem.siteName} · {lightboxItem.equipmentLabel} · 구체 #{lightboxItem.structuralNodeIndex}</small>
+                <h4>{lightboxItem.workActivity}</h4>
+              </div>
+              <button type="button" onClick={() => setLightboxItem(null)} aria-label="사진 확대 창 닫기">
+                ✕ 닫기
+              </button>
+            </div>
+            <img
+              src={lightboxItem.photoDataUrl}
+              alt={`${lightboxItem.siteName} ${lightboxItem.equipmentLabel} 확대 보기`}
+              className="nexus-equip-lightbox-img"
+            />
+            <p className="nexus-3axis-case-row-meta">
+              확인 핵심: {lightboxItem.inspectionPointSummary} · 업로드: {lightboxItem.uploadedBy}
+              {lightboxItem.hqReviewNote ? ` · 본사 의견: ${lightboxItem.hqReviewNote}` : ''}
+            </p>
+          </div>
         </div>
       )}
     </div>
@@ -1072,6 +1290,7 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
       <div className="nexus-workbench-panel">
         {resolvedActiveTab === 'inspect_03_06' && (
           <InspectorNexus3AxisBridge
+            workspaceRole={workspaceRole}
             note=""
             source="safety-nexus-quick"
             lockedSiteId={isHq ? undefined : boundSiteMeta.siteId}
@@ -1126,6 +1345,8 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
 
         {resolvedActiveTab === 'training_04' && (
           <NexusExecutiveTrainingBridge
+            workspaceRole={workspaceRole}
+            siteLabel={boundSiteMeta.shortLabel}
             activeSeed={activeSeed}
             campaigns={trainingCampaigns}
             onCampaignsChange={onTrainingCampaignsChange}
@@ -1291,6 +1512,32 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
                             <li key={idx}>{pt}</li>
                           ))}
                         </ul>
+                      )}
+                      {plan.fieldAcknowledgedAt && (
+                        <p className="nexus-visit-ack-badge">
+                          ✅ 현장 접수 완료 ({plan.fieldAcknowledgedBy || '현장 안전관리자'}): {plan.fieldAcknowledgeNote}
+                        </p>
+                      )}
+                      {!isHq && !plan.fieldAcknowledgedAt && (
+                        <div className="nexus-visit-ack-box">
+                          <div className="nexus-case-evidence-row">
+                            <input
+                              type="text"
+                              aria-label={`본사 순회점검 현장 접수 메모 ${plan.visitId}`}
+                              value={visitAckNotesById[plan.visitId] ?? ''}
+                              maxLength={180}
+                              onChange={e =>
+                                setVisitAckNotesById(prev => ({ ...prev, [plan.visitId]: e.target.value }))
+                              }
+                              placeholder="현장 사전 준비 완료 메모 (예: 지하 2층 동바리·개구부 사전 확인 및 안내 준비 완료)"
+                            />
+                          </div>
+                          <div className="nexus-3axis-case-row-actions">
+                            <button type="button" onClick={() => handleAcknowledgeVisitByField(plan)}>
+                              ✅ 현장 접수 확인 · 사전 준비 완료 응답
+                            </button>
+                          </div>
+                        </div>
                       )}
                       {isHq && plan.status !== 'action_issued_closed' && (
                         <>

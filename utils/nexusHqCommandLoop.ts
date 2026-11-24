@@ -206,6 +206,9 @@ export interface NexusHqVisitPlan {
   structuralNodeIndex: string;
   preVisitBriefing: NexusPreVisitBriefing;
   fieldResultNote?: string;
+  fieldAcknowledgedAt?: string;
+  fieldAcknowledgedBy?: string;
+  fieldAcknowledgeNote?: string;
   linkedPipelineCaseId?: string;
   status: NexusVisitStatus;
 }
@@ -523,6 +526,30 @@ export const completeHqVisitWithFieldAction = (
 
   writeHqVisitPlans(updatedPlans);
   return { updatedPlans, createdPipelineCase, createdTrainingCampaign };
+};
+
+export const acknowledgeHqVisitByField = (
+  visitId: string,
+  ack: { responderLabel?: string; note?: string },
+  nowIso = new Date().toISOString(),
+): NexusHqVisitPlan[] => {
+  const responder = String(ack.responderLabel || '').trim() || '현장 안전관리자';
+  const note =
+    String(ack.note || '').trim() ||
+    '사전 브리핑 미결 위험·동선 확인 완료 · 본사 순회점검 맞이 현장 준비 완료';
+  const existing = readHqVisitPlans();
+  const updated = existing.map(plan => {
+    if (plan.visitId !== visitId) return plan;
+    return {
+      ...plan,
+      fieldAcknowledgedAt: nowIso,
+      fieldAcknowledgedBy: responder,
+      fieldAcknowledgeNote: note,
+      updatedAt: nowIso,
+    };
+  });
+  writeHqVisitPlans(updated);
+  return updated;
 };
 
 export const buildAiInvestigationDraft = (
@@ -849,8 +876,8 @@ export const buildRoleCommandDigest = (
   );
   const scopedTraining = siteObj
     ? trainingCampaigns.filter(
-        t => t.structuralNodeIndex === siteObj.focusNodeIndex || matchesPortfolioSite(t.title, siteId),
-      )
+      t => t.structuralNodeIndex === siteObj.focusNodeIndex || matchesPortfolioSite(t.title, siteId),
+    )
     : trainingCampaigns;
 
   const openCases = scopedCases.filter(c => c.status !== 'closed');

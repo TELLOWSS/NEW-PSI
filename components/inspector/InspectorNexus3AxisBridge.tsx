@@ -4,6 +4,7 @@ import { compressImageFileToDataUrl } from '../../utils/nexusEquipmentPhotoRepor
 import {
   NEXUS_PIPELINE_STATUS_LABELS,
   NEXUS_QUICK_FIELD_PRESETS,
+  addHqDirectiveToPipelineCase,
   advanceNexusPipelineCaseStatus,
   buildShiftHandoverBriefingText,
   classifyStructuralPhotoContext,
@@ -21,6 +22,7 @@ import {
 } from '../../utils/nexusStructuralTaxonomy';
 
 interface Props {
+  workspaceRole?: 'hq' | 'field';
   note: string;
   fileName?: string;
   riskTopic?: string;
@@ -37,6 +39,7 @@ interface Props {
 }
 
 export const InspectorNexus3AxisBridge: React.FC<Props> = ({
+  workspaceRole = 'field',
   note,
   fileName,
   riskTopic,
@@ -51,6 +54,7 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
   onEscalateToInvestigation,
   onDispatchTrainingForCase,
 }) => {
+  const isHq = workspaceRole === 'hq';
   const [quickNote, setQuickNote] = useState('');
   const [locationLabel, setLocationLabel] = useState('');
   const [overrideZone, setOverrideZone] = useState<NexusZoneAxis | ''>('');
@@ -62,7 +66,8 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
   const [handoverShift, setHandoverShift] = useState('다음 교대 작업팀·안전담당 인계');
   const [feedbackNotice, setFeedbackNotice] = useState('');
   const [stepEvidenceByCase, setStepEvidenceByCase] = useState<Record<string, string>>({});
-  const [statusFilter, setStatusFilter] = useState<'all' | 'action_required' | 'handover_pending' | 'recheck_pending' | 'closed'>('all');
+  const [hqDirectiveByCase, setHqDirectiveByCase] = useState<Record<string, string>>({});
+  const [statusFilter, setStatusFilter] = useState<'all' | 'stop_work' | 'action_required' | 'handover_pending' | 'recheck_pending' | 'closed'>('all');
   const [stopWorkFlag, setStopWorkFlag] = useState(false);
   const [beforePhotoUrl, setBeforePhotoUrl] = useState('');
   const [beforePhotoName, setBeforePhotoName] = useState('');
@@ -70,7 +75,12 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
   const [handoverPreviewText, setHandoverPreviewText] = useState('');
 
   const filteredCases = useMemo(
-    () => (statusFilter === 'all' ? cases : cases.filter(c => c.status === statusFilter)),
+    () =>
+      statusFilter === 'all'
+        ? cases
+        : statusFilter === 'stop_work'
+          ? cases.filter(c => Boolean(c.stopWorkFlag) && c.status !== 'closed')
+          : cases.filter(c => c.status === statusFilter),
     [cases, statusFilter],
   );
 
@@ -169,15 +179,21 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
     onCaseCreated?.(created);
   };
 
-  return (
-    <div className="nexus-3axis-bridge" data-source={source}>
-      <div className="nexus-3axis-bridge-head">
-        <div>
-          <span className="nexus-3axis-kicker">SLICE 2 · 30초 사진점검 → 3축 자동분류 → 사고사례 매칭 → 조치·인계 환류</span>
-          <h3>골조·형틀·지하 RC 3축 자동 분류 및 구체 시그널 환류</h3>
-        </div>
-        <span className="nexus-3axis-confidence">{classification.confidenceLabel} · 구체 #{classification.structuralNodeIndex}</span>
-      </div>
+  const handleSendHqDirective = (item: NexusPipelineCase) => {
+    const directiveNote =
+      hqDirectiveByCase[item.caseId]?.trim() ||
+      '작업 구역 출입 통제 유지 및 보강 후 조치 완료 사진 재전송 요망';
+    const updated = addHqDirectiveToPipelineCase(item.caseId, {
+      actorLabel: '본사 CSO·안전보건실',
+      note: directiveNote,
+    });
+    onCaseUpdated?.(updated);
+    setHqDirectiveByCase(prev => ({ ...prev, [item.caseId]: '' }));
+    setFeedbackNotice(`[본사 긴급 지시 하달] ${item.locationLabel} (${item.matchedCaseCode}) 현장 조치함에 지시가 전달되었습니다.`);
+  };
+
+  const renderQuickCaptureForm = () => (
+    <>
 
       {source === 'safety-nexus-quick' && (
         <>
@@ -334,16 +350,21 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
           30초 조치·재점검·인계 등록 및 구체 환류 ↗
         </button>
       </div>
+    </>
+  );
 
+  const renderCaseMonitorList = () => (
+    <>
       {feedbackNotice && <p role="status" className="nexus-3axis-feedback">{feedbackNotice}</p>}
 
-      {cases.length > 0 && (
+      {cases.length > 0 ? (
         <div className="nexus-3axis-case-list" aria-label="시정조치·재점검·교대 인계 진행 현황">
           <div className="nexus-case-list-head">
             <strong>실시간 조치 · 재점검 · 교대 인계 파이프라인 ({cases.length}건)</strong>
             <div className="nexus-case-status-filters" role="group" aria-label="조치·인계 상태별 필터">
               {[
                 ['all', `전체 (${cases.length})`],
+                ['stop_work', `⛔ 작업중지 (${cases.filter(c => c.stopWorkFlag && c.status !== 'closed').length})`],
                 ['action_required', `조치진행 (${cases.filter(c => c.status === 'action_required').length})`],
                 ['handover_pending', `교대·인계 (${cases.filter(c => c.status === 'handover_pending').length})`],
                 ['recheck_pending', `재점검대기 (${cases.filter(c => c.status === 'recheck_pending').length})`],
@@ -378,6 +399,11 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
                   </span>
                   <em className={'status-pill status-' + item.status}>{NEXUS_PIPELINE_STATUS_LABELS[item.status]}</em>
                 </div>
+                {item.hqDirectiveNote && (
+                  <p className="nexus-hq-directive-banner">
+                    <b>[🏛️ 본사 긴급 지시 · {item.hqDirectiveActor || '본사 CSO'}]</b> {item.hqDirectiveNote}
+                  </p>
+                )}
                 {(item.beforePhotoDataUrl || item.afterPhotoDataUrl) && (
                   <div className="nexus-before-after-thumbs">
                     {item.beforePhotoDataUrl && (
@@ -405,6 +431,27 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
                         <b>{NEXUS_PIPELINE_STATUS_LABELS[entry.status]}</b> {entry.note}
                       </span>
                     ))}
+                  </div>
+                )}
+                {isHq && item.status !== 'closed' && (
+                  <div className="nexus-case-hq-directive-row">
+                    <input
+                      type="text"
+                      aria-label={`본사 긴급 지시 입력 ${item.matchedCaseCode}`}
+                      value={hqDirectiveByCase[item.caseId] ?? ''}
+                      maxLength={200}
+                      onChange={e =>
+                        setHqDirectiveByCase(prev => ({ ...prev, [item.caseId]: e.target.value }))
+                      }
+                      placeholder="본사 CSO 긴급 시정·통제 지시사항 입력 (현장 조치함에 즉시 전달)"
+                    />
+                    <button
+                      type="button"
+                      className="nexus-hq-directive-btn"
+                      onClick={() => handleSendHqDirective(item)}
+                    >
+                      🏛️ 본사 긴급 지시 하달
+                    </button>
                   </div>
                 )}
                 {item.status !== 'closed' && (
@@ -512,6 +559,47 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
             ))}
           </ul>
         </div>
+      ) : (
+        <p className="nexus-3axis-case-row-meta">
+          {isHq ? '전사 미결·작업중지 시정조치 건이 없습니다.' : '등록된 현장 30초 점검·조치 건이 없습니다.'}
+        </p>
+      )}
+    </>
+  );
+
+  return (
+    <div className="nexus-3axis-bridge" data-source={source}>
+      <div className="nexus-3axis-bridge-head">
+        <div>
+          <span className="nexus-3axis-kicker">
+            {isHq
+              ? 'HQ COMMAND MONITOR · 전 현장 작업중지·시정조치 관제 및 본사 긴급 지시 하달'
+              : 'SLICE 2 · 30초 사진점검 → 3축 자동분류 → 사고사례 매칭 → 조치·인계 환류'}
+          </span>
+          <h3>
+            {isHq
+              ? '전 현장 시정조치 · 작업중지(Stop-Work) 통제 현황 및 지시'
+              : '골조·형틀·지하 RC 3축 자동 분류 및 구체 시그널 환류'}
+          </h3>
+        </div>
+        <span className="nexus-3axis-confidence">
+          {classification.confidenceLabel} · 구체 #{classification.structuralNodeIndex}
+        </span>
+      </div>
+
+      {isHq ? (
+        <>
+          {renderCaseMonitorList()}
+          <details className="nexus-collapsible-form">
+            <summary>+ 본사 대리 30초 현장 점검 등록 열기</summary>
+            {renderQuickCaptureForm()}
+          </details>
+        </>
+      ) : (
+        <>
+          {renderQuickCaptureForm()}
+          {renderCaseMonitorList()}
+        </>
       )}
     </div>
   );

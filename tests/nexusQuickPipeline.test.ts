@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   NEXUS_QUICK_FIELD_PRESETS,
+  addHqDirectiveToPipelineCase,
   advanceNexusPipelineCaseStatus,
   buildShiftHandoverBriefingText,
   classifyStructuralPhotoContext,
@@ -123,5 +124,14 @@ describe('Slice 2 · 30s Photo Inspection -> 3-Axis Auto-Classification -> Incid
     );
     expect(withAfterPhoto[0]?.afterPhotoDataUrl).toBe('data:image/jpeg;base64,AFTER_MOCK');
     expect(withAfterPhoto[0]?.status).toBe('closed');
+
+    const withDirective = addHqDirectiveToPipelineCase(
+      stoppedCase.caseId,
+      { actorLabel: '본사 CSO', note: '개구부 주변 작업 즉시 중단 및 2인1조 재점검 사진 보고' },
+      '2026-11-22T12:00:00Z',
+    );
+    expect(withDirective[0]?.hqDirectiveNote).toContain('2인1조 재점검');
+    expect(withDirective[0]?.hqDirectiveActor).toBe('본사 CSO');
+    expect(withDirective[0]?.auditTrail?.some(a => a.note.includes('[본사 지시]'))).toBe(true);
   });
 });
