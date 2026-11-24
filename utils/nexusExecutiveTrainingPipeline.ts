@@ -44,6 +44,15 @@ export const NEXUS_TRAINING_STATUS_LABELS: Record<NexusTrainingCampaignStatus, s
   completed_verified: '서명·이수 환류 완료',
 };
 
+export interface NexusWorkerSignatureReceipt {
+  signatureId: string;
+  workerName: string;
+  languageCode: TrainingLanguageCode;
+  signedAt: string;
+  signatureDataUrl: string;
+  siteId?: string;
+}
+
 export interface NexusExecutiveTrainingCampaign {
   campaignId: string;
   createdAt: string;
@@ -64,6 +73,7 @@ export interface NexusExecutiveTrainingCampaign {
   completionRatePct: number | null;
   participatingNationalities: number;
   signedLanguages: TrainingLanguageCode[];
+  workerSignatureReceipts?: readonly NexusWorkerSignatureReceipt[];
   linkedSessionId?: string;
   status: NexusTrainingCampaignStatus;
 }
@@ -345,6 +355,69 @@ export const recordExecutiveTrainingSignatureProgress = (
 
   writeExecutiveTrainingCampaigns(next);
   return next;
+};
+
+export const recordIndividualWorkerHandwrittenSignature = (
+  campaignId: string,
+  input: {
+    workerName: string;
+    languageCode: TrainingLanguageCode;
+    signatureDataUrl: string;
+    siteId?: string;
+  },
+  nowIso = new Date().toISOString(),
+): { campaigns: NexusExecutiveTrainingCampaign[]; receipt: NexusWorkerSignatureReceipt } => {
+  const workerName = String(input.workerName || '').trim().slice(0, 60);
+  if (!workerName) {
+    throw new Error('서명하는 근로자 성명을 입력해 주세요.');
+  }
+  const signatureDataUrl = String(input.signatureDataUrl || '').trim();
+  if (!signatureDataUrl || !signatureDataUrl.startsWith('data:image/')) {
+    throw new Error('모국어 안내 확인 후 화면에 자필 서명을 입력해 주세요.');
+  }
+
+  const receipt: NexusWorkerSignatureReceipt = {
+    signatureId: `NX-SIG-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`,
+    workerName,
+    languageCode: input.languageCode,
+    signedAt: nowIso,
+    signatureDataUrl,
+    siteId: input.siteId,
+  };
+
+  const existing = readExecutiveTrainingCampaigns();
+  const next = existing.map(campaign => {
+    if (campaign.campaignId !== campaignId) return campaign;
+    const prevReceipts = Array.isArray(campaign.workerSignatureReceipts)
+      ? campaign.workerSignatureReceipts
+      : [];
+    const targetWorkers = Math.max(1, campaign.targetWorkers || 1);
+    const confirmedSignatures = Math.min(targetWorkers, (campaign.confirmedSignatures || 0) + 1);
+    const completionRatePct = Math.min(100, Math.round((confirmedSignatures / targetWorkers) * 100));
+    const signedLanguages = Array.from(
+      new Set([...(campaign.signedLanguages ?? []), input.languageCode]),
+    ) as TrainingLanguageCode[];
+    const participatingNationalities = Math.max(
+      campaign.participatingNationalities || 0,
+      signedLanguages.length,
+    );
+    const status: NexusTrainingCampaignStatus =
+      completionRatePct >= 100 ? 'completed_verified' : 'dispatched_12lang';
+
+    return {
+      ...campaign,
+      confirmedSignatures,
+      completionRatePct,
+      signedLanguages,
+      participatingNationalities,
+      workerSignatureReceipts: [receipt, ...prevReceipts].slice(0, 100),
+      status,
+      updatedAt: nowIso,
+    };
+  });
+
+  writeExecutiveTrainingCampaigns(next);
+  return { campaigns: next, receipt };
 };
 
 export interface NexusTrainingNodeSummary {

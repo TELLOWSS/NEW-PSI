@@ -41,7 +41,6 @@ import {
 } from '../utils/nexusExecutiveTrainingPipeline';
 import {
   NEXUS_HQ_LOOP_UPDATED_EVENT,
-  NEXUS_SITE_PORTFOLIO,
   buildMultiSitePortfolioMatrix,
   readAiInvestigations,
   readApprovedCustomIncidentSeeds,
@@ -60,6 +59,19 @@ import {
   type NexusEquipmentPhotoSubmission,
   type NexusUnifiedCeoDailyBriefing,
 } from '../utils/nexusEquipmentPhotoReport';
+import {
+  NEXUS_SITE_MASTER_UPDATED_EVENT,
+  readManagedNexusSites,
+  type NexusManagedSite,
+} from '../utils/nexusSiteRegistry';
+import { exportExecutiveBriefingPptx } from '../utils/nexusExecutivePptx';
+import { downloadNexusComplianceZip } from '../utils/nexusComplianceBundle';
+import {
+  NEXUS_OFFLINE_QUEUE_UPDATED_EVENT,
+  getPendingOfflineQueueCount,
+  isNexusOnline,
+} from '../utils/nexusOfflineQueue';
+import { syncNexusOfflineQueueWithServer } from '../utils/nexusSyncEngine';
 import { buildExecutiveBentoSnapshot } from '../utils/nexusExecutiveBentoMetrics';
 import { NexusExecutiveBentoBoard } from '../components/shared/NexusExecutiveBentoBoard';
 import type { NexusStructuralIncidentSeed } from '../utils/nexusStructuralTaxonomy';
@@ -405,10 +417,11 @@ const SafetyNexus: React.FC<Props> = ({
   const [equipmentReports, setEquipmentReports] = useState<NexusEquipmentPhotoSubmission[]>(() =>
     readEquipmentPhotoSubmissions(),
   );
+  const [managedSites, setManagedSites] = useState<NexusManagedSite[]>(() => readManagedNexusSites(false));
   const [workspaceRole, setWorkspaceRole] = useState<NexusWorkspaceAuthority>(lockedRole ?? initialRole);
   const [hqSelectedSiteId, setHqSelectedSiteId] = useState<string>('');
   const [assignedFieldSiteId, setAssignedFieldSiteId] = useState<string>(
-    lockedSiteId || NEXUS_SITE_PORTFOLIO[0].siteId,
+    lockedSiteId || readManagedNexusSites(false)[0]?.siteId || 'SITE-01-SUBRC',
   );
   const [activeView, setActiveView] = useState<NexusWorkspaceView>(
     (lockedRole ?? initialRole) === 'field' ? 'field_ops' : 'hq_command',
@@ -419,8 +432,20 @@ const SafetyNexus: React.FC<Props> = ({
   );
   const [dailyCeoBriefing, setDailyCeoBriefing] = useState<NexusUnifiedCeoDailyBriefing | null>(null);
   const [dailyBriefingNotice, setDailyBriefingNotice] = useState<string>('');
+  const [offlinePendingCount, setOfflinePendingCount] = useState<number>(() => getPendingOfflineQueueCount());
+  const [isOnlineState, setIsOnlineState] = useState<boolean>(() => isNexusOnline());
+  const [syncNotice, setSyncNotice] = useState<string>('');
+  const [complianceNotice, setComplianceNotice] = useState<string>('');
   const effectiveRole: NexusWorkspaceAuthority = lockedRole ?? workspaceRole;
   const effectiveFieldSiteId = lockedSiteId || assignedFieldSiteId;
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('psi_nexus_workspace_authority_v1', effectiveRole);
+      window.dispatchEvent(new Event('psi-nexus-authority-updated'));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [effectiveRole]);
   useEffect(() => {
     const syncPipeline = () => setPipelineCases(readNexusPipelineCases());
     const syncTraining = () => setTrainingCampaigns(readExecutiveTrainingCampaigns());
@@ -430,25 +455,53 @@ const SafetyNexus: React.FC<Props> = ({
       setApprovedCustomSeeds(readApprovedCustomIncidentSeeds());
     };
     const syncEquipment = () => setEquipmentReports(readEquipmentPhotoSubmissions());
+    const syncSiteMaster = () => {
+      const nextSites = readManagedNexusSites(false);
+      setManagedSites(nextSites);
+      if (nextSites.length > 0 && !nextSites.some(s => s.siteId === assignedFieldSiteId) && !lockedSiteId) {
+        setAssignedFieldSiteId(nextSites[0].siteId);
+      }
+    };
+    const syncOffline = () => setOfflinePendingCount(getPendingOfflineQueueCount());
+    const handleOnline = () => {
+      setIsOnlineState(true);
+      void syncNexusOfflineQueueWithServer().then(telemetry => {
+        setOfflinePendingCount(telemetry.pendingCount);
+        if (telemetry.syncedCount > 0) setSyncNotice(telemetry.message);
+      });
+    };
+    const handleOffline = () => setIsOnlineState(false);
     window.addEventListener(NEXUS_PIPELINE_UPDATED_EVENT, syncPipeline);
     window.addEventListener(NEXUS_CEO_TRAINING_UPDATED_EVENT, syncTraining);
     window.addEventListener(NEXUS_HQ_LOOP_UPDATED_EVENT, syncHqLoop);
     window.addEventListener(NEXUS_EQUIPMENT_PHOTO_UPDATED_EVENT, syncEquipment);
+    window.addEventListener(NEXUS_SITE_MASTER_UPDATED_EVENT, syncSiteMaster);
+    window.addEventListener(NEXUS_OFFLINE_QUEUE_UPDATED_EVENT, syncOffline);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
     window.addEventListener('storage', syncPipeline);
     window.addEventListener('storage', syncTraining);
     window.addEventListener('storage', syncHqLoop);
     window.addEventListener('storage', syncEquipment);
+    window.addEventListener('storage', syncSiteMaster);
+    window.addEventListener('storage', syncOffline);
     return () => {
       window.removeEventListener(NEXUS_PIPELINE_UPDATED_EVENT, syncPipeline);
       window.removeEventListener(NEXUS_CEO_TRAINING_UPDATED_EVENT, syncTraining);
       window.removeEventListener(NEXUS_HQ_LOOP_UPDATED_EVENT, syncHqLoop);
       window.removeEventListener(NEXUS_EQUIPMENT_PHOTO_UPDATED_EVENT, syncEquipment);
+      window.removeEventListener(NEXUS_SITE_MASTER_UPDATED_EVENT, syncSiteMaster);
+      window.removeEventListener(NEXUS_OFFLINE_QUEUE_UPDATED_EVENT, syncOffline);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
       window.removeEventListener('storage', syncPipeline);
       window.removeEventListener('storage', syncTraining);
       window.removeEventListener('storage', syncHqLoop);
       window.removeEventListener('storage', syncEquipment);
+      window.removeEventListener('storage', syncSiteMaster);
+      window.removeEventListener('storage', syncOffline);
     };
-  }, []);
+  }, [assignedFieldSiteId, lockedSiteId]);
   useEffect(() => { onViewChange?.({ month: filterMonth, trade: filterTrade, active: safeActive, flat, question: selectedQuestion, priority: priorityFilter, practice: practiceFilter, orbitLayer }); }, [filterMonth, filterTrade, safeActive, flat, selectedQuestion, priorityFilter, practiceFilter, orbitLayer, onViewChange]);
   const loadedSlice = useMemo(
     () => sliceLoadedNexusRecords(workerRecords, { month: filterMonth, trade: filterTrade }),
@@ -629,10 +682,55 @@ const SafetyNexus: React.FC<Props> = ({
     } else {
       setActiveView('field_ops');
       setWorkbenchTab('inspect_03_06');
-      const siteMeta = NEXUS_SITE_PORTFOLIO.find(s => s.siteId === effectiveFieldSiteId);
+      const siteMeta = managedSites.find(s => s.siteId === effectiveFieldSiteId) ?? managedSites[0];
       if (siteMeta) {
         lockOntoNode(Math.max(0, Number(siteMeta.focusNodeIndex) - 1), 'structural');
       }
+    }
+  };
+
+  const handleExportCeoPptx = async () => {
+    try {
+      const matrix = buildMultiSitePortfolioMatrix(
+        pipelineCases,
+        visitPlans,
+        investigations,
+        trainingCampaigns,
+        followup.asOfDate,
+      );
+      const deck = await exportExecutiveBriefingPptx({
+        asOfDate: followup.asOfDate,
+        reporterLabel: '본사 CSO · 안전보건실장',
+        siteMatrix: matrix,
+        pipelineCases: scopedData.pipelineCases,
+        equipmentReports: scopedData.equipmentReports,
+        visitPlans: scopedData.visitPlans,
+        investigations: scopedData.investigations,
+        trainingCampaigns: scopedData.trainingCampaigns,
+      });
+      setDailyBriefingNotice(`${deck.fileName} (${deck.totalSlides}슬라이드 PPTX) 파일을 생성·다운로드했습니다.`);
+    } catch (err) {
+      setDailyBriefingNotice(err instanceof Error ? err.message : 'PPTX 생성 중 확인이 필요합니다.');
+    }
+  };
+
+  const handleDownloadComplianceZip = async () => {
+    try {
+      const res = await downloadNexusComplianceZip({
+        asOfDate: followup.asOfDate,
+        siteScopeLabel: scopedData.activeSiteMeta?.siteName || '전사 통합 포트폴리오',
+        pipelineCases: scopedData.pipelineCases,
+        equipmentReports: scopedData.equipmentReports,
+        trainingCampaigns: scopedData.trainingCampaigns,
+        visitPlans: scopedData.visitPlans,
+        investigations: scopedData.investigations,
+      });
+      setComplianceNotice(
+        `[${res.bundleId}] ${res.fileName} (총 ${res.fileCount}개 파일 · 사진 ${res.embeddedPhotoCount}건 · 자필서명 ${res.embeddedSignatureCount}건 · SHA-256 매니페스트 포함) 편철 저장 완료!`,
+      );
+      setDailyBriefingNotice(`${res.fileName} 중대재해처벌법 증빙 ZIP 패키지를 저장했습니다.`);
+    } catch (err) {
+      setComplianceNotice(err instanceof Error ? err.message : '증빙 패키지 편철 중 확인이 필요합니다.');
     }
   };
 
@@ -741,9 +839,9 @@ const SafetyNexus: React.FC<Props> = ({
               aria-pressed={!hqSelectedSiteId}
               onClick={() => setHqSelectedSiteId('')}
             >
-              전사 전체 ({NEXUS_SITE_PORTFOLIO.length}개 현장)
+              전사 전체 ({managedSites.length}개 현장)
             </button>
-            {NEXUS_SITE_PORTFOLIO.map(site => (
+            {managedSites.map(site => (
               <button
                 key={site.siteId}
                 type="button"
@@ -764,7 +862,7 @@ const SafetyNexus: React.FC<Props> = ({
         ) : (
           <div className="nexus-scope-strip">
             <span className="nexus-field-lock-badge">
-              🔒 단일 현장 격리 · {scopedData.activeSiteMeta?.shortLabel || '제1현장'} · 타현장 비노출
+              🔒 단일 현장 격리 · {scopedData.activeSiteMeta?.shortLabel || managedSites[0]?.shortLabel || '제1현장'} · 타현장 비노출
             </span>
             {!lockedSiteId && (
               <label className="nexus-field-site-select">
@@ -774,7 +872,7 @@ const SafetyNexus: React.FC<Props> = ({
                   value={effectiveFieldSiteId}
                   onChange={e => setAssignedFieldSiteId(e.target.value)}
                 >
-                  {NEXUS_SITE_PORTFOLIO.map(site => (
+                  {managedSites.map(site => (
                     <option key={site.siteId} value={site.siteId}>{site.siteName}</option>
                   ))}
                 </select>
@@ -865,6 +963,44 @@ const SafetyNexus: React.FC<Props> = ({
           ◎ 록온: #{selected.index} {selected.title}
         </button>
       </div>
+      <div className="nexus-live-sync-bar" aria-label="지하·오프라인 큐 및 양방향 실시간 경보 상태">
+        <div className="nexus-live-sync-badges">
+          <span className={'nexus-sync-pill ' + (isOnlineState ? 'is-online' : 'is-offline')}>
+            {isOnlineState ? '🟢 통신 연결됨 · 실시간 동기화' : '🟡 지하·무통신 오프라인 저장 모드'}
+          </span>
+          <span className={'nexus-sync-pill' + (offlinePendingCount > 0 ? ' is-pending' : '')}>
+            미전송 큐 <b>{offlinePendingCount}건</b>
+          </span>
+          {effectiveRole === 'hq' ? (
+            <>
+              <span className="nexus-sync-pill is-alert">
+                ⛔ 작업중지 <b>{scopedData.pipelineCases.filter(c => c.stopWorkFlag && c.status !== 'closed').length}건</b>
+              </span>
+              <span className="nexus-sync-pill">
+                🏗️ 사진 검토대기 <b>{scopedData.equipmentReports.filter(e => e.status === 'submitted_to_hq').length}건</b>
+              </span>
+            </>
+          ) : (
+            <span className="nexus-sync-pill is-alert">
+              🏛️ 본사 지시·보완 <b>{scopedData.pipelineCases.filter(c => c.hqDirectiveNote && c.status !== 'closed').length + scopedData.equipmentReports.filter(e => e.status === 'revision_requested_hq').length}건</b>
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          className="nexus-sync-flush-btn"
+          onClick={() => {
+            void syncNexusOfflineQueueWithServer().then(telemetry => {
+              setOfflinePendingCount(telemetry.pendingCount);
+              setIsOnlineState(telemetry.online);
+              setSyncNotice(telemetry.message);
+            });
+          }}
+        >
+          🔄 지금 동기화
+        </button>
+      </div>
+      {syncNotice && <p role="status" className="nexus-3axis-feedback">{syncNotice}</p>}
     </nav>
     {effectiveRole === 'field' && (() => {
       const fieldOpenCount = scopedData.pipelineCases.filter(c => c.status !== 'closed').length;
@@ -1297,28 +1433,39 @@ const SafetyNexus: React.FC<Props> = ({
         <div className="nexus-hq-daily-bar">
           <div>
             <strong>🏛️ 대표이사 · 경영진 일일 전사 안전 통합 보고서</strong>
-            <small>전 현장의 작업중지·건설기계 사진·사고조사 승인·다국어 교육 이수율을 1장 보고서로 즉시 취합합니다.</small>
+            <small>전 현장의 작업중지·건설기계 사진·사고조사 승인·다국어 교육 이수율을 1장 보고서·PPTX·증빙 ZIP으로 즉시 취합합니다.</small>
           </div>
-          <button
-            type="button"
-            className="nexus-3axis-submit"
-            onClick={() => {
-              const pack = buildUnifiedCeoDailyBriefing({
-                asOfDate: followup.asOfDate,
-                reporterLabel: '본사 CSO · 안전보건실장',
-                pipelineCases: scopedData.pipelineCases,
-                visitPlans: scopedData.visitPlans,
-                investigations: scopedData.investigations,
-                trainingCampaigns: scopedData.trainingCampaigns,
-                equipmentReports: scopedData.equipmentReports,
-              });
-              setDailyCeoBriefing(pack);
-              setDailyBriefingNotice('');
-            }}
-          >
-            🏛️ 대표이사 일일 통합 안전브리핑 1장 생성 ↗
-          </button>
+          <div className="nexus-3axis-case-row-actions">
+            <button
+              type="button"
+              className="nexus-3axis-submit"
+              onClick={() => {
+                const pack = buildUnifiedCeoDailyBriefing({
+                  asOfDate: followup.asOfDate,
+                  reporterLabel: '본사 CSO · 안전보건실장',
+                  pipelineCases: scopedData.pipelineCases,
+                  visitPlans: scopedData.visitPlans,
+                  investigations: scopedData.investigations,
+                  trainingCampaigns: scopedData.trainingCampaigns,
+                  equipmentReports: scopedData.equipmentReports,
+                });
+                setDailyCeoBriefing(pack);
+                setDailyBriefingNotice('');
+              }}
+            >
+              🏛️ 대표이사 일일 통합 안전브리핑 1장 생성 ↗
+            </button>
+            <button type="button" onClick={() => void handleExportCeoPptx()}>
+              📽️ 대표이사 브리핑 PPTX 저장
+            </button>
+            <button type="button" onClick={() => void handleDownloadComplianceZip()}>
+              📦 중대재해처벌법 증빙 ZIP
+            </button>
+          </div>
         </div>
+        {!dailyCeoBriefing && dailyBriefingNotice && (
+          <p role="status" className="nexus-3axis-feedback">{dailyBriefingNotice}</p>
+        )}
 
         {dailyCeoBriefing && (
           <section className="nexus-ceo-daily-sheet" aria-label="대표이사 일일 전사 안전 통합 브리핑 시트">
@@ -1480,6 +1627,7 @@ const SafetyNexus: React.FC<Props> = ({
               lockOntoNode(targetIdx, 'structural');
             }
           }}
+          onExportExecutivePptx={handleExportCeoPptx}
         />
       </div>
     )}
@@ -1569,6 +1717,26 @@ const SafetyNexus: React.FC<Props> = ({
       <button type="button" onClick={() => onNavigateToPage('monthly-guidance-report')}>기존 평가 보고서 열기</button>
     </section>
     <ScoreMetricEvidencePanel records={filteredRecords} scopeLabel={`${filterMonth || '전체 작성기간'} · ${filterTrade || '전체 공종'}`} asOf={followup.asOfDate} loadState={loadState} onOpenRecord={onOpenRecord} />
+    <section className="nexus-compliance-panel" aria-label="중대재해처벌법 반기·월간 법적 이행 증빙 편철 센터">
+      <div className="nexus-3axis-bridge-head">
+        <div>
+          <span className="nexus-3axis-kicker">SAPA COMPLIANCE ARCHIVE · SHA-256 무결성 매니페스트 포함</span>
+          <h3>📦 중대재해처벌법 반기·월간 법적 이행 증빙 패키지 1클릭 편철</h3>
+          <p className="nexus-3axis-case-row-meta">
+            시정조치·작업중지 이력, 본사 검증 건설기계 점검 사진 원본, 12개국어 교육 자필 서명 PNG, 순회점검·사고조사 승인 기록을 단일 ZIP 아카이브로 묶습니다.
+          </p>
+        </div>
+        <div className="nexus-3axis-case-row-actions">
+          <button type="button" className="nexus-3axis-submit" onClick={() => void handleDownloadComplianceZip()}>
+            📦 증빙 ZIP 패키지 1클릭 편철 저장 ↗
+          </button>
+          <button type="button" onClick={() => void handleExportCeoPptx()}>
+            📽️ 경영진 보고 PPTX 저장
+          </button>
+        </div>
+      </div>
+      {complianceNotice && <p role="status" className="nexus-3axis-feedback">{complianceNotice}</p>}
+    </section>
     </>)}
     <footer className="nexus-footer"><span>PSI / SAFETY NEXUS</span><span>현재 불러온 기록의 탐색 화면입니다. 실제 현장 승인 통계와의 대조는 미완료입니다.</span>
       <label><input type="checkbox" checked={reduced} onChange={e => setReduced(e.target.checked)} /> 움직임 줄이기</label></footer>

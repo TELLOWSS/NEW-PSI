@@ -1,6 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { getKoreanCalendarDay } from '../../utils/monthlyFieldFollowup';
-import { compressImageFileToDataUrl } from '../../utils/nexusEquipmentPhotoReport';
+import {
+  NEXUS_EQUIPMENT_TYPE_OPTIONS,
+  submitEquipmentPhotoReport,
+  type NexusEquipmentType,
+} from '../../utils/nexusEquipmentPhotoReport';
+import { enqueueNexusOfflineMutation } from '../../utils/nexusOfflineQueue';
 import {
   NEXUS_PIPELINE_STATUS_LABELS,
   NEXUS_QUICK_FIELD_PRESETS,
@@ -12,6 +17,7 @@ import {
   type NexusPipelineCase,
   type NexusQuickFieldPreset,
 } from '../../utils/nexusQuickPipeline';
+import { readManagedNexusSites } from '../../utils/nexusSiteRegistry';
 import {
   NEXUS_HAZARD_EQUIPMENT_AXIS_OPTIONS,
   NEXUS_PROCESS_AXIS_OPTIONS,
@@ -20,11 +26,13 @@ import {
   type NexusProcessAxis,
   type NexusZoneAxis,
 } from '../../utils/nexusStructuralTaxonomy';
+import { compressFieldPhotoForNexus } from '../../utils/nexusSyncEngine';
 
 interface Props {
   workspaceRole?: 'hq' | 'field';
   note: string;
   fileName?: string;
+  previewDataUrl?: string;
   riskTopic?: string;
   workType?: string;
   aiFindingsText?: string;
@@ -42,6 +50,7 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
   workspaceRole = 'field',
   note,
   fileName,
+  previewDataUrl,
   riskTopic,
   workType,
   aiFindingsText,
@@ -73,6 +82,11 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
   const [beforePhotoName, setBeforePhotoName] = useState('');
   const [afterPhotoByCase, setAfterPhotoByCase] = useState<Record<string, string>>({});
   const [handoverPreviewText, setHandoverPreviewText] = useState('');
+  const managedSites = useMemo(() => readManagedNexusSites(false), []);
+  const [inspectorEqType, setInspectorEqType] = useState<NexusEquipmentType>('concrete_pump_car');
+  const [inspectorEqSiteId, setInspectorEqSiteId] = useState<string>(
+    lockedSiteId || managedSites[0]?.siteId || 'SITE-01-SUBRC',
+  );
 
   const filteredCases = useMemo(
     () =>
@@ -118,15 +132,38 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     setBeforePhotoName(file.name);
-    const dataUrl = await compressImageFileToDataUrl(file);
+    const dataUrl = await compressFieldPhotoForNexus(file);
     setBeforePhotoUrl(dataUrl);
   };
 
   const handleAfterPhotoChange = async (caseId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const dataUrl = await compressImageFileToDataUrl(file);
+    const dataUrl = await compressFieldPhotoForNexus(file);
     setAfterPhotoByCase(prev => ({ ...prev, [caseId]: dataUrl }));
+  };
+
+  const handleSendInspectorPhotoToHqEquipment = () => {
+    const targetSiteId = lockedSiteId || inspectorEqSiteId;
+    const siteMeta = managedSites.find(s => s.siteId === targetSiteId) ?? managedSites[0];
+    const submitted = submitEquipmentPhotoReport({
+      siteId: siteMeta?.siteId || targetSiteId,
+      siteName: lockedSiteName || siteMeta?.siteName,
+      equipmentType: inspectorEqType,
+      workActivity: effectiveNote || `사진점검 연계 · ${siteMeta?.shortLabel || '현장'} 건설기계 점검`,
+      photoName: beforePhotoName || fileName || undefined,
+      photoDataUrl: beforePhotoUrl || previewDataUrl || undefined,
+      uploadedBy: assignee.trim() || '현장 안전관리자',
+    });
+    enqueueNexusOfflineMutation({
+      kind: 'equipment_photo',
+      siteId: submitted.siteId,
+      recordId: submitted.submissionId,
+      summary: `${submitted.siteName} · ${submitted.equipmentLabel} 사진 전송`,
+    });
+    setFeedbackNotice(
+      `[건설기계 사진 본사 직송] ${submitted.siteName} · ${submitted.equipmentLabel} 사진이 안전지능 네트워크 본사 검토함으로 전송되었습니다.`,
+    );
   };
 
   const handleCopyShiftHandover = async () => {
@@ -165,8 +202,14 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
       handoverShift: handoverShift.trim() || '다음 교대 작업팀·안전담당 인계',
       handoverNote: classification.recommendedHandoverNote,
       stopWorkFlag,
-      beforePhotoDataUrl: beforePhotoUrl || undefined,
+      beforePhotoDataUrl: beforePhotoUrl || previewDataUrl || undefined,
       source,
+    });
+    enqueueNexusOfflineMutation({
+      kind: 'pipeline_case',
+      siteId: created.siteId,
+      recordId: created.caseId,
+      summary: `${created.locationLabel} · ${created.matchedCaseCode}${created.stopWorkFlag ? ' (작업중지)' : ''}`,
     });
     setFeedbackNotice(
       `3D 구체 포인트 [${created.structuralNodeIndex}] 및 유사사례 [${created.matchedCaseCode}]로 조치·재점검·인계 등록이 완료되었습니다.`,
@@ -349,6 +392,35 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
         <button type="button" className="nexus-3axis-submit" onClick={handleRegisterToNexus}>
           30초 조치·재점검·인계 등록 및 구체 환류 ↗
         </button>
+        {source === 'safety-inspector' && (
+          <div className="nexus-inspector-equip-bar">
+            <select
+              aria-label="사진점검 연계 현장 선택"
+              value={inspectorEqSiteId}
+              onChange={e => setInspectorEqSiteId(e.target.value)}
+            >
+              {managedSites.map(s => (
+                <option key={s.siteId} value={s.siteId}>{s.shortLabel}</option>
+              ))}
+            </select>
+            <select
+              aria-label="사진점검 연계 건설기계 선택"
+              value={inspectorEqType}
+              onChange={e => setInspectorEqType(e.target.value as NexusEquipmentType)}
+            >
+              {NEXUS_EQUIPMENT_TYPE_OPTIONS.map(opt => (
+                <option key={opt.id} value={opt.id}>{opt.label}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="nexus-ceo-studio-btn"
+              onClick={handleSendInspectorPhotoToHqEquipment}
+            >
+              🏗️ 건설기계 사용전 점검 사진으로 본사 직송 ↗
+            </button>
+          </div>
+        )}
       </div>
     </>
   );

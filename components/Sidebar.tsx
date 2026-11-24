@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { Page } from '../types';
 import { BrandPhilosophyLogo } from './shared/BrandPhilosophyLogo';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
@@ -119,6 +119,13 @@ const SIDEBAR_GROUP_ORDER: ProductGroup[] = [
     'archive',
 ];
 
+const HQ_ANALYTICS_ONLY_PAGES: ReadonlySet<Page> = new Set([
+    'performance-analysis',
+    'predictive-analysis',
+    'survey-intelligence',
+    'reports',
+]);
+
 export const Sidebar: React.FC<SidebarProps> = ({
     currentPage,
     setCurrentPage,
@@ -130,14 +137,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
     const { mode } = useOperationalMode();
     const resolvedUiMode: UiAudienceMode = uiMode === 'worker' || uiMode === 'developer' ? uiMode : 'practitioner';
+    const [nexusAuthority, setNexusAuthority] = useState<'hq' | 'field'>(() => {
+        if (typeof window === 'undefined' || !window.localStorage) return 'hq';
+        return window.localStorage.getItem('psi_nexus_workspace_authority_v1') === 'field' ? 'field' : 'hq';
+    });
+    const [fieldMenuFocusedOnly, setFieldMenuFocusedOnly] = useState(false);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const syncAuthority = () => {
+            const role = window.localStorage?.getItem('psi_nexus_workspace_authority_v1') === 'field' ? 'field' : 'hq';
+            setNexusAuthority(role);
+            if (role === 'hq') setFieldMenuFocusedOnly(false);
+        };
+        window.addEventListener('psi-nexus-authority-updated', syncAuthority);
+        window.addEventListener('storage', syncAuthority);
+        return () => {
+            window.removeEventListener('psi-nexus-authority-updated', syncAuthority);
+            window.removeEventListener('storage', syncAuthority);
+        };
+    }, []);
     const resolvePageLabel = (page: Page) => getPageLabel?.(page) ?? getRouteLabel(page, resolvedUiMode);
 
     const modeVisibleMenuItems = useMemo(
         () =>
             sidebarMenuItems.filter(
-                (item) => isPageVisibleByOperationalMode(item.id, mode) && isRouteVisibleInMode(item.id, resolvedUiMode),
+                (item) =>
+                    isPageVisibleByOperationalMode(item.id, mode) &&
+                    isRouteVisibleInMode(item.id, resolvedUiMode) &&
+                    !(nexusAuthority === 'field' && fieldMenuFocusedOnly && HQ_ANALYTICS_ONLY_PAGES.has(item.id)),
             ),
-        [mode, resolvedUiMode],
+        [mode, resolvedUiMode, nexusAuthority, fieldMenuFocusedOnly],
     );
 
     const visibleMenuItems = useMemo(
@@ -202,6 +232,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <p className="psi-small-note mt-1">근로자 참여형 안전관리</p>
                     </div>
                 </div>
+                {nexusAuthority === 'field' && (
+                    <label className="mt-2.5 flex items-center gap-1.5 rounded-lg border border-sky-400/30 bg-sky-950/30 px-2.5 py-1.5 text-[11px] font-semibold text-sky-900 dark:text-sky-200 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={fieldMenuFocusedOnly}
+                            onChange={(e) => setFieldMenuFocusedOnly(e.target.checked)}
+                            className="h-3.5 w-3.5 rounded"
+                        />
+                        <span>🦺 현장 필수 메뉴만 보기</span>
+                    </label>
+                )}
             </div>
 
             <nav className="flex-1 px-3 py-4 overflow-y-auto custom-scrollbar">

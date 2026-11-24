@@ -556,6 +556,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
                 <InspectorNexus3AxisBridge
                     note={note}
                     fileName={local?.file.name}
+                    previewDataUrl={preview || undefined}
                     riskTopic={riskTopic}
                     workType={workType}
                     aiFindingsText={analysis?.risk_findings?.map(f => `${f.problem} ${f.risk} ${f.action}`).join(' ')}

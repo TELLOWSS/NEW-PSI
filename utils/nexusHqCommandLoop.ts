@@ -8,6 +8,11 @@ import {
   stageExecutiveTrainingHandoff,
   type NexusExecutiveTrainingCampaign,
 } from './nexusExecutiveTrainingPipeline';
+import {
+  DEFAULT_NEXUS_SITE_SEEDS,
+  readManagedNexusSites,
+  type NexusSitePortfolioItem,
+} from './nexusSiteRegistry';
 import type { NexusOrbitLayer } from './nexusSphereProjection';
 import {
   classifyStructuralPhotoContext,
@@ -34,50 +39,14 @@ export const NEXUS_HQ_LOOP_UPDATED_EVENT = 'psi-nexus-hq-loop-updated';
 
 export type NexusCommandRoleMode = 'unified' | 'hq_cso' | 'field_manager';
 export type NexusWorkspaceAuthority = 'hq' | 'field';
+export type { NexusSitePortfolioItem };
 
-export interface NexusSitePortfolioItem {
-  siteId: string;
-  siteName: string;
-  shortLabel: string;
-  focusZone: NexusZoneAxis;
-  focusProcess: NexusProcessAxis;
-  focusNodeIndex: string;
-  matchTokens: readonly string[];
-}
-
-export const NEXUS_SITE_PORTFOLIO: readonly NexusSitePortfolioItem[] = [
-  {
-    siteId: 'SITE-01-SUBRC',
-    siteName: '제1현장 지하 2층 RC구간',
-    shortLabel: '제1현장 · 지하2층 RC외벽',
-    focusZone: 'substructure_rc',
-    focusProcess: 'formwork_general',
-    focusNodeIndex: '01',
-    matchTokens: ['제1현장', '지하', 'b1', 'b2', '합벽', '피트'],
-  },
-  {
-    siteId: 'SITE-02-GANGFORM',
-    siteName: '제2현장 103동 15층 갱폼',
-    shortLabel: '제2현장 · 103동 갱폼·AL폼',
-    focusZone: 'superstructure_std',
-    focusProcess: 'gangform',
-    focusNodeIndex: '03',
-    matchTokens: ['제2현장', '103동', '14층', '15층', '갱폼', 'al폼', '알폼'],
-  },
-  {
-    siteId: 'SITE-03-SHORING',
-    siteName: '제3현장 전이층 시스템동바리',
-    shortLabel: '제3현장 · 전이층 동바리·타설',
-    focusZone: 'rooftop_special',
-    focusProcess: 'concrete_pour',
-    focusNodeIndex: '07',
-    matchTokens: ['제3현장', '전이층', '동바리', '타설', '고층고'],
-  },
-];
+export const NEXUS_SITE_PORTFOLIO: readonly NexusSitePortfolioItem[] = DEFAULT_NEXUS_SITE_SEEDS;
 
 export const matchesPortfolioSite = (text: string, siteId: string): boolean => {
   if (!siteId) return true;
-  const site = NEXUS_SITE_PORTFOLIO.find(s => s.siteId === siteId);
+  const sites = readManagedNexusSites(true);
+  const site = sites.find(s => s.siteId === siteId);
   if (!site) return true;
   const normalized = String(text || '').toLowerCase();
   if (!normalized) return false;
@@ -112,11 +81,13 @@ export const scopeNexusWorkspaceData = (params: {
   trainingCampaigns: NexusExecutiveTrainingCampaign[];
   equipmentReports: NexusEquipmentPhotoSubmission[];
 } => {
+  const managedSites = readManagedNexusSites(false);
+  const allSitesIncludingArchived = readManagedNexusSites(true);
   const effectiveSiteId =
     params.workspaceRole === 'field'
-      ? params.assignedFieldSiteId || NEXUS_SITE_PORTFOLIO[0].siteId
+      ? params.assignedFieldSiteId || managedSites[0]?.siteId || DEFAULT_NEXUS_SITE_SEEDS[0].siteId
       : params.selectedSiteId || '';
-  const activeSiteMeta = NEXUS_SITE_PORTFOLIO.find(s => s.siteId === effectiveSiteId) ?? null;
+  const activeSiteMeta = allSitesIncludingArchived.find(s => s.siteId === effectiveSiteId) ?? null;
 
   if (!effectiveSiteId) {
     return {
@@ -150,13 +121,13 @@ export const scopeNexusWorkspaceData = (params: {
     const combined = `${t.title || ''} ${t.sourceTextKo || ''}`;
     if (matchesPortfolioSite(combined, effectiveSiteId)) return true;
     if (String(t.matchedCaseCode || '').startsWith('HQ-')) return true;
-    const mentionsOtherSite = NEXUS_SITE_PORTFOLIO.some(
+    const mentionsOtherSite = allSitesIncludingArchived.some(
       other => other.siteId !== effectiveSiteId && matchesPortfolioSite(combined, other.siteId),
     );
     if (mentionsOtherSite) return false;
     return (
       Boolean(activeSiteMeta && t.structuralNodeIndex === activeSiteMeta.focusNodeIndex) ||
-      NEXUS_SITE_PORTFOLIO.every(s => !matchesPortfolioSite(combined, s.siteId))
+      allSitesIncludingArchived.every(s => !matchesPortfolioSite(combined, s.siteId))
     );
   });
 
@@ -1023,7 +994,7 @@ export const buildMultiSitePortfolioMatrix = (
   trainingCampaigns: readonly NexusExecutiveTrainingCampaign[],
   asOfDate = getKoreanCalendarDay(),
 ): readonly NexusSitePortfolioScorecard[] =>
-  NEXUS_SITE_PORTFOLIO.map(site => {
+  readManagedNexusSites(false).map(site => {
     const cases = pipelineCases.filter(c =>
       matchesScopedSiteRecord(c.siteId, `${c.locationLabel} ${c.observationNote}`, site.siteId),
     );

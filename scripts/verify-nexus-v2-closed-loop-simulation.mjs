@@ -153,12 +153,34 @@ try {
     (await root.getByText(/\[본사 승인 완료\]/).count()) === 1,
   );
 
-  // View ④: HQ Raw Audit View
+  // View ④: HQ Raw Audit View + SAPA Compliance ZIP Packager
   await root.getByRole('tab', { name: '④ 원천 이력·감사' }).click();
   recordCheck(
-    'HQ Audit View renders #nexus-followup-details cleanly',
-    await root.locator('#nexus-followup-details').isVisible(),
+    'HQ Audit View renders #nexus-followup-details & SAPA Compliance Bundle Packager cleanly',
+    (await root.locator('#nexus-followup-details').isVisible()) &&
+      (await root.locator('.nexus-compliance-panel').isVisible()) &&
+      (await root.getByRole('button', { name: /증빙 ZIP 패키지 1클릭 편철 저장/ }).count()) === 1,
   );
+  await root.locator('.nexus-compliance-panel').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: resolve(outDir, 'nexus-v2-hq-compliance-1440.png'), fullPage: false });
+
+  // Dynamic Company Site Master Add + Archive in HQ View ③
+  await root.getByRole('tab', { name: '③ 본사 결재·보고·순회' }).click();
+  await root.locator('.nexus-site-master-details summary').click();
+  await root.getByLabel('신규 현장명 입력').fill('제4현장 송도 물류센터 골조');
+  await root.getByLabel('현장 단축 라벨').fill('제4현장 · 송도 PC골조');
+  await root.getByLabel('현장 안전책임자').fill('박안전 소장');
+  await root.getByRole('button', { name: /\+ 우리 회사 현장 추가/ }).click();
+  recordCheck(
+    'HQ Site Master adds custom Site 4 and reflects it in scope pills',
+    (await root.locator('.nexus-scope-strip').getByText('제4현장').count()) >= 1,
+  );
+  await root.locator('.nexus-site-master-details').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: resolve(outDir, 'nexus-v2-site-master-1440.png'), fullPage: false });
+  await root.locator('.nexus-site-master-list li', { hasText: '제4현장' }).getByRole('button', { name: '준공·보관' }).click();
+  await root.locator('.nexus-site-master-details summary').click();
 
   // =========================================================================
   // PART B: Field Safety Manager Single-Site Isolation & Bidirectional Loops (SITE-01-SUBRC)
@@ -234,13 +256,40 @@ try {
     (await root.getByText(/\[현장 보완 사진 본사 재전송\]/).count()) === 1,
   );
 
-  // Field View ②: Training 12-lang (NO HQ dispatch button!) & HQ Visit Acknowledge
+  // Field View ②: Training 12-lang (NO HQ dispatch button!) + QR Handwritten Signature Kiosk & HQ Visit Ack
   await root.getByRole('tab', { name: '② 본사 수신·교육·상신' }).click();
   recordCheck(
     'Field 12-Language Training hides HQ authoring/dispatch buttons',
     (await root.getByRole('button', { name: /12개국어 전 현장 즉시 발령/ }).count()) === 0 &&
       (await root.getByLabel('지정 교육 대상 인원').count()) === 0,
   );
+  await root.locator('.nexus-qr-kiosk-details summary').first().click();
+  await root.locator('.nexus-qr-kiosk-panel').first().scrollIntoViewIfNeeded();
+  await root.locator('input[aria-label^="서명 근로자 성명"]').first().fill('NGUYEN VAN B');
+  const sigBox = await root.locator('.nexus-sig-canvas').first().boundingBox();
+  if (sigBox) {
+    await page.mouse.move(sigBox.x + 40, sigBox.y + 45);
+    await page.mouse.down();
+    await page.mouse.move(sigBox.x + 140, sigBox.y + 65, { steps: 6 });
+    await page.mouse.move(sigBox.x + 220, sigBox.y + 40, { steps: 6 });
+    await page.mouse.up();
+  }
+  await root.getByRole('button', { name: /모국어 이해 확인 · 자필 서명 저장/ }).first().click();
+  recordCheck(
+    'Field QR Handwritten Signature Kiosk saves worker PNG receipt & increments count',
+    (await root.locator('.nexus-sig-receipt-chip').count()) >= 1 &&
+      (await root.getByText(/\[자필 서명 저장 완료\]/).count()) === 1,
+  );
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: resolve(outDir, 'nexus-v2-qr-kiosk-1440.png'), fullPage: false });
+  await root.locator('.nexus-qr-kiosk-details summary').first().click();
+
+  await root.getByRole('button', { name: '🔄 지금 동기화' }).click();
+  recordCheck(
+    'Underground offline mutation queue flushes cleanly to pending 0',
+    (await root.locator('.nexus-live-sync-bar').getByText('미전송 큐 0건').count()) === 1,
+  );
+
   await root.getByRole('button', { name: '전원 서명·이수 100% 완료 확인' }).first().click();
 
   await root.getByRole('tab', { name: /01 본사 순회점검 지시 수신/ }).click();

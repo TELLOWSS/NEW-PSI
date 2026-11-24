@@ -1,10 +1,10 @@
 import { getKoreanCalendarDay } from './monthlyFieldFollowup';
 import type { NexusExecutiveTrainingCampaign } from './nexusExecutiveTrainingPipeline';
 import {
-  NEXUS_SITE_PORTFOLIO,
   type NexusAiInvestigationRecord,
   type NexusHqVisitPlan,
 } from './nexusHqCommandLoop';
+import { findManagedSiteById, readManagedNexusSites } from './nexusSiteRegistry';
 import type { NexusPipelineCase } from './nexusQuickPipeline';
 import { escapeSpreadsheetCsvCell } from './spreadsheetCsv';
 
@@ -240,7 +240,7 @@ export const writeEquipmentPhotoSubmissions = (
 };
 
 const resolveSiteNameFromId = (siteId: string): string =>
-  NEXUS_SITE_PORTFOLIO.find(s => s.siteId === siteId)?.siteName || '제1현장 지하 2층 RC구간';
+  findManagedSiteById(siteId, true)?.siteName || '제1현장 지하 2층 RC구간';
 
 export const submitEquipmentPhotoReport = (
   input: {
@@ -492,12 +492,13 @@ export const buildUnifiedCeoDailyBriefing = (params: {
     (s, c) => s + Math.max(0, c.confirmedSignatures || 0),
     0,
   );
+  const activeSiteCount = readManagedNexusSites(false).length;
   const trainingCompletionPct =
     totalTargets > 0 ? Math.min(100, Math.round((totalSignatures / totalTargets) * 100)) : 0;
 
   const lines: string[] = [
     `[대표이사 · 경영진 일일 전사 안전 통합 브리핑] ${asOfDate} (${briefingId})`,
-    `보고 책임: ${reporterLabel} · 관제 대상: 전사 ${NEXUS_SITE_PORTFOLIO.length}대 현장 포트폴리오`,
+    `보고 책임: ${reporterLabel} · 관제 대상: 전사 ${activeSiteCount}대 현장 포트폴리오`,
     '',
     `1. ⛔ 임시통제·작업중지 & 현장 미결: 작업중지 ${stopWorkCases.length}건 / 전체 미결 ${openCases.length}건`,
     ...(stopWorkCases.length > 0
@@ -536,7 +537,7 @@ export const buildUnifiedCeoDailyBriefing = (params: {
     asOfDate,
     generatedAt: nowIso,
     reporterLabel,
-    siteCount: NEXUS_SITE_PORTFOLIO.length,
+    siteCount: activeSiteCount,
     stopWorkCount: stopWorkCases.length,
     openActionsCount: openCases.length,
     equipReadyCount: equipReady.length,

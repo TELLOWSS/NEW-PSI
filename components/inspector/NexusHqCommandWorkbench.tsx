@@ -5,7 +5,6 @@ import {
   NEXUS_EQUIPMENT_TYPE_OPTIONS,
   batchVerifyPendingEquipmentPhotosByHq,
   compileExecutivePhotoBriefingPack,
-  compressImageFileToDataUrl,
   resubmitEquipmentPhotoByField,
   reviewEquipmentPhotoByHq,
   submitEquipmentPhotoReport,
@@ -20,7 +19,6 @@ import {
 } from '../../utils/nexusExecutiveTrainingPipeline';
 import {
   NEXUS_INVESTIGATION_STATUS_LABELS,
-  NEXUS_SITE_PORTFOLIO,
   NEXUS_VISIT_STATUS_LABELS,
   acknowledgeHqVisitByField,
   approveAiInvestigationAndPropagate,
@@ -37,7 +35,17 @@ import {
   type NexusHqVisitPlan,
   type NexusWorkspaceAuthority,
 } from '../../utils/nexusHqCommandLoop';
+import { enqueueNexusOfflineMutation } from '../../utils/nexusOfflineQueue';
 import type { NexusPipelineCase } from '../../utils/nexusQuickPipeline';
+import {
+  NEXUS_SITE_MASTER_UPDATED_EVENT,
+  archiveManagedNexusSite,
+  readManagedNexusSites,
+  resetManagedNexusSites,
+  upsertManagedNexusSite,
+  type NexusManagedSite,
+} from '../../utils/nexusSiteRegistry';
+import { compressFieldPhotoForNexus } from '../../utils/nexusSyncEngine';
 import {
   NEXUS_HAZARD_EQUIPMENT_AXIS_OPTIONS,
   NEXUS_PROCESS_AXIS_OPTIONS,
@@ -79,6 +87,7 @@ interface Props {
   equipmentReports: readonly NexusEquipmentPhotoSubmission[];
   onEquipmentReportsChange: (next: NexusEquipmentPhotoSubmission[]) => void;
   onLockOntoStructuralNode: (structuralNodeIndex: string) => void;
+  onExportExecutivePptx?: () => Promise<void> | void;
 }
 
 export const NexusHqCommandWorkbench: React.FC<Props> = ({
@@ -102,10 +111,36 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
   equipmentReports,
   onEquipmentReportsChange,
   onLockOntoStructuralNode,
+  onExportExecutivePptx,
 }) => {
   const isHq = workspaceRole === 'hq';
+  const [managedSites, setManagedSites] = useState<NexusManagedSite[]>(() => readManagedNexusSites(true));
+  const activeManagedSites = useMemo(
+    () => managedSites.filter(s => !s.archived),
+    [managedSites],
+  );
+  const [newSiteName, setNewSiteName] = useState('');
+  const [newSiteShortLabel, setNewSiteShortLabel] = useState('');
+  const [newSiteZone, setNewSiteZone] = useState<NexusZoneAxis>('superstructure_std');
+  const [newSiteProcess, setNewSiteProcess] = useState<NexusProcessAxis>('formwork_general');
+  const [newSiteManager, setNewSiteManager] = useState('');
+  const [newSiteEquipInput, setNewSiteEquipInput] = useState('콘크리트 타설 펌프카, 타워크레인');
+  const [siteMasterNotice, setSiteMasterNotice] = useState('');
+
+  useEffect(() => {
+    const syncSites = () => setManagedSites(readManagedNexusSites(true));
+    window.addEventListener(NEXUS_SITE_MASTER_UPDATED_EVENT, syncSites);
+    window.addEventListener('storage', syncSites);
+    return () => {
+      window.removeEventListener(NEXUS_SITE_MASTER_UPDATED_EVENT, syncSites);
+      window.removeEventListener('storage', syncSites);
+    };
+  }, []);
+
   const boundSiteMeta =
-    NEXUS_SITE_PORTFOLIO.find(s => s.siteId === effectiveSiteId) ?? NEXUS_SITE_PORTFOLIO[0];
+    managedSites.find(s => s.siteId === effectiveSiteId) ??
+    activeManagedSites[0] ??
+    managedSites[0];
 
   // 01 행선지·순회점검 state (HQ authoring)
   const [visitDate, setVisitDate] = useState(() => getKoreanCalendarDay());
@@ -178,14 +213,14 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     setEqPhotoName(file.name);
-    const dataUrl = await compressImageFileToDataUrl(file);
+    const dataUrl = await compressFieldPhotoForNexus(file);
     setEqPhotoUrl(dataUrl);
   };
 
   const handleSubmitEquipmentPhoto = () => {
     setEqError('');
     const targetSiteMeta = isHq
-      ? NEXUS_SITE_PORTFOLIO.find(s => s.siteId === eqSiteId) ?? NEXUS_SITE_PORTFOLIO[0]
+      ? activeManagedSites.find(s => s.siteId === eqSiteId) ?? activeManagedSites[0] ?? boundSiteMeta
       : boundSiteMeta;
     const created = submitEquipmentPhotoReport({
       siteId: targetSiteMeta.siteId,
@@ -197,6 +232,12 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
       photoName: eqPhotoName || undefined,
       photoDataUrl: eqPhotoUrl || undefined,
       uploadedBy: eqUploadedBy.trim() || '현장 안전관리자',
+    });
+    enqueueNexusOfflineMutation({
+      kind: 'equipment_photo',
+      siteId: created.siteId,
+      recordId: created.submissionId,
+      summary: `${created.siteName} · ${created.equipmentLabel} 사용전 사진`,
     });
     onEquipmentReportsChange([created]);
     onLockOntoStructuralNode(created.structuralNodeIndex);
@@ -281,7 +322,7 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url = await compressImageFileToDataUrl(file);
+    const url = await compressFieldPhotoForNexus(file);
     setEqResubmitPhotosById(prev => ({ ...prev, [submissionId]: { name: file.name, url } }));
   };
 
@@ -296,6 +337,12 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
           eqResubmitNotesById[item.submissionId]?.trim() ||
           '본사 지적사항 반영 보완 촬영 완료 · 안전장치 근접 확인 재전송',
         resubmittedBy: `${boundSiteMeta.shortLabel} 안전관리자`,
+      });
+      enqueueNexusOfflineMutation({
+        kind: 'equipment_photo',
+        siteId: item.siteId,
+        recordId: item.submissionId,
+        summary: `[보완 재전송] ${item.siteName} · ${item.equipmentLabel}`,
       });
       onEquipmentReportsChange([...updated]);
       setEqNotice(
@@ -312,6 +359,12 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
       note:
         visitAckNotesById[plan.visitId]?.trim() ||
         '사전 브리핑 미결 위험·동선 확인 및 순회점검 현장 준비 완료',
+    });
+    enqueueNexusOfflineMutation({
+      kind: 'visit_ack',
+      siteId: plan.siteId || boundSiteMeta.siteId,
+      recordId: plan.visitId,
+      summary: `[순회접수] ${plan.siteName} (${plan.visitDate})`,
     });
     onVisitPlansChange([...updated]);
     setVisitNotice(
@@ -384,7 +437,7 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
     const rawSite = visitSiteName.trim() || '제1현장 지하 2층 RC구간';
     const resolvedSiteId =
       effectiveSiteId ||
-      NEXUS_SITE_PORTFOLIO.find(s => matchesPortfolioSite(rawSite, s.siteId))?.siteId;
+      activeManagedSites.find(s => matchesPortfolioSite(rawSite, s.siteId))?.siteId;
     const plan = createHqVisitPlan(
       {
         siteId: resolvedSiteId,
@@ -518,7 +571,7 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
       ? invSiteName.trim() || '제1현장 골조·형틀 구간'
       : boundSiteMeta.siteName;
     const resolvedSiteId = isHq
-      ? effectiveSiteId || NEXUS_SITE_PORTFOLIO.find(s => matchesPortfolioSite(targetSiteName, s.siteId))?.siteId
+      ? effectiveSiteId || activeManagedSites.find(s => matchesPortfolioSite(targetSiteName, s.siteId))?.siteId
       : boundSiteMeta.siteId;
     const created = submitAiInvestigationRecord({
       siteId: resolvedSiteId,
@@ -838,7 +891,7 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
               value={eqSiteId}
               onChange={e => setEqSiteId(e.target.value)}
             >
-              {NEXUS_SITE_PORTFOLIO.map(site => (
+              {activeManagedSites.map(site => (
                 <option key={site.siteId} value={site.siteId}>{site.shortLabel}</option>
               ))}
             </select>
@@ -961,6 +1014,11 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
                 <div className="nexus-3axis-case-row-actions">
                   <button type="button" onClick={handleCopyExecutiveBriefingText}>📋 보고 요약 복사</button>
                   <button type="button" onClick={handleDownloadExecutivePhotoCsv}>📊 엑셀(CSV) 저장</button>
+                  {onExportExecutivePptx && (
+                    <button type="button" className="nexus-3axis-submit" onClick={() => void onExportExecutivePptx()}>
+                      📽️ CEO 사진 보고 PPTX 저장
+                    </button>
+                  )}
                 </div>
               </div>
               <pre className="nexus-ceo-pre">{latestExecutivePack.summaryText}</pre>
@@ -1270,6 +1328,153 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
         )}
       </div>
 
+      {isHq && (
+        <details className="nexus-site-master-details">
+          <summary>🏗️ 우리 회사 현장 · 투입 건설기계 마스터 관리 ({activeManagedSites.length}개 활성 현장)</summary>
+          <div className="nexus-site-master-panel">
+            {siteMasterNotice && <p role="status" className="nexus-3axis-feedback">{siteMasterNotice}</p>}
+            <div className="nexus-visit-form-grid">
+              <label>
+                <span>신규 현장명</span>
+                <input
+                  type="text"
+                  aria-label="신규 현장명 입력"
+                  value={newSiteName}
+                  maxLength={80}
+                  onChange={e => setNewSiteName(e.target.value)}
+                  placeholder="예: 제4현장 인천 물류센터 골조"
+                />
+              </label>
+              <label>
+                <span>단축 라벨</span>
+                <input
+                  type="text"
+                  aria-label="현장 단축 라벨"
+                  value={newSiteShortLabel}
+                  maxLength={40}
+                  onChange={e => setNewSiteShortLabel(e.target.value)}
+                  placeholder="예: 제4현장 · 인천 골조·PC"
+                />
+              </label>
+              <label>
+                <span>주력 구간·공정</span>
+                <select
+                  aria-label="신규 현장 주력 구간"
+                  value={newSiteZone}
+                  onChange={e => setNewSiteZone(e.target.value as NexusZoneAxis)}
+                >
+                  {NEXUS_ZONE_AXIS_OPTIONS.map(o => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>세부 주력 공정</span>
+                <select
+                  aria-label="신규 현장 세부 공정"
+                  value={newSiteProcess}
+                  onChange={e => setNewSiteProcess(e.target.value as NexusProcessAxis)}
+                >
+                  {NEXUS_PROCESS_AXIS_OPTIONS.map(o => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>현장 안전책임자</span>
+                <input
+                  type="text"
+                  aria-label="현장 안전책임자"
+                  value={newSiteManager}
+                  maxLength={40}
+                  onChange={e => setNewSiteManager(e.target.value)}
+                  placeholder="예: 박안전 소장"
+                />
+              </label>
+              <label>
+                <span>투입 건설기계(쉼표 구분)</span>
+                <input
+                  type="text"
+                  aria-label="투입 건설기계 목록"
+                  value={newSiteEquipInput}
+                  maxLength={140}
+                  onChange={e => setNewSiteEquipInput(e.target.value)}
+                />
+              </label>
+            </div>
+            <div className="nexus-3axis-case-row-actions">
+              <button
+                type="button"
+                className="nexus-3axis-submit"
+                onClick={() => {
+                  try {
+                    const { sites, savedSite } = upsertManagedNexusSite({
+                      siteName: newSiteName,
+                      shortLabel: newSiteShortLabel || undefined,
+                      focusZone: newSiteZone,
+                      focusProcess: newSiteProcess,
+                      managerName: newSiteManager || undefined,
+                      registeredEquipment: newSiteEquipInput.split(',').map(v => v.trim()).filter(Boolean),
+                    });
+                    setManagedSites(sites);
+                    setNewSiteName('');
+                    setNewSiteShortLabel('');
+                    setNewSiteManager('');
+                    setSiteMasterNotice(`[현장 마스터 등록] ${savedSite.shortLabel} 현장이 본사·현장 격리 포트폴리오에 반영되었습니다.`);
+                  } catch (err) {
+                    setSiteMasterNotice(err instanceof Error ? err.message : '현장 등록 정보를 확인해 주세요.');
+                  }
+                }}
+              >
+                + 우리 회사 현장 추가 · 즉시 반영
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const defaults = resetManagedNexusSites();
+                  setManagedSites(defaults);
+                  setSiteMasterNotice('기본 골조 3대 포트폴리오 마스터로 초기화했습니다.');
+                }}
+              >
+                기본 3대 현장 복원
+              </button>
+            </div>
+            <ul className="nexus-site-master-list" aria-label="등록된 회사 현장 마스터 목록">
+              {managedSites.map(site => (
+                <li key={site.siteId} data-archived={site.archived ? 'true' : 'false'}>
+                  <div>
+                    <strong>{site.shortLabel}</strong>
+                    <small>
+                      책임: {site.managerName || '미지정'} · 장비: {site.registeredEquipment.join(', ') || '미등록'}
+                    </small>
+                  </div>
+                  <div className="nexus-3axis-case-row-actions">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        try {
+                          const next = archiveManagedNexusSite(site.siteId, !site.archived);
+                          setManagedSites(next);
+                          setSiteMasterNotice(
+                            site.archived
+                              ? `[현장 복원] ${site.shortLabel} 현장을 다시 활성화했습니다.`
+                              : `[준공·보관 처리] ${site.shortLabel} 현장을 활성 관제 목록에서 보관했습니다.`,
+                          );
+                        } catch (err) {
+                          setSiteMasterNotice(err instanceof Error ? err.message : '변경 불가');
+                        }
+                      }}
+                    >
+                      {site.archived ? '현장 재활성화' : '준공·보관'}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
+      )}
+
       <div className="nexus-workbench-tabs" role="tablist" aria-label="권한별 전용 업무 모듈 선택">
         {visibleTabs.map(tab => (
           <button
@@ -1347,6 +1552,7 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
           <NexusExecutiveTrainingBridge
             workspaceRole={workspaceRole}
             siteLabel={boundSiteMeta.shortLabel}
+            siteId={boundSiteMeta.siteId}
             activeSeed={activeSeed}
             campaigns={trainingCampaigns}
             onCampaignsChange={onTrainingCampaignsChange}

@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
+import { QRCodeCanvas } from 'qrcode.react';
 import {
   TRAINING_LANGUAGE_FLAGS,
   TRAINING_LANGUAGE_LABELS,
@@ -10,9 +11,11 @@ import {
   buildExecutiveTrainingDraftFromSeed,
   formatLanguageBadge,
   recordExecutiveTrainingSignatureProgress,
+  recordIndividualWorkerHandwrittenSignature,
   stageExecutiveTrainingHandoff,
   type NexusExecutiveTrainingCampaign,
 } from '../../utils/nexusExecutiveTrainingPipeline';
+import { enqueueNexusOfflineMutation } from '../../utils/nexusOfflineQueue';
 import {
   NEXUS_STRUCTURAL_INCIDENT_SEEDS,
   type NexusStructuralIncidentSeed,
@@ -21,6 +24,7 @@ import {
 interface Props {
   workspaceRole?: 'hq' | 'field';
   siteLabel?: string;
+  siteId?: string;
   activeSeed?: NexusStructuralIncidentSeed;
   campaigns: readonly NexusExecutiveTrainingCampaign[];
   onCampaignsChange: (next: NexusExecutiveTrainingCampaign[]) => void;
@@ -30,6 +34,7 @@ interface Props {
 export const NexusExecutiveTrainingBridge: React.FC<Props> = ({
   workspaceRole = 'hq',
   siteLabel,
+  siteId,
   activeSeed,
   campaigns,
   onCampaignsChange,
@@ -41,6 +46,9 @@ export const NexusExecutiveTrainingBridge: React.FC<Props> = ({
   const [targetWorkers, setTargetWorkers] = useState(12);
   const [speakingLang, setSpeakingLang] = useState<string>('');
   const [notice, setNotice] = useState('');
+  const [workerNamesByCamp, setWorkerNamesByCamp] = useState<Record<string, string>>({});
+  const sigCanvasRefs = useRef<Record<string, HTMLCanvasElement | null>>({});
+  const sigDrawingState = useRef<Record<string, { drawing: boolean; hasInk: boolean; initialized: boolean }>>({});
 
   const draftPreview = useMemo(
     () => buildExecutiveTrainingDraftFromSeed(seed, { targetWorkers }),
@@ -89,10 +97,127 @@ export const NexusExecutiveTrainingBridge: React.FC<Props> = ({
       addSignatures: addCount,
       languageCode: lang,
     });
+    enqueueNexusOfflineMutation({
+      kind: 'training_signature',
+      siteId,
+      recordId: campaignId,
+      summary: `${formatLanguageBadge(lang)} 작업팀 ${addCount}명 이수 확인`,
+    });
     onCampaignsChange([...updated]);
     setNotice(
       `${formatLanguageBadge(lang)} 작업팀 모국어 이해·서명 ${addCount}건이 황금 구체 이수율 시그널로 즉시 환류되었습니다.`,
     );
+  };
+
+  const clearSignatureCanvas = (campaignId: string) => {
+    const canvas = sigCanvasRefs.current[campaignId];
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+    sigDrawingState.current[campaignId] = { drawing: false, hasInk: false, initialized: true };
+  };
+
+  const getScaledCanvasPoint = (
+    canvas: HTMLCanvasElement,
+    e: React.PointerEvent<HTMLCanvasElement>,
+  ) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = rect.width > 0 ? canvas.width / rect.width : 1;
+    const scaleY = rect.height > 0 ? canvas.height / rect.height : 1;
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
+    };
+  };
+
+  const handleSigPointerDown = (
+    campaignId: string,
+    e: React.PointerEvent<HTMLCanvasElement>,
+  ) => {
+    const canvas = sigCanvasRefs.current[campaignId];
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const st = sigDrawingState.current[campaignId] ?? {
+      drawing: false,
+      hasInk: false,
+      initialized: false,
+    };
+    if (!st.initialized) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      st.initialized = true;
+    }
+    const pt = getScaledCanvasPoint(canvas, e);
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(pt.x, pt.y);
+    sigDrawingState.current[campaignId] = { drawing: true, hasInk: st.hasInk, initialized: true };
+  };
+
+  const handleSigPointerMove = (
+    campaignId: string,
+    e: React.PointerEvent<HTMLCanvasElement>,
+  ) => {
+    const st = sigDrawingState.current[campaignId];
+    if (!st?.drawing) return;
+    const canvas = sigCanvasRefs.current[campaignId];
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const pt = getScaledCanvasPoint(canvas, e);
+    ctx.lineTo(pt.x, pt.y);
+    ctx.stroke();
+    st.hasInk = true;
+  };
+
+  const handleSigPointerUp = (campaignId: string) => {
+    const st = sigDrawingState.current[campaignId];
+    if (st) st.drawing = false;
+  };
+
+  const handleSaveHandwrittenWorkerSignature = (camp: NexusExecutiveTrainingCampaign) => {
+    const canvas = sigCanvasRefs.current[camp.campaignId];
+    const st = sigDrawingState.current[camp.campaignId];
+    const workerName = workerNamesByCamp[camp.campaignId]?.trim() || '';
+    if (!workerName) {
+      setNotice('서명하는 근로자의 성명(또는 별칭)을 먼저 입력해 주세요.');
+      return;
+    }
+    if (!canvas || !st?.hasInk) {
+      setNotice('서명 패드에 손가락 또는 마우스로 자필 서명을 그린 뒤 저장해 주세요.');
+      return;
+    }
+    try {
+      const dataUrl = canvas.toDataURL('image/png');
+      const result = recordIndividualWorkerHandwrittenSignature(camp.campaignId, {
+        workerName,
+        languageCode: selectedLang,
+        signatureDataUrl: dataUrl,
+        siteId,
+      });
+      enqueueNexusOfflineMutation({
+        kind: 'training_signature',
+        siteId,
+        recordId: result.receipt.signatureId,
+        summary: `${formatLanguageBadge(selectedLang)} ${result.receipt.workerName} 자필 서명`,
+      });
+      clearSignatureCanvas(camp.campaignId);
+      setWorkerNamesByCamp(prev => ({ ...prev, [camp.campaignId]: '' }));
+      onCampaignsChange([...result.campaigns]);
+      setNotice(
+        `[자필 서명 저장 완료] ${formatLanguageBadge(selectedLang)} · ${result.receipt.workerName} 서명이 중대재해처벌법 증빙 대장과 이수율에 즉시 반영되었습니다.`,
+      );
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : '자필 서명 저장 중 확인이 필요합니다.');
+    }
   };
 
   return (
@@ -274,6 +399,95 @@ export const NexusExecutiveTrainingBridge: React.FC<Props> = ({
                     </button>
                   )}
                 </div>
+
+                {camp.workerSignatureReceipts && camp.workerSignatureReceipts.length > 0 && (
+                  <div className="nexus-sig-receipts" aria-label="저장된 근로자 모국어 자필 서명 내역">
+                    {camp.workerSignatureReceipts.slice(0, 6).map(rec => (
+                      <div key={rec.signatureId} className="nexus-sig-receipt-chip">
+                        <img src={rec.signatureDataUrl} alt={`${rec.workerName} 자필 서명`} />
+                        <span>
+                          <b>{formatLanguageBadge(rec.languageCode)}</b> · {rec.workerName}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <details className="nexus-qr-kiosk-details">
+                  <summary>📱 현장 QR코드 · {formatLanguageBadge(selectedLang)} 자필 서명 키오스크 열기 ({camp.workerSignatureReceipts?.length ?? 0}명 자필 기록)</summary>
+                  <div className="nexus-qr-kiosk-panel">
+                    <div className="nexus-qr-card">
+                      <QRCodeCanvas
+                        value={`${typeof window !== 'undefined' ? window.location.origin : 'https://new-psi-eta.vercel.app'}/?mode=worker-kiosk&nexusTraining=${encodeURIComponent(camp.campaignId)}&lang=${encodeURIComponent(selectedLang)}`}
+                        size={112}
+                        bgColor="#ffffff"
+                        fgColor="#0b1724"
+                        level="M"
+                      />
+                      <small>{formatLanguageBadge(selectedLang)} 전용 교육 QR</small>
+                    </div>
+                    <div className="nexus-qr-sign-box">
+                      <div className="nexus-qr-sign-head">
+                        <label>
+                          <span>서명 근로자 성명</span>
+                          <input
+                            type="text"
+                            aria-label={`서명 근로자 성명 ${camp.matchedCaseCode}`}
+                            value={workerNamesByCamp[camp.campaignId] ?? ''}
+                            maxLength={60}
+                            onChange={e =>
+                              setWorkerNamesByCamp(prev => ({
+                                ...prev,
+                                [camp.campaignId]: e.target.value,
+                              }))
+                            }
+                            placeholder="예: NGUYEN VAN A / 김형틀"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          className="nexus-ceo-tts-btn"
+                          onClick={() =>
+                            handleSpeakPreview(
+                              selectedLang,
+                              camp.multilingualPreviews[selectedLang] || camp.sourceTextKo,
+                            )
+                          }
+                        >
+                          🔊 {TRAINING_LANGUAGE_LABELS[selectedLang]} 음성
+                        </button>
+                      </div>
+                      <canvas
+                        ref={el => {
+                          sigCanvasRefs.current[camp.campaignId] = el;
+                        }}
+                        width={320}
+                        height={110}
+                        className="nexus-sig-canvas"
+                        aria-label={`근로자 자필 서명 패드 ${camp.matchedCaseCode}`}
+                        onPointerDown={e => handleSigPointerDown(camp.campaignId, e)}
+                        onPointerMove={e => handleSigPointerMove(camp.campaignId, e)}
+                        onPointerUp={() => handleSigPointerUp(camp.campaignId)}
+                        onPointerLeave={() => handleSigPointerUp(camp.campaignId)}
+                      />
+                      <div className="nexus-3axis-case-row-actions">
+                        <button
+                          type="button"
+                          onClick={() => clearSignatureCanvas(camp.campaignId)}
+                        >
+                          서명 지우기
+                        </button>
+                        <button
+                          type="button"
+                          className="nexus-3axis-submit"
+                          onClick={() => handleSaveHandwrittenWorkerSignature(camp)}
+                        >
+                          ✍️ 모국어 이해 확인 · 자필 서명 저장
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </details>
               </li>
             ))}
           </ul>
