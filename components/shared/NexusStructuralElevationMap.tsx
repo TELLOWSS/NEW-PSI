@@ -98,7 +98,7 @@ export const NexusStructuralElevationMap: React.FC<Props> = ({
           </defs>
           {/* Ground level divider */}
           <line x1="8" y1="129" x2="252" y2="129" stroke={isLight ? '#b4530999' : '#f0be7788'} strokeWidth="1.2" strokeDasharray="4 3" />
-          <text x="12" y="126" fill={isLight ? '#9c5209' : '#ffd9a0'} fontSize="7.5" fontWeight="700">GL ±0.00</text>
+          <text x="12" y="126" fill={isLight ? '#9c5209' : '#ffd9a0'} fontSize="8.5" fontWeight="700">GL ±0.00</text>
           {/* Tower crane silhouette */}
           <path d="M214 12 L214 48 M190 18 L244 18 M214 18 L202 28" stroke={isLight ? '#0f766e99' : '#75e6ef99'} strokeWidth="1.4" fill="none" />
           {ELEVATION_FLOORS.map(floor => {
@@ -131,10 +131,10 @@ export const NexusStructuralElevationMap: React.FC<Props> = ({
                   stroke={stroke}
                   strokeWidth={isSelected || hasStop ? 1.5 : 0.9}
                 />
-                <text x="30" y={floor.y + 15} fill={isLight ? '#102a43' : '#eef6fc'} fontSize="9.5" fontWeight="700">
+                <text x="30" y={floor.y + 15} fill={isLight ? '#102a43' : '#eef6fc'} fontSize="10.5" fontWeight="700">
                   {floor.label}
                 </text>
-                <text x="30" y={floor.y + 27} fill={isLight ? '#486581' : '#9cb7c9'} fontSize="7.8">
+                <text x="30" y={floor.y + 27} fill={isLight ? '#486581' : '#9cb7c9'} fontSize="8.8">
                   #{floor.nodeIndex} · {floor.subLabel}
                 </text>
                 {matched.length > 0 && (

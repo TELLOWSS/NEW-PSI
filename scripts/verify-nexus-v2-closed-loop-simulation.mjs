@@ -8,10 +8,136 @@ await mkdir(outDir, { recursive: true });
 
 const browser = await chromium.launch({ headless: true });
 const checks = [];
+const lightQaFailures = [];
 const recordCheck = (name, ok, detail = {}) => {
   checks.push({ name, ok: Boolean(ok), detail });
   if (!ok) {
     throw new Error(`Simulation check failed: ${name} -> ${JSON.stringify(detail)}`);
+  }
+};
+
+const assertLightThemeQuality = async (root, viewLabel) => {
+  const report = await root.evaluate((rootEl) => {
+    const parseColor = (str) => {
+      if (!str || str === 'transparent') return [0, 0, 0, 0];
+      const m = str.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+      if (!m) return [0, 0, 0, 0];
+      return [Number(m[1]), Number(m[2]), Number(m[3]), m[4] === undefined ? 1 : Number(m[4])];
+    };
+    const compositeOver = (fg, bg) => {
+      const a = fg[3];
+      return [
+        Math.round(fg[0] * a + bg[0] * (1 - a)),
+        Math.round(fg[1] * a + bg[1] * (1 - a)),
+        Math.round(fg[2] * a + bg[2] * (1 - a)),
+        1,
+      ];
+    };
+    const relLum = ([r, g, b]) => {
+      const ch = [r, g, b].map((v) => {
+        const s = v / 255;
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+    };
+    const getEffectiveBg = (el) => {
+      const stack = [];
+      let cur = el;
+      while (cur && cur.nodeType === 1) {
+        const c = parseColor(getComputedStyle(cur).backgroundColor);
+        if (c[3] > 0.01) stack.unshift(c);
+        if (c[3] >= 0.99) break;
+        cur = cur.parentElement;
+      }
+      let out = [255, 255, 255, 1];
+      for (const layer of stack) {
+        out = compositeOver(layer, out);
+      }
+      return out;
+    };
+
+    const lowContrast = [];
+    const darkStragglers = [];
+    const smallFonts = [];
+    const gridAnomalies = [];
+
+    const all = Array.from(rootEl.querySelectorAll('*'));
+    for (const el of all) {
+      const style = getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+      if (el.closest('svg')) continue;
+      if (el.closest('.nexus-stage:not(.is-flat)')) continue;
+
+      if (style.display === 'grid' && style.gridTemplateColumns && style.gridTemplateColumns !== 'none') {
+        const tracks = style.gridTemplateColumns.split(' ').map((s) => parseFloat(s)).filter((n) => !Number.isNaN(n));
+        if (tracks.some((w) => w === 0)) {
+          gridAnomalies.push({ cls: el.className, gridTemplateColumns: style.gridTemplateColumns });
+        }
+      }
+
+      const isIntentionalAccent = el.matches('.nexus-story-button, .nexus-layer-tab.is-active, .nexus-primary, .nexus-3axis-submit, .nexus-mobile-thumb-dock button.is-active, .nexus-theme-toggle, .nexus-scope-strip button[aria-pressed="true"]');
+      const ownBg = parseColor(style.backgroundColor);
+      if (ownBg[3] > 0.65 && relLum(ownBg) < 0.08 && !isIntentionalAccent) {
+        darkStragglers.push({ tag: el.tagName, cls: String(el.className), bg: style.backgroundColor });
+      }
+
+      const directText = Array.from(el.childNodes)
+        .filter((n) => n.nodeType === 3)
+        .map((n) => n.textContent.trim())
+        .join('');
+      if (!directText) continue;
+
+      const fs = parseFloat(style.fontSize);
+      if (fs < 11.5 && !el.classList.contains('nexus-caption-sub')) {
+        smallFonts.push({ tag: el.tagName, cls: String(el.className), fontSize: style.fontSize, text: directText.slice(0, 28) });
+      }
+
+      const fg = parseColor(style.color);
+      const bg = getEffectiveBg(el);
+      const blendedFg = fg[3] < 0.99 ? compositeOver(fg, bg) : fg;
+      const l1 = relLum(blendedFg);
+      const l2 = relLum(bg);
+      const cr = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+      const weight = parseInt(style.fontWeight, 10) || 400;
+      const minCr = fs >= 24 || (fs >= 18 && weight >= 700) ? 3.0 : 4.5;
+      if (cr < minCr) {
+        lowContrast.push({
+          tag: el.tagName,
+          cls: String(el.className),
+          cr: Number(cr.toFixed(2)),
+          color: style.color,
+          bg: `rgb(${bg[0]}, ${bg[1]}, ${bg[2]})`,
+          text: directText.slice(0, 28),
+        });
+      }
+    }
+
+    return {
+      lowContrastCount: lowContrast.length,
+      darkStragglerCount: darkStragglers.length,
+      smallFontCount: smallFonts.length,
+      gridAnomalyCount: gridAnomalies.length,
+      lowContrast: lowContrast.slice(0, 25),
+      darkStragglers: darkStragglers.slice(0, 25),
+      smallFonts: smallFonts.slice(0, 25),
+      gridAnomalies: gridAnomalies.slice(0, 25),
+    };
+  });
+
+  const passed =
+    report.lowContrastCount === 0 &&
+    report.darkStragglerCount === 0 &&
+    report.smallFontCount === 0 &&
+    report.gridAnomalyCount === 0;
+  checks.push({
+    name: `Light Theme QA [${viewLabel}] (AA contrast, zero dark stragglers, >=12px fonts, clean grids)`,
+    ok: passed,
+    detail: report,
+  });
+  if (!passed) {
+    lightQaFailures.push({ viewLabel, ...report });
   }
 };
 
@@ -35,8 +161,8 @@ try {
   recordCheck(
     'Default view is HQ Sovereign Command (hq_command) with 4 view tabs and Light theme',
     (await root.getAttribute('data-workspace-role')) === 'hq' &&
-      (await root.locator('.nexus-view-tab').count()) === 4 &&
-      (await root.getAttribute('data-nexus-theme')) === 'light',
+    (await root.locator('.nexus-view-tab').count()) === 4 &&
+    (await root.getAttribute('data-nexus-theme')) === 'light',
   );
   recordCheck('ORBIT 01 default 5 nodes', (await root.locator('.nexus-node').count()) === 5);
 
@@ -53,6 +179,7 @@ try {
   );
   await page.screenshot({ path: resolve(outDir, 'nexus-v4-hq-ux-1440.png'), fullPage: false });
   await page.screenshot({ path: resolve(outDir, 'nexus-v5-light-hq-1440.png'), fullPage: false });
+  await assertLightThemeQuality(root, 'HQ_1_3D');
   await root.locator('.nexus-theme-toggle').click();
   await page.waitForTimeout(260);
   recordCheck(
@@ -114,7 +241,7 @@ try {
   recordCheck(
     'HQ BI generates Unified 1-Page CEO Daily Briefing sheet with verified photo thumbnails',
     (await biView.locator('.nexus-ceo-daily-sheet').count()) === 1 &&
-      (await biView.locator('.nexus-ceo-daily-thumbs img').count()) >= 1,
+    (await biView.locator('.nexus-ceo-daily-thumbs img').count()) >= 1,
   );
   await biView.scrollIntoViewIfNeeded();
   await page.waitForTimeout(300);
@@ -135,13 +262,14 @@ try {
   );
   await page.screenshot({ path: resolve(outDir, 'nexus-v3-bi-1440.png'), fullPage: false });
   await page.screenshot({ path: resolve(outDir, 'nexus-v5-light-bi-1440.png'), fullPage: false });
+  await assertLightThemeQuality(root, 'HQ_2_BI');
 
   // Verify G3 Bento KPI Card drill-down to HQ Ops
   await biView.getByRole('button', { name: /건설기계 사용전 사진보고/ }).click();
   recordCheck(
     'G3 Bento KPI card click drills down directly to HQ Ops equipment tab',
     (await root.locator('.nexus-workbench').isVisible()) &&
-      (await root.getByLabel('건설기계 사진 본사 검토자').count()) === 1,
+    (await root.getByLabel('건설기계 사진 본사 검토자').count()) === 1,
   );
   await root.getByRole('tab', { name: '② 경영 브리핑 BI' }).click();
   await biView.waitFor({ state: 'visible', timeout: 10000 });
@@ -150,7 +278,7 @@ try {
   recordCheck(
     'Heatmap cell click organically switches to ① 3D 전사 지휘 with locked node',
     (await root.getByRole('tab', { name: '① 3D 전사 지휘' }).getAttribute('aria-selected')) === 'true' &&
-      (await root.locator('.nexus-node.selected').count()) === 1,
+    (await root.locator('.nexus-node.selected').count()) === 1,
   );
 
   // U3 + UX-2 Ctrl+K Command Palette ArrowDown + Enter execution in HQ mode + capture screenshot
@@ -185,7 +313,7 @@ try {
   recordCheck(
     'Clicking equipment photo opens full Lightbox zoom modal with Next button',
     (await root.getByRole('dialog', { name: '건설기계 점검 사진 확대 보기' }).count()) === 1 &&
-      (await root.getByRole('button', { name: '다음 사진 보기' }).count()) === 1,
+    (await root.getByRole('button', { name: '다음 사진 보기' }).count()) === 1,
   );
   await root.getByRole('button', { name: '다음 사진 보기' }).click();
   await page.keyboard.press('Escape');
@@ -204,14 +332,17 @@ try {
   recordCheck(
     'HQ compiles CEO 1-page briefing sheet and marks photos reported_to_ceo',
     (await root.locator('.nexus-ceo-briefing-sheet').count()) === 1 &&
-      (await root.locator('.nexus-equip-photo-card[data-status="reported_to_ceo"]').count()) >= 2,
+    (await root.locator('.nexus-equip-photo-card[data-status="reported_to_ceo"]').count()) >= 2,
   );
   await root.locator('.nexus-workbench').scrollIntoViewIfNeeded();
   await page.waitForTimeout(200);
+  await assertLightThemeQuality(root, 'HQ_3_Ops_Equip');
   await page.screenshot({ path: resolve(outDir, 'nexus-v2-hq-ops-1440.png'), fullPage: false });
+  await page.screenshot({ path: resolve(outDir, 'nexus-v6-light-ops-1440.png'), fullPage: false });
 
   // HQ All-Sites Action Monitor & Emergency Directive Dispatch
   await root.getByRole('tab', { name: /전 현장 조치·작업중지 관제/ }).click();
+  await assertLightThemeQuality(root, 'HQ_3_Ops_Monitor');
   recordCheck(
     'HQ Action Monitor collapses 30s field registration form into collapsible details',
     (await root.locator('.nexus-3axis-bridge .nexus-collapsible-form').count()) === 1,
@@ -237,12 +368,14 @@ try {
   recordCheck(
     'HQ Audit View renders #nexus-followup-details & SAPA Compliance Bundle Packager cleanly',
     (await root.locator('#nexus-followup-details').isVisible()) &&
-      (await root.locator('.nexus-compliance-panel').isVisible()) &&
-      (await root.getByRole('button', { name: /증빙 ZIP 패키지 1클릭 편철 저장/ }).count()) === 1,
+    (await root.locator('.nexus-compliance-panel').isVisible()) &&
+    (await root.getByRole('button', { name: /증빙 ZIP 패키지 1클릭 편철 저장/ }).count()) === 1,
   );
   await root.locator('.nexus-compliance-panel').scrollIntoViewIfNeeded();
   await page.waitForTimeout(150);
+  await assertLightThemeQuality(root, 'HQ_4_Audit');
   await page.screenshot({ path: resolve(outDir, 'nexus-v2-hq-compliance-1440.png'), fullPage: false });
+  await page.screenshot({ path: resolve(outDir, 'nexus-v6-light-audit-1440.png'), fullPage: false });
 
   // Dynamic Company Site Master Add + Archive in HQ View ③
   await root.getByRole('tab', { name: '③ 본사 결재·보고·순회' }).click();
@@ -268,38 +401,40 @@ try {
   recordCheck(
     'Field mode active with Morning Action Bar and single-site shield badge',
     (await root.getAttribute('data-workspace-role')) === 'field' &&
-      (await root.locator('.nexus-field-morning-bar').count()) === 1 &&
-      (await root.locator('.nexus-field-lock-badge').getByText(/단일 현장 격리/).count()) === 1,
+    (await root.locator('.nexus-field-morning-bar').count()) === 1 &&
+    (await root.locator('.nexus-field-lock-badge').getByText(/단일 현장 격리/).count()) === 1,
   );
   recordCheck(
     'Field mode hides HQ Matrix, Bento BI, and BI tab',
     (await root.locator('.nexus-site-matrix-card').count()) === 0 &&
-      (await root.locator('.nexus-bento-board').count()) === 0 &&
-      (await root.getByRole('tab', { name: '② 경영 브리핑 BI' }).count()) === 0,
+    (await root.locator('.nexus-bento-board').count()) === 0 &&
+    (await root.getByRole('tab', { name: '② 경영 브리핑 BI' }).count()) === 0,
   );
 
   const site1CaseListText = await root.locator('.nexus-3axis-case-list').innerText();
   recordCheck(
     'Site 1 Field sees HQ urgent directive & ZERO Site 2/3 records',
     !site1CaseListText.includes('제2현장') &&
-      !site1CaseListText.includes('제3현장') &&
-      (await root.locator('.nexus-hq-directive-banner').count()) >= 1,
+    !site1CaseListText.includes('제3현장') &&
+    (await root.locator('.nexus-hq-directive-banner').count()) >= 1,
   );
   await root.locator('.nexus-field-morning-bar').scrollIntoViewIfNeeded();
   await page.waitForTimeout(200);
+  await assertLightThemeQuality(root, 'FIELD_1_Ops_30s');
   await page.screenshot({ path: resolve(outDir, 'nexus-v2-field-morning-1440.png'), fullPage: false });
+  await page.screenshot({ path: resolve(outDir, 'nexus-v6-light-field-1440.png'), fullPage: false });
 
   // Field Stop-Work + Progressive Disclosure + Pipeline Search + 4-step Stepper + Shift Handover 5-line copy
   recordCheck(
     'UX-3 Field 30s form hides secondary auto-filled inputs behind progressive disclosure toggle',
     (await root.locator('.nexus-advanced-toggle-btn').getAttribute('aria-expanded')) === 'false' &&
-      (await root.locator('.nexus-case-stepper').count()) >= 1,
+    (await root.locator('.nexus-case-stepper').count()) >= 1,
   );
   await root.locator('.nexus-advanced-toggle-btn').click();
   recordCheck(
     'UX-3 Progressive disclosure expands secondary 3-axis & assignee fields on click',
     (await root.locator('.nexus-advanced-toggle-btn').getAttribute('aria-expanded')) === 'true' &&
-      (await root.getByLabel('자동분류 구간 축').isVisible()),
+    (await root.getByLabel('자동분류 구간 축').isVisible()),
   );
   await root.locator('.nexus-advanced-toggle-btn').click();
 
@@ -328,8 +463,8 @@ try {
   recordCheck(
     'Field Equipment tab locks site and removes HQ approval/CEO buttons',
     (await root.getByRole('combobox', { name: '건설기계 점검 현장 선택' }).count()) === 0 &&
-      (await root.locator('.nexus-field-locked-site-pill').count()) === 1 &&
-      (await root.getByRole('button', { name: /본사 적합 검토/ }).count()) === 0,
+    (await root.locator('.nexus-field-locked-site-pill').count()) === 1 &&
+    (await root.getByRole('button', { name: /본사 적합 검토/ }).count()) === 0,
   );
   await root.getByLabel('건설기계 종류 선택').selectOption('mobile_crane');
   await root.getByLabel('건설기계 작업 내용').fill('지하 2층 자재 인양 이동식 크레인 아웃트리거 점검');
@@ -357,10 +492,11 @@ try {
 
   // Field View ②: Training 12-lang (NO HQ dispatch button!) + QR Handwritten Signature Kiosk & HQ Visit Ack
   await root.getByRole('tab', { name: '② 본사 수신·교육·상신' }).click();
+  await assertLightThemeQuality(root, 'FIELD_2_Inbox');
   recordCheck(
     'Field 12-Language Training hides HQ authoring/dispatch buttons',
     (await root.getByRole('button', { name: /12개국어 전 현장 즉시 발령/ }).count()) === 0 &&
-      (await root.getByLabel('지정 교육 대상 인원').count()) === 0,
+    (await root.getByLabel('지정 교육 대상 인원').count()) === 0,
   );
   await root.locator('.nexus-qr-kiosk-details summary').first().click();
   await root.locator('.nexus-qr-kiosk-panel').first().scrollIntoViewIfNeeded();
@@ -377,7 +513,7 @@ try {
   recordCheck(
     'Field QR Handwritten Signature Kiosk saves worker PNG receipt & increments count',
     (await root.locator('.nexus-sig-receipt-chip').count()) >= 1 &&
-      (await root.getByText(/\[자필 서명 저장 완료\]/).count()) === 1,
+    (await root.getByText(/\[자필 서명 저장 완료\]/).count()) === 1,
   );
   await page.waitForTimeout(150);
   await page.screenshot({ path: resolve(outDir, 'nexus-v2-qr-kiosk-1440.png'), fullPage: false });
@@ -407,8 +543,8 @@ try {
   recordCheck(
     'Field Command Palette hides HQ PPTX/ZIP and other sites',
     !fieldPaletteText.includes('PPTX') &&
-      !fieldPaletteText.includes('제2현장') &&
-      fieldPaletteText.includes('30초 현장 점검'),
+    !fieldPaletteText.includes('제2현장') &&
+    fieldPaletteText.includes('30초 현장 점검'),
   );
   await page.keyboard.press('Escape');
 
@@ -434,7 +570,7 @@ try {
       recordCheck(
         '390px mobile starts motion playback enabled (data-motion-paused=false) & shows thumb dock',
         (await root.getAttribute('data-motion-paused')) === 'false' &&
-          (await root.locator('.nexus-mobile-thumb-dock').isVisible()),
+        (await root.locator('.nexus-mobile-thumb-dock').isVisible()),
       );
       await root.getByRole('tab', { name: '① 현장 즉시 실행' }).click();
       recordCheck(
@@ -464,10 +600,15 @@ try {
   recordCheck(
     'Phase 2 Dashboard Sovereign Nexus Bridge visible alongside .psi-ops-kpi-grid',
     (await page.locator('.psi-ops-kpi-grid').count()) >= 1 &&
-      (await dashboardBridge.getByText('건설기계 사용전 사진', { exact: true }).count()) === 1,
+    (await dashboardBridge.getByText('건설기계 사용전 사진', { exact: true }).count()) === 1,
   );
 
   recordCheck('Zero runtime page errors during full simulation', pageErrors.length === 0, pageErrors);
+  recordCheck(
+    `All Light Theme QA views passed (${checks.filter(c => c.name.startsWith('Light Theme QA')).length} views)`,
+    lightQaFailures.length === 0,
+    lightQaFailures,
+  );
   await writeFile(
     resolve(outDir, 'simulation-report.json'),
     JSON.stringify({ pass: true, totalChecks: checks.length, checks }, null, 2) + '\n',

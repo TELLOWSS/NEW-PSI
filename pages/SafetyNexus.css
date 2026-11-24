@@ -346,9 +346,9 @@
 
 .nexus-main {
   display: grid;
-  grid-template-columns: minmax(180px, .79fr) minmax(420px, 2.4fr) minmax(220px, .91fr);
-  gap: 6px;
-  padding: 6px 24px 25px;
+  grid-template-columns: minmax(220px, .9fr) minmax(460px, 2.15fr) minmax(260px, 1.05fr);
+  gap: 14px;
+  padding: 8px 24px 25px;
   align-items: stretch
 }
 
@@ -984,19 +984,26 @@
 
 .nexus-3axis-action-form {
   display: grid;
-  grid-template-columns: minmax(180px, 2fr) repeat(3, minmax(110px, 1fr)) auto;
-  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
   align-items: end
 }
 
+.nexus-3axis-action-wide {
+  grid-column: 1 / -1;
+}
+
 .nexus-3axis-submit {
-  min-height: 36px;
-  padding: 8px 13px;
+  grid-column: 1 / -1;
+  justify-self: start;
+  min-height: 38px;
+  padding: 8px 15px;
   border-radius: 6px;
   border: 0;
-  background: linear-gradient(110deg, #e4a869, #ffcf91);
+  background-color: #e4a869;
+  background-image: linear-gradient(110deg, #e4a869, #ffcf91);
   color: #14202b !important;
-  font-size: 12px !important;
+  font-size: 12.5px !important;
   font-weight: 800 !important;
   white-space: nowrap;
   max-width: 100%;
@@ -1391,8 +1398,37 @@
 .nexus-workbench-tabs {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 16px
+}
+
+.nexus-workbench-tabs:has(> :nth-child(2):last-child) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.nexus-workbench-tabs:has(> :nth-child(3):last-child) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.nexus-workbench-tabs:has(> :nth-child(4):last-child) {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.nexus-workbench-tabs:has(> :nth-child(5):last-child) {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+@media(max-width:960px) {
+  .nexus-workbench-tabs:has(> :nth-child(4):last-child),
+  .nexus-workbench-tabs:has(> :nth-child(5):last-child) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media(max-width:560px) {
+  .nexus-workbench-tabs:has(> :nth-child(n):last-child) {
+    grid-template-columns: 1fr;
+  }
 }
 
 .nexus-workbench-tab {
@@ -2433,9 +2469,11 @@
   }
 
   .nexus-header {
-    margin: 0 18px;
-    padding: 18px 0;
-    align-items: flex-start
+    margin: 0 14px;
+    padding: 14px 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px
   }
 
   .nexus-brand {
@@ -2452,24 +2490,34 @@
   }
 
   .nexus-brand small {
-    font-size: 8px;
-    letter-spacing: .1em
+    font-size: 12px;
+    letter-spacing: .04em
   }
 
   .nexus-header-right {
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 8px
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 8px;
+    width: 100%
+  }
+
+  .nexus-header-right .nexus-status {
+    grid-column: 1 / -1;
+    justify-self: start;
+    font-size: 12px;
+    letter-spacing: .01em
   }
 
   .nexus-header-right button {
-    padding: 7px;
-    font-size: 10px
-  }
-
-  .nexus-status {
-    font-size: 8px;
-    letter-spacing: .02em
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 10px;
+    font-size: 12px;
+    line-height: 1.3;
+    word-break: keep-all;
+    justify-content: center;
+    text-align: center
   }
 
   .nexus-lead {
@@ -2654,7 +2702,7 @@
   }
 
   .nexus-core-label small {
-    font-size: 7px
+    font-size: 12px
   }
 
   .nexus-metrics-list {
@@ -2662,7 +2710,8 @@
   }
 
   .nexus-header-right button {
-    max-width: 117px
+    max-width: none;
+    width: 100%
   }
 
   .nexus-visual-foot {
@@ -3069,16 +3118,16 @@
 }
 
 .nexus-story-button {
-  color: #ffe4bb !important;
-  border-color: #d5aa6f80 !important;
-  background: linear-gradient(110deg, #50351b52, #182b38aa) !important;
-  font-weight: 650 !important;
-  font-size: 11px !important;
+  color: #ffe4bb;
+  border-color: #d5aa6f80;
+  background: linear-gradient(110deg, #50351b52, #182b38aa);
+  font-weight: 650;
+  font-size: 12px;
   letter-spacing: .015em
 }
 
 .nexus-story-button[aria-pressed="true"] {
-  background: #f2b46a22 !important;
+  background: #f2b46a22;
   box-shadow: 0 0 10px #b47e4442
 }
 
@@ -3533,7 +3582,7 @@
   border: 1px solid #f4c27f99 !important;
   background: linear-gradient(120deg, #422b14, #163044) !important;
   color: #ffe9c7 !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 800 !important;
   box-shadow: 0 0 14px rgba(244, 194, 127, .24);
 }
@@ -4094,7 +4143,7 @@
 
 .nexus-heatmap-corner {
   text-align: left !important;
-  color: #8ea6b6 !important;
+  color: #8ea6b6;
 }
 
 .nexus-heatmap-row-label {
@@ -4368,9 +4417,9 @@
 }
 
 .nexus-handover-copy-btn {
-  border-color: #f1be786b !important;
-  background: #2f2213 !important;
-  color: #ffe7c2 !important;
+  border-color: #f1be786b;
+  background: #2f2213;
+  color: #ffe7c2;
 }
 
 .nexus-handover-preview {
@@ -4389,7 +4438,7 @@
 
 .is-stopwork-item {
   border-left: 3px solid #f27a7a !important;
-  background: linear-gradient(125deg, #271319e6, #0d1c2ce6) !important;
+  background: linear-gradient(125deg, #271319e6, #0d1c2ce6);
 }
 
 .nexus-stopwork-badge {
@@ -6794,10 +6843,12 @@
   color: #102a43;
 }
 
+.safety-nexus[data-nexus-theme="light"] .nexus-visual-head .nexus-story-button,
 .safety-nexus[data-nexus-theme="light"] .nexus-story-button,
 .safety-nexus[data-nexus-theme="light"] .nexus-layer-tab.is-active,
 .safety-nexus[data-nexus-theme="light"] .nexus-primary {
-  background: linear-gradient(120deg, #b45309, #d97706);
+  background-color: #b45309;
+  background-image: linear-gradient(120deg, #b45309, #d97706);
   border-color: #b45309;
   color: #ffffff !important;
 }
@@ -6961,12 +7012,24 @@
   color: #102a43;
 }
 
+.safety-nexus[data-nexus-theme="light"] .nexus-workbench-tab {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
 .safety-nexus[data-nexus-theme="light"] .nexus-workbench-tab small {
-  color: #50657a;
+  color: #475569;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-workbench-tab span {
+  color: #0f172a;
 }
 
 .safety-nexus[data-nexus-theme="light"] .nexus-workbench-tab b {
-  color: #0b6b7a;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  color: #0c4a6e;
 }
 
 .safety-nexus[data-nexus-theme="light"] .nexus-workbench-tab.is-active,
@@ -6977,10 +7040,25 @@
   color: #78350f;
 }
 
+.safety-nexus[data-nexus-theme="light"] .nexus-workbench-tab.is-active small {
+  color: #92400e;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-workbench-tab.is-active span {
+  color: #78350f;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-workbench-tab.is-active b {
+  background: #fde68a;
+  border-color: #f59e0b;
+  color: #78350f;
+}
+
 .safety-nexus[data-nexus-theme="light"] .nexus-3axis-submit,
 .safety-nexus[data-nexus-theme="light"] .nexus-3axis-case-row-actions button.nexus-3axis-submit {
-  background: linear-gradient(110deg, #b45309, #d97706);
-  color: #ffffff;
+  background-color: #b45309;
+  background-image: linear-gradient(110deg, #b45309, #d97706);
+  color: #ffffff !important;
 }
 
 .safety-nexus[data-nexus-theme="light"] .nexus-heatmap-header-row,
@@ -7190,6 +7268,705 @@
     border-color: #0b6b7a;
     color: #ffffff;
   }
+}
+
+/* =========================================================================
+   Typography Legibility Floor (>= 12px UI labels) & Light Mode Completeness
+   ========================================================================= */
+.safety-nexus .nexus-brand small,
+.safety-nexus .nexus-status,
+.safety-nexus .nexus-header-right button,
+.safety-nexus .nexus-lead span,
+.safety-nexus .nexus-lead p,
+.safety-nexus .nexus-sim-seed-btn,
+.safety-nexus .nexus-active-filters-label,
+.safety-nexus .nexus-active-filter-chip,
+.safety-nexus .nexus-active-filter-reset,
+.safety-nexus .nexus-priority-counts button,
+.safety-nexus .nexus-priority-jump,
+.safety-nexus .nexus-priority-ribbon-head p,
+.safety-nexus .nexus-authority-switcher button,
+.safety-nexus .nexus-morning-chip,
+.safety-nexus .nexus-sync-pill,
+.safety-nexus .nexus-sync-flush-btn,
+.safety-nexus .nexus-live-sync-bar,
+.safety-nexus .nexus-live-sync-bar button,
+.safety-nexus .nexus-section-title,
+.safety-nexus .nexus-section-title b,
+.safety-nexus .nexus-record-count > span,
+.safety-nexus .nexus-record-count small,
+.safety-nexus .nexus-record-count p,
+.safety-nexus .nexus-perception p,
+.safety-nexus .nexus-perception > span,
+.safety-nexus .nexus-aside-note p,
+.safety-nexus .nexus-visual > p,
+.safety-nexus .nexus-visual-head > span,
+.safety-nexus .nexus-detail-checkpoints strong,
+.safety-nexus .nexus-next > span,
+.safety-nexus .nexus-next li,
+.safety-nexus .nexus-metrics-caption span,
+.safety-nexus .nexus-3axis-kicker,
+.safety-nexus .nexus-followup-header > div > span,
+.safety-nexus .nexus-followup-header p,
+.safety-nexus .nexus-followup-header b,
+.safety-nexus .nexus-followup-filters label,
+.safety-nexus .nexus-followup-breakdown p,
+.safety-nexus .nexus-followup-breakdown li,
+.safety-nexus .nexus-followup-breakdown button,
+.safety-nexus .nexus-practice-heading span,
+.safety-nexus .nexus-practice > p,
+.safety-nexus .nexus-recheck-card span,
+.safety-nexus .nexus-recheck-card small,
+.safety-nexus small:not(.nexus-caption-sub),
+.safety-nexus .nexus-elevation-head span,
+.safety-nexus .nexus-elevation-head small,
+.safety-nexus .nexus-elevation-btn,
+.safety-nexus .nexus-aside-note,
+.safety-nexus .nexus-aside-note b,
+.safety-nexus .nexus-field-lock-badge,
+.safety-nexus .nexus-locked-node-pill,
+.safety-nexus .nexus-field-isolation-pill,
+.safety-nexus .nexus-field-locked-site-pill span,
+.safety-nexus .nexus-field-locked-site-pill strong,
+.safety-nexus .nexus-role-badge,
+.safety-nexus .nexus-perception-row,
+.safety-nexus .nexus-perception-row b,
+.safety-nexus .nexus-perception-row span,
+.safety-nexus .nexus-perception-row strong,
+.safety-nexus .nexus-perception h3 small,
+.safety-nexus .nexus-practice-badges span,
+.safety-nexus .nexus-view-tab small,
+.safety-nexus .nexus-layer-tab small,
+.safety-nexus .nexus-visual-head button,
+.safety-nexus .nexus-visual-head code,
+.safety-nexus .nexus-story-button,
+.safety-nexus .nexus-orbit-controls button,
+.safety-nexus .nexus-detail-badge,
+.safety-nexus .nexus-detail-telemetry code,
+.safety-nexus .nexus-detail-intro span,
+.safety-nexus .nexus-detail-signals span,
+.safety-nexus .nexus-detail-seed-drawer summary,
+.safety-nexus .nexus-seed-head span,
+.safety-nexus .nexus-seed-head small,
+.safety-nexus .nexus-seed-switcher button,
+.safety-nexus .nexus-seed-tree > div,
+.safety-nexus .nexus-seed-ceo-btn,
+.safety-nexus .nexus-detail-handoff-row button,
+.safety-nexus .nexus-workbench-tab small,
+.safety-nexus .nexus-workbench-tab b,
+.safety-nexus .nexus-scope-strip button,
+.safety-nexus .nexus-quick-preset-chip,
+.safety-nexus .nexus-quick-preset-chip b,
+.safety-nexus .nexus-case-status-filters button,
+.safety-nexus .nexus-equip-filter-bar button,
+.safety-nexus .nexus-bento-combo-chips button,
+.safety-nexus .nexus-node-index,
+.safety-nexus .nexus-node small,
+.safety-nexus .nexus-node strong,
+.safety-nexus .nexus-metric span,
+.safety-nexus .nexus-metric small,
+.safety-nexus .nexus-detail-kicker,
+.safety-nexus .nexus-detail-zone,
+.safety-nexus .nexus-detail-checkpoints li,
+.safety-nexus .nexus-axis-bar span,
+.safety-nexus .nexus-axis-toggle-btn,
+.safety-nexus .nexus-visual-foot span,
+.safety-nexus .nexus-legend-pill,
+.safety-nexus .nexus-site-matrix-head span,
+.safety-nexus .nexus-site-matrix-metrics,
+.safety-nexus .nexus-site-matrix-bar-meta,
+.safety-nexus .nexus-bento-card-top span,
+.safety-nexus .nexus-bento-delta-pill,
+.safety-nexus .nexus-bento-card-foot p,
+.safety-nexus .nexus-bento-csv-btn,
+.safety-nexus .nexus-heatmap-header-row,
+.safety-nexus .nexus-heatmap-header-row span,
+.safety-nexus .nexus-heatmap-corner,
+.safety-nexus .nexus-heatmap-row-label,
+.safety-nexus .nexus-heatmap-cell,
+.safety-nexus .nexus-heatmap-cell small,
+.safety-nexus .nexus-heatmap-legend,
+.safety-nexus .nexus-funnel-top span,
+.safety-nexus .nexus-funnel-top b,
+.safety-nexus .nexus-hq-daily-bar small,
+.safety-nexus .nexus-hq-daily-bar p,
+.safety-nexus .nexus-3axis-bridge label span,
+.safety-nexus .nexus-visit-form-grid span,
+.safety-nexus .nexus-inv-summary-field span,
+.safety-nexus .nexus-3axis-case-row-meta,
+.safety-nexus .nexus-3axis-case-row-actions button,
+.safety-nexus .nexus-3axis-matched-title small,
+.safety-nexus .nexus-stepper-node,
+.safety-nexus .nexus-advanced-summary,
+.safety-nexus .nexus-advanced-toggle-btn,
+.safety-nexus .nexus-equip-card-body p,
+.safety-nexus .nexus-equip-card-body small,
+.safety-nexus .nexus-equip-card-actions button,
+.safety-nexus .nexus-equip-badge,
+.safety-nexus .nexus-stopwork-badge,
+.safety-nexus .nexus-equip-review-note,
+.safety-nexus .nexus-equip-supplement-note,
+.safety-nexus .nexus-visit-ack-badge,
+.safety-nexus .nexus-ceo-campaign-list li small,
+.safety-nexus .nexus-ceo-lang-chips span,
+.safety-nexus .nexus-followup-header h2 small,
+.safety-nexus .nexus-followup-header h2 b,
+.safety-nexus .nexus-followup-asof,
+.safety-nexus .nexus-followup-card span,
+.safety-nexus .nexus-followup-card small,
+.safety-nexus .nexus-audit-chip,
+.safety-nexus .nexus-audit-chip b,
+.safety-nexus .nexus-inv-timeline-step span,
+.safety-nexus .nexus-site-master-list li small,
+.safety-nexus .nexus-footer,
+.safety-nexus .nexus-footer label,
+.safety-nexus .nexus-cmd-palette-list small,
+.safety-nexus .nexus-cmd-palette-list span,
+.safety-nexus .nexus-cmd-palette-foot,
+.safety-nexus .nexus-priority-kicker,
+.safety-nexus .nexus-priority-summary button,
+.safety-nexus .nexus-axis-bar label > span,
+.safety-nexus .nexus-axis-bar select,
+.safety-nexus .nexus-axis-reset,
+.safety-nexus .nexus-3axis-action-form span,
+.safety-nexus .nexus-3axis-case-row-top em,
+.safety-nexus .nexus-ceo-target-input,
+.safety-nexus .nexus-ceo-target-input input,
+.safety-nexus .nexus-ceo-pre,
+.safety-nexus .nexus-ceo-studio-btn,
+.safety-nexus .nexus-ceo-tts-btn,
+.safety-nexus .nexus-ceo-lang-pills button,
+.safety-nexus .nexus-ceo-lang-pills button small,
+.safety-nexus .nexus-workbench-header p,
+.safety-nexus .nexus-previsit-briefing-box ul,
+.safety-nexus .nexus-detail-notice span,
+.safety-nexus .nexus-role-switcher button,
+.safety-nexus .nexus-site-portfolio-bar button,
+.safety-nexus .nexus-role-priority-card b,
+.safety-nexus .nexus-role-priority-card span,
+.safety-nexus .nexus-quick-preset-title,
+.safety-nexus .nexus-case-evidence-row input,
+.safety-nexus .nexus-inv-revision-banner,
+.safety-nexus .nexus-site-matrix-top strong,
+.safety-nexus .urgency-badge,
+.safety-nexus .nexus-inv-timeline-step b,
+.safety-nexus .nexus-ceo-signed-langs,
+.safety-nexus .nexus-ceo-signed-langs em,
+.safety-nexus .nexus-bento-scope-pill,
+.safety-nexus .nexus-bento-stopwork-pill,
+.safety-nexus .nexus-bento-card-top small,
+.safety-nexus .nexus-heatmap-cell b,
+.safety-nexus .nexus-site-reset-chip,
+.safety-nexus .nexus-stopwork-toggle,
+.safety-nexus .nexus-photo-upload-chip,
+.safety-nexus .nexus-handover-preview,
+.safety-nexus .nexus-before-after-thumbs figcaption,
+.safety-nexus .nexus-equip-checklist-input span,
+.safety-nexus .nexus-equip-ceo-toolbar label span,
+.safety-nexus .nexus-equip-status-tag,
+.safety-nexus .nexus-equip-meta-line,
+.safety-nexus .nexus-equip-review-controls input,
+.safety-nexus .nexus-field-site-select,
+.safety-nexus .nexus-field-site-select select,
+.safety-nexus .nexus-field-visit-bullets,
+.safety-nexus .nexus-field-morning-title small,
+.safety-nexus .nexus-hq-directive-banner,
+.safety-nexus .nexus-case-hq-directive-row input,
+.safety-nexus .nexus-hq-directive-btn,
+.safety-nexus .nexus-equip-batch-btn,
+.safety-nexus .nexus-equip-zoom-hint,
+.safety-nexus .nexus-equip-select-check,
+.safety-nexus .nexus-equip-lightbox-head small,
+.safety-nexus .nexus-equip-lightbox-head button,
+.safety-nexus .nexus-ceo-daily-kpis span,
+.safety-nexus .nexus-ceo-daily-thumbs figcaption,
+.safety-nexus .nexus-qr-card small,
+.safety-nexus .nexus-qr-sign-head label span,
+.safety-nexus .nexus-sig-receipt-chip,
+.safety-nexus .nexus-ba-toggle-btn,
+.safety-nexus .nexus-ba-divider span,
+.safety-nexus .nexus-ba-tag,
+.safety-nexus .nexus-ba-range-row,
+.safety-nexus .nexus-lightbox-decision-bar button,
+.safety-nexus .nexus-cmd-palette-head button,
+.safety-nexus .nexus-mobile-thumb-dock button,
+.safety-nexus .nexus-inspector-equip-bar select,
+.safety-nexus .nexus-3axis-confidence,
+.safety-nexus .recharts-legend-item-text,
+.safety-nexus .nexus-tab-badge,
+.safety-nexus .nexus-voice-btn,
+.safety-nexus .nexus-case-search-input,
+.safety-nexus .nexus-stepper-node b,
+.safety-nexus .nexus-empty-action-box button,
+.safety-nexus .nexus-tbm-jump-btn,
+.safety-nexus .nexus-dock-badge,
+.safety-nexus .nexus-view-tab,
+.safety-nexus .nexus-followup-footer {
+  font-size: 12px;
+}
+
+.safety-nexus .nexus-view-tab span,
+.safety-nexus .nexus-layer-tab span,
+.safety-nexus .nexus-workbench-tab span,
+.safety-nexus .nexus-role-action-strip button,
+.safety-nexus .nexus-3axis-case-cause {
+  font-size: 12.5px;
+}
+
+/* Eliminate all remaining dark stragglers & pale text in Light Theme */
+.safety-nexus[data-nexus-theme="light"] .nexus-site-master-details,
+.safety-nexus[data-nexus-theme="light"] .nexus-qr-kiosk-details,
+.safety-nexus[data-nexus-theme="light"] .nexus-collapsible-form,
+.safety-nexus[data-nexus-theme="light"] .nexus-stopwork-toggle,
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-draft-ko,
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-draft-multilingual,
+.safety-nexus[data-nexus-theme="light"] .nexus-qr-card,
+.safety-nexus[data-nexus-theme="light"] .nexus-quick-preset-bar,
+.safety-nexus[data-nexus-theme="light"] .nexus-equip-thumb-wrap,
+.safety-nexus[data-nexus-theme="light"] .nexus-photo-upload-chip,
+.safety-nexus[data-nexus-theme="light"] .nexus-field-site-select,
+.safety-nexus[data-nexus-theme="light"] .nexus-3axis-bridge input,
+.safety-nexus[data-nexus-theme="light"] .nexus-3axis-bridge select,
+.safety-nexus[data-nexus-theme="light"] .nexus-3axis-bridge textarea,
+.safety-nexus[data-nexus-theme="light"] .nexus-visit-form-grid input,
+.safety-nexus[data-nexus-theme="light"] .nexus-visit-form-grid select,
+.safety-nexus[data-nexus-theme="light"] .nexus-inv-summary-field input,
+.safety-nexus[data-nexus-theme="light"] .nexus-inv-summary-field textarea,
+.safety-nexus[data-nexus-theme="light"] .nexus-site-master-details input,
+.safety-nexus[data-nexus-theme="light"] .nexus-qr-card input,
+.safety-nexus[data-nexus-theme="light"] .nexus-qr-card select {
+  background-color: #ffffff;
+  background-image: none;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.safety-nexus[data-nexus-theme="light"] input::placeholder,
+.safety-nexus[data-nexus-theme="light"] textarea::placeholder {
+  color: #64748b;
+  opacity: 1;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-equip-batch-btn,
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-studio-btn,
+.safety-nexus[data-nexus-theme="light"] .nexus-handover-copy-btn,
+.safety-nexus[data-nexus-theme="light"] .nexus-equip-card-actions button,
+.safety-nexus[data-nexus-theme="light"] .nexus-site-master-list li button,
+.safety-nexus[data-nexus-theme="light"] .nexus-qr-card button:not(.nexus-primary) {
+  background-color: #f1f5f9;
+  background-image: none;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-inv-revision-banner {
+  background-color: #fff1f2;
+  background-image: none;
+  border-color: #fda4af;
+  color: #9f1239;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-quick-preset-chip b {
+  background-color: #e2e8f0;
+  color: #1e293b;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-quick-preset-chip.is-active {
+  background-color: #fff7eb;
+  border-color: #d97706;
+  color: #78350f;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-quick-preset-chip.is-active b {
+  background-color: #fde68a;
+  color: #78350f;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-perception h3,
+.safety-nexus[data-nexus-theme="light"] .nexus-perception h3 small,
+.safety-nexus[data-nexus-theme="light"] .nexus-perception > span,
+.safety-nexus[data-nexus-theme="light"] .nexus-perception-row,
+.safety-nexus[data-nexus-theme="light"] .nexus-perception-row b,
+.safety-nexus[data-nexus-theme="light"] .nexus-perception-row span,
+.safety-nexus[data-nexus-theme="light"] .nexus-perception-row strong,
+.safety-nexus[data-nexus-theme="light"] .nexus-layer-tab:not(.is-active) small,
+.safety-nexus[data-nexus-theme="light"] .nexus-visual-head code,
+.safety-nexus[data-nexus-theme="light"] .nexus-visual > p,
+.safety-nexus[data-nexus-theme="light"] .nexus-detail-telemetry code,
+.safety-nexus[data-nexus-theme="light"] .nexus-detail-checkpoints strong,
+.safety-nexus[data-nexus-theme="light"] .nexus-seed-head small,
+.safety-nexus[data-nexus-theme="light"] .nexus-perception p,
+.safety-nexus[data-nexus-theme="light"] .nexus-aside-note p,
+.safety-nexus[data-nexus-theme="light"] .nexus-record-count > span,
+.safety-nexus[data-nexus-theme="light"] .nexus-record-count small,
+.safety-nexus[data-nexus-theme="light"] .nexus-record-count p,
+.safety-nexus[data-nexus-theme="light"] .nexus-heatmap-corner,
+.safety-nexus[data-nexus-theme="light"] .nexus-footer label,
+.safety-nexus[data-nexus-theme="light"] .nexus-footer span,
+.safety-nexus[data-nexus-theme="light"] .nexus-field-locked-site-pill span,
+.safety-nexus[data-nexus-theme="light"] .nexus-3axis-matched-title small,
+.safety-nexus[data-nexus-theme="light"] .nexus-followup-header > div > span,
+.safety-nexus[data-nexus-theme="light"] .nexus-followup-header h2 small,
+.safety-nexus[data-nexus-theme="light"] .nexus-followup-header p,
+.safety-nexus[data-nexus-theme="light"] .nexus-followup-filters label,
+.safety-nexus[data-nexus-theme="light"] .nexus-followup-asof,
+.safety-nexus[data-nexus-theme="light"] .nexus-followup-card span,
+.safety-nexus[data-nexus-theme="light"] .nexus-followup-card small,
+.safety-nexus[data-nexus-theme="light"] .nexus-followup-breakdown p,
+.safety-nexus[data-nexus-theme="light"] .nexus-followup-breakdown li,
+.safety-nexus[data-nexus-theme="light"] .nexus-practice-heading span,
+.safety-nexus[data-nexus-theme="light"] .nexus-practice > p,
+.safety-nexus[data-nexus-theme="light"] .nexus-recheck-card span,
+.safety-nexus[data-nexus-theme="light"] .nexus-recheck-card small,
+.safety-nexus[data-nexus-theme="light"] .nexus-metrics-caption span,
+.safety-nexus[data-nexus-theme="light"] .nexus-metric > span,
+.safety-nexus[data-nexus-theme="light"] .nexus-metric small {
+  color: #475569;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-followup-breakdown h3,
+.safety-nexus[data-nexus-theme="light"] .nexus-followup-breakdown button,
+.safety-nexus[data-nexus-theme="light"] .nexus-practice-heading strong,
+.safety-nexus[data-nexus-theme="light"] .nexus-recheck-card strong,
+.safety-nexus[data-nexus-theme="light"] .nexus-metric strong {
+  color: #0f172a;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-recheck-card {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-followup-breakdown {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-followup-breakdown button {
+  background-color: #ffffff;
+  border-color: #cbd5e1;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-followup-header b {
+  color: #92400e;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-seed-switcher button {
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-seed-switcher button[aria-pressed="true"] {
+  background-color: #fff7eb;
+  border-color: #d97706;
+  color: #78350f;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-detail-intro span {
+  color: #9c5209;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-detail-badge,
+.safety-nexus[data-nexus-theme="light"] .nexus-detail-badge.tone-gold,
+.safety-nexus[data-nexus-theme="light"] .nexus-detail-badge.tone-amber {
+  background-color: #fff7eb;
+  border-color: #d97706;
+  color: #78350f;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-detail-badge.tone-cyan {
+  background-color: #e0f2fe;
+  border-color: #0284c7;
+  color: #0c4a6e;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-detail-badge.tone-violet {
+  background-color: #f3e8ff;
+  border-color: #7c3aed;
+  color: #5b21b6;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-field-locked-site-pill strong,
+.safety-nexus[data-nexus-theme="light"] .nexus-3axis-case-row-top,
+.safety-nexus[data-nexus-theme="light"] .nexus-3axis-case-row-top strong,
+.safety-nexus[data-nexus-theme="light"] .nexus-3axis-case-name,
+.safety-nexus[data-nexus-theme="light"] .nexus-3axis-case-cause,
+.safety-nexus[data-nexus-theme="light"] .nexus-3axis-matched-title strong,
+.safety-nexus[data-nexus-theme="light"] .nexus-3axis-bridge label,
+.safety-nexus[data-nexus-theme="light"] .nexus-3axis-bridge label span,
+.safety-nexus[data-nexus-theme="light"] .nexus-visit-form-grid label span,
+.safety-nexus[data-nexus-theme="light"] .nexus-inv-summary-field span,
+.safety-nexus[data-nexus-theme="light"] .nexus-stopwork-toggle span,
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-campaign-list,
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-campaign-list > strong,
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-campaign-list li strong,
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-campaign-list li span,
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-draft-ko strong,
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-draft-multilingual strong,
+.safety-nexus[data-nexus-theme="light"] .nexus-followup-card strong {
+  color: #0f172a;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-campaign-list li small {
+  color: #475569;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-lang-chips span,
+.safety-nexus[data-nexus-theme="light"] .nexus-practice-badges span,
+.safety-nexus[data-nexus-theme="light"] .nexus-equip-badge,
+.safety-nexus[data-nexus-theme="light"] .nexus-3axis-tag {
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-stopwork-badge {
+  background-color: #ffe4e6;
+  border-color: #fda4af;
+  color: #9f1239;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-followup-header h2 b {
+  background-color: #fff7eb;
+  border: 1px solid #f59e0b;
+  color: #92400e;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-practice section[aria-label="교육·현장 확인 근거"],
+.safety-nexus[data-nexus-theme="light"] > section[aria-label="기존 평가점수 근거"] {
+  background-color: #f8fafc !important;
+  background-image: none !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: none !important;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-practice section[aria-label="교육·현장 확인 근거"] [class*="bg-slate-"],
+.safety-nexus[data-nexus-theme="light"] .nexus-practice section[aria-label="교육·현장 확인 근거"] button,
+.safety-nexus[data-nexus-theme="light"] > section[aria-label="기존 평가점수 근거"] [class*="bg-slate-"],
+.safety-nexus[data-nexus-theme="light"] > section[aria-label="기존 평가점수 근거"] button {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-practice section[aria-label="교육·현장 확인 근거"] h2,
+.safety-nexus[data-nexus-theme="light"] .nexus-practice section[aria-label="교육·현장 확인 근거"] h3,
+.safety-nexus[data-nexus-theme="light"] .nexus-practice section[aria-label="교육·현장 확인 근거"] p,
+.safety-nexus[data-nexus-theme="light"] .nexus-practice section[aria-label="교육·현장 확인 근거"] span,
+.safety-nexus[data-nexus-theme="light"] .nexus-practice section[aria-label="교육·현장 확인 근거"] strong,
+.safety-nexus[data-nexus-theme="light"] .nexus-practice section[aria-label="교육·현장 확인 근거"] li,
+.safety-nexus[data-nexus-theme="light"] > section[aria-label="기존 평가점수 근거"] h2,
+.safety-nexus[data-nexus-theme="light"] > section[aria-label="기존 평가점수 근거"] h3,
+.safety-nexus[data-nexus-theme="light"] > section[aria-label="기존 평가점수 근거"] p,
+.safety-nexus[data-nexus-theme="light"] > section[aria-label="기존 평가점수 근거"] span,
+.safety-nexus[data-nexus-theme="light"] > section[aria-label="기존 평가점수 근거"] strong,
+.safety-nexus[data-nexus-theme="light"] > section[aria-label="기존 평가점수 근거"] li {
+  color: #1e293b !important;
+}
+
+.safety-nexus[data-nexus-theme="light"] .urgency-badge {
+  background-color: #e0f2fe;
+  border: 1px solid #7dd3fc;
+  color: #0c4a6e;
+}
+
+.safety-nexus[data-nexus-theme="light"] .urgency-badge.urgency-critical {
+  background-color: #ffe4e6;
+  border-color: #fda4af;
+  color: #9f1239;
+}
+
+.safety-nexus[data-nexus-theme="light"] .urgency-badge.urgency-watch {
+  background-color: #fef3c7;
+  border-color: #f59e0b;
+  color: #78350f;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-heatmap-legend i.heat-0 {
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-heatmap-legend i.heat-1 {
+  background-color: #bae6fd;
+  border-color: #38bdf8;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-heatmap-legend i.heat-2 {
+  background-color: #fde68a;
+  border-color: #f59e0b;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-heatmap-legend i.heat-3 {
+  background-color: #fecaca;
+  border-color: #ef4444;
+}
+
+.safety-nexus[data-nexus-theme="light"] .is-stopwork-item {
+  background-color: #fff1f2;
+  background-image: none;
+  border-left: 3px solid #dc2626;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-equip-status-tag,
+.safety-nexus[data-nexus-theme="light"] .nexus-site-reset-chip,
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-signed-langs em,
+.safety-nexus[data-nexus-theme="light"] .nexus-ba-tag {
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-bento-stopwork-pill {
+  background-color: #ffe4e6;
+  border-color: #fda4af;
+  color: #9f1239;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-sig-receipt-chip {
+  background-color: #ecfdf5;
+  border-color: #34d399;
+  color: #065f46;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-equip-zoom-hint,
+.safety-nexus[data-nexus-theme="light"] .nexus-equip-meta-line,
+.safety-nexus[data-nexus-theme="light"] .nexus-equip-checklist-input span,
+.safety-nexus[data-nexus-theme="light"] .nexus-equip-ceo-toolbar label span,
+.safety-nexus[data-nexus-theme="light"] .nexus-equip-select-check,
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-target-input,
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-signed-langs,
+.safety-nexus[data-nexus-theme="light"] .nexus-ba-range-row,
+.safety-nexus[data-nexus-theme="light"] .nexus-before-after-thumbs figcaption,
+.safety-nexus[data-nexus-theme="light"] .nexus-qr-card small,
+.safety-nexus[data-nexus-theme="light"] .nexus-qr-sign-head label span,
+.safety-nexus[data-nexus-theme="light"] .nexus-bento-card-top small,
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-daily-kpis span,
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-daily-thumbs figcaption,
+.safety-nexus[data-nexus-theme="light"] .nexus-equip-lightbox-head small,
+.safety-nexus[data-nexus-theme="light"] .nexus-field-visit-bullets {
+  color: #334e68;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-heatmap-cell b,
+.safety-nexus[data-nexus-theme="light"] .nexus-site-matrix-top strong,
+.safety-nexus[data-nexus-theme="light"] .nexus-empty-action-box p,
+.safety-nexus[data-nexus-theme="light"] .nexus-empty-action-box strong {
+  color: #0f172a;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-hq-directive-btn,
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-lang-pills button,
+.safety-nexus[data-nexus-theme="light"] .nexus-ba-toggle-btn,
+.safety-nexus[data-nexus-theme="light"] .nexus-empty-action-box button,
+.safety-nexus[data-nexus-theme="light"] .nexus-equip-lightbox-head button,
+.safety-nexus[data-nexus-theme="light"] .nexus-lightbox-decision-bar button {
+  background-color: #f1f5f9;
+  background-image: none;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-lang-pills button small {
+  color: #475569;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-previsit-briefing-box {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-previsit-briefing-box ul {
+  color: #334e68;
+}
+
+.safety-nexus[data-nexus-theme="light"] .recharts-legend-item-text {
+  color: #0f172a !important;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-equip-zoom-hint {
+  background-color: #ffffff;
+  border: 1px solid #94a3b8;
+  color: #0f172a;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-3axis-feedback {
+  background-color: #ecfdf5;
+  border-color: #34d399;
+  color: #065f46;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-quick-preset-title {
+  color: #78350f;
+}
+
+.safety-nexus[data-nexus-theme="light"] .status-pill {
+  background-color: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+}
+
+.safety-nexus[data-nexus-theme="light"] .status-pill.status-action_required {
+  background-color: #fff7eb;
+  border-color: #f59e0b;
+  color: #78350f;
+}
+
+.safety-nexus[data-nexus-theme="light"] .status-pill.status-recheck_needed,
+.safety-nexus[data-nexus-theme="light"] .status-pill.status-rechecking,
+.safety-nexus[data-nexus-theme="light"] .status-pill.status-stop_work {
+  background-color: #ffe4e6;
+  border-color: #fda4af;
+  color: #9f1239;
+}
+
+.safety-nexus[data-nexus-theme="light"] .status-pill.status-dispatched_12lang,
+.safety-nexus[data-nexus-theme="light"] .status-pill.status-in_progress {
+  background-color: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0c4a6e;
+}
+
+.safety-nexus[data-nexus-theme="light"] .status-pill.status-completed,
+.safety-nexus[data-nexus-theme="light"] .status-pill.status-verified {
+  background-color: #ecfdf5;
+  border-color: #34d399;
+  color: #065f46;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-remaining-badge {
+  color: #0c4a6e;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-stepper-node b {
+  width: 18px;
+  height: 18px;
+  background-color: #e2e8f0;
+  color: #0f172a;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-stepper-node.is-done b {
+  background-color: #a7f3d0;
+  color: #065f46;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-stepper-node.is-current b {
+  background-color: #fde68a;
+  color: #78350f;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-progress-track {
+  background-color: #e2e8f0;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-ceo-progress-track i {
+  background: linear-gradient(90deg, #b45309, #0b6b7a);
 }
 
 @media print {
