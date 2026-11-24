@@ -482,7 +482,7 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
     onVisitPlansChange([plan]);
     onLockOntoStructuralNode(plan.structuralNodeIndex);
     setVisitNotice(
-      `[01 행선지·순회점검] ${plan.siteName} 방문 일정과 사전 위험 브리핑(미결 ${plan.preVisitBriefing.openPipelineActionsCount}건·시드 ${plan.preVisitBriefing.matchedCaseCode})이 구체 #${plan.structuralNodeIndex}에 등록되었습니다.`,
+      `[01 행선지·순회점검] ${plan.siteName} 방문 일정과 사전 위험 브리핑(미결 ${plan.preVisitBriefing.openPipelineActionsCount}건·사례 ${plan.preVisitBriefing.matchedCaseCode})이 관리 구간 #${plan.structuralNodeIndex}에 등록되었습니다.`,
     );
     setVisitPurpose('');
   };
@@ -517,8 +517,8 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
     }
     setVisitNotice(
       dispatchEmergencyTraining
-        ? `[${plan.siteName}] 순회점검 결과가 06 조치·재점검·인계 및 04 대표이사 12개국어 특별안전교육으로 동시 환류되었습니다.`
-        : `[${plan.siteName}] 순회점검 결과가 06 조치·재점검·인계 파이프라인으로 즉시 환류되었습니다.`,
+        ? `[${plan.siteName}] 순회점검 결과가 06 조치·재점검·인계 및 04 대표이사 12개국어 특별안전교육으로 동시 반영되었습니다.`
+        : `[${plan.siteName}] 순회점검 결과가 06 조치·재점검·인계 현황으로 즉시 반영되었습니다.`,
     );
   };
 
@@ -902,9 +902,9 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
         <p className="nexus-3axis-case-row-meta">
           현재 선택된 범위에서 결재 대기 또는 승인 완료된 사고조사 건이 없습니다.
         </p>
-        {showHqControls && onLoadDemoData && (
+          {investigations.length === 0 && showHqControls && onLoadDemoData && (
           <button type="button" onClick={onLoadDemoData}>
-            체험 데이터 불러오기 (3개 현장·장비사진)
+            예시 현장 불러오기 (3개 현장·장비사진)
           </button>
         )}
       </div>
@@ -1091,7 +1091,7 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
           )}
           {equipmentReports.length === 0 && showHqControls && onLoadDemoData && (
             <button type="button" onClick={onLoadDemoData}>
-              체험 데이터 불러오기 (3개 현장·장비사진)
+              예시 현장 불러오기 (3개 현장·장비사진)
             </button>
           )}
         </div>
@@ -1387,19 +1387,19 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
         <div>
           <span className="nexus-3axis-kicker">
             {isHq
-              ? 'HQ SOVEREIGN COMMAND · 전 현장 통합 결재 · CEO 사진 보고 · 순회 지휘'
-              : `FIELD ISOLATED WORKSPACE · ${boundSiteMeta.shortLabel} 전용 (타현장 정보 차단됨)`}
+              ? '본사 통합 결재 · 전 현장 건설기계 사진 보고 · 순회 지휘'
+              : `단일 현장 전용 업무함 · ${boundSiteMeta.shortLabel} (타현장 정보 비노출)`}
           </span>
           <h2>
             {isHq
-              ? '본사 CSO 결재 · 건설기계 CEO 보고 · 순회 지휘 통합 스튜디오'
+              ? '본사 CSO 결재 · 건설기계 대표이사 보고 · 순회 지휘 통합 업무함'
               : fieldSection === 'execute'
                 ? `${boundSiteMeta.siteName} — 30초 현장 점검 · 기계 사진 전송`
                 : `${boundSiteMeta.siteName} — 본사 하달 교육 · 보완 재상신 · 순회 수신함`}
           </h2>
         </div>
         {isHq ? (
-          <div className="nexus-role-action-strip" role="group" aria-label="본사 즉시 처리 큐 바로가기">
+          <div className="nexus-role-action-strip" role="group" aria-label="본사 즉시 처리함 바로가기">
             <button type="button" onClick={() => onTabChange('equipment_photo')}>
               🏗️ 기계사진 대기 <b>{equipPendingCount}건</b> · 보고 <b>{equipVerifiedReadyCount}건</b>
             </button>
@@ -1661,18 +1661,18 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
               <div>
                 <span className="nexus-3axis-kicker">
                   {isHq
-                    ? 'SLICE 4A · 01 행선지·현장점검 → 방문 전 미해결 위험·유사사고 자동 브리핑 → 현장 점검·조치 환류'
-                    : `FIELD VISIT INBOX · ${boundSiteMeta.shortLabel} 대상 본사 순회점검 일정·사전지시 수신함`}
+                    ? '01 본사 순회점검 · 방문 전 미해결 위험 브리핑 · 현장 시정조치 연계'
+                    : `우리 현장 순회 수신함 · ${boundSiteMeta.shortLabel} 대상 본사 순회점검 및 사전 지시`}
                 </span>
                 <h3>
                   {isHq
-                    ? '01 본사 행선지 등록 및 방문 전 자동 위험 브리핑 (Pre-Visit Briefing)'
+                    ? '01 본사 행선지 등록 및 방문 전 자동 위험 브리핑'
                     : `01 우리 현장(${boundSiteMeta.shortLabel}) 본사 순회점검 및 사전 지시사항`}
                 </h3>
               </div>
               {isHq && (
                 <span className="nexus-3axis-confidence">
-                  연계 구체 포인트 #{livePreVisitPreview.classification.structuralNodeIndex} · 시드 [{livePreVisitPreview.briefing.matchedCaseCode}]
+                  연계 관리 구간 #{livePreVisitPreview.classification.structuralNodeIndex} · 사례 [{livePreVisitPreview.briefing.matchedCaseCode}]
                 </span>
               )}
             </div>
@@ -1777,7 +1777,7 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
                     ))}
                   </ul>
                   <button type="button" className="nexus-3axis-submit" onClick={handleCreateVisitPlan}>
-                    01 행선지·사전브리핑 등록 및 구체 포인트 록온 ↗
+                    01 행선지·사전브리핑 등록 및 입체 화면 연결 ↗
                   </button>
                 </div>
               </>
@@ -1797,14 +1797,14 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
                     <li key={plan.visitId} data-status={plan.status}>
                       <div className="nexus-3axis-case-row-top">
                         <span>
-                          <b>[{plan.visitDate} · 구체 #{plan.structuralNodeIndex}]</b> {plan.siteName} ({plan.inspectorRole}) — {plan.purpose}
+                          <b>[{plan.visitDate} · 구간 #{plan.structuralNodeIndex}]</b> {plan.siteName} ({plan.inspectorRole}) — {plan.purpose}
                         </span>
                         <em className={'status-pill status-' + plan.status}>
                           {NEXUS_VISIT_STATUS_LABELS[plan.status]}
                         </em>
                       </div>
                       <p className="nexus-3axis-case-row-meta">
-                        사전 브리핑 시드: [{plan.preVisitBriefing.matchedCaseCode}] · 미결 {plan.preVisitBriefing.openPipelineActionsCount}건
+                        사전 브리핑 사례: [{plan.preVisitBriefing.matchedCaseCode}] · 미결 {plan.preVisitBriefing.openPipelineActionsCount}건
                         {plan.fieldResultNote ? ` · 점검 기록: ${plan.fieldResultNote}` : ''}
                       </p>
                       {!isHq && plan.preVisitBriefing.keyBriefingPoints.length > 0 && (
@@ -1897,8 +1897,8 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
               <div>
                 <span className="nexus-3axis-kicker">
                   {isHq
-                    ? 'SLICE 4B · 05 AI 사고조사(6하원칙·시계열·원인) → 본사 승인 → 02 사고사례 DB & 04 대표이사 교육 자동 편입'
-                    : `FIELD INVESTIGATION SUBMISSION · ${boundSiteMeta.shortLabel} 아차사고 초안 상신 및 보완 재상신`}
+                    ? '05 AI 사고조사(6하원칙·시계열·원인) · 본사 최종 승인 → 사고사례 DB 및 12개국어 교육 자동 반영'
+                    : `우리 현장 아차사고 상신함 · ${boundSiteMeta.shortLabel} 초안 상신 및 보완 재상신`}
                 </span>
                 <h3>
                   {isHq

@@ -226,13 +226,13 @@ export const NexusExecutiveTrainingBridge: React.FC<Props> = ({
       <div className="nexus-ceo-training-head">
         <div>
           <span className="nexus-3axis-kicker">
-            SLICE 3 · 고위험 공정·유사사례 → 04 대표이사 안전교육 초안 → 12개 국어·음성·모바일 서명 → 구체 이수율 환류
+            고위험 공정 연계 · 04 대표이사 안전교육 12개 국어 전파 · 모바일 자필 서명 현황
           </span>
-          <h3>04 대표이사 안전교육 12개 국어 즉시 전파 & 이수율 환류 스튜디오</h3>
+          <h3>04 대표이사 안전교육 12개 국어 즉시 전파 & 이수율 현황</h3>
         </div>
         <div className="nexus-ceo-head-right">
           <span className="nexus-3axis-confidence">
-            연계 시드 [{seed.caseCode}] · 구체 포인트 #{seed.structuralNodeIndex}
+            연계 사례 [{seed.caseCode}] · 구간 #{seed.structuralNodeIndex}
           </span>
           {campaigns.length > 0 && (
             <button

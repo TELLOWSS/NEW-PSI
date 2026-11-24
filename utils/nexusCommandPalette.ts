@@ -107,9 +107,9 @@ export const buildRoleScopedCommands = (params: {
       {
         id: 'hq-export-zip',
         label: '📦 중대재해처벌법 증빙 패키지 ZIP 1클릭 편철',
-        description: 'CSV 대장 + 사진 원본 + 자필서명 PNG + SHA-256 매니페스트',
+        description: '엑셀 대장 + 사진 원본 + 자필서명 이미지 + 위·변조 검증 목록',
         badge: '법적 증빙',
-        keywords: 'zip 중대재해처벌법 증빙 편철 감사 다운로드',
+        keywords: 'zip 중대재해처벌법 증빙 편철 감사 다운로드 위변조',
         targetKind: 'export_compliance_zip',
       },
       {
@@ -185,9 +185,9 @@ export const buildRoleScopedCommands = (params: {
       {
         id: 'field-view-sphere',
         label: '🌐 내 현장 3D 구체 · 골조 수직 단면 탐색',
-        description: '소속 현장 미결 위험 노드 및 예방 시드 확인',
-        badge: '3D 구체',
-        keywords: '3d 구체 단면도 예방 시드',
+        description: '소속 현장 미결 위험 구간 및 예방 사례 확인',
+        badge: '3D 입체',
+        keywords: '3d 구체 단면도 예방 사례',
         targetKind: 'field_view',
         targetValue: 'field_sphere',
       },
@@ -197,10 +197,10 @@ export const buildRoleScopedCommands = (params: {
   actions.push(
     {
       id: 'common-sync-queue',
-      label: '🔄 지하·오프라인 미전송 큐 지금 동기화',
-      description: '무통신 상태에서 누적된 현장 기록을 즉시 동기화합니다',
-      badge: (counts.offlinePending ?? 0) > 0 ? `미전송 ${counts.offlinePending}건` : '동기화',
-      keywords: '동기화 오프라인 큐 지하 전송',
+      label: '🔄 오프라인 전송 대기 기록 지금 동기화',
+      description: '무통신 상태에서 누적된 현장 기록을 즉시 본사와 동기화합니다',
+      badge: (counts.offlinePending ?? 0) > 0 ? `대기 ${counts.offlinePending}건` : '동기화',
+      keywords: '동기화 오프라인 전송 대기 지하 기록',
       targetKind: 'sync_queue',
     },
     {

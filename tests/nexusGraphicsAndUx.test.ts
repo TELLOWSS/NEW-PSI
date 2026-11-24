@@ -57,7 +57,7 @@ describe('Role-Scoped Command Palette & Visual UX Registry', () => {
     });
     expect(hqCommands.find(c => c.id === 'hq-tab-equip')?.badge).toBe('검토대기 3건');
     expect(hqCommands.find(c => c.id === 'hq-tab-stopwork')?.badge).toBe('작업중지 2건');
-    expect(hqCommands.find(c => c.id === 'common-sync-queue')?.badge).toBe('미전송 5건');
+    expect(hqCommands.find(c => c.id === 'common-sync-queue')?.badge).toBe('대기 5건');
 
     const fieldCommands = buildRoleScopedCommands({
       workspaceRole: 'field',
@@ -71,5 +71,21 @@ describe('Role-Scoped Command Palette & Visual UX Registry', () => {
     expect(fieldCommands.find(c => c.id === 'field-tab-equip')?.badge).toBe('보완 2건');
     expect(fieldCommands.find(c => c.id === 'field-tab-training')?.badge).toBe('미이수 3건');
     expect(fieldCommands.some(c => c.id.startsWith('hq-'))).toBe(false);
+  });
+
+  it('keeps command palette copy free of developer jargon across HQ and Field roles', () => {
+    resetManagedNexusSites();
+    const sites = readManagedNexusSites(false);
+    const forbidden = ['SLICE', '매니페스트', '미전송 큐', '커맨드 팔레트', '시드'];
+
+    for (const role of ['hq', 'field'] as const) {
+      const list = buildRoleScopedCommands({ workspaceRole: role, managedSites: sites });
+      for (const item of list) {
+        const text = `${item.label} ${item.description}`;
+        for (const word of forbidden) {
+          expect(text).not.toContain(word);
+        }
+      }
+    }
   });
 });

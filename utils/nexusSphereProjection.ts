@@ -39,21 +39,21 @@ export const NEXUS_ORBIT_LAYERS: readonly {
 }[] = [
     {
       id: 'cycle',
-      code: 'ORBIT 01',
+      code: '보기 01',
       label: '5단계 안전지능 순환',
-      subtitle: 'Q1–Q5 자기규율 위험성평가 코어 루프',
+      subtitle: 'Q1–Q5 자기규율 위험성평가 5단계 순환',
       tone: 'gold',
     },
     {
       id: 'modules',
-      code: 'ORBIT 02',
+      code: '보기 02',
       label: '6대 핵심기능 궤도',
       subtitle: '본사 주도 · 현장 실행 · AI 분석 · 재발방지',
       tone: 'cyan',
     },
     {
       id: 'structural',
-      code: 'ORBIT 03',
+      code: '보기 03',
       label: '골조·형틀·지하RC 10대 공정',
       subtitle: '지하 RC 별도 관리 및 상부 골조·형틀 중점 포인트',
       tone: 'violet',

@@ -512,7 +512,7 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
       {cases.length > 0 ? (
         <div className="nexus-3axis-case-list" aria-label="시정조치·재점검·교대 인계 진행 현황">
           <div className="nexus-case-list-head">
-            <strong>실시간 조치 · 재점검 · 교대 인계 파이프라인 ({cases.length}건)</strong>
+            <strong>실시간 조치 · 재점검 · 교대 인계 현황 ({cases.length}건)</strong>
             <div className="nexus-case-status-filters" role="group" aria-label="조치·인계 상태별 필터">
               {[
                 ['all', `전체 (${cases.length})`],
@@ -534,7 +534,7 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
               <input
                 type="search"
                 className="nexus-case-search-input"
-                aria-label="조치·인계 파이프라인 검색"
+                aria-label="조치·인계 현황 검색"
                 value={caseSearchQuery}
                 maxLength={80}
                 onChange={e => setCaseSearchQuery(e.target.value)}
@@ -798,17 +798,17 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
         <div>
           <span className="nexus-3axis-kicker">
             {isHq
-              ? 'HQ COMMAND MONITOR · 전 현장 작업중지·시정조치 관제 및 본사 긴급 지시 하달'
-              : 'SLICE 2 · 30초 사진점검 → 3축 자동분류 → 사고사례 매칭 → 조치·인계 환류'}
+              ? '본사 통합 관제 · 전 현장 작업중지·시정조치 현황 및 본사 긴급 지시'
+              : '현장 30초 점검 · 3축 자동 분류 · 유사사례 연결 · 조치 및 인계'}
           </span>
           <h3>
             {isHq
               ? '전 현장 시정조치 · 작업중지(Stop-Work) 통제 현황 및 지시'
-              : '골조·형틀·지하 RC 3축 자동 분류 및 구체 시그널 환류'}
+              : '골조·형틀·지하 RC 3축 자동 분류 및 안전현황 반영'}
           </h3>
         </div>
         <span className="nexus-3axis-confidence">
-          {classification.confidenceLabel} · 구체 #{classification.structuralNodeIndex}
+          {classification.confidenceLabel} · 구간 #{classification.structuralNodeIndex}
         </span>
       </div>
 

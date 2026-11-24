@@ -33,13 +33,14 @@ try {
   // PART A: HQ 4-View All-Sites Sovereign Command & Executive Briefing
   // =========================================================================
   recordCheck(
-    'Default view is HQ Sovereign Command (hq_command) with 4 view tabs',
+    'Default view is HQ Sovereign Command (hq_command) with 4 view tabs and Light theme',
     (await root.getAttribute('data-workspace-role')) === 'hq' &&
-      (await root.locator('.nexus-view-tab').count()) === 4,
+      (await root.locator('.nexus-view-tab').count()) === 4 &&
+      (await root.getAttribute('data-nexus-theme')) === 'light',
   );
   recordCheck('ORBIT 01 default 5 nodes', (await root.locator('.nexus-node').count()) === 5);
 
-  await root.getByRole('button', { name: /체험 데이터 불러오기/ }).click();
+  await root.getByRole('button', { name: /예시 현장 불러오기/ }).click();
 
   recordCheck(
     'UX-1 HQ urgent decision queue renders after loading demo data',
@@ -51,16 +52,39 @@ try {
     (await root.locator('.nexus-active-filters-bar').count()) === 1,
   );
   await page.screenshot({ path: resolve(outDir, 'nexus-v4-hq-ux-1440.png'), fullPage: false });
+  await page.screenshot({ path: resolve(outDir, 'nexus-v5-light-hq-1440.png'), fullPage: false });
+  await root.locator('.nexus-theme-toggle').click();
+  await page.waitForTimeout(260);
+  recordCheck(
+    'Dual Theme toggle switches cleanly from light to dark',
+    (await root.getAttribute('data-nexus-theme')) === 'dark',
+  );
+  await page.screenshot({ path: resolve(outDir, 'nexus-v5-dark-hq-1440.png'), fullPage: false });
+  await root.locator('.nexus-theme-toggle').click();
+  await page.waitForTimeout(260);
+  recordCheck(
+    'Dual Theme toggle restores light mode cleanly',
+    (await root.getAttribute('data-nexus-theme')) === 'light',
+  );
+
+  const visibleHeroText = await root.innerText();
+  const bannedJargon = ['SLICE 2', 'SLICE 3', 'SLICE 4', 'ASTROLABE', 'SOVEREIGN', '텔레메트리', '미전송 큐', '파이프라인', '커맨드 팔레트', '매니페스트', 'ORBIT 0'];
+  recordCheck(
+    'Developer jargon purified cleanly on Safety Nexus hero & navigation',
+    bannedJargon.every(term => !visibleHeroText.includes(term)),
+    bannedJargon.filter(term => visibleHeroText.includes(term)),
+  );
+
   await root.locator('.nexus-active-filter-reset').click();
   recordCheck(
     'UX-1 Active Filter Context Ribbon dismisses after reset click',
     (await root.locator('.nexus-active-filters-bar').count()) === 0,
   );
 
-  await root.getByRole('button', { name: /ORBIT 02/ }).click();
+  await root.getByRole('button', { name: /보기 02/ }).click();
   recordCheck('ORBIT 02 6 core module nodes', (await root.locator('.nexus-node').count()) === 6);
 
-  await root.getByRole('button', { name: /ORBIT 03/ }).click();
+  await root.getByRole('button', { name: /보기 03/ }).click();
   recordCheck('ORBIT 03 10 structural/substructure RC nodes', (await root.locator('.nexus-node').count()) === 10);
   await root.locator('.nexus-node.node-4').click();
   await root.getByRole('combobox', { name: '3축 구간 분류' }).selectOption('substructure_rc');
@@ -110,6 +134,7 @@ try {
     (await biView.locator('.nexus-bento-chart-box svg').count()) >= 1,
   );
   await page.screenshot({ path: resolve(outDir, 'nexus-v3-bi-1440.png'), fullPage: false });
+  await page.screenshot({ path: resolve(outDir, 'nexus-v5-light-bi-1440.png'), fullPage: false });
 
   // Verify G3 Bento KPI Card drill-down to HQ Ops
   await biView.getByRole('button', { name: /건설기계 사용전 사진보고/ }).click();
@@ -130,7 +155,7 @@ try {
 
   // U3 + UX-2 Ctrl+K Command Palette ArrowDown + Enter execution in HQ mode + capture screenshot
   await page.keyboard.press('Control+k');
-  const cmdDialog = root.getByRole('dialog', { name: '안전지능 빠른 실행 커맨드 팔레트' });
+  const cmdDialog = root.getByRole('dialog', { name: '안전지능 빠른 기능 찾기' });
   await cmdDialog.waitFor({ state: 'visible', timeout: 5000 });
   const cmdSearchInput = cmdDialog.getByLabel('빠른 실행 명령 검색');
   await cmdSearchInput.fill('PPTX');
@@ -278,7 +303,7 @@ try {
   );
   await root.locator('.nexus-advanced-toggle-btn').click();
 
-  await root.getByLabel('조치·인계 파이프라인 검색').fill('없는검색어xyz999');
+  await root.getByLabel('조치·인계 현황 검색').fill('없는검색어xyz999');
   recordCheck(
     'UX-4 Pipeline search empty state renders filter reset button cleanly',
     (await root.getByRole('button', { name: '필터·검색 초기화' }).count()) === 1,
@@ -361,7 +386,7 @@ try {
   await root.getByRole('button', { name: '🔄 지금 동기화' }).click();
   recordCheck(
     'Underground offline mutation queue flushes cleanly to pending 0',
-    (await root.locator('.nexus-live-sync-bar').getByText('미전송 큐 0건').count()) === 1,
+    (await root.locator('.nexus-live-sync-bar').getByText('전송 대기 0건').count()) === 1,
   );
 
   await root.getByRole('button', { name: '전원 서명·이수 100% 완료 확인' }).first().click();
@@ -375,8 +400,8 @@ try {
   );
 
   // Verify Field Command Palette isolates HQ commands & other sites
-  await root.getByRole('button', { name: '빠른 실행 커맨드 팔레트 열기' }).click();
-  const fieldPalette = root.getByRole('dialog', { name: '안전지능 빠른 실행 커맨드 팔레트' });
+  await root.getByRole('button', { name: '빠른 기능 찾기 열기' }).click();
+  const fieldPalette = root.getByRole('dialog', { name: '안전지능 빠른 기능 찾기' });
   await fieldPalette.waitFor({ state: 'visible', timeout: 5000 });
   const fieldPaletteText = await fieldPalette.innerText();
   recordCheck(
@@ -420,6 +445,7 @@ try {
       await page.waitForTimeout(150);
       await page.screenshot({ path: resolve(outDir, 'nexus-v3-mobile-field-390.png'), fullPage: false });
       await page.screenshot({ path: resolve(outDir, 'nexus-v4-field-ux-390.png'), fullPage: false });
+      await page.screenshot({ path: resolve(outDir, 'nexus-v5-light-field-390.png'), fullPage: false });
     }
     await root.getByRole('button', { name: /본사 통합 관제 \(전사\)/ }).click();
     for (const hView of ['① 3D 전사 지휘', '② 경영 브리핑 BI', '③ 본사 결재·보고·순회']) {

@@ -159,7 +159,7 @@ export const buildExecutiveBentoSnapshot = (input: {
   const kpis: NexusBentoKpiItem[] = [
     {
       key: 'closure',
-      eyebrow: '03 · 06 CLOSED-LOOP',
+      eyebrow: '03 · 06 조치 종결',
       label: '전 현장 조치 종결률',
       primaryValue: closureRatePct,
       unit: '%',
@@ -174,7 +174,7 @@ export const buildExecutiveBentoSnapshot = (input: {
     },
     {
       key: 'equipment',
-      eyebrow: 'HEAVY EQUIPMENT PHOTO',
+      eyebrow: '건설기계 사용전 사진',
       label: '건설기계 사용전 사진보고',
       primaryValue: equipTotal,
       unit: '건',
@@ -189,7 +189,7 @@ export const buildExecutiveBentoSnapshot = (input: {
     },
     {
       key: 'training',
-      eyebrow: '04 CEO 12-LANG TRAINING',
+      eyebrow: '04 대표이사 다국어 교육',
       label: '12개국어 교육 서명 이수율',
       primaryValue: trainingCompletionPct,
       unit: '%',
@@ -204,7 +204,7 @@ export const buildExecutiveBentoSnapshot = (input: {
     },
     {
       key: 'hq_command',
-      eyebrow: '01 · 05 HQ DECISION INBOX',
+      eyebrow: '01 · 05 본사 결재·순회',
       label: '본사 결재·순회 지휘 대기',
       primaryValue: hqQueueTotal,
       unit: '건',

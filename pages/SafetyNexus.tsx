@@ -85,7 +85,10 @@ import WebGLNexusCore from './NexusWebGLCore';
 import { ScoreMetricEvidencePanel } from '../components/shared/ScoreMetricEvidencePanel';
 import { PracticeEvidencePanel, type PracticeEvidenceSelection } from '../components/shared/PracticeEvidencePanel';
 import { nexusFeatureFlags } from '../config/nexusFeatureFlags';
+import { THEME_CHANGED_EVENT, getResolvedTheme, type ResolvedTheme } from '../utils/themeUtils';
 import './SafetyNexus.css';
+
+const NEXUS_THEME_OVERRIDE_KEY = 'psi_nexus_theme_override_v1';
 
 const FOLLOWUP_FILTER_LABELS = { overdue: '기한 초과', unresolved: '미완료', interim_control: '임시 통제 중', scheduled: '조치 예정', reopened: '재개방 이력', completed: '완료로 기록된' } as const;
 type FollowupFilter = keyof typeof FOLLOWUP_FILTER_LABELS;
@@ -338,6 +341,42 @@ const SafetyNexus: React.FC<Props> = ({
   const [cmdQuery, setCmdQuery] = useState('');
   const [cmdActiveIdx, setCmdActiveIdx] = useState(0);
   const [floatingToast, setFloatingToast] = useState('');
+  const [nexusTheme, setNexusTheme] = useState<ResolvedTheme>(() => {
+    if (typeof window === 'undefined') return 'light';
+    try {
+      const saved = window.localStorage.getItem(NEXUS_THEME_OVERRIDE_KEY);
+      if (saved === 'light' || saved === 'dark') return saved;
+    } catch {
+      // Ignore storage errors
+    }
+    return getResolvedTheme();
+  });
+  useEffect(() => {
+    const syncGlobalTheme = () => {
+      try {
+        window.localStorage.removeItem(NEXUS_THEME_OVERRIDE_KEY);
+      } catch {
+        // Ignore storage errors
+      }
+      setNexusTheme(getResolvedTheme());
+    };
+    window.addEventListener(THEME_CHANGED_EVENT, syncGlobalTheme);
+    return () => window.removeEventListener(THEME_CHANGED_EVENT, syncGlobalTheme);
+  }, []);
+  const handleToggleNexusTheme = () => {
+    const next: ResolvedTheme = nexusTheme === 'light' ? 'dark' : 'light';
+    setNexusTheme(next);
+    try {
+      window.localStorage.setItem(NEXUS_THEME_OVERRIDE_KEY, next);
+    } catch {
+      // Ignore storage errors
+    }
+    triggerToast(
+      next === 'light'
+        ? '☀️ 밝은 화면(화이트 테마)으로 전환되었습니다'
+        : '🌙 어두운 화면(다크 테마)으로 전환되었습니다',
+    );
+  };
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerToast = (msg: string) => {
     setFloatingToast(msg);
@@ -768,7 +807,7 @@ const SafetyNexus: React.FC<Props> = ({
         investigations: scopedData.investigations,
       });
       setComplianceNotice(
-        `[${res.bundleId}] ${res.fileName} (총 ${res.fileCount}개 파일 · 사진 ${res.embeddedPhotoCount}건 · 자필서명 ${res.embeddedSignatureCount}건 · SHA-256 매니페스트 포함) 편철 저장 완료!`,
+        `[${res.bundleId}] ${res.fileName} (총 ${res.fileCount}개 파일 · 사진 ${res.embeddedPhotoCount}건 · 자필서명 ${res.embeddedSignatureCount}건 · 위·변조 검증 목록 포함) 편철 저장 완료!`,
       );
       setDailyBriefingNotice(`${res.fileName} 중대재해처벌법 증빙 ZIP 패키지를 저장했습니다.`);
       triggerToast(`📦 ${res.fileName} 증빙 패키지(${res.fileCount}파일) 편철 완료`);
@@ -948,7 +987,7 @@ const SafetyNexus: React.FC<Props> = ({
     setTrainingCampaigns([...seeded.campaigns]);
     setEquipmentReports([...seeded.equipmentReports]);
     lockOntoNode(0, orbitLayer === 'structural' ? 'structural' : orbitLayer);
-    triggerToast('✅ 3개 현장 체험 데이터·건설기계 사진을 불러왔습니다');
+    triggerToast('✅ 예시 현장(3개 현장·건설기계 사진)을 불러왔습니다');
   };
 
   const showFollowupDetails = () => {
@@ -967,20 +1006,21 @@ const SafetyNexus: React.FC<Props> = ({
       });
     }
   };
-  if (loadState !== 'ready') return <main className="safety-nexus" aria-label="PSI 안전지능 네트워크"><section className="nexus-followup" role="status"><h1>안전지능 네트워크</h1><p>{loadState === 'loading' ? '저장된 기록을 불러오고 있습니다.' : '기록을 불러오지 못했습니다. 화면을 다시 불러와 주세요.'}</p><button type="button" onClick={() => onNavigateToPage('dashboard')}>기존 관제센터로 돌아가기</button></section></main>;
-  const surface = <main role={immersive ? 'dialog' : undefined} aria-modal={immersive ? true : undefined} className={'safety-nexus' + (immersive ? ' is-immersive' : '')} data-workspace-role={effectiveRole} data-reduced-motion={reduced ? 'true' : 'false'} data-motion-paused={paused ? 'true' : 'false'} aria-label="PSI 안전지능 네트워크">
+  if (loadState !== 'ready') return <main className="safety-nexus" data-nexus-theme={nexusTheme} aria-label="PSI 안전지능 네트워크"><section className="nexus-followup" role="status"><h1>안전지능 네트워크</h1><p>{loadState === 'loading' ? '저장된 기록을 불러오고 있습니다.' : '기록을 불러오지 못했습니다. 화면을 다시 불러와 주세요.'}</p><button type="button" onClick={() => onNavigateToPage('dashboard')}>기존 관제센터로 돌아가기</button></section></main>;
+  const surface = <main role={immersive ? 'dialog' : undefined} aria-modal={immersive ? true : undefined} className={'safety-nexus' + (immersive ? ' is-immersive' : '')} data-nexus-theme={nexusTheme} data-workspace-role={effectiveRole} data-reduced-motion={reduced ? 'true' : 'false'} data-motion-paused={paused ? 'true' : 'false'} aria-label="PSI 안전지능 네트워크">
     <div className="nexus-background" aria-hidden="true" />
     <header className="nexus-header">
-      <div className="nexus-brand"><span className="nexus-symbol">Ψ</span><div><small>SOVEREIGN SAFETY INTELLIGENCE</small><h1>SAFETY <b>NEXUS</b></h1></div></div>
-      <div className="nexus-header-right"><span className="nexus-status"><i />GOLD ASTROLABE · 골조·형틀 3D 통합관제</span>
-        <button type="button" className="nexus-cmd-trigger" onClick={() => setCmdPaletteOpen(true)} aria-label="빠른 실행 커맨드 팔레트 열기">🔍 빠른 이동 (Ctrl+K)</button>
+      <div className="nexus-brand"><span className="nexus-symbol">Ψ</span><div><small>골조·형틀 통합 안전관리</small><h1>SAFETY <b>NEXUS</b></h1></div></div>
+      <div className="nexus-header-right"><span className="nexus-status"><i />골조·형틀 3D 입체 안전관제</span>
+        <button type="button" className="nexus-theme-toggle" aria-pressed={nexusTheme === 'light'} aria-label={nexusTheme === 'light' ? '어두운 화면으로 전환' : '밝은 화면으로 전환'} onClick={handleToggleNexusTheme}>{nexusTheme === 'light' ? '🌙 어두운 화면' : '☀️ 밝은 화면'}</button>
+        <button type="button" className="nexus-cmd-trigger" onClick={() => setCmdPaletteOpen(true)} aria-label="빠른 기능 찾기 열기">🔍 빠른 찾기 (Ctrl+K)</button>
         <button ref={immersiveToggleRef} type="button" className="nexus-immersive-toggle" aria-pressed={immersive} onClick={() => setImmersive(v => !v)}>{immersive ? '몰입 화면 종료 ↙' : '전체 화면 몰입 보기 ⤢'}</button>
         <button type="button" onClick={() => onReturnDashboard ? onReturnDashboard(filterTrade) : onNavigateToPage('dashboard')}>기존 관제센터로 돌아가기 ↗</button></div>
     </header>
-    <div className="nexus-lead"><span>ARCHITECTURAL RISK &amp; FORMWORK INTELLIGENCE</span><p>본사 주도 · 현장 실행 · AI 분석 · 12개국어 교육 · 재발방지까지 연결하는 골조·형틀·지하 RC 특화 안전지능 플랫폼</p></div>
+    <div className="nexus-lead"><span>본사·현장 통합 안전관리 체계</span><p>본사 주도 · 현장 실행 · AI 분석 · 12개국어 교육 · 재발방지까지 연결하는 골조·형틀·지하 RC 특화 안전지능 플랫폼</p></div>
     <section className="nexus-priority-summary" aria-label="우선 확인할 후속조치">
       <div className="nexus-priority-ribbon-head">
-        <strong>실시간 후속조치 텔레메트리</strong>
+        <strong>실시간 후속조치 현황</strong>
         <p>{filterMonth || '전체 기간'} · {filterTrade || '전체 공종'} · 기준 {followup.asOfDate}</p>
       </div>
       <div className="nexus-priority-counts"><button type="button" aria-pressed={priorityFilter === 'overdue'} onClick={() => setPriorityFilter('overdue')}>기한 초과 <b>{followup.overdue}</b>건</button><button type="button" aria-pressed={priorityFilter === 'unresolved'} onClick={() => setPriorityFilter('unresolved')}>미완료 <b>{followup.unresolved}</b>건</button><button type="button" aria-pressed={priorityFilter === 'recheck'} onClick={() => setPriorityFilter('recheck')}>재확인 기한초과 <b>{practice.overdueFieldRecheck}</b>건</button></div>
@@ -1050,7 +1090,7 @@ const SafetyNexus: React.FC<Props> = ({
               className="nexus-sim-seed-btn"
               onClick={handleLoadMultiSiteSimulation}
             >
-              체험 데이터 불러오기 (3개 현장·장비사진)
+              예시 현장 불러오기 (3개 현장·장비사진)
             </button>
           </div>
         ) : (
@@ -1157,7 +1197,7 @@ const SafetyNexus: React.FC<Props> = ({
           className="nexus-locked-node-pill"
           onClick={() => handleSelectWorkspaceView(effectiveRole === 'hq' ? 'hq_command' : 'field_sphere')}
         >
-          ◎ 록온: #{selected.index} {selected.title}
+          ◎ 선택 구간: #{selected.index} {selected.title}
         </button>
       </div>
       {((effectiveRole === 'hq' && hqSelectedSiteId) || axisFilter.zoneAxis || axisFilter.processAxis || axisFilter.hazardEquipmentAxis) && (
@@ -1211,13 +1251,13 @@ const SafetyNexus: React.FC<Props> = ({
           </button>
         </div>
       )}
-      <div className="nexus-live-sync-bar" aria-label="지하·오프라인 큐 및 양방향 실시간 경보 상태">
+      <div className="nexus-live-sync-bar" aria-label="오프라인 전송 대기 및 양방향 실시간 경보 상태">
         <div className="nexus-live-sync-badges">
           <span className={'nexus-sync-pill ' + (isOnlineState ? 'is-online' : 'is-offline')}>
             {isOnlineState ? '🟢 통신 연결됨 · 실시간 동기화' : '🟡 지하·무통신 오프라인 저장 모드'}
           </span>
           <span className={'nexus-sync-pill' + (offlinePendingCount > 0 ? ' is-pending' : '')}>
-            미전송 큐 <b>{offlinePendingCount}건</b>
+            전송 대기 <b>{offlinePendingCount}건</b>
           </span>
           {effectiveRole === 'hq' ? (
             <>
@@ -1275,9 +1315,9 @@ const SafetyNexus: React.FC<Props> = ({
       {syncNotice && <p role="status" className="nexus-3axis-feedback">{syncNotice}</p>}
     </nav>
     {effectiveRole === 'hq' && (stopWorkCountLive + hqEquipPendingCount + hqInvPendingCount + hqUnackedVisitCount > 0) && (
-      <section className="nexus-hq-morning-bar" aria-label="본사 안전보건실 긴급 결재·지휘 큐">
+      <section className="nexus-hq-morning-bar" aria-label="본사 안전보건실 긴급 결재·확인함">
         <div className="nexus-field-morning-title">
-          <strong>🏛️ 본사 긴급 결재 · 관제 큐</strong>
+          <strong>🏛️ 본사 긴급 결재 · 확인함</strong>
           <small>{scopedData.activeSiteMeta?.shortLabel || '전사 통합'}</small>
         </div>
         <div className="nexus-field-morning-chips">
@@ -1315,7 +1355,7 @@ const SafetyNexus: React.FC<Props> = ({
     {effectiveRole === 'field' && (
       <section className="nexus-field-morning-bar" aria-label="현장 안전관리자 출근 긴급 처리함">
         <div className="nexus-field-morning-title">
-          <strong>🦺 오늘 출근 즉시 처리 큐</strong>
+          <strong>🦺 오늘 출근 즉시 처리함</strong>
           <small>{scopedData.activeSiteMeta?.shortLabel || '소속 현장'}</small>
         </div>
         <div className="nexus-field-morning-chips">
@@ -1360,7 +1400,7 @@ const SafetyNexus: React.FC<Props> = ({
     )}
     {(activeView === 'hq_command' || activeView === 'field_sphere') && <div className="nexus-main">
       <aside className="nexus-aside">
-        <div className="nexus-section-title"><span>01 / EXECUTIVE COMMAND</span><i /></div>
+        <div className="nexus-section-title"><span>01 / 통합 안전 현황</span><i /></div>
         <h2>골조·형틀 안전지능을<br /><em>하나의 황금 구체로.</em></h2>
         <p>지하 RC구조물부터 상부 갱폼·동바리·타설까지, 현장 점검과 AI 분석·12개국어 교육·본사 승인을 하나의 궤도로 통합합니다.</p>
         <div className="nexus-aside-rule" />
@@ -1368,16 +1408,17 @@ const SafetyNexus: React.FC<Props> = ({
           pipelineCases={scopedData.pipelineCases}
           activeZoneAxis={axisFilter.zoneAxis}
           activeNodeIndex={selected.index}
+          theme={nexusTheme}
           onSelectFloor={(zoneAxis, structuralNodeIndex) => {
             setOrbitLayer('structural');
             setAxisFilter(prev => ({ ...prev, zoneAxis }));
             lockOntoNode(Math.max(0, Number(structuralNodeIndex) - 1), 'structural');
-            triggerToast(`🏗️ 단면 구간 록온 (#${structuralNodeIndex})`);
+            triggerToast(`🏗️ 단면 구간 선택 (#${structuralNodeIndex})`);
           }}
         />
-        <div className="nexus-record-count"><span>연동된 위험성평가 레코드</span><strong>{count.toLocaleString('ko-KR')}<small> 건</small></strong></div>
+        <div className="nexus-record-count"><span>연동된 위험성평가 기록</span><strong>{count.toLocaleString('ko-KR')}<small> 건</small></strong></div>
         <div className="nexus-perception" aria-label="근로자가 직접 선택한 자가평가 등급의 분포">
-          <span>WORKER RISK PERCEPTION</span>
+          <span>근로자 체감 위험도</span>
           <h3>근로자 체감 위험 분포 <small>상 · 중 · 하</small></h3>
           {(['상', '중', '하'] as const).map(level => <div className="nexus-perception-row" key={level}>
             <b>{level}</b><div className="nexus-perception-track"><i className={'risk-' + level} style={{ width: (count ? snapshot.selfRiskLevels[level] / count * 100 : 0) + '%' }} /></div>
@@ -1385,10 +1426,10 @@ const SafetyNexus: React.FC<Props> = ({
           </div>)}
           <p>유효 {count - snapshot.unclassifiedRows} / 전체 {count}건</p>
         </div>
-        <div className="nexus-aside-note"><b>◈ 3-ORBIT ASTROLABE</b><p>궤도 탭을 전환하거나 황금 구체를 드래그해 5단계 순환·6대 핵심기능·10대 골조 공정을 입체적으로 지휘하세요.</p></div>
+        <div className="nexus-aside-note"><b>◈ 입체 안전 보기 안내</b><p>보기 탭을 전환하거나 황금 구체를 드래그해 5단계 순환·6대 핵심기능·10대 골조 공정을 입체적으로 확인하세요.</p></div>
       </aside>
       <section className="nexus-visual" aria-label="5단계 위험성평가 네트워크 탐색">
-        <div className="nexus-visual-head"><span><i /> INTELLIGENCE FIELD · {currentLayerMeta.code}</span><div>
+        <div className="nexus-visual-head"><span><i /> 입체 안전 관제 · {currentLayerMeta.code}</span><div>
           <button type="button" disabled={!nexusFeatureFlags.threeDEnabled} aria-pressed={flat} onClick={() => { setCinematicPlaying(false); setFlat(v => !v) }}>{!nexusFeatureFlags.threeDEnabled ? '간결한 보기 · 입체 기능 꺼짐' : flat ? '입체 보기' : '간결한 보기'}</button>
           <button type="button" disabled={flat || reduced} onClick={() => { setCinematicPlaying(false); setPaused(v => !v) }}>{paused ? '모션 재생' : '모션 일시정지'}</button>
           <button type="button" className="nexus-story-button" disabled={flat || reduced}
@@ -1544,11 +1585,11 @@ const SafetyNexus: React.FC<Props> = ({
             )}
           </svg>}
           {!flat && <div className="nexus-scene-caption" aria-live="off">
-            <span>SOVEREIGN ASTROLABE · {currentLayerMeta.code}</span>
+            <span>입체 안전 관제 · {currentLayerMeta.code}</span>
             <small className="nexus-caption-sub">그래픽 시연 / 실시간 위험 경보 아님</small>
           </div>}
           <div className="nexus-core-label" aria-hidden="true">
-            <span className="nexus-core-crest">◈ GOLD CORE ◈</span>
+            <span className="nexus-core-crest">◈ PSI 안전 중심 ◈</span>
             <strong>PSI</strong>
             <small>SAFETY NEXUS</small>
           </div>
@@ -1589,7 +1630,7 @@ const SafetyNexus: React.FC<Props> = ({
             );
           })}
           <div className="nexus-crosshair" aria-hidden="true">
-            {currentLayerMeta.label} · {formatSphericalCoord(selected.latDeg, selected.lonDeg)} · 드래그 회전 / 포인트 록온
+            {currentLayerMeta.label} · {formatSphericalCoord(selected.latDeg, selected.lonDeg)} · 드래그 회전 · 항목 선택
           </div>
         </div>
         <div className="nexus-visual-foot">
@@ -1598,14 +1639,14 @@ const SafetyNexus: React.FC<Props> = ({
             <button type="button" onClick={() => setZoomScale(z => Math.max(0.8, Number((z - 0.1).toFixed(2))))} aria-label="구체 축소">－</button>
             <button type="button" onClick={() => setZoomScale(z => Math.min(1.32, Number((z + 0.1).toFixed(2))))} aria-label="구체 확대">＋</button>
             <button type="button" onClick={() => { setSelectedSeedIdx(0); lockOntoNode(safeActive - 1); }} aria-label="이전 구체 포인트">◀ 이전</button>
-            <button type="button" onClick={() => { setZoomScale(1); lockOntoNode(safeActive); }} aria-label="선택 포인트 정면 정렬">◎ 정면 록온</button>
+            <button type="button" onClick={() => { setZoomScale(1); lockOntoNode(safeActive); }} aria-label="선택 항목 정면 맞춤">◎ 정면 맞춤</button>
             <button type="button" onClick={() => { setSelectedSeedIdx(0); lockOntoNode(safeActive + 1); }} aria-label="다음 구체 포인트">다음 ▶</button>
           </div>
         </div>
       </section>
       <aside className="nexus-detail">
         <div className="nexus-section-title">
-          <span>02 / LOCKED SPHERE POINT</span>
+          <span>02 / 선택한 관리 항목</span>
           <b>{selected.index} / {String(layerNodes.length).padStart(2, '0')}</b>
         </div>
         <div className="nexus-detail-telemetry">
@@ -1639,15 +1680,15 @@ const SafetyNexus: React.FC<Props> = ({
               <strong>
                 {activeTrainingSummary?.averageCompletionRatePct !== null && activeTrainingSummary?.averageCompletionRatePct !== undefined
                   ? `이수 ${activeTrainingSummary.averageCompletionRatePct}%`
-                  : `시드 ${activeSignal.linkedSeeds.length}건`}
+                  : `사례 ${activeSignal.linkedSeeds.length}건`}
               </strong>
             </div>
           </div>
         )}
         {activeSeed && (
-          <div className="nexus-seed-panel" aria-label="3축 연계 표준 사고·아차사고 예방 시드">
+          <div className="nexus-seed-panel" aria-label="3축 연계 표준 사고·아차사고 예방 사례">
             <div className="nexus-seed-head">
-              <span>◈ {activeSeed.caseCode} · {activeSeed.hazardMechanism} 중점 아카이브</span>
+              <span>◈ {activeSeed.caseCode} · {activeSeed.hazardMechanism} 중점 예방 사례</span>
             </div>
             {activeSignal && activeSignal.linkedSeeds.length > 1 && (
               <div className="nexus-seed-switcher">
@@ -1742,7 +1783,7 @@ const SafetyNexus: React.FC<Props> = ({
           )}
         </div>
         <button type="button" className="nexus-primary" onClick={() => onNavigateToPage(selected.page)}>{selected.action}<span>↗</span></button>
-        <div className="nexus-next"><span>CLOSED-LOOP ARCHITECTURE</span><ol><li>현장 위험·사진 수집</li><li>AI 구조화 · 본사 대조</li><li>시정조치 · 재점검·인계</li><li>다국어 교육 · 전 현장 환류</li></ol></div>
+        <div className="nexus-next"><span>현장 안전 순환 절차</span><ol><li>현장 위험·사진 수집</li><li>AI 구조화 · 본사 대조</li><li>시정조치 · 재점검·인계</li><li>다국어 교육 · 전 현장 환류</li></ol></div>
       </aside>
     </div>}
     {effectiveRole === 'hq' && activeView === 'hq_bi' && bentoSnapshot && (
@@ -1886,6 +1927,7 @@ const SafetyNexus: React.FC<Props> = ({
         <NexusExecutiveBentoBoard
           snapshot={bentoSnapshot}
           reducedMotion={reduced}
+          theme={nexusTheme}
           selectedZoneAxis={axisFilter.zoneAxis}
           onSelectHeatmapCell={(zoneAxis, structuralNodeIndex) => {
             setOrbitLayer('structural');
@@ -1961,7 +2003,7 @@ const SafetyNexus: React.FC<Props> = ({
       <>
         <section id="nexus-followup-details" tabIndex={-1} className="nexus-followup" aria-label="근로자 위험성평가 후속조치 익명 집계">
           <div className="nexus-followup-header">
-            <div><span>VERIFIABLE READ-ONLY SIGNALS</span><h2>후속조치 현황 <small>불러온 기록의 관리자 이력 기준</small></h2></div>
+            <div><span>관리자 기록 기반 조회</span><h2>후속조치 현황 <small>불러온 기록의 관리자 이력 기준</small></h2></div>
             <p>이 화면은 현장 안전을 판정하거나 조치 완료를 승인하지 않습니다. <b>현장별 인증 범위는 아직 미연동</b>입니다.</p>
           </div>
           <div className="nexus-followup-filters">
@@ -2038,7 +2080,7 @@ const SafetyNexus: React.FC<Props> = ({
           </div>
         </section>
         <section className="nexus-metrics" aria-label="6대 안전인식 지표">
-          <div className="nexus-metrics-caption"><span>THE SIX PROTECTION SIGNALS</span><strong>6대 안전인식 지표</strong><p>지표명 안내입니다. 점수와 유효 분모는 이 화면에 아직 연결되지 않았습니다.</p></div>
+          <div className="nexus-metrics-caption"><span>6대 핵심 안전 지표</span><strong>6대 안전인식 지표</strong><p>지표명 안내입니다. 점수와 유효 분모는 이 화면에 아직 연결되지 않았습니다.</p></div>
           <div className="nexus-metrics-list">{METRICS.map(s => <div className="nexus-metric" key={s[0]}><span>{s[0]} <i /></span><strong>{s[1]}</strong><small>{s[2]}</small></div>)}</div>
           <button type="button" onClick={() => onNavigateToPage('monthly-guidance-report')}>기존 평가 보고서 열기</button>
         </section>
@@ -2046,10 +2088,10 @@ const SafetyNexus: React.FC<Props> = ({
         <section className="nexus-compliance-panel" aria-label="중대재해처벌법 반기·월간 법적 이행 증빙 편철 센터">
           <div className="nexus-3axis-bridge-head">
             <div>
-              <span className="nexus-3axis-kicker">SAPA COMPLIANCE ARCHIVE · SHA-256 무결성 매니페스트 포함</span>
+              <span className="nexus-3axis-kicker">중대재해처벌법 증빙 보관 · 위·변조 검증 목록 포함</span>
               <h3>📦 중대재해처벌법 반기·월간 법적 이행 증빙 패키지 1클릭 편철</h3>
               <p className="nexus-3axis-case-row-meta">
-                시정조치·작업중지 이력, 본사 검증 건설기계 점검 사진 원본, 12개국어 교육 자필 서명 PNG, 순회점검·사고조사 승인 기록을 단일 ZIP 아카이브로 묶습니다.
+                시정조치·작업중지 이력, 본사 검증 건설기계 점검 사진 원본, 12개국어 교육 자필 서명 이미지, 순회점검·사고조사 승인 기록을 단일 ZIP 파일로 묶습니다.
               </p>
             </div>
             <div className="nexus-3axis-case-row-actions">
@@ -2104,7 +2146,7 @@ const SafetyNexus: React.FC<Props> = ({
         className="nexus-cmd-palette-backdrop"
         role="dialog"
         aria-modal="true"
-        aria-label="안전지능 빠른 실행 커맨드 팔레트"
+        aria-label="안전지능 빠른 기능 찾기"
         onClick={() => setCmdPaletteOpen(false)}
       >
         <div className="nexus-cmd-palette-dialog" onClick={e => e.stopPropagation()}>

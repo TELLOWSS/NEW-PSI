@@ -20,6 +20,7 @@ import type { NexusZoneAxis } from '../../utils/nexusStructuralTaxonomy';
 interface Props {
   snapshot: NexusExecutiveBentoSnapshot;
   reducedMotion: boolean;
+  theme?: 'dark' | 'light';
   selectedZoneAxis: NexusZoneAxis | '';
   onSelectHeatmapCell: (zoneAxis: NexusZoneAxis, structuralNodeIndex: string) => void;
   onSelectSiteBar?: (siteId: string) => void;
@@ -114,11 +115,13 @@ const MiniSparkline: React.FC<{ points: readonly number[]; tone: string }> = ({ 
 export const NexusExecutiveBentoBoard: React.FC<Props> = ({
   snapshot,
   reducedMotion,
+  theme = 'dark',
   selectedZoneAxis,
   onSelectHeatmapCell,
   onSelectSiteBar,
   onSelectKpi,
 }) => {
+  const isLight = theme === 'light';
   const [downloadNotice, setDownloadNotice] = useState('');
 
   const handleLiquidPointerMove = (e: React.MouseEvent<HTMLElement>) => {
@@ -151,12 +154,12 @@ export const NexusExecutiveBentoBoard: React.FC<Props> = ({
   return (
     <section
       className="nexus-bento-board"
-      aria-label="Sovereign Executive Bento 다차원 안전 분석 보드"
+      aria-label="경영진 다차원 안전 분석 보드"
     >
       <div className="nexus-bento-header">
         <div>
           <span className="nexus-3axis-kicker">
-            EXECUTIVE ANALYTICS BOARD · 3D 황금 구체 · 엑셀 교차 분석 연동
+            경영진 안전 요약 보드 · 입체 관제 · 엑셀 교차 분석
           </span>
           <h2>전사 골조·형틀·건설기계 경영 브리핑 대시보드</h2>
         </div>
@@ -236,7 +239,7 @@ export const NexusExecutiveBentoBoard: React.FC<Props> = ({
         >
           <div className="nexus-bento-panel-head">
             <div>
-              <strong>구간 × 5대 위험유형 조건부 히트맵 (클릭 시 3D 구체 자동 록온)</strong>
+              <strong>구간 × 5대 위험유형 집중도 현황표 (클릭 시 입체 화면 자동 이동)</strong>
               <small>지하RC·기초·지상·전이층의 위험 밀도를 클릭해 해당 공정으로 즉시 교차 탐색합니다.</small>
             </div>
             <div className="nexus-heatmap-legend" aria-hidden="true">
@@ -248,7 +251,7 @@ export const NexusExecutiveBentoBoard: React.FC<Props> = ({
               <span>집중</span>
             </div>
           </div>
-          <div className="nexus-heatmap-table-wrap" role="grid" aria-label="구간별 위험유형 교차 히트맵">
+          <div className="nexus-heatmap-table-wrap" role="grid" aria-label="구간별 위험유형 교차 현황표">
             <div className="nexus-heatmap-header-row" role="row">
               <span className="nexus-heatmap-corner" role="columnheader">구간 \ 위험</span>
               {NEXUS_HEATMAP_HAZARD_COLS.map(col => (
@@ -271,9 +274,9 @@ export const NexusExecutiveBentoBoard: React.FC<Props> = ({
                     role="gridcell"
                     className={`nexus-heatmap-cell heat-${cell.heatLevel}`}
                     onClick={() => onSelectHeatmapCell(cell.zoneAxis, cell.structuralNodeIndex)}
-                    aria-label={`${cell.zoneLabel} ${cell.hazardId} 사건 ${cell.count}건 · 구체 #${cell.structuralNodeIndex} 록온`}
+                    aria-label={`${cell.zoneLabel} ${cell.hazardId} 사건 ${cell.count}건 · 구간 #${cell.structuralNodeIndex} 보기`}
                   >
-                    <b>{cell.count > 0 ? `${cell.count}건` : `시드 ${cell.seedCount}`}</b>
+                    <b>{cell.count > 0 ? `${cell.count}건` : `사례 ${cell.seedCount}`}</b>
                     <small>{cell.openCount > 0 ? `미결 ${cell.openCount}` : `#${cell.structuralNodeIndex}`}</small>
                   </button>
                 ))}
@@ -300,39 +303,39 @@ export const NexusExecutiveBentoBoard: React.FC<Props> = ({
               >
                 <defs>
                   <linearGradient id="nexusGoldBarGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f6c786" stopOpacity={0.95} />
-                    <stop offset="100%" stopColor="#b97732" stopOpacity={0.45} />
+                    <stop offset="0%" stopColor={isLight ? '#d97706' : '#f6c786'} stopOpacity={0.95} />
+                    <stop offset="100%" stopColor={isLight ? '#b45309' : '#b97732'} stopOpacity={isLight ? 0.72 : 0.45} />
                   </linearGradient>
                   <linearGradient id="nexusCyanAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#75e6ef" stopOpacity={0.36} />
-                    <stop offset="100%" stopColor="#75e6ef" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor={isLight ? '#0e7490' : '#75e6ef'} stopOpacity={isLight ? 0.24 : 0.36} />
+                    <stop offset="100%" stopColor={isLight ? '#0e7490' : '#75e6ef'} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(130, 165, 190, 0.14)" />
-                <XAxis dataKey="name" tick={{ fill: '#c6d8e4', fontSize: 11 }} axisLine={{ stroke: '#3c556b' }} />
-                <YAxis yAxisId="left" allowDecimals={false} tick={{ fill: '#e8bf84', fontSize: 10 }} />
-                <YAxis yAxisId="right" orientation="right" domain={[0, 100]} unit="%" tick={{ fill: '#75e6ef', fontSize: 10 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={isLight ? 'rgba(100, 116, 139, 0.22)' : 'rgba(130, 165, 190, 0.14)'} />
+                <XAxis dataKey="name" tick={{ fill: isLight ? '#334e68' : '#c6d8e4', fontSize: 11 }} axisLine={{ stroke: isLight ? '#cbd5e1' : '#3c556b' }} />
+                <YAxis yAxisId="left" allowDecimals={false} tick={{ fill: isLight ? '#9c5209' : '#e8bf84', fontSize: 10 }} />
+                <YAxis yAxisId="right" orientation="right" domain={[0, 100]} unit="%" tick={{ fill: isLight ? '#0b6b7a' : '#75e6ef', fontSize: 10 }} />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: 'rgba(9, 20, 32, 0.94)',
-                    borderColor: 'rgba(244, 194, 127, 0.45)',
+                    backgroundColor: isLight ? 'rgba(255, 255, 255, 0.98)' : 'rgba(9, 20, 32, 0.94)',
+                    borderColor: isLight ? 'rgba(148, 163, 184, 0.65)' : 'rgba(244, 194, 127, 0.45)',
                     borderRadius: 10,
-                    color: '#edf6fc',
+                    color: isLight ? '#102a43' : '#edf6fc',
                     fontSize: 11.5,
                   }}
                 />
                 <Legend
                   verticalAlign="top"
                   height={24}
-                  wrapperStyle={{ fontSize: '11px', color: '#cfe3ef' }}
+                  wrapperStyle={{ fontSize: '11px', color: isLight ? '#334e68' : '#cfe3ef' }}
                 />
                 <Bar yAxisId="left" dataKey="미결조치" fill="url(#nexusGoldBarGrad)" radius={[5, 5, 0, 0]} barSize={24} />
-                <Bar yAxisId="left" dataKey="기계점검" fill="#c7a4ff" radius={[5, 5, 0, 0]} barSize={16} />
+                <Bar yAxisId="left" dataKey="기계점검" fill={isLight ? '#6d28d9' : '#c7a4ff'} radius={[5, 5, 0, 0]} barSize={16} />
                 <Area
                   yAxisId="right"
                   type="monotone"
                   dataKey="교육이수율"
-                  stroke="#75e6ef"
+                  stroke={isLight ? '#0b6b7a' : '#75e6ef'}
                   strokeWidth={2.2}
                   fill="url(#nexusCyanAreaGrad)"
                   isAnimationActive={!reducedMotion}
@@ -361,10 +364,10 @@ export const NexusExecutiveBentoBoard: React.FC<Props> = ({
         onMouseMove={handleLiquidPointerMove}
       >
         <div className="nexus-bento-panel-head">
-          <strong>폐루프 5단계 전환 퍼널 (발견 → 조치 → 인계 → 재점검 → 종결)</strong>
+          <strong>현장 조치 5단계 진행 현황 (발견 → 조치 → 인계 → 재점검 → 종결)</strong>
           <small>어느 단계에 미결 병목이 쌓여 있는지 즉시 확인합니다.</small>
         </div>
-        <div className="nexus-funnel-grid" role="list" aria-label="폐루프 5단계 전환 현황">
+        <div className="nexus-funnel-grid" role="list" aria-label="현장 조치 5단계 진행 현황">
           {snapshot.funnelStages.map(stage => (
             <div key={stage.key} role="listitem" className={`nexus-funnel-stage tone-${stage.tone}`}>
               <div className="nexus-funnel-top">
