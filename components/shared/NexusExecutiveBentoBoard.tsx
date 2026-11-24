@@ -4,6 +4,7 @@ import {
   Bar,
   CartesianGrid,
   ComposedChart,
+  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -22,6 +23,7 @@ interface Props {
   selectedZoneAxis: NexusZoneAxis | '';
   onSelectHeatmapCell: (zoneAxis: NexusZoneAxis, structuralNodeIndex: string) => void;
   onSelectSiteBar?: (siteId: string) => void;
+  onSelectKpi?: (kpiKey: string) => void;
 }
 
 const useKineticNumber = (target: number, reduced: boolean): number => {
@@ -115,6 +117,7 @@ export const NexusExecutiveBentoBoard: React.FC<Props> = ({
   selectedZoneAxis,
   onSelectHeatmapCell,
   onSelectSiteBar,
+  onSelectKpi,
 }) => {
   const [downloadNotice, setDownloadNotice] = useState('');
 
@@ -178,7 +181,21 @@ export const NexusExecutiveBentoBoard: React.FC<Props> = ({
           return (
             <article
               key={kpi.key}
-              className={`nexus-bento-card tone-${kpi.tone}`}
+              className={`nexus-bento-card tone-${kpi.tone}` + (onSelectKpi ? ' is-clickable' : '')}
+              role={onSelectKpi ? 'button' : undefined}
+              tabIndex={onSelectKpi ? 0 : undefined}
+              aria-label={onSelectKpi ? `${kpi.label} 상세 처리함 열기` : undefined}
+              onClick={onSelectKpi ? () => onSelectKpi(kpi.key) : undefined}
+              onKeyDown={
+                onSelectKpi
+                  ? e => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onSelectKpi(kpi.key);
+                      }
+                    }
+                  : undefined
+              }
               onMouseMove={handleLiquidPointerMove}
             >
               <div className="nexus-bento-card-top">
@@ -303,6 +320,11 @@ export const NexusExecutiveBentoBoard: React.FC<Props> = ({
                     color: '#edf6fc',
                     fontSize: 11.5,
                   }}
+                />
+                <Legend
+                  verticalAlign="top"
+                  height={24}
+                  wrapperStyle={{ fontSize: '11px', color: '#cfe3ef' }}
                 />
                 <Bar yAxisId="left" dataKey="미결조치" fill="url(#nexusGoldBarGrad)" radius={[5, 5, 0, 0]} barSize={24} />
                 <Bar yAxisId="left" dataKey="기계점검" fill="#c7a4ff" radius={[5, 5, 0, 0]} barSize={16} />

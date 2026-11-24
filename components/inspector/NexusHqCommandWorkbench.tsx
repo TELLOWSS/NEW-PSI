@@ -187,14 +187,40 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
   const [eqResubmitPhotosById, setEqResubmitPhotosById] = useState<Record<string, { name: string; url: string }>>({});
   const [visitAckNotesById, setVisitAckNotesById] = useState<Record<string, string>>({});
 
+  const filteredEquipmentReports = useMemo(
+    () =>
+      eqStatusFilter === 'all'
+        ? equipmentReports
+        : equipmentReports.filter(item => item.status === eqStatusFilter),
+    [equipmentReports, eqStatusFilter],
+  );
+
   useEffect(() => {
     if (!lightboxItem || typeof document === 'undefined') return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setLightboxItem(null);
+      if (e.key === 'Escape') {
+        setLightboxItem(null);
+        return;
+      }
+      if (filteredEquipmentReports.length <= 1) return;
+      const idx = filteredEquipmentReports.findIndex(
+        x => x.submissionId === lightboxItem.submissionId,
+      );
+      if (idx < 0) return;
+      if (e.key === 'ArrowRight') {
+        const next = filteredEquipmentReports[(idx + 1) % filteredEquipmentReports.length];
+        if (next) setLightboxItem(next);
+      } else if (e.key === 'ArrowLeft') {
+        const prev =
+          filteredEquipmentReports[
+            (idx - 1 + filteredEquipmentReports.length) % filteredEquipmentReports.length
+          ];
+        if (prev) setLightboxItem(prev);
+      }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [lightboxItem]);
+  }, [lightboxItem, filteredEquipmentReports]);
 
   useEffect(() => {
     if (effectiveSiteId) {
@@ -476,7 +502,7 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
     const { updatedPlans, createdPipelineCase, createdTrainingCampaign } = completeHqVisitWithFieldAction(
       plan.visitId,
       customDirective ||
-        `[본사 순회점검 결과] ${plan.siteName} · ${plan.purpose} 현장 확인 및 시정조치·인계 발령`,
+      `[본사 순회점검 결과] ${plan.siteName} · ${plan.purpose} 현장 확인 및 시정조치·인계 발령`,
       new Date().toISOString(),
       { dispatchEmergencyTraining, targetWorkers: 15 },
     );
@@ -961,14 +987,6 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
     </div>
   );
 
-  const filteredEquipmentReports = useMemo(
-    () =>
-      eqStatusFilter === 'all'
-        ? equipmentReports
-        : equipmentReports.filter(item => item.status === eqStatusFilter),
-    [equipmentReports, eqStatusFilter],
-  );
-
   const renderEquipmentGalleryAndCeoPack = (showHqControls: boolean) => (
     <div className="nexus-equip-hq-section">
       {showHqControls && (
@@ -1176,108 +1194,164 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
         </div>
       )}
 
-      {lightboxItem && (
-        <div
-          className="nexus-equip-lightbox-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-label="건설기계 점검 사진 확대 보기"
-          onClick={() => setLightboxItem(null)}
-        >
-          <div className="nexus-equip-lightbox-dialog" onClick={e => e.stopPropagation()}>
-            <div className="nexus-equip-lightbox-head">
-              <div>
-                <small>{lightboxItem.siteName} · {lightboxItem.equipmentLabel} · 구체 #{lightboxItem.structuralNodeIndex}</small>
-                <h4>{lightboxItem.workActivity}</h4>
+      {lightboxItem && (() => {
+        const lbIdx = filteredEquipmentReports.findIndex(
+          x => x.submissionId === lightboxItem.submissionId,
+        );
+        const totalLb = filteredEquipmentReports.length;
+        const stepLightbox = (delta: number) => {
+          if (totalLb <= 1) return;
+          const nextIdx = (Math.max(0, lbIdx) + delta + totalLb) % totalLb;
+          const nextItem = filteredEquipmentReports[nextIdx];
+          if (nextItem) setLightboxItem(nextItem);
+        };
+        const quickApproveInModal = (decision: 'hq_verified_for_ceo' | 'revision_requested_hq') => {
+          handleReviewEquipmentPhoto(lightboxItem, decision);
+          const nextPending = filteredEquipmentReports.find(
+            x => x.submissionId !== lightboxItem.submissionId && x.status === 'submitted_to_hq',
+          );
+          if (nextPending) {
+            setLightboxItem(nextPending);
+          } else {
+            setLightboxItem(null);
+          }
+        };
+        return (
+          <div
+            className="nexus-equip-lightbox-backdrop"
+            role="dialog"
+            aria-modal="true"
+            aria-label="건설기계 점검 사진 확대 보기"
+            onClick={() => setLightboxItem(null)}
+          >
+            <div className="nexus-equip-lightbox-dialog" onClick={e => e.stopPropagation()}>
+              <div className="nexus-equip-lightbox-head">
+                <div>
+                  <small>
+                    {lightboxItem.siteName} · {lightboxItem.equipmentLabel} · 구체 #{lightboxItem.structuralNodeIndex}
+                    {totalLb > 0 && lbIdx >= 0 ? ` (${lbIdx + 1} / ${totalLb})` : ''}
+                  </small>
+                  <h4>{lightboxItem.workActivity}</h4>
+                </div>
+                <div className="nexus-lightbox-nav">
+                  {totalLb > 1 && (
+                    <>
+                      <button type="button" onClick={() => stepLightbox(-1)} aria-label="이전 사진 보기">
+                        ◀ 이전 사진
+                      </button>
+                      <button type="button" onClick={() => stepLightbox(1)} aria-label="다음 사진 보기">
+                        다음 사진 ▶
+                      </button>
+                    </>
+                  )}
+                  <button type="button" onClick={() => setLightboxItem(null)} aria-label="사진 확대 창 닫기">
+                    ✕ 닫기
+                  </button>
+                </div>
               </div>
-              <button type="button" onClick={() => setLightboxItem(null)} aria-label="사진 확대 창 닫기">
-                ✕ 닫기
-              </button>
+              <img
+                src={lightboxItem.photoDataUrl}
+                alt={`${lightboxItem.siteName} ${lightboxItem.equipmentLabel} 확대 보기`}
+                className="nexus-equip-lightbox-img"
+              />
+              <p className="nexus-3axis-case-row-meta">
+                확인 핵심: {lightboxItem.inspectionPointSummary} · 업로드: {lightboxItem.uploadedBy}
+                {lightboxItem.hqReviewNote ? ` · 본사 의견: ${lightboxItem.hqReviewNote}` : ''}
+              </p>
+              {showHqControls && lightboxItem.status === 'submitted_to_hq' && (
+                <div className="nexus-lightbox-decision-bar">
+                  <button
+                    type="button"
+                    className="nexus-3axis-submit"
+                    onClick={() => quickApproveInModal('hq_verified_for_ceo')}
+                  >
+                    ✅ 적합 승인 후 다음 사진
+                  </button>
+                  <button
+                    type="button"
+                    className="is-revision-btn"
+                    onClick={() => quickApproveInModal('revision_requested_hq')}
+                  >
+                    🔁 보완 요청 후 다음
+                  </button>
+                </div>
+              )}
             </div>
-            <img
-              src={lightboxItem.photoDataUrl}
-              alt={`${lightboxItem.siteName} ${lightboxItem.equipmentLabel} 확대 보기`}
-              className="nexus-equip-lightbox-img"
-            />
-            <p className="nexus-3axis-case-row-meta">
-              확인 핵심: {lightboxItem.inspectionPointSummary} · 업로드: {lightboxItem.uploadedBy}
-              {lightboxItem.hqReviewNote ? ` · 본사 의견: ${lightboxItem.hqReviewNote}` : ''}
-            </p>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 
   // Determine allowed module tabs based on authority & section
   const visibleTabs: readonly { id: NexusWorkbenchTab; small: string; title: string; badge: string }[] = isHq
     ? [
+      {
+        id: 'equipment_photo',
+        small: '건설기계 사진 · CEO 보고',
+        title: '건설기계 사진 검토 · CEO 보고',
+        badge: `대기 ${equipPendingCount} · 보고가능 ${equipVerifiedReadyCount}`,
+      },
+      {
+        id: 'investigate_05_02',
+        small: '05 · 02 본사 승인',
+        title: '05 · 02 사고조사 승인·보완',
+        badge: `승인대기 ${pendingApprovalCount}건`,
+      },
+      {
+        id: 'visit_01',
+        small: '01 본사 순회점검',
+        title: '01 본사 행선지 · 순회점검',
+        badge: `일정 ${visitPlans.length}건`,
+      },
+      {
+        id: 'training_04',
+        small: '04 대표이사 다국어 교육',
+        title: '04 대표이사 다국어 안전교육',
+        badge: `캠페인 ${trainingCampaigns.length}건`,
+      },
+      {
+        id: 'inspect_03_06',
+        small: '전 현장 실행 관제',
+        title: '전 현장 조치·작업중지 관제',
+        badge: `미결 ${openActionsCount}건`,
+      },
+    ]
+    : fieldSection === 'execute'
+      ? [
+        {
+          id: 'inspect_03_06',
+          small: '03 · 02 · 06 현장 실행',
+          title: '30초 사진점검 · 작업중지 · 교대인계',
+          badge: `미결 ${openActionsCount}건`,
+        },
         {
           id: 'equipment_photo',
-          small: '건설기계 사진 · CEO 보고',
-          title: '건설기계 사진 검토 · CEO 보고',
-          badge: `대기 ${equipPendingCount} · 보고가능 ${equipVerifiedReadyCount}`,
+          small: '건설기계 사용전 점검',
+          title: '건설기계 사용전 사진 본사 전송',
+          badge: `전송 ${equipmentReports.length}건`,
         },
-        {
-          id: 'investigate_05_02',
-          small: '05 · 02 본사 승인',
-          title: '05 · 02 사고조사 승인·보완',
-          badge: `승인대기 ${pendingApprovalCount}건`,
-        },
-        {
-          id: 'visit_01',
-          small: '01 본사 순회점검',
-          title: '01 본사 행선지 · 순회점검',
-          badge: `일정 ${visitPlans.length}건`,
-        },
+      ]
+      : [
         {
           id: 'training_04',
-          small: '04 대표이사 다국어 교육',
-          title: '04 대표이사 다국어 안전교육',
+          small: '04 본사 하달 교육',
+          title: '04 대표이사 12개국어 교육 이행',
           badge: `캠페인 ${trainingCampaigns.length}건`,
         },
         {
-          id: 'inspect_03_06',
-          small: '전 현장 실행 관제',
-          title: '전 현장 조치·작업중지 관제',
-          badge: `미결 ${openActionsCount}건`,
+          id: 'investigate_05_02',
+          small: '05 내 현장 아차사고',
+          title: '05 아차사고 상신 · 보완 재상신',
+          badge: `보완요청 ${revisionRequestedCount}건`,
         },
-      ]
-    : fieldSection === 'execute'
-      ? [
-          {
-            id: 'inspect_03_06',
-            small: '03 · 02 · 06 현장 실행',
-            title: '30초 사진점검 · 작업중지 · 교대인계',
-            badge: `미결 ${openActionsCount}건`,
-          },
-          {
-            id: 'equipment_photo',
-            small: '건설기계 사용전 점검',
-            title: '건설기계 사용전 사진 본사 전송',
-            badge: `전송 ${equipmentReports.length}건`,
-          },
-        ]
-      : [
-          {
-            id: 'training_04',
-            small: '04 본사 하달 교육',
-            title: '04 대표이사 12개국어 교육 이행',
-            badge: `캠페인 ${trainingCampaigns.length}건`,
-          },
-          {
-            id: 'investigate_05_02',
-            small: '05 내 현장 아차사고',
-            title: '05 아차사고 상신 · 보완 재상신',
-            badge: `보완요청 ${revisionRequestedCount}건`,
-          },
-          {
-            id: 'visit_01',
-            small: '01 본사 순회점검 수신',
-            title: '01 본사 순회점검 지시 수신',
-            badge: `일정 ${visitPlans.length}건`,
-          },
-        ];
+        {
+          id: 'visit_01',
+          small: '01 본사 순회점검 수신',
+          title: '01 본사 순회점검 지시 수신',
+          badge: `일정 ${visitPlans.length}건`,
+        },
+      ];
 
   const resolvedActiveTab: NexusWorkbenchTab = visibleTabs.some(t => t.id === activeTab)
     ? activeTab

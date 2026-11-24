@@ -296,9 +296,13 @@ try {
     const lod=await mobileCanvas.getAttribute('data-lod');
     check('모바일 GPU 입자 LOD 자동 선택', ['mobile-standard','mobile-conservative'].includes(lod),
       {lod,source:'hardware hint only; not a physical device benchmark'});
-    const initialMotion=await mobileRoot.getByRole('button',{name:'모션 재생'}).count();
-    check('모바일은 모션 정지로 안전하게 시작',initialMotion===1,
-      {pausedOnMobile:true});
+    const initialPlaying=await mobileRoot.getByRole('button',{name:'모션 일시정지'}).count();
+    check('모바일은 모션 자동재생으로 시작하고 일시정지 가능',initialPlaying===1,
+      {autoPlayOnMobile:true});
+    await mobileRoot.getByRole('button',{name:'모션 일시정지'}).click();
+    check('모션 정지 후 재시작 버튼 표시',await mobileRoot.getByRole('button',{name:'모션 재생'}).count()===1,
+      {pausedByUserOnMobile:true});
+    await mobileRoot.getByRole('button',{name:'모션 재생'}).click();
     await mobileRoot.getByRole('button',{name:'12초 시네마틱 보기'}).click();
     const telemetry=await mobilePage.evaluate(async()=>{
       const intervals=[];

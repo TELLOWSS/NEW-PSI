@@ -26,6 +26,7 @@ import {
   type NexusProcessAxis,
   type NexusZoneAxis,
 } from '../../utils/nexusStructuralTaxonomy';
+import { NexusBeforeAfterSlider } from '../shared/NexusBeforeAfterSlider';
 import { compressFieldPhotoForNexus } from '../../utils/nexusSyncEngine';
 
 interface Props {
@@ -81,6 +82,7 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
   const [beforePhotoUrl, setBeforePhotoUrl] = useState('');
   const [beforePhotoName, setBeforePhotoName] = useState('');
   const [afterPhotoByCase, setAfterPhotoByCase] = useState<Record<string, string>>({});
+  const [sliderViewByCase, setSliderViewByCase] = useState<Record<string, boolean>>({});
   const [handoverPreviewText, setHandoverPreviewText] = useState('');
   const managedSites = useMemo(() => readManagedNexusSites(false), []);
   const [inspectorEqType, setInspectorEqType] = useState<NexusEquipmentType>('concrete_pump_car');
@@ -477,18 +479,44 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
                   </p>
                 )}
                 {(item.beforePhotoDataUrl || item.afterPhotoDataUrl) && (
-                  <div className="nexus-before-after-thumbs">
-                    {item.beforePhotoDataUrl && (
-                      <figure>
-                        <img src={item.beforePhotoDataUrl} alt="조치 전 사진" />
-                        <figcaption>조치 전</figcaption>
-                      </figure>
+                  <div className="nexus-photo-compare-wrap">
+                    {item.beforePhotoDataUrl && item.afterPhotoDataUrl && (
+                      <div className="nexus-ba-toggle-row">
+                        <button
+                          type="button"
+                          className="nexus-ba-toggle-btn"
+                          onClick={() =>
+                            setSliderViewByCase(prev => ({
+                              ...prev,
+                              [item.caseId]: !prev[item.caseId],
+                            }))
+                          }
+                        >
+                          {sliderViewByCase[item.caseId] ? '나란히 썸네일 보기' : '↔ 전/후 슬라이더 비교'}
+                        </button>
+                      </div>
                     )}
-                    {item.afterPhotoDataUrl && (
-                      <figure>
-                        <img src={item.afterPhotoDataUrl} alt="조치 후 재점검 사진" />
-                        <figcaption>조치 후</figcaption>
-                      </figure>
+                    {item.beforePhotoDataUrl && item.afterPhotoDataUrl && sliderViewByCase[item.caseId] ? (
+                      <NexusBeforeAfterSlider
+                        beforeUrl={item.beforePhotoDataUrl}
+                        afterUrl={item.afterPhotoDataUrl}
+                        label={`${item.locationLabel} 조치 전후 비교`}
+                      />
+                    ) : (
+                      <div className="nexus-before-after-thumbs">
+                        {item.beforePhotoDataUrl && (
+                          <figure>
+                            <img src={item.beforePhotoDataUrl} alt="조치 전 사진" />
+                            <figcaption>조치 전</figcaption>
+                          </figure>
+                        )}
+                        {item.afterPhotoDataUrl && (
+                          <figure>
+                            <img src={item.afterPhotoDataUrl} alt="조치 후 재점검 사진" />
+                            <figcaption>조치 후</figcaption>
+                          </figure>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}

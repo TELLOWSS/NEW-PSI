@@ -74,6 +74,8 @@ import {
 import { syncNexusOfflineQueueWithServer } from '../utils/nexusSyncEngine';
 import { buildExecutiveBentoSnapshot } from '../utils/nexusExecutiveBentoMetrics';
 import { NexusExecutiveBentoBoard } from '../components/shared/NexusExecutiveBentoBoard';
+import { NexusStructuralElevationMap } from '../components/shared/NexusStructuralElevationMap';
+import { buildRoleScopedCommands, type NexusCommandAction } from '../utils/nexusCommandPalette';
 import type { NexusStructuralIncidentSeed } from '../utils/nexusStructuralTaxonomy';
 import {
   NexusHqCommandWorkbench,
@@ -265,10 +267,12 @@ const SafetyNexus: React.FC<Props> = ({
     [],
   );
   const [sphereAngles, setSphereAngles] = useState<{ yaw: number; pitch: number }>(initialAngles);
+  const [zoomScale, setZoomScale] = useState(1);
   const [isDraggingSphere, setIsDraggingSphere] = useState(false);
-  const dragStateRef = useRef<{ active: boolean; startX: number; startY: number; startYaw: number; startPitch: number; moved: boolean }>({
-    active: false, startX: 0, startY: 0, startYaw: 0, startPitch: 0, moved: false,
+  const dragStateRef = useRef<{ active: boolean; startX: number; startY: number; startYaw: number; startPitch: number; moved: boolean; vx: number; vy: number; lastX: number; lastY: number }>({
+    active: false, startX: 0, startY: 0, startYaw: 0, startPitch: 0, moved: false, vx: 0, vy: 0, lastX: 0, lastY: 0,
   });
+  const inertiaRafRef = useRef<number>(0);
 
   const [isMobileViewport, setIsMobileViewport] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(max-width: 700px)').matches,
@@ -328,8 +332,18 @@ const SafetyNexus: React.FC<Props> = ({
     const timeout = setTimeout(() => setCinematicPlaying(false), 12000);
     return () => clearTimeout(timeout);
   }, [cinematicPlaying, cinematicNonce]);
-  const [paused, setPaused] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 700px)').matches);
+  const [paused, setPaused] = useState(false);
   const [reduced, setReduced] = useState(() => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
+  const [cmdQuery, setCmdQuery] = useState('');
+  const [floatingToast, setFloatingToast] = useState('');
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerToast = (msg: string) => {
+    setFloatingToast(msg);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setFloatingToast(''), 3200);
+  };
+  useEffect(() => () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); }, []);
   useEffect(() => {
     const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
     const onChange = (event: MediaQueryListEvent) => setReduced(event.matches);
@@ -367,6 +381,7 @@ const SafetyNexus: React.FC<Props> = ({
     if (flat) return;
     const targetEl = event.target as HTMLElement | null;
     if (targetEl?.closest('button')) return;
+    if (inertiaRafRef.current) cancelAnimationFrame(inertiaRafRef.current);
     dragStateRef.current = {
       active: true,
       startX: event.clientX,
@@ -374,6 +389,10 @@ const SafetyNexus: React.FC<Props> = ({
       startYaw: sphereAngles.yaw,
       startPitch: sphereAngles.pitch,
       moved: false,
+      vx: 0,
+      vy: 0,
+      lastX: event.clientX,
+      lastY: event.clientY,
     };
     setIsDraggingSphere(true);
   };
@@ -382,6 +401,10 @@ const SafetyNexus: React.FC<Props> = ({
     if (!dragStateRef.current.active || flat) return;
     const dx = event.clientX - dragStateRef.current.startX;
     const dy = event.clientY - dragStateRef.current.startY;
+    dragStateRef.current.vx = (event.clientX - dragStateRef.current.lastX) * 0.0075;
+    dragStateRef.current.vy = (event.clientY - dragStateRef.current.lastY) * 0.0065;
+    dragStateRef.current.lastX = event.clientX;
+    dragStateRef.current.lastY = event.clientY;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragStateRef.current.moved = true;
     const nextYaw = normalizeAngleRad(dragStateRef.current.startYaw + dx * 0.0075);
     const nextPitch = Math.max(-0.78, Math.min(0.78, dragStateRef.current.startPitch + dy * 0.0065));
@@ -392,6 +415,21 @@ const SafetyNexus: React.FC<Props> = ({
     if (!dragStateRef.current.active) return;
     dragStateRef.current.active = false;
     setIsDraggingSphere(false);
+    if (paused || reduced) return;
+    let vx = dragStateRef.current.vx;
+    let vy = dragStateRef.current.vy;
+    if (Math.hypot(vx, vy) < 0.002) return;
+    const stepInertia = () => {
+      vx *= 0.91;
+      vy *= 0.91;
+      if (Math.hypot(vx, vy) < 0.0005) return;
+      setSphereAngles(prev => ({
+        yaw: normalizeAngleRad(prev.yaw + vx),
+        pitch: Math.max(-0.78, Math.min(0.78, prev.pitch + vy)),
+      }));
+      inertiaRafRef.current = requestAnimationFrame(stepInertia);
+    };
+    inertiaRafRef.current = requestAnimationFrame(stepInertia);
   };
 
   const [filterMonth, setFilterMonth] = useState(initialView?.month ?? '');
@@ -709,6 +747,7 @@ const SafetyNexus: React.FC<Props> = ({
         trainingCampaigns: scopedData.trainingCampaigns,
       });
       setDailyBriefingNotice(`${deck.fileName} (${deck.totalSlides}슬라이드 PPTX) 파일을 생성·다운로드했습니다.`);
+      triggerToast(`📽️ ${deck.fileName} (${deck.totalSlides}슬라이드) 생성 완료`);
     } catch (err) {
       setDailyBriefingNotice(err instanceof Error ? err.message : 'PPTX 생성 중 확인이 필요합니다.');
     }
@@ -729,10 +768,107 @@ const SafetyNexus: React.FC<Props> = ({
         `[${res.bundleId}] ${res.fileName} (총 ${res.fileCount}개 파일 · 사진 ${res.embeddedPhotoCount}건 · 자필서명 ${res.embeddedSignatureCount}건 · SHA-256 매니페스트 포함) 편철 저장 완료!`,
       );
       setDailyBriefingNotice(`${res.fileName} 중대재해처벌법 증빙 ZIP 패키지를 저장했습니다.`);
+      triggerToast(`📦 ${res.fileName} 증빙 패키지(${res.fileCount}파일) 편철 완료`);
     } catch (err) {
       setComplianceNotice(err instanceof Error ? err.message : '증빙 패키지 편철 중 확인이 필요합니다.');
     }
   };
+
+  const paletteCommands = useMemo(
+    () =>
+      buildRoleScopedCommands({
+        workspaceRole: effectiveRole,
+        managedSites,
+        query: cmdQuery,
+      }),
+    [effectiveRole, managedSites, cmdQuery],
+  );
+
+  const executePaletteCommand = (cmd: NexusCommandAction) => {
+    setCmdPaletteOpen(false);
+    setCmdQuery('');
+    if (cmd.targetKind === 'hq_view' && cmd.targetValue) {
+      handleSelectWorkspaceView(cmd.targetValue as NexusWorkspaceView);
+    } else if (cmd.targetKind === 'field_view' && cmd.targetValue) {
+      handleSelectWorkspaceView(cmd.targetValue as NexusWorkspaceView);
+    } else if (cmd.targetKind === 'workbench_tab' && cmd.targetValue) {
+      const tab = cmd.targetValue as NexusWorkbenchTab;
+      if (effectiveRole === 'hq') {
+        setActiveView('hq_ops');
+      } else {
+        setActiveView(
+          tab === 'inspect_03_06' || tab === 'equipment_photo' ? 'field_ops' : 'field_inbox',
+        );
+      }
+      setWorkbenchTab(tab);
+    } else if (cmd.targetKind === 'export_pptx') {
+      void handleExportCeoPptx();
+    } else if (cmd.targetKind === 'export_compliance_zip') {
+      void handleDownloadComplianceZip();
+    } else if (cmd.targetKind === 'select_site' && effectiveRole === 'hq') {
+      setHqSelectedSiteId(cmd.targetValue || '');
+      triggerToast(cmd.targetValue ? `현장 필터 전환: ${cmd.label}` : '전사 전체 현장 범위로 전환');
+    } else if (cmd.targetKind === 'sync_queue') {
+      void syncNexusOfflineQueueWithServer().then(telemetry => {
+        setOfflinePendingCount(telemetry.pendingCount);
+        setIsOnlineState(telemetry.online);
+        setSyncNotice(telemetry.message);
+        triggerToast(`🔄 ${telemetry.message}`);
+      });
+    } else if (cmd.targetKind === 'toggle_immersive') {
+      setImmersive(v => !v);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const onGlobalKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCmdPaletteOpen(v => !v);
+        return;
+      }
+      if (e.key === 'Escape' && cmdPaletteOpen) {
+        setCmdPaletteOpen(false);
+        return;
+      }
+      if (
+        e.key.toLowerCase() === 'f' &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement)
+      ) {
+        setImmersive(v => !v);
+      }
+    };
+    document.addEventListener('keydown', onGlobalKey);
+    return () => document.removeEventListener('keydown', onGlobalKey);
+  }, [cmdPaletteOpen]);
+
+  useEffect(() => {
+    if (!cmdPaletteOpen) setCmdQuery('');
+  }, [cmdPaletteOpen, effectiveRole]);
+
+  const stopWorkCountLive = scopedData.pipelineCases.filter(
+    c => c.stopWorkFlag && c.status !== 'closed',
+  ).length;
+  const liveAlertLevel =
+    stopWorkCountLive > 0
+      ? Math.min(1, 0.65 + stopWorkCountLive * 0.15)
+      : scopedData.pipelineCases.some(c => c.status !== 'closed' && c.dueDate && c.dueDate < followup.asOfDate)
+        ? 0.45
+        : 0;
+  const firstAlertCase =
+    scopedData.pipelineCases.find(c => c.stopWorkFlag && c.status !== 'closed') ??
+    scopedData.pipelineCases.find(c => c.status !== 'closed');
+  const liveAlertVec = useMemo(() => {
+    if (firstAlertCase && nodeUnitVecs.length > 0) {
+      const idx = Math.max(0, Math.min(nodeUnitVecs.length - 1, Number(firstAlertCase.structuralNodeIndex) - 1));
+      return nodeUnitVecs[idx] ?? nodeUnitVecs[safeActive] ?? nodeUnitVecs[0];
+    }
+    return nodeUnitVecs[safeActive] ?? nodeUnitVecs[0];
+  }, [firstAlertCase, nodeUnitVecs, safeActive]);
 
   const handleSelectWorkspaceView = (nextView: NexusWorkspaceView) => {
     setActiveView(nextView);
@@ -780,6 +916,7 @@ const SafetyNexus: React.FC<Props> = ({
     <header className="nexus-header">
       <div className="nexus-brand"><span className="nexus-symbol">Ψ</span><div><small>SOVEREIGN SAFETY INTELLIGENCE</small><h1>SAFETY <b>NEXUS</b></h1></div></div>
       <div className="nexus-header-right"><span className="nexus-status"><i />GOLD ASTROLABE · 골조·형틀 3D 통합관제</span>
+        <button type="button" className="nexus-cmd-trigger" onClick={() => setCmdPaletteOpen(true)} aria-label="빠른 실행 커맨드 팔레트 열기">🔍 빠른 이동 (Ctrl+K)</button>
         <button ref={immersiveToggleRef} type="button" className="nexus-immersive-toggle" aria-pressed={immersive} onClick={() => setImmersive(v => !v)}>{immersive ? '몰입 화면 종료 ↙' : '전체 화면 몰입 보기 ⤢'}</button>
         <button type="button" onClick={() => onReturnDashboard ? onReturnDashboard(filterTrade) : onNavigateToPage('dashboard')}>기존 관제센터로 돌아가기 ↗</button></div>
     </header>
@@ -1063,6 +1200,17 @@ const SafetyNexus: React.FC<Props> = ({
         <h2>골조·형틀 안전지능을<br /><em>하나의 황금 구체로.</em></h2>
         <p>지하 RC구조물부터 상부 갱폼·동바리·타설까지, 현장 점검과 AI 분석·12개국어 교육·본사 승인을 하나의 궤도로 통합합니다.</p>
         <div className="nexus-aside-rule" />
+        <NexusStructuralElevationMap
+          pipelineCases={scopedData.pipelineCases}
+          activeZoneAxis={axisFilter.zoneAxis}
+          activeNodeIndex={selected.index}
+          onSelectFloor={(zoneAxis, structuralNodeIndex) => {
+            setOrbitLayer('structural');
+            setAxisFilter(prev => ({ ...prev, zoneAxis }));
+            lockOntoNode(Math.max(0, Number(structuralNodeIndex) - 1), 'structural');
+            triggerToast(`🏗️ 단면 구간 록온 (#${structuralNodeIndex})`);
+          }}
+        />
         <div className="nexus-record-count"><span>연동된 위험성평가 레코드</span><strong>{count.toLocaleString('ko-KR')}<small> 건</small></strong></div>
         <div className="nexus-perception" aria-label="근로자가 직접 선택한 자가평가 등급의 분포">
           <span>WORKER RISK PERCEPTION</span>
@@ -1181,6 +1329,9 @@ const SafetyNexus: React.FC<Props> = ({
             pitch={sphereAngles.pitch}
             layerTone={currentLayerMeta.tone}
             nodeVecs={nodeUnitVecs}
+            alertLevel={liveAlertLevel}
+            alertVec={liveAlertVec}
+            zoomScale={zoomScale}
             fallback={<CoreArt active={safeActive} paused={paused} reduced={reduced} sequenceNonce={cinematicNonce} cinematicActive={cinematicPlaying} yaw={sphereAngles.yaw} pitch={sphereAngles.pitch} />}
           />}
           {!flat && <div className="nexus-nucleus" aria-hidden="true" />}
@@ -1280,8 +1431,10 @@ const SafetyNexus: React.FC<Props> = ({
         <div className="nexus-visual-foot">
           <span>{currentLayerMeta.subtitle}</span>
           <div className="nexus-orbit-controls" role="group" aria-label="구체 포인트 회전 제어">
+            <button type="button" onClick={() => setZoomScale(z => Math.max(0.8, Number((z - 0.1).toFixed(2))))} aria-label="구체 축소">－</button>
+            <button type="button" onClick={() => setZoomScale(z => Math.min(1.32, Number((z + 0.1).toFixed(2))))} aria-label="구체 확대">＋</button>
             <button type="button" onClick={() => { setSelectedSeedIdx(0); lockOntoNode(safeActive - 1); }} aria-label="이전 구체 포인트">◀ 이전</button>
-            <button type="button" onClick={() => lockOntoNode(safeActive)} aria-label="선택 포인트 정면 정렬">◎ 정면 록온</button>
+            <button type="button" onClick={() => { setZoomScale(1); lockOntoNode(safeActive); }} aria-label="선택 포인트 정면 정렬">◎ 정면 록온</button>
             <button type="button" onClick={() => { setSelectedSeedIdx(0); lockOntoNode(safeActive + 1); }} aria-label="다음 구체 포인트">다음 ▶</button>
           </div>
         </div>
@@ -1579,6 +1732,13 @@ const SafetyNexus: React.FC<Props> = ({
           onSelectSiteBar={siteId => {
             setHqSelectedSiteId(siteId === hqSelectedSiteId ? '' : siteId);
           }}
+          onSelectKpi={kpiKey => {
+            setActiveView('hq_ops');
+            if (kpiKey === 'equipment') setWorkbenchTab('equipment_photo');
+            else if (kpiKey === 'training') setWorkbenchTab('training_04');
+            else if (kpiKey === 'hq_command') setWorkbenchTab('investigate_05_02');
+            else setWorkbenchTab('inspect_03_06');
+          }}
         />
       </div>
     )}
@@ -1740,6 +1900,80 @@ const SafetyNexus: React.FC<Props> = ({
     </>)}
     <footer className="nexus-footer"><span>PSI / SAFETY NEXUS</span><span>현재 불러온 기록의 탐색 화면입니다. 실제 현장 승인 통계와의 대조는 미완료입니다.</span>
       <label><input type="checkbox" checked={reduced} onChange={e => setReduced(e.target.checked)} /> 움직임 줄이기</label></footer>
+
+    {effectiveRole === 'field' && (
+      <div className="nexus-mobile-thumb-dock" role="navigation" aria-label="현장 한손 엄지 빠른 작업 바">
+        <button
+          type="button"
+          onClick={() => { setActiveView('field_ops'); setWorkbenchTab('inspect_03_06'); }}
+        >
+          ⚡ 30초 점검
+        </button>
+        <button
+          type="button"
+          onClick={() => { setActiveView('field_ops'); setWorkbenchTab('equipment_photo'); }}
+        >
+          🏗️ 기계사진
+        </button>
+        <button
+          type="button"
+          onClick={() => { setActiveView('field_inbox'); setWorkbenchTab('training_04'); }}
+        >
+          📱 QR 서명
+        </button>
+      </div>
+    )}
+
+    {cmdPaletteOpen && (
+      <div
+        className="nexus-cmd-palette-backdrop"
+        role="dialog"
+        aria-modal="true"
+        aria-label="안전지능 빠른 실행 커맨드 팔레트"
+        onClick={() => setCmdPaletteOpen(false)}
+      >
+        <div className="nexus-cmd-palette-dialog" onClick={e => e.stopPropagation()}>
+          <div className="nexus-cmd-palette-head">
+            <input
+              type="text"
+              autoFocus
+              aria-label="빠른 실행 명령 검색"
+              value={cmdQuery}
+              onChange={e => setCmdQuery(e.target.value)}
+              placeholder={
+                effectiveRole === 'hq'
+                  ? '검색 (예: 제2현장, PPTX, 증빙 ZIP, 작업중지, 순회...)'
+                  : '내 현장 빠른 이동 (예: 30초, 기계사진, QR, 동기화...)'
+              }
+            />
+            <button type="button" onClick={() => setCmdPaletteOpen(false)}>Esc</button>
+          </div>
+          <ul className="nexus-cmd-palette-list">
+            {paletteCommands.length === 0 ? (
+              <li className="is-empty">일치하는 빠른 실행 명령이 없습니다.</li>
+            ) : (
+              paletteCommands.map(cmd => (
+                <li key={cmd.id}>
+                  <button type="button" onClick={() => executePaletteCommand(cmd)}>
+                    <div>
+                      <strong>{cmd.label}</strong>
+                      <small>{cmd.description}</small>
+                    </div>
+                    <span>{cmd.badge}</span>
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      </div>
+    )}
+
+    {floatingToast && (
+      <div className="nexus-floating-toast" role="status" aria-live="polite">
+        {floatingToast}
+      </div>
+    )}
   </main>;
   return immersive && typeof document !== 'undefined' ? createPortal(surface, document.body) : surface;
 };

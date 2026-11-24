@@ -53,9 +53,14 @@ try {
     (await root.locator('.nexus-node.node-0').getAttribute('aria-pressed')) === 'true',
   );
   await root.getByRole('button', { name: '3축 필터 초기화' }).click();
+  await root.locator('.nexus-elevation-buttons button', { hasText: '지하 RC 외벽 · 합벽' }).click();
+  recordCheck(
+    'G2 Elevation Minimap floor click locks 3D sphere onto Node 01',
+    (await root.locator('.nexus-node.node-0').getAttribute('aria-pressed')) === 'true',
+  );
   await root.locator('.nexus-header').scrollIntoViewIfNeeded();
   await page.waitForTimeout(200);
-  await page.screenshot({ path: resolve(outDir, 'nexus-v2-hero-1440.png'), fullPage: false });
+  await page.screenshot({ path: resolve(outDir, 'nexus-v3-hero-1440.png'), fullPage: false });
 
   // View ②: HQ Executive Briefing BI + Unified 1-Page CEO Daily Briefing Sheet
   await root.getByRole('tab', { name: '② 경영 브리핑 BI' }).click();
@@ -88,7 +93,17 @@ try {
     'HQ BI View renders Recharts ComposedChart SVG',
     (await biView.locator('.nexus-bento-chart-box svg').count()) >= 1,
   );
-  await page.screenshot({ path: resolve(outDir, 'nexus-v2-hq-bi-1440.png'), fullPage: false });
+  await page.screenshot({ path: resolve(outDir, 'nexus-v3-bi-1440.png'), fullPage: false });
+
+  // Verify G3 Bento KPI Card drill-down to HQ Ops
+  await biView.getByRole('button', { name: /건설기계 사용전 사진보고/ }).click();
+  recordCheck(
+    'G3 Bento KPI card click drills down directly to HQ Ops equipment tab',
+    (await root.locator('.nexus-workbench').isVisible()) &&
+      (await root.getByLabel('건설기계 사진 본사 검토자').count()) === 1,
+  );
+  await root.getByRole('tab', { name: '② 경영 브리핑 BI' }).click();
+  await biView.waitFor({ state: 'visible', timeout: 10000 });
 
   await biView.getByRole('gridcell').first().click();
   recordCheck(
@@ -97,18 +112,36 @@ try {
       (await root.locator('.nexus-node.selected').count()) === 1,
   );
 
-  // View ③: HQ Approvals, Equipment Batch Verify, Photo Lightbox, CEO Pack & All-Sites Directive
+  // U3 Ctrl+K Command Palette in HQ mode + capture screenshot
+  await page.keyboard.press('Control+k');
+  const cmdDialog = root.getByRole('dialog', { name: '안전지능 빠른 실행 커맨드 팔레트' });
+  await cmdDialog.waitFor({ state: 'visible', timeout: 5000 });
+  await cmdDialog.getByLabel('빠른 실행 명령 검색').fill('PPTX');
+  recordCheck(
+    'U3 Ctrl+K Command Palette opens in HQ mode and filters CEO PPTX action',
+    (await cmdDialog.getByRole('button', { name: /PPTX/ }).count()) >= 1,
+  );
+  await page.screenshot({ path: resolve(outDir, 'nexus-v3-palette-1440.png'), fullPage: false });
+  await page.keyboard.press('Escape');
+  recordCheck(
+    'Pressing Escape closes Command Palette',
+    (await cmdDialog.count()) === 0,
+  );
+
+  // View ③: HQ Approvals, Equipment Batch Verify, Lightbox Prev/Next & Inline Decision, CEO Pack & All-Sites Directive
   await root.getByRole('tab', { name: '③ 본사 결재·보고·순회' }).click();
   await root.locator('.nexus-workbench').waitFor({ state: 'visible', timeout: 10000 });
   recordCheck('HQ Ops Studio displays 5 HQ tabs', (await root.locator('.nexus-workbench-tab').count()) === 5);
 
   await root.getByLabel('건설기계 사진 본사 검토자').fill('본사 안전보건실 박실장');
-  // Open photo lightbox zoom & close with Escape
+  // Open photo lightbox zoom, navigate Next/Prev & close with Escape
   await root.locator('.nexus-equip-thumb-btn').first().click();
   recordCheck(
-    'Clicking equipment photo opens full Lightbox zoom modal',
-    (await root.getByRole('dialog', { name: '건설기계 점검 사진 확대 보기' }).count()) === 1,
+    'Clicking equipment photo opens full Lightbox zoom modal with Next button',
+    (await root.getByRole('dialog', { name: '건설기계 점검 사진 확대 보기' }).count()) === 1 &&
+      (await root.getByRole('button', { name: '다음 사진 보기' }).count()) === 1,
   );
+  await root.getByRole('button', { name: '다음 사진 보기' }).click();
   await page.keyboard.press('Escape');
   recordCheck(
     'Pressing Escape closes equipment photo Lightbox modal',
@@ -300,6 +333,19 @@ try {
     (await root.locator('.nexus-visit-ack-badge').count()) >= 1,
   );
 
+  // Verify Field Command Palette isolates HQ commands & other sites
+  await root.getByRole('button', { name: '빠른 실행 커맨드 팔레트 열기' }).click();
+  const fieldPalette = root.getByRole('dialog', { name: '안전지능 빠른 실행 커맨드 팔레트' });
+  await fieldPalette.waitFor({ state: 'visible', timeout: 5000 });
+  const fieldPaletteText = await fieldPalette.innerText();
+  recordCheck(
+    'Field Command Palette hides HQ PPTX/ZIP and other sites',
+    !fieldPaletteText.includes('PPTX') &&
+      !fieldPaletteText.includes('제2현장') &&
+      fieldPaletteText.includes('30초 현장 점검'),
+  );
+  await page.keyboard.press('Escape');
+
   // =========================================================================
   // PART C: 6-Viewport Responsive Overflow Verification across HQ & Field Views
   // =========================================================================
@@ -318,10 +364,16 @@ try {
       recordCheck(`${vp.width}px Field ${fView} zero horizontal overflow`, dim.scroll <= dim.client + 2, dim);
     }
     if (vp.width === 390) {
+      await root.getByRole('tab', { name: '③ 내 현장 3D 구체' }).click();
+      recordCheck(
+        '390px mobile starts motion playback enabled (data-motion-paused=false) & shows thumb dock',
+        (await root.getAttribute('data-motion-paused')) === 'false' &&
+          (await root.locator('.nexus-mobile-thumb-dock').isVisible()),
+      );
       await root.getByRole('tab', { name: '① 현장 즉시 실행' }).click();
       await root.locator('.nexus-header').scrollIntoViewIfNeeded();
       await page.waitForTimeout(150);
-      await page.screenshot({ path: resolve(outDir, 'nexus-v2-field-mobile-390.png'), fullPage: true });
+      await page.screenshot({ path: resolve(outDir, 'nexus-v3-mobile-field-390.png'), fullPage: false });
     }
     await root.getByRole('button', { name: /본사 통합 관제 \(전사\)/ }).click();
     for (const hView of ['① 3D 전사 지휘', '② 경영 브리핑 BI', '③ 본사 결재·보고·순회']) {
