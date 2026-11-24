@@ -1,7 +1,8 @@
-import {afterEach,describe,expect,it,vi} from 'vitest';
+import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {freeRegistrationChallenge,registerFreeProject,readFreeProfile,freeProfileCookie,writeFreeProfileCookie} from '../lib/server/admin/inspectorFreeRegistration';
 import {inspectorBillingStatus} from '../lib/server/admin/inspectorBilling';
 const c={provider:'gemini',model:'gemini-3.5-flash-lite',key:'synthetic-key',ready:true};
+beforeEach(()=>{vi.useFakeTimers();vi.setSystemTime(new Date('2026-11-10T09:00:00+09:00'));});
 afterEach(()=>{vi.unstubAllEnvs();vi.useRealTimers();});
 function setup(){vi.stubEnv('ADMIN_SESSION_SECRET','s'.repeat(40));vi.stubEnv('PSI_INSPECTOR_GOOGLE_BILLING_READER_JSON','');}
 describe('explicit operator free registration',()=>{

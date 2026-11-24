@@ -1,4 +1,4 @@
-import {afterEach,describe,it,expect,vi} from 'vitest';
+import {afterEach,beforeEach,describe,it,expect,vi} from 'vitest';
 import {generateKeyPairSync,createHash} from 'node:crypto';
 import {inspectorBillingStatus} from '../lib/server/admin/inspectorBilling';
 import {normalizeAiCost} from '../lib/inspector/aiCost';
@@ -9,6 +9,7 @@ function setup(billing:any={name:'projects/123/billingInfo',billingEnabled:false
  const replies=[{access_token:'synthetic-oauth-token'},{parent:'projects/123/locations/global',name:'projects/123/locations/global/keys/fixture-key'},billing];
  const fetch=vi.fn(async(_url:string,_init:RequestInit)=>({ok:true,json:async()=>replies.shift()}));vi.stubGlobal('fetch',fetch);return {fetch,replies};
 }
+beforeEach(()=>{vi.useFakeTimers();vi.setSystemTime(new Date('2026-11-10T09:00:00+09:00'));});
 afterEach(()=>{vi.unstubAllGlobals();vi.unstubAllEnvs();vi.useRealTimers();});
 describe('free-only inference billing gate',()=>{
  it('fails closed without reader credentials and makes no external request',async()=>{vi.stubEnv('PSI_INSPECTOR_GOOGLE_BILLING_READER_JSON','');const fetch=vi.fn();vi.stubGlobal('fetch',fetch);expect(await inspectorBillingStatus(config)).toMatchObject({state:'unverified',allowed:false,remainingRequests:null});expect(fetch).not.toHaveBeenCalled();expect(normalizeAiCost({ready:true})).toMatchObject({allowed:false});});
