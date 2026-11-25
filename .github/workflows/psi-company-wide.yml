@@ -70,10 +70,16 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Build production client for full-product browser checks
         run: npm run build
+      - name: L38 verify Living UI real CSS animation and reduced-motion on current main baseline
+        run: node scripts/verify-psi-living-motion-browser.mjs
+      - name: Independently render legacy three-page synthetic PDF in Chromium
+        run: node scripts/verify-psi-legacy-pdf-split.mjs
+      - name: L06 Q1-Q5 worker trial entry, review and no-server-receipt (synthetic Chromium)
+        run: node scripts/verify-psi-l06-worker-draft.mjs
+      - name: L06 manager read-only revision comparison lab and production denial (synthetic Chromium)
+        run: node scripts/verify-psi-l06-revision-lab.mjs
       - name: Independently verify seven product and transparency journeys
         run: node scripts/verify-psi-company-browser.mjs
-      - name: Verify actual Living UI page animations and reduced-motion CSS in Chromium
-        run: node scripts/verify-psi-living-motion-browser.mjs
       - name: Verify Nexus evidence, navigation restoration and presentation rollback
         run: node scripts/verify-nexus-workflows.mjs
       - name: Test genuine synthetic PDF rendering and privacy postflight in desktop/mobile Chromium
@@ -84,6 +90,16 @@ jobs:
         run: node scripts/verify-psi-platform-field-canvas.mjs
       - name: Validate education, OCR, monthly guidance, A4 studio and reporting layout
         run: node scripts/verify-psi-platform-workspaces.mjs
+      - name: L15 keyboard modal and narrow viewport regression (synthetic Chromium)
+        run: node scripts/verify-psi-l15-accessibility.mjs
+      - name: L16 throttled-entry, offline-record reopen and zero server sync (synthetic)
+        run: node scripts/verify-psi-l16-resilience.mjs
+      - name: Recheck L17 source-only privacy and OSS gate in full browser context
+        run: node scripts/verify-psi-l17-security.mjs
+      - name: L18 integrate synthetic evidence and keep field/owner approval BLOCKED
+        run: node scripts/verify-psi-l18-release-gate.mjs --browser-evidence
+      - name: L35 P1 19-area evidence linkage after L18 synthetic Chromium gate
+        run: node scripts/verify-psi-p1-evidence.mjs --browser-evidence
       - name: Upload synthetic-only cross-department evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -98,5 +114,13 @@ jobs:
             artifacts/audit/psi-pdf/
             artifacts/audit/psi-platform-field-canvas/
             artifacts/audit/psi-platform-workspaces/
+            artifacts/audit/psi-l15-accessibility/
+            artifacts/audit/psi-l16-resilience/
+            artifacts/audit/psi-l17-security/
+            artifacts/audit/psi-l18-release-gate/
+            artifacts/audit/psi-p1-evidence/
+            artifacts/audit/psi-legacy-pdf-split/
+            artifacts/audit/psi-l06-worker-risk-draft/
+            artifacts/audit/psi-l06-revision-lab/
           if-no-files-found: ignore
           retention-days: 7

@@ -15,6 +15,7 @@ interface TopBarProps {
     sunlightMode?: boolean;
     onToggleSunlightMode?: () => void;
     patentBadge?: React.ReactNode;
+    quickFind?: React.ReactNode;
     controls?: React.ReactNode;
     statusLabel?: string;
     onGoToDashboard?: () => void;
@@ -33,6 +34,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     sunlightMode = false,
     onToggleSunlightMode,
     patentBadge,
+    quickFind,
     controls,
     statusLabel = '관리자 확인 기준',
     onGoToDashboard,
@@ -64,6 +66,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                             onClick={onOpenMobileMenu}
                             className="mr-1 flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white sm:mr-2 lg:hidden"
                             aria-label="메뉴 열기"
+                            aria-haspopup="dialog"
+                            aria-controls="psi-mobile-navigation-dialog"
                             aria-expanded={isMobileMenuOpen}
                         >
                             <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -106,6 +110,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                     </div>
 
                     {patentBadge}
+                    {quickFind}
 
                     <button
                         type="button"

@@ -1336,7 +1336,10 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         translationNeedsRefresh,
     });
     const reviewedLanguageCount = reviewLedgerRows.filter(row => row.status === 'recorded').length;
+    const nativeReviewNeededCount = reviewLedgerRows.filter(row => row.status === 'native-review-needed').length;
     const recheckLanguageCount = reviewLedgerRows.filter(row => row.status === 'recheck').length;
+    const currentReviewLedger = reviewLedgerRows.find(row => row.language === previewLanguage);
+    const currentNativeReviewNeeded = currentReviewLedger?.status === 'native-review-needed';
     const currentPreviewIsStaleTranslation = translationNeedsRefresh && previewLanguage !== 'ko-KR';
     const languageAudit = useMemo(() => buildEducationLanguageAudit({
         draft,
@@ -1822,7 +1825,9 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         try {
             saveA4ReviewStore(window.localStorage, entries);
             setLocalOutputReviews(readA4ReviewStore(window.localStorage));
-            setReviewSaveMessage('이 기기에 검수 확인 내용을 기록했습니다. 서버 승인이나 교육 완료 증명이 아닙니다.');
+            setReviewSaveMessage(previewLanguage !== 'ko-KR' && reviewerRole === 'site-manager'
+                ? '관리자 기기 확인을 기록했습니다. 모국어 안전지시 의미 대조는 아직 필요한 상태입니다. 서버 승인·교육 완료가 아닙니다.'
+                : '이 기기에 역할별 확인 내용을 기록했습니다. 번역 정확성 인증·서버 승인·교육 완료가 아닙니다.');
             setReviewChecks(newA4ReviewChecks());
         } catch {
             setReviewSaveMessage('이 기기의 저장공간 사용이 차단됐습니다. 검수 내용을 저장하지 못했습니다.');
@@ -3016,16 +3021,14 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                 <p className="mt-1 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">파일을 실제로 연 뒤 문자·문장·안전지시를 직접 확인했을 때만 체크하세요. 자동 판정이나 교육 완료 증명이 아닙니다.</p>
                             </div>
                             <span data-psi-a4-review-count="true" className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-800 dark:bg-slate-800 dark:text-slate-100">
-                                현재 자료 확인기록 {reviewedLanguageCount}/{reviewLanguageCodes.length}개 언어
+                                역할별 기기 확인기록 {reviewedLanguageCount}/{reviewLanguageCodes.length}개 언어 · 모국어 대조 대기 {nativeReviewNeededCount}
                             </span>
                         </div>
                         <div className="mt-3 flex flex-wrap gap-2" aria-label="언어별 기기 확인기록 현황">
                             {reviewLanguageCodes.map(code => {
-                                const checked = reviewDigests[code] && validA4Review(
-                                    localOutputReviews,
-                                    a4ReviewKey(educationMonth, workType, code),
-                                    reviewDigests[code],
-                                ) && (code === 'ko-KR' || !translationNeedsRefresh);
+                                const ledgerStatus = reviewLedgerRows.find(row => row.language === code)?.status;
+                                const checked = ledgerStatus === 'recorded';
+                                const managerOnly = ledgerStatus === 'native-review-needed';
                                 return (
                                     <button
                                         type="button"
@@ -3034,9 +3037,10 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                         onClick={() => { setPreviewLanguage(code); setViewMode('single'); }}
                                         className={`min-h-10 rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50 ${checked
                                             ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                                            : managerOnly ? 'border-amber-300 bg-amber-50 text-amber-950'
                                             : 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'}`}
                                     >
-                                        {TRAINING_LANGUAGE_LABELS[code as keyof typeof TRAINING_LANGUAGE_LABELS] || code} · {checked ? '기기 기록 있음' : '확인 필요'}
+                                        {TRAINING_LANGUAGE_LABELS[code as keyof typeof TRAINING_LANGUAGE_LABELS] || code} · {checked ? '역할별 기기 기록 있음' : managerOnly ? '모국어 대조 필요' : '확인 필요'}
                                     </button>
                                 );
                             })}
@@ -3044,7 +3048,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                         <div data-psi-a4-review-ledger="true" className="mt-4 space-y-3">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                                 <p className="text-xs font-black text-slate-700 dark:text-slate-200">
-                                    언어별 확인 현황 · 다시 확인 {recheckLanguageCount}개 · 미확인/계산 중 {reviewLedgerRows.length - reviewedLanguageCount - recheckLanguageCount}개
+                                    언어별 확인 현황 · 모국어 대조 대기 {nativeReviewNeededCount}개 · 다시 확인 {recheckLanguageCount}개 · 미확인/계산 중 {reviewLedgerRows.length - reviewedLanguageCount - nativeReviewNeededCount - recheckLanguageCount}개
                                 </p>
                                 <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">현재 대상월·공종·번역 기준 · 이 기기만</p>
                             </div>
@@ -3107,12 +3111,14 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                             </p>
                         </div>
                         <div className="mt-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-                            <p data-psi-a4-review-status={currentReview && !(previewLanguage !== 'ko-KR' && translationNeedsRefresh) ? 'recorded' : 'needs-review'} className="text-sm font-black text-slate-800 dark:text-slate-100">
+                            <p data-psi-a4-review-status={currentNativeReviewNeeded ? 'native-review-needed' : currentReviewLedger?.status === 'recorded' ? 'recorded' : 'needs-review'} className="text-sm font-black text-slate-800 dark:text-slate-100">
                                 현재 언어: {TRAINING_LANGUAGE_LABELS[previewLanguage as keyof typeof TRAINING_LANGUAGE_LABELS] || previewLanguage}
                                 {' · '}
-                                {currentReview && !(previewLanguage !== 'ko-KR' && translationNeedsRefresh)
-                                    ? `이 기기의 확인기록 있음 (${new Date(currentReview.checkedAt).toLocaleString('ko-KR')})`
-                                    : '확인기록 없음 또는 내용 변경으로 재확인 필요'}
+                                {currentNativeReviewNeeded
+                                    ? '관리자 기기 확인만 있음 · 모국어 확인자의 안전지시 의미 대조가 추가로 필요'
+                                    : currentReviewLedger?.status === 'recorded' && currentReview
+                                        ? `역할별 기기 확인기록 있음 (${new Date(currentReview.checkedAt).toLocaleString('ko-KR')}) · 배포·교육 이수 증거 아님`
+                                        : '확인기록 없음 또는 내용 변경으로 재확인 필요'}
                             </p>
                             <div className="mt-3 grid gap-3">
                                 {([
@@ -3143,6 +3149,11 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                         <option value="native-language-reviewer">모국어 확인자</option>
                                         <option value="joint-review">관리자와 모국어 확인자 공동</option>
                                     </select>
+                                    {previewLanguage !== 'ko-KR' && reviewerRole === 'site-manager' && (
+                                        <p data-psi-a4-native-role-caution="true" className="mt-2 text-xs font-semibold leading-5 text-amber-800 dark:text-amber-200">
+                                            관리자 확인만으로 해당 모국어의 위험·금지·작업중지 의미 검수 완료로 집계되지 않습니다. 모국어 확인자가 직접 원문과 대조해야 합니다.
+                                        </p>
+                                    )}
                                 </label>
                                 <button type="button" data-psi-a4-review-save="true" onClick={saveCurrentLocalReview}
                                     disabled={isExporting || !reviewDigests[previewLanguage] || !A4_REVIEW_CHECKS.every(check => reviewChecks[check]) || isOverflowing || (previewLanguage !== 'ko-KR' && translationNeedsRefresh)}

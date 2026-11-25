@@ -1,0 +1,161 @@
+// Synthetic Chromium QA for three-page, browser-local PDF rasterization.
+// This fixture contains only three colored pages, never real worker information.
+import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {mkdir,writeFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {chromium} from 'playwright';
+const host='http://127.0.0.1:5189';
+const buildPdf=()=>{
+ const colors=['0.9 0.1 0.1','0.1 0.9 0.1','0.1 0.1 0.9'];
+ const objects=[
+  '<< /Type /Catalog /Pages 2 0 R >>',
+  '<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>',
+  ...colors.map((_,i)=>'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << >> /Contents '+(i+6)+' 0 R >>'),
+  ...colors.map(rgb=>{
+   const content='q\n'+rgb+' rg\n0 0 595 842 re f\nQ\n';
+   return '<< /Length '+Buffer.byteLength(content)+' >>\nstream\n'+content+'endstream';
+  }),
+ ];
+ let data='%PDF-1.4\n';const offsets=[0];
+ objects.forEach((o,i)=>{offsets.push(Buffer.byteLength(data));data+=(i+1)+' 0 obj\n'+o+'\nendobj\n';});
+ const offset=Buffer.byteLength(data);
+ data+='xref\n0 '+(objects.length+1)+'\n0000000000 65535 f \n';
+ for(const n of offsets.slice(1))data+=String(n).padStart(10,'0')+' 00000 n \n';
+ data+='trailer\n<< /Root 1 0 R /Size '+(objects.length+1)+' >>\nstartxref\n'+offset+'\n%%EOF\n';
+ return [...Buffer.from(data)];
+};
+const pause=ms=>new Promise(r=>setTimeout(r,ms));
+const server=spawn(process.execPath,[resolve(process.cwd(),'node_modules/vite/bin/vite.js'),'--host','127.0.0.1','--port','5189','--strictPort'],{stdio:'ignore'});
+let browser;
+try {
+ let online=false;
+ for(let i=0;i<80;i++){
+  if(server.exitCode!==null)throw Error('Vite exited before readiness');
+  try{const response=await fetch(host+'/');if(response.ok){online=true;break;}}catch{}
+  await pause(250);
+ }
+ assert.ok(online,'Local Vite did not start');
+ browser=await chromium.launch({headless:true});
+ const page=await browser.newPage();
+ // Keep the browser origin for importing Vite modules, but do NOT mount the app,
+ // request the backend, or load personal workspace state during synthetic QA.
+ await page.route('**/*',route=>{
+  const url=route.request().url();
+  if(url===host+'/'&&route.request().isNavigationRequest())return route.fulfill({
+   status:200,contentType:'text/html',
+   body:'<!doctype html><html><body><p>Local PDF synthetic QA</p><div id="ocr-harness-root"></div></body></html>',
+  });
+  if(url.startsWith(host+'/')||url.startsWith('data:')||url.startsWith('blob:'))return route.continue();
+  return route.abort();
+ });
+ await page.goto(host+'/',{waitUntil:'domcontentloaded'});
+ const result=await page.evaluate(async bytes=>{
+  const mod=await import('/utils/ocrLocalPdfSplit.ts');
+  const file=new File([new Uint8Array(bytes)],'synthetic-three-pages.pdf',{type:'application/pdf'});
+  const info=await mod.inspectLocalPdfForOcr(file);
+  const progress=[];
+  const images=await mod.splitOcrPdfLocally(file,(n,t)=>progress.push([n,t]));
+  const duplicates=await mod.splitOcrPdfLocally(file);
+  const dedup=await import('/utils/ocrUploadQuality.ts');
+  const merged=dedup.mergeUniqueOcrFiles(images,duplicates);
+  const pixels=[];
+  for(const image of images){
+   const bitmap=await createImageBitmap(image);
+   const canvas=document.createElement('canvas');canvas.width=1;canvas.height=1;
+   const context=canvas.getContext('2d');
+   context.drawImage(bitmap,Math.round(bitmap.width/2),Math.round(bitmap.height/2),1,1,0,0,1,1);
+   pixels.push([...context.getImageData(0,0,1,1).data].slice(0,3));
+   bitmap.close();
+  }
+  return{info,progress,pixels,duplicateCount:merged.duplicateCount,addedCount:merged.addedCount,files:images.map(f=>({name:f.name,size:f.size,type:f.type,lastModified:f.lastModified}))};
+ },buildPdf());
+ assert.equal(result.info.pages,3);assert.equal(result.info.sizeOk,true);
+ assert.deepEqual(result.progress,[[1,3],[2,3],[3,3]]);
+ assert.equal(result.duplicateCount,3,'Repeat split must not add duplicate pages');
+ assert.equal(result.addedCount,0,'Repeat split must not add new records');
+ assert.deepEqual(result.files.map(f=>f.name),[
+  'synthetic-three-pages__p01_of_03.jpg','synthetic-three-pages__p02_of_03.jpg','synthetic-three-pages__p03_of_03.jpg'
+ ]);
+ assert.ok(result.files.every(f=>f.type==='image/jpeg'&&f.size>0&&f.size<=2.85*1024*1024));
+ for(let i=0;i<3;i++)assert.ok(result.pixels[i][i]>result.pixels[i][(i+1)%3]&&result.pixels[i][i]>result.pixels[i][(i+2)%3],'Page '+(i+1)+' color');
+ // Exercise the actual React upload UI, not just the pure PDF split helper.
+ // The original 3-page PDF must be blocked until explicitly split; after a
+ // successful split it must be replaced atomically by three independent JPGs.
+ await page.evaluate(async()=>{
+  // This test serves a minimal HTML shell, so explicitly initialize Vite's
+  // React refresh preamble before importing the actual TSX UI component.
+  const refresh=(await import('/@react-refresh')).default;
+  refresh.injectIntoGlobalHook(window);
+  window.$RefreshReg$=()=>{};
+  window.$RefreshSig$=()=>type=>type;
+  window.__vite_plugin_react_preamble_installed__=true;
+  await import('/scripts/fixtures/legacy-pdf-fileupload-harness.tsx');
+ });
+ await page.locator('#ocr-harness-state').waitFor();
+ // Playwright buffer uploads manufacture a fresh mtime on each selection;
+ // a worker selecting the SAME on-disk PDF retains its File.lastModified.
+ // Reuse one exact browser File to exercise the real identity/dedup contract.
+ await page.evaluate(bytes=>{
+  const source=new File([new Uint8Array(bytes)],'synthetic-three-pages.pdf',{
+   type:'application/pdf',lastModified:1700000000000,
+  });
+  window.__ocrQASourcePdf=source;
+  const input=document.querySelector('input[type=file]');
+  const transfer=new DataTransfer();
+  transfer.items.add(source);
+  input.files=transfer.files;
+  input.dispatchEvent(new Event('change',{bubbles:true}));
+ },buildPdf());
+ await page.waitForFunction(()=>document.querySelector('#ocr-harness-state')?.getAttribute('data-file-count')==='1');
+ await page.getByText('PDF 분리·확인 필요',{exact:true}).waitFor({timeout:20000});
+ const splitInput=page.locator('input[aria-label="여러 장 PDF의 기기 내 페이지 분리"]');
+ await page.evaluate(()=>{
+  const input=document.querySelector('input[aria-label="여러 장 PDF의 기기 내 페이지 분리"]');
+  const transfer=new DataTransfer();
+  transfer.items.add(window.__ocrQASourcePdf);
+  input.files=transfer.files;
+  input.dispatchEvent(new Event('change',{bubbles:true}));
+ });
+ try{
+ await page.waitForFunction(()=>{
+  const el=document.querySelector('#ocr-harness-state');
+  if(!el||el.getAttribute('data-file-count')!=='3')return false;
+  const files=JSON.parse(el.textContent||'[]');
+  return files.every(item=>item.name.endsWith('.jpg'))&&!files.some(item=>item.name.endsWith('.pdf'));
+ },undefined,{timeout:20000});
+ }catch(error){
+  console.error('[PSI LEGACY PDF] UI selection diagnostic:',{
+   files:await page.locator('#ocr-harness-state').textContent(),
+   status:await page.locator('[role=status]').allTextContents(),
+  });
+  throw error;
+ }
+ const uiPages=JSON.parse(await page.locator('#ocr-harness-state').textContent());
+ assert.deepEqual(uiPages.map(item=>item.name),result.files.map(item=>item.name),'UI must replace blocked original with three ordered JPEGs');
+ await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(
+  button=>button.textContent?.includes('여러 장 PDF 페이지별 나누기')&&!button.disabled
+ ));
+ await page.evaluate(()=>{
+  const input=document.querySelector('input[aria-label="여러 장 PDF의 기기 내 페이지 분리"]');
+  const transfer=new DataTransfer();
+  transfer.items.add(window.__ocrQASourcePdf);
+  input.files=transfer.files;
+  input.dispatchEvent(new Event('change',{bubbles:true}));
+ });
+ await page.getByText(/3개는 중복으로 제외했습니다/).waitFor({timeout:20000});
+ assert.deepEqual(JSON.parse(await page.locator('#ocr-harness-state').textContent()),uiPages,'Repeat UI split must not duplicate records');
+ await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(
+  button=>button.textContent?.includes('여러 장 PDF 페이지별 나누기')&&!button.disabled
+ ));
+ await splitInput.setInputFiles({name:'corrupt.pdf',mimeType:'application/pdf',buffer:Buffer.from('not a PDF')});
+ await page.getByText(/페이지 분리 실패:/).waitFor({timeout:20000});
+ assert.deepEqual(JSON.parse(await page.locator('#ocr-harness-state').textContent()),uiPages,'Failed split must preserve previous files');
+ assert.equal(await page.locator('#ocr-harness-state').getAttribute('data-analysis-clicks'),'0','Split must not trigger paid OCR analysis');
+ await mkdir('artifacts/audit/psi-legacy-pdf-split',{recursive:true});
+ await writeFile('artifacts/audit/psi-legacy-pdf-split/result.json',JSON.stringify({result:'SYNTHETIC_PASS',pages:3,names:result.files.map(f=>f.name),sizes:result.files.map(f=>f.size),note:'Synthetic browser pages only; not real handwriting accuracy.'},null,2)+'\n');
+ console.log('[PSI LEGACY PDF] SYNTHETIC_PASS: three independent page JPGs');
+}finally{
+ await browser?.close();
+ server.kill('SIGTERM');
+}

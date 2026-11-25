@@ -7,6 +7,9 @@ const InspectorStandalone = React.lazy(() => import('./pages/InspectorStandalone
 const FieldCamera = React.lazy(() => import('./pages/FieldCamera'));
 const TenantAccess = React.lazy(() => import('./pages/TenantAccess'));
 const WorkerTenantEducation = React.lazy(() => import('./pages/WorkerTenantEducation'));
+const WorkerRiskDraft = React.lazy(() => import('./pages/WorkerRiskDraft'));
+// Strictly local development UI; no real worker/admin records or auth.
+const PsiRevisionLabL06 = import.meta.env.DEV ? React.lazy(() => import('./pages/PsiRevisionLabL06')) : null;
 
 const RUNTIME_RECOVERY_RELOAD_KEY = 'psi_runtime_recovery_reload_once';
 const VERSION_MISMATCH_RELOAD_KEY = 'psi_version_mismatch_reload_once';
@@ -137,6 +140,12 @@ try {
         <React.Suspense fallback={<p role="status">현장 카메라를 준비합니다…</p>}><FieldCamera/></React.Suspense>
       ) : window.location.pathname.replace(/\/$/, '') === '/inspector' ? (
         <React.Suspense fallback={<p role="status">독립 사진점검 화면을 준비합니다…</p>}><InspectorStandalone/></React.Suspense>
+      ) : window.location.pathname.replace(/\/$/, '') === '/worker-risk-draft' ? (
+        <React.Suspense fallback={<p role="status">5문항 작성 연습 화면을 불러오는 중…</p>}><WorkerRiskDraft /></React.Suspense>
+      ) : window.location.pathname.replace(/\/$/, '') === '/_dev/psi-l06-revisions' ? (
+        PsiRevisionLabL06
+          ? <React.Suspense fallback={<p role="status">L06 가상 기록 대조 화면 준비 중…</p>}><PsiRevisionLabL06 /></React.Suspense>
+          : <main className="min-h-screen p-6" role="alert">해당 내부 검수 화면은 운영 환경에서 제공되지 않습니다.</main>
       ) : window.location.pathname === '/saas/education' ? (
         <React.Suspense fallback={<p role="status">개인 교육 화면을 불러오는 중…</p>}><WorkerTenantEducation /></React.Suspense>
       ) : window.location.pathname === '/saas/access' ? (

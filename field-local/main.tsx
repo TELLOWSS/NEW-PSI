@@ -1,9 +1,16 @@
 import React, {useEffect, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import InspectorLocalDraft from '../components/inspector/InspectorLocalDraft';
+import {runFieldDevicePreflight,formatFieldDeviceReport,type FieldDeviceReport} from './devicePreflight';
+import {FIELD_TRIAL_CASES,FIELD_TRIAL_OUTCOMES,initialFieldTrialAnswers,buildFieldTrialSummary,formatFieldTrialSummary,type FieldTrialAnswers,type FieldTrialOutcome} from './fieldManualTrial';
 import '../components/inspector/inspector-experience.css';
 import '../components/inspector/inspector-field-entry.css';
 import '../components/inspector/inspector-refresh.css';
+
+type FieldInstallPromptEvent = Event & {
+ prompt: () => Promise<void>;
+ userChoice: Promise<{outcome: string}>;
+};
 
 async function verifyWorker(worker:ServiceWorker):Promise<boolean>{
  return new Promise<boolean>((resolve,reject)=>{const channel=new MessageChannel(),timer=setTimeout(()=>{channel.port1.close();reject(new Error('오프라인 준비 확인 시간이 초과됐습니다.'));},10000);channel.port1.onmessage=e=>{clearTimeout(timer);channel.port1.close();resolve(e.data?.ok===true);};worker.postMessage({type:'VERIFY_LOCAL_ASSETS'},[channel.port2]);});
@@ -11,6 +18,69 @@ async function verifyWorker(worker:ServiceWorker):Promise<boolean>{
 function LocalEntry(){
  const [status,setStatus]=useState('이 기기에서 오프라인으로 열려면 온라인에서 먼저 준비해 주세요.');
  const [storageStatus,setStorageStatus]=useState('');
+ // L16: navigator.onLine is only a browser signal, never a successful server request.
+ const [browserOnline,setBrowserOnline]=useState(()=>navigator.onLine);
+ useEffect(()=>{
+  const update=()=>setBrowserOnline(navigator.onLine);
+  window.addEventListener('online',update);
+  window.addEventListener('offline',update);
+  return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update);};
+ },[]);
+ const [deviceReport,setDeviceReport]=useState<FieldDeviceReport|null>(null);
+ const [deviceReportStatus,setDeviceReportStatus]=useState('');
+ const checkDevice=async()=>{
+  setDeviceReportStatus('이 기기의 지원 API와 오프라인 준비 상태를 확인하고 있습니다.');
+  try{
+   const report=await runFieldDevicePreflight(verifyWorker);
+   setDeviceReport(report);
+   setDeviceReportStatus('지원상태 확인 완료. 아래 결과는 실제 현장 인수시험 통과가 아닙니다.');
+  }catch{
+   setDeviceReport(null);
+   setDeviceReportStatus('기기 지원상태를 확인하지 못했습니다. 실제 현장 시험을 별도 진행하세요.');
+  }
+ };
+ const copyDeviceReport=async()=>{
+  if(!deviceReport)return;
+  try{
+   if(!navigator.clipboard?.writeText)throw new Error('clipboard-unavailable');
+   await navigator.clipboard.writeText(formatFieldDeviceReport(deviceReport));
+   setDeviceReportStatus('진단 요약을 복사했습니다. 본문은 사진·기기 고유번호·근로자 기록을 포함하지 않습니다.');
+  }catch{setDeviceReportStatus('복사가 허용되지 않았습니다. 아래 내용을 직접 확인해 주세요.');}
+ };
+ // L40: self-reported manual observations exist only in component memory.
+ // Reload/discard loses them, and no answer is ever promoted to L18 approval.
+ const [fieldTrialAnswers,setFieldTrialAnswers]=useState<FieldTrialAnswers>(initialFieldTrialAnswers);
+ const [fieldTrialMessage,setFieldTrialMessage]=useState('');
+ const fieldTrialSummary=buildFieldTrialSummary(fieldTrialAnswers);
+ const copyFieldTrial=async()=>{
+  try{
+   if(!navigator.clipboard?.writeText)throw new Error('clipboard-unavailable');
+   await navigator.clipboard.writeText(formatFieldTrialSummary(fieldTrialSummary));
+   setFieldTrialMessage('자기보고 검수 요약을 복사했습니다. 독립 승인 증빙으로 자동 등록되지 않습니다.');
+  }catch{setFieldTrialMessage('복사가 허용되지 않았습니다. 직접 확인해 주세요. 이 페이지를 새로고침하면 선택은 사라집니다.');}
+ };
+ const [installPrompt,setInstallPrompt]=useState<FieldInstallPromptEvent|null>(null);
+ const [installStatus,setInstallStatus]=useState('설치 메뉴는 브라우저·기기에 따라 다릅니다. 설치하지 않아도 웹으로 점검할 수 있습니다.');
+ useEffect(()=>{
+  const onInstallOffer=(event:Event)=>{
+   if(!('prompt' in event))return;
+   event.preventDefault();
+   setInstallPrompt(event as FieldInstallPromptEvent);
+  };
+  const onInstalled=()=>{
+   setInstallPrompt(null);
+   setInstallStatus('브라우저가 설치 완료를 알렸습니다. 홈 화면에서 직접 실행하고, 오프라인 준비·기록 백업은 별도로 확인하세요.');
+  };
+  window.addEventListener('beforeinstallprompt',onInstallOffer);
+  window.addEventListener('appinstalled',onInstalled);
+  if(window.matchMedia?.('(display-mode: standalone)').matches){
+   setInstallStatus('설치형 화면에서 열렸습니다. 오프라인 준비 및 기록 보존 여부는 별도로 확인해야 합니다.');
+  }
+  return()=>{
+   window.removeEventListener('beforeinstallprompt',onInstallOffer);
+   window.removeEventListener('appinstalled',onInstalled);
+  };
+ },[]);
  useEffect(()=>{let active=true;void (async()=>{
   if(!('serviceWorker' in navigator))return;
   try{const registration=await navigator.serviceWorker.getRegistration('/field-local/');
@@ -39,6 +109,20 @@ function LocalEntry(){
   }catch{/* Denial or unsupported settings must never look like approval. */}
   setStorageStatus(space+' '+persistence+' 지속 보관이 허용되어도 사용자의 데이터 삭제나 기기 분실을 막지 못합니다. 중요한 기록은 별도로 백업하세요.');
  };
+ const requestInstall=async()=>{
+  const offer=installPrompt;
+  if(!offer)return;
+  setInstallPrompt(null);
+  try{
+   await offer.prompt();
+   const choice=await offer.userChoice;
+   setInstallStatus(choice.outcome==='accepted'
+    ?'설치 요청을 수락했습니다. 실제 설치·홈 화면 실행 여부를 확인하세요.'
+    :'설치 요청이 취소됐습니다. 웹 브라우저에서 계속 사용할 수 있습니다.');
+  }catch{
+   setInstallStatus('브라우저 설치 안내를 열지 못했습니다. 브라우저 메뉴에서 직접 설치할 수 있는지 확인하세요.');
+  }
+ };
  const prepare=async()=>{
   try{
    if(!('serviceWorker' in navigator))throw new Error('이 브라우저는 오프라인 준비를 지원하지 않습니다.');
@@ -55,9 +139,55 @@ function LocalEntry(){
  };
  return <main className="si-workspace si-quick si-refresh" style={{maxWidth:820,margin:'auto',padding:16}}>
   <h1>PSI 기기 점검</h1><p><strong>체험·직접 점검 · 이 기기 저장</strong></p><p>이 화면은 이 브라우저에 저장한 직접 점검만 엽니다. 관리자 클라우드 기록과 자동 동기화되지 않으며 유료 AI 분석을 호출하지 않습니다. 같은 브라우저 프로필을 공유하는 사람도 기록을 볼 수 있습니다. 휴대전화 사진첩에는 자동 저장되지 않습니다.</p><nav aria-label="점검 방식 이동"><a href="/camera">간편 현장 카메라</a> · <a href="/product">샘플 체험</a> · <a href="/inspector">관리자 클라우드 로그인</a></nav>
+  <section aria-label="현장 통신 상태" data-psi-l16-connectivity={browserOnline?'browser-online':'browser-offline'} style={{padding:'12px 14px',margin:'12px 0',border:'1px solid currentColor',borderRadius:12}}>
+   <strong role="status" aria-live="polite">{browserOnline?'브라우저 연결 신호: 온라인':'브라우저 연결 신호: 오프라인'}</strong>
+   <p style={{margin:'6px 0 0'}}>브라우저 신호일 뿐 현장 인터넷 속도·서버 접속 성공을 확인하지 않습니다. 통신이 끊겨도 기기 저장은 별도로 진행할 수 있지만, 사전 오프라인 준비가 없으면 이 페이지를 재실행하지 못할 수 있습니다. 연결 복구 시 클라우드로 자동 전송되지 않습니다.</p>
+  </section>
+  <section aria-label="기기 점검 설치 안내" style={{padding:'12px 0'}}>
+   <h2 style={{fontSize:'1.125rem',fontWeight:700}}>기기 점검을 홈 화면에서 열기</h2>
+   <p>설치는 진입 방식만 바꿉니다. 인터넷 없이 점검하려면 아래 '이 기기 오프라인 준비'가 별도로 성공해야 합니다. 설치·오프라인 준비 모두 서버 자동 전송이나 영구 보존을 뜻하지 않습니다.</p>
+   {installPrompt&&<button type="button" className="si-btn si-primary" onClick={()=>void requestInstall()}>이 기기에 설치 안내 열기</button>}
+   <p>설치 버튼이 보이지 않으면 Android Chrome·삼성 인터넷의 브라우저 메뉴에서 '앱 설치' 또는 '홈 화면에 추가'를 확인하세요. iPhone Safari는 공유 메뉴의 '홈 화면에 추가'를 이용합니다. 브라우저에 따라 제공되지 않을 수 있습니다.</p>
+   <p role="status" aria-live="polite">{installStatus}</p>
+  </section>
   <button type="button" className="si-btn si-primary" onClick={()=>void prepare()}>이 기기 오프라인 준비</button><p role="status">{status}</p>
   <p>최초 준비는 인터넷이 필요합니다. 브라우저 데이터 삭제·기기 분실 시 기록과 준비 파일이 사라질 수 있으므로 백업하세요.</p>
   <div aria-label="기기 저장 상태"><button type="button" className="si-btn" onClick={()=>void inspectStorage(false)}>저장 공간 확인</button> <button type="button" className="si-btn" onClick={()=>void inspectStorage(true)}>기록 지속 보관 요청</button>{storageStatus&&<p role="status">{storageStatus}</p>}</div>
+  <section aria-label="현장 기기 사전 점검" data-psi-p3-device-preflight style={{padding:'12px 14px',margin:'14px 0',border:'1px solid currentColor',borderRadius:12}}>
+   <h2 style={{fontSize:'1.125rem',fontWeight:700}}>현장 실기기 검수 준비</h2>
+   <p>이 기기의 브라우저 지원상태를 확인합니다. 자동 업로드·촬영·위치 조회 없이 실행하며, 결과는 서버 수신·현장 안전 승인·실기기 검수 완료를 뜻하지 않습니다.</p>
+   <button className="si-btn" type="button" onClick={()=>void checkDevice()}>기기 지원상태 확인</button>
+   <p role="status" aria-live="polite">{deviceReportStatus}</p>
+   {deviceReport&&<>
+    <p><strong>진단 전용 · 실기기 인수 미승인</strong></p>
+    <dl>{deviceReport.checks.map(item=><div data-psi-p3-check={item.id} key={item.id} style={{padding:'8px 0',borderBottom:'1px solid #cbd5e1'}}>
+      <dt style={{fontWeight:700}}>{item.label}</dt><dd style={{margin:0}}>{item.value} · {item.limit}</dd>
+    </div>)}</dl>
+    <p>다음은 직접 검수해야 합니다: 설치·오프라인 재실행·사진/메모 복원·실제 배터리/발열·200% 확대·TalkBack. API 감지만으로 합격 처리하지 않습니다.</p>
+    <button className="si-btn" type="button" onClick={()=>void copyDeviceReport()}>진단 요약 복사</button>
+   </>}
+  </section>
+  <section aria-label="현장 실기기 수동 검수" data-psi-p3-manual-trial style={{border:'1px solid currentColor',borderRadius:12,padding:'12px 14px',margin:'14px 0'}}>
+   <details>
+    <summary style={{cursor:'pointer',fontSize:'1.125rem',fontWeight:700,minHeight:44,padding:'8px 0'}}>현장 실기기 수동 검수 · 7개 단계</summary>
+    <p>이 항목은 실제 시험을 마친 사람이 직접 선택하는 <strong>자기보고 기록</strong>입니다. 자동 합격·서버 저장·관리자 승인 기능이 아닙니다. 사진, 근로자 이름, 현장 주소 등 개인정보를 적지 마세요.</p>
+    <p>선택은 이 페이지에만 임시 유지됩니다. 새로고침·종료하면 사라지므로 필요하면 아래에서 직접 요약을 복사하세요. 전체 항목을 확인으로 표시해도 출시 승인은 되지 않습니다.</p>
+    <div>
+     {FIELD_TRIAL_CASES.map(step=><div key={step.id} data-psi-p3-trial={step.id} style={{padding:'10px 0',borderBottom:'1px solid #cbd5e1'}}>
+      <label style={{display:'block',fontWeight:700,marginBottom:5}} htmlFor={'psi-trial-'+step.id}>{step.label}</label>
+      <p style={{fontSize:13,margin:'0 0 8px'}}>{step.instruction}</p>
+      <select id={'psi-trial-'+step.id} className="si-input" style={{display:'block',width:'100%',minHeight:44,maxWidth:440}} value={fieldTrialAnswers[step.id]}
+       onChange={event=>{const outcome=event.target.value as FieldTrialOutcome;setFieldTrialAnswers(current=>({...current,[step.id]:outcome}));setFieldTrialMessage('검수 결과는 이 화면에만 임시 반영됩니다. 자동 승인이나 저장은 되지 않습니다.');}}>
+       {FIELD_TRIAL_OUTCOMES.map(choice=><option key={choice.value} value={choice.value}>{choice.label}</option>)}
+      </select>
+     </div>)}
+    </div>
+    <p data-psi-p3-trial-counts aria-live="polite">직접 확인(자기보고) {fieldTrialSummary.observed} / 문제 {fieldTrialSummary.issues} / 시험 불가 {fieldTrialSummary.blocked} / 미실시 {fieldTrialSummary.notRun} (총 {fieldTrialSummary.total})</p>
+    <p><strong>SELF_REPORTED_UNVERIFIED · RELEASE=BLOCKED</strong></p>
+    <button type="button" className="si-btn" onClick={()=>void copyFieldTrial()}>수동 검수 요약 복사</button>
+    <p role="status" aria-live="polite">{fieldTrialMessage}</p>
+   </details>
+  </section>
   <InspectorLocalDraft offlineEntry/>
  </main>;
 }

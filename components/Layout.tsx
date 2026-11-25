@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Sidebar } from './Sidebar';
+import { Sidebar, getSidebarVisibleMenuItems } from './Sidebar';
+import { NavigationQuickFind } from './shell/NavigationQuickFind';
 import { Footer } from './Footer';
 import { AppShell } from './shell/AppShell';
 import { TopBar } from './shell/TopBar';
@@ -31,6 +32,8 @@ import {
 import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { getOperationalModeLabel, isPageVisibleByOperationalMode } from '../utils/operationalModeUtils';
+import { resolveMobileNavigation, type MobileTabId } from '../utils/mobileNavigationUtils';
+import { closeMobileMenuOnDesktop } from '../utils/mobileMenuViewportGuard';
 import {
     clearOnePointProofSession,
     getNextOnePointProofStage,
@@ -74,8 +77,6 @@ interface LayoutProps {
     workerRecords?: readonly WorkerRecord[];
     safetyCheckRecords?: readonly SafetyCheckRecord[];
 }
-
-type MobileTabId = 'home' | 'alerts' | 'profile' | 'predictive' | 'more';
 
 const resolveSiteTitle = (): string => {
     if (typeof window === 'undefined') return '현장 안전관리';
@@ -125,6 +126,8 @@ export const Layout: React.FC<LayoutProps> = ({
     const operatorMenuRef = useRef<HTMLDetailsElement>(null);
     const mobileMenuDialogRef = useRef<HTMLDivElement>(null);
     const mobileMenuPreviousFocusRef = useRef<HTMLElement | null>(null);
+    // A menu route selection must focus the page, not the button that opened the drawer.
+    const mobileMenuNavigatingRef = useRef(false);
     const { isDevMode, toggle: toggleDevMode } = useDevMode();
     const { mode: operationalMode, cycleMode: cycleOperationalMode } = useOperationalMode();
     const { copy: assessmentCycleCopy } = useAssessmentCycle();
@@ -167,62 +170,55 @@ export const Layout: React.FC<LayoutProps> = ({
     const siteTitle = resolveSiteTitle();
     const todayLabel = formatTodayLabel();
     const analysisModeLabel = isPaidApiMode ? '고급 분석 사용' : '기본 분석 사용';
+    const quickFindOptions = getSidebarVisibleMenuItems(operationalMode, uiAudienceMode, uiCompositionConfig)
+        .map(({ id }) => ({
+            page: id,
+            label: resolvePageLabel(id),
+            group: getProductGroupLabel(getRouteMeta(id).productGroup),
+        }));
 
-    const mobilePageGroupsBase: Record<MobileTabId, Page[]> = {
-        home: ['dashboard'],
-        alerts: ['ocr-analysis'],
-        profile: ['monthly-guidance-report'],
-        predictive: ['education-return', 'a4-education-material', 'reports', 'monthly-guidance-report', 'admin-training'],
-        more: ['performance-analysis', 'settings'],
-    };
+    const mobileNavigation = resolveMobileNavigation(
+        quickFindOptions.map(({ page }) => page),
+        currentPage,
+    );
 
-    const isMobilePageVisible = (page: Page) =>
-        isPageVisibleByOperationalMode(page, operationalMode)
-        && !uiCompositionConfig.hiddenSidebarPages.includes(page);
-
-    const filteredMobilePageGroups: Record<MobileTabId, Page[]> = {
-        home: mobilePageGroupsBase.home.filter(isMobilePageVisible),
-        alerts: mobilePageGroupsBase.alerts.filter(isMobilePageVisible),
-        profile: mobilePageGroupsBase.profile.filter(isMobilePageVisible),
-        predictive: mobilePageGroupsBase.predictive.filter(isMobilePageVisible),
-        more: mobilePageGroupsBase.more.filter(isMobilePageVisible),
-    };
-
-    const mobileBottomTabs: Array<{ id: MobileTabId; label: string; page?: Page; icon: React.ReactNode }> = [
+    const allMobileBottomTabs: Array<{ id: MobileTabId; label: string; page?: Page; icon: React.ReactNode }> = [
         {
             id: 'home',
             label: '홈',
-            page: filteredMobilePageGroups.home[0] || 'dashboard',
+            page: mobileNavigation.tabs.find((tab) => tab.id === 'home')?.page,
             icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>,
         },
         {
             id: 'alerts',
             label: '위험분석',
-            page: filteredMobilePageGroups.alerts[0],
+            page: mobileNavigation.tabs.find((tab) => tab.id === 'alerts')?.page,
             icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-3-3v6m8 5H4a2 2 0 01-2-2V6a2 2 0 012-2h16a2 2 0 012 2v12a2 2 0 01-2 2z" /></svg>,
         },
         {
             id: 'profile',
             label: '계도',
-            page: filteredMobilePageGroups.profile[0],
+            page: mobileNavigation.tabs.find((tab) => tab.id === 'profile')?.page,
             icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" /></svg>,
         },
         {
             id: 'predictive',
             label: '교육자료',
-            page: filteredMobilePageGroups.predictive[0],
+            page: mobileNavigation.tabs.find((tab) => tab.id === 'predictive')?.page,
             icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5s3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253" /></svg>,
         },
         {
             id: 'more',
             label: '더보기',
-            page: filteredMobilePageGroups.more[0] || 'performance-analysis',
+            page: undefined,
             icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6h.01M12 12h.01M12 18h.01" /></svg>,
         },
     ];
-    const activeMobileTab = (Object.entries(filteredMobilePageGroups).find(([, pages]) => pages.includes(currentPage))?.[0] as MobileTabId | undefined) ?? 'home';
+    const mobileBottomTabs = allMobileBottomTabs.filter((tab) => mobileNavigation.tabs.some((item) => item.id === tab.id));
+    const activeMobileTab = mobileNavigation.activeTab;
 
     const handlePageChange = (page: Page) => {
+        if (isMobileMenuOpen) mobileMenuNavigatingRef.current = true;
         if (currentPage === 'dashboard' || currentPage === 'safety-nexus') {
             navigationScroll.current.set(currentPage, mainRef.current?.scrollTop || 0);
         }
@@ -319,58 +315,87 @@ export const Layout: React.FC<LayoutProps> = ({
         };
     }, []);
 
-    // Keep keyboard focus inside the modal navigation and restore it when closed.
+    // A phone dialog becomes CSS-hidden at lg, but would otherwise leave the
+    // focus trap and body scroll lock active after landscape/desktop resize.
     useEffect(() => {
+        if (!isMobileMenuOpen) return;
+        return closeMobileMenuOnDesktop(
+            (query) => window.matchMedia(query),
+            () => setIsMobileMenuOpen(false),
+        );
+    }, [isMobileMenuOpen]);
+
+    // L15: Modal navigation must never tab into CSS-hidden elements or the page behind it.
+    useEffect(() => {
+        if (!isMobileMenuOpen) return;
+        const dialog = mobileMenuDialogRef.current;
+        const previousOverflow = document.body.style.overflow;
+        const getVisibleFocusable = (): HTMLElement[] => {
+            if (!dialog) return [];
+            const focusable = Array.from(dialog.querySelectorAll(
+                'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+            )) as HTMLElement[];
+            return focusable.filter((element) =>
+                element.getClientRects().length > 0 &&
+                getComputedStyle(element).visibility !== 'hidden' &&
+                !element.closest('[hidden],[inert],[aria-hidden="true"]'),
+            );
+        };
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape' && isMobileMenuOpen) {
+            if (event.key === 'Escape') {
+                event.preventDefault();
                 setIsMobileMenuOpen(false);
                 return;
             }
-
-            if (event.key === 'Tab' && isMobileMenuOpen) {
-                const dialog = mobileMenuDialogRef.current;
-                if (!dialog) return;
-                const focusable = Array.from(dialog.querySelectorAll(
-                    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-                )) as HTMLElement[];
-                const visibleFocusable = focusable.filter((element) => !element.hasAttribute('hidden') && element.getAttribute('aria-hidden') !== 'true');
-                if (visibleFocusable.length === 0) {
-                    event.preventDefault();
-                    dialog.focus();
-                    return;
-                }
-
-                const first = visibleFocusable[0];
-                const last = visibleFocusable[visibleFocusable.length - 1];
-                if (event.shiftKey && document.activeElement === first) {
-                    event.preventDefault();
-                    last.focus();
-                } else if (!event.shiftKey && document.activeElement === last) {
-                    event.preventDefault();
-                    first.focus();
-                }
+            if (event.key !== 'Tab') return;
+            const focusable = getVisibleFocusable();
+            if (focusable.length === 0) {
+                event.preventDefault();
+                dialog?.focus();
+                return;
+            }
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (!dialog?.contains(document.activeElement)) {
+                event.preventDefault();
+                (event.shiftKey ? last : first).focus();
+            } else if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
             }
         };
-
-        if (isMobileMenuOpen) {
-            document.addEventListener('keydown', handleKeyDown);
-            // Prevent body scroll when menu is open
-            document.body.style.overflow = 'hidden';
-            window.requestAnimationFrame(() => {
-                const dialog = mobileMenuDialogRef.current;
-                const firstFocusable = dialog?.querySelector<HTMLElement>('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])');
-                (firstFocusable || dialog)?.focus();
-            });
-        } else {
-            document.body.style.overflow = '';
-        }
-
+        document.body.style.overflow = 'hidden';
+        document.addEventListener('keydown', handleKeyDown);
+        const focusFrame = window.requestAnimationFrame(() => (getVisibleFocusable()[0] || dialog)?.focus());
         return () => {
+            window.cancelAnimationFrame(focusFrame);
             document.removeEventListener('keydown', handleKeyDown);
-            document.body.style.overflow = '';
-            if (isMobileMenuOpen) {
-                mobileMenuPreviousFocusRef.current?.focus();
+            document.body.style.overflow = previousOverflow;
+            // The mobile opener is CSS-hidden after an lg breakpoint change.
+            // Restore focus to it only while visible; otherwise put keyboard
+            // focus on the active desktop route rather than a hidden control.
+            const opener = mobileMenuPreviousFocusRef.current;
+            const canFocus = (element: HTMLElement | null): element is HTMLElement =>
+                Boolean(element?.isConnected && element.getClientRects().length > 0 &&
+                    getComputedStyle(element).visibility !== 'hidden');
+            const navigatedFromDrawer = mobileMenuNavigatingRef.current;
+            mobileMenuNavigatingRef.current = false;
+            if (navigatedFromDrawer) {
+                // React has now removed inert from the page. Focus the destination
+                // even when the user selected the already-active route.
+                window.requestAnimationFrame(() => mainRef.current?.focus({ preventScroll: true }));
+            } else if (canFocus(opener)) {
+                opener.focus();
+            } else {
+                const desktopRoute = document.querySelector<HTMLElement>(
+                    '[data-psi-desktop-sidebar] [aria-current="page"]',
+                );
+                if (canFocus(desktopRoute)) desktopRoute.focus();
             }
+            mobileMenuPreviousFocusRef.current = null;
         };
     }, [isMobileMenuOpen]);
 
@@ -526,8 +551,10 @@ export const Layout: React.FC<LayoutProps> = ({
 
     return (
         <AppShell
+            mobileDialogOpen={isMobileMenuOpen}
             desktopSidebar={
                 <Sidebar
+                    allowCollapse
                     currentPage={currentPage}
                     setCurrentPage={handlePageChange}
                     uiMode={uiAudienceMode}
@@ -543,6 +570,7 @@ export const Layout: React.FC<LayoutProps> = ({
                         ref={mobileMenuDialogRef}
                         className="fixed inset-0 z-50 no-print lg:hidden"
                         role="dialog"
+                        id="psi-mobile-navigation-dialog"
                         aria-modal="true"
                         aria-label="전체 메뉴"
                         tabIndex={-1}
@@ -583,6 +611,7 @@ export const Layout: React.FC<LayoutProps> = ({
                     analysisModeLabel={analysisModeLabel}
                     isMobileMenuOpen={isMobileMenuOpen}
                     onOpenMobileMenu={handleOpenMobileMenu}
+                    quickFind={<NavigationQuickFind options={quickFindOptions} onNavigate={handlePageChange} shortcutsDisabled={isMobileMenuOpen} />}
                     isDark={isDark}
                     themeMode={themeMode}
                     onToggleTheme={handleToggleTheme}
@@ -762,12 +791,12 @@ export const Layout: React.FC<LayoutProps> = ({
             }
             mobileBottomNav={currentPage === 'safety-inspector' ? undefined :
                 <nav className="psi-mobile-nav fixed inset-x-0 bottom-0 z-40 border-t px-2 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] pt-2 backdrop-blur transition-colors lg:hidden no-print" aria-label="모바일 하단 탐색">
-                    <div className="grid grid-cols-5 gap-1">
+                    <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${mobileBottomTabs.length}, minmax(0, 1fr))` }}>
                         {mobileBottomTabs.map((tab) => {
                             const isActive = tab.id === activeMobileTab;
                             const handleClick = () => {
                                 if (tab.id === 'more') {
-                                    setIsMobileMenuOpen(true);
+                                    handleOpenMobileMenu();
                                     return;
                                 }
                                 if (tab.page) {
@@ -780,13 +809,15 @@ export const Layout: React.FC<LayoutProps> = ({
                                     key={tab.id}
                                     type="button"
                                     onClick={handleClick}
-                                    className={`relative flex min-h-[60px] flex-col items-center justify-center rounded-xl px-1 py-2 text-[11px] font-bold transition-colors ${
+                                    className={`psi-mobile-nav-tab relative flex min-h-[60px] flex-col items-center justify-center rounded-xl px-1 py-2 text-[11px] font-bold transition-colors ${
                                         isActive
                                             ? 'bg-blue-50 text-blue-800 dark:bg-blue-500/15 dark:text-blue-200'
                                             : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
                                     }`}
-                                    aria-current={isActive ? 'page' : undefined}
+                                    aria-current={tab.page === currentPage ? 'page' : undefined}
+                                    data-active={isActive ? 'true' : undefined}
                                     aria-haspopup={tab.id === 'more' ? 'dialog' : undefined}
+                                    aria-controls={tab.id === 'more' ? 'psi-mobile-navigation-dialog' : undefined}
                                     aria-expanded={tab.id === 'more' ? isMobileMenuOpen : undefined}
                                 >
                                     <span>{tab.icon}</span>

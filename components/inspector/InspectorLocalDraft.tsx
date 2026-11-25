@@ -5,6 +5,8 @@ import {sourceReviewState} from '../../lib/inspector/sourceReview';
 import {FOLLOWUP_STATES, FOLLOWUP_LABELS, validateFollowup, validateAdditionalActions, overdue} from '../../lib/inspector/localFollowup.mjs';
 import {prepareFollowupChange,analyzeFollowupChangeTrace,TEMPORARY_CONTROL_REVIEWS} from '../../lib/inspector/localFollowupChangeTrace.mjs';
 import {buildDeferredActionGuide,buildDeferredActionAttention} from '../../lib/inspector/localDeferredActionGuide.mjs';
+import {buildLocalNextCheckPrompt} from '../../lib/inspector/localNextCheckPrompt.mjs';
+import LocalNextCheckPanel from './LocalNextCheckPanel';
 import {buildLocalRecheckQueue,summarizeLocalRecheckQueue,LOCAL_RECHECK_BUCKETS,LOCAL_RECHECK_LABELS,localCalendarDate} from '../../lib/inspector/localRecheckQueue.mjs';
 import {classifyLocalRestoreError,verifyLocalRestoreReadback} from '../../lib/inspector/localRestoreRecovery.mjs';
 import {localRecordMayDelete} from '../../lib/inspector/localRecordDeletionGuard.mjs';
@@ -787,6 +789,9 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  const [singleDraftState,setSingleDraftState]=useState<'loading'|'ready'|'saving'|'error'|'conflict'>('loading');
  const [singleSavedAt,setSingleSavedAt]=useState('');
  const noteEntryRef=useRef<HTMLTextAreaElement|null>(null);
+ // Focus is requested only after the photo readback and React's busy/disabled
+ // state have both committed. A rAF in the pending save can race disabled UI.
+ const focusSingleAfterCommitRef=useRef(false);
  const [finalSaveState,setFinalSaveState]=useState<'idle'|'saving'|'verified'|'error'>('idle');
  const [singleDraftMessage,setSingleDraftMessage]=useState('');
  const [unfinishedBusy,setUnfinishedBusy]=useState(false);
@@ -861,6 +866,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   setHandoffReceiptMessage('');
  },[rows,filter,handoffScope]);
  const recheckQueue=buildLocalRecheckQueue(rows);
+ const nextCheckPrompt=buildLocalNextCheckPrompt(recheckQueue);
  const recheckSummary=summarizeLocalRecheckQueue(recheckQueue) as Record<string, number> & {total:number};
  const recheckFilter=filter.startsWith('recheck:')?filter.slice('recheck:'.length):null;
  const recheckRecordIds=new Set(recheckQueue.filter(item=>item.bucket===recheckFilter).map(item=>item.recordId));
@@ -1024,6 +1030,28 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
   }
  });
  // A recheck jump never implies corrective action completion.
+ const jumpToNextSavedRecheck=async(recordId:string,actionId:string)=>{
+  if(busy||readState!=='ready')return;
+  try{
+   // Read the saved device version before navigating; another tab may have
+   // completed, deleted or reassigned the queue target since this render.
+   const fresh=await list();
+   const current=buildLocalNextCheckPrompt(buildLocalRecheckQueue(fresh));
+   if(!current.target||current.target.recordId!==recordId||current.target.actionId!==actionId){
+    setRows(fresh);
+    setMessage('다른 탭 또는 기기 저장 기록이 바뀌었습니다. 새 확인 대상을 다시 살펴보세요. 이전 우선순위로 이동하지 않았습니다.');
+    return;
+   }
+   // This is navigation, not an operator acknowledgement or server handoff.
+   setHandoffPrepared(null);setHandoffDeliveredByOperator(false);setHandoffReceivedByOperator(false);
+   setHandoffItemReports({});setHandoffReceiptMessage('');
+   setRows(fresh);
+   setRecheckJumpTarget({recordId,actionId});
+   setFilter('all');
+  }catch{
+   setMessage('기기 저장본을 다시 조회하지 못했습니다. 확인 대상을 열지 않았습니다. 저장 공간을 확인하고 다시 조회하세요.');
+  }
+ };
  const jumpToHandoffRecheck=(recordId:string,actionId:string)=>{
   void withVerifiedHandoff(()=>{
    // Even when the filter already equals 'all', temporary acknowledgements
@@ -1190,6 +1218,15 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
  useEffect(()=>{if(!photo){setUrl('');return;}const next=URL.createObjectURL(photo);setUrl(next);return()=>URL.revokeObjectURL(next);},[photo]);
  useEffect(()=>{setAfterReferenceChoice('primary');if(!afterCamera){setAfterReferences({primary:'',context:''});return;}const primary=URL.createObjectURL(afterCamera.photo),context=afterCamera.contextPhoto&&!afterCamera.contextDetached?URL.createObjectURL(afterCamera.contextPhoto):'';setAfterReferences({primary,context});return()=>{URL.revokeObjectURL(primary);if(context)URL.revokeObjectURL(context);};},[afterCamera]);
  useEffect(()=>{if(!photo&&!capturedAfter&&!localInputDraftHasContent({note,action,photoRole,siteContext:siteContextInput}))return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[photo,note,action,photoRole,siteContextInput,capturedAfter]);
+ useEffect(()=>{
+  if(!focusSingleAfterCommitRef.current||busy||singleDraftState!=='ready'||inputDraftState!=='ready')return;
+  focusSingleAfterCommitRef.current=false;
+  if(note.trim())return; // Never override a worker's existing or newly typed note.
+  const field=noteEntryRef.current;
+  if(!field||field.disabled)return;
+  field.focus({preventScroll:true});
+  field.scrollIntoView({block:'center',behavior:'auto'});
+ },[busy,singleDraftState,inputDraftState,note]);
  const reference=legalForText(note,new Date().toISOString());
  // Do not present legacy, unreviewed, expired, or withdrawn material as guidance.
  const reviewedCards=reference.cards.filter(card=>sourceReviewState(card.sourceReview).code==='reviewed');
@@ -1237,7 +1274,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
    singleDraftRef.current=next;setSingleSavedAt(next.savedAt);
    setSingleDraftState('ready');
    setSingleDraftMessage('사진을 이 브라우저에 임시 보관하고 다시 읽어 확인했습니다. 점검 기록 저장은 별도로 필요합니다.');
-   focusUnwrittenObservation();
+   focusSingleAfterCommitRef.current=true;
   }catch(error){
    setSingleDraftState(conflict?'conflict':'error');
    setSingleDraftMessage(conflict
@@ -2176,6 +2213,7 @@ export default function InspectorLocalDraft({offlineEntry=false}:{offlineEntry?:
     <h4>F10 · 지연 조치와 재점검 예정 관리</h4>
     <p>기기 날짜 {localCalendarDate()} 기준 · 재점검/조치 대상 {recheckSummary.total}건. 하나의 점검에 여러 조치 대상이 포함될 수 있습니다.</p>
     <p>기한 도래는 재점검 필요성을 알리는 <strong>조회용 분류</strong>입니다. 실제 통보·안전 확인·조치 완료·작업 재개 승인이 아닙니다.</p>
+    <LocalNextCheckPanel prompt={nextCheckPrompt} busy={busy} onOpen={(recordId,actionId)=>{void jumpToNextSavedRecheck(recordId,actionId);}}/>
     {(recheckSummary.conflict+recheckSummary.overdue+recheckSummary.today)>0&&<p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-amber-950">
      관리상 우선 확인: 기록 상충 {recheckSummary.conflict}건 · 기한 초과 {recheckSummary.overdue}건 · 오늘 확인 {recheckSummary.today}건.
      아래 상태별 버튼으로 점검 대상을 확인하세요. 이 집계는 실제 위험의 크기나 작업 재개 가능 여부를 자동 판정하지 않습니다.

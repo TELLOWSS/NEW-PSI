@@ -1,8 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import type { Chart } from 'chart.js/auto';
 import type { WorkerRecord } from '../../types';
 import { ensureChartJs } from '../../utils/externalScripts';
-import { buildMonthlyCoreMetricSeries } from '../../utils/coreMetrics';
+import { buildMonthlyScoreEvidencePoints } from '../../utils/livingChartEvidenceL11';
 import { useResolvedTheme } from '../../hooks/useResolvedTheme';
 
 interface ChartProps {
@@ -14,25 +14,20 @@ export const MonthlyTrendChart: React.FC<ChartProps> = ({ records }) => {
     const isDark = theme === 'dark';
     const chartRef = useRef<HTMLCanvasElement>(null);
     const chartInstance = useRef<Chart | null>(null);
+    const monthlyPoints = useMemo(() => buildMonthlyScoreEvidencePoints(records), [records]);
+    const hasChartData = monthlyPoints.some(point => point.valid > 0);
 
     useEffect(() => {
         let disposed = false;
 
         const renderChart = async () => {
-            if (!chartRef.current) return;
+            if (!chartRef.current || !hasChartData) return;
 
             const ChartLib = await ensureChartJs().catch(() => null);
             if (!ChartLib || disposed || !chartRef.current) return;
 
-            const monthlySeries = buildMonthlyCoreMetricSeries(records);
-            let sortedMonths = monthlySeries.map((point) => point.month);
-            let dataPoints = monthlySeries.map((point) => point.averageScore);
-
-            if (sortedMonths.length === 0) {
-                const today = new Date();
-                sortedMonths = [today.toISOString().substring(0, 7)];
-                dataPoints = [0];
-            }
+            const sortedMonths = monthlyPoints.map(point => point.month);
+            const dataPoints = monthlyPoints.map(point => point.value);
 
             // Cleanup previous instance
             if (chartInstance.current) {
@@ -120,9 +115,9 @@ export const MonthlyTrendChart: React.FC<ChartProps> = ({ records }) => {
                                         } else {
                                             parsedVal = ctx.parsed;
                                         }
-                                        const num = typeof parsedVal === 'number' ? parsedVal : Number(parsedVal ?? 0);
-                                        const formatted = Number.isFinite(num) ? num.toFixed(1) : '0.0';
-                                        return `위험인식 신호 ${formatted}점`;
+                                        const num = typeof parsedVal === 'number' ? parsedVal : null;
+                                        const formatted = num !== null && Number.isFinite(num) ? `${num.toFixed(1)}점` : '유효 점수 없음';
+                                        return `위험인식 신호 ${formatted}`;
                                     }
                                 }
                             }
@@ -149,7 +144,9 @@ export const MonthlyTrendChart: React.FC<ChartProps> = ({ records }) => {
             }
         };
         
-    }, [records, theme, isDark]);
+    }, [monthlyPoints, hasChartData, theme, isDark]);
 
-    return <canvas ref={chartRef} />;
+    return hasChartData
+        ? <canvas ref={chartRef} role="img" aria-label="월별 유효 점수 평균 · 점수 누락 월은 자료 없음" />
+        : <div data-l11-trend-empty="true" role="status" className="flex h-full min-h-32 items-center justify-center rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm font-semibold text-slate-600 dark:border-slate-600 dark:text-slate-300">유효 점수 자료가 없어 월별 추세를 그리지 않습니다. 미입력은 0점이 아닙니다.</div>;
 };

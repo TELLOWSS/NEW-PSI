@@ -1,0 +1,305 @@
+import React, { useEffect, useRef, useState } from 'react';
+import '../styles.css';
+import { PSI_FORM_QUESTIONS, type PsiQuestionKey } from '../config/psiFormMaster';
+import { prepareL06ClientSubmission } from '../utils/workerRiskSubmissionContractL06';
+import {
+    checkWorkerRiskDraft,
+    emptyWorkerRiskDraft,
+    printableWorkerRiskDraft,
+    type WorkerRiskDraftGrade,
+} from '../utils/workerRiskDraftL06';
+
+/**
+ * Unauthenticated, identity-free TRIAL screen only. It is not a server-backed
+ * submission form and deliberately never writes to storage or calls an API.
+ */
+export default function WorkerRiskDraft() {
+    const [draft, setDraft] = useState(emptyWorkerRiskDraft);
+    const [review, setReview] = useState(false);
+    const [step, setStep] = useState(0);
+    const [furthestStep, setFurthestStep] = useState(0);
+    const [notice, setNotice] = useState('');
+    const [invalidQuestion, setInvalidQuestion] = useState<PsiQuestionKey | null>(null);
+    const [resetPending, setResetPending] = useState(false);
+    const resetCancelRef = useRef<HTMLButtonElement>(null);
+    const resetTriggerRef = useRef<HTMLButtonElement>(null);
+    const reviewHeadingRef = useRef<HTMLHeadingElement>(null);
+    const navigated = useRef(false);
+    const status = checkWorkerRiskDraft(draft);
+    const rows = printableWorkerRiskDraft(draft);
+    const currentQuestion = PSI_FORM_QUESTIONS[step];
+    const showCurrentValidation = invalidQuestion === currentQuestion.key && status.missing.includes(currentQuestion.key);
+    // L28: the form is intentionally in-memory only. Warn before a real
+    // browser navigation discards entered answers; never autosave the text.
+    const hasInMemoryAnswers = PSI_FORM_QUESTIONS.some(question => draft.answers[question.key].trim().length > 0)
+        || draft.gradeReason.trim().length > 0
+        || Boolean(draft.grade);
+
+    useEffect(() => {
+        if (!hasInMemoryAnswers) return;
+        const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+            event.preventDefault();
+            event.returnValue = '';
+        };
+        window.addEventListener('beforeunload', warnBeforeUnload);
+        return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+    }, [hasInMemoryAnswers]);
+
+    // Focus the new question only after deliberate navigation; never
+    // raise the mobile keyboard automatically on the first page load.
+    useEffect(() => {
+        if (!review && navigated.current) {
+            document.getElementById(currentQuestion.key === 'Q3' ? 'psi-l06-grade' : 'psi-l06-' + currentQuestion.key)?.focus();
+        }
+    }, [step, review, currentQuestion.key]);
+
+    useEffect(() => {
+        if (resetPending) resetCancelRef.current?.focus();
+    }, [resetPending]);
+
+    // L30: the submit button unmounts on review, so put keyboard and screen
+    // reader focus at the new preview heading rather than losing it to body.
+    useEffect(() => {
+        if (review) reviewHeadingRef.current?.focus();
+    }, [review]);
+
+    const cancelReset = () => {
+        // The cancel button and confirmation group disappear on close.
+        // Restore focus synchronously to the persistent trigger.
+        resetTriggerRef.current?.focus({ preventScroll: true });
+        setResetPending(false);
+    };
+
+    const goToStep = (index: number) => {
+        setResetPending(false);
+        navigated.current = true;
+        setStep(index);
+        setReview(false);
+        setNotice('');
+        setInvalidQuestion(null);
+    };
+
+    const updateAnswer = (key: PsiQuestionKey, value: string) => {
+        setResetPending(false);
+        if (value.trim().length >= 2) setInvalidQuestion(previous => previous === key ? null : previous);
+        setDraft(previous => ({
+            ...previous,
+            answers: { ...previous.answers, [key]: value.slice(0, 500) },
+        }));
+        setReview(false);
+        setNotice('');
+    };
+    const openReview = () => {
+        setResetPending(false);
+        if (!status.readyForReview) {
+            const missingIndex = PSI_FORM_QUESTIONS.findIndex(question => question.key === status.missing[0]);
+            goToStep(Math.max(0, missingIndex));
+            setInvalidQuestion(status.missing[0]);
+            setNotice('작성하지 않은 문항을 확인해 주세요: ' + status.missing.join(', '));
+            return;
+        }
+        // Apply the same source-text validation expected at a future trusted
+        // server boundary. This only opens a local preview; no request is sent.
+        const prepared = prepareL06ClientSubmission(draft, 'ko');
+        if (!prepared.ok) {
+            setNotice('작성 내용을 다시 확인해 주세요. 제출 또는 서버 저장은 진행되지 않았습니다.');
+            return;
+        }
+        setReview(true);
+        setNotice('작성 내용만 확인합니다. 아직 제출되거나 저장된 기록이 아닙니다.');
+    };
+    const nextStep = () => {
+        if (status.missing.includes(currentQuestion.key)) {
+            // L31: focus the existing required field, not the submit button.
+            // The inline error is tied to this field using aria-describedby.
+            setInvalidQuestion(currentQuestion.key);
+            setNotice('');
+            document.getElementById(currentQuestion.key === 'Q3' ? 'psi-l06-grade' : 'psi-l06-' + currentQuestion.key)?.focus();
+            return;
+        }
+        if (step === PSI_FORM_QUESTIONS.length - 1) {
+            openReview();
+            return;
+        }
+        const next = step + 1;
+        setFurthestStep(previous => Math.max(previous, next));
+        goToStep(next);
+    };
+    const reset = () => {
+        resetTriggerRef.current?.focus({ preventScroll: true });
+        setResetPending(false);
+        setDraft(emptyWorkerRiskDraft());
+        setInvalidQuestion(null);
+        setStep(0);
+        setFurthestStep(0);
+        setReview(false);
+        navigated.current = false;
+        setNotice('작성 내용을 초기화했습니다. 복구할 수 없습니다.');
+    };
+
+    return (
+        <main className="psi-l06-worker-draft min-h-screen bg-slate-50 px-4 py-6 text-slate-900 sm:py-10" data-testid="worker-risk-draft-l06">
+            <div className="psi-l06-page-shell mx-auto max-w-2xl">
+                <header className="psi-l06-screen-header mb-5 rounded-3xl bg-slate-900 p-6 text-white">
+                    <p className="text-xs font-black tracking-wide text-teal-200">PSI · Q1~Q5</p>
+                    <h1 className="mt-2 text-2xl font-black sm:text-3xl">작업 전 위험성평가 직접 작성 연습</h1>
+                    <p className="mt-3 text-sm leading-6 text-slate-200">
+                        내가 할 작업의 위험과 감소대책을 5문항으로 작성해 보세요.
+                        이 화면은 한국어 입력 시범이며 정식 근로자 제출·서명·교육 이수·관리자 승인 화면이 아닙니다.
+                    </p>
+                </header>
+                <div className="psi-l06-screen-note mb-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950" role="note">
+                    <strong>저장·제출 기능 없음</strong> — 이름, 생년월일, 전화번호 등 개인정보를 입력하지 마세요.
+                    작성한 내용은 이 화면에만 임시 표시되며 새로고침·이동·탭 종료 시 사라집니다.
+                    작성 중 브라우저 이동 경고가 표시될 수 있으나, 모바일에서는 경고가 생략될 수 있습니다.
+                    작업허가·작업재개 판단과 무관합니다.
+                </div>
+                <section aria-label="5단계 작성 현황" className="psi-l06-progress-screen mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-bold text-slate-700">작성 진행 · {review ? '전체 검토' : `${step + 1}단계 / 5단계`}</span>
+                        <output aria-live="polite" data-testid="l06-progress" className="font-black tabular-nums text-teal-800">{status.completedCount} / 5문항</output>
+                    </div>
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar"
+                        aria-valuemin={0} aria-valuemax={5} aria-valuenow={status.completedCount} aria-label="작성 완료 문항 수">
+                        <div className="h-full rounded-full bg-teal-600" style={{ width: `${status.completedCount * 20}%` }} />
+                    </div>
+                    {!review && (
+                        <nav aria-label="문항 이동" className="mt-4 grid grid-cols-5 gap-2">
+                            {PSI_FORM_QUESTIONS.map((question, index) => (
+                                <button key={question.key} type="button" onClick={() => goToStep(index)}
+                                    disabled={index > furthestStep}
+                                    aria-current={index === step ? 'step' : undefined}
+                                    aria-label={`${question.key} ${index + 1}단계 ${index > furthestStep ? '미도달' : index === step ? '현재 문항' : '이동'}`}
+                                    className={`min-h-11 rounded-xl border text-sm font-extrabold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${index === step
+                                        ? 'border-indigo-700 bg-indigo-700 text-white'
+                                        : index > furthestStep
+                                            ? 'border-slate-100 bg-slate-50 text-slate-400'
+                                            : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-400'}`}>
+                                    {question.key}
+                                </button>
+                            ))}
+                        </nav>
+                    )}
+                </section>
+                {hasInMemoryAnswers && (
+                    <aside className="psi-l06-unsaved-status mb-5 rounded-2xl border border-rose-300 bg-rose-50 p-4 text-sm leading-6 text-rose-950 print:hidden"
+                        role="status" aria-live="polite" data-testid="l06-unsaved-status">
+                        <strong className="block font-extrabold">임시 작성 중 · 저장되지 않음</strong>
+                        <p className="mt-1">새로고침·탭 종료·다른 페이지 이동 시 작성한 내용이 사라질 수 있습니다.
+                            검토 후 인쇄해도 정식 제출·접수는 아닙니다.</p>
+                    </aside>
+                )}
+                {!review && (
+                    <section className="psi-l06-incomplete-print-warning hidden" aria-label="작성 중 인쇄 안내">
+                        <h2>작성 중인 연습 기록은 인쇄할 수 없습니다.</h2>
+                        <p>Q1~Q5 전체 문항을 작성하고 '작성 내용 확인' 화면에서 인쇄해 주세요.</p>
+                        <p>이 화면은 정식 제출이 아닙니다. 제출·접수·안전조치 완료·교육 이수 증빙으로 사용할 수 없습니다.</p>
+                    </section>
+                )}
+                {!review ? (
+                    <form onSubmit={event => { event.preventDefault(); nextStep(); }} className="psi-l06-edit-form space-y-4" noValidate>
+                        {PSI_FORM_QUESTIONS.filter((_, index) => index === step).map(question => (
+                            <fieldset key={question.key} className="rounded-2xl border border-slate-200 bg-white p-5">
+                                <legend className="px-1 text-lg font-black">{question.key} · {question.workerIntent}</legend>
+                                {question.key === 'Q3' ? (
+                                    <>
+                                        <label htmlFor="psi-l06-grade" className="mt-3 block text-sm font-bold">내가 판단하는 위험수준</label>
+                                        <select id="psi-l06-grade" value={draft.grade} onChange={event => {
+                                            const grade = event.target.value as WorkerRiskDraftGrade;
+                                            setDraft(previous => ({ ...previous, grade, answers: { ...previous.answers, Q3: grade } }));
+                                            setReview(false);
+                                            setResetPending(false);
+                                            if (grade) setInvalidQuestion(previous => previous === 'Q3' ? null : previous);
+                                        }} aria-invalid={showCurrentValidation || undefined}
+                                            aria-describedby={showCurrentValidation ? 'psi-l06-error-Q3' : undefined}
+                                            className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-base" required>
+                                            <option value="">위험수준 선택</option>
+                                            <option value="상">상 · 매우 위험하다고 느낍니다</option>
+                                            <option value="중">중 · 주의가 필요합니다</option>
+                                            <option value="하">하 · 상대적으로 낮습니다</option>
+                                        </select>
+                                        <label htmlFor="psi-l06-grade-reason" className="mt-4 block text-sm font-bold">그렇게 생각한 이유 (선택)</label>
+                                        <textarea id="psi-l06-grade-reason" rows={2} maxLength={500} value={draft.gradeReason}
+                                            onChange={event => { setResetPending(false); setDraft(previous => ({ ...previous, gradeReason: event.target.value.slice(0, 500) })); }}
+                                            placeholder="어떤 상황에서 특히 위험한지 적어주세요"
+                                            className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-3 text-base" />
+                                        <p className="mt-2 text-xs text-slate-500">상·중·하는 근로자 본인의 위험인식입니다. 공식 위험등급이나 작업 허가를 결정하지 않습니다.</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <label htmlFor={'psi-l06-' + question.key} className="mt-2 block text-sm font-medium text-slate-600">근로자 본인의 말로 구체적으로 적어주세요.</label>
+                                        <textarea id={'psi-l06-' + question.key} rows={3} maxLength={500} required
+                                            aria-invalid={showCurrentValidation || undefined}
+                                            aria-describedby={showCurrentValidation ? 'psi-l06-error-' + question.key : undefined}
+                                            value={draft.answers[question.key]} onChange={event => updateAnswer(question.key, event.target.value)}
+                                            placeholder={question.key === 'Q1' ? '예: 00층 벽체 거푸집 설치 작업'
+                                                : question.key === 'Q2' ? '예: 작업발판 단부에 난간이 없어 추락할 위험'
+                                                : question.key === 'Q4' ? '예: 난간을 확인하고 안전대를 적정 고정점에 체결'
+                                                : '예: 시작 전에 난간을 확인하고 미설치 시 작업을 중단해 관리자에게 알림'}
+                                            className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-3 text-base leading-6" />
+                                        <p className="mt-1 text-right text-xs text-slate-500">{draft.answers[question.key].length}/500</p>
+                                    </>
+                                )}
+                                {showCurrentValidation && (
+                                    <p id={'psi-l06-error-' + question.key} role="alert"
+                                        className="mt-3 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm font-bold text-rose-900"
+                                        data-testid="l06-question-error">
+                                        {question.key === 'Q3'
+                                            ? 'Q3 위험수준은 상·중·하 중 하나를 선택해 주세요.'
+                                            : question.key + ' 문항을 두 글자 이상 구체적으로 작성해 주세요.'}
+                                    </p>
+                                )}
+                            </fieldset>
+                        ))}
+                        <div className="flex flex-wrap gap-3 pb-8">
+                            {step > 0 && <button type="button" onClick={() => goToStep(step - 1)}
+                                className="min-h-12 rounded-xl border border-slate-300 bg-white px-5 font-bold hover:border-indigo-400">이전 문항</button>}
+                            <button type="submit" className="min-h-12 flex-1 rounded-xl bg-indigo-700 px-5 font-black text-white hover:bg-indigo-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-700">
+                                {step === 4 ? '작성 내용 확인' : '다음 문항'}
+                            </button>
+                            <button ref={resetTriggerRef} type="button" onClick={() => { setResetPending(true); setNotice(''); }}
+                                aria-expanded={resetPending} aria-controls="psi-l06-reset-confirmation"
+                                className="min-h-12 rounded-xl border border-slate-300 bg-white px-5 font-bold">전체 초기화</button>
+                        </div>
+                        {resetPending && (
+                            <div id="psi-l06-reset-confirmation" role="group" aria-label="작성 내용 초기화 확인"
+                                onKeyDown={event => {
+                                    if (event.key === 'Escape') { event.stopPropagation(); cancelReset(); }
+                                }}
+                                className="rounded-2xl border border-rose-300 bg-rose-50 p-4 text-rose-950">
+                                <p className="font-extrabold">작성한 Q1~Q5 내용을 모두 지우시겠습니까?</p>
+                                <p className="mt-1 text-sm">초기화 후에는 되돌릴 수 없습니다. 취소하면 작성 내용이 그대로 유지됩니다.</p>
+                                <div className="mt-3 flex flex-wrap gap-3">
+                                    <button ref={resetCancelRef} type="button" onClick={cancelReset}
+                                        className="min-h-12 flex-1 rounded-xl border border-rose-300 bg-white px-5 font-bold">취소하고 계속 작성</button>
+                                    <button type="button" onClick={reset}
+                                        className="min-h-12 flex-1 rounded-xl bg-rose-800 px-5 font-extrabold text-white">초기화 확정</button>
+                                </div>
+                            </div>
+                        )}
+                    </form>
+                ) : (
+                    <section className="psi-l06-review-print rounded-2xl border border-slate-300 bg-white p-5" aria-label="Q1~Q5 작성 내용 검토">
+                        <h2 ref={reviewHeadingRef} tabIndex={-1}
+                            className="text-xl font-black focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-700">내가 작성한 내용 확인</h2>
+                        <p className="mt-2 text-sm text-rose-800">작성 검토 화면일 뿐 서버 제출·관리자 확인·현장 조치 완료가 아닙니다.</p>
+                        <dl className="mt-4 space-y-4">
+                            {rows.map(row => (
+                                <div key={row.key} className="border-b border-slate-100 pb-3">
+                                    <dt className="text-sm font-black">{row.key} · {row.title}</dt>
+                                    <dd className="mt-2 whitespace-pre-wrap break-words text-sm">{row.answer}</dd>
+                                </div>
+                            ))}
+                        </dl>
+                        <div className="psi-l06-review-actions mt-5 flex flex-wrap gap-3 print:hidden">
+                            <button type="button" onClick={() => goToStep(0)} className="min-h-12 flex-1 rounded-xl border border-slate-300 px-4 font-bold">수정하기</button>
+                            <button type="button" onClick={() => window.print()} className="min-h-12 flex-1 rounded-xl bg-slate-800 px-4 font-bold text-white">화면 인쇄</button>
+                        </div>
+                        <p className="psi-l06-review-disclaimer mt-4 text-xs font-bold text-rose-800">인쇄한 종이도 정식 제출이 아닙니다. 실제 기록 절차는 현장 관리자에게 확인하세요.</p>
+                    </section>
+                )}
+                {notice && <p className="psi-l06-screen-notice mt-4 rounded-xl border border-slate-200 bg-white p-3 text-sm font-bold" role="status">{notice}</p>}
+            </div>
+        </main>
+    );
+}

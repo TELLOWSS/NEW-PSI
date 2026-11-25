@@ -2,6 +2,8 @@ import React, { useMemo } from 'react';
 import { EvidenceScopePanel } from '../components/shared/EvidenceScopePanel';
 import type { Page, WorkerRecord } from '../types';
 import { buildEducationReturnSummary } from '../utils/educationReturnSummary';
+import { buildEducationReturnEvidenceOverview } from '../utils/educationReturnEvidenceOverview';
+import EducationReturnEvidencePanel from '../components/education/EducationReturnEvidencePanel';
 import { buildPracticeVerificationSummary } from '../utils/practiceVerification';
 import { getKoreanCalendarDay } from '../utils/monthlyFieldFollowup';
 import { resolveAssessmentPeriod } from '../utils/assessmentCycle';
@@ -178,6 +180,7 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
         asOfDate: getKoreanCalendarDay(),
         periodStartDate: resolveAssessmentPeriod(new Date(), cycle).startDate,
     }), [workerRecords, cycle]);
+    const evidenceOverview = useMemo(() => buildEducationReturnEvidenceOverview(summary, practice), [summary, practice]);
     const trendPrefix = summary.periodTrendPct > 0 ? '+' : '';
     const riskText = summary.topRisks.join(' · ') || '위험 키워드 자료 없음';
     const repeatedRiskText = summary.repeatedRiskKeywords.slice(0, 3).join(' · ');
@@ -216,7 +219,8 @@ const EducationReturn: React.FC<EducationReturnProps> = ({ workerRecords, onNavi
                 asOf={`${practice.asOfDate} (한국시간 집계 기준일) · 서버 최신성 미확인`}
                 state="local" population={`불러온 평가기록 ${workerRecords.length}행 · 전체 현장 인원·교육 이수율 아님`}
                 review="교육자료 작성·전달·이해 확인·현장 관찰은 각각 별도 기록"
-                nextAction="근로자 기록에서 교육 원문·이해 확인·현장 관찰 근거를 대조하세요."/>
+                nextAction="근로자 기록에서 교육 원문·이해 확인·현장 관찰 근거를 대조하세요."/> 
+            <EducationReturnEvidencePanel overview={evidenceOverview} onNavigate={onNavigateToPage}/>
             <section data-education-return="practice-verification" className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm sm:p-7">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>

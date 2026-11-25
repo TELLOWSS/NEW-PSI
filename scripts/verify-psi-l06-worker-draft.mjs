@@ -1,0 +1,467 @@
+// Synthetic Chromium QA of the actual L06 worker draft route.
+// Contains only invented safety text; no identity, worker token, or server write.
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { chromium } from 'playwright';
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
+
+const host = 'http://127.0.0.1:5195';
+const delay = milliseconds => new Promise(done => setTimeout(done, milliseconds));
+const server = spawn(process.execPath, [
+    resolve('node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', '5195', '--strictPort',
+], { stdio: 'ignore' });
+
+let browser;
+try {
+    let online = false;
+    for (let step = 0; step < 80; step++) {
+        if (server.exitCode !== null) throw new Error('Vite failed before readiness');
+        try {
+            if ((await fetch(host + '/worker-risk-draft')).ok) { online = true; break; }
+        } catch {}
+        await delay(250);
+    }
+    assert.ok(online, 'Local worker-draft UI did not start');
+    browser = await chromium.launch({ headless: true });
+    await mkdir('artifacts/audit/psi-l06-worker-risk-draft', { recursive: true });
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const apiCalls = [];
+    const externalCalls = [];
+    await page.route('**/*', async route => {
+        const url = route.request().url();
+        if (url.includes('/api/')) { apiCalls.push(url); return route.abort(); }
+        if (!url.startsWith(host + '/') && !url.startsWith('data:') && !url.startsWith('blob:')) {
+            externalCalls.push(url); return route.abort();
+        }
+        return route.continue();
+    });
+    await page.goto(host + '/worker-risk-draft', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('heading', { name: '작업 전 위험성평가 직접 작성 연습' }).waitFor();
+    // L28: simulate the native cancelable beforeunload event without actually
+    // navigating or saving safety answers. Real mobile prompt UI varies.
+    const probeUnloadWarning = () => page.evaluate(() => {
+        const event = new Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(event);
+        return event.defaultPrevented;
+    });
+    assert.equal(await probeUnloadWarning(), false,
+        'Blank practice form must not block browser navigation');
+    assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '0 / 5문항');
+    assert.equal(await page.locator('[data-testid=l06-unsaved-status]').count(), 0,
+        'L29 blank form must not claim that unsaved text exists');
+    assert.equal(await page.getByRole('button', { name: /Q5 5단계/ }).isDisabled(), true, 'Future steps must not be skipped');
+    // L31: blocked Q1 must focus the field, show contextual alert,
+    // and keep the question accessible to mobile keyboard/screen readers.
+    await page.getByRole('button', { name: '다음 문항' }).click();
+    const q1Field = page.locator('#psi-l06-Q1');
+    const fieldError = page.locator('[data-testid=l06-question-error]');
+    await fieldError.getByText(/Q1 문항을 두 글자 이상/).waitFor();
+    assert.equal(await q1Field.getAttribute('aria-invalid'), 'true');
+    assert.equal(await q1Field.getAttribute('aria-describedby'), 'psi-l06-error-Q1');
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'psi-l06-Q1',
+        'L31 missing Q1 should focus its required textarea, not the submit button');
+    await q1Field.fill('가');
+    assert.equal(await q1Field.getAttribute('aria-invalid'), 'true',
+        'L31 one-character Q1 must stay invalid');
+    await fieldError.getByText(/Q1 문항을 두 글자 이상/).waitFor();
+    await q1Field.fill('가설 작업발판 설치');
+    assert.equal(await fieldError.count(), 0, 'L31 valid Q1 clears its inline error');
+    assert.equal(await q1Field.getAttribute('aria-invalid'), null);
+    assert.equal(await q1Field.getAttribute('aria-describedby'), null);
+    const unsavedStatus = page.locator('[data-testid=l06-unsaved-status]');
+    await unsavedStatus.getByText('임시 작성 중 · 저장되지 않음').waitFor();
+    await unsavedStatus.getByText(/새로고침·탭 종료·다른 페이지 이동 시/).waitFor();
+    await page.screenshot({
+        path: 'artifacts/audit/psi-l06-worker-risk-draft/390-unsaved-warning.png', fullPage: true,
+    });
+    await page.waitForFunction(() => {
+        const event = new Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(event);
+        return event.defaultPrevented;
+    });
+    assert.equal(await probeUnloadWarning(), true,
+        'After entering Q1, accidental refresh/tab close must request confirmation');
+
+    // L26: browser Ctrl+P is available before a draft is complete. It must
+    // print only a non-submission notice, never incomplete worker safety text.
+    await page.emulateMedia({ media: 'print' });
+    const unfinishedStyles = await page.evaluate(() => ({
+        visibleRoot: getComputedStyle(document.getElementById('root')).display !== 'none',
+        hiddenEditForm: getComputedStyle(document.querySelector('.psi-l06-edit-form')).display === 'none',
+        visibleWarning: getComputedStyle(document.querySelector('.psi-l06-incomplete-print-warning')).display !== 'none',
+        hiddenUnsavedStatus: getComputedStyle(document.querySelector('.psi-l06-unsaved-status')).display === 'none',
+    }));
+    assert.deepEqual(unfinishedStyles, { visibleRoot: true, hiddenEditForm: true, visibleWarning: true, hiddenUnsavedStatus: true },
+        'L26 unfinished Q1-Q5 print must replace partial inputs with a visible warning');
+    await mkdir('artifacts/audit/psi-l06-worker-risk-draft', { recursive: true });
+    const unfinishedBytes = await page.pdf({
+        path: 'artifacts/audit/psi-l06-worker-risk-draft/a4-unfinished-trial-no-answers.pdf',
+        format: 'A4', printBackground: true, preferCSSPageSize: true,
+    });
+    const unfinishedPdf = await getDocument({ data: new Uint8Array(unfinishedBytes) }).promise;
+    assert.equal(unfinishedPdf.numPages, 1, 'Unfinished practice print should be a single A4 notice');
+    const unfinishedText = (await (await unfinishedPdf.getPage(1)).getTextContent()).items
+        .map(item => 'str' in item ? item.str : '').join(' ').replace(/\s+/g, '');
+    assert.ok(unfinishedText.includes('작성중인연습기록은인쇄할수없습니다'),
+        'Unfinished print must explain why the answers were not printed');
+    assert.ok(unfinishedText.includes('정식제출이아닙니다'),
+        'Unfinished print must clearly state this is not a formal submission');
+    assert.ok(!unfinishedText.includes('가설작업발판설치'),
+        'Unfinished print must not expose a partially-entered worker answer');
+    await page.emulateMedia({ media: 'screen' });
+
+    await page.getByRole('button', { name: '다음 문항' }).click();
+    assert.equal(await page.locator('#psi-l06-Q1').count(), 0, 'One question at a time');
+    await page.locator('#psi-l06-Q2').fill('단부 안전난간 미설치로 추락 위험');
+    await page.getByRole('button', { name: '다음 문항' }).click();
+    const q3Grade = page.locator('#psi-l06-grade');
+    await page.getByRole('button', { name: '다음 문항' }).click();
+    await fieldError.getByText(/Q3 위험수준은 상·중·하/).waitFor();
+    assert.equal(await q3Grade.getAttribute('aria-invalid'), 'true');
+    assert.equal(await q3Grade.getAttribute('aria-describedby'), 'psi-l06-error-Q3');
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'psi-l06-grade',
+        'L31 missing Q3 should focus its self-rated risk select');
+    await q3Grade.selectOption('상');
+    assert.equal(await fieldError.count(), 0, 'L31 choosing a self-reported grade clears the warning');
+    assert.equal(await q3Grade.getAttribute('aria-invalid'), null);
+    await page.locator('#psi-l06-grade-reason').fill('단부가 개방되어 있습니다');
+    await page.getByRole('button', { name: '이전 문항' }).click();
+    assert.equal(await page.locator('#psi-l06-Q2').inputValue(), '단부 안전난간 미설치로 추락 위험', 'Back navigation keeps in-memory text');
+    await page.getByRole('button', { name: '다음 문항' }).click();
+    assert.equal(await page.locator('#psi-l06-grade').inputValue(), '상', 'Back/forward keeps risk grade');
+    await page.getByRole('button', { name: '다음 문항' }).click();
+    await page.locator('#psi-l06-Q4').fill('난간 설치 확인, 안전대 고정');
+    await page.getByRole('button', { name: '다음 문항' }).click();
+    await page.locator('#psi-l06-Q5').fill('미설치 시 작업을 중단하고 관리자에게 보고');
+    assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '5 / 5문항');
+
+    await page.getByRole('button', { name: '작성 내용 확인' }).click();
+    await page.getByRole('heading', { name: '내가 작성한 내용 확인' }).waitFor();
+    await page.waitForFunction(() =>
+        document.activeElement?.textContent?.trim() === '내가 작성한 내용 확인');
+    assert.equal(await page.getByRole('heading', { name: '내가 작성한 내용 확인' }).getAttribute('tabindex'),
+        '-1', 'L30 review heading must accept programmatic focus without joining normal Tab order');
+    assert.equal(await unsavedStatus.count(), 1,
+        'L29 review alone is not an official save and must retain the unsaved warning');
+    await page.getByText('가설 작업발판 설치', { exact: true }).waitFor();
+    await page.getByText(/서버 제출·관리자 확인·현장 조치 완료가 아닙니다/).waitFor();
+    assert.equal(await page.locator('dl dt').count(), 5);
+    assert.equal(await page.evaluate(() => localStorage.length), 0, 'Worksheet must not persist in localStorage');
+    assert.equal(await page.evaluate(() => sessionStorage.length), 0, 'Worksheet must not persist in sessionStorage');
+    assert.deepEqual(apiCalls, [], 'Worksheet must not call any /api endpoint');
+    assert.deepEqual(externalCalls, [], 'Worksheet must not call external services');
+
+    // L24: the shared report-print CSS hides #root. The trial route must be
+    // isolated so its own A4 printout contains the five written answers.
+    await page.emulateMedia({ media: 'print' });
+    const printStatus = await page.evaluate(() => ({
+        rootVisible: getComputedStyle(document.getElementById('root')).display !== 'none',
+        progressHidden: getComputedStyle(document.querySelector('.psi-l06-progress-screen')).display === 'none',
+        reviewVisible: getComputedStyle(document.querySelector('.psi-l06-review-print')).display !== 'none',
+        actionHidden: getComputedStyle(document.querySelector('.psi-l06-review-actions')).display === 'none',
+        unsavedHidden: getComputedStyle(document.querySelector('.psi-l06-unsaved-status')).display === 'none',
+    }));
+    assert.deepEqual(printStatus, {
+        rootVisible: true, progressHidden: true, reviewVisible: true, actionHidden: true, unsavedHidden: true,
+    }, 'L06 print CSS must show ONLY the review, unlike the generic report print shell');
+    await mkdir('artifacts/audit/psi-l06-worker-risk-draft', { recursive: true });
+    const pdfBytes = await page.pdf({
+        path: 'artifacts/audit/psi-l06-worker-risk-draft/a4-five-question-trial.pdf',
+        format: 'A4', printBackground: true, preferCSSPageSize: true,
+    });
+    const pdf = await getDocument({ data: new Uint8Array(pdfBytes) }).promise;
+    assert.equal(pdf.numPages, 1, 'Normal-length five-question L06 trial must print as one A4 page');
+    const pageText = (await (await pdf.getPage(1)).getTextContent()).items
+        .map(item => 'str' in item ? item.str : '').join(' ');
+    for (const key of ['Q1', 'Q2', 'Q3', 'Q4', 'Q5']) {
+        assert.ok(pageText.includes(key), 'Trial print must contain ' + key);
+    }
+    assert.ok(!pageText.includes('서버 접수번호'), 'Practice print must not invent a server receipt');
+    await page.emulateMedia({ media: 'screen' });
+
+    await page.getByRole('button', { name: '수정하기' }).click();
+    assert.equal(await page.locator('#psi-l06-Q1').inputValue(), '가설 작업발판 설치', 'Review edit returns to preserved Q1');
+    await page.waitForFunction(() => document.activeElement?.id === 'psi-l06-Q1');
+
+    // L27: one tap on reset cannot discard a completed worksheet.
+    await page.getByRole('button', { name: '전체 초기화' }).click();
+    const resetPrompt = page.getByRole('group', { name: '작성 내용 초기화 확인' });
+    await resetPrompt.getByText('작성한 Q1~Q5 내용을 모두 지우시겠습니까?').waitFor();
+    assert.equal(await page.locator('#psi-l06-Q1').inputValue(), '가설 작업발판 설치',
+        'First reset tap must preserve typed Q1 and every other answer');
+    assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '5 / 5문항');
+    await page.waitForFunction(() => document.activeElement?.textContent?.trim() === '취소하고 계속 작성');
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()),
+        '취소하고 계속 작성', 'Keyboard focus should start on the safer Cancel action');
+    await resetPrompt.getByRole('button', { name: '취소하고 계속 작성' }).click();
+    assert.equal(await resetPrompt.count(), 0, 'Cancel dismisses the inline confirmation');
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()),
+        '전체 초기화', 'L30 cancelled confirmation must return keyboard focus to persistent reset trigger');
+    assert.equal(await page.locator('#psi-l06-Q1').inputValue(), '가설 작업발판 설치',
+        'Cancel must preserve Q1');
+    assert.equal(await probeUnloadWarning(), true,
+        'Canceling reset must preserve the unload warning and the user text');
+
+    // Escape is another safe exit, with no new storage or API calls.
+    await page.getByRole('button', { name: '전체 초기화' }).click();
+    await resetPrompt.getByRole('button', { name: '취소하고 계속 작성' }).press('Escape');
+    assert.equal(await resetPrompt.count(), 0, 'Escape must dismiss reset confirmation');
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()),
+        '전체 초기화', 'L30 Escape must restore reset button focus');
+    assert.equal(await page.locator('#psi-l06-Q1').inputValue(), '가설 작업발판 설치');
+
+    await page.getByRole('button', { name: '전체 초기화' }).click();
+    await resetPrompt.getByRole('button', { name: '초기화 확정' }).click();
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()),
+        '전체 초기화', 'L30 confirmed reset must retain a meaningful keyboard focus');
+    assert.equal(await page.locator('#psi-l06-Q1').inputValue(), '');
+    assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '0 / 5문항');
+    assert.equal(await unsavedStatus.count(), 0,
+        'L29 confirmed reset must remove the unsaved warning');
+    await page.waitForFunction(() => {
+        const event = new Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(event);
+        return !event.defaultPrevented;
+    });
+    assert.equal(await probeUnloadWarning(), false,
+        'After confirmed clear, navigation must no longer be warned');
+
+    // L25: all five answers may legally approach 500 characters. Long Korean
+    // responses must paginate instead of clipping the final safety promise.
+    // This is a synthetic print stress test, not a real worker submission.
+    const longAnswer = key => {
+        const endMarker = 'END' + key;
+        const line = key + ' 위험구역을 확인하고 안전조치를 다시 점검한 후 관리자와 공유한다.\n';
+        return line.repeat(20).slice(0, 500 - endMarker.length) + endMarker;
+    };
+    await page.locator('#psi-l06-Q1').fill(longAnswer('Q1'));
+    await page.waitForFunction(() => {
+        const event = new Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(event);
+        return event.defaultPrevented;
+    });
+    await page.getByRole('button', { name: '다음 문항' }).click();
+    await page.locator('#psi-l06-Q2').fill(longAnswer('Q2'));
+    await page.getByRole('button', { name: '다음 문항' }).click();
+    await page.locator('#psi-l06-grade').selectOption('상');
+    await page.locator('#psi-l06-grade-reason').fill(longAnswer('Q3'));
+    await page.getByRole('button', { name: '다음 문항' }).click();
+    await page.locator('#psi-l06-Q4').fill(longAnswer('Q4'));
+    await page.getByRole('button', { name: '다음 문항' }).click();
+    await page.locator('#psi-l06-Q5').fill(longAnswer('Q5'));
+    await page.getByRole('button', { name: '작성 내용 확인' }).click();
+    await page.getByRole('heading', { name: '내가 작성한 내용 확인' }).waitFor();
+    await page.emulateMedia({ media: 'print' });
+    const longPdfBytes = await page.pdf({
+        path: 'artifacts/audit/psi-l06-worker-risk-draft/a4-five-question-long-trial.pdf',
+        format: 'A4', printBackground: true, preferCSSPageSize: true,
+    });
+    const longPdf = await getDocument({ data: new Uint8Array(longPdfBytes) }).promise;
+    assert.ok(longPdf.numPages > 1 && longPdf.numPages <= 10,
+        'Five maximum-length Korean answers must paginate without excessive blank pages');
+    let fullLongText = '';
+    for (let n = 1; n <= longPdf.numPages; n++) {
+        fullLongText += (await (await longPdf.getPage(n)).getTextContent()).items
+            .map(item => 'str' in item ? item.str : '').join(' ') + ' ';
+    }
+    const normalizedLongText = fullLongText.replace(/\s+/g, '');
+    for (const key of ['Q1', 'Q2', 'Q3', 'Q4', 'Q5']) {
+        assert.ok(normalizedLongText.includes('END' + key),
+            'L25 long A4 output lost the ending of ' + key);
+    }
+    assert.ok(normalizedLongText.includes('정식제출이아닙니다'),
+        'L25 long print must retain unofficial-trial warning');
+    await page.emulateMedia({ media: 'screen' });
+    await page.getByRole('button', { name: '수정하기' }).click();
+    await page.getByRole('button', { name: '전체 초기화' }).click();
+    assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '5 / 5문항',
+        'Long Q1-Q5 record must survive until the explicit confirmation');
+    await page.getByRole('group', { name: '작성 내용 초기화 확인' })
+        .getByRole('button', { name: '초기화 확정' }).click();
+    assert.equal(await page.locator('[data-testid=l06-progress]').textContent(), '0 / 5문항');
+    assert.equal(await unsavedStatus.count(), 0,
+        'L29 final confirmed reset must clear the unsaved warning');
+    await page.waitForFunction(() => {
+        const event = new Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(event);
+        return !event.defaultPrevented;
+    });
+    assert.equal(await probeUnloadWarning(), false,
+        'Final confirmed clear must release the beforeunload guard');
+    assert.deepEqual(apiCalls, [], 'Long worksheet must never call any API');
+    assert.deepEqual(externalCalls, [], 'Long worksheet must never call external services');
+
+    await mkdir('artifacts/audit/psi-l06-worker-risk-draft', { recursive: true });
+    await page.screenshot({ path: 'artifacts/audit/psi-l06-worker-risk-draft/390-empty.png', fullPage: true });
+
+    // L32: genuine responsive Chromium audit, including 320px/200%-zoom
+    // reflow equivalent. The five-question practice page must not introduce
+    // sideways scrolling or inaccessible controls as it changes state.
+    const responsiveWidths = [320, 360, 390, 768, 1024, 1440];
+    const responsiveResults = [];
+    const auditedRequests = [];
+    const inspectReflow = async (responsivePage, width, state) => {
+        const result = await responsivePage.evaluate(() => {
+            const doc = document.documentElement;
+            const main = document.querySelector('.psi-l06-worker-draft');
+            const buttons = Array.from(main.querySelectorAll('button')).filter(button =>
+                getComputedStyle(button).display !== 'none' && !button.disabled);
+            const rect = element => {
+                const box = element.getBoundingClientRect();
+                return { left: box.left, right: box.right, height: box.height };
+            };
+            return {
+                pageWidth: window.innerWidth,
+                scrollWidth: Math.max(doc.scrollWidth, document.body.scrollWidth),
+                controls: buttons.map(button => ({
+                    name: button.textContent.trim(),
+                    ...rect(button),
+                })),
+                content: rect(main),
+            };
+        });
+        assert.ok(result.scrollWidth <= width + 1,
+            'L32 ' + width + 'px ' + state + ' must not scroll horizontally (actual ' + result.scrollWidth + ')');
+        assert.ok(result.controls.length > 0, 'L32 ' + width + 'px ' + state + ' has no enabled controls');
+        for (const button of result.controls) {
+            assert.ok(button.left >= -1 && button.right <= width + 1,
+                'L32 ' + width + 'px ' + state + ' button outside viewport: ' + button.name);
+            assert.ok(button.height >= 44,
+                'L32 ' + width + 'px ' + state + ' touch target below 44px: ' + button.name);
+        }
+        responsiveResults.push({
+            width, state, documentWidth: result.scrollWidth,
+            enabledButtons: result.controls.length, minimumButtonHeight: Math.min(...result.controls.map(x => x.height)),
+        });
+    };
+    for (const width of responsiveWidths) {
+        const responsivePage = await browser.newPage({ viewport: { width, height: 800 } });
+        await responsivePage.route('**/*', async route => {
+            const url = route.request().url();
+            if (url.includes('/api/') || (!url.startsWith(host + '/') && !url.startsWith('blob:') && !url.startsWith('data:'))) {
+                auditedRequests.push(url);
+                return route.abort();
+            }
+            return route.continue();
+        });
+        await responsivePage.goto(host + '/worker-risk-draft', { waitUntil: 'domcontentloaded' });
+        await responsivePage.getByRole('heading', { name: '작업 전 위험성평가 직접 작성 연습' }).waitFor();
+        await inspectReflow(responsivePage, width, 'blank');
+        await responsivePage.keyboard.press('Tab');
+        const keyboardFocus = await responsivePage.evaluate(() => {
+            const target = document.activeElement;
+            return {
+                tag: target?.tagName,
+                visible: target?.matches(':focus-visible'),
+                outlineWidth: parseFloat(getComputedStyle(target).outlineWidth),
+            };
+        });
+        assert.equal(keyboardFocus.tag, 'BUTTON',
+            'L32 ' + width + 'px keyboard Tab must reach a question navigation button');
+        assert.equal(keyboardFocus.visible, true,
+            'L32 ' + width + 'px first keyboard focus must use :focus-visible');
+        assert.ok(keyboardFocus.outlineWidth >= 3,
+            'L32 ' + width + 'px keyboard focus ring must be at least 3px');
+        await responsivePage.locator('#psi-l06-Q1').fill('가상 작업발판 설치');
+        await inspectReflow(responsivePage, width, 'unsaved');
+        if (width === 320) await responsivePage.screenshot({
+            path: 'artifacts/audit/psi-l06-worker-risk-draft/320-unsaved.png', fullPage: true,
+        });
+        await responsivePage.getByRole('button', { name: '다음 문항' }).click();
+        await responsivePage.locator('#psi-l06-Q2').fill('가상 단부 개방 위험');
+        await responsivePage.getByRole('button', { name: '다음 문항' }).click();
+        await responsivePage.locator('#psi-l06-grade').selectOption('상');
+        await responsivePage.getByRole('button', { name: '다음 문항' }).click();
+        await responsivePage.locator('#psi-l06-Q4').fill('가상 난간 설치 확인');
+        await responsivePage.getByRole('button', { name: '다음 문항' }).click();
+        await responsivePage.locator('#psi-l06-Q5').fill('가상 작업 전 확인 실천');
+        await responsivePage.getByRole('button', { name: '작성 내용 확인' }).click();
+        await responsivePage.getByRole('heading', { name: '내가 작성한 내용 확인' }).waitFor();
+        await inspectReflow(responsivePage, width, 'review');
+        if (width === 320 || width === 1440) await responsivePage.screenshot({
+            path: 'artifacts/audit/psi-l06-worker-risk-draft/' + width + '-review.png', fullPage: true,
+        });
+        await responsivePage.getByRole('button', { name: '수정하기' }).click();
+        await responsivePage.getByRole('button', { name: '전체 초기화' }).click();
+        await responsivePage.getByRole('group', { name: '작성 내용 초기화 확인' })
+            .getByRole('button', { name: '취소하고 계속 작성' }).waitFor();
+        await inspectReflow(responsivePage, width, 'reset-confirmation');
+        await responsivePage.getByRole('group', { name: '작성 내용 초기화 확인' })
+            .getByRole('button', { name: '초기화 확정' }).click();
+        assert.equal(await responsivePage.locator('[data-testid=l06-progress]').textContent(),
+            '0 / 5문항', 'L32 responsive reset must clear the synthetic trial');
+        await responsivePage.close();
+    }
+    assert.deepEqual(auditedRequests, [],
+        'L32 multi-viewport practice audit must not send API requests or load external services');
+
+    // L29: actual document navigation, not dispatchEvent-only. Playwright's
+    // page.close({runBeforeUnload:true}) may auto-close in headless Chromium,
+    // so it is NOT an appropriate oracle for cancel-and-preserve behavior.
+    const nativePage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await nativePage.goto(host + '/worker-risk-draft', { waitUntil: 'domcontentloaded' });
+    await nativePage.locator('#psi-l06-Q1').click();
+    await nativePage.keyboard.type('가상 작업발판 안전 확인');
+    await nativePage.locator('[data-testid=l06-unsaved-status]').waitFor();
+    await nativePage.waitForFunction(() => {
+        const event = new Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(event);
+        return event.defaultPrevented && navigator.userActivation.hasBeenActive;
+    });
+    const nativeDialogTypes = [];
+    nativePage.on('dialog', async dialog => {
+        nativeDialogTypes.push(dialog.type());
+        await dialog.dismiss();
+    });
+    try {
+        await nativePage.goto(host + '/worker-risk-draft?leave-attempt=1', {
+            waitUntil: 'domcontentloaded', timeout: 10000,
+        });
+    } catch (error) {
+        // Dismissed beforeunload can abort a Playwright navigation. The
+        // dialog type and retained input below are the authoritative checks.
+        if (!nativeDialogTypes.includes('beforeunload')) throw error;
+    }
+    assert.ok(nativeDialogTypes.includes('beforeunload'),
+        'L29 real Chromium navigation must show an unsaved-data beforeunload dialog');
+    assert.equal(await nativePage.locator('#psi-l06-Q1').inputValue(), '가상 작업발판 안전 확인',
+        'Dismissed real browser navigation must preserve the in-memory Q1 answer');
+    await nativePage.getByRole('button', { name: '전체 초기화' }).click();
+    await nativePage.getByRole('group', { name: '작성 내용 초기화 확인' })
+        .getByRole('button', { name: '초기화 확정' }).click();
+    assert.equal(await nativePage.locator('[data-testid=l06-unsaved-status]').count(), 0);
+    nativeDialogTypes.length = 0;
+    await nativePage.goto(host + '/worker-risk-draft?after-confirmed-reset=1', {
+        waitUntil: 'domcontentloaded', timeout: 10000,
+    });
+    await nativePage.locator('#psi-l06-Q1').waitFor();
+    assert.deepEqual(nativeDialogTypes, [], 'Cleared practice must navigate without a native dialog');
+    assert.equal(await nativePage.locator('#psi-l06-Q1').inputValue(), '');
+    await nativePage.close();
+
+    await writeFile('artifacts/audit/psi-l06-worker-risk-draft/result.json', JSON.stringify({
+        result: 'SYNTHETIC_PASS',
+        route: '/worker-risk-draft',
+        formQuestions: 5,
+        apiCalls: apiCalls.length,
+        externalCalls: externalCalls.length,
+        storageWrites: 0,
+        resetSafety: 'first-tap-prompt, cancel-preserves, Escape-preserves, confirmed-only-deletion',
+        focusSafety: 'review-heading-focused; cancel-Escape-confirm-focus-restored-to-reset-button',
+        requiredFieldValidation: 'Q1 two-character and Q3 grade inline alert, aria-invalid/describedby, focus-to-field, reset-on-correction',
+        responsiveAudit: { widths: responsiveWidths, states: ['blank', 'unsaved', 'review', 'reset-confirmation'], samples: responsiveResults, sidewaysOverflow: false, minTouchTargetPx: 44, keyboardFocusRingPx: 3, externalRequests: auditedRequests.length },
+        unloadGuard: 'blank-allows, typed-warns, cancel-preserves, confirmed-reset-releases; mobile-prompt-not-guaranteed',
+        visibleUnsavedNotice: true,
+        nativeChromiumUnload: 'document-navigation-beforeunload-dismiss-preserves-Q1; confirmed-reset-navigates',
+        a4TrialPrint: { pages: 1, questions: 5, unfinishedWarningOnly: true, longAnswerPages: longPdf.numPages, longAnswersIntact: true, receiptCreated: false, syntheticOnly: true },
+        navigation: 'one-question-at-a-time, incomplete-step-blocked, back-and-forth-preserved',
+        note: 'In-memory trial only, no worker submission/identity/Android validation',
+    }, null, 2) + '\n');
+
+    console.log('[PSI L06] SYNTHETIC_PASS: L32 320–1440px reflow/touch QA + Q1/Q3 focus + A4; zero API/storage calls');
+} finally {
+    await browser?.close();
+    server.kill('SIGTERM');
+}

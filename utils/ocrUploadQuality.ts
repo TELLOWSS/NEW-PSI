@@ -1,3 +1,6 @@
+import { OCR_GATEWAY_TARGET_BYTES } from './ocrGatewayPayload';
+import { inspectLocalPdfForOcr } from './ocrLocalPdfSplit';
+
 export type OcrUploadIssueCode =
     | 'LOW_RESOLUTION'
     | 'EXTREME_ASPECT_RATIO'
@@ -6,7 +9,10 @@ export type OcrUploadIssueCode =
     | 'LOW_CONTRAST'
     | 'POSSIBLE_BLUR'
     | 'POSSIBLE_GLARE'
-    | 'PREVIEW_UNAVAILABLE';
+    | 'PREVIEW_UNAVAILABLE'
+    | 'PDF_PAGE_SPLIT_REQUIRED'
+    | 'PDF_TOO_LARGE'
+    | 'PDF_OPEN_FAILED';
 
 export type OcrUploadIssue = {
     code: OcrUploadIssueCode;
@@ -180,7 +186,24 @@ const loadImage = async (file: File): Promise<ImageBitmap | HTMLImageElement> =>
 export const assessOcrUploadFile = async (file: File): Promise<OcrUploadPreflight> => {
     const key = getOcrFileKey(file);
     if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
-        return { key, fileName: file.name, status: 'ready', issues: [] };
+        try {
+            const info = await inspectLocalPdfForOcr(file);
+            const issues: OcrUploadIssue[] = [];
+            if (info.pages !== 1) issues.push({
+                code: 'PDF_PAGE_SPLIT_REQUIRED', severity: 'block',
+                message: 'PDF ' + info.pages + '페이지는 한 번에 분석할 수 없습니다. 페이지별 나누기를 사용해 주세요.',
+            });
+            if (!info.sizeOk) issues.push({
+                code: 'PDF_TOO_LARGE', severity: 'block',
+                message: 'PDF 용량이 안전 전송 한도를 넘습니다. 기기에서 페이지별로 나눠 주세요.',
+            });
+            return { key, fileName: file.name, status: issues.length ? 'blocked' : 'ready', issues };
+        } catch {
+            return { key, fileName: file.name, status: 'blocked', issues: [{
+                code: 'PDF_OPEN_FAILED', severity: 'block',
+                message: 'PDF를 열 수 없습니다. 파일 잠금 또는 손상 여부를 확인해 주세요.',
+            }] };
+        }
     }
 
     try {

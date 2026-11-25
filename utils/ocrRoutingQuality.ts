@@ -1,4 +1,5 @@
 import { assessPsiDocumentEvidence, normalizeOcrConfidence } from './ocrDocumentValidation.js';
+import { getPsiWrittenAnswerCoverage } from './ocrQuestionCoverage.js';
 
 export const OCR_AUTO_ACCEPTANCE_THRESHOLD = 0.86;
 export const OCR_CRITICAL_FIELD_THRESHOLD = 0.82;
@@ -52,15 +53,8 @@ const clampConfidence = (value: unknown): number => {
     return normalizeOcrConfidence(value) ?? 0;
 };
 
-const getNonEmptyAnswerCount = (value: unknown): number => {
-    if (!Array.isArray(value)) return 0;
-    return value.slice(0, 5).filter((answer) => {
-        if (!answer || typeof answer !== 'object') return false;
-        const row = answer as Record<string, unknown>;
-        return [row.answerText, row.koreanTranslation, row.nativeTranslation]
-            .some((item) => String(item || '').trim().length >= 2);
-    }).length;
-};
+const getNonEmptyAnswerCount = (value: unknown): number =>
+    getPsiWrittenAnswerCoverage(value).answerCount;
 
 const normalizeCriticalValue = (value: unknown): string => String(value || '')
     .normalize('NFKC')

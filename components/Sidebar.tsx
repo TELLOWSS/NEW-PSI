@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { Page } from '../types';
 import { BrandPhilosophyLogo } from './shared/BrandPhilosophyLogo';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
-import { isPageVisibleByOperationalMode } from '../utils/operationalModeUtils';
+import { isPageVisibleByOperationalMode, type OperationalMode } from '../utils/operationalModeUtils';
 import {
     applySidebarComposition,
     reorderSidebarPage,
@@ -24,6 +24,7 @@ interface SidebarProps {
     setCurrentPage: (page: Page) => void;
     uiMode?: UiAudienceMode;
     compositionConfig: UiCompositionConfig;
+    allowCollapse?: boolean;
     compositionEditMode?: boolean;
     onCompositionConfigChange?: (next: UiCompositionConfig) => void;
     getPageLabel?: (page: Page) => string;
@@ -109,6 +110,19 @@ const sidebarMenuItems: SidebarMenuItem[] = [
     },
 ];
 
+// Shared source of truth for both sidebar and quick navigation.
+// Never expose pages that are hidden by mode, role or user's menu composition.
+export const getSidebarVisibleMenuItems = (
+    mode: OperationalMode,
+    uiMode: UiAudienceMode,
+    compositionConfig: UiCompositionConfig,
+): SidebarMenuItem[] => applySidebarComposition(
+    sidebarMenuItems.filter((item) =>
+        isPageVisibleByOperationalMode(item.id, mode) && isRouteVisibleInMode(item.id, uiMode),
+    ),
+    compositionConfig,
+);
+
 const SIDEBAR_GROUP_ORDER: ProductGroup[] = [
     'dashboard',
     'tbm',
@@ -131,11 +145,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setCurrentPage,
     uiMode = 'practitioner',
     compositionConfig,
+    allowCollapse = false,
     compositionEditMode = false,
     onCompositionConfigChange,
     getPageLabel,
 }) => {
     const { mode } = useOperationalMode();
+    const [isCollapsed, setIsCollapsed] = useState(false);
+    const docked = allowCollapse && isCollapsed;
+
+    useEffect(() => {
+        if (compositionEditMode) setIsCollapsed(false);
+    }, [compositionEditMode]);
     const resolvedUiMode: UiAudienceMode = uiMode === 'worker' || uiMode === 'developer' ? uiMode : 'practitioner';
     const [nexusAuthority, setNexusAuthority] = useState<'hq' | 'field'>(() => {
         if (typeof window === 'undefined' || !window.localStorage) return 'hq';
@@ -171,8 +192,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     );
 
     const visibleMenuItems = useMemo(
-        () => applySidebarComposition(modeVisibleMenuItems, compositionConfig),
-        [modeVisibleMenuItems, compositionConfig],
+        () => getSidebarVisibleMenuItems(mode, resolvedUiMode, compositionConfig),
+        [mode, resolvedUiMode, compositionConfig],
     );
 
     const editRows = useMemo(
@@ -220,17 +241,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }, [visibleMenuItems]);
 
     return (
-        <div className="psi-sidebar psi-sidebar-surface flex h-full w-[248px] shrink-0 flex-col border-r text-slate-800 transition-colors dark:text-slate-100">
-            <div className="psi-sidebar-brand border-b border-slate-200 px-5 pb-4 pt-5 dark:border-slate-800/80">
-                <div className="flex items-center gap-3">
+        <div className={`psi-sidebar psi-sidebar-surface flex h-full shrink-0 flex-col border-r text-slate-800 transition-colors dark:text-slate-100 ${docked ? 'psi-sidebar--collapsed w-[76px]' : 'w-[248px]'}`}>
+            <div className={`psi-sidebar-brand border-b border-slate-200 pb-4 pt-5 dark:border-slate-800/80 ${docked ? 'px-3' : 'px-5'}`}>
+                <div className={`flex items-center ${docked ? 'justify-center' : 'gap-3'}`}>
                     <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-slate-900 bg-[#102a43] p-1.5 text-white dark:border-sky-300/20 dark:bg-sky-400/15">
                         <BrandPhilosophyLogo className="h-7 w-7" />
                     </div>
-                    <div>
+                    {!docked && <div>
                         <p className="psi-sidebar-brand-eyebrow">SAFETY INTELLIGENCE</p>
                         <p className="psi-sidebar-wordmark">PSI</p>
                         <p className="psi-small-note mt-1">근로자 참여형 안전관리</p>
-                    </div>
+                    </div>}
                 </div>
                 {nexusAuthority === 'field' && (
                     <label className="mt-2.5 flex items-center gap-1.5 rounded-lg border border-sky-400/30 bg-sky-950/30 px-2.5 py-1.5 text-[11px] font-semibold text-sky-900 dark:text-sky-200 cursor-pointer">
@@ -245,7 +266,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
             </div>
 
-            <nav className="flex-1 px-3 py-4 overflow-y-auto custom-scrollbar">
+            {allowCollapse && (
+                <div className={`flex border-b border-slate-200 px-2 py-2 dark:border-slate-800/80 ${docked ? 'justify-center' : 'justify-end'}`}>
+                    <button
+                        type="button"
+                        className="psi-sidebar-dock-toggle flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--psi-focus)] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                        onClick={() => setIsCollapsed((prev) => !prev)}
+                        aria-label={docked ? '메뉴 펼치기' : '메뉴 접기'}
+                        aria-expanded={!docked}
+                        title={docked ? '메뉴 펼치기' : '메뉴 접기'}
+                    >
+                        <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={docked ? 'M9 18l6-6-6-6' : 'M15 18l-6-6 6-6'} /></svg>
+                        {!docked && <span>메뉴 접기</span>}
+                    </button>
+                </div>
+            )}
+
+            <nav className={`flex-1 py-4 overflow-y-auto custom-scrollbar ${docked ? 'px-2' : 'px-3'}`}>
                 {compositionEditMode && onCompositionConfigChange && (
                     <section className="mb-4 rounded-xl border border-slate-200 bg-white/80 p-3 dark:border-slate-700/80 dark:bg-slate-900/70">
                         <h3 className="psi-meta-label text-slate-700 dark:text-slate-200">메뉴 구성 편집</h3>
@@ -256,8 +293,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 const isFirst = index === 0;
                                 const isLast = index === editRows.length - 1;
                                 return (
-                                    <div key={`edit-${item.id}`} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 dark:border-slate-700/70 dark:bg-slate-950/40">
-                                        <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                    <div key={`edit-${item.id}`} className="flex min-w-0 flex-col gap-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-700/70 dark:bg-slate-950/40">
+                                        <label className="flex min-h-11 min-w-0 items-center gap-2 rounded-md text-xs font-semibold leading-snug text-slate-700 dark:text-slate-200">
                                             <input
                                                 type="checkbox"
                                                 checked={!isHidden}
@@ -266,16 +303,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                                         setSidebarPageVisible(compositionConfig, item.id, event.target.checked),
                                                     )
                                                 }
-                                                className="h-3.5 w-3.5 rounded border-slate-400 dark:border-slate-500 bg-white dark:bg-slate-800 text-orange-500 focus:ring-orange-500"
+                                                className="h-5 w-5 shrink-0 rounded border-slate-400 bg-white text-orange-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--psi-focus)] dark:border-slate-500 dark:bg-slate-800"
                                             />
-                                            <span>{resolvePageLabel(item.id)}</span>
+                                            <span className="min-w-0 break-words">{resolvePageLabel(item.id)}</span>
                                         </label>
-                                        <div className="flex items-center gap-1">
+                                        <div className="flex items-center justify-end gap-2">
                                             <button
                                                 type="button"
                                                 disabled={isFirst}
                                                 onClick={() => onCompositionConfigChange(reorderSidebarPage(compositionConfig, item.id, 'up'))}
-                                                className="rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
+                                                className="flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-slate-300 bg-white text-base font-bold text-slate-600 transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--psi-focus)] disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                                                 aria-label={`${resolvePageLabel(item.id)} 위로 이동`}
                                             >
                                                 ▲
@@ -284,7 +321,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                                 type="button"
                                                 disabled={isLast}
                                                 onClick={() => onCompositionConfigChange(reorderSidebarPage(compositionConfig, item.id, 'down'))}
-                                                className="rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
+                                                className="flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-slate-300 bg-white text-base font-bold text-slate-600 transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--psi-focus)] disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                                                 aria-label={`${resolvePageLabel(item.id)} 아래로 이동`}
                                             >
                                                 ▼
@@ -298,7 +335,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
                 {groupedMenuItems.map((group) => (
                     <section key={group.id} className="mb-3 last:mb-0">
-                        <h3 className="psi-meta-label px-3 pb-1.5 dark:text-slate-400">
+                        <h3 className={docked ? 'sr-only' : 'psi-meta-label px-3 pb-1.5 dark:text-slate-400'}>
                             {group.label}
                         </h3>
                         <div className="space-y-1">
@@ -309,15 +346,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                         key={item.id}
                                         type="button"
                                         onClick={() => setCurrentPage(item.id)}
-                                        className={`psi-sidebar-item w-full flex min-h-[44px] items-center gap-3 rounded-lg border px-3 py-2.5 text-[13px] font-semibold transition-colors ${
+                                        className={`psi-sidebar-item w-full flex min-h-[44px] items-center rounded-lg border py-2.5 text-[13px] font-semibold transition-colors ${docked ? 'justify-center gap-0 px-2' : 'gap-3 px-3'} ${
                                             isActive
                                                 ? 'is-active border-blue-200 bg-blue-50 text-[#102a43] dark:border-sky-400/25 dark:bg-sky-400/10 dark:text-sky-100'
                                                 : 'border-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-950 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-800/70 dark:hover:text-white'
                                         }`}
                                         aria-current={isActive ? 'page' : undefined}
+                                        aria-label={docked ? resolvePageLabel(item.id) : undefined}
+                                        title={docked ? resolvePageLabel(item.id) : undefined}
                                     >
                                         <span className="shrink-0">{item.icon}</span>
-                                        <span className="truncate text-left">{resolvePageLabel(item.id)}</span>
+                                        <span className={docked ? 'sr-only' : 'truncate text-left'}>{resolvePageLabel(item.id)}</span>
                                     </button>
                                 );
                             })}
@@ -326,15 +365,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ))}
             </nav>
 
-            <div className="border-t border-slate-200 p-4 dark:border-slate-800/80">
-                <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-700 dark:bg-slate-900/80">
+            <div className={`border-t border-slate-200 dark:border-slate-800/80 ${docked ? 'p-2' : 'p-4'}`}>
+                <div className={`flex items-center rounded-lg border border-slate-200 bg-slate-50 py-3 dark:border-slate-700 dark:bg-slate-900/80 ${docked ? 'justify-center px-1' : 'gap-3 px-3'}`} title={docked ? '현장 관리자' : undefined}>
                     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A11.955 11.955 0 0112 16c2.5 0 4.824.76 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     </div>
-                    <div>
+                    {!docked && <div>
                         <p className="psi-item-title text-slate-800 dark:text-slate-100">현장 관리자</p>
                         <p className="psi-small-note">안전 운영 계정</p>
-                    </div>
+                    </div>}
                 </div>
             </div>
         </div>

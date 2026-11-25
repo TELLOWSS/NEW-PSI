@@ -59,7 +59,7 @@ export default defineConfig(({ mode }) => {
           const visit=(file:string)=>{if(localAssets.has(file))return;const item=bundle[file];if(!item||item.type!=='chunk')throw new Error('Missing offline chunk '+file);localAssets.add(file);for(const css of item.viteMetadata?.importedCss||[])localAssets.add(css);for(const dep of [...item.imports,...item.dynamicImports])visit(dep);};
           visit(localEntry.fileName);
           const offlineHtml=await readFile(path.join(directory,'field-local/index.html'),'utf8');
-          const urls=['/field-local/index.html',...Array.from(localAssets).sort().map(file=>'/'+file)];
+          const urls=['/field-local/index.html','/field-local-l14.webmanifest','/field-local-icon-l14-192.png','/field-local-icon-l14-512.png',...Array.from(localAssets).sort().map(file=>'/'+file)];
           const workerTemplate=`
 const CACHE='psi-local-shell-__WORKER_VERSION__', URLS=${JSON.stringify(urls)};
 self.addEventListener('install',event=>event.waitUntil((async()=>{const cache=await caches.open(CACHE);try{await cache.addAll(URLS);}catch(error){await caches.delete(CACHE);throw error;}})()));

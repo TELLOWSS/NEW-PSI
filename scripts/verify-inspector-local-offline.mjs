@@ -93,6 +93,10 @@ try{
  await panel.getByRole('button',{name:'사진과 내용 기기에 저장'}).click();
  await panel.getByText('기기 점검 기록 1건을 다시 읽고 사진·내용을 확인했습니다.',{exact:false}).waitFor();
  await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
+ const nextCheckCard=panel.locator('[data-psi-l09-next-check]');
+ await nextCheckCard.getByText('기록된 후속 조치 대상이 없습니다',{exact:true}).waitFor();
+ assert.equal(await nextCheckCard.getByRole('button',{name:/해당 재점검 입력 열기/}).count(),0,
+  'empty follow-up queue must not expose a fake confirmation action');
  const saved=await page.evaluate(()=>new Promise((resolve,reject)=>{const open=indexedDB.open('psi-inspector-local-records',1);open.onerror=()=>reject(open.error);open.onsuccess=()=>{const db=open.result,tx=db.transaction('records','readonly'),request=tx.objectStore('records').getAll();request.onsuccess=()=>{resolve(request.result.map(r=>({note:r.note,action:r.action,size:r.photo.size,sha:r.sha256,version:r.legalVersion})));};tx.oncomplete=()=>db.close();};}));
  assert.equal(saved.length,1);assert.match(saved[0].note,/시스템비계/);assert.ok(saved[0].size>0);assert.match(saved[0].sha,/^[a-f0-9]{64}$/);assert.ok(saved[0].version);
  // A deferred action can be recorded and its after photo attached later while offline.
@@ -165,6 +169,14 @@ try{
  await actionRow.getByLabel('진행·확인 내용').fill('임시 출입 통제 후 발판 설치 예정');
  await actionRow.getByRole('button',{name:'후속 기록 저장'}).click();
  await panel.getByText('후속 조치를 이 기기에 저장했습니다.',{exact:false}).waitFor();
+ await nextCheckCard.getByText('추후 확인이 예정된 조치가 있습니다',{exact:true}).waitFor();
+ await nextCheckCard.getByText('조치 목표일 2030-01-02',{exact:true}).waitFor();
+ assert.equal(await nextCheckCard.getByText('임시 보호조치 기록 확인 · 실제 시행 여부 별도 확인',{exact:true}).count(),0,
+  'entered temporary measures may be recorded but are never certified as implemented');
+ await nextCheckCard.getByRole('button',{name:/해당 재점검 입력 열기/}).click();
+ await page.waitForFunction(()=>document.activeElement?.id?.startsWith('si-recheck-'));
+ assert.equal(await page.locator('[id^="si-recheck-"]:focus').count(),1,
+  'next-check button must focus the saved recheck editor');
  await actionRow.getByText('현재 기록된 임시 안전조치: 위험 구역 출입 통제 및 안내 표지 유지',{exact:false}).waitFor();
  await deferredGuide.getByText('입력된 항목 3/4개',{exact:false}).waitFor();
  await deferredGuide.getByText('4. 지연 사유·재점검 · 미기록').waitFor();
@@ -183,6 +195,7 @@ try{
  await overallRecheck.getByLabel('점검 전체 다음 확인 예정일').fill('2030-01-03');
  await overallRecheck.getByRole('button',{name:'재점검 이력 저장'}).click();
  await overallRecheck.getByText('재점검 1건',{exact:false}).waitFor();
+ await nextCheckCard.getByText('재점검 예정일 2030-01-03',{exact:true}).waitFor();
  await deferredGuide.getByText('입력된 항목 4/4개',{exact:false}).waitFor();
  await deferredGuide.getByText('네 항목 모두 기록됨 · 실제 현장 확인은 별도',{exact:false}).waitFor();
  await deferredGuide.getByText('다음 확인: 2030-01-03',{exact:false}).waitFor();
@@ -564,7 +577,7 @@ try{
   if(version<3)delete legacy.record.afterPhoto;
   await panel.getByLabel('백업 파일 복원').setInputFiles({name:`legacy-${version}.json`,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(legacy))});
   await panel.getByText('이 브라우저에 보관된 점검 1건').waitFor();
-  if(version>=2)await panel.getByText('조치 진행 중',{exact:true}).waitFor();
+  if(version>=2)await panel.getByRole('region',{name:'후속 조치 관리'}).first().getByText('조치 진행 중',{exact:true}).waitFor();
   if(version===3)await panel.getByText('조치 후 사진: synthetic-after-v2.png').waitFor();
   page.once('dialog',d=>d.accept());await panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'}).getByRole('button',{name:'이 기기 기록 삭제'}).click();
   await panel.getByText('이 브라우저에 보관된 점검 0건').waitFor();
@@ -577,7 +590,7 @@ try{
  await panel.getByText('추가 사진: 위험 부위 · '+replacementName,{exact:false}).waitFor();
  await panel.getByText('이전 현장 사진 1장').waitFor();
  assert.deepEqual(await panel.locator('[aria-label="현장 사진 표시 순서"] img').evaluateAll(nodes=>nodes.map(n=>n.alt)),['추가 현장 사진','기본 사진']);
- await panel.getByText('조치 진행 중',{exact:true}).waitFor();
+ await panel.getByRole('region',{name:'후속 조치 관리'}).first().getByText('조치 진행 중',{exact:true}).waitFor();
  await panel.getByText('현재 기록된 임시 안전조치: 위험 구역 출입 통제 및 안내 표지 유지',{exact:false}).waitFor();
  await panel.getByRole('region',{name:'점검 전체 재점검·지연 사유'}).getByText('재점검 1건',{exact:false}).waitFor();
  await panel.getByRole('region',{name:'조치별 재점검·지연 사유'}).first().getByText('재점검 1건',{exact:false}).waitFor();
@@ -591,7 +604,7 @@ try{
  await panel.getByText('이 조치의 이전 사진 1장').waitFor();
  await panel.getByText('이전 기본 사진 1장').waitFor();
  await panel.getByText('이 조치의 사진: action-two.jpg').waitFor();
- await panel.getByText('확인 완료',{exact:true}).waitFor();
+ await panel.getByRole('region',{name:'추가 조치 항목'}).getByText('확인 완료',{exact:true}).waitFor();
  // Revisit the same issue with the camera and preserve a cancelled replacement.
  const restoredRow=panel.locator('article').filter({hasText:'시스템비계 발판 사이가 벌어져'});
  await restoredRow.getByRole('button',{name:'조치 후 사진 촬영'}).click();

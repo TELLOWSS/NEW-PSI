@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { Page, WorkerRecord } from '../types';
 import { BrandPhilosophyLogo } from '../components/shared/BrandPhilosophyLogo';
+import FirstUseTrustGuideL13 from '../components/introduction/FirstUseTrustGuideL13';
+import {hasValidSafetyScore} from '../utils/coreMetrics';
 import { PSI_APP_VERSION, PSI_CURRENT_RELEASE, PSI_SYSTEM_NAME } from '../lib/appInfo';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { BRAND_TONE } from '../utils/brandToneTokens';
@@ -266,13 +268,13 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
     const previewMetrics = useMemo(() => {
         const totalWorkers = workerRecords.length;
         const averageScore = totalWorkers > 0
-            ? Math.round((workerRecords.reduce((sum, record) => sum + Number(record.safetyScore || 0), 0) / totalWorkers) * 10) / 10
+            ? Math.round((workerRecords.filter(hasValidSafetyScore).reduce((sum, record) => sum + record.safetyScore, 0) / Math.max(1, workerRecords.filter(hasValidSafetyScore).length)) * 10) / 10
             : 0;
-        const highRiskWorkers = workerRecords.filter((record) => Number(record.safetyScore || 0) < 60).length;
+        const highRiskWorkers = workerRecords.filter((record) => hasValidSafetyScore(record) && record.safetyScore < 60).length;
         const alertSignals = workerRecords.filter((record) => Boolean(record.ocrErrorType) || record.secondPassStatus === 'NEEDED').length;
         const interventionTargets = workerRecords.filter((record) => {
-            const score = Number(record.safetyScore || 0);
-            return score < 70 || record.selfAssessedRiskLevel === '상';
+            const scoreSignal = hasValidSafetyScore(record) && record.safetyScore < 70;
+            return scoreSignal || record.selfAssessedRiskLevel === '상';
         }).length;
         const taggingQueue = workerRecords.filter((record) => record.secondPassStatus === 'NEEDED' || record.secondPassStatus === 'IN_PROGRESS').length;
         const approvedRecords = workerRecords.filter((record) => record.approvalStatus === 'APPROVED' || record.reviewStatus === 'APPROVED').length;
@@ -709,8 +711,8 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         },
         {
             title: 'PSI 전환',
-            summary: `PSI는 ${cycleCopy.recordLabel}를 OCR로 구조화하고, 관리자 검증을 거쳐 공식 리포트와 ${cycleCopy.nextCycleLabel} 교육자료로 다시 현장에 돌려보냅니다.`,
-            points: ['OCR 분석과 관리자 보호 해석', '5문항·6지표 구조화', '공식 리포트와 추적 이력 보존'],
+            summary: `PSI는 ${cycleCopy.recordLabel}를 OCR로 구조화하고, 관리자 검토 후 보고서·${cycleCopy.nextCycleLabel} 교육자료 작성과 현장 재확인 경로로 연결합니다. 생성·전달·승인은 별도로 확인합니다.`,
+            points: ['OCR 분석과 관리자 원본 대조', '5문항·6지표 정의 구분', '보고서 작성·추적 경로 확인'],
         },
         {
             title: '현장 운영 가치',
@@ -719,7 +721,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         },
     ];
 
-    const proofChips = ['수기 OCR', '5문항·6지표', '관리자 검증', '공식 리포트', '원페이지 교육자료', `${cycleCopy.shortLabel} 추적`];
+    const proofChips = ['수기 원본·OCR', 'Q1~Q5 구조화', '관리자 검증', '보고서 출력 경로', '교육자료 검수', `${cycleCopy.shortLabel} 재확인`];
 
     const productSimpleSteps: Array<{ title: string; subtitle: string; desc: string; stat: string; page: Page; tone: string }> = [
         {
@@ -741,7 +743,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         {
             title: '3. 리포트·추적',
             subtitle: '공식 리포트와 추적 환류',
-            desc: `관리자 검증 결과가 공식 리포트, ${cycleCopy.nextCycleLabel} 원페이지 교육자료, ${cycleCopy.trackingLabel}로 이어지는지 확인합니다.`,
+            desc: `검토된 기록을 보고서 생성과 ${cycleCopy.nextCycleLabel} 원페이지 교육자료·${cycleCopy.trackingLabel}에서 각각 확인합니다. 저장·교육 전달은 별도입니다.`,
             stat: `리포트 대상 ${previewMetrics.totalWorkers}명`,
             page: 'reports',
             tone: BRAND_TONE.emeraldWhite,
@@ -752,7 +754,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         { label: '원본 보존', value: `${previewMetrics.totalWorkers}건`, desc: '수기 이미지와 분석 결과를 같은 흐름에서 확인' },
         { label: '관리자 검증', value: `${previewMetrics.qaValidationTargets}건`, desc: 'AI 판단을 현장 보호 해석으로 수정 가능' },
         { label: '전조 신호', value: `${previewMetrics.alertSignals}건`, desc: '위험 신호와 추가 확인 대상을 바로 분리' },
-        { label: '추적 환류', value: `${previewMetrics.approvedRecords}건`, desc: `승인 이력을 ${cycleCopy.nextCycleLabel} 교육자료·${cycleCopy.shortLabel} 자료로 연결` },
+        { label: '검토 승인 기록', value: `${previewMetrics.approvedRecords}건`, desc: '승인 이력 수치이며 교육 전달·현장 조치 완료는 별도' },
     ];
 
     const actualProgramScreens: Array<{ label: string; desc: string; stat: string; page: Page }> = [
@@ -813,7 +815,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
     ];
 
     const onePointProofMetrics = [
-        { marker: 'metric-two-minute', label: '시연 시간', value: '2분', desc: '촬영부터 교육 환류까지 한 장면으로 설명' },
+        { marker: 'metric-two-minute', label: '시연 방식', value: '직접 확인', desc: '실제 메뉴로 이동해 단계별 확인' },
         { marker: 'metric-one-record', label: '시작 단위', value: '1장', desc: '수기 기록지 한 장이 분석 데이터로 전환' },
         { marker: 'metric-closed-loop', label: '닫힌 흐름', value: '4단계', desc: 'OCR, 검증, 환류, 추적이 끊기지 않음' },
     ];
@@ -954,9 +956,9 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                 </div>
                                 <div className="max-w-3xl">
                                     <p className="text-[10px] font-black text-indigo-500">PSI · 현장 안전 운영 시스템</p>
-                                    <h1 className="mt-1 text-[24px] sm:text-[28px] leading-tight font-black text-slate-900 break-keep">기록지 한 장을 6대 지표와 다음 안전조치로.</h1>
+                                    <h1 className="mt-1 text-[24px] sm:text-[28px] leading-tight font-black text-slate-900 break-keep">기록지 한 장에서 관리자 확인과 다음 안전조치로.</h1>
                                     <p className="mt-2 text-[11px] sm:text-[12px] font-semibold leading-relaxed text-slate-600 break-keep">
-                                        PSI는 현장별 {cycleCopy.cadenceLabel}에 맞춰 {cycleCopy.recordLabel}를 수집·분석하고, 6대 지표로 위험신호를 추적해 조치와 교육을 {cycleCopy.nextCycleLabel}에 환류합니다.
+                                        PSI는 {cycleCopy.recordLabel} 원본과 Q1~Q5를 분석하고, 관리자가 대조한 근거를 조치·재점검과 {cycleCopy.nextCycleLabel} 교육자료로 연결하도록 돕습니다. 실제 안전 확보·교육 수신·승인은 별도로 확인합니다.
                                     </p>
                                     <div className="mt-2 flex flex-wrap gap-1.5">
                                         {proofChips.map((chip) => (
@@ -977,6 +979,8 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                             </div>
                         </div>
                     </div>
+
+                    <FirstUseTrustGuideL13 onNavigate={onNavigateToPage} />
 
                     <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
                         {productStorySteps.map((step, index) => (

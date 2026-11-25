@@ -31,6 +31,7 @@ import { enforceBreakdownDrivenScore } from '../utils/ocrSafetyScoreCalibration.
 import { normalizeNationality as importedNormalizeNationality } from '../utils/workerIdentity.js';
 import { normalizeOcrRecordMetadata } from '../utils/ocrRecordNormalization.js';
 import { PSI_FORM_MASTER_PROMPT_BLOCK } from '../config/psiFormMaster.js';
+import { getPsiWrittenAnswerCoverage } from '../utils/ocrQuestionCoverage.js';
 import { normalizeOcrConfidence, normalizeOcrDocumentMetadata } from '../utils/ocrDocumentValidation.js';
 import {
     buildWorkerAuthenticationProof,
@@ -1371,21 +1372,7 @@ const normalizeHandwrittenAnswers = (raw: unknown): Array<{ questionNumber: stri
         .filter((item) => item.answerText.length > 0 || item.koreanTranslation.length > 0 || String(item.nativeTranslation || '').trim().length > 0);
 };
 
-const REQUIRED_CHANGED_PSI_QUESTIONS = [1, 2, 3, 4, 5] as const;
-
 type RetryHandwrittenAnswer = ReturnType<typeof normalizeHandwrittenAnswers>[number];
-
-const normalizeQuestionNumber = (value: unknown): number | null => {
-    const digits = String(value || '').match(/\d+/)?.[0];
-    const questionNumber = Number(digits);
-    return Number.isInteger(questionNumber) && questionNumber >= 1 && questionNumber <= 5 ? questionNumber : null;
-};
-
-const getHandwrittenAnswerText = (answer: RetryHandwrittenAnswer): string => [
-    answer.answerText,
-    answer.koreanTranslation,
-    answer.nativeTranslation,
-].filter(Boolean).join(' ').trim();
 
 const evaluateChangedPsiFormCoverage = (record: {
     filename?: string;
@@ -1407,16 +1394,7 @@ const evaluateChangedPsiFormCoverage = (record: {
         /\bq[1-5]\b/i.test(searchableText) ||
         answers.length >= 3;
 
-    const present = new Set<number>();
-    answers.forEach((answer, index) => {
-        const questionNumber = normalizeQuestionNumber(answer.questionNumber) ?? (index >= 0 && index < 5 ? index + 1 : null);
-        if (questionNumber && getHandwrittenAnswerText(answer).length >= 2) {
-            present.add(questionNumber);
-        }
-    });
-
-    const presentQuestions = REQUIRED_CHANGED_PSI_QUESTIONS.filter((questionNumber) => present.has(questionNumber));
-    const missingQuestions = REQUIRED_CHANGED_PSI_QUESTIONS.filter((questionNumber) => !present.has(questionNumber));
+    const { presentQuestions, missingQuestions } = getPsiWrittenAnswerCoverage(answers);
     const isComplete = !looksLikeChangedPsiForm || missingQuestions.length === 0;
     const isAcceptable = !looksLikeChangedPsiForm || presentQuestions.length >= 4;
     const message = isComplete
@@ -1680,7 +1658,7 @@ const buildOcrPromptText = (filenameHint: string): string => [
     '필수 키: documentType, isPsiForm, documentValidationReason, documentMarkers, fieldConfidences, name, jobField, teamLeader, date, nationality, language, safetyScore, safetyLevel, score_reason, score_reason_native, actionable_coaching, actionable_coaching_native, scoreBreakdown, strengths, strengths_native, weakAreas, weakAreas_native, improvement, improvement_native, suggestions, suggestions_native, aiInsights, aiInsights_native, fullText, koreanTranslation, scoreReasoning, ocrConfidence, handwrittenAnswers',
     '[문서 유형 선확인 - 가장 먼저 수행]',
     '- 빛반사·그림자·부분 흐림만으로 문서 전체를 거부하지 마세요. 읽히는 내용은 추출하고 읽히지 않는 부분만 판독불가로 남기세요. 안전대책을 추측해 채우지 마세요.',
-    '- PSI, NEW-PSI 또는 PSI-RA-01 위험성평가 기록지의 제목, 하단 공종·이름 칸, Q1~Q5 문항 구조가 실제로 보이는지 먼저 확인하세요.',
+    '- 최신 PSI/NEW-PSI/PSI-RA-01뿐 아니라 초기 자기규율 예방체계 위험성평가 기록표(2025년, 상단 교육일·이름·근무 공종), 중·러·미얀마·베트남어 초기 양식을 실제 제목·공종 레이블·1~5 질문으로 확인하세요. 일반 안전 설문은 제외하세요.',
     '- 해당 양식이 아니거나 확실하지 않으면 isPsiForm=false, documentType="other-safety-document" 또는 "unknown"으로 반환하세요.',
     '- isPsiForm=false이면 보이지 않는 값을 추정하지 말고 safetyScore=0으로 반환하세요.',
     '- fieldConfidences의 각 필드는 0~1로 기록하고 흐리거나 비어 있으면 0.8 미만으로 기록하세요.',
@@ -1694,13 +1672,13 @@ const buildOcrPromptText = (filenameHint: string): string => [
     '- answerText: 작업자가 실제로 쓴 원문',
     '- koreanTranslation: 해당 답변의 한국어 해석 (항상 한국어만)',
     '- nativeTranslation: 외국인 근로자는 해당 모국어로 완전 번역하여 반드시 채울 것. 한국인은 빈 문자열.',
-    '[NEW-PSI 고정 양식 판독 규칙]',
+    '[NEW-PSI 최신/초기 양식별 판독 규칙]',
     PSI_FORM_MASTER_PROMPT_BLOCK,
-    '- jobField는 페이지 하단 왼쪽의 "공종" 칸에 실제로 적힌 값만 사용하세요.',
-    '- name은 페이지 하단 가운데의 "현장 등록 한글이름" 칸에 실제로 적힌 값만 사용하세요.',
+    '- 최신 양식은 하단 "공종", 초기 양식은 상단 "근무 공종"/"작업 종류"의 명시적 기입란을 읽으세요.',
+    '- 최신 양식은 하단 "현장 등록 한글이름", 초기 양식은 상단 "이름"의 명시적 기입란을 읽으세요. 하단 서명과 혼동하지 마세요.',
     '- Q1 답변은 근로자가 실제로 하는 작업 중 가장 위험한 세부작업/위험작업입니다. 위험분석, 점수, 위험성평가 교육자료 환류의 핵심 근거로 사용하세요.',
-    '- 단, Q1 답변은 하단 "공종" 칸의 확정값을 대체하지 않습니다. Q1을 jobField로 저장하거나 jobField를 자동 확정하는 값으로 쓰지 마세요.',
-    '- 하단 공종/이름 칸이 비었거나 흐리면 추정하지 말고 jobField는 "미분류", name은 "식별 대기"로 반환하세요.',
+    '- Q1 위험작업은 양식과 관계없이 공종 칸의 확정값을 대체하지 않습니다. Q1을 jobField로 저장하거나 jobField를 자동 확정하는 값으로 쓰지 마세요.',
+    '- 양식별 공종/이름 칸이 비었거나 흐리면 추정하지 말고 jobField는 "미분류", name은 "식별 대기"로 반환하세요.',
     '문항형 위험성평가표(1~5번)가 보이면 handwrittenAnswers를 절대 비워두지 마세요.',
     'NEW-PSI 양식 또는 PSI-RA-01 양식이면 Q1 위험 작업, Q2 위험요인/사고 이유, Q3 위험수준과 이유, Q4 감소대책, Q5 지킬 행동을 각각 분리해서 5개 항목으로 반환하세요.',
     OCR_RETRY_LANGUAGE_POLICY,

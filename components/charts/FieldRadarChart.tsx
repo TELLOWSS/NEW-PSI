@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import type { Chart } from 'chart.js/auto';
 import type { WorkerRecord } from '../../types';
 import { ensureChartJs } from '../../utils/externalScripts';
+import { buildGroupScoreChartEvidence } from '../../utils/livingChartEvidenceL11';
 import { useResolvedTheme } from '../../hooks/useResolvedTheme';
 
 interface ChartProps {
@@ -14,49 +15,23 @@ export const FieldRadarChart: React.FC<ChartProps> = ({ records, mode = 'field' 
     const isDark = theme === 'dark';
     const chartRef = useRef<HTMLCanvasElement>(null);
     const chartInstance = useRef<Chart | null>(null);
+    const chartEvidence = useMemo(() => buildGroupScoreChartEvidence(records, mode === 'team' ? 'team' : 'field'), [records, mode]);
+    const hasChartData = chartEvidence.rows.length > 0;
 
     useEffect(() => {
         let disposed = false;
 
         const renderChart = async () => {
-            if (!chartRef.current) return;
+            if (!chartRef.current || !hasChartData) return;
 
             const ChartLib = await ensureChartJs().catch(() => null);
             if (!ChartLib || disposed || !chartRef.current) return;
 
-            const metrics: Record<string, { scores: number[], counts: number }> = {};
-            
-            records.forEach(r => {
-                let key = '';
-                if (mode === 'team') {
-                    if (!r.teamLeader || r.teamLeader === '미지정') return;
-                    key = `${r.teamLeader} (${r.jobField})`;
-                } else {
-                    key = r.jobField || '미분류';
-                }
-
-                if (!metrics[key]) metrics[key] = { scores: [], counts: 0 };
-                metrics[key].scores.push(r.safetyScore);
-                metrics[key].counts++;
-            });
-
-            const limit = mode === 'team' ? 8 : 10;
-            const topItems = Object.entries(metrics)
-                .sort((a, b) => b[1].counts - a[1].counts)
-                .slice(0, limit);
-
-            const labels = topItems.map(([key]) => key);
-            const scoreData = topItems.map(([, data]) => 
-                data.scores.length > 0 ? data.scores.reduce((a, b) => a + b, 0) / data.scores.length : 0
-            );
-            
-            const consistencyData = topItems.map(([, data]) => {
-                if (data.scores.length < 1) return 0;
-                const mean = data.scores.reduce((a, b) => a + b, 0) / data.scores.length;
-                const variance = data.scores.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / data.scores.length;
-                const consistency = Math.max(0, 100 - Math.sqrt(variance) * 2.5); 
-                return consistency;
-            });
+            const labels = chartEvidence.rows.map(row => row.label);
+            const scoreData = chartEvidence.rows.map(row => row.average);
+            // This spread-derived reference remains explicitly nonofficial.
+            // With one valid response it is unavailable, not an artificial 100.
+            const consistencyData = chartEvidence.rows.map(row => row.spreadReference);
 
             if (chartInstance.current) {
                 chartInstance.current.destroy();
@@ -81,11 +56,11 @@ export const FieldRadarChart: React.FC<ChartProps> = ({ records, mode = 'field' 
                 chartInstance.current = new ChartLib(ctx, {
                     type: 'radar',
                     data: {
-                        labels: labels.length > 0 ? labels : ['데이터 없음'],
+                        labels,
                         datasets: [
                             {
                                 label: '평균 위험인식 신호',
-                                data: scoreData.length > 0 ? scoreData : [0],
+                                data: scoreData,
                                 fill: true,
                                 backgroundColor: brandBg,
                                 borderColor: brandColor,
@@ -96,8 +71,8 @@ export const FieldRadarChart: React.FC<ChartProps> = ({ records, mode = 'field' 
                                 borderWidth: 2
                             },
                             {
-                                label: '응답 일관성 지수',
-                                data: consistencyData.length > 0 ? consistencyData : [0],
+                                label: '점수 편차 참고값(비공식)',
+                                data: consistencyData,
                                 fill: true,
                                 backgroundColor: accentBg,
                                 borderColor: accentColor,
@@ -173,7 +148,12 @@ export const FieldRadarChart: React.FC<ChartProps> = ({ records, mode = 'field' 
                 chartInstance.current = null;
             }
         };
-    }, [records, mode, theme, isDark]);
+    }, [chartEvidence, hasChartData, theme, isDark]);
 
-    return <canvas ref={chartRef} />;
+    return hasChartData
+        ? <div data-l11-group-chart="ready" className="flex h-full min-h-0 flex-col">
+            <div className="min-h-0 flex-1"><canvas ref={chartRef} role="img" aria-label="공종·팀별 유효 점수 참고 차트 · 원점수의 현장안전 승인 의미 없음" /></div>
+            <p className="pt-1 text-center text-[10px] font-semibold text-slate-600 dark:text-slate-300">유효 점수만 평균 · 미입력/오류 제외 · 팀명은 익명 표시 · 편차 참고값은 공식 6대 지표가 아닙니다.</p>
+        </div>
+        : <div data-l11-group-chart="empty" role="status" className="flex h-full min-h-32 items-center justify-center rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm font-semibold text-slate-600 dark:border-slate-600 dark:text-slate-300">이 공종·팀 범위에 유효 점수가 없어 비교 차트를 그리지 않습니다. 빈 기록은 0점이 아닙니다.</div>;
 };

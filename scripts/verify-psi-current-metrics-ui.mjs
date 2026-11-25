@@ -116,6 +116,28 @@ try{
  await page.getByRole('region',{name:'주요 안전 지표'}).waitFor({timeout:15000});
  const initialBoard=await page.getByRole('region',{name:'주요 안전 지표'}).innerText();
  recordCheck('간편 관제: 보호 우선·분석 상태 표시',initialBoard.includes('보호 우선')&&initialBoard.includes('분석 완료'),{text:initialBoard.slice(0,450)});
+ // Living UI L05: verify real browser DOM and actual period-driven values.
+ // The fixture is dated June 2026; default current-cycle filter will have no
+ // matching records in later cycles. Selecting all must restore the 3 records.
+ const focus=page.locator('[data-psi-decision-focus]');
+ await focus.waitFor({state:'visible',timeout:15000});
+ const initialFocus=await focus.innerText();
+ recordCheck('L05 관리자 안내: 선택 범위와 근거 안내 렌더링',
+   initialFocus.includes('선택 범위에 따른 확인 안내')&&initialFocus.includes('조회 기록'),
+   {text:initialFocus.slice(0,380)});
+ await page.locator('.psi-ops-filter select').first().selectOption('all');
+ await focus.getByText('조회 기록').waitFor({state:'visible'});
+ const allScope=await focus.innerText();
+ recordCheck('L05 기간 전체 선택 시 실제 합성 기록 3건 연결',
+   allScope.includes('전체 기간')&&allScope.includes('3건')&&allScope.includes('현장 보호조치 확인'),
+   {text:allScope.slice(0,450)});
+ await page.setViewportSize({width:390,height:844});
+ const mobileFocusWidth=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,viewport:innerWidth}));
+ recordCheck('L05 390px 관리자 근거 영역 가로 넘침 없음',
+   mobileFocusWidth.scroll<=mobileFocusWidth.viewport+1,mobileFocusWidth);
+ await page.screenshot({path:resolve(outputDir,'living-l05-basic-dashboard-mobile.png')});
+ await page.setViewportSize({width:1440,height:1000});
+
  const snapshot=await page.evaluate(()=>{try{return JSON.parse(localStorage.getItem('psi_dashboard_live_sync_snapshot_v1')||'null')}catch{return null}});
  // New identity policy distinguishes confirmed worker UUIDs; all three fixture records are distinct.
  recordCheck('현재 공식 계산 규칙 v2: 3명 / 평균 50 / 보호 우선 2',snapshot?.totalWorkers===3&&snapshot?.averageScore===50&&snapshot?.highRiskWorkers===2&&snapshot?.metricRuleVersion==='psi-core-metrics-2026-09-09-v2',snapshot);

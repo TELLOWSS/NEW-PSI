@@ -71,6 +71,9 @@ import { getHarnessVersionDescriptors } from '../../utils/harnessVersionCatalog'
 import { deriveCompetencyProfile, getApprovalBlockers } from '../../utils/evidenceUtils';
 import { getSafetyLevelDisplayLabel, getSafetyLevelThresholds, getSafetyLevelFromScore, SAFETY_SIGNAL_COPY } from '../../utils/safetyLevelUtils';
 import { getPsiQuestionLabel } from '../../config/psiFormMaster';
+import { PsiFiveQuestionReviewNavigator } from '../assessment/PsiFiveQuestionReviewNavigator';
+import { buildPsiOcrEvidenceReview } from '../../utils/psiOcrEvidenceReview';
+import { PsiOcrEvidenceReviewPanel } from '../ocr/PsiOcrEvidenceReviewPanel';
 import {
     getManagerReviewApprovalBlockers,
     getManagerReviewApprovalReadiness,
@@ -1928,6 +1931,15 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             originalReady,
         };
     }, [record.handwrittenAnswers]);
+    const ocrEvidenceReview = useMemo(() => buildPsiOcrEvidenceReview({
+        hasOriginalImage,
+        documentRejected: record.ocrDocumentValidation?.isPsiForm === false,
+        ocrConfidence: record.ocrConfidence,
+        ocrErrorType: record.ocrErrorType,
+        answers: record.handwrittenAnswers,
+        hasUnsavedEdits: hasChanges,
+        isForeignLanguage: !isKoreanNationality(record.nationality, record.language),
+    }), [hasOriginalImage, hasChanges, record]);
     const verificationAudit = useMemo(() => evaluateOcrVerificationCompleteness(record), [record]);
     const qualityAudit = useMemo(() => evaluateOcrVerificationQuality(record), [record]);
     const nativeWritingGuide = useMemo(() => getNativeWritingGuide(record.nationality), [record.nationality]);
@@ -2207,11 +2219,11 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                         </div>
                         
                         {hasOriginalImage ? (
-                            <div className="w-full max-w-2xl bg-white shadow-2xl p-1 animate-fade-in group relative">
+                            <div className="w-full max-w-2xl bg-white shadow-2xl p-1 animate-fade-in group relative" data-psi-original-document="true" tabIndex={-1} aria-label="자필 위험성평가 기록지 원본 이미지">
                                 <img 
                                     src={record.originalImage} 
                                     className="w-full h-auto block" 
-                                    alt="Scanned Document"
+                                    alt="자필 위험성평가 기록지 원본 사진"
                                 />
                             </div>
                         ) : (
@@ -3571,6 +3583,24 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         >
                                             <></>
                                         </SectionPanelCard>
+                                        <PsiOcrEvidenceReviewPanel
+                                            review={ocrEvidenceReview}
+                                            canInspectOriginal={hasOriginalImage}
+                                            onInspectOriginal={() => {
+                                                const source = document.querySelector<HTMLElement>('[data-psi-original-document="true"]');
+                                                source?.scrollIntoView({ behavior: 'auto', block: 'start' });
+                                                source?.focus({ preventScroll: true });
+                                            }}
+                                        />
+                                        <PsiFiveQuestionReviewNavigator
+                                            answers={record.handwrittenAnswers}
+                                            onFocusAnswer={(index) => {
+                                                const source = document.querySelector<HTMLTextAreaElement>(
+                                                    `[data-psi-question-original="${index}"]`,
+                                                );
+                                                source?.focus({ preventScroll: false });
+                                            }}
+                                        />
                                         {record.handwrittenAnswers.map((ans, idx) => {
                                             const isKorean = isKoreanNationality(record.nationality);
                                             const flag = getNationalityFlag(record.nationality);
@@ -3606,6 +3636,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                                 bodyClassName="mt-3"
                                                             >
                                                                 <textarea
+                                                                    data-psi-question-original={idx}
                                                                     value={ans.answerText}
                                                                     onChange={(e) => handleAnswerChange(idx, 'answerText', e.target.value)}
                                                                     className="w-full min-h-[110px] text-sm text-slate-600 bg-white border border-slate-200 rounded-lg p-3 font-medium focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
