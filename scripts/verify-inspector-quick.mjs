@@ -49,6 +49,8 @@ try{
             fields(otherId,randomUUID(),'용인 B현장','도장반장','2026-11-04','verified',plan('2026-11-03')),
             fields(otherId,randomUUID(),'용인 B현장','','2026-02-30','open','')
         ];
+        globalRows[0].urgent=true;
+        globalRows[3].urgent=true;
     }
     const deletionStatus=()=>({state:deletionState,mode:deletionMode,verifyAfter,verified:['purged','files-deleted'].includes(deletionState),remainingFiles:images.size,remainingBytes:[...images.values()].reduce((n,b)=>n+b.length,0),remainingRecords:{inspections:deletionState==='purged'?0:1,evidence:deletionState==='purged'?0:evidence.length,reports:deletionState==='purged'?0:reports.length,events:deletionState==='purged'?0:item.revision,operations:0},pendingOperations:0,oldestPendingAt:null,checkedAt:new Date().toISOString(),receipt:deletionState==='purged'||deletionState==='files-deleted'?{managedResidualFiles:0}:null});
     const bump=d=>(item={...item,revision:item.revision+1,document:structuredClone(d),updated_at:new Date().toISOString()});
@@ -116,7 +118,13 @@ try{
         await register.getByLabel('통합 조치 기한 종료일').fill('2026-11-05');
         assert.match(await register.getByRole('alert').innerText(),/시작일이 종료일보다 늦습니다/);
         assert.equal(await register.locator('[data-global-action-id]').count(),0,'invalid range must never broaden the query');
+        await register.getByRole('button',{name:/긴급 검토 표시 .*건 보기/}).click();
+        assert.equal(await register.getByLabel('통합 조치 필터').inputValue(),'urgent');
+        assert.equal(await register.locator('[data-global-action-id]').count(),1,'urgent source survives invalid deadline range within same site and owner');
+        assert.equal(await register.getByRole('alert').count(),0,'urgent view independently ignores invalid due filter');
+        assert.match(await register.getByRole('region',{name:'기한과 별개인 긴급 검토'}).innerText(),/약정기한 필터를 적용하지 않으며/);
         await register.getByRole('button',{name:'검색 조건 초기화'}).click();
+        assert.equal(await register.locator('[data-global-action-id]').count(),2,'verified action still retains original urgent flag');
         await register.getByLabel('통합 조치 필터').selectOption('assignment');
         assert.equal(await register.locator('[data-global-action-id]').count(),1,'only saved unresolved owner/deadline gap');
         assert.match(await register.locator('[data-global-assignment-count]').innerText(),/미결 조치 1건/);

@@ -1,0 +1,81 @@
+/* Shared field-readable evidence surfaces, independent of decorative Nexus rendering. */
+.psi-evidence-panel,
+.safety-nexus section.psi-evidence-panel {
+    --evidence-surface: #fff;
+    --evidence-text: #172b3a;
+    --evidence-border: #526677;
+    --evidence-selected: #e1f4f4;
+    --evidence-focus: #00666b;
+    color: var(--evidence-text);
+    background: var(--evidence-surface);
+    border: 1px solid var(--evidence-border);
+    border-radius: 12px;
+    padding: 16px;
+    overflow-wrap: anywhere;
+    min-width: 0;
+    line-height: 1.6;
+}
+.dark .psi-evidence-panel,
+.dark .safety-nexus section.psi-evidence-panel {
+    --evidence-surface: #142232;
+    --evidence-text: #f3f6fa;
+    --evidence-border: #98adbd;
+    --evidence-selected: #284c55;
+    --evidence-focus: #80e0e0;
+}
+.psi-evidence-panel button,
+.psi-evidence-panel summary {
+    min-height: 48px;
+    color: inherit;
+    background: transparent;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: left;
+    font-size: 14px;
+}
+.psi-evidence-panel button { border: 1px solid var(--evidence-border); }
+.psi-evidence-panel button[aria-pressed="true"] {
+    background: var(--evidence-selected);
+    border: 2px solid var(--evidence-focus);
+    font-weight: 700;
+}
+.psi-evidence-panel :is(button, summary):focus-visible {
+    outline: 3px solid var(--evidence-focus);
+    outline-offset: 3px;
+}
+.psi-evidence-panel [role="alert"],
+.psi-evidence-panel[data-evidence-scope="error"] > [role="status"],
+.psi-evidence-panel[data-evidence-scope="stale"] > [role="status"] {
+    border-inline-start: 4px solid currentColor;
+    padding-inline-start: 8px;
+    font-weight: 700;
+}
+@media (forced-colors: active) {
+    .psi-evidence-panel, .safety-nexus section.psi-evidence-panel {
+        --evidence-surface: Canvas;
+        --evidence-text: CanvasText;
+        --evidence-border: CanvasText;
+        --evidence-selected: Canvas;
+        --evidence-focus: Highlight;
+    }
+    .psi-evidence-panel button[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -4px; }
+}
+@media print {
+    .psi-evidence-panel, .safety-nexus section.psi-evidence-panel {
+        color: #000 !important;
+        background: #fff !important;
+        border-color: #000 !important;
+        box-shadow: none !important;
+        overflow: visible !important;
+        max-height: none !important;
+        break-inside: auto !important;
+    }
+    .psi-evidence-panel :is(article, li, details) { break-inside: avoid; }
+    .psi-evidence-panel :is(button, summary) { color: #000 !important; background: #fff !important; border-color: #000 !important; }
+    .safety-nexus .psi-evidence-panel button[data-evidence-printable] { display: block !important; }
+    .psi-evidence-panel button[data-evidence-printable] { min-height: 0; padding: 4px; }
+    .psi-evidence-panel button[aria-pressed="true"] { border-width: 2px; }
+    .psi-evidence-panel .psi-evidence-action, .psi-evidence-screen-only { display: none !important; }
+    .psi-evidence-panel summary { min-height: 0; font-weight: 700; }
+    .psi-evidence-panel details::details-content { content-visibility: visible !important; }
+}

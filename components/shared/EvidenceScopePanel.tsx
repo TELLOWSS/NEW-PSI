@@ -1,4 +1,5 @@
 import React from 'react';
+import './EvidencePanels.css';
 
 export type EvidenceLoadState = 'not-requested' | 'loading' | 'loaded' | 'empty' | 'error' | 'stale' | 'local';
 const labels: Record<EvidenceLoadState, string> = {
@@ -18,7 +19,7 @@ interface EvidenceScopePanelProps {
 export function EvidenceScopePanel({source, scope, asOf, state, population, review, nextAction}: EvidenceScopePanelProps) {
     const attention = state === 'error' || state === 'stale';
     return <section aria-label="자료 출처와 확인 범위" data-evidence-scope={state}
-        className={`my-3 break-words rounded-2xl border p-4 text-sm leading-6 print:border-black print:bg-white print:text-black ${attention ? 'border-amber-400 bg-amber-50 text-amber-950 dark:border-amber-500 dark:bg-slate-900 dark:text-amber-100' : 'border-slate-300 bg-slate-50 text-slate-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100'}`}>
+        className={`psi-evidence-panel my-3 break-words rounded-2xl border p-4 text-sm leading-6 ${attention ? 'psi-evidence-attention' : ''}`}>
         <p role="status" className="font-bold">{labels[state]}</p>
         <dl className="mt-2 grid gap-2 sm:grid-cols-2">
             <div><dt className="font-bold">출처</dt><dd>{source}</dd></div>

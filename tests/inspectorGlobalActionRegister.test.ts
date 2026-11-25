@@ -1,15 +1,26 @@
 import {describe,it,expect} from 'vitest';
 import {readFileSync} from 'node:fs';
-import {buildGlobalActionRegisterCsv,filterGlobalActions,globalActionCounts,globalActionPhase,globalActionDimensions,globalActionStatusText,globalActionNextStep,projectGlobalActionRows} from '../lib/inspector/globalActionRegister';
+import {buildGlobalActionRegisterCsv,filterGlobalActions,filterGlobalActionsWithCriteria,globalActionCounts,globalActionPhase,globalActionDimensions,globalActionStatusText,globalActionNextStep,projectGlobalActionRows} from '../lib/inspector/globalActionRegister';
 import type {Inspection,InspectorAction} from '../lib/inspector/types';
 const inspection=(id:string,actions:InspectorAction[]):Inspection=>({id,revision:3,created_at:'2026-10-25T00:00:00Z',updated_at:'2026-10-25T00:00:00Z',document:{title:'정기 안전점검',siteName:'테스트 현장',location:'2002동 2층',workType:'형틀',eventAt:'2026-10-25T00:00:00Z',urgent:false,notes:'',photoIds:[],analyses:{},reviews:{},ocrResults:{},actions}});
 const action=(id:string,dueDate:string,status:InspectorAction['status']='open'):InspectorAction=>({id,title:'개구부 보강',owner:'형틀 반장',dueDate,status,completionPhotoId:'',note:''});
 const sample=()=>{const a=inspection('a',[action('future','2026-10-28'),action('today','2026-10-26'),action('late','2026-10-25')]);a.document.actions[0].scheduleContext='내일 자재 입고 · 그 전까지 접근 제한';return projectGlobalActionRows([a,inspection('b',[action('review','2026-10-24','review-requested'),action('done','2026-10-01','verified')])]);};
 const read=(path:string)=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 describe('admin global inspector action register',()=>{
+ it('prioritizes urgent flags independently of due dates and verified status without widening site scope',()=>{
+  const rows=sample(); rows[0].urgent=true; rows[4].urgent=true;
+  expect(filterGlobalActions(rows,'all','','2026-10-26').slice(0,2).every(row=>row.urgent)).toBe(true);
+  const criteria={site:'테스트 현장',owner:'형틀 반장',dueFrom:'2027-01-01',dueTo:'2020-01-01'};
+  expect(filterGlobalActionsWithCriteria(rows,'urgent','','2026-10-26',criteria)).toHaveLength(2);
+  expect(filterGlobalActionsWithCriteria(rows,'urgent','','2026-10-26',{...criteria,site:'다른 현장'})).toHaveLength(0);
+  expect(filterGlobalActionsWithCriteria(rows,'all','','2026-10-26',criteria)).toHaveLength(0);
+  expect(globalActionNextStep(rows[4],'2026-10-26')).toContain('긴급 표시 해제·작업재개');
+  expect(globalActionCounts(rows,'2026-10-26').urgent).toBe(2);
+  expect(buildGlobalActionRegisterCsv(rows,'2026-10-26')).toContain('원점검 긴급 검토 표시');
+ });
  it('classifies deadlines and reinspection distinctly across multiple inspections',()=>{
   const rows=sample(),count=globalActionCounts(rows,'2026-10-26');
-  expect(count).toEqual({unresolved:4,scheduled:1,today:1,overdue:2,reinspection:1,assignment:0,verified:1,overlappingOverdueReinspection:1});
+  expect(count).toEqual({urgent:0,unresolved:4,scheduled:1,today:1,overdue:2,reinspection:1,assignment:0,verified:1,overlappingOverdueReinspection:1});
   expect(filterGlobalActions(rows,'unresolved','','2026-10-26').map(r=>r.actionId)).toEqual(['late','review','today','future']);
   expect(globalActionPhase(rows[0],'2026-10-26')).toBe('scheduled');
  });
