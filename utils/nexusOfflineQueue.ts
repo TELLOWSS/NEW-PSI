@@ -7,7 +7,7 @@ export type NexusOfflineMutationKind =
   | 'visit_ack'
   | 'training_signature';
 
-export type NexusOfflineQueueStatus = 'pending' | 'synced' | 'failed';
+export type NexusOfflineQueueStatus = 'pending' | 'synced' | 'failed' | 'conflict';
 
 export interface NexusOfflineMutationEntry {
   queueId: string;
@@ -20,6 +20,42 @@ export interface NexusOfflineMutationEntry {
   status: NexusOfflineQueueStatus;
   attempts: number;
   lastError?: string;
+}
+
+export interface NexusOfflineSyncConflict {
+  conflictId: string;
+  queueId: string;
+  kind: NexusOfflineMutationKind;
+  siteId?: string;
+  recordId: string;
+  title: string;
+  localSummary: string;
+  localUpdatedAt: string;
+  hqSummary: string;
+  hqUpdatedAt: string;
+  hqActor: string;
+}
+
+export type NexusConflictResolutionChoice = 'keep_local' | 'accept_hq' | 'merge_both';
+
+export interface NexusSyncServerSnapshot {
+  pipelineCases?: readonly {
+    caseId: string;
+    siteId?: string;
+    locationLabel?: string;
+    hqDirectiveNote?: string;
+    updatedAt?: string;
+    status?: string;
+  }[];
+  equipmentReports?: readonly {
+    reportId: string;
+    siteId?: string;
+    workActivity?: string;
+    status?: string;
+    hqReviewNote?: string;
+    hqReviewer?: string;
+    hqReviewedAt?: string;
+  }[];
 }
 
 let memoryOfflineQueue: NexusOfflineMutationEntry[] = [];
@@ -137,7 +173,7 @@ export const flushNexusOfflineQueue = async (
   const updated: NexusOfflineMutationEntry[] = [];
 
   for (const item of current) {
-    if (item.status === 'synced') {
+    if (item.status === 'synced' || item.status === 'conflict') {
       updated.push(item);
       continue;
     }
@@ -168,5 +204,123 @@ export const flushNexusOfflineQueue = async (
     failedCount,
     remainingPendingCount: updated.filter(i => i.status !== 'synced').length,
     queue: updated,
+  };
+};
+
+export const detectOfflineSyncConflicts = (
+  queue: readonly NexusOfflineMutationEntry[],
+  serverSnapshot?: NexusSyncServerSnapshot,
+): NexusOfflineSyncConflict[] => {
+  if (!serverSnapshot) return [];
+  const conflicts: NexusOfflineSyncConflict[] = [];
+  const cases = serverSnapshot.pipelineCases ?? [];
+  const equips = serverSnapshot.equipmentReports ?? [];
+
+  for (const item of queue) {
+    if (item.status === 'synced') continue;
+
+    if (item.kind === 'pipeline_case') {
+      const exactMatch = cases.find(
+        c => c.caseId === item.recordId && Boolean(c.hqDirectiveNote?.trim()),
+      );
+      const siteNewerDirective =
+        exactMatch ??
+        cases.find(
+          c =>
+            Boolean(item.siteId) &&
+            c.siteId === item.siteId &&
+            Boolean(c.hqDirectiveNote?.trim()) &&
+            Boolean(c.updatedAt && c.updatedAt >= item.queuedAt),
+        );
+      if (siteNewerDirective?.hqDirectiveNote) {
+        conflicts.push({
+          conflictId: `CFL-${item.queueId}`,
+          queueId: item.queueId,
+          kind: item.kind,
+          siteId: item.siteId ?? siteNewerDirective.siteId,
+          recordId: siteNewerDirective.caseId || item.recordId,
+          title: siteNewerDirective.locationLabel || '현장 시정조치·작업중지 기록',
+          localSummary: item.summary,
+          localUpdatedAt: item.queuedAt,
+          hqSummary: siteNewerDirective.hqDirectiveNote,
+          hqUpdatedAt: siteNewerDirective.updatedAt || item.queuedAt,
+          hqActor: '본사 안전보건실 긴급 지시',
+        });
+      }
+    } else if (item.kind === 'equipment_photo') {
+      const eqMatch = equips.find(
+        e =>
+          e.reportId === item.recordId &&
+          e.status === 'revision_requested_hq' &&
+          Boolean(e.hqReviewNote?.trim()),
+      );
+      if (eqMatch?.hqReviewNote) {
+        conflicts.push({
+          conflictId: `CFL-${item.queueId}`,
+          queueId: item.queueId,
+          kind: item.kind,
+          siteId: item.siteId ?? eqMatch.siteId,
+          recordId: eqMatch.reportId,
+          title: eqMatch.workActivity || '건설기계 사용전 점검 사진',
+          localSummary: item.summary,
+          localUpdatedAt: item.queuedAt,
+          hqSummary: eqMatch.hqReviewNote,
+          hqUpdatedAt: eqMatch.hqReviewedAt || item.queuedAt,
+          hqActor: eqMatch.hqReviewer || '본사 사진 검토자 보완요청',
+        });
+      }
+    }
+  }
+
+  return conflicts;
+};
+
+const CONFLICT_RESOLUTION_TAG: Record<NexusConflictResolutionChoice, string> = {
+  keep_local: '[충돌 해결: 현장 입력 우선]',
+  accept_hq: '[충돌 해결: 본사 지시 수용]',
+  merge_both: '[충돌 해결: 양측 병합]',
+};
+
+export const resolveOfflineSyncConflict = (
+  queueId: string,
+  choice: NexusConflictResolutionChoice,
+  conflict: NexusOfflineSyncConflict,
+  nowIso = new Date().toISOString(),
+): {
+  queue: NexusOfflineMutationEntry[];
+  resolvedEntry: NexusOfflineMutationEntry | null;
+  remainingPendingCount: number;
+  resolutionNotice: string;
+} => {
+  const current = readNexusOfflineQueue();
+  let resolvedEntry: NexusOfflineMutationEntry | null = null;
+  const tag = CONFLICT_RESOLUTION_TAG[choice];
+
+  const next = current.map(item => {
+    if (item.queueId !== queueId) return item;
+    const baseText =
+      choice === 'accept_hq'
+        ? conflict.hqSummary
+        : choice === 'merge_both'
+          ? `${conflict.localSummary} / 본사지시: ${conflict.hqSummary}`
+          : conflict.localSummary;
+    const nextEntry: NexusOfflineMutationEntry = {
+      ...item,
+      status: 'synced',
+      syncedAt: nowIso,
+      attempts: item.attempts + 1,
+      lastError: undefined,
+      summary: `${tag} ${baseText}`.slice(0, 140),
+    };
+    resolvedEntry = nextEntry;
+    return nextEntry;
+  });
+
+  writeNexusOfflineQueue(next);
+  return {
+    queue: next,
+    resolvedEntry,
+    remainingPendingCount: next.filter(i => i.status !== 'synced').length,
+    resolutionNotice: `${tag} "${conflict.title}" 건이 반영되어 동기화를 완료했습니다.`,
   };
 };

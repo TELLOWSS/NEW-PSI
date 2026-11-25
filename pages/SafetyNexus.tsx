@@ -70,6 +70,9 @@ import {
   NEXUS_OFFLINE_QUEUE_UPDATED_EVENT,
   getPendingOfflineQueueCount,
   isNexusOnline,
+  resolveOfflineSyncConflict,
+  type NexusConflictResolutionChoice,
+  type NexusOfflineSyncConflict,
 } from '../utils/nexusOfflineQueue';
 import { syncNexusOfflineQueueWithServer } from '../utils/nexusSyncEngine';
 import { buildExecutiveBentoSnapshot } from '../utils/nexusExecutiveBentoMetrics';
@@ -89,6 +92,7 @@ import { THEME_CHANGED_EVENT, getResolvedTheme, type ResolvedTheme } from '../ut
 import './SafetyNexus.css';
 
 const NEXUS_THEME_OVERRIDE_KEY = 'psi_nexus_theme_override_v1';
+const NEXUS_SUNLIGHT_MODE_KEY = 'psi_nexus_sunlight_mode_v1';
 
 const FOLLOWUP_FILTER_LABELS = { overdue: '기한 초과', unresolved: '미완료', interim_control: '임시 통제 중', scheduled: '조치 예정', reopened: '재개방 이력', completed: '완료로 기록된' } as const;
 type FollowupFilter = keyof typeof FOLLOWUP_FILTER_LABELS;
@@ -351,6 +355,14 @@ const SafetyNexus: React.FC<Props> = ({
     }
     return getResolvedTheme();
   });
+  const [sunlightMode, setSunlightMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return window.localStorage.getItem(NEXUS_SUNLIGHT_MODE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
   useEffect(() => {
     const syncGlobalTheme = () => {
       try {
@@ -366,6 +378,14 @@ const SafetyNexus: React.FC<Props> = ({
   const handleToggleNexusTheme = () => {
     const next: ResolvedTheme = nexusTheme === 'light' ? 'dark' : 'light';
     setNexusTheme(next);
+    if (next === 'dark') {
+      setSunlightMode(false);
+      try {
+        window.localStorage.setItem(NEXUS_SUNLIGHT_MODE_KEY, 'false');
+      } catch {
+        // Ignore storage errors
+      }
+    }
     try {
       window.localStorage.setItem(NEXUS_THEME_OVERRIDE_KEY, next);
     } catch {
@@ -375,6 +395,28 @@ const SafetyNexus: React.FC<Props> = ({
       next === 'light'
         ? '☀️ 밝은 화면(화이트 테마)으로 전환되었습니다'
         : '🌙 어두운 화면(다크 테마)으로 전환되었습니다',
+    );
+  };
+  const handleToggleSunlightMode = () => {
+    const next = !sunlightMode;
+    setSunlightMode(next);
+    try {
+      window.localStorage.setItem(NEXUS_SUNLIGHT_MODE_KEY, next ? 'true' : 'false');
+    } catch {
+      // Ignore storage errors
+    }
+    if (next && nexusTheme !== 'light') {
+      setNexusTheme('light');
+      try {
+        window.localStorage.setItem(NEXUS_THEME_OVERRIDE_KEY, 'light');
+      } catch {
+        // Ignore storage errors
+      }
+    }
+    triggerToast(
+      next
+        ? '☀️ 야외 직사광선 고대비 모드가 켜졌습니다'
+        : '🔆 일반 화면 모드로 복귀했습니다',
     );
   };
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -513,7 +555,58 @@ const SafetyNexus: React.FC<Props> = ({
   const [offlinePendingCount, setOfflinePendingCount] = useState<number>(() => getPendingOfflineQueueCount());
   const [isOnlineState, setIsOnlineState] = useState<boolean>(() => isNexusOnline());
   const [syncNotice, setSyncNotice] = useState<string>('');
+  const [syncConflicts, setSyncConflicts] = useState<NexusOfflineSyncConflict[]>([]);
+  const [conflictDrawerOpen, setConflictDrawerOpen] = useState<boolean>(false);
+  const [quickStopWorkTrigger, setQuickStopWorkTrigger] = useState<number>(0);
   const [complianceNotice, setComplianceNotice] = useState<string>('');
+  const serverSnapshotRef = useRef({ pipelineCases, equipmentReports });
+  serverSnapshotRef.current = { pipelineCases, equipmentReports };
+  const runOfflineSyncWithConflictCheck = (showToast = false) => {
+    const snap = serverSnapshotRef.current;
+    void syncNexusOfflineQueueWithServer({
+      serverSnapshot: {
+        pipelineCases: snap.pipelineCases.map(c => ({
+          caseId: c.caseId,
+          siteId: c.siteId,
+          locationLabel: c.locationLabel,
+          hqDirectiveNote: c.hqDirectiveNote,
+          updatedAt: c.updatedAt,
+          status: c.status,
+        })),
+        equipmentReports: snap.equipmentReports.map(r => ({
+          reportId: r.submissionId,
+          siteId: r.siteId,
+          workActivity: r.workActivity,
+          status: r.status,
+          hqReviewNote: r.hqReviewNote,
+          hqReviewer: r.hqReviewer,
+          hqReviewedAt: r.hqReviewedAt,
+        })),
+      },
+    }).then(telemetry => {
+      setOfflinePendingCount(telemetry.pendingCount);
+      setIsOnlineState(telemetry.online);
+      setSyncConflicts(telemetry.conflicts);
+      if (telemetry.conflicts.length > 0) {
+        setConflictDrawerOpen(true);
+      }
+      setSyncNotice(telemetry.message);
+      if (showToast) {
+        triggerToast(`🔄 ${telemetry.message}`);
+      }
+    });
+  };
+  const handleResolveSyncConflict = (conflict: NexusOfflineSyncConflict, choice: NexusConflictResolutionChoice) => {
+    const resolved = resolveOfflineSyncConflict(conflict.queueId, choice, conflict);
+    const remaining = syncConflicts.filter(c => c.queueId !== conflict.queueId);
+    setSyncConflicts(remaining);
+    setOfflinePendingCount(resolved.remainingPendingCount);
+    setSyncNotice(resolved.resolutionNotice);
+    if (remaining.length === 0) {
+      setConflictDrawerOpen(false);
+    }
+    triggerToast(resolved.resolutionNotice);
+  };
   const effectiveRole: NexusWorkspaceAuthority = lockedRole ?? workspaceRole;
   const effectiveFieldSiteId = lockedSiteId || assignedFieldSiteId;
   useEffect(() => {
@@ -543,10 +636,7 @@ const SafetyNexus: React.FC<Props> = ({
     const syncOffline = () => setOfflinePendingCount(getPendingOfflineQueueCount());
     const handleOnline = () => {
       setIsOnlineState(true);
-      void syncNexusOfflineQueueWithServer().then(telemetry => {
-        setOfflinePendingCount(telemetry.pendingCount);
-        if (telemetry.syncedCount > 0) setSyncNotice(telemetry.message);
-      });
+      runOfflineSyncWithConflictCheck(false);
     };
     const handleOffline = () => setIsOnlineState(false);
     window.addEventListener(NEXUS_PIPELINE_UPDATED_EVENT, syncPipeline);
@@ -906,12 +996,7 @@ const SafetyNexus: React.FC<Props> = ({
       setHqSelectedSiteId(cmd.targetValue || '');
       triggerToast(cmd.targetValue ? `현장 필터 전환: ${cmd.label}` : '전사 전체 현장 범위로 전환');
     } else if (cmd.targetKind === 'sync_queue') {
-      void syncNexusOfflineQueueWithServer().then(telemetry => {
-        setOfflinePendingCount(telemetry.pendingCount);
-        setIsOnlineState(telemetry.online);
-        setSyncNotice(telemetry.message);
-        triggerToast(`🔄 ${telemetry.message}`);
-      });
+      runOfflineSyncWithConflictCheck(true);
     } else if (cmd.targetKind === 'toggle_immersive') {
       setImmersive(v => !v);
     }
@@ -1006,13 +1091,14 @@ const SafetyNexus: React.FC<Props> = ({
       });
     }
   };
-  if (loadState !== 'ready') return <main className="safety-nexus" data-nexus-theme={nexusTheme} aria-label="PSI 안전지능 네트워크"><section className="nexus-followup" role="status"><h1>안전지능 네트워크</h1><p>{loadState === 'loading' ? '저장된 기록을 불러오고 있습니다.' : '기록을 불러오지 못했습니다. 화면을 다시 불러와 주세요.'}</p><button type="button" onClick={() => onNavigateToPage('dashboard')}>기존 관제센터로 돌아가기</button></section></main>;
-  const surface = <main role={immersive ? 'dialog' : undefined} aria-modal={immersive ? true : undefined} className={'safety-nexus' + (immersive ? ' is-immersive' : '')} data-nexus-theme={nexusTheme} data-workspace-role={effectiveRole} data-reduced-motion={reduced ? 'true' : 'false'} data-motion-paused={paused ? 'true' : 'false'} aria-label="PSI 안전지능 네트워크">
+  if (loadState !== 'ready') return <main className="safety-nexus" data-nexus-theme={nexusTheme} data-nexus-sunlight={sunlightMode ? 'true' : 'false'} aria-label="PSI 안전지능 네트워크"><section className="nexus-followup" role="status"><h1>안전지능 네트워크</h1><p>{loadState === 'loading' ? '저장된 기록을 불러오고 있습니다.' : '기록을 불러오지 못했습니다. 화면을 다시 불러와 주세요.'}</p><button type="button" onClick={() => onNavigateToPage('dashboard')}>기존 관제센터로 돌아가기</button></section></main>;
+  const surface = <main role={immersive ? 'dialog' : undefined} aria-modal={immersive ? true : undefined} className={'safety-nexus' + (immersive ? ' is-immersive' : '')} data-nexus-theme={nexusTheme} data-nexus-sunlight={sunlightMode ? 'true' : 'false'} data-workspace-role={effectiveRole} data-reduced-motion={reduced ? 'true' : 'false'} data-motion-paused={paused ? 'true' : 'false'} aria-label="PSI 안전지능 네트워크">
     <div className="nexus-background" aria-hidden="true" />
     <header className="nexus-header">
       <div className="nexus-brand"><span className="nexus-symbol">Ψ</span><div><small>골조·형틀 통합 안전관리</small><h1>SAFETY <b>NEXUS</b></h1></div></div>
       <div className="nexus-header-right"><span className="nexus-status"><i />골조·형틀 3D 입체 안전관제</span>
         <button type="button" className="nexus-theme-toggle" aria-pressed={nexusTheme === 'light'} aria-label={nexusTheme === 'light' ? '어두운 화면으로 전환' : '밝은 화면으로 전환'} onClick={handleToggleNexusTheme}>{nexusTheme === 'light' ? '🌙 어두운 화면' : '☀️ 밝은 화면'}</button>
+        <button type="button" className="nexus-sunlight-toggle" aria-pressed={sunlightMode} aria-label={sunlightMode ? '야외 고대비 모드 끄기' : '야외 직사광선 고대비 모드 켜기'} onClick={handleToggleSunlightMode}>{sunlightMode ? '☀️ 야외 고대비 ON' : '🔆 야외 고대비'}</button>
         <button type="button" className="nexus-cmd-trigger" onClick={() => setCmdPaletteOpen(true)} aria-label="빠른 기능 찾기 열기">🔍 빠른 찾기 (Ctrl+K)</button>
         <button ref={immersiveToggleRef} type="button" className="nexus-immersive-toggle" aria-pressed={immersive} onClick={() => setImmersive(v => !v)}>{immersive ? '몰입 화면 종료 ↙' : '전체 화면 몰입 보기 ⤢'}</button>
         <button type="button" onClick={() => onReturnDashboard ? onReturnDashboard(filterTrade) : onNavigateToPage('dashboard')}>기존 관제센터로 돌아가기 ↗</button></div>
@@ -1297,21 +1383,84 @@ const SafetyNexus: React.FC<Props> = ({
               🏛️ 본사 지시·보완 <b>{fieldDirectiveTotal}건</b>
             </button>
           )}
+          {syncConflicts.length > 0 && (
+            <button
+              type="button"
+              className="nexus-sync-pill is-conflict is-interactive"
+              onClick={() => setConflictDrawerOpen(v => !v)}
+            >
+              ⚠️ 충돌·변경 비교 <b>{syncConflicts.length}건</b>
+            </button>
+          )}
         </div>
         <button
           type="button"
           className="nexus-sync-flush-btn"
-          onClick={() => {
-            void syncNexusOfflineQueueWithServer().then(telemetry => {
-              setOfflinePendingCount(telemetry.pendingCount);
-              setIsOnlineState(telemetry.online);
-              setSyncNotice(telemetry.message);
-            });
-          }}
+          onClick={() => runOfflineSyncWithConflictCheck(false)}
         >
           🔄 지금 동기화
         </button>
       </div>
+      {conflictDrawerOpen && syncConflicts.length > 0 && (
+        <section className="nexus-conflict-drawer" aria-label="오프라인 재동기화 충돌·변경 비교 서랍">
+          <div className="nexus-conflict-drawer-head">
+            <div>
+              <strong>⚠️ 지하·오프라인 기록과 본사 최신 지시 충돌 감지 ({syncConflicts.length}건)</strong>
+              <p>현장 입력값과 본사 최신 지시·보완 내용을 나란히 비교하고 최종 반영 방식을 선택하세요.</p>
+            </div>
+            <button
+              type="button"
+              className="nexus-conflict-close-btn"
+              onClick={() => setConflictDrawerOpen(false)}
+            >
+              서랍 닫기 ✕
+            </button>
+          </div>
+          <div className="nexus-conflict-list">
+            {syncConflicts.map(conflict => (
+              <article key={conflict.conflictId} className="nexus-conflict-card">
+                <div className="nexus-conflict-card-top">
+                  <strong>{conflict.title}</strong>
+                  <span>대상 ID: {conflict.recordId}</span>
+                </div>
+                <div className="nexus-conflict-compare-grid">
+                  <div className="nexus-conflict-side">
+                    <small>현장 오프라인 기록</small>
+                    <p>{conflict.localSummary}</p>
+                    <span>저장 시각: {conflict.localUpdatedAt.slice(0, 16).replace('T', ' ')}</span>
+                  </div>
+                  <div className="nexus-conflict-side is-hq">
+                    <small>본사 최신 지시·보완 ({conflict.hqActor})</small>
+                    <p>{conflict.hqSummary}</p>
+                    <span>지시 시각: {conflict.hqUpdatedAt.slice(0, 16).replace('T', ' ')}</span>
+                  </div>
+                </div>
+                <div className="nexus-conflict-actions">
+                  <button
+                    type="button"
+                    onClick={() => handleResolveSyncConflict(conflict, 'keep_local')}
+                  >
+                    현장 입력 우선 반영
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleResolveSyncConflict(conflict, 'accept_hq')}
+                  >
+                    본사 최신 지시 수용
+                  </button>
+                  <button
+                    type="button"
+                    className="is-merge-btn"
+                    onClick={() => handleResolveSyncConflict(conflict, 'merge_both')}
+                  >
+                    양측 내용 병합 반영
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
       {syncNotice && <p role="status" className="nexus-3axis-feedback">{syncNotice}</p>}
     </nav>
     {effectiveRole === 'hq' && (stopWorkCountLive + hqEquipPendingCount + hqInvPendingCount + hqUnackedVisitCount > 0) && (
@@ -1996,6 +2145,7 @@ const SafetyNexus: React.FC<Props> = ({
           }}
           onExportExecutivePptx={handleExportCeoPptx}
           onLoadDemoData={handleLoadMultiSiteSimulation}
+          quickStopWorkTrigger={quickStopWorkTrigger}
         />
       </div>
     )}
@@ -2111,33 +2261,66 @@ const SafetyNexus: React.FC<Props> = ({
 
     {effectiveRole === 'field' && (
       <div className="nexus-mobile-thumb-dock" role="navigation" aria-label="현장 한손 엄지 빠른 작업 바">
-        <button
-          type="button"
-          className={activeView === 'field_ops' && workbenchTab === 'inspect_03_06' ? 'is-active' : undefined}
-          aria-current={activeView === 'field_ops' && workbenchTab === 'inspect_03_06' ? 'page' : undefined}
-          onClick={() => { setActiveView('field_ops'); setWorkbenchTab('inspect_03_06'); }}
-        >
-          ⚡ 30초 점검
-          {fieldOpenCount > 0 && <em className="nexus-dock-badge">{fieldOpenCount}</em>}
-        </button>
-        <button
-          type="button"
-          className={activeView === 'field_ops' && workbenchTab === 'equipment_photo' ? 'is-active' : undefined}
-          aria-current={activeView === 'field_ops' && workbenchTab === 'equipment_photo' ? 'page' : undefined}
-          onClick={() => { setActiveView('field_ops'); setWorkbenchTab('equipment_photo'); }}
-        >
-          🏗️ 기계사진
-          {fieldEquipRevCount > 0 && <em className="nexus-dock-badge is-urgent">{fieldEquipRevCount}</em>}
-        </button>
-        <button
-          type="button"
-          className={activeView === 'field_inbox' && workbenchTab === 'training_04' ? 'is-active' : undefined}
-          aria-current={activeView === 'field_inbox' && workbenchTab === 'training_04' ? 'page' : undefined}
-          onClick={() => { setActiveView('field_inbox'); setWorkbenchTab('training_04'); }}
-        >
-          📱 QR 서명
-          {fieldIncompleteTrainCount > 0 && <em className="nexus-dock-badge">{fieldIncompleteTrainCount}</em>}
-        </button>
+        <div className="nexus-dock-quick-row">
+          <button
+            type="button"
+            className="nexus-dock-quick-photo"
+            onClick={() => {
+              setActiveView('field_ops');
+              setWorkbenchTab('equipment_photo');
+              document
+                .getElementById('nexus-closed-loop-workbench')
+                ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              triggerToast('📷 건설기계·현장 사진 바로 보고로 이동');
+            }}
+          >
+            📷 바로 사진보고
+          </button>
+          <button
+            type="button"
+            className="nexus-dock-quick-stopwork"
+            onClick={() => {
+              setActiveView('field_ops');
+              setWorkbenchTab('inspect_03_06');
+              setQuickStopWorkTrigger(v => v + 1);
+              document
+                .getElementById('nexus-closed-loop-workbench')
+                ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              triggerToast('⛔ 작업중지 즉시 등록 폼을 열었습니다');
+            }}
+          >
+            ⛔ 작업중지 즉시 등록
+          </button>
+        </div>
+        <div className="nexus-dock-nav-row">
+          <button
+            type="button"
+            className={activeView === 'field_ops' && workbenchTab === 'inspect_03_06' ? 'is-active' : undefined}
+            aria-current={activeView === 'field_ops' && workbenchTab === 'inspect_03_06' ? 'page' : undefined}
+            onClick={() => { setActiveView('field_ops'); setWorkbenchTab('inspect_03_06'); }}
+          >
+            ⚡ 30초 점검
+            {fieldOpenCount > 0 && <em className="nexus-dock-badge">{fieldOpenCount}</em>}
+          </button>
+          <button
+            type="button"
+            className={activeView === 'field_ops' && workbenchTab === 'equipment_photo' ? 'is-active' : undefined}
+            aria-current={activeView === 'field_ops' && workbenchTab === 'equipment_photo' ? 'page' : undefined}
+            onClick={() => { setActiveView('field_ops'); setWorkbenchTab('equipment_photo'); }}
+          >
+            🏗️ 기계사진
+            {fieldEquipRevCount > 0 && <em className="nexus-dock-badge is-urgent">{fieldEquipRevCount}</em>}
+          </button>
+          <button
+            type="button"
+            className={activeView === 'field_inbox' && workbenchTab === 'training_04' ? 'is-active' : undefined}
+            aria-current={activeView === 'field_inbox' && workbenchTab === 'training_04' ? 'page' : undefined}
+            onClick={() => { setActiveView('field_inbox'); setWorkbenchTab('training_04'); }}
+          >
+            📱 QR 서명
+            {fieldIncompleteTrainCount > 0 && <em className="nexus-dock-badge">{fieldIncompleteTrainCount}</em>}
+          </button>
+        </div>
       </div>
     )}
 

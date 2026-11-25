@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { getKoreanCalendarDay } from '../../utils/monthlyFieldFollowup';
 import {
   NEXUS_EQUIPMENT_TYPE_OPTIONS,
@@ -45,6 +45,7 @@ interface Props {
   onCaseUpdated?: (cases: NexusPipelineCase[]) => void;
   onEscalateToInvestigation?: (item: NexusPipelineCase) => void;
   onDispatchTrainingForCase?: (item: NexusPipelineCase) => void;
+  quickStopWorkTrigger?: number;
 }
 
 export const InspectorNexus3AxisBridge: React.FC<Props> = ({
@@ -63,6 +64,7 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
   onCaseUpdated,
   onEscalateToInvestigation,
   onDispatchTrainingForCase,
+  quickStopWorkTrigger = 0,
 }) => {
   const isHq = workspaceRole === 'hq';
   const [quickNote, setQuickNote] = useState('');
@@ -87,6 +89,12 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
   const [showAdvancedFields, setShowAdvancedFields] = useState(source !== 'safety-nexus-quick');
   const [caseSearchQuery, setCaseSearchQuery] = useState('');
   const [isListeningVoice, setIsListeningVoice] = useState(false);
+
+  useEffect(() => {
+    if (!quickStopWorkTrigger || quickStopWorkTrigger <= 0) return;
+    setStopWorkFlag(true);
+    setFeedbackNotice('[작업중지 원탭 활성화] 작업중지 구역 지정이 자동 선택되었습니다. 위험 구간을 입력해 즉시 등록하세요.');
+  }, [quickStopWorkTrigger]);
   const managedSites = useMemo(() => readManagedNexusSites(false), []);
   const [inspectorEqType, setInspectorEqType] = useState<NexusEquipmentType>('concrete_pump_car');
   const [inspectorEqSiteId, setInspectorEqSiteId] = useState<string>(

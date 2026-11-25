@@ -89,6 +89,7 @@ interface Props {
   onLockOntoStructuralNode: (structuralNodeIndex: string) => void;
   onExportExecutivePptx?: () => Promise<void> | void;
   onLoadDemoData?: () => void;
+  quickStopWorkTrigger?: number;
 }
 
 export const NexusHqCommandWorkbench: React.FC<Props> = ({
@@ -114,6 +115,7 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
   onLockOntoStructuralNode,
   onExportExecutivePptx,
   onLoadDemoData,
+  quickStopWorkTrigger = 0,
 }) => {
   const isHq = workspaceRole === 'hq';
   const [managedSites, setManagedSites] = useState<NexusManagedSite[]>(() => readManagedNexusSites(true));
@@ -1587,6 +1589,33 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
         ))}
       </div>
 
+      <div className="nexus-sticky-breadcrumb" role="region" aria-label="현재 업무함 위치 요약">
+        <div className="nexus-sticky-breadcrumb-path">
+          <em className="nexus-sticky-role-pill">{isHq ? '본사 통합 관제' : '현장 단일 격리'}</em>
+          <span>{isHq ? activeSiteLabel : boundSiteMeta.shortLabel}</span>
+          <i>›</i>
+          <strong>{visibleTabs.find(t => t.id === resolvedActiveTab)?.title}</strong>
+        </div>
+        <div className="nexus-sticky-breadcrumb-meta">
+          <span>
+            {isHq
+              ? `사진대기 ${equipPendingCount}건 · 결재 ${pendingApprovalCount}건 · 미결 ${openActionsCount}건`
+              : `미결 ${openActionsCount}건 · 보완 ${revisionRequestedCount}건`}
+          </span>
+          <button
+            type="button"
+            className="nexus-sticky-top-btn"
+            onClick={() => {
+              document
+                .getElementById('nexus-closed-loop-workbench')
+                ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+          >
+            ↑ 상단 탭
+          </button>
+        </div>
+      </div>
+
       <div className="nexus-workbench-panel">
         {resolvedActiveTab === 'inspect_03_06' && (
           <InspectorNexus3AxisBridge
@@ -1600,6 +1629,7 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
             onCaseUpdated={onPipelineUpdated}
             onEscalateToInvestigation={handleEscalateCaseToInvestigation}
             onDispatchTrainingForCase={isHq ? handleDispatchTrainingFromCase : undefined}
+            quickStopWorkTrigger={quickStopWorkTrigger}
           />
         )}
 

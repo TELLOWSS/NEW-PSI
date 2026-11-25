@@ -77,7 +77,7 @@ const assertLightThemeQuality = async (root, viewLabel) => {
         }
       }
 
-      const isIntentionalAccent = el.matches('.nexus-story-button, .nexus-layer-tab.is-active, .nexus-primary, .nexus-3axis-submit, .nexus-mobile-thumb-dock button.is-active, .nexus-theme-toggle, .nexus-scope-strip button[aria-pressed="true"]');
+      const isIntentionalAccent = el.matches('.nexus-story-button, .nexus-layer-tab.is-active, .nexus-primary, .nexus-3axis-submit, .nexus-mobile-thumb-dock button.is-active, .nexus-theme-toggle, .nexus-sunlight-toggle, .nexus-scope-strip button[aria-pressed="true"]');
       const ownBg = parseColor(style.backgroundColor);
       if (ownBg[3] > 0.65 && relLum(ownBg) < 0.08 && !isIntentionalAccent) {
         darkStragglers.push({ tag: el.tagName, cls: String(el.className), bg: style.backgroundColor });
@@ -180,6 +180,16 @@ try {
   await page.screenshot({ path: resolve(outDir, 'nexus-v4-hq-ux-1440.png'), fullPage: false });
   await page.screenshot({ path: resolve(outDir, 'nexus-v5-light-hq-1440.png'), fullPage: false });
   await assertLightThemeQuality(root, 'HQ_1_3D');
+  await root.locator('.nexus-sunlight-toggle').click();
+  await page.waitForTimeout(200);
+  recordCheck(
+    'UX-6 Sunlight High-Contrast mode toggles cleanly & passes daylight readability QA',
+    (await root.getAttribute('data-nexus-sunlight')) === 'true',
+  );
+  await assertLightThemeQuality(root, 'HQ_SUNLIGHT');
+  await page.screenshot({ path: resolve(outDir, 'nexus-v7-sunlight-hq-1440.png'), fullPage: false });
+  await root.locator('.nexus-sunlight-toggle').click();
+  await page.waitForTimeout(150);
   await root.locator('.nexus-theme-toggle').click();
   await page.waitForTimeout(260);
   recordCheck(
@@ -305,7 +315,11 @@ try {
   // View ③: HQ Approvals, Equipment Batch Verify, Lightbox Prev/Next & Inline Decision, CEO Pack & All-Sites Directive
   await root.getByRole('tab', { name: '③ 본사 결재·보고·순회' }).click();
   await root.locator('.nexus-workbench').waitFor({ state: 'visible', timeout: 10000 });
-  recordCheck('HQ Ops Studio displays 5 HQ tabs', (await root.locator('.nexus-workbench-tab').count()) === 5);
+  recordCheck(
+    'HQ Ops Studio displays 5 HQ tabs and Sticky Context Breadcrumb bar',
+    (await root.locator('.nexus-workbench-tab').count()) === 5 &&
+    (await root.locator('.nexus-sticky-breadcrumb').isVisible()),
+  );
 
   await root.getByLabel('건설기계 사진 본사 검토자').fill('본사 안전보건실 박실장');
   // Open photo lightbox zoom, navigate Next/Prev & close with Escape
@@ -525,6 +539,53 @@ try {
     (await root.locator('.nexus-live-sync-bar').getByText('전송 대기 0건').count()) === 1,
   );
 
+  // UX-7 Offline Re-Sync Conflict Diff Drawer verification
+  await page.evaluate(() => {
+    let targetCase = null;
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i);
+      if (!k) continue;
+      try {
+        const parsed = JSON.parse(window.localStorage.getItem(k) || 'null');
+        if (Array.isArray(parsed)) {
+          const hit = parsed.find(x => x && typeof x === 'object' && x.siteId === 'SITE-01-SUBRC' && x.hqDirectiveNote && x.caseId);
+          if (hit) { targetCase = hit; break; }
+        }
+      } catch {
+        // Ignore non-JSON entries
+      }
+    }
+    const queue = [{
+      queueId: 'NXQ-E2E-CONFLICT-01',
+      kind: 'pipeline_case',
+      siteId: 'SITE-01-SUBRC',
+      recordId: targetCase ? targetCase.caseId : 'CASE-E2E-01',
+      summary: '지하 2층 오프라인 임시 보강조치 입력 (통신 두절 중 작성)',
+      queuedAt: new Date(Date.now() - 60000).toISOString(),
+      status: 'pending',
+      attempts: 0,
+    }];
+    window.localStorage.setItem('psi_nexus_offline_sync_queue_v1', JSON.stringify(queue));
+    window.dispatchEvent(new Event('psi-nexus-offline-queue-updated'));
+  });
+  await root.getByRole('button', { name: '🔄 지금 동기화' }).click();
+  const conflictDrawer = root.locator('.nexus-conflict-drawer');
+  await conflictDrawer.waitFor({ state: 'visible', timeout: 5000 });
+  recordCheck(
+    'UX-7 Offline re-sync detects HQ directive conflict and opens Diff Drawer',
+    (await conflictDrawer.locator('.nexus-conflict-card').count()) >= 1 &&
+    (await conflictDrawer.getByText('현장 오프라인 기록').count()) === 1,
+  );
+  await conflictDrawer.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: resolve(outDir, 'nexus-v7-conflict-diff-1440.png'), fullPage: false });
+  await conflictDrawer.getByRole('button', { name: '양측 내용 병합 반영' }).first().click();
+  recordCheck(
+    'UX-7 Conflict Diff Drawer resolves merge choice and clears pending queue to 0',
+    (await root.locator('.nexus-conflict-drawer').count()) === 0 &&
+    (await root.locator('.nexus-live-sync-bar').getByText('전송 대기 0건').count()) === 1,
+  );
+
   await root.getByRole('button', { name: '전원 서명·이수 100% 완료 확인' }).first().click();
 
   await root.getByRole('tab', { name: /01 본사 순회점검 지시 수신/ }).click();
@@ -574,14 +635,25 @@ try {
       );
       await root.getByRole('tab', { name: '① 현장 즉시 실행' }).click();
       recordCheck(
-        'UX-5 390px mobile thumb dock marks active tab with .is-active',
-        (await root.locator('.nexus-mobile-thumb-dock button.is-active').count()) === 1,
+        'UX-5 390px mobile thumb dock marks active tab with .is-active & exposes quick-action row',
+        (await root.locator('.nexus-mobile-thumb-dock button.is-active').count()) === 1 &&
+        (await root.locator('.nexus-dock-quick-photo').isVisible()) &&
+        (await root.locator('.nexus-dock-quick-stopwork').isVisible()) &&
+        (await root.locator('.nexus-sticky-breadcrumb').isVisible()),
       );
+      await root.locator('.nexus-dock-quick-stopwork').click();
+      await page.waitForTimeout(150);
+      recordCheck(
+        'UX-8 390px thumb dock 1-tap Stop-Work triggers immediate checkbox selection in inspect_03_06',
+        (await root.locator('.nexus-stopwork-toggle input[type="checkbox"]').isChecked()),
+      );
+      await root.locator('.nexus-stopwork-toggle input[type="checkbox"]').uncheck();
       await root.locator('.nexus-header').scrollIntoViewIfNeeded();
       await page.waitForTimeout(150);
       await page.screenshot({ path: resolve(outDir, 'nexus-v3-mobile-field-390.png'), fullPage: false });
       await page.screenshot({ path: resolve(outDir, 'nexus-v4-field-ux-390.png'), fullPage: false });
       await page.screenshot({ path: resolve(outDir, 'nexus-v5-light-field-390.png'), fullPage: false });
+      await page.screenshot({ path: resolve(outDir, 'nexus-v7-mobile-thumb-390.png'), fullPage: false });
     }
     await root.getByRole('button', { name: /본사 통합 관제 \(전사\)/ }).click();
     for (const hView of ['① 3D 전사 지휘', '② 경영 브리핑 BI', '③ 본사 결재·보고·순회']) {
