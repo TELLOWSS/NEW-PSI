@@ -1404,8 +1404,7 @@ const evaluateChangedPsiFormCoverage = (record: {
     const looksLikeChangedPsiForm =
         searchableText.includes('new-psi') ||
         searchableText.includes('psi-ra-01') ||
-        /\bq[1-5]\b/i.test(searchableText) ||
-        answers.length >= 3;
+        /\bq[1-5]\b/i.test(searchableText);
 
     const present = new Set<number>();
     answers.forEach((answer, index) => {
@@ -1675,33 +1674,37 @@ const sanitizeOcrFilenameHint = (value: string): string => String(value || 'unkn
     .slice(0, OCR_FILENAME_HINT_MAX_CHARS) || 'unknown';
 
 const buildOcrPromptText = (filenameHint: string): string => [
-    '건설현장 위험성평가표 이미지를 분석해 JSON 배열 1개만 반환하세요.',
+    '건설현장 위험성평가 기록지(1안 기존·구형 수기 양식 또는 2안 NEW-PSI/PSI-RA-01 양식) 이미지를 분석해 JSON 배열 1개만 반환하세요.',
     '마크다운 없이 JSON만 반환하세요.',
     '필수 키: documentType, isPsiForm, documentValidationReason, documentMarkers, fieldConfidences, name, jobField, teamLeader, date, nationality, language, safetyScore, safetyLevel, score_reason, score_reason_native, actionable_coaching, actionable_coaching_native, scoreBreakdown, strengths, strengths_native, weakAreas, weakAreas_native, improvement, improvement_native, suggestions, suggestions_native, aiInsights, aiInsights_native, fullText, koreanTranslation, scoreReasoning, ocrConfidence, handwrittenAnswers',
-    '[문서 유형 선확인 - 가장 먼저 수행]',
-    '- 빛반사·그림자·부분 흐림만으로 문서 전체를 거부하지 마세요. 읽히는 내용은 추출하고 읽히지 않는 부분만 판독불가로 남기세요. 안전대책을 추측해 채우지 마세요.',
-    '- PSI, NEW-PSI 또는 PSI-RA-01 위험성평가 기록지의 제목, 하단 공종·이름 칸, Q1~Q5 문항 구조가 실제로 보이는지 먼저 확인하세요.',
-    '- 해당 양식이 아니거나 확실하지 않으면 isPsiForm=false, documentType="other-safety-document" 또는 "unknown"으로 반환하세요.',
+    '[문서 유형 선확인 - 1안(기존/구형) · 2안(신형) 모두 허용]',
+    '- 빛반사·그림자·부분 흐림·손글씨만으로 문서 전체를 거부하지 마세요. 읽히는 내용은 최대한 추출하고 읽히지 않는 칸만 판독불가로 남기세요. 안전대책을 추측해 채우지 마세요.',
+    '- 아래 두 양식 중 하나라도 해당하면 반드시 isPsiForm=true, documentType="psi-risk-assessment"로 판정하세요:',
+    '  1) 1안(기존·구형 위험성평가 기록지): NEW-PSI/PSI-RA-01 번호나 Q1~Q5 번호가 없어도, "위험성평가(표/기록지)" 제목과 함께 성명·공종·작성일·작업내용·유해위험요인·위험도(상/중/하)·감소대책/안전대책·서명 등의 수기 작성 구조가 보이면 유효한 위험성평가 기록지입니다.',
+    '  2) 2안(NEW-PSI / PSI-RA-01 양식): 제목/양식번호, 하단 공종·현장 등록 한글이름 칸, Q1~Q5 문항 구조가 보이는 양식입니다.',
+    '- 위험성평가 기록지(1안·2안)가 전혀 아닌 영수증·일반 사진·무관한 메모일 때만 isPsiForm=false, documentType="other-safety-document" 또는 "unknown"으로 반환하세요.',
     '- isPsiForm=false이면 보이지 않는 값을 추정하지 말고 safetyScore=0으로 반환하세요.',
+    '- documentMarkers에는 이미지에서 실제로 확인된 표식·제목을 반드시 적으세요(1안 예: "위험성평가", "성명", "공종", "작업내용", "유해위험요인", "감소대책", "서명" / 2안 예: "NEW-PSI", "PSI-RA-01", "공종", "현장 등록 한글이름", "Q1"~"Q5").',
     '- fieldConfidences의 각 필드는 0~1로 기록하고 흐리거나 비어 있으면 0.8 미만으로 기록하세요.',
     '[6대 보호지표 채점 — 먼저 세부점수 산출 후 합계]',
     '- psychological 0~10, jobUnderstanding 0~20, riskAssessmentUnderstanding 0~20, proficiency 0~30, improvementExecution 0~20, repeatViolationPenalty 0~30으로 반환하세요.',
     '- safetyScore는 앞의 5개 지표 합계에서 repeatViolationPenalty를 뺀 값이어야 합니다.',
     '- 빈 답변·상투어(안전제일/조심/주의/수칙준수)를 구체적 대책처럼 고득점 처리하지 마세요.',
-    '- score_reason에는 실제 Q1~Q5 근거와 감점 이유를, actionable_coaching에는 다음 작성 때 실행할 구체 행동을 한국어로 적으세요.',
-    'handwrittenAnswers는 이미지에 보이는 문항 답변을 번호 순서대로 추출하세요.',
-    '- questionNumber: 문항 번호',
-    '- answerText: 작업자가 실제로 쓴 원문',
+    '- score_reason에는 실제 작성 내용 근거와 감점 이유를, actionable_coaching에는 다음 작성 때 실행할 구체 행동을 한국어로 적으세요.',
+    'handwrittenAnswers는 이미지에 보이는 수기 작성 내용을 항목별로 추출하세요.',
+    '- questionNumber: 문항 번호(1~5)',
+    '- answerText: 작업자가 실제로 쓴 원문(수기 표형/서술형 포함)',
     '- koreanTranslation: 해당 답변의 한국어 해석 (항상 한국어만)',
     '- nativeTranslation: 외국인 근로자는 해당 모국어로 완전 번역하여 반드시 채울 것. 한국인은 빈 문자열.',
-    '[NEW-PSI 고정 양식 판독 규칙]',
+    '[양식별 판독 및 정규화 규칙 (1안 + 2안 공통)]',
     PSI_FORM_MASTER_PROMPT_BLOCK,
-    '- jobField는 페이지 하단 왼쪽의 "공종" 칸에 실제로 적힌 값만 사용하세요.',
-    '- name은 페이지 하단 가운데의 "현장 등록 한글이름" 칸에 실제로 적힌 값만 사용하세요.',
-    '- Q1 답변은 근로자가 실제로 하는 작업 중 가장 위험한 세부작업/위험작업입니다. 위험분석, 점수, 위험성평가 교육자료 환류의 핵심 근거로 사용하세요.',
-    '- 단, Q1 답변은 하단 "공종" 칸의 확정값을 대체하지 않습니다. Q1을 jobField로 저장하거나 jobField를 자동 확정하는 값으로 쓰지 마세요.',
-    '- 하단 공종/이름 칸이 비었거나 흐리면 추정하지 말고 jobField는 "미분류", name은 "식별 대기"로 반환하세요.',
-    '문항형 위험성평가표(1~5번)가 보이면 handwrittenAnswers를 절대 비워두지 마세요.',
+    '- jobField는 2안의 경우 페이지 하단 왼쪽 "공종" 칸, 1안의 경우 상단/표두의 "공종·직종·팀" 칸에 실제로 적힌 값만 사용하세요.',
+    '- name은 2안의 경우 페이지 하단 가운데 "현장 등록 한글이름" 칸, 1안의 경우 상단/표두/하단 서명란의 "성명·이름·작업자·작성자" 칸에 실제로 적힌 값만 사용하세요.',
+    '- Q1 답변(1안에서는 작업내용)은 근로자가 실제로 하는 작업 중 가장 위험한 세부작업/위험작업입니다. 위험분석, 점수, 교육자료 환류의 핵심 근거로 사용하세요.',
+    '- 단, Q1/작업내용 답변은 공종 칸의 확정값을 대체하지 않습니다. Q1을 jobField로 저장하거나 jobField를 자동 확정하는 값으로 쓰지 마세요.',
+    '- 공종/이름 칸이 실제로 비었거나 판독 불가일 때만 추정하지 말고 jobField는 "미분류", name은 "식별 대기"로 반환하세요.',
+    '수기 작성 내용이 보이면 handwrittenAnswers를 절대 비워두지 마세요.',
+    '1안(기존·구형 위험성평가 기록지)은 수기 표/자유서술 내용을 의미별로 정리해 1(작업내용), 2(유해·위험요인), 3(위험도·이유), 4(감소·안전대책), 5(실천사항·확인)에 맞춰 추출하되, 기록지에 아예 없는 항목은 지어내지 말고 적힌 항목만 정확히 반환하세요.',
     'NEW-PSI 양식 또는 PSI-RA-01 양식이면 Q1 위험 작업, Q2 위험요인/사고 이유, Q3 위험수준과 이유, Q4 감소대책, Q5 지킬 행동을 각각 분리해서 5개 항목으로 반환하세요.',
     OCR_RETRY_LANGUAGE_POLICY,
     '[외부 데이터 경계]',
@@ -2016,15 +2019,22 @@ async function analyzeSingleRecord(
     const documentMetadata = normalizeOcrDocumentMetadata(parsed);
     if (!documentMetadata.validation.isPsiForm) {
         throw withFailureTrace(createGatewayHttpError(
-            `PSI 위험성평가 기록지가 아닌 문서로 판정되었습니다: ${documentMetadata.validation.reason || '필수 표식 또는 문항 구조 불일치'}`,
+            `위험성평가 기록지(1안 기존 양식 또는 2안 NEW-PSI)가 아닌 문서로 판정되었습니다: ${documentMetadata.validation.reason || '제목 또는 작성 항목 불일치'}`,
             422,
             'OCR_WRONG_DOCUMENT',
         ));
     }
 
     const normalizedNationality = normalizeNationality(String(parsed.nationality || '미상'));
+    const normalizedLanguage = String(parsed.language || 'unknown').trim();
     const normalizedHandwrittenAnswers = normalizeHandwrittenAnswers(parsed.handwrittenAnswers);
-    const nativeInsights = String(parsed.aiInsights_native || '').trim();
+    const rawKoreanInsights = String(parsed.aiInsights || '').trim();
+    const rawNativeInsights = String(parsed.aiInsights_native || '').trim();
+    const nativeInsights = rawNativeInsights || (
+        (normalizedNationality.includes('대한민국') || normalizedNationality.includes('한국') || normalizedLanguage.toLowerCase().startsWith('ko'))
+            ? rawKoreanInsights
+            : ''
+    );
     const hasCoreExtractedText =
         String(parsed.fullText || '').trim().length > 0 ||
         String(parsed.koreanTranslation || '').trim().length > 0 ||

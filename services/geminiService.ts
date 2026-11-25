@@ -286,11 +286,11 @@ const workerRecordSchema = {
             documentType: {
                 type: Type.STRING,
                 enum: ['psi-risk-assessment', 'other-safety-document', 'unknown'],
-                description: '문서 유형. PSI 또는 PSI-RA-01 위험성평가 기록지만 psi-risk-assessment',
+                description: '문서 유형. 1안(기존·구형 위험성평가 기록지) 또는 2안(NEW-PSI / PSI-RA-01) 위험성평가 기록지면 psi-risk-assessment',
             },
-            isPsiForm: { type: Type.BOOLEAN, description: 'PSI 위험성평가 기록지 여부. 확실하지 않으면 false' },
+            isPsiForm: { type: Type.BOOLEAN, description: '1안·2안 위험성평가 기록지 여부. 무관한 문서일 때만 false' },
             documentValidationReason: { type: Type.STRING, description: '문서 유형 판정 근거' },
-            documentMarkers: { type: Type.ARRAY, items: { type: Type.STRING }, description: '실제로 보이는 PSI 표식 또는 문항 구조' },
+            documentMarkers: { type: Type.ARRAY, items: { type: Type.STRING }, description: '실제로 보이는 위험성평가 제목·양식 표식·작성 항목(예: 위험성평가, 성명, 공종, 작업내용, 위험요인, 감소대책, NEW-PSI, Q1~Q5)' },
             fieldConfidences: {
                 type: Type.OBJECT,
                 properties: {
@@ -553,8 +553,7 @@ const evaluateChangedPsiFormCoverage = (record: Pick<WorkerRecord, 'filename' | 
     const looksLikeChangedPsiForm =
         searchableText.includes('new-psi') ||
         searchableText.includes('psi-ra-01') ||
-        /\bq[1-5]\b/i.test(searchableText) ||
-        answers.length >= 3;
+        /\bq[1-5]\b/i.test(searchableText);
 
     const present = new Set<number>();
     answers.forEach((answer, index) => {
@@ -1695,12 +1694,13 @@ async function callGeminiWithRetry(
             ${PSI_FORM_MASTER_PROMPT_BLOCK}
             `;
 
-            const prompt = `위험성 평가 문서를 분석하십시오. 파일명: ${filenameHint || 'unknown'}.
-            [문서 유형 선확인 - 가장 먼저 수행]
-            - PSI, NEW-PSI 또는 PSI-RA-01 위험성평가 기록지의 제목, 하단 공종·이름 칸, Q1~Q5 문항 구조가 실제로 보이는지 먼저 확인하십시오.
-            - 해당 양식이 아니거나 확실하지 않으면 isPsiForm=false, documentType="other-safety-document" 또는 "unknown"으로 반환하십시오.
+            const prompt = `건설현장 위험성평가 기록지(1안 기존·구형 수기 양식 또는 2안 NEW-PSI/PSI-RA-01 양식) 문서를 분석하십시오. 파일명: ${filenameHint || 'unknown'}.
+            [문서 유형 선확인 - 1안(기존/구형) · 2안(신형) 모두 허용]
+            - 빛반사·그림자·손글씨만으로 문서를 거부하지 말고 읽히는 내용은 모두 추출하십시오.
+            - 1안(기존·구형 수기 위험성평가 기록지: NEW-PSI/Q1~Q5 번호 없이 "위험성평가" 제목 + 성명·공종·작업내용·유해위험요인·위험도·감소대책/안전대책·서명 구조)과 2안(NEW-PSI / PSI-RA-01, Q1~Q5 문항형) 중 하나라도 해당하면 반드시 isPsiForm=true, documentType="psi-risk-assessment"로 반환하십시오.
+            - 위험성평가 기록지가 전혀 아닌 무관한 문서일 때만 isPsiForm=false, documentType="other-safety-document" 또는 "unknown"으로 반환하십시오.
             - isPsiForm=false이면 보이지 않는 이름·공종·답변·점수를 추정하거나 만들어내지 말고 safetyScore=0으로 반환하십시오.
-            - documentMarkers에는 이미지에서 실제로 확인한 표식만 기록하십시오.
+            - documentMarkers에는 이미지에서 실제로 확인한 제목·표식·항목(예: 위험성평가, 성명, 공종, 작업내용, 유해위험요인, 감소대책, NEW-PSI, Q1~Q5 등)을 기록하십시오.
             - fieldConfidences의 name/jobField/date/nationality/handwrittenAnswers를 각각 0~1로 기록하십시오. 흐리거나 비어 있으면 0.8 미만으로 기록하십시오.
             [언어 규칙 — 절대 준수]
             - aiInsights는 반드시 한국어로만 작성. 영어 단어 혼용 절대 금지.
@@ -1708,18 +1708,19 @@ async function callGeminiWithRetry(
             - _native 계열 모든 필드에 영어·한국어 혼입 금지. 해당 국적 언어로만 완성.
             - _native 계열 모든 필드는 근로자가 직접 읽는 현장 안내문이다. 3인칭 평가 문체, 이름, 점수/등급, 내부 필드명, Q1/Q2 표기 금지. 2~4개의 짧은 문장으로 작성.
             반드시 scoreReasoning 배열을 포함하고, 점수-등급 일치(80/60 기준)를 확인한 후 반환하십시오.
-            문항형 위험성평가표(1~5번 질문)가 보이면 handwrittenAnswers 배열에 각 문항을 순서대로 채우십시오.
+            수기 작성 내용 또는 문항형 위험성평가표(1~5번 질문)가 보이면 handwrittenAnswers 배열에 항목을 채우십시오.
             - answerText: 작업자가 실제로 쓴 원문
             - koreanTranslation: 각 답변의 관리자 검토용 한국어 해석 (항상 한국어)
             - nativeTranslation: 각 답변을 작업자 모국어로 번역한 내용 — 외국인 근로자는 LANGUAGE_POLICY 기준 해당 국적 모국어로 번역하여 반드시 채울 것. 한국인은 빈 문자열.
-            [NEW-PSI 고정 양식 판독 규칙]
+            [양식별 고정 판독 규칙 (1안 + 2안 공통)]
             ${PSI_FORM_MASTER_PROMPT_BLOCK}
-            - jobField는 페이지 하단 왼쪽의 "공종" 칸에 실제로 적힌 값만 사용하십시오.
-            - name은 페이지 하단 가운데의 "현장 등록 한글이름" 칸에 실제로 적힌 값만 사용하십시오.
-            - Q1 답변은 근로자가 실제로 하는 작업 중 가장 위험한 세부작업/위험작업입니다. 위험분석, 점수, 위험성평가 교육자료 환류의 핵심 근거로 사용하십시오.
-            - 단, Q1 답변은 하단 "공종" 칸의 확정값을 대체하지 않습니다. Q1을 jobField로 저장하거나 jobField를 자동 확정하는 값으로 쓰지 마십시오.
-            - 하단 공종/이름 칸이 비었거나 흐리면 추정하지 말고 jobField는 "미분류", name은 "식별 대기"로 반환하십시오.
-            문항형 평가표의 handwrittenAnswers는 절대 비워두지 마십시오.
+            - jobField는 2안의 경우 페이지 하단 왼쪽 "공종" 칸, 1안의 경우 상단/표두의 "공종·직종·팀" 칸에 실제로 적힌 값만 사용하십시오.
+            - name은 2안의 경우 페이지 하단 가운데 "현장 등록 한글이름" 칸, 1안의 경우 상단/표두/하단 서명란의 "성명·이름·작업자·작성자" 칸에 실제로 적힌 값만 사용하십시오.
+            - Q1 답변(1안에서는 작업내용)은 근로자가 실제로 하는 작업 중 가장 위험한 세부작업/위험작업입니다. 위험분석, 점수, 위험성평가 교육자료 환류의 핵심 근거로 사용하십시오.
+            - 단, Q1 답변은 공종 칸의 확정값을 대체하지 않습니다. Q1을 jobField로 저장하거나 jobField를 자동 확정하는 값으로 쓰지 마십시오.
+            - 공종/이름 칸이 비었거나 흐리면 추정하지 말고 jobField는 "미분류", name은 "식별 대기"로 반환하십시오.
+            수기 작성 내용이 있는 평가표의 handwrittenAnswers는 절대 비워두지 마십시오.
+            1안(기존·구형 양식)은 표형/서술형 내용을 1(작업내용), 2(위험요인), 3(위험도/이유), 4(감소/안전대책), 5(실천사항/서명)로 매핑하되 실제 비어 있는 항목은 추정해 채우지 말고 적힌 항목만 반환하십시오.
             NEW-PSI 양식 또는 PSI-RA-01 양식이 보이면 Q1, Q2, Q3, Q4, Q5 답변을 각각 분리해서 반드시 5개 항목으로 반환하십시오.
             Q1은 위험 작업, Q2는 위험요인/사고 이유, Q3는 위험수준과 이유, Q4는 감소대책, Q5는 지킬 행동입니다.
 
@@ -1806,7 +1807,11 @@ async function callGeminiWithRetry(
                             suggestions: Array.isArray(r['suggestions']) ? (r['suggestions'] as string[]) : [],
                             suggestions_native: Array.isArray(r['suggestions_native']) ? (r['suggestions_native'] as string[]) : [],
                             aiInsights: (r['aiInsights'] as string) || '',
-                            aiInsights_native: (r['aiInsights_native'] as string) || '',
+                            aiInsights_native: (r['aiInsights_native'] as string) || (
+                                (nationality.includes('대한민국') || nationality.includes('한국') || String(r['language'] || '').toLowerCase().startsWith('ko'))
+                                    ? ((r['aiInsights'] as string) || '')
+                                    : ''
+                            ),
                             scoreReasoning: normalizedScoreAndLevel.scoreReasoning,
                             score_reason: (r['score_reason'] as string) || '',
                             score_reason_native: (r['score_reason_native'] as string) || '',

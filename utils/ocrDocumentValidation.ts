@@ -2,6 +2,7 @@ import type {
     OcrDocumentType,
     OcrDocumentValidation,
     OcrFieldConfidences,
+    PsiFormVariant,
     WorkerRecord,
 } from '../types';
 import { getSafetyLevelFromScore } from './safetyLevelUtils.js';
@@ -25,6 +26,9 @@ export interface PsiDocumentEvidence {
     hasPsiTitleEvidence: boolean;
     hasQuestionStructure: boolean;
     hasFooterEvidence: boolean;
+    hasRiskAssessmentTitle: boolean;
+    hasLegacyForm1Structure: boolean;
+    formVariant: PsiFormVariant;
     questionCount: number;
     isSufficient: boolean;
 }
@@ -41,7 +45,44 @@ const getQuestionNumbers = (value: unknown): Set<string> => {
     return numbers;
 };
 
-/** 모델 판정값과 별개로 제목/양식번호 + Q1~Q5 구조를 확인하는 결정론적 PSI 증거 게이트. */
+const getHandwrittenAnswersEvidenceText = (value: unknown): string => {
+    if (!Array.isArray(value)) return '';
+    return value
+        .slice(0, 8)
+        .map((item) => {
+            if (!item || typeof item !== 'object') return '';
+            const row = item as Record<string, unknown>;
+            return [row.questionNumber, row.answerText, row.koreanTranslation, row.nativeTranslation]
+                .map((part) => String(part || '').trim())
+                .filter(Boolean)
+                .join(' ');
+        })
+        .filter(Boolean)
+        .join(' ');
+};
+
+const hasSubstantiveHandwrittenAnswers = (value: unknown): boolean => {
+    if (!Array.isArray(value)) return false;
+    return value.some((item) => {
+        if (!item || typeof item !== 'object') return false;
+        const row = item as Record<string, unknown>;
+        return [row.answerText, row.koreanTranslation, row.nativeTranslation]
+            .some((part) => String(part || '').trim().length >= 2);
+    });
+};
+
+const LEGACY_FORM1_DOMAIN_GROUPS: RegExp[] = [
+    /작업\s*내용|금일\s*작업|오늘\s*작업|세부\s*작업|작업\s*공종|작업\s*장소/,
+    /유해[\s·•-]*위험\s*요인|위험\s*요인|위험\s*요소|위험\s*사항|사고\s*원인|추락|낙하|끼임|감전|협착|전도|붕괴|화재/,
+    /위험\s*성|위험\s*도|위험\s*등급|빈도|강도|상[\s/·]+중[\s/·]+하/,
+    /감소\s*대책|안전\s*대책|개선\s*대책|안전\s*조치|예방\s*대책|실천\s*사항|안전\s*행동|보호구|안전대|서명/,
+];
+
+const countLegacyForm1DomainSlots = (text: string): number => (
+    LEGACY_FORM1_DOMAIN_GROUPS.filter((pattern) => pattern.test(text)).length
+);
+
+/** 모델 판정값과 별개로 2안(NEW-PSI/Q1~Q5)과 1안(기존·구형 위험성평가 기록지)을 함께 검증하는 결정론적 PSI 증거 게이트. */
 export const assessPsiDocumentEvidence = (raw: Record<string, unknown>): PsiDocumentEvidence => {
     const nestedValidation = raw.ocrDocumentValidation && typeof raw.ocrDocumentValidation === 'object'
         ? raw.ocrDocumentValidation as Record<string, unknown>
@@ -51,27 +92,42 @@ export const assessPsiDocumentEvidence = (raw: Record<string, unknown>): PsiDocu
         ...(Array.isArray(nestedValidation.detectedMarkers) ? nestedValidation.detectedMarkers : []),
     ].map((item) => String(item || '').trim()).filter(Boolean);
     const markerEvidenceText = markers.join(' ').normalize('NFKC').replace(/\s+/g, ' ');
+    const answersEvidenceText = getHandwrittenAnswersEvidenceText(raw.handwrittenAnswers);
     const evidenceText = [
         String(raw.fullText || ''),
         String(raw.koreanTranslation || ''),
         String(raw.documentValidationReason || ''),
         String(nestedValidation.reason || ''),
+        answersEvidenceText,
     ].join(' ').normalize('NFKC');
     const compactEvidence = evidenceText.replace(/\s+/g, ' ');
-    const hasPsiIdentifier = /(?:^|[^a-z0-9])(?:new[-\s]?psi|psi[-\s]?ra[-\s]?0?1|psi)(?:[^a-z0-9]|$)/i.test(markerEvidenceText);
-    const hasRiskAssessmentTitle = /위험성\s*평가/.test(markerEvidenceText);
-    const hasFooterEvidence = /(?:현장\s*등록\s*한글\s*이름|공종|작성자|근로자\s*이름)/.test(markerEvidenceText);
+    const combinedEvidence = [markerEvidenceText, compactEvidence].filter(Boolean).join(' ');
+    const legacyDomainSlotCount = countLegacyForm1DomainSlots(combinedEvidence);
+    const hasSubstantiveContent = compactEvidence.trim().length >= 15 || hasSubstantiveHandwrittenAnswers(raw.handwrittenAnswers);
+    const hasRiskAssessmentTitle = /위험성\s*평가|위험\s*요인\s*평가|위험\s*예지|일일\s*위험성|근로자\s*위험성|risk\s*assessment/i.test(combinedEvidence);
+    const hasFooterEvidence = /(?:현장\s*등록\s*한글\s*이름|공종|직종|작성자|근로자\s*이름|근로자|작업자|성명|이름|팀명|소속|작성일|서명)/.test(combinedEvidence);
+    const hasLegacyForm1Structure = hasRiskAssessmentTitle && legacyDomainSlotCount >= 2 && hasSubstantiveContent;
+    const hasPsiIdentifier = /(?:^|[^a-z0-9])(?:new[-\s]?psi|psi[-\s]?ra[-\s]?0?1|psi)(?:[^a-z0-9]|$)/i.test(combinedEvidence);
     const questionNumbers = getQuestionNumbers(raw.handwrittenAnswers);
     for (const matched of compactEvidence.matchAll(/(?:^|[^0-9a-z])q?\s*([1-5])(?:[^0-9]|$)/gi)) {
         if (matched[1]) questionNumbers.add(matched[1]);
     }
     const questionCount = questionNumbers.size;
+    const hasQuestionStructure = questionCount >= 4 || hasLegacyForm1Structure;
     const hasPsiTitleEvidence = hasPsiIdentifier || (hasRiskAssessmentTitle && hasFooterEvidence);
-    const hasQuestionStructure = questionCount >= 4;
+    const isForm2Explicit = hasPsiIdentifier || /\bq[1-5]\b/i.test(combinedEvidence) || (questionCount >= 4 && !hasLegacyForm1Structure);
+    const formVariant: PsiFormVariant = isForm2Explicit
+        ? 'form-2-psi'
+        : hasLegacyForm1Structure
+            ? 'form-1-legacy'
+            : 'unknown';
     return {
         hasPsiTitleEvidence,
         hasQuestionStructure,
         hasFooterEvidence,
+        hasRiskAssessmentTitle,
+        hasLegacyForm1Structure,
+        formVariant,
         questionCount,
         isSufficient: hasPsiTitleEvidence && hasQuestionStructure,
     };
@@ -88,17 +144,22 @@ export const normalizeOcrDocumentMetadata = (raw: Record<string, unknown>) => {
     const deterministicEvidence = assessPsiDocumentEvidence(raw);
     const isPsiForm = declaredPsiForm && deterministicEvidence.isSufficient;
     const rawMarkers = Array.isArray(raw.documentMarkers) ? raw.documentMarkers : [];
+    const normalizedMarkers = rawMarkers.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 12);
+    const fallbackMarkers = normalizedMarkers.length === 0 && deterministicEvidence.isSufficient
+        ? [deterministicEvidence.formVariant === 'form-1-legacy' ? '위험성평가(1안)' : 'NEW-PSI']
+        : normalizedMarkers;
     const rawConfidences = raw.fieldConfidences && typeof raw.fieldConfidences === 'object'
         ? raw.fieldConfidences as Record<string, unknown>
         : {};
 
     const validation: OcrDocumentValidation = {
         documentType,
+        formVariant: deterministicEvidence.formVariant,
         isPsiForm,
         reason: deterministicEvidence.isSufficient
             ? String(raw.documentValidationReason || '').trim()
-            : `${String(raw.documentValidationReason || '').trim()}${raw.documentValidationReason ? ' | ' : ''}PSI 제목/양식번호와 Q1~Q5 구조 증거가 충분하지 않습니다.`,
-        detectedMarkers: rawMarkers.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 12),
+            : `${String(raw.documentValidationReason || '').trim()}${raw.documentValidationReason ? ' | ' : ''}위험성평가 기록지(1안 기존 양식 또는 2안 NEW-PSI) 제목·작성 항목 증거가 충분하지 않습니다.`,
+        detectedMarkers: fallbackMarkers,
     };
     const fieldConfidences: OcrFieldConfidences = {
         name: normalizeOcrConfidence(rawConfidences.name),

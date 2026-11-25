@@ -3,6 +3,7 @@ import { assessPsiDocumentEvidence, normalizeOcrConfidence } from './ocrDocument
 export const OCR_AUTO_ACCEPTANCE_THRESHOLD = 0.86;
 export const OCR_CRITICAL_FIELD_THRESHOLD = 0.82;
 export const OCR_MIN_ANSWER_COUNT = 5;
+export const OCR_LEGACY_FORM1_MIN_ANSWER_COUNT = 2;
 
 export type OcrRoutingQualityReason =
     | 'wrong-document'
@@ -130,7 +131,9 @@ export const assessOcrRoutingQuality = (
     ];
     const criticalFieldConfidence = Math.min(...criticalValues);
     const answerCount = getNonEmptyAnswerCount(raw.handwrittenAnswers);
-    const answerCoverage = Math.min(1, answerCount / 5);
+    const isLegacyForm1 = documentEvidence.formVariant === 'form-1-legacy';
+    const minRequiredAnswers = isLegacyForm1 ? OCR_LEGACY_FORM1_MIN_ANSWER_COUNT : OCR_MIN_ANSWER_COUNT;
+    const answerCoverage = Math.min(1, answerCount / minRequiredAnswers);
     const hasSourceText = [raw.fullText, raw.koreanTranslation]
         .some((item) => String(item || '').trim().length >= 3) || answerCount > 0;
     const hasCriticalValues = hasCriticalIdentityValues(raw);
@@ -147,9 +150,9 @@ export const assessOcrRoutingQuality = (
     if (!hasCriticalValues) reasons.push('missing-critical-value');
     if (ocrConfidence < OCR_AUTO_ACCEPTANCE_THRESHOLD) reasons.push('low-ocr-confidence');
     if (criticalFieldConfidence < OCR_CRITICAL_FIELD_THRESHOLD) reasons.push('low-critical-field-confidence');
-    if (answerCount < OCR_MIN_ANSWER_COUNT) reasons.push('incomplete-q1-q5');
+    if (answerCount < minRequiredAnswers) reasons.push('incomplete-q1-q5');
 
-    // 가중 평균이 개별 핵심필드/Q1~Q5 미달을 상쇄해서는 안 된다.
+    // 가중 평균이 개별 핵심필드/문항 미달을 상쇄해서는 안 된다.
     const requiresManualReview = reasons.length > 0 || score < OCR_AUTO_ACCEPTANCE_THRESHOLD;
     return {
         isVerifiedPsiForm: isPsiForm,
@@ -157,6 +160,7 @@ export const assessOcrRoutingQuality = (
         shouldEscalate: requiresManualReview && (
             isPsiForm
             || documentEvidence.isSufficient
+            || documentEvidence.hasRiskAssessmentTitle
             || (declaredPsiForm && (documentEvidence.hasPsiTitleEvidence || documentEvidence.questionCount >= 3))
         ),
         requiresManualReview,
@@ -169,13 +173,13 @@ export const assessOcrRoutingQuality = (
 
 export const getOcrQualityReviewMessage = (assessment: OcrRoutingQualityAssessment): string => {
     const labels: Record<OcrRoutingQualityReason, string> = {
-        'wrong-document': 'PSI 양식 불일치',
-        'insufficient-psi-markers': 'PSI 제목/양식번호 및 Q1~Q5 구조 증거 부족',
+        'wrong-document': '위험성평가 기록지 양식 불일치',
+        'insufficient-psi-markers': '위험성평가(1안·2안) 제목 또는 작성 항목 증거 부족',
         'missing-source-text': '원문 텍스트 누락',
         'missing-critical-value': '이름·공종·날짜·국적 실제 값 누락',
         'low-ocr-confidence': '전체 판독 신뢰도 부족',
-        'low-critical-field-confidence': '이름·공종·날짜·국적·필기 핵심 필드 신뢰도 부족',
-        'incomplete-q1-q5': 'Q1~Q5 답변 추출 부족',
+        'low-critical-field-confidence': '이름·공종·날짜·국적·필기 핵심 항목 신뢰도 부족',
+        'incomplete-q1-q5': '문항·작업위험 항목 답변 추출 부족',
     };
     const detail = assessment.reasons.map((reason) => labels[reason]).join(', ');
     return `OCR 자동확정 보류(품질점수 ${Math.round(assessment.score * 100)}점): ${detail || '관리자 확인 필요'}`;

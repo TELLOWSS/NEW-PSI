@@ -112,15 +112,28 @@ export const buildFallbackNativeCoachingText = (record: Pick<OcrVerificationLike
 export const evaluateOcrVerificationCompleteness = (record: OcrVerificationLikeRecord) => {
     const fullText = String(record.fullText || '').trim();
     const koreanTranslation = String(record.koreanTranslation || '').trim();
+    const aiInsights = String(record.aiInsights || '').trim();
     const aiInsightsNative = String(record.aiInsights_native || '').trim();
+    const koreanWorker = isKoreanNationality(record.nationality, record.language);
     const handwrittenAnswers = Array.isArray(record.handwrittenAnswers) ? record.handwrittenAnswers : [];
     const answerRows = handwrittenAnswers.filter((item) => String(item?.answerText || '').trim().length > 0);
     const answerCount = answerRows.length;
     const translatedAnswerCount = answerRows.filter((item) => String(item?.koreanTranslation || '').trim().length > 0).length;
     const nativeTranslatedAnswerCount = answerRows.filter((item) => String((item as { nativeTranslation?: string })?.nativeTranslation || '').trim().length > 0).length;
     const combinedText = `${fullText}\n${koreanTranslation}`;
-    const hasQuestionnairePattern = /\bQ[1-5]\b|(?:^|\s)(?:1|2|3|4|5)[\.\)]|가장\s*큰\s*위험요소|위험등급|안전\s*조치|안전\s*행동|最危险|最大的危险因素|危险等级|安全措施|安全行为/iu.test(combinedText);
+    const hasExplicitForm2Header = /\bQ[1-5]\b|new[-\s]?psi|psi[-\s]?ra[-\s]?0?1/i.test(combinedText);
+    const form2PromptSignals = [
+        /가장\s*큰\s*위험요소|最危险|最大的危险因素/iu,
+        /위험등급|危险等级/iu,
+        /안전\s*조치|安全措施/iu,
+        /안전\s*행동|安全行为/iu,
+    ].filter((pattern) => pattern.test(combinedText)).length;
+    const hasAllFiveNumericItems = [1, 2, 3, 4, 5].every((num) => (
+        new RegExp(`(?:^|\\s)${num}[\\.\\)]`).test(combinedText)
+    ));
+    const hasQuestionnairePattern = hasExplicitForm2Header || form2PromptSignals >= 3 || hasAllFiveNumericItems;
     const nativeLanguageLabel = getNativeLanguageLabel(record.nationality, record.language);
+    const hasEffectiveNativeGuidance = aiInsightsNative.length > 0 || (koreanWorker && aiInsights.length > 0);
     const issues: string[] = [];
 
     if (hasQuestionnairePattern && answerCount < 5) {
@@ -129,10 +142,10 @@ export const evaluateOcrVerificationCompleteness = (record: OcrVerificationLikeR
     if (answerCount > 0 && translatedAnswerCount < answerCount) {
         issues.push(`문항별 한국어 해석 누락 ${answerCount - translatedAnswerCount}건`);
     }
-    if (!isKoreanNationality(record.nationality, record.language) && answerCount > 0 && nativeTranslatedAnswerCount < answerCount) {
+    if (!koreanWorker && answerCount > 0 && nativeTranslatedAnswerCount < answerCount) {
         issues.push(`${nativeLanguageLabel} 문항 해석 누락 ${answerCount - nativeTranslatedAnswerCount}건`);
     }
-    if (!aiInsightsNative) {
+    if (!hasEffectiveNativeGuidance) {
         issues.push(`${nativeLanguageLabel} 보호 안내 누락`);
     }
 
@@ -142,7 +155,7 @@ export const evaluateOcrVerificationCompleteness = (record: OcrVerificationLikeR
         answerCount,
         translatedAnswerCount,
         nativeTranslatedAnswerCount,
-        hasNativeGuidance: aiInsightsNative.length > 0,
+        hasNativeGuidance: hasEffectiveNativeGuidance,
         issues,
         isComplete: issues.length === 0,
     };

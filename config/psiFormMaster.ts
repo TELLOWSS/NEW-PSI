@@ -144,8 +144,9 @@ export const getPsiQuestionLabel = (questionNumber: unknown): { title: string; s
 
 export const PSI_FORM_MASTER_PROMPT_BLOCK = [
     `[PSI 기록지 기준데이터 ${PSI_FORM_MASTER_VERSION}]`,
+    '- 지원 양식은 2종이다: [1안 기존·구형 위험성평가 기록지(표형·수기 서술형, 상단/표두 성명·공종·날짜, 작업내용·유해위험요인·위험도·감소대책/안전대책·서명 구조)]와 [2안 NEW-PSI / PSI-RA-01 문항형(Q1~Q5, 하단 공종·현장 등록 한글이름)]. 두 양식 모두 유효한 psi-risk-assessment(isPsiForm=true)이다.',
     `- 표준 공종: ${PSI_STANDARD_JOB_FIELDS.join(', ')}`,
-    '- jobField는 기록지 하단 "공종" 칸의 값만 사용한다. Q1 답변은 jobField를 대체하지 않는다.',
+    '- jobField는 기록지의 "공종/직종" 칸(2안 하단 왼쪽 또는 1안 상단·표두 공종 칸)의 값만 사용한다. Q1 답변은 jobField를 대체하지 않는다.',
     ...PSI_FORM_QUESTIONS.map((question) => (
         `- ${question.key}: ${question.workerIntent} 분석 역할: ${question.analysisRole}`
     )),

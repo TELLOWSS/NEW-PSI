@@ -67,4 +67,25 @@ describe('OCR native-language verification', () => {
 
         expect(result.hasEnglishInNative).toBe(false);
     });
+
+    it('accepts handwritten Form 1 (1안) for Korean worker with 3 table entries and Korean aiInsights', () => {
+        const result = evaluateOcrVerificationCompleteness({
+            nationality: '대한민국',
+            language: 'ko',
+            jobField: '형틀',
+            weakAreas: ['추락 위험'],
+            aiInsights: '개구부 주변 안전대 체결 후 작업하세요.',
+            aiInsights_native: '',
+            fullText: '위험성평가 기록지 1. 거푸집 해체 작업 안전 조치 필요',
+            koreanTranslation: '위험성평가 기록지 1. 거푸집 해체 작업',
+            handwrittenAnswers: [
+                { questionNumber: '1', answerText: '거푸집 해체', koreanTranslation: '거푸집 해체', nativeTranslation: '' },
+                { questionNumber: '2', answerText: '추락 위험', koreanTranslation: '추락 위험', nativeTranslation: '' },
+                { questionNumber: '4', answerText: '안전대 체결', koreanTranslation: '안전대 체결', nativeTranslation: '' },
+            ],
+        } as any);
+
+        expect(result.hasQuestionnairePattern).toBe(false);
+        expect(result.isComplete).toBe(true);
+    });
 });

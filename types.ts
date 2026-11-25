@@ -202,9 +202,11 @@ export interface OcrTraceInfo {
 }
 
 export type OcrDocumentType = 'psi-risk-assessment' | 'other-safety-document' | 'unknown';
+export type PsiFormVariant = 'form-1-legacy' | 'form-2-psi' | 'unknown';
 
 export interface OcrDocumentValidation {
     documentType: OcrDocumentType;
+    formVariant?: PsiFormVariant;
     isPsiForm: boolean;
     reason: string;
     detectedMarkers: string[];

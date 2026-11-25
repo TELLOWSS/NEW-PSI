@@ -278,6 +278,43 @@ describe('OCR cost/quality routing gate', () => {
 
         expect(wrongDocument.isVerifiedPsiForm).toBe(false);
         expect(wrongDocument.requiresManualReview).toBe(true);
+        expect(wrongDocument.shouldEscalate).toBe(false);
         expect(wrongDocument.reasons).toContain('wrong-document');
+    });
+
+    it('accepts handwritten Form 1 (1안) with 3 domain answers and escalates cheap false-negatives', () => {
+        const form1FullText = '일일 위험성평가 기록지 성명 김철수 공종 형틀 작업내용 동바리 해체 위험요인 자재 낙하 감소대책 하부 통제 후 작업';
+        const acceptedForm1 = assessOcrRoutingQuality({
+            isPsiForm: true,
+            documentMarkers: ['위험성평가', '성명', '공종', '작업내용', '감소대책'],
+            name: '김철수',
+            jobField: '형틀',
+            date: '2026-11-26',
+            nationality: '대한민국',
+            ocrConfidence: 0.91,
+            fieldConfidences: { name: 0.9, jobField: 0.89, date: 0.88, nationality: 0.94, handwrittenAnswers: 0.87 },
+            handwrittenAnswers: [
+                { questionNumber: '1', answerText: '동바리 해체', koreanTranslation: '동바리 해체' },
+                { questionNumber: '2', answerText: '자재 낙하 위험', koreanTranslation: '자재 낙하 위험' },
+                { questionNumber: '4', answerText: '하부 통제 후 작업', koreanTranslation: '하부 통제 후 작업' },
+            ],
+            fullText: form1FullText,
+        });
+
+        expect(acceptedForm1.isVerifiedPsiForm).toBe(true);
+        expect(acceptedForm1.requiresManualReview).toBe(false);
+        expect(acceptedForm1.reasons).not.toContain('incomplete-q1-q5');
+
+        const cheapFalseNegative = assessOcrRoutingQuality({
+            isPsiForm: false,
+            documentMarkers: [],
+            ocrConfidence: 0.85,
+            fieldConfidences: { name: 0.85, jobField: 0.85, date: 0.85, nationality: 0.85, handwrittenAnswers: 0.85 },
+            handwrittenAnswers: [],
+            fullText: form1FullText,
+        });
+
+        expect(cheapFalseNegative.isVerifiedPsiForm).toBe(false);
+        expect(cheapFalseNegative.shouldEscalate).toBe(true);
     });
 });

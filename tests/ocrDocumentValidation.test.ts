@@ -76,6 +76,39 @@ describe('OCR document validation gate', () => {
         expect(result.validation.reason).toContain('증거가 충분하지 않습니다');
     });
 
+    it('accepts handwritten legacy Form 1 (1안) without NEW-PSI code or Q1-Q5 labels', () => {
+        const result = normalizeOcrDocumentMetadata({
+            documentType: 'psi-risk-assessment',
+            isPsiForm: true,
+            documentValidationReason: '기존 수기 위험성평가 기록지 확인',
+            documentMarkers: [],
+            handwrittenAnswers: [
+                { questionNumber: '1', answerText: '거푸집 해체 작업', koreanTranslation: '거푸집 해체 작업' },
+                { questionNumber: '2', answerText: '개구부 주변 추락 위험', koreanTranslation: '개구부 주변 추락 위험' },
+                { questionNumber: '4', answerText: '안전대 고리 체결 후 작업', koreanTranslation: '안전대 고리 체결 후 작업' },
+            ],
+            fullText: '근로자 위험성평가 기록지 성명 홍길동 공종 형틀 작업내용 거푸집 해체 유해위험요인 추락 감소대책 안전대 체결 서명 완료',
+        });
+
+        expect(result.validation.isPsiForm).toBe(true);
+        expect(result.validation.formVariant).toBe('form-1-legacy');
+        expect(result.validation.detectedMarkers).toContain('위험성평가(1안)');
+    });
+
+    it('rejects generic safety memo even if handwritten text exists without risk-assessment structure', () => {
+        const result = normalizeOcrDocumentMetadata({
+            documentType: 'psi-risk-assessment',
+            isPsiForm: true,
+            documentMarkers: ['식당 영수증'],
+            handwrittenAnswers: [
+                { questionNumber: '1', answerText: '김밥 2줄', koreanTranslation: '김밥 2줄' },
+            ],
+            fullText: '영수증 합계 12,000원 부가세 포함',
+        });
+
+        expect(result.validation.isPsiForm).toBe(false);
+    });
+
     it('returns only fields below the review threshold', () => {
         const lowFields = getLowConfidenceOcrFields({ name: 0.92, jobField: 0.55, date: 0.79 });
         expect(lowFields.map((item) => item.field)).toEqual(['jobField', 'date']);

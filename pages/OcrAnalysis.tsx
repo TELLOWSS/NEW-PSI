@@ -284,7 +284,7 @@ const getOcrErrorGuideMessage = (errorType: OcrErrorType, record?: WorkerRecord)
         case 'HANDWRITING':
             return '✍️ 글씨를 인식하기 어렵습니다. 정자체로 작성되었는지 확인해 주세요.';
         case 'LAYOUT':
-            return '📄 문서의 모서리가 잘렸습니다. 기록지 전체가 화면에 들어오게 찍어주세요.';
+            return '📄 문서 제목·표식 또는 모서리가 잘렸습니다. 1안(기존 위험성평가 기록지) 또는 2안(신형 기록지) 전체가 화면에 들어오게 찍어주세요.';
         case 'RESOLUTION':
             return '🔎 해상도가 낮거나 너무 멀리서 촬영되었습니다. 문서에 가까이 다가가 선명하게 촬영해 주세요.';
         default:
@@ -3870,6 +3870,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             : record.handwrittenAnswers;
         const nextAiInsightsNative = String(data.record.aiInsights_native || '').trim() || record.aiInsights_native;
 
+        const isReviewOnlyServerResult = data.record.ocrErrorType === 'QUALITY'
+            || data.record.ocrErrorType === 'HANDWRITING';
+
         return {
             ...record,
             ...data.record,
@@ -3882,9 +3885,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             isSignalman: record.isSignalman,
             handwrittenAnswers: nextHandwrittenAnswers,
             aiInsights_native: nextAiInsightsNative,
-            ocrErrorType: undefined,
-            ocrErrorMessage: undefined,
-            ocrFailureCode: undefined,
+            ocrErrorType: isReviewOnlyServerResult ? data.record.ocrErrorType : undefined,
+            ocrErrorMessage: isReviewOnlyServerResult ? data.record.ocrErrorMessage : undefined,
+            ocrFailureCode: isReviewOnlyServerResult ? data.record.ocrFailureCode : undefined,
             ocrUnknownSubCategory: undefined,
             // P0: Trace 표준화 — 서버가 반환한 trace 저장
             ocrTrace: data.trace
