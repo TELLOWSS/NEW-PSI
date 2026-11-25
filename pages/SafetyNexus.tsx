@@ -28,6 +28,7 @@ import {
 } from '../utils/nexusStructuralTaxonomy';
 import {
   NEXUS_PIPELINE_UPDATED_EVENT,
+  buildShiftHandoverBriefingText,
   readNexusPipelineCases,
   summarizePipelineForOrbitLayer,
   type NexusPipelineCase,
@@ -84,6 +85,13 @@ import {
   NexusHqCommandWorkbench,
   type NexusWorkbenchTab,
 } from '../components/inspector/NexusHqCommandWorkbench';
+import {
+  buildNexusDecisionBrief,
+  getAllowedDecisionPersonas,
+  type NexusDecisionActionTarget,
+  type NexusDecisionPersona,
+} from '../utils/nexusDecisionBrief';
+import { NexusDecisionFirstBrief } from '../components/shared/NexusDecisionFirstBrief';
 import WebGLNexusCore from './NexusWebGLCore';
 import { ScoreMetricEvidencePanel } from '../components/shared/ScoreMetricEvidencePanel';
 import { PracticeEvidencePanel, type PracticeEvidenceSelection } from '../components/shared/PracticeEvidencePanel';
@@ -558,6 +566,9 @@ const SafetyNexus: React.FC<Props> = ({
   const [syncConflicts, setSyncConflicts] = useState<NexusOfflineSyncConflict[]>([]);
   const [conflictDrawerOpen, setConflictDrawerOpen] = useState<boolean>(false);
   const [quickStopWorkTrigger, setQuickStopWorkTrigger] = useState<number>(0);
+  const [decisionPersona, setDecisionPersona] = useState<NexusDecisionPersona>(
+    (lockedRole ?? initialRole) === 'field' ? 'field_manager' : 'executive',
+  );
   const [complianceNotice, setComplianceNotice] = useState<string>('');
   const serverSnapshotRef = useRef({ pipelineCases, equipmentReports });
   serverSnapshotRef.current = { pipelineCases, equipmentReports };
@@ -616,6 +627,8 @@ const SafetyNexus: React.FC<Props> = ({
     } catch {
       // Ignore storage errors
     }
+    const allowed = getAllowedDecisionPersonas(effectiveRole);
+    setDecisionPersona(prev => (allowed.includes(prev) ? prev : allowed[0]));
   }, [effectiveRole]);
   useEffect(() => {
     const syncPipeline = () => setPipelineCases(readNexusPipelineCases());
@@ -827,6 +840,109 @@ const SafetyNexus: React.FC<Props> = ({
         : [],
     [effectiveRole, pipelineCases, visitPlans, investigations, trainingCampaigns, followup.asOfDate],
   );
+
+  const allowedDecisionPersonas = useMemo(
+    () => getAllowedDecisionPersonas(effectiveRole),
+    [effectiveRole],
+  );
+
+  const decisionBriefVm = useMemo(
+    () =>
+      buildNexusDecisionBrief({
+        workspaceRole: effectiveRole,
+        persona: decisionPersona,
+        scopeLabel:
+          effectiveRole === 'hq'
+            ? scopedData.activeSiteMeta?.shortLabel || '전사 통합 포트폴리오'
+            : scopedData.activeSiteMeta?.shortLabel || '소속 현장 범위',
+        pipelineCases: scopedData.pipelineCases,
+        equipmentReports: scopedData.equipmentReports,
+        trainingCampaigns: scopedData.trainingCampaigns,
+        visitPlans: scopedData.visitPlans,
+        investigations: scopedData.investigations,
+        siteMatrix,
+      }),
+    [effectiveRole, decisionPersona, scopedData, siteMatrix],
+  );
+
+  const handleDecisionBriefAction = (target: NexusDecisionActionTarget) => {
+    const scrollToWorkbench = () => {
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => {
+          document
+            .getElementById('nexus-closed-loop-workbench')
+            ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }
+    };
+    if (target === 'open_ceo_briefing' && effectiveRole === 'hq') {
+      const pack = buildUnifiedCeoDailyBriefing({
+        asOfDate: followup.asOfDate,
+        reporterLabel: '본사 CSO · 안전보건실장',
+        pipelineCases: scopedData.pipelineCases,
+        visitPlans: scopedData.visitPlans,
+        investigations: scopedData.investigations,
+        trainingCampaigns: scopedData.trainingCampaigns,
+        equipmentReports: scopedData.equipmentReports,
+      });
+      setDailyCeoBriefing(pack);
+      setDailyBriefingNotice('');
+      setActiveView('hq_bi');
+      triggerToast('📋 대표이사 일일 통합 안전브리핑 1장 생성 완료');
+      return;
+    }
+    if (target === 'export_pptx' && effectiveRole === 'hq') {
+      void handleExportCeoPptx();
+      return;
+    }
+    if (target === 'open_stopwork') {
+      setActiveView(effectiveRole === 'hq' ? 'hq_ops' : 'field_ops');
+      setWorkbenchTab('inspect_03_06');
+      scrollToWorkbench();
+      triggerToast('⛔ 작업중지·시정조치 관리 화면으로 이동');
+      return;
+    }
+    if (target === 'open_equip_review' || target === 'open_equip_upload') {
+      setActiveView(effectiveRole === 'hq' ? 'hq_ops' : 'field_ops');
+      setWorkbenchTab('equipment_photo');
+      scrollToWorkbench();
+      triggerToast('📷 건설기계 사용전 점검 사진함으로 이동');
+      return;
+    }
+    if (target === 'open_visit_ack') {
+      setActiveView(effectiveRole === 'hq' ? 'hq_ops' : 'field_inbox');
+      setWorkbenchTab('visit_01');
+      scrollToWorkbench();
+      triggerToast('📋 본사 순회점검 확인함으로 이동');
+      return;
+    }
+    if (target === 'open_training_qr') {
+      setActiveView(effectiveRole === 'hq' ? 'hq_ops' : 'field_inbox');
+      setWorkbenchTab('training_04');
+      scrollToWorkbench();
+      triggerToast('📱 12개국어 교육·QR 자필 서명함으로 이동');
+      return;
+    }
+    if (target === 'trigger_stopwork') {
+      setActiveView(effectiveRole === 'hq' ? 'hq_ops' : 'field_ops');
+      setWorkbenchTab('inspect_03_06');
+      setQuickStopWorkTrigger(v => v + 1);
+      scrollToWorkbench();
+      triggerToast('⛔ 작업중지 즉시 등록 폼을 활성화했습니다');
+      return;
+    }
+    if (target === 'copy_handover') {
+      const handoverText = buildShiftHandoverBriefingText(
+        scopedData.pipelineCases,
+        scopedData.activeSiteMeta?.siteName || '전사 통합 현장',
+        followup.asOfDate,
+      );
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        void navigator.clipboard.writeText(handoverText).catch(() => {});
+      }
+      triggerToast('📋 교대·작업 전 5줄 지시 요약이 복사되었습니다');
+    }
+  };
 
   const handleAxisFilterChange = (patch: Partial<NexusThreeAxisFilter>) => {
     const nextFilter = { ...axisFilter, ...patch };
@@ -1547,6 +1663,12 @@ const SafetyNexus: React.FC<Props> = ({
         </div>
       </section>
     )}
+    <NexusDecisionFirstBrief
+      viewModel={decisionBriefVm}
+      allowedPersonas={allowedDecisionPersonas}
+      onSelectPersona={setDecisionPersona}
+      onAction={handleDecisionBriefAction}
+    />
     {(activeView === 'hq_command' || activeView === 'field_sphere') && <div className="nexus-main">
       <aside className="nexus-aside">
         <div className="nexus-section-title"><span>01 / 통합 안전 현황</span><i /></div>

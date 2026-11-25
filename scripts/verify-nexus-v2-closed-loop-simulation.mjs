@@ -77,7 +77,7 @@ const assertLightThemeQuality = async (root, viewLabel) => {
         }
       }
 
-      const isIntentionalAccent = el.matches('.nexus-story-button, .nexus-layer-tab.is-active, .nexus-primary, .nexus-3axis-submit, .nexus-mobile-thumb-dock button.is-active, .nexus-theme-toggle, .nexus-sunlight-toggle, .nexus-scope-strip button[aria-pressed="true"]');
+      const isIntentionalAccent = el.matches('.nexus-story-button, .nexus-layer-tab.is-active, .nexus-primary, .nexus-3axis-submit, .nexus-mobile-thumb-dock button.is-active, .nexus-theme-toggle, .nexus-sunlight-toggle, .nexus-scope-strip button[aria-pressed="true"], .nexus-decision-signal.is-critical, .nexus-decision-signal.is-watch, .nexus-decision-signal.is-stable, .nexus-db-action-btn.is-danger, .nexus-decision-compact-cta.is-danger');
       const ownBg = parseColor(style.backgroundColor);
       if (ownBg[3] > 0.65 && relLum(ownBg) < 0.08 && !isIntentionalAccent) {
         darkStragglers.push({ tag: el.tagName, cls: String(el.className), bg: style.backgroundColor });
@@ -180,6 +180,21 @@ try {
   await page.screenshot({ path: resolve(outDir, 'nexus-v4-hq-ux-1440.png'), fullPage: false });
   await page.screenshot({ path: resolve(outDir, 'nexus-v5-light-hq-1440.png'), fullPage: false });
   await assertLightThemeQuality(root, 'HQ_1_3D');
+
+  // Verify Desktop 4-stage Decision-First Brief expand + persona switch
+  const decisionBrief = root.locator('.nexus-decision-brief');
+  await decisionBrief.locator('.nexus-decision-expand-btn').click();
+  recordCheck(
+    'UX-9 Desktop HQ Decision-First Brief expands into 4 stages (SoWhat/Why/How/Outcome)',
+    (await decisionBrief.locator('.nexus-db-card').count()) === 4 &&
+    (await decisionBrief.locator('.nexus-decision-grid').isVisible()),
+  );
+  await decisionBrief.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(150);
+  await assertLightThemeQuality(root, 'HQ_DECISION_EXPANDED');
+  await page.screenshot({ path: resolve(outDir, 'nexus-v8-hq-decision-1440.png'), fullPage: false });
+  await decisionBrief.locator('.nexus-decision-expand-btn').click();
+
   await root.locator('.nexus-sunlight-toggle').click();
   await page.waitForTimeout(200);
   recordCheck(
@@ -634,6 +649,16 @@ try {
         (await root.locator('.nexus-mobile-thumb-dock').isVisible()),
       );
       await root.getByRole('tab', { name: '① 현장 즉시 실행' }).click();
+      const mobileDecision = root.locator('.nexus-decision-brief');
+      recordCheck(
+        'UX-10 390px mobile Decision-First Brief auto-expands 4 cards & blocks executive persona',
+        (await mobileDecision.locator('.nexus-decision-grid').isVisible()) &&
+        (await mobileDecision.locator('.nexus-db-card').count()) === 4 &&
+        (await mobileDecision.locator('.nexus-decision-personas button', { hasText: '경영진' }).count()) === 0,
+      );
+      await mobileDecision.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(150);
+      await page.screenshot({ path: resolve(outDir, 'nexus-v8-mobile-decision-390.png'), fullPage: false });
       recordCheck(
         'UX-5 390px mobile thumb dock marks active tab with .is-active & exposes quick-action row',
         (await root.locator('.nexus-mobile-thumb-dock button.is-active').count()) === 1 &&
