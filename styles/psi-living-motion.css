@@ -222,3 +222,198 @@
 @media print {
   .psi-app-shell.psi-platform-field-canvas { height: auto !important; }
 }
+
+/* ============================================================================
+   Top-Tier Living Kinetic Precision Engine (desktop & mobile auto-play, pauseable)
+   ============================================================================ */
+@keyframes psi-beacon-sonar {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.78;
+  }
+  70% {
+    transform: scale(2.35);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.35);
+    opacity: 0;
+  }
+}
+
+@keyframes psi-telemetry-sweep {
+  0% {
+    transform: translate3d(-35%, 0, 0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.9;
+  }
+  80% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate3d(135%, 0, 0);
+    opacity: 0;
+  }
+}
+
+@keyframes psi-card-stagger-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes psi-sparkline-draw {
+  from {
+    stroke-dashoffset: 180;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes psi-sparkline-halo-pulse {
+  0%, 100% {
+    opacity: 0.42;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.14;
+    transform: scale(1.45);
+  }
+}
+
+@keyframes psi-cta-sheen {
+  0%, 72% {
+    transform: translate3d(-140%, 0, 0) skewX(-20deg);
+  }
+  100% {
+    transform: translate3d(240%, 0, 0) skewX(-20deg);
+  }
+}
+
+@keyframes psi-drawer-slide-in {
+  from {
+    opacity: 0.4;
+    transform: translate3d(32px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes psi-backdrop-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes psi-quickjump-pop {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -8px, 0) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .psi-app-shell.psi-platform-field-canvas .psi-kinetic-beacon i::after {
+    animation: psi-beacon-sonar 2.2s var(--psi-motion-ease) infinite;
+  }
+
+  .psi-app-shell.psi-platform-field-canvas .psi-kinetic-sweep {
+    animation: psi-telemetry-sweep 5.8s linear infinite;
+  }
+
+  .psi-app-shell.psi-platform-field-canvas .psi-cd-card {
+    animation: psi-card-stagger-in 260ms var(--psi-motion-ease) both;
+  }
+  .psi-app-shell.psi-platform-field-canvas .psi-cd-card:nth-child(2) {
+    animation-delay: 45ms;
+  }
+  .psi-app-shell.psi-platform-field-canvas .psi-cd-card:nth-child(3) {
+    animation-delay: 90ms;
+  }
+  .psi-app-shell.psi-platform-field-canvas .psi-cd-card:nth-child(4) {
+    animation-delay: 135ms;
+  }
+
+  .psi-app-shell.psi-platform-field-canvas .psi-sparkline-path {
+    stroke-dasharray: 180;
+    stroke-dashoffset: 180;
+    animation: psi-sparkline-draw 680ms var(--psi-motion-ease) 120ms forwards;
+  }
+
+  .psi-app-shell.psi-platform-field-canvas .psi-sparkline-halo {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: psi-sparkline-halo-pulse 2.4s ease-in-out infinite;
+  }
+
+  .psi-app-shell.psi-platform-field-canvas :is(.psi-cd-compact-cta.is-primary, .psi-cd-action-btn.is-primary, .psi-cd-compact-cta.is-danger, .psi-cd-action-btn.is-danger)::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 42%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.24), transparent);
+    pointer-events: none;
+    animation: psi-cta-sheen 4.8s ease-in-out infinite;
+  }
+
+  .psi-app-shell.psi-platform-field-canvas :is(.psi-cd-compact-cta, .psi-cd-action-btn, .psi-cd-inspector-btn, .psi-cd-nexus-btn, .psi-cd-expand-btn, .psi-cd-authority-pill, .psi-cd-personas button) {
+    transition: transform var(--psi-motion-fast) var(--psi-motion-ease),
+                background-color var(--psi-motion-fast) ease,
+                border-color var(--psi-motion-fast) ease,
+                box-shadow var(--psi-motion-fast) ease;
+  }
+
+  .psi-app-shell.psi-platform-field-canvas :is(.psi-cd-compact-cta, .psi-cd-action-btn, .psi-cd-inspector-btn, .psi-cd-nexus-btn):hover:not(:disabled) {
+    transform: translate3d(0, -1px, 0);
+  }
+
+  .psi-app-shell.psi-platform-field-canvas :is(.psi-cd-compact-cta, .psi-cd-action-btn, .psi-cd-inspector-btn, .psi-cd-nexus-btn, .psi-cd-personas button):active:not(:disabled) {
+    transform: scale(0.975);
+  }
+
+  .psi-app-shell.psi-platform-field-canvas .psi-universal-drawer-backdrop,
+  .psi-app-shell.psi-platform-field-canvas .psi-quickjump-backdrop {
+    animation: psi-backdrop-fade 160ms ease both;
+  }
+
+  .psi-app-shell.psi-platform-field-canvas .psi-universal-drawer {
+    animation: psi-drawer-slide-in 240ms var(--psi-motion-ease) both;
+  }
+
+  .psi-app-shell.psi-platform-field-canvas .psi-quickjump-dialog {
+    animation: psi-quickjump-pop 180ms var(--psi-motion-ease) both;
+  }
+}
+
+html[data-psi-motion-paused="true"] .psi-platform-field-canvas :is(.psi-kinetic-beacon i::after, .psi-kinetic-sweep, .psi-cd-card, .psi-sparkline-path, .psi-sparkline-halo, .psi-cd-compact-cta::after, .psi-cd-action-btn::after, .psi-universal-drawer, .psi-quickjump-dialog),
+html[data-psi-sunlight="true"] .psi-platform-field-canvas :is(.psi-kinetic-sweep, .psi-cd-compact-cta::after, .psi-cd-action-btn::after) {
+  animation: none !important;
+  stroke-dashoffset: 0 !important;
+  transform: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .psi-app-shell.psi-platform-field-canvas :is(.psi-kinetic-beacon i::after, .psi-kinetic-sweep, .psi-cd-card, .psi-sparkline-path, .psi-sparkline-halo, .psi-cd-compact-cta::after, .psi-cd-action-btn::after, .psi-universal-drawer, .psi-quickjump-dialog, .psi-universal-drawer-backdrop, .psi-quickjump-backdrop) {
+    animation: none !important;
+    transition: none !important;
+    stroke-dashoffset: 0 !important;
+    transform: none !important;
+  }
+}

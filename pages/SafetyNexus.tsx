@@ -97,10 +97,13 @@ import { ScoreMetricEvidencePanel } from '../components/shared/ScoreMetricEviden
 import { PracticeEvidencePanel, type PracticeEvidenceSelection } from '../components/shared/PracticeEvidencePanel';
 import { nexusFeatureFlags } from '../config/nexusFeatureFlags';
 import {
+  MOTION_PAUSED_CHANGED_EVENT,
   SUNLIGHT_MODE_CHANGED_EVENT,
   THEME_CHANGED_EVENT,
+  getMotionPaused,
   getResolvedTheme,
   getSunlightMode,
+  setMotionPaused as persistGlobalMotionPaused,
   setSunlightMode as persistGlobalSunlightMode,
   type ResolvedTheme,
 } from '../utils/themeUtils';
@@ -353,7 +356,7 @@ const SafetyNexus: React.FC<Props> = ({
     const timeout = setTimeout(() => setCinematicPlaying(false), 12000);
     return () => clearTimeout(timeout);
   }, [cinematicPlaying, cinematicNonce]);
-  const [paused, setPaused] = useState(false);
+  const [paused, setPaused] = useState<boolean>(() => getMotionPaused());
   const [reduced, setReduced] = useState(() => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
   const [cmdQuery, setCmdQuery] = useState('');
@@ -380,11 +383,14 @@ const SafetyNexus: React.FC<Props> = ({
       setNexusTheme(getResolvedTheme());
     };
     const syncSunlight = () => setSunlightMode(getSunlightMode());
+    const syncMotion = () => setPaused(getMotionPaused());
     window.addEventListener(THEME_CHANGED_EVENT, syncGlobalTheme);
     window.addEventListener(SUNLIGHT_MODE_CHANGED_EVENT, syncSunlight);
+    window.addEventListener(MOTION_PAUSED_CHANGED_EVENT, syncMotion);
     return () => {
       window.removeEventListener(THEME_CHANGED_EVENT, syncGlobalTheme);
       window.removeEventListener(SUNLIGHT_MODE_CHANGED_EVENT, syncSunlight);
+      window.removeEventListener(MOTION_PAUSED_CHANGED_EVENT, syncMotion);
     };
   }, []);
   const handleToggleNexusTheme = () => {
@@ -1697,10 +1703,10 @@ const SafetyNexus: React.FC<Props> = ({
       <section className="nexus-visual" aria-label="5단계 위험성평가 네트워크 탐색">
         <div className="nexus-visual-head"><span><i /> 입체 안전 관제 · {currentLayerMeta.code}</span><div>
           <button type="button" disabled={!nexusFeatureFlags.threeDEnabled} aria-pressed={flat} onClick={() => { setCinematicPlaying(false); setFlat(v => !v) }}>{!nexusFeatureFlags.threeDEnabled ? '간결한 보기 · 입체 기능 꺼짐' : flat ? '입체 보기' : '간결한 보기'}</button>
-          <button type="button" disabled={flat || reduced} onClick={() => { setCinematicPlaying(false); setPaused(v => !v) }}>{paused ? '모션 재생' : '모션 일시정지'}</button>
+          <button type="button" disabled={flat || reduced} onClick={() => { setCinematicPlaying(false); setPaused(v => { const next = !v; persistGlobalMotionPaused(next); return next; }); }}>{paused ? '모션 재생' : '모션 일시정지'}</button>
           <button type="button" className="nexus-story-button" disabled={flat || reduced}
             aria-pressed={cinematicPlaying}
-            onClick={() => { if (cinematicPlaying) { setCinematicPlaying(false) } else { setPaused(false); setCinematicNonce(v => v + 1); setCinematicPlaying(true) } }}>
+            onClick={() => { if (cinematicPlaying) { setCinematicPlaying(false) } else { setPaused(false); persistGlobalMotionPaused(false); setCinematicNonce(v => v + 1); setCinematicPlaying(true) } }}>
             {cinematicPlaying ? '12초 연출 중단' : '12초 시네마틱 보기'}
           </button>
         </div></div>

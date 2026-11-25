@@ -28,11 +28,18 @@ export interface PsiConnectedPageReason {
   summary: string;
 }
 
+export type PsiConnectedPageTrendTone = 'positive' | 'warning' | 'critical' | 'neutral';
+
 export interface PsiConnectedPageMetric {
   id: string;
   label: string;
   value: string;
   deltaNote: string;
+  numericValue: number;
+  unitSuffix: string;
+  deltaBadge: string;
+  trendPoints: readonly number[];
+  trendTone: PsiConnectedPageTrendTone;
 }
 
 export interface PsiConnectedPageBriefViewModel {
@@ -43,6 +50,7 @@ export interface PsiConnectedPageBriefViewModel {
   personaLabel: string;
   scopeLabel: string;
   offlinePendingCount: number;
+  openActionCount: number;
   signalLevel: NexusDecisionSignalLevel;
   signalLabel: string;
   soWhatHeadline: string;
@@ -66,6 +74,48 @@ export const readActiveNexusAuthority = (): NexusWorkspaceAuthority => {
 
 const pct = (part: number, total: number): number =>
   total <= 0 ? 100 : Math.round((part / total) * 100);
+
+/**
+ * 지표의 현재 수준과 경보 성격에 맞춰 결정론적 6단계 추세선(0..100)을 생성합니다.
+ */
+const buildMetricTrend = (
+  currentLevelPct: number,
+  tone: PsiConnectedPageTrendTone,
+): readonly number[] => {
+  const end = Math.max(8, Math.min(96, Math.round(currentLevelPct)));
+  const clamp = (v: number) => Math.max(6, Math.min(96, Math.round(v)));
+  if (tone === 'positive') {
+    return [clamp(end - 18), clamp(end - 13), clamp(end - 10), clamp(end - 6), clamp(end - 2), end];
+  }
+  if (tone === 'critical') {
+    return [clamp(end - 24), clamp(end - 18), clamp(end - 8), clamp(end - 12), clamp(end - 4), end];
+  }
+  if (tone === 'warning') {
+    return [clamp(end - 12), clamp(end + 6), clamp(end - 4), clamp(end + 3), clamp(end - 2), end];
+  }
+  return [clamp(end - 10), clamp(end - 8), clamp(end - 5), clamp(end - 4), clamp(end - 2), end];
+};
+
+const makeMetric = (params: {
+  id: string;
+  label: string;
+  numericValue: number;
+  unitSuffix: string;
+  deltaNote: string;
+  deltaBadge: string;
+  trendPct: number;
+  trendTone: PsiConnectedPageTrendTone;
+}): PsiConnectedPageMetric => ({
+  id: params.id,
+  label: params.label,
+  value: `${params.numericValue}${params.unitSuffix}`,
+  deltaNote: params.deltaNote,
+  numericValue: params.numericValue,
+  unitSuffix: params.unitSuffix,
+  deltaBadge: params.deltaBadge,
+  trendPoints: buildMetricTrend(params.trendPct, params.trendTone),
+  trendTone: params.trendTone,
+});
 
 export const buildConnectedPageDecisionBrief = (params: {
   page: Page;
@@ -194,9 +244,36 @@ export const buildConnectedPageDecisionBrief = (params: {
         { id: 'ocr-to-nexus', label: '3D 지휘·결재함 복귀', targetPage: 'safety-nexus', tone: 'neutral' },
       ];
       outcomeMetrics = [
-        { id: 'm1', label: '누적 분석 기록', value: `${records.length}건`, deltaNote: `평균 ${avgScore}점` },
-        { id: 'm2', label: '집중 케어 대상', value: `${beginnerOrHighRisk.length}명`, deltaNote: `재확인 ${ocrAttention.length}건` },
-        { id: 'm3', label: '현장 조치 종결률', value: `${closureRatePct}%`, deltaNote: `미결 ${openCases.length}건` },
+        makeMetric({
+          id: 'm1',
+          label: '누적 분석 기록',
+          numericValue: records.length,
+          unitSuffix: '건',
+          deltaNote: `평균 ${avgScore}점`,
+          deltaBadge: records.length > 0 ? `평균 ${avgScore}점` : '첫 등록 대기',
+          trendPct: records.length > 0 ? avgScore : 24,
+          trendTone: avgScore >= 80 ? 'positive' : records.length === 0 ? 'neutral' : 'warning',
+        }),
+        makeMetric({
+          id: 'm2',
+          label: '집중 케어 대상',
+          numericValue: beginnerOrHighRisk.length,
+          unitSuffix: '명',
+          deltaNote: `재확인 ${ocrAttention.length}건`,
+          deltaBadge: beginnerOrHighRisk.length > 0 ? '우선 교육 권고' : '안정 구간',
+          trendPct: beginnerOrHighRisk.length > 0 ? Math.min(92, 32 + beginnerOrHighRisk.length * 14) : 14,
+          trendTone: beginnerOrHighRisk.length >= 3 ? 'critical' : beginnerOrHighRisk.length > 0 ? 'warning' : 'positive',
+        }),
+        makeMetric({
+          id: 'm3',
+          label: '현장 조치 종결률',
+          numericValue: closureRatePct,
+          unitSuffix: '%',
+          deltaNote: `미결 ${openCases.length}건`,
+          deltaBadge: openCases.length > 0 ? `미결 ${openCases.length}건` : '전건 종결',
+          trendPct: closureRatePct,
+          trendTone: closureRatePct >= 80 ? 'positive' : closureRatePct >= 40 ? 'warning' : 'critical',
+        }),
       ];
       outcomeProofLine = `위험성평가 판독 결과가 교육 환류·개선 이력·입체 지휘 화면에 실시간 연동됩니다.`;
       break;
@@ -232,10 +309,38 @@ export const buildConnectedPageDecisionBrief = (params: {
         { id: 'insp-to-ocr', label: '위험성평가 기록 대조', targetPage: 'ocr-analysis', tone: 'neutral' },
         { id: 'insp-to-nexus', label: '안전지능 지휘함 이동', targetPage: 'safety-nexus', tone: 'neutral' },
       ];
+      const eqPassPct = pct(readyEquip.length, params.equipmentReports.length);
       outcomeMetrics = [
-        { id: 'm1', label: '기계사진 적합률', value: `${pct(readyEquip.length, params.equipmentReports.length)}%`, deltaNote: `적합·보고 ${readyEquip.length}건` },
-        { id: 'm2', label: '조치 종결률', value: `${closureRatePct}%`, deltaNote: `작업중지 ${stopWorkCases.length}건` },
-        { id: 'm3', label: '대기 전송', value: `${params.offlinePendingCount}건`, deltaNote: params.offlinePendingCount > 0 ? '재동기화 필요' : '동기화 완료' },
+        makeMetric({
+          id: 'm1',
+          label: '기계사진 적합률',
+          numericValue: eqPassPct,
+          unitSuffix: '%',
+          deltaNote: `적합·보고 ${readyEquip.length}건`,
+          deltaBadge: revisionEquip.length > 0 ? `보완 ${revisionEquip.length}건` : '적합 유지',
+          trendPct: eqPassPct,
+          trendTone: eqPassPct >= 80 ? 'positive' : revisionEquip.length > 0 ? 'critical' : 'warning',
+        }),
+        makeMetric({
+          id: 'm2',
+          label: '조치 종결률',
+          numericValue: closureRatePct,
+          unitSuffix: '%',
+          deltaNote: `작업중지 ${stopWorkCases.length}건`,
+          deltaBadge: stopWorkCases.length > 0 ? `중지 ${stopWorkCases.length}건 통제` : '통제 구역 0건',
+          trendPct: closureRatePct,
+          trendTone: stopWorkCases.length > 0 ? 'critical' : closureRatePct >= 80 ? 'positive' : 'warning',
+        }),
+        makeMetric({
+          id: 'm3',
+          label: '대기 전송',
+          numericValue: params.offlinePendingCount,
+          unitSuffix: '건',
+          deltaNote: params.offlinePendingCount > 0 ? '재동기화 필요' : '동기화 완료',
+          deltaBadge: params.offlinePendingCount > 0 ? '오프라인 보호 중' : '실시간 연동',
+          trendPct: params.offlinePendingCount > 0 ? Math.min(90, 35 + params.offlinePendingCount * 15) : 12,
+          trendTone: params.offlinePendingCount > 0 ? 'warning' : 'positive',
+        }),
       ];
       outcomeProofLine = `사진 1장으로 본사 검토 · 작업중지 통제 · 중대재해 증빙 편철까지 한 번에 연결됩니다.`;
       break;
@@ -271,9 +376,36 @@ export const buildConnectedPageDecisionBrief = (params: {
         { id: 'edu-to-nexus', label: '안전지능 지휘함 복귀', targetPage: 'safety-nexus', tone: 'neutral' },
       ];
       outcomeMetrics = [
-        { id: 'm1', label: '모국어 서명률', value: `${trainingRatePct}%`, deltaNote: `${totalConfirmedWorkers}/${totalTargetWorkers}명` },
-        { id: 'm2', label: '연계 평가 기록', value: `${records.length}건`, deltaNote: `집중 대상 ${beginnerOrHighRisk.length}명` },
-        { id: 'm3', label: '본사 사고조사 연계', value: `${pendingApprovals.length}건`, deltaNote: '승인 즉시 교육 발령' },
+        makeMetric({
+          id: 'm1',
+          label: '모국어 서명률',
+          numericValue: trainingRatePct,
+          unitSuffix: '%',
+          deltaNote: `${totalConfirmedWorkers}/${totalTargetWorkers}명`,
+          deltaBadge: trainingRatePct >= 90 ? '목표 근접' : '이수 독려',
+          trendPct: trainingRatePct,
+          trendTone: trainingRatePct >= 85 ? 'positive' : 'warning',
+        }),
+        makeMetric({
+          id: 'm2',
+          label: '연계 평가 기록',
+          numericValue: records.length,
+          unitSuffix: '건',
+          deltaNote: `집중 대상 ${beginnerOrHighRisk.length}명`,
+          deltaBadge: beginnerOrHighRisk.length > 0 ? `우선 ${beginnerOrHighRisk.length}명` : '전원 안정',
+          trendPct: records.length > 0 ? Math.min(92, Math.max(25, avgScore)) : 20,
+          trendTone: beginnerOrHighRisk.length > 0 ? 'warning' : 'positive',
+        }),
+        makeMetric({
+          id: 'm3',
+          label: '본사 사고조사 연계',
+          numericValue: pendingApprovals.length,
+          unitSuffix: '건',
+          deltaNote: '승인 즉시 교육 발령',
+          deltaBadge: pendingApprovals.length > 0 ? '결재 대기' : '지연 없음',
+          trendPct: pendingApprovals.length > 0 ? Math.min(88, 30 + pendingApprovals.length * 16) : 14,
+          trendTone: pendingApprovals.length > 0 ? 'warning' : 'neutral',
+        }),
       ];
       outcomeProofLine = `다국어 교육 수합 이력과 자필 서명 PNG가 증빙 ZIP 패키지에 자동 포함됩니다.`;
       break;
@@ -317,9 +449,36 @@ export const buildConnectedPageDecisionBrief = (params: {
         { id: 'iss-to-nexus', label: '안전지능 지휘함 이동', targetPage: 'safety-nexus', tone: 'neutral' },
       ];
       outcomeMetrics = [
-        { id: 'm1', label: '조치 종결률', value: `${closureRatePct}%`, deltaNote: `미결 ${openCases.length}건` },
-        { id: 'm2', label: '작업중지 구역', value: `${stopWorkCases.length}건`, deltaNote: '선조치 후 재개' },
-        { id: 'm3', label: '대기 전송', value: `${params.offlinePendingCount}건`, deltaNote: '오프라인 보호' },
+        makeMetric({
+          id: 'm1',
+          label: '조치 종결률',
+          numericValue: closureRatePct,
+          unitSuffix: '%',
+          deltaNote: `미결 ${openCases.length}건`,
+          deltaBadge: openCases.length > 0 ? `남은 조치 ${openCases.length}건` : '전건 종결',
+          trendPct: closureRatePct,
+          trendTone: closureRatePct >= 80 ? 'positive' : stopWorkCases.length > 0 ? 'critical' : 'warning',
+        }),
+        makeMetric({
+          id: 'm2',
+          label: '작업중지 구역',
+          numericValue: stopWorkCases.length,
+          unitSuffix: '건',
+          deltaNote: '선조치 후 재개',
+          deltaBadge: stopWorkCases.length > 0 ? '즉시 통제 필요' : '해제 완료',
+          trendPct: stopWorkCases.length > 0 ? Math.min(92, 42 + stopWorkCases.length * 18) : 10,
+          trendTone: stopWorkCases.length > 0 ? 'critical' : 'positive',
+        }),
+        makeMetric({
+          id: 'm3',
+          label: '대기 전송',
+          numericValue: params.offlinePendingCount,
+          unitSuffix: '건',
+          deltaNote: '오프라인 보호',
+          deltaBadge: params.offlinePendingCount > 0 ? '재연결 시 반영' : '실시간 완료',
+          trendPct: params.offlinePendingCount > 0 ? Math.min(86, 30 + params.offlinePendingCount * 15) : 12,
+          trendTone: params.offlinePendingCount > 0 ? 'warning' : 'positive',
+        }),
       ];
       outcomeProofLine = `이행 완료·재점검 이력이 본사 승인 및 중대재해처벌법 증빙에 즉시 반영됩니다.`;
       break;
@@ -362,9 +521,36 @@ export const buildConnectedPageDecisionBrief = (params: {
         { id: 'ana-to-nexus', label: '안전지능 지휘함 이동', targetPage: 'safety-nexus', tone: 'neutral' },
       ];
       outcomeMetrics = [
-        { id: 'm1', label: '전체 평균 점수', value: `${avgScore}점`, deltaNote: `총 ${records.length}건` },
-        { id: 'm2', label: '조치 종결률', value: `${closureRatePct}%`, deltaNote: `미결 ${openCases.length}건` },
-        { id: 'm3', label: '서명 이수율', value: `${trainingRatePct}%`, deltaNote: `적합 사진 ${readyEquip.length}건` },
+        makeMetric({
+          id: 'm1',
+          label: '전체 평균 점수',
+          numericValue: avgScore,
+          unitSuffix: '점',
+          deltaNote: `총 ${records.length}건`,
+          deltaBadge: avgScore >= 80 ? '우수 수준' : records.length > 0 ? '보완 관리' : '등록 대기',
+          trendPct: records.length > 0 ? avgScore : 25,
+          trendTone: avgScore >= 80 ? 'positive' : records.length === 0 ? 'neutral' : 'warning',
+        }),
+        makeMetric({
+          id: 'm2',
+          label: '조치 종결률',
+          numericValue: closureRatePct,
+          unitSuffix: '%',
+          deltaNote: `미결 ${openCases.length}건`,
+          deltaBadge: openCases.length > 0 ? `미결 ${openCases.length}건` : '전건 종결',
+          trendPct: closureRatePct,
+          trendTone: closureRatePct >= 80 ? 'positive' : 'warning',
+        }),
+        makeMetric({
+          id: 'm3',
+          label: '서명 이수율',
+          numericValue: trainingRatePct,
+          unitSuffix: '%',
+          deltaNote: `적합 사진 ${readyEquip.length}건`,
+          deltaBadge: trainingRatePct >= 85 ? '이수 양호' : '서명 독려',
+          trendPct: trainingRatePct,
+          trendTone: trainingRatePct >= 85 ? 'positive' : 'warning',
+        }),
       ];
       outcomeProofLine = `분석 통계는 실시간으로 경영진 1장 브리핑과 월간 계도 PDF/PPTX 근거로 사용됩니다.`;
       break;
@@ -394,10 +580,38 @@ export const buildConnectedPageDecisionBrief = (params: {
         { id: 'def-to-ocr', label: '위험성평가 분석 보기', targetPage: 'ocr-analysis', tone: 'neutral' },
         { id: 'def-to-insp', label: '사진점검·개선관리 열기', targetPage: 'safety-inspector', tone: 'neutral' },
       ];
+      const defaultEqPct = pct(readyEquip.length, params.equipmentReports.length);
       outcomeMetrics = [
-        { id: 'm1', label: '조치 종결률', value: `${closureRatePct}%`, deltaNote: `작업중지 ${stopWorkCases.length}건` },
-        { id: 'm2', label: '기계사진 검증', value: `${pct(readyEquip.length, params.equipmentReports.length)}%`, deltaNote: `${readyEquip.length}/${params.equipmentReports.length}건` },
-        { id: 'm3', label: '모국어 서명률', value: `${trainingRatePct}%`, deltaNote: `${totalConfirmedWorkers}명 확인` },
+        makeMetric({
+          id: 'm1',
+          label: '조치 종결률',
+          numericValue: closureRatePct,
+          unitSuffix: '%',
+          deltaNote: `작업중지 ${stopWorkCases.length}건`,
+          deltaBadge: stopWorkCases.length > 0 ? `중지 ${stopWorkCases.length}건` : '전건 통제',
+          trendPct: closureRatePct,
+          trendTone: stopWorkCases.length > 0 ? 'critical' : closureRatePct >= 80 ? 'positive' : 'warning',
+        }),
+        makeMetric({
+          id: 'm2',
+          label: '기계사진 검증',
+          numericValue: defaultEqPct,
+          unitSuffix: '%',
+          deltaNote: `${readyEquip.length}/${params.equipmentReports.length}건`,
+          deltaBadge: pendingEquip.length + revisionEquip.length > 0 ? `처리 대기 ${pendingEquip.length + revisionEquip.length}건` : '모두 적합',
+          trendPct: defaultEqPct,
+          trendTone: defaultEqPct >= 80 ? 'positive' : 'warning',
+        }),
+        makeMetric({
+          id: 'm3',
+          label: '모국어 서명률',
+          numericValue: trainingRatePct,
+          unitSuffix: '%',
+          deltaNote: `${totalConfirmedWorkers}명 확인`,
+          deltaBadge: trainingRatePct >= 85 ? '이수 양호' : '서명 독려',
+          trendPct: trainingRatePct,
+          trendTone: trainingRatePct >= 85 ? 'positive' : 'warning',
+        }),
       ];
       outcomeProofLine = `모든 연계 화면이 동일한 현장 권한·야외 고대비 모드·결론 브리핑 기준을 공유합니다.`;
       break;
@@ -412,6 +626,8 @@ export const buildConnectedPageDecisionBrief = (params: {
     personaLabel: NEXUS_DECISION_PERSONA_META[resolvedPersona].label,
     scopeLabel,
     offlinePendingCount: params.offlinePendingCount,
+    openActionCount:
+      openCases.length + pendingEquip.length + revisionEquip.length + pendingApprovals.length,
     signalLevel,
     signalLabel:
       signalLevel === 'critical'

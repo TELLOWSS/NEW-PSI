@@ -14,6 +14,9 @@ interface TopBarProps {
     onToggleTheme: () => void;
     sunlightMode?: boolean;
     onToggleSunlightMode?: () => void;
+    motionPaused?: boolean;
+    onToggleMotionPaused?: () => void;
+    onOpenQuickJump?: () => void;
     patentBadge?: React.ReactNode;
     controls?: React.ReactNode;
     statusLabel?: string;
@@ -32,6 +35,9 @@ export const TopBar: React.FC<TopBarProps> = ({
     onToggleTheme,
     sunlightMode = false,
     onToggleSunlightMode,
+    motionPaused = false,
+    onToggleMotionPaused,
+    onOpenQuickJump,
     patentBadge,
     controls,
     statusLabel = '관리자 확인 기준',
@@ -107,6 +113,20 @@ export const TopBar: React.FC<TopBarProps> = ({
 
                     {patentBadge}
 
+                    {onOpenQuickJump && (
+                        <button
+                            type="button"
+                            onClick={onOpenQuickJump}
+                            className="psi-quickjump-trigger hidden sm:inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-bold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                            aria-label="빠른 찾기 열기"
+                            title="화면·점검 기능 빠른 찾기 (Ctrl+K)"
+                        >
+                            <span aria-hidden="true">⌕</span>
+                            <span>빠른 찾기</span>
+                            <kbd className="hidden rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 xl:inline">Ctrl K</kbd>
+                        </button>
+                    )}
+
                     <button
                         type="button"
                         onClick={onToggleTheme}
@@ -127,6 +147,24 @@ export const TopBar: React.FC<TopBarProps> = ({
                         <span className="hidden text-[11px] font-bold md:inline">{themeLabel}</span>
                     </button>
 
+                    {onToggleMotionPaused && (
+                        <button
+                            type="button"
+                            onClick={onToggleMotionPaused}
+                            aria-pressed={!motionPaused}
+                            className={`psi-motion-toggle-btn flex min-h-11 items-center justify-center gap-1 rounded-xl border px-2 text-xs font-bold transition-colors sm:min-h-10 sm:px-2.5 ${
+                                motionPaused
+                                    ? 'border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                                    : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800'
+                            }`}
+                            aria-label={motionPaused ? '화면 모션 켜기' : '화면 모션 일시정지'}
+                            title={motionPaused ? '실시간 모션 다시 재생' : '실시간 모션 일시정지'}
+                        >
+                            <span aria-hidden="true">{motionPaused ? '⏸' : '✦'}</span>
+                            <span className="hidden xl:inline">{motionPaused ? '모션 정지' : '모션 ON'}</span>
+                        </button>
+                    )}
+
                     {onToggleSunlightMode && (
                         <button
                             type="button"
@@ -135,7 +173,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                             className={`psi-sunlight-toggle-btn flex min-h-11 items-center justify-center gap-1 rounded-xl border px-2.5 text-xs font-bold transition-colors sm:min-h-10 ${
                                 sunlightMode
                                     ? 'border-slate-950 bg-slate-950 text-amber-300'
-                                    : 'border-amber-300 bg-amber-50 text-amber-950 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-950/60 dark:text-amber-200 dark:hover:bg-amber-900/60'
+                                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800'
                             }`}
                             aria-label={sunlightMode ? '야외 고대비 모드 끄기' : '야외 직사광선 고대비 모드 켜기'}
                             title="야외 직사광선 고대비 모드 전환"

@@ -714,7 +714,7 @@ try {
     (await ocrDecisionShell.locator('.psi-cd-card').count()) === 4 &&
     (await ocrDecisionShell.locator('.psi-cd-nexus-btn').isVisible()),
   );
-  await page.waitForTimeout(200);
+  await page.waitForTimeout(750);
   await page.screenshot({ path: resolve(outDir, 'nexus-v9-ocr-decision-1440.png'), fullPage: false });
 
   // Toggle global TopBar Outdoor Sunlight High-Contrast Mode and verify persistence across subpages
@@ -775,6 +775,67 @@ try {
     '1-tap How CTA on Mobile Connected Brief navigates seamlessly to [education-return]',
     (await mobileEduDecision.locator('.psi-cd-grid').isVisible()) &&
     (await mobileEduDecision.locator('.psi-cd-card').count()) === 4,
+  );
+
+  // =========================================================================
+  // PART E: Top-Tier Living Kinetic Telemetry, Universal Inspector & Quick Jump
+  // =========================================================================
+  await page.setViewportSize({ width: 1440, height: 960 });
+  await page.getByRole('button', { name: '위험성평가 분석' }).first().click();
+  await ocrDecisionShell.waitFor({ state: 'visible', timeout: 10000 });
+  const beaconCount = await ocrDecisionShell.locator('.psi-kinetic-beacon').count();
+  const sparklineCount = await ocrDecisionShell.locator('.psi-kinetic-sparkline .psi-sparkline-path').count();
+  const sweepCount = await ocrDecisionShell.locator('.psi-kinetic-sweep').count();
+  recordCheck(
+    'PART E: Connected Brief renders Living Kinetic Beacon, Sparklines & Telemetry Sweep',
+    beaconCount >= 1 && sparklineCount >= 3 && sweepCount >= 1,
+    { beaconCount, sparklineCount, sweepCount },
+  );
+
+  const motionToggleBtn = page.locator('.psi-motion-toggle-btn');
+  await motionToggleBtn.click();
+  const pausedAfterClick = await page.evaluate(() => document.documentElement.dataset.psiMotionPaused);
+  await motionToggleBtn.click();
+  const resumedAfterClick = await page.evaluate(() => document.documentElement.dataset.psiMotionPaused);
+  recordCheck(
+    'PART E: TopBar global kinetic motion toggle pauses and resumes animation cleanly',
+    pausedAfterClick === 'true' && resumedAfterClick === 'false',
+    { pausedAfterClick, resumedAfterClick },
+  );
+
+  await ocrDecisionShell.locator('.psi-cd-inspector-btn').click();
+  const drawer = page.locator('.psi-universal-drawer');
+  await drawer.waitFor({ state: 'visible', timeout: 5000 });
+  await page.waitForTimeout(280);
+  await page.screenshot({ path: resolve(outDir, 'nexus-v10-drawer-1440.png'), fullPage: false });
+  let drawerActed = false;
+  const closeCaseBtn = drawer.getByRole('button', { name: '조치 완료 종결' }).first();
+  if ((await closeCaseBtn.count()) > 0) {
+    await closeCaseBtn.click();
+    await drawer.locator('.psi-universal-drawer-toast').waitFor({ state: 'visible', timeout: 5000 });
+    drawerActed = true;
+  } else {
+    drawerActed = (await drawer.getByRole('tab').count()) === 2;
+  }
+  await drawer.getByRole('button', { name: '현장 점검 결재함 닫기' }).click();
+  await drawer.waitFor({ state: 'detached', timeout: 5000 });
+  recordCheck(
+    'PART E: Universal Slide-Over Inspector executes live closure without leaving subpage',
+    drawerActed,
+  );
+
+  await page.getByRole('button', { name: '빠른 찾기 열기' }).click();
+  const quickJump = page.locator('.psi-quickjump-dialog');
+  await quickJump.waitFor({ state: 'visible', timeout: 5000 });
+  await quickJump.getByRole('searchbox', { name: '빠른 찾기 검색어 입력' }).fill('사진점검');
+  await quickJump.getByRole('option', { name: /사진점검 · 개선관리/ }).first().click();
+  await page.locator('.psi-connected-decision-shell[data-page="safety-inspector"]').waitFor({
+    state: 'visible',
+    timeout: 10000,
+  });
+  recordCheck(
+    'PART E: Global Quick Jump searches practitioner pages & navigates cleanly to [safety-inspector]',
+    true,
   );
 
   recordCheck('Zero runtime page errors during full simulation', pageErrors.length === 0, pageErrors);

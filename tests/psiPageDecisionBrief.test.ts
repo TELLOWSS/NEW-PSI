@@ -5,8 +5,11 @@ import {
 } from '../utils/psiPageDecisionBrief';
 import { seedMultiSiteOperationalSimulation } from '../utils/nexusHqCommandLoop';
 import {
+  applyMotionPaused,
   applySunlightMode,
+  getMotionPaused,
   getSunlightMode,
+  setMotionPaused,
   setSunlightMode,
   setTheme,
 } from '../utils/themeUtils';
@@ -164,6 +167,16 @@ describe('Connected Subpages Decision-First Brief & Global Sunlight Mode', () =>
       expect(vm.whyReasons.length).toBeGreaterThanOrEqual(1);
       expect(vm.howActions.length).toBe(3);
       expect(vm.outcomeMetrics).toHaveLength(3);
+      expect(vm.openActionCount).toBeGreaterThanOrEqual(0);
+      for (const metric of vm.outcomeMetrics) {
+        expect(Number.isFinite(metric.numericValue)).toBe(true);
+        expect(metric.deltaBadge.length).toBeGreaterThan(0);
+        expect(metric.trendPoints).toHaveLength(6);
+        for (const pt of metric.trendPoints) {
+          expect(pt).toBeGreaterThanOrEqual(0);
+          expect(pt).toBeLessThanOrEqual(100);
+        }
+      }
 
       const text = `${vm.soWhatHeadline} ${vm.soWhatSubline} ${vm.whyReasons.map(r => `${r.tag} ${r.summary}`).join(' ')} ${vm.howActions.map(a => a.label).join(' ')} ${vm.outcomeProofLine}`;
       for (const word of forbidden) {
@@ -191,5 +204,16 @@ describe('Connected Subpages Decision-First Brief & Global Sunlight Mode', () =>
 
     expect(vm.persona).toBe('field_manager');
     expect(vm.scopeLabel).toBe('제1현장 · 지하 2층 RC');
+  });
+
+  it('defaults global kinetic motion to auto-play and toggles pause state synchronously', () => {
+    expect(getMotionPaused()).toBe(false);
+    expect(setMotionPaused(true)).toBe(true);
+    expect(getMotionPaused()).toBe(true);
+    expect(document.documentElement.dataset.psiMotionPaused).toBe('true');
+
+    expect(setMotionPaused(false)).toBe(false);
+    expect(document.documentElement.dataset.psiMotionPaused).toBe('false');
+    applyMotionPaused(false);
   });
 });

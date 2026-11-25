@@ -33,6 +33,10 @@
   color:var(--psi-text);
   font-family:system-ui,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
 }
+.psi-app-shell.psi-platform-field-canvas .psi-tabular-num,
+.psi-app-shell.psi-platform-field-canvas :is(td, th) {
+  font-variant-numeric: tabular-nums;
+}
 html.dark .psi-app-shell.psi-platform-field-canvas {
   --psi-canvas:#091b26;
   --psi-surface:#112938;

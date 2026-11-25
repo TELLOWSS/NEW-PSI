@@ -5,6 +5,33 @@ const THEME_STORAGE_KEY = 'psi_theme_mode';
 export const THEME_CHANGED_EVENT = 'psi-theme-changed';
 export const SUNLIGHT_MODE_STORAGE_KEY = 'psi_nexus_sunlight_mode_v1';
 export const SUNLIGHT_MODE_CHANGED_EVENT = 'psi-sunlight-mode-changed';
+export const MOTION_PAUSED_STORAGE_KEY = 'psi_global_motion_paused_v1';
+export const MOTION_PAUSED_CHANGED_EVENT = 'psi-motion-paused-changed';
+
+export function getMotionPaused(): boolean {
+    try {
+        return localStorage.getItem(MOTION_PAUSED_STORAGE_KEY) === 'true';
+    } catch {
+        return false;
+    }
+}
+
+export function applyMotionPaused(paused: boolean): void {
+    if (typeof document === 'undefined') return;
+    document.documentElement.dataset.psiMotionPaused = paused ? 'true' : 'false';
+}
+
+export function setMotionPaused(paused: boolean): boolean {
+    try {
+        localStorage.setItem(MOTION_PAUSED_STORAGE_KEY, paused ? 'true' : 'false');
+    } catch {
+    }
+    applyMotionPaused(paused);
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event(MOTION_PAUSED_CHANGED_EVENT));
+    }
+    return paused;
+}
 
 export function getSunlightMode(): boolean {
     try {
@@ -131,4 +158,5 @@ export function watchSystemThemeChange(onChange: () => void): () => void {
 export function initThemeEarly(): void {
     applyTheme(getStoredTheme());
     applySunlightMode(getSunlightMode());
+    applyMotionPaused(getMotionPaused());
 }

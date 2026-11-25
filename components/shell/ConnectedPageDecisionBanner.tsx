@@ -2,6 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { nexusFeatureFlags } from '../../config/nexusFeatureFlags';
 import type { Page, SafetyCheckRecord, WorkerRecord } from '../../types';
 import {
+  KineticCounter,
+  KineticSparkline,
+  SignalBeacon,
+} from './KineticTelemetryPrimitives';
+import {
   getAllowedDecisionPersonas,
   NEXUS_DECISION_PERSONA_META,
   type NexusDecisionPersona,
@@ -39,13 +44,25 @@ interface Props {
   workerRecords?: readonly WorkerRecord[];
   safetyCheckRecords?: readonly SafetyCheckRecord[];
   onNavigateToPage: (page: Page) => void;
+  onOpenInspectorDrawer?: () => void;
 }
+
+const triggerTapFeedback = () => {
+  try {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate(10);
+    }
+  } catch {
+    // Ignore unsupported platforms
+  }
+};
 
 export const ConnectedPageDecisionBanner: React.FC<Props> = ({
   currentPage,
   workerRecords = [],
   safetyCheckRecords = [],
   onNavigateToPage,
+  onOpenInspectorDrawer,
 }) => {
   const [authority, setAuthority] = useState(() => readActiveNexusAuthority());
   const [persona, setPersona] = useState<NexusDecisionPersona>(() =>
@@ -150,9 +167,10 @@ export const ConnectedPageDecisionBanner: React.FC<Props> = ({
       data-authority={vm.authority}
       aria-label="연계 화면 결론 중심 의사결정 브리핑"
     >
+      <span className="psi-kinetic-sweep" aria-hidden="true" />
       <div className="psi-cd-head">
         <div className="psi-cd-head-left">
-          <em className={'psi-cd-signal is-' + vm.signalLevel}>{vm.signalLabel}</em>
+          <SignalBeacon level={vm.signalLevel} label={vm.signalLabel} />
           <button
             type="button"
             className="psi-cd-authority-pill"
@@ -162,7 +180,7 @@ export const ConnectedPageDecisionBanner: React.FC<Props> = ({
             {vm.authority === 'hq' ? '🏛️ 본사 통합 관제 · 전 현장' : `🔒 단일 현장 격리 · ${vm.scopeLabel}`}
           </button>
           {vm.offlinePendingCount > 0 && (
-            <span className="psi-cd-offline-badge">전송 대기 {vm.offlinePendingCount}건</span>
+            <span className="psi-cd-offline-badge psi-tabular-num">전송 대기 {vm.offlinePendingCount}건</span>
           )}
         </div>
 
@@ -179,11 +197,28 @@ export const ConnectedPageDecisionBanner: React.FC<Props> = ({
               </button>
             ))}
           </div>
+          {onOpenInspectorDrawer && (
+            <button
+              type="button"
+              className="psi-cd-inspector-btn"
+              onClick={() => {
+                triggerTapFeedback();
+                onOpenInspectorDrawer();
+              }}
+              aria-label="현장 점검 결재함 열기"
+            >
+              <span>현장 점검·결재함</span>
+              <b className="psi-tabular-num">{vm.openActionCount}</b>
+            </button>
+          )}
           {nexusFeatureFlags.uiEnabled && (
             <button
               type="button"
               className="psi-cd-nexus-btn"
-              onClick={() => onNavigateToPage('safety-nexus')}
+              onClick={() => {
+                triggerTapFeedback();
+                onNavigateToPage('safety-nexus');
+              }}
             >
               Ψ 안전지능 네트워크
             </button>
@@ -205,15 +240,34 @@ export const ConnectedPageDecisionBanner: React.FC<Props> = ({
             <strong>01 그래서</strong>
             <span>{vm.soWhatHeadline}</span>
           </div>
-          {visibleHowActions[0] && (
-            <button
-              type="button"
-              className={'psi-cd-compact-cta is-' + visibleHowActions[0].tone}
-              onClick={() => onNavigateToPage(visibleHowActions[0].targetPage)}
-            >
-              {visibleHowActions[0].label} →
-            </button>
-          )}
+          <div className="psi-cd-compact-right">
+            <div className="psi-cd-compact-metrics" aria-label="핵심 성과 요약">
+              {vm.outcomeMetrics.slice(0, 3).map(metric => (
+                <div key={metric.id} className="psi-cd-mini-kpi">
+                  <small>{metric.label}</small>
+                  <b>
+                    <KineticCounter
+                      value={metric.numericValue}
+                      suffix={metric.unitSuffix}
+                      fallbackText={metric.value}
+                    />
+                  </b>
+                </div>
+              ))}
+            </div>
+            {visibleHowActions[0] && (
+              <button
+                type="button"
+                className={'psi-cd-compact-cta is-' + visibleHowActions[0].tone}
+                onClick={() => {
+                  triggerTapFeedback();
+                  onNavigateToPage(visibleHowActions[0].targetPage);
+                }}
+              >
+                {visibleHowActions[0].label} →
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -267,13 +321,32 @@ export const ConnectedPageDecisionBanner: React.FC<Props> = ({
             <small>연계 성과</small>
           </div>
           <div className="psi-cd-outcome-metrics">
-            {vm.outcomeMetrics.map(metric => (
-              <div key={metric.id} className="psi-cd-metric">
-                <span>{metric.label}</span>
-                <strong>{metric.value}</strong>
-                <small>{metric.deltaNote}</small>
-              </div>
-            ))}
+            {vm.outcomeMetrics.map(metric => {
+              const subNote =
+                metric.deltaBadge && metric.deltaBadge !== metric.deltaNote
+                  ? `${metric.deltaNote} · ${metric.deltaBadge}`
+                  : metric.deltaNote;
+              return (
+                <div key={metric.id} className="psi-cd-metric">
+                  <div className="psi-cd-metric-top">
+                    <span>{metric.label}</span>
+                    <small className="psi-cd-metric-delta">{subNote}</small>
+                  </div>
+                  <strong>
+                    <KineticCounter
+                      value={metric.numericValue}
+                      suffix={metric.unitSuffix}
+                      fallbackText={metric.value}
+                    />
+                  </strong>
+                  <KineticSparkline
+                    points={metric.trendPoints}
+                    tone={metric.trendTone}
+                    label={metric.label}
+                  />
+                </div>
+              );
+            })}
           </div>
           <p className="psi-cd-outcome-proof">{vm.outcomeProofLine}</p>
         </article>

@@ -5,8 +5,11 @@ import { AppShell } from './shell/AppShell';
 import { TopBar } from './shell/TopBar';
 import { PageHeader } from './shell/PageHeader';
 import { ConnectedPageDecisionBanner } from './shell/ConnectedPageDecisionBanner';
+import { PsiUniversalInspectorDrawer } from './shell/PsiUniversalInspectorDrawer';
+import { PsiGlobalQuickJump } from './shell/PsiGlobalQuickJump';
 import { ShellBackground } from './shell/ShellBackground';
 import type { Page, SafetyCheckRecord, WorkerRecord } from '../types';
+import { readActiveNexusAuthority } from '../utils/psiPageDecisionBrief';
 import { API_MODE_CHANGED_EVENT, getIsPaidApiMode } from '../utils/apiModeUtils';
 import { BestPracticeSyncBadge } from './shared/BestPracticeSyncBadge';
 import {
@@ -26,6 +29,10 @@ import {
     getSunlightMode,
     setSunlightMode as setGlobalSunlightMode,
     SUNLIGHT_MODE_CHANGED_EVENT,
+    getMotionPaused,
+    setMotionPaused as setGlobalMotionPaused,
+    applyMotionPaused,
+    MOTION_PAUSED_CHANGED_EVENT,
     type ThemeMode,
 } from '../utils/themeUtils';
 import { useDevMode } from '../contexts/DevModeContext';
@@ -118,6 +125,10 @@ export const Layout: React.FC<LayoutProps> = ({
     const [themeMode, setThemeMode] = useState<ThemeMode>(() => getStoredTheme());
     const [isDark, setIsDark] = useState(() => getResolvedTheme(getStoredTheme()) === 'dark');
     const [sunlightMode, setSunlightMode] = useState<boolean>(() => getSunlightMode());
+    const [motionPaused, setMotionPaused] = useState<boolean>(() => getMotionPaused());
+    const [isInspectorDrawerOpen, setIsInspectorDrawerOpen] = useState(false);
+    const [isQuickJumpOpen, setIsQuickJumpOpen] = useState(false);
+    const [nexusAuthority, setNexusAuthority] = useState(() => readActiveNexusAuthority());
     const [showScrollTop, setShowScrollTop] = useState(false);
     const mainRef = useRef<HTMLElement>(null);
     const navigationScroll = useRef(new Map<Page, number>());
@@ -259,7 +270,7 @@ export const Layout: React.FC<LayoutProps> = ({
                 } else {
                     window.location.hash = '';
                 }
-            } catch {}
+            } catch { }
         }
         handlePageChange('dashboard');
         if (typeof window !== 'undefined') {
@@ -290,15 +301,21 @@ export const Layout: React.FC<LayoutProps> = ({
         setIsDark(getResolvedTheme(mode) === 'dark');
     };
 
+    const handleToggleMotionPaused = () => {
+        const next = setGlobalMotionPaused(!motionPaused);
+        setMotionPaused(next);
+    };
+
     const handleCompositionConfigChange = (next: UiCompositionConfig) => {
         const saved = saveUiCompositionConfig(next);
         setUiCompositionConfig(saved);
     };
 
-    // 앱 로드 시 저장된 테마 적용
+    // 앱 로드 시 저장된 테마·야외고대비·모션상태 동기화
     useEffect(() => {
         const initialMode = getStoredTheme();
         applyTheme(initialMode);
+        applyMotionPaused(getMotionPaused());
         setThemeMode(initialMode);
         setIsDark(getResolvedTheme(initialMode) === 'dark');
 
@@ -309,15 +326,35 @@ export const Layout: React.FC<LayoutProps> = ({
             setSunlightMode(getSunlightMode());
         };
         const syncSun = () => setSunlightMode(getSunlightMode());
+        const syncMotion = () => setMotionPaused(getMotionPaused());
+        const syncAuth = () => setNexusAuthority(readActiveNexusAuthority());
         window.addEventListener(THEME_CHANGED_EVENT, sync);
         window.addEventListener(SUNLIGHT_MODE_CHANGED_EVENT, syncSun);
+        window.addEventListener(MOTION_PAUSED_CHANGED_EVENT, syncMotion);
+        window.addEventListener('psi-nexus-authority-updated', syncAuth);
+        window.addEventListener('storage', syncAuth);
         const unwatch = watchSystemThemeChange(sync);
         return () => {
             window.removeEventListener(THEME_CHANGED_EVENT, sync);
             window.removeEventListener(SUNLIGHT_MODE_CHANGED_EVENT, syncSun);
+            window.removeEventListener(MOTION_PAUSED_CHANGED_EVENT, syncMotion);
+            window.removeEventListener('psi-nexus-authority-updated', syncAuth);
+            window.removeEventListener('storage', syncAuth);
             unwatch();
         };
     }, []);
+
+    useEffect(() => {
+        const handleGlobalQuickJumpShortcut = (event: KeyboardEvent) => {
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+                if (currentPage === 'safety-nexus') return;
+                event.preventDefault();
+                setIsQuickJumpOpen(prev => !prev);
+            }
+        };
+        window.addEventListener('keydown', handleGlobalQuickJumpShortcut);
+        return () => window.removeEventListener('keydown', handleGlobalQuickJumpShortcut);
+    }, [currentPage]);
 
     // Keep keyboard focus inside the modal navigation and restore it when closed.
     useEffect(() => {
@@ -588,6 +625,9 @@ export const Layout: React.FC<LayoutProps> = ({
                     onToggleTheme={handleToggleTheme}
                     sunlightMode={sunlightMode}
                     onToggleSunlightMode={handleToggleSunlightMode}
+                    motionPaused={motionPaused}
+                    onToggleMotionPaused={handleToggleMotionPaused}
+                    onOpenQuickJump={currentPage !== 'safety-nexus' ? () => setIsQuickJumpOpen(true) : undefined}
                     onGoToDashboard={currentPage !== 'dashboard' ? handleGoToDashboard : undefined}
                     controls={
                         <div className="flex items-center gap-1">
@@ -595,11 +635,10 @@ export const Layout: React.FC<LayoutProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => setIsCompositionEditMode((prev) => !prev)}
-                                    className={`hidden min-h-10 rounded-xl border px-3 text-[11px] font-bold transition-colors md:inline-flex md:items-center ${
-                                        isCompositionEditMode
-                                            ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-700'
-                                            : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
-                                    }`}
+                                    className={`hidden min-h-10 rounded-xl border px-3 text-[11px] font-bold transition-colors md:inline-flex md:items-center ${isCompositionEditMode
+                                        ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-700'
+                                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+                                        }`}
                                     title="설정 페이지에서 메뉴 구성 편집 열기"
                                     aria-label={isCompositionEditMode ? '메뉴 구성 편집 닫기' : '메뉴 구성 편집 열기'}
                                 >
@@ -622,11 +661,10 @@ export const Layout: React.FC<LayoutProps> = ({
                                 <button
                                     type="button"
                                     onClick={toggleDevMode}
-                                    className={`ml-1 flex min-h-11 items-center justify-center rounded-lg border px-2 text-[10px] font-bold transition-colors ${
-                                        isDevMode
-                                            ? 'border-violet-400 bg-violet-600 text-white hover:bg-violet-500'
-                                            : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
-                                    }`}
+                                    className={`ml-1 flex min-h-11 items-center justify-center rounded-lg border px-2 text-[10px] font-bold transition-colors ${isDevMode
+                                        ? 'border-violet-400 bg-violet-600 text-white hover:bg-violet-500'
+                                        : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                        }`}
                                     aria-label={isDevMode ? '진단 기능 끄기' : '진단 기능 켜기'}
                                     title={isDevMode ? '진단 기능 ON' : '진단 기능 OFF'}
                                 >
@@ -650,18 +688,18 @@ export const Layout: React.FC<LayoutProps> = ({
                                         <p className="psi-small-note mt-1">안전 운영 계정</p>
                                     </div>
                                     <button
-                                            type="button"
-                                            onClick={() => {
-                                                operatorMenuRef.current?.removeAttribute('open');
-                                                handlePageChange('introduction');
-                                            }}
-                                            className="mt-1 flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-3 text-left text-xs font-bold text-blue-800 hover:bg-blue-50 dark:text-blue-200 dark:hover:bg-blue-500/10"
-                                        >
-                                            <span>
-                                                <span className="block">PSI 브랜드 스토리</span>
-                                                <span className="mt-0.5 block text-[10px] font-semibold text-slate-500 dark:text-slate-400">가치와 운영 원리</span>
-                                            </span>
-                                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-950 text-[10px] font-bold text-white dark:bg-blue-500">PSI</span>
+                                        type="button"
+                                        onClick={() => {
+                                            operatorMenuRef.current?.removeAttribute('open');
+                                            handlePageChange('introduction');
+                                        }}
+                                        className="mt-1 flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-3 text-left text-xs font-bold text-blue-800 hover:bg-blue-50 dark:text-blue-200 dark:hover:bg-blue-500/10"
+                                    >
+                                        <span>
+                                            <span className="block">PSI 브랜드 스토리</span>
+                                            <span className="mt-0.5 block text-[10px] font-semibold text-slate-500 dark:text-slate-400">가치와 운영 원리</span>
+                                        </span>
+                                        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-950 text-[10px] font-bold text-white dark:bg-blue-500">PSI</span>
                                     </button>
                                     <button
                                         type="button"
@@ -749,13 +787,14 @@ export const Layout: React.FC<LayoutProps> = ({
                         {currentPage !== 'safety-nexus' &&
                             currentPage !== 'introduction' &&
                             currentPage !== 'worker-training' && (
-                            <ConnectedPageDecisionBanner
-                                currentPage={currentPage}
-                                workerRecords={workerRecords}
-                                safetyCheckRecords={safetyCheckRecords}
-                                onNavigateToPage={handlePageChange}
-                            />
-                        )}
+                                <ConnectedPageDecisionBanner
+                                    currentPage={currentPage}
+                                    workerRecords={workerRecords}
+                                    safetyCheckRecords={safetyCheckRecords}
+                                    onNavigateToPage={handlePageChange}
+                                    onOpenInspectorDrawer={() => setIsInspectorDrawerOpen(true)}
+                                />
+                            )}
                         {children}
                     </div>
                 </main>
@@ -780,11 +819,10 @@ export const Layout: React.FC<LayoutProps> = ({
                                     key={tab.id}
                                     type="button"
                                     onClick={handleClick}
-                                    className={`relative flex min-h-[60px] flex-col items-center justify-center rounded-xl px-1 py-2 text-[11px] font-bold transition-colors ${
-                                        isActive
-                                            ? 'bg-blue-50 text-blue-800 dark:bg-blue-500/15 dark:text-blue-200'
-                                            : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
-                                    }`}
+                                    className={`relative flex min-h-[60px] flex-col items-center justify-center rounded-xl px-1 py-2 text-[11px] font-bold transition-colors ${isActive
+                                        ? 'bg-blue-50 text-blue-800 dark:bg-blue-500/15 dark:text-blue-200'
+                                        : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+                                        }`}
                                     aria-current={isActive ? 'page' : undefined}
                                     aria-haspopup={tab.id === 'more' ? 'dialog' : undefined}
                                     aria-expanded={tab.id === 'more' ? isMobileMenuOpen : undefined}
@@ -798,19 +836,38 @@ export const Layout: React.FC<LayoutProps> = ({
                 </nav>
             }
             scrollTopButton={
-                showScrollTop && currentPage !== 'safety-inspector' ? (
-                    <button
-                        type="button"
-                        onClick={handleScrollToTop}
-                        className="fixed bottom-24 right-5 z-[300] flex h-11 w-11 items-center justify-center rounded-xl bg-blue-700 text-white shadow-lg transition-colors hover:bg-blue-600 active:scale-95 lg:bottom-6 no-print"
-                        aria-label="최상단으로 이동"
-                        title="최상단으로 이동"
-                    >
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
-                        </svg>
-                    </button>
-                ) : undefined
+                <>
+                    {showScrollTop && currentPage !== 'safety-inspector' ? (
+                        <button
+                            type="button"
+                            onClick={handleScrollToTop}
+                            className="fixed bottom-24 right-5 z-[300] flex h-11 w-11 items-center justify-center rounded-xl bg-blue-700 text-white shadow-lg transition-colors hover:bg-blue-600 active:scale-95 lg:bottom-6 no-print"
+                            aria-label="최상단으로 이동"
+                            title="최상단으로 이동"
+                        >
+                            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+                            </svg>
+                        </button>
+                    ) : null}
+                    <PsiUniversalInspectorDrawer
+                        open={isInspectorDrawerOpen}
+                        onClose={() => setIsInspectorDrawerOpen(false)}
+                        authority={nexusAuthority}
+                        onNavigateToPage={handlePageChange}
+                    />
+                    <PsiGlobalQuickJump
+                        open={isQuickJumpOpen}
+                        onClose={() => setIsQuickJumpOpen(false)}
+                        currentPage={currentPage}
+                        workerRecords={workerRecords}
+                        onNavigateToPage={handlePageChange}
+                        onOpenInspector={() => setIsInspectorDrawerOpen(true)}
+                        onToggleSunlight={handleToggleSunlightMode}
+                        onToggleMotion={handleToggleMotionPaused}
+                        onToggleTheme={handleToggleTheme}
+                    />
+                </>
             }
             footer={<Footer />}
         />
