@@ -635,7 +635,7 @@ export const Layout: React.FC<LayoutProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => setIsCompositionEditMode((prev) => !prev)}
-                                    className={`hidden min-h-10 rounded-xl border px-3 text-[11px] font-bold transition-colors md:inline-flex md:items-center ${isCompositionEditMode
+                                    className={`hidden min-h-10 rounded-xl border px-3 text-xs font-bold transition-colors md:inline-flex md:items-center ${isCompositionEditMode
                                         ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-700'
                                         : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                                         }`}
@@ -673,9 +673,9 @@ export const Layout: React.FC<LayoutProps> = ({
                             )}
                             <details ref={operatorMenuRef} className="psi-operator-menu relative">
                                 <summary aria-label="운영자 메뉴 열기" className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-xl border border-slate-300 bg-white px-2.5 text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-blue-500/60 dark:hover:bg-blue-500/10">
-                                    <span className="grid h-7 w-7 place-items-center rounded-lg bg-blue-950 text-[10px] font-bold text-white dark:bg-blue-500">PSI</span>
+                                    <span className="grid h-7 w-7 place-items-center rounded-lg bg-blue-950 text-[11px] font-bold text-white dark:bg-blue-500">PSI</span>
                                     <span className="hidden text-left md:block">
-                                        <b className="block text-[11px] leading-none">{getUserRolePresetLabel(userRolePreset)}</b>
+                                        <b className="block text-xs leading-none">{getUserRolePresetLabel(userRolePreset)}</b>
                                         <small className="psi-small-note mt-1 block leading-none">운영자 메뉴</small>
                                     </span>
                                     <svg className="hidden h-3.5 w-3.5 md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -697,9 +697,9 @@ export const Layout: React.FC<LayoutProps> = ({
                                     >
                                         <span>
                                             <span className="block">PSI 브랜드 스토리</span>
-                                            <span className="mt-0.5 block text-[10px] font-semibold text-slate-500 dark:text-slate-400">가치와 운영 원리</span>
+                                            <span className="mt-0.5 block text-xs font-semibold text-slate-500 dark:text-slate-400">가치와 운영 원리</span>
                                         </span>
-                                        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-950 text-[10px] font-bold text-white dark:bg-blue-500">PSI</span>
+                                        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-950 text-[11px] font-bold text-white dark:bg-blue-500">PSI</span>
                                     </button>
                                     <button
                                         type="button"

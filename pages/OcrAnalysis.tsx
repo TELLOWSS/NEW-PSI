@@ -6881,10 +6881,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 </div>
             </section>
             {/* Control Panel */}
-            <details id="ocr-operation-tools" open={showWorkflowTools || isAnalyzing || Boolean(importValidationSummary)} onToggle={event => setShowWorkflowTools(event.currentTarget.open)} className="rounded-2xl border border-slate-200 bg-white">
+            <details id="ocr-operation-tools" open={showWorkflowTools || isAnalyzing || Boolean(importValidationSummary)} onToggle={event => setShowWorkflowTools(event.currentTarget.open)} className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white">
             <summary className="cursor-pointer px-5 py-4 text-base font-semibold text-slate-700">운영 도구 · 연결 점검, 일괄 처리, 백업 {isAnalyzing ? '(분석 진행 중)' : ''}</summary>
-            <div className="bg-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl text-white relative overflow-hidden">
-                <div data-mobile-overflow-allow="true" className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -mr-48 -mt-48"></div>
+            <div className="bg-slate-900 min-w-0 max-w-full rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl text-white relative overflow-hidden">
+                <div data-mobile-overflow-allow="true" className="pointer-events-none absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -mr-48 -mt-48"></div>
                 <div className="relative z-10 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1.15fr)_360px] gap-6 xl:gap-8 items-start">
                     <div className="min-w-0">
                         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 sm:gap-4">
@@ -6903,7 +6903,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 </p>
                                 {!isCompactMobile && (
                                     <>
-                                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-bold text-slate-200">
+                                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-bold text-slate-200">
                                             <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 다국어 문서 글자 인식(OCR) 지원</div>
                                             <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 손글씨·저해상도 이미지 보정 분석</div>
                                             <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 오류 코드 기반 즉시 재시도 동선 제공</div>
@@ -6912,14 +6912,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         <button
                                             type="button"
                                             onClick={() => setShowDashboardIntroDetail((prev) => !prev)}
-                                            className="mt-2 rounded-full bg-white/10 border border-white/10 px-3 py-1 text-[11px] font-black text-slate-200 hover:bg-white/20"
+                                            className="mt-2 rounded-full bg-white/10 border border-white/10 px-3 py-1 text-xs font-black text-slate-200 hover:bg-white/20"
                                         >
                                             {showDashboardIntroDetail ? '설명 접기' : '설명 자세히'}
                                         </button>
                                     </>
                                 )}
                             </div>
-                            <div className="flex flex-wrap gap-2 text-[11px] font-black">
+                            <div className="flex flex-wrap gap-2 text-xs font-black">
                                 <span className="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-slate-100">재분석 가능 {secondPassTargets.length}건</span>
                                 <span className="px-3 py-1.5 rounded-full bg-rose-500/15 border border-rose-400/20 text-rose-200">{BRAND_STATUS_LABELS.attentionPending} {failedRecords.length}건</span>
                                 <span className="px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/20 text-amber-200">저신뢰 {lowConfidenceCount}건</span>
@@ -6930,7 +6930,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             items={heroInterpretationCards}
                             className="mt-3 sm:mt-6 grid grid-cols-1 xl:grid-cols-3 gap-2 sm:gap-3"
                             cardClassName="rounded-2xl border px-3 py-2.5 sm:px-4 sm:py-4"
-                            eyebrowClassName="text-[10px] font-black uppercase tracking-[0.18em] opacity-80"
+                            eyebrowClassName="text-xs font-black uppercase tracking-[0.14em] opacity-85"
                             titleClassName="mt-2 text-base font-black text-white"
                             descriptionClassName="mt-2 text-[12px] font-semibold leading-relaxed text-white/80"
                         />

@@ -11,7 +11,7 @@
   min-height: 850px;
   border: 1px solid #253240;
   border-radius: 20px;
-  font-family: Inter, "Pretendard", "Noto Sans KR", system-ui, sans-serif;
+  font-family: "Pretendard", "Inter", "Noto Sans KR", system-ui, sans-serif;
   box-shadow: 0 22px 65px #04080e35;
 }
 
@@ -239,17 +239,20 @@
 
 .nexus-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  gap: 14px;
-  margin: 0 35px;
+  gap: 10px 16px;
+  margin: 0 24px;
   border-bottom: 1px solid #8293ab28;
-  padding: 13px 0 11px
+  padding: 14px 0 12px
 }
 
 .nexus-brand {
   display: flex;
   align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
   gap: 16px
 }
 
@@ -288,8 +291,11 @@
 
 .nexus-header-right {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 20px
+  justify-content: flex-end;
+  flex: 1 1 auto;
+  gap: 8px
 }
 
 .nexus-status {
@@ -310,12 +316,16 @@
 }
 
 .nexus-header-right button {
-  font-size: 11px;
+  font-size: 12px;
+  line-height: 1.25;
+  white-space: nowrap;
+  word-break: keep-all;
+  min-height: 36px;
   color: #d6e4ec;
-  padding: 10px 13px;
+  padding: 7px 12px;
   border: 1px solid #627b904a;
   background: #0e1c2a96;
-  border-radius: 6px
+  border-radius: 9px
 }
 
 .nexus-header-right button:hover {
@@ -346,9 +356,9 @@
 
 .nexus-main {
   display: grid;
-  grid-template-columns: minmax(220px, .9fr) minmax(460px, 2.15fr) minmax(260px, 1.05fr);
-  gap: 14px;
-  padding: 8px 24px 25px;
+  grid-template-columns: minmax(240px, .96fr) minmax(440px, 2.04fr) minmax(260px, 1.05fr);
+  gap: 16px;
+  padding: 10px 24px 24px;
   align-items: stretch
 }
 
@@ -382,9 +392,9 @@
 }
 
 .nexus-aside h2 {
-  font-size: clamp(20px, 2.05vw, 27px);
+  font-size: clamp(20px, 1.75vw, 24px);
   line-height: 1.38;
-  letter-spacing: -.04em;
+  letter-spacing: -.025em;
   margin: 20px 0 12px;
   color: #eaf2f6;
   font-weight: 760;
@@ -4847,6 +4857,7 @@
   color: #c8dae6;
   font-size: 12px;
   font-weight: 740;
+  word-break: keep-all;
   transition: border-color .2s, background .2s, box-shadow .2s;
 }
 

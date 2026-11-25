@@ -1908,7 +1908,7 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
             )}
 
             {/* 탭 네비게이션 */}
-            <div className="psi-compliance-tabs flex gap-2 overflow-x-auto rounded-2xl bg-slate-100/90 p-2 xl:grid xl:grid-cols-4 xl:overflow-visible" role="tablist" aria-label="안전조치 업무 영역">
+            <div className="psi-compliance-tabs grid grid-cols-2 gap-2 rounded-2xl bg-slate-100/90 p-2 lg:grid-cols-4" role="tablist" aria-label="안전조치 업무 영역">
                 {tabs.map(tab => (
                     <button
                         key={tab.id}
@@ -1918,13 +1918,13 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
                         aria-selected={activeTab === tab.id}
                         aria-controls={`hub-panel-${tab.id}`}
                         onClick={() => setActiveTab(tab.id)}
-                        className={`relative flex min-h-[64px] min-w-[148px] shrink-0 items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold transition-all xl:min-w-0
+                        className={`relative flex min-h-[56px] min-w-0 items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-bold transition-all
                             ${activeTab === tab.id ? 'bg-white text-indigo-800 shadow-sm shadow-slate-300/50' : 'text-slate-700 hover:bg-white/70 hover:text-slate-900'}`}>
                         <span>{tab.icon}</span>
                         <span className="hidden sm:inline">{tab.label}</span>
                         <span className="sm:hidden">{tab.shortLabel}</span>
                         {tab.badge !== undefined && (
-                            <span className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-black text-white">{tab.badge}</span>
+                            <span className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-600 px-1 text-[11px] font-black text-white">{tab.badge}</span>
                         )}
                     </button>
                 ))}

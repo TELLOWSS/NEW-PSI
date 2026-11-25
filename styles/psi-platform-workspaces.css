@@ -1016,13 +1016,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
   border-radius: 999px;
   background: var(--psi-surface-inset);
   color: var(--psi-text);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -1097,9 +1097,9 @@
 }
 
 .psi-platform-field-canvas .psi-cd-mini-kpi small {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--psi-text-subtle);
-  line-height: 1.2;
+  line-height: 1.25;
 }
 
 .psi-platform-field-canvas .psi-cd-mini-kpi b {
@@ -1280,8 +1280,8 @@
 }
 
 .psi-platform-field-canvas .psi-cd-metric-delta {
-  font-size: 11px;
-  font-weight: 640;
+  font-size: 12px;
+  font-weight: 600;
   color: #0b6b7a;
   white-space: nowrap;
   overflow: hidden;
@@ -1466,9 +1466,9 @@
 }
 
 .psi-platform-field-canvas .psi-ud-pill {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
-  padding: 2px 8px;
+  padding: 2px 9px;
   border-radius: 999px;
   border: 1px solid var(--psi-border-strong);
   background: var(--psi-surface);
@@ -1622,9 +1622,9 @@
 }
 
 .psi-platform-field-canvas .psi-qj-group {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
-  padding: 2px 7px;
+  padding: 2px 8px;
   border-radius: 6px;
   border: 1px solid var(--psi-border);
   background: var(--psi-surface-inset);
@@ -1644,7 +1644,7 @@
 }
 
 .psi-platform-field-canvas .psi-qj-main small {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--psi-text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -1652,7 +1652,7 @@
 }
 
 .psi-platform-field-canvas .psi-qj-go {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 750;
   color: var(--psi-brand);
 }
@@ -1701,12 +1701,25 @@
   }
 
   .psi-platform-field-canvas .psi-cd-card {
-    padding: 10px 11px;
+    padding: 9px 10px;
+    gap: 5px;
+  }
+
+  .psi-platform-field-canvas .psi-cd-how-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
   }
 
   .psi-platform-field-canvas .psi-cd-action-btn {
+    min-height: 40px;
+    padding: 6px 9px;
+    font-size: 12px;
+  }
+
+  .psi-platform-field-canvas .psi-cd-action-btn:first-child {
+    grid-column: 1 / -1;
     min-height: 44px;
+    padding: 8px 12px;
   }
 }
 

@@ -318,7 +318,7 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
         ? `psi://guidance/${selectedGroup?.period.key || 'current'}`
         : `${window.location.origin}${window.location.pathname}?guidancePeriod=${encodeURIComponent(selectedGroup?.period.key || '')}`;
 
-    return <div data-psi-screen="monthly-guidance" className="space-y-5 pb-16">
+    return <div data-psi-screen="monthly-guidance" className="min-w-0 overflow-x-clip space-y-5 pb-16">
         <style>{`@media print { .guidance-no-print { display:none !important; } .guidance-print { box-shadow:none !important; border:0 !important; } }`}</style>
         <section className="guidance-no-print rounded-3xl border border-sky-800 bg-gradient-to-br from-sky-950 via-slate-900 to-indigo-950 p-5 text-white shadow-xl">
             <p className="psi-eyebrow text-sky-300">PSI {cycleCopy.shortLabel} 교육 환류</p>
@@ -346,7 +346,7 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
             </div>
         </section>
 
-        <main className="guidance-print space-y-5 rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm sm:p-6">
+        <main className="guidance-print min-w-0 overflow-hidden space-y-5 rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm sm:p-6">
             <header className="border-b border-slate-200 pb-5">
                 <p className="psi-eyebrow text-indigo-600">{assessmentPeriodLabel} 작성자료 기반</p>
                 <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
@@ -471,11 +471,11 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
                         ))}
                     </div>
                 </div>
-                <div className="mt-4 grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
-                    <div className="h-[320px] rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.65fr)]">
+                    <div className="h-[320px] min-w-0 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 p-3">
                         <FieldRadarChart records={records} mode={radarMode} />
                     </div>
-                    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                    <div className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50 p-4">
                         <p className="psi-meta-label text-slate-700">해석 기준</p>
                         <div className="mt-3 space-y-3">
                             {[

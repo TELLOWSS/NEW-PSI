@@ -31,7 +31,13 @@
   --psi-shadow-raised:0 15px 36px rgba(17,60,67,.10);
   background:var(--psi-canvas);
   color:var(--psi-text);
-  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+  font-family:"Pretendard","Inter","Noto Sans KR",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+.psi-app-shell.psi-platform-field-canvas :is(h1,h2,h3,h4,p,li,button,summary,label,dt,dd,strong,small){
+  word-break:keep-all;
+  overflow-wrap:break-word;
 }
 .psi-app-shell.psi-platform-field-canvas .psi-tabular-num,
 .psi-app-shell.psi-platform-field-canvas :is(td, th) {
@@ -145,15 +151,15 @@ html.dark .psi-app-shell.psi-platform-field-canvas {
   background:var(--psi-surface-muted);
 }
 .psi-platform-field-canvas .psi-page-header{
-  padding:10px 0 18px;
-  margin-bottom:22px;
+  padding:6px 0 14px;
+  margin-bottom:16px;
   border-bottom:1px solid var(--psi-border);
 }
 .psi-platform-field-canvas .psi-page-title{
-  font-size:clamp(20px,2.3vw,28px);
+  font-size:clamp(20px,2.2vw,26px);
   font-weight:820;
-  letter-spacing:-.04em;
-  line-height:1.25;
+  letter-spacing:-.025em;
+  line-height:1.3;
   color:var(--psi-text);
 }
 .psi-platform-field-canvas .psi-page-header .psi-status-badge{
@@ -161,14 +167,15 @@ html.dark .psi-app-shell.psi-platform-field-canvas {
   border-radius:8px;
   background:var(--psi-surface);
   color:var(--psi-brand);
-  padding:5px 9px;
-  font-size:10px;
-  letter-spacing:.04em;
+  padding:4px 10px;
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:.02em;
 }
 .psi-platform-field-canvas .psi-page-header .psi-body-compact{
   line-height:1.6;
   color:var(--psi-text-muted);
-  font-size:clamp(12px,1.2vw,14px);
+  font-size:clamp(13px,1.2vw,14px);
 }
 .psi-platform-field-canvas #psi-main-content{
   background:
@@ -464,18 +471,24 @@ html.dark .psi-app-shell.psi-platform-field-canvas {
   font-weight:810;font-size:clamp(17px,1.7vw,20px);
   letter-spacing:-.027em;
 }
-.psi-platform-field-canvas .psi-ops-quick-grid{gap:9px}
+.psi-platform-field-canvas .psi-ops-quick-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+}
 .psi-platform-field-canvas .psi-ops-quick-grid>button{
-  min-height:83px;border-radius:13px;
-  padding:13px 11px;background:var(--psi-surface-muted);
+  min-height:76px;border-radius:13px;
+  padding:12px 14px;background:var(--psi-surface-muted);
   border-color:var(--psi-border);
+  grid-template-columns:auto minmax(0,1fr) auto;
+  gap:10px;
 }
 .psi-platform-field-canvas .psi-ops-quick-grid>button:hover{
   border-color:var(--psi-focus);
   background:var(--psi-surface-selected);
 }
-.psi-platform-field-canvas .psi-ops-quick-grid strong{font-size:12px}
-.psi-platform-field-canvas .psi-ops-quick-grid small{font-size:11px}
+.psi-platform-field-canvas .psi-ops-quick-grid strong{font-size:13px;white-space:normal;overflow:visible;text-overflow:clip}
+.psi-platform-field-canvas .psi-ops-quick-grid small{font-size:12px;white-space:normal;overflow:visible;text-overflow:clip}
 /* Mobile bottom rail is stable, accessible, and remains transparent to modals. */
 .psi-platform-field-canvas .psi-mobile-nav{
   background:color-mix(in srgb,var(--psi-surface) 97%,transparent);
@@ -496,34 +509,36 @@ html.dark .psi-app-shell.psi-platform-field-canvas {
  .psi-platform-field-canvas .psi-ops-toolbar{width:100%;grid-template-columns:repeat(2,minmax(0,1fr))}
  .psi-platform-field-canvas .psi-ops-field-route-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
  .psi-platform-field-canvas .psi-ops-route-action:last-child{grid-column:1/-1}
+ .psi-platform-field-canvas .psi-ops-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media(max-width:720px){
- .psi-platform-field-canvas .psi-page-header{padding:5px 0 14px;margin-bottom:17px}
+ .psi-platform-field-canvas .psi-page-header{padding:5px 0 12px;margin-bottom:14px}
  .psi-platform-field-canvas .psi-ops-dashboard{gap:12px}
  .psi-platform-field-canvas .psi-ops-intro{
   padding:22px 19px;gap:17px;border-radius:20px;
  }
  .psi-platform-field-canvas .psi-ops-intro .psi-ops-title{font-size:clamp(26px,7.2vw,34px)}
- .psi-platform-field-canvas .psi-ops-intro .psi-ops-context{font-size:10px;gap:5px}
+ .psi-platform-field-canvas .psi-ops-intro .psi-ops-context{font-size:12px;gap:5px}
  .psi-platform-field-canvas .psi-ops-intro .psi-ops-context-divider{display:none}
  .psi-platform-field-canvas .psi-ops-hero-pills{margin-top:13px}
- .psi-platform-field-canvas .psi-ops-hero-pills>span{font-size:10px;padding:5px 8px}
+ .psi-platform-field-canvas .psi-ops-hero-pills>span{font-size:12px;padding:5px 9px}
  .psi-platform-field-canvas .psi-ops-toolbar{padding:12px;gap:8px;border-radius:13px}
  .psi-platform-field-canvas .psi-ops-toolbar .psi-ops-filter select{font-size:12px}
  .psi-platform-field-canvas .psi-ops-field-route{padding:17px 14px;border-radius:18px}
  .psi-platform-field-canvas .psi-ops-field-route-heading{gap:10px;margin-bottom:11px}
- .psi-platform-field-canvas .psi-ops-route-manual{font-size:10px}
+ .psi-platform-field-canvas .psi-ops-route-manual{font-size:12px}
  .psi-platform-field-canvas .psi-ops-field-route-grid{grid-template-columns:1fr;gap:8px}
  .psi-platform-field-canvas .psi-ops-route-action:last-child{grid-column:auto}
  .psi-platform-field-canvas .psi-ops-route-action{min-height:75px;padding:12px;gap:10px}
  .psi-platform-field-canvas .psi-ops-route-number{flex-basis:38px;height:38px;font-size:13px}
- .psi-platform-field-canvas .psi-ops-route-copy small{margin-top:3px;font-size:11px}
+ .psi-platform-field-canvas .psi-ops-route-copy small{margin-top:3px;font-size:12px}
  .psi-platform-field-canvas .psi-ops-assurance{padding:14px;border-radius:16px}
  .psi-platform-field-canvas .psi-ops-kpi-grid{gap:8px}
  .psi-platform-field-canvas .psi-ops-kpi{min-height:130px;padding:13px;border-radius:15px}
  .psi-platform-field-canvas .psi-ops-panel-header{padding:14px}
  .psi-platform-field-canvas .psi-ops-workflow{padding:14px}
- .psi-platform-field-canvas .psi-ops-quick-grid strong{font-size:11px}
+ .psi-platform-field-canvas .psi-ops-quick-grid{grid-template-columns:1fr}
+ .psi-platform-field-canvas .psi-ops-quick-grid strong{font-size:13px}
  .psi-platform-field-canvas .psi-ops-workflow>header{align-items:flex-start;flex-direction:column;gap:8px}
 }
 @media(max-width:360px){

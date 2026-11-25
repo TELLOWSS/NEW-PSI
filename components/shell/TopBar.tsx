@@ -117,20 +117,20 @@ export const TopBar: React.FC<TopBarProps> = ({
                         <button
                             type="button"
                             onClick={onOpenQuickJump}
-                            className="psi-quickjump-trigger hidden sm:inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-bold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                            className="psi-quickjump-trigger hidden sm:inline-flex min-h-10 shrink-0 whitespace-nowrap items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-bold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                             aria-label="빠른 찾기 열기"
                             title="화면·점검 기능 빠른 찾기 (Ctrl+K)"
                         >
                             <span aria-hidden="true">⌕</span>
                             <span>빠른 찾기</span>
-                            <kbd className="hidden rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 xl:inline">Ctrl K</kbd>
+                            <kbd className="hidden rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 xl:inline">Ctrl K</kbd>
                         </button>
                     )}
 
                     <button
                         type="button"
                         onClick={onToggleTheme}
-                        className="ml-1 flex min-h-11 w-11 min-w-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-0 text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-blue-500/60 dark:hover:bg-blue-500/10 sm:min-h-10 sm:w-auto sm:min-w-10 sm:px-3"
+                        className="ml-1 flex min-h-11 w-11 min-w-11 shrink-0 whitespace-nowrap items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-0 text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-blue-500/60 dark:hover:bg-blue-500/10 sm:min-h-10 sm:w-auto sm:min-w-10 sm:px-3"
                         aria-label={`테마 전환 (현재: ${themeLabel})`}
                         title={`테마: ${themeLabel} (클릭: 라이트→다크→시스템 순환)`}
                     >
@@ -144,7 +144,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
                             </svg>
                         )}
-                        <span className="hidden text-[11px] font-bold md:inline">{themeLabel}</span>
+                        <span className="hidden text-xs font-bold md:inline">{themeLabel}</span>
                     </button>
 
                     {onToggleMotionPaused && (
@@ -152,7 +152,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                             type="button"
                             onClick={onToggleMotionPaused}
                             aria-pressed={!motionPaused}
-                            className={`psi-motion-toggle-btn flex min-h-11 items-center justify-center gap-1 rounded-xl border px-2 text-xs font-bold transition-colors sm:min-h-10 sm:px-2.5 ${
+                            className={`psi-motion-toggle-btn flex min-h-11 shrink-0 whitespace-nowrap items-center justify-center gap-1 rounded-xl border px-2 text-xs font-bold transition-colors sm:min-h-10 sm:px-2.5 ${
                                 motionPaused
                                     ? 'border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300'
                                     : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800'
@@ -170,7 +170,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                             type="button"
                             onClick={onToggleSunlightMode}
                             aria-pressed={sunlightMode}
-                            className={`psi-sunlight-toggle-btn flex min-h-11 items-center justify-center gap-1 rounded-xl border px-2.5 text-xs font-bold transition-colors sm:min-h-10 ${
+                            className={`psi-sunlight-toggle-btn flex min-h-11 shrink-0 whitespace-nowrap items-center justify-center gap-1 rounded-xl border px-2.5 text-xs font-bold transition-colors sm:min-h-10 ${
                                 sunlightMode
                                     ? 'border-slate-950 bg-slate-950 text-amber-300'
                                     : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800'
