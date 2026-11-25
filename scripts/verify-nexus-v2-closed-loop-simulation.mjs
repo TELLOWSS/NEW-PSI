@@ -700,6 +700,83 @@ try {
     (await dashboardBridge.getByText('건설기계 사용전 사진', { exact: true }).count()) === 1,
   );
 
+  // =========================================================================
+  // PART D: Connected Subpages UI/UX Parity, 4-Stage Decision Brief & Sunlight Sync
+  // =========================================================================
+  await page.setViewportSize({ width: 1440, height: 960 });
+  await page.getByRole('button', { name: '위험성평가 분석' }).first().click();
+  const ocrDecisionShell = page.locator('.psi-connected-decision-shell[data-page="ocr-analysis"]');
+  await ocrDecisionShell.waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('main .animate-spin').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
+  await ocrDecisionShell.locator('.psi-cd-expand-btn').click();
+  recordCheck(
+    'Connected Subpage [ocr-analysis] renders 4-stage Decision-First Brief & Nexus return CTA',
+    (await ocrDecisionShell.locator('.psi-cd-card').count()) === 4 &&
+    (await ocrDecisionShell.locator('.psi-cd-nexus-btn').isVisible()),
+  );
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: resolve(outDir, 'nexus-v9-ocr-decision-1440.png'), fullPage: false });
+
+  // Toggle global TopBar Outdoor Sunlight High-Contrast Mode and verify persistence across subpages
+  await page.getByRole('button', { name: /야외 직사광선 고대비 모드 켜기/ }).click();
+  const sunlightBtnTextColor = await page
+    .locator('.psi-sunlight-toggle-btn[aria-pressed="true"] span')
+    .last()
+    .evaluate(el => getComputedStyle(el).color);
+  recordCheck(
+    'TopBar Sunlight High-Contrast toggle activates global data-psi-sunlight=true & bright yellow ON text',
+    (await page.evaluate(() => document.documentElement.dataset.psiSunlight)) === 'true' &&
+    sunlightBtnTextColor === 'rgb(253, 224, 71)',
+    sunlightBtnTextColor,
+  );
+  await page.getByRole('button', { name: '사진점검 · 개선관리' }).first().click();
+  const inspDecisionShell = page.locator('.psi-connected-decision-shell[data-page="safety-inspector"]');
+  await inspDecisionShell.waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('main .animate-spin').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
+  recordCheck(
+    'Connected Subpage [safety-inspector] inherits global Sunlight Mode & shows 4-stage brief',
+    (await page.evaluate(() => document.documentElement.dataset.psiSunlight)) === 'true' &&
+    (await inspDecisionShell.locator('.psi-cd-card').count()) === 4,
+  );
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: resolve(outDir, 'nexus-v9-inspector-sunlight-1440.png'), fullPage: false });
+  await page.getByRole('button', { name: /야외 고대비 모드 끄기/ }).click();
+
+  // Navigate off safety-inspector (which omits bottom nav on mobile) before 390px mobile bottom-nav check
+  await page.getByRole('button', { name: '안전조치 통합 허브' }).first().click();
+  await page.locator('.psi-connected-decision-shell[data-page="safety-compliance-hub"]').waitFor({
+    state: 'visible',
+    timeout: 10000,
+  });
+
+  // Verify 390px mobile connected subpage Decision-First Brief auto-expands & 1-tap navigation works cleanly
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('navigation', { name: '모바일 하단 탐색' }).getByRole('button', { name: '위험분석' }).click();
+  const mobileOcrDecision = page.locator('.psi-connected-decision-shell[data-page="ocr-analysis"]');
+  await mobileOcrDecision.waitFor({ state: 'visible', timeout: 10000 });
+  const ocrMobileOverflow = await page.evaluate(() => ({
+    client: document.documentElement.clientWidth,
+    scroll: document.documentElement.scrollWidth,
+  }));
+  recordCheck(
+    '390px Mobile Connected Subpage [ocr-analysis] auto-expands 4-card Decision Brief with zero horizontal overflow',
+    (await mobileOcrDecision.locator('.psi-cd-grid').isVisible()) &&
+    (await mobileOcrDecision.locator('.psi-cd-card').count()) === 4 &&
+    ocrMobileOverflow.scroll <= ocrMobileOverflow.client + 2,
+    ocrMobileOverflow,
+  );
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: resolve(outDir, 'nexus-v9-mobile-ocr-390.png'), fullPage: false });
+
+  await mobileOcrDecision.getByRole('button', { name: /교육 환류로 즉시 연결/ }).click();
+  const mobileEduDecision = page.locator('.psi-connected-decision-shell[data-page="education-return"]');
+  await mobileEduDecision.waitFor({ state: 'visible', timeout: 10000 });
+  recordCheck(
+    '1-tap How CTA on Mobile Connected Brief navigates seamlessly to [education-return]',
+    (await mobileEduDecision.locator('.psi-cd-grid').isVisible()) &&
+    (await mobileEduDecision.locator('.psi-cd-card').count()) === 4,
+  );
+
   recordCheck('Zero runtime page errors during full simulation', pageErrors.length === 0, pageErrors);
   recordCheck(
     `All Light Theme QA views passed (${checks.filter(c => c.name.startsWith('Light Theme QA')).length} views)`,

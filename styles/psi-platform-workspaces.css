@@ -831,3 +831,440 @@
   background:var(--psi-surface);
  }
 }
+
+/* ============================================================================
+   Connected Subpages Unified 4-Stage Decision-First Brief & Global Sunlight Mode
+   ============================================================================ */
+.psi-platform-field-canvas .psi-connected-decision-shell {
+  margin: 0 0 18px;
+  padding: 13px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--psi-border-strong);
+  background: var(--psi-surface);
+  color: var(--psi-text);
+  box-shadow: var(--psi-shadow);
+  display: grid;
+  gap: 10px;
+}
+
+.psi-platform-field-canvas .psi-connected-decision-shell[data-signal="critical"] {
+  border-color: #fb7185;
+}
+
+.psi-platform-field-canvas .psi-cd-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.psi-platform-field-canvas .psi-cd-head-left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.psi-platform-field-canvas .psi-cd-signal {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid #64748b;
+}
+
+.psi-platform-field-canvas .psi-cd-signal.is-critical {
+  background-color: #9f1239;
+  border-color: #fb7185;
+  color: #ffffff;
+}
+
+.psi-platform-field-canvas .psi-cd-signal.is-watch {
+  background-color: #92400e;
+  border-color: #f59e0b;
+  color: #ffffff;
+}
+
+.psi-platform-field-canvas .psi-cd-signal.is-stable {
+  background-color: #065f46;
+  border-color: #34d399;
+  color: #ffffff;
+}
+
+.psi-platform-field-canvas .psi-cd-authority-pill {
+  min-height: 30px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--psi-border-strong);
+  background: var(--psi-surface-muted);
+  color: var(--psi-text);
+  font-size: 12px;
+  font-weight: 740;
+}
+
+.psi-platform-field-canvas .psi-cd-offline-badge {
+  font-size: 12px;
+  font-weight: 780;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  color: #78350f;
+}
+
+.psi-platform-field-canvas .psi-cd-head-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.psi-platform-field-canvas .psi-cd-personas {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.psi-platform-field-canvas .psi-cd-personas button,
+.psi-platform-field-canvas .psi-cd-nexus-btn,
+.psi-platform-field-canvas .psi-cd-expand-btn {
+  min-height: 34px;
+  padding: 5px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--psi-control-border);
+  background: var(--psi-surface-muted);
+  color: var(--psi-text);
+  font-size: 12px;
+  font-weight: 740;
+}
+
+.psi-platform-field-canvas .psi-cd-personas button[aria-pressed="true"] {
+  background: #b45309;
+  border-color: #b45309;
+  color: #ffffff;
+}
+
+.psi-platform-field-canvas .psi-cd-nexus-btn {
+  background: #0f2942;
+  border-color: #0f2942;
+  color: #ffffff;
+}
+
+.psi-platform-field-canvas .psi-cd-compact-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--psi-border);
+  background: var(--psi-surface-muted);
+}
+
+.psi-platform-field-canvas .psi-cd-compact-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.psi-platform-field-canvas .psi-cd-compact-copy strong {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #fff7eb;
+  border: 1px solid #f59e0b;
+  color: #78350f;
+  white-space: nowrap;
+}
+
+.psi-platform-field-canvas .psi-cd-compact-copy span {
+  font-size: 13px;
+  font-weight: 740;
+  color: var(--psi-text);
+  word-break: keep-all;
+}
+
+.psi-platform-field-canvas .psi-cd-compact-cta,
+.psi-platform-field-canvas .psi-cd-action-btn {
+  min-height: 38px;
+  padding: 7px 13px;
+  border-radius: 8px;
+  border: 1px solid var(--psi-control-border);
+  background: var(--psi-surface);
+  color: var(--psi-text);
+  font-size: 12px;
+  font-weight: 780;
+  white-space: nowrap;
+}
+
+.psi-platform-field-canvas .psi-cd-compact-cta.is-primary,
+.psi-platform-field-canvas .psi-cd-action-btn.is-primary {
+  background: #b45309;
+  border-color: #b45309;
+  color: #ffffff;
+}
+
+.psi-platform-field-canvas .psi-cd-compact-cta.is-danger,
+.psi-platform-field-canvas .psi-cd-action-btn.is-danger {
+  background: #9f1239;
+  border-color: #9f1239;
+  color: #ffffff;
+}
+
+.psi-platform-field-canvas .psi-connected-decision-shell.is-desktop-compact .psi-cd-grid {
+  display: none;
+}
+
+.psi-platform-field-canvas .psi-cd-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.psi-platform-field-canvas .psi-cd-card {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--psi-border);
+  background: var(--psi-surface-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.psi-platform-field-canvas .psi-cd-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+
+.psi-platform-field-canvas .psi-cd-card-head span {
+  font-size: 12px;
+  font-weight: 800;
+  color: #92400e;
+}
+
+.psi-platform-field-canvas .psi-cd-card-head small {
+  font-size: 12px;
+  color: var(--psi-text-muted);
+}
+
+.psi-platform-field-canvas .psi-cd-card.is-sowhat h3 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--psi-text);
+  font-weight: 780;
+  word-break: keep-all;
+}
+
+.psi-platform-field-canvas .psi-cd-card.is-sowhat p,
+.psi-platform-field-canvas .psi-cd-outcome-proof {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--psi-text-muted);
+  word-break: keep-all;
+}
+
+.psi-platform-field-canvas .psi-cd-outcome-proof {
+  margin-top: auto;
+}
+
+.psi-platform-field-canvas .psi-cd-why-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.psi-platform-field-canvas .psi-cd-why-list li {
+  display: grid;
+  gap: 3px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--psi-border);
+  background: var(--psi-surface);
+}
+
+.psi-platform-field-canvas .psi-cd-why-list b {
+  font-size: 12px;
+  color: #0b6b7a;
+}
+
+.psi-platform-field-canvas .psi-cd-why-list span {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--psi-text);
+  word-break: keep-all;
+}
+
+.psi-platform-field-canvas .psi-cd-how-actions {
+  display: grid;
+  gap: 7px;
+}
+
+.psi-platform-field-canvas .psi-cd-action-btn {
+  width: 100%;
+  min-height: 40px;
+  text-align: left;
+  white-space: normal;
+  word-break: keep-all;
+}
+
+.psi-platform-field-canvas .psi-cd-outcome-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.psi-platform-field-canvas .psi-cd-metric {
+  padding: 7px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--psi-border);
+  background: var(--psi-surface);
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.psi-platform-field-canvas .psi-cd-metric span {
+  font-size: 12px;
+  color: var(--psi-text-muted);
+  word-break: keep-all;
+}
+
+.psi-platform-field-canvas .psi-cd-metric strong {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--psi-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.psi-platform-field-canvas .psi-cd-metric small {
+  font-size: 12px;
+  color: #0b6b7a;
+  word-break: keep-all;
+}
+
+@media(max-width:1180px) {
+  .psi-platform-field-canvas .psi-cd-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media(max-width:790px) {
+  .psi-platform-field-canvas .psi-connected-decision-shell {
+    padding: 12px;
+  }
+
+  .psi-platform-field-canvas .psi-cd-expand-btn,
+  .psi-platform-field-canvas .psi-cd-compact-bar {
+    display: none;
+  }
+
+  .psi-platform-field-canvas .psi-connected-decision-shell.is-desktop-compact .psi-cd-grid,
+  .psi-platform-field-canvas .psi-cd-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .psi-platform-field-canvas .psi-cd-head-right {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .psi-platform-field-canvas .psi-cd-personas {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Dark theme adjustments for Connected Decision Banner */
+html.dark .psi-platform-field-canvas .psi-cd-card-head span {
+  color: #fcd34d;
+}
+
+html.dark .psi-platform-field-canvas .psi-cd-why-list b,
+html.dark .psi-platform-field-canvas .psi-cd-metric small {
+  color: #67e8f9;
+}
+
+html.dark .psi-platform-field-canvas .psi-cd-compact-copy strong {
+  background: #2c2012;
+  border-color: #d97706;
+  color: #fde68a;
+}
+
+/* Global Outdoor Sunlight High-Contrast Mode across ALL Connected Operational Pages */
+html[data-psi-sunlight="true"] .psi-app-shell.psi-platform-field-canvas {
+  --psi-canvas: #ffffff;
+  --psi-surface: #ffffff;
+  --psi-surface-raised: #ffffff;
+  --psi-surface-muted: #ffffff;
+  --psi-surface-inset: #f8fafc;
+  --psi-text: #020617;
+  --psi-text-muted: #0f172a;
+  --psi-text-subtle: #1e293b;
+  --psi-border: #0f172a;
+  --psi-border-strong: #020617;
+  --psi-control-border: #0f172a;
+  --psi-shadow: none;
+  --psi-shadow-raised: none;
+  background: #ffffff !important;
+  color: #020617 !important;
+}
+
+html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-topbar,
+html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-page-header,
+html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-connected-decision-shell,
+html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-cd-card,
+html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-industrial-panel,
+html[data-psi-sunlight="true"] .psi-platform-field-canvas section,
+html[data-psi-sunlight="true"] .psi-platform-field-canvas article {
+  border-width: 2px !important;
+  border-color: #0f172a !important;
+  box-shadow: none !important;
+}
+
+html[data-psi-sunlight="true"] .psi-platform-field-canvas :is(.text-slate-400, .text-slate-500, .text-slate-600, .text-gray-400, .text-gray-500, .text-gray-600, .psi-meta-label, .psi-cd-card-head small, .psi-cd-card p, .psi-cd-why-list span, .psi-cd-metric span, .psi-cd-metric small, .psi-cd-outcome-proof, .psi-cd-compact-copy span) {
+  color: #020617 !important;
+}
+
+html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-sunlight-toggle-btn[aria-pressed="true"],
+html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-sunlight-toggle-btn[aria-pressed="true"] span {
+  background: #020617 !important;
+  color: #fde047 !important;
+  border-color: #020617 !important;
+}
+
+html[data-psi-sunlight="true"] .psi-platform-field-canvas :is(input, select, textarea) {
+  background: #ffffff !important;
+  color: #020617 !important;
+  border: 2px solid #0f172a !important;
+}
+
+html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-cd-nexus-btn,
+html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-cd-action-btn.is-primary,
+html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-cd-compact-cta.is-primary,
+html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-cd-action-btn.is-danger,
+html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-cd-compact-cta.is-danger,
+html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-cd-personas button[aria-pressed="true"],
+html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-cd-signal {
+  color: #ffffff !important;
+}
+
+@media print {
+  .psi-platform-field-canvas .psi-connected-decision-shell {
+    display: none !important;
+  }
+}

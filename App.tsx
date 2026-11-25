@@ -1317,7 +1317,13 @@ const App: React.FC = () => {
                     </div>
                 </div>
             ) : (
-                <Layout currentPage={currentPage} setCurrentPage={navigateToPage} onAdminLogout={handleAdminLogout}>
+                <Layout
+                    currentPage={currentPage}
+                    setCurrentPage={navigateToPage}
+                    onAdminLogout={handleAdminLogout}
+                    workerRecords={workerRecords}
+                    safetyCheckRecords={safetyCheckRecords}
+                >
                     <Suspense fallback={<div className="min-h-[240px] flex items-center justify-center"><Spinner /></div>}>
                         {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={navigateToPage} initialTrade={dashboardReturnTrade} initialView={dashboardView} onOpenNexus={(trade,view) => { setDashboardView(view); navigateToPage('safety-nexus'); setNexusInitialTrade(trade); setNexusView(previous=>previous?.trade===trade?previous:null); }} />}
                         {currentPage === 'safety-nexus' && <SafetyNexus workerRecords={workerRecords} loadState={workerRecordsLoadState} initialTrade={nexusInitialTrade} initialView={nexusView} onViewChange={setNexusView} onNavigateToPage={navigateToPage} onReturnDashboard={(trade) => { navigateToPage('dashboard'); setDashboardReturnTrade(trade); }} onOpenRecord={(record) => setModalState({type:'recordDetail', record})} />}

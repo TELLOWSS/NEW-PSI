@@ -12,6 +12,8 @@ interface TopBarProps {
     isDark: boolean;
     themeMode: ThemeMode;
     onToggleTheme: () => void;
+    sunlightMode?: boolean;
+    onToggleSunlightMode?: () => void;
     patentBadge?: React.ReactNode;
     controls?: React.ReactNode;
     statusLabel?: string;
@@ -28,6 +30,8 @@ export const TopBar: React.FC<TopBarProps> = ({
     isDark,
     themeMode,
     onToggleTheme,
+    sunlightMode = false,
+    onToggleSunlightMode,
     patentBadge,
     controls,
     statusLabel = '관리자 확인 기준',
@@ -122,6 +126,24 @@ export const TopBar: React.FC<TopBarProps> = ({
                         )}
                         <span className="hidden text-[11px] font-bold md:inline">{themeLabel}</span>
                     </button>
+
+                    {onToggleSunlightMode && (
+                        <button
+                            type="button"
+                            onClick={onToggleSunlightMode}
+                            aria-pressed={sunlightMode}
+                            className={`psi-sunlight-toggle-btn flex min-h-11 items-center justify-center gap-1 rounded-xl border px-2.5 text-xs font-bold transition-colors sm:min-h-10 ${
+                                sunlightMode
+                                    ? 'border-slate-950 bg-slate-950 text-amber-300'
+                                    : 'border-amber-300 bg-amber-50 text-amber-950 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-950/60 dark:text-amber-200 dark:hover:bg-amber-900/60'
+                            }`}
+                            aria-label={sunlightMode ? '야외 고대비 모드 끄기' : '야외 직사광선 고대비 모드 켜기'}
+                            title="야외 직사광선 고대비 모드 전환"
+                        >
+                            <span aria-hidden="true">{sunlightMode ? '☀️' : '🔆'}</span>
+                            <span className="hidden sm:inline">{sunlightMode ? '고대비 ON' : '야외 고대비'}</span>
+                        </button>
+                    )}
 
                     {controls}
                 </div>

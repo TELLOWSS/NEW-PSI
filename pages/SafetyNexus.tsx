@@ -96,11 +96,17 @@ import WebGLNexusCore from './NexusWebGLCore';
 import { ScoreMetricEvidencePanel } from '../components/shared/ScoreMetricEvidencePanel';
 import { PracticeEvidencePanel, type PracticeEvidenceSelection } from '../components/shared/PracticeEvidencePanel';
 import { nexusFeatureFlags } from '../config/nexusFeatureFlags';
-import { THEME_CHANGED_EVENT, getResolvedTheme, type ResolvedTheme } from '../utils/themeUtils';
+import {
+  SUNLIGHT_MODE_CHANGED_EVENT,
+  THEME_CHANGED_EVENT,
+  getResolvedTheme,
+  getSunlightMode,
+  setSunlightMode as persistGlobalSunlightMode,
+  type ResolvedTheme,
+} from '../utils/themeUtils';
 import './SafetyNexus.css';
 
 const NEXUS_THEME_OVERRIDE_KEY = 'psi_nexus_theme_override_v1';
-const NEXUS_SUNLIGHT_MODE_KEY = 'psi_nexus_sunlight_mode_v1';
 
 const FOLLOWUP_FILTER_LABELS = { overdue: '기한 초과', unresolved: '미완료', interim_control: '임시 통제 중', scheduled: '조치 예정', reopened: '재개방 이력', completed: '완료로 기록된' } as const;
 type FollowupFilter = keyof typeof FOLLOWUP_FILTER_LABELS;
@@ -363,14 +369,7 @@ const SafetyNexus: React.FC<Props> = ({
     }
     return getResolvedTheme();
   });
-  const [sunlightMode, setSunlightMode] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    try {
-      return window.localStorage.getItem(NEXUS_SUNLIGHT_MODE_KEY) === 'true';
-    } catch {
-      return false;
-    }
-  });
+  const [sunlightMode, setSunlightMode] = useState<boolean>(() => getSunlightMode());
   useEffect(() => {
     const syncGlobalTheme = () => {
       try {
@@ -380,19 +379,20 @@ const SafetyNexus: React.FC<Props> = ({
       }
       setNexusTheme(getResolvedTheme());
     };
+    const syncSunlight = () => setSunlightMode(getSunlightMode());
     window.addEventListener(THEME_CHANGED_EVENT, syncGlobalTheme);
-    return () => window.removeEventListener(THEME_CHANGED_EVENT, syncGlobalTheme);
+    window.addEventListener(SUNLIGHT_MODE_CHANGED_EVENT, syncSunlight);
+    return () => {
+      window.removeEventListener(THEME_CHANGED_EVENT, syncGlobalTheme);
+      window.removeEventListener(SUNLIGHT_MODE_CHANGED_EVENT, syncSunlight);
+    };
   }, []);
   const handleToggleNexusTheme = () => {
     const next: ResolvedTheme = nexusTheme === 'light' ? 'dark' : 'light';
     setNexusTheme(next);
     if (next === 'dark') {
+      persistGlobalSunlightMode(false);
       setSunlightMode(false);
-      try {
-        window.localStorage.setItem(NEXUS_SUNLIGHT_MODE_KEY, 'false');
-      } catch {
-        // Ignore storage errors
-      }
     }
     try {
       window.localStorage.setItem(NEXUS_THEME_OVERRIDE_KEY, next);
@@ -406,13 +406,8 @@ const SafetyNexus: React.FC<Props> = ({
     );
   };
   const handleToggleSunlightMode = () => {
-    const next = !sunlightMode;
+    const next = persistGlobalSunlightMode(!sunlightMode);
     setSunlightMode(next);
-    try {
-      window.localStorage.setItem(NEXUS_SUNLIGHT_MODE_KEY, next ? 'true' : 'false');
-    } catch {
-      // Ignore storage errors
-    }
     if (next && nexusTheme !== 'light') {
       setNexusTheme('light');
       try {

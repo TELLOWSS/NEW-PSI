@@ -4,8 +4,9 @@ import { Footer } from './Footer';
 import { AppShell } from './shell/AppShell';
 import { TopBar } from './shell/TopBar';
 import { PageHeader } from './shell/PageHeader';
+import { ConnectedPageDecisionBanner } from './shell/ConnectedPageDecisionBanner';
 import { ShellBackground } from './shell/ShellBackground';
-import type { Page } from '../types';
+import type { Page, SafetyCheckRecord, WorkerRecord } from '../types';
 import { API_MODE_CHANGED_EVENT, getIsPaidApiMode } from '../utils/apiModeUtils';
 import { BestPracticeSyncBadge } from './shared/BestPracticeSyncBadge';
 import {
@@ -15,7 +16,18 @@ import {
     type BestPracticeSyncFailureLog,
     type BestPracticeSyncState,
 } from '../utils/bestPracticeSyncStatus';
-import { getStoredTheme, getResolvedTheme, toggleTheme, applyTheme, watchSystemThemeChange, THEME_CHANGED_EVENT, type ThemeMode } from '../utils/themeUtils';
+import {
+    getStoredTheme,
+    getResolvedTheme,
+    toggleTheme,
+    applyTheme,
+    watchSystemThemeChange,
+    THEME_CHANGED_EVENT,
+    getSunlightMode,
+    setSunlightMode as setGlobalSunlightMode,
+    SUNLIGHT_MODE_CHANGED_EVENT,
+    type ThemeMode,
+} from '../utils/themeUtils';
 import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { getOperationalModeLabel, isPageVisibleByOperationalMode } from '../utils/operationalModeUtils';
@@ -59,6 +71,8 @@ interface LayoutProps {
     currentPage: Page;
     setCurrentPage: (page: Page) => void;
     onAdminLogout: () => void | Promise<void>;
+    workerRecords?: readonly WorkerRecord[];
+    safetyCheckRecords?: readonly SafetyCheckRecord[];
 }
 
 type MobileTabId = 'home' | 'alerts' | 'profile' | 'predictive' | 'more';
@@ -89,13 +103,21 @@ const formatTodayLabel = (): string => {
     }
 };
 
-export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage, onAdminLogout }) => {
+export const Layout: React.FC<LayoutProps> = ({
+    children,
+    currentPage,
+    setCurrentPage,
+    onAdminLogout,
+    workerRecords = [],
+    safetyCheckRecords = [],
+}) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isPaidApiMode, setIsPaidApiMode] = useState(false);
     const [bestPracticeSyncState, setBestPracticeSyncState] = useState<BestPracticeSyncState>(() => getBestPracticeSyncState());
     const [bestPracticeFailureLogs, setBestPracticeFailureLogs] = useState<BestPracticeSyncFailureLog[]>(() => getBestPracticeSyncFailureLogs());
     const [themeMode, setThemeMode] = useState<ThemeMode>(() => getStoredTheme());
     const [isDark, setIsDark] = useState(() => getResolvedTheme(getStoredTheme()) === 'dark');
+    const [sunlightMode, setSunlightMode] = useState<boolean>(() => getSunlightMode());
     const [showScrollTop, setShowScrollTop] = useState(false);
     const mainRef = useRef<HTMLElement>(null);
     const navigationScroll = useRef(new Map<Page, number>());
@@ -257,6 +279,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         const next = toggleTheme();
         setThemeMode(next);
         setIsDark(getResolvedTheme(next) === 'dark');
+        setSunlightMode(getSunlightMode());
+    };
+
+    const handleToggleSunlightMode = () => {
+        const next = setGlobalSunlightMode(!sunlightMode);
+        setSunlightMode(next);
+        const mode = getStoredTheme();
+        setThemeMode(mode);
+        setIsDark(getResolvedTheme(mode) === 'dark');
     };
 
     const handleCompositionConfigChange = (next: UiCompositionConfig) => {
@@ -275,11 +306,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
             const mode = getStoredTheme();
             setThemeMode(mode);
             setIsDark(getResolvedTheme(mode) === 'dark');
+            setSunlightMode(getSunlightMode());
         };
+        const syncSun = () => setSunlightMode(getSunlightMode());
         window.addEventListener(THEME_CHANGED_EVENT, sync);
+        window.addEventListener(SUNLIGHT_MODE_CHANGED_EVENT, syncSun);
         const unwatch = watchSystemThemeChange(sync);
         return () => {
             window.removeEventListener(THEME_CHANGED_EVENT, sync);
+            window.removeEventListener(SUNLIGHT_MODE_CHANGED_EVENT, syncSun);
             unwatch();
         };
     }, []);
@@ -551,6 +586,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                     isDark={isDark}
                     themeMode={themeMode}
                     onToggleTheme={handleToggleTheme}
+                    sunlightMode={sunlightMode}
+                    onToggleSunlightMode={handleToggleSunlightMode}
                     onGoToDashboard={currentPage !== 'dashboard' ? handleGoToDashboard : undefined}
                     controls={
                         <div className="flex items-center gap-1">
@@ -709,6 +746,16 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                             title={currentPageTitle}
                             description={currentPageDescription}
                         />
+                        {currentPage !== 'safety-nexus' &&
+                            currentPage !== 'introduction' &&
+                            currentPage !== 'worker-training' && (
+                            <ConnectedPageDecisionBanner
+                                currentPage={currentPage}
+                                workerRecords={workerRecords}
+                                safetyCheckRecords={safetyCheckRecords}
+                                onNavigateToPage={handlePageChange}
+                            />
+                        )}
                         {children}
                     </div>
                 </main>
