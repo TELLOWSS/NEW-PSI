@@ -15,6 +15,7 @@ import {
     parseMultipleAccidentFiles,
     persistAccidentBigDataStore,
     readAccidentBigDataStore,
+    standardizeAccidentHazardType,
     standardizeAccidentJobField,
     updateAccidentRecordInList,
 } from '../utils/accidentBigData';
@@ -118,7 +119,7 @@ describe('accidentBigData hub engine', () => {
         expect(parsed.ok).toBe(true);
         expect(parsed.formatDetected).toBe('csv');
         expect(parsed.candidates[0].siteName).toBe('용인 1공구, 지하층');
-        expect(parsed.candidates[0].hazardType).toBe('낙하·비래');
+        expect(parsed.candidates[0].hazardType).toBe('낙하');
         expect(parsed.candidates[0].jobField).toBe('철근');
     });
 
@@ -289,5 +290,45 @@ describe('accidentBigData hub engine', () => {
         expect(siteAnalytics.siteCount).toBeGreaterThanOrEqual(4);
         expect(siteAnalytics.siteDistribution[0].siteName).toBeTruthy();
         expect(siteAnalytics.siteDistribution.reduce((acc, s) => acc + s.count, 0)).toBe(6);
+    });
+
+    it('separates bundled hazards cleanly into individual categories and migrates legacy bundled records', () => {
+        // 1) 개별 재해유형 분리 원칙: 붕괴 vs 전도, 낙하 vs 비래, 화재 vs 폭발, 베임 vs 찔림
+        expect(standardizeAccidentHazardType('전도', '갱폼 기울어짐')).toBe('전도(넘어짐)');
+        expect(standardizeAccidentHazardType('넘어짐', '물기 있는 바닥 미끄러짐')).toBe('전도(넘어짐)');
+        expect(standardizeAccidentHazardType('붕괴', '시스템 동바리 좌굴 무너짐')).toBe('붕괴');
+        expect(standardizeAccidentHazardType('낙하', '상부 알폼 패널 떨어짐')).toBe('낙하');
+        expect(standardizeAccidentHazardType('비래', '그라인더 연마 파편 튕김')).toBe('비래');
+        expect(standardizeAccidentHazardType('화재', '용접 불티 착화')).toBe('화재');
+        expect(standardizeAccidentHazardType('폭발', '밀폐공간 가연성 가스 폭발')).toBe('폭발');
+        expect(standardizeAccidentHazardType('베임', '철판 모서리 절단 사고')).toBe('베임(절단)');
+        expect(standardizeAccidentHazardType('찔림', '슬래브 돌출 철근 끝 찔림')).toBe('찔림');
+        expect(standardizeAccidentHazardType('화학물질 누출', '')).toBe('화학물질 누출');
+
+        // 2) 기존 DB에 저장된 묶음 표기('붕괴·전도', '낙하·비래')도 문맥을 반영해 무손실 분리 전환
+        const samples = getSampleAccidentBigDataRecords();
+        const legacyBundledJson = JSON.stringify([
+            { ...samples[0], hazardType: '붕괴·전도', workTask: '바닥 물기 미끄러짐 넘어짐', summary: '보행 중 미끄러짐' },
+            { ...samples[1], hazardType: '붕괴·전도', workTask: '시스템 동바리 무너짐', summary: '동바리 수직재 좌굴 붕괴' },
+            { ...samples[2], hazardType: '낙하·비래', workTask: '그라인더 절단석 파편 튕김', summary: '절단석 파편 비산' },
+            { ...samples[3], hazardType: '낙하·비래', workTask: '상부 볼트 떨어짐', summary: '상부에서 공구 낙하' },
+        ]);
+        const migrated = readAccidentBigDataStore(() => legacyBundledJson);
+        expect(migrated.safe).toBe(true);
+        expect(migrated.items.map((item) => item.hazardType)).toEqual([
+            '전도(넘어짐)',
+            '붕괴',
+            '비래',
+            '낙하',
+        ]);
+
+        // 3) AI 변환 지시문에도 묶음 금지 규칙 명시
+        const prompt = buildAccidentConversionPrompt({
+            provider: 'gemini',
+            outputFormat: 'json',
+        });
+        expect(prompt).toContain('묶음 금지');
+        expect(prompt).toContain('전도(넘어짐)');
+        expect(prompt).toContain('베임(절단)');
     });
 });

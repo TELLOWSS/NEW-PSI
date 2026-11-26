@@ -1,5 +1,4 @@
 import {
-    PSI_RISK_TYPE_CATALOG,
     PSI_STANDARD_JOB_FIELDS,
     PSI_WORKER_JOB_FIELDS,
     PSI_WORKER_JOB_FIELD_ALIASES,
@@ -260,7 +259,27 @@ const VALID_PROVIDERS: ReadonlySet<AccidentSourceProvider> = new Set([
     'manual',
 ]);
 
-const HAZARD_LABELS = PSI_RISK_TYPE_CATALOG.map((item) => item.label);
+export const ACCIDENT_HAZARD_TYPE_OPTIONS: readonly string[] = [
+    '추락',
+    '낙하',
+    '비래',
+    '전도(넘어짐)',
+    '붕괴',
+    '끼임(협착)',
+    '깔림(매몰)',
+    '충돌(부딪힘)',
+    '베임(절단)',
+    '찔림',
+    '감전',
+    '화재',
+    '폭발',
+    '질식',
+    '온열질환',
+    '근골격계(무리한 동작)',
+    '기타',
+];
+
+const HAZARD_LABELS = ACCIDENT_HAZARD_TYPE_OPTIONS;
 
 const normalizeText = (value: unknown): string =>
     String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -412,33 +431,62 @@ export const standardizeAccidentJobField = (value: unknown, fallbackContext = ''
     return '기타';
 };
 
+const GENERIC_HAZARD_PLACEHOLDERS = new Set(['', '기타', '미분류', '미상', '맞음', '물체에맞음', '일반']);
+
+const HAZARD_KEYWORD_RULES: Array<[RegExp, string]> = [
+    [/추락|떨어짐|실족|고소|개구부|사다리/, '추락'],
+    [/비래|파편|튕김|날아온|비산/, '비래'],
+    [/낙하|떨어진|낙하물|맞음/, '낙하'],
+    [/붕괴|무너짐|무너|좌굴|도괴/, '붕괴'],
+    [/전도|넘어짐|미끄러짐|걸려|쓰러짐|기울어/, '전도(넘어짐)'],
+    [/끼임|협착|물림|말림|회전체/, '끼임(협착)'],
+    [/깔림|매몰|압사/, '깔림(매몰)'],
+    [/충돌|부딪힘|접촉|후진|장비\s*충돌/, '충돌(부딪힘)'],
+    [/찔림|못|관통|철근\s*끝/, '찔림'],
+    [/베임|절단|절삭|날카|칼날/, '베임(절단)'],
+    [/감전|전기|누전|합선|아크/, '감전'],
+    [/폭발|파열|가스\s*폭발/, '폭발'],
+    [/화재|불티|화상|인화|착화/, '화재'],
+    [/질식|유독|밀폐|산소결핍|일산화탄소/, '질식'],
+    [/온열|폭염|열사병|탈수|열탈진|한랭/, '온열질환'],
+    [/근골격|무리한\s*동작|요통|허리\s*삐|염좌|과도한\s*힘/, '근골격계(무리한 동작)'],
+];
+
 export const standardizeAccidentHazardType = (value: unknown, fallbackContext = ''): string => {
     const raw = normalizeText(value);
+    const compact = raw.replace(/\s+/g, '');
+    const contextText = normalizeText(fallbackContext).toLowerCase();
+
     if ((HAZARD_LABELS as readonly string[]).includes(raw)) return raw;
 
-    const search = `${raw} ${fallbackContext}`.toLowerCase();
-    const extraHazardRules: Array<[RegExp, string]> = [
-        [/떨어짐|추락|실족|고소|개구부|사다리/, '추락'],
-        [/맞음|낙하|비래|떨어진|날아온|자재|공구/, '낙하·비래'],
-        [/끼임|협착|물림|말림|회전/, '끼임'],
-        [/깔림|매몰|압사|무너짐/, '깔림'],
-        [/붕괴|무너|전도|쓰러짐|넘어짐/, '붕괴·전도'],
-        [/감전|전기|누전|합선|아크/, '감전'],
-        [/화재|폭발|불티|화상|인화|가스폭발/, '화재·폭발'],
-        [/베임|찔림|절단|절삭|못|날카/, '베임·찔림'],
-        [/충돌|부딪힘|접촉|후진|차량|장비/, '충돌'],
-        [/질식|유독|밀폐|산소결핍|일산화탄소/, '질식'],
-        [/온열|폭염|열사병|탈수|열탈진/, '온열질환'],
-    ];
-
-    for (const [pattern, label] of extraHazardRules) {
-        if (pattern.test(search)) return label;
+    // 과거 묶음 분류('붕괴·전도', '낙하·비래', '화재·폭발', '베임·찔림')는 문맥을 보고 개별 재해유형으로 정확히 분리한다.
+    if (/^붕괴\s*[·ㆍ/|]\s*전도$/.test(compact)) {
+        return /붕괴|무너|좌굴|도괴|흙막이|토사\s*무너|동바리\s*무너|거푸집\s*무너/.test(contextText)
+            ? '붕괴'
+            : '전도(넘어짐)';
+    }
+    if (/^낙하\s*[·ㆍ/|]\s*비래$/.test(compact)) {
+        return /비래|파편|튕김|날아|비산|그라인더|절단석/.test(contextText) ? '비래' : '낙하';
+    }
+    if (/^화재\s*[·ㆍ/|]\s*폭발$/.test(compact)) {
+        return /폭발|파열|가스\s*폭발|인화성\s*증기/.test(contextText) ? '폭발' : '화재';
+    }
+    if (/^베임\s*[·ㆍ/|]\s*찔림$/.test(compact)) {
+        return /찔림|못|철근\s*끝|관통|결속선/.test(contextText) ? '찔림' : '베임(절단)';
     }
 
-    for (const item of PSI_RISK_TYPE_CATALOG) {
-        if (item.keywords.some((kw) => search.includes(kw))) {
-            return item.label;
+    const rawLower = raw.toLowerCase();
+    if (raw && !GENERIC_HAZARD_PLACEHOLDERS.has(compact.toLowerCase())) {
+        for (const [pattern, label] of HAZARD_KEYWORD_RULES) {
+            if (pattern.test(rawLower)) return label;
         }
+        // 사용자가 직접 입력한 세부 재해유형은 '기타'로 뭉개지 않고 보존한다.
+        return raw;
+    }
+
+    const combined = `${rawLower} ${contextText}`.trim();
+    for (const [pattern, label] of HAZARD_KEYWORD_RULES) {
+        if (pattern.test(combined)) return label;
     }
 
     return '기타';
@@ -553,7 +601,9 @@ export const buildAccidentConversionPrompt = (options: {
         '   - 작업 단계·행동은 반드시 별도 workStage(작업공정) 항목에 "해체·탈형" 또는 "정리·반출" 등으로 분리해 기록하세요.',
         '   - 보고서의 공종·직종·소속팀 항목에 "해체정리/해체반/정리반/해체공"으로 명시되었거나, 특정 전문팀이 아닌 별도 해체전담팀 작업일 때만 jobField를 "해체정리"로 분류하세요.',
         '   - "갱폼", "알폼", "시스템", "콘크리트비계", "바닥미장", "할석미장견출"은 "형틀"로 뭉개지 말고 세부 공종명 그대로 기록하며, 원도급사 문서에 "골조공사/철근콘크리트공사"처럼 대공종만 적혀 있으면 본문의 자재·장비·팀 명칭으로 세부 공종을 판별하세요.',
-        `3. 재해유형(hazardType) 표준화: 다음 12대 분류 중 가장 정확한 1개로 분류하세요 → [${stdHazards}]`,
+        `3. 재해유형(hazardType) 개별 표준화 (묶음 금지): 다음 개별 목록 중 가장 정확한 1개로 분류하세요 → [${stdHazards}]`,
+        '   - 성격과 위험 양상이 다른 "붕괴"와 "전도(넘어짐)", "낙하"와 "비래", "화재"와 "폭발", "베임(절단)"과 "찔림"을 절대 하나로 묶지 마세요.',
+        '   - 바닥 미끄러짐·걸려 넘어짐·자재/갱폼 쓰러짐은 "전도(넘어짐)", 가설구조물·동바리·흙막이·구조체 파괴만 "붕괴"로 구분하세요.',
         '4. 심각도(severity) 5단계 구분 — 반드시 다음 5개 중 1개만 정확히 선택하세요:',
         '   · 아차사고: 부상 없음·위험 징후·미수',
         '   · 경미(응급·외래): 현장 응급처치·휴업 3일 미만 단순 타박/찰과상',
@@ -602,7 +652,7 @@ export const buildAccidentConversionPrompt = (options: {
             '    "jobField": "소속 공종 1개 (알폼·형틀·갱폼·시스템·해체정리 등)",',
             '    "workStage": "설치·조립 | 해체·탈형 | 정리·반출 | 양중·인양 | 타설·양생 | 가공·절단 | 점검·보수 | 이동·운반 | 미상",',
             '    "workTask": "사고 당시 세부 작업내용",',
-            '    "hazardType": "12대 재해유형 중 1개",',
+            '    "hazardType": "개별 재해유형 1개 (붕괴·전도 등 묶음 금지)",',
             '    "severity": "아차사고 | 경미(응급·외래) | 휴업재해(3일↑) | 중상(장기·입원) | 중대재해",',
             '    "causingAgent": "기인물 또는 가해 장비·자재 (예: 이동식 비계, 앵글그라인더)",',
             '    "summary": "사고 발생 경위 핵심 요약 2~3문장 (실명 제외)",',
@@ -1408,10 +1458,14 @@ export const readAccidentBigDataStore = (
                 warning: '기존 사고 빅데이터 저장 형식이 손상되어 원본 보존을 위해 자동 덮어쓰기를 중단했습니다.',
             };
         }
-        // 기존 '경상'/'중상' 레거시 심각도 표기와 누락된 작업공정(workStage)을 무손실 자동 전환·보강한다.
+        // 기존 '경상'/'중상', 묶음 재해유형('붕괴·전도' 등), 누락된 작업공정(workStage)을 무손실 자동 세분화·보강한다.
         const migrated = (parsed as AccidentBigDataRecord[]).map((item) => ({
             ...item,
             severity: normalizeAccidentSeverity(item.severity),
+            hazardType: standardizeAccidentHazardType(
+                item.hazardType,
+                `${item.workTask || ''} ${item.summary || ''} ${item.causingAgent || ''}`,
+            ),
             workStage: normalizeAccidentWorkStage(item.workStage, `${item.workTask || ''} ${item.summary || ''}`),
         }));
         return { items: migrated, safe: true, warning: '' };
@@ -1554,7 +1608,7 @@ export const getSampleAccidentBigDataRecords = (): AccidentBigDataRecord[] => {
             siteName: '판교 R&D 센터 신축',
             jobField: '해체정리',
             workTask: '2층 슬래브 알폼 해체 및 자재 하역',
-            hazardType: '낙하·비래',
+            hazardType: '낙하',
             severity: '휴업재해(3일↑)',
             causingAgent: '알폼 패널 낙하',
             summary: '상부에서 알폼 고정핀을 해체하던 중 패널이 하부로 떨어지며 작업자 정강이에 맞아 2주 통원 휴업 치료가 발생한 사례.',
@@ -1573,7 +1627,7 @@ export const getSampleAccidentBigDataRecords = (): AccidentBigDataRecord[] => {
             siteName: '수도권 3공구 공동주택',
             jobField: '철근',
             workTask: '타워크레인 철근 다발 인양 후 하역',
-            hazardType: '끼임',
+            hazardType: '끼임(협착)',
             severity: '경미(응급·외래)',
             causingAgent: '철근 다발과 거푸집 사이',
             summary: '인양 중인 철근 다발을 손으로 직접 잡아 위치를 맞추다 벽체 거푸집 사이에 손가락이 스쳐 현장 응급처치 후 당일 복귀한 경미 사례.',
@@ -1611,7 +1665,7 @@ export const getSampleAccidentBigDataRecords = (): AccidentBigDataRecord[] => {
             siteName: '판교 R&D 센터 신축',
             jobField: '굴착',
             workTask: '우수관로 되메우기 구간 백호 후진 작업',
-            hazardType: '충돌',
+            hazardType: '충돌(부딪힘)',
             severity: '중대재해',
             causingAgent: '굴착기 후방 사각지대',
             summary: '장비 후방에서 측량 보조를 하던 작업자를 운전원이 사각지대로 인지하지 못해 충돌 직전 비상정지된 중대 아차·위험 사례.',

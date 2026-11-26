@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { PSI_RISK_TYPE_CATALOG } from '../config/psiFormMaster';
 import type {
     AccidentBigDataRecord,
     AccidentSeverity,
@@ -10,6 +9,7 @@ import type {
 } from '../types';
 import {
     ACCIDENT_BIGDATA_UPDATED_EVENT,
+    ACCIDENT_HAZARD_TYPE_OPTIONS,
     ACCIDENT_JOB_FIELD_OPTIONS,
     ACCIDENT_SEVERITY_LEVELS,
     ACCIDENT_SEVERITY_META,
@@ -108,7 +108,7 @@ const applyHubFilters = (
 const SEVERITY_OPTIONS: readonly AccidentSeverity[] = ACCIDENT_SEVERITY_LEVELS;
 const WORK_STAGE_OPTIONS: readonly AccidentWorkStage[] = ACCIDENT_WORK_STAGE_OPTIONS;
 const TIME_SLOT_OPTIONS: readonly AccidentTimeSlot[] = ['오전 작업전', '오전', '점심 직후', '오후', '야간', '미상'];
-const HAZARD_OPTIONS = PSI_RISK_TYPE_CATALOG.map((item) => item.label);
+const HAZARD_OPTIONS: readonly string[] = ACCIDENT_HAZARD_TYPE_OPTIONS;
 
 const SEVERITY_BADGE_MAP: Record<AccidentSeverity, string> = {
     '중대재해': 'border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-500/40 dark:bg-rose-950/60 dark:text-rose-200',
@@ -238,6 +238,8 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
     const [editDraft, setEditDraft] = useState<AccidentBigDataRecord | null>(null);
     const [customCandidateJobs, setCustomCandidateJobs] = useState<Record<string, boolean>>({});
     const [customDraftJob, setCustomDraftJob] = useState(false);
+    const [customCandidateHazards, setCustomCandidateHazards] = useState<Record<string, boolean>>({});
+    const [customDraftHazard, setCustomDraftHazard] = useState(false);
 
     useEffect(() => {
         const handleExternalUpdate = () => {
@@ -287,6 +289,14 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
 
     const jobFieldOptions = useMemo(() => {
         const set = new Set(records.map((r) => r.jobField).filter(Boolean));
+        return ['전체', ...Array.from(set)];
+    }, [records]);
+
+    const hazardFilterOptions = useMemo(() => {
+        const set = new Set<string>(HAZARD_OPTIONS);
+        records.forEach((r) => {
+            if (r.hazardType?.trim()) set.add(r.hazardType.trim());
+        });
         return ['전체', ...Array.from(set)];
     }, [records]);
 
@@ -586,6 +596,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
         setSelectedRecord(record);
         setEditDraft({ ...record });
         setCustomDraftJob(!ACCIDENT_JOB_FIELD_OPTIONS.includes(record.jobField));
+        setCustomDraftHazard(!HAZARD_OPTIONS.includes(record.hazardType));
         setIsEditingDrawer(startInEditMode);
     };
 
@@ -1350,16 +1361,33 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                                 </select>
                                             </div>
                                             <div className="min-w-0">
-                                                <label className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">12대 재해유형</label>
+                                                <label className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">재해유형 (개별 분류 · 직접입력)</label>
                                                 <select
-                                                    value={cand.record.hazardType}
-                                                    onChange={(e) => handleUpdateCandidateField(cand.candidateId, 'hazardType', e.target.value)}
+                                                    value={customCandidateHazards[cand.candidateId] || !HAZARD_OPTIONS.includes(cand.record.hazardType) ? '__custom__' : cand.record.hazardType}
+                                                    onChange={(e) => {
+                                                        if (e.target.value === '__custom__') {
+                                                            setCustomCandidateHazards((prev) => ({ ...prev, [cand.candidateId]: true }));
+                                                            return;
+                                                        }
+                                                        setCustomCandidateHazards((prev) => ({ ...prev, [cand.candidateId]: false }));
+                                                        handleUpdateCandidateField(cand.candidateId, 'hazardType', e.target.value);
+                                                    }}
                                                     className="w-full min-h-[38px] rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                                                 >
                                                     {HAZARD_OPTIONS.map((hazard) => (
                                                         <option key={hazard} value={hazard}>{hazard}</option>
                                                     ))}
+                                                    <option value="__custom__">+ 직접 입력...</option>
                                                 </select>
+                                                {(customCandidateHazards[cand.candidateId] || !HAZARD_OPTIONS.includes(cand.record.hazardType)) && (
+                                                    <input
+                                                        type="text"
+                                                        value={cand.record.hazardType}
+                                                        onChange={(e) => handleUpdateCandidateField(cand.candidateId, 'hazardType', e.target.value)}
+                                                        placeholder="예: 전도(넘어짐), 비래, 화학물질..."
+                                                        className="mt-1.5 w-full min-h-[36px] rounded-lg border border-teal-400 bg-white px-2.5 text-xs font-semibold text-slate-900 dark:bg-slate-950 dark:text-slate-100"
+                                                    />
+                                                )}
                                             </div>
                                             <div className="min-w-0">
                                                 <label className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">심각도 (5단계)</label>
@@ -1478,6 +1506,21 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                     {WORK_STAGE_OPTIONS.map((stage) => <option key={stage} value={stage}>{stage}</option>)}
                                 </select>
                             </div>
+                            <div className="min-w-[135px] flex-1">
+                                <label htmlFor="ab-filter-hazard" className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">
+                                    재해유형 (개별)
+                                </label>
+                                <select
+                                    id="ab-filter-hazard"
+                                    value={dashboardFilters.hazard}
+                                    onChange={(e) => setDashboardFilters((prev) => ({ ...prev, hazard: e.target.value }))}
+                                    className="w-full min-h-[40px] rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                >
+                                    {hazardFilterOptions.map((haz) => (
+                                        <option key={haz} value={haz}>{haz === '전체' ? '전체 재해유형' : haz}</option>
+                                    ))}
+                                </select>
+                            </div>
                             <div className="min-w-[140px] flex-1">
                                 <label htmlFor="ab-filter-severity" className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">
                                     심각도
@@ -1522,6 +1565,9 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                     )}
                                     {dashboardFilters.workStage !== '전체' && (
                                         <span className="rounded-full bg-white/90 px-2.5 py-0.5 dark:bg-slate-900">공정: {dashboardFilters.workStage}</span>
+                                    )}
+                                    {dashboardFilters.hazard !== '전체' && (
+                                        <span className="rounded-full bg-white/90 px-2.5 py-0.5 dark:bg-slate-900">유형: {dashboardFilters.hazard}</span>
                                     )}
                                     {dashboardFilters.severity !== '전체' && (
                                         <span className="rounded-full bg-white/90 px-2.5 py-0.5 dark:bg-slate-900">등급: {dashboardFilters.severity}</span>
@@ -1601,7 +1647,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                     </p>
                                 </article>
                                 <article className="psi-ab-card psi-ab-rise psi-ab-rise-d3">
-                                    <p className="text-xs font-bold text-slate-600 dark:text-slate-300">최다 재해유형 (12대)</p>
+                                    <p className="text-xs font-bold text-slate-600 dark:text-slate-300">최다 재해유형 (개별 집계)</p>
                                     <p className="mt-2 text-2xl font-black tracking-tight text-slate-900 dark:text-white">
                                         {analytics.topHazardType?.label || '집계중'}
                                     </p>
@@ -1906,7 +1952,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                 <section className="psi-ab-card psi-ab-rise flex flex-col gap-3">
                                     <div className="flex items-center justify-between gap-2">
                                         <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
-                                            12대 재해유형 분포
+                                            개별 재해유형 분포 (묶음 없이 정밀 집계)
                                         </h2>
                                         <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                                             막대 클릭 시 보관함 필터링
@@ -2189,6 +2235,16 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                 <option value="전체">전체 공정</option>
                                 {WORK_STAGE_OPTIONS.map((stage) => (
                                     <option key={stage} value={stage}>{stage}</option>
+                                ))}
+                            </select>
+                            <select
+                                aria-label="보관함 재해유형 필터"
+                                value={archiveFilters.hazard}
+                                onChange={(e) => setArchiveFilters((prev) => ({ ...prev, hazard: e.target.value }))}
+                                className="min-h-[38px] rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                            >
+                                {hazardFilterOptions.map((haz) => (
+                                    <option key={haz} value={haz}>{haz === '전체' ? '전체 재해유형' : haz}</option>
                                 ))}
                             </select>
                             <input
@@ -2523,16 +2579,33 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">12대 재해유형</label>
+                                        <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">재해유형 (개별 · 직접입력)</label>
                                         <select
-                                            value={editDraft.hazardType}
-                                            onChange={(e) => setEditDraft({ ...editDraft, hazardType: e.target.value })}
+                                            value={customDraftHazard || !HAZARD_OPTIONS.includes(editDraft.hazardType) ? '__custom__' : editDraft.hazardType}
+                                            onChange={(e) => {
+                                                if (e.target.value === '__custom__') {
+                                                    setCustomDraftHazard(true);
+                                                    return;
+                                                }
+                                                setCustomDraftHazard(false);
+                                                setEditDraft({ ...editDraft, hazardType: e.target.value });
+                                            }}
                                             className="w-full min-h-[38px] rounded-xl border border-slate-300 bg-white px-3 font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                                         >
                                             {HAZARD_OPTIONS.map((hazard) => (
                                                 <option key={hazard} value={hazard}>{hazard}</option>
                                             ))}
+                                            <option value="__custom__">+ 직접 입력...</option>
                                         </select>
+                                        {(customDraftHazard || !HAZARD_OPTIONS.includes(editDraft.hazardType)) && (
+                                            <input
+                                                type="text"
+                                                value={editDraft.hazardType}
+                                                onChange={(e) => setEditDraft({ ...editDraft, hazardType: e.target.value })}
+                                                placeholder="세부 재해유형 직접 입력..."
+                                                className="mt-1.5 w-full min-h-[36px] rounded-xl border border-teal-400 bg-white px-3 font-semibold text-slate-900 dark:bg-slate-950 dark:text-slate-100"
+                                            />
+                                        )}
                                     </div>
                                     <div>
                                         <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">심각도 (5단계)</label>
