@@ -475,6 +475,86 @@ html[data-psi-sunlight="true"] .psi-platform-field-canvas [data-psi-screen="acci
   box-shadow: 0 6px 14px rgba(15, 23, 42, 0.14);
 }
 
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-heatmap-scroll {
+  overflow: auto;
+  max-height: 480px;
+  border-radius: 16px;
+  border: 1px solid var(--ab-border);
+  background: var(--ab-surface);
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-heatmap-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 5px;
+  font-size: 12px;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-heatmap-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--ab-surface);
+  padding: 6px 8px;
+  font-weight: 800;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--ab-border);
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-heatmap-table .psi-ab-sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--ab-surface);
+  min-width: 108px;
+  text-align: left;
+  padding: 6px 10px;
+  font-weight: 800;
+  white-space: nowrap;
+  border-right: 1px solid var(--ab-border);
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-heatmap-table thead th.psi-ab-sticky-col {
+  z-index: 4;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-heatmap-table tfoot th,
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-heatmap-table tfoot td {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  background: var(--ab-surface-muted);
+  border-top: 1px solid var(--ab-border);
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-heatmap-table tfoot th.psi-ab-sticky-col {
+  z-index: 4;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-heatmap-total-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  min-height: 36px;
+  width: 100%;
+  border-radius: 10px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--ab-border);
+  background: var(--ab-surface-muted);
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-heatmap-total-btn:hover {
+  border-color: rgba(15, 118, 110, 0.45);
+}
+
+html[data-psi-sunlight="high"] .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-heatmap-table thead th,
+html[data-psi-sunlight="high"] .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-heatmap-table .psi-ab-sticky-col {
+  background: #ffffff;
+}
+
 .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-pillar-wrap {
   display: flex;
   align-items: flex-end;

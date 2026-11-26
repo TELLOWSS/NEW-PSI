@@ -331,4 +331,31 @@ describe('accidentBigData hub engine', () => {
         expect(prompt).toContain('전도(넘어짐)');
         expect(prompt).toContain('베임(절단)');
     });
+
+    it('includes every occurring trade and hazard in riskMatrix without truncating at 5x5', () => {
+        const trades = ['형틀', '철근', '알폼', '갱폼', '시스템', '해체정리', '바닥미장', '할석미장견출'];
+        const hazards = ['추락', '낙하', '비래', '전도(넘어짐)', '붕괴', '끼임(협착)', '감전', '화재'];
+        const baseSample = getSampleAccidentBigDataRecords()[0];
+
+        const manyRecords = trades.map((trade, idx) => ({
+            ...baseSample,
+            id: `many-${idx}`,
+            occurredDate: `2026-11-${String(idx + 10).padStart(2, '0')}`,
+            jobField: trade,
+            hazardType: hazards[idx],
+            severity: idx === trades.length - 1 ? ('중대재해' as const) : ('경미(응급·외래)' as const),
+        }));
+
+        const analytics = computeAccidentBigDataAnalytics(manyRecords);
+        expect(analytics.riskMatrix.trades).toHaveLength(8);
+        expect(analytics.riskMatrix.hazards).toHaveLength(8);
+        expect(analytics.riskMatrix.trades).toContain('할석미장견출');
+        expect(analytics.riskMatrix.hazards).toContain('화재');
+
+        const tradeSum = Object.values(analytics.riskMatrix.tradeTotals).reduce((sum, item) => sum + item.count, 0);
+        const hazardSum = Object.values(analytics.riskMatrix.hazardTotals).reduce((sum, item) => sum + item.count, 0);
+        expect(tradeSum).toBe(8);
+        expect(hazardSum).toBe(8);
+        expect(analytics.riskMatrix.tradeTotals['할석미장견출']?.severeCount).toBe(1);
+    });
 });

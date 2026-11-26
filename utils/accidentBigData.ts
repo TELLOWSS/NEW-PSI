@@ -28,6 +28,8 @@ export const ACCIDENT_WORK_STAGE_OPTIONS: readonly AccidentWorkStage[] = [
     '미상',
 ];
 
+export const ACCIDENT_FRAME_STANDARD_TRADES: readonly string[] = [...PSI_WORKER_JOB_FIELDS];
+
 export const ACCIDENT_JOB_FIELD_OPTIONS: readonly string[] = Array.from(new Set([
     ...PSI_WORKER_JOB_FIELDS,
     ...PSI_STANDARD_JOB_FIELDS.filter((item) => item !== '미분류'),
@@ -139,6 +141,8 @@ export interface AccidentRiskMatrix {
     trades: string[];
     hazards: string[];
     cells: AccidentRiskMatrixCell[];
+    tradeTotals: Record<string, { count: number; severeCount: number }>;
+    hazardTotals: Record<string, { count: number; severeCount: number }>;
 }
 
 export interface AccidentSiteComparisonBucket {
@@ -1302,8 +1306,17 @@ export const computeAccidentBigDataAnalytics = (
         isPeak: peakSlotCount > 0 && item.count === peakSlotCount,
     }));
 
-    const matrixTrades = jobFieldDistribution.slice(0, 5).map((item) => item.label);
-    const matrixHazards = hazardDistribution.slice(0, 5).map((item) => item.label);
+    const matrixTrades = jobFieldDistribution.map((item) => item.label);
+    const matrixHazards = hazardDistribution.map((item) => item.label);
+    const tradeTotals: Record<string, { count: number; severeCount: number }> = {};
+    for (const bucket of jobFieldDistribution) {
+        tradeTotals[bucket.label] = { count: bucket.count, severeCount: bucket.severeCount };
+    }
+    const hazardTotals: Record<string, { count: number; severeCount: number }> = {};
+    for (const bucket of hazardDistribution) {
+        hazardTotals[bucket.label] = { count: bucket.count, severeCount: bucket.severeCount };
+    }
+
     const matrixCounts = matrixTrades.flatMap((trade) =>
         matrixHazards.map((hazard) => {
             const matched = records.filter((r) => r.jobField === trade && r.hazardType === hazard);
@@ -1330,6 +1343,8 @@ export const computeAccidentBigDataAnalytics = (
                         : 1;
             return { ...cell, intensity };
         }),
+        tradeTotals,
+        hazardTotals,
     };
 
     const toTopList = (getKey: (r: AccidentBigDataRecord) => string) => {

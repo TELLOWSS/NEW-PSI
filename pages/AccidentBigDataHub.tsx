@@ -9,6 +9,7 @@ import type {
 } from '../types';
 import {
     ACCIDENT_BIGDATA_UPDATED_EVENT,
+    ACCIDENT_FRAME_STANDARD_TRADES,
     ACCIDENT_HAZARD_TYPE_OPTIONS,
     ACCIDENT_JOB_FIELD_OPTIONS,
     ACCIDENT_SEVERITY_LEVELS,
@@ -233,6 +234,8 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
     // Dashboard & Archive Independent Filters (대시보드와 보관함 필터를 독립 관리해 드릴다운 후 복귀 시 전체 뷰 유지)
     const [dashboardFilters, setDashboardFilters] = useState<HubFilterState>(DEFAULT_HUB_FILTERS);
     const [archiveFilters, setArchiveFilters] = useState<HubFilterState>(DEFAULT_HUB_FILTERS);
+    const [matrixSortMode, setMatrixSortMode] = useState<'risk' | 'count' | 'alpha'>('risk');
+    const [showZeroTrades, setShowZeroTrades] = useState(false);
     const [selectedRecord, setSelectedRecord] = useState<AccidentBigDataRecord | null>(null);
     const [isEditingDrawer, setIsEditingDrawer] = useState(false);
     const [editDraft, setEditDraft] = useState<AccidentBigDataRecord | null>(null);
@@ -332,6 +335,32 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
         () => computeAccidentBigDataAnalytics(dashboardFilteredRecords, workerRecords),
         [dashboardFilteredRecords, workerRecords],
     );
+
+    const heatmapDisplayTrades = useMemo(() => {
+        const baseTrades = showZeroTrades
+            ? Array.from(new Set([...analytics.riskMatrix.trades, ...ACCIDENT_FRAME_STANDARD_TRADES]))
+            : [...analytics.riskMatrix.trades];
+
+        return baseTrades.sort((a, b) => {
+            const statA = analytics.riskMatrix.tradeTotals[a] || { count: 0, severeCount: 0 };
+            const statB = analytics.riskMatrix.tradeTotals[b] || { count: 0, severeCount: 0 };
+            if (matrixSortMode === 'alpha') {
+                return a.localeCompare(b, 'ko-KR');
+            }
+            if (matrixSortMode === 'count') {
+                return statB.count - statA.count || statB.severeCount - statA.severeCount || a.localeCompare(b, 'ko-KR');
+            }
+            return statB.severeCount - statA.severeCount || statB.count - statA.count || a.localeCompare(b, 'ko-KR');
+        });
+    }, [analytics.riskMatrix.tradeTotals, analytics.riskMatrix.trades, matrixSortMode, showZeroTrades]);
+
+    const heatmapCellMap = useMemo(() => {
+        const map = new Map<string, (typeof analytics.riskMatrix.cells)[number]>();
+        for (const cell of analytics.riskMatrix.cells) {
+            map.set(`${cell.trade}::${cell.hazard}`, cell);
+        }
+        return map;
+    }, [analytics.riskMatrix.cells]);
 
     const animatedTotal = useAnimatedNumber(analytics.totalCount);
     const animatedReportableRate = useAnimatedNumber(analytics.reportableRatePct);
@@ -1769,121 +1798,177 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                 </section>
                             </div>
 
-                            {/* Signature Graphic-Art Row 2: Trade x Hazard Heatmap + Circadian Rhythm Chart */}
-                            <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-                                <section className="psi-ab-card psi-ab-rise flex flex-col gap-3">
-                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                        <div>
+                            {/* Signature Full-Width Row 2: Complete Untruncated Trade x Hazard Heatmap */}
+                            <section className="psi-ab-card psi-ab-rise flex flex-col gap-3.5">
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                    <div>
+                                        <div className="flex flex-wrap items-center gap-2">
                                             <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
-                                                공종 × 재해유형 위험 히트맵
+                                                공종 × 재해유형 전체 위험 히트맵 (누락 없음)
                                             </h2>
-                                            <p className="text-xs text-slate-600 dark:text-slate-300">
-                                                강조된 교차 칸을 누르면 해당 공종·재해유형 사례만 바로 모아봅니다
-                                            </p>
+                                            <span className="rounded-full border border-teal-300 bg-teal-50 px-2.5 py-0.5 text-xs font-extrabold text-teal-800 dark:border-teal-500/40 dark:bg-teal-950/60 dark:text-teal-200">
+                                                {heatmapDisplayTrades.length}개 공종 × {analytics.riskMatrix.hazards.length}개 재해유형 · 총 {analytics.totalCount}건
+                                            </span>
                                         </div>
+                                        <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
+                                            사고가 1건이라도 발생한 모든 공종과 개별 재해유형을 잘림 없이 전수 표시합니다. 칸이나 합계를 누르면 보관함으로 바로 이동합니다.
+                                        </p>
                                     </div>
-                                    {analytics.riskMatrix.trades.length > 0 && analytics.riskMatrix.hazards.length > 0 ? (
-                                        <div className="overflow-x-auto pb-1">
-                                            <div
-                                                className="psi-ab-matrix-grid min-w-[420px]"
-                                                style={{
-                                                    gridTemplateColumns: `88px repeat(${analytics.riskMatrix.hazards.length}, minmax(0, 1fr))`,
-                                                }}
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100/80 p-1 text-xs font-bold dark:border-slate-700 dark:bg-slate-800/80" role="group" aria-label="히트맵 정렬 기준">
+                                            <button
+                                                type="button"
+                                                onClick={() => setMatrixSortMode('risk')}
+                                                className={`rounded-lg px-2.5 py-1.5 transition-colors ${matrixSortMode === 'risk'
+                                                    ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-950 dark:text-white'
+                                                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-300'
+                                                }`}
                                             >
-                                                <div />
-                                                {analytics.riskMatrix.hazards.map((hazard) => (
-                                                    <div key={hazard} className="px-1 text-center text-xs font-extrabold text-slate-600 dark:text-slate-300">
-                                                        {hazard}
-                                                    </div>
-                                                ))}
-                                                {analytics.riskMatrix.trades.map((trade) => (
-                                                    <React.Fragment key={trade}>
-                                                        <div className="flex items-center pr-2 text-xs font-extrabold text-slate-800 dark:text-slate-100">
-                                                            {trade}
-                                                        </div>
-                                                        {analytics.riskMatrix.hazards.map((hazard) => {
-                                                            const cell = analytics.riskMatrix.cells.find(
-                                                                (c) => c.trade === trade && c.hazard === hazard,
-                                                            );
-                                                            const count = cell?.count || 0;
-                                                            const intensity = cell?.intensity || 0;
-                                                            const cellStyle =
-                                                                intensity === 3
-                                                                    ? 'psi-ab-hotspot-hot border-rose-400/70 bg-rose-500/20 text-rose-900 dark:bg-rose-500/30 dark:text-rose-100 is-clickable'
-                                                                    : intensity === 2
-                                                                        ? 'border-amber-400/70 bg-amber-500/20 text-amber-900 dark:bg-amber-500/30 dark:text-amber-100 is-clickable'
-                                                                        : intensity === 1
-                                                                            ? 'border-teal-400/60 bg-teal-500/15 text-teal-900 dark:bg-teal-500/25 dark:text-teal-100 is-clickable'
-                                                                            : 'border-slate-200/60 bg-slate-100/50 text-slate-400 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-600';
-                                                            return (
-                                                                <button
-                                                                    key={`${trade}-${hazard}`}
-                                                                    type="button"
-                                                                    disabled={count === 0}
-                                                                    onClick={() => openArchiveWithFilter({ jobField: trade, hazard })}
-                                                                    className={`psi-ab-matrix-cell ${cellStyle}`}
-                                                                >
-                                                                    <span>{count > 0 ? `${count}건` : '-'}</span>
-                                                                    {cell && cell.severeCount > 0 && (
-                                                                        <span className="text-[10px] font-bold">중상↑{cell.severeCount}</span>
-                                                                    )}
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </React.Fragment>
-                                                ))}
-                                            </div>
+                                                위험도(중상↑)순
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setMatrixSortMode('count')}
+                                                className={`rounded-lg px-2.5 py-1.5 transition-colors ${matrixSortMode === 'count'
+                                                    ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-950 dark:text-white'
+                                                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-300'
+                                                }`}
+                                            >
+                                                발생 건수순
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setMatrixSortMode('alpha')}
+                                                className={`rounded-lg px-2.5 py-1.5 transition-colors ${matrixSortMode === 'alpha'
+                                                    ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-950 dark:text-white'
+                                                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-300'
+                                                }`}
+                                            >
+                                                가나다순
+                                            </button>
                                         </div>
-                                    ) : (
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">히트맵을 생성할 데이터가 부족합니다.</p>
-                                    )}
-                                </section>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowZeroTrades((prev) => !prev)}
+                                            className={`min-h-[34px] rounded-xl border px-3 text-xs font-extrabold transition-colors ${showZeroTrades
+                                                ? 'border-indigo-500 bg-indigo-600 text-white'
+                                                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                                            }`}
+                                        >
+                                            {showZeroTrades ? '표준 골조 공종(0건 포함) 표시 중' : '사고 발생 공종만 보기'}
+                                        </button>
+                                    </div>
+                                </div>
 
-                                <section className="psi-ab-card psi-ab-rise flex flex-col gap-3">
-                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                        <div>
-                                            <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
-                                                작업 시간대별 사고 리듬
-                                            </h2>
-                                            <p className="text-xs text-slate-600 dark:text-slate-300">
-                                                하루 작업 흐름(작업전 · 오전 · 점심직후 · 오후 · 야간) 중 피크 시간대를 포착합니다
-                                            </p>
-                                        </div>
+                                {heatmapDisplayTrades.length > 0 && analytics.riskMatrix.hazards.length > 0 ? (
+                                    <div className="psi-ab-heatmap-scroll">
+                                        <table className="psi-ab-heatmap-table" aria-label="공종별 재해유형 전체 교차 히트맵">
+                                            <thead>
+                                                <tr>
+                                                    <th scope="col" className="psi-ab-sticky-col text-slate-700 dark:text-slate-200">
+                                                        공종 ╲ 재해유형
+                                                    </th>
+                                                    {analytics.riskMatrix.hazards.map((hazard) => (
+                                                        <th key={hazard} scope="col" className="text-center text-slate-700 dark:text-slate-200">
+                                                            {hazard}
+                                                        </th>
+                                                    ))}
+                                                    <th scope="col" className="text-center text-teal-800 dark:text-teal-200">
+                                                        공종 합계
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {heatmapDisplayTrades.map((trade) => {
+                                                    const rowTotal = analytics.riskMatrix.tradeTotals[trade] || { count: 0, severeCount: 0 };
+                                                    return (
+                                                        <tr key={trade}>
+                                                            <th scope="row" className="psi-ab-sticky-col text-slate-900 dark:text-slate-100">
+                                                                <span className="inline-flex items-center gap-1.5">
+                                                                    <span>{trade}</span>
+                                                                    {rowTotal.count === 0 && (
+                                                                        <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                                                            무재해
+                                                                        </span>
+                                                                    )}
+                                                                </span>
+                                                            </th>
+                                                            {analytics.riskMatrix.hazards.map((hazard) => {
+                                                                const cell = heatmapCellMap.get(`${trade}::${hazard}`);
+                                                                const count = cell?.count || 0;
+                                                                const severeCount = cell?.severeCount || 0;
+                                                                const intensity = cell?.intensity || 0;
+                                                                const cellStyle =
+                                                                    intensity === 3
+                                                                        ? 'psi-ab-hotspot-hot border-rose-400/70 bg-rose-500/20 text-rose-900 dark:bg-rose-500/30 dark:text-rose-100 is-clickable'
+                                                                        : intensity === 2
+                                                                            ? 'border-amber-400/70 bg-amber-500/20 text-amber-900 dark:bg-amber-500/30 dark:text-amber-100 is-clickable'
+                                                                            : intensity === 1
+                                                                                ? 'border-teal-400/60 bg-teal-500/15 text-teal-900 dark:bg-teal-500/25 dark:text-teal-100 is-clickable'
+                                                                                : 'border-slate-200/60 bg-slate-100/50 text-slate-400 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-600';
+                                                                return (
+                                                                    <td key={`${trade}-${hazard}`} className="min-w-[74px]">
+                                                                        <button
+                                                                            type="button"
+                                                                            disabled={count === 0}
+                                                                            onClick={() => openArchiveWithFilter({ jobField: trade, hazard })}
+                                                                            className={`psi-ab-matrix-cell w-full px-1.5 ${cellStyle}`}
+                                                                        >
+                                                                            <span>{count > 0 ? `${count}건` : '-'}</span>
+                                                                            {severeCount > 0 && (
+                                                                                <span className="text-[10px] font-bold">중상↑{severeCount}</span>
+                                                                            )}
+                                                                        </button>
+                                                                    </td>
+                                                                );
+                                                            })}
+                                                            <td>
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={rowTotal.count === 0}
+                                                                    onClick={() => openArchiveWithFilter({ jobField: trade })}
+                                                                    className="psi-ab-heatmap-total-btn px-2 text-xs text-slate-900 disabled:opacity-45 dark:text-slate-100"
+                                                                >
+                                                                    {rowTotal.count}건
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                            <tfoot>
+                                                <tr>
+                                                    <th scope="row" className="psi-ab-sticky-col text-teal-900 dark:text-teal-200">
+                                                        유형 합계
+                                                    </th>
+                                                    {analytics.riskMatrix.hazards.map((hazard) => {
+                                                        const colTotal = analytics.riskMatrix.hazardTotals[hazard] || { count: 0, severeCount: 0 };
+                                                        return (
+                                                            <td key={`total-${hazard}`}>
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={colTotal.count === 0}
+                                                                    onClick={() => openArchiveWithFilter({ hazard })}
+                                                                    className="psi-ab-heatmap-total-btn px-1.5 text-xs text-slate-900 disabled:opacity-45 dark:text-slate-100"
+                                                                >
+                                                                    {colTotal.count}건
+                                                                </button>
+                                                            </td>
+                                                        );
+                                                    })}
+                                                    <td>
+                                                        <span className="psi-ab-heatmap-total-btn border-teal-500/40 bg-teal-50 px-2 text-xs text-teal-900 dark:bg-teal-950/60 dark:text-teal-100">
+                                                            {analytics.totalCount}건
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
                                     </div>
-                                    <div className="grid grid-cols-5 gap-2.5 pt-2">
-                                        {analytics.timeSlotDistribution.map((item) => {
-                                            const heightPct = item.count === 0 ? 8 : Math.max(18, item.sharePct);
-                                            return (
-                                                <div key={item.slot} className="flex flex-col items-center gap-2 text-center">
-                                                    <div className="psi-ab-pillar-wrap">
-                                                        <div
-                                                            className={`psi-ab-pillar ${
-                                                                item.isPeak
-                                                                    ? 'bg-gradient-to-t from-rose-600 to-amber-400 psi-ab-hotspot-hot'
-                                                                    : 'bg-gradient-to-t from-teal-700 to-cyan-400'
-                                                            }`}
-                                                            style={{ height: `${heightPct}%` }}
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-xs font-extrabold text-slate-900 tabular-nums dark:text-white">
-                                                            {item.count}건
-                                                        </p>
-                                                        <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                                                            {item.slot}
-                                                        </p>
-                                                        {item.isPeak && (
-                                                            <span className="mt-0.5 inline-block rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-extrabold text-rose-800 dark:bg-rose-950 dark:text-rose-200">
-                                                                집중 주의
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </section>
-                            </div>
+                                ) : (
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">히트맵을 생성할 데이터가 부족합니다.</p>
+                                )}
+                            </section>
 
                             {/* NEW-PSI Risk Assessment Cross-Link Alerts */}
                             {analytics.crossLinkAlerts.length > 0 && (
@@ -1948,42 +2033,89 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
 
                             {/* 2-Column Visual Analytics */}
                             <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-                                {/* Hazard Bars */}
-                                <section className="psi-ab-card psi-ab-rise flex flex-col gap-3">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
-                                            개별 재해유형 분포 (묶음 없이 정밀 집계)
-                                        </h2>
-                                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                            막대 클릭 시 보관함 필터링
-                                        </span>
-                                    </div>
-                                    <div className="flex flex-col gap-2.5">
-                                        {analytics.hazardDistribution.map((bucket) => (
-                                            <button
-                                                key={bucket.label}
-                                                type="button"
-                                                onClick={() => openArchiveWithFilter({ hazard: bucket.label })}
-                                                className="group flex flex-col gap-1.5 rounded-xl p-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60"
-                                            >
-                                                <div className="flex items-center justify-between text-xs font-bold">
-                                                    <span className="text-slate-900 dark:text-slate-100">{bucket.label}</span>
-                                                    <span className="tabular-nums text-slate-600 dark:text-slate-300">
-                                                        {bucket.count}건 ({bucket.sharePct}%) {bucket.severeCount > 0 ? `· 중점 ${bucket.severeCount}건` : ''}
-                                                    </span>
-                                                </div>
-                                                <div className="psi-ab-bar-track">
-                                                    <div
-                                                        className="psi-ab-bar-fill bg-gradient-to-r from-teal-600 to-cyan-500"
-                                                        style={{ width: `${Math.max(8, bucket.sharePct)}%` }}
-                                                    />
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </section>
+                                {/* Left Column: Hazard Bars + Circadian Rhythm */}
+                                <div className="flex flex-col gap-5">
+                                    <section className="psi-ab-card psi-ab-rise flex flex-col gap-3">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
+                                                개별 재해유형 분포 (묶음 없이 정밀 집계)
+                                            </h2>
+                                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                                막대 클릭 시 보관함 필터링
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-col gap-2.5">
+                                            {analytics.hazardDistribution.map((bucket) => (
+                                                <button
+                                                    key={bucket.label}
+                                                    type="button"
+                                                    onClick={() => openArchiveWithFilter({ hazard: bucket.label })}
+                                                    className="group flex flex-col gap-1.5 rounded-xl p-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                                                >
+                                                    <div className="flex items-center justify-between text-xs font-bold">
+                                                        <span className="text-slate-900 dark:text-slate-100">{bucket.label}</span>
+                                                        <span className="tabular-nums text-slate-600 dark:text-slate-300">
+                                                            {bucket.count}건 ({bucket.sharePct}%) {bucket.severeCount > 0 ? `· 중점 ${bucket.severeCount}건` : ''}
+                                                        </span>
+                                                    </div>
+                                                    <div className="psi-ab-bar-track">
+                                                        <div
+                                                            className="psi-ab-bar-fill bg-gradient-to-r from-teal-600 to-cyan-500"
+                                                            style={{ width: `${Math.max(8, bucket.sharePct)}%` }}
+                                                        />
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </section>
 
-                                {/* Monthly SVG Kinetic Trend + Trade Bars */}
+                                    <section className="psi-ab-card psi-ab-rise flex flex-col gap-3">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <div>
+                                                <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
+                                                    작업 시간대별 사고 리듬
+                                                </h2>
+                                                <p className="text-xs text-slate-600 dark:text-slate-300">
+                                                    하루 작업 흐름(작업전 · 오전 · 점심직후 · 오후 · 야간) 중 피크 시간대를 포착합니다
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-5 gap-2.5 pt-2">
+                                            {analytics.timeSlotDistribution.map((item) => {
+                                                const heightPct = item.count === 0 ? 8 : Math.max(18, item.sharePct);
+                                                return (
+                                                    <div key={item.slot} className="flex flex-col items-center gap-2 text-center">
+                                                        <div className="psi-ab-pillar-wrap">
+                                                            <div
+                                                                className={`psi-ab-pillar ${
+                                                                    item.isPeak
+                                                                        ? 'bg-gradient-to-t from-rose-600 to-amber-400 psi-ab-hotspot-hot'
+                                                                        : 'bg-gradient-to-t from-teal-700 to-cyan-400'
+                                                                }`}
+                                                                style={{ height: `${heightPct}%` }}
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs font-extrabold text-slate-900 tabular-nums dark:text-white">
+                                                                {item.count}건
+                                                            </p>
+                                                            <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                                                                {item.slot}
+                                                            </p>
+                                                            {item.isPeak && (
+                                                                <span className="mt-0.5 inline-block rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-extrabold text-rose-800 dark:bg-rose-950 dark:text-rose-200">
+                                                                    집중 주의
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </section>
+                                </div>
+
+                                {/* Monthly SVG Kinetic Trend + Full JobField Distribution */}
                                 <div className="flex flex-col gap-5">
                                     <section className="psi-ab-card psi-ab-rise flex flex-col gap-3">
                                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2059,14 +2191,14 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                     <section className="psi-ab-card psi-ab-rise flex flex-col gap-3">
                                         <div className="flex items-center justify-between gap-2">
                                             <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
-                                                공종별 사고 집중도 TOP 5
+                                                공종별 사고 분포 ({analytics.jobFieldDistribution.length}개 공종 전체)
                                             </h2>
                                             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                                                 클릭 시 보관함 이동
                                             </span>
                                         </div>
-                                        <div className="flex flex-col gap-2.5">
-                                            {analytics.jobFieldDistribution.slice(0, 5).map((job) => (
+                                        <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto pr-1">
+                                            {analytics.jobFieldDistribution.map((job) => (
                                                 <button
                                                     key={job.label}
                                                     type="button"
