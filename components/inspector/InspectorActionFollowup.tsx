@@ -4,6 +4,7 @@ import type {Evidence,Inspection,InspectorAction,OptimizationReceipt} from '../.
 import {actionStatusLabel,buildRegisteredActionRequest} from '../../lib/inspector/actionPlan';
 import {sharePhotoFile} from '../../lib/inspector/sharing';
 import {formatInspectionTimestamp} from '../../lib/inspector/journey';
+import {extractRejectionHistory} from '../../lib/inspector/actionFollowup';
 import {reinspectionStage} from '../../lib/inspector/noviceFollowThrough';
 import {auditActionPhotoPair} from '../../lib/inspector/actionEvidenceAudit';
 import InspectorCameraDialog from './InspectorCameraDialog';
@@ -23,18 +24,25 @@ function usePhoto(id:string,local:Blob|undefined,enabled:boolean,loadPhoto:(id:s
     },[id,local,enabled,loadPhoto]);
     return enabled&&photo.id===id?photo:{};
 }
-export default function InspectorActionFollowup({item,action,evidence,busy,loadPhoto,onSubmit,onVerify,onDirty}:{key?:string;item:Inspection;action:InspectorAction;evidence:Evidence[];busy:boolean;loadPhoto:(id:string)=>Promise<Blob>;onSubmit:(input:ImprovementSubmission)=>Promise<boolean>;onVerify:(actionId:string,note:string)=>Promise<boolean>;onDirty:(id:string,dirty:boolean)=>void}){
+const REJECT_PRESETS=[
+    '시공·고정 상태 미흡 (재시공 필요)',
+    '지적 위치와 다른 곳 촬영됨',
+    '임시 조치만 확인됨 (근본 보완 필요)',
+    '사진 흐림·식별 불가 (재촬영 요청)',
+] as const;
+export default function InspectorActionFollowup({item,action,evidence,busy,loadPhoto,onSubmit,onVerify,onReject,onDirty}:{key?:string;item:Inspection;action:InspectorAction;evidence:Evidence[];busy:boolean;loadPhoto:(id:string)=>Promise<Blob>;onSubmit:(input:ImprovementSubmission)=>Promise<boolean>;onVerify:(actionId:string,note:string)=>Promise<boolean>;onReject?:(actionId:string,reason:string)=>Promise<boolean>;onDirty:(id:string,dirty:boolean)=>void}){
     const prefix=useId(),[open,setOpen]=useState(false),[prepared,setPrepared]=useState<PreparedImprovement|null>(null),[choosing,setChoosing]=useState(false),[camera,setCamera]=useState(false),[error,setError]=useState(''),[submitted,setSubmitted]=useState(false),[sending,setSending]=useState(false);
     const [beforeId,setBeforeId]=useState(action.sourcePhotoIds?.[0]||''),[afterId,setAfterId]=useState(action.completionPhotoId),[note,setNote]=useState(action.status==='review-requested'?action.note:''),[checked,setChecked]=useState(false),[verification,setVerification]=useState(''),[rechecked,setRechecked]=useState(false),[zoom,setZoom]=useState('');
+    const [rejectOpen,setRejectOpen]=useState(false),[rejectReason,setRejectReason]=useState(''),[rejectChecked,setRejectChecked]=useState(false);
     const choosingRef=useRef(false),sendingRef=useRef(false);
-    const followupStage=reinspectionStage(action);
+    const followupStage=reinspectionStage(action),rejections=extractRejectionHistory(action.note);
     const locked=busy||choosing||sending,verified=action.status==='verified',sourceIds=action.sourcePhotoIds|| (beforeId?[beforeId]:[]),selectedBefore=sourceIds.includes(beforeId)?beforeId:sourceIds[0]||'',selectedAfter=prepared?.id||afterId||action.completionPhotoId;
     const before=usePhoto(selectedBefore,undefined,open,loadPhoto),after=usePhoto(selectedAfter,prepared?.file,open,loadPhoto);
     const evidenceAudit=auditActionPhotoPair({
         beforeIds:sourceIds,afterId:selectedAfter,registeredIds:item.document.photoIds,
         evidence,preparedSha:prepared?.receipt.uploaded_asset_sha256,
     });
-    const dirty=!verified&&(!!prepared||!!verification||!!note&&note!==action.note||!action.sourcePhotoIds&&!!beforeId||afterId!==action.completionPhotoId);
+    const dirty=!verified&&(!!prepared||!!verification||!!rejectReason.trim()||!!note&&note!==action.note||!action.sourcePhotoIds&&!!beforeId||afterId!==action.completionPhotoId);
     useEffect(()=>{onDirty(action.id,dirty);return()=>onDirty(action.id,false);},[action.id,dirty,onDirty]);
     useEffect(()=>{if(!dirty)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[dirty]);
     const choose=async(file:File)=>{
@@ -56,6 +64,7 @@ export default function InspectorActionFollowup({item,action,evidence,busy,loadP
         <summary>개선사진·전후 비교·재점검</summary>
         {open&&<>
             <nav className="si-followup-steps" aria-label="개선조치 세 단계"><ol><li className={followupStage===0?'is-current':'is-past'}><b>1. 개선 전후 사진</b><span>개선 내용 저장</span></li><li className={followupStage===1?'is-current':followupStage===2?'is-past':''}><b>2. 현장 재점검</b><span>실제 시공·안전조치 대조</span></li><li className={followupStage===2?'is-current':''}><b>3. 확인 기록</b><span>검토자 확인 후 완료 표시</span></li></ol><p>{followupStage===0?'미조치 상태입니다. 개선 후 사진을 연결해 완료 검토를 요청하세요.':followupStage===1?'개선사진을 받았습니다. 아직 완료가 아닙니다. 현장을 확인하고 판단을 기록하세요.':'현장 재점검 확인 기록이 저장된 상태입니다. 새 보고서에는 최신 기록을 반영하세요.'}</p></nav>
+            {action.status==='open'&&rejections.length>0&&<div className="si-rejection-banner" role="status" data-rejection-history="true"><b>보완 재요청 이력 ({rejections.length}회)</b><p>{rejections[0]}</p><small>아래에서 보완된 개선사진과 조치 내용을 다시 등록해 완료 검토를 요청하세요. 기존 원본·반려 기록은 유지됩니다.</small></div>}
             {sourceIds.length>1?<label className="si-label">비교할 조치 전 사진<select aria-label="비교할 조치 전 사진" value={selectedBefore} disabled={locked} onChange={e=>setBeforeId(e.target.value)}>{sourceIds.map(id=><option key={id} value={id}>사진 {item.document.photoIds.indexOf(id)+1} · {item.document.photoNotes?.[id]?.slice(0,35)||'설명 없음'}</option>)}</select></label>:!action.sourcePhotoIds&&!verified?<label className="si-label">이전 조치의 원래 사진 지정<select aria-label="이전 조치의 원래 사진 지정" value={beforeId} disabled={locked||submitted} onChange={e=>{setBeforeId(e.target.value);setChecked(false);}}><option value="">실제 조치 전 사진을 직접 선택</option>{item.document.photoIds.filter(id=>id!==selectedAfter).map(id=><option key={id} value={id}>사진 {item.document.photoIds.indexOf(id)+1} · {item.document.photoNotes?.[id]?.slice(0,35)||'설명 없음'}</option>)}</select></label>:null}
             {verified&&!sourceIds.length&&<p className="si-caption">이전 기록에는 조치 전 사진 연결이 없습니다. 원래 기록을 임의로 추정하거나 변경하지 않습니다.</p>}
             <InspectorPhotoComparison before={before.url} after={after.url} beforeLabel={`조치 전${selectedBefore?` · 사진 ${item.document.photoIds.indexOf(selectedBefore)+1}`:''}`} afterLabel={prepared?'개선 후 · 저장 전 사본':`개선 후${selectedAfter?item.document.photoIds.includes(selectedAfter)?` · 사진 ${item.document.photoIds.indexOf(selectedAfter)+1}`:' · 연결 대기 사본':''}`} beforeError={before.failed} afterError={after.failed}/>
@@ -76,7 +85,20 @@ export default function InspectorActionFollowup({item,action,evidence,busy,loadP
                 {!evidenceAudit.canSubmit&&!!selectedAfter&&<p className="si-caption" role="alert">사진 연결에 확인이 필요합니다. 조치 전·후 사진을 다시 선택하거나 저장본의 증거사진 보관 상태를 확인하세요.</p>}
                 {submitted&&!busy&&!sending&&<p className="si-caption">사진·설명은 바꾸지 않고 동일한 요청으로 안전하게 재시도합니다. 이미 저장됐을 가능성이 있으므로 다른 사진이 필요하면 저장 기록을 먼저 확인하세요.</p>}
             </>}
-            {action.status==='review-requested'&&!prepared&&afterId===action.completionPhotoId&&note===action.note&&<section className="si-reinspection"><h4>현장 재점검 확인</h4><p className="si-caption">사진만으로 이행을 확정하지 않습니다. 실제 현장 대조 후에만 관리자 확인을 기록하세요.</p><ol className="si-reinspection-checks"><li>원래 지적한 위치와 개선사진의 위치·범위가 같은지 확인</li><li>현장에서 고정 상태·접근통제 등 필요한 조치가 실제 유지되는지 확인</li><li>잔여 위험과 작업 재개 가능 여부를 별도 점검</li></ol><p className="si-caption">아래 확인은 위 항목을 실제로 대조했을 때만 선택합니다. 체크리스트 표시 자체는 점검 증빙이 아닙니다.</p><label htmlFor={prefix+'verify'}>현장에서 확인한 내용 (5자 이상)</label><textarea id={prefix+'verify'} rows={3} maxLength={2000} value={verification} disabled={locked} onChange={e=>{setVerification(e.target.value);setRechecked(false);}}/><label className="si-action-ack"><input type="checkbox" checked={rechecked} disabled={locked} onChange={e=>setRechecked(e.target.checked)}/><span>개선사진과 실제 현장 상태를 재점검했습니다.</span></label><button type="button" className="si-btn si-primary" disabled={locked||!rechecked||verification.trim().length<5} onClick={()=>void onVerify(action.id,verification.trim()).then(saved=>{if(saved){setVerification('');setRechecked(false);}})}>현장 재점검 확정</button></section>}
+            {action.status==='review-requested'&&!prepared&&afterId===action.completionPhotoId&&note===action.note&&<section className="si-reinspection"><h4>현장 재점검 확인</h4><p className="si-caption">사진만으로 이행을 확정하지 않습니다. 실제 현장 대조 후에만 관리자 확인을 기록하세요.</p><ol className="si-reinspection-checks"><li>원래 지적한 위치와 개선사진의 위치·범위가 같은지 확인</li><li>현장에서 고정 상태·접근통제 등 필요한 조치가 실제 유지되는지 확인</li><li>잔여 위험과 작업 재개 가능 여부를 별도 점검</li></ol><p className="si-caption">아래 확인은 위 항목을 실제로 대조했을 때만 선택합니다. 체크리스트 표시 자체는 점검 증빙이 아닙니다.</p><label htmlFor={prefix+'verify'}>현장에서 확인한 내용 (5자 이상)</label><textarea id={prefix+'verify'} rows={3} maxLength={2000} value={verification} disabled={locked} onChange={e=>{setVerification(e.target.value);setRechecked(false);}}/><label className="si-action-ack"><input type="checkbox" checked={rechecked} disabled={locked} onChange={e=>setRechecked(e.target.checked)}/><span>개선사진과 실제 현장 상태를 재점검했습니다.</span></label><button type="button" className="si-btn si-primary" disabled={locked||!rechecked||verification.trim().length<5} onClick={()=>void onVerify(action.id,verification.trim()).then(saved=>{if(saved){setVerification('');setRechecked(false);}})}>현장 재점검 확정</button>
+            {onReject&&<div className="si-reinspection-reject">
+                <div className="si-reinspection-reject-head">
+                    <p className="si-caption">현장 대조 결과 보완이나 재촬영이 필요하면 미조치 상태로 되돌리고 사유를 남깁니다.</p>
+                    <button type="button" className="si-btn" disabled={locked} aria-expanded={rejectOpen} onClick={()=>setRejectOpen(prev=>!prev)}>{rejectOpen?'보완 재요청 닫기':'보완 재요청 (반려)'}</button>
+                </div>
+                {rejectOpen&&<div className="si-reinspection-reject-panel">
+                    <div className="si-reject-presets" role="group" aria-label="보완 재요청 사유 선택">{REJECT_PRESETS.map(preset=><button key={preset} type="button" className="si-btn" disabled={locked} aria-pressed={rejectReason===preset} onClick={()=>{setRejectReason(preset);setRejectChecked(false);}}>{preset}</button>)}</div>
+                    <label htmlFor={prefix+'reject'}>보완 재요청(반려) 사유 (5자 이상)</label>
+                    <textarea id={prefix+'reject'} rows={2} maxLength={600} value={rejectReason} disabled={locked} placeholder="예: 난간 하부 발끝막이판이 빠져 있어 재보완 후 다시 촬영해 주세요." onChange={e=>{setRejectReason(e.target.value);setRejectChecked(false);}}/>
+                    <label className="si-action-ack"><input type="checkbox" checked={rejectChecked} disabled={locked} onChange={e=>setRejectChecked(e.target.checked)}/><span>현장 대조 결과 보완이 필요하여 조치를 미조치 상태로 되돌립니다.</span></label>
+                    <button type="button" className="si-btn si-danger-outline" disabled={locked||!rejectChecked||rejectReason.trim().length<5} onClick={()=>void onReject(action.id,rejectReason.trim()).then(saved=>{if(saved){setAfterId('');setNote('');setVerification('');setRechecked(false);setRejectReason('');setRejectChecked(false);setRejectOpen(false);}})}>보완 재요청 (반려) 저장</button>
+                </div>}
+            </div>}</section>}
             {verified&&<p role="status" className="si-notice">{actionStatusLabel(action)} · {action.verifiedAt?formatInspectionTimestamp(action.verifiedAt):'확인시각 미기록'}<br/>{action.note}</p>}
             {!prepared&&selectedAfter===action.completionPhotoId&&before.blob&&after.blob&&<InspectorShareButton title={action.title} text={buildRegisteredActionRequest([action],item.document.title,item.document.photoIds)+`\n전후 비교 첨부: 조치 전 사진 ${item.document.photoIds.indexOf(selectedBefore)+1} / 개선 후 사진 ${item.document.photoIds.indexOf(selectedAfter)+1} (선택한 대표 사진)`} label="전후 사진·조치 보내기" prepareFiles={async()=>[sharePhotoFile(before.blob!,item.document.photoIds.indexOf(selectedBefore)+1),sharePhotoFile(after.blob!,item.document.photoIds.indexOf(selectedAfter)+1)]}/>}
             {choosing&&<p role="status">기기에서 개선사진 최적화 중…</p>}{error&&<p role="alert" className="si-notice si-error">{error}</p>}

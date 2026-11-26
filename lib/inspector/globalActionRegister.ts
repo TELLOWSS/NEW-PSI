@@ -128,6 +128,29 @@ export function globalActionCounts(rows:readonly GlobalActionRow[],today:string)
   overlappingOverdueReinspection:flags.filter(s=>s.overdue&&s.reinspection).length,
  };
 }
+export type GlobalSiteSummary={
+ siteKey:string;siteLabel:string;total:number;verified:number;unresolved:number;overdue:number;reinspection:number;assignment:number;completionRate:number;
+};
+/** Aggregates loaded actions by worksite without mutating source rows or inferring unloaded sites. */
+export function summarizeGlobalActionsBySite(rows:readonly GlobalActionRow[],today:string):GlobalSiteSummary[]{
+ const bySite=new Map<string,GlobalSiteSummary>();
+ for(const row of rows){
+  const siteKey=row.siteName.trim();
+  const siteLabel=siteKey||'현장 미입력';
+  const dim=globalActionDimensions(row,today);
+  const current=bySite.get(siteKey)||{siteKey,siteLabel,total:0,verified:0,unresolved:0,overdue:0,reinspection:0,assignment:0,completionRate:0};
+  current.total+=1;
+  if(dim.verified)current.verified+=1;
+  else current.unresolved+=1;
+  if(dim.overdue)current.overdue+=1;
+  if(dim.reinspection)current.reinspection+=1;
+  if(dim.assignmentNeeded)current.assignment+=1;
+  bySite.set(siteKey,current);
+ }
+ return Array.from(bySite.values())
+  .map(entry=>({...entry,completionRate:entry.total?Math.round((entry.verified/entry.total)*100):0}))
+  .sort((a,b)=>(b.overdue-a.overdue)||(b.reinspection-a.reinspection)||(b.unresolved-a.unresolved)||a.siteLabel.localeCompare(b.siteLabel,'ko'));
+}
 /** CSV exports loaded records ONLY. All untrusted text is cell-escaped against Excel formulas. */
 export function buildGlobalActionRegisterCsv(rows:readonly GlobalActionRow[],today:string){
  const cols=['점검번호','점검버전','점검명','점검 유형','현장','위치','공종','조치ID','조치내용','담당자','약정기한','기한 단계','기존 조치 상태','최초 기한 근거','현장 재점검 시각','조회 범위','약정기한 경과 여부','재점검 대기 여부','현장 확인할 다음 단계','다음 현장 확인 예정일','확인 예정일 도래 여부','확인 예정일 경과 여부','담당자 미지정 여부','약정기한 확인 필요 여부'];

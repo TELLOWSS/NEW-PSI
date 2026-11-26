@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {reportPhotoSelection,actionPhotoSummary,sameAction} from '../lib/inspector/actionFollowup';
+import {reportPhotoSelection,actionPhotoSummary,sameAction,buildRejectedAction,extractRejectionHistory,buildRejectionNote} from '../lib/inspector/actionFollowup';
 import {newInspectionDocument,type Evidence,type InspectorAction} from '../lib/inspector/types';
 import {assertSafeEdit,validateDocument} from '../lib/inspector/validation';
 const id=(n:number)=>`a0190000-0000-4000-8000-${String(n).padStart(12,'0')}`;
@@ -12,3 +12,24 @@ it('keeps a linked scope fixed while allowing a legacy action to acquire its fir
 it('accepts legacy records without fabricating source evidence',()=>{const legacy={...action};delete legacy.sourcePhotoIds;const doc={...newInspectionDocument(),photoIds:[id(1),id(2)],actions:[legacy]};expect(validateDocument(doc,id(9),evidence).actions[0].sourcePhotoIds).toBeUndefined();expect(actionPhotoSummary(legacy,doc.photoIds)).toEqual(['개선 후: 사진 2']);});
 it('includes linked action evidence in selected new reports without changing the selection or document',()=>{const doc={...newInspectionDocument(),photoIds:[id(1),id(2),id(3)],actions:[action],materialCompletion:{photoIds:[id(3)],revision:5,completedAt:'2026-10-22T00:00:00.000Z'}};const before=JSON.stringify(doc);expect([...reportPhotoSelection(doc)!]).toEqual([id(3),id(1),id(2)]);expect(JSON.stringify(doc)).toBe(before);expect([...reportPhotoSelection({...doc,materialCompletion:undefined})]).toEqual([id(1),id(2),id(3)]);});
 it('compares save recovery independently of JSONB key order and includes evidence scope',()=>{const reversed=Object.fromEntries(Object.entries(action).reverse()) as InspectorAction;expect(sameAction(action,reversed)).toBe(true);expect(sameAction(action,{...action,sourcePhotoIds:[id(3)]})).toBe(false);expect(sameAction(action,{...action,status:'verified'})).toBe(false);});
+it('transitions a review-requested action back to open with preserved source scope and bounded rejection note',()=>{
+    const doc={...newInspectionDocument(),photoIds:[id(1),id(2)],actions:[action]};
+    const rejected=buildRejectedAction(action,'난간 하부 발끝막이판이 빠져 있어 재보완 필요','사진 2','11. 27. 08:30');
+    expect(rejected.status).toBe('open');
+    expect(rejected.completionPhotoId).toBe('');
+    expect(rejected.verifiedAt).toBeUndefined();
+    expect(rejected.sourcePhotoIds).toEqual([id(1)]);
+    expect(extractRejectionHistory(rejected.note)).toHaveLength(1);
+    expect(rejected.note).toContain('덮개 고정 및 접근통제 보완');
+    const updatedDoc={...doc,actions:[rejected]};
+    expect(validateDocument(updatedDoc,id(9),evidence).actions[0].status).toBe('open');
+    expect(()=>assertSafeEdit(updatedDoc,doc)).not.toThrow();
+});
+it('rejects short rejection reasons and blocks rejecting verified or open actions',()=>{
+    expect(()=>buildRejectedAction(action,'미흡')).toThrow('5자 이상');
+    expect(()=>buildRejectedAction({...action,status:'verified'},'이미 완료된 기록은 반려 불가')).toThrow('확정된 개선기록');
+    expect(()=>buildRejectedAction({...action,status:'open',completionPhotoId:''},'미조치 상태에서 반려 시도')).toThrow('완료 검토 요청');
+    const bounded=buildRejectionNote('가'.repeat(2500),'사진 흐림으로 재촬영 요청합니다','사진 2');
+    expect(bounded.length).toBeLessThanOrEqual(2000);
+    expect(bounded.startsWith('[재점검 반려')).toBe(true);
+});

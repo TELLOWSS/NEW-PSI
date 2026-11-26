@@ -453,3 +453,45 @@
 .si-action-next-check{padding:10px 12px;border:1px solid var(--si-line);border-radius:9px;background:var(--si-accent-soft);color:var(--si-navy);font-size:13px;font-weight:700;line-height:1.6;overflow-wrap:anywhere}
 @media(max-width:600px){.si-deferred-correction{padding:12px}.si-deferred-fields{padding:11px}.si-deferred-presets .si-btn{flex:1;min-width:130px}}
 @media print{.si-deferred-correction{display:none!important}}
+
+/* P0: top hub tabs, quick site/location bar, HQ stage, and reinspection rejection loop */
+.si-hub-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 18px}
+.si-hub-tab{border:1px solid var(--si-line);border-radius:14px;background:var(--si-surface);color:var(--si-navy);padding:12px 14px;text-align:left;cursor:pointer;display:grid;gap:3px;min-height:58px;transition:transform .2s cubic-bezier(.16,1,.3,1),border-color .2s ease,background .2s ease,box-shadow .2s ease}
+.si-hub-tab:not(:disabled):hover{transform:translateY(-1px);border-color:var(--si-teal);box-shadow:0 6px 18px rgba(15,23,42,.06)}
+.si-hub-tab.is-active{border-color:var(--si-teal);background:var(--si-accent-soft);box-shadow:inset 0 0 0 1px var(--si-teal)}
+.si-hub-tab b{font-size:14px;font-weight:800;line-height:1.35}
+.si-hub-tab span{font-size:12px;color:var(--si-muted);line-height:1.45}
+.si-hq-stage{border:1px solid var(--si-line);border-radius:18px;padding:18px;background:var(--si-surface);margin:0 0 22px;display:grid;gap:14px}
+.si-hq-stage-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.si-hq-stage-head h2{margin:4px 0 6px;font-size:20px;line-height:1.4}
+.si-site-context-bar{border:1px solid var(--si-line);border-radius:12px;padding:12px;background:var(--si-surface);display:grid;gap:8px}
+.si-site-context-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.si-site-context-grid label{display:grid;gap:5px;min-width:0}
+.si-site-context-grid label span{font-size:12px;font-weight:750;color:var(--si-navy)}
+.si-site-context-grid input{box-sizing:border-box;width:100%;min-width:0;min-height:44px;padding:8px 11px;border:1px solid var(--si-line);border-radius:9px;background:var(--si-soft);color:var(--si-navy);font:inherit;font-size:14px}
+.si-site-context-chips{display:flex;flex-wrap:wrap;gap:6px}
+.si-site-context-chips .si-btn{min-height:36px;font-size:12px}
+.si-rejection-banner{margin:12px 0;padding:12px 14px;border:1px solid #f59e0b;border-inline-start:4px solid #dc2626;border-radius:11px;background:#fffbeb;color:#78350f;display:grid;gap:4px}
+.si-rejection-banner b{font-size:13px;color:#b91c1c}
+.si-rejection-banner p{margin:0;font-size:13px;font-weight:700;line-height:1.55;overflow-wrap:anywhere}
+.si-rejection-banner small{font-size:12px;line-height:1.5;color:#92400e}
+.si-rejected-pill{color:#b91c1c;font-size:12px;font-weight:800}
+.si-reinspection-reject{margin-top:16px;padding-top:14px;border-top:1px dashed var(--si-line);display:grid;gap:10px}
+.si-reinspection-reject-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.si-reinspection-reject-head .si-caption{margin:0;flex:1;min-width:200px}
+.si-reinspection-reject-panel{padding:12px;border:1px solid #fca5a5;border-radius:12px;background:#fef2f2;display:grid;gap:8px}
+.si-reject-presets{display:flex;flex-wrap:wrap;gap:6px}
+.si-reject-presets .si-btn{min-height:38px;font-size:12px;white-space:normal}
+.si-reject-presets .si-btn[aria-pressed=true]{border-color:#dc2626;background:#fee2e2;color:#991b1b}
+.si-btn.si-danger-outline{border-color:#dc2626;color:#b91c1c;background:#fff;font-weight:750;justify-content:center}
+.si-btn.si-danger-outline:not(:disabled):hover{background:#fee2e2}
+@media(max-width:700px){.si-hub-tabs{grid-template-columns:1fr}.si-site-context-grid{grid-template-columns:1fr}.si-hq-stage{padding:13px}}
+@media(prefers-reduced-motion:reduce){.si-hub-tab{transition:none}.si-hub-tab:not(:disabled):hover{transform:none}}
+[data-psi-motion-paused="true"] .si-hub-tab{transition:none}
+.dark .si-rejection-banner{background:#451a03;color:#fde68a;border-color:#b45309;border-inline-start-color:#f87171}
+.dark .si-rejection-banner b,.dark .si-rejected-pill{color:#fca5a5}
+.dark .si-rejection-banner small{color:#fde68a}
+.dark .si-reinspection-reject-panel{background:#3b181c;border-color:#7f1d1d}
+.dark .si-reject-presets .si-btn[aria-pressed=true]{background:#7f1d1d;color:#fecaca;border-color:#f87171}
+.dark .si-btn.si-danger-outline{background:#291417;color:#fca5a5;border-color:#f87171}
+@media print{.si-hub-tabs,.si-hq-stage,.si-reinspection-reject{display:none!important}}

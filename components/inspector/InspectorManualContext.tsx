@@ -2,7 +2,13 @@ import React,{useId} from 'react';
 import {LEGAL_CARDS,legalForTopics} from '../../lib/inspector/legal';
 import InspectorLegalResult from './InspectorLegalResult';
 
-const workTypes=['형틀','철근','시스템비계','시스템동바리','콘크리트 타설','양중','해체작업','기타'];
+export const INSPECTOR_WORK_TYPES=[
+    '형틀','철근','갱폼','알폼','시스템','시스템비계','시스템동바리',
+    '해체정리','해체작업','콘크리트비계','콘크리트 타설',
+    '바닥미장','할석미장견출','양중','장비','전기','배관','굴착',
+    '관리','직영','용역','기타',
+] as const;
+const workTypes:readonly string[]=INSPECTOR_WORK_TYPES;
 /** Controls for the existing document and per-photo inspector statement. */
 export default function InspectorManualContext({workType,topic,showTopic,disabled,eventAt,onWorkType,onTopic}:{
     workType:string;topic:string;showTopic:boolean;disabled:boolean;eventAt?:string;

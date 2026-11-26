@@ -2,12 +2,13 @@ import React,{useEffect,useRef,useState} from 'react';
 import {inspectionKindText} from '../../lib/inspector/types';
 import {postAdminJson} from '../../utils/adminApiClient';
 import {koreanDay} from '../../lib/inspector/workQueue';
-import {buildGlobalActionRegisterCsv,filterGlobalActionsWithCriteria,globalActionCounts,globalActionCheckCounts,globalRegisterCriteriaError,globalActionDimensions,globalActionStatusText,globalActionNextStep,registerFilterLabel,type RegisterFilter,type GlobalActionRow,type GlobalRegisterCriteria} from '../../lib/inspector/globalActionRegister';
+import {buildGlobalActionRegisterCsv,filterGlobalActionsWithCriteria,globalActionCounts,globalActionCheckCounts,globalRegisterCriteriaError,globalActionDimensions,globalActionStatusText,globalActionNextStep,registerFilterLabel,summarizeGlobalActionsBySite,type RegisterFilter,type GlobalActionRow,type GlobalRegisterCriteria} from '../../lib/inspector/globalActionRegister';
 import './inspector-global-register.css';
 import {EvidenceScopePanel} from '../shared/EvidenceScopePanel';
 type Cursor={before:string;beforeId:string};
 type Response={ok:boolean;rows:GlobalActionRow[];inspectionCount:number;hasMore:boolean;nextCursor:Cursor|null};
-export default function InspectorGlobalActionRegister({onOpenAction,blocked=false}:{onOpenAction:(inspectionId:string,actionId:string)=>void;blocked?:boolean}){
+export default function InspectorGlobalActionRegister({onOpenAction,blocked=false,defaultOpen=false}:{onOpenAction:(inspectionId:string,actionId:string)=>void;blocked?:boolean;defaultOpen?:boolean}){
+ const [open,setOpen]=useState(defaultOpen);
  const [rows,setRows]=useState<GlobalActionRow[]>([]),[loaded,setLoaded]=useState(false),[loading,setLoading]=useState(false);
  const [fetchedAt,setFetchedAt]=useState('');
  const [inspections,setInspections]=useState(0),[more,setMore]=useState(false),[cursor,setCursor]=useState<Cursor|null>(null);
@@ -29,10 +30,36 @@ export default function InspectorGlobalActionRegister({onOpenAction,blocked=fals
   }catch(cause){if(alive.current)setError(cause instanceof Error?cause.message:'목록을 읽지 못했습니다.');}
   finally{inflight.current=false;if(alive.current)setLoading(false);}
  };
+ const fetchBatchPages=async(maxPages=5)=>{
+  if(inflight.current||(!more&&loaded))return;
+  inflight.current=true;setLoading(true);setError('');
+  let nextCursor=loaded?cursor:null,hasMore=!loaded||more;
+  try{
+   for(let page=0;page<maxPages&&hasMore;page++){
+    const result=await postAdminJson<Response>('/api/admin/inspector',{op:'global-action-register',...(nextCursor||{})},{
+     timeoutMs:18000,fallbackMessage:'통합 조치 목록을 연속으로 읽지 못했습니다. 저장된 원본은 그대로 유지됩니다.',
+    });
+    if(!alive.current)return;
+    setRows(old=>[...old,...result.rows.filter(r=>!old.some(x=>x.inspectionId===r.inspectionId&&x.actionId===r.actionId))]);
+    setInspections(old=>old+result.inspectionCount);
+    nextCursor=result.nextCursor;hasMore=result.hasMore&&!!result.nextCursor;
+    setMore(result.hasMore);setCursor(result.nextCursor);setLoaded(true);setFetchedAt(new Date().toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}));
+   }
+  }catch(cause){if(alive.current)setError(cause instanceof Error?cause.message:'연속 조회를 완료하지 못했습니다.');}
+  finally{inflight.current=false;if(alive.current)setLoading(false);}
+ };
+ useEffect(()=>{
+  if(defaultOpen){
+   setOpen(true);
+   if(!loaded&&!inflight.current)void fetchPage(null,true);
+  }
+ },[defaultOpen,loaded]);
  const today=koreanDay(),criteria:GlobalRegisterCriteria={site,owner,dueFrom,dueTo};
  const criteriaError=globalRegisterCriteriaError(criteria);
  const sites:string[]=Array.from(new Set<string>(rows.map((row:GlobalActionRow)=>row.siteName.trim()).filter((value:string)=>value.length>0))).sort((a:string,b:string)=>a.localeCompare(b,'ko'));
  const owners:string[]=Array.from(new Set<string>(rows.map((row:GlobalActionRow)=>row.owner.trim()).filter((value:string)=>value.length>0))).sort((a:string,b:string)=>a.localeCompare(b,'ko'));
+ const siteBoardRows=filterGlobalActionsWithCriteria(rows,'all',search,today,{...criteria,site:''});
+ const siteSummaries=summarizeGlobalActionsBySite(siteBoardRows,today);
  const scoped=filterGlobalActionsWithCriteria(rows,'all',search,today,criteria);
  const counts=globalActionCounts(scoped,today),checks=globalActionCheckCounts(scoped,today);
  const filtered=filterGlobalActionsWithCriteria(rows,filter,search,today,criteria);
@@ -42,13 +69,14 @@ export default function InspectorGlobalActionRegister({onOpenAction,blocked=fals
   const url=URL.createObjectURL(new Blob([buildGlobalActionRegisterCsv(filtered,today)],{type:'text/csv;charset=utf-8'}));exportUrl.current=url;
   const a=document.createElement('a');a.href=url;a.download='PSI_인스펙터_조회범위_조치대장_'+today+'.csv';a.click();
  };
- return <details className="si-global-register" data-global-register="loaded-pages-only" onToggle={e=>{if(e.currentTarget.open&&!loaded&&!inflight.current)void fetchPage(null,true);}}>
+ return <details className="si-global-register" data-global-register="loaded-pages-only" open={open} onToggle={e=>{const isOpen=e.currentTarget.open;setOpen(isOpen);if(isOpen&&!loaded&&!inflight.current)void fetchPage(null,true);}}>
   <summary>전체 점검 통합 조치대장 <span>정기·컨설팅 점검의 약정기한 모아보기</span></summary>
   <div className="si-global-register-body">
    <p className="si-caption">정기·컨설팅점검은 합의된 개선기한을 추적하고 현장 재점검으로 완료를 확인합니다. 급박한 위험의 접근통제·작업중지 필요성은 기한과 별개로 판단합니다.</p>
    <p className="si-caption">관리자가 직접 열었을 때만 서버의 최근 점검을 20건씩 조회합니다. 사진 파일은 내려받지 않습니다. 검색과 현장·담당·기한 필터는 <strong>이미 불러온 점검기록만</strong> 대상으로 하며, 다른 현장 전체의 미결·무위험을 확정하지 않습니다.</p>
    <div className="si-global-register-toolbar">
     <button type="button" className="si-btn" disabled={loading} onClick={()=>void fetchPage(null,true)}>{loading?'조회 중…':loaded?'최신 저장 조치 새로고침':'조치대장 불러오기'}</button>
+    {loaded&&more&&cursor&&<button type="button" className="si-btn" disabled={loading} onClick={()=>void fetchBatchPages(5)}>연속 5페이지 더 불러오기 (최대 100건 점검)</button>}
     <button type="button" className="si-btn" disabled={!filtered.length||loading||!!criteriaError} onClick={exportLoaded}>현재 필터 결과 CSV · {filtered.length}건</button>
    </div>
    {error&&<p role="alert" className="si-notice si-error">{error} · 다시 조회해 주세요. 저장한 조치 기록은 변경하지 않았습니다.</p>}
@@ -62,6 +90,22 @@ export default function InspectorGlobalActionRegister({onOpenAction,blocked=fals
     <div className="si-global-register-stats" aria-label="불러온 점검의 조치현황">
      {([['unresolved',counts.unresolved],['scheduled',counts.scheduled],['today',counts.today],['overdue',counts.overdue],['check',checks.due],['assignment',counts.assignment],['reinspection',counts.reinspection],['verified',counts.verified]] as const).map(([kind,n])=><button type="button" key={kind} aria-pressed={filter===kind} className={filter===kind?'is-active':''} onClick={()=>setFilter(kind)}><b>{n}</b><span>{registerFilterLabel[kind]}</span></button>)}
     </div>
+    {siteSummaries.length>0&&<section className="si-global-site-board" aria-label="불러온 현장별 개선 현황 비교" data-global-site-board="true">
+     <div className="si-site-board-header">
+      <div><b>불러온 현장별 개선 현황 ({siteSummaries.length}개 현장)</b><small>불러온 점검 범위 기준 비교입니다. 아직 불러오지 않은 과거 점검이나 타 현장 전체의 무위험을 확정하지 않습니다.</small></div>
+      {site&&<button type="button" className="si-btn" onClick={()=>setSite('')}>전체 현장으로 보기</button>}
+     </div>
+     <div className="si-site-board-grid">
+      {siteSummaries.map(summary=>{
+       const clickable=summary.siteKey.length>0,active=clickable&&site===summary.siteKey;
+       return <button key={summary.siteKey||'__missing__'} type="button" className={'si-site-card'+(active?' is-active':'')} aria-pressed={active} disabled={!clickable} onClick={()=>{if(clickable)setSite(prev=>prev===summary.siteKey?'':summary.siteKey);}}>
+        <div className="si-site-card-top"><b>{summary.siteLabel}</b><span>완료율 {summary.completionRate}%</span></div>
+        <div className="si-site-progress-track" aria-hidden="true"><span className="si-site-progress-fill" style={{width:`${summary.completionRate}%`}}/></div>
+        <div className="si-site-metrics"><span>미결 <b>{summary.unresolved}</b></span><span className={summary.overdue>0?'is-alert':undefined}>초과 <b>{summary.overdue}</b></span><span className={summary.reinspection>0?'is-review':undefined}>재점검 <b>{summary.reinspection}</b></span><span>확인 {summary.verified}/{summary.total}</span></div>
+       </button>;
+      })}
+     </div>
+    </section>}
     {counts.overlappingOverdueReinspection>0&&<p className="si-global-register-overlap" role="status">기한 초과이면서 재점검 대기인 조치 {counts.overlappingOverdueReinspection}건이 양쪽에 포함됩니다. 초과 건수와 재점검 대기 건수를 더해 미결 건수로 계산하지 마세요.</p>}
     {(checks.overlapWithOverdue>0||checks.overlapWithReinspection>0)&&<p className="si-global-register-overlap" data-global-check-overlap="true">현장 확인일이 도래한 조치 중 기한 초과와 중복 {checks.overlapWithOverdue}건, 재점검 대기와 중복 {checks.overlapWithReinspection}건입니다. 다른 기준의 분류 건수를 합산하지 마세요.</p>}
     <div className="si-global-register-controls">
