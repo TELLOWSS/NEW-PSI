@@ -55,6 +55,20 @@ export interface AccidentParseResult {
     candidates: AccidentBigDataRecord[];
     warnings: string[];
     error: string;
+    blocksParsed: number;
+}
+
+export interface AccidentBatchFileInput {
+    fileName: string;
+    content: string;
+}
+
+export interface AccidentBatchFileReport {
+    fileName: string;
+    ok: boolean;
+    count: number;
+    formatDetected: 'json' | 'csv' | 'unknown';
+    error: string;
 }
 
 export interface AccidentDistributionBucket {
@@ -114,6 +128,18 @@ export interface AccidentRiskMatrix {
     cells: AccidentRiskMatrixCell[];
 }
 
+export interface AccidentSiteComparisonBucket {
+    siteName: string;
+    contractor: string;
+    count: number;
+    reportableCount: number;
+    severeCount: number;
+    nearMissCount: number;
+    sharePct: number;
+    topJobField: string;
+    topHazard: string;
+}
+
 export interface AccidentBigDataAnalytics {
     totalCount: number;
     severeCount: number;
@@ -122,10 +148,12 @@ export interface AccidentBigDataAnalytics {
     reportableRatePct: number;
     nearMissCount: number;
     contractorCount: number;
+    siteCount: number;
     topJobField: AccidentDistributionBucket | null;
     topHazardType: AccidentDistributionBucket | null;
     hazardDistribution: AccidentDistributionBucket[];
     jobFieldDistribution: AccidentDistributionBucket[];
+    siteDistribution: AccidentSiteComparisonBucket[];
     severityPyramid: AccidentSeverityTierMetric[];
     timeSlotDistribution: AccidentTimeSlotPoint[];
     riskMatrix: AccidentRiskMatrix;
@@ -308,18 +336,35 @@ const matchPriorityTradeRule = (text: string): string | null => {
     return null;
 };
 
+const DISMANTLE_CONTEXT_REGEX = /해체\s*[·ㆍ\s]*정리|탈형|정리\s*[·ㆍ및\s]*반출|거푸집\s*해체|알폼\s*해체|유로폼\s*해체|동바리\s*해체/;
+
 export const standardizeAccidentJobField = (value: unknown, fallbackContext = ''): string => {
     const raw = normalizeText(value);
     const compact = raw.replace(/\s+/g, '');
 
     if (raw) {
         const directAlias = PSI_WORKER_JOB_FIELD_ALIASES[compact] || PSI_WORKER_JOB_FIELD_ALIASES[raw];
-        if (directAlias) return directAlias;
+        if (directAlias) {
+            if (directAlias === '형틀' && DISMANTLE_CONTEXT_REGEX.test(fallbackContext)) {
+                return '해체정리';
+            }
+            return directAlias;
+        }
 
-        if (ACCIDENT_JOB_FIELD_OPTIONS.includes(raw)) return raw;
+        if (ACCIDENT_JOB_FIELD_OPTIONS.includes(raw)) {
+            if (raw === '형틀' && DISMANTLE_CONTEXT_REGEX.test(fallbackContext)) {
+                return '해체정리';
+            }
+            return raw;
+        }
 
         const rawRuleMatch = matchPriorityTradeRule(raw);
-        if (rawRuleMatch) return rawRuleMatch;
+        if (rawRuleMatch) {
+            if (rawRuleMatch === '형틀' && DISMANTLE_CONTEXT_REGEX.test(fallbackContext)) {
+                return '해체정리';
+            }
+            return rawRuleMatch;
+        }
 
         // 사용자가 명시한 커스텀 공종(예: PC조립, 창호 등)은 억지로 형틀/기타로 덮어쓰지 않고 보존한다.
         if (!GENERIC_JOB_PLACEHOLDERS.has(compact.toLowerCase())) {
@@ -456,17 +501,19 @@ export const buildAccidentConversionPrompt = (options: {
     siteHint?: string;
     outputFormat: AccidentPromptFormat;
     batchMode?: boolean;
+    multiSiteMode?: boolean;
 }): string => {
     const providerName = options.provider === 'chatgpt' ? 'ChatGPT' : 'Gemini';
     const contractorNote = normalizeText(options.contractorHint);
     const siteNote = normalizeText(options.siteHint);
+    const isMultiSite = options.multiSiteMode ?? options.batchMode !== false;
     const stdJobs = ACCIDENT_JOB_FIELD_OPTIONS.join(', ');
     const stdHazards = HAZARD_LABELS.join(', ');
 
     const lines = [
         `[${providerName} 전용 · 원도급사 사고보고서 NEW-PSI 표준 변환 지시문]`,
-        '첨부한 건설현장 사고보고서(또는 아차사고 보고서) PDF·문서의 양식과 무관하게 내용을 정확히 읽고,',
-        '아래 NEW-PSI 빅데이터 DB 스키마에 맞춰 1건(여러 건이 있으면 배열)으로 구조화해 반환하세요.',
+        '첨부한 건설현장 사고보고서(또는 아차사고 보고서) PDF·문서의 양식·건수·현장 수와 무관하게 내용을 정확히 읽고,',
+        '아래 NEW-PSI 빅데이터 DB 스키마에 맞춰 1건 또는 여러 건(JSON 배열 / CSV 여러 행)으로 구조화해 반환하세요.',
         '',
         '[필수 준수 규칙]',
         '1. 개인정보 자동 비식별화: 재해자·목격자·담당자의 성명, 생년월일, 전화번호, 주민번호, 이메일은 절대 그대로 쓰지 말고 [비식별]로 치환하세요.',
@@ -484,8 +531,18 @@ export const buildAccidentConversionPrompt = (options: {
         '6. 보고서에 명시되지 않은 사실은 절대 추측하지 말고, 확인 불가 항목만 "미상" 또는 빈 배열로 남기세요.',
     ];
 
-    if (contractorNote) lines.push(`7. 기본 원도급사명(문서에 다르면 문서 우선): ${contractorNote}`);
-    if (siteNote) lines.push(`8. 기본 현장명(문서에 다르면 문서 우선): ${siteNote}`);
+    if (isMultiSite) {
+        lines.push(
+            '7. 다건·다수 현장 일괄 변환 원칙:',
+            '   - 첨부 파일이 여러 개이거나 1개 파일 안에 여러 현장의 보고서가 섞여 있으면 절대 합치지 말고, 각 사고 건마다 독립 객체(JSON) 또는 독립 행(CSV)으로 출력하세요.',
+            '   - 각 사고의 siteName(현장명)과 sourceContractor(원도급사명)는 반드시 해당 보고서 본문에 적힌 값 그대로 개별 기입하세요 (이전 보고서 현장명으로 덮어쓰기 금지).',
+        );
+        if (contractorNote) lines.push(`8. 원도급사 미기재 건에만 적용할 기본값: ${contractorNote}`);
+        if (siteNote) lines.push(`9. 현장명 미기재 건에만 적용할 기본값: ${siteNote}`);
+    } else {
+        if (contractorNote) lines.push(`7. 기본 원도급사명(문서에 다르면 문서 우선): ${contractorNote}`);
+        if (siteNote) lines.push(`8. 기본 현장명(문서에 다르면 문서 우선): ${siteNote}`);
+    }
 
     lines.push('');
 
@@ -621,28 +678,60 @@ const normalizeRawRecord = (
     return { record: baseRecord, notes };
 };
 
-const stripCodeFencesAndExtractJson = (input: string): string[] => {
-    const candidates: string[] = [];
-    const trimmed = input.replace(/^\uFEFF/, '').trim();
-    if (!trimmed) return candidates;
+const extractTopLevelJsonSegments = (input: string): string[] => {
+    const segments: string[] = [];
+    let inString = false;
+    let escaped = false;
+    let depth = 0;
+    let startIdx = -1;
 
-    for (const match of trimmed.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)) {
-        if (match[1]?.trim()) candidates.push(match[1].trim());
-    }
-    candidates.push(trimmed);
+    for (let i = 0; i < input.length; i += 1) {
+        const ch = input[i];
+        if (inString) {
+            if (escaped) {
+                escaped = false;
+            } else if (ch === '\\') {
+                escaped = true;
+            } else if (ch === '"') {
+                inString = false;
+            }
+            continue;
+        }
 
-    const arrStart = trimmed.indexOf('[');
-    const arrEnd = trimmed.lastIndexOf(']');
-    if (arrStart >= 0 && arrEnd > arrStart) {
-        candidates.push(trimmed.slice(arrStart, arrEnd + 1));
-    }
-    const objStart = trimmed.indexOf('{');
-    const objEnd = trimmed.lastIndexOf('}');
-    if (objStart >= 0 && objEnd > objStart) {
-        candidates.push(trimmed.slice(objStart, objEnd + 1));
+        if (ch === '"') {
+            inString = true;
+            continue;
+        }
+
+        if (ch === '{' || ch === '[') {
+            if (depth === 0) startIdx = i;
+            depth += 1;
+        } else if ((ch === '}' || ch === ']') && depth > 0) {
+            depth -= 1;
+            if (depth === 0 && startIdx >= 0) {
+                segments.push(input.slice(startIdx, i + 1));
+                startIdx = -1;
+            }
+        }
     }
 
-    return candidates;
+    return segments;
+};
+
+const extractObjectsFromParsedJson = (parsed: unknown): Record<string, unknown>[] => {
+    let rawList: unknown[] | null = null;
+    if (Array.isArray(parsed)) {
+        rawList = parsed;
+    } else if (parsed && typeof parsed === 'object') {
+        const obj = parsed as Record<string, unknown>;
+        const nested = obj.records || obj.accidents || obj.items || obj.data;
+        rawList = Array.isArray(nested) ? nested : [obj];
+    }
+    if (!rawList) return [];
+    return rawList.filter(
+        (item): item is Record<string, unknown> =>
+            Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+    );
 };
 
 const parseDelimitedLine = (line: string, delimiter: ',' | '\t'): string[] => {
@@ -670,9 +759,8 @@ const parseDelimitedLine = (line: string, delimiter: ',' | '\t'): string[] => {
     return cells;
 };
 
-const tryParseDelimitedTable = (input: string): Record<string, unknown>[] | null => {
-    const fencedMatch = input.match(/```(?:csv|tsv)?\s*([\s\S]*?)```/i);
-    const body = (fencedMatch?.[1] || input).replace(/^\uFEFF/, '').trim();
+const parseSingleDelimitedBlock = (block: string): Record<string, unknown>[] | null => {
+    const body = block.replace(/^\uFEFF/, '').trim();
     const lines = body
         .split(/\r?\n/)
         .map((line) => line.trim())
@@ -694,6 +782,10 @@ const tryParseDelimitedTable = (input: string): Record<string, unknown>[] | null
     for (let i = 1; i < lines.length; i += 1) {
         const values = parseDelimitedLine(lines[i], delimiter);
         if (values.every((v) => !v)) continue;
+        // 여러 CSV 파일을 단순 합쳤을 때 중간에 반복된 헤더 행은 자동 건너뛴다.
+        if (values.length === headers.length && values.every((v, colIdx) => v === headers[colIdx])) {
+            continue;
+        }
         const row: Record<string, unknown> = {};
         headers.forEach((header, colIdx) => {
             row[header] = values[colIdx] ?? '';
@@ -704,12 +796,34 @@ const tryParseDelimitedTable = (input: string): Record<string, unknown>[] | null
     return rows.length > 0 ? rows : null;
 };
 
+const tryParseAllDelimitedBlocks = (input: string): { rows: Record<string, unknown>[]; blocksParsed: number } | null => {
+    const fencedMatches = Array.from(input.matchAll(/```(?:csv|tsv)?\s*([\s\S]*?)```/gi))
+        .map((m) => m[1]?.trim() || '')
+        .filter(Boolean);
+
+    if (fencedMatches.length > 0) {
+        const merged: Record<string, unknown>[] = [];
+        let blocksParsed = 0;
+        for (const block of fencedMatches) {
+            const rows = parseSingleDelimitedBlock(block);
+            if (rows && rows.length > 0) {
+                merged.push(...rows);
+                blocksParsed += 1;
+            }
+        }
+        if (merged.length > 0) return { rows: merged, blocksParsed };
+    }
+
+    const plainRows = parseSingleDelimitedBlock(input);
+    return plainRows ? { rows: plainRows, blocksParsed: 1 } : null;
+};
+
 export const parseExternalAiAccidentPayload = (
     rawInput: string,
     options?: { defaultProvider?: AccidentSourceProvider },
 ): AccidentParseResult => {
     const defaultProvider = options?.defaultProvider || 'gemini';
-    const text = String(rawInput || '').trim();
+    const text = String(rawInput || '').replace(/^\uFEFF/, '').trim();
     if (!text) {
         return {
             ok: false,
@@ -717,61 +831,74 @@ export const parseExternalAiAccidentPayload = (
             candidates: [],
             warnings: [],
             error: '붙여넣은 변환 내용이나 업로드한 파일 내용이 비어 있습니다.',
+            blocksParsed: 0,
         };
     }
 
-    const jsonCandidates = stripCodeFencesAndExtractJson(text);
-    for (const candidate of jsonCandidates) {
+    const fencedBlocks = Array.from(text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi))
+        .map((m) => m[1]?.trim() || '')
+        .filter(Boolean);
+
+    const jsonSources = fencedBlocks.length > 0
+        ? fencedBlocks
+        : extractTopLevelJsonSegments(text);
+
+    const collectedJsonObjects: Record<string, unknown>[] = [];
+    let jsonBlocksParsed = 0;
+
+    for (const source of jsonSources) {
         try {
-            const parsed: unknown = JSON.parse(candidate);
-            let rawList: unknown[] | null = null;
-
-            if (Array.isArray(parsed)) {
-                rawList = parsed;
-            } else if (parsed && typeof parsed === 'object') {
-                const obj = parsed as Record<string, unknown>;
-                const nested = obj.records || obj.accidents || obj.items || obj.data;
-                if (Array.isArray(nested)) {
-                    rawList = nested;
-                } else {
-                    rawList = [obj];
-                }
-            }
-
-            if (rawList && rawList.length > 0) {
-                const validObjs = rawList.filter(
-                    (item): item is Record<string, unknown> =>
-                        Boolean(item) && typeof item === 'object' && !Array.isArray(item),
-                );
-                if (validObjs.length === 0) continue;
-
-                const normalized = validObjs.map((obj, idx) =>
-                    normalizeRawRecord(obj, idx, defaultProvider),
-                );
-                return {
-                    ok: true,
-                    formatDetected: 'json',
-                    candidates: normalized.map((item) => item.record),
-                    warnings: normalized.flatMap((item) => item.notes).slice(0, 8),
-                    error: '',
-                };
+            const parsed: unknown = JSON.parse(source);
+            const objs = extractObjectsFromParsedJson(parsed);
+            if (objs.length > 0) {
+                collectedJsonObjects.push(...objs);
+                jsonBlocksParsed += 1;
             }
         } catch {
-            // Try next JSON candidate or fall back to CSV parser.
+            // Try top-level segments inside fenced block or next source
+            if (fencedBlocks.length > 0) {
+                for (const inner of extractTopLevelJsonSegments(source)) {
+                    try {
+                        const parsedInner: unknown = JSON.parse(inner);
+                        const objsInner = extractObjectsFromParsedJson(parsedInner);
+                        if (objsInner.length > 0) {
+                            collectedJsonObjects.push(...objsInner);
+                            jsonBlocksParsed += 1;
+                        }
+                    } catch {
+                        // Ignore malformed segment
+                    }
+                }
+            }
         }
     }
 
-    const csvRows = tryParseDelimitedTable(text);
-    if (csvRows) {
-        const normalized = csvRows.map((row, idx) =>
+    if (collectedJsonObjects.length > 0) {
+        const normalized = collectedJsonObjects.map((obj, idx) =>
+            normalizeRawRecord(obj, idx, defaultProvider),
+        );
+        return {
+            ok: true,
+            formatDetected: 'json',
+            candidates: normalized.map((item) => item.record),
+            warnings: normalized.flatMap((item) => item.notes).slice(0, 12),
+            error: '',
+            blocksParsed: jsonBlocksParsed,
+        };
+    }
+
+    const csvResult = tryParseAllDelimitedBlocks(text);
+    if (csvResult && csvResult.rows.length > 0) {
+        const normalized = csvResult.rows.map((row, idx) =>
             normalizeRawRecord(row, idx, defaultProvider === 'gemini' || defaultProvider === 'chatgpt' ? defaultProvider : 'csv'),
         );
         return {
             ok: true,
             formatDetected: 'csv',
             candidates: normalized.map((item) => item.record),
-            warnings: normalized.flatMap((item) => item.notes).slice(0, 8),
+            warnings: normalized.flatMap((item) => item.notes).slice(0, 12),
             error: '',
+            blocksParsed: csvResult.blocksParsed,
         };
     }
 
@@ -781,7 +908,115 @@ export const parseExternalAiAccidentPayload = (
         candidates: [],
         warnings: [],
         error: 'JSON 또는 CSV 구조를 찾지 못했습니다. 위 [전용 변환 지시문 복사]로 Gemini·ChatGPT가 출력한 결과 블록 전체를 붙여넣어 주세요.',
+        blocksParsed: 0,
     };
+};
+
+export const parseMultipleAccidentFiles = (
+    files: readonly AccidentBatchFileInput[],
+    options?: { defaultProvider?: AccidentSourceProvider },
+): {
+    candidates: AccidentBigDataRecord[];
+    fileReports: AccidentBatchFileReport[];
+    okCount: number;
+    failedCount: number;
+    warnings: string[];
+} => {
+    const candidates: AccidentBigDataRecord[] = [];
+    const fileReports: AccidentBatchFileReport[] = [];
+    const warnings: string[] = [];
+    let okCount = 0;
+    let failedCount = 0;
+
+    files.forEach((file, fileIdx) => {
+        const parsed = parseExternalAiAccidentPayload(file.content, options);
+        if (parsed.ok) {
+            okCount += 1;
+            const stamped = parsed.candidates.map((item, recIdx) => ({
+                ...item,
+                id: `acc-${Date.now()}-${fileIdx}-${recIdx}-${Math.random().toString(36).slice(2, 5)}`,
+                sourceFormatNote: item.sourceFormatNote === '외부 AI 표준 변환'
+                    ? file.fileName
+                    : `${item.sourceFormatNote} (${file.fileName})`,
+            }));
+            candidates.push(...stamped);
+            warnings.push(...parsed.warnings);
+            fileReports.push({
+                fileName: file.fileName,
+                ok: true,
+                count: stamped.length,
+                formatDetected: parsed.formatDetected,
+                error: '',
+            });
+        } else {
+            failedCount += 1;
+            fileReports.push({
+                fileName: file.fileName,
+                ok: false,
+                count: 0,
+                formatDetected: parsed.formatDetected,
+                error: parsed.error,
+            });
+        }
+    });
+
+    return {
+        candidates,
+        fileReports,
+        okCount,
+        failedCount,
+        warnings: warnings.slice(0, 12),
+    };
+};
+
+export const applyBulkSiteAndContractorToCandidates = (
+    queue: readonly AccidentAuditCandidate[],
+    existingRecords: readonly AccidentBigDataRecord[],
+    patch: {
+        siteName?: string;
+        sourceContractor?: string;
+        onlyWhenMissing?: boolean;
+    },
+): AccidentAuditCandidate[] => {
+    const nextSite = normalizeText(patch.siteName);
+    const nextContractor = normalizeText(patch.sourceContractor);
+    if (!nextSite && !nextContractor) return [...queue];
+
+    const existingFingerprints = new Set(existingRecords.map((item) => item.fingerprint));
+    const seenInBatch = new Set<string>();
+
+    const updatedRecords = queue.map((item) => {
+        if (!item.selected) return item.record;
+        const shouldApplySite = nextSite && (!patch.onlyWhenMissing || item.record.siteName === '현장 미지정' || !item.record.siteName.trim());
+        const shouldApplyContractor = nextContractor && (!patch.onlyWhenMissing || item.record.sourceContractor === '원도급사 미기재' || !item.record.sourceContractor.trim());
+        const updatedRecord: AccidentBigDataRecord = {
+            ...item.record,
+            siteName: shouldApplySite ? nextSite : item.record.siteName,
+            sourceContractor: shouldApplyContractor ? nextContractor : item.record.sourceContractor,
+        };
+        updatedRecord.fingerprint = computeAccidentFingerprint(updatedRecord);
+        return updatedRecord;
+    });
+
+    return queue.map((item, index) => {
+        const updatedRecord = updatedRecords[index];
+        const isExistingDup = existingFingerprints.has(updatedRecord.fingerprint);
+        const isBatchDup = seenInBatch.has(updatedRecord.fingerprint);
+        seenInBatch.add(updatedRecord.fingerprint);
+        const isDuplicate = isExistingDup || isBatchDup;
+        const duplicateReason = isExistingDup
+            ? '이미 빅데이터 DB에 동일한 일자·현장·공종 사례가 존재합니다.'
+            : isBatchDup
+                ? '이번에 가져온 목록 안에 중복 항목이 있습니다.'
+                : '';
+        return {
+            ...item,
+            record: updatedRecord,
+            isDuplicate,
+            duplicateReason,
+            completenessPct: computeCompletenessPct(updatedRecord),
+        };
+    });
 };
 
 const computeCompletenessPct = (record: AccidentBigDataRecord): number => {
@@ -866,6 +1101,9 @@ export const computeAccidentBigDataAnalytics = (
     const contractorCount = new Set(
         records.map((r) => r.sourceContractor.trim()).filter(Boolean),
     ).size;
+    const siteCount = new Set(
+        records.map((r) => r.siteName.trim()).filter(Boolean),
+    ).size;
 
     const toBuckets = (getKey: (r: AccidentBigDataRecord) => string): AccidentDistributionBucket[] => {
         const map = new Map<string, { count: number; severeCount: number }>();
@@ -888,6 +1126,45 @@ export const computeAccidentBigDataAnalytics = (
 
     const hazardDistribution = toBuckets((r) => r.hazardType);
     const jobFieldDistribution = toBuckets((r) => r.jobField);
+
+    const siteMap = new Map<string, AccidentBigDataRecord[]>();
+    for (const r of records) {
+        const key = normalizeText(r.siteName) || '현장 미지정';
+        const list = siteMap.get(key) || [];
+        list.push(r);
+        siteMap.set(key, list);
+    }
+    const siteDistribution: AccidentSiteComparisonBucket[] = Array.from(siteMap.entries())
+        .map(([siteName, list]) => {
+            const count = list.length;
+            const reportableCountForSite = list.filter((r) => isReportableTier(r.severity)).length;
+            const severeCountForSite = list.filter((r) => isSevereTier(r.severity)).length;
+            const nearMissCountForSite = list.filter((r) => r.severity === '아차사고').length;
+            const contractorFreq = new Map<string, number>();
+            const jobFreq = new Map<string, number>();
+            const hazardFreq = new Map<string, number>();
+            for (const item of list) {
+                const c = normalizeText(item.sourceContractor) || '원도급사 미기재';
+                contractorFreq.set(c, (contractorFreq.get(c) || 0) + 1);
+                jobFreq.set(item.jobField, (jobFreq.get(item.jobField) || 0) + 1);
+                hazardFreq.set(item.hazardType, (hazardFreq.get(item.hazardType) || 0) + 1);
+            }
+            const topContractor = Array.from(contractorFreq.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || '원도급사 미기재';
+            const topJobField = Array.from(jobFreq.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || '기타';
+            const topHazard = Array.from(hazardFreq.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || '기타';
+            return {
+                siteName,
+                contractor: topContractor,
+                count,
+                reportableCount: reportableCountForSite,
+                severeCount: severeCountForSite,
+                nearMissCount: nearMissCountForSite,
+                sharePct: totalCount > 0 ? Math.round((count / totalCount) * 100) : 0,
+                topJobField,
+                topHazard,
+            };
+        })
+        .sort((a, b) => b.severeCount - a.severeCount || b.count - a.count);
 
     const severityPyramid: AccidentSeverityTierMetric[] = [...ACCIDENT_SEVERITY_LEVELS]
         .reverse()
@@ -1040,10 +1317,12 @@ export const computeAccidentBigDataAnalytics = (
         reportableRatePct,
         nearMissCount,
         contractorCount,
+        siteCount,
         topJobField: jobFieldDistribution[0] || null,
         topHazardType: hazardDistribution[0] || null,
         hazardDistribution,
         jobFieldDistribution,
+        siteDistribution,
         severityPyramid,
         timeSlotDistribution,
         riskMatrix,
@@ -1309,3 +1588,95 @@ export const getSampleAccidentBigDataRecords = (): AccidentBigDataRecord[] => {
 
     return rawSamples.map((sample, idx) => normalizeRawRecord(sample, idx).record);
 };
+
+export const getMultiSiteBatchSampleText = (): string => [
+    '```json',
+    JSON.stringify(
+        [
+            {
+                occurredDate: '2026-10-18',
+                timeSlot: '오후',
+                sourceContractor: '한강종합건설',
+                siteName: '수도권 3공구 공동주택',
+                jobField: '형틀',
+                workTask: '3층 슬래브 거푸집 해체·정리 및 반출 중 단부 자재 낙하',
+                hazardType: '낙하',
+                severity: '휴업재해(3일↑)',
+                causingAgent: '알폼 패널 1매',
+                summary: '거푸집 해체 정리 작업 중 미고정 알폼 패널이 하부 통로로 낙하해 지상 정리 작업자의 안전모 및 어깨 타박(휴업 5일). 재해자 김반장(010-2211-8899) 병원 이송.',
+                directCause: '상하부 동시 작업 통제 미흡 및 해체 자재 임시 적치 위치 부적정',
+                rootCause: '해체정리 구간 하부 출입금지 라바콘 및 감시원 배치 누락',
+                preventionMeasure: '해체정리 구역 상하부 동시작업 엄금, 자재 가적치 전 결속 확인',
+                preWorkCheckpoints: ['해체 구간 하부 출입금지 확인', '해체물 임시 적치 결속 상태 확인'],
+                educationKeywords: ['해체정리', '상하동시작업금지', '자재낙하'],
+                sourceAiProvider: 'chatgpt',
+            },
+            {
+                occurredDate: '2026-10-24',
+                timeSlot: '오전',
+                sourceContractor: '태백엔지니어링',
+                siteName: '판교 R&D 센터 신축',
+                jobField: '알폼',
+                workTask: '기준층 알루미늄 폼 핀 체결 및 벽체 수직도 조정',
+                hazardType: '협착',
+                severity: '경미(응급·외래)',
+                causingAgent: '알폼 코너 패널 및 쐐기핀',
+                summary: '알폼 패널 맞댐 작업 중 동료 작업자와 신호 불일치로 틈새에 우측 손가락 끼임(현장 응급처치 후 외래 1회).',
+                directCause: '패널 결속 시 2인 1조 구호 일치 미흡',
+                rootCause: '반복 패널 체결 공정 피로 누적 및 장갑 착용 상태 불량',
+                preventionMeasure: '패널 맞댐 전 손 위치 확인 구호 의무화, 충격보호 장갑 지급',
+                preWorkCheckpoints: ['손가락 끼임 위험 구간 작업 구호 통일', '충격방지 안전장갑 착용'],
+                educationKeywords: ['알폼', '협착방지', '2인1조구호'],
+                sourceAiProvider: 'gemini',
+            },
+        ],
+        null,
+        2,
+    ),
+    '```',
+    '',
+    '```json',
+    JSON.stringify(
+        [
+            {
+                occurredDate: '2026-11-04',
+                timeSlot: '점심 직후',
+                sourceContractor: '청룡건설',
+                siteName: '부산 에코 델타시티 5BL',
+                jobField: '시스템',
+                workTask: '외부 시스템비계 6단 띠장 볼트 해체 전 가새 점검',
+                hazardType: '추락',
+                severity: '아차사고',
+                causingAgent: '미체결 가새핀',
+                summary: '점심 직후 시스템비계 승강 중 가새핀 1개소가 풀린 것을 선점검 단계에서 발견해 즉시 작업중지 후 재체결한 아차사고.',
+                directCause: '오전 작업 종료 전 가새핀 록킹 상태 확인 누락',
+                rootCause: '점심 직후 재개 전 가설구조물 재확인 절차 생략',
+                preventionMeasure: '오후 작업 재개 전 작업 전 안전점검 시 가새·클램프 풀림 여부 일제 점검',
+                preWorkCheckpoints: ['오후 작업 전 가새핀·클램프 록킹 확인', '안전대 2줄걸이 상시 체결'],
+                educationKeywords: ['시스템비계', '오후재개점검', '가새핀'],
+                sourceAiProvider: 'gemini',
+            },
+            {
+                occurredDate: '2026-11-09',
+                timeSlot: '오전 작업전',
+                sourceContractor: '한강종합건설',
+                siteName: '수도권 3공구 공동주택',
+                jobField: '갱폼',
+                workTask: '104동 12층 갱폼 인양 전 앵커볼트 풀림 및 크레인 인양 준비',
+                hazardType: '전도',
+                severity: '중상(장기·입원)',
+                causingAgent: '갱폼 인양 앵커볼트',
+                summary: '갱폼 인양 직전 앵커볼트 2개소 조기 해체 상태에서 풍하중으로 갱폼이 미세 기울어져 작업발판에 충돌(4주 이상 입원 치료).',
+                directCause: '크레인 인양고리 완전 긴장 전 하부 고정 앵커볼트 선해체',
+                rootCause: '갱폼 인양 작업순서 준수 확인 및 전담 신호수 무전 교신 누락',
+                preventionMeasure: '크레인 훅 인장력 확보 확인 후 순차 앵커볼트 해체, 2중 안전로프 결속',
+                preWorkCheckpoints: ['크레인 훅 긴장 전 앵커볼트 해체 금지', '갱폼 인양 전담 신호수 배치'],
+                educationKeywords: ['갱폼', '앵커볼트선해체금지', '인양안전'],
+                sourceAiProvider: 'chatgpt',
+            },
+        ],
+        null,
+        2,
+    ),
+    '```',
+].join('\n');

@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkerRecord } from '../types';
 import {
+    applyBulkSiteAndContractorToCandidates,
     auditAccidentImportCandidates,
     buildAccidentConversionPrompt,
     computeAccidentBigDataAnalytics,
     exportAccidentRecordsToCsv,
+    getMultiSiteBatchSampleText,
     getSampleAccidentBigDataRecords,
     maskAccidentRecordPii,
     normalizeAccidentSeverity,
     parseExternalAiAccidentPayload,
+    parseMultipleAccidentFiles,
     persistAccidentBigDataStore,
     readAccidentBigDataStore,
     standardizeAccidentJobField,
@@ -211,5 +214,61 @@ describe('accidentBigData hub engine', () => {
         expect(migrated.safe).toBe(true);
         expect(migrated.items[0].severity).toBe('경미(응급·외래)');
         expect(migrated.items[1].severity).toBe('중상(장기·입원)');
+    });
+
+    it('parses multiple fenced JSON blocks, stacked raw JSON arrays, and mixed multiple files across multiple sites', () => {
+        const promptMulti = buildAccidentConversionPrompt({
+            provider: 'chatgpt',
+            outputFormat: 'json',
+            multiSiteMode: true,
+        });
+        expect(promptMulti).toContain('다건·다수 현장 일괄 변환 원칙');
+        expect(promptMulti).toContain('덮어쓰기 금지');
+
+        const multiBlockResult = parseExternalAiAccidentPayload(getMultiSiteBatchSampleText());
+        expect(multiBlockResult.ok).toBe(true);
+        expect(multiBlockResult.blocksParsed).toBe(2);
+        expect(multiBlockResult.candidates).toHaveLength(4);
+        expect(multiBlockResult.candidates[0].jobField).toBe('해체정리');
+        expect(new Set(multiBlockResult.candidates.map((c) => c.siteName)).size).toBe(3);
+
+        const stackedJson = `[{"occurredDate":"2026-10-01","siteName":"현장A","workTask":"알폼 설치","hazardType":"협착"}]\n[{"occurredDate":"2026-10-02","siteName":"현장B","workTask":"갱폼 인양","hazardType":"추락"}]`;
+        const stackedResult = parseExternalAiAccidentPayload(stackedJson);
+        expect(stackedResult.ok).toBe(true);
+        expect(stackedResult.blocksParsed).toBe(2);
+        expect(stackedResult.candidates).toHaveLength(2);
+        expect(stackedResult.candidates.map((c) => c.siteName)).toEqual(['현장A', '현장B']);
+
+        const mixedBatch = parseMultipleAccidentFiles([
+            {
+                fileName: 'site-a.json',
+                content: '[{"occurredDate":"2026-09-01","sourceContractor":"원청A","siteName":"A현장","jobField":"형틀","workTask":"슬래브 동바리 조립","hazardType":"추락"}]',
+            },
+            {
+                fileName: 'site-b.csv',
+                content: 'occurredDate,timeSlot,sourceContractor,siteName,jobField,workTask,hazardType,severity\n2026-09-02,오후,원청B,B현장,해체정리,거푸집 탈형 반출,낙하,휴업재해(3일↑)',
+            },
+            {
+                fileName: 'broken.txt',
+                content: '안녕하세요 변환 전 일반 메모입니다.',
+            },
+        ]);
+        expect(mixedBatch.okCount).toBe(2);
+        expect(mixedBatch.failedCount).toBe(1);
+        expect(mixedBatch.candidates).toHaveLength(2);
+        expect(mixedBatch.candidates[1].siteName).toBe('B현장');
+
+        const auditedQueue = auditAccidentImportCandidates(mixedBatch.candidates, []);
+        const bulkUpdated = applyBulkSiteAndContractorToCandidates(auditedQueue, [], {
+            siteName: '통합수정현장',
+            onlyWhenMissing: false,
+        });
+        expect(bulkUpdated[0].record.siteName).toBe('통합수정현장');
+        expect(bulkUpdated[1].record.siteName).toBe('통합수정현장');
+
+        const siteAnalytics = computeAccidentBigDataAnalytics(getSampleAccidentBigDataRecords());
+        expect(siteAnalytics.siteCount).toBeGreaterThanOrEqual(4);
+        expect(siteAnalytics.siteDistribution[0].siteName).toBeTruthy();
+        expect(siteAnalytics.siteDistribution.reduce((acc, s) => acc + s.count, 0)).toBe(6);
     });
 });

@@ -12,6 +12,7 @@ import {
     ACCIDENT_JOB_FIELD_OPTIONS,
     ACCIDENT_SEVERITY_LEVELS,
     ACCIDENT_SEVERITY_META,
+    applyBulkSiteAndContractorToCandidates,
     auditAccidentImportCandidates,
     buildAccidentConversionPrompt,
     computeAccidentBigDataAnalytics,
@@ -19,13 +20,16 @@ import {
     detectAccidentPiiMatches,
     exportAccidentRecordsToCsv,
     exportAccidentRecordsToJson,
+    getMultiSiteBatchSampleText,
     getSampleAccidentBigDataRecords,
     maskAccidentRecordPii,
     parseExternalAiAccidentPayload,
+    parseMultipleAccidentFiles,
     persistAccidentBigDataStore,
     readAccidentBigDataStore,
     updateAccidentRecordInList,
     type AccidentAuditCandidate,
+    type AccidentBatchFileReport,
     type AccidentPromptFormat,
     type AccidentPromptProvider,
 } from '../utils/accidentBigData';
@@ -140,6 +144,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
     // Step 1: AI Prompt Builder State
     const [provider, setProvider] = useState<AccidentPromptProvider>('gemini');
     const [outputFormat, setOutputFormat] = useState<AccidentPromptFormat>('json');
+    const [multiSiteMode, setMultiSiteMode] = useState(true);
     const [contractorHint, setContractorHint] = useState('');
     const [siteHint, setSiteHint] = useState('');
     const [showPromptPreview, setShowPromptPreview] = useState(false);
@@ -147,15 +152,21 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
 
     // Step 2: Import / Dropzone State
     const [rawInput, setRawInput] = useState('');
+    const [appendMode, setAppendMode] = useState(true);
+    const [multiFileReports, setMultiFileReports] = useState<AccidentBatchFileReport[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     const [parseNotice, setParseNotice] = useState<{ tone: 'info' | 'warn' | 'error'; text: string } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Step 3: Pre-Commit Audit State
     const [auditQueue, setAuditQueue] = useState<AccidentAuditCandidate[]>([]);
+    const [auditSiteFilter, setAuditSiteFilter] = useState<string>('전체');
+    const [bulkSiteInput, setBulkSiteInput] = useState('');
+    const [bulkContractorInput, setBulkContractorInput] = useState('');
     const [commitBanner, setCommitBanner] = useState<string>('');
 
     // Dashboard & Archive Filters
+    const [siteFilter, setSiteFilter] = useState<string>('전체');
     const [contractorFilter, setContractorFilter] = useState<string>('전체');
     const [severityFilter, setSeverityFilter] = useState<string>('전체');
     const [hazardFilter, setHazardFilter] = useState<string>('전체');
@@ -200,16 +211,23 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
         siteHint,
         outputFormat,
         batchMode: true,
-    }), [contractorHint, outputFormat, provider, siteHint]);
+        multiSiteMode,
+    }), [contractorHint, multiSiteMode, outputFormat, provider, siteHint]);
 
     const contractorOptions = useMemo(() => {
         const set = new Set(records.map((r) => r.sourceContractor).filter(Boolean));
         return ['전체', ...Array.from(set)];
     }, [records]);
 
+    const siteOptions = useMemo(() => {
+        const set = new Set(records.map((r) => r.siteName).filter(Boolean));
+        return ['전체', ...Array.from(set)];
+    }, [records]);
+
     const filteredRecords = useMemo(() => {
         const q = searchQuery.trim().toLowerCase();
         return records.filter((rec) => {
+            if (siteFilter !== '전체' && rec.siteName !== siteFilter) return false;
             if (contractorFilter !== '전체' && rec.sourceContractor !== contractorFilter) return false;
             if (severityFilter !== '전체' && rec.severity !== severityFilter) return false;
             if (hazardFilter !== '전체' && rec.hazardType !== hazardFilter) return false;
@@ -226,7 +244,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                 rec.preventionMeasure,
             ].join(' ').toLowerCase().includes(q);
         });
-    }, [contractorFilter, hazardFilter, jobFieldFilter, records, searchQuery, severityFilter]);
+    }, [contractorFilter, hazardFilter, jobFieldFilter, records, searchQuery, severityFilter, siteFilter]);
 
     const analytics = useMemo(
         () => computeAccidentBigDataAnalytics(filteredRecords, workerRecords),
@@ -238,6 +256,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
     const animatedSevereRate = useAnimatedNumber(analytics.severeRatePct);
     const animatedNearMiss = useAnimatedNumber(analytics.nearMissCount);
     const animatedContractors = useAnimatedNumber(analytics.contractorCount);
+    const animatedSites = useAnimatedNumber(analytics.siteCount);
 
     const donutSegments = useMemo(() => {
         const radius = 52;
@@ -280,31 +299,120 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
         }
     };
 
-    const runParseAndAudit = (inputText: string) => {
-        const parsed = parseExternalAiAccidentPayload(inputText, { defaultProvider: provider });
-        if (!parsed.ok) {
-            setAuditQueue([]);
-            setParseNotice({ tone: 'error', text: parsed.error });
-            return;
-        }
-        const audited = auditAccidentImportCandidates(parsed.candidates, records);
+    const mergeCandidatesIntoQueue = (
+        incomingRecords: AccidentBigDataRecord[],
+        sourceSummaryLabel: string,
+        shouldAppend = appendMode,
+    ) => {
+        const existingQueued = shouldAppend ? auditQueue.map((item) => item.record) : [];
+        const combined = [...existingQueued, ...incomingRecords];
+        const audited = auditAccidentImportCandidates(combined, records);
         setAuditQueue(audited);
+        setAuditSiteFilter('전체');
+
         const dupCount = audited.filter((c) => c.isDuplicate).length;
         const piiCount = audited.filter((c) => c.piiFindings.length > 0).length;
+        const siteSetCount = new Set(audited.map((c) => c.record.siteName).filter(Boolean)).size;
         setParseNotice({
             tone: piiCount > 0 || dupCount > 0 ? 'warn' : 'info',
-            text: `${audited.length}건 인식 완료(${parsed.formatDetected.toUpperCase()}) · 개인정보 의심 ${piiCount}건 · 중복 의심 ${dupCount}건`,
+            text: `${incomingRecords.length}건 새로 인식(${sourceSummaryLabel}) → 검수 대기 총 ${audited.length}건(${siteSetCount}개 현장) · 개인정보 의심 ${piiCount}건 · 중복 의심 ${dupCount}건`,
         });
     };
 
-    const handleFileUpload = async (file: File) => {
-        try {
-            const text = await file.text();
-            setRawInput(text);
-            runParseAndAudit(text);
-        } catch {
-            setParseNotice({ tone: 'error', text: `'${file.name}' 파일을 읽지 못했습니다. JSON/CSV/TXT 파일인지 확인해 주세요.` });
+    const runParseAndAudit = (inputText: string, overrideAppend?: boolean) => {
+        const parsed = parseExternalAiAccidentPayload(inputText, { defaultProvider: provider });
+        if (!parsed.ok) {
+            if (!(overrideAppend ?? appendMode)) {
+                setAuditQueue([]);
+            }
+            setParseNotice({ tone: 'error', text: parsed.error });
+            return;
         }
+        setMultiFileReports([]);
+        const blockText = parsed.blocksParsed > 1 ? ` · ${parsed.blocksParsed}개 응답 묶음` : '';
+        mergeCandidatesIntoQueue(
+            parsed.candidates,
+            `${parsed.formatDetected.toUpperCase()}${blockText}`,
+            overrideAppend ?? appendMode,
+        );
+    };
+
+    const handleMultiFileUpload = async (fileList: FileList | File[]) => {
+        const files = Array.from(fileList);
+        if (files.length === 0) return;
+
+        try {
+            const loaded = await Promise.all(
+                files.map(async (file) => ({
+                    fileName: file.name,
+                    content: await file.text(),
+                })),
+            );
+            if (loaded.length === 1) {
+                setRawInput(loaded[0].content);
+            }
+            const batchResult = parseMultipleAccidentFiles(loaded, { defaultProvider: provider });
+            setMultiFileReports(batchResult.fileReports);
+
+            if (batchResult.candidates.length === 0) {
+                setParseNotice({
+                    tone: 'error',
+                    text: `${loaded.length}개 파일 중 인식된 사고 데이터가 없습니다. 파일별 배지 오류를 확인해 주세요.`,
+                });
+                return;
+            }
+
+            mergeCandidatesIntoQueue(
+                batchResult.candidates,
+                `파일 ${batchResult.okCount}/${loaded.length}개 성공`,
+                appendMode,
+            );
+        } catch {
+            setParseNotice({ tone: 'error', text: '선택한 파일 묶음을 읽지 못했습니다. JSON/CSV/TXT 파일인지 확인해 주세요.' });
+        }
+    };
+
+    const auditSiteSummary = useMemo(() => {
+        const map = new Map<string, number>();
+        for (const item of auditQueue) {
+            const site = item.record.siteName || '현장 미지정';
+            map.set(site, (map.get(site) || 0) + 1);
+        }
+        return Array.from(map.entries()).map(([siteName, count]) => ({ siteName, count }));
+    }, [auditQueue]);
+
+    const visibleAuditQueue = useMemo(() => {
+        if (auditSiteFilter === '전체') return auditQueue;
+        return auditQueue.filter((item) => item.record.siteName === auditSiteFilter);
+    }, [auditQueue, auditSiteFilter]);
+
+    const handleBulkSelectMode = (mode: 'newOnly' | 'all' | 'none') => {
+        setAuditQueue((prev) => prev.map((item) => {
+            if (auditSiteFilter !== '전체' && item.record.siteName !== auditSiteFilter) {
+                return item;
+            }
+            if (mode === 'all') return { ...item, selected: true };
+            if (mode === 'none') return { ...item, selected: false };
+            return { ...item, selected: !item.isDuplicate };
+        }));
+    };
+
+    const handleApplyBulkSiteContractor = (onlyWhenMissing: boolean) => {
+        if (!bulkSiteInput.trim() && !bulkContractorInput.trim()) {
+            setParseNotice({ tone: 'warn', text: '일괄 적용할 현장명 또는 원도급사명을 먼저 입력해 주세요.' });
+            return;
+        }
+        setAuditQueue((prev) => applyBulkSiteAndContractorToCandidates(prev, records, {
+            siteName: bulkSiteInput,
+            sourceContractor: bulkContractorInput,
+            onlyWhenMissing,
+        }));
+        setParseNotice({
+            tone: 'info',
+            text: onlyWhenMissing
+                ? '미지정/미기재된 선택 항목에만 현장명·원도급사명을 채웠습니다.'
+                : '선택한 대기 항목에 현장명·원도급사명을 일괄 반영했습니다.',
+        });
     };
 
     const handleToggleCandidate = (candidateId: string) => {
@@ -366,8 +474,10 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
         const merged = [...selected, ...records];
         if (!saveRecords(merged)) return;
 
-        setCommitBanner(`신규 사고 사례 ${selected.length}건이 빅데이터 DB에 반영되었습니다. (추가 API 비용 0원)`);
+        const siteTotal = new Set(selected.map((item) => item.siteName).filter(Boolean)).size;
+        setCommitBanner(`신규 사고 ${selected.length}건(${siteTotal}개 현장)이 빅데이터 DB에 반영되었습니다. (추가 API 비용 0원)`);
         setAuditQueue([]);
+        setMultiFileReports([]);
         setRawInput('');
         setParseNotice(null);
         setActiveTab('dashboard');
@@ -670,9 +780,37 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                     </div>
                                 </div>
 
+                                <div className="min-w-0 sm:col-span-2">
+                                    <label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                                        일괄 변환 범위 (다건 · 다수 현장 대응)
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setMultiSiteMode(true)}
+                                            className={`min-h-[42px] rounded-xl border px-3 text-xs font-extrabold transition-all ${multiSiteMode
+                                                ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm'
+                                                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                                            }`}
+                                        >
+                                            다수 현장 · 다건 일괄 (현장 분리 유지)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setMultiSiteMode(false)}
+                                            className={`min-h-[42px] rounded-xl border px-3 text-xs font-extrabold transition-all ${!multiSiteMode
+                                                ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm'
+                                                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                                            }`}
+                                        >
+                                            단일 현장 집중 변환
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <div className="min-w-0">
                                     <label htmlFor="ab-contractor-hint" className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">
-                                        원도급사명 힌트 (선택)
+                                        원도급사명 기본 힌트 (선택)
                                     </label>
                                     <input
                                         id="ab-contractor-hint"
@@ -686,14 +824,14 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
 
                                 <div className="min-w-0">
                                     <label htmlFor="ab-site-hint" className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">
-                                        현장명 힌트 (선택)
+                                        현장명 기본 힌트 (선택)
                                     </label>
                                     <input
                                         id="ab-site-hint"
                                         type="text"
                                         value={siteHint}
                                         onChange={(e) => setSiteHint(e.target.value)}
-                                        placeholder="예: 수도권 2공구 신축공사"
+                                        placeholder="문서에 현장명 없으면 적용될 기본값"
                                         className="w-full min-h-[42px] rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                                     />
                                 </div>
@@ -736,17 +874,30 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                             <div className="flex flex-wrap items-start justify-between gap-2">
                                 <div>
                                     <span className="inline-block rounded-full bg-sky-50 px-2.5 py-1 text-xs font-extrabold text-sky-800 dark:bg-sky-950/60 dark:text-sky-200">
-                                        STEP 2 · 결과물 가져오기
+                                        STEP 2 · 다수 파일 · 다건 일괄 가져오기
                                     </span>
                                     <h2 className="mt-2 text-lg font-extrabold text-slate-900 dark:text-white">
-                                        AI가 만든 결과 붙여넣기 또는 파일 드롭
+                                        AI 결과 여러 건 붙여넣기 또는 다수 파일 한꺼번에 드롭
                                     </h2>
                                 </div>
-                                {detectedPasteFormat && (
-                                    <span className="rounded-full border border-teal-300 bg-teal-50 px-2.5 py-1 text-xs font-extrabold text-teal-800 dark:border-teal-500/40 dark:bg-teal-950/50 dark:text-teal-200">
-                                        {detectedPasteFormat}
-                                    </span>
-                                )}
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setAppendMode((prev) => !prev)}
+                                        className={`rounded-full border px-2.5 py-1 text-xs font-extrabold transition-colors ${appendMode
+                                            ? 'border-indigo-300 bg-indigo-50 text-indigo-800 dark:border-indigo-500/40 dark:bg-indigo-950/50 dark:text-indigo-200'
+                                            : 'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                        }`}
+                                        title="검수 대기 목록이 있을 때 기존 대기 목록 뒤에 누적 추가할지, 새로 교체할지 선택합니다"
+                                    >
+                                        {appendMode ? '기존 대기에 누적 추가' : '새 목록으로 교체'}
+                                    </button>
+                                    {detectedPasteFormat && (
+                                        <span className="rounded-full border border-teal-300 bg-teal-50 px-2.5 py-1 text-xs font-extrabold text-teal-800 dark:border-teal-500/40 dark:bg-teal-950/50 dark:text-teal-200">
+                                            {detectedPasteFormat}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
 
                             <div
@@ -759,8 +910,9 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                 onDrop={(e) => {
                                     e.preventDefault();
                                     setIsDragging(false);
-                                    const droppedFile = e.dataTransfer.files?.[0];
-                                    if (droppedFile) void handleFileUpload(droppedFile);
+                                    if (e.dataTransfer.files?.length > 0) {
+                                        void handleMultiFileUpload(e.dataTransfer.files);
+                                    }
                                 }}
                             >
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -772,21 +924,23 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                         </div>
                                         <div className="min-w-0">
                                             <p className="text-sm font-extrabold text-slate-900 dark:text-slate-100">
-                                                변환된 파일(.json · .csv · .txt)을 여기로 끌어오세요
+                                                변환 파일(.json · .csv · .txt)을 여러 개 한꺼번에 끌어오세요
                                             </p>
                                             <p className="text-xs text-slate-600 dark:text-slate-300">
-                                                AI 답변 앞뒤에 설명 문장이 섞여 있어도 핵심 표·데이터만 자동 추출합니다.
+                                                현장별 파일 여러 개나 AI 응답 블록 여러 개를 이어 붙여도 모두 자동 분리·통합합니다.
                                             </p>
                                         </div>
                                     </div>
                                     <input
                                         ref={fileInputRef}
                                         type="file"
+                                        multiple
                                         accept=".json,.csv,.tsv,.txt"
                                         className="hidden"
                                         onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) void handleFileUpload(file);
+                                            if (e.target.files && e.target.files.length > 0) {
+                                                void handleMultiFileUpload(e.target.files);
+                                            }
                                             e.target.value = '';
                                         }}
                                     />
@@ -795,7 +949,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                         onClick={() => fileInputRef.current?.click()}
                                         className="inline-flex min-h-[40px] shrink-0 items-center justify-center rounded-xl border border-slate-300 bg-white px-3.5 text-xs font-extrabold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                                     >
-                                        파일 직접 선택
+                                        여러 파일 선택
                                     </button>
                                 </div>
 
@@ -803,11 +957,26 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                     value={rawInput}
                                     onChange={(e) => setRawInput(e.target.value)}
                                     rows={6}
-                                    placeholder="또는 Gemini · ChatGPT 답변창에서 복사한 JSON / CSV 결과를 여기에 그대로 붙여넣기(Ctrl+V) 하세요..."
+                                    placeholder="Gemini · ChatGPT에서 여러 현장의 사고보고서를 각각 변환한 뒤, 답변 블록을 여러 개 이어서 붙여넣어도 한 번에 분석됩니다..."
                                     aria-label="AI 변환 결과 붙여넣기"
                                     className="mt-3 w-full rounded-xl border border-slate-300 bg-white/90 p-3 font-mono text-xs leading-relaxed text-slate-900 dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-100"
                                 />
                             </div>
+
+                            {multiFileReports.length > 0 && (
+                                <div className="psi-ab-file-chips" aria-label="업로드 파일 처리 결과">
+                                    {multiFileReports.map((rep) => (
+                                        <span
+                                            key={rep.fileName}
+                                            className={`psi-ab-file-chip ${rep.ok ? 'is-ok' : 'is-err'}`}
+                                            title={rep.ok ? `${rep.formatDetected.toUpperCase()} ${rep.count}건` : rep.error}
+                                        >
+                                            <span>{rep.ok ? '✓' : '✕'} {rep.fileName}</span>
+                                            <span>{rep.ok ? `${rep.count}건` : '오류'}</span>
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
 
                             <div className="flex flex-wrap items-center gap-2.5">
                                 <button
@@ -816,29 +985,41 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                     onClick={() => runParseAndAudit(rawInput)}
                                     className="psi-ab-cta disabled:opacity-45"
                                 >
-                                    <span>자동 분석 및 사전 검수 실행</span>
+                                    <span>{appendMode && auditQueue.length > 0 ? '대기 목록에 추가 분석' : '자동 분석 및 사전 검수 실행'}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const sampleBatch = getMultiSiteBatchSampleText();
+                                        setRawInput(sampleBatch);
+                                        runParseAndAudit(sampleBatch, false);
+                                    }}
+                                    className="inline-flex min-h-[44px] items-center rounded-xl border border-indigo-300 bg-indigo-50 px-3.5 text-xs font-extrabold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-500/40 dark:bg-indigo-950/60 dark:text-indigo-200"
+                                >
+                                    다수 현장 4건 묶음 테스트
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => {
                                         setRawInput(SAMPLE_PASTE_JSON);
-                                        runParseAndAudit(SAMPLE_PASTE_JSON);
+                                        runParseAndAudit(SAMPLE_PASTE_JSON, false);
                                     }}
                                     className="inline-flex min-h-[44px] items-center rounded-xl border border-slate-300 bg-white px-3.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                                 >
-                                    변환 예시로 바로 테스트
+                                    단건 예시 테스트
                                 </button>
-                                {rawInput.trim() && (
+                                {(rawInput.trim() || auditQueue.length > 0) && (
                                     <button
                                         type="button"
                                         onClick={() => {
                                             setRawInput('');
                                             setAuditQueue([]);
+                                            setMultiFileReports([]);
                                             setParseNotice(null);
                                         }}
                                         className="inline-flex min-h-[44px] items-center rounded-xl px-3 text-xs font-bold text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                                     >
-                                        입력 비우기
+                                        전체 비우기
                                     </button>
                                 )}
                             </div>
@@ -866,13 +1047,34 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                     <span className="inline-block rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-extrabold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200">
-                                        STEP 3 · 적재 전 자동 검수 · 개인정보 보호
+                                        STEP 3 · 다수 현장 일괄 검수 · 개인정보 보호
                                     </span>
                                     <h2 className="mt-1.5 text-lg font-extrabold text-slate-900 dark:text-white">
-                                        표준화 및 비식별 확인 ({selectedCommitCount}/{auditQueue.length}건 반영 예정)
+                                        표준화 및 비식별 확인 ({selectedCommitCount}/{auditQueue.length}건 · {auditSiteSummary.length}개 현장 반영 예정)
                                     </h2>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleBulkSelectMode('newOnly')}
+                                        className="min-h-[38px] rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                    >
+                                        신규만 선택
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleBulkSelectMode('all')}
+                                        className="min-h-[38px] rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                    >
+                                        전체 선택
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleBulkSelectMode('none')}
+                                        className="min-h-[38px] rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                    >
+                                        선택 해제
+                                    </button>
                                     {anyPiiRemaining && (
                                         <button
                                             type="button"
@@ -893,8 +1095,80 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                 </div>
                             </div>
 
+                            {/* 현장별 필터 칩 & 선택 항목 현장/원도급사 일괄 보정 바 */}
+                            <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/75 p-3.5 dark:border-slate-800 dark:bg-slate-900/60">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setAuditSiteFilter('전체')}
+                                        className={`rounded-full px-3 py-1 text-xs font-extrabold transition-colors ${auditSiteFilter === '전체'
+                                            ? 'bg-slate-900 text-white dark:bg-sky-500 dark:text-slate-950'
+                                            : 'border border-slate-300 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                                        }`}
+                                    >
+                                        전체 현장 ({auditQueue.length})
+                                    </button>
+                                    {auditSiteSummary.map((site) => (
+                                        <button
+                                            key={site.siteName}
+                                            type="button"
+                                            onClick={() => setAuditSiteFilter(site.siteName)}
+                                            className={`rounded-full px-3 py-1 text-xs font-extrabold transition-colors ${auditSiteFilter === site.siteName
+                                                ? 'bg-indigo-600 text-white'
+                                                : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                                            }`}
+                                        >
+                                            {site.siteName} ({site.count})
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <div className="flex flex-wrap items-end gap-2">
+                                    <div className="min-w-[170px] flex-1">
+                                        <label htmlFor="ab-bulk-site" className="mb-1 block text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                                            선택 항목 현장명 일괄 지정
+                                        </label>
+                                        <input
+                                            id="ab-bulk-site"
+                                            type="text"
+                                            value={bulkSiteInput}
+                                            onChange={(e) => setBulkSiteInput(e.target.value)}
+                                            placeholder="예: 판교 R&D 센터 신축"
+                                            className="w-full min-h-[36px] rounded-xl border border-slate-300 bg-white px-2.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                        />
+                                    </div>
+                                    <div className="min-w-[170px] flex-1">
+                                        <label htmlFor="ab-bulk-contractor" className="mb-1 block text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                                            선택 항목 원도급사 일괄 지정
+                                        </label>
+                                        <input
+                                            id="ab-bulk-contractor"
+                                            type="text"
+                                            value={bulkContractorInput}
+                                            onChange={(e) => setBulkContractorInput(e.target.value)}
+                                            placeholder="예: 태백엔지니어링"
+                                            className="w-full min-h-[36px] rounded-xl border border-slate-300 bg-white px-2.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleApplyBulkSiteContractor(true)}
+                                        className="min-h-[36px] rounded-xl border border-teal-500/40 bg-teal-50 px-3 text-xs font-extrabold text-teal-800 hover:bg-teal-100 dark:bg-teal-950/60 dark:text-teal-200"
+                                    >
+                                        미지정만 채우기
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleApplyBulkSiteContractor(false)}
+                                        className="min-h-[36px] rounded-xl border border-indigo-400 bg-indigo-600 px-3 text-xs font-extrabold text-white hover:bg-indigo-500"
+                                    >
+                                        선택 건 전체 덮어쓰기
+                                    </button>
+                                </div>
+                            </div>
+
                             <div className="grid grid-cols-1 gap-4">
-                                {auditQueue.map((cand) => (
+                                {visibleAuditQueue.map((cand) => (
                                     <article
                                         key={cand.candidateId}
                                         className={`rounded-2xl border p-4 transition-colors ${
@@ -911,7 +1185,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                                     onChange={() => handleToggleCandidate(cand.candidateId)}
                                                     className="h-4 w-4 rounded accent-teal-600"
                                                 />
-                                                <span>{cand.record.occurredDate} · {cand.record.sourceContractor}</span>
+                                                <span>{cand.record.occurredDate} · {cand.record.siteName} · {cand.record.sourceContractor}</span>
                                             </label>
                                             <div className="flex flex-wrap items-center gap-1.5">
                                                 <span className="rounded-full bg-slate-200/80 px-2.5 py-0.5 text-xs font-bold text-slate-800 dark:bg-slate-800 dark:text-slate-200">
@@ -938,7 +1212,16 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                             </div>
                                         </div>
 
-                                        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                                        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                                            <div className="min-w-0">
+                                                <label className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">현장명</label>
+                                                <input
+                                                    type="text"
+                                                    value={cand.record.siteName}
+                                                    onChange={(e) => handleUpdateCandidateField(cand.candidateId, 'siteName', e.target.value)}
+                                                    className="w-full min-h-[38px] rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                                />
+                                            </div>
                                             <div className="min-w-0">
                                                 <label className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">원도급사</label>
                                                 <input
@@ -1040,6 +1323,19 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                     {/* Filter Bar */}
                     <section className="psi-ab-card flex flex-wrap items-end gap-3">
                         <div className="min-w-[160px] flex-1">
+                            <label htmlFor="ab-filter-site" className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">
+                                현장별 필터
+                            </label>
+                            <select
+                                id="ab-filter-site"
+                                value={siteFilter}
+                                onChange={(e) => setSiteFilter(e.target.value)}
+                                className="w-full min-h-[40px] rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                            >
+                                {siteOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                        </div>
+                        <div className="min-w-[160px] flex-1">
                             <label htmlFor="ab-filter-contractor" className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">
                                 원도급사 필터
                             </label>
@@ -1079,10 +1375,11 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                 className="w-full min-h-[40px] rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                             />
                         </div>
-                        {(contractorFilter !== '전체' || severityFilter !== '전체' || hazardFilter !== '전체' || jobFieldFilter !== '전체' || searchQuery) && (
+                        {(siteFilter !== '전체' || contractorFilter !== '전체' || severityFilter !== '전체' || hazardFilter !== '전체' || jobFieldFilter !== '전체' || searchQuery) && (
                             <button
                                 type="button"
                                 onClick={() => {
+                                    setSiteFilter('전체');
                                     setContractorFilter('전체');
                                     setSeverityFilter('전체');
                                     setHazardFilter('전체');
@@ -1134,7 +1431,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                         {animatedTotal}건
                                     </p>
                                     <p className="mt-1.5 text-xs font-semibold text-teal-700 dark:text-teal-300">
-                                        {animatedContractors}개 원도급사 양식 표준화 완료
+                                        {animatedSites}개 현장 · {animatedContractors}개 원도급사 통합 집계
                                     </p>
                                 </article>
                                 <article className="psi-ab-card psi-ab-rise psi-ab-rise-d1">
@@ -1649,6 +1946,76 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                     </ul>
                                 </section>
                             </div>
+
+                            {/* Multi-Site Comparative Stacked Board */}
+                            {analytics.siteDistribution.length > 0 && (
+                                <section className="psi-ab-card psi-ab-rise flex flex-col gap-3.5">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div>
+                                            <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
+                                                다수 현장별 사고·위험 비교 보드 ({analytics.siteCount}개 현장)
+                                            </h2>
+                                            <p className="text-xs text-slate-600 dark:text-slate-300">
+                                                현장별 중상·휴업·아차사고 구성 비중과 다빈도 공종·재해를 비교합니다. 행을 누르면 해당 현장 사례만 모아봅니다.
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-3 text-xs font-bold">
+                                            <span className="inline-flex items-center gap-1 text-rose-700 dark:text-rose-300">
+                                                <span className="h-2.5 w-2.5 rounded-full bg-rose-600" />중상·중대
+                                            </span>
+                                            <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300">
+                                                <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />휴업(3일↑)
+                                            </span>
+                                            <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
+                                                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />아차·경미
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="psi-ab-site-board">
+                                        {analytics.siteDistribution.map((site) => {
+                                            const totalForSite = Math.max(1, site.count);
+                                            const severePct = Math.round((site.severeCount / totalForSite) * 100);
+                                            const lostTimeOnly = Math.max(0, site.reportableCount - site.severeCount);
+                                            const lostTimePct = Math.round((lostTimeOnly / totalForSite) * 100);
+                                            const mildPct = Math.max(0, 100 - severePct - lostTimePct);
+
+                                            return (
+                                                <button
+                                                    key={site.siteName}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSiteFilter(site.siteName);
+                                                        setActiveTab('archive');
+                                                    }}
+                                                    className="psi-ab-site-row flex w-full flex-col gap-2 text-left"
+                                                >
+                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <span className="text-sm font-extrabold text-slate-900 dark:text-white">
+                                                                {site.siteName}
+                                                            </span>
+                                                            <span className="rounded-full bg-slate-200/80 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                                                                {site.contractor}
+                                                            </span>
+                                                            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-200">
+                                                                주 공종: {site.topJobField} · 주 재해: {site.topHazard}
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-xs font-extrabold tabular-nums text-slate-800 dark:text-slate-100">
+                                                            총 {site.count}건 ({site.sharePct}%) · 중상·중대 {site.severeCount}건 · 아차 {site.nearMissCount}건
+                                                        </span>
+                                                    </div>
+                                                    <div className="psi-ab-stacked-bar" aria-hidden="true">
+                                                        {severePct > 0 && <div className="psi-ab-stacked-seg bg-rose-600" style={{ width: `${severePct}%` }} />}
+                                                        {lostTimePct > 0 && <div className="psi-ab-stacked-seg bg-amber-500" style={{ width: `${lostTimePct}%` }} />}
+                                                        {mildPct > 0 && <div className="psi-ab-stacked-seg bg-emerald-500" style={{ width: `${mildPct}%` }} />}
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </section>
+                            )}
                         </>
                     )}
                 </div>
@@ -1667,6 +2034,16 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                             </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
+                            <select
+                                aria-label="보관함 현장 필터"
+                                value={siteFilter}
+                                onChange={(e) => setSiteFilter(e.target.value)}
+                                className="min-h-[38px] rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                            >
+                                {siteOptions.map((s) => (
+                                    <option key={s} value={s}>{s === '전체' ? '전체 현장' : s}</option>
+                                ))}
+                            </select>
                             {jobFieldFilter !== '전체' && (
                                 <button
                                     type="button"
