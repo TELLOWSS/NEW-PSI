@@ -722,6 +722,16 @@ export type AccidentSeverity =
     | '중상(장기·입원)'
     | '중대재해';
 export type AccidentTimeSlot = '오전 작업전' | '오전' | '점심 직후' | '오후' | '야간' | '미상';
+export type AccidentWorkStage =
+    | '설치·조립'
+    | '해체·탈형'
+    | '정리·반출'
+    | '양중·인양'
+    | '타설·양생'
+    | '가공·절단'
+    | '점검·보수'
+    | '이동·운반'
+    | '미상';
 export type AccidentSourceProvider = 'gemini' | 'chatgpt' | 'claude' | 'csv' | 'manual';
 
 export interface AccidentBigDataRecord {
@@ -731,6 +741,7 @@ export interface AccidentBigDataRecord {
     occurredDate: string;
     timeSlot: AccidentTimeSlot;
     jobField: string;
+    workStage?: AccidentWorkStage;
     workTask: string;
     hazardType: string;
     severity: AccidentSeverity;

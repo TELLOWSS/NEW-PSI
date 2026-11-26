@@ -4,6 +4,7 @@ import type {
     AccidentBigDataRecord,
     AccidentSeverity,
     AccidentTimeSlot,
+    AccidentWorkStage,
     Page,
     WorkerRecord,
 } from '../types';
@@ -12,17 +13,20 @@ import {
     ACCIDENT_JOB_FIELD_OPTIONS,
     ACCIDENT_SEVERITY_LEVELS,
     ACCIDENT_SEVERITY_META,
+    ACCIDENT_WORK_STAGE_OPTIONS,
     applyBulkSiteAndContractorToCandidates,
     auditAccidentImportCandidates,
     buildAccidentConversionPrompt,
     computeAccidentBigDataAnalytics,
     computeAccidentFingerprint,
+    computeCandidateTradeReviewHint,
     detectAccidentPiiMatches,
     exportAccidentRecordsToCsv,
     exportAccidentRecordsToJson,
     getMultiSiteBatchSampleText,
     getSampleAccidentBigDataRecords,
     maskAccidentRecordPii,
+    normalizeAccidentWorkStage,
     parseExternalAiAccidentPayload,
     parseMultipleAccidentFiles,
     persistAccidentBigDataStore,
@@ -41,7 +45,68 @@ interface AccidentBigDataHubProps {
 
 type HubTab = 'import' | 'dashboard' | 'archive';
 
+interface HubFilterState {
+    site: string;
+    contractor: string;
+    severity: string;
+    jobField: string;
+    hazard: string;
+    workStage: string;
+    search: string;
+}
+
+const DEFAULT_HUB_FILTERS: HubFilterState = {
+    site: '전체',
+    contractor: '전체',
+    severity: '전체',
+    jobField: '전체',
+    hazard: '전체',
+    workStage: '전체',
+    search: '',
+};
+
+const countActiveHubFilters = (filters: HubFilterState): number => {
+    let count = 0;
+    if (filters.site !== '전체') count += 1;
+    if (filters.contractor !== '전체') count += 1;
+    if (filters.severity !== '전체') count += 1;
+    if (filters.jobField !== '전체') count += 1;
+    if (filters.hazard !== '전체') count += 1;
+    if (filters.workStage !== '전체') count += 1;
+    if (filters.search.trim()) count += 1;
+    return count;
+};
+
+const applyHubFilters = (
+    items: readonly AccidentBigDataRecord[],
+    filters: HubFilterState,
+): AccidentBigDataRecord[] => {
+    const q = filters.search.trim().toLowerCase();
+    return items.filter((rec) => {
+        const recStage = rec.workStage || normalizeAccidentWorkStage('', `${rec.workTask} ${rec.summary}`);
+        if (filters.site !== '전체' && rec.siteName !== filters.site) return false;
+        if (filters.contractor !== '전체' && rec.sourceContractor !== filters.contractor) return false;
+        if (filters.severity !== '전체' && rec.severity !== filters.severity) return false;
+        if (filters.jobField !== '전체' && rec.jobField !== filters.jobField) return false;
+        if (filters.hazard !== '전체' && rec.hazardType !== filters.hazard) return false;
+        if (filters.workStage !== '전체' && recStage !== filters.workStage) return false;
+        if (!q) return true;
+        return [
+            rec.sourceContractor,
+            rec.siteName,
+            rec.jobField,
+            recStage,
+            rec.hazardType,
+            rec.workTask,
+            rec.causingAgent,
+            rec.summary,
+            rec.preventionMeasure,
+        ].join(' ').toLowerCase().includes(q);
+    });
+};
+
 const SEVERITY_OPTIONS: readonly AccidentSeverity[] = ACCIDENT_SEVERITY_LEVELS;
+const WORK_STAGE_OPTIONS: readonly AccidentWorkStage[] = ACCIDENT_WORK_STAGE_OPTIONS;
 const TIME_SLOT_OPTIONS: readonly AccidentTimeSlot[] = ['오전 작업전', '오전', '점심 직후', '오후', '야간', '미상'];
 const HAZARD_OPTIONS = PSI_RISK_TYPE_CATALOG.map((item) => item.label);
 
@@ -165,13 +230,9 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
     const [bulkContractorInput, setBulkContractorInput] = useState('');
     const [commitBanner, setCommitBanner] = useState<string>('');
 
-    // Dashboard & Archive Filters
-    const [siteFilter, setSiteFilter] = useState<string>('전체');
-    const [contractorFilter, setContractorFilter] = useState<string>('전체');
-    const [severityFilter, setSeverityFilter] = useState<string>('전체');
-    const [hazardFilter, setHazardFilter] = useState<string>('전체');
-    const [jobFieldFilter, setJobFieldFilter] = useState<string>('전체');
-    const [searchQuery, setSearchQuery] = useState('');
+    // Dashboard & Archive Independent Filters (대시보드와 보관함 필터를 독립 관리해 드릴다운 후 복귀 시 전체 뷰 유지)
+    const [dashboardFilters, setDashboardFilters] = useState<HubFilterState>(DEFAULT_HUB_FILTERS);
+    const [archiveFilters, setArchiveFilters] = useState<HubFilterState>(DEFAULT_HUB_FILTERS);
     const [selectedRecord, setSelectedRecord] = useState<AccidentBigDataRecord | null>(null);
     const [isEditingDrawer, setIsEditingDrawer] = useState(false);
     const [editDraft, setEditDraft] = useState<AccidentBigDataRecord | null>(null);
@@ -224,31 +285,42 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
         return ['전체', ...Array.from(set)];
     }, [records]);
 
-    const filteredRecords = useMemo(() => {
-        const q = searchQuery.trim().toLowerCase();
-        return records.filter((rec) => {
-            if (siteFilter !== '전체' && rec.siteName !== siteFilter) return false;
-            if (contractorFilter !== '전체' && rec.sourceContractor !== contractorFilter) return false;
-            if (severityFilter !== '전체' && rec.severity !== severityFilter) return false;
-            if (hazardFilter !== '전체' && rec.hazardType !== hazardFilter) return false;
-            if (jobFieldFilter !== '전체' && rec.jobField !== jobFieldFilter) return false;
-            if (!q) return true;
-            return [
-                rec.sourceContractor,
-                rec.siteName,
-                rec.jobField,
-                rec.hazardType,
-                rec.workTask,
-                rec.causingAgent,
-                rec.summary,
-                rec.preventionMeasure,
-            ].join(' ').toLowerCase().includes(q);
+    const jobFieldOptions = useMemo(() => {
+        const set = new Set(records.map((r) => r.jobField).filter(Boolean));
+        return ['전체', ...Array.from(set)];
+    }, [records]);
+
+    const dashboardFilteredRecords = useMemo(
+        () => applyHubFilters(records, dashboardFilters),
+        [dashboardFilters, records],
+    );
+
+    const archiveFilteredRecords = useMemo(
+        () => applyHubFilters(records, archiveFilters),
+        [archiveFilters, records],
+    );
+
+    const activeDashboardFilterCount = useMemo(
+        () => countActiveHubFilters(dashboardFilters),
+        [dashboardFilters],
+    );
+
+    const activeArchiveFilterCount = useMemo(
+        () => countActiveHubFilters(archiveFilters),
+        [archiveFilters],
+    );
+
+    const openArchiveWithFilter = (patch: Partial<HubFilterState>) => {
+        setArchiveFilters({
+            ...dashboardFilters,
+            ...patch,
         });
-    }, [contractorFilter, hazardFilter, jobFieldFilter, records, searchQuery, severityFilter, siteFilter]);
+        setActiveTab('archive');
+    };
 
     const analytics = useMemo(
-        () => computeAccidentBigDataAnalytics(filteredRecords, workerRecords),
-        [filteredRecords, workerRecords],
+        () => computeAccidentBigDataAnalytics(dashboardFilteredRecords, workerRecords),
+        [dashboardFilteredRecords, workerRecords],
     );
 
     const animatedTotal = useAnimatedNumber(analytics.totalCount);
@@ -438,6 +510,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                 ...reAudited,
                 candidateId: item.candidateId,
                 selected: item.selected,
+                tradeReviewHint: computeCandidateTradeReviewHint(reAudited.record),
             };
         }));
     };
@@ -663,7 +736,9 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                     onClick={() => setActiveTab('dashboard')}
                 >
                     <span>2. 빅데이터 대시보드</span>
-                    <span className="psi-ab-tab-count">{records.length}</span>
+                    <span className="psi-ab-tab-count">
+                        {activeDashboardFilterCount > 0 ? `${dashboardFilteredRecords.length}/${records.length}` : records.length}
+                    </span>
                 </button>
                 <button
                     type="button"
@@ -673,7 +748,9 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                     onClick={() => setActiveTab('archive')}
                 >
                     <span>3. 누적 사례 보관함</span>
-                    <span className="psi-ab-tab-count">{filteredRecords.length}</span>
+                    <span className="psi-ab-tab-count">
+                        {activeArchiveFilterCount > 0 ? `${archiveFilteredRecords.length}/${records.length}` : records.length}
+                    </span>
                 </button>
             </nav>
 
@@ -1212,7 +1289,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                             </div>
                                         </div>
 
-                                        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                                        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                                             <div className="min-w-0">
                                                 <label className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">현장명</label>
                                                 <input
@@ -1232,7 +1309,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                                 />
                                             </div>
                                             <div className="min-w-0">
-                                                <label className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">공종 (골조특화 · 직접입력 가능)</label>
+                                                <label className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">공종 (소속 팀·직종 · 직접입력)</label>
                                                 <select
                                                     value={customCandidateJobs[cand.candidateId] || !ACCIDENT_JOB_FIELD_OPTIONS.includes(cand.record.jobField) ? '__custom__' : cand.record.jobField}
                                                     onChange={(e) => {
@@ -1259,6 +1336,18 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                                         className="mt-1.5 w-full min-h-[36px] rounded-lg border border-teal-400 bg-white px-2.5 text-xs font-semibold text-slate-900 dark:bg-slate-950 dark:text-slate-100"
                                                     />
                                                 )}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <label className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">작업공정 (작업 단계)</label>
+                                                <select
+                                                    value={cand.record.workStage || '미상'}
+                                                    onChange={(e) => handleUpdateCandidateField(cand.candidateId, 'workStage', e.target.value as AccidentWorkStage)}
+                                                    className="w-full min-h-[38px] rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                                >
+                                                    {WORK_STAGE_OPTIONS.map((stage) => (
+                                                        <option key={stage} value={stage}>{stage}</option>
+                                                    ))}
+                                                </select>
                                             </div>
                                             <div className="min-w-0">
                                                 <label className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">12대 재해유형</label>
@@ -1288,6 +1377,19 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                                 </p>
                                             </div>
                                         </div>
+
+                                        {cand.tradeReviewHint && (
+                                            <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-indigo-300/70 bg-indigo-50/85 px-3 py-2 text-xs text-indigo-950 dark:border-indigo-500/40 dark:bg-indigo-950/50 dark:text-indigo-100">
+                                                <span className="font-bold">{cand.tradeReviewHint}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleUpdateCandidateField(cand.candidateId, 'jobField', '해체정리')}
+                                                    className="shrink-0 rounded-lg border border-indigo-400 bg-white px-2.5 py-1 text-[11px] font-extrabold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-500 dark:bg-slate-900 dark:text-indigo-200"
+                                                >
+                                                    해체정리 팀으로 변경
+                                                </button>
+                                            </div>
+                                        )}
 
                                         <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
                                             <div className="min-w-0">
@@ -1320,76 +1422,122 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
             {/* ================= TAB 2: BIG-DATA DASHBOARD (0 WON DB ANALYTICS) ================= */}
             {activeTab === 'dashboard' && (
                 <div className="flex flex-col gap-5">
-                    {/* Filter Bar */}
-                    <section className="psi-ab-card flex flex-wrap items-end gap-3">
-                        <div className="min-w-[160px] flex-1">
-                            <label htmlFor="ab-filter-site" className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">
-                                현장별 필터
-                            </label>
-                            <select
-                                id="ab-filter-site"
-                                value={siteFilter}
-                                onChange={(e) => setSiteFilter(e.target.value)}
-                                className="w-full min-h-[40px] rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                            >
-                                {siteOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                            </select>
+                    {/* Dashboard Filter Bar (보관함과 독립 유지) */}
+                    <section className="psi-ab-card flex flex-col gap-3">
+                        <div className="flex flex-wrap items-end gap-3">
+                            <div className="min-w-[145px] flex-1">
+                                <label htmlFor="ab-filter-site" className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">
+                                    현장별 필터
+                                </label>
+                                <select
+                                    id="ab-filter-site"
+                                    value={dashboardFilters.site}
+                                    onChange={(e) => setDashboardFilters((prev) => ({ ...prev, site: e.target.value }))}
+                                    className="w-full min-h-[40px] rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                >
+                                    {siteOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            </div>
+                            <div className="min-w-[145px] flex-1">
+                                <label htmlFor="ab-filter-contractor" className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">
+                                    원도급사 필터
+                                </label>
+                                <select
+                                    id="ab-filter-contractor"
+                                    value={dashboardFilters.contractor}
+                                    onChange={(e) => setDashboardFilters((prev) => ({ ...prev, contractor: e.target.value }))}
+                                    className="w-full min-h-[40px] rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                >
+                                    {contractorOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
+                            <div className="min-w-[125px] flex-1">
+                                <label htmlFor="ab-filter-job" className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">
+                                    공종 (팀)
+                                </label>
+                                <select
+                                    id="ab-filter-job"
+                                    value={dashboardFilters.jobField}
+                                    onChange={(e) => setDashboardFilters((prev) => ({ ...prev, jobField: e.target.value }))}
+                                    className="w-full min-h-[40px] rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                >
+                                    {jobFieldOptions.map((job) => <option key={job} value={job}>{job}</option>)}
+                                </select>
+                            </div>
+                            <div className="min-w-[125px] flex-1">
+                                <label htmlFor="ab-filter-stage" className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">
+                                    작업공정
+                                </label>
+                                <select
+                                    id="ab-filter-stage"
+                                    value={dashboardFilters.workStage}
+                                    onChange={(e) => setDashboardFilters((prev) => ({ ...prev, workStage: e.target.value }))}
+                                    className="w-full min-h-[40px] rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                >
+                                    <option value="전체">전체 공정</option>
+                                    {WORK_STAGE_OPTIONS.map((stage) => <option key={stage} value={stage}>{stage}</option>)}
+                                </select>
+                            </div>
+                            <div className="min-w-[140px] flex-1">
+                                <label htmlFor="ab-filter-severity" className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">
+                                    심각도
+                                </label>
+                                <select
+                                    id="ab-filter-severity"
+                                    value={dashboardFilters.severity}
+                                    onChange={(e) => setDashboardFilters((prev) => ({ ...prev, severity: e.target.value }))}
+                                    className="w-full min-h-[40px] rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                >
+                                    <option value="전체">전체 등급</option>
+                                    {SEVERITY_OPTIONS.map((sev) => <option key={sev} value={sev}>{sev}</option>)}
+                                </select>
+                            </div>
+                            <div className="min-w-[180px] flex-[1.5]">
+                                <label htmlFor="ab-filter-search" className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">
+                                    키워드 검색 (공종·공정·원인)
+                                </label>
+                                <input
+                                    id="ab-filter-search"
+                                    type="search"
+                                    value={dashboardFilters.search}
+                                    onChange={(e) => setDashboardFilters((prev) => ({ ...prev, search: e.target.value }))}
+                                    placeholder="예: 알폼, 해체·탈형, 유도봉..."
+                                    className="w-full min-h-[40px] rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                />
+                            </div>
                         </div>
-                        <div className="min-w-[160px] flex-1">
-                            <label htmlFor="ab-filter-contractor" className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">
-                                원도급사 필터
-                            </label>
-                            <select
-                                id="ab-filter-contractor"
-                                value={contractorFilter}
-                                onChange={(e) => setContractorFilter(e.target.value)}
-                                className="w-full min-h-[40px] rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                            >
-                                {contractorOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                        </div>
-                        <div className="min-w-[150px] flex-1">
-                            <label htmlFor="ab-filter-severity" className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">
-                                심각도
-                            </label>
-                            <select
-                                id="ab-filter-severity"
-                                value={severityFilter}
-                                onChange={(e) => setSeverityFilter(e.target.value)}
-                                className="w-full min-h-[40px] rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                            >
-                                <option value="전체">전체 등급</option>
-                                {SEVERITY_OPTIONS.map((sev) => <option key={sev} value={sev}>{sev}</option>)}
-                            </select>
-                        </div>
-                        <div className="min-w-[200px] flex-[2]">
-                            <label htmlFor="ab-filter-search" className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">
-                                키워드 검색 (공종·기인물·원인)
-                            </label>
-                            <input
-                                id="ab-filter-search"
-                                type="search"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="예: 알폼, 안전대, 유도봉, 굴착..."
-                                className="w-full min-h-[40px] rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                            />
-                        </div>
-                        {(siteFilter !== '전체' || contractorFilter !== '전체' || severityFilter !== '전체' || hazardFilter !== '전체' || jobFieldFilter !== '전체' || searchQuery) && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setSiteFilter('전체');
-                                    setContractorFilter('전체');
-                                    setSeverityFilter('전체');
-                                    setHazardFilter('전체');
-                                    setJobFieldFilter('전체');
-                                    setSearchQuery('');
-                                }}
-                                className="min-h-[40px] rounded-xl border border-slate-300 px-3.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                            >
-                                필터 초기화
-                            </button>
+
+                        {activeDashboardFilterCount > 0 && (
+                            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-teal-400/40 bg-teal-50/70 px-3 py-2 text-xs dark:border-teal-500/30 dark:bg-teal-950/35">
+                                <div className="flex flex-wrap items-center gap-1.5 font-bold text-teal-950 dark:text-teal-100">
+                                    <span>대시보드 조건 적용 중 ({dashboardFilteredRecords.length}/{records.length}건):</span>
+                                    {dashboardFilters.site !== '전체' && (
+                                        <span className="rounded-full bg-white/90 px-2.5 py-0.5 dark:bg-slate-900">현장: {dashboardFilters.site}</span>
+                                    )}
+                                    {dashboardFilters.contractor !== '전체' && (
+                                        <span className="rounded-full bg-white/90 px-2.5 py-0.5 dark:bg-slate-900">원청: {dashboardFilters.contractor}</span>
+                                    )}
+                                    {dashboardFilters.jobField !== '전체' && (
+                                        <span className="rounded-full bg-white/90 px-2.5 py-0.5 dark:bg-slate-900">공종: {dashboardFilters.jobField}</span>
+                                    )}
+                                    {dashboardFilters.workStage !== '전체' && (
+                                        <span className="rounded-full bg-white/90 px-2.5 py-0.5 dark:bg-slate-900">공정: {dashboardFilters.workStage}</span>
+                                    )}
+                                    {dashboardFilters.severity !== '전체' && (
+                                        <span className="rounded-full bg-white/90 px-2.5 py-0.5 dark:bg-slate-900">등급: {dashboardFilters.severity}</span>
+                                    )}
+                                    {dashboardFilters.search.trim() && (
+                                        <span className="rounded-full bg-white/90 px-2.5 py-0.5 dark:bg-slate-900">검색: {dashboardFilters.search.trim()}</span>
+                                    )}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setDashboardFilters(DEFAULT_HUB_FILTERS)}
+                                    className="min-h-[34px] shrink-0 rounded-lg border border-teal-600 bg-teal-600 px-3 text-xs font-extrabold text-white hover:bg-teal-500"
+                                >
+                                    전체 사고 보기 (초기화)
+                                </button>
+                            </div>
                         )}
                     </section>
 
@@ -1483,10 +1631,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                                 <button
                                                     key={tier.severity}
                                                     type="button"
-                                                    onClick={() => {
-                                                        setSeverityFilter(tier.severity);
-                                                        setActiveTab('archive');
-                                                    }}
+                                                    onClick={() => openArchiveWithFilter({ severity: tier.severity })}
                                                     style={{ width: `${widthPercent}%`, borderLeftWidth: '5px', borderLeftColor: tier.color }}
                                                     className="psi-ab-pyramid-tier text-left"
                                                 >
@@ -1542,10 +1687,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                                         strokeDasharray={seg.dashArray}
                                                         strokeDashoffset={seg.dashOffset}
                                                         className="psi-ab-donut-seg"
-                                                        onClick={() => {
-                                                            setSeverityFilter(seg.severity);
-                                                            setActiveTab('archive');
-                                                        }}
+                                                        onClick={() => openArchiveWithFilter({ severity: seg.severity })}
                                                     />
                                                 ))}
                                             </svg>
@@ -1561,10 +1703,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                                 <li key={tier.severity}>
                                                     <button
                                                         type="button"
-                                                        onClick={() => {
-                                                            setSeverityFilter(tier.severity);
-                                                            setActiveTab('archive');
-                                                        }}
+                                                        onClick={() => openArchiveWithFilter({ severity: tier.severity })}
                                                         className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2 text-left hover:border-teal-500/40 dark:border-slate-800 dark:bg-slate-900/60"
                                                     >
                                                         <span className="flex items-center gap-2 min-w-0">
@@ -1635,11 +1774,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                                                     key={`${trade}-${hazard}`}
                                                                     type="button"
                                                                     disabled={count === 0}
-                                                                    onClick={() => {
-                                                                        setJobFieldFilter(trade);
-                                                                        setHazardFilter(hazard);
-                                                                        setActiveTab('archive');
-                                                                    }}
+                                                                    onClick={() => openArchiveWithFilter({ jobField: trade, hazard })}
                                                                     className={`psi-ab-matrix-cell ${cellStyle}`}
                                                                 >
                                                                     <span>{count > 0 ? `${count}건` : '-'}</span>
@@ -1782,10 +1917,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                             <button
                                                 key={bucket.label}
                                                 type="button"
-                                                onClick={() => {
-                                                    setHazardFilter(bucket.label);
-                                                    setActiveTab('archive');
-                                                }}
+                                                onClick={() => openArchiveWithFilter({ hazard: bucket.label })}
                                                 className="group flex flex-col gap-1.5 rounded-xl p-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60"
                                             >
                                                 <div className="flex items-center justify-between text-xs font-bold">
@@ -1892,10 +2024,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                                 <button
                                                     key={job.label}
                                                     type="button"
-                                                    onClick={() => {
-                                                        setJobFieldFilter(job.label);
-                                                        setActiveTab('archive');
-                                                    }}
+                                                    onClick={() => openArchiveWithFilter({ jobField: job.label })}
                                                     className="flex flex-col gap-1 rounded-xl p-1.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60"
                                                 >
                                                     <div className="flex w-full items-center justify-between text-xs font-bold">
@@ -1983,10 +2112,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                                 <button
                                                     key={site.siteName}
                                                     type="button"
-                                                    onClick={() => {
-                                                        setSiteFilter(site.siteName);
-                                                        setActiveTab('archive');
-                                                    }}
+                                                    onClick={() => openArchiveWithFilter({ site: site.siteName })}
                                                     className="psi-ab-site-row flex w-full flex-col gap-2 text-left"
                                                 >
                                                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2027,7 +2153,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
-                                누적 원도급사 사고 사례 ({filteredRecords.length}건)
+                                누적 원도급사 사고 사례 ({archiveFilteredRecords.length}건{activeArchiveFilterCount > 0 ? ` / 전체 ${records.length}건` : ''})
                             </h2>
                             <p className="text-xs text-slate-600 dark:text-slate-300">
                                 카드를 누르면 직접원인·근본원인·재발방지대책·작업 전 필수 점검 전체를 확인할 수 있습니다.
@@ -2036,39 +2162,49 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                         <div className="flex flex-wrap items-center gap-2">
                             <select
                                 aria-label="보관함 현장 필터"
-                                value={siteFilter}
-                                onChange={(e) => setSiteFilter(e.target.value)}
+                                value={archiveFilters.site}
+                                onChange={(e) => setArchiveFilters((prev) => ({ ...prev, site: e.target.value }))}
                                 className="min-h-[38px] rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                             >
                                 {siteOptions.map((s) => (
                                     <option key={s} value={s}>{s === '전체' ? '전체 현장' : s}</option>
                                 ))}
                             </select>
-                            {jobFieldFilter !== '전체' && (
-                                <button
-                                    type="button"
-                                    onClick={() => setJobFieldFilter('전체')}
-                                    className="min-h-[38px] rounded-xl border border-teal-400 bg-teal-50 px-3 text-xs font-extrabold text-teal-900 dark:bg-teal-950/60 dark:text-teal-200"
-                                >
-                                    공종: {jobFieldFilter} ✕
-                                </button>
-                            )}
-                            {hazardFilter !== '전체' && (
-                                <button
-                                    type="button"
-                                    onClick={() => setHazardFilter('전체')}
-                                    className="min-h-[38px] rounded-xl border border-sky-400 bg-sky-50 px-3 text-xs font-extrabold text-sky-900 dark:bg-sky-950/60 dark:text-sky-200"
-                                >
-                                    재해유형: {hazardFilter} ✕
-                                </button>
-                            )}
+                            <select
+                                aria-label="보관함 공종 필터"
+                                value={archiveFilters.jobField}
+                                onChange={(e) => setArchiveFilters((prev) => ({ ...prev, jobField: e.target.value }))}
+                                className="min-h-[38px] rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                            >
+                                {jobFieldOptions.map((job) => (
+                                    <option key={job} value={job}>{job === '전체' ? '전체 공종' : job}</option>
+                                ))}
+                            </select>
+                            <select
+                                aria-label="보관함 작업공정 필터"
+                                value={archiveFilters.workStage}
+                                onChange={(e) => setArchiveFilters((prev) => ({ ...prev, workStage: e.target.value }))}
+                                className="min-h-[38px] rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                            >
+                                <option value="전체">전체 공정</option>
+                                {WORK_STAGE_OPTIONS.map((stage) => (
+                                    <option key={stage} value={stage}>{stage}</option>
+                                ))}
+                            </select>
                             <input
                                 type="search"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
+                                value={archiveFilters.search}
+                                onChange={(e) => setArchiveFilters((prev) => ({ ...prev, search: e.target.value }))}
                                 placeholder="사례 검색..."
                                 className="min-h-[38px] rounded-xl border border-slate-300 bg-white px-3 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                             />
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('dashboard')}
+                                className="min-h-[38px] rounded-xl border border-slate-300 bg-white px-3 text-xs font-extrabold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                            >
+                                ← 대시보드 보기
+                            </button>
                             {records.length > 0 && (
                                 <button
                                     type="button"
@@ -2085,13 +2221,91 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                         </div>
                     </div>
 
-                    {filteredRecords.length === 0 ? (
+                    {activeArchiveFilterCount > 0 && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-indigo-300/60 bg-indigo-50/75 px-3.5 py-2.5 text-xs dark:border-indigo-500/35 dark:bg-indigo-950/35">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="font-extrabold text-indigo-950 dark:text-indigo-100">적용된 보관함 필터:</span>
+                                {archiveFilters.site !== '전체' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setArchiveFilters((prev) => ({ ...prev, site: '전체' }))}
+                                        className="rounded-full border border-indigo-300 bg-white px-2.5 py-0.5 font-extrabold text-indigo-900 dark:border-indigo-500/40 dark:bg-slate-900 dark:text-indigo-100"
+                                    >
+                                        현장: {archiveFilters.site} ✕
+                                    </button>
+                                )}
+                                {archiveFilters.contractor !== '전체' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setArchiveFilters((prev) => ({ ...prev, contractor: '전체' }))}
+                                        className="rounded-full border border-indigo-300 bg-white px-2.5 py-0.5 font-extrabold text-indigo-900 dark:border-indigo-500/40 dark:bg-slate-900 dark:text-indigo-100"
+                                    >
+                                        원도급사: {archiveFilters.contractor} ✕
+                                    </button>
+                                )}
+                                {archiveFilters.jobField !== '전체' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setArchiveFilters((prev) => ({ ...prev, jobField: '전체' }))}
+                                        className="rounded-full border border-teal-400 bg-teal-50 px-2.5 py-0.5 font-extrabold text-teal-900 dark:bg-teal-950/60 dark:text-teal-200"
+                                    >
+                                        공종: {archiveFilters.jobField} ✕
+                                    </button>
+                                )}
+                                {archiveFilters.workStage !== '전체' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setArchiveFilters((prev) => ({ ...prev, workStage: '전체' }))}
+                                        className="rounded-full border border-violet-400 bg-violet-50 px-2.5 py-0.5 font-extrabold text-violet-900 dark:bg-violet-950/60 dark:text-violet-200"
+                                    >
+                                        작업공정: {archiveFilters.workStage} ✕
+                                    </button>
+                                )}
+                                {archiveFilters.hazard !== '전체' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setArchiveFilters((prev) => ({ ...prev, hazard: '전체' }))}
+                                        className="rounded-full border border-sky-400 bg-sky-50 px-2.5 py-0.5 font-extrabold text-sky-900 dark:bg-sky-950/60 dark:text-sky-200"
+                                    >
+                                        재해유형: {archiveFilters.hazard} ✕
+                                    </button>
+                                )}
+                                {archiveFilters.severity !== '전체' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setArchiveFilters((prev) => ({ ...prev, severity: '전체' }))}
+                                        className="rounded-full border border-rose-400 bg-rose-50 px-2.5 py-0.5 font-extrabold text-rose-900 dark:bg-rose-950/60 dark:text-rose-200"
+                                    >
+                                        등급: {archiveFilters.severity} ✕
+                                    </button>
+                                )}
+                                {archiveFilters.search.trim() && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setArchiveFilters((prev) => ({ ...prev, search: '' }))}
+                                        className="rounded-full border border-slate-300 bg-white px-2.5 py-0.5 font-extrabold text-slate-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                                    >
+                                        검색: {archiveFilters.search.trim()} ✕
+                                    </button>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setArchiveFilters(DEFAULT_HUB_FILTERS)}
+                                className="min-h-[34px] shrink-0 rounded-lg bg-indigo-600 px-3 text-xs font-extrabold text-white hover:bg-indigo-500"
+                            >
+                                전체 사례 보기 (필터 초기화)
+                            </button>
+                        </div>
+                    )}
+
+                    {archiveFilteredRecords.length === 0 ? (
                         <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
                             조건에 맞는 사고 사례가 없습니다.
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            {filteredRecords.map((rec) => (
+                            {archiveFilteredRecords.map((rec) => (
                                 <article
                                     key={rec.id}
                                     className="flex flex-col justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 transition-all hover:border-teal-500/50 dark:border-slate-800 dark:bg-slate-900/60"
@@ -2099,14 +2313,14 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                     <div className="space-y-2">
                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                             <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                                                {rec.occurredDate} · {rec.sourceContractor}
+                                                {rec.occurredDate} · {rec.siteName} · {rec.sourceContractor}
                                             </span>
                                             <span className={`rounded-full border px-2.5 py-0.5 text-xs font-extrabold ${SEVERITY_BADGE_MAP[rec.severity]}`}>
                                                 {rec.severity}
                                             </span>
                                         </div>
                                         <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                                            [{rec.jobField} · {rec.hazardType}] {rec.workTask}
+                                            [{rec.jobField} · {rec.workStage || '미상'} · {rec.hazardType}] {rec.workTask}
                                         </h3>
                                         <p className="text-xs leading-relaxed text-slate-700 dark:text-slate-300">
                                             {rec.summary}
@@ -2161,7 +2375,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                         <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-800">
                             <div>
                                 <span className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-extrabold ${SEVERITY_BADGE_MAP[selectedRecord.severity]}`}>
-                                    {selectedRecord.severity} · {selectedRecord.jobField} · {selectedRecord.hazardType}
+                                    {selectedRecord.severity} · {selectedRecord.jobField} ({selectedRecord.workStage || '미상'}) · {selectedRecord.hazardType}
                                 </span>
                                 <h2 className="mt-2 text-lg font-extrabold">
                                     {isEditingDrawer ? '사고 사례 내용 수정' : selectedRecord.workTask}
@@ -2295,6 +2509,18 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                                 className="mt-1.5 w-full min-h-[36px] rounded-xl border border-teal-400 bg-white px-3 font-semibold text-slate-900 dark:bg-slate-950 dark:text-slate-100"
                                             />
                                         )}
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">작업공정 (단계)</label>
+                                        <select
+                                            value={editDraft.workStage || '미상'}
+                                            onChange={(e) => setEditDraft({ ...editDraft, workStage: e.target.value as AccidentWorkStage })}
+                                            className="w-full min-h-[38px] rounded-xl border border-slate-300 bg-white px-3 font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                        >
+                                            {WORK_STAGE_OPTIONS.map((stage) => (
+                                                <option key={stage} value={stage}>{stage}</option>
+                                            ))}
+                                        </select>
                                     </div>
                                     <div>
                                         <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">12대 재해유형</label>

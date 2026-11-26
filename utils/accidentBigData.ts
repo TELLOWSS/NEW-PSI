@@ -9,12 +9,25 @@ import type {
     AccidentSeverity,
     AccidentSourceProvider,
     AccidentTimeSlot,
+    AccidentWorkStage,
     WorkerRecord,
 } from '../types';
 import { normalizeJobField } from './workerIdentity';
 
 export const ACCIDENT_BIGDATA_STORAGE_KEY = 'psi_accident_bigdata_v1';
 export const ACCIDENT_BIGDATA_UPDATED_EVENT = 'psi-accident-bigdata-updated';
+
+export const ACCIDENT_WORK_STAGE_OPTIONS: readonly AccidentWorkStage[] = [
+    '설치·조립',
+    '해체·탈형',
+    '정리·반출',
+    '양중·인양',
+    '타설·양생',
+    '가공·절단',
+    '점검·보수',
+    '이동·운반',
+    '미상',
+];
 
 export const ACCIDENT_JOB_FIELD_OPTIONS: readonly string[] = Array.from(new Set([
     ...PSI_WORKER_JOB_FIELDS,
@@ -44,6 +57,7 @@ export interface AccidentAuditCandidate {
     selected: boolean;
     normalizationNotes: string[];
     piiFindings: string[];
+    tradeReviewHint: string;
     isDuplicate: boolean;
     duplicateReason: string;
     completenessPct: number;
@@ -295,6 +309,27 @@ export const normalizeAccidentSeverity = (value: unknown): AccidentSeverity => {
     return '경미(응급·외래)';
 };
 
+const VALID_WORK_STAGES = new Set<AccidentWorkStage>(ACCIDENT_WORK_STAGE_OPTIONS);
+
+export const normalizeAccidentWorkStage = (value: unknown, fallbackContext = ''): AccidentWorkStage => {
+    const raw = normalizeText(value);
+    if (VALID_WORK_STAGES.has(raw as AccidentWorkStage)) return raw as AccidentWorkStage;
+
+    const search = `${raw} ${fallbackContext}`
+        .replace(/해체\s*정리\s*(?:팀|반|공|조|공종)|해체\s*(?:팀|반|공)|정리\s*(?:팀|반|공)/g, ' ')
+        .trim();
+
+    if (/해체|탈형|철거|분해|풀림/.test(search)) return '해체·탈형';
+    if (/정리|반출|적치|청소|잔재/.test(search)) return '정리·반출';
+    if (/인양|양중|하역|크레인|호이스트|지게차/.test(search)) return '양중·인양';
+    if (/타설|양생|펌프카|레미콘|바이브레이터|미장|휘니셔/.test(search)) return '타설·양생';
+    if (/절단|가공|용접|그라인더|치핑|할석|견출/.test(search)) return '가공·절단';
+    if (/점검|보수|측량|확인|검사|시험/.test(search)) return '점검·보수';
+    if (/설치|조립|체결|배근|시공|포설|고정|되메우기/.test(search)) return '설치·조립';
+    if (/이동|운반|보행|통행|승강|후진/.test(search)) return '이동·운반';
+    return '미상';
+};
+
 const GENERIC_JOB_PLACEHOLDERS = new Set([
     '',
     '기타',
@@ -303,18 +338,32 @@ const GENERIC_JOB_PLACEHOLDERS = new Set([
     '일반공종',
     '일반 공종',
     '미상',
+    '골조',
+    '골조공사',
+    '철근콘크리트',
+    '철근콘크리트공사',
+    '건축',
+    '건축공사',
+    '토목',
+    '토목공사',
+    '가설',
+    '가설공사',
+    '공통가설',
+    '본공사',
 ]);
 
+// 공종 미기재·대공종일 때만 문맥으로 추론: 전문팀 명칭 → 전문 골조 자재·공종 → 일반 해체/정리 순서로 판별한다.
 const FRAME_TRADE_PRIORITY_RULES: Array<[RegExp, string]> = [
-    [/해체\s*정리|해체|탈형|정리\s*반출|철거/, '해체정리'],
+    [/해체\s*정리\s*(?:팀|반|공|조|공종)|해체\s*(?:팀|반|공|전담)|정리\s*(?:팀|반|공)|탈형\s*(?:팀|반)/, '해체정리'],
     [/갱폼|gang\s*form/i, '갱폼'],
-    [/알폼|al\s*form|알루미늄\s*거푸집/i, '알폼'],
+    [/알폼|al\s*form|알루미늄\s*(?:폼|거푸집)/i, '알폼'],
     [/시스템\s*동바리|시스템\s*비계|시스템/, '시스템'],
     [/콘크리트\s*비계|타설|콘크리트|펌프카|레미콘/, '콘크리트비계'],
     [/바닥\s*미장|휘니셔|방통/, '바닥미장'],
     [/할석|견출|치핑|미장/, '할석미장견출'],
     [/철근|배근|가공철근/, '철근'],
-    [/형틀|거푸집|유로폼|데크폼|목공|목수/, '형틀'],
+    [/형틀|거푸집|유로폼|데크폼|동바리|목공|목수/, '형틀'],
+    [/해체\s*[·ㆍ\s]*정리|해체|탈형|정리\s*[·ㆍ및\s]*반출|잔재물?\s*정리|자재\s*정리|자재\s*반출|철거/, '해체정리'],
     [/안전\s*시설|안전난간|개구부|추락방지망/, '안전시설'],
     [/신호수|유도원|차량유도|장비유도/, '신호수'],
     [/양중|크레인|호이스트|지게차|인양|장비|굴착기|백호/, '장비'],
@@ -336,43 +385,24 @@ const matchPriorityTradeRule = (text: string): string | null => {
     return null;
 };
 
-const DISMANTLE_CONTEXT_REGEX = /해체\s*[·ㆍ\s]*정리|탈형|정리\s*[·ㆍ및\s]*반출|거푸집\s*해체|알폼\s*해체|유로폼\s*해체|동바리\s*해체/;
-
 export const standardizeAccidentJobField = (value: unknown, fallbackContext = ''): string => {
     const raw = normalizeText(value);
     const compact = raw.replace(/\s+/g, '');
 
-    if (raw) {
+    if (raw && !GENERIC_JOB_PLACEHOLDERS.has(compact.toLowerCase())) {
         const directAlias = PSI_WORKER_JOB_FIELD_ALIASES[compact] || PSI_WORKER_JOB_FIELD_ALIASES[raw];
-        if (directAlias) {
-            if (directAlias === '형틀' && DISMANTLE_CONTEXT_REGEX.test(fallbackContext)) {
-                return '해체정리';
-            }
-            return directAlias;
-        }
+        if (directAlias) return directAlias;
 
-        if (ACCIDENT_JOB_FIELD_OPTIONS.includes(raw)) {
-            if (raw === '형틀' && DISMANTLE_CONTEXT_REGEX.test(fallbackContext)) {
-                return '해체정리';
-            }
-            return raw;
-        }
+        if (ACCIDENT_JOB_FIELD_OPTIONS.includes(raw)) return raw;
 
         const rawRuleMatch = matchPriorityTradeRule(raw);
-        if (rawRuleMatch) {
-            if (rawRuleMatch === '형틀' && DISMANTLE_CONTEXT_REGEX.test(fallbackContext)) {
-                return '해체정리';
-            }
-            return rawRuleMatch;
-        }
+        if (rawRuleMatch) return rawRuleMatch;
 
-        // 사용자가 명시한 커스텀 공종(예: PC조립, 창호 등)은 억지로 형틀/기타로 덮어쓰지 않고 보존한다.
-        if (!GENERIC_JOB_PLACEHOLDERS.has(compact.toLowerCase())) {
-            return raw;
-        }
+        // 사용자가 명시한 커스텀 공종(예: PC조립, 창호 등)은 억지로 덮어쓰지 않고 보존한다.
+        return raw;
     }
 
-    // 공종 칸이 비었거나 '기타/미분류'일 때만 작업내용·개요 문맥으로 골조특화 공종을 추정한다.
+    // 공종 칸이 비었거나 '골조공사/기타/미분류'처럼 대공종일 때만 작업내용·개요 문맥으로 세부 공종을 추정한다.
     const contextMatch = matchPriorityTradeRule(fallbackContext);
     if (contextMatch) return contextMatch;
 
@@ -508,6 +538,7 @@ export const buildAccidentConversionPrompt = (options: {
     const siteNote = normalizeText(options.siteHint);
     const isMultiSite = options.multiSiteMode ?? options.batchMode !== false;
     const stdJobs = ACCIDENT_JOB_FIELD_OPTIONS.join(', ');
+    const stdStages = ACCIDENT_WORK_STAGE_OPTIONS.join(', ');
     const stdHazards = HAZARD_LABELS.join(', ');
 
     const lines = [
@@ -517,9 +548,11 @@ export const buildAccidentConversionPrompt = (options: {
         '',
         '[필수 준수 규칙]',
         '1. 개인정보 자동 비식별화: 재해자·목격자·담당자의 성명, 생년월일, 전화번호, 주민번호, 이메일은 절대 그대로 쓰지 말고 [비식별]로 치환하세요.',
-        `2. 공종(jobField) 표준화 (골조특화 세부 공종 포함): 다음 목록 중 가장 정확한 1개로 분류하세요 → [${stdJobs}]`,
-        '   - 골조특화 구분 원칙: 거푸집·알폼·동바리·유로폼 작업이라도 "설치·조립"은 형틀/알폼/시스템으로, "해체·탈형·정리·반출"은 반드시 "해체정리"로 분류하세요.',
-        '   - "갱폼", "알폼", "시스템", "콘크리트비계", "바닥미장", "할석미장견출", "해체정리"는 "형틀"로 뭉개지 말고 세부 공종명 그대로 기록하세요.',
+        `2. 공종(소속 팀/직종 jobField) vs 작업공정(단계 workStage) 분리 원칙: 공종 → [${stdJobs}], 작업공정 → [${stdStages}]`,
+        '   - jobField(공종)는 재해자의 소속 팀/직종입니다. 알폼팀이 알폼을 해체하거나 형틀팀이 거푸집을 해체·정리한 경우 jobField를 "해체정리"로 바꾸지 말고 소속 공종(알폼·형틀·시스템·갱폼)을 그대로 유지하세요.',
+        '   - 작업 단계·행동은 반드시 별도 workStage(작업공정) 항목에 "해체·탈형" 또는 "정리·반출" 등으로 분리해 기록하세요.',
+        '   - 보고서의 공종·직종·소속팀 항목에 "해체정리/해체반/정리반/해체공"으로 명시되었거나, 특정 전문팀이 아닌 별도 해체전담팀 작업일 때만 jobField를 "해체정리"로 분류하세요.',
+        '   - "갱폼", "알폼", "시스템", "콘크리트비계", "바닥미장", "할석미장견출"은 "형틀"로 뭉개지 말고 세부 공종명 그대로 기록하며, 원도급사 문서에 "골조공사/철근콘크리트공사"처럼 대공종만 적혀 있으면 본문의 자재·장비·팀 명칭으로 세부 공종을 판별하세요.',
         `3. 재해유형(hazardType) 표준화: 다음 12대 분류 중 가장 정확한 1개로 분류하세요 → [${stdHazards}]`,
         '4. 심각도(severity) 5단계 구분 — 반드시 다음 5개 중 1개만 정확히 선택하세요:',
         '   · 아차사고: 부상 없음·위험 징후·미수',
@@ -550,7 +583,7 @@ export const buildAccidentConversionPrompt = (options: {
         lines.push(
             '[출력 형식 — CSV 코드블록 1개만 출력]',
             '설명 문장 없이 아래 헤더 순서를 정확히 지켜 CSV 코드블록으로만 출력하세요.',
-            'occurredDate,timeSlot,sourceContractor,siteName,jobField,workTask,hazardType,severity,causingAgent,summary,directCause,rootCause,preventionMeasure,preWorkCheckpoints,educationKeywords',
+            'occurredDate,timeSlot,sourceContractor,siteName,jobField,workStage,workTask,hazardType,severity,causingAgent,summary,directCause,rootCause,preventionMeasure,preWorkCheckpoints,educationKeywords',
             '- 날짜는 YYYY-MM-DD 형식, 복수 항목(preWorkCheckpoints/educationKeywords)은 세미콜론(;)으로 구분하세요.',
         );
     } else {
@@ -566,7 +599,8 @@ export const buildAccidentConversionPrompt = (options: {
             '    "timeSlot": "오전 작업전 | 오전 | 점심 직후 | 오후 | 야간 | 미상",',
             `    "sourceContractor": "${contractorNote || '원도급사명 (예: OO건설)'}",`,
             `    "siteName": "${siteNote || '현장명 (비식별 가능)'}",`,
-            '    "jobField": "표준 공종 1개",',
+            '    "jobField": "소속 공종 1개 (알폼·형틀·갱폼·시스템·해체정리 등)",',
+            '    "workStage": "설치·조립 | 해체·탈형 | 정리·반출 | 양중·인양 | 타설·양생 | 가공·절단 | 점검·보수 | 이동·운반 | 미상",',
             '    "workTask": "사고 당시 세부 작업내용",',
             '    "hazardType": "12대 재해유형 중 1개",',
             '    "severity": "아차사고 | 경미(응급·외래) | 휴업재해(3일↑) | 중상(장기·입원) | 중대재해",',
@@ -633,6 +667,8 @@ const normalizeRawRecord = (
     const rawSeverity = pickAlias(raw, ['severity', 'grade', '심각도', '사고등급', '피해정도', '재해정도']);
     const severity = normalizeAccidentSeverity(rawSeverity);
     const timeSlot = normalizeAccidentTimeSlot(pickAlias(raw, ['timeSlot', 'time', '시간대', '발생시간']));
+    const rawWorkStage = pickAlias(raw, ['workStage', 'processStage', 'workProcess', '작업공정', '작업단계', '공정단계', '공정']);
+    const workStage = normalizeAccidentWorkStage(rawWorkStage, `${rawWorkTask} ${rawSummary}`);
     const causingAgent = normalizeText(pickAlias(raw, ['causingAgent', 'agent', '기인물', '가해물', '장비명'])) || '미상';
     const directCause = normalizeText(pickAlias(raw, ['directCause', '직접원인', '직접적원인'])) || '직접원인 보완 필요';
     const rootCause = normalizeText(pickAlias(raw, ['rootCause', '관리적원인', '근본원인', '간접원인'])) || '근본·관리적 원인 보완 필요';
@@ -654,6 +690,7 @@ const normalizeRawRecord = (
         occurredDate,
         timeSlot,
         jobField,
+        workStage,
         workTask: rawWorkTask,
         hazardType,
         severity,
@@ -1035,6 +1072,19 @@ const computeCompletenessPct = (record: AccidentBigDataRecord): number => {
     return Math.round((checks.filter(Boolean).length / checks.length) * 100);
 };
 
+const FORMWORK_TRADES_FOR_DISMANTLE_HINT = new Set(['형틀', '알폼', '갱폼', '시스템']);
+
+export const computeCandidateTradeReviewHint = (record: AccidentBigDataRecord): string => {
+    const workStage = record.workStage || normalizeAccidentWorkStage('', `${record.workTask} ${record.summary}`);
+    if (
+        FORMWORK_TRADES_FOR_DISMANTLE_HINT.has(record.jobField)
+        && (workStage === '해체·탈형' || workStage === '정리·반출')
+    ) {
+        return `${record.jobField} 팀의 ${workStage} 작업으로 분류됨 · 별도 해체정리 전담반 사고라면 공종을 '해체정리'로 변경하세요.`;
+    }
+    return '';
+};
+
 export const auditAccidentImportCandidates = (
     candidates: readonly AccidentBigDataRecord[],
     existingRecords: readonly AccidentBigDataRecord[],
@@ -1057,19 +1107,23 @@ export const auditAccidentImportCandidates = (
                 ? '이번에 가져온 목록 안에 중복 항목이 있습니다.'
                 : '';
 
+        const hydratedRecord: AccidentBigDataRecord = {
+            ...record,
+            workStage: normalizeAccidentWorkStage(record.workStage, `${record.workTask} ${record.summary}`),
+            fingerprint,
+            piiMasked: piiFindings.length === 0,
+        };
+
         return {
             candidateId: `cand-${index}-${record.id}`,
-            record: {
-                ...record,
-                fingerprint,
-                piiMasked: piiFindings.length === 0,
-            },
+            record: hydratedRecord,
             selected: !isDuplicate,
             normalizationNotes,
             piiFindings,
+            tradeReviewHint: computeCandidateTradeReviewHint(hydratedRecord),
             isDuplicate,
             duplicateReason,
-            completenessPct: computeCompletenessPct(record),
+            completenessPct: computeCompletenessPct(hydratedRecord),
         };
     });
 };
@@ -1354,10 +1408,11 @@ export const readAccidentBigDataStore = (
                 warning: '기존 사고 빅데이터 저장 형식이 손상되어 원본 보존을 위해 자동 덮어쓰기를 중단했습니다.',
             };
         }
-        // 기존 '경상'/'중상' 레거시 심각도 표기를 5단계 표준 체계로 무손실 자동 전환한다.
+        // 기존 '경상'/'중상' 레거시 심각도 표기와 누락된 작업공정(workStage)을 무손실 자동 전환·보강한다.
         const migrated = (parsed as AccidentBigDataRecord[]).map((item) => ({
             ...item,
             severity: normalizeAccidentSeverity(item.severity),
+            workStage: normalizeAccidentWorkStage(item.workStage, `${item.workTask || ''} ${item.summary || ''}`),
         }));
         return { items: migrated, safe: true, warning: '' };
     } catch {
@@ -1405,6 +1460,7 @@ export const exportAccidentRecordsToCsv = (records: readonly AccidentBigDataReco
         '원도급사',
         '현장명',
         '표준공종',
+        '작업공정',
         '세부작업내용',
         '재해유형',
         '심각도',
@@ -1423,6 +1479,7 @@ export const exportAccidentRecordsToCsv = (records: readonly AccidentBigDataReco
         r.sourceContractor,
         r.siteName,
         r.jobField,
+        r.workStage || '미상',
         r.workTask,
         r.hazardType,
         r.severity,
@@ -1449,6 +1506,7 @@ export const updateAccidentRecordInList = (
         occurredDate: normalizeAccidentDate(updated.occurredDate),
         timeSlot: normalizeAccidentTimeSlot(updated.timeSlot),
         jobField: standardizeAccidentJobField(updated.jobField, updated.workTask),
+        workStage: normalizeAccidentWorkStage(updated.workStage, `${updated.workTask} ${updated.summary}`),
         workTask: normalizeText(updated.workTask) || '작업내용 확인 필요',
         hazardType: standardizeAccidentHazardType(updated.hazardType, updated.summary),
         severity: normalizeAccidentSeverity(updated.severity),
@@ -1598,17 +1656,18 @@ export const getMultiSiteBatchSampleText = (): string => [
                 timeSlot: '오후',
                 sourceContractor: '한강종합건설',
                 siteName: '수도권 3공구 공동주택',
-                jobField: '형틀',
-                workTask: '3층 슬래브 거푸집 해체·정리 및 반출 중 단부 자재 낙하',
+                jobField: '알폼',
+                workStage: '해체·탈형',
+                workTask: '3층 알폼 패널 해체·탈형 작업 중 단부 자재 낙하',
                 hazardType: '낙하',
                 severity: '휴업재해(3일↑)',
                 causingAgent: '알폼 패널 1매',
-                summary: '거푸집 해체 정리 작업 중 미고정 알폼 패널이 하부 통로로 낙하해 지상 정리 작업자의 안전모 및 어깨 타박(휴업 5일). 재해자 김반장(010-2211-8899) 병원 이송.',
-                directCause: '상하부 동시 작업 통제 미흡 및 해체 자재 임시 적치 위치 부적정',
-                rootCause: '해체정리 구간 하부 출입금지 라바콘 및 감시원 배치 누락',
-                preventionMeasure: '해체정리 구역 상하부 동시작업 엄금, 자재 가적치 전 결속 확인',
-                preWorkCheckpoints: ['해체 구간 하부 출입금지 확인', '해체물 임시 적치 결속 상태 확인'],
-                educationKeywords: ['해체정리', '상하동시작업금지', '자재낙하'],
+                summary: '알폼 팀 작업자가 3층 알폼 패널 해체 작업 중 미고정 패널이 하부 통로로 낙하해 지상 작업자의 어깨 타박(휴업 5일). 재해자 김반장(010-2211-8899) 병원 이송.',
+                directCause: '상하부 동시 작업 통제 미흡 및 해체 패널 임시 적치 위치 부적정',
+                rootCause: '알폼 해체 구간 하부 출입금지 라바콘 및 감시원 배치 누락',
+                preventionMeasure: '알폼 해체 구역 상하부 동시작업 엄금, 해체 패널 가적치 전 결속 확인',
+                preWorkCheckpoints: ['알폼 해체 구간 하부 출입금지 확인', '해체 패널 임시 적치 결속 상태 확인'],
+                educationKeywords: ['알폼', '해체탈형', '상하동시작업금지'],
                 sourceAiProvider: 'chatgpt',
             },
             {
@@ -1616,17 +1675,18 @@ export const getMultiSiteBatchSampleText = (): string => [
                 timeSlot: '오전',
                 sourceContractor: '태백엔지니어링',
                 siteName: '판교 R&D 센터 신축',
-                jobField: '알폼',
-                workTask: '기준층 알루미늄 폼 핀 체결 및 벽체 수직도 조정',
+                jobField: '해체정리',
+                workStage: '정리·반출',
+                workTask: '해체정리반 5층 슬래브 자재 정리 및 반출 중 손가락 끼임',
                 hazardType: '협착',
                 severity: '경미(응급·외래)',
-                causingAgent: '알폼 코너 패널 및 쐐기핀',
-                summary: '알폼 패널 맞댐 작업 중 동료 작업자와 신호 불일치로 틈새에 우측 손가락 끼임(현장 응급처치 후 외래 1회).',
-                directCause: '패널 결속 시 2인 1조 구호 일치 미흡',
-                rootCause: '반복 패널 체결 공정 피로 누적 및 장갑 착용 상태 불량',
-                preventionMeasure: '패널 맞댐 전 손 위치 확인 구호 의무화, 충격보호 장갑 지급',
-                preWorkCheckpoints: ['손가락 끼임 위험 구간 작업 구호 통일', '충격방지 안전장갑 착용'],
-                educationKeywords: ['알폼', '협착방지', '2인1조구호'],
+                causingAgent: '적치 패널 모서리',
+                summary: '해체정리 전담반이 해체 완료된 자재를 파렛트에 정리·반출하던 중 동료 작업자와 신호 불일치로 패널 틈새에 우측 손가락 끼임(현장 응급처치 후 외래 1회).',
+                directCause: '자재 적치 시 2인 1조 구호 일치 미흡',
+                rootCause: '해체물 운반 정리 공정 피로 누적 및 장갑 착용 상태 불량',
+                preventionMeasure: '해체물 정리·반출 전 손 위치 확인 구호 의무화, 충격보호 장갑 지급',
+                preWorkCheckpoints: ['자재 정리 반출 구간 작업 구호 통일', '충격방지 안전장갑 착용'],
+                educationKeywords: ['해체정리', '정리반출', '협착방지'],
                 sourceAiProvider: 'gemini',
             },
         ],
@@ -1644,6 +1704,7 @@ export const getMultiSiteBatchSampleText = (): string => [
                 sourceContractor: '청룡건설',
                 siteName: '부산 에코 델타시티 5BL',
                 jobField: '시스템',
+                workStage: '점검·보수',
                 workTask: '외부 시스템비계 6단 띠장 볼트 해체 전 가새 점검',
                 hazardType: '추락',
                 severity: '아차사고',
@@ -1662,6 +1723,7 @@ export const getMultiSiteBatchSampleText = (): string => [
                 sourceContractor: '한강종합건설',
                 siteName: '수도권 3공구 공동주택',
                 jobField: '갱폼',
+                workStage: '양중·인양',
                 workTask: '104동 12층 갱폼 인양 전 앵커볼트 풀림 및 크레인 인양 준비',
                 hazardType: '전도',
                 severity: '중상(장기·입원)',

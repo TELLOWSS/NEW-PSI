@@ -10,6 +10,7 @@ import {
     getSampleAccidentBigDataRecords,
     maskAccidentRecordPii,
     normalizeAccidentSeverity,
+    normalizeAccidentWorkStage,
     parseExternalAiAccidentPayload,
     parseMultipleAccidentFiles,
     persistAccidentBigDataStore,
@@ -33,7 +34,8 @@ describe('accidentBigData hub engine', () => {
         expect(prompt).toContain('갱폼');
         expect(prompt).toContain('알폼');
         expect(prompt).toContain('할석미장견출');
-        expect(prompt).toContain('해체·탈형·정리·반출');
+        expect(prompt).toContain('소속 팀/직종 jobField');
+        expect(prompt).toContain('작업공정(단계 workStage)');
         expect(prompt).toContain('경미(응급·외래)');
         expect(prompt).toContain('휴업재해(3일↑)');
         expect(prompt).toContain('중상(장기·입원)');
@@ -52,13 +54,22 @@ describe('accidentBigData hub engine', () => {
         expect(normalizeAccidentSeverity('중대재해')).toBe('중대재해');
     });
 
-    it('preserves frame-construction trades like 해체정리, 알폼, 갱폼 without collapsing into 형틀', () => {
-        expect(standardizeAccidentJobField('해체정리', '3층 거푸집 알폼 해체 및 반출 작업')).toBe('해체정리');
-        expect(standardizeAccidentJobField('알폼', '2층 알루미늄 거푸집 조립')).toBe('알폼');
+    it('preserves explicit trade (AL폼/형틀) during dismantling and separates workStage from jobField', () => {
+        // 1) 알폼·형틀 팀이 해체·정리 작업을 할 때는 소속 공종을 유지하고, 작업공정만 해체·탈형으로 분리해야 한다.
+        expect(standardizeAccidentJobField('알폼', '3층 알폼 해체 및 정리 작업')).toBe('알폼');
+        expect(standardizeAccidentJobField('형틀', '거푸집 탈형 및 정리 작업 중 낙하')).toBe('형틀');
         expect(standardizeAccidentJobField('갱폼', '외벽 갱폼 인양 볼트 체결')).toBe('갱폼');
         expect(standardizeAccidentJobField('바닥미장', '옥상 바닥 휘니셔 작업')).toBe('바닥미장');
-        expect(standardizeAccidentJobField('', '슬래브 유로폼 해체 및 정리 작업 중 낙하')).toBe('해체정리');
         expect(standardizeAccidentJobField('PC조립', 'PC 기둥 양중')).toBe('PC조립');
+
+        // 2) 대공종('골조공사')이거나 공종 미기재 시 본문 자재·전문팀 키워드로 판별하고, 해체전담팀일 때만 해체정리로 분류한다.
+        expect(standardizeAccidentJobField('골조공사', '3층 알폼 해체 중 자재 낙하')).toBe('알폼');
+        expect(normalizeAccidentWorkStage('', '3층 알폼 해체 중 자재 낙하')).toBe('해체·탈형');
+
+        expect(standardizeAccidentJobField('해체정리', '알폼 패널 해체 반출')).toBe('해체정리');
+        expect(standardizeAccidentJobField('골조공사', '해체정리반 슬래브 자재 반출')).toBe('해체정리');
+        expect(normalizeAccidentWorkStage('', '해체정리반 슬래브 자재 반출')).toBe('정리·반출');
+        expect(standardizeAccidentJobField('', '잔재물 정리 및 반출 작업')).toBe('해체정리');
     });
 
     it('parses fenced Markdown JSON mixed with AI explanation text and standardizes fields', () => {
@@ -229,8 +240,16 @@ describe('accidentBigData hub engine', () => {
         expect(multiBlockResult.ok).toBe(true);
         expect(multiBlockResult.blocksParsed).toBe(2);
         expect(multiBlockResult.candidates).toHaveLength(4);
-        expect(multiBlockResult.candidates[0].jobField).toBe('해체정리');
+        // 1번(알폼 팀 해체)은 알폼 공종 유지 + 작업공정 '해체·탈형', 2번(해체정리 전담반)은 '해체정리' + '정리·반출'
+        expect(multiBlockResult.candidates[0].jobField).toBe('알폼');
+        expect(multiBlockResult.candidates[0].workStage).toBe('해체·탈형');
+        expect(multiBlockResult.candidates[1].jobField).toBe('해체정리');
+        expect(multiBlockResult.candidates[1].workStage).toBe('정리·반출');
         expect(new Set(multiBlockResult.candidates.map((c) => c.siteName)).size).toBe(3);
+
+        const multiBlockAudited = auditAccidentImportCandidates(multiBlockResult.candidates, []);
+        expect(multiBlockAudited[0].tradeReviewHint).toContain('해체·탈형');
+        expect(multiBlockAudited[1].tradeReviewHint).toBe('');
 
         const stackedJson = `[{"occurredDate":"2026-10-01","siteName":"현장A","workTask":"알폼 설치","hazardType":"협착"}]\n[{"occurredDate":"2026-10-02","siteName":"현장B","workTask":"갱폼 인양","hazardType":"추락"}]`;
         const stackedResult = parseExternalAiAccidentPayload(stackedJson);
