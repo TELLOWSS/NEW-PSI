@@ -83,28 +83,123 @@ export interface AccidentCrossLinkAlert {
     reasonSummary: string;
 }
 
+export interface AccidentSeverityTierMetric {
+    severity: AccidentSeverity;
+    shortLabel: string;
+    criteria: string;
+    color: string;
+    count: number;
+    sharePct: number;
+}
+
+export interface AccidentTimeSlotPoint {
+    slot: Exclude<AccidentTimeSlot, '미상'>;
+    count: number;
+    severeCount: number;
+    sharePct: number;
+    isPeak: boolean;
+}
+
+export interface AccidentRiskMatrixCell {
+    trade: string;
+    hazard: string;
+    count: number;
+    severeCount: number;
+    intensity: 0 | 1 | 2 | 3;
+}
+
+export interface AccidentRiskMatrix {
+    trades: string[];
+    hazards: string[];
+    cells: AccidentRiskMatrixCell[];
+}
+
 export interface AccidentBigDataAnalytics {
     totalCount: number;
     severeCount: number;
     severeRatePct: number;
+    reportableCount: number;
+    reportableRatePct: number;
     nearMissCount: number;
     contractorCount: number;
     topJobField: AccidentDistributionBucket | null;
     topHazardType: AccidentDistributionBucket | null;
     hazardDistribution: AccidentDistributionBucket[];
     jobFieldDistribution: AccidentDistributionBucket[];
+    severityPyramid: AccidentSeverityTierMetric[];
+    timeSlotDistribution: AccidentTimeSlotPoint[];
+    riskMatrix: AccidentRiskMatrix;
     rootCauseTop5: Array<{ label: string; count: number; sharePct: number }>;
     causingAgentTop5: Array<{ label: string; count: number; sharePct: number }>;
     monthlyTrend: AccidentMonthlyPoint[];
     crossLinkAlerts: AccidentCrossLinkAlert[];
 }
 
-const VALID_SEVERITIES: ReadonlySet<AccidentSeverity> = new Set([
+export const ACCIDENT_SEVERITY_LEVELS: readonly AccidentSeverity[] = [
     '아차사고',
-    '경상',
-    '중상',
+    '경미(응급·외래)',
+    '휴업재해(3일↑)',
+    '중상(장기·입원)',
     '중대재해',
-]);
+];
+
+export const ACCIDENT_SEVERITY_META: Record<AccidentSeverity, {
+    label: AccidentSeverity;
+    shortLabel: string;
+    criteria: string;
+    color: string;
+    rank: number;
+    isReportable: boolean;
+    isSevere: boolean;
+}> = {
+    '아차사고': {
+        label: '아차사고',
+        shortLabel: '아차사고',
+        criteria: '인적 피해 없음 · 위험 징후·미수 사례',
+        color: '#10b981',
+        rank: 1,
+        isReportable: false,
+        isSevere: false,
+    },
+    '경미(응급·외래)': {
+        label: '경미(응급·외래)',
+        shortLabel: '경미(응급)',
+        criteria: '현장 응급처치 · 휴업 3일 미만 단순 타박/찰과상',
+        color: '#06b6d4',
+        rank: 2,
+        isReportable: false,
+        isSevere: false,
+    },
+    '휴업재해(3일↑)': {
+        label: '휴업재해(3일↑)',
+        shortLabel: '휴업(3일↑)',
+        criteria: '휴업 3일 이상~4주 미만 산재보고 · 봉합/염좌/단순골절',
+        color: '#f59e0b',
+        rank: 3,
+        isReportable: true,
+        isSevere: false,
+    },
+    '중상(장기·입원)': {
+        label: '중상(장기·입원)',
+        shortLabel: '중상(4주↑)',
+        criteria: '4주(28일) 이상 장기요양 · 입원 · 수술 필요',
+        color: '#f97316',
+        rank: 4,
+        isReportable: true,
+        isSevere: true,
+    },
+    '중대재해': {
+        label: '중대재해',
+        shortLabel: '중대재해',
+        criteria: '사망 또는 법정 중대산업재해(동시 2인↑·6개월↑)',
+        color: '#e11d48',
+        rank: 5,
+        isReportable: true,
+        isSevere: true,
+    },
+};
+
+const VALID_SEVERITIES: ReadonlySet<AccidentSeverity> = new Set(ACCIDENT_SEVERITY_LEVELS);
 
 const VALID_TIME_SLOTS: ReadonlySet<AccidentTimeSlot> = new Set([
     '오전 작업전',
@@ -164,11 +259,12 @@ export const normalizeAccidentTimeSlot = (value: unknown): AccidentTimeSlot => {
 export const normalizeAccidentSeverity = (value: unknown): AccidentSeverity => {
     const raw = normalizeText(value);
     if (VALID_SEVERITIES.has(raw as AccidentSeverity)) return raw as AccidentSeverity;
-    if (/중대|사망|절단|전신|의식불명|3개월/.test(raw)) return '중대재해';
-    if (/중상|골절|입원|요양|28일|휴업/.test(raw)) return '중상';
-    if (/아차|무재해|경미|미수|부상\s*없|피해\s*없/.test(raw)) return '아차사고';
-    if (/경상|찰과|타박|치료|외래|통원|1~7일/.test(raw)) return '경상';
-    return '경상';
+    if (/중대재해|중대산업|사망|전신|절단|의식불명|6개월/.test(raw)) return '중대재해';
+    if (/중상|장기|입원|수술|복합골절|뇌출혈|4주|28일|1개월|6주|8주|12주|3개월/.test(raw)) return '중상(장기·입원)';
+    if (/휴업|산재|3일|1주|2주|3주|봉합|염좌|단순골절|실금|골절|통원/.test(raw)) return '휴업재해(3일↑)';
+    if (/아차|무재해|미수|부상\s*없|피해\s*없/.test(raw)) return '아차사고';
+    if (/경상|경미|응급|외래|찰과|타박|불휴업|1~2일|일회성/.test(raw)) return '경미(응급·외래)';
+    return '경미(응급·외래)';
 };
 
 const GENERIC_JOB_PLACEHOLDERS = new Set([
@@ -378,7 +474,12 @@ export const buildAccidentConversionPrompt = (options: {
         '   - 골조특화 구분 원칙: 거푸집·알폼·동바리·유로폼 작업이라도 "설치·조립"은 형틀/알폼/시스템으로, "해체·탈형·정리·반출"은 반드시 "해체정리"로 분류하세요.',
         '   - "갱폼", "알폼", "시스템", "콘크리트비계", "바닥미장", "할석미장견출", "해체정리"는 "형틀"로 뭉개지 말고 세부 공종명 그대로 기록하세요.',
         `3. 재해유형(hazardType) 표준화: 다음 12대 분류 중 가장 정확한 1개로 분류하세요 → [${stdHazards}]`,
-        '4. 심각도(severity) 표준화: 반드시 다음 4개 중 1개만 사용하세요 → [아차사고, 경상, 중상, 중대재해]',
+        '4. 심각도(severity) 5단계 구분 — 반드시 다음 5개 중 1개만 정확히 선택하세요:',
+        '   · 아차사고: 부상 없음·위험 징후·미수',
+        '   · 경미(응급·외래): 현장 응급처치·휴업 3일 미만 단순 타박/찰과상',
+        '   · 휴업재해(3일↑): 휴업 3일 이상~4주 미만 산재보고(봉합·염좌·단순골절 통원 등)',
+        '   · 중상(장기·입원): 4주(28일) 이상 장기요양·입원·수술',
+        '   · 중대재해: 사망 또는 법정 중대산업재해',
         '5. 시간대(timeSlot) 표준화: 다음 6개 중 1개만 사용하세요 → [오전 작업전, 오전, 점심 직후, 오후, 야간, 미상]',
         '6. 보고서에 명시되지 않은 사실은 절대 추측하지 말고, 확인 불가 항목만 "미상" 또는 빈 배열로 남기세요.',
     ];
@@ -411,7 +512,7 @@ export const buildAccidentConversionPrompt = (options: {
             '    "jobField": "표준 공종 1개",',
             '    "workTask": "사고 당시 세부 작업내용",',
             '    "hazardType": "12대 재해유형 중 1개",',
-            '    "severity": "아차사고 | 경상 | 중상 | 중대재해",',
+            '    "severity": "아차사고 | 경미(응급·외래) | 휴업재해(3일↑) | 중상(장기·입원) | 중대재해",',
             '    "causingAgent": "기인물 또는 가해 장비·자재 (예: 이동식 비계, 앵글그라인더)",',
             '    "summary": "사고 발생 경위 핵심 요약 2~3문장 (실명 제외)",',
             '    "directCause": "직접원인 (불안전 상태 및 불안전 행동)",',
@@ -738,16 +839,30 @@ export const auditAccidentImportCandidates = (
     });
 };
 
+const isSevereTier = (severity: AccidentSeverity): boolean =>
+    Boolean(ACCIDENT_SEVERITY_META[severity]?.isSevere);
+
+const isReportableTier = (severity: AccidentSeverity): boolean =>
+    Boolean(ACCIDENT_SEVERITY_META[severity]?.isReportable);
+
+const TIME_SLOT_ORDER: ReadonlyArray<Exclude<AccidentTimeSlot, '미상'>> = [
+    '오전 작업전',
+    '오전',
+    '점심 직후',
+    '오후',
+    '야간',
+];
+
 export const computeAccidentBigDataAnalytics = (
     records: readonly AccidentBigDataRecord[],
     workerRecords: readonly WorkerRecord[] = [],
 ): AccidentBigDataAnalytics => {
     const totalCount = records.length;
-    const severeCount = records.filter(
-        (r) => r.severity === '중상' || r.severity === '중대재해',
-    ).length;
+    const severeCount = records.filter((r) => isSevereTier(r.severity)).length;
+    const reportableCount = records.filter((r) => isReportableTier(r.severity)).length;
     const nearMissCount = records.filter((r) => r.severity === '아차사고').length;
     const severeRatePct = totalCount > 0 ? Math.round((severeCount / totalCount) * 100) : 0;
+    const reportableRatePct = totalCount > 0 ? Math.round((reportableCount / totalCount) * 100) : 0;
     const contractorCount = new Set(
         records.map((r) => r.sourceContractor.trim()).filter(Boolean),
     ).size;
@@ -758,7 +873,7 @@ export const computeAccidentBigDataAnalytics = (
             const key = getKey(r) || '기타';
             const prev = map.get(key) || { count: 0, severeCount: 0 };
             prev.count += 1;
-            if (r.severity === '중상' || r.severity === '중대재해') prev.severeCount += 1;
+            if (isSevereTier(r.severity)) prev.severeCount += 1;
             map.set(key, prev);
         }
         return Array.from(map.entries())
@@ -773,6 +888,68 @@ export const computeAccidentBigDataAnalytics = (
 
     const hazardDistribution = toBuckets((r) => r.hazardType);
     const jobFieldDistribution = toBuckets((r) => r.jobField);
+
+    const severityPyramid: AccidentSeverityTierMetric[] = [...ACCIDENT_SEVERITY_LEVELS]
+        .reverse()
+        .map((severity) => {
+            const count = records.filter((r) => r.severity === severity).length;
+            const meta = ACCIDENT_SEVERITY_META[severity];
+            return {
+                severity,
+                shortLabel: meta.shortLabel,
+                criteria: meta.criteria,
+                color: meta.color,
+                count,
+                sharePct: totalCount > 0 ? Math.round((count / totalCount) * 100) : 0,
+            };
+        });
+
+    const slotCounts = TIME_SLOT_ORDER.map((slot) => {
+        const matching = records.filter((r) => r.timeSlot === slot);
+        return {
+            slot,
+            count: matching.length,
+            severeCount: matching.filter((r) => isSevereTier(r.severity)).length,
+        };
+    });
+    const peakSlotCount = Math.max(0, ...slotCounts.map((s) => s.count));
+    const timeSlotDistribution: AccidentTimeSlotPoint[] = slotCounts.map((item) => ({
+        slot: item.slot,
+        count: item.count,
+        severeCount: item.severeCount,
+        sharePct: totalCount > 0 ? Math.round((item.count / totalCount) * 100) : 0,
+        isPeak: peakSlotCount > 0 && item.count === peakSlotCount,
+    }));
+
+    const matrixTrades = jobFieldDistribution.slice(0, 5).map((item) => item.label);
+    const matrixHazards = hazardDistribution.slice(0, 5).map((item) => item.label);
+    const matrixCounts = matrixTrades.flatMap((trade) =>
+        matrixHazards.map((hazard) => {
+            const matched = records.filter((r) => r.jobField === trade && r.hazardType === hazard);
+            return {
+                trade,
+                hazard,
+                count: matched.length,
+                severeCount: matched.filter((r) => isSevereTier(r.severity)).length,
+            };
+        }),
+    );
+    const maxCellCount = Math.max(1, ...matrixCounts.map((c) => c.count));
+    const riskMatrix: AccidentRiskMatrix = {
+        trades: matrixTrades,
+        hazards: matrixHazards,
+        cells: matrixCounts.map((cell) => {
+            const ratio = cell.count / maxCellCount;
+            const intensity: 0 | 1 | 2 | 3 = cell.count === 0
+                ? 0
+                : ratio >= 0.7 || cell.severeCount > 0
+                    ? 3
+                    : ratio >= 0.4
+                        ? 2
+                        : 1;
+            return { ...cell, intensity };
+        }),
+    };
 
     const toTopList = (getKey: (r: AccidentBigDataRecord) => string) => {
         const map = new Map<string, number>();
@@ -796,7 +973,7 @@ export const computeAccidentBigDataAnalytics = (
         const month = normalizeAccidentDate(r.occurredDate).slice(0, 7);
         const entry = monthMap.get(month) || { month, total: 0, severe: 0, nearMiss: 0 };
         entry.total += 1;
-        if (r.severity === '중상' || r.severity === '중대재해') entry.severe += 1;
+        if (isSevereTier(r.severity)) entry.severe += 1;
         if (r.severity === '아차사고') entry.nearMiss += 1;
         monthMap.set(month, entry);
     }
@@ -834,7 +1011,7 @@ export const computeAccidentBigDataAnalytics = (
             const topHazard = Array.from(hazardCount.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || '추락';
             const reasonSummary = workerStats
                 ? `${jobBucket.label} 공종 누적 사고 ${jobBucket.count}건 · 현재 현장 평가 평균 ${avgSafetyScore}점(초급·주의 ${beginnerCount}명)`
-                : `${jobBucket.label} 공종 누적 사고 ${jobBucket.count}건(중대·중상 ${jobBucket.severeCount}건) — 작업 전 선행 점검 필요`;
+                : `${jobBucket.label} 공종 누적 사고 ${jobBucket.count}건(장기·중대 ${jobBucket.severeCount}건) — 작업 전 선행 점검 필요`;
 
             return {
                 jobField: jobBucket.label,
@@ -859,12 +1036,17 @@ export const computeAccidentBigDataAnalytics = (
         totalCount,
         severeCount,
         severeRatePct,
+        reportableCount,
+        reportableRatePct,
         nearMissCount,
         contractorCount,
         topJobField: jobFieldDistribution[0] || null,
         topHazardType: hazardDistribution[0] || null,
         hazardDistribution,
         jobFieldDistribution,
+        severityPyramid,
+        timeSlotDistribution,
+        riskMatrix,
         rootCauseTop5: toTopList((r) => r.rootCause),
         causingAgentTop5: toTopList((r) => r.causingAgent),
         monthlyTrend,
@@ -893,7 +1075,12 @@ export const readAccidentBigDataStore = (
                 warning: '기존 사고 빅데이터 저장 형식이 손상되어 원본 보존을 위해 자동 덮어쓰기를 중단했습니다.',
             };
         }
-        return { items: parsed as AccidentBigDataRecord[], safe: true, warning: '' };
+        // 기존 '경상'/'중상' 레거시 심각도 표기를 5단계 표준 체계로 무손실 자동 전환한다.
+        const migrated = (parsed as AccidentBigDataRecord[]).map((item) => ({
+            ...item,
+            severity: normalizeAccidentSeverity(item.severity),
+        }));
+        return { items: migrated, safe: true, warning: '' };
     } catch {
         return {
             items: [],
@@ -1012,9 +1199,9 @@ export const getSampleAccidentBigDataRecords = (): AccidentBigDataRecord[] => {
             jobField: '시스템',
             workTask: '외부 시스템비계 4단 작업발판 볼트 체결',
             hazardType: '추락',
-            severity: '중상',
+            severity: '중상(장기·입원)',
             causingAgent: '안전대 미체결 · 작업발판 단부',
-            summary: '비계 상부 작업발판 이동 중 안전대 고리를 보조로프에 걸지 않은 상태에서 발이 헛디뎌 하부로 추락한 사례.',
+            summary: '비계 상부 작업발판 이동 중 안전대 고리를 보조로프에 걸지 않은 상태에서 발이 헛디뎌 하부로 추락(4주 이상 입원 치료)한 사례.',
             directCause: '단부 안전난간 일부 미설치 구간에서 안전대 미체결 작업',
             rootCause: '작업 전 고소작업 구간 선행 난간 확인 및 감시인 배치 누락',
             preventionMeasure: '선행 안전난간 설치 완료 후 작업허가, 2줄걸이 안전대 체결 사진 확인',
@@ -1031,9 +1218,9 @@ export const getSampleAccidentBigDataRecords = (): AccidentBigDataRecord[] => {
             jobField: '해체정리',
             workTask: '2층 슬래브 알폼 해체 및 자재 하역',
             hazardType: '낙하·비래',
-            severity: '중상',
+            severity: '휴업재해(3일↑)',
             causingAgent: '알폼 패널 낙하',
-            summary: '상부에서 알폼 고정핀을 일시에 해체하던 중 패널 1장이 하부 통행 구간으로 떨어져 하부 작업자가 맞을 뻔한 중대 위험 사례.',
+            summary: '상부에서 알폼 고정핀을 해체하던 중 패널이 하부로 떨어지며 작업자 정강이에 맞아 2주 통원 휴업 치료가 발생한 사례.',
             directCause: '상하 동시작업 구역 하부 출입통제선 미설치',
             rootCause: '해체 순서(1개씩 지지 후 인계) 미준수 및 상하 교신 누락',
             preventionMeasure: '해체 직하부 반경 5m 통제선 및 신호수 배치 후 단계별 해체 실시',
@@ -1050,9 +1237,9 @@ export const getSampleAccidentBigDataRecords = (): AccidentBigDataRecord[] => {
             jobField: '철근',
             workTask: '타워크레인 철근 다발 인양 후 하역',
             hazardType: '끼임',
-            severity: '경상',
+            severity: '경미(응급·외래)',
             causingAgent: '철근 다발과 거푸집 사이',
-            summary: '인양 중인 철근 다발을 손으로 직접 잡아 위치를 맞추다 흔들리는 자재와 벽체 거푸집 사이에 손가락이 끼인 사례.',
+            summary: '인양 중인 철근 다발을 손으로 직접 잡아 위치를 맞추다 벽체 거푸집 사이에 손가락이 스쳐 현장 응급처치 후 당일 복귀한 경미 사례.',
             directCause: '중량물 인양 시 유도봉(태그라인) 미사용 및 손으로 직접 접촉',
             rootCause: '신호수 단독 유도 원칙 미준수 및 협착 위험구간 진입',
             preventionMeasure: '철근 양중 시 반드시 2m 이상 유도봉 사용, 착지 완료 전 손 접촉 엄금',

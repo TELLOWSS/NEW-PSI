@@ -10,6 +10,8 @@ import type {
 import {
     ACCIDENT_BIGDATA_UPDATED_EVENT,
     ACCIDENT_JOB_FIELD_OPTIONS,
+    ACCIDENT_SEVERITY_LEVELS,
+    ACCIDENT_SEVERITY_META,
     auditAccidentImportCandidates,
     buildAccidentConversionPrompt,
     computeAccidentBigDataAnalytics,
@@ -35,14 +37,15 @@ interface AccidentBigDataHubProps {
 
 type HubTab = 'import' | 'dashboard' | 'archive';
 
-const SEVERITY_OPTIONS: readonly AccidentSeverity[] = ['아차사고', '경상', '중상', '중대재해'];
+const SEVERITY_OPTIONS: readonly AccidentSeverity[] = ACCIDENT_SEVERITY_LEVELS;
 const TIME_SLOT_OPTIONS: readonly AccidentTimeSlot[] = ['오전 작업전', '오전', '점심 직후', '오후', '야간', '미상'];
 const HAZARD_OPTIONS = PSI_RISK_TYPE_CATALOG.map((item) => item.label);
 
 const SEVERITY_BADGE_MAP: Record<AccidentSeverity, string> = {
     '중대재해': 'border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-500/40 dark:bg-rose-950/60 dark:text-rose-200',
-    '중상': 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/60 dark:text-amber-200',
-    '경상': 'border-sky-300 bg-sky-50 text-sky-800 dark:border-sky-500/40 dark:bg-sky-950/60 dark:text-sky-200',
+    '중상(장기·입원)': 'border-orange-300 bg-orange-50 text-orange-800 dark:border-orange-500/40 dark:bg-orange-950/60 dark:text-orange-200',
+    '휴업재해(3일↑)': 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/60 dark:text-amber-200',
+    '경미(응급·외래)': 'border-cyan-300 bg-cyan-50 text-cyan-800 dark:border-cyan-500/40 dark:bg-cyan-950/60 dark:text-cyan-200',
     '아차사고': 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-950/60 dark:text-emerald-200',
 };
 
@@ -52,10 +55,10 @@ const SAMPLE_PASTE_JSON = `[
     "timeSlot": "오전",
     "sourceContractor": "대한종합건설",
     "siteName": "서울 동부 물류센터 2공구",
-    "jobField": "거푸집 목공",
+    "jobField": "형틀",
     "workTask": "3층 보 거푸집 동바리 수평연결재 체결",
     "hazardType": "떨어짐",
-    "severity": "중상",
+    "severity": "휴업재해(3일↑)",
     "causingAgent": "이동식 작업대 난간 미설치 구간",
     "summary": "재해자: 김OO(010-1234-5678)이 작업대 상부에서 볼트 체결 중 균형을 잃고 추락함.",
     "directCause": "작업대 상부 안전난간 일부 미설치 및 안전대 고리 미체결",
@@ -231,9 +234,32 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
     );
 
     const animatedTotal = useAnimatedNumber(analytics.totalCount);
+    const animatedReportableRate = useAnimatedNumber(analytics.reportableRatePct);
     const animatedSevereRate = useAnimatedNumber(analytics.severeRatePct);
     const animatedNearMiss = useAnimatedNumber(analytics.nearMissCount);
     const animatedContractors = useAnimatedNumber(analytics.contractorCount);
+
+    const donutSegments = useMemo(() => {
+        const radius = 52;
+        const circumference = 2 * Math.PI * radius;
+        const total = Math.max(1, analytics.totalCount);
+        let offset = 0;
+
+        return analytics.severityPyramid
+            .filter((tier) => tier.count > 0)
+            .map((tier) => {
+                const segLength = (tier.count / total) * circumference;
+                const currentOffset = offset;
+                offset += segLength;
+                return {
+                    ...tier,
+                    radius,
+                    circumference,
+                    dashArray: `${segLength} ${Math.max(0, circumference - segLength)}`,
+                    dashOffset: -currentOffset,
+                };
+            });
+    }, [analytics.severityPyramid, analytics.totalCount]);
 
     const detectedPasteFormat = useMemo(() => {
         const t = rawInput.trim();
@@ -400,10 +426,17 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
     const anyPiiRemaining = auditQueue.some((item) => item.piiFindings.length > 0);
     const activeStep = auditQueue.length > 0 ? 3 : rawInput.trim().length > 0 ? 2 : 1;
 
-    // SVG Trend Chart Geometry (420 x 148 viewBox)
+    // SVG Trend Chart Geometry (420 x 148 viewBox, dual-layer total + severe)
     const chartPoints = useMemo(() => {
         const trend = analytics.monthlyTrend;
-        if (trend.length === 0) return { linePath: '', areaPath: '', nodes: [] as Array<{ x: number; y: number; month: string; total: number; severe: number; isPeak: boolean }> };
+        if (trend.length === 0) {
+            return {
+                linePath: '',
+                areaPath: '',
+                severeLinePath: '',
+                nodes: [] as Array<{ x: number; y: number; severeY: number; month: string; total: number; severe: number; isPeak: boolean }>,
+            };
+        }
         const maxVal = Math.max(1, ...trend.map((pt) => pt.total));
         const width = 420;
         const height = 148;
@@ -415,9 +448,11 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
         const nodes = trend.map((pt, idx) => {
             const x = trend.length === 1 ? width / 2 : padX + (usableW * idx) / (trend.length - 1);
             const y = height - padY - (pt.total / maxVal) * usableH;
+            const severeY = height - padY - (pt.severe / maxVal) * usableH;
             return {
                 x: Math.round(x),
                 y: Math.round(y),
+                severeY: Math.round(severeY),
                 month: pt.month.slice(2),
                 total: pt.total,
                 severe: pt.severe,
@@ -426,10 +461,11 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
         });
 
         const linePath = nodes.map((n, i) => `${i === 0 ? 'M' : 'L'} ${n.x} ${n.y}`).join(' ');
+        const severeLinePath = nodes.map((n, i) => `${i === 0 ? 'M' : 'L'} ${n.x} ${n.severeY}`).join(' ');
         const areaPath = nodes.length > 0
             ? `${linePath} L ${nodes[nodes.length - 1].x} ${height - padY} L ${nodes[0].x} ${height - padY} Z`
             : '';
-        return { linePath, areaPath, nodes };
+        return { linePath, areaPath, severeLinePath, nodes };
     }, [analytics.monthlyTrend]);
 
     return (
@@ -954,7 +990,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                                 </select>
                                             </div>
                                             <div className="min-w-0">
-                                                <label className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">심각도</label>
+                                                <label className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">심각도 (5단계)</label>
                                                 <select
                                                     value={cand.record.severity}
                                                     onChange={(e) => handleUpdateCandidateField(cand.candidateId, 'severity', e.target.value as AccidentSeverity)}
@@ -964,6 +1000,9 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                                         <option key={sev} value={sev}>{sev}</option>
                                                     ))}
                                                 </select>
+                                                <p className="mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                                                    {ACCIDENT_SEVERITY_META[cand.record.severity]?.criteria}
+                                                </p>
                                             </div>
                                         </div>
 
@@ -1099,12 +1138,12 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                     </p>
                                 </article>
                                 <article className="psi-ab-card psi-ab-rise psi-ab-rise-d1">
-                                    <p className="text-xs font-bold text-slate-600 dark:text-slate-300">중상·중대재해 비중</p>
+                                    <p className="text-xs font-bold text-slate-600 dark:text-slate-300">산재보고(3일↑ 휴업) 이상 비중</p>
                                     <p className="mt-2 text-3xl font-black tracking-tight text-rose-600 tabular-nums dark:text-rose-400">
-                                        {animatedSevereRate}%
+                                        {animatedReportableRate}%
                                     </p>
                                     <p className="mt-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
-                                        중상·중대 {analytics.severeCount}건 · 아차사고 {animatedNearMiss}건
+                                        장기·중대 {analytics.severeCount}건 ({animatedSevereRate}%) · 아차 {animatedNearMiss}건
                                     </p>
                                 </article>
                                 <article className="psi-ab-card psi-ab-rise psi-ab-rise-d2">
@@ -1126,6 +1165,247 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                     </p>
                                 </article>
                             </section>
+
+                            {/* Signature Graphic-Art Row 1: Kinetic Heinrich Pyramid + Animated Segmented Donut */}
+                            <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+                                <section className="psi-ab-card psi-ab-rise flex flex-col gap-3.5">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div>
+                                            <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
+                                                하인리히 5단계 심각도 피라미드
+                                            </h2>
+                                            <p className="text-xs text-slate-600 dark:text-slate-300">
+                                                아차사고 · 경미(응급) · 휴업(3일↑) · 중상(4주↑) · 중대재해 구조 (단계 클릭 시 필터링)
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="psi-ab-pyramid">
+                                        {analytics.severityPyramid.map((tier, idx) => {
+                                            const widthPercent = [48, 61, 74, 87, 100][idx] ?? 100;
+                                            return (
+                                                <button
+                                                    key={tier.severity}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSeverityFilter(tier.severity);
+                                                        setActiveTab('archive');
+                                                    }}
+                                                    style={{ width: `${widthPercent}%`, borderLeftWidth: '5px', borderLeftColor: tier.color }}
+                                                    className="psi-ab-pyramid-tier text-left"
+                                                >
+                                                    <div className="min-w-0">
+                                                        <p className="text-xs font-extrabold text-slate-900 dark:text-white">
+                                                            {tier.severity}
+                                                        </p>
+                                                        <p className="truncate text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                                                            {tier.criteria}
+                                                        </p>
+                                                    </div>
+                                                    <div className="shrink-0 text-right">
+                                                        <span className="text-sm font-black tabular-nums" style={{ color: tier.color }}>
+                                                            {tier.count}건
+                                                        </span>
+                                                        <span className="ml-1 text-xs font-bold text-slate-500 tabular-nums dark:text-slate-400">
+                                                            ({tier.sharePct}%)
+                                                        </span>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </section>
+
+                                <section className="psi-ab-card psi-ab-rise flex flex-col gap-4">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div>
+                                            <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
+                                                심각도 링 게이지 & 기준표
+                                            </h2>
+                                            <p className="text-xs text-slate-600 dark:text-slate-300">
+                                                현장 실무(경미↔휴업↔장기입원) 경계를 한눈에 구분합니다
+                                            </p>
+                                        </div>
+                                        <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-extrabold text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/60 dark:text-amber-200">
+                                            산재보고 대상 {analytics.reportableCount}건
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-col items-center gap-5 sm:flex-row">
+                                        <div className="relative h-40 w-40 shrink-0">
+                                            <svg viewBox="0 0 140 140" className="h-full w-full -rotate-90" role="img" aria-label="심각도 5단계 도넛 그래프">
+                                                <circle cx="70" cy="70" r="52" fill="none" stroke="rgba(148,163,184,0.18)" strokeWidth="18" />
+                                                {donutSegments.map((seg) => (
+                                                    <circle
+                                                        key={seg.severity}
+                                                        cx="70"
+                                                        cy="70"
+                                                        r={seg.radius}
+                                                        fill="none"
+                                                        stroke={seg.color}
+                                                        strokeWidth="18"
+                                                        strokeDasharray={seg.dashArray}
+                                                        strokeDashoffset={seg.dashOffset}
+                                                        className="psi-ab-donut-seg"
+                                                        onClick={() => {
+                                                            setSeverityFilter(seg.severity);
+                                                            setActiveTab('archive');
+                                                        }}
+                                                    />
+                                                ))}
+                                            </svg>
+                                            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                                                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">산재이상</span>
+                                                <span className="text-2xl font-black text-slate-900 tabular-nums dark:text-white">
+                                                    {animatedReportableRate}%
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <ul className="grid flex-1 grid-cols-1 gap-2 min-w-0 w-full">
+                                            {analytics.severityPyramid.map((tier) => (
+                                                <li key={tier.severity}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSeverityFilter(tier.severity);
+                                                            setActiveTab('archive');
+                                                        }}
+                                                        className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2 text-left hover:border-teal-500/40 dark:border-slate-800 dark:bg-slate-900/60"
+                                                    >
+                                                        <span className="flex items-center gap-2 min-w-0">
+                                                            <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: tier.color }} />
+                                                            <span className="truncate text-xs font-extrabold text-slate-900 dark:text-slate-100">
+                                                                {tier.severity}
+                                                            </span>
+                                                        </span>
+                                                        <span className="shrink-0 text-xs font-extrabold tabular-nums text-slate-700 dark:text-slate-200">
+                                                            {tier.count}건 ({tier.sharePct}%)
+                                                        </span>
+                                                    </button>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </section>
+                            </div>
+
+                            {/* Signature Graphic-Art Row 2: Trade x Hazard Heatmap + Circadian Rhythm Chart */}
+                            <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+                                <section className="psi-ab-card psi-ab-rise flex flex-col gap-3">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div>
+                                            <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
+                                                공종 × 재해유형 위험 히트맵
+                                            </h2>
+                                            <p className="text-xs text-slate-600 dark:text-slate-300">
+                                                강조된 교차 칸을 누르면 해당 공종·재해유형 사례만 바로 모아봅니다
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {analytics.riskMatrix.trades.length > 0 && analytics.riskMatrix.hazards.length > 0 ? (
+                                        <div className="overflow-x-auto pb-1">
+                                            <div
+                                                className="psi-ab-matrix-grid min-w-[420px]"
+                                                style={{
+                                                    gridTemplateColumns: `88px repeat(${analytics.riskMatrix.hazards.length}, minmax(0, 1fr))`,
+                                                }}
+                                            >
+                                                <div />
+                                                {analytics.riskMatrix.hazards.map((hazard) => (
+                                                    <div key={hazard} className="px-1 text-center text-xs font-extrabold text-slate-600 dark:text-slate-300">
+                                                        {hazard}
+                                                    </div>
+                                                ))}
+                                                {analytics.riskMatrix.trades.map((trade) => (
+                                                    <React.Fragment key={trade}>
+                                                        <div className="flex items-center pr-2 text-xs font-extrabold text-slate-800 dark:text-slate-100">
+                                                            {trade}
+                                                        </div>
+                                                        {analytics.riskMatrix.hazards.map((hazard) => {
+                                                            const cell = analytics.riskMatrix.cells.find(
+                                                                (c) => c.trade === trade && c.hazard === hazard,
+                                                            );
+                                                            const count = cell?.count || 0;
+                                                            const intensity = cell?.intensity || 0;
+                                                            const cellStyle =
+                                                                intensity === 3
+                                                                    ? 'psi-ab-hotspot-hot border-rose-400/70 bg-rose-500/20 text-rose-900 dark:bg-rose-500/30 dark:text-rose-100 is-clickable'
+                                                                    : intensity === 2
+                                                                        ? 'border-amber-400/70 bg-amber-500/20 text-amber-900 dark:bg-amber-500/30 dark:text-amber-100 is-clickable'
+                                                                        : intensity === 1
+                                                                            ? 'border-teal-400/60 bg-teal-500/15 text-teal-900 dark:bg-teal-500/25 dark:text-teal-100 is-clickable'
+                                                                            : 'border-slate-200/60 bg-slate-100/50 text-slate-400 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-600';
+                                                            return (
+                                                                <button
+                                                                    key={`${trade}-${hazard}`}
+                                                                    type="button"
+                                                                    disabled={count === 0}
+                                                                    onClick={() => {
+                                                                        setJobFieldFilter(trade);
+                                                                        setHazardFilter(hazard);
+                                                                        setActiveTab('archive');
+                                                                    }}
+                                                                    className={`psi-ab-matrix-cell ${cellStyle}`}
+                                                                >
+                                                                    <span>{count > 0 ? `${count}건` : '-'}</span>
+                                                                    {cell && cell.severeCount > 0 && (
+                                                                        <span className="text-[10px] font-bold">중상↑{cell.severeCount}</span>
+                                                                    )}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </React.Fragment>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">히트맵을 생성할 데이터가 부족합니다.</p>
+                                    )}
+                                </section>
+
+                                <section className="psi-ab-card psi-ab-rise flex flex-col gap-3">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div>
+                                            <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
+                                                작업 시간대별 사고 리듬
+                                            </h2>
+                                            <p className="text-xs text-slate-600 dark:text-slate-300">
+                                                하루 작업 흐름(작업전 · 오전 · 점심직후 · 오후 · 야간) 중 피크 시간대를 포착합니다
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-5 gap-2.5 pt-2">
+                                        {analytics.timeSlotDistribution.map((item) => {
+                                            const heightPct = item.count === 0 ? 8 : Math.max(18, item.sharePct);
+                                            return (
+                                                <div key={item.slot} className="flex flex-col items-center gap-2 text-center">
+                                                    <div className="psi-ab-pillar-wrap">
+                                                        <div
+                                                            className={`psi-ab-pillar ${
+                                                                item.isPeak
+                                                                    ? 'bg-gradient-to-t from-rose-600 to-amber-400 psi-ab-hotspot-hot'
+                                                                    : 'bg-gradient-to-t from-teal-700 to-cyan-400'
+                                                            }`}
+                                                            style={{ height: `${heightPct}%` }}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-extrabold text-slate-900 tabular-nums dark:text-white">
+                                                            {item.count}건
+                                                        </p>
+                                                        <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                                                            {item.slot}
+                                                        </p>
+                                                        {item.isPeak && (
+                                                            <span className="mt-0.5 inline-block rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-extrabold text-rose-800 dark:bg-rose-950 dark:text-rose-200">
+                                                                집중 주의
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </section>
+                            </div>
 
                             {/* NEW-PSI Risk Assessment Cross-Link Alerts */}
                             {analytics.crossLinkAlerts.length > 0 && (
@@ -1231,23 +1511,29 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                 {/* Monthly SVG Kinetic Trend + Trade Bars */}
                                 <div className="flex flex-col gap-5">
                                     <section className="psi-ab-card psi-ab-rise flex flex-col gap-3">
-                                        <div className="flex items-center justify-between gap-2">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
                                             <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
-                                                월별 사고 발생 추이
+                                                월별 사고 발생 추이 (전체 vs 장기·중대)
                                             </h2>
-                                            <span className="text-xs font-bold text-teal-700 dark:text-teal-300">
-                                                최근 {analytics.monthlyTrend.length}개월
-                                            </span>
+                                            <div className="flex items-center gap-3 text-xs font-bold">
+                                                <span className="inline-flex items-center gap-1 text-teal-700 dark:text-teal-300">
+                                                    <span className="h-2 w-2 rounded-full bg-teal-600" />전체
+                                                </span>
+                                                <span className="inline-flex items-center gap-1 text-rose-700 dark:text-rose-300">
+                                                    <span className="h-2 w-2 rounded-full bg-rose-600" />중상·중대
+                                                </span>
+                                            </div>
                                         </div>
                                         {chartPoints.nodes.length > 0 && (
                                             <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-950/60">
-                                                <svg viewBox="0 0 420 148" className="h-36 w-full" role="img" aria-label="월별 사고 발생 건수 추이 그래프">
+                                                <svg viewBox="0 0 420 148" className="h-36 w-full" role="img" aria-label="월별 사고 발생 건수 및 중상중대 추이 그래프">
                                                     <defs>
                                                         <linearGradient id="psiAbAreaGrad" x1="0" y1="0" x2="0" y2="1">
                                                             <stop offset="0%" stopColor="#14b8a6" stopOpacity="0.32" />
                                                             <stop offset="100%" stopColor="#14b8a6" stopOpacity="0.02" />
                                                         </linearGradient>
                                                     </defs>
+                                                    <line x1="24" y1="126" x2="396" y2="126" stroke="currentColor" strokeOpacity="0.16" strokeWidth="1" />
                                                     {chartPoints.areaPath && (
                                                         <path d={chartPoints.areaPath} fill="url(#psiAbAreaGrad)" />
                                                     )}
@@ -1262,12 +1548,26 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                                             className="psi-ab-trend-path"
                                                         />
                                                     )}
+                                                    {chartPoints.severeLinePath && (
+                                                        <path
+                                                            d={chartPoints.severeLinePath}
+                                                            fill="none"
+                                                            stroke="#e11d48"
+                                                            strokeWidth="2.2"
+                                                            strokeDasharray="5 4"
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                        />
+                                                    )}
                                                     {chartPoints.nodes.map((node) => (
                                                         <g key={node.month}>
                                                             {node.isPeak && (
                                                                 <circle cx={node.x} cy={node.y} r="9" fill="#14b8a6" className="psi-ab-peak-halo" />
                                                             )}
                                                             <circle cx={node.x} cy={node.y} r="4.5" fill="#ffffff" stroke="#0f766e" strokeWidth="2.5" />
+                                                            {node.severe > 0 && (
+                                                                <circle cx={node.x} cy={node.severeY} r="3.5" fill="#e11d48" stroke="#ffffff" strokeWidth="1.5" />
+                                                            )}
                                                             <text x={node.x} y={Math.max(12, node.y - 10)} textAnchor="middle" fontSize="11" fontWeight="800" fill="currentColor">
                                                                 {node.total}
                                                             </text>
@@ -1632,7 +1932,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">심각도</label>
+                                        <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">심각도 (5단계)</label>
                                         <select
                                             value={editDraft.severity}
                                             onChange={(e) => setEditDraft({ ...editDraft, severity: e.target.value as AccidentSeverity })}
@@ -1642,6 +1942,9 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                                 <option key={sev} value={sev}>{sev}</option>
                                             ))}
                                         </select>
+                                        <p className="mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                                            {ACCIDENT_SEVERITY_META[editDraft.severity]?.criteria}
+                                        </p>
                                     </div>
                                     <div>
                                         <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">기인물 · 장비</label>

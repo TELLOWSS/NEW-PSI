@@ -410,6 +410,153 @@ html[data-psi-sunlight="true"] .psi-platform-field-canvas [data-psi-screen="acci
   border-color: #fde047;
 }
 
+/* ==========================================================================
+   Graphic-Art Big-Data Dashboard Visuals & Kinetic Micro-Animations
+   ========================================================================== */
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-pyramid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-pyramid-tier {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 46px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--ab-border);
+  background: var(--ab-surface-muted);
+  transition: transform 180ms var(--ab-ease), box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-pyramid-tier:hover {
+  transform: translate3d(0, -2px, 0) scale(1.015);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.1);
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-donut-seg {
+  transition: stroke-width 180ms ease, opacity 180ms ease, filter 180ms ease;
+  cursor: pointer;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-donut-seg:hover {
+  stroke-width: 24;
+  filter: brightness(1.08);
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-matrix-grid {
+  display: grid;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-matrix-cell {
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: transform 150ms var(--ab-ease), box-shadow 150ms ease;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-matrix-cell.is-clickable:hover {
+  transform: scale(1.06);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.14);
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-pillar-wrap {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 112px;
+  width: 100%;
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.12);
+  padding: 6px;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-pillar {
+  width: 100%;
+  border-radius: 8px;
+  transform-origin: bottom center;
+}
+
+@keyframes psi-ab-pyramid-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scaleX(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scaleX(1);
+  }
+}
+
+@keyframes psi-ab-donut-draw {
+  from {
+    stroke-dashoffset: 340;
+    opacity: 0.4;
+  }
+  to {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes psi-ab-pillar-rise {
+  from {
+    transform: scaleY(0.08);
+    opacity: 0.4;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes psi-ab-hotspot-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(225, 29, 72, 0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-pyramid-tier {
+    animation: psi-ab-pyramid-in 360ms var(--ab-ease) both;
+  }
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-pyramid-tier:nth-child(1) { animation-delay: 40ms; }
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-pyramid-tier:nth-child(2) { animation-delay: 90ms; }
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-pyramid-tier:nth-child(3) { animation-delay: 140ms; }
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-pyramid-tier:nth-child(4) { animation-delay: 190ms; }
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-pyramid-tier:nth-child(5) { animation-delay: 240ms; }
+
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-donut-seg {
+    animation: psi-ab-donut-draw 780ms var(--ab-ease) both;
+  }
+
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-pillar {
+    animation: psi-ab-pillar-rise 680ms var(--ab-ease) both;
+  }
+
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-hotspot-hot {
+    animation: psi-ab-hotspot-glow 2.4s ease-in-out infinite;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] *,
   .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] *::after {

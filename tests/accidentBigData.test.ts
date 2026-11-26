@@ -7,6 +7,7 @@ import {
     exportAccidentRecordsToCsv,
     getSampleAccidentBigDataRecords,
     maskAccidentRecordPii,
+    normalizeAccidentSeverity,
     parseExternalAiAccidentPayload,
     persistAccidentBigDataStore,
     readAccidentBigDataStore,
@@ -15,7 +16,7 @@ import {
 } from '../utils/accidentBigData';
 
 describe('accidentBigData hub engine', () => {
-    it('builds copy-ready conversion prompt with frame-construction trades and disambiguation rules', () => {
+    it('builds copy-ready conversion prompt with frame-construction trades, 5-tier severity, and disambiguation rules', () => {
         const prompt = buildAccidentConversionPrompt({
             provider: 'gemini',
             contractorHint: '한강건설',
@@ -30,8 +31,22 @@ describe('accidentBigData hub engine', () => {
         expect(prompt).toContain('알폼');
         expect(prompt).toContain('할석미장견출');
         expect(prompt).toContain('해체·탈형·정리·반출');
+        expect(prompt).toContain('경미(응급·외래)');
+        expect(prompt).toContain('휴업재해(3일↑)');
+        expect(prompt).toContain('중상(장기·입원)');
         expect(prompt).toContain('한강건설');
         expect(prompt).toContain('수도권 3공구');
+    });
+
+    it('normalizes 5-tier construction severity accurately and migrates legacy 경상/중상 safely', () => {
+        expect(normalizeAccidentSeverity('아차사고')).toBe('아차사고');
+        expect(normalizeAccidentSeverity('경상')).toBe('경미(응급·외래)');
+        expect(normalizeAccidentSeverity('현장 응급처치 후 당일 복귀')).toBe('경미(응급·외래)');
+        expect(normalizeAccidentSeverity('휴업 5일 통원치료')).toBe('휴업재해(3일↑)');
+        expect(normalizeAccidentSeverity('발목 염좌 및 봉합(2주)')).toBe('휴업재해(3일↑)');
+        expect(normalizeAccidentSeverity('전치 6주 입원 수술')).toBe('중상(장기·입원)');
+        expect(normalizeAccidentSeverity('중상')).toBe('중상(장기·입원)');
+        expect(normalizeAccidentSeverity('중대재해')).toBe('중대재해');
     });
 
     it('preserves frame-construction trades like 해체정리, 알폼, 갱폼 without collapsing into 형틀', () => {
@@ -156,6 +171,10 @@ describe('accidentBigData hub engine', () => {
         const analytics = computeAccidentBigDataAnalytics(samples, mockWorkers);
         expect(analytics.totalCount).toBe(6);
         expect(analytics.topJobField?.label).toBe('시스템');
+        expect(analytics.severityPyramid).toHaveLength(5);
+        expect(analytics.reportableCount).toBe(3);
+        expect(analytics.timeSlotDistribution).toHaveLength(5);
+        expect(analytics.riskMatrix.cells.length).toBeGreaterThan(0);
         expect(analytics.crossLinkAlerts.some((a) => a.jobField === '시스템' && a.beginnerCount === 1)).toBe(true);
 
         const editedList = updateAccidentRecordInList(samples, {
@@ -186,5 +205,11 @@ describe('accidentBigData hub engine', () => {
         const reloaded = readAccidentBigDataStore(() => written);
         expect(reloaded.safe).toBe(true);
         expect(reloaded.items).toHaveLength(6);
+
+        const legacyJson = JSON.stringify([{ ...samples[0], severity: '경상' }, { ...samples[1], severity: '중상' }]);
+        const migrated = readAccidentBigDataStore(() => legacyJson);
+        expect(migrated.safe).toBe(true);
+        expect(migrated.items[0].severity).toBe('경미(응급·외래)');
+        expect(migrated.items[1].severity).toBe('중상(장기·입원)');
     });
 });

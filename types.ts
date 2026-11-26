@@ -715,7 +715,12 @@ export interface WorkerMonthlyIntegritySummary {
     approved_at?: string;
 }
 
-export type AccidentSeverity = '아차사고' | '경상' | '중상' | '중대재해';
+export type AccidentSeverity =
+    | '아차사고'
+    | '경미(응급·외래)'
+    | '휴업재해(3일↑)'
+    | '중상(장기·입원)'
+    | '중대재해';
 export type AccidentTimeSlot = '오전 작업전' | '오전' | '점심 직후' | '오후' | '야간' | '미상';
 export type AccidentSourceProvider = 'gemini' | 'chatgpt' | 'claude' | 'csv' | 'manual';
 
