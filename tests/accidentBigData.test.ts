@@ -10,10 +10,12 @@ import {
     parseExternalAiAccidentPayload,
     persistAccidentBigDataStore,
     readAccidentBigDataStore,
+    standardizeAccidentJobField,
+    updateAccidentRecordInList,
 } from '../utils/accidentBigData';
 
 describe('accidentBigData hub engine', () => {
-    it('builds copy-ready conversion prompt with PSI standards and contractor hints', () => {
+    it('builds copy-ready conversion prompt with frame-construction trades and disambiguation rules', () => {
         const prompt = buildAccidentConversionPrompt({
             provider: 'gemini',
             contractorHint: '한강건설',
@@ -23,10 +25,22 @@ describe('accidentBigData hub engine', () => {
 
         expect(prompt).toContain('Gemini 전용');
         expect(prompt).toContain('개인정보 자동 비식별화');
-        expect(prompt).toContain('형틀, 철근');
-        expect(prompt).toContain('추락');
+        expect(prompt).toContain('해체정리');
+        expect(prompt).toContain('갱폼');
+        expect(prompt).toContain('알폼');
+        expect(prompt).toContain('할석미장견출');
+        expect(prompt).toContain('해체·탈형·정리·반출');
         expect(prompt).toContain('한강건설');
         expect(prompt).toContain('수도권 3공구');
+    });
+
+    it('preserves frame-construction trades like 해체정리, 알폼, 갱폼 without collapsing into 형틀', () => {
+        expect(standardizeAccidentJobField('해체정리', '3층 거푸집 알폼 해체 및 반출 작업')).toBe('해체정리');
+        expect(standardizeAccidentJobField('알폼', '2층 알루미늄 거푸집 조립')).toBe('알폼');
+        expect(standardizeAccidentJobField('갱폼', '외벽 갱폼 인양 볼트 체결')).toBe('갱폼');
+        expect(standardizeAccidentJobField('바닥미장', '옥상 바닥 휘니셔 작업')).toBe('바닥미장');
+        expect(standardizeAccidentJobField('', '슬래브 유로폼 해체 및 정리 작업 중 낙하')).toBe('해체정리');
+        expect(standardizeAccidentJobField('PC조립', 'PC 기둥 양중')).toBe('PC조립');
     });
 
     it('parses fenced Markdown JSON mixed with AI explanation text and standardizes fields', () => {
@@ -116,7 +130,7 @@ describe('accidentBigData hub engine', () => {
             {
                 id: 'w1',
                 name: '근로자A',
-                jobField: '비계',
+                jobField: '시스템',
                 date: '2026-11-25',
                 nationality: '대한민국',
                 language: 'ko',
@@ -141,8 +155,16 @@ describe('accidentBigData hub engine', () => {
 
         const analytics = computeAccidentBigDataAnalytics(samples, mockWorkers);
         expect(analytics.totalCount).toBe(6);
-        expect(analytics.topJobField?.label).toBe('비계');
-        expect(analytics.crossLinkAlerts.some((a) => a.jobField === '비계' && a.beginnerCount === 1)).toBe(true);
+        expect(analytics.topJobField?.label).toBe('시스템');
+        expect(analytics.crossLinkAlerts.some((a) => a.jobField === '시스템' && a.beginnerCount === 1)).toBe(true);
+
+        const editedList = updateAccidentRecordInList(samples, {
+            ...samples[0],
+            jobField: '해체정리',
+            summary: '수정된 알폼 해체정리 사례',
+        });
+        expect(editedList[0].jobField).toBe('해체정리');
+        expect(editedList[0].fingerprint).not.toBe(samples[0].fingerprint);
 
         const csvExport = exportAccidentRecordsToCsv(samples);
         expect(csvExport.startsWith('\uFEFF')).toBe(true);

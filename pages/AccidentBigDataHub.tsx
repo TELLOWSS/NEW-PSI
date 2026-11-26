@@ -1,17 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { PSI_RISK_TYPE_CATALOG, PSI_STANDARD_JOB_FIELDS } from '../config/psiFormMaster';
+import { PSI_RISK_TYPE_CATALOG } from '../config/psiFormMaster';
 import type {
     AccidentBigDataRecord,
     AccidentSeverity,
+    AccidentTimeSlot,
     Page,
     WorkerRecord,
 } from '../types';
 import {
     ACCIDENT_BIGDATA_UPDATED_EVENT,
+    ACCIDENT_JOB_FIELD_OPTIONS,
     auditAccidentImportCandidates,
     buildAccidentConversionPrompt,
     computeAccidentBigDataAnalytics,
     computeAccidentFingerprint,
+    detectAccidentPiiMatches,
     exportAccidentRecordsToCsv,
     exportAccidentRecordsToJson,
     getSampleAccidentBigDataRecords,
@@ -19,6 +22,7 @@ import {
     parseExternalAiAccidentPayload,
     persistAccidentBigDataStore,
     readAccidentBigDataStore,
+    updateAccidentRecordInList,
     type AccidentAuditCandidate,
     type AccidentPromptFormat,
     type AccidentPromptProvider,
@@ -32,6 +36,7 @@ interface AccidentBigDataHubProps {
 type HubTab = 'import' | 'dashboard' | 'archive';
 
 const SEVERITY_OPTIONS: readonly AccidentSeverity[] = ['아차사고', '경상', '중상', '중대재해'];
+const TIME_SLOT_OPTIONS: readonly AccidentTimeSlot[] = ['오전 작업전', '오전', '점심 직후', '오후', '야간', '미상'];
 const HAZARD_OPTIONS = PSI_RISK_TYPE_CATALOG.map((item) => item.label);
 
 const SEVERITY_BADGE_MAP: Record<AccidentSeverity, string> = {
@@ -151,8 +156,13 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
     const [contractorFilter, setContractorFilter] = useState<string>('전체');
     const [severityFilter, setSeverityFilter] = useState<string>('전체');
     const [hazardFilter, setHazardFilter] = useState<string>('전체');
+    const [jobFieldFilter, setJobFieldFilter] = useState<string>('전체');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedRecord, setSelectedRecord] = useState<AccidentBigDataRecord | null>(null);
+    const [isEditingDrawer, setIsEditingDrawer] = useState(false);
+    const [editDraft, setEditDraft] = useState<AccidentBigDataRecord | null>(null);
+    const [customCandidateJobs, setCustomCandidateJobs] = useState<Record<string, boolean>>({});
+    const [customDraftJob, setCustomDraftJob] = useState(false);
 
     useEffect(() => {
         const handleExternalUpdate = () => {
@@ -200,6 +210,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
             if (contractorFilter !== '전체' && rec.sourceContractor !== contractorFilter) return false;
             if (severityFilter !== '전체' && rec.severity !== severityFilter) return false;
             if (hazardFilter !== '전체' && rec.hazardType !== hazardFilter) return false;
+            if (jobFieldFilter !== '전체' && rec.jobField !== jobFieldFilter) return false;
             if (!q) return true;
             return [
                 rec.sourceContractor,
@@ -212,7 +223,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                 rec.preventionMeasure,
             ].join(' ').toLowerCase().includes(q);
         });
-    }, [contractorFilter, hazardFilter, records, searchQuery, severityFilter]);
+    }, [contractorFilter, hazardFilter, jobFieldFilter, records, searchQuery, severityFilter]);
 
     const analytics = useMemo(
         () => computeAccidentBigDataAnalytics(filteredRecords, workerRecords),
@@ -354,9 +365,36 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
     const handleDeleteRecord = (id: string) => {
         const next = records.filter((r) => r.id !== id);
         if (saveRecords(next)) {
-            if (selectedRecord?.id === id) setSelectedRecord(null);
+            if (selectedRecord?.id === id) {
+                setSelectedRecord(null);
+                setIsEditingDrawer(false);
+                setEditDraft(null);
+            }
         }
     };
+
+    const handleOpenDrawer = (record: AccidentBigDataRecord, startInEditMode = false) => {
+        setSelectedRecord(record);
+        setEditDraft({ ...record });
+        setCustomDraftJob(!ACCIDENT_JOB_FIELD_OPTIONS.includes(record.jobField));
+        setIsEditingDrawer(startInEditMode);
+    };
+
+    const handleSaveEditedRecord = () => {
+        if (!editDraft) return;
+        const nextList = updateAccidentRecordInList(records, editDraft);
+        if (!saveRecords(nextList)) return;
+        const savedRecord = nextList.find((item) => item.id === editDraft.id) || editDraft;
+        setSelectedRecord(savedRecord);
+        setEditDraft({ ...savedRecord });
+        setIsEditingDrawer(false);
+        setCommitBanner(`'${savedRecord.workTask}' 사례의 수정 내용(공종: ${savedRecord.jobField})이 DB에 반영되었습니다.`);
+    };
+
+    const editDraftPiiFindings = useMemo(
+        () => (editDraft ? detectAccidentPiiMatches(editDraft) : []),
+        [editDraft],
+    );
 
     const selectedCommitCount = auditQueue.filter((item) => item.selected).length;
     const anyPiiRemaining = auditQueue.some((item) => item.piiFindings.length > 0);
@@ -875,19 +913,33 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                                 />
                                             </div>
                                             <div className="min-w-0">
-                                                <label className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">표준 공종</label>
+                                                <label className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">공종 (골조특화 · 직접입력 가능)</label>
                                                 <select
-                                                    value={cand.record.jobField}
-                                                    onChange={(e) => handleUpdateCandidateField(cand.candidateId, 'jobField', e.target.value)}
+                                                    value={customCandidateJobs[cand.candidateId] || !ACCIDENT_JOB_FIELD_OPTIONS.includes(cand.record.jobField) ? '__custom__' : cand.record.jobField}
+                                                    onChange={(e) => {
+                                                        if (e.target.value === '__custom__') {
+                                                            setCustomCandidateJobs((prev) => ({ ...prev, [cand.candidateId]: true }));
+                                                            return;
+                                                        }
+                                                        setCustomCandidateJobs((prev) => ({ ...prev, [cand.candidateId]: false }));
+                                                        handleUpdateCandidateField(cand.candidateId, 'jobField', e.target.value);
+                                                    }}
                                                     className="w-full min-h-[38px] rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                                                 >
-                                                    {!((PSI_STANDARD_JOB_FIELDS as readonly string[]).includes(cand.record.jobField)) && (
-                                                        <option value={cand.record.jobField}>{cand.record.jobField}</option>
-                                                    )}
-                                                    {PSI_STANDARD_JOB_FIELDS.map((job) => (
+                                                    {ACCIDENT_JOB_FIELD_OPTIONS.map((job) => (
                                                         <option key={job} value={job}>{job}</option>
                                                     ))}
+                                                    <option value="__custom__">+ 직접 입력...</option>
                                                 </select>
+                                                {(customCandidateJobs[cand.candidateId] || !ACCIDENT_JOB_FIELD_OPTIONS.includes(cand.record.jobField)) && (
+                                                    <input
+                                                        type="text"
+                                                        value={cand.record.jobField}
+                                                        onChange={(e) => handleUpdateCandidateField(cand.candidateId, 'jobField', e.target.value)}
+                                                        placeholder="예: 해체정리, PC조립..."
+                                                        className="mt-1.5 w-full min-h-[36px] rounded-lg border border-teal-400 bg-white px-2.5 text-xs font-semibold text-slate-900 dark:bg-slate-950 dark:text-slate-100"
+                                                    />
+                                                )}
                                             </div>
                                             <div className="min-w-0">
                                                 <label className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">12대 재해유형</label>
@@ -988,13 +1040,14 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                 className="w-full min-h-[40px] rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                             />
                         </div>
-                        {(contractorFilter !== '전체' || severityFilter !== '전체' || hazardFilter !== '전체' || searchQuery) && (
+                        {(contractorFilter !== '전체' || severityFilter !== '전체' || hazardFilter !== '전체' || jobFieldFilter !== '전체' || searchQuery) && (
                             <button
                                 type="button"
                                 onClick={() => {
                                     setContractorFilter('전체');
                                     setSeverityFilter('전체');
                                     setHazardFilter('전체');
+                                    setJobFieldFilter('전체');
                                     setSearchQuery('');
                                 }}
                                 className="min-h-[40px] rounded-xl border border-slate-300 px-3.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
@@ -1229,25 +1282,38 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                     </section>
 
                                     <section className="psi-ab-card psi-ab-rise flex flex-col gap-3">
-                                        <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
-                                            공종별 사고 집중도 TOP 5
-                                        </h2>
+                                        <div className="flex items-center justify-between gap-2">
+                                            <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
+                                                공종별 사고 집중도 TOP 5
+                                            </h2>
+                                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                                클릭 시 보관함 이동
+                                            </span>
+                                        </div>
                                         <div className="flex flex-col gap-2.5">
                                             {analytics.jobFieldDistribution.slice(0, 5).map((job) => (
-                                                <div key={job.label} className="flex flex-col gap-1">
-                                                    <div className="flex items-center justify-between text-xs font-bold">
+                                                <button
+                                                    key={job.label}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setJobFieldFilter(job.label);
+                                                        setActiveTab('archive');
+                                                    }}
+                                                    className="flex flex-col gap-1 rounded-xl p-1.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                                                >
+                                                    <div className="flex w-full items-center justify-between text-xs font-bold">
                                                         <span>{job.label}</span>
                                                         <span className="tabular-nums text-slate-600 dark:text-slate-300">
                                                             {job.count}건 ({job.sharePct}%)
                                                         </span>
                                                     </div>
-                                                    <div className="psi-ab-bar-track">
+                                                    <div className="psi-ab-bar-track w-full">
                                                         <div
                                                             className="psi-ab-bar-fill bg-gradient-to-r from-amber-500 to-rose-500"
                                                             style={{ width: `${Math.max(8, job.sharePct)}%` }}
                                                         />
                                                     </div>
-                                                </div>
+                                                </button>
                                             ))}
                                         </div>
                                     </section>
@@ -1301,6 +1367,24 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                             </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
+                            {jobFieldFilter !== '전체' && (
+                                <button
+                                    type="button"
+                                    onClick={() => setJobFieldFilter('전체')}
+                                    className="min-h-[38px] rounded-xl border border-teal-400 bg-teal-50 px-3 text-xs font-extrabold text-teal-900 dark:bg-teal-950/60 dark:text-teal-200"
+                                >
+                                    공종: {jobFieldFilter} ✕
+                                </button>
+                            )}
+                            {hazardFilter !== '전체' && (
+                                <button
+                                    type="button"
+                                    onClick={() => setHazardFilter('전체')}
+                                    className="min-h-[38px] rounded-xl border border-sky-400 bg-sky-50 px-3 text-xs font-extrabold text-sky-900 dark:bg-sky-950/60 dark:text-sky-200"
+                                >
+                                    재해유형: {hazardFilter} ✕
+                                </button>
+                            )}
                             <input
                                 type="search"
                                 value={searchQuery}
@@ -1351,17 +1435,26 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                             {rec.summary}
                                         </p>
                                     </div>
-                                    <div className="flex items-center justify-between gap-2 border-t border-slate-200/80 pt-2.5 dark:border-slate-800">
+                                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/80 pt-2.5 dark:border-slate-800">
                                         <span className="text-xs font-semibold text-teal-700 dark:text-teal-300">
-                                            대책: {rec.preventionMeasure.slice(0, 36)}{rec.preventionMeasure.length > 36 ? '...' : ''}
+                                            대책: {rec.preventionMeasure.slice(0, 32)}{rec.preventionMeasure.length > 32 ? '...' : ''}
                                         </span>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedRecord(rec)}
-                                            className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-700 dark:bg-teal-600 dark:hover:bg-teal-500"
-                                        >
-                                            상세 보기
-                                        </button>
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleOpenDrawer(rec, true)}
+                                                className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                            >
+                                                수정
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleOpenDrawer(rec, false)}
+                                                className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-700 dark:bg-teal-600 dark:hover:bg-teal-500"
+                                            >
+                                                상세 보기
+                                            </button>
+                                        </div>
                                     </div>
                                 </article>
                             ))}
@@ -1370,88 +1463,338 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                 </section>
             )}
 
-            {/* ================= SLIDE-OVER DETAIL DRAWER ================= */}
+            {/* ================= SLIDE-OVER DETAIL & EDIT DRAWER ================= */}
             {selectedRecord && (
                 <div
                     className="fixed inset-0 z-[10001] flex justify-end bg-slate-950/55 backdrop-blur-xs"
                     role="presentation"
                     onClick={(e) => {
-                        if (e.target === e.currentTarget) setSelectedRecord(null);
+                        if (e.target === e.currentTarget) {
+                            setSelectedRecord(null);
+                            setIsEditingDrawer(false);
+                        }
                     }}
                 >
                     <aside
                         role="dialog"
                         aria-modal="true"
-                        aria-label="사고 사례 상세 분석"
-                        className="psi-ab-drawer flex h-full w-full max-w-lg flex-col gap-4 overflow-y-auto bg-white p-6 text-slate-900 dark:bg-slate-900 dark:text-slate-100"
+                        aria-label={isEditingDrawer ? '사고 사례 수정' : '사고 사례 상세 분석'}
+                        className="psi-ab-drawer flex h-full w-full max-w-xl flex-col gap-4 overflow-y-auto bg-white p-6 text-slate-900 dark:bg-slate-900 dark:text-slate-100"
                     >
                         <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-800">
                             <div>
                                 <span className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-extrabold ${SEVERITY_BADGE_MAP[selectedRecord.severity]}`}>
-                                    {selectedRecord.severity} · {selectedRecord.hazardType}
+                                    {selectedRecord.severity} · {selectedRecord.jobField} · {selectedRecord.hazardType}
                                 </span>
-                                <h2 className="mt-2 text-lg font-extrabold">{selectedRecord.workTask}</h2>
+                                <h2 className="mt-2 text-lg font-extrabold">
+                                    {isEditingDrawer ? '사고 사례 내용 수정' : selectedRecord.workTask}
+                                </h2>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
                                     {selectedRecord.occurredDate} ({selectedRecord.timeSlot}) · {selectedRecord.sourceContractor} · {selectedRecord.siteName}
                                 </p>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => setSelectedRecord(null)}
-                                className="rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-bold hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-                            >
-                                닫기
-                            </button>
-                        </div>
-
-                        <div className="space-y-3 text-sm">
-                            <div className="rounded-2xl bg-slate-50 p-3.5 dark:bg-slate-800/70">
-                                <p className="text-xs font-extrabold text-slate-500 dark:text-slate-400">사고 개요</p>
-                                <p className="mt-1 leading-relaxed">{selectedRecord.summary}</p>
-                            </div>
-                            <div className="rounded-2xl bg-slate-50 p-3.5 dark:bg-slate-800/70">
-                                <p className="text-xs font-extrabold text-slate-500 dark:text-slate-400">기인물 · 직접원인</p>
-                                <p className="mt-1 font-semibold">[{selectedRecord.causingAgent}] {selectedRecord.directCause}</p>
-                            </div>
-                            <div className="rounded-2xl bg-amber-50/70 p-3.5 dark:bg-amber-950/30">
-                                <p className="text-xs font-extrabold text-amber-800 dark:text-amber-300">근본 · 관리적 원인</p>
-                                <p className="mt-1 leading-relaxed">{selectedRecord.rootCause}</p>
-                            </div>
-                            <div className="rounded-2xl bg-emerald-50/80 p-3.5 dark:bg-emerald-950/30">
-                                <p className="text-xs font-extrabold text-emerald-800 dark:text-emerald-300">재발방지대책</p>
-                                <p className="mt-1 leading-relaxed font-semibold">{selectedRecord.preventionMeasure}</p>
-                            </div>
-                            {selectedRecord.preWorkCheckpoints.length > 0 && (
-                                <div className="rounded-2xl border border-teal-500/30 p-3.5">
-                                    <p className="text-xs font-extrabold text-teal-800 dark:text-teal-300">작업 전 필수 점검 체크리스트</p>
-                                    <ul className="mt-1.5 space-y-1 text-xs font-semibold">
-                                        {selectedRecord.preWorkCheckpoints.map((cp) => <li key={cp}>• {cp}</li>)}
-                                    </ul>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
-                            <button
-                                type="button"
-                                onClick={() => handleDeleteRecord(selectedRecord.id)}
-                                className="rounded-xl border border-rose-300 px-3.5 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50 dark:border-rose-500/40 dark:text-rose-300"
-                            >
-                                이 사례 삭제
-                            </button>
-                            {onNavigateToPage && (
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                {!isEditingDrawer ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleOpenDrawer(selectedRecord, true)}
+                                        className="rounded-xl border border-teal-500/40 bg-teal-50 px-3 py-1.5 text-xs font-extrabold text-teal-800 hover:bg-teal-100 dark:bg-teal-950/60 dark:text-teal-200"
+                                    >
+                                        수정하기
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setEditDraft({ ...selectedRecord });
+                                            setIsEditingDrawer(false);
+                                        }}
+                                        className="rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-bold hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                                    >
+                                        편집 취소
+                                    </button>
+                                )}
                                 <button
                                     type="button"
                                     onClick={() => {
                                         setSelectedRecord(null);
-                                        onNavigateToPage('a4-education-material');
+                                        setIsEditingDrawer(false);
                                     }}
-                                    className="psi-ab-cta"
+                                    className="rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-bold hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
                                 >
-                                    교육자료 제작으로 연결 →
+                                    닫기
                                 </button>
-                            )}
+                            </div>
                         </div>
+
+                        {isEditingDrawer && editDraft ? (
+                            <form
+                                className="flex flex-1 flex-col gap-3.5 text-xs"
+                                onSubmit={(e) => {
+                                    e.preventDefault();
+                                    handleSaveEditedRecord();
+                                }}
+                            >
+                                {editDraftPiiFindings.length > 0 && (
+                                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-rose-900 dark:border-rose-500/40 dark:bg-rose-950/50 dark:text-rose-100">
+                                        <span className="font-bold">
+                                            개인정보 감지({editDraftPiiFindings.join(', ')})
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditDraft((prev) => (prev ? maskAccidentRecordPii(prev) : prev))}
+                                            className="rounded-lg bg-rose-600 px-2.5 py-1 text-xs font-extrabold text-white hover:bg-rose-500"
+                                        >
+                                            자동 가리기
+                                        </button>
+                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <div>
+                                        <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">발생일자</label>
+                                        <input
+                                            type="date"
+                                            value={editDraft.occurredDate}
+                                            onChange={(e) => setEditDraft({ ...editDraft, occurredDate: e.target.value })}
+                                            className="w-full min-h-[38px] rounded-xl border border-slate-300 bg-white px-3 text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">시간대</label>
+                                        <select
+                                            value={editDraft.timeSlot}
+                                            onChange={(e) => setEditDraft({ ...editDraft, timeSlot: e.target.value as AccidentTimeSlot })}
+                                            className="w-full min-h-[38px] rounded-xl border border-slate-300 bg-white px-3 font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                        >
+                                            {TIME_SLOT_OPTIONS.map((slot) => (
+                                                <option key={slot} value={slot}>{slot}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">원도급사</label>
+                                        <input
+                                            type="text"
+                                            value={editDraft.sourceContractor}
+                                            onChange={(e) => setEditDraft({ ...editDraft, sourceContractor: e.target.value })}
+                                            className="w-full min-h-[38px] rounded-xl border border-slate-300 bg-white px-3 text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">현장명</label>
+                                        <input
+                                            type="text"
+                                            value={editDraft.siteName}
+                                            onChange={(e) => setEditDraft({ ...editDraft, siteName: e.target.value })}
+                                            className="w-full min-h-[38px] rounded-xl border border-slate-300 bg-white px-3 text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">공종 (골조특화 · 직접입력)</label>
+                                        <select
+                                            value={customDraftJob || !ACCIDENT_JOB_FIELD_OPTIONS.includes(editDraft.jobField) ? '__custom__' : editDraft.jobField}
+                                            onChange={(e) => {
+                                                if (e.target.value === '__custom__') {
+                                                    setCustomDraftJob(true);
+                                                    return;
+                                                }
+                                                setCustomDraftJob(false);
+                                                setEditDraft({ ...editDraft, jobField: e.target.value });
+                                            }}
+                                            className="w-full min-h-[38px] rounded-xl border border-slate-300 bg-white px-3 font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                        >
+                                            {ACCIDENT_JOB_FIELD_OPTIONS.map((job) => (
+                                                <option key={job} value={job}>{job}</option>
+                                            ))}
+                                            <option value="__custom__">+ 직접 입력...</option>
+                                        </select>
+                                        {(customDraftJob || !ACCIDENT_JOB_FIELD_OPTIONS.includes(editDraft.jobField)) && (
+                                            <input
+                                                type="text"
+                                                value={editDraft.jobField}
+                                                onChange={(e) => setEditDraft({ ...editDraft, jobField: e.target.value })}
+                                                placeholder="공종명 직접 입력..."
+                                                className="mt-1.5 w-full min-h-[36px] rounded-xl border border-teal-400 bg-white px-3 font-semibold text-slate-900 dark:bg-slate-950 dark:text-slate-100"
+                                            />
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">12대 재해유형</label>
+                                        <select
+                                            value={editDraft.hazardType}
+                                            onChange={(e) => setEditDraft({ ...editDraft, hazardType: e.target.value })}
+                                            className="w-full min-h-[38px] rounded-xl border border-slate-300 bg-white px-3 font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                        >
+                                            {HAZARD_OPTIONS.map((hazard) => (
+                                                <option key={hazard} value={hazard}>{hazard}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">심각도</label>
+                                        <select
+                                            value={editDraft.severity}
+                                            onChange={(e) => setEditDraft({ ...editDraft, severity: e.target.value as AccidentSeverity })}
+                                            className="w-full min-h-[38px] rounded-xl border border-slate-300 bg-white px-3 font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                        >
+                                            {SEVERITY_OPTIONS.map((sev) => (
+                                                <option key={sev} value={sev}>{sev}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">기인물 · 장비</label>
+                                        <input
+                                            type="text"
+                                            value={editDraft.causingAgent}
+                                            onChange={(e) => setEditDraft({ ...editDraft, causingAgent: e.target.value })}
+                                            className="w-full min-h-[38px] rounded-xl border border-slate-300 bg-white px-3 text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">세부 작업내용</label>
+                                    <input
+                                        type="text"
+                                        value={editDraft.workTask}
+                                        onChange={(e) => setEditDraft({ ...editDraft, workTask: e.target.value })}
+                                        className="w-full min-h-[38px] rounded-xl border border-slate-300 bg-white px-3 text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">사고 개요</label>
+                                    <textarea
+                                        rows={2}
+                                        value={editDraft.summary}
+                                        onChange={(e) => setEditDraft({ ...editDraft, summary: e.target.value })}
+                                        className="w-full rounded-xl border border-slate-300 bg-white p-2.5 leading-relaxed text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">직접원인</label>
+                                    <textarea
+                                        rows={2}
+                                        value={editDraft.directCause}
+                                        onChange={(e) => setEditDraft({ ...editDraft, directCause: e.target.value })}
+                                        className="w-full rounded-xl border border-slate-300 bg-white p-2.5 leading-relaxed text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">근본 · 관리적 원인</label>
+                                    <textarea
+                                        rows={2}
+                                        value={editDraft.rootCause}
+                                        onChange={(e) => setEditDraft({ ...editDraft, rootCause: e.target.value })}
+                                        className="w-full rounded-xl border border-slate-300 bg-white p-2.5 leading-relaxed text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">재발방지대책</label>
+                                    <textarea
+                                        rows={2}
+                                        value={editDraft.preventionMeasure}
+                                        onChange={(e) => setEditDraft({ ...editDraft, preventionMeasure: e.target.value })}
+                                        className="w-full rounded-xl border border-slate-300 bg-white p-2.5 leading-relaxed text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="mb-1 block font-bold text-slate-600 dark:text-slate-300">작업 전 필수 점검 (줄바꿈으로 구분)</label>
+                                    <textarea
+                                        rows={2}
+                                        value={editDraft.preWorkCheckpoints.join('\n')}
+                                        onChange={(e) => setEditDraft({
+                                            ...editDraft,
+                                            preWorkCheckpoints: e.target.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
+                                        })}
+                                        className="w-full rounded-xl border border-slate-300 bg-white p-2.5 leading-relaxed text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                    />
+                                </div>
+
+                                <div className="mt-auto flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setEditDraft({ ...selectedRecord });
+                                            setIsEditingDrawer(false);
+                                        }}
+                                        className="min-h-[42px] rounded-xl border border-slate-300 px-4 text-xs font-bold hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                                    >
+                                        취소
+                                    </button>
+                                    <button type="submit" className="psi-ab-cta">
+                                        수정 내용 저장하기
+                                    </button>
+                                </div>
+                            </form>
+                        ) : (
+                            <>
+                                <div className="space-y-3 text-sm">
+                                    <div className="rounded-2xl bg-slate-50 p-3.5 dark:bg-slate-800/70">
+                                        <p className="text-xs font-extrabold text-slate-500 dark:text-slate-400">사고 개요</p>
+                                        <p className="mt-1 leading-relaxed">{selectedRecord.summary}</p>
+                                    </div>
+                                    <div className="rounded-2xl bg-slate-50 p-3.5 dark:bg-slate-800/70">
+                                        <p className="text-xs font-extrabold text-slate-500 dark:text-slate-400">기인물 · 직접원인</p>
+                                        <p className="mt-1 font-semibold">[{selectedRecord.causingAgent}] {selectedRecord.directCause}</p>
+                                    </div>
+                                    <div className="rounded-2xl bg-amber-50/70 p-3.5 dark:bg-amber-950/30">
+                                        <p className="text-xs font-extrabold text-amber-800 dark:text-amber-300">근본 · 관리적 원인</p>
+                                        <p className="mt-1 leading-relaxed">{selectedRecord.rootCause}</p>
+                                    </div>
+                                    <div className="rounded-2xl bg-emerald-50/80 p-3.5 dark:bg-emerald-950/30">
+                                        <p className="text-xs font-extrabold text-emerald-800 dark:text-emerald-300">재발방지대책</p>
+                                        <p className="mt-1 leading-relaxed font-semibold">{selectedRecord.preventionMeasure}</p>
+                                    </div>
+                                    {selectedRecord.preWorkCheckpoints.length > 0 && (
+                                        <div className="rounded-2xl border border-teal-500/30 p-3.5">
+                                            <p className="text-xs font-extrabold text-teal-800 dark:text-teal-300">작업 전 필수 점검 체크리스트</p>
+                                            <ul className="mt-1.5 space-y-1 text-xs font-semibold">
+                                                {selectedRecord.preWorkCheckpoints.map((cp) => <li key={cp}>• {cp}</li>)}
+                                            </ul>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDeleteRecord(selectedRecord.id)}
+                                        className="rounded-xl border border-rose-300 px-3.5 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50 dark:border-rose-500/40 dark:text-rose-300"
+                                    >
+                                        이 사례 삭제
+                                    </button>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleOpenDrawer(selectedRecord, true)}
+                                            className="rounded-xl border border-slate-300 px-3.5 py-2 text-xs font-bold hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                                        >
+                                            내용 수정
+                                        </button>
+                                        {onNavigateToPage && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedRecord(null);
+                                                    setIsEditingDrawer(false);
+                                                    onNavigateToPage('a4-education-material');
+                                                }}
+                                                className="psi-ab-cta"
+                                            >
+                                                교육자료 제작으로 연결 →
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </aside>
                 </div>
             )}

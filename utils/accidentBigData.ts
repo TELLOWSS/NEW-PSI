@@ -1,4 +1,9 @@
-import { PSI_RISK_TYPE_CATALOG, PSI_STANDARD_JOB_FIELDS } from '../config/psiFormMaster';
+import {
+    PSI_RISK_TYPE_CATALOG,
+    PSI_STANDARD_JOB_FIELDS,
+    PSI_WORKER_JOB_FIELDS,
+    PSI_WORKER_JOB_FIELD_ALIASES,
+} from '../config/psiFormMaster';
 import type {
     AccidentBigDataRecord,
     AccidentSeverity,
@@ -10,6 +15,19 @@ import { normalizeJobField } from './workerIdentity';
 
 export const ACCIDENT_BIGDATA_STORAGE_KEY = 'psi_accident_bigdata_v1';
 export const ACCIDENT_BIGDATA_UPDATED_EVENT = 'psi-accident-bigdata-updated';
+
+export const ACCIDENT_JOB_FIELD_OPTIONS: readonly string[] = Array.from(new Set([
+    ...PSI_WORKER_JOB_FIELDS,
+    ...PSI_STANDARD_JOB_FIELDS.filter((item) => item !== '미분류'),
+    '장비',
+    '안전시설',
+    '신호수',
+    '전기',
+    '배관',
+    '굴착',
+    '철골',
+    '기타',
+]));
 
 export type AccidentPromptProvider = 'gemini' | 'chatgpt';
 export type AccidentPromptFormat = 'json' | 'csv';
@@ -153,37 +171,74 @@ export const normalizeAccidentSeverity = (value: unknown): AccidentSeverity => {
     return '경상';
 };
 
+const GENERIC_JOB_PLACEHOLDERS = new Set([
+    '',
+    '기타',
+    '미분류',
+    '일반',
+    '일반공종',
+    '일반 공종',
+    '미상',
+]);
+
+const FRAME_TRADE_PRIORITY_RULES: Array<[RegExp, string]> = [
+    [/해체\s*정리|해체|탈형|정리\s*반출|철거/, '해체정리'],
+    [/갱폼|gang\s*form/i, '갱폼'],
+    [/알폼|al\s*form|알루미늄\s*거푸집/i, '알폼'],
+    [/시스템\s*동바리|시스템\s*비계|시스템/, '시스템'],
+    [/콘크리트\s*비계|타설|콘크리트|펌프카|레미콘/, '콘크리트비계'],
+    [/바닥\s*미장|휘니셔|방통/, '바닥미장'],
+    [/할석|견출|치핑|미장/, '할석미장견출'],
+    [/철근|배근|가공철근/, '철근'],
+    [/형틀|거푸집|유로폼|데크폼|목공|목수/, '형틀'],
+    [/안전\s*시설|안전난간|개구부|추락방지망/, '안전시설'],
+    [/신호수|유도원|차량유도|장비유도/, '신호수'],
+    [/양중|크레인|호이스트|지게차|인양|장비|굴착기|백호/, '장비'],
+    [/직영/, '직영'],
+    [/용역|보통인부|일반인부|잡역/, '용역'],
+    [/관리/, '관리'],
+    [/전기|분전반|배선|케이블|감전/, '전기'],
+    [/설비|배관|덕트|위생|소방/, '배관'],
+    [/굴착|토공|터파기|성토/, '굴착'],
+    [/철골|용접|산소절단|그라인더/, '철골'],
+];
+
+const matchPriorityTradeRule = (text: string): string | null => {
+    const clean = text.trim();
+    if (!clean) return null;
+    for (const [pattern, target] of FRAME_TRADE_PRIORITY_RULES) {
+        if (pattern.test(clean)) return target;
+    }
+    return null;
+};
+
 export const standardizeAccidentJobField = (value: unknown, fallbackContext = ''): string => {
     const raw = normalizeText(value);
+    const compact = raw.replace(/\s+/g, '');
+
+    if (raw) {
+        const directAlias = PSI_WORKER_JOB_FIELD_ALIASES[compact] || PSI_WORKER_JOB_FIELD_ALIASES[raw];
+        if (directAlias) return directAlias;
+
+        if (ACCIDENT_JOB_FIELD_OPTIONS.includes(raw)) return raw;
+
+        const rawRuleMatch = matchPriorityTradeRule(raw);
+        if (rawRuleMatch) return rawRuleMatch;
+
+        // 사용자가 명시한 커스텀 공종(예: PC조립, 창호 등)은 억지로 형틀/기타로 덮어쓰지 않고 보존한다.
+        if (!GENERIC_JOB_PLACEHOLDERS.has(compact.toLowerCase())) {
+            return raw;
+        }
+    }
+
+    // 공종 칸이 비었거나 '기타/미분류'일 때만 작업내용·개요 문맥으로 골조특화 공종을 추정한다.
+    const contextMatch = matchPriorityTradeRule(fallbackContext);
+    if (contextMatch) return contextMatch;
+
     const base = normalizeJobField(raw);
-    if (base && base !== '미분류' && (PSI_STANDARD_JOB_FIELDS as readonly string[]).includes(base)) {
-        return base;
-    }
+    if (base && base !== '미분류') return base;
 
-    const search = `${raw} ${fallbackContext}`.toLowerCase();
-    const synonymRules: Array<[RegExp, string]> = [
-        [/형틀|거푸집|유로폼|데크폼|알폼|목공/, '형틀'],
-        [/철근|배근|가공철근/, '철근'],
-        [/비계|동바리|시스템비계|가설|달비계/, '비계'],
-        [/타설|콘크리트|레미콘|펌프카/, '타설'],
-        [/굴착|토공|터파기|백호|굴삭기|성토/, '굴착'],
-        [/용접|절단|그라인더|산소절단|철골|볼트/, '철골'],
-        [/전기|분전반|배선|케이블|감전/, '전기'],
-        [/설비|배관|덕트|위생|소방/, '배관'],
-        [/미장|견출|할석|방수/, '미장'],
-        [/도장|페인트|뿜칠/, '도장'],
-        [/신호수|유도원|차량유도|장비유도/, '신호수'],
-        [/안전시설|안전난간|개구부|추락방지망/, '안전시설'],
-        [/해체|철거|정리/, '해체'],
-        [/양중|크레인|호이스트|지게차|인양/, '장비'],
-        [/인부|잡역|용역|청소|자재운반/, '용역'],
-    ];
-
-    for (const [pattern, target] of synonymRules) {
-        if (pattern.test(search)) return target;
-    }
-
-    return raw || '기타';
+    return '기타';
 };
 
 export const standardizeAccidentHazardType = (value: unknown, fallbackContext = ''): string => {
@@ -309,7 +364,7 @@ export const buildAccidentConversionPrompt = (options: {
     const providerName = options.provider === 'chatgpt' ? 'ChatGPT' : 'Gemini';
     const contractorNote = normalizeText(options.contractorHint);
     const siteNote = normalizeText(options.siteHint);
-    const stdJobs = PSI_STANDARD_JOB_FIELDS.join(', ');
+    const stdJobs = ACCIDENT_JOB_FIELD_OPTIONS.join(', ');
     const stdHazards = HAZARD_LABELS.join(', ');
 
     const lines = [
@@ -319,7 +374,9 @@ export const buildAccidentConversionPrompt = (options: {
         '',
         '[필수 준수 규칙]',
         '1. 개인정보 자동 비식별화: 재해자·목격자·담당자의 성명, 생년월일, 전화번호, 주민번호, 이메일은 절대 그대로 쓰지 말고 [비식별]로 치환하세요.',
-        `2. 공종(jobField) 표준화: 보고서 표현과 무관하게 다음 표준 목록 중 가장 가까운 1개로 분류하세요 → [${stdJobs}]`,
+        `2. 공종(jobField) 표준화 (골조특화 세부 공종 포함): 다음 목록 중 가장 정확한 1개로 분류하세요 → [${stdJobs}]`,
+        '   - 골조특화 구분 원칙: 거푸집·알폼·동바리·유로폼 작업이라도 "설치·조립"은 형틀/알폼/시스템으로, "해체·탈형·정리·반출"은 반드시 "해체정리"로 분류하세요.',
+        '   - "갱폼", "알폼", "시스템", "콘크리트비계", "바닥미장", "할석미장견출", "해체정리"는 "형틀"로 뭉개지 말고 세부 공종명 그대로 기록하세요.',
         `3. 재해유형(hazardType) 표준화: 다음 12대 분류 중 가장 정확한 1개로 분류하세요 → [${stdHazards}]`,
         '4. 심각도(severity) 표준화: 반드시 다음 4개 중 1개만 사용하세요 → [아차사고, 경상, 중상, 중대재해]',
         '5. 시간대(timeSlot) 표준화: 다음 6개 중 1개만 사용하세요 → [오전 작업전, 오전, 점심 직후, 오후, 야간, 미상]',
@@ -915,6 +972,36 @@ export const exportAccidentRecordsToCsv = (records: readonly AccidentBigDataReco
     return `\uFEFF${[headers, ...rows].map((row) => row.map(escapeCsvCell).join(',')).join('\n')}\n`;
 };
 
+export const updateAccidentRecordInList = (
+    records: readonly AccidentBigDataRecord[],
+    updated: AccidentBigDataRecord,
+): AccidentBigDataRecord[] => {
+    const cleaned: AccidentBigDataRecord = {
+        ...updated,
+        sourceContractor: normalizeText(updated.sourceContractor) || '원도급사 미기재',
+        siteName: normalizeText(updated.siteName) || '현장 미지정',
+        occurredDate: normalizeAccidentDate(updated.occurredDate),
+        timeSlot: normalizeAccidentTimeSlot(updated.timeSlot),
+        jobField: standardizeAccidentJobField(updated.jobField, updated.workTask),
+        workTask: normalizeText(updated.workTask) || '작업내용 확인 필요',
+        hazardType: standardizeAccidentHazardType(updated.hazardType, updated.summary),
+        severity: normalizeAccidentSeverity(updated.severity),
+        causingAgent: normalizeText(updated.causingAgent) || '미상',
+        summary: normalizeText(updated.summary) || '사고 개요 확인 필요',
+        directCause: normalizeText(updated.directCause) || '직접원인 보완 필요',
+        rootCause: normalizeText(updated.rootCause) || '근본·관리적 원인 보완 필요',
+        preventionMeasure: normalizeText(updated.preventionMeasure) || '재발방지대책 보완 필요',
+        preWorkCheckpoints: updated.preWorkCheckpoints.map((item) => normalizeText(item)).filter(Boolean),
+        educationKeywords: updated.educationKeywords.map((item) => normalizeText(item)).filter(Boolean),
+        fingerprint: '',
+        piiMasked: false,
+    };
+    cleaned.fingerprint = computeAccidentFingerprint(cleaned);
+    cleaned.piiMasked = detectAccidentPiiMatches(cleaned).length === 0;
+
+    return records.map((item) => (item.id === cleaned.id ? cleaned : item));
+};
+
 export const getSampleAccidentBigDataRecords = (): AccidentBigDataRecord[] => {
     const rawSamples: Record<string, unknown>[] = [
         {
@@ -922,7 +1009,7 @@ export const getSampleAccidentBigDataRecords = (): AccidentBigDataRecord[] => {
             timeSlot: '오전',
             sourceContractor: '한강종합건설(예시)',
             siteName: '수도권 3공구 공동주택',
-            jobField: '비계',
+            jobField: '시스템',
             workTask: '외부 시스템비계 4단 작업발판 볼트 체결',
             hazardType: '추락',
             severity: '중상',
@@ -941,7 +1028,7 @@ export const getSampleAccidentBigDataRecords = (): AccidentBigDataRecord[] => {
             timeSlot: '오후',
             sourceContractor: '태백엔지니어링(예시)',
             siteName: '판교 R&D 센터 신축',
-            jobField: '형틀',
+            jobField: '해체정리',
             workTask: '2층 슬래브 알폼 해체 및 자재 하역',
             hazardType: '낙하·비래',
             severity: '중상',
@@ -1017,7 +1104,7 @@ export const getSampleAccidentBigDataRecords = (): AccidentBigDataRecord[] => {
             timeSlot: '오후',
             sourceContractor: '한강종합건설(예시)',
             siteName: '인천 항만 배후부지',
-            jobField: '비계',
+            jobField: '시스템',
             workTask: '가설 통로 계단 발판 및 안전망 보수',
             hazardType: '추락',
             severity: '아차사고',
