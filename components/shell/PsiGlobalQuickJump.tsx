@@ -63,6 +63,7 @@ export const PsiGlobalQuickJump: React.FC<PsiGlobalQuickJumpProps> = ({
           ]
         : []),
       { page: 'ocr-analysis', label: '위험성평가 분석', detail: '기록지 사진·파일 판독 및 취약군 분류', keywords: '위험분석 ocr 기록지 판독' },
+      { page: 'accident-bigdata', label: '사고 빅데이터 허브', detail: '원도급사 사고보고서 AI 변환 가져오기 및 공종·원인 빅데이터', keywords: '사고 보고서 빅데이터 제미나이 챗지피티 변환 원도급사' },
       { page: 'safety-inspector', label: '사진점검 · 개선관리', detail: '건설기계 사용전 사진점검 및 현장 개선 등록', keywords: '사진 점검 개선 건설기계' },
       { page: 'education-return', label: '교육 환류', detail: '다국어 교육자료 발송 및 근로자 서명 현황', keywords: '교육 서명 다국어 환류' },
       { page: 'safety-compliance-hub', label: '안전조치 통합 허브', detail: '시정조치 · 보호구 · 법정 이행 통합 점검', keywords: '안전조치 허브 시정조치 법정' },

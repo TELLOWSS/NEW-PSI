@@ -7,6 +7,8 @@ import '../styles/psi-platform-field-canvas.css';
 import '../styles/psi-platform-workspaces.css';
 // Living UI: accessible, no-dependency page transitions, scoped to the admin shell.
 import '../styles/psi-living-motion.css';
+// Accident Big-Data Hub scoped Living Kinetic styles.
+import '../styles/psi-accident-bigdata.css';
 import {DevModeProvider} from '../contexts/DevModeContext';
 import {OperationalModeProvider} from '../contexts/OperationalModeContext';
 

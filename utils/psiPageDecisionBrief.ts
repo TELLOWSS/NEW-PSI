@@ -1,5 +1,6 @@
 import { getRouteMeta } from '../config/routeMeta';
 import type { Page, SafetyCheckRecord, WorkerRecord } from '../types';
+import { readAccidentBigDataStore, computeAccidentBigDataAnalytics } from './accidentBigData';
 import {
   getAllowedDecisionPersonas,
   NEXUS_DECISION_PERSONA_META,
@@ -481,6 +482,75 @@ export const buildConnectedPageDecisionBrief = (params: {
         }),
       ];
       outcomeProofLine = `이행 완료·재점검 이력이 본사 승인 및 중대재해처벌법 증빙에 즉시 반영됩니다.`;
+      break;
+    }
+
+    case 'accident-bigdata': {
+      const accidentStore = readAccidentBigDataStore();
+      const analytics = computeAccidentBigDataAnalytics(accidentStore.items, records);
+      const topAlert = analytics.crossLinkAlerts[0];
+      soWhatHeadline =
+        analytics.totalCount > 0
+          ? `[${personaTag}] 누적 사고 ${analytics.totalCount}건 · 최다 공종 ${analytics.topJobField?.label || '집계중'}(${analytics.topHazardType?.label || '위험요인'}) 위험성평가 환류 필요`
+          : `[${personaTag}] 유료 Gemini · ChatGPT 변환 파일로 0원 원도급사 사고 빅데이터 구축 시작`;
+      soWhatSubline =
+        topAlert
+          ? `${topAlert.reasonSummary} — 작업 전 점검과 교육자료로 바로 연결하세요.`
+          : '전용 변환 지시문을 복사해 외부 AI에 PDF를 맡긴 뒤 결과 JSON/CSV를 붙여넣으면 즉시 DB가 쌓입니다.';
+      whyReasons = [
+        {
+          id: 'acc-bd-top',
+          tag: analytics.topHazardType ? `최다 재해유형: ${analytics.topHazardType.label}` : '원도급사 양식 표준화 준비',
+          summary: analytics.totalCount > 0
+            ? `${analytics.contractorCount}개 원도급사 사례 기준 중상·중대 비율 ${analytics.severeRatePct}% (${analytics.severeCount}건)`
+            : '원도급사마다 다른 PDF 양식을 NEW-PSI 12대 재해유형·표준공종 스키마로 통일합니다.',
+        },
+        {
+          id: 'acc-bd-link',
+          tag: topAlert ? `현장 위험성평가 교차 경고 (${topAlert.jobField})` : '추가 API 비용 0원 구조',
+          summary: topAlert?.checkpoints[0]
+            ? `핵심 사전 점검: ${topAlert.checkpoints[0]}`
+            : 'DB 축적 후 공종·원인 빅데이터 통계와 위험성평가 환류는 추가 토큰 없이 무제한 실행됩니다.',
+        },
+      ];
+      howActions = [
+        { id: 'acc-to-ocr', label: '위험성평가 기록지 점검', targetPage: 'ocr-analysis', tone: 'primary' },
+        { id: 'acc-to-edu', label: '동종재해 교육자료 제작', targetPage: 'a4-education-material', tone: 'neutral' },
+        { id: 'acc-to-nexus', label: '안전지능 지휘 센터', targetPage: 'safety-nexus', tone: 'neutral' },
+      ];
+      outcomeMetrics = [
+        makeMetric({
+          id: 'm1',
+          label: '누적 사고 사례',
+          numericValue: analytics.totalCount,
+          unitSuffix: '건',
+          deltaNote: `${analytics.contractorCount}개 원도급사`,
+          deltaBadge: analytics.totalCount > 0 ? 'DB 가동 중' : '등록 대기',
+          trendPct: analytics.totalCount > 0 ? Math.min(95, 25 + analytics.totalCount * 8) : 15,
+          trendTone: analytics.totalCount > 0 ? 'positive' : 'neutral',
+        }),
+        makeMetric({
+          id: 'm2',
+          label: '중상·중대 비율',
+          numericValue: analytics.severeRatePct,
+          unitSuffix: '%',
+          deltaNote: `아차사고 ${analytics.nearMissCount}건`,
+          deltaBadge: analytics.severeCount > 0 ? `중점 ${analytics.severeCount}건` : '중대재해 0건',
+          trendPct: analytics.severeRatePct,
+          trendTone: analytics.severeRatePct >= 40 ? 'critical' : analytics.severeCount > 0 ? 'warning' : 'positive',
+        }),
+        makeMetric({
+          id: 'm3',
+          label: '교차 경보 공종',
+          numericValue: analytics.crossLinkAlerts.length,
+          unitSuffix: '개',
+          deltaNote: topAlert ? topAlert.jobField : '연동 대기',
+          deltaBadge: topAlert ? `${topAlert.topHazard} 집중` : '정상',
+          trendPct: analytics.crossLinkAlerts.length > 0 ? Math.min(92, analytics.crossLinkAlerts.length * 22) : 20,
+          trendTone: analytics.crossLinkAlerts.length > 0 ? 'warning' : 'positive',
+        }),
+      ];
+      outcomeProofLine = '축적된 원도급사 사고 데이터는 개인정보 비식별 검증을 거쳐 현장 교육·점검 기준과 자동 연동됩니다.';
       break;
     }
 

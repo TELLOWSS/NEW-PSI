@@ -1,0 +1,427 @@
+/* ==========================================================================
+   NEW-PSI 사고 빅데이터 허브 — Living Kinetic Precision Design System
+   Scoped exclusively under .psi-platform-field-canvas [data-psi-screen="accident-bigdata"]
+   Supports Light (화이트), Dark, Sunlight 고대비, Reduced Motion, and Motion Pause
+   ========================================================================== */
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] {
+  --ab-surface: var(--psi-surface, #ffffff);
+  --ab-surface-muted: var(--psi-surface-muted, #f8fafc);
+  --ab-border: var(--psi-border, rgba(15, 23, 42, 0.12));
+  --ab-text: var(--psi-text, #0f172a);
+  --ab-text-muted: var(--psi-text-muted, #475569);
+  --ab-brand: var(--psi-brand, #006b75);
+  --ab-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  color: var(--ab-text);
+}
+
+/* ---------- Hero Banner with Kinetic Sonar & Telemetry Sweep ---------- */
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  background:
+    radial-gradient(ellipse at 88% 12%, rgba(20, 184, 166, 0.26) 0%, transparent 52%),
+    radial-gradient(ellipse at 15% 88%, rgba(56, 189, 248, 0.16) 0%, transparent 48%),
+    linear-gradient(128deg, #0b1b32 0%, #10324c 58%, #0f4c53 100%);
+  color: #f8fafc;
+  padding: clamp(20px, 3vw, 32px);
+  box-shadow: 0 20px 44px rgba(8, 28, 48, 0.18);
+  isolation: isolate;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-hero-grid {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  opacity: 0.18;
+  background-image:
+    linear-gradient(to right, rgba(148, 163, 184, 0.25) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.25) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.85), transparent 95%);
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 38%;
+  z-index: -1;
+  background: linear-gradient(90deg, transparent, rgba(94, 234, 212, 0.14), transparent);
+  pointer-events: none;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid rgba(94, 234, 212, 0.35);
+  font-size: 12px;
+  font-weight: 700;
+  color: #99f6e4;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-sonar {
+  position: relative;
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #2dd4bf;
+  flex-shrink: 0;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-sonar::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 999px;
+  border: 2px solid #2dd4bf;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-hero h1 {
+  margin: 10px 0 6px;
+  font-size: clamp(23px, 2.7vw, 33px);
+  font-weight: 850;
+  letter-spacing: -0.035em;
+  line-height: 1.24;
+  color: #ffffff;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-hero p {
+  margin: 0;
+  max-width: 48rem;
+  font-size: 14px;
+  line-height: 1.65;
+  color: #dbeafe;
+}
+
+/* ---------- Mode Navigation Tabs ---------- */
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 16px;
+  background: var(--ab-surface);
+  border: 1px solid var(--ab-border);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.05);
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 9px 16px;
+  border-radius: 11px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ab-text-muted);
+  background: transparent;
+  transition: background-color 160ms ease, color 160ms ease, transform 160ms var(--ab-ease), box-shadow 160ms ease;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-tab-btn:hover {
+  color: var(--ab-text);
+  background: var(--ab-surface-muted);
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-tab-btn[aria-selected="true"] {
+  background: var(--ab-brand);
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(0, 107, 117, 0.25);
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  background: rgba(15, 23, 42, 0.12);
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-tab-btn[aria-selected="true"] .psi-ab-tab-count {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+/* ---------- 3-Step Kinetic Bridge Pipeline ---------- */
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-pipeline-track {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--ab-surface);
+  border: 1px solid var(--ab-border);
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-step-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--ab-surface-muted);
+  border: 1px solid var(--ab-border);
+  transition: border-color 180ms ease, transform 180ms var(--ab-ease), box-shadow 180ms ease;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-step-node.is-active {
+  border-color: var(--ab-brand);
+  box-shadow: 0 8px 22px rgba(0, 107, 117, 0.12);
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-step-node.is-done {
+  border-color: rgba(16, 185, 129, 0.45);
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-step-badge {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 850;
+  flex-shrink: 0;
+  background: rgba(0, 107, 117, 0.12);
+  color: var(--ab-brand);
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-step-node.is-done .psi-ab-step-badge {
+  background: #10b981;
+  color: #ffffff;
+}
+
+/* ---------- Cards, Stagger Entrance & CTA Sheen ---------- */
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-card {
+  position: relative;
+  border-radius: 20px;
+  background: var(--ab-surface);
+  border: 1px solid var(--ab-border);
+  padding: clamp(16px, 2.2vw, 24px);
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.05);
+  min-width: 0;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-rise {
+  animation: psi-ab-card-rise 320ms var(--ab-ease) both;
+}
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-rise-d1 { animation-delay: 50ms; }
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-rise-d2 { animation-delay: 100ms; }
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-rise-d3 { animation-delay: 150ms; }
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-cta {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #ffffff;
+  background: linear-gradient(135deg, #006b75 0%, #0f766e 100%);
+  box-shadow: 0 8px 20px rgba(0, 107, 117, 0.24);
+  transition: transform 150ms var(--ab-ease), filter 150ms ease, box-shadow 150ms ease;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-cta:hover:not(:disabled) {
+  transform: translate3d(0, -1px, 0);
+  filter: brightness(1.06);
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-cta:active:not(:disabled) {
+  transform: scale(0.975);
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+  pointer-events: none;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-cta.is-copied {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+}
+
+/* ---------- Magnetic Dropzone ---------- */
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-dropzone {
+  position: relative;
+  border-radius: 16px;
+  border: 2px dashed rgba(0, 107, 117, 0.35);
+  background: linear-gradient(180deg, rgba(0, 107, 117, 0.03), transparent);
+  padding: 20px;
+  transition: border-color 180ms ease, background-color 180ms ease, transform 180ms var(--ab-ease), box-shadow 180ms ease;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-dropzone.is-dragging {
+  border-color: #14b8a6;
+  background: rgba(20, 184, 166, 0.09);
+  transform: scale(1.01);
+  box-shadow: 0 0 0 6px rgba(20, 184, 166, 0.14);
+}
+
+/* ---------- Animated Bar Charts & SVG Trend ---------- */
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-bar-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.18);
+  overflow: hidden;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transform-origin: left center;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-trend-path {
+  stroke-dasharray: 420;
+  stroke-dashoffset: 0;
+}
+
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-peak-halo {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* ---------- Modal / Slide-over Inspection ---------- */
+.psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-drawer {
+  box-shadow: -18px 0 48px rgba(15, 23, 42, 0.24);
+}
+
+/* ---------- Keyframes & Reduced Motion Guards ---------- */
+@keyframes psi-ab-card-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes psi-ab-bar-grow {
+  from {
+    transform: scaleX(0.05);
+    opacity: 0.45;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+@keyframes psi-ab-line-draw {
+  from {
+    stroke-dashoffset: 420;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes psi-ab-float-bob {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -4px, 0);
+  }
+}
+
+@keyframes psi-ab-drawer-in {
+  from {
+    opacity: 0.3;
+    transform: translate3d(32px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-sonar::after {
+    animation: psi-beacon-sonar 2.2s var(--ab-ease) infinite;
+  }
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-sweep {
+    animation: psi-telemetry-sweep 6.4s linear infinite;
+  }
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-cta::after {
+    animation: psi-cta-sheen 4.6s ease-in-out infinite;
+  }
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-dropzone-icon {
+    animation: psi-ab-float-bob 2.8s ease-in-out infinite;
+  }
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-bar-fill {
+    animation: psi-ab-bar-grow 620ms var(--ab-ease) both;
+  }
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-trend-path {
+    animation: psi-ab-line-draw 880ms var(--ab-ease) both;
+  }
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-peak-halo {
+    animation: psi-sparkline-halo-pulse 2.2s ease-in-out infinite;
+  }
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-drawer {
+    animation: psi-ab-drawer-in 240ms var(--ab-ease) both;
+  }
+}
+
+html[data-psi-motion-paused="true"] .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] *,
+html[data-psi-motion-paused="true"] .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] *::after,
+html[data-psi-sunlight="true"] .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-sweep,
+html[data-psi-sunlight="true"] .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-cta::after {
+  animation: none !important;
+  stroke-dashoffset: 0 !important;
+  transform: none !important;
+}
+
+html[data-psi-sunlight="true"] .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-hero {
+  background: #071928;
+  border-color: #fde047;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] *,
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] *::after {
+    animation: none !important;
+    transition: none !important;
+    stroke-dashoffset: 0 !important;
+    transform: none !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-pipeline-track {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

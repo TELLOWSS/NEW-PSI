@@ -12,6 +12,7 @@ const DEFAULT_SIDEBAR_ORDER: Page[] = [
     'dashboard',
     'safety-nexus',
     'ocr-analysis',
+    'accident-bigdata',
     'safety-compliance-hub',
     'safety-inspector',
     'education-return',

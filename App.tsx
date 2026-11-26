@@ -101,6 +101,7 @@ const lazyWithRecovery = <T extends { default: React.ComponentType<any> }>(
 const Dashboard = lazyWithRecovery('Dashboard', () => import('./pages/Dashboard'));
 const SafetyNexus = lazyWithRecovery('SafetyNexus', () => import('./pages/SafetyNexus'));
 const OcrAnalysis = lazyWithRecovery('OcrAnalysis', () => import('./pages/OcrAnalysis'));
+const AccidentBigDataHub = lazyWithRecovery('AccidentBigDataHub', () => import('./pages/AccidentBigDataHub'));
 const EducationReturn = lazyWithRecovery('EducationReturn', () => import('./pages/EducationReturn'));
 const MonthlyGuidanceReport = lazyWithRecovery('MonthlyGuidanceReport', () => import('./pages/MonthlyGuidanceReport'));
 const A4EducationMaterial = lazyWithRecovery('A4EducationMaterial', () => import('./pages/A4EducationMaterial'));
@@ -1328,6 +1329,7 @@ const App: React.FC = () => {
                         {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={navigateToPage} initialTrade={dashboardReturnTrade} initialView={dashboardView} onOpenNexus={(trade,view) => { setDashboardView(view); navigateToPage('safety-nexus'); setNexusInitialTrade(trade); setNexusView(previous=>previous?.trade===trade?previous:null); }} />}
                         {currentPage === 'safety-nexus' && <SafetyNexus workerRecords={workerRecords} loadState={workerRecordsLoadState} initialTrade={nexusInitialTrade} initialView={nexusView} onViewChange={setNexusView} onNavigateToPage={navigateToPage} onReturnDashboard={(trade) => { navigateToPage('dashboard'); setDashboardReturnTrade(trade); }} onOpenRecord={(record) => setModalState({type:'recordDetail', record})} />}
                         {currentPage === 'education-return' && <EducationReturn workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
+                        {currentPage === 'accident-bigdata' && <AccidentBigDataHub workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'ocr-analysis' && (
                             <OcrAnalysis 
                                 onAnalysisComplete={addWorkerRecords} 

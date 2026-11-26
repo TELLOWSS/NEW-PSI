@@ -104,6 +104,20 @@ export const routeMetaMap: Record<Page, RouteMeta> = {
         emptyStateMessage: '분석할 문서가 없습니다.',
         errorMessage: '문서 분석에 실패했습니다. 다시 시도해 주세요.',
     }),
+    'accident-bigdata': createMeta({
+        id: 'accident-bigdata',
+        productGroup: 'analytics',
+        practitionerLabel: '사고 빅데이터 허브',
+        workerLabel: '동종재해 예방 사례',
+        developerLabel: 'Accident Big-Data Hub',
+        description: '원도급사 사고보고서를 외부 AI 변환 지시문으로 표준화해 DB에 축적하고, 공종·원인별 빅데이터와 위험성평가 환류 경고를 분석합니다.',
+        menuVisibleInPractitionerMode: true,
+        menuVisibleInWorkerMode: false,
+        menuVisibleInDeveloperMode: true,
+        fallbackTitle: '사고 빅데이터 허브',
+        emptyStateMessage: '아직 축적된 사고 사례가 없습니다. 변환 지시문으로 첫 사례를 가져오거나 체험 예시를 불러와 보세요.',
+        errorMessage: '사고 빅데이터 화면을 불러오지 못했습니다.',
+    }),
     'education-return': createMeta({
         id: 'education-return',
         productGroup: 'tbm',
@@ -458,6 +472,7 @@ const PAGE_HEADER_HIDDEN_MAP: Partial<Record<Page, boolean>> = {
     'safety-nexus': true,
     'worker-training': true,
     'ocr-analysis': true,
+    'accident-bigdata': true,
     'reports': true,
 };
 

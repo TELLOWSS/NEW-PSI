@@ -4,6 +4,7 @@ export type Page =
     'dashboard' | 
     'safety-nexus' |
     'ocr-analysis' | 
+    'accident-bigdata' |
     'education-return' |
     'monthly-guidance-report' |
     'a4-education-material' |
@@ -712,4 +713,32 @@ export interface WorkerMonthlyIntegritySummary {
     last_coaching_date?: string;
     approved_by?: string;
     approved_at?: string;
+}
+
+export type AccidentSeverity = '아차사고' | '경상' | '중상' | '중대재해';
+export type AccidentTimeSlot = '오전 작업전' | '오전' | '점심 직후' | '오후' | '야간' | '미상';
+export type AccidentSourceProvider = 'gemini' | 'chatgpt' | 'claude' | 'csv' | 'manual';
+
+export interface AccidentBigDataRecord {
+    id: string;
+    sourceContractor: string;
+    siteName: string;
+    occurredDate: string;
+    timeSlot: AccidentTimeSlot;
+    jobField: string;
+    workTask: string;
+    hazardType: string;
+    severity: AccidentSeverity;
+    causingAgent: string;
+    summary: string;
+    directCause: string;
+    rootCause: string;
+    preventionMeasure: string;
+    preWorkCheckpoints: string[];
+    educationKeywords: string[];
+    sourceAiProvider: AccidentSourceProvider;
+    sourceFormatNote: string;
+    piiMasked: boolean;
+    importedAt: string;
+    fingerprint: string;
 }

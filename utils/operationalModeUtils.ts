@@ -10,6 +10,7 @@ const IMMEDIATE_VISIBLE_PAGES = new Set<Page>([
     'dashboard',
     'safety-nexus',
     'ocr-analysis',
+    'accident-bigdata',
     'safety-compliance-hub',
     'safety-inspector',
     'worker-management',
