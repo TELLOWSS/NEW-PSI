@@ -1,6 +1,11 @@
 
-import React, { useState, useRef, useMemo } from 'react';
-import {readSiteIssueList,persistSiteIssueList} from '../utils/siteIssueStorage';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
+import {
+    persistSiteIssueList,
+    readSiteIssueList,
+    SITE_ISSUES_STORAGE_KEY,
+    SITE_ISSUES_UPDATED_EVENT,
+} from '../utils/siteIssueStorage';
 import { Spinner } from '../components/Spinner';
 import { analyzeExternalIssueDocument } from '../services/geminiService';
 import { compressImage } from '../utils/imageCompression';
@@ -173,6 +178,35 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
     const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
     const issueImageInputRef = useRef<HTMLInputElement>(null);
     const externalIssueInputRef = useRef<HTMLInputElement>(null);
+    const issueListSectionRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const syncIssues = () => {
+            const loaded = readSiteIssueList<Issue>(() => window.localStorage.getItem(SITE_ISSUES_STORAGE_KEY));
+            if (loaded.safe) {
+                setIssues(loaded.items);
+                setStorageWarning('');
+            }
+        };
+        window.addEventListener(SITE_ISSUES_UPDATED_EVENT, syncIssues);
+        window.addEventListener('storage', syncIssues);
+        return () => {
+            window.removeEventListener(SITE_ISSUES_UPDATED_EVENT, syncIssues);
+            window.removeEventListener('storage', syncIssues);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!showAddModal) return;
+        const handleKey = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                setShowAddModal(false);
+            }
+        };
+        window.addEventListener('keydown', handleKey);
+        return () => window.removeEventListener('keydown', handleKey);
+    }, [showAddModal]);
 
     // New Issue Form State
     const [newIssue, setNewIssue] = useState<Partial<Issue>>(createIssueDraft());
@@ -419,10 +453,10 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                         <button
                             type="button"
                             onClick={() => {
-                                const pendingIssues = issues.filter((issue) => issue.status === '검토 필요');
-                                if (pendingIssues.length > 0) {
-                                    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
-                                }
+                                setFilter('pending');
+                                window.requestAnimationFrame(() => {
+                                    issueListSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                });
                             }}
                             className="min-h-[44px] px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-black text-sm transition-colors flex-shrink-0"
                         >
@@ -526,10 +560,10 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                             <p className="mt-2 line-clamp-2 text-xs font-medium text-slate-600 dark:text-slate-400">{priorityIssue.description}</p>
                             <button
                                 type="button"
-                                onClick={() => updateStatus(priorityIssue.id, '조치 중')}
+                                onClick={() => updateStatus(priorityIssue.id, priorityIssue.status === '조치 중' ? '조치 완료' : '조치 중')}
                                 className="mt-3 w-full rounded-xl bg-amber-500 px-3 py-2 text-sm font-black text-white transition duration-200 hover:bg-amber-400"
                             >
-                                즉시 조치 시작
+                                {priorityIssue.status === '조치 중' ? '완료 처리' : '즉시 조치 시작'}
                             </button>
                         </>
                     ) : (
@@ -598,7 +632,7 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800">
+            <div ref={issueListSectionRef} className="bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-lg font-bold text-slate-800 dark:text-white">지적사항 목록 <span className="text-slate-500 dark:text-slate-400 font-normal text-sm ml-2">총 {filteredIssues.length}건</span></h3>
                     <div className="flex space-x-2">
@@ -717,8 +751,19 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
 
             {/* Add Issue Modal */}
             {showAddModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl w-full max-w-md p-6 animate-fade-in-up">
+                <div
+                    className="fixed inset-0 bg-black bg-opacity-50 z-[120] flex items-center justify-center p-4"
+                    role="presentation"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) closeAddModal();
+                    }}
+                >
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="새 지적사항 등록"
+                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl w-full max-w-md max-h-[90dvh] overflow-y-auto p-6 animate-fade-in-up"
+                    >
                         <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">새 지적사항 등록</h3>
                         <InterpretationCardGrid
                             items={draftInterpretationCards}
@@ -751,9 +796,9 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">위험 등급</label>
                                 <select value={newIssue.riskLevel || 'Medium'} onChange={e => setNewIssue({...newIssue, riskLevel: e.target.value as Issue['riskLevel']})} className="w-full border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                                    <option value="High">High</option>
-                                    <option value="Medium">Medium</option>
-                                    <option value="Low">Low</option>
+                                    <option value="High">높음 (High)</option>
+                                    <option value="Medium">보통 (Medium)</option>
+                                    <option value="Low">낮음 (Low)</option>
                                 </select>
                             </div>
                             <div>

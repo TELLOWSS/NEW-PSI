@@ -1058,8 +1058,35 @@ const AdminTraining: React.FC = () => {
     }, [targetWorkers]);
 
     useEffect(() => {
+        const pendingStudioFlag = localStorage.getItem('psi_tbm_package_handoff_pending_v1');
+        if (!pendingStudioFlag) return;
+        localStorage.removeItem('psi_tbm_package_handoff_pending_v1');
+        const monthlyPackage = loadMonthlyPackage();
+        if (!monthlyPackage.sourceText) return;
+        setSourceTextKo(monthlyPackage.sourceText);
+        setPretranslatedTexts(monthlyPackage.translationNeedsRefresh ? {} : monthlyPackage.translatedTexts);
+        if (monthlyPackage.title) {
+            setTrainingTitle((current) => current.trim() ? current : monthlyPackage.title);
+        }
+        const availableCodes = Object.keys(monthlyPackage.translatedTexts).filter(isValidLanguageCode);
+        if (availableCodes.length > 0) {
+            setSelectedLanguages((current) => Array.from(new Set([...current, ...availableCodes])));
+        }
+        const packageLabel = [monthlyPackage.month, monthlyPackage.workType].filter(Boolean).join(' · ') || '월/공종 미표시';
+        setMessage(`5단계 교육자료 스튜디오 원문(${packageLabel})을 자동으로 불러왔습니다.`);
+    }, []);
+
+    useEffect(() => {
         const restoreLatestSession = async () => {
             try {
+                const hasIncomingHandoff = Boolean(
+                    readPendingExecutiveTrainingHandoff()
+                    || localStorage.getItem(SAFETY_CASE_TRAINING_HANDOFF_KEY)
+                    || localStorage.getItem('psi_tbm_package_handoff_pending_v1'),
+                );
+                if (hasIncomingHandoff) {
+                    return;
+                }
                 const persistedRaw = localStorage.getItem(ACTIVE_QR_STATE_STORAGE_KEY);
                 if (persistedRaw) {
                     const persisted = JSON.parse(persistedRaw) as ActiveQrState;

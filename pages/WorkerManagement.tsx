@@ -6259,7 +6259,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 </div>
 
                 {mobileBackGuideMessage && (
-                    <div className={`fixed bottom-4 left-1/2 z-[120] w-[calc(100%-32px)] max-w-sm -translate-x-1/2 rounded-2xl border px-4 py-3 text-center text-[12px] font-bold text-white shadow-2xl sm:hidden ${BRAND_TONE.slateDarkBorderLight95}`}>
+                    <div className={`fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] left-1/2 z-[120] w-[calc(100%-32px)] max-w-sm -translate-x-1/2 rounded-2xl border px-4 py-3 text-center text-[12px] font-bold text-white shadow-2xl sm:hidden ${BRAND_TONE.slateDarkBorderLight95}`}>
                         {mobileBackGuideMessage}
                     </div>
                 )}

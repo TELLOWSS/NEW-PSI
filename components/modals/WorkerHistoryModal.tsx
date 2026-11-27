@@ -22,7 +22,7 @@ interface WorkerHistoryModalProps {
     onClose: () => void;
     onViewDetails: (record: WorkerRecord) => void;
     onUpdateRecord: (record: WorkerRecord) => boolean | void | Promise<boolean | void>;
-    onDeleteRecord: (recordId: string) => void;
+    onDeleteRecord: (recordId: string) => boolean | void | Promise<boolean | void>;
 }
 
 const getSafetyLevelClass = (level: '초급' | '중급' | '고급') => {
@@ -88,6 +88,25 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
         setEditableRecord(record);
     };
 
+    useEffect(() => {
+        const refreshed = allRecords.find((item) => item.id === selectedRecord.id);
+        if (refreshed && refreshed !== selectedRecord) {
+            setSelectedRecord(refreshed);
+            setEditableRecord(refreshed);
+        }
+    }, [allRecords, selectedRecord]);
+
+    useEffect(() => {
+        const handleKey = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', handleKey);
+        return () => window.removeEventListener('keydown', handleKey);
+    }, [onClose]);
+
     const handleFieldChange = <K extends keyof WorkerRecord>(field: K, value: WorkerRecord[K]) => {
         setEditableRecord(prev => ({ ...prev, [field]: value } as WorkerRecord));
     }
@@ -105,8 +124,17 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
     const selectedSafetyTone = getSafetyLevelClass(selectedRecord.safetyLevel);
     
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 z-40 flex justify-center items-end sm:items-center p-2 sm:p-4" onClick={onClose}>
-            <div className="bg-slate-50 rounded-t-2xl sm:rounded-xl shadow-2xl w-full max-w-4xl h-[94vh] sm:h-full sm:max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div
+            className="fixed inset-0 bg-black bg-opacity-60 z-[110] flex justify-center items-end sm:items-center p-2 sm:p-4"
+            onClick={onClose}
+        >
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-label={`${workerName} 근로자 이력`}
+                className="bg-slate-50 rounded-t-2xl sm:rounded-xl shadow-2xl w-full max-w-4xl h-[94dvh] sm:h-full sm:max-h-[90dvh] flex flex-col overflow-hidden"
+                onClick={e => e.stopPropagation()}
+            >
                 <header className="flex items-start sm:items-center justify-between p-3 sm:p-4 border-b border-slate-200 shrink-0 gap-2">
                     <h2 className="text-base sm:text-lg font-bold text-slate-800 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2 min-w-0">
                         <span className="text-blue-600 truncate">{workerName}</span>
@@ -115,7 +143,7 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
                         </span>
                         <span className="text-sm sm:text-base">히스토리</span>
                     </h2>
-                    <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200">
+                    <button type="button" aria-label="근로자 이력 닫기" onClick={onClose} className="p-2 rounded-full hover:bg-slate-200">
                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </header>
@@ -165,7 +193,7 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
                     </aside>
 
                     {/* Right Panel: Record Details */}
-                    <main className="w-full md:w-2/3 overflow-y-auto p-4 sm:p-6 space-y-5 sm:space-y-6">
+                    <div className="w-full md:w-2/3 overflow-y-auto p-4 sm:p-6 space-y-5 sm:space-y-6">
                         <SectionPanelCard
                             variant="whiteSoft"
                             eyebrow="선택 기록 요약"
@@ -306,7 +334,15 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                                     <div>
                                         <label className="font-medium text-slate-500">{SAFETY_SIGNAL_COPY.score}</label>
-                                        <input type="number" value={editableRecord.safetyScore} onChange={e => handleFieldChange('safetyScore', parseInt(e.target.value))} className="mt-1 w-full border-slate-300 rounded-md shadow-sm text-sm" />
+                                        <input
+                                            type="number"
+                                            value={Number.isFinite(editableRecord.safetyScore) ? editableRecord.safetyScore : 0}
+                                            onChange={e => {
+                                                const parsed = parseInt(e.target.value, 10);
+                                                handleFieldChange('safetyScore', Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : 0);
+                                            }}
+                                            className="mt-1 w-full border-slate-300 rounded-md shadow-sm text-sm"
+                                        />
                                     </div>
                                     <div>
                                          <label className="font-medium text-slate-500">{SAFETY_SIGNAL_COPY.level}</label>
@@ -335,13 +371,25 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
                                  </div>
                             </SectionPanelCard>
                         </div>
-                    </main>
+                    </div>
                 </div>
                 <footer className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end p-4 border-t border-slate-200 bg-slate-100 shrink-0 gap-2 sm:gap-3">
                     <ActionButton onClick={handleSave} variant="indigoSolid" fullWidth className="sm:w-auto px-5 py-2 text-sm font-semibold">
                         저장
                     </ActionButton>
-                    <ActionButton onClick={() => { onClose(); onDeleteRecord(selectedRecord.id); }} variant="roseSoft" fullWidth className="sm:w-auto px-5 py-2 text-sm font-semibold">
+                    <ActionButton
+                        onClick={() => {
+                            void (async () => {
+                                const deleted = await onDeleteRecord(selectedRecord.id);
+                                if (deleted !== false) {
+                                    onClose();
+                                }
+                            })();
+                        }}
+                        variant="roseSoft"
+                        fullWidth
+                        className="sm:w-auto px-5 py-2 text-sm font-semibold"
+                    >
                         이 기록 삭제
                     </ActionButton>
                 </footer>

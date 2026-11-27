@@ -82,6 +82,17 @@
   font-size:22px;
   font-variant-numeric:tabular-nums;
 }
+html.dark .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid>div {
+  background:#122b3a;
+  border-color:#2c4b55;
+  box-shadow:none;
+}
+html.dark .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid .psi-meta-label {
+  color:#c2d9dc;
+}
+html.dark .psi-platform-field-canvas [data-education-return="hero"] >div:first-child>.grid .psi-data-value {
+  color:#edf9f7;
+}
 .psi-platform-field-canvas [data-education-return="three-step-flow"] {
   border:1px solid rgba(189,237,225,.27);
   border-radius:16px;
@@ -1670,6 +1681,22 @@
   }
 }
 
+@media(max-width:520px) {
+  .psi-platform-field-canvas .psi-universal-drawer-tabs {
+    padding: 10px 12px;
+    gap: 5px;
+  }
+
+  .psi-platform-field-canvas .psi-universal-drawer-tabs button {
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 4px;
+    font-size: 11px;
+    line-height: 1.25;
+    white-space: nowrap;
+  }
+}
+
 @media(max-width:790px) {
   .psi-platform-field-canvas .psi-connected-decision-shell {
     padding: 11px;
@@ -1679,6 +1706,14 @@
   .psi-platform-field-canvas .psi-cd-expand-btn,
   .psi-platform-field-canvas .psi-cd-compact-bar {
     display: none;
+  }
+
+  .psi-platform-field-canvas .psi-connected-decision-shell.is-slim-hub-bar .psi-cd-compact-bar {
+    display: flex;
+  }
+
+  .psi-platform-field-canvas .psi-connected-decision-shell.is-slim-hub-bar .psi-cd-expand-btn {
+    display: inline-flex;
   }
 
   .psi-platform-field-canvas .psi-connected-decision-shell.is-desktop-compact .psi-cd-grid,
@@ -1804,8 +1839,8 @@ html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-connected-decisio
 html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-industrial-panel,
 html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-universal-drawer,
 html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-quickjump-dialog,
-html[data-psi-sunlight="true"] .psi-platform-field-canvas section,
-html[data-psi-sunlight="true"] .psi-platform-field-canvas article {
+html[data-psi-sunlight="true"] .psi-platform-field-canvas main section:not([data-report-template-root="true"]),
+html[data-psi-sunlight="true"] .psi-platform-field-canvas main article:not([data-report-template-root="true"]) {
   border-width: 2px !important;
   border-color: #0f172a !important;
   box-shadow: none !important;
@@ -1817,6 +1852,10 @@ html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-cd-card {
 
 html[data-psi-sunlight="true"] .psi-platform-field-canvas :is(.text-slate-400, .text-slate-500, .text-slate-600, .text-gray-400, .text-gray-500, .text-gray-600, .psi-meta-label, .psi-cd-card-head small, .psi-cd-card p, .psi-cd-why-list span, .psi-cd-metric span, .psi-cd-metric small, .psi-cd-outcome-proof, .psi-cd-compact-copy span) {
   color: #020617 !important;
+}
+
+html[data-psi-sunlight="true"] .psi-platform-field-canvas :is(.psi-ab-hero, .psi-enterprise-hero, .psi-ops-intro, .bg-slate-900) :is(.text-slate-300, .text-slate-400, .text-slate-500, .text-slate-600, .psi-meta-label) {
+  color: #e2e8f0 !important;
 }
 
 html[data-psi-sunlight="true"] .psi-platform-field-canvas .psi-sunlight-toggle-btn[aria-pressed="true"],

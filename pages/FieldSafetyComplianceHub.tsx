@@ -25,6 +25,12 @@ import { compressImage } from '../utils/imageCompression';
 import { buildFieldHubSummaryCards, buildFieldReviewCards } from '../utils/roleViewModel';
 import { BRAND_TONE } from '../utils/brandToneTokens';
 import { useDevMode } from '../contexts/DevModeContext';
+import {
+    appendLocalSafetyObservations,
+    extractClosureLoopCounts,
+    normalizeCoachingActionType,
+    resolveServerWorkerUuid,
+} from '../utils/safetyClosureLoopHelper';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 공통 유틸
@@ -629,7 +635,7 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
 // ─────────────────────────────────────────────────────────────────────────────
 // 탭 2: 행동관찰 · 코칭
 // ─────────────────────────────────────────────────────────────────────────────
-interface WorkerOption { id: string; name: string; label: string; trade?: string; team?: string; }
+interface WorkerOption { id: string; serverWorkerUuid?: string | null; name: string; label: string; trade?: string; team?: string; }
 
 const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> = ({ assessmentMonth, workers }) => {
     const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -738,34 +744,85 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
         setResult(null);
         try {
             const nowIso = new Date().toISOString();
-            const records = Array.from(selected).map(workerId => ({
-                worker_id: workerId,
-                assessment_month: assessmentMonth,
-                observed_at: nowIso,
-                observer_name: observerName || undefined,
-                unsafe_behavior_flag: true,
-                unsafe_behavior_type: behavior,
-                severity_level: severity,
-                evidence_note: (evidenceNote || (photo ? '[사진 첨부]' : undefined)) || undefined,
-                action_type: coaching ? (actionType || undefined) : undefined,
-                action_detail: coaching ? (actionDetail || undefined) : undefined,
-                action_completed_at: coaching ? nowIso : undefined,
-                coach_name: coaching ? (coachName || undefined) : undefined,
-                followup_result: coaching ? followup : undefined,
-                followup_checked_at: coaching ? nowIso : undefined,
-            }));
+            const normalizedCoaching = coaching
+                ? normalizeCoachingActionType(actionType, actionDetail)
+                : { actionType: undefined, actionDetail: undefined };
+            const combinedEvidenceNote = [evidenceNote.trim(), photo ? '[사진 첨부]' : '']
+                .filter(Boolean)
+                .join(' ') || undefined;
 
-            if (isAdminAuthenticated()) {
-                const data = await postAdminJson<{ ok: boolean; inserted_observations?: number; inserted_coaching?: number }>(
+            const workerById = new Map<string, WorkerOption>(workers.map(w => [w.id, w]));
+            const serverRecords: Array<Record<string, unknown>> = [];
+            const localQueue: Array<Parameters<typeof appendLocalSafetyObservations>[0][number]> = [];
+
+            for (const rawSelectedId of Array.from(selected)) {
+                const selectedId = String(rawSelectedId);
+                const option = workerById.get(selectedId);
+                const serverUuid = resolveServerWorkerUuid({
+                    id: selectedId,
+                    worker_uuid: option?.serverWorkerUuid,
+                });
+                const basePayload = {
+                    assessment_month: assessmentMonth,
+                    observed_at: nowIso,
+                    observer_name: observerName || undefined,
+                    unsafe_behavior_flag: true,
+                    unsafe_behavior_type: behavior,
+                    severity_level: severity,
+                    evidence_note: combinedEvidenceNote,
+                    action_type: normalizedCoaching.actionType,
+                    action_detail: normalizedCoaching.actionDetail,
+                    action_completed_at: coaching ? nowIso : undefined,
+                    coach_name: coaching ? (coachName || undefined) : undefined,
+                    followup_result: coaching ? followup : undefined,
+                    followup_checked_at: coaching ? nowIso : undefined,
+                };
+                if (isAdminAuthenticated() && serverUuid) {
+                    serverRecords.push({
+                        worker_id: serverUuid,
+                        ...basePayload,
+                    });
+                } else {
+                    localQueue.push({
+                        worker_id: serverUuid || selectedId,
+                        worker_name: option?.name,
+                        assessment_month: assessmentMonth,
+                        observed_at: nowIso,
+                        observer_name: observerName || undefined,
+                        unsafe_behavior_flag: true,
+                        unsafe_behavior_type: behavior,
+                        severity_level: severity,
+                        evidence_note: combinedEvidenceNote,
+                        action_type: normalizedCoaching.actionType,
+                        action_detail: normalizedCoaching.actionDetail,
+                        coach_name: coaching ? (coachName || undefined) : undefined,
+                        followup_result: coaching ? followup : undefined,
+                    });
+                }
+            }
+
+            let obs = 0;
+            let c = 0;
+            if (serverRecords.length > 0) {
+                const data = await postAdminJson<{ ok: boolean; data?: { inserted_observations?: number; inserted_coaching?: number }; inserted_observations?: number; inserted_coaching?: number }>(
                     '/api/admin/safety-management',
-                    { action: 'record-safety-closure-loop', payload: { records } },
+                    { action: 'record-safety-closure-loop', payload: { records: serverRecords } },
                     { fallbackMessage: `관찰·코칭 등록 ${BRAND_STATUS_LABELS.attention}` }
                 );
-                const obs = Number(data.inserted_observations || 0);
-                const c   = Number(data.inserted_coaching || 0);
+                const counts = extractClosureLoopCounts(data);
+                obs = counts.insertedObservations;
+                c = counts.insertedCoaching;
+            }
+            if (localQueue.length > 0) {
+                appendLocalSafetyObservations(localQueue);
+            }
+
+            if (serverRecords.length > 0 && localQueue.length > 0) {
+                setResult({ ok: true, message: `서버 등록 완료 (관찰 ${obs}건 / 코칭 ${c}건) + 이 기기 보관 ${localQueue.length}명` });
+            } else if (serverRecords.length > 0) {
                 setResult({ ok: true, message: `통합 등록 완료 (관찰 ${obs}건 / 코칭 ${c}건)` });
             } else {
-                setResult({ ok: true, message: `[로컬 보관] ${selected.size}명 관찰 기록 완료 (서버 연결 전)` });
+                setResult({ ok: true, message: `[기기 보관 완료] ${localQueue.length}명 관찰·조치 기록을 이 기기에 저장했습니다.` });
             }
 
             setSelected(new Set()); setBehavior(null); setEvidenceNote(''); setPhoto('');
@@ -1735,8 +1792,20 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
         const seen = new Set<string>();
         return [...workerRecords]
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-            .filter(w => { if (seen.has(w.id)) return false; seen.add(w.id); return true; })
-            .map(w => ({ id: w.id, name: w.name, label: buildWorkerLabel(w), trade: w.jobField, team: w.teamLeader }));
+            .filter(w => {
+                const identityKey = getWorkerIdentityKey(w);
+                if (seen.has(identityKey)) return false;
+                seen.add(identityKey);
+                return true;
+            })
+            .map(w => ({
+                id: w.id,
+                serverWorkerUuid: resolveServerWorkerUuid(w),
+                name: w.name,
+                label: buildWorkerLabel(w),
+                trade: w.jobField,
+                team: w.teamLeader,
+            }));
     }, [workerRecords]);
 
     const tabs: { id: ActiveTab; label: string; shortLabel: string; icon: string; badge?: number }[] = useMemo(() => {

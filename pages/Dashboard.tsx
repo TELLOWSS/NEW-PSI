@@ -63,6 +63,7 @@ interface DashboardProps {
     workerRecords: WorkerRecord[];
     safetyCheckRecords: SafetyCheckRecord[];
     setCurrentPage: (page: Page) => void;
+    onOpenRecord?: (record: WorkerRecord) => void;
     onOpenNexus?: (trade: string, view: OperationsViewState) => void;
     initialTrade?: string;
     initialView?: OperationsViewState | null;
@@ -367,7 +368,7 @@ const DeferredSection: React.FC<{ children: React.ReactNode; fallback?: React.Re
     return <div ref={containerRef}>{isVisible ? children : fallback}</div>;
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords, setCurrentPage, onOpenNexus, initialTrade, initialView }) => {
+const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords, setCurrentPage, onOpenRecord, onOpenNexus, initialTrade, initialView }) => {
     const { isDevMode } = useDevMode();
     const { mode: operationalMode } = useOperationalMode();
     const isImmediateOperationalMode = operationalMode === 'immediate';
@@ -2588,6 +2589,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 workerRecords={workerRecords}
                 safetyCheckRecords={safetyCheckRecords}
                 setCurrentPage={setCurrentPage}
+                onOpenRecord={onOpenRecord}
                 onOpenNexus={onOpenNexus}
                 initialTrade={initialTrade}
                 initialView={initialView}
@@ -4795,7 +4797,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             </div>
             )}
 
-            <div className="sm:hidden fixed bottom-4 left-4 right-4 z-40">
+            <div className="sm:hidden fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] left-4 right-4 z-40">
                 <button
                     type="button"
                     onClick={() => setCurrentPage('ocr-analysis')}

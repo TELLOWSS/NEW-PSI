@@ -250,6 +250,19 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
     const [customDraftHazard, setCustomDraftHazard] = useState(false);
 
     useEffect(() => {
+        if (!selectedRecord) return;
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                setSelectedRecord(null);
+                setIsEditingDrawer(false);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedRecord]);
+
+    useEffect(() => {
         const handleExternalUpdate = () => {
             const next = readAccidentBigDataStore();
             if (next.safe) {
@@ -2561,7 +2574,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
             {/* ================= SLIDE-OVER DETAIL & EDIT DRAWER ================= */}
             {selectedRecord && (
                 <div
-                    className="fixed inset-0 z-[10001] flex justify-end bg-slate-950/55 backdrop-blur-xs"
+                    className="fixed inset-0 z-[10001] flex justify-end bg-slate-950/55 backdrop-blur-sm"
                     role="presentation"
                     onClick={(e) => {
                         if (e.target === e.currentTarget) {

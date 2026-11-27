@@ -114,7 +114,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
     const reassessmentTrail = (record.auditTrail || []).filter(entry => entry.stage === 'reassessment').slice(-5).reverse();
     const messageWorkerKey = String(record.worker_uuid || record.workerUuid || record.employeeId || `${record.name}_${record.teamLeader || '미지정'}`).trim();
     const isGenerating = isGeneratingPdf || isGeneratingImage || isSendingMessage;
-    const hasMessageDraft = messagePhoneNumber.replace(/\D/g, '').slice(0, 11).length > 0 || messageNote.trim().length > 0;
+    const hasMessageDraft = messagePhoneNumber.replace(/\D/g, '').slice(0, 11).length > 0;
     const { guideMessage: mobileBackGuideMessage } = useMobileBackGuard({
         hasActiveWork: isGenerating || hasMessageDraft || isCameraOpen,
         guardStateKey: '__individualReportBackGuard',
@@ -786,8 +786,8 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
 
     return (        <div className="bg-slate-100 min-h-screen p-3 sm:p-6 flex flex-col items-center gap-4 sm:gap-6 pb-20 no-print font-sans">
             <ReportActionBar ariaLabel="개인 분석 보고서 작업" className="bg-white px-3 sm:px-6 py-3 rounded-2xl sm:rounded-full shadow-lg flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-3 w-full max-w-[210mm] border border-slate-200 sticky top-2 sm:top-4 z-50">
-                <button onClick={onBack} className="text-sm font-bold flex items-center gap-2 text-slate-500 hover:text-slate-900">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 19l-7-7 7-7m-7 7h18" strokeWidth={2}/></svg> 대시보드
+                <button type="button" onClick={onBack} className="text-sm font-bold flex items-center gap-2 text-slate-500 hover:text-slate-900">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 19l-7-7 7-7m-7 7h18" strokeWidth={2}/></svg> 이전 화면
                 </button>
                 <div className="hidden sm:flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span><p className="text-xs font-bold text-slate-800">PSI 관리자용 개인 작성 경향 분석</p></div>
                 <div className="flex flex-wrap justify-end gap-2 w-full sm:w-auto">

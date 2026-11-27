@@ -2414,36 +2414,44 @@
     .text-slate-500 {
         color: var(--psi-text-subtle);
     }
+}
 
-    html.dark .bg-white {
-        background-color: var(--psi-surface);
-    }
+html.dark .bg-white:not([class*="dark:bg-"]) {
+    background-color: var(--psi-surface);
+}
 
-    html.dark .bg-slate-50 {
+    html.dark .bg-slate-50:not([class*="dark:bg-"]) {
         background-color: var(--psi-surface-muted);
     }
 
-    html.dark .bg-slate-100 {
+    html.dark .bg-slate-100:not([class*="dark:bg-"]) {
         background-color: var(--psi-surface-inset);
     }
 
-    html.dark .bg-slate-200 {
+    html.dark .bg-slate-200:not([class*="dark:bg-"]) {
         background-color: var(--psi-slate-200);
     }
 
-    html.dark .text-slate-900,
-    html.dark .text-slate-800 {
+    html.dark .text-slate-950:not([class*="dark:text-"]),
+    html.dark .text-gray-950:not([class*="dark:text-"]),
+    html.dark .text-slate-900:not([class*="dark:text-"]),
+    html.dark .text-slate-800:not([class*="dark:text-"]) {
         color: var(--psi-text);
     }
 
-    html.dark .text-slate-700,
-    html.dark .text-slate-600 {
+    html.dark .text-slate-700:not([class*="dark:text-"]),
+    html.dark .text-slate-600:not([class*="dark:text-"]) {
         color: var(--psi-text-muted);
     }
 
-    html.dark .text-slate-500,
-    html.dark .text-slate-400 {
+    html.dark .text-slate-500:not([class*="dark:text-"]),
+    html.dark .text-slate-400:not([class*="dark:text-"]) {
         color: var(--psi-text-subtle);
+    }
+
+    html.dark .bg-gray-50:not([class*="dark:bg-"]),
+    html.dark .bg-gray-100:not([class*="dark:bg-"]) {
+        background-color: var(--psi-surface-muted) !important;
     }
 
     html.dark .border-slate-100,
@@ -2541,6 +2549,7 @@
 
     /* 다크모드 전역 파스텔톤 배경/보더/텍스트 가독성 오버라이드 */
     html.dark .bg-blue-50,
+    html.dark .bg-blue-100,
     html.dark .bg-blue-50\/10,
     html.dark .bg-blue-50\/20,
     html.dark .bg-blue-50\/30,
@@ -2551,6 +2560,7 @@
     }
 
     html.dark .bg-orange-50,
+    html.dark .bg-orange-100,
     html.dark .bg-orange-50\/10,
     html.dark .bg-orange-50\/20,
     html.dark .bg-orange-50\/30,
@@ -2561,6 +2571,11 @@
     }
 
     html.dark .bg-emerald-50,
+    html.dark .bg-emerald-100,
+    html.dark .bg-green-50,
+    html.dark .bg-green-100,
+    html.dark .bg-teal-50,
+    html.dark .bg-teal-100,
     html.dark .bg-emerald-50\/10,
     html.dark .bg-emerald-50\/20,
     html.dark .bg-emerald-50\/30,
@@ -2572,6 +2587,9 @@
     }
 
     html.dark .bg-amber-50,
+    html.dark .bg-amber-100,
+    html.dark .bg-yellow-50,
+    html.dark .bg-yellow-100,
     html.dark .bg-amber-50\/10,
     html.dark .bg-amber-50\/20,
     html.dark .bg-amber-50\/30,
@@ -2583,6 +2601,9 @@
     }
 
     html.dark .bg-rose-50,
+    html.dark .bg-rose-100,
+    html.dark .bg-red-50,
+    html.dark .bg-red-100,
     html.dark .bg-rose-50\/10,
     html.dark .bg-rose-50\/20,
     html.dark .bg-rose-50\/30,
@@ -2594,6 +2615,7 @@
     }
 
     html.dark .bg-sky-50,
+    html.dark .bg-sky-100,
     html.dark .bg-sky-50\/10,
     html.dark .bg-sky-50\/20,
     html.dark .bg-sky-50\/30,
@@ -2604,6 +2626,7 @@
     }
 
     html.dark .bg-indigo-50,
+    html.dark .bg-indigo-100,
     html.dark .bg-indigo-50\/10,
     html.dark .bg-indigo-50\/20,
     html.dark .bg-indigo-50\/30,
@@ -2615,6 +2638,9 @@
     }
 
     html.dark .bg-violet-50,
+    html.dark .bg-violet-100,
+    html.dark .bg-purple-50,
+    html.dark .bg-purple-100,
     html.dark .bg-violet-50\/10,
     html.dark .bg-violet-50\/20,
     html.dark .bg-violet-50\/30,
@@ -2626,6 +2652,7 @@
     }
 
     html.dark .bg-cyan-50,
+    html.dark .bg-cyan-100,
     html.dark .bg-cyan-50\/10,
     html.dark .bg-cyan-50\/20,
     html.dark .bg-cyan-50\/30,
@@ -2699,25 +2726,39 @@
 
     html.dark .text-emerald-700,
     html.dark .text-emerald-800,
-    html.dark .text-emerald-900 {
+    html.dark .text-emerald-900,
+    html.dark .text-green-700,
+    html.dark .text-green-800,
+    html.dark .text-green-900,
+    html.dark .text-teal-700,
+    html.dark .text-teal-800,
+    html.dark .text-teal-900 {
         color: var(--psi-emerald-text) !important;
     }
 
     html.dark .text-amber-700,
     html.dark .text-amber-800,
-    html.dark .text-amber-900 {
+    html.dark .text-amber-900,
+    html.dark .text-yellow-700,
+    html.dark .text-yellow-800,
+    html.dark .text-yellow-900 {
         color: var(--psi-amber-text) !important;
     }
 
     html.dark .text-rose-700,
     html.dark .text-rose-800,
-    html.dark .text-rose-900 {
+    html.dark .text-rose-900,
+    html.dark .text-rose-950,
+    html.dark .text-red-700,
+    html.dark .text-red-800,
+    html.dark .text-red-900 {
         color: var(--psi-rose-text) !important;
     }
 
     html.dark .text-sky-700,
     html.dark .text-sky-800,
-    html.dark .text-sky-900 {
+    html.dark .text-sky-900,
+    html.dark .text-sky-950 {
         color: var(--psi-sky-text) !important;
     }
 
@@ -2731,7 +2772,10 @@
     html.dark .text-violet-600,
     html.dark .text-violet-700,
     html.dark .text-violet-800,
-    html.dark .text-violet-900 {
+    html.dark .text-violet-900,
+    html.dark .text-purple-700,
+    html.dark .text-purple-800,
+    html.dark .text-purple-900 {
         color: var(--psi-violet-text) !important;
     }
 
@@ -2741,7 +2785,6 @@
     html.dark .text-cyan-900 {
         color: var(--psi-cyan-text) !important;
     }
-}
 
 /* Report and A4 previews are deliberate light documents, independent of the app theme. */
 .psi-report-light,

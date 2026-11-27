@@ -237,7 +237,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                 </div>
                 {nexusAuthority === 'field' && (
-                    <label className="mt-2.5 flex items-center gap-1.5 rounded-lg border border-sky-400/30 bg-sky-950/30 px-2.5 py-1.5 text-[11px] font-semibold text-sky-900 dark:text-sky-200 cursor-pointer">
+                    <label className="mt-2.5 flex items-center gap-1.5 rounded-lg border border-sky-400/35 bg-sky-50 px-2.5 py-1.5 text-[11px] font-semibold text-sky-900 dark:bg-sky-950/40 dark:text-sky-200 cursor-pointer">
                         <input
                             type="checkbox"
                             checked={fieldMenuFocusedOnly}

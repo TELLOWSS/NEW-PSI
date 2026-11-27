@@ -10350,13 +10350,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             )}
 
             {mobileBackGuideMessage && (
-                <div className="fixed bottom-4 left-1/2 z-[120] w-[calc(100%-32px)] max-w-sm -translate-x-1/2 rounded-2xl border border-slate-200 bg-slate-900/95 px-4 py-3 text-center text-[12px] font-bold text-white shadow-2xl sm:hidden">
+                <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] left-1/2 z-[120] w-[calc(100%-32px)] max-w-sm -translate-x-1/2 rounded-2xl border border-slate-200 bg-slate-900/95 px-4 py-3 text-center text-[12px] font-bold text-white shadow-2xl sm:hidden">
                     {mobileBackGuideMessage}
                 </div>
             )}
 
             {files.length > 0 && !isAnalyzing && (
-                <div className="fixed bottom-4 left-4 right-4 z-[130] sm:hidden">
+                <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] left-4 right-4 z-[130] sm:hidden">
                     <button
                         type="button"
                         onClick={handleAnalyze}
@@ -10374,7 +10374,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             )}
 
             {showPostAnalysisCta && onNavigateToPredictive && !isAnalyzing && files.length === 0 && (
-                <div className="fixed bottom-4 left-4 right-4 z-[130] sm:hidden flex flex-col gap-2">
+                <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] left-4 right-4 z-[130] sm:hidden flex flex-col gap-2">
                     <button
                         type="button"
                         onClick={onNavigateToPredictive}

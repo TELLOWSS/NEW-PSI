@@ -15,6 +15,7 @@ import type {
   NexusWorkspaceAuthority,
 } from './nexusHqCommandLoop';
 import type { NexusPipelineCase } from './nexusQuickPipeline';
+import { readSiteIssueList, SITE_ISSUES_STORAGE_KEY } from './siteIssueStorage';
 
 export interface PsiConnectedPageAction {
   id: string;
@@ -688,6 +689,12 @@ export const buildConnectedPageDecisionBrief = (params: {
     }
   }
 
+  const openSiteIssueCount = typeof window === 'undefined'
+    ? 0
+    : readSiteIssueList<{ id: string; status?: string }>(() =>
+        window.localStorage.getItem(SITE_ISSUES_STORAGE_KEY),
+      ).items.filter(item => item.status !== '조치 완료').length;
+
   return {
     page: params.page,
     pageLabel,
@@ -697,7 +704,7 @@ export const buildConnectedPageDecisionBrief = (params: {
     scopeLabel,
     offlinePendingCount: params.offlinePendingCount,
     openActionCount:
-      openCases.length + pendingEquip.length + revisionEquip.length + pendingApprovals.length,
+      openCases.length + pendingEquip.length + revisionEquip.length + openSiteIssueCount,
     signalLevel,
     signalLabel:
       signalLevel === 'critical'

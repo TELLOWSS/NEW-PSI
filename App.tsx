@@ -38,6 +38,9 @@ import {
     normalizeWorkerIdentityText,
     normalizeNationality,
 } from './utils/workerIdentity';
+import { SITE_ISSUES_UPDATED_EVENT } from './utils/siteIssueStorage';
+import { ACCIDENT_BIGDATA_UPDATED_EVENT } from './utils/accidentBigData';
+import { LOCAL_SAFETY_OBSERVATIONS_STORAGE_KEY } from './utils/safetyClosureLoopHelper';
 // Removed checklist imports
 
 const DYNAMIC_IMPORT_RELOAD_KEY = 'psi_dynamic_import_reload_once';
@@ -659,6 +662,8 @@ const App: React.FC = () => {
     const { mode: operationalMode } = useOperationalMode();
     const uiAudienceMode = useUiAudienceMode();
     const [currentPage, setCurrentPage] = useState<Page>('dashboard');
+    const inspectorDirtyRef = useRef(false);
+    const [reportReturnPage, setReportReturnPage] = useState<Page>('ocr-analysis');
     // Contextual education handoff may open an admin-only tool even when its sidebar entry is hidden.
     const [safetyTrainingHandoffOpen, setSafetyTrainingHandoffOpen] = useState(false);
     // Checklist gate is deactivated by default
@@ -782,6 +787,20 @@ const App: React.FC = () => {
     }, [currentPage, operationalMode, uiAudienceMode, isWorkerKioskMode, safetyTrainingHandoffOpen]);
 
     const navigateToPage = useCallback((page: Page) => {
+        if (currentPage === 'safety-inspector' && page !== 'safety-inspector' && inspectorDirtyRef.current) {
+            if (!confirm('저장하지 않은 사진점검 또는 조치 초안이 있습니다. 저장하지 않고 다른 화면으로 이동할까요?')) {
+                return;
+            }
+            inspectorDirtyRef.current = false;
+        }
+        if (currentPage === 'worker-management' && page !== 'worker-management' && typeof window !== 'undefined') {
+            const url = new URL(window.location.href);
+            if (url.searchParams.has('filter') || url.searchParams.has('harnessFilter')) {
+                url.searchParams.delete('filter');
+                url.searchParams.delete('harnessFilter');
+                window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+            }
+        }
         setNexusInitialTrade('');
         setDashboardReturnTrade('');
         setSafetyTrainingHandoffOpen(false);
@@ -799,7 +818,12 @@ const App: React.FC = () => {
             return;
         }
         setCurrentPage(resolvedPage);
-    }, [operationalMode, uiAudienceMode]);
+    }, [currentPage, operationalMode, uiAudienceMode]);
+
+    const openAdminTrainingHandoff = useCallback(() => {
+        setSafetyTrainingHandoffOpen(true);
+        setCurrentPage('admin-training');
+    }, []);
 
     const handleAdminUnlock = useCallback(async (password: string, bypass = false) => {
         setIsUnlockSubmitting(true);
@@ -1131,12 +1155,20 @@ const App: React.FC = () => {
 
     // [Updated] Delete All Handler
     const handleDeleteAll = useCallback(async () => {
-        if(!confirm("⚠️ 경고: 모든 데이터가 삭제됩니다.\n\n근로자 기록, 안전 점검 일지, 지적 사항 등 모든 데이터가 영구적으로 삭제되며 복구할 수 없습니다.\n정말 진행하시겠습니까?")) return;
+        if(!confirm("⚠️ 경고: 모든 데이터가 삭제됩니다.\n\n근로자 기록, 안전 점검 일지, 지적 사항, 사고 빅데이터, 교육자료 초안 등 모든 데이터가 영구적으로 삭제되며 복구할 수 없습니다.\n정말 진행하시겠습니까?")) return;
         
         try {
             await clearDB();
             localStorage.removeItem('psi_safety_checks');
             localStorage.removeItem('psi_site_issues');
+            localStorage.removeItem('psi_accident_bigdata_v1');
+            localStorage.removeItem('psi_tbm_education_studio_v2');
+            localStorage.removeItem('psi_tbm_monthly_education_package_v1');
+            localStorage.removeItem('psi_risk_check_sessions_v1');
+            localStorage.removeItem('psi_site_violations_v1');
+            localStorage.removeItem(LOCAL_SAFETY_OBSERVATIONS_STORAGE_KEY);
+            window.dispatchEvent(new CustomEvent(SITE_ISSUES_UPDATED_EVENT));
+            window.dispatchEvent(new CustomEvent(ACCIDENT_BIGDATA_UPDATED_EVENT));
 
             workerRecordsRef.current = [];
             safetyCheckRecordsRef.current = [];
@@ -1254,8 +1286,12 @@ const App: React.FC = () => {
                     serverResult.record,
                     serverResult.trace,
                 );
-                await handleUpdateRecord(updatedRecord);
-                return updatedRecord;
+                const saved = await handleUpdateRecord(updatedRecord);
+                if (!saved) {
+                    alert('재분석 결과를 기기에 저장하지 못했습니다. 저장 공간을 확인한 뒤 다시 시도해 주세요.');
+                    return null;
+                }
+                return workerRecordsRef.current.find((item) => item.id === updatedRecord.id) || updatedRecord;
             }
             alert('재분석 응답에 분석 결과가 포함되지 않았습니다. 잠시 후 다시 시도해 주세요.');
         } catch (e) {
@@ -1316,8 +1352,8 @@ const App: React.FC = () => {
                     onOpenWorkerRecord={(record) => setModalState({ type: 'recordDetail', record, source: 'ocr-analysis' })}
                 >
                     <Suspense fallback={<div className="min-h-[240px] flex items-center justify-center"><Spinner /></div>}>
-                        {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={navigateToPage} initialTrade={dashboardReturnTrade} initialView={dashboardView} onOpenNexus={(trade,view) => { setDashboardView(view); navigateToPage('safety-nexus'); setNexusInitialTrade(trade); setNexusView(previous=>previous?.trade===trade?previous:null); }} />}
-                        {currentPage === 'safety-nexus' && <SafetyNexus workerRecords={workerRecords} loadState={workerRecordsLoadState} initialTrade={nexusInitialTrade} initialView={nexusView} onViewChange={setNexusView} onNavigateToPage={navigateToPage} onReturnDashboard={(trade) => { navigateToPage('dashboard'); setDashboardReturnTrade(trade); }} onOpenRecord={(record) => setModalState({type:'recordDetail', record})} />}
+                        {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={(page) => page === 'admin-training' ? openAdminTrainingHandoff() : navigateToPage(page)} initialTrade={dashboardReturnTrade} initialView={dashboardView} onOpenRecord={(record) => setModalState({type:'recordDetail', record, source:'ocr-analysis'})} onOpenNexus={(trade,view) => { setDashboardView(view); navigateToPage('safety-nexus'); setNexusInitialTrade(trade); setNexusView(previous=>previous?.trade===trade?previous:null); }} />}
+                        {currentPage === 'safety-nexus' && <SafetyNexus workerRecords={workerRecords} loadState={workerRecordsLoadState} initialTrade={nexusInitialTrade} initialView={nexusView} onViewChange={setNexusView} onNavigateToPage={(page) => page === 'admin-training' ? openAdminTrainingHandoff() : navigateToPage(page)} onReturnDashboard={(trade) => { navigateToPage('dashboard'); setDashboardReturnTrade(trade); }} onOpenRecord={(record) => setModalState({type:'recordDetail', record})} />}
                         {currentPage === 'education-return' && <EducationReturn workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'accident-bigdata' && <AccidentBigDataHub workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'ocr-analysis' && (
@@ -1327,7 +1363,7 @@ const App: React.FC = () => {
                                 onDeleteAll={handleDeleteAll} 
                                 onImport={handleImport} 
                                 onViewDetails={(r) => setModalState({type:'recordDetail', record:r, source:'ocr-analysis'})}
-                                onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); navigateToPage('individual-report'); }}
+                                onOpenReport={(r) => { setReportReturnPage('ocr-analysis'); setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); navigateToPage('individual-report'); }}
                                 onDeleteRecord={handleDeleteRecord} 
                                 onUpdateRecord={handleUpdateRecord}
                                 onNavigateToPredictive={() => navigateToPage('predictive-analysis')}
@@ -1335,21 +1371,38 @@ const App: React.FC = () => {
                             />
                         )}
                         {currentPage === 'monthly-guidance-report' && <MonthlyGuidanceReport workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
-                        {currentPage === 'a4-education-material' && <A4EducationMaterial workerRecords={workerRecords} onOpenTraining={() => navigateToPage('admin-training')} />}
+                        {currentPage === 'a4-education-material' && <A4EducationMaterial workerRecords={workerRecords} onOpenTraining={openAdminTrainingHandoff} />}
                         {currentPage === 'worker-management' && <WorkerManagement workerRecords={workerRecords} onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} onOpenPhotoRegistration={(r, queueRecordIds) => setModalState({type:'recordDetail', record:r, source:'worker-management-photo-queue', queueRecordIds})} onUpdateRecord={handleUpdateRecord} />}
-                        {currentPage === 'individual-report' && recordForReport && (
-                            <IndividualReport 
-                                record={recordForReport} 
-                                isQrScanMode={isQrScanMode}
-                                history={workerRecords.filter(r => isSameWorkerTimeline(recordForReport, r))}
-                                onBack={() => { setRecordForReport(null); setIsQrScanMode(false); navigateToPage('ocr-analysis'); }} 
-                                onUpdateRecord={async (updated) => {
-                                    const normalized = applyIdentityPolicy(updated, workerRecordsRef.current);
-                                    const saved = await handleUpdateRecord(normalized);
-                                    if (saved) setRecordForReport(normalized);
-                                    return saved;
-                                }}
-                            />
+                        {currentPage === 'individual-report' && (
+                            recordForReport ? (
+                                <IndividualReport 
+                                    record={recordForReport} 
+                                    isQrScanMode={isQrScanMode}
+                                    history={workerRecords.filter(r => isSameWorkerTimeline(recordForReport, r))}
+                                    onBack={() => { setRecordForReport(null); setIsQrScanMode(false); navigateToPage(reportReturnPage); }} 
+                                    onUpdateRecord={async (updated) => {
+                                        const normalized = applyIdentityPolicy(updated, workerRecordsRef.current);
+                                        const saved = await handleUpdateRecord(normalized);
+                                        if (saved) {
+                                            const persisted = workerRecordsRef.current.find((item) => item.id === normalized.id) || normalized;
+                                            setRecordForReport(persisted);
+                                        }
+                                        return saved;
+                                    }}
+                                />
+                            ) : (
+                                <div className="mx-auto max-w-xl rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                                    <h2 className="text-lg font-black text-slate-900 dark:text-white">선택된 근로자 리포트가 없습니다.</h2>
+                                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">위험성평가 분석 목록에서 근로자를 선택해 리포트를 열어 주세요.</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => navigateToPage('ocr-analysis')}
+                                        className="mt-5 min-h-11 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-black text-white hover:bg-indigo-500"
+                                    >
+                                        위험성평가 분석으로 이동
+                                    </button>
+                                </div>
+                            )
                         )}
                         {currentPage === 'survey-intelligence' && <SurveyIntelligence workerRecords={workerRecords} />}
                         {currentPage === 'predictive-analysis' && <PredictiveAnalysis workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
@@ -1360,11 +1413,11 @@ const App: React.FC = () => {
                         {currentPage === 'admin-training' && <AdminTraining />}
                         {currentPage === 'worker-training' && <WorkerTraining sessionId={trainingSessionId} />}
                         {currentPage === 'safety-behavior-management' && <SafetyBehaviorManagement workerRecords={workerRecords} />}
-                        {currentPage === 'safety-inspector' && <SafetyInspector />}
+                        {currentPage === 'safety-inspector' && <SafetyInspector onUnsavedChange={(dirty) => { inspectorDirtyRef.current = dirty; }} />}
                         {currentPage === 'safety-compliance-hub' && <FieldSafetyComplianceHub workerRecords={workerRecords} />}
                         {currentPage === 'feedback' && <Feedback />}
                         {currentPage === 'introduction' && <Introduction workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
-                        {currentPage === 'settings' && <Settings workerRecords={workerRecords} />}
+                        {currentPage === 'settings' && <Settings workerRecords={workerRecords} onResetAllData={handleDeleteAll} />}
                         {currentPage === 'field-context-input' && <FieldContextInput />}
                         {currentPage === 'intervention-coaching' && <InterventionCoaching workerRecords={workerRecords} onNavigateToPage={(page) => {
                             if (page === 'admin-training') {
@@ -1413,7 +1466,7 @@ const App: React.FC = () => {
                     onClose={() => setModalState({type:null})} 
                     onBack={() => (modalState.source === 'worker-management-photo-queue' || modalState.source === 'ocr-analysis') ? setModalState({type:null}) : setModalState({type:'workerHistory', record:latestRecord, workerName:latestRecord.name})}
                     onUpdateRecord={handleUpdateRecord} 
-                    onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); navigateToPage('individual-report'); }} 
+                    onOpenReport={(r) => { setModalState({type:null}); setReportReturnPage(currentPage); setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); navigateToPage('individual-report'); }} 
                     onReanalyze={handleReanalyzeRecord} 
                     isReanalyzing={isReanalyzing} 
                     queueContext={modalState.source === 'worker-management-photo-queue' ? {
@@ -1433,7 +1486,7 @@ const App: React.FC = () => {
 
             {/* Undo Delete Toast */}
             {showUndoToast && (
-                <div className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 left-4 sm:left-auto z-[9999] animate-fade-in-up">
+                <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] sm:bottom-6 right-4 sm:right-6 left-4 sm:left-auto z-[9999] animate-fade-in-up">
                     <div className="bg-slate-900 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-xl sm:rounded-2xl shadow-2xl flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 border border-slate-700">
                         <div className="flex items-center gap-2">
                             <div className="bg-slate-700 p-1.5 rounded-full shrink-0">

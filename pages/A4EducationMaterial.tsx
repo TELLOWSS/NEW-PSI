@@ -1642,6 +1642,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             scopeKey: getTbmEducationScopeKey(draft.month, draft.workType),
         };
         localStorage.setItem(TBM_MONTHLY_PACKAGE_STORAGE_KEY, JSON.stringify(payload));
+        localStorage.setItem('psi_tbm_package_handoff_pending_v1', '1');
         setNotice(
             translationsMatchCurrentDraft || translationLanguageCodes.length === 0
                 ? '5단계 교육 원문을 QR/음성 파일럿 화면에 전달했습니다.'

@@ -550,9 +550,18 @@ html[data-psi-sunlight="true"] .psi-platform-field-canvas [data-psi-screen="acci
   border-color: rgba(15, 118, 110, 0.45);
 }
 
-html[data-psi-sunlight="high"] .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-heatmap-table thead th,
-html[data-psi-sunlight="high"] .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-heatmap-table .psi-ab-sticky-col {
+html[data-psi-sunlight="true"] .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-heatmap-table thead th,
+html[data-psi-sunlight="true"] .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-heatmap-table .psi-ab-sticky-col {
   background: #ffffff;
+}
+
+@media (max-width: 640px) {
+  .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-heatmap-table .psi-ab-sticky-col {
+    min-width: 84px;
+    max-width: 112px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-pillar-wrap {
@@ -709,7 +718,7 @@ html[data-psi-sunlight="high"] .psi-platform-field-canvas [data-psi-screen="acci
   transition: width 620ms var(--ab-ease);
 }
 
-html[data-psi-sunlight="high"] .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-site-row {
+html[data-psi-sunlight="true"] .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-site-row {
   border-color: #cbd5e1;
   background: #ffffff;
 }
@@ -720,10 +729,24 @@ html.dark .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-a
   border-color: rgba(148, 163, 184, 0.22);
 }
 
+html.dark .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-file-chip,
+[data-theme="dark"] .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-file-chip {
+  background: rgba(15, 23, 42, 0.85);
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #e2e8f0;
+}
+
 html.dark .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-file-chip.is-ok,
 [data-theme="dark"] .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-file-chip.is-ok {
   background: rgba(6, 78, 59, 0.45);
   color: #a7f3d0;
+}
+
+html.dark .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-file-chip.is-err,
+[data-theme="dark"] .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] .psi-ab-file-chip.is-err {
+  background: rgba(136, 19, 55, 0.45);
+  border-color: rgba(251, 113, 133, 0.45);
+  color: #fecdd3;
 }
 
 html[data-psi-motion-paused="true"] .psi-platform-field-canvas [data-psi-screen="accident-bigdata"] *,

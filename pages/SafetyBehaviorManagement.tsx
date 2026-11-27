@@ -18,6 +18,12 @@ import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { BRAND_TONE } from '../utils/brandToneTokens';
 import { getWorkerIdentityKey as getStableWorkerIdentityKey } from '../utils/workerIdentity';
+import {
+    appendLocalSafetyObservations,
+    extractClosureLoopCounts,
+    normalizeCoachingActionType,
+    resolveServerWorkerUuid,
+} from '../utils/safetyClosureLoopHelper';
 
 // -----------------------------------------------------------------------
 // 상수 / 프리셋 목록 (API와 동기화)
@@ -159,6 +165,7 @@ interface IntegrityReviewRow {
 
 export interface WorkerOption {
     id: string;
+    serverWorkerUuid?: string | null;
     name: string;
     label: string;
     trade?: string;
@@ -221,6 +228,7 @@ export const buildSafetyBehaviorWorkerOptions = (workerRecords: WorkerRecord[]):
         seen.add(stableKey);
         options.push({
             id: worker.id,
+            serverWorkerUuid: resolveServerWorkerUuid(worker),
             name: worker.name,
             label: buildWorkerOptionLabel(worker),
             trade: worker.jobField,
@@ -365,30 +373,78 @@ const ObserveTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }>
         setResult(null);
         try {
             const nowIso = new Date().toISOString();
-            const records = selectedWorkerIds.map((workerId) => ({
-                worker_id: workerId,
-                assessment_month: assessmentMonth,
-                observed_at: nowIso,
-                observer_name: observerName || undefined,
-                unsafe_behavior_flag: true,
-                unsafe_behavior_type: behaviorPreset,
-                severity_level: severity,
-                evidence_note: evidenceNote || undefined,
-                action_type: includeCoaching ? (actionType || undefined) : undefined,
-                action_detail: includeCoaching ? (actionDetail || undefined) : undefined,
-                action_completed_at: includeCoaching ? nowIso : undefined,
-                coach_name: includeCoaching ? (coachName || undefined) : undefined,
-                followup_result: includeCoaching ? followupResult : undefined,
-                followup_checked_at: includeCoaching ? nowIso : undefined,
-            }));
+            const normalizedCoaching = includeCoaching
+                ? normalizeCoachingActionType(actionType, actionDetail)
+                : { actionType: undefined, actionDetail: undefined };
+            const workerMap = new Map<string, WorkerOption>(workers.map((w) => [w.id, w]));
+            const serverRecords: Array<Record<string, unknown>> = [];
+            const localRecords: Array<Parameters<typeof appendLocalSafetyObservations>[0][number]> = [];
 
-            const data = await callApi('/api/admin/safety-management', {
-                action: 'record-safety-closure-loop',
-                payload: { records },
-            });
-            const observationCount = Number(data?.inserted_observations || 0);
-            const coachingCount = Number(data?.inserted_coaching || 0);
-            setResult({ ok: true, message: `통합 등록 완료 (관찰 ${observationCount}건 / 코칭 ${coachingCount}건)` });
+            for (const rawSelectedId of selectedWorkerIds) {
+                const selectedId = String(rawSelectedId);
+                const option = workerMap.get(selectedId);
+                const serverUuid = resolveServerWorkerUuid({
+                    id: selectedId,
+                    worker_uuid: option?.serverWorkerUuid,
+                });
+                const payloadFields = {
+                    assessment_month: assessmentMonth,
+                    observed_at: nowIso,
+                    observer_name: observerName || undefined,
+                    unsafe_behavior_flag: true,
+                    unsafe_behavior_type: behaviorPreset,
+                    severity_level: severity,
+                    evidence_note: evidenceNote || undefined,
+                    action_type: normalizedCoaching.actionType,
+                    action_detail: normalizedCoaching.actionDetail,
+                    action_completed_at: includeCoaching ? nowIso : undefined,
+                    coach_name: includeCoaching ? (coachName || undefined) : undefined,
+                    followup_result: includeCoaching ? followupResult : undefined,
+                    followup_checked_at: includeCoaching ? nowIso : undefined,
+                };
+                if (serverUuid) {
+                    serverRecords.push({ worker_id: serverUuid, ...payloadFields });
+                } else {
+                    localRecords.push({
+                        worker_id: selectedId,
+                        worker_name: option?.name,
+                        assessment_month: assessmentMonth,
+                        observed_at: nowIso,
+                        observer_name: observerName || undefined,
+                        unsafe_behavior_flag: true,
+                        unsafe_behavior_type: behaviorPreset,
+                        severity_level: severity,
+                        evidence_note: evidenceNote || undefined,
+                        action_type: normalizedCoaching.actionType,
+                        action_detail: normalizedCoaching.actionDetail,
+                        coach_name: includeCoaching ? (coachName || undefined) : undefined,
+                        followup_result: includeCoaching ? followupResult : undefined,
+                    });
+                }
+            }
+
+            let observationCount = 0;
+            let coachingCount = 0;
+            if (serverRecords.length > 0) {
+                const data = await callApi('/api/admin/safety-management', {
+                    action: 'record-safety-closure-loop',
+                    payload: { records: serverRecords },
+                });
+                const counts = extractClosureLoopCounts(data);
+                observationCount = counts.insertedObservations;
+                coachingCount = counts.insertedCoaching;
+            }
+            if (localRecords.length > 0) {
+                appendLocalSafetyObservations(localRecords);
+            }
+
+            if (serverRecords.length > 0 && localRecords.length > 0) {
+                setResult({ ok: true, message: `서버 등록 완료 (관찰 ${observationCount}건 / 코칭 ${coachingCount}건) + 이 기기 보관 ${localRecords.length}명` });
+            } else if (serverRecords.length > 0) {
+                setResult({ ok: true, message: `통합 등록 완료 (관찰 ${observationCount}건 / 코칭 ${coachingCount}건)` });
+            } else {
+                setResult({ ok: true, message: `[기기 보관 완료] ${localRecords.length}명 관찰 기록을 이 기기에 저장했습니다.` });
+            }
             setSelectedWorkers(new Set());
             setBehaviorPreset(null);
             setEvidenceNote('');

@@ -10,6 +10,7 @@ import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { BRAND_TONE } from '../utils/brandToneTokens';
 import { getWorkerIdentityKey as getStableWorkerIdentityKey } from '../utils/workerIdentity';
+import { resolveServerWorkerUuid } from '../utils/safetyClosureLoopHelper';
 
 interface SafetyChecksProps {
     workerRecords: WorkerRecord[];
@@ -94,6 +95,7 @@ const summarizeHarnessRecords = (records: WorkerRecord[]) => {
 
 export interface SafetyCheckWorkerOption {
     id: string;
+    serverWorkerUuid?: string | null;
     name: string;
     label: string;
 }
@@ -122,6 +124,7 @@ export const buildSafetyCheckWorkerOptions = (workerRecords: WorkerRecord[]): Sa
 
         options.push({
             id: record.id,
+            serverWorkerUuid: resolveServerWorkerUuid(record),
             name: record.name,
             label: `${record.name} (${profileTag} · ${identityTag})`,
         });
@@ -295,32 +298,48 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
         setSubmitStatus(null);
         try {
             const nowIso = new Date().toISOString();
-            await postAdminJson('/api/admin/safety-management', {
-                action: 'record-safety-closure-loop',
-                payload: {
-                    records: [
-                        {
-                            worker_id: selectedWorkerId,
-                            assessment_month: String(date || '').slice(0, 7),
-                            observed_at: nowIso,
-                            observer_name: 'SafetyChecks',
-                            unsafe_behavior_flag: true,
-                            unsafe_behavior_type: riskType,
-                            severity_level: type === 'unsafe_action' ? '보통' : '낮음',
-                            evidence_note: details || undefined,
-                            action_type: null,
-                        },
-                    ],
-                },
-            }, { fallbackMessage: `점검 통합 등록 ${BRAND_STATUS_LABELS.attention}` });
+            const serverWorkerUuid = resolveServerWorkerUuid({
+                id: selectedWorkerId,
+                worker_uuid: (selectedWorker as { serverWorkerUuid?: string | null }).serverWorkerUuid,
+            });
+            const combinedEvidenceNote = [details.trim(), attachedImage ? '[사진 첨부]' : '']
+                .filter(Boolean)
+                .join(' ') || undefined;
+
+            if (serverWorkerUuid) {
+                await postAdminJson('/api/admin/safety-management', {
+                    action: 'record-safety-closure-loop',
+                    payload: {
+                        records: [
+                            {
+                                worker_id: serverWorkerUuid,
+                                assessment_month: String(date || '').slice(0, 7),
+                                observed_at: nowIso,
+                                observer_name: 'SafetyChecks',
+                                unsafe_behavior_flag: type === 'unsafe_action',
+                                unsafe_behavior_type: riskType,
+                                severity_level: type === 'unsafe_action' ? '보통' : '낮음',
+                                evidence_note: combinedEvidenceNote,
+                                action_type: null,
+                            },
+                        ],
+                    },
+                }, { fallbackMessage: `점검 통합 등록 ${BRAND_STATUS_LABELS.attention}` });
+            }
 
             const locallySaved = await onAddCheck({ workerName: selectedWorker.name, date, type, reason: riskType, details, image: attachedImage || undefined });
-            setSubmitStatus(locallySaved
-                ? { ok: true, message: '점검 기록을 서버와 이 기기 목록에 저장했습니다.' }
-                : {
-                    ok: false,
-                    message: '서버 등록은 완료됐지만 이 기기 목록에는 반영하지 못했습니다. 중복 등록하지 말고 화면을 다시 불러와 확인해 주세요.',
-                });
+            if (serverWorkerUuid) {
+                setSubmitStatus(locallySaved
+                    ? { ok: true, message: '점검 기록을 서버와 이 기기 목록에 저장했습니다.' }
+                    : {
+                        ok: false,
+                        message: '서버 등록은 완료됐지만 이 기기 목록에는 반영하지 못했습니다. 중복 등록하지 말고 화면을 다시 불러와 확인해 주세요.',
+                    });
+            } else {
+                setSubmitStatus(locallySaved
+                    ? { ok: true, message: '이 근로자는 서버 고유식별자 연동 전이어서 이 기기 안전점검 목록에 먼저 저장했습니다.' }
+                    : { ok: false, message: '이 기기 안전점검 목록에 저장하지 못했습니다.' });
+            }
 
             // Reset form
             setSelectedWorkerId('');

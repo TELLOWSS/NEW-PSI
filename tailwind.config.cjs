@@ -24,7 +24,7 @@ module.exports = {
                 blob: 'blob 7s infinite',
                 float: 'float 6s ease-in-out infinite',
                 shimmer: 'shimmer 1.5s infinite',
-                'fade-in-up': 'fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                'fade-in-up': 'fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
                 'pulse-gold': 'pulseGold 2s infinite',
             },
             keyframes: {
@@ -41,7 +41,7 @@ module.exports = {
                 shimmer: { '100%': { transform: 'translateX(100%)' } },
                 fadeInUp: {
                     '0%': { opacity: '0', transform: 'translateY(20px)' },
-                    '100%': { opacity: '1', transform: 'translateY(0)' },
+                    '100%': { opacity: '1', transform: 'none' },
                 },
                 pulseGold: {
                     '0%, 100%': { boxShadow: '0 0 0 0 rgba(245, 158, 11, 0.4)' },

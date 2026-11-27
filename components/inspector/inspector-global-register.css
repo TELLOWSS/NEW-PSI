@@ -15,7 +15,7 @@
 .si-global-register-entry .si-global-register-urgent{color:#9a3412;font-weight:700}
 .si-global-register-entry button{flex-shrink:0;min-height:44px}
 @media(max-width:560px){.si-global-register>summary{display:block}.si-global-register>summary span{display:block;margin-top:4px}.si-global-register-controls{grid-template-columns:1fr}.si-global-register-entry{flex-direction:column;align-items:stretch}.si-global-register-entry button{width:100%}.si-global-register-stats span{font-size:10px}}
-@media(prefers-color-scheme:dark){.si-global-register{background:#0f172a;color:#e2e8f0}.si-global-register>summary span{color:#cbd5e1}.si-global-register-entry,.si-global-register-stats button{background:#1e293b;color:#f1f5f9;border-color:#334155}.si-global-register-entry p{color:#cbd5e1}.si-global-register-controls input,.si-global-register-controls select{background:#1e293b;color:#f1f5f9;border-color:#475569}}
+html.dark .si-global-register{background:#0f172a;color:#e2e8f0}html.dark .si-global-register>summary span{color:#cbd5e1}html.dark .si-global-register-entry,html.dark .si-global-register-stats button{background:#1e293b;color:#f1f5f9;border-color:#334155}html.dark .si-global-register-entry p{color:#cbd5e1}html.dark .si-global-register-controls input,html.dark .si-global-register-controls select{background:#1e293b;color:#f1f5f9;border-color:#475569}
 @media print{.si-global-register{display:none!important}}
 
 /* Two independent axes: date deadline and human verification. */
@@ -24,7 +24,7 @@
 .si-global-register-entry[data-reinspection-pending="yes"] .si-global-register-next{border-inline-start:3px solid #3b82f6;padding-inline-start:10px}
 .si-global-register-entry p.si-global-register-next{font-size:12px;line-height:1.6;color:#1d4ed8}
 .si-global-register-entry .si-global-register-next b{font-size:12px}
-@media(prefers-color-scheme:dark){.si-global-register-overlap{background:#451a03;color:#fde68a;border-color:#92400e}.si-global-register-entry p.si-global-register-next{color:#bfdbfe}}
+html.dark .si-global-register-overlap{background:#451a03;color:#fde68a;border-color:#92400e}html.dark .si-global-register-entry p.si-global-register-next{color:#bfdbfe}
 
 
 /* R118: explicit filters for fetched rows only; not a site-wide alarm or background scan. */
@@ -41,13 +41,13 @@
 .si-global-register-entry .si-global-register-next-check b{font-size:12px}
 @media(max-width:900px){.si-global-register-scope-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.si-global-register-scope{padding:12px}.si-global-register-scope-grid{grid-template-columns:1fr}.si-global-register-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.si-global-register-scope-footer{align-items:stretch;flex-direction:column}.si-global-register-scope-footer .si-btn{width:100%}}
-@media(prefers-color-scheme:dark){.si-global-register-scope{background:#172b41;border-color:#4b647d}.si-global-register-scope legend,.si-global-register-scope-grid label{color:#e2efff}.si-global-register-scope-grid input,.si-global-register-scope-grid select{background:#223850;color:#f0f8ff;border-color:#5c7894}.si-global-register-scope-footer{color:#c5d8e8}.si-global-register-check-notice{background:#4b391e;color:#fff1bc;border-color:#978049}.si-global-register-entry p.si-global-register-next-check{background:#3b3525;color:#ffe3a2}}
+html.dark .si-global-register-scope{background:#172b41;border-color:#4b647d}html.dark .si-global-register-scope legend,html.dark .si-global-register-scope-grid label{color:#e2efff}html.dark .si-global-register-scope-grid input,html.dark .si-global-register-scope-grid select{background:#223850;color:#f0f8ff;border-color:#5c7894}html.dark .si-global-register-scope-footer{color:#c5d8e8}html.dark .si-global-register-check-notice{background:#4b391e;color:#fff1bc;border-color:#978049}html.dark .si-global-register-entry p.si-global-register-next-check{background:#3b3525;color:#ffe3a2}
 
 /* R119: an explicit assignment gap is not a legal finding or automatically uncompleted work. */
 .si-global-register-assignment-notice{margin:0;padding:12px 14px;border:1px solid #f59e0b;background:#fffbeb;color:#78350f;border-radius:11px;font-size:12px;line-height:1.65}
 .si-global-register-entry[data-assignment-needed="yes"]{border-inline-start:4px solid #d97706}
 .si-global-register-entry p.si-global-register-assignment-detail{color:#92400e;background:#fff7e6;border-radius:6px;padding:6px 9px;font-weight:700}
-@media(prefers-color-scheme:dark){.si-global-register-assignment-notice{background:#451a03;color:#fde68a;border-color:#b45309}.si-global-register-entry p.si-global-register-assignment-detail{background:#422b16;color:#fde68a}}
+html.dark .si-global-register-assignment-notice{background:#451a03;color:#fde68a;border-color:#b45309}html.dark .si-global-register-entry p.si-global-register-assignment-detail{background:#422b16;color:#fde68a}
 
 /* P0 HQ Multi-Site Comparison Board */
 .si-global-site-board{border:1px solid #bfcedd;border-radius:14px;padding:14px;background:rgba(255,255,255,.86);display:grid;gap:12px}
@@ -71,7 +71,6 @@
 @media(max-width:560px){.si-site-board-grid{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.si-site-card,.si-site-progress-fill{transition:none}.si-site-card:not(:disabled):hover{transform:none}}
 [data-psi-motion-paused="true"] .si-site-card,[data-psi-motion-paused="true"] .si-site-progress-fill{transition:none;animation:none}
-@media(prefers-color-scheme:dark){.si-global-site-board{background:#172b41;border-color:#4b647d}.si-site-board-header b,.si-site-card,.si-site-metrics b{color:#f1f5f9}.si-site-board-header small,.si-site-metrics{color:#cbd5e1}.si-site-card{background:#1e293b;border-color:#475569}.si-site-card.is-active{background:#0f2a44;border-color:#38bdf8}.si-site-card-top span{color:#7dd3fc}.si-site-progress-track{background:#334155}.si-site-metrics .is-alert,.si-site-metrics .is-alert b{color:#fca5a5}.si-site-metrics .is-review,.si-site-metrics .is-review b{color:#93c5fd}}
 html.dark .si-global-site-board{background:#172b41;border-color:#4b647d}
 html.dark .si-site-board-header b,html.dark .si-site-card,html.dark .si-site-metrics b{color:#f1f5f9}
 html.dark .si-site-board-header small,html.dark .si-site-metrics{color:#cbd5e1}

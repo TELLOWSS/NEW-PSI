@@ -260,6 +260,7 @@ const downloadTextFile = (fileName: string, content: string, mimeType: string) =
 
 interface SettingsProps {
     workerRecords?: WorkerRecord[];
+    onResetAllData?: () => Promise<void> | void;
 }
 
 const SettingsGuide: React.FC<{ onClose: () => void; isDeveloperExperience: boolean }> = ({ onClose, isDeveloperExperience }) => {
@@ -323,7 +324,7 @@ const SettingsGuide: React.FC<{ onClose: () => void; isDeveloperExperience: bool
     );
 };
 
-const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
+const Settings: React.FC<SettingsProps> = ({ workerRecords = [], onResetAllData }) => {
     const { isDevMode } = useDevMode();
     const { mode: operationalMode } = useOperationalMode();
     const isDeveloperExperience = isDevMode && operationalMode === 'developer';
@@ -775,10 +776,20 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     };
 
     const handleResetData = () => {
+        if (onResetAllData) {
+            void onResetAllData();
+            return;
+        }
         if (confirm("⚠️ 경고: 모든 데이터가 삭제됩니다 (근로자 기록, 점검 일지 등).\n분석 서비스 연결 정보는 유지됩니다.\n\n정말 초기화 하시겠습니까?")) {
             localStorage.removeItem('psi_safety_checks');
             localStorage.removeItem('psi_site_issues');
-            alert("로컬 저장소 데이터가 정리되었습니다. 완벽한 초기화를 위해 브라우저의 '사이트 데이터 삭제'를 권장합니다.\n페이지를 새로고침합니다.");
+            localStorage.removeItem('psi_accident_bigdata_v1');
+            localStorage.removeItem('psi_tbm_education_studio_v2');
+            localStorage.removeItem('psi_tbm_monthly_education_package_v1');
+            if (typeof indexedDB !== 'undefined') {
+                indexedDB.deleteDatabase('PSI_Enterprise_V4');
+            }
+            alert("저장된 데이터를 초기화했습니다.\n페이지를 새로고침합니다.");
             window.location.reload();
         }
     };
@@ -1681,9 +1692,19 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 </div>
             </header>
 
-            <PsiCompanyAuditPanel />
-            <OperatorReleaseProof />
-            <FreeTierCapacityPlanner />
+            <details
+                id="settings-company-qa"
+                className="mb-4 rounded-2xl border border-slate-200 bg-white/90 p-4 dark:border-slate-700 dark:bg-slate-900/90"
+            >
+                <summary className="cursor-pointer text-sm font-black text-slate-800 dark:text-slate-100">
+                    시스템 운영 증명 · 무료 용량 · 조직 감사 (관리자 참고)
+                </summary>
+                <div className="mt-4 space-y-4">
+                    <PsiCompanyAuditPanel />
+                    <OperatorReleaseProof />
+                    <FreeTierCapacityPlanner />
+                </div>
+            </details>
 
             <section className={styles.overview} aria-labelledby="settings-overview-heading">
                 <h3 id="settings-overview-heading" className="sr-only">설정 운영 요약</h3>

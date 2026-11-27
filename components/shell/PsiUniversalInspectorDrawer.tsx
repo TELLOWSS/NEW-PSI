@@ -12,6 +12,7 @@ import {
   SITE_ISSUES_STORAGE_KEY,
   SITE_ISSUES_UPDATED_EVENT,
 } from '../../utils/siteIssueStorage';
+import { NEXUS_SITE_MASTER_UPDATED_EVENT } from '../../utils/nexusSiteRegistry';
 import {
   NEXUS_EQUIPMENT_PHOTO_STATUS_LABELS,
   NEXUS_EQUIPMENT_PHOTO_UPDATED_EVENT,
@@ -78,6 +79,7 @@ export const PsiUniversalInspectorDrawer: React.FC<PsiUniversalInspectorDrawerPr
   const [inspectorLoading, setInspectorLoading] = useState(false);
   const [inspectorError, setInspectorError] = useState('');
   const aliveRef = useRef(true);
+  const prevFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     aliveRef.current = true;
@@ -85,6 +87,17 @@ export const PsiUniversalInspectorDrawer: React.FC<PsiUniversalInspectorDrawerPr
       aliveRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!open || typeof document === 'undefined') return;
+    prevFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      prevFocusRef.current?.focus?.();
+    };
+  }, [open]);
 
   const loadInspectorActions = useCallback(async () => {
     setInspectorLoading(true);
@@ -120,6 +133,7 @@ export const PsiUniversalInspectorDrawer: React.FC<PsiUniversalInspectorDrawerPr
       NEXUS_HQ_LOOP_UPDATED_EVENT,
       NEXUS_CEO_TRAINING_UPDATED_EVENT,
       SITE_ISSUES_UPDATED_EVENT,
+      NEXUS_SITE_MASTER_UPDATED_EVENT,
       'storage',
     ];
     for (const ev of events) {

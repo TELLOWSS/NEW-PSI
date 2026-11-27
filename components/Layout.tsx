@@ -874,11 +874,11 @@ export const Layout: React.FC<LayoutProps> = ({
             }
             scrollTopButton={
                 <>
-                    {showScrollTop && currentPage !== 'safety-inspector' ? (
+                    {showScrollTop && currentPage !== 'safety-inspector' && !isMobileMenuOpen && !isInspectorDrawerOpen && !isQuickJumpOpen ? (
                         <button
                             type="button"
                             onClick={handleScrollToTop}
-                            className="fixed bottom-24 right-5 z-[300] flex h-11 w-11 items-center justify-center rounded-xl bg-blue-700 text-white shadow-lg transition-colors hover:bg-blue-600 active:scale-95 lg:bottom-6 no-print"
+                            className="fixed bottom-24 right-5 z-[45] flex h-11 w-11 items-center justify-center rounded-xl bg-blue-700 text-white shadow-lg transition-colors hover:bg-blue-600 active:scale-95 lg:bottom-6 no-print"
                             aria-label="최상단으로 이동"
                             title="최상단으로 이동"
                         >

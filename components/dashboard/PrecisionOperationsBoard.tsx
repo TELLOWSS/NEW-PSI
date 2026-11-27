@@ -42,6 +42,7 @@ interface PrecisionOperationsBoardProps {
     safetyCheckRecords: SafetyCheckRecord[];
     setCurrentPage: (page: Page) => void;
     onOpenAdvanced: () => void;
+    onOpenRecord?: (record: WorkerRecord) => void;
     onOpenNexus?: (trade: string, view: OperationsViewState) => void;
     initialTrade?: string;
     initialView?: OperationsViewState | null;
@@ -131,6 +132,7 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
     safetyCheckRecords,
     setCurrentPage,
     onOpenAdvanced,
+    onOpenRecord,
     onOpenNexus,
     initialTrade,
     initialView,
@@ -587,7 +589,17 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                                             </td>
                                             <td data-label="기록일">{getRecordDateLabel(item.record.date)}</td>
                                             <td className="psi-ops-row-action">
-                                                <button type="button" onClick={() => setCurrentPage(item.actionPage)} aria-label={`${item.record.name} ${item.actionLabel}`}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (onOpenRecord && item.actionPage === 'ocr-analysis') {
+                                                            onOpenRecord(item.record);
+                                                            return;
+                                                        }
+                                                        setCurrentPage(item.actionPage);
+                                                    }}
+                                                    aria-label={`${item.record.name} ${item.actionLabel}`}
+                                                >
                                                     {item.actionLabel}
                                                 </button>
                                             </td>

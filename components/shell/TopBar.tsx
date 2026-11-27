@@ -57,6 +57,10 @@ export const TopBar: React.FC<TopBarProps> = ({
         '선행 위험신호 분석': '위험신호 분석',
         '현장 위험 이슈 관리': '현장 이슈',
         '월별 계도 리포트': '월별 계도',
+        '사고 빅데이터 허브': '사고 빅데이터',
+        '안전조치 통합 허브': '안전조치 허브',
+        'A4 교육자료 제작': '교육자료 제작',
+        '사진점검 · 개선관리': '사진점검',
     };
     const mobilePageTitle = mobileTitleMap[currentPageTitle]
         || (currentPageTitle.endsWith('계도 리포트') ? currentPageTitle.replace(' 리포트', '') : currentPageTitle);
@@ -117,12 +121,12 @@ export const TopBar: React.FC<TopBarProps> = ({
                         <button
                             type="button"
                             onClick={onOpenQuickJump}
-                            className="psi-quickjump-trigger hidden sm:inline-flex min-h-10 shrink-0 whitespace-nowrap items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-2.5 text-xs font-bold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                            className="psi-quickjump-trigger inline-flex min-h-11 w-11 shrink-0 whitespace-nowrap items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-0 text-xs font-bold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 sm:min-h-10 sm:w-auto sm:px-2.5"
                             aria-label="빠른 찾기 열기"
                             title="화면·점검 기능 빠른 찾기 (Ctrl+K)"
                         >
                             <span aria-hidden="true">⌕</span>
-                            <span>빠른 찾기</span>
+                            <span className="hidden sm:inline">빠른 찾기</span>
                             <kbd className="hidden rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 xl:inline">Ctrl K</kbd>
                         </button>
                     )}
@@ -152,7 +156,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                             type="button"
                             onClick={onToggleMotionPaused}
                             aria-pressed={!motionPaused}
-                            className={`psi-motion-toggle-btn flex min-h-11 shrink-0 whitespace-nowrap items-center justify-center gap-1 rounded-xl border px-2 text-xs font-bold transition-colors sm:min-h-10 sm:px-2.5 ${
+                            className={`psi-motion-toggle-btn hidden sm:flex min-h-10 shrink-0 whitespace-nowrap items-center justify-center gap-1 rounded-xl border px-2.5 text-xs font-bold transition-colors ${
                                 motionPaused
                                     ? 'border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300'
                                     : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800'

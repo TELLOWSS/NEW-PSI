@@ -40,6 +40,7 @@ import {
 } from '../../utils/psiPageDecisionBrief';
 import { ACCIDENT_BIGDATA_UPDATED_EVENT } from '../../utils/accidentBigData';
 import { SITE_ISSUES_UPDATED_EVENT } from '../../utils/siteIssueStorage';
+import { NEXUS_SITE_MASTER_UPDATED_EVENT } from '../../utils/nexusSiteRegistry';
 
 interface Props {
   currentPage: Page;
@@ -99,6 +100,7 @@ export const ConnectedPageDecisionBanner: React.FC<Props> = ({
       NEXUS_OFFLINE_QUEUE_UPDATED_EVENT,
       ACCIDENT_BIGDATA_UPDATED_EVENT,
       SITE_ISSUES_UPDATED_EVENT,
+      NEXUS_SITE_MASTER_UPDATED_EVENT,
       'storage',
     ];
     for (const ev of events) {

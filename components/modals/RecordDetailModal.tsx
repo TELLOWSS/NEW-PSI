@@ -2128,20 +2128,20 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const isSubLeader = record.role === 'sub_leader';
 
     return (
-        <div className="fixed inset-0 bg-black/90 z-50 flex justify-center items-end sm:items-center p-0 sm:p-4 backdrop-blur-md" onClick={handleRequestClose}>
+        <div className="fixed inset-0 bg-black/90 z-[120] flex justify-center items-end sm:items-center p-0 sm:p-4 backdrop-blur-md" onClick={handleRequestClose}>
             <div
                 ref={dialogRef}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="record-detail-dialog-title"
                 tabIndex={-1}
-                className="bg-white rounded-t-2xl sm:rounded-3xl shadow-2xl w-full max-w-7xl h-[100vh] sm:h-[95vh] flex flex-col overflow-hidden animate-fade-in-up focus:outline-none"
+                className="bg-white rounded-t-2xl sm:rounded-3xl shadow-2xl w-full max-w-7xl h-[100dvh] sm:h-[95dvh] flex flex-col overflow-hidden animate-fade-in-up focus:outline-none"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
                 <header className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-slate-100 bg-white z-20 shrink-0 gap-2">
                     <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-                        <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
+                        <button type="button" aria-label="이전 화면으로 돌아가기" onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
                         <div className="min-w-0">
                             <h2 id="record-detail-dialog-title" className="text-base sm:text-xl font-black text-slate-800 truncate">{record.name || '기록 확인'} 근로자 보호 판단</h2>
                             <p className="hidden sm:block text-[10px] text-indigo-500 font-bold tracking-widest uppercase">
@@ -2165,9 +2165,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     </div>
                 </header>
 
-                <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
+                <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden">
                     {/* LEFT: DOCUMENT IMAGE AREA */}
-                    <div className="w-full lg:w-[50%] bg-slate-900 overflow-y-auto custom-scrollbar relative border-r border-slate-800 p-4 sm:p-8 flex flex-col items-center">
+                    <div className="w-full lg:w-[50%] max-h-[38dvh] shrink-0 lg:max-h-none lg:shrink bg-slate-900 overflow-y-auto custom-scrollbar relative border-b lg:border-b-0 lg:border-r border-slate-800 p-4 sm:p-8 flex flex-col items-center">
                         <div className="sticky top-0 left-0 z-10 mb-4 sm:mb-6 w-full flex justify-between items-center gap-2 sm:gap-4">
                             <div className="flex flex-col items-start min-w-0 flex-1">
                                 <StatusBadge variant="glassDark" className="mb-1 px-3 sm:px-4 py-1.5 uppercase tracking-widest">
@@ -2235,7 +2235,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     </div>
 
                     {/* RIGHT: PROFILE & INFO EDIT AREA */}
-                    <div className="w-full lg:w-[50%] flex flex-col bg-slate-50 overflow-hidden">
+                    <div className="w-full lg:w-[50%] flex-1 min-h-0 flex flex-col bg-slate-50 overflow-hidden">
                         <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-5 sm:space-y-8 custom-scrollbar">
                             {isLegacyMigratedRecord(record) && (
                                 <div role="note" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">

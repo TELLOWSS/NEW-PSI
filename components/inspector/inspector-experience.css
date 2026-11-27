@@ -352,6 +352,18 @@
 .si-record-photo-details{margin:7px 0 16px;padding:10px 12px;background:#edf7f1;border-radius:11px;border:1px solid #cde4d9}
 .si-record-photo-details>summary{min-height:38px;display:flex;align-items:center;cursor:pointer;color:#1c6652;font-size:13px;font-weight:850}
 .si-record-photo-details[open] .si-photos{margin-top:12px}
+html.dark .si-record-bulk-toolbar{background:#172b36;border-color:#33594f;color:#e2f3ee}
+html.dark .si-record-bulk-check{background:#152833;border-color:#2c4b55;color:#e2f3ee}
+html.dark .si-bulk-delete-dialog{background:#112938;border-color:#2c4b55;color:#edf9f7}
+html.dark .si-bulk-delete-dialog>header{background:#112938;border-color:#2c4b55}
+html.dark .si-bulk-delete-dialog>header h2,html.dark .si-bulk-record strong{color:#edf9f7}
+html.dark .si-bulk-summary span{background:#183340;border-color:#2c4b55;color:#c2d9dc}
+html.dark .si-bulk-confirm{background:#2f1e24;border-color:#7f3b43;color:#fde8e8}
+html.dark .si-bulk-confirm>p,html.dark .si-bulk-confirm .si-check{color:#fecdd3}
+html.dark .si-bulk-record{background:#152e3d;border-color:#2c4b55}
+html.dark .si-bulk-record small{color:#a8c2cb}
+html.dark .si-record-photo-details{background:#152d36;border-color:#2c4b55}
+html.dark .si-record-photo-details>summary{color:#8be4cf}
 @media(max-width:600px){
  .si-record-bulk-toolbar{padding:8px}
  .si-record-bulk-toolbar>.si-btn{flex:1 1 calc(50% - 7px)}

@@ -42,13 +42,18 @@ export const PsiGlobalQuickJump: React.FC<PsiGlobalQuickJumpProps> = ({
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const prevFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
+    prevFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setQuery('');
     setActiveIndex(0);
     const timer = window.setTimeout(() => inputRef.current?.focus(), 20);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      prevFocusRef.current?.focus?.();
+    };
   }, [open]);
 
   const items = useMemo<QuickJumpItem[]>(() => {
