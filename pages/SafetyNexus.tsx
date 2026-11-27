@@ -2314,26 +2314,38 @@ const SafetyNexus: React.FC<Props> = ({
             )}
           </div>
           <div className="nexus-followup-breakdown" aria-label="문항별 후속조치 내역">
-            <h3>문항별 확인이 필요한 조치</h3>
-            <p>선택한 작성 기록과 연결된 조치입니다. 기한 초과와 재개방 이력은 미완료 건수와 겹칠 수 있습니다.</p>
-            {followup.totalCases === 0 ? <p>{followup.conflictingRecords ? '집계 가능한 조치 이력이 없습니다. 충돌 기록의 원본을 확인해 주세요.' : '선택한 기록에 연결된 조치 이력이 없습니다.'}</p> :
-              <ul>{followup.questionGroups.filter(group => group.unresolved || group.overdue || group.reopened).map(group =>
-                <li key={group.number}><button type="button" aria-pressed={selectedQuestion === group.number} onClick={() => setSelectedQuestion(group.number)}>Q{group.number} 관련 기록 보기</button> · 미완료 {group.unresolved}건 · 기한 초과 {group.overdue}건 · 재개방 이력 {group.reopened}건</li>
+            <div className="nexus-followup-breakdown-head">
+              <div>
+                <h3>문항별 확인이 필요한 조치</h3>
+                <p>선택한 작성 기록과 연결된 조치입니다. 기한 초과와 재개방 이력은 미완료 건수와 겹칠 수 있습니다.</p>
+              </div>
+            </div>
+            {followup.totalCases === 0 ? <p className="nexus-followup-breakdown-empty">{followup.conflictingRecords ? '집계 가능한 조치 이력이 없습니다. 충돌 기록의 원본을 확인해 주세요.' : '선택한 기록에 연결된 조치 이력이 없습니다.'}</p> :
+              <ul className="nexus-followup-q-list">{followup.questionGroups.filter(group => group.unresolved || group.overdue || group.reopened).map(group =>
+                <li key={group.number} className="nexus-followup-q-item">
+                  <button type="button" className="nexus-followup-q-btn" aria-pressed={selectedQuestion === group.number} onClick={() => setSelectedQuestion(group.number)}>Q{group.number} 관련 기록 보기</button>
+                  <span className="nexus-followup-q-stats">미완료 {group.unresolved}건 · 기한 초과 {group.overdue}건 · 재개방 이력 {group.reopened}건</span>
+                </li>
               )}</ul>}
             {followup.totalCases > 0 && followup.questionGroups.every(group => !group.unresolved && !group.overdue && !group.reopened) &&
-              <p>선택 범위에서 미완료 또는 재개방 이력이 집계되지 않았습니다.</p>}
-            {selectedQuestion !== null && <div>
+              <p className="nexus-followup-breakdown-empty">선택 범위에서 미완료 또는 재개방 이력이 집계되지 않았습니다.</p>}
+            {selectedQuestion !== null && <div className="nexus-followup-cases-box">
               <p>Q{selectedQuestion}에 연결된 이력이 있는 선택 범위의 기록입니다. 아래 이력은 조치 기준일 {followup.asOfDate}까지 표시하며, 완료 이력도 포함할 수 있습니다.</p>
               {questionCases.length === 0 && <p>해당 문항에 집계 가능한 조치가 없습니다. 충돌한 이력은 표시하지 않습니다.</p>}
-              <ul>{questionCases.map(({ recordId, item }) => {
+              <ul className="nexus-followup-case-list">{questionCases.map(({ recordId, item }) => {
                 const record = filteredRecords.find(row => String(row.id || '').trim() === recordId);
-                return <li key={recordId + '-' + item.caseId}>{record?.date} · {record?.jobField || '공종 미확인'} · {record?.name || '이름 미확인'} {record && onOpenRecord && <button type="button" onClick={() => onOpenRecord(record)}>기록 상세 열기</button>}
-                  <details><summary>해당 문항 조치 이력 보기</summary>
+                return <li key={recordId + '-' + item.caseId} className="nexus-followup-case-item">
+                  <div className="nexus-followup-case-head">
+                    <span>{record?.date} · {record?.jobField || '공종 미확인'} · {record?.name || '이름 미확인'}</span>
+                    {record && onOpenRecord && <button type="button" className="nexus-followup-case-open-btn" onClick={() => onOpenRecord(record)}>기록 상세 열기</button>}
+                  </div>
+                  <details className="nexus-followup-case-details"><summary>해당 문항 조치 이력 보기</summary>
                     <ul>{item.events.map(event =>
                       <li key={event.id}>{event.timestamp} · {FOLLOWUP_STATUS_LABELS[event.status] || '상태 확인 필요'} · {event.actionDetail || '내용 없음'}</li>
                     )}</ul>
                   </details>
-                  {!record?.handwrittenAnswers?.some(answer => Boolean(String(answer.answerText || '').trim())) && <span> · 자필 답변이 없어 상세 화면의 조치 도구가 표시되지 않을 수 있습니다.</span>}</li>;
+                  {!record?.handwrittenAnswers?.some(answer => Boolean(String(answer.answerText || '').trim())) && <p className="nexus-followup-case-note">자필 답변이 없어 상세 화면의 조치 도구가 표시되지 않을 수 있습니다.</p>}
+                </li>;
               })}</ul>
             </div>}
           </div>
@@ -2343,7 +2355,7 @@ const SafetyNexus: React.FC<Props> = ({
               <span>교육 전달과 조치 완료는 구별하며, 재점검은 관리자 이력 기준입니다.</span>
             </div>
             <PracticeEvidencePanel records={filteredRecords} summary={practice} selected={practiceFilter} onSelect={setPracticeFilter} onOpenRecord={onOpenRecord} />
-            <p>재확인 필요는 기록·문항의 마지막 현장 확인에서 개선 필요 또는 확인 불가로 남은 경우입니다.
+            <p className="nexus-practice-boundary">재확인 필요는 기록·문항의 마지막 현장 확인에서 개선 필요 또는 확인 불가로 남은 경우입니다.
               안전행동이 관찰되었더라도 조치 완료·작업재개가 자동 승인되는 것은 아닙니다.</p>
           </div>
           <div className="nexus-followup-footer">
@@ -2353,9 +2365,15 @@ const SafetyNexus: React.FC<Props> = ({
           </div>
         </section>
         <section className="nexus-metrics" aria-label="6대 안전인식 지표">
-          <div className="nexus-metrics-caption"><span>6대 핵심 안전 지표</span><strong>6대 안전인식 지표</strong><p>지표명 안내입니다. 점수와 유효 분모는 이 화면에 아직 연결되지 않았습니다.</p></div>
+          <div className="nexus-metrics-caption">
+            <div className="nexus-metrics-caption-head">
+              <span>6대 핵심 안전 지표</span>
+              <strong>6대 안전인식 지표</strong>
+            </div>
+            <p className="nexus-metrics-caption-note">지표명 안내입니다. 점수와 유효 분모는 이 화면에 아직 연결되지 않았습니다.</p>
+            <button type="button" className="nexus-metrics-report-btn" onClick={() => onNavigateToPage('monthly-guidance-report')}>기존 평가 보고서 열기 ↗</button>
+          </div>
           <div className="nexus-metrics-list">{METRICS.map(s => <div className="nexus-metric" key={s[0]}><span>{s[0]} <i /></span><strong>{s[1]}</strong><small>{s[2]}</small></div>)}</div>
-          <button type="button" onClick={() => onNavigateToPage('monthly-guidance-report')}>기존 평가 보고서 열기</button>
         </section>
         <ScoreMetricEvidencePanel records={filteredRecords} scopeLabel={`${filterMonth || '전체 작성기간'} · ${filterTrade || '전체 공종'}`} asOf={followup.asOfDate} loadState={loadState} onOpenRecord={onOpenRecord} />
         <section className="nexus-compliance-panel" aria-label="중대재해처벌법 반기·월간 법적 이행 증빙 편철 센터">
