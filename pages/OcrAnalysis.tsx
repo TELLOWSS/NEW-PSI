@@ -6625,29 +6625,147 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     );
 
     return (
-        <div data-psi-screen="ocr-analysis" className="psi-field-screen psi-ocr-precision space-y-6 sm:space-y-8 animate-fade-in-up">
-            <section id="ocr-start-guide" tabIndex={-1} aria-labelledby="ocr-start-title" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm outline-none sm:p-7">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div><p className="text-sm font-semibold text-indigo-700">위험성평가 작업 시작</p><h2 id="ocr-start-title" className="mt-1 text-2xl font-bold text-slate-950">오늘 어떤 작업을 하시나요?</h2></div>
-                    <span className="rounded-full bg-slate-100 px-3 py-2 text-sm text-slate-600">현재 작업 목록 {existingRecords.length}건</span>
+        <div data-psi-screen="ocr-analysis" className="psi-field-screen psi-ocr-precision space-y-5 sm:space-y-6 animate-fade-in-up">
+            {/* 통합된 컴팩트 작업 시작 + 현장 현황 커맨드 바 */}
+            <section
+                id="ocr-start-guide"
+                tabIndex={-1}
+                aria-labelledby="ocr-start-title"
+                data-mobile-proof="field-mode"
+                className="psi-ocr-field-hero scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm outline-none sm:p-5"
+            >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full bg-indigo-50 border border-indigo-200 px-3 py-1 text-xs font-bold text-indigo-800">
+                                위험성평가 기록지
+                            </span>
+                            <span className={`rounded-full px-3 py-1 text-xs font-bold ${mobileProofSnapshot.evidenceReady ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
+                                {mobileProofSnapshot.statusLabel}
+                            </span>
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700 tabular-nums">
+                                현재 작업 목록 {existingRecords.length}건
+                            </span>
+                        </div>
+                        <h2 id="ocr-start-title" className="mt-2 text-lg sm:text-xl font-black text-slate-950">
+                            오늘 어떤 작업을 하시나요? · 쓴 위험을 놓치지 않도록 기록지를 먼저 등록·검수하세요
+                        </h2>
+                        <p data-mobile-proof="proof-line" className="mt-1 text-xs sm:text-sm font-medium leading-relaxed text-slate-600">
+                            {mobileProofSnapshot.proofLine} · 유료 분석은 별도 승인 후에만 실행됩니다.
+                        </p>
+                    </div>
+
+                    <div className="grid min-w-0 grid-cols-4 gap-2 text-center text-xs font-black sm:min-w-[360px] shrink-0">
+                        <div data-mobile-proof="metric-total-records" className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2">
+                            <p className="text-slate-500 font-bold">등록</p>
+                            <p className="mt-0.5 text-base sm:text-lg text-indigo-700 tabular-nums">{mobileProofSnapshot.totalRecords}건</p>
+                        </div>
+                        <div data-mobile-proof="metric-tracked-workers" className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2">
+                            <p className="text-slate-500 font-bold">반복</p>
+                            <p className="mt-0.5 text-base sm:text-lg text-emerald-700 tabular-nums">{mobileProofSnapshot.trackedWorkers}명</p>
+                        </div>
+                        <div data-mobile-proof="metric-review-required" className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2">
+                            <p className="text-slate-500 font-bold">확인</p>
+                            <p className="mt-0.5 text-base sm:text-lg text-amber-700 tabular-nums">{mobileProofSnapshot.reviewRequired}명</p>
+                        </div>
+                        <div data-mobile-proof="metric-protection" className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2">
+                            <p className="text-slate-500 font-bold">우선</p>
+                            <p className="mt-0.5 text-base sm:text-lg text-rose-700 tabular-nums">{mobileProofSnapshot.lowScoreRecords}건</p>
+                        </div>
+                    </div>
                 </div>
-                <div className="mt-5 grid gap-3 lg:grid-cols-3" aria-label="작업 선택">
-                    <button type="button" aria-pressed={workflowIntent === 'new'} onClick={() => openWorkflowDestination('new')} className="min-h-[120px] rounded-2xl bg-indigo-600 p-5 text-left text-white transition hover:bg-indigo-700 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-indigo-400">
-                        <span className="block text-sm text-indigo-100">처음 분석하는 문서가 있어요</span><span className="mt-2 block text-lg font-bold">1. 새 문서 분석</span><span className="mt-2 block text-sm leading-6 text-indigo-100">사진·파일 등록부터 시작합니다.</span>
+
+                {/* 3대 작업 진입 + 즉시 실행 퀵 바 */}
+                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3" aria-label="작업 선택">
+                    <button
+                        type="button"
+                        aria-pressed={workflowIntent === 'new'}
+                        onClick={() => openWorkflowDestination('new')}
+                        className={`min-h-[58px] rounded-xl px-4 py-2.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 ${workflowIntent === 'new' ? 'bg-indigo-600 text-white shadow-sm' : 'border border-slate-200 bg-slate-50 text-slate-900 hover:border-indigo-300'}`}
+                    >
+                        <span className="block text-sm font-black">1. 새 문서 분석</span>
+                        <span className={`mt-0.5 block text-xs ${workflowIntent === 'new' ? 'text-indigo-100' : 'text-slate-600'}`}>사진·파일 등록부터 바로 시작합니다.</span>
                     </button>
-                    <button type="button" aria-pressed={workflowIntent === 'backup'} onClick={() => setWorkflowIntent('backup')} className="min-h-[120px] rounded-2xl border border-slate-200 bg-slate-50 p-5 text-left text-slate-950 transition hover:border-indigo-400 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-indigo-400">
-                        <span className="block text-sm text-slate-600">예전에 하던 작업이 있어요</span><span className="mt-2 block text-lg font-bold">2. 백업에서 이어하기</span><span className="mt-2 block text-sm leading-6 text-slate-600">저장한 JSON 또는 PC 보관함을 엽니다.</span>
+                    <button
+                        type="button"
+                        aria-pressed={workflowIntent === 'backup'}
+                        onClick={() => setWorkflowIntent('backup')}
+                        className={`min-h-[58px] rounded-xl px-4 py-2.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 ${workflowIntent === 'backup' ? 'bg-indigo-600 text-white shadow-sm' : 'border border-slate-200 bg-slate-50 text-slate-900 hover:border-indigo-300'}`}
+                    >
+                        <span className="block text-sm font-black">2. 백업에서 이어하기</span>
+                        <span className={`mt-0.5 block text-xs ${workflowIntent === 'backup' ? 'text-indigo-100' : 'text-slate-600'}`}>저장한 JSON 또는 PC 보관함을 엽니다.</span>
                     </button>
-                    <button type="button" aria-pressed={workflowIntent === 'records'} onClick={() => openWorkflowDestination('records')} className="min-h-[120px] rounded-2xl border border-slate-200 bg-slate-50 p-5 text-left text-slate-950 transition hover:border-indigo-400 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-indigo-400">
-                        <span className="block text-sm text-slate-600">이미 분석한 내용을 찾고 싶어요</span><span className="mt-2 block text-lg font-bold">3. 기존 기록 확인</span><span className="mt-2 block text-sm leading-6 text-slate-600">이름·날짜로 찾아 수정하거나 리포트를 엽니다.</span>
+                    <button
+                        type="button"
+                        aria-pressed={workflowIntent === 'records'}
+                        onClick={() => openWorkflowDestination('records')}
+                        className={`min-h-[58px] rounded-xl px-4 py-2.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 ${workflowIntent === 'records' ? 'bg-indigo-600 text-white shadow-sm' : 'border border-slate-200 bg-slate-50 text-slate-900 hover:border-indigo-300'}`}
+                    >
+                        <span className="block text-sm font-black">3. 기존 기록 확인</span>
+                        <span className={`mt-0.5 block text-xs ${workflowIntent === 'records' ? 'text-indigo-100' : 'text-slate-600'}`}>이름·날짜로 찾아 수정하거나 리포트를 엽니다.</span>
                     </button>
                 </div>
-                {workflowIntent === 'backup' ? <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-slate-900" aria-label="백업 이어하기 방법">
-                    <p className="text-base font-semibold">가지고 있는 백업 형식을 선택하세요.</p>
-                    <div className="mt-3 flex flex-wrap gap-3"><button type="button" disabled={isAnalyzing} onClick={() => importInputRef.current?.click()} className="rounded-xl bg-indigo-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">JSON 파일 불러오기 · 50MiB 미만</button><button type="button" onClick={() => openWorkflowDestination('archive')} className="rounded-xl border border-indigo-300 bg-white px-4 py-3 text-sm font-bold text-indigo-900">큰 JSON·PC 보관함 열기</button></div>
-                    <p className="mt-3 text-sm leading-6">큰 JSON은 보관함으로 나눈 뒤 필요한 기록만 작업 이어하기로 가져옵니다. 원본 백업은 그대로 남습니다.</p>
-                </div> : <p className="mt-4 text-base leading-7 text-slate-600">{workflowIntent === 'records' ? (existingRecords.length ? '기록 관리에서 검색 → 원문 확인 → 수정·저장 또는 리포트 열기 순서로 진행하세요.' : '현재 작업 목록이 비어 있습니다. 새 문서를 등록하거나 백업에서 작업을 이어갈 수 있습니다.') : '새 문서는 파일 등록 → 분석 결과·원문 확인 → 수정·저장 순서로 진행합니다. 버튼을 누르는 것만으로 분석이 실행되지는 않습니다.'}</p>}
-                <p className="mt-3 text-sm text-slate-500">유료 분석은 별도 승인 후에만 실행됩니다. 연결 점검·일괄 처리 도구는 아래 ‘운영 도구’에서 찾을 수 있습니다.</p>
+
+                {workflowIntent === 'backup' && (
+                    <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 p-3.5 text-slate-900" aria-label="백업 이어하기 방법">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm font-bold">가지고 있는 백업 형식을 선택하세요. (큰 JSON은 보관함에서 필요한 기록만 가져옵니다)</p>
+                            <div className="flex flex-wrap gap-2">
+                                <button type="button" disabled={isAnalyzing} onClick={() => importInputRef.current?.click()} className="min-h-[40px] rounded-xl bg-indigo-700 px-4 py-2 text-xs sm:text-sm font-bold text-white disabled:opacity-50">JSON 파일 불러오기 · 50MiB 미만</button>
+                                <button type="button" onClick={() => openWorkflowDestination('archive')} className="min-h-[40px] rounded-xl border border-indigo-300 bg-white px-4 py-2 text-xs sm:text-sm font-bold text-indigo-900">큰 JSON·PC 보관함 열기</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                    <p className="text-xs font-medium text-slate-600">
+                        {workflowIntent === 'records'
+                            ? (existingRecords.length ? '기록 관리에서 검색 → 원문 확인 → 수정·저장 또는 리포트 열기 순서로 진행하세요.' : '현재 작업 목록이 비어 있습니다. 새 문서를 등록하거나 백업에서 작업을 이어갈 수 있습니다.')
+                            : '새 문서는 파일 등록 → 분석 결과·원문 확인 → 수정·저장 순서로 진행합니다. 연결 점검·일괄 처리는 아래 운영 도구에서 찾을 수 있습니다.'}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            data-mobile-proof="action-scan"
+                            onClick={handleOpenMobileCapture}
+                            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-black text-white shadow-sm hover:bg-indigo-700"
+                        >
+                            위험성평가 기록지 촬영·등록
+                        </button>
+                        {existingRecords.length > 0 && (
+                            <button
+                                type="button"
+                                data-mobile-proof="action-report"
+                                onClick={handleOpenMobilePriorityReport}
+                                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 hover:bg-slate-50"
+                            >
+                                리포트 열기
+                            </button>
+                        )}
+                        {existingRecords.length > 0 && (
+                            <button
+                                type="button"
+                                data-mobile-proof="action-tracking"
+                                onClick={handleOpenMobileTrackingReview}
+                                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100"
+                            >
+                                추적평가
+                            </button>
+                        )}
+                        {existingRecords.length > 0 && (
+                            <button
+                                type="button"
+                                data-mobile-proof="action-evidence-export"
+                                onClick={handleExportEvidenceSnapshot}
+                                disabled={existingRecords.length === 0}
+                                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-bold text-cyan-800 hover:bg-cyan-100 disabled:opacity-50"
+                            >
+                                증빙 저장
+                            </button>
+                        )}
+                    </div>
+                </div>
             </section>
             <input
                 type="file"
@@ -6780,112 +6898,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </button>
                 </div>
             )}
-            <section
-                data-mobile-proof="field-mode"
-                className="psi-ocr-field-hero overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl sm:rounded-3xl"
-                aria-label="위험성평가 기록 등록과 후속 업무"
-            >
-                <div className="bg-slate-950 px-4 py-5 text-white sm:px-6 sm:py-6">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <span className={`rounded-full px-3 py-1 text-[11px] font-black ${mobileProofSnapshot.evidenceReady ? 'bg-emerald-400/15 text-emerald-200 border border-emerald-300/20' : 'bg-amber-400/15 text-amber-200 border border-amber-300/20'}`}>
-                                    {mobileProofSnapshot.statusLabel}
-                                </span>
-                                <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[11px] font-black text-slate-200">
-                                    현장 기록 흐름
-                                </span>
-                            </div>
-                            <h3 className="mt-3 text-xl font-black leading-tight text-white sm:text-2xl">
-                                쓴 위험을 놓치지 않도록 기록지를 먼저 남겨주세요
-                            </h3>
-                            <p data-mobile-proof="proof-line" className="mt-2 max-w-3xl text-xs font-bold leading-relaxed text-slate-300 sm:text-sm">
-                                {mobileProofSnapshot.proofLine}
-                            </p>
-                        </div>
-                        <div className="grid min-w-0 grid-cols-2 gap-2 text-center text-[11px] font-black sm:min-w-[320px]">
-                            <div data-mobile-proof="metric-total-records" className="rounded-2xl border border-white/10 bg-white/10 px-3 py-3">
-                                <p className="text-slate-400">등록 기록</p>
-                                <p className="mt-1 text-xl text-indigo-200">{mobileProofSnapshot.totalRecords}건</p>
-                            </div>
-                            <div data-mobile-proof="metric-tracked-workers" className="rounded-2xl border border-white/10 bg-white/10 px-3 py-3">
-                                <p className="text-slate-400">반복 확인</p>
-                                <p className="mt-1 text-xl text-emerald-200">{mobileProofSnapshot.trackedWorkers}명</p>
-                            </div>
-                            <div data-mobile-proof="metric-review-required" className="rounded-2xl border border-white/10 bg-white/10 px-3 py-3">
-                                <p className="text-slate-400">관리자 확인</p>
-                                <p className="mt-1 text-xl text-amber-200">{mobileProofSnapshot.reviewRequired}명</p>
-                            </div>
-                            <div data-mobile-proof="metric-protection" className="rounded-2xl border border-white/10 bg-white/10 px-3 py-3">
-                                <p className="text-slate-400">보호 우선</p>
-                                <p className="mt-1 text-xl text-rose-200">{mobileProofSnapshot.lowScoreRecords}건</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2 sm:p-4 lg:grid-cols-4">
-                    <button
-                        type="button"
-                        data-mobile-proof="action-scan"
-                        onClick={handleOpenMobileCapture}
-                        className="flex min-h-[62px] items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 py-4 text-sm font-black text-white shadow-lg transition-colors hover:bg-indigo-700 active:scale-[0.99] sm:col-span-2"
-                    >
-                        <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                            <path d="M5 7h2l1.5-2h7L17 7h2a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" />
-                            <circle cx="12" cy="13" r="3.5" />
-                        </svg>
-                        위험성평가 기록지 촬영·등록
-                    </button>
-                    {existingRecords.length > 0 && <button
-                        type="button"
-                        data-mobile-proof="action-report"
-                        onClick={handleOpenMobilePriorityReport}
-                        className="flex min-h-[54px] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-xs font-black text-slate-800 transition-colors hover:bg-slate-50 active:scale-[0.99]"
-                    >
-                        <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                            <path d="M14 3v4a2 2 0 0 0 2 2h4" />
-                            <path d="M6 3h8l6 6v12H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
-                            <path d="M8 13h8M8 17h5" />
-                        </svg>
-                        리포트 열기
-                    </button>}
-                    {existingRecords.length > 0 && <button
-                        type="button"
-                        data-mobile-proof="action-tracking"
-                        onClick={handleOpenMobileTrackingReview}
-                        className="flex min-h-[54px] items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-xs font-black text-emerald-800 transition-colors hover:bg-emerald-100 active:scale-[0.99]"
-                    >
-                        <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                            <path d="M4 19V5" />
-                            <path d="M4 19h16" />
-                            <path d="m7 15 4-4 3 3 5-7" />
-                        </svg>
-                        추적평가
-                    </button>}
-                    {existingRecords.length > 0 && <details className="group sm:col-span-2 lg:col-span-4">
-                        <summary className="cursor-pointer list-none rounded-xl px-3 py-2 text-center text-xs font-black text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
-                            백업·검증 도구 열기
-                        </summary>
-                        <button
-                        type="button"
-                        data-mobile-proof="action-evidence-export"
-                        onClick={handleExportEvidenceSnapshot}
-                        disabled={existingRecords.length === 0}
-                        className="mx-auto mt-2 flex min-h-[48px] w-full max-w-sm items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-3 text-xs font-black text-cyan-800 transition-colors hover:bg-cyan-100 active:scale-[0.99] disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                    >
-                        <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                            <path d="M12 3v12" />
-                            <path d="m7 10 5 5 5-5" />
-                            <path d="M5 21h14" />
-                        </svg>
-                        증빙 저장
-                        </button>
-                    </details>}
-                </div>
-            </section>
             {/* Control Panel */}
-            <details id="ocr-operation-tools" open={showWorkflowTools || isAnalyzing || Boolean(importValidationSummary)} onToggle={event => setShowWorkflowTools(event.currentTarget.open)} className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <summary className="cursor-pointer px-5 py-4 text-base font-semibold text-slate-700">운영 도구 · 연결 점검, 일괄 처리, 백업 {isAnalyzing ? '(분석 진행 중)' : ''}</summary>
+            <details id="ocr-operation-tools" open={showWorkflowTools || isAnalyzing || Boolean(importValidationSummary)} onToggle={event => setShowWorkflowTools(event.currentTarget.open)} className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <summary className="cursor-pointer px-4 py-3.5 text-sm sm:text-base font-semibold text-slate-700 hover:bg-slate-50">운영 도구 · 연결 점검, 일괄 처리, 백업 {isAnalyzing ? '(분석 진행 중)' : ''}</summary>
             <div className="bg-slate-900 min-w-0 max-w-full rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl text-white relative overflow-hidden">
                 <div data-mobile-overflow-allow="true" className="pointer-events-none absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -mr-48 -mt-48"></div>
                 <div className="relative z-10 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1.15fr)_360px] gap-6 xl:gap-8 items-start">
@@ -8225,12 +8240,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                                     }`}
                                 >
-                                    <span className="block text-[12px] font-black">{option.label}</span>
-                                    <span className={`mt-0.5 block text-[10px] font-black ${recordMonthFilter === option.key ? 'text-slate-300' : 'text-slate-400'}`}>
+                                    <span className="block text-xs font-black">{option.label}</span>
+                                    <span className={`mt-0.5 block text-xs font-bold tabular-nums ${recordMonthFilter === option.key ? 'text-slate-200' : 'text-slate-600'}`}>
                                         {option.count}건 · 확인 {option.failedCount}건
                                     </span>
                                     {option.averageScore !== null && (
-                                        <span className={`mt-0.5 block text-[10px] font-black ${recordMonthFilter === option.key ? 'text-slate-300' : 'text-slate-400'}`}>
+                                        <span className={`mt-0.5 block text-xs font-bold tabular-nums ${recordMonthFilter === option.key ? 'text-slate-300' : 'text-slate-500'}`}>
                                             평균 {option.averageScore}점 · 최근 {option.latestDateLabel}
                                         </span>
                                     )}

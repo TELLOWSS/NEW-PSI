@@ -27,6 +27,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 }) => {
     const [isDragging, setIsDragging] = useState<boolean>(false);
     const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
+    const [continuousCapture, setContinuousCapture] = useState<boolean>(false);
+    const [capturedSessionCount, setCapturedSessionCount] = useState<number>(0);
     const [selectionMessage, setSelectionMessage] = useState('');
     const [preflightReports, setPreflightReports] = useState<OcrUploadPreflight[]>([]);
     const [isCheckingQuality, setIsCheckingQuality] = useState(false);
@@ -92,6 +94,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     };
 
     const startCamera = async () => {
+        setCapturedSessionCount(0);
         try {
             // First try to get the back camera
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -122,6 +125,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             streamRef.current = null;
         }
         setIsCameraActive(false);
+        setCapturedSessionCount(0);
     };
 
     const capturePhoto = () => {
@@ -139,8 +143,16 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                         const file = new File([blob], `camera_capture_${Date.now()}.jpg`, { type: 'image/jpeg' });
                         const merged = mergeUniqueOcrFiles(files, [file]);
                         onFilesChange(merged.files);
-                        setSelectionMessage('촬영 이미지를 목록에 추가했습니다. 아래 품질 점검 결과를 확인해 주세요.');
-                        stopCamera();
+                        if (continuousCapture) {
+                            setCapturedSessionCount((prev) => {
+                                const next = prev + 1;
+                                setSelectionMessage(`연속 촬영 ${next}장 추가됨 · 다음 기록지를 맞춰 촬영하거나 완료를 누르세요.`);
+                                return next;
+                            });
+                        } else {
+                            setSelectionMessage('촬영 이미지를 목록에 추가했습니다. 아래 품질 점검 결과를 확인해 주세요.');
+                            stopCamera();
+                        }
                     }
                 }, 'image/jpeg', 0.95);
             }
@@ -194,23 +206,47 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
     if (isCameraActive) {
         return (
-            <div className="relative w-full h-96 bg-black rounded-3xl overflow-hidden flex flex-col items-center justify-center shadow-2xl">
+            <div className="relative w-full h-[26rem] sm:h-[30rem] bg-black rounded-2xl overflow-hidden flex flex-col items-center justify-center shadow-2xl" data-psi-camera-guide="a4-frame">
                 <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
                 <canvas ref={canvasRef} className="hidden" />
-                
-                {/* Overlay UI */}
-                <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute top-0 left-0 w-full h-full border-[30px] border-black/30"></div>
-                    <div className="absolute top-[10%] left-[10%] w-[80%] h-[80%] border-2 border-white/50 rounded-xl"></div>
-                    {/* Scanning Line */}
-                    <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500/80 shadow-[0_0_15px_rgba(99,102,241,0.8)] animate-scan"></div>
+
+                {/* Top guidance bar */}
+                <div className="absolute top-3 inset-x-3 z-20 flex flex-wrap items-center justify-between gap-2">
+                    <span className="rounded-full bg-slate-950/75 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-md border border-white/15">
+                        기록지 4개 모서리가 사각형 안에 들어오게 맞춰주세요
+                    </span>
+                    <button
+                        type="button"
+                        aria-pressed={continuousCapture}
+                        onClick={() => setContinuousCapture((prev) => !prev)}
+                        className={`min-h-[38px] rounded-full px-3.5 py-1.5 text-xs font-black transition-all border backdrop-blur-md ${continuousCapture ? 'border-emerald-300 bg-emerald-600 text-white shadow-lg' : 'border-white/30 bg-slate-950/70 text-slate-100 hover:bg-slate-900'}`}
+                    >
+                        {continuousCapture ? `연속 촬영 ON (${capturedSessionCount}장)` : '연속 촬영 OFF'}
+                    </button>
                 </div>
 
-                <div className="absolute bottom-8 flex gap-6 z-20">
-                    <button onClick={stopCamera} className="px-6 py-3 bg-white/20 backdrop-blur-md border border-white/30 text-white rounded-full font-bold hover:bg-white/30 transition-all text-sm">
-                        취소
+                {/* Overlay A4 Guide UI */}
+                <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-10">
+                    <div className="relative h-full w-full max-w-sm border-2 border-white/60 rounded-xl shadow-[0_0_0_9999px_rgba(2,6,23,0.38)]">
+                        <span className="absolute -top-0.5 -left-0.5 h-5 w-5 rounded-tl-xl border-t-4 border-l-4 border-indigo-400" />
+                        <span className="absolute -top-0.5 -right-0.5 h-5 w-5 rounded-tr-xl border-t-4 border-r-4 border-indigo-400" />
+                        <span className="absolute -bottom-0.5 -left-0.5 h-5 w-5 rounded-bl-xl border-b-4 border-l-4 border-indigo-400" />
+                        <span className="absolute -bottom-0.5 -right-0.5 h-5 w-5 rounded-br-xl border-b-4 border-r-4 border-indigo-400" />
+                        <div className="absolute top-0 left-0 w-full h-1 bg-indigo-400/85 shadow-[0_0_15px_rgba(99,102,241,0.85)] animate-scan"></div>
+                    </div>
+                </div>
+
+                {capturedSessionCount > 0 && selectionMessage && (
+                    <div role="status" className="absolute bottom-24 inset-x-4 z-20 mx-auto max-w-md rounded-xl bg-emerald-950/90 border border-emerald-400/50 px-3 py-2 text-center text-xs font-bold text-emerald-100 backdrop-blur-md">
+                        {selectionMessage}
+                    </div>
+                )}
+
+                <div className="absolute bottom-5 flex items-center gap-3 z-20">
+                    <button type="button" onClick={stopCamera} className="min-h-[44px] px-5 py-2.5 bg-white/20 backdrop-blur-md border border-white/30 text-white rounded-full font-bold hover:bg-white/30 transition-all text-sm">
+                        {capturedSessionCount > 0 ? `완료 (${capturedSessionCount}장)` : '취소'}
                     </button>
-                    <button onClick={capturePhoto} className="px-8 py-3 bg-white text-indigo-600 rounded-full font-black shadow-lg hover:scale-105 transition-transform flex items-center gap-2">
+                    <button type="button" onClick={capturePhoto} className="min-h-[48px] px-7 py-2.5 bg-white text-indigo-700 rounded-full font-black shadow-lg hover:scale-105 transition-transform flex items-center gap-2 text-sm">
                         <div className="w-4 h-4 rounded-full border-4 border-indigo-600"></div>
                         촬영하기
                     </button>
@@ -218,10 +254,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
                 <style>{`
                     @keyframes scan {
-                        0% { top: 10%; opacity: 0; }
+                        0% { top: 8%; opacity: 0; }
                         10% { opacity: 1; }
                         90% { opacity: 1; }
-                        100% { top: 90%; opacity: 0; }
+                        100% { top: 92%; opacity: 0; }
                     }
                     .animate-scan { animation: scan 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
                 `}</style>
@@ -231,7 +267,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
     return (
         <div 
-            className={`border-2 border-dashed rounded-3xl p-10 text-center transition-all duration-300 ${isDragging ? 'border-indigo-500 bg-indigo-50 scale-[1.02]' : 'border-slate-300 bg-white hover:border-indigo-300'}`}
+            className={`border-2 border-dashed rounded-2xl p-5 sm:p-7 text-center transition-all duration-300 ${isDragging ? 'border-indigo-500 bg-indigo-50 scale-[1.01]' : 'border-slate-300 bg-slate-50/50 hover:border-indigo-300 hover:bg-white'}`}
             onDragEnter={handleDragEnter}
             onDragLeave={handleDragLeave}
             onDragOver={handleDragOver}
@@ -248,33 +284,33 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                     e.currentTarget.value = '';
                 }}
             />
-             <div className="flex flex-col items-center text-slate-500">
-                <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
+             <div className="flex flex-col items-center text-slate-600">
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-800">
+                    <span>1안 · 2안 양식 자동 판별</span>
+                    <span className="text-indigo-300">|</span>
+                    <span>JPG · PNG · PDF (최대 20MB)</span>
                 </div>
                 
                 {fileCount > 0 ? (
-                    <div className="mb-6 animate-fade-in-up">
-                        <p className="text-xl font-black text-indigo-600">{fileCount}개의 파일이 준비됨</p>
-                        <p className="text-sm text-slate-400 font-bold mt-1">추가 업로드 또는 분석을 시작하세요</p>
+                    <div className="mb-4 animate-fade-in-up">
+                        <p className="text-lg font-black text-indigo-700">{fileCount}개의 기록지가 준비되었습니다</p>
+                        <p className="text-xs sm:text-sm text-slate-500 font-semibold mt-1">더 추가하거나 아래 분석 시작 버튼을 눌러 주세요</p>
                     </div>
                 ) : (
-                    <div className="mb-6">
-                        <p className="text-lg font-bold text-slate-700">위험성 평가표를 여기에 놓으세요</p>
-                        <p className="text-sm text-slate-400 mt-1 font-medium">또는 아래 버튼을 눌러 선택하세요</p>
+                    <div className="mb-4">
+                        <p className="text-base sm:text-lg font-black text-slate-800">위험성평가 기록지를 끌어다 놓거나 선택하세요</p>
+                        <p className="text-xs sm:text-sm text-slate-500 mt-1 font-medium">스마트폰 현장 촬영 또는 스캔 이미지·PDF 여러 장을 한 번에 등록할 수 있습니다</p>
                     </div>
                 )}
 
-                <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
-                    <button type="button" onClick={onFileUploadClick} className="px-8 py-3.5 bg-slate-100 text-slate-700 rounded-2xl text-sm font-bold hover:bg-slate-200 transition-colors flex items-center justify-center gap-2">
-                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <div className="flex flex-col sm:flex-row gap-3 w-full max-w-lg justify-center">
+                    <button type="button" onClick={onFileUploadClick} className="flex-1 min-h-[46px] px-6 py-3 bg-white border border-slate-300 text-slate-800 rounded-xl text-sm font-bold hover:bg-slate-100 transition-colors flex items-center justify-center gap-2 shadow-sm">
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-600" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
                         </svg>
                         <span>이미지 / PDF 찾기</span>
                     </button>
-                    <button type="button" onClick={startCamera} className="px-8 py-3.5 bg-indigo-600 text-white rounded-2xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
+                    <button type="button" onClick={startCamera} className="flex-1 min-h-[46px] px-6 py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-all flex items-center justify-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
                         </svg>
@@ -282,22 +318,22 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                     </button>
                 </div>
                 {selectionMessage && (
-                    <p role="status" className="mt-4 text-sm font-bold text-slate-600">{selectionMessage}</p>
+                    <p role="status" className="mt-3 text-xs sm:text-sm font-bold text-indigo-700">{selectionMessage}</p>
                 )}
             </div>
 
             {files.length > 0 && (
-                <div className="mt-8 border-t border-slate-200 pt-6 text-left">
+                <div className="mt-6 border-t border-slate-200 pt-5 text-left">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                         <div>
-                            <h3 className="text-base font-black text-slate-900">분석 전 사진 품질 점검</h3>
-                            <p className="mt-1 text-xs font-bold text-slate-500">밝기·흐림·반사 추정은 참고 안내이며 분석을 막지 않습니다. 먼저 분석한 뒤 읽히지 않은 부분만 원본과 대조해 주세요.</p>
+                            <h3 className="text-sm sm:text-base font-black text-slate-900">분석 전 사진 품질 점검 ({files.length}건)</h3>
+                            <p className="mt-0.5 text-xs font-medium text-slate-600">밝기·흐림·반사 추정은 참고 안내이며 분석을 막지 않습니다. 먼저 분석한 뒤 읽히지 않은 부분만 원본과 대조해 주세요.</p>
                         </div>
                         <button
                             type="button"
                             onClick={() => onFilesChange([])}
                             disabled={isAnalyzing}
-                            className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 disabled:opacity-50"
+                            className="min-h-[40px] rounded-xl border border-slate-300 bg-white px-4 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                         >
                             전체 비우기
                         </button>
@@ -314,14 +350,21 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                                     : report.status === 'warning'
                                         ? 'border-amber-300 bg-amber-50'
                                         : 'border-emerald-300 bg-emerald-50';
+                            const statusPillTone = !report || isCheckingQuality
+                                ? 'bg-slate-200 text-slate-700'
+                                : report.status === 'blocked'
+                                    ? 'bg-rose-600 text-white'
+                                    : report.status === 'warning'
+                                        ? 'bg-amber-600 text-white'
+                                        : 'bg-emerald-600 text-white';
                             const statusLabel = !report || isCheckingQuality
                                 ? '점검 중'
                                 : report.status === 'blocked' ? '다시 촬영 필요' : report.status === 'warning' ? '원본 확인 필요' : '분석 가능';
 
                             return (
-                                <div key={key} className={`overflow-hidden rounded-2xl border ${tone}`}>
+                                <div key={key} className={`overflow-hidden rounded-xl border ${tone}`}>
                                     <div className="flex gap-3 p-3">
-                                        <div className="h-24 w-20 shrink-0 overflow-hidden rounded-xl border border-white/80 bg-white">
+                                        <div className="h-24 w-20 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white">
                                             {previewUrls[key] ? (
                                                 <img src={previewUrls[key]} alt={`${file.name} 미리보기`} className="h-full w-full object-cover" />
                                             ) : (
@@ -331,8 +374,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-start justify-between gap-2">
                                                 <div className="min-w-0">
-                                                    <p className="truncate text-sm font-black text-slate-900" title={file.name}>{file.name}</p>
-                                                    <p className="mt-1 text-[11px] font-bold text-slate-500">
+                                                    <p className="truncate text-sm font-bold text-slate-900" title={file.name}>{file.name}</p>
+                                                    <p className="mt-1 text-xs font-medium text-slate-600 tabular-nums">
                                                         {(file.size / 1024 / 1024).toFixed(1)}MB
                                                         {report?.width && report?.height ? ` · ${report.width}×${report.height}px` : ''}
                                                     </p>
@@ -342,16 +385,16 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                                                     onClick={() => removeFile(key)}
                                                     disabled={isAnalyzing}
                                                     aria-label={`${file.name} 제거`}
-                                                    className="min-h-11 min-w-11 rounded-xl border border-slate-200 bg-white text-sm font-black text-slate-600 disabled:opacity-50"
+                                                    className="min-h-[38px] min-w-[44px] rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
                                                 >
                                                     제거
                                                 </button>
                                             </div>
-                                            <p className="mt-2 text-xs font-black text-slate-700">{statusLabel}</p>
+                                            <span className={`mt-2 inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${statusPillTone}`}>{statusLabel}</span>
                                         </div>
                                     </div>
                                     {report && report.issues.length > 0 && (
-                                        <ul className="space-y-1 border-t border-black/5 px-3 py-2 text-xs font-bold text-slate-700">
+                                        <ul className="space-y-1 border-t border-black/5 px-3 py-2 text-xs font-medium text-slate-700">
                                             {report.issues.map((issue) => (
                                                 <li key={`${key}-${issue.code}`}>• {issue.message}</li>
                                             ))}

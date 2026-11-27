@@ -448,6 +448,10 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const [reviewViewMode, setReviewViewMode] = useState<ReviewViewMode>('simple');
     const [isMobileViewport, setIsMobileViewport] = useState(false);
     const [isMobileDetailExpanded, setIsMobileDetailExpanded] = useState(false);
+    const [docZoom, setDocZoom] = useState<number>(1);
+    const [docRotation, setDocRotation] = useState<0 | 90 | 180 | 270>(0);
+    const [docHighContrast, setDocHighContrast] = useState<boolean>(false);
+    const [mobileDocExpanded, setMobileDocExpanded] = useState<boolean>(false);
     const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const mobileDetailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const dialogRef = useRef<HTMLDivElement>(null);
@@ -521,6 +525,10 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         setPhotoQueueNotice(null);
         setReviewViewMode('simple');
         setIsMobileDetailExpanded(false);
+        setDocZoom(1);
+        setDocRotation(0);
+        setDocHighContrast(false);
+        setMobileDocExpanded(false);
     }, [initialRecord]);
 
     useEffect(() => {
@@ -2167,57 +2175,119 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
                 <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden">
                     {/* LEFT: DOCUMENT IMAGE AREA */}
-                    <div className="w-full lg:w-[50%] max-h-[38dvh] shrink-0 lg:max-h-none lg:shrink bg-slate-900 overflow-y-auto custom-scrollbar relative border-b lg:border-b-0 lg:border-r border-slate-800 p-4 sm:p-8 flex flex-col items-center">
-                        <div className="sticky top-0 left-0 z-10 mb-4 sm:mb-6 w-full flex justify-between items-center gap-2 sm:gap-4">
-                            <div className="flex flex-col items-start min-w-0 flex-1">
-                                <StatusBadge variant="glassDark" className="mb-1 px-3 sm:px-4 py-1.5 uppercase tracking-widest">
-                                    위험성 평가표 원본
-                                </StatusBadge>
-                                {record.filename && (
-                                    <StatusBadge variant="slateDarkSoft" className="max-w-full rounded px-3 py-1.5 text-xs" title={record.filename}>
-                                        📄 {record.filename}
+                    <div className={`w-full lg:w-[48%] ${mobileDocExpanded ? 'max-h-[56dvh]' : 'max-h-[38dvh]'} shrink-0 lg:max-h-none lg:shrink bg-slate-900 overflow-y-auto custom-scrollbar relative border-b lg:border-b-0 lg:border-r border-slate-800 p-3 sm:p-6 flex flex-col items-center transition-[max-height] duration-200`}>
+                        <div className="sticky top-0 left-0 z-10 mb-3 w-full space-y-2">
+                            <div className="flex flex-wrap justify-between items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+                                    <StatusBadge variant="glassDark" className="px-3 py-1 text-xs font-bold">
+                                        위험성 평가표 원본
                                     </StatusBadge>
-                                )}
+                                    {record.filename && (
+                                        <StatusBadge variant="slateDarkSoft" className="max-w-full truncate rounded px-2.5 py-1 text-xs" title={record.filename}>
+                                            📄 {record.filename}
+                                        </StatusBadge>
+                                    )}
+                                </div>
+                                <ActionButton
+                                    onClick={() => docInputRef.current?.click()}
+                                    variant="glassDark"
+                                    className="shrink-0 min-h-[36px] px-3 py-1.5 text-xs font-bold"
+                                >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                                    {hasOriginalImage ? '문서 교체' : '문서 등록'}
+                                </ActionButton>
+                                <input type="file" ref={docInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'original')} />
                             </div>
-                            <ActionButton
-                                onClick={() => docInputRef.current?.click()}
-                                variant="glassDark"
-                                className="shrink-0 px-3 py-1.5 text-[10px] font-bold"
-                            >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                                {hasOriginalImage ? '문서 교체' : '문서 등록'}
-                            </ActionButton>
-                            <input type="file" ref={docInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'original')} />
+
+                            {hasOriginalImage && (
+                                <div data-psi-doc-viewer-toolbar="true" className="flex flex-wrap items-center justify-between gap-1.5 rounded-xl border border-white/15 bg-slate-950/85 px-2.5 py-1.5 text-white shadow-lg backdrop-blur-md">
+                                    <div className="flex flex-wrap items-center gap-1">
+                                        <button
+                                            type="button"
+                                            aria-label="원본 축소"
+                                            onClick={() => setDocZoom((z) => Math.max(0.75, Number((z - 0.25).toFixed(2))))}
+                                            className="min-h-[32px] min-w-[32px] rounded-lg border border-white/15 bg-white/10 px-2 text-xs font-black hover:bg-white/20"
+                                        >
+                                            −
+                                        </button>
+                                        <span className="min-w-[46px] text-center text-xs font-bold tabular-nums text-slate-200">
+                                            {Math.round(docZoom * 100)}%
+                                        </span>
+                                        <button
+                                            type="button"
+                                            aria-label="원본 확대"
+                                            onClick={() => setDocZoom((z) => Math.min(2.5, Number((z + 0.25).toFixed(2))))}
+                                            className="min-h-[32px] min-w-[32px] rounded-lg border border-white/15 bg-white/10 px-2 text-xs font-black hover:bg-white/20"
+                                        >
+                                            +
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setDocZoom(1); setDocRotation(0); }}
+                                            className="min-h-[32px] rounded-lg border border-white/15 bg-white/10 px-2.5 text-xs font-bold text-slate-100 hover:bg-white/20"
+                                        >
+                                            화면 맞춤
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setDocRotation((prev) => ((prev + 90) % 360) as 0 | 90 | 180 | 270)}
+                                            className="min-h-[32px] rounded-lg border border-white/15 bg-white/10 px-2.5 text-xs font-bold text-slate-100 hover:bg-white/20"
+                                        >
+                                            ↻ 90°
+                                        </button>
+                                        <button
+                                            type="button"
+                                            aria-pressed={docHighContrast}
+                                            onClick={() => setDocHighContrast((prev) => !prev)}
+                                            className={`min-h-[32px] rounded-lg border px-2.5 text-xs font-bold transition-colors ${docHighContrast ? 'border-amber-300 bg-amber-400 text-slate-950' : 'border-white/15 bg-white/10 text-slate-100 hover:bg-white/20'}`}
+                                        >
+                                            필기 대비
+                                        </button>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setMobileDocExpanded((prev) => !prev)}
+                                        className="lg:hidden min-h-[32px] rounded-lg border border-indigo-300/40 bg-indigo-500/30 px-2.5 text-xs font-bold text-indigo-100"
+                                    >
+                                        {mobileDocExpanded ? '원본 접기' : '원본 크게 보기'}
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
-                        <div className="mb-4 w-full max-w-2xl rounded-2xl border border-white/10 bg-white/10 p-3 text-white shadow-xl backdrop-blur">
-                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                <div>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/55">원본 대조 기준</p>
-                                    <p className="mt-1 text-sm font-black text-white">{record.name || '근로자 미상'} · {record.jobField || '공종 미확인'}</p>
+                        <div className="mb-3 w-full max-w-2xl rounded-xl border border-white/10 bg-white/10 px-3 py-2.5 text-white shadow backdrop-blur">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                    <p className="text-xs font-bold text-white/70">원본 대조 기준 · {record.name || '근로자 미상'} ({record.jobField || '공종 미확인'})</p>
                                 </div>
                                 <div className="flex flex-wrap gap-1.5">
-                                    <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-slate-900">{Number(record.safetyScore || 0).toFixed(0)}점</span>
-                                    <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-black text-white">{finalAuditVerdict.label}</span>
-                                    <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-black text-white">
+                                    <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-black text-slate-900 tabular-nums">{Number(record.safetyScore || 0).toFixed(0)}점</span>
+                                    <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-bold text-white">{finalAuditVerdict.label}</span>
+                                    <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-bold text-white">
                                         {isCompactViewActive
                                             ? (hasOriginalImage ? '원본 있음' : '원본 확인 필요')
                                             : `원문 인식 ${typeof record.ocrConfidence === 'number' ? `${(record.ocrConfidence * 100).toFixed(0)}%` : '확인 필요'}`}
                                     </span>
                                 </div>
                             </div>
-                            <p className="mt-2 text-[11px] font-semibold leading-relaxed text-white/70">
-                                원본의 이름, 공종, 수기 답변이 오른쪽 판단 보드와 맞는지 먼저 대조하세요.
-                            </p>
                         </div>
                         
                         {hasOriginalImage ? (
-                            <div className="w-full max-w-2xl bg-white shadow-2xl p-1 animate-fade-in group relative">
-                                <img 
-                                    src={record.originalImage} 
-                                    className="w-full h-auto block" 
-                                    alt="Scanned Document"
-                                />
+                            <div className="w-full flex-1 overflow-auto rounded-xl bg-slate-950/60 p-2 flex justify-center items-start">
+                                <div
+                                    className="w-full max-w-2xl bg-white shadow-2xl p-1 animate-fade-in relative transition-transform duration-150"
+                                    style={{
+                                        transform: `scale(${docZoom}) rotate(${docRotation}deg)`,
+                                        transformOrigin: 'top center',
+                                        filter: docHighContrast ? 'contrast(1.38) brightness(1.04)' : undefined,
+                                    }}
+                                >
+                                    <img 
+                                        src={record.originalImage} 
+                                        className="w-full h-auto block" 
+                                        alt="Scanned Document"
+                                    />
+                                </div>
                             </div>
                         ) : (
                             <div className="flex-1 flex flex-col items-center justify-center text-slate-600">
@@ -2235,8 +2305,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     </div>
 
                     {/* RIGHT: PROFILE & INFO EDIT AREA */}
-                    <div className="w-full lg:w-[50%] flex-1 min-h-0 flex flex-col bg-slate-50 overflow-hidden">
-                        <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-5 sm:space-y-8 custom-scrollbar">
+                    <div className="w-full lg:w-[52%] flex-1 min-h-0 flex flex-col bg-slate-50 overflow-hidden">
+                        <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 custom-scrollbar">
                             {isLegacyMigratedRecord(record) && (
                                 <div role="note" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
                                     <p className="font-black">구형 백업에서 복원한 과거 평가</p>
@@ -2247,51 +2317,45 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                 </div>
                             )}
                             
-                            <div className={`overflow-hidden rounded-[28px] border shadow-sm ${decisionBoardTone.container}`}>
-                                <div className="relative p-5 sm:p-6">
+                            <div className={`overflow-hidden rounded-2xl border shadow-sm ${decisionBoardTone.container}`}>
+                                <div className="relative p-4 sm:p-5">
                                     <div className={`absolute inset-y-0 left-0 w-1.5 ${decisionBoardTone.accent}`} />
-                                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                                    <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                                         <div className="min-w-0">
-                                            <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${decisionBoardTone.eyebrow}`}>{activeReviewModeCopy.eyebrow}</p>
-                                            <h3 className="mt-2 text-xl font-black text-slate-950">
-                                                {record.name || '근로자 미상'} · {record.jobField || '공종 미확인'}
-                                            </h3>
-                                            <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
-                                                {activeReviewModeCopy.description}
-                                            </p>
-                                            <div className="mt-3 flex flex-wrap gap-2">
-                                                <StatusBadge variant={decisionBoardTone.badge} className="px-3 py-1 text-[11px]">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className={`text-xs font-black ${decisionBoardTone.eyebrow}`}>{activeReviewModeCopy.eyebrow}</span>
+                                                <StatusBadge variant={decisionBoardTone.badge} className="px-2.5 py-0.5 text-xs">
                                                     {isProfessionalReviewView ? '개발자 검증 모드' : isCompactViewActive ? '현장 보호 판단 모드' : '관리자 원문 대조 모드'}
                                                 </StatusBadge>
-                                                <StatusBadge variant="slateSoft" className="px-3 py-1 text-[11px]">
-                                                    {record.nationality || '국적 미확인'}
+                                                <StatusBadge variant="slateSoft" className="px-2.5 py-0.5 text-xs">
+                                                    {record.nationality || '국적 미확인'} · {record.date || '일자 미확인'}
                                                 </StatusBadge>
-                                                <StatusBadge variant="slateSoft" className="px-3 py-1 text-[11px]">
-                                                    작성일: {record.date || '일자 미확인'}
-                                                </StatusBadge>
-                                                <StatusBadge variant="slateSoft" className="px-3 py-1 text-[11px]">
-                                                    분석 시각: {formatOcrAnalysisTime(record)}
-                                                </StatusBadge>
-                                                {qualityAudit.nativeReadabilityDetails.length > 0 && (
-                                                    <details className="w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                                                        <summary className="cursor-pointer font-bold">모국어 검증 상세 {qualityAudit.nativeReadabilityDetails.length}건 · 항목과 사유 보기</summary>
-                                                        <p className="mt-2 text-xs">자동 규칙이 표시한 확인 항목입니다. 번역 오류 확정이나 사진 결함 판정을 뜻하지 않습니다.</p>
-                                                        {qualityAudit.nativeReadabilityDetails.map((issue, index) => (
-                                                            <div key={`${issue.field}-${issue.code}-${index}`} className="mt-2 border-t border-amber-200 pt-2">
-                                                                <p className="font-bold">{issue.field}: {issue.message}</p>
-                                                                <p className="mt-1 whitespace-pre-wrap break-words" lang={record.language}>{issue.excerpt}</p>
-                                                            </div>
-                                                        ))}
-                                                    </details>
-                                                )}
                                                 {record.teamLeader && (
-                                                    <StatusBadge variant="slateSoft" className="px-3 py-1 text-[11px]">
+                                                    <StatusBadge variant="slateSoft" className="px-2.5 py-0.5 text-xs">
                                                         팀장 {record.teamLeader}
                                                     </StatusBadge>
                                                 )}
                                             </div>
+                                            <h3 className="mt-2 text-lg sm:text-xl font-black text-slate-950">
+                                                {record.name || '근로자 미상'} · {record.jobField || '공종 미확인'}
+                                            </h3>
+                                            <p className="mt-1 text-xs sm:text-sm font-medium leading-relaxed text-slate-600">
+                                                {activeReviewModeCopy.description}
+                                            </p>
+                                            {qualityAudit.nativeReadabilityDetails.length > 0 && (
+                                                <details className="mt-2.5 w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                                                    <summary className="cursor-pointer text-xs font-bold">모국어 검증 상세 {qualityAudit.nativeReadabilityDetails.length}건 · 항목과 사유 보기</summary>
+                                                    <p className="mt-2 text-xs">자동 규칙이 표시한 확인 항목입니다. 번역 오류 확정이나 사진 결함 판정을 뜻하지 않습니다.</p>
+                                                    {qualityAudit.nativeReadabilityDetails.map((issue, index) => (
+                                                        <div key={`${issue.field}-${issue.code}-${index}`} className="mt-2 border-t border-amber-200 pt-2">
+                                                            <p className="font-bold">{issue.field}: {issue.message}</p>
+                                                            <p className="mt-1 whitespace-pre-wrap break-words" lang={record.language}>{issue.excerpt}</p>
+                                                        </div>
+                                                    ))}
+                                                </details>
+                                            )}
                                         </div>
-                                        <div className={`grid w-full shrink-0 gap-2 xl:w-auto ${isDeveloperExperience ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                                        <div className={`grid w-full shrink-0 gap-1.5 xl:w-auto ${isDeveloperExperience ? 'grid-cols-3' : 'grid-cols-2'}`}>
                                             {availableReviewViewModeOptions.map((option) => {
                                                 const selected = activeReviewViewMode === option.mode;
                                                 return (
@@ -2299,46 +2363,36 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                         key={option.mode}
                                                         type="button"
                                                         onClick={() => handleReviewViewModeChange(option.mode)}
-                                                        className={`rounded-2xl border px-3 py-2 text-left transition-all ${selected ? 'border-indigo-500 bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:bg-indigo-50'}`}
+                                                        className={`min-h-[44px] rounded-xl border px-3 py-1.5 text-left transition-all ${selected ? 'border-indigo-500 bg-indigo-600 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-200 hover:bg-indigo-50'}`}
                                                     >
-                                                        <span className="block text-[11px] font-black">{option.label}</span>
-                                                        <span className={`mt-0.5 block text-[9px] font-bold ${selected ? 'text-indigo-100' : 'text-slate-400'}`}>{option.helper}</span>
+                                                        <span className="block text-xs font-black">{option.label}</span>
+                                                        <span className={`block text-[11px] font-semibold ${selected ? 'text-indigo-100' : 'text-slate-500'}`}>{option.helper}</span>
                                                     </button>
                                                 );
                                             })}
                                         </div>
                                     </div>
 
-                                    <div className="mt-5 grid grid-cols-1 gap-3 xl:grid-cols-3">
-                                        {visibleReviewDecisionCards.map((card) => (
-                                            <div key={card.key} className={`rounded-2xl border px-4 py-4 ${card.tone}`}>
-                                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{card.eyebrow}</p>
-                                                <h4 className="mt-2 text-sm font-black text-slate-950">{card.title}</h4>
-                                                <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-600">{card.description}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-
                                     <SummaryMetricGrid
-                                        className={`mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3 ${isCompactViewActive ? '' : 'xl:grid-cols-4'}`}
-                                        cardClassName="rounded-2xl border px-3 py-3"
+                                        className={`mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3 ${isCompactViewActive ? '' : 'xl:grid-cols-4'}`}
+                                        cardClassName="rounded-xl border px-3 py-2.5"
                                         items={visibleDecisionQuickMetrics}
                                     />
 
                                     {(record.ocrDocumentValidation?.isPsiForm === false || lowConfidenceOcrFields.length > 0) && (
-                                        <div className={`mt-4 rounded-2xl border px-4 py-4 ${record.ocrDocumentValidation?.isPsiForm === false ? 'border-rose-300 bg-rose-50' : 'border-amber-300 bg-amber-50'}`}>
+                                        <div className={`mt-3 rounded-xl border px-3.5 py-3 ${record.ocrDocumentValidation?.isPsiForm === false ? 'border-rose-300 bg-rose-50' : 'border-amber-300 bg-amber-50'}`}>
                                             <p className={`text-xs font-black ${record.ocrDocumentValidation?.isPsiForm === false ? 'text-rose-800' : 'text-amber-900'}`}>
                                                 {record.ocrDocumentValidation?.isPsiForm === false
                                                     ? '잘못된 문서 가능성으로 자동 승인이 차단되었습니다.'
                                                     : '신뢰도가 낮은 항목을 원본에서 먼저 확인해 주세요.'}
                                             </p>
                                             {record.ocrDocumentValidation?.reason && (
-                                                <p className="mt-2 text-xs font-bold text-slate-700">문서 판정 근거: {record.ocrDocumentValidation.reason}</p>
+                                                <p className="mt-1.5 text-xs font-bold text-slate-700">문서 판정 근거: {record.ocrDocumentValidation.reason}</p>
                                             )}
                                             {lowConfidenceOcrFields.length > 0 && (
-                                                <div className="mt-3 flex flex-wrap gap-2">
+                                                <div className="mt-2 flex flex-wrap gap-1.5">
                                                     {lowConfidenceOcrFields.map((item) => (
-                                                        <span key={item.field} className="rounded-full border border-amber-300 bg-white px-3 py-1.5 text-[11px] font-black text-amber-900">
+                                                        <span key={item.field} className="rounded-full border border-amber-300 bg-white px-2.5 py-1 text-xs font-bold text-amber-900">
                                                             {item.label} {Math.round(item.confidence * 100)}%
                                                         </span>
                                                     ))}
@@ -2347,178 +2401,66 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         </div>
                                     )}
 
-                                    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                                        <ActionButton
-                                            variant="slateSoft"
-                                            onClick={() => {
-                                                handleReviewViewModeChange('detail');
-                                                setActiveTab('qna');
-                                            }}
-                                            className="justify-center px-4 py-2 text-xs border-0"
-                                        >
-                                            원문 비교 먼저 보기
-                                        </ActionButton>
-                                        <ActionButton
-                                            variant="indigoSolid"
-                                            onClick={() => {
-                                                handleReviewViewModeChange('detail');
-                                                setActiveTab('analysis');
-                                            }}
-                                            className="justify-center px-4 py-2 text-xs border-0"
-                                        >
-                                            분석 상세 확인
-                                        </ActionButton>
-                                        <ActionButton
-                                            variant={hasChanges ? 'indigoSolid' : approvalActionDisabled ? 'slateSoft' : 'emeraldSoft'}
-                                            onClick={hasChanges ? () => { void handleSave(); } : () => { void handleApprove('approved'); }}
-                                            disabled={!hasChanges && approvalActionDisabled}
-                                            className="justify-center px-4 py-2 text-xs border-0"
-                                        >
-                                            {hasChanges ? '수정 먼저 저장' : '보호 판단 확정'}
-                                        </ActionButton>
-                                    </div>
-
                                     {!isCompactViewActive && (
-                                        <p className="mt-3 text-xs font-semibold text-slate-500">{secondaryMetaText}</p>
+                                        <p className="mt-2.5 text-xs font-medium text-slate-500">분석 시각: {formatOcrAnalysisTime(record)} · {secondaryMetaText}</p>
                                     )}
                                 </div>
 
-                                <div className="border-t border-slate-200/80 bg-white/75 p-4 sm:p-5">
-                                    <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                                        <div>
-                                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">판단 근거 비교</p>
-                                            <h4 className="mt-1 text-sm font-black text-slate-900">
-                                                {activeReviewModeCopy.comparisonTitle}
-                                            </h4>
+                                <details className="border-t border-slate-200/80 bg-white/80 px-4 py-3 sm:px-5" open={isCompactViewActive}>
+                                    <summary className="cursor-pointer select-none text-xs font-black text-slate-700 hover:text-indigo-700">
+                                        {activeReviewModeCopy.comparisonTitle} · 판단 카드 및 원문 미리보기 (펼쳐서 보기)
+                                    </summary>
+                                    <div className="mt-3 space-y-3">
+                                        <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-3">
+                                            {visibleReviewDecisionCards.map((card) => (
+                                                <div key={card.key} className={`rounded-xl border px-3.5 py-3 ${card.tone}`}>
+                                                    <p className="text-xs font-bold text-slate-500">{card.eyebrow}</p>
+                                                    <h4 className="mt-1 text-sm font-black text-slate-950">{card.title}</h4>
+                                                    <p className="mt-1.5 text-xs font-medium leading-relaxed text-slate-600">{card.description}</p>
+                                                </div>
+                                            ))}
                                         </div>
-                                        <p className="text-[11px] font-bold text-slate-500">필요하면 아래 탭에서 전체 원문과 문항별 답변을 확인하세요.</p>
+                                        <div className={`grid ${isCompactViewActive ? 'grid-cols-1' : 'grid-cols-1 xl:grid-cols-3'} gap-2.5`}>
+                                            {(isCompactViewActive ? compactSourcePreviewPanels : sourcePreviewPanels).map((panel) => (
+                                                <div key={panel.key} className={`h-full ${isCompactViewActive ? 'min-h-[100px]' : 'min-h-[160px]'} rounded-xl border p-3 ${panel.tone}`}>
+                                                    <p className="text-xs font-bold opacity-75">{panel.eyebrow}</p>
+                                                    <h4 className="mt-1 text-sm font-black">{panel.title}</h4>
+                                                    <p className="mt-1.5 text-xs max-h-[150px] font-medium leading-relaxed whitespace-pre-wrap overflow-y-auto custom-scrollbar pr-1">{panel.body}</p>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div className={`grid ${isCompactViewActive ? 'grid-cols-1' : 'grid-cols-1 xl:grid-cols-3'} gap-3`}>
-                                        {(isCompactViewActive ? compactSourcePreviewPanels : sourcePreviewPanels).map((panel) => (
-                                            <div key={panel.key} className={`h-full ${isCompactViewActive ? 'min-h-[120px]' : 'min-h-[240px]'} rounded-2xl border ${isCompactViewActive ? 'p-3' : 'p-4'} ${panel.tone}`}>
-                                                <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">{panel.eyebrow}</p>
-                                                <h4 className="mt-2 text-sm font-black">{panel.title}</h4>
-                                                <p className={`mt-2 ${isCompactViewActive ? 'text-xs max-h-[120px]' : 'text-sm max-h-[200px]'} font-semibold leading-relaxed whitespace-pre-wrap overflow-y-auto custom-scrollbar pr-1`}>{panel.body}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
+                                </details>
                             </div>
-
-                            
 
                             {hasChanges && hasWeakSaveReason && (
                                 <NoticeCallout
                                     variant="amber"
                                     eyebrow="수정 사유 보강 권장"
-                                    title="1차 저장 전에 하단 승인영역 코멘트에 수정 이유를 6자 이상 남겨주세요."
+                                    title="1차 저장 전에 하단 작업 바에 수정 이유를 6자 이상 남겨주세요."
                                     description={<><span>저장은 가능하지만, 사유가 짧으면 분석 화면에서 </span><span className="underline">수정사유 보강 필요</span><span> 배지로 표시됩니다.</span></>}
-                                    className="w-full rounded-3xl border px-5 py-4 shadow-sm"
+                                    className="w-full rounded-2xl border px-4 py-3 shadow-sm"
                                     bodyClassName="block"
-                                    eyebrowClassName="text-[11px] font-black uppercase tracking-[0.2em] text-amber-700"
-                                    titleClassName="mt-2 text-sm font-black text-amber-800"
-                                    descriptionClassName="mt-2 text-xs font-bold leading-relaxed text-amber-700"
+                                    eyebrowClassName="text-xs font-black text-amber-700"
+                                    titleClassName="mt-1 text-sm font-black text-amber-800"
+                                    descriptionClassName="mt-1 text-xs font-medium leading-relaxed text-amber-700"
                                 />
                             )}
 
-                            {isCompactViewActive && (
-                                <SectionPanelCard
-                                    variant="whiteSoft"
-                                    eyebrow="실무자 빠른 처리"
-                                    title="간단보기에서는 메모와 최종 행동만 남깁니다."
-                                    description="원본과 상단 판단 보드를 확인한 뒤, 필요한 경우 짧은 근거를 남기고 저장·보완요청·확정을 진행하세요."
-                                    className="rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-sm"
-                                    eyebrowClassName="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500"
-                                    titleClassName="mt-1 text-sm font-black text-slate-900"
-                                    descriptionClassName="mt-2 text-xs font-bold leading-relaxed text-slate-500"
-                                    bodyClassName="mt-4"
-                                >
-                                    <textarea
-                                        value={approvalComment}
-                                        onChange={(e) => setApprovalComment(e.target.value)}
-                                        placeholder="예: 원문과 해석이 일치하여 보호 판단 확정 / 이름 확인 필요하여 보완 요청"
-                                        className={`w-full rounded-2xl border bg-slate-50 p-3 text-sm font-semibold leading-relaxed text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 ${hasWeakApprovalReason ? 'border-amber-300 bg-amber-50/50' : 'border-slate-200'}`}
-                                        rows={3}
-                                    />
-                                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-4">
-                                        <ActionButton
-                                            variant="slateSoft"
-                                            onClick={() => handleReviewViewModeChange('detail')}
-                                            className="justify-center px-3 py-2 text-xs border-0"
-                                        >
-                                            상세 근거 열기
-                                        </ActionButton>
-                                        <ActionButton
-                                            variant={hasChanges ? 'indigoSolid' : 'slateSoft'}
-                                            onClick={() => { void handleSave(); }}
-                                            disabled={!hasChanges}
-                                            className="justify-center px-3 py-2 text-xs border-0"
-                                        >
-                                            수정 저장
-                                        </ActionButton>
-                                        <ActionButton
-                                            variant="roseSoft"
-                                            onClick={() => { void handleApprove('rejected'); }}
-                                            disabled={isUpdatingAnalysis}
-                                            className="justify-center px-3 py-2 text-xs border-0"
-                                        >
-                                            보완 요청
-                                        </ActionButton>
-                                        <ActionButton
-                                            variant={approvalActionDisabled ? 'slateSoft' : 'emeraldSoft'}
-                                            onClick={() => { void handleApprove('approved'); }}
-                                            disabled={approvalActionDisabled}
-                                            className="justify-center px-3 py-2 text-xs border-0"
-                                        >
-                                            보호 판단 확정
-                                        </ActionButton>
-                                    </div>
-                                    {managerReviewApprovalReadiness.badgeTone !== 'ready' && (
-                                        <NoticeCallout
-                                            variant={managerReviewCalloutVariant}
-                                            eyebrow="모국어 안내 동기화"
-                                            title={managerReviewApprovalReadiness.headline}
-                                            description={managerReviewApprovalReadiness.description}
-                                            className="mt-3 w-full rounded-2xl border px-3 py-3"
-                                            bodyClassName="block"
-                                            eyebrowClassName="text-[11px] font-black"
-                                            titleClassName="mt-1 text-xs font-black leading-relaxed"
-                                            descriptionClassName="mt-1 text-[11px] font-semibold leading-relaxed"
-                                        />
-                                    )}
-                                </SectionPanelCard>
-                            )}
-
-                            <div className={`${isCompactViewActive ? 'hidden' : 'grid'} lg:hidden bg-white border border-slate-200 rounded-2xl p-2 grid-cols-3 gap-2 sticky top-0 z-10 shadow-sm`}>
-                                <ActionButton
-                                    variant={hasChanges ? 'indigoSolid' : 'slateSoft'}
-                                    onClick={handleSave}
-                                    disabled={!hasChanges}
-                                    className="px-2 py-2 text-[11px] border-0"
-                                >
-                                    1차 저장
-                                </ActionButton>
-                                <ActionButton
-                                    variant={approvalActionDisabled ? 'slateSoft' : 'emeraldSoft'}
-                                    onClick={() => { void handleApprove('approved'); }}
-                                    disabled={approvalActionDisabled}
-                                    className="px-2 py-2 text-[11px] border-0"
-                                >
-                                    보호 판단 확정
-                                </ActionButton>
-                                <ActionButton
-                                    variant="slateSolid"
-                                    onClick={handleOpenReportClick}
-                                    className="px-2 py-2 text-[11px] border-0"
-                                >
-                                    교육 리포트
-                                </ActionButton>
-                            </div>
-
-                            <div className={`${isCompactViewActive ? 'hidden' : 'flex'} gap-2 p-1.5 bg-slate-200 rounded-2xl shrink-0`}>
-                                {['info', 'analysis', 'qna'].map(t => (
-                                    <button key={t} onClick={() => setActiveTab(t as 'info' | 'analysis' | 'qna')} className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${activeTab === t ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                                        {t === 'info' ? '판단 조정' : t === 'analysis' ? '분석 근거' : '원문 비교'}
+                            <div className={`${isCompactViewActive ? 'hidden' : 'grid grid-cols-3'} gap-1.5 p-1.5 bg-slate-200/90 rounded-2xl shrink-0 sticky top-0 z-10`}>
+                                {[
+                                    { id: 'info' as const, label: '① 판단 조정' },
+                                    { id: 'analysis' as const, label: '② 분석 근거' },
+                                    { id: 'qna' as const, label: '③ 원문 비교·후속조치' },
+                                ].map((tabItem) => (
+                                    <button
+                                        key={tabItem.id}
+                                        type="button"
+                                        aria-pressed={activeTab === tabItem.id}
+                                        onClick={() => setActiveTab(tabItem.id)}
+                                        className={`min-h-[42px] px-2 py-2 text-xs sm:text-sm font-black rounded-xl transition-all ${activeTab === tabItem.id ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                                    >
+                                        {tabItem.label}
                                     </button>
                                 ))}
                             </div>
@@ -4002,21 +3944,89 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                             </CollapsibleSection>
                         </div>
 
-                        {/* Footer Buttons */}
-                        <div className="p-6 bg-white border-t border-slate-200 flex justify-between items-center shadow-inner z-10 shrink-0">
-                            <div className="flex items-center gap-2">
-                                <button 
-                                    onClick={handleReanalyzeClick} 
-                                    disabled={isReanalyzing} 
-                                    className={`text-xs font-black flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${isReanalyzing ? 'bg-slate-100 text-slate-400' : 'text-slate-500 hover:bg-slate-100'}`}
-                                >
-                                    <svg className={`w-4 h-4 ${isReanalyzing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeWidth={2.5}/></svg>
-                                    원문 다시 확인
-                                </button>
-                                <ActionButton variant="slateSoft" onClick={handleExportEvidenceCsv} className="px-4 py-2 border-0">검증자료 저장</ActionButton>
-                                <ActionButton variant="indigo" onClick={handleExportEvidencePdf} className="px-4 py-2 border-0 hover:bg-indigo-200">검증 패키지 저장</ActionButton>
+                        {/* Unified Footer Action Dock */}
+                        <div data-psi-detail-footer-dock="true" className="px-3 sm:px-5 py-3 bg-white border-t border-slate-200 shadow-inner z-10 shrink-0 space-y-2.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${hasChanges ? 'bg-amber-100 text-amber-900' : isFinalizedRecord ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-800'}`}>
+                                    {hasChanges ? '미저장 수정 있음' : isFinalizedRecord ? '보호 판단 확정됨' : '검토 확인 대기'}
+                                </span>
+                                <input
+                                    type="text"
+                                    value={approvalComment}
+                                    onChange={(e) => setApprovalComment(e.target.value)}
+                                    aria-label="검토 및 수정 사유 입력"
+                                    placeholder="검토 또는 수정 사유를 짧게 남기세요 (예: 원문 대조 완료 · 공종 보정)"
+                                    className={`min-w-0 flex-1 rounded-xl border px-3 py-2 text-xs sm:text-sm font-medium text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 ${hasWeakApprovalReason || (hasChanges && hasWeakSaveReason) ? 'border-amber-300 bg-amber-50/50' : 'border-slate-200 bg-slate-50'}`}
+                                />
+                                {managerReviewApprovalReadiness.badgeTone !== 'ready' && (
+                                    <span className="rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1 text-xs font-bold text-amber-800">
+                                        {managerReviewApprovalReadiness.headline}
+                                    </span>
+                                )}
                             </div>
-                            <button onClick={handleOpenReportClick} className="px-10 py-4 bg-slate-900 text-white rounded-2xl text-sm font-black shadow-2xl hover:bg-black transition-all transform hover:-translate-y-1">관리자 리포트 보기</button>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={handleReanalyzeClick}
+                                        disabled={isReanalyzing}
+                                        className={`min-h-[40px] text-xs font-bold flex items-center gap-1.5 px-3 py-2 rounded-xl border transition-all ${isReanalyzing ? 'border-slate-200 bg-slate-100 text-slate-400' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                                    >
+                                        <svg className={`w-3.5 h-3.5 ${isReanalyzing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeWidth={2.5}/></svg>
+                                        원문 다시 확인
+                                    </button>
+                                    <ActionButton variant="slateSoft" onClick={handleExportEvidenceCsv} className="min-h-[40px] px-3 py-2 text-xs border-0">검증자료 저장</ActionButton>
+                                    <ActionButton variant="indigo" onClick={handleExportEvidencePdf} className="min-h-[40px] px-3 py-2 text-xs border-0 hover:bg-indigo-200">검증 패키지 저장</ActionButton>
+                                    {!isFinalizedRecord && (
+                                        <ActionButton
+                                            variant="roseSoft"
+                                            onClick={() => { void handleApprove('rejected'); }}
+                                            disabled={isUpdatingAnalysis}
+                                            className="min-h-[40px] px-3 py-2 text-xs border-0"
+                                        >
+                                            보완 요청
+                                        </ActionButton>
+                                    )}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2 ml-auto">
+                                    {hasChanges ? (
+                                        <>
+                                            <ActionButton variant="slateSoft" onClick={handleOpenReportClick} className="min-h-[42px] px-4 py-2 text-xs border-0">
+                                                관리자 리포트 보기
+                                            </ActionButton>
+                                            <button
+                                                type="button"
+                                                onClick={() => { void handleSave(); }}
+                                                className="min-h-[42px] px-5 py-2 bg-indigo-600 text-white rounded-xl text-xs sm:text-sm font-black shadow-md hover:bg-indigo-700 transition-colors"
+                                            >
+                                                1차 저장
+                                            </button>
+                                        </>
+                                    ) : !isFinalizedRecord ? (
+                                        <>
+                                            <ActionButton variant="slateSoft" onClick={handleOpenReportClick} className="min-h-[42px] px-4 py-2 text-xs border-0">
+                                                관리자 리포트 보기
+                                            </ActionButton>
+                                            <button
+                                                type="button"
+                                                disabled={approvalActionDisabled}
+                                                onClick={() => { void handleApprove('approved'); }}
+                                                className="min-h-[42px] px-5 py-2 bg-emerald-600 text-white rounded-xl text-xs sm:text-sm font-black shadow-md hover:bg-emerald-700 disabled:bg-slate-300 disabled:text-slate-500 transition-colors"
+                                            >
+                                                보호 판단 확정
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={handleOpenReportClick}
+                                            className="min-h-[42px] px-6 py-2 bg-slate-900 text-white rounded-xl text-xs sm:text-sm font-black shadow-md hover:bg-black transition-colors"
+                                        >
+                                            관리자 리포트 보기
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
