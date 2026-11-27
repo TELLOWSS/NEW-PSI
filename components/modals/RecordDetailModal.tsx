@@ -1951,8 +1951,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 label: '반려 권고',
                 reason: verificationAudit.issues.join(' / '),
                 tone: BRAND_TONE.rose,
-                labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-rose-500',
-                valueClassName: 'mt-1 text-xs font-black text-rose-700',
+                labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-rose-700',
+                valueClassName: 'mt-1 text-xs font-black text-rose-800',
             };
         }
 
@@ -1961,8 +1961,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 label: '보정 필요',
                 reason: qualityAudit.issues.join(' / '),
                 tone: BRAND_TONE.amber,
-                labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-500',
-                valueClassName: 'mt-1 text-xs font-black text-amber-700',
+                labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-800',
+                valueClassName: 'mt-1 text-xs font-black text-amber-900',
             };
         }
 
@@ -1970,8 +1970,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             label: '합격',
             reason: `검증 상태/영어 혼입/모국어 문항 번역/${SAFETY_SIGNAL_COPY.score} 과대 의심 모두 정상`,
             tone: BRAND_TONE.emerald,
-            labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500',
-            valueClassName: 'mt-1 text-xs font-black text-emerald-700',
+            labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-800',
+            valueClassName: 'mt-1 text-xs font-black text-emerald-900',
         };
     }, [qualityAudit, verificationAudit]);
     const auditTemplateLine = useMemo(() => {
@@ -2010,31 +2010,31 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const decisionBoardTone = useMemo(() => {
         if (record.reviewStatus === 'REJECTED') {
             return {
-                container: 'border-rose-200 bg-gradient-to-br from-rose-50 via-white to-white',
-                eyebrow: 'text-rose-500',
+                container: 'border-rose-200 bg-gradient-to-br from-rose-50 via-white to-white dark:border-rose-500/35 dark:from-slate-900 dark:via-slate-900 dark:to-rose-950/40',
+                eyebrow: 'text-rose-700',
                 badge: 'roseSoft' as const,
                 accent: 'bg-rose-500',
             };
         }
         if (isFinalizedRecord) {
             return {
-                container: 'border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-white',
-                eyebrow: 'text-emerald-600',
+                container: 'border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-white dark:border-emerald-500/35 dark:from-slate-900 dark:via-slate-900 dark:to-emerald-950/40',
+                eyebrow: 'text-emerald-700',
                 badge: 'emeraldSoft' as const,
                 accent: 'bg-emerald-500',
             };
         }
         if (hasChanges) {
             return {
-                container: 'border-amber-200 bg-gradient-to-br from-amber-50 via-white to-white',
-                eyebrow: 'text-amber-600',
+                container: 'border-amber-200 bg-gradient-to-br from-amber-50 via-white to-white dark:border-amber-500/35 dark:from-slate-900 dark:via-slate-900 dark:to-amber-950/40',
+                eyebrow: 'text-amber-800',
                 badge: 'amberSoft' as const,
                 accent: 'bg-amber-500',
             };
         }
         return {
-            container: 'border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-white',
-            eyebrow: 'text-indigo-600',
+            container: 'border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-white dark:border-indigo-500/35 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950/40',
+            eyebrow: 'text-indigo-700',
             badge: 'violetSoft' as const,
             accent: 'bg-indigo-500',
         };
@@ -2152,7 +2152,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                         <button type="button" aria-label="이전 화면으로 돌아가기" onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
                         <div className="min-w-0">
                             <h2 id="record-detail-dialog-title" className="text-base sm:text-xl font-black text-slate-800 truncate">{record.name || '기록 확인'} 근로자 보호 판단</h2>
-                            <p className="hidden sm:block text-[10px] text-indigo-500 font-bold tracking-widest uppercase">
+                            <p className="hidden sm:block text-[10px] text-indigo-700 font-bold tracking-widest uppercase">
                                 {record.jobField || '공종 미확인'} · {record.nationality || '국적 미확인'} · 현장 판단 검증
                             </p>
                             {queueContext && (
@@ -4011,7 +4011,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 type="button"
                                                 disabled={approvalActionDisabled}
                                                 onClick={() => { void handleApprove('approved'); }}
-                                                className="min-h-[42px] px-5 py-2 bg-emerald-600 text-white rounded-xl text-xs sm:text-sm font-black shadow-md hover:bg-emerald-700 disabled:bg-slate-300 disabled:text-slate-500 transition-colors"
+                                                className="min-h-[42px] px-5 py-2 bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-black shadow-md hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-300 transition-colors"
                                             >
                                                 보호 판단 확정
                                             </button>

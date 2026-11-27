@@ -731,7 +731,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                         <button
                             type="button"
                             onClick={handleLoadSamples}
-                            className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl border border-teal-300/40 bg-teal-400/15 px-3.5 py-2 text-xs font-bold text-teal-100 hover:bg-teal-400/25 transition-colors"
+                            className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl border border-teal-300/60 bg-slate-950/65 px-3.5 py-2 text-xs font-bold text-teal-100 hover:bg-slate-900 transition-colors"
                         >
                             <span>체험 예시 6건 불러오기</span>
                         </button>
@@ -739,7 +739,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                             type="button"
                             disabled={records.length === 0}
                             onClick={() => triggerDownloadFile(`psi-accident-bigdata-${new Date().toISOString().slice(0, 10)}.json`, exportAccidentRecordsToJson(records), 'application/json;charset=utf-8')}
-                            className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-bold text-white hover:bg-white/20 disabled:opacity-40 transition-colors"
+                            className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl border border-white/30 bg-slate-950/60 px-3.5 py-2 text-xs font-bold text-white hover:bg-slate-900 disabled:opacity-40 transition-colors"
                         >
                             <span>JSON 내보내기</span>
                         </button>
@@ -747,7 +747,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                             type="button"
                             disabled={records.length === 0}
                             onClick={() => triggerDownloadFile(`psi-accident-bigdata-${new Date().toISOString().slice(0, 10)}.csv`, exportAccidentRecordsToCsv(records), 'text/csv;charset=utf-8')}
-                            className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-bold text-white hover:bg-white/20 disabled:opacity-40 transition-colors"
+                            className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl border border-white/30 bg-slate-950/60 px-3.5 py-2 text-xs font-bold text-white hover:bg-slate-900 disabled:opacity-40 transition-colors"
                         >
                             <span>엑셀(CSV) 저장</span>
                         </button>
@@ -868,7 +868,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                             type="button"
                                             onClick={() => setProvider('gemini')}
                                             className={`min-h-[42px] rounded-xl border px-3 text-xs font-extrabold transition-all ${provider === 'gemini'
-                                                ? 'border-teal-600 bg-teal-600 text-white shadow-sm'
+                                                ? 'border-teal-700 bg-teal-700 text-white shadow-sm'
                                                 : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
                                             }`}
                                         >
@@ -878,7 +878,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                             type="button"
                                             onClick={() => setProvider('chatgpt')}
                                             className={`min-h-[42px] rounded-xl border px-3 text-xs font-extrabold transition-all ${provider === 'chatgpt'
-                                                ? 'border-teal-600 bg-teal-600 text-white shadow-sm'
+                                                ? 'border-teal-700 bg-teal-700 text-white shadow-sm'
                                                 : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
                                             }`}
                                         >
@@ -1626,7 +1626,7 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => setDashboardFilters(DEFAULT_HUB_FILTERS)}
-                                    className="min-h-[34px] shrink-0 rounded-lg border border-teal-600 bg-teal-600 px-3 text-xs font-extrabold text-white hover:bg-teal-500"
+                                    className="min-h-[34px] shrink-0 rounded-lg border border-teal-700 bg-teal-700 px-3 text-xs font-extrabold text-white hover:bg-teal-600"
                                 >
                                     전체 사고 보기 (초기화)
                                 </button>

@@ -576,3 +576,13 @@
     background: #153451;
     color: #f3f7fb;
 }
+
+:global(.dark) .sectionNavSave {
+    border-color: #38bdf8;
+    background: #155d96;
+    color: #ffffff;
+}
+
+:global(.dark) .sectionNavSave:hover {
+    background: #0f4c81;
+}

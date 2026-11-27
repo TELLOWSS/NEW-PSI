@@ -406,7 +406,7 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
                 {monthlyFollowup.educationFocus.length ? (
                     <div className="mt-4 grid gap-2 lg:grid-cols-3">
                         {monthlyFollowup.educationFocus.map((line, index) => (
-                            <article key={line} className="rounded-xl border border-amber-100 bg-amber-50/40 p-3">
+                            <article key={line} className="rounded-xl border border-amber-200/70 bg-amber-50 p-3">
                                 <p className="text-[11px] font-black text-amber-800">다음 교육 확인사항 {index + 1}</p>
                                 <p className="mt-1 text-sm font-semibold leading-6 text-slate-800">{line}</p>
                             </article>
@@ -428,7 +428,7 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
                         ['재확인 필요', practice.needsFieldRecheck, '건'],
                         ['기한 초과', practice.overdueFieldRecheck, '건'],
                     ].map(([label, value, unit]) => (
-                        <div key={label} className="rounded-xl bg-emerald-50/40 p-3">
+                        <div key={label} className="rounded-xl border border-emerald-200/70 bg-emerald-50 p-3">
                             <p className="psi-meta-label">{label}</p>
                             <p className="mt-1 text-xl font-black text-slate-900">{value}{unit}</p>
                         </div>
@@ -436,7 +436,7 @@ const MonthlyGuidanceReport: React.FC<Props> = ({ workerRecords,onNavigateToPage
                 </div>
                 {practice.educationFocus.length > 0 ? (
                     <div className="mt-3 grid gap-2 lg:grid-cols-3">
-                        {practice.educationFocus.map(line => <p key={line} className="rounded-xl border border-amber-100 bg-amber-50/40 p-3 text-xs font-bold leading-5 text-amber-900">{line}</p>)}
+                        {practice.educationFocus.map(line => <p key={line} className="rounded-xl border border-amber-200/70 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-900">{line}</p>)}
                     </div>
                 ) : <p className="psi-small-note mt-3">별도 등록된 미해소 관찰 건이 없습니다. 미확인 근로자를 안전하다고 추정하지 않습니다.</p>}
                 <p className="psi-small-note mt-3">재확인 필요는 현장 행동 관찰에서 파생된 신호입니다. 실제 현장 조치 완료·공식 위험등급과는 별개의 자료입니다.</p>

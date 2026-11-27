@@ -370,7 +370,7 @@ const SafetyNexus: React.FC<Props> = ({
     } catch {
       // Ignore storage errors
     }
-    return getResolvedTheme();
+    return document.documentElement.classList.contains('dark') ? 'dark' : getResolvedTheme();
   });
   const [sunlightMode, setSunlightMode] = useState<boolean>(() => getSunlightMode());
   useEffect(() => {
@@ -380,14 +380,28 @@ const SafetyNexus: React.FC<Props> = ({
       } catch {
         // Ignore storage errors
       }
-      setNexusTheme(getResolvedTheme());
+      setNexusTheme(document.documentElement.classList.contains('dark') ? 'dark' : getResolvedTheme());
     };
+    const syncClassAttribute = () => {
+      setNexusTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    };
+    syncClassAttribute();
     const syncSunlight = () => setSunlightMode(getSunlightMode());
     const syncMotion = () => setPaused(getMotionPaused());
+    const classObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+          syncClassAttribute();
+          break;
+        }
+      }
+    });
+    classObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     window.addEventListener(THEME_CHANGED_EVENT, syncGlobalTheme);
     window.addEventListener(SUNLIGHT_MODE_CHANGED_EVENT, syncSunlight);
     window.addEventListener(MOTION_PAUSED_CHANGED_EVENT, syncMotion);
     return () => {
+      classObserver.disconnect();
       window.removeEventListener(THEME_CHANGED_EVENT, syncGlobalTheme);
       window.removeEventListener(SUNLIGHT_MODE_CHANGED_EVENT, syncSunlight);
       window.removeEventListener(MOTION_PAUSED_CHANGED_EVENT, syncMotion);

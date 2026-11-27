@@ -60,4 +60,22 @@ describe('Risk Assessment Record Sheet UI/UX redesign contracts', () => {
     expect(unifiedTopBlock).toContain("openWorkflowDestination('new')");
     expect(unifiedTopBlock).toContain("openWorkflowDestination('records')");
   });
+
+  it('guards Light/Dark WCAG contrast and OcrAnalysis hero surface integrity', () => {
+    const stylesCss = readText('styles.css');
+    const workspaceCss = readText('styles/psi-platform-workspaces.css');
+
+    // Hero wrapper must never paint .psi-ocr-field-hero>div:first-child with --psi-brand-strong
+    expect(stylesCss).not.toContain('.psi-ocr-field-hero>div:first-child');
+    expect(stylesCss).toContain('html.dark .text-indigo-950');
+    expect(stylesCss).toContain('html.dark .text-amber-950');
+    expect(stylesCss).toContain('html.dark .text-rose-500');
+    expect(stylesCss).toContain('color: #05201c !important;');
+
+    expect(workspaceCss).toContain('#ocr-start-guide [aria-label="작업 선택"]>button[aria-pressed="true"]');
+    expect(workspaceCss).toContain('.psi-cd-signal span');
+
+    expect(detailModalTsx).toContain('dark:from-slate-900');
+    expect(detailModalTsx).toContain('dark:disabled:text-slate-300');
+  });
 });

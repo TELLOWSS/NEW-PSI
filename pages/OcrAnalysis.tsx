@@ -6963,9 +6963,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     value: existingRecords.length,
                                     helper: '현재 OCR 운영 대상',
                                     tone: BRAND_TONE.glassSoft,
-                                    labelClassName: 'text-[10px] font-black uppercase tracking-widest text-slate-500',
+                                    labelClassName: 'text-[10px] font-black uppercase tracking-widest text-slate-300',
                                     valueClassName: 'mt-2 text-2xl font-black text-indigo-300',
-                                    helperClassName: 'mt-1 text-[11px] font-bold text-slate-400',
+                                    helperClassName: 'mt-1 text-[11px] font-bold text-slate-300',
                                 },
                                 {
                                     key: 'overview-attention-pending',
@@ -7235,7 +7235,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             type="button"
                             onClick={() => { void handleMonthlyArchiveExport(); }}
                             disabled={isMonthlyArchiveExporting}
-                            className="w-full rounded-2xl border border-sky-400/50 bg-sky-600 px-5 py-3 text-sm font-black text-white shadow-xl transition-all hover:bg-sky-700 disabled:cursor-wait disabled:opacity-60"
+                            className="w-full rounded-2xl border border-sky-400/50 bg-sky-700 px-5 py-3 text-sm font-black text-white shadow-xl transition-all hover:bg-sky-800 disabled:cursor-wait disabled:opacity-60"
                         >
                             {isMonthlyArchiveExporting ? '월 마감 백업 처리 중…' : `${recordMonthFilter === 'all' ? '최신월' : selectedMonthLabel} PC 월 마감 백업`}
                         </button>
@@ -7446,16 +7446,16 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 
                 {!isNewOcrSectionCollapsed && (
                     <>
-                <details className="mb-5 rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
-                    <summary className="cursor-pointer text-sm font-black text-indigo-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-600">
+                <details className="mb-5 rounded-2xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-400/35 dark:bg-indigo-950/40">
+                    <summary className="cursor-pointer text-sm font-black text-indigo-950 dark:text-indigo-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-600">
                         분석 방식 바꾸기 · 현재 {getOcrEngineLabel(ocrEngine)}
                     </summary>
-                    <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
                         <div>
-                            <p className="text-sm font-black text-indigo-950">문서 분석 방식</p>
-                            <p className="mt-1 text-xs font-bold leading-5 text-indigo-700">현재 선택: {getOcrEngineLabel(ocrEngine)} · 신규 분석과 서버 재분석에 함께 적용됩니다.</p>
+                            <p className="text-sm font-black text-indigo-950 dark:text-indigo-100">문서 분석 방식</p>
+                            <p className="mt-1 text-xs font-bold leading-5 text-indigo-800 dark:text-indigo-200">현재 선택: {getOcrEngineLabel(ocrEngine)} · 신규 분석과 서버 재분석에 함께 적용됩니다.</p>
                         </div>
-                        <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-black text-indigo-700 shadow-sm">상황별 전환</span>
+                        <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-black text-indigo-800 shadow-sm dark:bg-slate-900 dark:text-indigo-200">상황별 전환</span>
                     </div>
                     <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                         {([
@@ -8115,20 +8115,20 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-center text-[11px] font-black sm:min-w-[520px] sm:grid-cols-4">
                         <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2">
-                            <p className="text-indigo-500">OCR 기록</p>
-                            <p className="mt-1 text-lg text-indigo-800">{ocrAnalyzedRecords.length}건</p>
+                            <p className="text-indigo-700">OCR 기록</p>
+                            <p className="mt-1 text-lg text-indigo-900">{ocrAnalyzedRecords.length}건</p>
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
-                            <p className="text-slate-500">전체 기록</p>
+                            <p className="text-slate-600">전체 기록</p>
                             <p className="mt-1 text-lg text-slate-900">{existingRecords.length}건</p>
                         </div>
                         <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2">
-                            <p className="text-emerald-600">화면 표시</p>
-                            <p className="mt-1 text-lg text-emerald-800">{visibleRecordListRecords.length}/{recordListRecords.length}</p>
+                            <p className="text-emerald-800">화면 표시</p>
+                            <p className="mt-1 text-lg text-emerald-900">{visibleRecordListRecords.length}/{recordListRecords.length}</p>
                         </div>
                         <div className="rounded-2xl border border-violet-100 bg-violet-50 px-3 py-2" data-ocr-record-view="month-index">
-                            <p className="text-violet-600">{monthlyWorkingSetLabel}</p>
-                            <p className="mt-1 text-lg text-violet-800">{sourceRecordMonthIndex.buckets.length}개월</p>
+                            <p className="text-violet-700">{monthlyWorkingSetLabel}</p>
+                            <p className="mt-1 text-lg text-violet-900">{sourceRecordMonthIndex.buckets.length}개월</p>
                         </div>
                     </div>
                 </div>
@@ -8286,7 +8286,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 type="button"
                                 data-ocr-collapse-delete="toggle-controls"
                                 onClick={() => setShowRecordControlPanel((prev) => !prev)}
-                                className={`rounded-2xl border px-3 py-2 text-left transition-colors ${showRecordControlPanel ? 'border-indigo-300 bg-indigo-500 text-white' : 'border-white/10 bg-white/10 text-slate-100 hover:bg-white/15'}`}
+                                className={`rounded-2xl border px-3 py-2 text-left transition-colors ${showRecordControlPanel ? 'border-indigo-300 bg-indigo-700 text-white' : 'border-white/10 bg-white/10 text-slate-100 hover:bg-white/15'}`}
                             >
                                 <span className="block">검색·일괄관리</span>
                                 <span className="mt-0.5 block text-[10px] opacity-80">{showRecordControlPanel ? '접기' : '펼치기'}</span>
@@ -8295,7 +8295,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 type="button"
                                 data-ocr-collapse-delete="toggle-tracking"
                                 onClick={() => setShowWorkerTrackingPanel((prev) => !prev)}
-                                className={`rounded-2xl border px-3 py-2 text-left transition-colors ${showWorkerTrackingPanel ? 'border-emerald-300 bg-emerald-500 text-white' : 'border-white/10 bg-white/10 text-slate-100 hover:bg-white/15'}`}
+                                className={`rounded-2xl border px-3 py-2 text-left transition-colors ${showWorkerTrackingPanel ? 'border-emerald-300 bg-emerald-700 text-white' : 'border-white/10 bg-white/10 text-slate-100 hover:bg-white/15'}`}
                             >
                                 <span className="block">근로자별 누적</span>
                                 <span className="mt-0.5 block text-[10px] opacity-80">{workerAccumulationGroups.length}명 · {showWorkerTrackingPanel ? '접기' : '펼치기'}</span>
@@ -8304,7 +8304,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 type="button"
                                 data-ocr-collapse-delete="toggle-record-list"
                                 onClick={() => setShowRecordListPanel((prev) => !prev)}
-                                className={`rounded-2xl border px-3 py-2 text-left transition-colors ${showRecordListPanel ? 'border-cyan-300 bg-cyan-500 text-white' : 'border-white/10 bg-white/10 text-slate-100 hover:bg-white/15'}`}
+                                className={`rounded-2xl border px-3 py-2 text-left transition-colors ${showRecordListPanel ? 'border-cyan-300 bg-cyan-700 text-white' : 'border-white/10 bg-white/10 text-slate-100 hover:bg-white/15'}`}
                             >
                                 <span className="block">상세 기록 목록</span>
                                 <span className="mt-0.5 block text-[10px] opacity-80">{visibleRecordListRecords.length}/{recordListRecords.length}건 · {showRecordListPanel ? '접기' : '펼치기'}</span>
@@ -9778,11 +9778,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </div>
 
                     <SectionPanelCard
-                        className="rounded-3xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-4 shadow-sm sm:p-5"
+                        className="rounded-3xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-indigo-50 dark:border-violet-500/35 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950/40 p-4 shadow-sm sm:p-5"
                         eyebrow="2차 AI 재분석"
                         title="관리자 수정본 기준 재평가"
                         description={`현재 필터 기준으로 OCR 성공 기록만 선별해 ${SAFETY_SIGNAL_COPY.score}, ${SAFETY_SIGNAL_COPY.level}, 강점/약점, AI 인사이트를 다시 계산합니다.`}
-                        eyebrowClassName="text-[11px] font-black uppercase tracking-[0.2em] text-violet-500"
+                        eyebrowClassName="text-[11px] font-black uppercase tracking-[0.2em] text-violet-700 dark:text-violet-300"
                         titleClassName="mt-2 text-lg font-black text-slate-900"
                         descriptionClassName="mt-2 text-sm font-semibold leading-relaxed text-slate-600"
                         bodyClassName="mt-4"
