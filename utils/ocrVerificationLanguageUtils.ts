@@ -1,7 +1,9 @@
 import type { WorkerRecord } from '../types';
 import { getNativeReportReadabilityIssues, getReportLanguagePolicy, resolveReportLanguageCode } from './reportLanguagePolicy.js';
 
-type OcrVerificationLikeRecord = Pick<WorkerRecord, 'nationality' | 'language' | 'jobField' | 'weakAreas' | 'aiInsights' | 'aiInsights_native' | 'fullText' | 'koreanTranslation' | 'handwrittenAnswers'>;
+type OcrVerificationLikeRecord = Pick<WorkerRecord, 'nationality' | 'language' | 'jobField' | 'weakAreas' | 'aiInsights' | 'aiInsights_native' | 'fullText' | 'koreanTranslation' | 'handwrittenAnswers'> & {
+    ocrDocumentValidation?: WorkerRecord['ocrDocumentValidation'];
+};
 
 type OcrVerificationQualityRecord = Pick<
     WorkerRecord,
@@ -131,7 +133,8 @@ export const evaluateOcrVerificationCompleteness = (record: OcrVerificationLikeR
     const hasAllFiveNumericItems = [1, 2, 3, 4, 5].every((num) => (
         new RegExp(`(?:^|\\s)${num}[\\.\\)]`).test(combinedText)
     ));
-    const hasQuestionnairePattern = hasExplicitForm2Header || form2PromptSignals >= 3 || hasAllFiveNumericItems;
+    const isConfirmedLegacyForm1 = record.ocrDocumentValidation?.formVariant === 'form-1-legacy' && !hasExplicitForm2Header;
+    const hasQuestionnairePattern = hasExplicitForm2Header || form2PromptSignals >= 3 || (!isConfirmedLegacyForm1 && hasAllFiveNumericItems);
     const nativeLanguageLabel = getNativeLanguageLabel(record.nationality, record.language);
     const hasEffectiveNativeGuidance = aiInsightsNative.length > 0 || (koreanWorker && aiInsights.length > 0);
     const issues: string[] = [];

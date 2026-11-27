@@ -109,6 +109,35 @@ describe('OCR document validation gate', () => {
         expect(result.validation.isPsiForm).toBe(false);
     });
 
+    it('accepts multilingual or slightly cropped legacy Form 1 (1안) tables while still rejecting generic memos', () => {
+        const multilingualForm1 = normalizeOcrDocumentMetadata({
+            documentType: 'psi-risk-assessment',
+            isPsiForm: true,
+            documentMarkers: [],
+            handwrittenAnswers: [
+                { questionNumber: '1', answerText: '支模架拆除', koreanTranslation: '거푸집 해체', nativeTranslation: '支模架拆除' },
+                { questionNumber: '2', answerText: '高处坠落风险', koreanTranslation: '추락 위험', nativeTranslation: '高处坠落风险' },
+            ],
+            fullText: '每日危险性评价表 姓名 王磊 工种 형틀 作业内容 거푸집 해체 유해위험요인 추락 감소대책 안전대 체결 서명',
+        });
+        expect(multilingualForm1.validation.isPsiForm).toBe(true);
+        expect(multilingualForm1.validation.formVariant).toBe('form-1-legacy');
+
+        const croppedTitleForm1 = normalizeOcrDocumentMetadata({
+            documentType: 'psi-risk-assessment',
+            isPsiForm: true,
+            documentMarkers: [],
+            handwrittenAnswers: [
+                { questionNumber: '1', answerText: '슬래브 철근 배근', koreanTranslation: '슬래브 철근 배근' },
+                { questionNumber: '2', answerText: '단부 추락 위험', koreanTranslation: '단부 추락 위험' },
+                { questionNumber: '4', answerText: '안전난간 설치 및 안전대 체결', koreanTranslation: '안전난간 설치 및 안전대 체결' },
+            ],
+            fullText: '성명 이철근 공종 철근 작업내용 슬래브 철근 배근 유해위험요인 단부 추락 위험등급 중 감소대책 안전난간 설치 서명 완료',
+        });
+        expect(croppedTitleForm1.validation.isPsiForm).toBe(true);
+        expect(croppedTitleForm1.validation.formVariant).toBe('form-1-legacy');
+    });
+
     it('returns only fields below the review threshold', () => {
         const lowFields = getLowConfidenceOcrFields({ name: 0.92, jobField: 0.55, date: 0.79 });
         expect(lowFields.map((item) => item.field)).toEqual(['jobField', 'date']);

@@ -88,4 +88,32 @@ describe('OCR native-language verification', () => {
         expect(result.hasQuestionnairePattern).toBe(false);
         expect(result.isComplete).toBe(true);
     });
+
+    it('does not flag numbered list items on a confirmed Form 1 legacy sheet as missing Q1-Q5 answers', () => {
+        const result = evaluateOcrVerificationCompleteness({
+            nationality: '대한민국',
+            language: 'ko',
+            jobField: '형틀',
+            weakAreas: ['추락 위험'],
+            aiInsights: '거푸집 해체 전 하부 통제 후 작업하세요.',
+            aiInsights_native: '',
+            fullText: '위험성평가 기록지 1. 작업내용 거푸집 해체 2. 위험요인 낙하 3. 위험등급 중 4. 감소대책 하부통제 5. 서명 확인',
+            koreanTranslation: '위험성평가 기록지 1. 작업내용 2. 위험요인 3. 위험등급 4. 감소대책 5. 서명',
+            ocrDocumentValidation: {
+                documentType: 'psi-risk-assessment',
+                formVariant: 'form-1-legacy',
+                isPsiForm: true,
+                reason: '1안 수기 양식',
+                detectedMarkers: ['위험성평가(1안)'],
+            },
+            handwrittenAnswers: [
+                { questionNumber: '1', answerText: '거푸집 해체', koreanTranslation: '거푸집 해체', nativeTranslation: '' },
+                { questionNumber: '2', answerText: '낙하 위험', koreanTranslation: '낙하 위험', nativeTranslation: '' },
+                { questionNumber: '4', answerText: '하부 통제 후 작업', koreanTranslation: '하부 통제 후 작업', nativeTranslation: '' },
+            ],
+        });
+
+        expect(result.hasQuestionnairePattern).toBe(false);
+        expect(result.isComplete).toBe(true);
+    });
 });

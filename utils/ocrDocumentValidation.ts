@@ -72,10 +72,10 @@ const hasSubstantiveHandwrittenAnswers = (value: unknown): boolean => {
 };
 
 const LEGACY_FORM1_DOMAIN_GROUPS: RegExp[] = [
-    /작업\s*내용|금일\s*작업|오늘\s*작업|세부\s*작업|작업\s*공종|작업\s*장소/,
-    /유해[\s·•-]*위험\s*요인|위험\s*요인|위험\s*요소|위험\s*사항|사고\s*원인|추락|낙하|끼임|감전|협착|전도|붕괴|화재/,
+    /작업\s*내용|금일\s*작업|오늘\s*작업|세부\s*작업|작업\s*공종|작업\s*장소|작업명|공정명?|작업\s*구간|비계|거푸집|형틀|철근|알폼|갱폼|해체|양중/,
+    /유해[\s·•-]*위험\s*요인|위험\s*요인|위험\s*요소|위험\s*사항|위험\s*내용|사고\s*원인|사고\s*유형|추락|낙하|끼임|감전|협착|전도|붕괴|화재|개구부|단부/,
     /위험\s*성|위험\s*도|위험\s*등급|빈도|강도|상[\s/·]+중[\s/·]+하/,
-    /감소\s*대책|안전\s*대책|개선\s*대책|안전\s*조치|예방\s*대책|실천\s*사항|안전\s*행동|보호구|안전대|서명/,
+    /감소\s*대책|안전\s*대책|개선\s*대책|안전\s*조치|안전\s*관리|조치\s*내용|조치\s*사항|예방\s*대책|대책|실천\s*사항|안전\s*행동|보호구|안전대|안전모|안전화|발판|안전난간|서명/,
 ];
 
 const countLegacyForm1DomainSlots = (text: string): number => (
@@ -104,9 +104,10 @@ export const assessPsiDocumentEvidence = (raw: Record<string, unknown>): PsiDocu
     const combinedEvidence = [markerEvidenceText, compactEvidence].filter(Boolean).join(' ');
     const legacyDomainSlotCount = countLegacyForm1DomainSlots(combinedEvidence);
     const hasSubstantiveContent = compactEvidence.trim().length >= 15 || hasSubstantiveHandwrittenAnswers(raw.handwrittenAnswers);
-    const hasRiskAssessmentTitle = /위험성\s*평가|위험\s*요인\s*평가|위험\s*예지|일일\s*위험성|근로자\s*위험성|risk\s*assessment/i.test(combinedEvidence);
+    const hasRiskAssessmentTitle = /위험성\s*평가|위험\s*요인\s*(?:평가|파악)|위험\s*예지|일일\s*위험성|근로자\s*위험성|작업\s*전\s*위험성|자기규율\s*위험성|안전보건\s*위험성|risk\s*assessment|风险评估|危险性评价|đánh\s*giá\s*rủi\s*ro|ประเมินความเสี่ยง|penilaian\s*risiko|xavf[^\n]{0,12}baholash|эрсдэлийн\s*үнэлгээ|оценка\s*рисков/i.test(combinedEvidence);
     const hasFooterEvidence = /(?:현장\s*등록\s*한글\s*이름|공종|직종|작성자|근로자\s*이름|근로자|작업자|성명|이름|팀명|소속|작성일|서명)/.test(combinedEvidence);
-    const hasLegacyForm1Structure = hasRiskAssessmentTitle && legacyDomainSlotCount >= 2 && hasSubstantiveContent;
+    const hasCroppedLegacyForm1Table = legacyDomainSlotCount >= 3 && hasFooterEvidence && hasSubstantiveContent;
+    const hasLegacyForm1Structure = (hasRiskAssessmentTitle && legacyDomainSlotCount >= 2 && hasSubstantiveContent) || hasCroppedLegacyForm1Table;
     const hasPsiIdentifier = /(?:^|[^a-z0-9])(?:new[-\s]?psi|psi[-\s]?ra[-\s]?0?1|psi)(?:[^a-z0-9]|$)/i.test(combinedEvidence);
     const questionNumbers = getQuestionNumbers(raw.handwrittenAnswers);
     for (const matched of compactEvidence.matchAll(/(?:^|[^0-9a-z])q?\s*([1-5])(?:[^0-9]|$)/gi)) {
@@ -114,7 +115,7 @@ export const assessPsiDocumentEvidence = (raw: Record<string, unknown>): PsiDocu
     }
     const questionCount = questionNumbers.size;
     const hasQuestionStructure = questionCount >= 4 || hasLegacyForm1Structure;
-    const hasPsiTitleEvidence = hasPsiIdentifier || (hasRiskAssessmentTitle && hasFooterEvidence);
+    const hasPsiTitleEvidence = hasPsiIdentifier || (hasRiskAssessmentTitle && hasFooterEvidence) || hasCroppedLegacyForm1Table;
     const isForm2Explicit = hasPsiIdentifier || /\bq[1-5]\b/i.test(combinedEvidence) || (questionCount >= 4 && !hasLegacyForm1Structure);
     const formVariant: PsiFormVariant = isForm2Explicit
         ? 'form-2-psi'

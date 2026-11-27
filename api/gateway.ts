@@ -17,6 +17,7 @@ import {
     evaluateOcrVerificationQuality,
 } from '../utils/ocrVerificationLanguageUtils.js';
 import {
+    GEMINI_OCR_MODEL_CATALOG,
     evaluateGeminiOcrCostGuard,
     estimateGeminiOcrCostUsd,
     resolveGeminiOcrModelChain,
@@ -214,6 +215,8 @@ const OCR_RETRY_RESPONSE_SCHEMA = {
 type GatewayHttpError = Error & {
     statusCode: number;
     code?: string;
+    upstreamStatus?: number;
+    upstreamErrorStatus?: string;
     ocrTrace?: {
         providerUsed: 'server_gemini';
         billingTier: 'free' | 'paid';
@@ -1597,6 +1600,19 @@ export const shouldTryNextModel = (code?: string): boolean => {
     return true;
 };
 
+export const extractSanitizedUpstreamStatus = (detail: string): string | undefined => {
+    try {
+        const parsed = JSON.parse(String(detail || '').trim());
+        const status = String(parsed?.error?.status || parsed?.status || '')
+            .trim()
+            .toUpperCase()
+            .replace(/[^A-Z0-9_]/g, '');
+        return status ? status.slice(0, 40) : undefined;
+    } catch {
+        return undefined;
+    }
+};
+
 export const isGeminiApiKeyRejection = (status: number, detail: string): boolean => {
     if (status === 401 || status === 403) return true;
     if (status !== 400) return false;
@@ -1630,38 +1646,65 @@ export const buildGeminiOcrInteractionInput = (
         : { type: 'image', data: cleanData, mime_type: mimeType, resolution: 'high' },
 ];
 
+const extractInteractionPartsText = (parts: unknown): string => {
+    if (!Array.isArray(parts)) return '';
+    return parts
+        .filter((item: any) => item?.thought !== true && (item?.type === undefined || item?.type === 'text') && typeof item?.text === 'string')
+        .map((item: any) => item.text)
+        .join('')
+        .trim();
+};
+
 export const readGeminiInteractionText = (payload: Record<string, any>): string => {
     const direct = String(payload?.output_text || payload?.outputText || '').trim();
     if (direct) return direct;
 
     const steps = Array.isArray(payload?.steps) ? payload.steps : [];
     for (let index = steps.length - 1; index >= 0; index -= 1) {
-        const content = Array.isArray(steps[index]?.content) ? steps[index].content : [];
-        const text = content
-            .filter((item: any) => item?.type === 'text' && typeof item?.text === 'string')
-            .map((item: any) => item.text)
-            .join('')
-            .trim();
-        if (text) return text;
+        const step = steps[index];
+        if (!step || step?.thought === true) continue;
+        const fromParts = extractInteractionPartsText(step?.content?.parts)
+            || extractInteractionPartsText(step?.content)
+            || extractInteractionPartsText(step?.parts);
+        if (fromParts) return fromParts;
+        if (typeof step?.text === 'string' && step.text.trim()) return step.text.trim();
     }
+
+    const outputs = Array.isArray(payload?.outputs) ? payload.outputs : [];
+    for (let index = outputs.length - 1; index >= 0; index -= 1) {
+        const entry = outputs[index];
+        if (!entry || entry?.thought === true || entry?.type === 'thought') continue;
+        if (typeof entry?.text === 'string' && entry.text.trim()) return entry.text.trim();
+        const fromParts = extractInteractionPartsText(entry?.content?.parts)
+            || extractInteractionPartsText(entry?.content)
+            || extractInteractionPartsText(entry?.parts);
+        if (fromParts) return fromParts;
+    }
+
+    const candidateText = extractInteractionPartsText(payload?.candidates?.[0]?.content?.parts);
+    if (candidateText) return candidateText;
+
     return '';
 };
 
 export const readGeminiInteractionUsage = (payload: Record<string, any>, countedInputTokens: number) => {
-    const usage = payload?.usage || payload?.total_usage || {};
+    const usage = payload?.usage || payload?.total_usage || payload?.usageMetadata || {};
     return {
         inputTokens: Math.max(0, Number(
             usage.total_input_tokens
             ?? usage.totalInputTokens
+            ?? usage.promptTokenCount
             ?? countedInputTokens,
         ) || countedInputTokens),
         outputTokens: Math.max(0, Number(
             usage.total_output_tokens
-            ?? usage.totalOutputTokens,
+            ?? usage.totalOutputTokens
+            ?? usage.candidatesTokenCount,
         ) || 0),
         thinkingTokens: Math.max(0, Number(
             usage.total_thought_tokens
-            ?? usage.totalThoughtTokens,
+            ?? usage.totalThoughtTokens
+            ?? usage.thoughtsTokenCount,
         ) || 0),
     };
 };
@@ -1776,7 +1819,7 @@ async function analyzeSingleRecord(
         throw createGatewayHttpError('ChatGPT Plus 구독은 OpenAI API가 아닙니다. 별도 OpenAI API 키 연결이 필요합니다.', 400, 'OPENAI_API_NOT_CONFIGURED');
     }
     const allowPreviewPro = options.allowPreviewPro === true;
-    const modelChain = resolveOcrModelChainForBilling(engine, options.billingTier, allowPreviewPro);
+    const activeModelChain = [...resolveOcrModelChainForBilling(engine, options.billingTier, allowPreviewPro)];
     const configuredMaxUsdPerDocument = getOcrMaxUsdPerDocument();
     const requestedMaxCostUsd = Number(options.maxCostUsd);
     const maxUsdPerDocument = Number.isFinite(requestedMaxCostUsd) && requestedMaxCostUsd > 0
@@ -1796,8 +1839,8 @@ async function analyzeSingleRecord(
         mimeType,
     );
 
-    for (let modelIndex = 0; modelIndex < modelChain.length; modelIndex++) {
-        const model = modelChain[modelIndex];
+    for (let modelIndex = 0; modelIndex < activeModelChain.length; modelIndex++) {
+        const model = activeModelChain[modelIndex];
         modelsAttempted.push(model);
         fallbackDepth = Math.max(fallbackDepth, modelIndex);
         const controller = new AbortController();
@@ -1821,6 +1864,7 @@ async function analyzeSingleRecord(
                 const detail = (await countResponse.text()).slice(0, 300);
                 const apiKeyRejected = isGeminiApiKeyRejection(countResponse.status, detail);
                 const modelUnavailable = isGeminiModelAvailabilityError(countResponse.status, detail);
+                const upstreamErrorStatus = extractSanitizedUpstreamStatus(detail);
                 let countError: GatewayHttpError;
                 if (countResponse.status === 429) {
                     countError = createGatewayHttpError(
@@ -1843,8 +1887,10 @@ async function analyzeSingleRecord(
                 } else {
                     countError = createGatewayHttpError(`Gemini 입력 토큰 계산을 확인할 수 없습니다(${countResponse.status}). 비용 보호를 위해 호출을 중단했습니다.`, 502, 'OCR_COST_ESTIMATE_UNAVAILABLE');
                 }
+                countError.upstreamStatus = countResponse.status;
+                if (upstreamErrorStatus) countError.upstreamErrorStatus = upstreamErrorStatus;
                 lastError = countError;
-                if (!shouldTryNextModel(countError.code) || modelIndex === modelChain.length - 1) {
+                if (!shouldTryNextModel(countError.code) || modelIndex === activeModelChain.length - 1) {
                     throw withFailureTrace(countError);
                 }
                 continue;
@@ -1912,6 +1958,7 @@ async function analyzeSingleRecord(
                 const detail = (await response.text()).slice(0, 300);
                 const apiKeyRejected = isGeminiApiKeyRejection(response.status, detail);
                 const modelUnavailable = isGeminiModelAvailabilityError(response.status, detail);
+                const upstreamErrorStatus = extractSanitizedUpstreamStatus(detail);
                 let mappedError: GatewayHttpError;
                 if (response.status === 429) {
                     mappedError = createGatewayHttpError(
@@ -1934,9 +1981,23 @@ async function analyzeSingleRecord(
                 } else {
                     mappedError = createGatewayHttpError(`Gemini OCR 서비스가 응답하지 않았습니다(${response.status}).`, 502, 'OCR_UPSTREAM_FAILURE');
                 }
+                mappedError.upstreamStatus = response.status;
+                if (upstreamErrorStatus) mappedError.upstreamErrorStatus = upstreamErrorStatus;
                 lastError = mappedError;
-                if (!shouldTryNextModel(mappedError.code) || modelIndex === modelChain.length - 1) {
+                const stableFallbackId = GEMINI_OCR_MODEL_CATALOG.stableFallback.id;
+                if (
+                    options.billingTier === 'free'
+                    && mappedError.code === 'OCR_UPSTREAM_FAILURE'
+                    && modelIndex === activeModelChain.length - 1
+                    && !activeModelChain.includes(stableFallbackId)
+                ) {
+                    activeModelChain.push(stableFallbackId);
+                }
+                if (!shouldTryNextModel(mappedError.code) || modelIndex === activeModelChain.length - 1) {
                     throw withFailureTrace(mappedError);
+                }
+                if (mappedError.code === 'OCR_UPSTREAM_FAILURE' && !process.env.VITEST) {
+                    await new Promise((resolve) => setTimeout(resolve, 1200));
                 }
                 continue;
             }
@@ -1971,7 +2032,7 @@ async function analyzeSingleRecord(
                     parsed = bestParsed;
                     break;
                 }
-                if (modelIndex === modelChain.length - 1) {
+                if (modelIndex === activeModelChain.length - 1) {
                     throw withFailureTrace(parseError);
                 }
                 continue;
@@ -1986,7 +2047,7 @@ async function analyzeSingleRecord(
 
             const mayUsePrecisionPass = engine !== 'gemini-fast'
                 && candidateQuality.shouldEscalate
-                && modelIndex < modelChain.length - 1;
+                && modelIndex < activeModelChain.length - 1;
             if (mayUsePrecisionPass) continue;
 
             parsed = bestParsed;
@@ -2002,7 +2063,7 @@ async function analyzeSingleRecord(
                 parsed = bestParsed;
                 break;
             }
-            if (!shouldTryNextModel(gatewayError.code) || modelIndex === modelChain.length - 1) {
+            if (!shouldTryNextModel(gatewayError.code) || modelIndex === activeModelChain.length - 1) {
                 throw withFailureTrace(gatewayError);
             }
         } finally {
@@ -2052,6 +2113,7 @@ async function analyzeSingleRecord(
         fullText: String(parsed.fullText || '').trim(),
         koreanTranslation: String(parsed.koreanTranslation || '').trim(),
         handwrittenAnswers: normalizedHandwrittenAnswers,
+        ocrDocumentValidation: documentMetadata.validation,
     });
 
     if (!hasCoreExtractedText) {
@@ -2628,6 +2690,8 @@ export default async function handler(req: any, res: any) {
             action,
             statusCode,
             code: String(err?.code || 'UNEXPECTED_GATEWAY_ERROR').slice(0, 80),
+            upstreamStatus: typeof err?.upstreamStatus === 'number' ? err.upstreamStatus : undefined,
+            upstreamErrorStatus: typeof err?.upstreamErrorStatus === 'string' ? err.upstreamErrorStatus : undefined,
             hasOcrTrace: Boolean(err?.ocrTrace),
         });
         return res.status(statusCode).json({

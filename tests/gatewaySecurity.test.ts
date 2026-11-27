@@ -168,6 +168,115 @@ describe('gateway public security boundaries', () => {
             outputTokens: 240,
             thinkingTokens: 40,
         });
+
+        expect(readGeminiInteractionText({
+            steps: [{
+                type: 'model_output',
+                content: {
+                    parts: [
+                        { thought: true, text: 'internal thought' },
+                        { text: '[{"name":"김안전"}]' },
+                    ],
+                },
+            }],
+        })).toBe('[{"name":"김안전"}]');
+
+        expect(readGeminiInteractionText({
+            outputs: [{
+                type: 'text',
+                text: '[{"name":"이철근"}]',
+            }],
+        })).toBe('[{"name":"이철근"}]');
+    });
+
+    it('falls back to gemini-3.7-flash on free upstream 503 failures without leaking upstream details', async () => {
+        process.env.ADMIN_API_AUTH_TOKEN = 'test-admin-upstream-fallback';
+        process.env.GEMINI_API_KEY_FREE = 'test-free-upstream-key';
+        process.env.GEMINI_API_KEY_PAID = 'must-not-use-paid';
+        const imageSource = `data:image/png;base64,${Buffer.concat([
+            Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+            Buffer.alloc(120),
+        ]).toString('base64')}`;
+        const validRecord = {
+            documentType: 'psi-risk-assessment',
+            isPsiForm: true,
+            documentValidationReason: '1안 수기 위험성평가 확인',
+            documentMarkers: ['위험성평가', '성명', '공종', '작업내용', '감소대책'],
+            fieldConfidences: { name: 0.92, jobField: 0.9, date: 0.91, nationality: 0.95, handwrittenAnswers: 0.89 },
+            name: '홍길동',
+            jobField: '형틀',
+            teamLeader: '김반장',
+            date: '2026-11-27',
+            nationality: '대한민국',
+            language: 'ko',
+            safetyScore: 84,
+            safetyLevel: '고급',
+            score_reason: '형틀 작업 위험과 감소대책을 구체적으로 적었습니다.',
+            score_reason_native: '형틀 작업 위험과 감소대책을 구체적으로 적었습니다.',
+            actionable_coaching: '💡 작업 전 개구부 덮개 고정을 다시 확인하세요.',
+            actionable_coaching_native: '작업 전 개구부 덮개 고정을 다시 확인하세요.',
+            scoreBreakdown: {
+                psychological: 9,
+                jobUnderstanding: 17,
+                riskAssessmentUnderstanding: 17,
+                proficiency: 24,
+                improvementExecution: 17,
+                repeatViolationPenalty: 0,
+            },
+            strengths: ['작업 전 점검 내용 명확'],
+            strengths_native: ['작업 전 점검 내용 명확'],
+            weakAreas: ['추가 세부 수치 보완'],
+            weakAreas_native: ['추가 세부 수치 보완'],
+            improvement: '작업 반경 표시',
+            improvement_native: '작업 반경 표시',
+            suggestions: ['해체 전 하부 통제'],
+            suggestions_native: ['해체 전 하부 통제'],
+            aiInsights: '형틀 해체 전 하부 통제를 유지하세요.',
+            aiInsights_native: '형틀 해체 전 하부 통제를 유지하세요.',
+            fullText: '근로자 위험성평가 기록지 성명 홍길동 공종 형틀 작업내용 거푸집 해체 감소대책 하부 통제',
+            koreanTranslation: '거푸집 해체 작업 전 하부 통제',
+            scoreReasoning: ['6대 지표 채점 합산'],
+            ocrConfidence: 0.91,
+            handwrittenAnswers: [
+                { questionNumber: '1', answerText: '거푸집 해체', koreanTranslation: '거푸집 해체', nativeTranslation: '' },
+                { questionNumber: '2', answerText: '낙하 위험', koreanTranslation: '낙하 위험', nativeTranslation: '' },
+                { questionNumber: '4', answerText: '하부 통제 및 안전대 체결', koreanTranslation: '하부 통제 및 안전대 체결', nativeTranslation: '' },
+            ],
+        };
+        const interactionsModels: string[] = [];
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+            const url = String(input);
+            if (url.endsWith(':countTokens')) {
+                return new Response(JSON.stringify({ totalTokens: 600 }), { status: 200 });
+            }
+            const parsedBody = JSON.parse(String(init?.body || '{}'));
+            const model = String(parsedBody.model || '');
+            interactionsModels.push(model);
+            if (model !== 'gemini-3.7-flash') {
+                return new Response(JSON.stringify({ error: { status: 'UNAVAILABLE', message: 'secret upstream failure' } }), { status: 503 });
+            }
+            return new Response(JSON.stringify({
+                status: 'completed',
+                steps: [{ type: 'model_output', content: { parts: [{ text: JSON.stringify([validRecord]) }] } }],
+                usage: { total_input_tokens: 600, total_output_tokens: 450, total_thought_tokens: 0 },
+            }), { status: 200 });
+        });
+        const res = createResponse();
+
+        await gatewayHandler({
+            method: 'POST',
+            headers: { 'x-admin-auth': 'test-admin-upstream-fallback', 'x-forwarded-for': '198.51.100.148' },
+            query: { action: 'ocr.retry' },
+            body: { recordId: 'record-upstream-fallback', imageSource, ocrEngine: 'auto' },
+        }, res.response);
+
+        expect(res.read().statusCode).toBe(200);
+        expect(res.read().body.ok).toBe(true);
+        expect(res.read().body.trace.modelUsed).toBe('gemini-3.7-flash');
+        expect(interactionsModels).toEqual(['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.7-flash']);
+        expect(fetchMock.mock.calls.every(([, init]) => (
+            (init?.headers as Record<string, string>)?.['x-goog-api-key'] === 'test-free-upstream-key'
+        ))).toBe(true);
     });
 
     it('requests paid approval only for free-provider quota exhaustion', () => {

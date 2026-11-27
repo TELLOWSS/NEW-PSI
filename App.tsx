@@ -27,6 +27,7 @@ import { useUiAudienceMode } from './hooks/useUiAudienceMode';
 import { requestServerOcrAnalysis } from './services/ocrGatewayService';
 import { getAiEngineSettings } from './utils/aiEngineSettings';
 import { prepareOcrSourceForGateway } from './utils/ocrGatewayPayload';
+import { buildReanalysisErrorMessage, isTransientReanalysisError, mergeReanalyzedWorkerRecord } from './utils/ocrReanalysisHelper';
 import { selectSafeBackupImports } from './utils/backupMerge';
 import {
     applyWorkerUuidPolicy,
@@ -1229,52 +1230,40 @@ const App: React.FC = () => {
                 record.filename || record.name || 'psi-document',
             );
 
-            const serverResult = await requestServerOcrAnalysis({
+            const executeRequest = () => requestServerOcrAnalysis({
                 recordId: record.id,
                 imageSource: preparedImageSource,
                 filenameHint: record.filename || record.name,
                 ocrEngine: getAiEngineSettings().ocrEngine,
             });
+
+            let serverResult;
+            try {
+                serverResult = await executeRequest();
+            } catch (firstError) {
+                if (!isTransientReanalysisError(firstError)) {
+                    throw firstError;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+                serverResult = await executeRequest();
+            }
             
-            if (serverResult.record) {
-                const newResult = {
-                    ...serverResult.record,
-                    ocrTrace: serverResult.trace,
-                };
-                const updatedRecord: WorkerRecord = {
-                    ...record,
-                    ...newResult,
-                    id: record.id,
-                    worker_uuid: record.worker_uuid || newResult.worker_uuid,
-                    workerUuid: record.workerUuid || newResult.workerUuid,
-                    portableWorkerId: record.portableWorkerId || newResult.portableWorkerId,
-                    employeeId: record.employeeId || newResult.employeeId,
-                    employeeIdGenerated: record.employeeId ? record.employeeIdGenerated : newResult.employeeIdGenerated,
-                    employeeIdScope: record.employeeId ? record.employeeIdScope : newResult.employeeIdScope,
-                    qrId: record.qrId || newResult.qrId,
-                    qrIdGenerated: record.qrId ? record.qrIdGenerated : newResult.qrIdGenerated,
-                    originalImage: record.originalImage,
-                    profileImage: record.profileImage,
-                    date: record.date || new Date().toISOString().split('T')[0],
-                    filename: record.filename,
-                    role: record.role,
-                    isTranslator: record.isTranslator,
-                    isSignalman: record.isSignalman,
-                    auditTrail: [
-                        ...(record.auditTrail || []),
-                        ...(newResult.auditTrail || []),
-                    ],
-                };
-                
+            if (serverResult?.record) {
+                const updatedRecord = mergeReanalyzedWorkerRecord(
+                    record,
+                    serverResult.record,
+                    serverResult.trace,
+                );
                 await handleUpdateRecord(updatedRecord);
-                setIsReanalyzing(false);
                 return updatedRecord;
             }
+            alert('재분석 응답에 분석 결과가 포함되지 않았습니다. 잠시 후 다시 시도해 주세요.');
         } catch (e) {
             console.error("Reanalyze failed", e);
-            alert("재분석 중 오류가 발생했습니다.");
+            alert(buildReanalysisErrorMessage(e).fullMessage);
+        } finally {
+            setIsReanalyzing(false);
         }
-        setIsReanalyzing(false);
         return null;
     }, [handleUpdateRecord]);
     
