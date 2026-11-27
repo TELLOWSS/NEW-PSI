@@ -1,3 +1,6 @@
+export const SITE_ISSUES_STORAGE_KEY = 'psi_site_issues';
+export const SITE_ISSUES_UPDATED_EVENT = 'psi-site-issues-updated';
+
 export type SiteIssueReadResult<T>={items:T[];safe:boolean;warning:string};
 export function readSiteIssueList<T>(read:()=>string|null):SiteIssueReadResult<T>{
  try{
@@ -9,6 +12,12 @@ export function readSiteIssueList<T>(read:()=>string|null):SiteIssueReadResult<T
  }catch{return {items:[],safe:false,warning:'기존 지적사항을 읽지 못했습니다. 원본 보존을 위해 저장을 차단했습니다.'};}
 }
 export function persistSiteIssueList<T>(items:readonly T[],write:(text:string)=>void):{ok:boolean;warning:string}{
- try{write(JSON.stringify(items));return {ok:true,warning:''};}
+ try{
+  write(JSON.stringify(items));
+  if(typeof window!=='undefined'){
+   window.dispatchEvent(new CustomEvent(SITE_ISSUES_UPDATED_EVENT));
+  }
+  return {ok:true,warning:''};
+ }
  catch{return {ok:false,warning:'브라우저 저장공간 부족 또는 접근 제한으로 저장에 실패했습니다.'};}
 }

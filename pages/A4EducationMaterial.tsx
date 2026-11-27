@@ -64,6 +64,11 @@ import {
     groupRecordsByAssessmentPeriod,
     resolveAssessmentPeriod,
 } from '../utils/assessmentCycle';
+import {
+    clearAccidentEducationHandoff,
+    readAccidentEducationHandoff,
+    type AccidentEducationHandoff,
+} from '../utils/accidentEducationBridge';
 
 interface Props {
     workerRecords: WorkerRecord[];
@@ -1188,14 +1193,48 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         nextDate.setUTCDate(nextDate.getUTCDate() + 1);
         return resolveAssessmentPeriod(nextDate, cycle);
     }, [currentPeriod.endDate, cycle, sourcePeriod.endDate]);
-    const [initialState] = useState<StoredStudioState | null>(() => loadStudioState());
+    const [initialHandoff] = useState<AccidentEducationHandoff | null>(() => readAccidentEducationHandoff());
+    const [initialState] = useState<StoredStudioState | null>(() => {
+        const base = loadStudioState();
+        if (!initialHandoff) return base;
+        const targetMonth = base?.educationMonth || getNextMonth();
+        const targetWork = initialHandoff.workType || base?.workType || DEFAULT_WORK_TYPE;
+        return loadStudioState({ educationMonth: targetMonth, workType: targetWork })
+            || createFreshStudioState(
+                sourceRecords,
+                targetMonth,
+                targetWork,
+                cycleCopy.nextCycleLabel,
+                targetPeriod.label,
+            );
+    });
     const initialEducationMonth = initialState?.educationMonth || getNextMonth();
-    const initialWorkType = initialState?.workType || DEFAULT_WORK_TYPE;
+    const initialWorkType = initialHandoff?.workType || initialState?.workType || DEFAULT_WORK_TYPE;
     const [activeTab, setActiveTab] = useState<StudioTab>('sources');
     const [educationMonth, setEducationMonth] = useState(initialEducationMonth);
     const [workType, setWorkType] = useState(initialWorkType);
     const [manualText, setManualText] = useState('');
-    const [sources, setSources] = useState<TbmEvidenceSource[]>(initialState?.sources || []);
+    const [linkedAccidentNotice, setLinkedAccidentNotice] = useState<{
+        sourceLabel: string;
+        workType: string;
+        caseCount: number;
+    } | null>(() =>
+        initialHandoff
+            ? {
+                sourceLabel: initialHandoff.sourceLabel,
+                workType: initialWorkType,
+                caseCount: initialHandoff.accidentCases.length,
+            }
+            : null,
+    );
+    const [sources, setSources] = useState<TbmEvidenceSource[]>(() => {
+        const baseSources = initialState?.sources || [];
+        if (!initialHandoff) return baseSources;
+        return [
+            initialHandoff.evidenceSource,
+            ...baseSources.filter((item) => item.id !== initialHandoff.evidenceSource.id),
+        ];
+    });
     const [isExtracting, setIsExtracting] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const [batchProgress, setBatchProgress] = useState('');
@@ -1211,7 +1250,11 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const [reviewerRole, setReviewerRole] = useState<A4ReviewerRole>('site-manager');
     const [reviewSaveMessage, setReviewSaveMessage] = useState('');
     const [preparedReviewCsv, setPreparedReviewCsv] = useState<{ blob: Blob; filename: string } | null>(null);
-    const [notice, setNotice] = useState('');
+    const [notice, setNotice] = useState(() =>
+        initialHandoff
+            ? `사고 빅데이터에서 [${initialWorkType}] ${initialHandoff.sourceLabel} 사례(${initialHandoff.accidentCases.length}건)를 불러와 근거 자료와 초안에 반영했습니다.`
+            : '',
+    );
     const [translatedTexts, setTranslatedTexts] = useState<Record<string, string>>(
         initialState?.translatedTexts || {},
     );
@@ -1221,15 +1264,48 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const [translationSourceText, setTranslationSourceText] = useState(
         initialState?.translationSourceText || '',
     );
-    const [draft, setDraft] = useState<TbmEducationDraft>(() =>
-        initialState?.draft || createFreshStudioState(
+    const [draft, setDraft] = useState<TbmEducationDraft>(() => {
+        const baseDraft = initialState?.draft || createFreshStudioState(
             sourceRecords,
             initialEducationMonth,
             initialWorkType,
             cycleCopy.nextCycleLabel,
             targetPeriod.label,
-        ).draft,
-    );
+        ).draft;
+        if (!initialHandoff) return baseDraft;
+        const mergedCases = [
+            ...initialHandoff.accidentCases,
+            ...baseDraft.accidentCases.filter(
+                (item) =>
+                    !initialHandoff.accidentCases.some(
+                        (incoming) =>
+                            incoming.id === item.id ||
+                            (incoming.title === item.title && incoming.occurredAt === item.occurredAt),
+                    ),
+            ),
+        ];
+        const mergedRisks = initialHandoff.riskHint
+            && !baseDraft.risks.some((item) => item.risk === initialHandoff.riskHint?.risk)
+            ? [
+                {
+                    id: `bigdata-risk-${initialHandoff.id}`,
+                    risk: initialHandoff.riskHint.risk,
+                    action: initialHandoff.riskHint.action,
+                    evidenceLabels: ['사고 빅데이터 연계'],
+                    score: 95,
+                    owner: '현장 안전관리자',
+                    managerConfirmed: false,
+                },
+                ...baseDraft.risks,
+            ]
+            : baseDraft.risks;
+        return {
+            ...baseDraft,
+            workType: initialWorkType,
+            accidentCases: mergedCases,
+            risks: mergedRisks,
+        };
+    });
     const [previewLanguage, setPreviewLanguage] = useState<string>('ko-KR');
     const [viewMode, setViewMode] = useState<'split' | 'single'>('single');
     const [isOverflowing, setIsOverflowing] = useState(false);
@@ -1241,9 +1317,19 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const verifiedPngCacheRef = useRef<{ scope: string; files: EducationZipFile[] } | null>(null);
 
     const workTypes = useMemo(
-        () => [DEFAULT_WORK_TYPE, ...Array.from(new Set(sourceRecords.map((item) => item.jobField).filter(Boolean))).sort()],
-        [sourceRecords],
+        () => Array.from(new Set([
+            DEFAULT_WORK_TYPE,
+            ...(workType && workType !== DEFAULT_WORK_TYPE ? [workType] : []),
+            ...sourceRecords.map((item) => item.jobField).filter(Boolean),
+        ])).sort((a, b) => (a === DEFAULT_WORK_TYPE ? -1 : b === DEFAULT_WORK_TYPE ? 1 : a.localeCompare(b, 'ko-KR'))),
+        [sourceRecords, workType],
     );
+
+    useEffect(() => {
+        if (initialHandoff) {
+            clearAccidentEducationHandoff();
+        }
+    }, [initialHandoff]);
     const fieldSource = useMemo(
         () => buildFieldRecordSource(sourceRecords, workType, cycleCopy.nextCycleLabel, {
             followupRecords: workerRecords,
@@ -2081,6 +2167,24 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             <p id="psi-studio-stage-status" data-psi-studio-progress="true" role="status" aria-live="polite" className="no-print text-xs font-semibold leading-5">
                 현재 {STUDIO_STEPS.findIndex(([id]) => id === activeTab) + 1}/5단계 · {STUDIO_STEPS.find(([id]) => id === activeTab)?.[1].replace(/^\d+\.\s*/, '')} · 위 단계 버튼으로 필요한 작업을 바로 선택할 수 있습니다.
             </p>
+
+            {linkedAccidentNotice && (
+                <section
+                    data-linked-accident-banner="true"
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-teal-300 bg-teal-50 px-4 py-3 text-teal-950 shadow-sm dark:border-teal-500/40 dark:bg-teal-950/60 dark:text-teal-100 no-print"
+                >
+                    <p className="text-xs font-extrabold sm:text-sm">
+                        사고 빅데이터 연계 반영 완료 · [{linkedAccidentNotice.workType}] {linkedAccidentNotice.sourceLabel} ({linkedAccidentNotice.caseCount}건)이 자료와 초안에 자동 입력되었습니다.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => setLinkedAccidentNotice(null)}
+                        className="min-h-[34px] rounded-xl border border-teal-400/60 bg-white/80 px-3 text-xs font-extrabold text-teal-900 hover:bg-white dark:border-teal-500/40 dark:bg-slate-900 dark:text-teal-100"
+                    >
+                        안내 닫기
+                    </button>
+                </section>
+            )}
 
             {notice && (
                 <p className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200 no-print">

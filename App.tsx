@@ -1313,6 +1313,7 @@ const App: React.FC = () => {
                     onAdminLogout={handleAdminLogout}
                     workerRecords={workerRecords}
                     safetyCheckRecords={safetyCheckRecords}
+                    onOpenWorkerRecord={(record) => setModalState({ type: 'recordDetail', record, source: 'ocr-analysis' })}
                 >
                     <Suspense fallback={<div className="min-h-[240px] flex items-center justify-center"><Spinner /></div>}>
                         {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={navigateToPage} initialTrade={dashboardReturnTrade} initialView={dashboardView} onOpenNexus={(trade,view) => { setDashboardView(view); navigateToPage('safety-nexus'); setNexusInitialTrade(trade); setNexusView(previous=>previous?.trade===trade?previous:null); }} />}

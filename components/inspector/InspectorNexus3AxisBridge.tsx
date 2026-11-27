@@ -124,7 +124,7 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
         .SpeechRecognition ??
       (window as unknown as { webkitSpeechRecognition?: new () => unknown }).webkitSpeechRecognition;
     if (!SpeechRec) {
-      setFeedbackNotice('이 브라우저는 현장 음성 입력을 지원하지 않습니다. 키보드 또는 1초 프리셋을 사용해 주세요.');
+      setFeedbackNotice('이 브라우저는 현장 음성 입력을 지원하지 않습니다. 키보드 또는 1초 빠른 입력을 사용해 주세요.');
       return;
     }
     try {
@@ -153,7 +153,7 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
       recognition.start();
     } catch {
       setIsListeningVoice(false);
-      setFeedbackNotice('음성 인식을 시작하지 못했습니다. 마이크 권한 또는 1초 프리셋을 확인해 주세요.');
+      setFeedbackNotice('음성 인식을 시작하지 못했습니다. 마이크 권한 또는 1초 빠른 입력을 확인해 주세요.');
     }
   };
 
@@ -165,7 +165,7 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
     setOverrideEquipment(preset.hazardEquipmentAxis);
     setCustomAction('');
     setFeedbackNotice(
-      `[1초 현장 프리셋 적용] ${preset.badge} ${preset.label} — 위치·관찰내용·3축 분류 및 시정조치 초안이 자동 입력되었습니다.`,
+      `[1초 빠른 입력 적용] ${preset.badge} ${preset.label} — 위치·관찰내용·3축 분류 및 시정조치 초안이 자동 입력되었습니다.`,
     );
   };
 
@@ -299,8 +299,8 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
 
       {source === 'safety-nexus-quick' && (
         <>
-          <div className="nexus-quick-preset-bar" role="group" aria-label="현장 안전관리자 1초 원탭 위험 프리셋">
-            <span className="nexus-quick-preset-title">⚡ 현장 1초 원탭 프리셋</span>
+          <div className="nexus-quick-preset-bar" role="group" aria-label="현장 안전관리자 1초 빠른 위험 입력">
+            <span className="nexus-quick-preset-title">⚡ 현장 1초 빠른 입력</span>
             <div className="nexus-quick-preset-chips">
               {NEXUS_QUICK_FIELD_PRESETS.map(preset => (
                 <button

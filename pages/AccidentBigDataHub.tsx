@@ -38,6 +38,11 @@ import {
     type AccidentPromptFormat,
     type AccidentPromptProvider,
 } from '../utils/accidentBigData';
+import {
+    buildAccidentEducationHandoffFromAlert,
+    buildAccidentEducationHandoffFromRecord,
+    saveAccidentEducationHandoff,
+} from '../utils/accidentEducationBridge';
 
 interface AccidentBigDataHubProps {
     workerRecords?: WorkerRecord[];
@@ -1993,7 +1998,18 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    onClick={() => onNavigateToPage('a4-education-material')}
+                                                    onClick={() => {
+                                                        const primaryAlert = analytics.crossLinkAlerts[0];
+                                                        if (primaryAlert) {
+                                                            const matching = dashboardFilteredRecords.filter(
+                                                                (item) => item.jobField === primaryAlert.jobField,
+                                                            );
+                                                            saveAccidentEducationHandoff(
+                                                                buildAccidentEducationHandoffFromAlert(primaryAlert, matching),
+                                                            );
+                                                        }
+                                                        onNavigateToPage('a4-education-material');
+                                                    }}
                                                     className="min-h-[38px] rounded-xl border border-slate-300 bg-white px-3 text-xs font-extrabold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                                                 >
                                                     교육자료 제작 연결 →
@@ -2893,6 +2909,9 @@ export const AccidentBigDataHub: React.FC<AccidentBigDataHubProps> = ({
                                             <button
                                                 type="button"
                                                 onClick={() => {
+                                                    saveAccidentEducationHandoff(
+                                                        buildAccidentEducationHandoffFromRecord(selectedRecord),
+                                                    );
                                                     setSelectedRecord(null);
                                                     setIsEditingDrawer(false);
                                                     onNavigateToPage('a4-education-material');

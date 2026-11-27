@@ -80,9 +80,10 @@ interface LayoutProps {
     onAdminLogout: () => void | Promise<void>;
     workerRecords?: readonly WorkerRecord[];
     safetyCheckRecords?: readonly SafetyCheckRecord[];
+    onOpenWorkerRecord?: (record: WorkerRecord) => void;
 }
 
-type MobileTabId = 'home' | 'alerts' | 'profile' | 'predictive' | 'more';
+type MobileTabId = 'home' | 'alerts' | 'inspector' | 'predictive' | 'more';
 
 const resolveSiteTitle = (): string => {
     if (typeof window === 'undefined') return '현장 안전관리';
@@ -117,6 +118,7 @@ export const Layout: React.FC<LayoutProps> = ({
     onAdminLogout,
     workerRecords = [],
     safetyCheckRecords = [],
+    onOpenWorkerRecord,
 }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isPaidApiMode, setIsPaidApiMode] = useState(false);
@@ -180,11 +182,11 @@ export const Layout: React.FC<LayoutProps> = ({
     const analysisModeLabel = isPaidApiMode ? '고급 분석 사용' : '기본 분석 사용';
 
     const mobilePageGroupsBase: Record<MobileTabId, Page[]> = {
-        home: ['dashboard'],
-        alerts: ['ocr-analysis'],
-        profile: ['monthly-guidance-report'],
-        predictive: ['education-return', 'a4-education-material', 'reports', 'monthly-guidance-report', 'admin-training'],
-        more: ['performance-analysis', 'settings'],
+        home: ['dashboard', 'safety-nexus'],
+        alerts: ['ocr-analysis', 'accident-bigdata'],
+        inspector: ['safety-inspector', 'site-issue-management'],
+        predictive: ['education-return', 'a4-education-material', 'monthly-guidance-report', 'reports', 'admin-training'],
+        more: ['performance-analysis', 'worker-management', 'settings'],
     };
 
     const isMobilePageVisible = (page: Page) =>
@@ -194,7 +196,7 @@ export const Layout: React.FC<LayoutProps> = ({
     const filteredMobilePageGroups: Record<MobileTabId, Page[]> = {
         home: mobilePageGroupsBase.home.filter(isMobilePageVisible),
         alerts: mobilePageGroupsBase.alerts.filter(isMobilePageVisible),
-        profile: mobilePageGroupsBase.profile.filter(isMobilePageVisible),
+        inspector: mobilePageGroupsBase.inspector.filter(isMobilePageVisible),
         predictive: mobilePageGroupsBase.predictive.filter(isMobilePageVisible),
         more: mobilePageGroupsBase.more.filter(isMobilePageVisible),
     };
@@ -209,19 +211,19 @@ export const Layout: React.FC<LayoutProps> = ({
         {
             id: 'alerts',
             label: '위험분석',
-            page: filteredMobilePageGroups.alerts[0],
+            page: filteredMobilePageGroups.alerts[0] || 'ocr-analysis',
             icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-3-3v6m8 5H4a2 2 0 01-2-2V6a2 2 0 012-2h16a2 2 0 012 2v12a2 2 0 01-2 2z" /></svg>,
         },
         {
-            id: 'profile',
-            label: '계도',
-            page: filteredMobilePageGroups.profile[0],
-            icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" /></svg>,
+            id: 'inspector',
+            label: '사진점검',
+            page: filteredMobilePageGroups.inspector[0] || 'safety-inspector',
+            icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h2.5l1.5-2h6l1.5 2H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><circle cx="12" cy="13" r="3" strokeWidth={2} /></svg>,
         },
         {
             id: 'predictive',
             label: '교육자료',
-            page: filteredMobilePageGroups.predictive[0],
+            page: filteredMobilePageGroups.predictive[0] || 'education-return',
             icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5s3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253" /></svg>,
         },
         {
@@ -777,6 +779,41 @@ export const Layout: React.FC<LayoutProps> = ({
                                 </div>
                             </section>
                         )}
+                        {currentPage === 'safety-inspector' && (
+                            <nav
+                                aria-label="사진점검 빠른 화면 이동"
+                                className="mb-3 flex flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200 bg-white/95 px-2.5 py-2 shadow-sm lg:hidden dark:border-slate-700 dark:bg-slate-900/95 no-print"
+                            >
+                                <button
+                                    type="button"
+                                    onClick={() => handlePageChange('dashboard')}
+                                    className="min-h-[40px] flex-1 rounded-xl bg-slate-100 px-2.5 text-xs font-extrabold text-slate-800 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100"
+                                >
+                                    ← 홈
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handlePageChange('ocr-analysis')}
+                                    className="min-h-[40px] flex-1 rounded-xl bg-slate-100 px-2.5 text-xs font-extrabold text-slate-800 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100"
+                                >
+                                    위험분석
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handlePageChange('accident-bigdata')}
+                                    className="min-h-[40px] flex-1 rounded-xl bg-slate-100 px-2.5 text-xs font-extrabold text-slate-800 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100"
+                                >
+                                    사고 빅데이터
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleOpenMobileMenu}
+                                    className="min-h-[40px] rounded-xl border border-slate-300 bg-white px-3 text-xs font-extrabold text-slate-900 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                                >
+                                    전체 메뉴
+                                </button>
+                            </nav>
+                        )}
                         <PageHeader
                             key={currentPage}
                             show={showCommonPageHeader}
@@ -862,6 +899,7 @@ export const Layout: React.FC<LayoutProps> = ({
                         currentPage={currentPage}
                         workerRecords={workerRecords}
                         onNavigateToPage={handlePageChange}
+                        onOpenWorkerRecord={onOpenWorkerRecord}
                         onOpenInspector={() => setIsInspectorDrawerOpen(true)}
                         onToggleSunlight={handleToggleSunlightMode}
                         onToggleMotion={handleToggleMotionPaused}

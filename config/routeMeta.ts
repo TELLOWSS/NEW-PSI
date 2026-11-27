@@ -473,6 +473,7 @@ const PAGE_HEADER_HIDDEN_MAP: Partial<Record<Page, boolean>> = {
     'worker-training': true,
     'ocr-analysis': true,
     'accident-bigdata': true,
+    'safety-inspector': true,
     'reports': true,
 };
 

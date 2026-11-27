@@ -28,6 +28,11 @@ import { StatusBadge } from '../shared/StatusBadge';
 import { SummaryMetricGrid } from '../shared/SummaryMetricGrid';
 import { WhyThisResultPanel } from '../shared/WhyThisResultPanel';
 import { CollapsibleSection } from '../shared/CollapsibleSection';
+import {
+    isStandardNationalityOption,
+    normalizeNationalitySelectValue,
+    STANDARD_NATIONALITY_OPTIONS,
+} from '../../utils/nationalityOptionUtils';
 import { getLowConfidenceOcrFields } from '../../utils/ocrDocumentValidation';
 import { WorkerRiskFollowupPanel } from '../ocr/WorkerRiskFollowupPanel';
 import { WorkerPracticeVerificationPanel } from '../ocr/WorkerPracticeVerificationPanel';
@@ -3959,25 +3964,25 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                     <div className="grid grid-cols-2 gap-6">
                                         <div>
                                             <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">국적 / 안내 언어</label>
-                                            <select 
-                                                value={record.nationality} 
-                                                onChange={(e) => handleChange('nationality', e.target.value)} 
-                                                className="w-full font-bold p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-600 appearance-none"
-                                            >
-                                                <option value="한국">한국 (Korea)</option>
-                                                <option value="중국">중국 (China)</option>
-                                                <option value="베트남">베트남 (Vietnam)</option>
-                                                <option value="태국">태국 (Thailand)</option>
-                                                <option value="캄보디아">캄보디아 (Cambodia)</option>
-                                                <option value="인도네시아">인도네시아 (Indonesia)</option>
-                                                <option value="우즈베키스탄">우즈베키스탄 (Uzbekistan)</option>
-                                                <option value="몽골">몽골 (Mongolia)</option>
-                                                <option value="카자흐스탄">카자흐스탄 (Kazakhstan)</option>
-                                                <option value="러시아">러시아 (Russia)</option>
-                                                <option value="필리핀">필리핀 (Philippines)</option>
-                                                <option value="네팔">네팔 (Nepal)</option>
-                                                <option value="미얀마">미얀마 (Myanmar)</option>
-                                            </select>
+                                            {(() => {
+                                                const normalizedNationality = normalizeNationalitySelectValue(record.nationality);
+                                                return (
+                                                    <select 
+                                                        value={normalizedNationality} 
+                                                        onChange={(e) => handleChange('nationality', e.target.value)} 
+                                                        className="w-full font-bold p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-600 appearance-none"
+                                                    >
+                                                        {STANDARD_NATIONALITY_OPTIONS.map((option) => (
+                                                            <option key={option.value} value={option.value}>
+                                                                {option.label}
+                                                            </option>
+                                                        ))}
+                                                        {!isStandardNationalityOption(normalizedNationality) && (
+                                                            <option value={normalizedNationality}>{normalizedNationality}</option>
+                                                        )}
+                                                    </select>
+                                                );
+                                            })()}
                                         </div>
                                         <div>
                                             <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">작성일</label>

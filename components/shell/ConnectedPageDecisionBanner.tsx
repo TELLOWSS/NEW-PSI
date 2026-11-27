@@ -38,6 +38,8 @@ import {
   NEXUS_AUTHORITY_STORAGE_KEY,
   readActiveNexusAuthority,
 } from '../../utils/psiPageDecisionBrief';
+import { ACCIDENT_BIGDATA_UPDATED_EVENT } from '../../utils/accidentBigData';
+import { SITE_ISSUES_UPDATED_EVENT } from '../../utils/siteIssueStorage';
 
 interface Props {
   currentPage: Page;
@@ -64,12 +66,18 @@ export const ConnectedPageDecisionBanner: React.FC<Props> = ({
   onNavigateToPage,
   onOpenInspectorDrawer,
 }) => {
+  const isSelfHeadedHub = currentPage === 'safety-inspector' || currentPage === 'accident-bigdata';
   const [authority, setAuthority] = useState(() => readActiveNexusAuthority());
   const [persona, setPersona] = useState<NexusDecisionPersona>(() =>
     readActiveNexusAuthority() === 'field' ? 'field_manager' : 'executive',
   );
   const [desktopExpanded, setDesktopExpanded] = useState(false);
+  const [slimCollapsed, setSlimCollapsed] = useState(isSelfHeadedHub);
   const [revisionTick, setRevisionTick] = useState(0);
+
+  useEffect(() => {
+    setSlimCollapsed(isSelfHeadedHub);
+  }, [isSelfHeadedHub, currentPage]);
 
   useEffect(() => {
     const syncState = () => {
@@ -89,6 +97,8 @@ export const ConnectedPageDecisionBanner: React.FC<Props> = ({
       NEXUS_HQ_LOOP_UPDATED_EVENT,
       NEXUS_CEO_TRAINING_UPDATED_EVENT,
       NEXUS_OFFLINE_QUEUE_UPDATED_EVENT,
+      ACCIDENT_BIGDATA_UPDATED_EVENT,
+      SITE_ISSUES_UPDATED_EVENT,
       'storage',
     ];
     for (const ev of events) {
@@ -154,6 +164,58 @@ export const ConnectedPageDecisionBanner: React.FC<Props> = ({
     const allowed = getAllowedDecisionPersonas(next);
     setPersona(allowed[0]);
   };
+
+  if (isSelfHeadedHub && slimCollapsed) {
+    return (
+      <section
+        className="psi-connected-decision-shell is-desktop-compact is-slim-hub-bar mb-3"
+        data-page={currentPage}
+        data-signal={vm.signalLevel}
+        data-persona={vm.persona}
+        data-authority={vm.authority}
+        aria-label="연계 화면 슬림 결론 바"
+      >
+        <div className="psi-cd-compact-bar">
+          <div className="psi-cd-compact-copy">
+            <SignalBeacon level={vm.signalLevel} label={vm.signalLabel} />
+            <button
+              type="button"
+              className="psi-cd-authority-pill"
+              onClick={handleToggleAuthority}
+              title="본사 통합 또는 단일 현장 격리 범위 전환"
+            >
+              {vm.authority === 'hq' ? '🏛️ 본사 통합' : `🔒 ${vm.scopeLabel}`}
+            </button>
+            <span>{vm.soWhatHeadline}</span>
+          </div>
+          <div className="psi-cd-compact-right">
+            {onOpenInspectorDrawer && (
+              <button
+                type="button"
+                className="psi-cd-inspector-btn"
+                onClick={() => {
+                  triggerTapFeedback();
+                  onOpenInspectorDrawer();
+                }}
+                aria-label="현장 점검 결재함 열기"
+              >
+                <span>현장 점검·결재함</span>
+                <b className="psi-tabular-num">{vm.openActionCount}</b>
+              </button>
+            )}
+            <button
+              type="button"
+              className="psi-cd-expand-btn"
+              aria-expanded={false}
+              onClick={() => setSlimCollapsed(false)}
+            >
+              요약 브리핑 펼치기 ▼
+            </button>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section
@@ -231,6 +293,15 @@ export const ConnectedPageDecisionBanner: React.FC<Props> = ({
           >
             {desktopExpanded ? '간략히 보기 ▲' : '4단 결론 브리핑 펼치기 ▼'}
           </button>
+          {isSelfHeadedHub && (
+            <button
+              type="button"
+              className="psi-cd-expand-btn"
+              onClick={() => setSlimCollapsed(true)}
+            >
+              슬림 바 접기 ▲
+            </button>
+          )}
         </div>
       </div>
 

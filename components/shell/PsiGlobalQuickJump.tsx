@@ -17,6 +17,7 @@ interface PsiGlobalQuickJumpProps {
   currentPage: Page;
   workerRecords?: readonly WorkerRecord[];
   onNavigateToPage: (page: Page) => void;
+  onOpenWorkerRecord?: (record: WorkerRecord) => void;
   onOpenInspector: () => void;
   onToggleSunlight: () => void;
   onToggleMotion: () => void;
@@ -32,6 +33,7 @@ export const PsiGlobalQuickJump: React.FC<PsiGlobalQuickJumpProps> = ({
   currentPage,
   workerRecords = [],
   onNavigateToPage,
+  onOpenWorkerRecord,
   onOpenInspector,
   onToggleSunlight,
   onToggleMotion,
@@ -64,7 +66,11 @@ export const PsiGlobalQuickJump: React.FC<PsiGlobalQuickJumpProps> = ({
         : []),
       { page: 'ocr-analysis', label: '위험성평가 분석', detail: '기록지 사진·파일 판독 및 취약군 분류', keywords: '위험분석 ocr 기록지 판독' },
       { page: 'accident-bigdata', label: '사고 빅데이터 허브', detail: '원도급사 사고보고서 AI 변환 가져오기 및 공종·원인 빅데이터', keywords: '사고 보고서 빅데이터 제미나이 챗지피티 변환 원도급사' },
-      { page: 'safety-inspector', label: '사진점검 · 개선관리', detail: '건설기계 사용전 사진점검 및 현장 개선 등록', keywords: '사진 점검 개선 건설기계' },
+      { page: 'safety-inspector', label: '사진점검 · 개선관리', detail: '현장 사진점검 등록 · 본사 전현장 개선관제 · 재점검/반려', keywords: '사진 점검 개선 건설기계 본사 전현장 재점검 반려' },
+      { page: 'a4-education-material', label: 'A4 교육자료 제작', detail: '사고 사례·위험성평가 기반 다국어 한 장 교육자료 제작', keywords: '교육자료 a4 포스터 다국어 번역 출력' },
+      { page: 'worker-management', label: '근로자 관리', detail: '근로자별 이력·사진 등록·위험등급 추적 관리', keywords: '근로자 명단 이력 사진 관리' },
+      { page: 'site-issue-management', label: '현장 위험 이슈 관리', detail: '현장 지적사항·위험요인 등록 및 조치 추적', keywords: '이슈 지적사항 위험 현장 조치' },
+      { page: 'reports', label: '종합 보고서', detail: '현장 안전 브리핑 및 월간 종합 보고서 생성', keywords: '보고서 리포트 브리핑 종합' },
       { page: 'education-return', label: '교육 환류', detail: '다국어 교육자료 발송 및 근로자 서명 현황', keywords: '교육 서명 다국어 환류' },
       { page: 'safety-compliance-hub', label: '안전조치 통합 허브', detail: '시정조치 · 보호구 · 법정 이행 통합 점검', keywords: '안전조치 허브 시정조치 법정' },
       { page: 'monthly-guidance-report', label: '월간 계도 리포트', detail: '월별 취약 공종 및 계도 보고서 생성', keywords: '월간 계도 리포트 보고서' },
@@ -130,19 +136,33 @@ export const PsiGlobalQuickJump: React.FC<PsiGlobalQuickJumpProps> = ({
       },
     ];
 
-    const recordItems: QuickJumpItem[] = workerRecords.slice(0, 6).map((rec, idx) => ({
+    const q = query.trim().toLowerCase();
+    const matchedWorkerRecords = q
+      ? workerRecords
+          .filter(rec =>
+            `${rec.name || ''} ${rec.jobField || ''} ${rec.nationality || ''} ${rec.teamLeader || ''}`
+              .toLowerCase()
+              .includes(q),
+          )
+          .slice(0, 12)
+      : workerRecords.slice(0, 6);
+
+    const recordItems: QuickJumpItem[] = matchedWorkerRecords.map((rec, idx) => ({
       id: 'rec-' + (rec.id || idx),
       group: '근로자 기록',
       label: `${rec.name || '미확인 근로자'} · ${rec.jobField || '공종 미분류'}`,
-      detail: `안전점수 ${rec.safetyScore ?? 0}점 · 위험성평가 분석 화면으로 이동`,
-      keywords: `${rec.name || ''} ${rec.jobField || ''} ${rec.nationality || ''} 근로자`,
+      detail: `안전점수 ${rec.safetyScore ?? 0}점 · 근로자 상세 기록 바로 열기`,
+      keywords: `${rec.name || ''} ${rec.jobField || ''} ${rec.nationality || ''} ${rec.teamLeader || ''} 근로자`,
       onSelect: () => {
         onClose();
-        onNavigateToPage('ocr-analysis');
+        if (onOpenWorkerRecord) {
+          onOpenWorkerRecord(rec);
+        } else {
+          onNavigateToPage('ocr-analysis');
+        }
       },
     }));
 
-    const q = query.trim().toLowerCase();
     const combined = [...actionItems, ...pageItems, ...recordItems];
     if (!q) return combined;
     return combined.filter(item =>
@@ -153,6 +173,7 @@ export const PsiGlobalQuickJump: React.FC<PsiGlobalQuickJumpProps> = ({
     onClose,
     onNavigateToPage,
     onOpenInspector,
+    onOpenWorkerRecord,
     onToggleMotion,
     onToggleSunlight,
     onToggleTheme,

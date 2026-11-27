@@ -1,5 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Page } from '../../types';
+import { postAdminJson } from '../../utils/adminApiClient';
+import {
+  globalActionCounts,
+  globalActionStatusText,
+  type GlobalActionRow,
+} from '../../lib/inspector/globalActionRegister';
+import { koreanDay } from '../../lib/inspector/workQueue';
+import {
+  readSiteIssueList,
+  SITE_ISSUES_STORAGE_KEY,
+  SITE_ISSUES_UPDATED_EVENT,
+} from '../../utils/siteIssueStorage';
 import {
   NEXUS_EQUIPMENT_PHOTO_STATUS_LABELS,
   NEXUS_EQUIPMENT_PHOTO_UPDATED_EVENT,
@@ -41,8 +53,17 @@ const triggerSubtleHaptic = () => {
   }
 };
 
+interface DrawerSiteIssue {
+  id: string;
+  date?: string;
+  location: string;
+  type: string;
+  description: string;
+  status: string;
+}
+
 /**
- * 어느 연계 화면에서나 페이지 이탈 없이 미결 시정조치·건설기계 사진을 즉시 결재/처리하는 통합 점검함입니다.
+ * 어느 연계 화면에서나 페이지 이탈 없이 미결 시정조치·사진점검·현장 이슈를 즉시 확인하고 처리하는 통합 점검함입니다.
  */
 export const PsiUniversalInspectorDrawer: React.FC<PsiUniversalInspectorDrawerProps> = ({
   open,
@@ -50,9 +71,46 @@ export const PsiUniversalInspectorDrawer: React.FC<PsiUniversalInspectorDrawerPr
   authority,
   onNavigateToPage,
 }) => {
-  const [activeTab, setActiveTab] = useState<'cases' | 'photos'>('cases');
+  const [activeTab, setActiveTab] = useState<'cases' | 'field-actions' | 'photos'>('cases');
   const [revisionTick, setRevisionTick] = useState(0);
   const [toastMessage, setToastMessage] = useState('');
+  const [inspectorRows, setInspectorRows] = useState<GlobalActionRow[]>([]);
+  const [inspectorLoading, setInspectorLoading] = useState(false);
+  const [inspectorError, setInspectorError] = useState('');
+  const aliveRef = useRef(true);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
+
+  const loadInspectorActions = useCallback(async () => {
+    setInspectorLoading(true);
+    setInspectorError('');
+    try {
+      const result = await postAdminJson<{ ok: boolean; rows?: GlobalActionRow[] }>(
+        '/api/admin/inspector',
+        { op: 'global-action-register' },
+        { timeoutMs: 8000, fallbackMessage: '사진점검 미결 조치를 불러오지 못했습니다.' },
+      );
+      if (!aliveRef.current) return;
+      setInspectorRows(Array.isArray(result.rows) ? result.rows : []);
+    } catch (cause) {
+      if (!aliveRef.current) return;
+      setInspectorError(cause instanceof Error ? cause.message : '사진점검 미결 조치를 불러오지 못했습니다.');
+    } finally {
+      if (aliveRef.current) {
+        setInspectorLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    void loadInspectorActions();
+  }, [open, loadInspectorActions]);
 
   useEffect(() => {
     const sync = () => setRevisionTick(t => t + 1);
@@ -61,6 +119,7 @@ export const PsiUniversalInspectorDrawer: React.FC<PsiUniversalInspectorDrawerPr
       NEXUS_EQUIPMENT_PHOTO_UPDATED_EVENT,
       NEXUS_HQ_LOOP_UPDATED_EVENT,
       NEXUS_CEO_TRAINING_UPDATED_EVENT,
+      SITE_ISSUES_UPDATED_EVENT,
       'storage',
     ];
     for (const ev of events) {
@@ -119,6 +178,24 @@ export const PsiUniversalInspectorDrawer: React.FC<PsiUniversalInspectorDrawerPr
       ),
     [scoped.equipmentReports],
   );
+
+  const openSiteIssues = useMemo(() => {
+    if (typeof window === 'undefined') return [] as DrawerSiteIssue[];
+    return readSiteIssueList<DrawerSiteIssue>(() =>
+      window.localStorage.getItem(SITE_ISSUES_STORAGE_KEY),
+    ).items.filter(item => item.status !== '조치 완료');
+  }, [revisionTick]);
+
+  const today = koreanDay();
+  const inspectorCounts = useMemo(
+    () => globalActionCounts(inspectorRows, today),
+    [inspectorRows, today],
+  );
+  const unresolvedInspectorRows = useMemo(
+    () => inspectorRows.filter(row => row.status !== 'verified'),
+    [inspectorRows],
+  );
+  const fieldActionTotal = unresolvedInspectorRows.length + openSiteIssues.length;
 
   if (!open) return null;
 
@@ -202,6 +279,14 @@ export const PsiUniversalInspectorDrawer: React.FC<PsiUniversalInspectorDrawerPr
           <button
             type="button"
             role="tab"
+            aria-selected={activeTab === 'field-actions'}
+            onClick={() => setActiveTab('field-actions')}
+          >
+            사진점검 · 이슈 <b className="psi-tabular-num">{fieldActionTotal}</b>
+          </button>
+          <button
+            type="button"
+            role="tab"
             aria-selected={activeTab === 'photos'}
             onClick={() => setActiveTab('photos')}
           >
@@ -210,7 +295,96 @@ export const PsiUniversalInspectorDrawer: React.FC<PsiUniversalInspectorDrawerPr
         </div>
 
         <div className="psi-universal-drawer-body">
-          {activeTab === 'cases' ? (
+          {activeTab === 'field-actions' ? (
+            <>
+              <article className="psi-universal-drawer-card">
+                <div className="psi-universal-drawer-card-top">
+                  <span className="psi-ud-pill">사진점검 · 개선관리</span>
+                  <small className="psi-tabular-num">
+                    미조치 {inspectorCounts.unresolved}건 · 기한초과 {inspectorCounts.overdue}건 · 재점검 {inspectorCounts.reinspection}건
+                  </small>
+                </div>
+                <h4>사진점검 서버 시정조치 요약</h4>
+                {inspectorLoading ? (
+                  <p>최근 사진점검 조치 현황을 불러오는 중입니다...</p>
+                ) : inspectorError ? (
+                  <p>{inspectorError}</p>
+                ) : unresolvedInspectorRows.length === 0 ? (
+                  <p>현재 불러온 범위 내 미결 사진점검 시정조치가 없습니다.</p>
+                ) : (
+                  unresolvedInspectorRows.slice(0, 5).map(row => (
+                    <div
+                      key={`${row.inspectionId}-${row.actionId}`}
+                      className="rounded-lg border border-slate-200/80 bg-white/80 p-2 text-xs dark:border-slate-700 dark:bg-slate-900/70"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-1 font-bold">
+                        <span>{row.siteName || '현장 미입력'} · {row.location || row.inspectionTitle}</span>
+                        <span className="psi-ud-pill">{globalActionStatusText(row, today)}</span>
+                      </div>
+                      <p className="mt-1">
+                        {row.title} · 담당 {row.owner || '미지정'} · 기한 {row.dueDate || '미지정'}
+                      </p>
+                    </div>
+                  ))
+                )}
+                <div className="psi-universal-drawer-actions">
+                  <button
+                    type="button"
+                    className="is-primary"
+                    onClick={() => {
+                      onClose();
+                      onNavigateToPage('safety-inspector');
+                    }}
+                  >
+                    사진점검 · 개선관제 열기
+                  </button>
+                  <button
+                    type="button"
+                    disabled={inspectorLoading}
+                    onClick={() => void loadInspectorActions()}
+                  >
+                    {inspectorLoading ? '조회 중...' : '새로고침'}
+                  </button>
+                </div>
+              </article>
+
+              <article className="psi-universal-drawer-card">
+                <div className="psi-universal-drawer-card-top">
+                  <span className="psi-ud-pill">현장 위험 이슈 관리</span>
+                  <small className="psi-tabular-num">미완료 {openSiteIssues.length}건</small>
+                </div>
+                <h4>현장 위험 이슈 미결 목록</h4>
+                {openSiteIssues.length === 0 ? (
+                  <p>현재 미조치 현장 위험 이슈가 없습니다.</p>
+                ) : (
+                  openSiteIssues.slice(0, 5).map(issue => (
+                    <div
+                      key={issue.id}
+                      className="rounded-lg border border-slate-200/80 bg-white/80 p-2 text-xs dark:border-slate-700 dark:bg-slate-900/70"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-1 font-bold">
+                        <span>{issue.location || '위치 미상'} · {issue.type || '기타'}</span>
+                        <span className="psi-ud-pill">{issue.status}</span>
+                      </div>
+                      <p className="mt-1">{issue.description}</p>
+                    </div>
+                  ))
+                )}
+                <div className="psi-universal-drawer-actions">
+                  <button
+                    type="button"
+                    className="is-primary"
+                    onClick={() => {
+                      onClose();
+                      onNavigateToPage('site-issue-management');
+                    }}
+                  >
+                    현장 위험 이슈 관리 열기
+                  </button>
+                </div>
+              </article>
+            </>
+          ) : activeTab === 'cases' ? (
             openCases.length === 0 ? (
               <div className="psi-universal-drawer-empty">
                 <strong>미결 시정조치 0건</strong>
