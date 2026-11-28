@@ -258,7 +258,7 @@ export const stageExecutiveTrainingHandoff = (
           translationNeedsRefresh: false,
           savedAt: campaign.createdAt,
           month,
-          workType: `골조·형틀 (${seed.caseCode})`,
+          workType: `골조 (${seed.caseCode})`,
           title: campaign.title,
           scopeKey: `${month}::${seed.caseCode}`,
         }),

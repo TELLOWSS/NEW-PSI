@@ -54,8 +54,8 @@ export const NEXUS_ORBIT_LAYERS: readonly {
     {
       id: 'structural',
       code: '보기 03',
-      label: '골조·형틀·지하RC 10대 공정',
-      subtitle: '지하 RC 별도 관리 및 상부 골조·형틀 중점 포인트',
+      label: '골조·지하RC 10대 공정',
+      subtitle: '지하 RC 별도 관리 및 상부 골조 중점 포인트',
       tone: 'violet',
     },
   ];
@@ -170,7 +170,7 @@ export const NEXUS_SPHERE_NODES_BY_LAYER: Record<NexusOrbitLayer, readonly Nexus
       index: '02',
       title: '사고사례 데이터 DB',
       en: 'INCIDENT KNOWLEDGE BASE',
-      detail: '기초·지하 RC·지상 구간과 골조·형틀 공종별 사고·아차사고를 3축(구간×공종×가설·장비)으로 표준화하여 축적하고 유사사례를 탐색합니다.',
+      detail: '기초·지하 RC·지상 구간과 골조 공종별 사고·아차사고를 3축(구간×공종×가설·장비)으로 표준화하여 축적하고 유사사례를 탐색합니다.',
       page: 'site-issue-management',
       action: '사고·이슈 현황 열기',
       latDeg: 34,
@@ -178,7 +178,7 @@ export const NEXUS_SPHERE_NODES_BY_LAYER: Record<NexusOrbitLayer, readonly Nexus
       tone: 'amber',
       categoryBadge: '신규·고도화 · 3축 사례 DB',
       checkpoints: [
-        '기초·지하 RC·지상 구간 및 골조·형틀 세부공종별 표준 축적',
+        '기초·지하 RC·지상 구간 및 골조 세부공종별 표준 축적',
         '사고 유형·직접/근본원인·재발방지대책 구조화',
         '현장 사진점검 및 교육자료 제작 시 유사사례 즉시 호출',
       ],
@@ -187,7 +187,7 @@ export const NEXUS_SPHERE_NODES_BY_LAYER: Record<NexusOrbitLayer, readonly Nexus
       index: '03',
       title: 'AI 사진점검',
       en: 'AI PHOTO HAZARD ANALYSIS',
-      detail: '현장 사진 기반으로 골조·형틀 위험요인을 탐지하고, 관련 안전기준 참고안·시정조치 초안·유사 사고사례를 함께 제안합니다.',
+      detail: '현장 사진 기반으로 골조 위험요인을 탐지하고, 관련 안전기준 참고안·시정조치 초안·유사 사고사례를 함께 제안합니다.',
       page: 'safety-inspector',
       action: 'AI 사진점검 시작',
       latDeg: 4,
@@ -195,7 +195,7 @@ export const NEXUS_SPHERE_NODES_BY_LAYER: Record<NexusOrbitLayer, readonly Nexus
       tone: 'gold',
       categoryBadge: '기존 확장 · AI 비전 위험분석',
       checkpoints: [
-        '사진 1장으로 골조·형틀·지하 RC 3축 태그 및 위험요인 초안 도출',
+        '사진 1장으로 골조·지하 RC 3축 태그 및 위험요인 초안 도출',
         '관련 안전기준 참고 안내 및 구체적 시정조치 문구 제안',
         '관리자 검토·확정을 통한 오판 방지 및 30초 현장 입력 구현',
       ],
@@ -212,7 +212,7 @@ export const NEXUS_SPHERE_NODES_BY_LAYER: Record<NexusOrbitLayer, readonly Nexus
       tone: 'amber',
       categoryBadge: '신규·고도화 · 12개국어 전파',
       checkpoints: [
-        '본사 표준·대표이사 중점 골조·형틀 교육자료 제작·승인',
+        '본사 표준·대표이사 중점 골조 교육자료 제작·승인',
         '외국인 작업팀 대상 12개 국어 번역·음성 안내 자동 변환',
         '현장별·팀별 교육 이수 및 본인 확인 서명 실시간 집계',
       ],

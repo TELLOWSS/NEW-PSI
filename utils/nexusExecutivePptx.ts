@@ -342,7 +342,7 @@ export const exportExecutiveBriefingPptx = async (
         fill: { color: '0D1A2B' },
         line: { color: '3B4E68', width: 1 },
       });
-      slide.addText('경영진 지휘 요약 · 골조·형틀·지하 RC 전 현장 폐루프 운영 현황', {
+      slide.addText('경영진 지휘 요약 · 골조·지하 RC 전 현장 폐루프 운영 현황', {
         x: 0.85,
         y: 4.45,
         w: 11.6,

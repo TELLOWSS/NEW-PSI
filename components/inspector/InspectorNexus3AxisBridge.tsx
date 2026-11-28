@@ -246,7 +246,7 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
           ? rawLoc
           : `${lockedSiteName} · ${rawLoc}`
         : lockedSiteName
-      : rawLoc || '골조·형틀 점검 구간';
+      : rawLoc || '골조 점검 구간';
     const created = createNexusPipelineCase({
       siteId: lockedSiteId || undefined,
       locationLabel: boundLocation,
@@ -812,7 +812,7 @@ export const InspectorNexus3AxisBridge: React.FC<Props> = ({
           <h3>
             {isHq
               ? '전 현장 시정조치 · 작업중지(Stop-Work) 통제 현황 및 지시'
-              : '골조·형틀·지하 RC 3축 자동 분류 및 안전현황 반영'}
+              : '골조·지하 RC 3축 자동 분류 및 안전현황 반영'}
           </h3>
         </div>
         <span className="nexus-3axis-confidence">

@@ -451,7 +451,7 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
     () =>
       buildAiInvestigationDraft({
         siteId: isHq ? effectiveSiteId || undefined : boundSiteMeta.siteId,
-        siteName: isHq ? invSiteName || '골조·형틀 현장' : boundSiteMeta.siteName,
+        siteName: isHq ? invSiteName || '골조 현장' : boundSiteMeta.siteName,
         incidentTitle: invTitle,
         rawSummary: invSummary || activeSeed?.title || '',
         authorLabel: invAuthor,
@@ -598,7 +598,7 @@ export const NexusHqCommandWorkbench: React.FC<Props> = ({
   const handleCreateAiInvestigation = () => {
     setInvError('');
     const targetSiteName = isHq
-      ? invSiteName.trim() || '제1현장 골조·형틀 구간'
+      ? invSiteName.trim() || '제1현장 골조 구간'
       : boundSiteMeta.siteName;
     const resolvedSiteId = isHq
       ? effectiveSiteId || activeManagedSites.find(s => matchesPortfolioSite(targetSiteName, s.siteId))?.siteId

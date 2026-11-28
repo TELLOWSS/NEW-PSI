@@ -106,7 +106,7 @@ export const buildExecutiveBentoSnapshot = (input: {
   const asOfDate = input.asOfDate || getKoreanCalendarDay();
   const siteId = input.selectedSiteId || '';
   const activeSite = NEXUS_SITE_PORTFOLIO.find(s => s.siteId === siteId);
-  const scopeLabel = activeSite ? activeSite.shortLabel : '전사 골조·형틀·지하RC 통합 포트폴리오';
+  const scopeLabel = activeSite ? activeSite.shortLabel : '전사 골조·지하RC 통합 포트폴리오';
 
   const scopedCases = input.pipelineCases.filter(c =>
     matchesPortfolioSite(`${c.locationLabel} ${c.observationNote}`, siteId),

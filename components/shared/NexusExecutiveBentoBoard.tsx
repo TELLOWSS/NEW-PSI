@@ -161,7 +161,7 @@ export const NexusExecutiveBentoBoard: React.FC<Props> = ({
           <span className="nexus-3axis-kicker">
             경영진 안전 요약 보드 · 입체 관제 · 엑셀 교차 분석
           </span>
-          <h2>전사 골조·형틀·건설기계 경영 브리핑 대시보드</h2>
+          <h2>전사 골조·건설기계 경영 브리핑 대시보드</h2>
         </div>
         <div className="nexus-bento-header-actions">
           <span className="nexus-bento-scope-pill">{snapshot.scopeLabel} · 기준 {snapshot.asOfDate}</span>

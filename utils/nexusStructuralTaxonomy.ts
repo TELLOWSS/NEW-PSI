@@ -3,7 +3,7 @@ import { getKoreanCalendarDay } from './monthlyFieldFollowup';
 import type { NexusOrbitLayer } from './nexusSphereProjection';
 
 /**
- * Slice 1 · 골조·형틀·지하 RC 3축(구간 × 공종 × 가설·장비) 마스터 분류체계 및
+ * Slice 1 · 골조·지하 RC 3축(구간 × 공종 × 가설·장비) 마스터 분류체계 및
  * 표준 사고·아차사고 예방 시드 DB.
  * 실제 현장 승인 통계와 참조용 예방 시드는 엄격히 분리하여 표기한다.
  */
@@ -83,7 +83,7 @@ export interface NexusStructuralIncidentSeed {
   preVisitBriefingPoint: string;
   ceoTrainingPoint: string;
   tradeKeywords: readonly string[];
-  sourceKind: '골조·형틀 표준 예방 시드 (실제 현장 사고 통계 아님)';
+  sourceKind: '골조 표준 예방 시드 (실제 현장 사고 통계 아님)';
 }
 
 export const NEXUS_STRUCTURAL_INCIDENT_SEEDS: readonly NexusStructuralIncidentSeed[] = [
@@ -104,7 +104,7 @@ export const NEXUS_STRUCTURAL_INCIDENT_SEEDS: readonly NexusStructuralIncidentSe
     preVisitBriefingPoint: '지하층 외벽 지지체 간격, 지하 피트 개구부 방호 및 환기 팬 가동 상태 우선 확인',
     ceoTrainingPoint: '지하 RC 구간은 측압·부력·밀폐·어두운 동선이 겹치므로 작업 전 조명·환기·개구부 덮개를 먼저 확인합니다.',
     tradeKeywords: ['지하', '형틀', '목공', '방수', '토공', '가시설'],
-    sourceKind: '골조·형틀 표준 예방 시드 (실제 현장 사고 통계 아님)',
+    sourceKind: '골조 표준 예방 시드 (실제 현장 사고 통계 아님)',
   },
   {
     caseCode: 'FW-CORE-02',
@@ -123,7 +123,7 @@ export const NEXUS_STRUCTURAL_INCIDENT_SEEDS: readonly NexusStructuralIncidentSe
     preVisitBriefingPoint: '엘리베이터 피트·계단실·슬래브 단부 안전난간 임의 해체 구간 및 복구 이력 대조',
     ceoTrainingPoint: '자재 반입을 위해 잠깐 연 난간과 개구부 덮개가 가장 위험합니다. 작업 직후 즉시 닫고 안전대를 체결하세요.',
     tradeKeywords: ['형틀', '목공', '거푸집', '골조'],
-    sourceKind: '골조·형틀 표준 예방 시드 (실제 현장 사고 통계 아님)',
+    sourceKind: '골조 표준 예방 시드 (실제 현장 사고 통계 아님)',
   },
   {
     caseCode: 'GF-LIFT-03',
@@ -142,7 +142,7 @@ export const NEXUS_STRUCTURAL_INCIDENT_SEEDS: readonly NexusStructuralIncidentSe
     preVisitBriefingPoint: '갱폼 인상 구간 신호수 무전 체계, 인양 고리·앵커볼트 체결 상태 및 케이지 발판 손상 점검',
     ceoTrainingPoint: '크레인 고리가 완전히 걸리기 전에는 갱폼 고정 볼트를 절대 먼저 풀지 마십시오.',
     tradeKeywords: ['갱폼', '형틀', '타워크레인', '골조'],
-    sourceKind: '골조·형틀 표준 예방 시드 (실제 현장 사고 통계 아님)',
+    sourceKind: '골조 표준 예방 시드 (실제 현장 사고 통계 아님)',
   },
   {
     caseCode: 'AL-STRIP-04',
@@ -161,7 +161,7 @@ export const NEXUS_STRUCTURAL_INCIDENT_SEEDS: readonly NexusStructuralIncidentSe
     preVisitBriefingPoint: 'AL폼 해체 층 잔류 서포트 수량·수직도 및 상·하부 동시작업 분리 상태 확인',
     ceoTrainingPoint: '알폼 해체 시 보조 서포트를 먼저 빼지 말고, 해체 구역 아래로는 절대 통행하지 마십시오.',
     tradeKeywords: ['알폼', 'AL폼', '형틀', '해체', '목공'],
-    sourceKind: '골조·형틀 표준 예방 시드 (실제 현장 사고 통계 아님)',
+    sourceKind: '골조 표준 예방 시드 (실제 현장 사고 통계 아님)',
   },
   {
     caseCode: 'RB-WALL-05',
@@ -180,7 +180,7 @@ export const NEXUS_STRUCTURAL_INCIDENT_SEEDS: readonly NexusStructuralIncidentSe
     preVisitBriefingPoint: '벽체·기둥 철근 자립 구간 버팀대 설치 여부 및 슬래브 돌출 철근 보호캡 체결 상태 점검',
     ceoTrainingPoint: '높은 벽체·기둥 철근은 거푸집을 닫기 전 반드시 버팀대로 고정하고, 돌출 철근에는 보호캡을 씌우세요.',
     tradeKeywords: ['철근', '배근', '골조'],
-    sourceKind: '골조·형틀 표준 예방 시드 (실제 현장 사고 통계 아님)',
+    sourceKind: '골조 표준 예방 시드 (실제 현장 사고 통계 아님)',
   },
   {
     caseCode: 'CP-POUR-06',
@@ -199,7 +199,7 @@ export const NEXUS_STRUCTURAL_INCIDENT_SEEDS: readonly NexusStructuralIncidentSe
     preVisitBriefingPoint: '타설 구간 분산 타설 이행, 하부 동바리 감시 체계 및 펌프카 아웃트리거 지반 보강 상태 확인',
     ceoTrainingPoint: '콘크리트는 한곳에 몰아 붓지 말고 골고루 분산 타설하며, 펌프카 호스 끝단 반동에 주의하세요.',
     tradeKeywords: ['타설', '콘크리트', '타설공', '펌프카', '골조'],
-    sourceKind: '골조·형틀 표준 예방 시드 (실제 현장 사고 통계 아님)',
+    sourceKind: '골조 표준 예방 시드 (실제 현장 사고 통계 아님)',
   },
   {
     caseCode: 'SS-SHORE-07',
@@ -218,7 +218,7 @@ export const NEXUS_STRUCTURAL_INCIDENT_SEEDS: readonly NexusStructuralIncidentSe
     preVisitBriefingPoint: '고층고·전이층 시스템동바리 가새·연결핀 체결 상태 및 하부 수평재 임의 해체 구간 점검',
     ceoTrainingPoint: '통행이 불편하다는 이유로 시스템동바리 수평재나 가새를 임의로 빼면 전체 붕괴로 이어집니다.',
     tradeKeywords: ['동바리', '시스템동바리', '가설', '형틀', '비계'],
-    sourceKind: '골조·형틀 표준 예방 시드 (실제 현장 사고 통계 아님)',
+    sourceKind: '골조 표준 예방 시드 (실제 현장 사고 통계 아님)',
   },
   {
     caseCode: 'SC-EXT-08',
@@ -237,7 +237,7 @@ export const NEXUS_STRUCTURAL_INCIDENT_SEEDS: readonly NexusStructuralIncidentSe
     preVisitBriefingPoint: '외부 시스템비계 벽이음 체결 누락 구간, 내측 추락방호망 및 하부 낙하물방지망 상태 확인',
     ceoTrainingPoint: '외부 비계의 벽이음과 난간은 생명을 지탱하는 고정점입니다. 간섭이 생겨도 임의로 풀지 말고 관리자에게 먼저 알리세요.',
     tradeKeywords: ['비계', '시스템비계', '외부비계', '가설', '해체'],
-    sourceKind: '골조·형틀 표준 예방 시드 (실제 현장 사고 통계 아님)',
+    sourceKind: '골조 표준 예방 시드 (실제 현장 사고 통계 아님)',
   },
   {
     caseCode: 'TC-RIG-09',
@@ -256,7 +256,7 @@ export const NEXUS_STRUCTURAL_INCIDENT_SEEDS: readonly NexusStructuralIncidentSe
     preVisitBriefingPoint: '타워크레인 줄걸이 용구(슬링벨트·샤클) 마모 상태, 2점 걸이 준수 및 신호수 무전 통제 확인',
     ceoTrainingPoint: '인양물은 반드시 두 지점 이상 균형 있게 묶고, 크레인이 지나가는 아래쪽에는 절대 서 있지 마십시오.',
     tradeKeywords: ['타워크레인', '양중', '크레인', '줄걸이', '신호수', '형틀', '철근'],
-    sourceKind: '골조·형틀 표준 예방 시드 (실제 현장 사고 통계 아님)',
+    sourceKind: '골조 표준 예방 시드 (실제 현장 사고 통계 아님)',
   },
   {
     caseCode: 'AWP-LIFT-10',
@@ -275,7 +275,7 @@ export const NEXUS_STRUCTURAL_INCIDENT_SEEDS: readonly NexusStructuralIncidentSe
     preVisitBriefingPoint: '고소작업대 과상승 방지봉 정상 작동 여부, 바닥 트렌치·단차 보강 및 탑승자 안전대 고리 체결 확인',
     ceoTrainingPoint: '고소작업대 과상승 방지장치는 절대 묶어두지 말고, 이동할 때는 반드시 작업대를 내린 뒤 이동하세요.',
     tradeKeywords: ['고소작업대', '렌탈', '해체', '지하', '설비'],
-    sourceKind: '골조·형틀 표준 예방 시드 (실제 현장 사고 통계 아님)',
+    sourceKind: '골조 표준 예방 시드 (실제 현장 사고 통계 아님)',
   },
 ];
 

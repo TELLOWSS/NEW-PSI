@@ -35,7 +35,7 @@ export interface NexusAutoClassificationResult {
   matchedSeeds: readonly NexusStructuralIncidentSeed[];
   recommendedActionDraft: string;
   recommendedHandoverNote: string;
-  confidenceLabel: '키워드·문맥 3축 매칭' | '기본 골조·형틀 표준 매칭';
+  confidenceLabel: '키워드·문맥 3축 매칭' | '기본 골조 표준 매칭';
 }
 
 export interface NexusPipelineAuditEntry {
@@ -285,7 +285,7 @@ export const classifyStructuralPhotoContext = (input: {
     matchedSeeds,
     recommendedActionDraft: primarySeed.preventiveMeasure,
     recommendedHandoverNote: `[교대·인계 확인] ${primarySeed.preVisitBriefingPoint}`,
-    confidenceLabel: totalKeywordScore > 0 ? '키워드·문맥 3축 매칭' : '기본 골조·형틀 표준 매칭',
+    confidenceLabel: totalKeywordScore > 0 ? '키워드·문맥 3축 매칭' : '기본 골조 표준 매칭',
   };
 };
 
@@ -322,7 +322,7 @@ export const createNexusPipelineCase = (
   input: NexusPipelineCreateInput,
   nowIso = new Date().toISOString(),
 ): NexusPipelineCase => {
-  const note = String(input.observationNote || '').trim() || '현장 골조·형틀 사진점검 위험요인 확인';
+  const note = String(input.observationNote || '').trim() || '현장 골조 사진점검 위험요인 확인';
   const classification = classifyStructuralPhotoContext({
     note,
     fileName: input.photoName,
@@ -337,7 +337,7 @@ export const createNexusPipelineCase = (
     siteId: input.siteId || undefined,
     createdAt: nowIso,
     updatedAt: nowIso,
-    locationLabel: String(input.locationLabel || '').trim() || '골조·형틀 점검 구간',
+    locationLabel: String(input.locationLabel || '').trim() || '골조 점검 구간',
     observationNote: note,
     photoName: input.photoName,
     zoneAxis: classification.zoneAxis,

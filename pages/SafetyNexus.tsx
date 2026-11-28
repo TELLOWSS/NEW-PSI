@@ -265,6 +265,129 @@ const CoreArt: React.FC<{ active: number; paused: boolean; reduced: boolean; seq
   return <canvas ref={ref} className="nexus-core-canvas" aria-hidden="true" />;
 };
 
+const renderNexusNodeGlyph = (layer: NexusOrbitLayer, index: string) => {
+  const num = Number.parseInt(index, 10) || 1;
+  if (layer === 'cycle') {
+    if (num === 1) {
+      return (
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="8" cy="8" r="5.5" />
+          <circle cx="8" cy="8" r="2" />
+          <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2" />
+        </svg>
+      );
+    }
+    if (num === 2) {
+      return (
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M8 2.2 14 13H2L8 2.2Z" />
+          <path d="M8 6.4v3.1M8 11.4h.01" />
+        </svg>
+      );
+    }
+    if (num === 3) {
+      return (
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 11.5a5.5 5.5 0 1 1 10 0" />
+          <path d="M8 9.2 10.7 6" />
+          <circle cx="8" cy="10.2" r="1.2" />
+        </svg>
+      );
+    }
+    if (num === 4) {
+      return (
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M8 2 13 4.2v3.7c0 3-2.1 5.1-5 6.1-2.9-1-5-3.1-5-6.1V4.2L8 2Z" />
+          <path d="M5.8 8.1 7.4 9.7 10.5 6.6" />
+        </svg>
+      );
+    }
+    return (
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 12.2c1.4-2.2 3-2.2 4.3 0 .8 1.3 1.7-.4 2.8-2.2.8 1.2 1.8 1.6 3 .8" />
+        <path d="M9.6 3.2 12.8 6.4 6.7 12.5H3.5V9.3L9.6 3.2Z" />
+      </svg>
+    );
+  }
+  if (layer === 'modules') {
+    if (num === 1) {
+      return (
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M8 13.8s4.2-3.7 4.2-7a4.2 4.2 0 1 0-8.4 0c0 3.3 4.2 7 4.2 7Z" />
+          <circle cx="8" cy="6.8" r="1.5" />
+        </svg>
+      );
+    }
+    if (num === 2) {
+      return (
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <ellipse cx="8" cy="4.2" rx="4.8" ry="1.8" />
+          <path d="M3.2 4.2v3.8c0 1 2.1 1.8 4.8 1.8s4.8-.8 4.8-1.8V4.2M3.2 8v3.8c0 1 2.1 1.8 4.8 1.8s4.8-.8 4.8-1.8V8" />
+        </svg>
+      );
+    }
+    if (num === 3) {
+      return (
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2.2" y="4" width="11.6" height="8.5" rx="1.8" />
+          <circle cx="8" cy="8.3" r="2.2" />
+          <path d="M5.6 4 6.5 2.5h3L10.4 4" />
+        </svg>
+      );
+    }
+    if (num === 4) {
+      return (
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="8" cy="8" r="5.5" />
+          <ellipse cx="8" cy="8" rx="2.3" ry="5.5" />
+          <path d="M2.6 8h10.8" />
+        </svg>
+      );
+    }
+    if (num === 5) {
+      return (
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="7" cy="7" r="4.2" />
+          <path d="m10.2 10.2 3.3 3.3M5.4 7h3.2" />
+        </svg>
+      );
+    }
+    return (
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4.5 5.2H12l-1.8-1.8M11.5 10.8H4l1.8 1.8" />
+      </svg>
+    );
+  }
+  // structural (01~10): crisp structural / equipment telemetry glyph
+  if (num <= 2) {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 13V4.5l5-2 5 2V13M3 8.5h10M6.5 4.2V13M9.5 4.2V13" />
+      </svg>
+    );
+  }
+  if (num <= 6) {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="2.8" width="10" height="10.4" rx="1.2" />
+        <path d="M3 6.5h10M3 10h10M8 2.8v10.4" />
+      </svg>
+    );
+  }
+  if (num <= 8) {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 2.5v11M12 2.5v11M4 5.5h8M4 10.5h8M4 5.5l8 5M12 5.5l-8 5" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 13.5V2.8l7.5 3.4H4M9.5 6.2v3.6c0 .9-.7 1.5-1.5 1.5" />
+    </svg>
+  );
+};
+
 const SafetyNexus: React.FC<Props> = ({
   workerRecords,
   loadState = 'ready',
@@ -293,6 +416,7 @@ const SafetyNexus: React.FC<Props> = ({
   const [sphereAngles, setSphereAngles] = useState<{ yaw: number; pitch: number }>(initialAngles);
   const [zoomScale, setZoomScale] = useState(1);
   const [isDraggingSphere, setIsDraggingSphere] = useState(false);
+  const [hoveredNodeIdx, setHoveredNodeIdx] = useState<number | null>(null);
   const dragStateRef = useRef<{ active: boolean; startX: number; startY: number; startYaw: number; startPitch: number; moved: boolean; vx: number; vy: number; lastX: number; lastY: number }>({
     active: false, startX: 0, startY: 0, startYaw: 0, startPitch: 0, moved: false, vx: 0, vy: 0, lastX: 0, lastY: 0,
   });
@@ -477,6 +601,7 @@ const SafetyNexus: React.FC<Props> = ({
 
   const handleLayerSwitch = (nextLayer: NexusOrbitLayer) => {
     setOrbitLayer(nextLayer);
+    setHoveredNodeIdx(null);
     const firstNode = NEXUS_SPHERE_NODES_BY_LAYER[nextLayer][0];
     setActive(0);
     setSphereAngles(computeTargetAnglesForLatLon(firstNode.latDeg, firstNode.lonDeg));
@@ -788,6 +913,33 @@ const SafetyNexus: React.FC<Props> = ({
     const cy = Math.round(sy + (ty - sy) * 0.36 - 24);
     return `M${sx} ${sy} Q${cx} ${cy} ${tx} ${ty}`;
   }, [activeProjection]);
+  const hoverProjection =
+    hoveredNodeIdx !== null && hoveredNodeIdx !== safeActive
+      ? projectedNodes[hoveredNodeIdx] ?? null
+      : null;
+  const detailBridgePath = useMemo(() => {
+    if (!activeProjection) return '';
+    const ax = activeProjection.svgX;
+    const ay = activeProjection.svgY;
+    const c1x = Math.round(ax + (1000 - ax) * 0.44);
+    const c2x = Math.round(ax + (1000 - ax) * 0.78);
+    return `M${ax} ${ay} C${c1x} ${ay} ${c2x} 336 1004 336`;
+  }, [activeProjection]);
+  const constellationArcPaths = useMemo(() => {
+    if (orbitLayer === 'structural' || projectedNodes.length < 3) return [];
+    return projectedNodes.map((from, idx) => {
+      const to = projectedNodes[(idx + 1) % projectedNodes.length];
+      const mx = Math.round((from.svgX + to.svgX) * 0.5);
+      const my = Math.round((from.svgY + to.svgY) * 0.5);
+      const pullX = Math.round(mx + (500 - mx) * 0.16);
+      const pullY = Math.round(my + (350 - my) * 0.16);
+      return {
+        key: `arc-${orbitLayer}-${idx}`,
+        d: `M${from.svgX} ${from.svgY} Q${pullX} ${pullY} ${to.svgX} ${to.svgY}`,
+        front: from.isFront && to.isFront,
+      };
+    });
+  }, [orbitLayer, projectedNodes]);
 
   const scopedData = useMemo(
     () =>
@@ -1254,15 +1406,15 @@ const SafetyNexus: React.FC<Props> = ({
   const surface = <main role={immersive ? 'dialog' : undefined} aria-modal={immersive ? true : undefined} className={'safety-nexus' + (immersive ? ' is-immersive' : '')} data-nexus-theme={nexusTheme} data-nexus-sunlight={sunlightMode ? 'true' : 'false'} data-workspace-role={effectiveRole} data-reduced-motion={reduced ? 'true' : 'false'} data-motion-paused={paused ? 'true' : 'false'} aria-label="PSI 안전지능 네트워크">
     <div className="nexus-background" aria-hidden="true" />
     <header className="nexus-header">
-      <div className="nexus-brand"><span className="nexus-symbol">Ψ</span><div><small>골조·형틀 통합 안전관리</small><h1>SAFETY <b>NEXUS</b></h1></div></div>
-      <div className="nexus-header-right"><span className="nexus-status"><i />골조·형틀 3D 입체 안전관제</span>
+      <div className="nexus-brand"><span className="nexus-symbol">Ψ</span><div><small>골조 통합 안전관리</small><h1>SAFETY <b>NEXUS</b></h1></div></div>
+      <div className="nexus-header-right"><span className="nexus-status"><i />골조 3D 입체 안전관제</span>
         <button type="button" className="nexus-theme-toggle" aria-pressed={nexusTheme === 'light'} aria-label={nexusTheme === 'light' ? '어두운 화면으로 전환' : '밝은 화면으로 전환'} onClick={handleToggleNexusTheme}>{nexusTheme === 'light' ? '🌙 어두운 화면' : '☀️ 밝은 화면'}</button>
         <button type="button" className="nexus-sunlight-toggle" aria-pressed={sunlightMode} aria-label={sunlightMode ? '야외 고대비 모드 끄기' : '야외 직사광선 고대비 모드 켜기'} onClick={handleToggleSunlightMode}>{sunlightMode ? '☀️ 야외 고대비 ON' : '🔆 야외 고대비'}</button>
         <button type="button" className="nexus-cmd-trigger" onClick={() => setCmdPaletteOpen(true)} aria-label="빠른 기능 찾기 열기">🔍 빠른 찾기 (Ctrl+K)</button>
         <button ref={immersiveToggleRef} type="button" className="nexus-immersive-toggle" aria-pressed={immersive} onClick={() => setImmersive(v => !v)}>{immersive ? '몰입 화면 종료 ↙' : '전체 화면 몰입 보기 ⤢'}</button>
         <button type="button" onClick={() => onReturnDashboard ? onReturnDashboard(filterTrade) : onNavigateToPage('dashboard')}>기존 관제센터로 돌아가기 ↗</button></div>
     </header>
-    <div className="nexus-lead"><span>본사·현장 통합 안전관리 체계</span><p>본사 주도 · 현장 실행 · AI 분석 · 12개국어 교육 · 재발방지까지 연결하는 골조·형틀·지하 RC 특화 안전지능 플랫폼</p></div>
+    <div className="nexus-lead"><span>본사·현장 통합 안전관리 체계</span><p>본사 주도 · 현장 실행 · AI 분석 · 12개국어 교육 · 재발방지까지 연결하는 골조·지하 RC 특화 안전지능 플랫폼</p></div>
     <section className="nexus-priority-summary" aria-label="우선 확인할 후속조치">
       <div className="nexus-priority-ribbon-head">
         <strong>실시간 후속조치 현황</strong>
@@ -1715,7 +1867,7 @@ const SafetyNexus: React.FC<Props> = ({
     {(activeView === 'hq_command' || activeView === 'field_sphere') && <div className="nexus-main">
       <aside className="nexus-aside">
         <div className="nexus-section-title"><span>01 / 통합 안전 현황</span><i /></div>
-        <h2>골조·형틀 안전지능을<br /><em>하나의 황금 구체로.</em></h2>
+        <h2>골조 안전지능을<br /><em>하나의 황금 구체로.</em></h2>
         <p>지하 RC구조물부터 상부 갱폼·동바리·타설까지, 현장 점검과 AI 분석·12개국어 교육·본사 승인을 하나의 궤도로 통합합니다.</p>
         <div className="nexus-aside-rule" />
         <NexusStructuralElevationMap
@@ -1778,7 +1930,7 @@ const SafetyNexus: React.FC<Props> = ({
             )}
           </div>
         </div>
-        {(orbitLayer === 'structural' || showAxisFilterBar) && <div className="nexus-axis-bar" role="group" aria-label="골조·형틀·지하 RC 3축 분류 필터">
+        {(orbitLayer === 'structural' || showAxisFilterBar) && <div className="nexus-axis-bar" role="group" aria-label="골조·지하 RC 3축 분류 필터">
           <label>
             <span>축1 · 구간</span>
             <select
@@ -1799,7 +1951,7 @@ const SafetyNexus: React.FC<Props> = ({
               value={axisFilter.processAxis}
               onChange={e => handleAxisFilterChange({ processAxis: e.target.value as NexusProcessAxis | '' })}
             >
-              <option value="">전체 골조·형틀 작업</option>
+              <option value="">전체 골조 작업</option>
               {NEXUS_PROCESS_AXIS_OPTIONS.map(opt => (
                 <option key={opt.id} value={opt.id}>{opt.label}</option>
               ))}
@@ -1883,7 +2035,34 @@ const SafetyNexus: React.FC<Props> = ({
             </g>
           </svg>}
           {!flat && <svg className="nexus-focus-link" viewBox="0 0 1000 700" preserveAspectRatio="none" aria-hidden="true">
-            <path key={`${orbitLayer}-${selected.index}`} d={dynamicFocusPath} />
+            <defs>
+              <linearGradient id="nexusTetherGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#ffe5bc" stopOpacity="0.95" />
+                <stop offset="55%" stopColor="#f3b667" stopOpacity="0.82" />
+                <stop offset="100%" stopColor="#7de9f2" stopOpacity="0.92" />
+              </linearGradient>
+              <linearGradient id="nexusBridgeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#ffd79c" stopOpacity="0.48" />
+                <stop offset="100%" stopColor="#7ce8f2" stopOpacity="0.08" />
+              </linearGradient>
+            </defs>
+            {constellationArcPaths.map(arc => (
+              <path
+                key={arc.key}
+                d={arc.d}
+                className={'nexus-constellation-arc' + (arc.front ? ' is-front' : '')}
+              />
+            ))}
+            <path className="nexus-tether-glow" d={dynamicFocusPath} />
+            <path key={`${orbitLayer}-${selected.index}`} className={'nexus-tether-core tone-' + selected.tone} d={dynamicFocusPath} />
+            {detailBridgePath && !isMobileViewport && (
+              <path className={'nexus-detail-bridge tone-' + selected.tone} d={detailBridgePath} />
+            )}
+            {hoverProjection && (
+              <g className="nexus-hover-reticle" transform={`translate(${hoverProjection.svgX} ${hoverProjection.svgY})`}>
+                <circle r="24" />
+              </g>
+            )}
             {activeProjection && (
               <>
                 <g className="nexus-surface-pin" transform={`translate(${activeProjection.surfaceSvgX} ${activeProjection.surfaceSvgY})`}>
@@ -1931,14 +2110,24 @@ const SafetyNexus: React.FC<Props> = ({
                 style={style}
                 data-front={proj?.isFront ? 'true' : 'false'}
                 data-tone={topic.tone}
+                data-layer={orbitLayer}
+                data-hovered={hoveredNodeIdx === i ? 'true' : 'false'}
                 data-axis-match={nodeSig?.matchesAxisFilter ? 'true' : 'false'}
                 data-live-count={liveCount > 0 ? String(liveCount) : undefined}
                 className={'nexus-node node-' + i + (safeActive === i ? ' selected' : '')}
                 aria-pressed={safeActive === i}
+                onMouseEnter={() => setHoveredNodeIdx(i)}
+                onMouseLeave={() => setHoveredNodeIdx(prev => (prev === i ? null : prev))}
+                onFocus={() => setHoveredNodeIdx(i)}
+                onBlur={() => setHoveredNodeIdx(prev => (prev === i ? null : prev))}
                 onClick={() => { setSelectedSeedIdx(0); lockOntoNode(i, orbitLayer, { syncWorkbenchTab: true }); }}
               >
+                <span className="nexus-node-glyph" aria-hidden="true">{renderNexusNodeGlyph(orbitLayer, topic.index)}</span>
                 <b>{topic.index}</b>
-                <span>{topic.title}</span>
+                <span className="nexus-node-label-wrap">
+                  <span className="nexus-node-label">{topic.title}</span>
+                  {safeActive === i && <small className="nexus-node-sub">{topic.categoryBadge}</small>}
+                </span>
                 {liveCount > 0 && <em className="nexus-node-signal" aria-hidden="true">{liveCount}</em>}
               </button>
             );
@@ -1946,6 +2135,38 @@ const SafetyNexus: React.FC<Props> = ({
           <div className="nexus-crosshair" aria-hidden="true">
             {currentLayerMeta.label} · {formatSphericalCoord(selected.latDeg, selected.lonDeg)} · 드래그 회전 · 항목 선택
           </div>
+        </div>
+        <div className="nexus-feature-dock" data-orbit-layer={orbitLayer} role="group" aria-label="현재 보기 기능 빠른 전환">
+          {layerNodes.map((topic, i) => {
+            const nodeSig = layerLiveSignals[i];
+            const nodePipe = pipelineNodeSummaries[i];
+            const nodeHq = hqLoopNodeSummaries[i];
+            const dockCount =
+              (nodeSig?.unresolvedActions ?? 0) +
+              (nodePipe?.openCases ?? 0) +
+              (nodeHq?.pendingHqApprovals ?? 0) +
+              (nodeHq?.pendingBriefingVisits ?? 0);
+            const isSelected = safeActive === i;
+            return (
+              <button
+                key={`dock-${orbitLayer}-${topic.index}`}
+                type="button"
+                data-tone={topic.tone}
+                aria-pressed={isSelected}
+                className={'nexus-dock-chip' + (isSelected ? ' is-selected' : '')}
+                onMouseEnter={() => setHoveredNodeIdx(i)}
+                onMouseLeave={() => setHoveredNodeIdx(prev => (prev === i ? null : prev))}
+                onFocus={() => setHoveredNodeIdx(i)}
+                onBlur={() => setHoveredNodeIdx(prev => (prev === i ? null : prev))}
+                onClick={() => { setSelectedSeedIdx(0); lockOntoNode(i, orbitLayer, { syncWorkbenchTab: true }); }}
+              >
+                <span className="nexus-dock-glyph" aria-hidden="true">{renderNexusNodeGlyph(orbitLayer, topic.index)}</span>
+                <b>{topic.index}</b>
+                <span>{topic.title}</span>
+                {dockCount > 0 && <em className="nexus-dock-badge">{dockCount}</em>}
+              </button>
+            );
+          })}
         </div>
         <div className="nexus-visual-foot">
           <span>{currentLayerMeta.subtitle}</span>
@@ -1958,7 +2179,7 @@ const SafetyNexus: React.FC<Props> = ({
           </div>
         </div>
       </section>
-      <aside className="nexus-detail">
+      <aside className="nexus-detail" data-active-tone={selected.tone} data-orbit-layer={orbitLayer}>
         <div className="nexus-section-title">
           <span>02 / 선택한 관리 항목</span>
           <b>{selected.index} / {String(layerNodes.length).padStart(2, '0')}</b>

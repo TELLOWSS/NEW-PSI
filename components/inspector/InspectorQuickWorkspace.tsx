@@ -621,7 +621,7 @@ export default function InspectorQuickWorkspace({onAdvanced,initialEntry,onUnsav
                     <details className="si-api-explanation"><summary>운영자 전용 · 연결 작동 시험</summary><InspectorAiDiagnostics disabled={busy||!ready||!cost.allowed||!apiEnabled} onCost={setCost}/></details>
                 </details>
             <details className="si-inspection-context si-nexus-bridge-details">
-                <summary>골조·형틀·지하 RC 3축 자동분류 · 유사사례 매칭 및 황금 구체 환류</summary>
+                <summary>골조·지하 RC 3축 자동분류 · 유사사례 매칭 및 황금 구체 환류</summary>
                 <InspectorNexus3AxisBridge
                     note={note}
                     fileName={local?.file.name}

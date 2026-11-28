@@ -508,7 +508,7 @@ export const PrecisionOperationsBoard: React.FC<PrecisionOperationsBoardProps> =
                                     SOVEREIGN NEXUS BRIDGE · 본사·현장 폐루프 연동
                                 </span>
                                 <h2 className="mt-1 text-base font-extrabold text-white">
-                                    골조·형틀·건설기계 사용전 사진 보고 &amp; 본사 결재 현황
+                                    골조·건설기계 사용전 사진 보고 &amp; 본사 결재 현황
                                 </h2>
                             </div>
                             <button

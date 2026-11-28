@@ -409,7 +409,7 @@ export const createHqVisitPlan = (
     updatedAt: nowIso,
     visitDate: /^\d{4}-\d{2}-\d{2}$/.test(String(input.visitDate || '')) ? String(input.visitDate) : today,
     inspectorRole: String(input.inspectorRole || '').trim() || '본사 안전보건팀 순회점검자',
-    siteName: String(input.siteName || '').trim() || '골조·형틀 중점관리 현장',
+    siteName: String(input.siteName || '').trim() || '골조 중점관리 현장',
     purpose: String(input.purpose || '').trim() || classification.primarySeed.preVisitBriefingPoint,
     zoneAxis: classification.zoneAxis,
     processAxis: classification.processAxis,
@@ -568,7 +568,7 @@ export const buildAiInvestigationDraft = (
     siteId: input.siteId || undefined,
     createdAt: nowIso,
     updatedAt: nowIso,
-    siteName: String(input.siteName || '').trim() || '골조·형틀 현장',
+    siteName: String(input.siteName || '').trim() || '골조 현장',
     incidentTitle:
       String(input.incidentTitle || '').trim() ||
       `[${zoneLabel} · ${processLabel}] ${seed.hazardMechanism} 아차사고·위험사례 원인조사`,
@@ -681,7 +681,7 @@ export const approveAiInvestigationAndPropagate = (
     preVisitBriefingPoint: `[본사 승인 재발방지 중점] ${finalPreventive}`,
     ceoTrainingPoint: `[본사 사고조사 환류 지시] ${finalDirect} 위험이 확인되면 즉시 작업을 중지하고 ${finalPreventive} 조치를 먼저 완료하십시오.`,
     tradeKeywords: baseSeed.tradeKeywords,
-    sourceKind: '골조·형틀 표준 예방 시드 (실제 현장 사고 통계 아님)',
+    sourceKind: '골조 표준 예방 시드 (실제 현장 사고 통계 아님)',
   };
 
   writeApprovedCustomIncidentSeeds([promotedSeed, ...customSeeds].slice(0, 40));
@@ -915,7 +915,7 @@ export const buildRoleCommandDigest = (
         {
           id: 'field-p1',
           badge: `03·06 현장 미결 ${openCases.length}건 (인계 ${handoverPending.length}·재점검 ${recheckPending.length})`,
-          text: '30초 원탭 프리셋으로 골조·형틀 위험을 즉시 등록하고 조치 증빙·교대 인계·재점검 종결 처리',
+          text: '30초 원탭 프리셋으로 골조 위험을 즉시 등록하고 조치 증빙·교대 인계·재점검 종결 처리',
           targetTab: 'inspect_03_06',
         },
         {
