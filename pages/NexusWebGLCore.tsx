@@ -189,20 +189,16 @@ void main() {
   } else if(isConstEdge) {
     float front = smoothstep(-0.42, 0.25, p.z);
     float glint = 0.82 + 0.18 * sin(t * 2.2 + seed * 6.2831);
-    vec3 iceCyan = vec3(0.56, 0.93, 1.0);
-    vec3 prismViolet = vec3(0.84, 0.80, 1.0);
-    v_color = mix(iceCyan, prismViolet, 0.35 + 0.35 * sin(seed * 6.2831));
-    v_alpha = front * 0.96 * glint * u_intensity;
-    gl_PointSize = u_ratio * 1.6;
+    v_color = vec3(0.86, 0.92, 0.98);
+    v_alpha = front * 0.38 * glint * u_intensity;
+    gl_PointSize = u_ratio * 1.2;
   } else if(isConstStar) {
     bool isAlphaStar = kind >= 13.5;
     float front = smoothstep(-0.40, 0.22, p.z);
     float twinkle = 0.84 + 0.16 * sin(t * 2.8 + seed * 6.2831);
-    vec3 iceWhite = vec3(0.95, 0.99, 1.0);
-    vec3 glacialCyan = vec3(0.56, 0.93, 1.0);
-    v_color = isAlphaStar ? iceWhite : mix(iceWhite, glacialCyan, 0.42);
-    v_alpha = clamp((isAlphaStar ? 1.0 : 0.95) * front * twinkle * u_intensity, 0.12, 1.0);
-    gl_PointSize = u_ratio * lens * (isAlphaStar ? (u_bloom > .5 ? 52.0 : 26.0) : (u_bloom > .5 ? 32.0 : 15.0));
+    v_color = vec3(0.95, 0.97, 1.0);
+    v_alpha = clamp((isAlphaStar ? 0.58 : 0.42) * front * twinkle * u_intensity, 0.04, 0.62);
+    gl_PointSize = u_ratio * lens * (isAlphaStar ? (u_bloom > .5 ? 16.0 : 7.5) : (u_bloom > .5 ? 10.0 : 4.5));
   } else if(isBgStar) {
     float twinkle = 0.55 + 0.45 * sin(t * 1.4 + seed * 47.0);
     v_color = seed > 0.65 ? vec3(0.84, 0.94, 1.0) : vec3(1.0, 0.93, 0.80);
@@ -211,9 +207,9 @@ void main() {
   } else if(isConstDust) {
     float front = smoothstep(-0.35, 0.28, p.z);
     float wave = pow(max(0.0, sin(seed * 6.2831 - t * 2.4)), 4.0);
-    v_color = mix(vec3(0.94, 0.99, 1.0), vec3(0.56, 0.93, 1.0), 0.48);
-    v_alpha = front * (0.28 + 0.72 * wave) * u_intensity;
-    gl_PointSize = u_ratio * lens * (u_bloom > .5 ? 18.0 : 3.4 + 3.6 * wave);
+    v_color = vec3(0.94, 0.97, 1.0);
+    v_alpha = front * (0.10 + 0.34 * wave) * u_intensity;
+    gl_PointSize = u_ratio * lens * (u_bloom > .5 ? 6.0 : 1.4 + 1.2 * wave);
   } else {
     float travel=fract(seed-t*(.078+ring*.018)-ring*.23);
     float arc=min(travel,1.0-travel);
@@ -258,7 +254,7 @@ void main() {
       float axisFlare = exp(-abs(p.x)*8.2 - abs(p.y)*1.8) + exp(-abs(p.y)*8.2 - abs(p.x)*1.8);
       vec2 d = vec2(p.x - p.y, p.x + p.y) * 0.7071;
       float diagFlare = 0.52 * (exp(-abs(d.x)*9.2 - abs(d.y)*2.2) + exp(-abs(d.y)*9.2 - abs(d.x)*2.2));
-      vec3 prismFire = mix(vec3(0.56, 0.93, 1.0), vec3(0.86, 0.78, 1.0), clamp(p.x * 0.5 + 0.5, 0.0, 1.0));
+      vec3 prismFire = mix(vec3(0.84, 0.92, 0.98), vec3(0.94, 0.92, 1.0), clamp(p.x * 0.5 + 0.5, 0.0, 1.0));
       vec3 facetCol = mix(prismFire, vec3(1.0), glassFacet * 0.78 + facetEdge * 0.55);
       float core = smoothstep(.18, .02, sqrt(r2));
       float totalA = clamp(glassFacet * 0.72 + facetEdge * 0.65 + (axisFlare + diagFlare) * 0.48 + core, 0.0, 1.0);

@@ -2080,43 +2080,35 @@ const SafetyNexus: React.FC<Props> = ({
             >
               <defs>
                 <linearGradient id="nexusDiamondRayGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#ffffff" stopOpacity="0.96" />
-                  <stop offset="42%" stopColor="#8fe8ff" stopOpacity="0.82" />
-                  <stop offset="76%" stopColor="#d6c2ff" stopOpacity="0.72" />
-                  <stop offset="100%" stopColor="#ffffff" stopOpacity="0.94" />
+                  <stop offset="0%" stopColor="#ffffff" stopOpacity="0.78" />
+                  <stop offset="45%" stopColor="#dceaf7" stopOpacity="0.58" />
+                  <stop offset="75%" stopColor="#eef4fb" stopOpacity="0.48" />
+                  <stop offset="100%" stopColor="#ffffff" stopOpacity="0.75" />
                 </linearGradient>
                 <linearGradient id="nexusDiamondFacetTL" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#ffffff" stopOpacity="0.96" />
-                  <stop offset="100%" stopColor="#bcefff" stopOpacity="0.52" />
+                  <stop offset="0%" stopColor="#ffffff" stopOpacity="0.94" />
+                  <stop offset="100%" stopColor="#e6f0fa" stopOpacity="0.52" />
                 </linearGradient>
                 <linearGradient id="nexusDiamondFacetTR" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#9cecff" stopOpacity="0.78" />
-                  <stop offset="100%" stopColor="#4ec2ef" stopOpacity="0.24" />
+                  <stop offset="0%" stopColor="#d8e7f6" stopOpacity="0.64" />
+                  <stop offset="100%" stopColor="#8fb0ce" stopOpacity="0.20" />
                 </linearGradient>
                 <linearGradient id="nexusDiamondFacetBR" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#d7c4ff" stopOpacity="0.70" />
-                  <stop offset="100%" stopColor="#7eb6ff" stopOpacity="0.22" />
+                  <stop offset="0%" stopColor="#cdddf0" stopOpacity="0.52" />
+                  <stop offset="100%" stopColor="#7c98b8" stopOpacity="0.16" />
                 </linearGradient>
                 <radialGradient id="nexusDiamondAura" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="#ffffff" stopOpacity="0.90" />
-                  <stop offset="32%" stopColor="#8ae7ff" stopOpacity="0.42" />
-                  <stop offset="68%" stopColor="#cab4ff" stopOpacity="0.16" />
-                  <stop offset="100%" stopColor="#8ae7ff" stopOpacity="0" />
+                  <stop offset="0%" stopColor="#ffffff" stopOpacity="0.42" />
+                  <stop offset="45%" stopColor="#dbe9f7" stopOpacity="0.14" />
+                  <stop offset="100%" stopColor="#dbe9f7" stopOpacity="0" />
                 </radialGradient>
-                <filter id="nexusDiamondBloom" x="-50%" y="-50%" width="200%" height="200%">
-                  <feGaussianBlur stdDeviation="2.8" result="blur" />
-                  <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
               </defs>
               <g key={activeConstellation.key} className="diamond-constellation-group">
                 {projectedConstellation.edges.map(([aIdx, bIdx], eIdx) => {
                   const sa = projectedConstellation.stars[aIdx];
                   const sb = projectedConstellation.stars[bIdx];
                   if (!sa || !sb) return null;
-                  const edgeOpacity = Number((((sa.opacity + sb.opacity) * 0.5) * 0.92).toFixed(3));
+                  const edgeOpacity = Number((((sa.opacity + sb.opacity) * 0.5) * 0.84).toFixed(3));
                   return (
                     <g key={`de-${eIdx}`} style={{ opacity: edgeOpacity }}>
                       <line
@@ -2148,10 +2140,10 @@ const SafetyNexus: React.FC<Props> = ({
                   );
                 })}
                 {projectedConstellation.stars.map((star, sIdx) => {
-                  const baseR = (star.mag === 1 ? 9.6 : star.mag === 2 ? 6.6 : 4.6) * star.scale;
-                  const rx = Math.round(baseR * 0.78 * 10) / 10;
-                  const ry = Math.round(baseR * 1.12 * 10) / 10;
-                  const rayR = Math.round(baseR * (star.mag === 1 ? 2.55 : 1.75) * 10) / 10;
+                  const baseR = (star.mag === 1 ? 4.4 : star.mag === 2 ? 3.1 : 2.1) * star.scale;
+                  const rx = Math.round(baseR * 0.72 * 10) / 10;
+                  const ry = Math.round(baseR * 1.08 * 10) / 10;
+                  const rayR = Math.round(baseR * 2.2 * 10) / 10;
                   return (
                     <g
                       key={`ds-${sIdx}`}
@@ -2159,24 +2151,24 @@ const SafetyNexus: React.FC<Props> = ({
                       transform={`translate(${star.svgX} ${star.svgY})`}
                       style={{ opacity: star.opacity, animationDelay: `${sIdx * 110}ms` }}
                     >
-                      <circle r={Math.round(baseR * 2.5)} fill="url(#nexusDiamondAura)" />
-                      {star.mag <= 2 && (
+                      <circle r={Math.round(baseR * 1.9)} fill="url(#nexusDiamondAura)" />
+                      {star.mag === 1 && (
                         <path
                           className="diamond-star-ray"
                           d={`M${-rayR} 0 L${rayR} 0 M0 ${-rayR} L0 ${rayR}`}
                         />
                       )}
-                      <g filter="url(#nexusDiamondBloom)">
+                      <g>
                         <polygon points={`0,${-ry} ${-rx},0 0,0`} fill="url(#nexusDiamondFacetTL)" />
                         <polygon points={`0,${-ry} ${rx},0 0,0`} fill="url(#nexusDiamondFacetTR)" />
                         <polygon points={`0,${ry} ${rx},0 0,0`} fill="url(#nexusDiamondFacetBR)" />
-                        <polygon points={`0,${ry} ${-rx},0 0,0`} fill="rgba(118, 198, 255, 0.34)" />
+                        <polygon points={`0,${ry} ${-rx},0 0,0`} fill="rgba(165, 198, 228, 0.24)" />
                         <polygon
                           points={`0,${-ry} ${rx},0 0,${ry} ${-rx},0`}
                           className="diamond-bevel-stroke"
                         />
                       </g>
-                      <circle r={Math.max(1.3, baseR * 0.22)} fill="#ffffff" />
+                      <circle r={Math.max(0.75, baseR * 0.16)} fill="#ffffff" />
                     </g>
                   );
                 })}
@@ -2374,11 +2366,11 @@ const SafetyNexus: React.FC<Props> = ({
                 {s.mag === 1 && (
                   <path
                     className="mini-star-flare"
-                    d={`M${s.x - 6.5} ${s.y} L${s.x + 6.5} ${s.y} M${s.x} ${s.y - 6.5} L${s.x} ${s.y + 6.5}`}
+                    d={`M${s.x - 4.5} ${s.y} L${s.x + 4.5} ${s.y} M${s.x} ${s.y - 4.5} L${s.x} ${s.y + 4.5}`}
                   />
                 )}
                 <polygon
-                  points={`${s.x},${s.y - (s.mag === 1 ? 4.2 : s.mag === 2 ? 2.8 : 1.9)} ${s.x + (s.mag === 1 ? 3.0 : s.mag === 2 ? 2.0 : 1.4)},${s.y} ${s.x},${s.y + (s.mag === 1 ? 4.2 : s.mag === 2 ? 2.8 : 1.9)} ${s.x - (s.mag === 1 ? 3.0 : s.mag === 2 ? 2.0 : 1.4)},${s.y}`}
+                  points={`${s.x},${s.y - (s.mag === 1 ? 3.0 : s.mag === 2 ? 2.0 : 1.3)} ${s.x + (s.mag === 1 ? 2.1 : s.mag === 2 ? 1.4 : 0.95)},${s.y} ${s.x},${s.y + (s.mag === 1 ? 3.0 : s.mag === 2 ? 2.0 : 1.3)} ${s.x - (s.mag === 1 ? 2.1 : s.mag === 2 ? 1.4 : 0.95)},${s.y}`}
                   className={`mini-star mag-${s.mag}`}
                   style={{ animationDelay: `${idx * 90}ms` }}
                 />

@@ -10323,44 +10323,44 @@
 }
 
 .nexus-diamond-constellation .diamond-edge-aura {
-  stroke: rgba(138, 232, 255, .24);
-  stroke-width: 5.5;
+  stroke: rgba(218, 236, 252, .12);
+  stroke-width: 1.8;
   stroke-linecap: round;
-  filter: blur(1.5px)
+  filter: blur(1px)
 }
 
 .nexus-diamond-constellation .diamond-edge-glass {
   stroke: url(#nexusDiamondRayGrad);
-  stroke-width: 1.55;
+  stroke-width: 0.85;
   stroke-linecap: round;
   stroke-dasharray: 100;
   animation: nexusConstellationDraw .62s cubic-bezier(.22, .85, .36, 1) both
 }
 
 .nexus-diamond-constellation .diamond-edge-glint {
-  stroke: #ffffff;
-  stroke-width: 1.65;
+  stroke: rgba(255, 255, 255, .75);
+  stroke-width: 0.95;
   stroke-linecap: round;
-  stroke-dasharray: 14 86;
+  stroke-dasharray: 10 90;
   stroke-dashoffset: 100;
-  animation: nexusDiamondGlint 3.2s linear infinite
+  animation: nexusDiamondGlint 5.8s linear infinite
 }
 
 .nexus-diamond-constellation .diamond-bevel-stroke {
   fill: none;
-  stroke: rgba(235, 251, 255, .94);
-  stroke-width: 0.9;
+  stroke: rgba(255, 255, 255, .86);
+  stroke-width: 0.6;
   stroke-linejoin: bevel
 }
 
 .nexus-diamond-constellation .diamond-star-ray {
-  stroke: rgba(215, 248, 255, .86);
-  stroke-width: 0.95;
+  stroke: rgba(240, 248, 255, .62);
+  stroke-width: 0.55;
   stroke-linecap: round
 }
 
 .nexus-diamond-constellation .diamond-star.mag-1 {
-  animation: nexusDiamondFacetShimmer 3.1s ease-in-out infinite
+  animation: nexusDiamondFacetShimmer 4.2s ease-in-out infinite
 }
 
 @keyframes nexusDiamondGlint {
@@ -10368,11 +10368,11 @@
     stroke-dashoffset: 100;
     opacity: 0
   }
-  20% {
-    opacity: .92
+  25% {
+    opacity: .68
   }
-  80% {
-    opacity: .92
+  75% {
+    opacity: .68
   }
   100% {
     stroke-dashoffset: 0;
@@ -10382,10 +10382,10 @@
 
 @keyframes nexusDiamondFacetShimmer {
   0%, 100% {
-    filter: brightness(1) drop-shadow(0 0 4px rgba(143, 232, 255, .45))
+    filter: brightness(1) drop-shadow(0 0 2px rgba(220, 238, 255, .28))
   }
   50% {
-    filter: brightness(1.32) drop-shadow(0 0 9px rgba(214, 194, 255, .85))
+    filter: brightness(1.14) drop-shadow(0 0 4px rgba(220, 238, 255, .42))
   }
 }
 
@@ -10415,8 +10415,8 @@
 }
 
 .nexus-constellation-engrave .constellation-engrave-star {
-  color: #b4f0ff;
-  text-shadow: 0 0 8px rgba(143, 232, 255, .65);
+  color: #eef6ff;
+  text-shadow: 0 0 4px rgba(215, 232, 248, .42);
   font-size: 11px
 }
 
@@ -10521,10 +10521,10 @@
 }
 
 .nexus-mini-constellation .mini-star {
-  fill: #e8faff;
-  stroke: #9beeff;
-  stroke-width: .6;
-  filter: drop-shadow(0 0 3px #8ce8ff)
+  fill: #f4f9ff;
+  stroke: rgba(215, 232, 248, .7);
+  stroke-width: .5;
+  filter: drop-shadow(0 0 2px rgba(215, 232, 248, .45))
 }
 
 .nexus-mini-constellation .mini-star.mag-1 {
