@@ -1,0 +1,1117 @@
+.sapa-defense-center {
+  max-width: 1460px;
+  margin: 0 auto;
+  padding: 20px 24px 48px;
+  color: #0f172a;
+  font-family: "Pretendard", "Noto Sans KR", system-ui, sans-serif;
+}
+
+.sapa-hero-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px 22px;
+  border-radius: 16px;
+  border: 1px solid #cbd5e1;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 6px 22px rgba(15, 23, 42, .05);
+}
+
+.sapa-kicker {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  color: #0369a1;
+  text-transform: uppercase;
+}
+
+.sapa-hero-title h1 {
+  margin: 4px 0 6px;
+  font-size: clamp(20px, 2.2vw, 26px);
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -.02em;
+}
+
+.sapa-hero-title p {
+  margin: 0;
+  font-size: 13px;
+  color: #475569;
+  max-width: 680px;
+  word-break: keep-all;
+}
+
+.sapa-hero-actions {
+  display: grid;
+  gap: 10px;
+  justify-items: end;
+}
+
+.sapa-mode-switch {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 10px;
+  background: #e2e8f0;
+  border: 1px solid #cbd5e1;
+  gap: 4px;
+}
+
+.sapa-mode-switch button {
+  min-height: 34px;
+  padding: 5px 12px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sapa-mode-switch button.is-active {
+  background: #0f172a;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, .18);
+}
+
+.sapa-primary-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sapa-btn-primary,
+.sapa-btn-secondary,
+.sapa-btn-ghost,
+.sapa-btn-seal {
+  min-height: 38px;
+  padding: 7px 14px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sapa-btn-primary {
+  background: #1d4ed8;
+  color: #ffffff;
+}
+
+.sapa-btn-primary:hover {
+  background: #1e40af;
+}
+
+.sapa-btn-seal {
+  background: #047857;
+  color: #ffffff;
+}
+
+.sapa-btn-seal:hover {
+  background: #065f46;
+}
+
+.sapa-btn-secondary {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.sapa-btn-secondary:hover {
+  background: #f1f5f9;
+}
+
+.sapa-btn-ghost {
+  background: transparent;
+  border-color: #94a3b8;
+  color: #334155;
+}
+
+.sapa-notice-banner {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  color: #065f46;
+  font-size: 12.5px;
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.sapa-notice-banner button {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.sapa-toolbar {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.sapa-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sapa-tabs button {
+  min-height: 38px;
+  padding: 7px 14px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sapa-tabs button.is-active {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #ffffff;
+}
+
+.sapa-tab-count {
+  font-style: normal;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #7c3aed;
+  color: #ffffff;
+  font-size: 11px;
+}
+
+.sapa-tab-count.is-warn {
+  background: #dc2626;
+}
+
+.sapa-site-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.sapa-site-filters button {
+  min-height: 34px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sapa-site-filters button.is-active {
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
+.sapa-kpi-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sapa-kpi-card {
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  display: grid;
+  gap: 4px;
+}
+
+.sapa-kpi-card.is-accent {
+  border-color: #93c5fd;
+  background: linear-gradient(135deg, #eff6ff, #ffffff);
+}
+
+.sapa-kpi-card.is-danger {
+  border-color: #fca5a5;
+  background: linear-gradient(135deg, #fef2f2, #ffffff);
+}
+
+.sapa-kpi-card.is-purple {
+  border-color: #c4b5fd;
+  background: linear-gradient(135deg, #f5f3ff, #ffffff);
+}
+
+.sapa-kpi-card small {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.sapa-kpi-card strong {
+  font-size: 26px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.sapa-kpi-card span {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.sapa-ceo-layout {
+  margin-top: 16px;
+  display: grid;
+  gap: 16px;
+}
+
+.sapa-matrix-panel,
+.sapa-ceo-inbox,
+.sapa-calendar-panel,
+.sapa-card-rail,
+.sapa-card-editor {
+  padding: 18px 20px;
+  border-radius: 14px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+}
+
+.sapa-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.sapa-panel-head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.sapa-panel-head p {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: #475569;
+}
+
+.sapa-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.sapa-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.sapa-matrix-table,
+.sapa-calendar-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 920px;
+}
+
+.sapa-matrix-table th,
+.sapa-matrix-table td,
+.sapa-calendar-table th,
+.sapa-calendar-table td {
+  border: 1px solid #e2e8f0;
+  padding: 8px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.sapa-matrix-table thead th,
+.sapa-calendar-table thead th {
+  background: #f8fafc;
+  font-size: 11.5px;
+  color: #1e293b;
+}
+
+.sapa-matrix-table thead .th-code {
+  display: block;
+  font-size: 10px;
+  color: #64748b;
+}
+
+.sapa-matrix-table thead .th-title {
+  display: block;
+  font-weight: 800;
+}
+
+.sapa-matrix-table thead .th-star {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 9.5px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.sapa-site-cell {
+  text-align: left !important;
+  background: #f8fafc;
+  min-width: 148px;
+}
+
+.sapa-site-cell strong {
+  display: block;
+  font-size: 12.5px;
+  color: #0f172a;
+}
+
+.sapa-site-cell small {
+  display: block;
+  font-size: 11px;
+  color: #475569;
+  font-weight: 500;
+}
+
+.sapa-signal-cell {
+  width: 100%;
+  min-height: 48px;
+  padding: 5px 4px;
+  border-radius: 8px;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sapa-signal-cell.tone-green {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
+.sapa-signal-cell.tone-purple {
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+  color: #5b21b6;
+}
+
+.sapa-signal-cell.tone-yellow {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.sapa-signal-cell.tone-red {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.sapa-signal-cell.is-selected {
+  box-shadow: 0 0 0 2px #1d4ed8;
+}
+
+.sapa-inbox-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sapa-inbox-card {
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  display: grid;
+  gap: 8px;
+}
+
+.sapa-inbox-card.tone-purple {
+  border-left: 4px solid #7c3aed;
+}
+
+.sapa-inbox-card.tone-red {
+  border-left: 4px solid #dc2626;
+}
+
+.sapa-inbox-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sapa-inbox-top > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.sapa-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+.sapa-pill.is-law {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.sapa-pill.is-sig-green { background: #dcfce7; color: #166534; }
+.sapa-pill.is-sig-purple { background: #ede9fe; color: #5b21b6; }
+.sapa-pill.is-sig-yellow { background: #fef3c7; color: #92400e; }
+.sapa-pill.is-sig-red { background: #fee2e2; color: #991b1b; }
+
+.sapa-inbox-card h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.sapa-inbox-summary {
+  margin: 0;
+  font-size: 12.5px;
+  color: #334155;
+}
+
+.sapa-inbox-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 11px;
+  color: #475569;
+}
+
+.sapa-ceo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sapa-ceo-actions button {
+  min-height: 32px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sapa-ceo-actions button.is-confirm {
+  background: #047857;
+  border-color: #047857;
+  color: #ffffff;
+}
+
+.sapa-ceo-actions button.is-budget {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #ffffff;
+}
+
+.sapa-ceo-actions button.is-revise {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.sapa-link-btn {
+  border: none;
+  background: transparent;
+  color: #1d4ed8;
+  font-size: 11.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.sapa-routine-layout {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: 310px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.sapa-card-rail {
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.sapa-cycle-filter {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+}
+
+.sapa-cycle-filter button {
+  min-height: 32px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sapa-cycle-filter button.is-active {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #ffffff;
+}
+
+.sapa-card-rail-list {
+  display: grid;
+  gap: 6px;
+  max-height: 760px;
+  overflow-y: auto;
+}
+
+.sapa-rail-item {
+  width: 100%;
+  text-align: left;
+  padding: 9px 10px;
+  border-radius: 9px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  cursor: pointer;
+  display: grid;
+  gap: 3px;
+}
+
+.sapa-rail-item.is-selected {
+  border-color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.sapa-rail-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 12px;
+  color: #0f172a;
+}
+
+.sapa-rail-top span {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.sapa-rail-item small {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.sapa-card-editor {
+  display: grid;
+  gap: 14px;
+}
+
+.sapa-editor-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 12px;
+}
+
+.sapa-editor-head h2 {
+  margin: 6px 0 4px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.sapa-editor-head p {
+  margin: 0;
+  font-size: 12.5px;
+  color: #475569;
+}
+
+.sapa-subpanel {
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  display: grid;
+  gap: 10px;
+}
+
+.sapa-subpanel h3 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.sapa-subpanel-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.sapa-subpanel-head select {
+  min-height: 34px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid #94a3b8;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sapa-helper-text {
+  margin: 0;
+  font-size: 11.5px;
+  color: #475569;
+}
+
+.sapa-auto-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.sapa-auto-grid > div {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+}
+
+.sapa-auto-grid small {
+  display: block;
+  font-size: 10.5px;
+  color: #475569;
+}
+
+.sapa-auto-grid strong {
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.sapa-field-block {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.sapa-field-block textarea,
+.sapa-erp-grid input,
+.sapa-erp-grid select,
+.sapa-step-controls input,
+.sapa-custom-erp-row input {
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 12.5px;
+}
+
+.sapa-steps-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  gap: 8px;
+}
+
+.sapa-step-card {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  display: grid;
+  gap: 4px;
+}
+
+.sapa-step-card.status-approved {
+  border-color: #6ee7b7;
+  background: #ecfdf5;
+}
+
+.sapa-step-card.status-revision_requested {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.sapa-step-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.sapa-step-top button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #64748b;
+}
+
+.sapa-step-status {
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.sapa-step-note {
+  margin: 0;
+  font-size: 11px;
+  color: #475569;
+}
+
+.sapa-step-btns {
+  display: flex;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.sapa-step-btns button {
+  flex: 1;
+  min-height: 28px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sapa-step-controls {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1.4fr;
+  gap: 8px;
+}
+
+.sapa-add-step-group {
+  display: flex;
+  gap: 5px;
+}
+
+.sapa-add-step-group button,
+.sapa-custom-erp-head button {
+  flex-shrink: 0;
+  min-height: 34px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid #94a3b8;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sapa-erp-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sapa-erp-grid label {
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.sapa-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 5px 11px;
+  border-radius: 8px;
+  border: 1px solid #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sapa-upload-btn input {
+  display: none;
+}
+
+.sapa-custom-erp {
+  display: grid;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.sapa-custom-erp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.sapa-custom-erp-row {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1.5fr 34px;
+  gap: 6px;
+}
+
+.sapa-custom-erp-row button {
+  border-radius: 8px;
+  border: 1px solid #fca5a5;
+  background: #fef2f2;
+  color: #991b1b;
+  cursor: pointer;
+}
+
+.sapa-attached-badge {
+  margin: 0;
+  font-size: 12px;
+  color: #065f46;
+}
+
+.sapa-save-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #cbd5e1;
+}
+
+.sapa-seal-info {
+  font-size: 11.5px;
+  color: #334155;
+}
+
+.sapa-seal-info code {
+  background: #e2e8f0;
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+
+.sapa-save-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sapa-empty-box {
+  padding: 20px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 13px;
+}
+
+/* Dark mode support matching PSI root html.dark toggle */
+html.dark .sapa-defense-center {
+  color: #e2e8f0;
+}
+
+html.dark .sapa-hero-header,
+html.dark .sapa-kpi-card,
+html.dark .sapa-matrix-panel,
+html.dark .sapa-ceo-inbox,
+html.dark .sapa-calendar-panel,
+html.dark .sapa-card-rail,
+html.dark .sapa-card-editor,
+html.dark .sapa-btn-secondary {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+
+html.dark .sapa-subpanel,
+html.dark .sapa-inbox-card,
+html.dark .sapa-rail-item,
+html.dark .sapa-site-cell,
+html.dark .sapa-matrix-table thead th,
+html.dark .sapa-calendar-table thead th,
+html.dark .sapa-auto-grid > div,
+html.dark .sapa-step-card,
+html.dark .sapa-empty-box {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+
+html.dark .sapa-hero-title h1,
+html.dark .sapa-panel-head h2,
+html.dark .sapa-kpi-card strong,
+html.dark .sapa-inbox-card h3,
+html.dark .sapa-editor-head h2,
+html.dark .sapa-subpanel h3,
+html.dark .sapa-site-cell strong,
+html.dark .sapa-rail-top,
+html.dark .sapa-auto-grid strong {
+  color: #f8fafc;
+}
+
+html.dark .sapa-hero-title p,
+html.dark .sapa-panel-head p,
+html.dark .sapa-kpi-card small,
+html.dark .sapa-kpi-card span,
+html.dark .sapa-inbox-summary,
+html.dark .sapa-inbox-meta,
+html.dark .sapa-editor-head p,
+html.dark .sapa-helper-text,
+html.dark .sapa-seal-info,
+html.dark .sapa-legend,
+html.dark .sapa-site-cell small,
+html.dark .sapa-rail-top span,
+html.dark .sapa-rail-item small {
+  color: #cbd5e1;
+}
+
+html.dark .sapa-mode-switch,
+html.dark .sapa-tabs button,
+html.dark .sapa-site-filters button,
+html.dark .sapa-cycle-filter button {
+  background: #1e293b;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+html.dark .sapa-mode-switch button,
+html.dark .sapa-btn-ghost {
+  color: #e2e8f0;
+  border-color: #475569;
+}
+
+html.dark .sapa-step-btns button,
+html.dark .sapa-add-step-group button,
+html.dark .sapa-custom-erp-head button {
+  background: #1e293b;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+
+html.dark .sapa-mode-switch button.is-active,
+html.dark .sapa-tabs button.is-active,
+html.dark .sapa-cycle-filter button.is-active {
+  background: #2563eb;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+html.dark .sapa-field-block textarea,
+html.dark .sapa-erp-grid input,
+html.dark .sapa-erp-grid select,
+html.dark .sapa-step-controls input,
+html.dark .sapa-custom-erp-row input,
+html.dark .sapa-subpanel-head select {
+  background: #0f172a;
+  border-color: #475569;
+  color: #f8fafc;
+}
+
+@media (max-width: 1100px) {
+  .sapa-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sapa-routine-layout {
+    grid-template-columns: 1fr;
+  }
+  .sapa-erp-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sapa-step-controls {
+    grid-template-columns: 1fr;
+  }
+  .sapa-inbox-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .sapa-defense-center {
+    padding: 12px 12px 32px;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+  .sapa-defense-center > *,
+  .sapa-hero-title,
+  .sapa-hero-actions,
+  .sapa-matrix-panel,
+  .sapa-ceo-inbox,
+  .sapa-card-editor {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .sapa-mode-switch {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sapa-mode-switch button {
+    font-size: 11px;
+    padding: 5px 6px;
+    text-align: center;
+  }
+  .sapa-hero-header {
+    padding: 14px;
+  }
+  .sapa-hero-actions {
+    justify-items: stretch;
+    width: 100%;
+  }
+  .sapa-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+  .sapa-auto-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sapa-erp-grid {
+    grid-template-columns: 1fr;
+  }
+  .sapa-custom-erp-row {
+    grid-template-columns: 1fr;
+  }
+}

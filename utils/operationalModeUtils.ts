@@ -9,6 +9,7 @@ export const OPERATIONAL_MODE_CHANGED_EVENT = 'psi:operationalModeChanged';
 const IMMEDIATE_VISIBLE_PAGES = new Set<Page>([
     'dashboard',
     'safety-nexus',
+    'sapa-defense-center',
     'ocr-analysis',
     'accident-bigdata',
     'safety-compliance-hub',

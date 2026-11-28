@@ -44,6 +44,10 @@ const sidebarMenuItems: SidebarMenuItem[] = [
         icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="3" strokeWidth={1.6}/><ellipse cx="12" cy="12" rx="10" ry="5" transform="rotate(-35 12 12)" strokeWidth={1.4}/><ellipse cx="12" cy="12" rx="10" ry="5" transform="rotate(35 12 12)" strokeWidth={1.4}/></svg>,
     },
     {
+        id: 'sapa-defense-center',
+        icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l7 3.5v5.5c0 4.6-3 8.5-7 9.8-4-1.3-7-5.2-7-9.8V6.5L12 3z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.5 12.2l1.8 1.8 3.6-3.8" /></svg>,
+    },
+    {
         id: 'site-issue-management',
         icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
     },

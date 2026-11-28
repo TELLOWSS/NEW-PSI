@@ -11,6 +11,7 @@ const MANAGER_RISK_ENTRY_PAGE: Page = 'survey-intelligence';
 const DEFAULT_SIDEBAR_ORDER: Page[] = [
     'dashboard',
     'safety-nexus',
+    'sapa-defense-center',
     'ocr-analysis',
     'accident-bigdata',
     'safety-compliance-hub',

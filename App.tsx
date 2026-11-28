@@ -102,6 +102,7 @@ const lazyWithRecovery = <T extends { default: React.ComponentType<any> }>(
 
 const Dashboard = lazyWithRecovery('Dashboard', () => import('./pages/Dashboard'));
 const SafetyNexus = lazyWithRecovery('SafetyNexus', () => import('./pages/SafetyNexus'));
+const SapaDefenseCenter = lazyWithRecovery('SapaDefenseCenter', () => import('./pages/SapaDefenseCenter'));
 const OcrAnalysis = lazyWithRecovery('OcrAnalysis', () => import('./pages/OcrAnalysis'));
 const AccidentBigDataHub = lazyWithRecovery('AccidentBigDataHub', () => import('./pages/AccidentBigDataHub'));
 const EducationReturn = lazyWithRecovery('EducationReturn', () => import('./pages/EducationReturn'));
@@ -1444,6 +1445,7 @@ const App: React.FC = () => {
                     <Suspense fallback={<div className="min-h-[240px] flex items-center justify-center"><Spinner /></div>}>
                         {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={(page) => page === 'admin-training' ? openAdminTrainingHandoff() : navigateToPage(page)} initialTrade={dashboardReturnTrade} initialView={dashboardView} onOpenRecord={(record) => setModalState({type:'recordDetail', record, source:'ocr-analysis'})} onOpenNexus={(trade,view) => { setDashboardView(view); navigateToPage('safety-nexus'); setNexusInitialTrade(trade); setNexusView(previous=>previous?.trade===trade?previous:null); }} />}
                         {currentPage === 'safety-nexus' && <SafetyNexus workerRecords={workerRecords} loadState={workerRecordsLoadState} initialTrade={nexusInitialTrade} initialView={nexusView} onViewChange={setNexusView} onNavigateToPage={(page) => page === 'admin-training' ? openAdminTrainingHandoff() : navigateToPage(page)} onReturnDashboard={(trade) => { navigateToPage('dashboard'); setDashboardReturnTrade(trade); }} onOpenRecord={(record) => setModalState({type:'recordDetail', record})} />}
+                        {currentPage === 'sapa-defense-center' && <SapaDefenseCenter workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'education-return' && <EducationReturn workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'accident-bigdata' && <AccidentBigDataHub workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'ocr-analysis' && (

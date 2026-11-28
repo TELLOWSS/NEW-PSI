@@ -183,7 +183,7 @@ export const Layout: React.FC<LayoutProps> = ({
     const analysisModeLabel = isPaidApiMode ? '고급 분석 사용' : '기본 분석 사용';
 
     const mobilePageGroupsBase: Record<MobileTabId, Page[]> = {
-        home: ['dashboard', 'safety-nexus'],
+        home: ['dashboard', 'safety-nexus', 'sapa-defense-center'],
         alerts: ['ocr-analysis', 'accident-bigdata'],
         inspector: ['safety-inspector', 'site-issue-management'],
         predictive: ['education-return', 'a4-education-material', 'monthly-guidance-report', 'reports', 'admin-training'],

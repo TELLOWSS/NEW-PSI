@@ -158,6 +158,9 @@ const sha256Hex = async (bytes: Uint8Array): Promise<string> => {
   return computeCrc32(bytes).toString(16).padStart(8, '0');
 };
 
+import type { SapaDefenseHydratedCard, SapaGovernanceMode } from './sapaDefenseLedger';
+import { SAPA_ERP_STATUS_LABELS } from './sapaDefenseLedger';
+
 export interface NexusComplianceBundleInput {
   asOfDate?: string;
   periodLabel?: string;
@@ -167,6 +170,8 @@ export interface NexusComplianceBundleInput {
   trainingCampaigns: readonly NexusExecutiveTrainingCampaign[];
   visitPlans: readonly NexusHqVisitPlan[];
   investigations: readonly NexusAiInvestigationRecord[];
+  defenseCards?: readonly SapaDefenseHydratedCard[];
+  governanceMode?: SapaGovernanceMode;
 }
 
 export interface NexusComplianceBundleResult {
@@ -343,6 +348,81 @@ export const buildNexusComplianceBundle = async (
         name: `signatures/${rec.signatureId}_${rec.languageCode}.${decoded.ext}`,
         data: decoded.bytes,
       });
+    }
+  }
+
+  if (input.defenseCards && input.defenseCards.length > 0) {
+    entries.push({
+      name: '05_시행령4조_9대방어카드_이행대장.csv',
+      data: encoder.encode(
+        toCsv(
+          ['현장ID', '현장명', '카드ID', '법적근거', '루틴주기', '방어상태', '기한', '결재라인', '대표이사지시', '무결성해시', '봉인일시'],
+          input.defenseCards.map(c => [
+            c.siteId,
+            c.siteName,
+            `${c.cardId} ${c.spec.shortTitle}`,
+            c.spec.legalBasis,
+            c.spec.cycleLabel,
+            c.signalLabel,
+            c.dueDate,
+            c.approvalSteps.map(s => `${s.roleLabel}:${s.status}`).join(' > '),
+            c.ceoDirectiveNote || '',
+            c.sealHash || '',
+            c.sealedAt || '',
+          ]),
+        ),
+      ),
+    });
+
+    entries.push({
+      name: '06_ERP특정항목_연계_및_결재로그.csv',
+      data: encoder.encode(
+        toCsv(
+          ['운영모드', '현장ID', '카드ID', 'ERP문서번호', 'ERP현장코드', 'ERP예산코드', '원가센터', '협력사코드', '집행금액(원)', 'ERP상태', '사용자정의ERP항목'],
+          input.defenseCards.map(c => [
+            input.governanceMode || 'erp_bridge',
+            c.siteId,
+            c.cardId,
+            c.erpBridge.erpDocNo,
+            c.erpBridge.erpSiteCode,
+            c.erpBridge.erpBudgetCode,
+            c.erpBridge.erpCostCenter,
+            c.erpBridge.erpVendorCode,
+            c.erpBridge.erpAmountKrw ?? '',
+            SAPA_ERP_STATUS_LABELS[c.erpBridge.erpApprovalStatus],
+            c.erpBridge.erpCustomFields.map(f => `${f.label || f.key}=${f.value}`).join(' | '),
+          ]),
+        ),
+      ),
+    });
+
+    for (const card of input.defenseCards) {
+      const folder = `sapa_cards/${card.spec.folderName}/${card.siteId}`;
+      const cardBrief = [
+        `[${card.spec.code}. ${card.spec.title}] (${card.spec.legalBasis})`,
+        `현장: ${card.siteName} (${card.siteId}) | 기준월: ${card.periodKey} | 상태: ${card.signalLabel}`,
+        `ERP 문서번호: ${card.erpBridge.erpDocNo || '미연결'} | 현장코드: ${card.erpBridge.erpSiteCode} | 예산코드: ${card.erpBridge.erpBudgetCode}`,
+        `실무 메모: ${card.summaryMemo || '-'}`,
+        `경영책임자 확인·지시: ${card.ceoDirectiveNote || '-'}`,
+        `무결성 SHA-256 봉인: ${card.sealHash || '미봉인'}`,
+        `결재 이력:`,
+        ...card.approvalSteps.map(
+          s => `  - ${s.stepOrder}차 ${s.roleLabel}: ${s.status} (${s.actorName || '-'} / ${s.actedAt || '-'}) ${s.note}`,
+        ),
+      ].join('\n');
+      entries.push({
+        name: `${folder}/카드이행기록.txt`,
+        data: encoder.encode(cardBrief),
+      });
+      if (card.erpBridge.erpAttachmentDataUrl) {
+        const decodedAtt = decodeDataUrlBytes(card.erpBridge.erpAttachmentDataUrl);
+        if (decodedAtt) {
+          entries.push({
+            name: `${folder}/erp_증빙첨부.${decodedAtt.ext}`,
+            data: decodedAtt.bytes,
+          });
+        }
+      }
     }
   }
 

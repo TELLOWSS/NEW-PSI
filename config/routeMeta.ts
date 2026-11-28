@@ -90,6 +90,20 @@ export const routeMetaMap: Record<Page, RouteMeta> = {
         emptyStateMessage: '화면에 불러온 위험성평가 기록이 없습니다.',
         errorMessage: '안전지능 네트워크 화면을 열지 못했습니다.',
     }),
+    'sapa-defense-center': createMeta({
+        id: 'sapa-defense-center',
+        productGroup: 'dashboard',
+        practitionerLabel: '중대재해 방어 카드',
+        workerLabel: '중대재해 방어 카드',
+        developerLabel: 'SAPA Defense Center',
+        description: '중대재해처벌법 시행령 제4조 9대 의무 현장별 루틴 이행·ERP 연계·대표이사 확인 결재를 통합 관리합니다.',
+        menuVisibleInPractitionerMode: true,
+        menuVisibleInWorkerMode: false,
+        menuVisibleInDeveloperMode: true,
+        fallbackTitle: '중대재해처벌법 방어 카드 센터',
+        emptyStateMessage: '등록된 현장 방어 카드가 없습니다.',
+        errorMessage: '중대재해 방어 카드 센터를 열지 못했습니다.',
+    }),
     'ocr-analysis': createMeta({
         id: 'ocr-analysis',
         productGroup: 'risk-assessment',
@@ -470,6 +484,7 @@ const PRODUCT_GROUP_LABEL_MAP: Record<ProductGroup, string> = {
 const PAGE_HEADER_HIDDEN_MAP: Partial<Record<Page, boolean>> = {
     'dashboard': true,
     'safety-nexus': true,
+    'sapa-defense-center': true,
     'worker-training': true,
     'ocr-analysis': true,
     'accident-bigdata': true,

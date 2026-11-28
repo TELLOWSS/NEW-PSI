@@ -2587,6 +2587,9 @@ const SafetyNexus: React.FC<Props> = ({
             <button type="button" onClick={() => void handleDownloadComplianceZip()}>
               📦 중대재해처벌법 증빙 ZIP
             </button>
+            <button type="button" onClick={() => onNavigateToPage('sapa-defense-center')}>
+              🛡️ 중대재해 방어 카드 센터 →
+            </button>
           </div>
         </div>
         {!dailyCeoBriefing && dailyBriefingNotice && (
