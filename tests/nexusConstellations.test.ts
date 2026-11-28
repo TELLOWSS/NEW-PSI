@@ -6,7 +6,11 @@ import {
   getNodeConstellation,
   type NexusConstellationAnimationKind,
 } from '../utils/nexusConstellations';
-import { NEXUS_ORBIT_LAYERS, NEXUS_SPHERE_NODES_BY_LAYER } from '../utils/nexusSphereProjection';
+import {
+  NEXUS_ORBIT_LAYERS,
+  NEXUS_SPHERE_NODES_BY_LAYER,
+  projectConstellationToStage,
+} from '../utils/nexusSphereProjection';
 
 const readText = (relPath: string): string =>
   readFileSync(resolve(process.cwd(), relPath), 'utf8').replace(/\r\n/g, '\n');
@@ -66,6 +70,8 @@ describe('SafetyNexus Per-Node Constellations & Tailored Kinetic Animations', ()
     const tsx = readText('pages/SafetyNexus.tsx');
     expect(tsx).toContain('constellationStars={activeConstellation.stars}');
     expect(tsx).toContain('constellationEdges={activeConstellation.edges}');
+    expect(tsx).toContain('nexus-diamond-constellation');
+    expect(tsx).toContain('projectConstellationToStage');
     expect(tsx).toContain('nexus-constellation-engrave');
     expect(tsx).toContain('nexus-constellation-crest');
     expect(tsx).toContain('nexus-mini-constellation');
@@ -74,13 +80,31 @@ describe('SafetyNexus Per-Node Constellations & Tailored Kinetic Animations', ()
     expect(tsx).toContain('animationMode={activeConstellation.animModeIndex}');
   });
 
+  it('projects all 21 constellations cleanly within 1000x700 SVG bounds for cut-diamond overlay', () => {
+    for (const layer of NEXUS_ORBIT_LAYERS) {
+      for (const node of NEXUS_SPHERE_NODES_BY_LAYER[layer.id]) {
+        const c = getNodeConstellation(layer.id, node.index);
+        const projected = projectConstellationToStage(c.stars, c.edges, node.latDeg, node.lonDeg, 0, 0.22);
+        expect(projected.stars.length).toBe(c.stars.length);
+        expect(projected.edges.length).toBe(c.edges.length);
+        for (const s of projected.stars) {
+          expect(s.svgX).toBeGreaterThanOrEqual(58);
+          expect(s.svgX).toBeLessThanOrEqual(942);
+          expect(s.svgY).toBeGreaterThanOrEqual(52);
+          expect(s.svgY).toBeLessThanOrEqual(648);
+        }
+      }
+    }
+  });
+
   it('defines horology constellation crest animations and motion-paused/reduced guards in CSS', () => {
     const css = readText('pages/SafetyNexus.css');
-    for (const kf of ['nexusConstellationDraw', 'nexusStarTwinkle']) {
+    for (const kf of ['nexusConstellationDraw', 'nexusStarTwinkle', 'nexusDiamondGlint']) {
       expect(css).toContain(`@keyframes ${kf}`);
     }
     expect(css).toContain('.safety-nexus[data-motion-paused="true"] .nexus-mini-constellation *');
     expect(css).toContain('.safety-nexus[data-reduced-motion="true"] .nexus-mini-constellation *');
+    expect(css).toContain('.safety-nexus[data-motion-paused="true"] .nexus-diamond-constellation *');
     expect(css).toContain('.nexus-constellation-engrave');
     expect(css).toContain('.nexus-constellation-crest');
   });

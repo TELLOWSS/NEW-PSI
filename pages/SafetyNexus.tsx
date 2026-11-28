@@ -12,6 +12,7 @@ import {
   formatSphericalCoord,
   latLonToUnitVec3,
   normalizeAngleRad,
+  projectConstellationToStage,
   projectNodeToStage,
   shortestAngleStep,
   type NexusOrbitLayer,
@@ -907,6 +908,27 @@ const SafetyNexus: React.FC<Props> = ({
   const activeConstellation = useMemo(
     () => getNodeConstellation(orbitLayer, selected.index),
     [orbitLayer, selected.index],
+  );
+  const projectedConstellation = useMemo(
+    () =>
+      projectConstellationToStage(
+        activeConstellation.stars,
+        activeConstellation.edges,
+        selected.latDeg,
+        selected.lonDeg,
+        sphereAngles.yaw,
+        sphereAngles.pitch,
+        { zoomScale, isMobile: isMobileViewport },
+      ),
+    [
+      activeConstellation,
+      selected.latDeg,
+      selected.lonDeg,
+      sphereAngles.yaw,
+      sphereAngles.pitch,
+      zoomScale,
+      isMobileViewport,
+    ],
   );
   const activeProjection = projectedNodes[safeActive] ?? projectedNodes[0];
   const dynamicFocusPath = useMemo(() => {
@@ -2049,6 +2071,118 @@ const SafetyNexus: React.FC<Props> = ({
               <text x="228" y="353" textAnchor="end">270° W</text>
             </g>
           </svg>}
+          {!flat && projectedConstellation.stars.length > 0 && (
+            <svg
+              className={'nexus-diamond-constellation anim-' + activeConstellation.animationKind + ' tone-' + selected.tone}
+              viewBox="0 0 1000 700"
+              preserveAspectRatio="xMidYMid meet"
+              aria-hidden="true"
+            >
+              <defs>
+                <linearGradient id="nexusDiamondRayGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#ffffff" stopOpacity="0.96" />
+                  <stop offset="42%" stopColor="#8fe8ff" stopOpacity="0.82" />
+                  <stop offset="76%" stopColor="#d6c2ff" stopOpacity="0.72" />
+                  <stop offset="100%" stopColor="#ffffff" stopOpacity="0.94" />
+                </linearGradient>
+                <linearGradient id="nexusDiamondFacetTL" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#ffffff" stopOpacity="0.96" />
+                  <stop offset="100%" stopColor="#bcefff" stopOpacity="0.52" />
+                </linearGradient>
+                <linearGradient id="nexusDiamondFacetTR" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#9cecff" stopOpacity="0.78" />
+                  <stop offset="100%" stopColor="#4ec2ef" stopOpacity="0.24" />
+                </linearGradient>
+                <linearGradient id="nexusDiamondFacetBR" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#d7c4ff" stopOpacity="0.70" />
+                  <stop offset="100%" stopColor="#7eb6ff" stopOpacity="0.22" />
+                </linearGradient>
+                <radialGradient id="nexusDiamondAura" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stopColor="#ffffff" stopOpacity="0.90" />
+                  <stop offset="32%" stopColor="#8ae7ff" stopOpacity="0.42" />
+                  <stop offset="68%" stopColor="#cab4ff" stopOpacity="0.16" />
+                  <stop offset="100%" stopColor="#8ae7ff" stopOpacity="0" />
+                </radialGradient>
+                <filter id="nexusDiamondBloom" x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur stdDeviation="2.8" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+              <g key={activeConstellation.key} className="diamond-constellation-group">
+                {projectedConstellation.edges.map(([aIdx, bIdx], eIdx) => {
+                  const sa = projectedConstellation.stars[aIdx];
+                  const sb = projectedConstellation.stars[bIdx];
+                  if (!sa || !sb) return null;
+                  const edgeOpacity = Number((((sa.opacity + sb.opacity) * 0.5) * 0.92).toFixed(3));
+                  return (
+                    <g key={`de-${eIdx}`} style={{ opacity: edgeOpacity }}>
+                      <line
+                        x1={sa.svgX}
+                        y1={sa.svgY}
+                        x2={sb.svgX}
+                        y2={sb.svgY}
+                        className="diamond-edge-aura"
+                      />
+                      <line
+                        x1={sa.svgX}
+                        y1={sa.svgY}
+                        x2={sb.svgX}
+                        y2={sb.svgY}
+                        pathLength={100}
+                        className="diamond-edge-glass"
+                        style={{ animationDelay: `${eIdx * 70}ms` }}
+                      />
+                      <line
+                        x1={sa.svgX}
+                        y1={sa.svgY}
+                        x2={sb.svgX}
+                        y2={sb.svgY}
+                        pathLength={100}
+                        className="diamond-edge-glint"
+                        style={{ animationDelay: `${eIdx * 190}ms` }}
+                      />
+                    </g>
+                  );
+                })}
+                {projectedConstellation.stars.map((star, sIdx) => {
+                  const baseR = (star.mag === 1 ? 9.6 : star.mag === 2 ? 6.6 : 4.6) * star.scale;
+                  const rx = Math.round(baseR * 0.78 * 10) / 10;
+                  const ry = Math.round(baseR * 1.12 * 10) / 10;
+                  const rayR = Math.round(baseR * (star.mag === 1 ? 2.55 : 1.75) * 10) / 10;
+                  return (
+                    <g
+                      key={`ds-${sIdx}`}
+                      className={`diamond-star mag-${star.mag}`}
+                      transform={`translate(${star.svgX} ${star.svgY})`}
+                      style={{ opacity: star.opacity, animationDelay: `${sIdx * 110}ms` }}
+                    >
+                      <circle r={Math.round(baseR * 2.5)} fill="url(#nexusDiamondAura)" />
+                      {star.mag <= 2 && (
+                        <path
+                          className="diamond-star-ray"
+                          d={`M${-rayR} 0 L${rayR} 0 M0 ${-rayR} L0 ${rayR}`}
+                        />
+                      )}
+                      <g filter="url(#nexusDiamondBloom)">
+                        <polygon points={`0,${-ry} ${-rx},0 0,0`} fill="url(#nexusDiamondFacetTL)" />
+                        <polygon points={`0,${-ry} ${rx},0 0,0`} fill="url(#nexusDiamondFacetTR)" />
+                        <polygon points={`0,${ry} ${rx},0 0,0`} fill="url(#nexusDiamondFacetBR)" />
+                        <polygon points={`0,${ry} ${-rx},0 0,0`} fill="rgba(118, 198, 255, 0.34)" />
+                        <polygon
+                          points={`0,${-ry} ${rx},0 0,${ry} ${-rx},0`}
+                          className="diamond-bevel-stroke"
+                        />
+                      </g>
+                      <circle r={Math.max(1.3, baseR * 0.22)} fill="#ffffff" />
+                    </g>
+                  );
+                })}
+              </g>
+            </svg>
+          )}
           {!flat && (
             <div className={'nexus-constellation-engrave tone-' + selected.tone} aria-hidden="true">
               <span className="constellation-engrave-star">✦</span>
@@ -2243,10 +2377,8 @@ const SafetyNexus: React.FC<Props> = ({
                     d={`M${s.x - 6.5} ${s.y} L${s.x + 6.5} ${s.y} M${s.x} ${s.y - 6.5} L${s.x} ${s.y + 6.5}`}
                   />
                 )}
-                <circle
-                  cx={s.x}
-                  cy={s.y}
-                  r={s.mag === 1 ? 3.1 : s.mag === 2 ? 2.1 : 1.4}
+                <polygon
+                  points={`${s.x},${s.y - (s.mag === 1 ? 4.2 : s.mag === 2 ? 2.8 : 1.9)} ${s.x + (s.mag === 1 ? 3.0 : s.mag === 2 ? 2.0 : 1.4)},${s.y} ${s.x},${s.y + (s.mag === 1 ? 4.2 : s.mag === 2 ? 2.8 : 1.9)} ${s.x - (s.mag === 1 ? 3.0 : s.mag === 2 ? 2.0 : 1.4)},${s.y}`}
                   className={`mini-star mag-${s.mag}`}
                   style={{ animationDelay: `${idx * 90}ms` }}
                 />

@@ -30,6 +30,21 @@ export interface NexusProjectedNode {
   isFront: boolean;
 }
 
+export interface NexusProjectedConstellationStar {
+  svgX: number;
+  svgY: number;
+  depthZ: number;
+  scale: number;
+  opacity: number;
+  mag: 1 | 2 | 3;
+  isFront: boolean;
+}
+
+export interface NexusProjectedConstellation {
+  stars: readonly NexusProjectedConstellationStar[];
+  edges: readonly [number, number][];
+}
+
 export const NEXUS_ORBIT_LAYERS: readonly {
   id: NexusOrbitLayer;
   code: string;
@@ -558,4 +573,77 @@ export const formatSphericalCoord = (latDeg: number, lonDeg: number): string => 
   const latDir = latDeg >= 0 ? 'N' : 'S';
   const lonDir = lonDeg >= 0 ? 'E' : 'W';
   return `${latAbs}°${latDir} · ${lonAbs}°${lonDir}`;
+};
+
+/**
+ * Projects a constellation's 2D celestial star chart onto the elevated 3D spherical
+ * crystal crown centered on the front focal hemisphere, synchronized with WebGL yaw/pitch.
+ */
+export const projectConstellationToStage = (
+  stars: readonly { x: number; y: number; mag: 1 | 2 | 3 }[],
+  edges: readonly [number, number][],
+  activeLatDeg: number,
+  activeLonDeg: number,
+  yawRad: number,
+  pitchRad: number,
+  options?: { zoomScale?: number; isMobile?: boolean },
+): NexusProjectedConstellation => {
+  if (!stars.length) return { stars: [], edges: [] };
+  const centerN = latLonToUnitVec3(activeLatDeg, activeLonDeg);
+  const crRaw: [number, number, number] = [
+    centerN[0] * 0.35,
+    centerN[1] * 0.35 - 0.18,
+    Math.max(0.75, Math.abs(centerN[2]) + 0.45),
+  ];
+  const crLen = Math.hypot(crRaw[0], crRaw[1], crRaw[2]) || 1;
+  const N: [number, number, number] = [crRaw[0] / crLen, crRaw[1] / crLen, crRaw[2] / crLen];
+  const refUp: [number, number, number] = Math.abs(N[1]) < 0.85 ? [0, 1, 0] : [1, 0, 0];
+  const uxRaw: [number, number, number] = [
+    refUp[1] * N[2] - refUp[2] * N[1],
+    refUp[2] * N[0] - refUp[0] * N[2],
+    refUp[0] * N[1] - refUp[1] * N[0],
+  ];
+  const uLen = Math.hypot(uxRaw[0], uxRaw[1], uxRaw[2]) || 1;
+  const tangentU: [number, number, number] = [uxRaw[0] / uLen, uxRaw[1] / uLen, uxRaw[2] / uLen];
+  const vxRaw: [number, number, number] = [
+    N[1] * tangentU[2] - N[2] * tangentU[1],
+    N[2] * tangentU[0] - N[0] * tangentU[2],
+    N[0] * tangentU[1] - N[1] * tangentU[0],
+  ];
+  const vLen = Math.hypot(vxRaw[0], vxRaw[1], vxRaw[2]) || 1;
+  const tangentV: [number, number, number] = [vxRaw[0] / vLen, vxRaw[1] / vLen, vxRaw[2] / vLen];
+
+  const zoom = clamp(options?.zoomScale ?? 1, 0.78, 1.38);
+  const spread = (options?.isMobile ? 196 : 228) * zoom;
+  const shellR = 1.3;
+
+  const projectedStars: NexusProjectedConstellationStar[] = stars.map((st) => {
+    const uOff = ((st.x - 50) / 50) * 0.92;
+    const vOff = ((st.y - 32) / 32) * 0.72;
+    const px = N[0] + tangentU[0] * uOff + tangentV[0] * vOff;
+    const py = N[1] + tangentU[1] * uOff + tangentV[1] * vOff;
+    const pz = N[2] + tangentU[2] * uOff + tangentV[2] * vOff;
+    const pl = Math.hypot(px, py, pz) || 1;
+    const pt: [number, number, number] = [(px / pl) * shellR, (py / pl) * shellR, (pz / pl) * shellR];
+    const [rx, ry, rz] = rotateVec3YawPitch(pt, yawRad, pitchRad);
+    const lens = 2.95 / (2.95 - rz * 0.43);
+    const svgX = clamp(Math.round(500 + rx * spread * lens * 0.88), 58, 942);
+    const svgY = clamp(Math.round(350 + ry * spread * lens * 0.88), 52, 648);
+    const depthNorm = clamp((rz + 1) * 0.5, 0, 1);
+    const magScale = st.mag === 1 ? 1.25 : st.mag === 2 ? 0.92 : 0.7;
+    return {
+      svgX,
+      svgY,
+      depthZ: Number(rz.toFixed(4)),
+      scale: Number((magScale * (0.82 + depthNorm * 0.34)).toFixed(3)),
+      opacity: Number((rz >= -0.18 ? 0.82 + depthNorm * 0.18 : 0.34 + depthNorm * 0.35).toFixed(3)),
+      mag: st.mag,
+      isFront: rz >= -0.1,
+    };
+  });
+
+  return {
+    stars: projectedStars,
+    edges,
+  };
 };

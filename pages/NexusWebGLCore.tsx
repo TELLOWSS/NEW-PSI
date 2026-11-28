@@ -161,7 +161,7 @@ void main() {
     litCol = mix(litCol, mix(hotChampagne, layerAccent, 0.44), modeShimmer * 0.46);
     litCol = mix(litCol, vec3(1.0, 0.96, 0.84), clickRipple * 0.68 + sparkle * 0.72);
     v_color = mix(litCol, alertCrimson, alertWave * 0.68);
-    v_alpha = mix(.22,.92,near)*(0.70 + .30*sin(t*1.6+seed*31.0)*sin(t*1.6+seed*31.0)) * (kind > .1 ? .56 : 0.98) * (1.0 + rim * 0.28 + sparkle * 0.45 + resWave * 0.18 + modeShimmer * 0.22 + clickRipple * 0.32 + alertWave * 0.12) * u_intensity;
+    v_alpha = mix(.22,.88,near)*(0.70 + .30*sin(t*1.6+seed*31.0)*sin(t*1.6+seed*31.0)) * (kind > .1 ? .38 : 0.94) * (1.0 + rim * 0.28 + sparkle * 0.45 + resWave * 0.18 + modeShimmer * 0.22 + clickRipple * 0.32 + alertWave * 0.12) * u_intensity;
     gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 13.5+seed*11.5 : 1.5+seed*2.3)*(1.0 + sparkle * 0.55 + resWave * 0.24 + modeShimmer * 0.20 + clickRipple * 0.45 + alertWave * 0.18);
   } else if(isGeodesic) {
     float near = clamp((p.z+1.2)*.45,0.16,1.0);
@@ -187,29 +187,33 @@ void main() {
     v_alpha = clamp(0.68 * front * pulse * u_intensity, 0.12, 0.82);
     gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 16.0 : 4.2);
   } else if(isConstEdge) {
-    float front = smoothstep(-0.42, 0.28, p.z);
-    float glint = 0.80 + 0.20 * sin(t * 2.2 + seed * 6.2831);
-    v_color = mix(vec3(1.0, 0.95, 0.80), layerAccent, 0.25);
+    float front = smoothstep(-0.42, 0.25, p.z);
+    float glint = 0.82 + 0.18 * sin(t * 2.2 + seed * 6.2831);
+    vec3 iceCyan = vec3(0.56, 0.93, 1.0);
+    vec3 prismViolet = vec3(0.84, 0.80, 1.0);
+    v_color = mix(iceCyan, prismViolet, 0.35 + 0.35 * sin(seed * 6.2831));
     v_alpha = front * 0.96 * glint * u_intensity;
     gl_PointSize = u_ratio * 1.6;
   } else if(isConstStar) {
     bool isAlphaStar = kind >= 13.5;
-    float front = smoothstep(-0.40, 0.25, p.z);
-    float twinkle = 0.82 + 0.18 * sin(t * 2.8 + seed * 6.2831);
-    v_color = isAlphaStar ? vec3(1.0, 0.99, 0.90) : mix(vec3(1.0, 0.93, 0.75), layerAccent, 0.24);
-    v_alpha = clamp((isAlphaStar ? 1.0 : 0.94) * front * twinkle * u_intensity, 0.08, 1.0);
-    gl_PointSize = u_ratio * lens * (isAlphaStar ? (u_bloom > .5 ? 46.0 : 22.0) : (u_bloom > .5 ? 28.0 : 12.5));
+    float front = smoothstep(-0.40, 0.22, p.z);
+    float twinkle = 0.84 + 0.16 * sin(t * 2.8 + seed * 6.2831);
+    vec3 iceWhite = vec3(0.95, 0.99, 1.0);
+    vec3 glacialCyan = vec3(0.56, 0.93, 1.0);
+    v_color = isAlphaStar ? iceWhite : mix(iceWhite, glacialCyan, 0.42);
+    v_alpha = clamp((isAlphaStar ? 1.0 : 0.95) * front * twinkle * u_intensity, 0.12, 1.0);
+    gl_PointSize = u_ratio * lens * (isAlphaStar ? (u_bloom > .5 ? 52.0 : 26.0) : (u_bloom > .5 ? 32.0 : 15.0));
   } else if(isBgStar) {
     float twinkle = 0.55 + 0.45 * sin(t * 1.4 + seed * 47.0);
     v_color = seed > 0.65 ? vec3(0.84, 0.94, 1.0) : vec3(1.0, 0.93, 0.80);
     v_alpha = (0.16 + 0.42 * seed * twinkle) * u_intensity;
     gl_PointSize = u_ratio * (u_bloom > .5 ? 8.5 : 1.7 + seed * 1.6);
   } else if(isConstDust) {
-    float front = smoothstep(-0.35, 0.30, p.z);
+    float front = smoothstep(-0.35, 0.28, p.z);
     float wave = pow(max(0.0, sin(seed * 6.2831 - t * 2.4)), 4.0);
-    v_color = mix(vec3(1.0, 0.97, 0.86), cyanBase, 0.35);
-    v_alpha = front * (0.22 + 0.78 * wave) * u_intensity;
-    gl_PointSize = u_ratio * lens * (u_bloom > .5 ? 16.0 : 3.2 + 3.4 * wave);
+    v_color = mix(vec3(0.94, 0.99, 1.0), vec3(0.56, 0.93, 1.0), 0.48);
+    v_alpha = front * (0.28 + 0.72 * wave) * u_intensity;
+    gl_PointSize = u_ratio * lens * (u_bloom > .5 ? 18.0 : 3.4 + 3.6 * wave);
   } else {
     float travel=fract(seed-t*(.078+ring*.018)-ring*.23);
     float arc=min(travel,1.0-travel);
@@ -248,13 +252,17 @@ void main() {
     gl_FragColor=vec4(v_color*glow, v_alpha*.36);
   } else {
     if(v_kind >= 12.5 && v_kind < 14.5) {
-      float axisFlare = exp(-abs(p.x)*7.4 - abs(p.y)*1.8) + exp(-abs(p.y)*7.4 - abs(p.x)*1.8);
+      float crystal = abs(p.x) * 1.18 + abs(p.y);
+      float glassFacet = smoothstep(0.42, 0.14, crystal);
+      float facetEdge = smoothstep(0.44, 0.36, crystal) - smoothstep(0.32, 0.24, crystal);
+      float axisFlare = exp(-abs(p.x)*8.2 - abs(p.y)*1.8) + exp(-abs(p.y)*8.2 - abs(p.x)*1.8);
       vec2 d = vec2(p.x - p.y, p.x + p.y) * 0.7071;
-      float diagFlare = 0.58 * (exp(-abs(d.x)*8.5 - abs(d.y)*2.1) + exp(-abs(d.y)*8.5 - abs(d.x)*2.1));
-      float flare = axisFlare + diagFlare;
-      float core = smoothstep(.28, .02, sqrt(r2));
-      float starA = clamp(flare*.55 + core*.98, 0.0, 1.0);
-      gl_FragColor = vec4(v_color*(core*1.15 + flare*.88), v_alpha*starA);
+      float diagFlare = 0.52 * (exp(-abs(d.x)*9.2 - abs(d.y)*2.2) + exp(-abs(d.y)*9.2 - abs(d.x)*2.2));
+      vec3 prismFire = mix(vec3(0.56, 0.93, 1.0), vec3(0.86, 0.78, 1.0), clamp(p.x * 0.5 + 0.5, 0.0, 1.0));
+      vec3 facetCol = mix(prismFire, vec3(1.0), glassFacet * 0.78 + facetEdge * 0.55);
+      float core = smoothstep(.18, .02, sqrt(r2));
+      float totalA = clamp(glassFacet * 0.72 + facetEdge * 0.65 + (axisFlare + diagFlare) * 0.48 + core, 0.0, 1.0);
+      gl_FragColor = vec4(mix(v_color, facetCol, 0.75) * (core * 1.1 + glassFacet * 0.8 + (axisFlare + diagFlare) * 0.75), v_alpha * totalA);
       return;
     }
     float core=smoothstep(.38,.04,sqrt(r2));
@@ -539,7 +547,7 @@ const WebGLNexusCore: React.FC<Props> = ({
         const centerN: [number, number, number] = [centerRaw[0] / cLen, centerRaw[1] / cLen, centerRaw[2] / cLen];
         const crownRaw: [number, number, number] = [
           centerN[0] * 0.35,
-          centerN[1] * 0.35 + 0.18,
+          centerN[1] * 0.35 - 0.18,
           Math.max(0.75, Math.abs(centerN[2]) + 0.45),
         ];
         const crLen = Math.hypot(crownRaw[0], crownRaw[1], crownRaw[2]) || 1;
@@ -560,10 +568,10 @@ const WebGLNexusCore: React.FC<Props> = ({
         const vLen = Math.hypot(vxRaw[0], vxRaw[1], vxRaw[2]) || 1;
         const tangentV: [number, number, number] = [vxRaw[0] / vLen, vxRaw[1] / vLen, vxRaw[2] / vLen];
 
-        const shellR = 1.24;
+        const shellR = 1.3;
         const sphereStars = constellationStars.map((st) => {
           const uOff = ((st.x - 50) / 50) * 0.92;
-          const vOff = ((32 - st.y) / 32) * 0.72;
+          const vOff = ((st.y - 32) / 32) * 0.72;
           const px = N[0] + tangentU[0] * uOff + tangentV[0] * vOff;
           const py = N[1] + tangentU[1] * uOff + tangentV[1] * vOff;
           const pz = N[2] + tangentU[2] * uOff + tangentV[2] * vOff;
