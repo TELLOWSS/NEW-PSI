@@ -1411,15 +1411,43 @@ const SafetyNexus: React.FC<Props> = ({
   const surface = <main role={immersive ? 'dialog' : undefined} aria-modal={immersive ? true : undefined} className={'safety-nexus' + (immersive ? ' is-immersive' : '')} data-nexus-theme={nexusTheme} data-nexus-sunlight={sunlightMode ? 'true' : 'false'} data-workspace-role={effectiveRole} data-reduced-motion={reduced ? 'true' : 'false'} data-motion-paused={paused ? 'true' : 'false'} aria-label="PSI 안전지능 네트워크">
     <div className="nexus-background" aria-hidden="true" />
     <header className="nexus-header">
-      <div className="nexus-brand"><span className="nexus-symbol">Ψ</span><div><small>골조 통합 안전관리</small><h1>SAFETY <b>NEXUS</b></h1></div></div>
-      <div className="nexus-header-right"><span className="nexus-status"><i />골조 3D 입체 안전관제</span>
-        <button type="button" className="nexus-theme-toggle" aria-pressed={nexusTheme === 'light'} aria-label={nexusTheme === 'light' ? '어두운 화면으로 전환' : '밝은 화면으로 전환'} onClick={handleToggleNexusTheme}>{nexusTheme === 'light' ? '🌙 어두운 화면' : '☀️ 밝은 화면'}</button>
-        <button type="button" className="nexus-sunlight-toggle" aria-pressed={sunlightMode} aria-label={sunlightMode ? '야외 고대비 모드 끄기' : '야외 직사광선 고대비 모드 켜기'} onClick={handleToggleSunlightMode}>{sunlightMode ? '☀️ 야외 고대비 ON' : '🔆 야외 고대비'}</button>
-        <button type="button" className="nexus-cmd-trigger" onClick={() => setCmdPaletteOpen(true)} aria-label="빠른 기능 찾기 열기">🔍 빠른 찾기 (Ctrl+K)</button>
-        <button ref={immersiveToggleRef} type="button" className="nexus-immersive-toggle" aria-pressed={immersive} onClick={() => setImmersive(v => !v)}>{immersive ? '몰입 화면 종료 ↙' : '전체 화면 몰입 보기 ⤢'}</button>
-        <button type="button" onClick={() => onReturnDashboard ? onReturnDashboard(filterTrade) : onNavigateToPage('dashboard')}>기존 관제센터로 돌아가기 ↗</button></div>
+      <div className="nexus-brand"><span className="nexus-symbol">Ψ</span><div><small>PSI · 골조 3D 안전지능</small><h1>SAFETY <b>NEXUS</b></h1></div></div>
+      <div className="nexus-header-nav-tabs" role="tablist" aria-label="안전지능 빠른 작업 전환">
+        {effectiveRole === 'hq' ? (
+          <>
+            <button type="button" role="tab" aria-selected={activeView === 'hq_command'} className={activeView === 'hq_command' ? 'is-active' : ''} onClick={() => handleSelectWorkspaceView('hq_command')}>3D 구체</button>
+            <button type="button" role="tab" aria-selected={activeView === 'hq_bi'} className={activeView === 'hq_bi' ? 'is-active' : ''} onClick={() => handleSelectWorkspaceView('hq_bi')}>경영 BI</button>
+            <button type="button" role="tab" aria-selected={activeView === 'hq_ops'} className={activeView === 'hq_ops' ? 'is-active' : ''} onClick={() => handleSelectWorkspaceView('hq_ops')}>
+              결재·순회{hqOpsBadgeCount > 0 && <em className="nexus-tab-badge">{hqOpsBadgeCount}</em>}
+            </button>
+            <button type="button" role="tab" aria-selected={activeView === 'hq_audit'} className={activeView === 'hq_audit' ? 'is-active' : ''} onClick={() => handleSelectWorkspaceView('hq_audit')}>감사</button>
+          </>
+        ) : (
+          <>
+            <button type="button" role="tab" aria-selected={activeView === 'field_sphere'} className={activeView === 'field_sphere' ? 'is-active' : ''} onClick={() => handleSelectWorkspaceView('field_sphere')}>3D 구체</button>
+            <button type="button" role="tab" aria-selected={activeView === 'field_ops'} className={activeView === 'field_ops' ? 'is-active' : ''} onClick={() => handleSelectWorkspaceView('field_ops')}>
+              즉시 실행{fieldOpsBadgeCount > 0 && <em className="nexus-tab-badge">{fieldOpsBadgeCount}</em>}
+            </button>
+            <button type="button" role="tab" aria-selected={activeView === 'field_inbox'} className={activeView === 'field_inbox' ? 'is-active' : ''} onClick={() => handleSelectWorkspaceView('field_inbox')}>
+              수신·교육{fieldInboxBadgeCount > 0 && <em className="nexus-tab-badge">{fieldInboxBadgeCount}</em>}
+            </button>
+          </>
+        )}
+        <button
+          type="button"
+          className="nexus-ops-jump-pill"
+          onClick={() => document.getElementById('nexus-ops-deck')?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' })}
+        >
+          긴급 · 브리핑 ▾
+        </button>
+      </div>
+      <div className="nexus-header-right"><span className="nexus-status"><i />골조 3D 입체 관제</span>
+        <button type="button" className="nexus-theme-toggle" aria-pressed={nexusTheme === 'light'} aria-label={nexusTheme === 'light' ? '어두운 화면으로 전환' : '밝은 화면으로 전환'} onClick={handleToggleNexusTheme}>{nexusTheme === 'light' ? '🌙 다크' : '☀️ 화이트'}</button>
+        <button type="button" className="nexus-sunlight-toggle" aria-pressed={sunlightMode} aria-label={sunlightMode ? '야외 고대비 모드 끄기' : '야외 직사광선 고대비 모드 켜기'} onClick={handleToggleSunlightMode}>{sunlightMode ? '☀️ 고대비 ON' : '🔆 고대비'}</button>
+        <button type="button" className="nexus-cmd-trigger" onClick={() => setCmdPaletteOpen(true)} aria-label="빠른 기능 찾기 열기">🔍 Ctrl+K</button>
+        <button ref={immersiveToggleRef} type="button" className="nexus-immersive-toggle" aria-pressed={immersive} onClick={() => setImmersive(v => !v)}>{immersive ? '몰입 종료 ↙' : '몰입 ⤢'}</button>
+        <button type="button" onClick={() => onReturnDashboard ? onReturnDashboard(filterTrade) : onNavigateToPage('dashboard')}>관제센터 ↗</button></div>
     </header>
-    <div className="nexus-lead"><span>본사·현장 통합 안전관리 체계</span><p>본사 주도 · 현장 실행 · AI 분석 · 12개국어 교육 · 재발방지까지 연결하는 골조·지하 RC 특화 안전지능 플랫폼</p></div>
     <section className="nexus-priority-summary" aria-label="우선 확인할 후속조치">
       <div className="nexus-priority-ribbon-head">
         <strong>실시간 후속조치 현황</strong>
@@ -1443,7 +1471,10 @@ const SafetyNexus: React.FC<Props> = ({
         })}</ul>}
       </div>}
     </section>
-    <nav className="nexus-context-rail" aria-label="안전지능 권한 범위 및 워크스페이스 전환">
+    {(() => {
+      const opsDeck = (
+        <div id="nexus-ops-deck" className="nexus-ops-deck">
+          <nav className="nexus-context-rail" aria-label="안전지능 권한 범위 및 워크스페이스 전환">
       <div className="nexus-context-top">
         {!lockedRole ? (
           <div className="nexus-authority-switcher" role="group" aria-label="본사 · 현장 화면 권한 전환">
@@ -1863,43 +1894,19 @@ const SafetyNexus: React.FC<Props> = ({
         </div>
       </section>
     )}
-    <NexusDecisionFirstBrief
-      viewModel={decisionBriefVm}
-      allowedPersonas={allowedDecisionPersonas}
-      onSelectPersona={setDecisionPersona}
-      onAction={handleDecisionBriefAction}
-    />
-    {(activeView === 'hq_command' || activeView === 'field_sphere') && <div className="nexus-main">
-      <aside className="nexus-aside">
-        <div className="nexus-section-title"><span>01 / 통합 안전 현황</span><i /></div>
-        <h2>골조 안전지능을<br /><em>하나의 황금 구체로.</em></h2>
-        <p>지하 RC구조물부터 상부 갱폼·동바리·타설까지, 현장 점검과 AI 분석·12개국어 교육·본사 승인을 하나의 궤도로 통합합니다.</p>
-        <div className="nexus-aside-rule" />
-        <NexusStructuralElevationMap
-          pipelineCases={scopedData.pipelineCases}
-          activeZoneAxis={axisFilter.zoneAxis}
-          activeNodeIndex={selected.index}
-          theme={nexusTheme}
-          onSelectFloor={(zoneAxis, structuralNodeIndex) => {
-            setOrbitLayer('structural');
-            setAxisFilter(prev => ({ ...prev, zoneAxis }));
-            lockOntoNode(Math.max(0, Number(structuralNodeIndex) - 1), 'structural');
-            triggerToast(`🏗️ 단면 구간 선택 (#${structuralNodeIndex})`);
-          }}
-        />
-        <div className="nexus-record-count"><span>연동된 위험성평가 기록</span><strong>{count.toLocaleString('ko-KR')}<small> 건</small></strong></div>
-        <div className="nexus-perception" aria-label="근로자가 직접 선택한 자가평가 등급의 분포">
-          <span>근로자 체감 위험도</span>
-          <h3>근로자 체감 위험 분포 <small>상 · 중 · 하</small></h3>
-          {(['상', '중', '하'] as const).map(level => <div className="nexus-perception-row" key={level}>
-            <b>{level}</b><div className="nexus-perception-track"><i className={'risk-' + level} style={{ width: (count ? snapshot.selfRiskLevels[level] / count * 100 : 0) + '%' }} /></div>
-            <strong>{snapshot.selfRiskLevels[level]}</strong>
-          </div>)}
-          <p>유효 {count - snapshot.unclassifiedRows} / 전체 {count}건</p>
+          <NexusDecisionFirstBrief
+            viewModel={decisionBriefVm}
+            allowedPersonas={allowedDecisionPersonas}
+            onSelectPersona={setDecisionPersona}
+            onAction={handleDecisionBriefAction}
+          />
         </div>
-        <div className="nexus-aside-note"><b>◈ 입체 안전 보기 안내</b><p>보기 탭을 전환하거나 황금 구체를 드래그해 5단계 순환·6대 핵심기능·10대 골조 공정을 입체적으로 확인하세요.</p></div>
-      </aside>
-      <section className="nexus-visual" aria-label="5단계 위험성평가 네트워크 탐색">
+      );
+      return (
+        <>
+          {activeView !== 'hq_command' && activeView !== 'field_sphere' && opsDeck}
+          {(activeView === 'hq_command' || activeView === 'field_sphere') && <div className="nexus-main">
+            <section className="nexus-visual" aria-label="5단계 위험성평가 네트워크 탐색">
         <div className="nexus-visual-head"><span><i /> 입체 안전 관제 · {currentLayerMeta.code}</span><div>
           <button type="button" disabled={!nexusFeatureFlags.threeDEnabled} aria-pressed={flat} onClick={() => { setCinematicPlaying(false); setFlat(v => !v) }}>{!nexusFeatureFlags.threeDEnabled ? '간결한 보기 · 입체 기능 꺼짐' : flat ? '입체 보기' : '간결한 보기'}</button>
           <button type="button" disabled={flat || reduced} onClick={() => { setCinematicPlaying(false); setPaused(v => { const next = !v; persistGlobalMotionPaused(next); return next; }); }}>{paused ? '모션 재생' : '모션 일시정지'}</button>
@@ -2009,6 +2016,8 @@ const SafetyNexus: React.FC<Props> = ({
             alertVec={liveAlertVec}
             zoomScale={zoomScale}
             animationMode={activeConstellation.animModeIndex}
+            constellationStars={activeConstellation.stars}
+            constellationEdges={activeConstellation.edges}
             fallback={<CoreArt active={safeActive} paused={paused} reduced={reduced} sequenceNonce={cinematicNonce} cinematicActive={cinematicPlaying} yaw={sphereAngles.yaw} pitch={sphereAngles.pitch} />}
           />}
           {!flat && <div className="nexus-nucleus" aria-hidden="true" />}
@@ -2040,115 +2049,13 @@ const SafetyNexus: React.FC<Props> = ({
               <text x="228" y="353" textAnchor="end">270° W</text>
             </g>
           </svg>}
-          {!flat && (() => {
-            const c = activeConstellation;
-            const mapX = (sx: number) => Math.round(64 + sx * 2.18);
-            const mapY = (sy: number) => Math.round(92 + sy * 2.15);
-            const alphaStar = c.stars.find(s => s.mag === 1) ?? c.stars[0];
-            const ax = mapX(alphaStar.x);
-            const ay = mapY(alphaStar.y);
-            const tracePoints = c.edges
-              .map(([a, b]) => `${mapX(c.stars[a].x)},${mapY(c.stars[a].y)} ${mapX(c.stars[b].x)},${mapY(c.stars[b].y)}`)
-              .join(' ');
-            return (
-              <>
-                <div className={'nexus-constellation-tag anim-' + c.animationKind + ' tone-' + selected.tone} aria-hidden="true">
-                  <span className="constellation-tag-star">✦</span>
-                  <strong>{c.koName}</strong>
-                  <small>{c.latinName}</small>
-                  <em>{c.animationLabel}</em>
-                </div>
-                <svg
-                  className={'nexus-constellation-overlay anim-' + c.animationKind + ' tone-' + selected.tone}
-                  viewBox="0 0 1000 700"
-                  preserveAspectRatio="xMidYMid meet"
-                  aria-hidden="true"
-                >
-                  <defs>
-                    <radialGradient id="nexusStarHalo" cx="50%" cy="50%" r="50%">
-                      <stop offset="0%" stopColor="#fff4d6" stopOpacity="0.95" />
-                      <stop offset="45%" stopColor="#f6c57a" stopOpacity="0.38" />
-                      <stop offset="100%" stopColor="#f6c57a" stopOpacity="0" />
-                    </radialGradient>
-                  </defs>
-                  <g key={c.key} className="nexus-constellation-group">
-                    <circle cx={ax} cy={ay} r="88" className="constellation-sky-glow" />
-                    {c.animationKind === 'sweep' && (
-                      <g className="constellation-kinetic-sweep" style={{ transformOrigin: `${ax}px ${ay}px` }}>
-                        <path d={`M ${ax} ${ay} L ${ax + 68} ${ay - 22} A 72 72 0 0 1 ${ax + 68} ${ay + 22} Z`} />
-                        <circle cx={ax} cy={ay} r="64" className="sweep-ring" />
-                      </g>
-                    )}
-                    {c.animationKind === 'breathe' && (
-                      <g className="constellation-kinetic-breathe">
-                        <circle cx={ax} cy={ay} r="32" className="breathe-ring r1" />
-                        <circle cx={ax} cy={ay} r="54" className="breathe-ring r2" />
-                      </g>
-                    )}
-                    {c.animationKind === 'lock' && (
-                      <g className="constellation-kinetic-lock" style={{ transformOrigin: `${ax}px ${ay}px` }}>
-                        <polygon points={`${ax},${ay - 28} ${ax + 24},${ay - 14} ${ax + 24},${ay + 14} ${ax},${ay + 28} ${ax - 24},${ay + 14} ${ax - 24},${ay - 14}`} />
-                        <circle cx={ax} cy={ay} r="36" className="lock-outer" />
-                      </g>
-                    )}
-                    {c.animationKind === 'weave' && (
-                      <g className="constellation-kinetic-weave">
-                        <line x1="68" y1={ay} x2="292" y2={ay} />
-                        <line x1={ax} y1="88" x2={ax} y2="248" />
-                        <circle cx={ax} cy={ay} r="44" className="weave-ring" />
-                      </g>
-                    )}
-                    {c.edges.map(([fromIdx, toIdx], eIdx) => {
-                      const s1 = c.stars[fromIdx];
-                      const s2 = c.stars[toIdx];
-                      return (
-                        <line
-                          key={`edge-${c.key}-${eIdx}`}
-                          x1={mapX(s1.x)}
-                          y1={mapY(s1.y)}
-                          x2={mapX(s2.x)}
-                          y2={mapY(s2.y)}
-                          pathLength={100}
-                          className="constellation-edge"
-                          style={{ animationDelay: `${eIdx * 85}ms` }}
-                        />
-                      );
-                    })}
-                    {c.animationKind === 'trace' && tracePoints && (
-                      <polyline points={tracePoints} className="constellation-kinetic-trace" />
-                    )}
-                    {c.animationKind === 'flow' && c.stars.slice(0, 4).map((star, sIdx) => (
-                      <circle
-                        key={`flow-${sIdx}`}
-                        cx={mapX(star.x)}
-                        cy={mapY(star.y)}
-                        r="2.6"
-                        className="constellation-kinetic-flow"
-                        style={{ animationDelay: `${sIdx * 340}ms` }}
-                      />
-                    ))}
-                    {c.stars.map((star, sIdx) => {
-                      const sx = mapX(star.x);
-                      const sy = mapY(star.y);
-                      const r = star.mag === 1 ? 4.1 : star.mag === 2 ? 2.8 : 2.0;
-                      return (
-                        <g key={`star-${c.key}-${sIdx}`} className={`constellation-star mag-${star.mag}`} style={{ animationDelay: `${sIdx * 110}ms` }}>
-                          <circle cx={sx} cy={sy} r={r * 3.1} fill="url(#nexusStarHalo)" />
-                          {star.mag === 1 && (
-                            <path
-                              className="star-flare"
-                              d={`M${sx - 9} ${sy} L${sx + 9} ${sy} M${sx} ${sy - 9} L${sx} ${sy + 9}`}
-                            />
-                          )}
-                          <circle cx={sx} cy={sy} r={r} className="star-core" />
-                        </g>
-                      );
-                    })}
-                  </g>
-                </svg>
-              </>
-            );
-          })()}
+          {!flat && (
+            <div className={'nexus-constellation-engrave tone-' + selected.tone} aria-hidden="true">
+              <span>{activeConstellation.koName}</span>
+              <em>·</em>
+              <small>{activeConstellation.latinName}</small>
+            </div>
+          )}
           {!flat && <svg className="nexus-focus-link" viewBox="0 0 1000 700" preserveAspectRatio="none" aria-hidden="true">
             <defs>
               <linearGradient id="nexusTetherGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -2306,10 +2213,10 @@ const SafetyNexus: React.FC<Props> = ({
         </div>
         <div key={`${orbitLayer}-${selected.index}`} className="nexus-detail-intro"><span>{selected.en}</span><h2>{selected.title}</h2></div>
         <div className="nexus-detail-pulse" aria-hidden="true"><i /><i /><i /></div>
-        <div className={'nexus-constellation-card anim-' + activeConstellation.animationKind + ' tone-' + selected.tone} aria-label={`수호 별자리 ${activeConstellation.koName} 안내`}>
+        <div className={'nexus-constellation-crest tone-' + selected.tone} aria-label={`수호 별자리 ${activeConstellation.koName} 안내`}>
           <svg
             key={`mini-${activeConstellation.key}`}
-            className={'nexus-mini-constellation anim-' + activeConstellation.animationKind + ' tone-' + selected.tone}
+            className={'nexus-mini-constellation tone-' + selected.tone}
             viewBox="0 0 100 64"
             aria-hidden="true"
           >
@@ -2330,16 +2237,17 @@ const SafetyNexus: React.FC<Props> = ({
                 key={`ms-${idx}`}
                 cx={s.x}
                 cy={s.y}
-                r={s.mag === 1 ? 3.2 : s.mag === 2 ? 2.2 : 1.5}
+                r={s.mag === 1 ? 3.1 : s.mag === 2 ? 2.1 : 1.4}
                 className={`mini-star mag-${s.mag}`}
                 style={{ animationDelay: `${idx * 90}ms` }}
               />
             ))}
           </svg>
-          <div className="nexus-constellation-card-body">
-            <div className="nexus-constellation-card-head">
-              <strong>✦ {activeConstellation.koName} <small>{activeConstellation.latinName}</small></strong>
-              <span className="nexus-constellation-motion-pill">{activeConstellation.animationLabel}</span>
+          <div className="nexus-constellation-crest-copy">
+            <div className="nexus-constellation-crest-meta">
+              <strong>{activeConstellation.koName}</strong>
+              <small>{activeConstellation.latinName}</small>
+              <span>{activeConstellation.animationLabel}</span>
             </div>
             <p>{activeConstellation.symbolism}</p>
           </div>
@@ -2474,7 +2382,43 @@ const SafetyNexus: React.FC<Props> = ({
         <button type="button" className="nexus-primary" onClick={() => onNavigateToPage(selected.page)}>{selected.action}<span>↗</span></button>
         <div className="nexus-next"><span>현장 안전 순환 절차</span><ol><li>현장 위험·사진 수집</li><li>AI 구조화 · 본사 대조</li><li>시정조치 · 재점검·인계</li><li>다국어 교육 · 전 현장 환류</li></ol></div>
       </aside>
-    </div>}
+      <aside className="nexus-aside">
+        <div className="nexus-section-title"><span>01 / 통합 안전 현황 · 단면 지표</span><i /></div>
+        <div className="nexus-aside-hero-copy">
+          <h2>골조 안전지능을 <em>하나의 황금 구체로.</em></h2>
+          <p>지하 RC구조물부터 상부 갱폼·동바리·타설까지, 현장 점검과 AI 분석·12개국어 교육·본사 승인을 하나의 궤도로 통합합니다.</p>
+          <div className="nexus-aside-note"><b>◈ 입체 안전 보기 안내</b><p>황금 구체를 드래그해 회전하고 5단계 순환·6대 핵심기능·10대 골조 공정 별자리를 입체적으로 확인하세요.</p></div>
+        </div>
+        <NexusStructuralElevationMap
+          pipelineCases={scopedData.pipelineCases}
+          activeZoneAxis={axisFilter.zoneAxis}
+          activeNodeIndex={selected.index}
+          theme={nexusTheme}
+          onSelectFloor={(zoneAxis, structuralNodeIndex) => {
+            setOrbitLayer('structural');
+            setAxisFilter(prev => ({ ...prev, zoneAxis }));
+            lockOntoNode(Math.max(0, Number(structuralNodeIndex) - 1), 'structural');
+            triggerToast(`🏗️ 단면 구간 선택 (#${structuralNodeIndex})`);
+          }}
+        />
+        <div className="nexus-aside-metrics">
+          <div className="nexus-record-count"><span>연동된 위험성평가 기록</span><strong>{count.toLocaleString('ko-KR')}<small> 건</small></strong></div>
+          <div className="nexus-perception" aria-label="근로자가 직접 선택한 자가평가 등급의 분포">
+            <span>근로자 체감 위험도</span>
+            <h3>근로자 체감 위험 분포 <small>상 · 중 · 하</small></h3>
+            {(['상', '중', '하'] as const).map(level => <div className="nexus-perception-row" key={level}>
+              <b>{level}</b><div className="nexus-perception-track"><i className={'risk-' + level} style={{ width: (count ? snapshot.selfRiskLevels[level] / count * 100 : 0) + '%' }} /></div>
+              <strong>{snapshot.selfRiskLevels[level]}</strong>
+            </div>)}
+            <p>유효 {count - snapshot.unclassifiedRows} / 전체 {count}건</p>
+          </div>
+        </div>
+      </aside>
+          </div>}
+          {(activeView === 'hq_command' || activeView === 'field_sphere') && opsDeck}
+        </>
+      );
+    })()}
     {effectiveRole === 'hq' && activeView === 'hq_bi' && bentoSnapshot && (
       <div className="nexus-hq-bi-view" aria-label="본사 전사 경영 브리핑 BI 분석">
         <div className="nexus-hq-daily-bar">

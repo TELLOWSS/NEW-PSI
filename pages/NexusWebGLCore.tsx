@@ -15,6 +15,8 @@ type Props = {
   alertVec?: readonly [number, number, number];
   zoomScale?: number;
   animationMode?: number;
+  constellationStars?: readonly { x: number; y: number; mag: 1 | 2 | 3 }[];
+  constellationEdges?: readonly [number, number][];
 };
 
 /**
@@ -63,14 +65,16 @@ void main() {
   bool isSurfaceNode = kind >= 7.5 && kind < 9.5;
   bool isActiveNode = kind >= 8.5 && kind < 9.5;
   bool isDataArc = kind >= 9.5 && kind < 10.5;
-  bool isPhoton = kind >= 10.5;
+  bool isPhoton = kind >= 10.5 && kind < 11.5;
+  bool isConstEdge = kind >= 11.5 && kind < 12.5;
+  bool isConstStar = kind >= 12.5;
   vec3 p = a_data.xyz;
   float t = u_time;
   float reveal = 1.0;
-  if(kind < 0.5 || isGeodesic || isSurfaceNode || isDataArc || isPhoton) {
+  if(kind < 0.5 || isGeodesic || isSurfaceNode || isDataArc || isPhoton || isConstEdge || isConstStar) {
     float depthYaw = u_yaw + t*0.24 + u_focus*0.04;
     float depthPitch = u_pitch + sin(t*.35)*.08;
-    if(isSurfaceNode || isDataArc || isPhoton) {
+    if(isSurfaceNode || isDataArc || isPhoton || isConstEdge || isConstStar) {
       depthYaw = u_yaw;
       depthPitch = u_pitch;
     }
@@ -81,7 +85,7 @@ void main() {
       p *= mix(.82,1.0,smoothstep(0.0,2.4,u_story));
     }
     p = yawPitch(p, depthYaw, depthPitch);
-    float pulseScale = (isSurfaceNode || isDataArc || isPhoton) ? (isActiveNode ? 1.04 : 1.0) : .83*(1.0 + .022*sin(t*2.0+seed*24.0));
+    float pulseScale = (isSurfaceNode || isDataArc || isPhoton || isConstEdge || isConstStar) ? (isActiveNode ? 1.04 : 1.0) : .83*(1.0 + .022*sin(t*2.0+seed*24.0));
     p *= pulseScale;
   } else {
     float azimuth = ring < .5 ? .55 : ring < 1.5 ? -.91 : 1.18;
@@ -96,7 +100,7 @@ void main() {
   }
   float lens = 2.95/(2.95-p.z*.43);
   float breathing = 1.0 + .034*sin(t*.22) + .016*sin(t*.45);
-  float radius = min(u_size.x*.26,u_size.y*.29)*breathing*clamp(u_zoom, 0.78, 1.38);
+  float radius = min(u_size.x*.31,u_size.y*.365)*breathing*clamp(u_zoom, 0.78, 1.38);
   if(u_story>=0.0) {
     float sweep=smoothstep(0.0,12.0,u_story);
     radius *= 1.0 + .11*sin(sweep*3.14159265);
@@ -173,6 +177,19 @@ void main() {
     v_color = seed > 0.5 ? cyanBase : champagneGold;
     v_alpha = clamp(0.68 * front * pulse * u_intensity, 0.12, 0.82);
     gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 16.0 : 4.2);
+  } else if(isConstEdge) {
+    float front = smoothstep(-0.38, 0.35, p.z);
+    float glint = 0.78 + 0.22 * sin(t * 2.2 + seed * 6.2831);
+    v_color = mix(vec3(1.0, 0.94, 0.78), layerAccent, 0.28);
+    v_alpha = front * 0.94 * glint * u_intensity;
+    gl_PointSize = u_ratio * 1.5;
+  } else if(isConstStar) {
+    bool isAlphaStar = kind >= 13.5;
+    float front = smoothstep(-0.35, 0.32, p.z);
+    float twinkle = 0.80 + 0.20 * sin(t * 2.8 + seed * 6.2831);
+    v_color = isAlphaStar ? vec3(1.0, 0.98, 0.88) : mix(champagneGold, layerAccent, 0.28);
+    v_alpha = clamp((isAlphaStar ? 1.0 : 0.90) * front * twinkle * u_intensity, 0.04, 1.0);
+    gl_PointSize = u_ratio * lens * (isAlphaStar ? (u_bloom > .5 ? 30.0 : 16.5) : (u_bloom > .5 ? 18.0 : 9.2));
   } else {
     float travel=fract(seed-t*(.078+ring*.018)-ring*.23);
     float arc=min(travel,1.0-travel);
@@ -199,7 +216,8 @@ varying float v_alpha;
 varying float v_kind;
 void main() {
   if(u_line > .5) {
-    gl_FragColor=vec4(v_color*.76,v_alpha*.46);
+    float boost = v_kind >= 11.5 ? 1.85 : 1.0;
+    gl_FragColor=vec4(v_color*(v_kind >= 11.5 ? .92 : .76), min(.96, v_alpha*.46*boost));
     return;
   }
   vec2 p=gl_PointCoord*2.-1.;
@@ -209,6 +227,13 @@ void main() {
     float glow=exp(-r2*5.4)*.32;
     gl_FragColor=vec4(v_color*glow, v_alpha*.36);
   } else {
+    if(v_kind >= 12.5) {
+      float flare = exp(-abs(p.x)*6.8 - abs(p.y)*1.7) + exp(-abs(p.y)*6.8 - abs(p.x)*1.7);
+      float core = smoothstep(.32, .03, sqrt(r2));
+      float starA = clamp(flare*.58 + core*.95, 0.0, 1.0);
+      gl_FragColor = vec4(v_color*(core + flare*.85), v_alpha*starA);
+      return;
+    }
     float core=smoothstep(.38,.04,sqrt(r2));
     float fringe=exp(-r2*5.1)*.31;
     gl_FragColor=vec4(v_color*(core+fringe),v_alpha*(core+.17*fringe));
@@ -251,6 +276,8 @@ const WebGLNexusCore: React.FC<Props> = ({
   alertVec = DEFAULT_NODE_VECS[0],
   zoomScale = 1,
   animationMode = 0,
+  constellationStars = [],
+  constellationEdges = [],
 }) => {
   const ref = useRef<HTMLCanvasElement>(null);
   const focus = useRef(active);
@@ -468,6 +495,69 @@ const WebGLNexusCore: React.FC<Props> = ({
         if (pb) raw.push(pb.x, pb.y, pb.z, 0.75 + pIdx * 0.1, 11);
       }
 
+      // 3D Astronomical Constellation engraved across the spherical tangent around the active node
+      const constEdgeStart = raw.length / 5;
+      let constEdgeVertexCount = 0;
+      if (constellationStars.length > 0) {
+        const centerRaw = safeNodes[activeIdx] ?? DEFAULT_NODE_VECS[0];
+        const cLen = Math.hypot(centerRaw[0], centerRaw[1], centerRaw[2]) || 1;
+        const N: [number, number, number] = [centerRaw[0] / cLen, centerRaw[1] / cLen, centerRaw[2] / cLen];
+        const refUp: [number, number, number] = Math.abs(N[1]) < 0.85 ? [0, 1, 0] : [1, 0, 0];
+        // tangentU = normalize(cross(refUp, N))
+        const uxRaw: [number, number, number] = [
+          refUp[1] * N[2] - refUp[2] * N[1],
+          refUp[2] * N[0] - refUp[0] * N[2],
+          refUp[0] * N[1] - refUp[1] * N[0],
+        ];
+        const uLen = Math.hypot(uxRaw[0], uxRaw[1], uxRaw[2]) || 1;
+        const tangentU: [number, number, number] = [uxRaw[0] / uLen, uxRaw[1] / uLen, uxRaw[2] / uLen];
+        // tangentV = normalize(cross(N, tangentU))
+        const vxRaw: [number, number, number] = [
+          N[1] * tangentU[2] - N[2] * tangentU[1],
+          N[2] * tangentU[0] - N[0] * tangentU[2],
+          N[0] * tangentU[1] - N[1] * tangentU[0],
+        ];
+        const vLen = Math.hypot(vxRaw[0], vxRaw[1], vxRaw[2]) || 1;
+        const tangentV: [number, number, number] = [vxRaw[0] / vLen, vxRaw[1] / vLen, vxRaw[2] / vLen];
+
+        const sphereStars = constellationStars.map((st) => {
+          const uOff = ((st.x - 50) / 50) * 0.42;
+          const vOff = ((32 - st.y) / 32) * 0.28;
+          const px = N[0] + tangentU[0] * uOff + tangentV[0] * vOff;
+          const py = N[1] + tangentU[1] * uOff + tangentV[1] * vOff;
+          const pz = N[2] + tangentU[2] * uOff + tangentV[2] * vOff;
+          const pl = Math.hypot(px, py, pz) || 1;
+          const shellR = 1.078;
+          return { x: (px / pl) * shellR, y: (py / pl) * shellR, z: (pz / pl) * shellR, mag: st.mag };
+        });
+
+        const constSegs = lowBudget ? 4 : 6;
+        for (let eIdx = 0; eIdx < constellationEdges.length; eIdx++) {
+          const [aIdx, bIdx] = constellationEdges[eIdx];
+          const sa = sphereStars[aIdx];
+          const sb = sphereStars[bIdx];
+          if (!sa || !sb) continue;
+          for (let s = 0; s < constSegs; s++) {
+            const t0 = s / constSegs;
+            const t1 = (s + 1) / constSegs;
+            for (const tt of [t0, t1]) {
+              const mx = sa.x + (sb.x - sa.x) * tt;
+              const my = sa.y + (sb.y - sa.y) * tt;
+              const mz = sa.z + (sb.z - sa.z) * tt;
+              const ml = Math.hypot(mx, my, mz) || 1;
+              const rLift = 1.078 + 0.014 * Math.sin(Math.PI * tt);
+              raw.push((mx / ml) * rLift, (my / ml) * rLift, (mz / ml) * rLift, (eIdx + tt) / Math.max(1, constellationEdges.length), 12);
+              constEdgeVertexCount += 1;
+            }
+          }
+        }
+
+        for (let sIdx = 0; sIdx < sphereStars.length; sIdx++) {
+          const st = sphereStars[sIdx];
+          raw.push(st.x, st.y, st.z, sIdx / Math.max(1, sphereStars.length), st.mag === 1 ? 14 : 13);
+        }
+      }
+
       const data = new Float32Array(raw);
       buffer = gl.createBuffer();
       if (!buffer) throw new Error('GPU buffer unavailable');
@@ -572,6 +662,9 @@ const WebGLNexusCore: React.FC<Props> = ({
         for (let aIdx = 0; aIdx < arcPairs.length; aIdx++) {
           gl.drawArrays(gl.LINE_STRIP, arcStart + aIdx * arcSegments, arcSegments);
         }
+        if (constEdgeVertexCount > 0) {
+          gl.drawArrays(gl.LINES, constEdgeStart, constEdgeVertexCount);
+        }
         gl.uniform1f(locLine, 0);
       };
       let dpr = Math.min(window.devicePixelRatio || 1, mobile ? 1.25 : 1.6);
@@ -611,7 +704,7 @@ const WebGLNexusCore: React.FC<Props> = ({
       reset();
       setUnavailable(true);
     }
-  }, [paused, reduced, unavailable, nodeVecs, active]);
+  }, [paused, reduced, unavailable, nodeVecs, active, constellationStars, constellationEdges]);
   if (unavailable) return <>{fallback}</>;
   return <canvas ref={ref} className="nexus-core-canvas nexus-webgl-core" data-renderer="webgl" aria-hidden="true" />;
 };

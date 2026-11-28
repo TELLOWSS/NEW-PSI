@@ -258,10 +258,10 @@
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  gap: 8px 14px;
+  gap: 8px 12px;
   margin: 0 var(--nexus-gutter);
   border-bottom: 1px solid #8293ab28;
-  padding: 10px 0 8px
+  padding: 9px 0
 }
 
 .nexus-brand {
@@ -3235,8 +3235,8 @@
 
 @media (max-width:1250px) {
   .nexus-main {
-    grid-template-columns: minmax(170px, .8fr) minmax(380px, 2.1fr);
-    gap: 0
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px
   }
 
   .nexus-detail {
@@ -3246,7 +3246,8 @@
     gap: 14px 22px;
     align-items: start;
     padding: 20px 14px;
-    border-top: 1px solid #72869b26
+    border-top: 1px solid #72869b26;
+    border-left: none
   }
 
   .nexus-detail>.nexus-section-title,
@@ -3409,11 +3410,11 @@
     order: 0
   }
 
-  .nexus-aside {
+  .nexus-detail {
     order: 1
   }
 
-  .nexus-detail {
+  .nexus-aside {
     order: 2
   }
 
@@ -9965,229 +9966,267 @@
   }
 }
 
-.nexus-constellation-tag {
-  position: absolute;
-  top: 10px;
-  left: 12px;
-  z-index: 3;
-  pointer-events: none;
+/* === Architectural Hero-First Grid, Horology Engraving & Mobile Specialization === */
+.nexus-header-nav-tabs {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(11, 23, 36, .68);
+  border: 1px solid rgba(124, 152, 178, .22)
+}
+
+.nexus-header-nav-tabs button {
+  min-height: 30px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #b7cad8;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(8, 18, 29, .78);
-  border: 1px solid rgba(244, 198, 128, .36);
-  backdrop-filter: blur(8px);
-  color: #f6e4c8;
-  font-size: 11px;
-  max-width: calc(50% - 86px);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis
+  transition: background .2s, color .2s, border-color .2s;
+  white-space: nowrap
 }
 
-.nexus-constellation-tag .constellation-tag-star {
-  color: #ffd992;
-  font-size: 11px
+.nexus-header-nav-tabs button.is-active {
+  background: rgba(244, 195, 122, .16);
+  border-color: rgba(244, 195, 122, .45);
+  color: #ffe9c7
 }
 
-.nexus-constellation-tag strong {
-  font-weight: 760;
-  color: #fff2dc
+.nexus-header-nav-tabs button:hover:not(.is-active) {
+  color: #f3f8fc;
+  background: rgba(255, 255, 255, .05)
 }
 
-.nexus-constellation-tag small,
-.nexus-constellation-tag em {
-  display: none
+.nexus-header-nav-tabs .nexus-ops-jump-pill {
+  color: #8be6ee;
+  border-left: 1px solid rgba(124, 152, 178, .22);
+  border-radius: 0 7px 7px 0;
+  padding-left: 11px
 }
 
-.nexus-constellation-tag.tone-violet em {
-  color: #d4b9ff;
-  border-left-color: rgba(212, 185, 255, .3)
+.safety-nexus[data-nexus-theme="light"] .nexus-header-nav-tabs {
+  background: #eef2f6;
+  border-color: #cbd5e1
 }
 
-.nexus-constellation-tag.tone-gold em,
-.nexus-constellation-tag.tone-amber em {
-  color: #ffd38a;
-  border-left-color: rgba(255, 211, 138, .3)
+.safety-nexus[data-nexus-theme="light"] .nexus-header-nav-tabs button {
+  color: #334e68
 }
 
-@media(max-width:640px) {
-  .nexus-constellation-tag small,
-  .nexus-constellation-tag em {
-    display: none
+.safety-nexus[data-nexus-theme="light"] .nexus-header-nav-tabs button.is-active {
+  background: #ffffff;
+  border-color: #d97706;
+  color: #92400e;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .08)
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-header-nav-tabs .nexus-ops-jump-pill {
+  color: #0e7490;
+  border-left-color: #cbd5e1
+}
+
+/* Slim single-row priority hairline ribbon above Sphere Hero */
+.safety-nexus .nexus-priority-summary {
+  margin: 8px var(--nexus-gutter) 4px;
+  padding: 7px 14px;
+  gap: 6px 12px;
+  border-radius: 10px
+}
+
+.safety-nexus .nexus-priority-ribbon-head {
+  gap: 4px 8px
+}
+
+.safety-nexus .nexus-priority-ribbon-head strong {
+  font-size: 12px
+}
+
+.safety-nexus .nexus-priority-ribbon-head p {
+  font-size: 11.5px
+}
+
+/* Desktop Golden-Sphere-First Grid (68% Visual + 32% Detail, Bottom Overview Strip) */
+@media (min-width: 1251px) {
+  .safety-nexus .nexus-main {
+    grid-template-columns: minmax(0, 1.88fr) minmax(310px, .86fr);
+    gap: 16px;
+    align-items: start;
+    margin: 6px var(--nexus-gutter) 18px;
+    border-top: 1px solid #6c809724;
+    padding-top: 10px
   }
-  .nexus-constellation-tag {
-    max-width: 44%;
-    font-size: 10px
+
+  .safety-nexus .nexus-main > .nexus-visual {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0
+  }
+
+  .safety-nexus .nexus-main > .nexus-visual .nexus-stage {
+    height: clamp(500px, 59vh, 630px);
+    min-height: 500px
+  }
+
+  .safety-nexus .nexus-main > .nexus-detail {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    padding: 12px 2px 14px 18px;
+    border-left: 1px solid #6c809724;
+    border-top: none
+  }
+
+  .safety-nexus .nexus-main > .nexus-aside {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin-top: 4px;
+    padding: 18px 20px;
+    border-radius: 14px;
+    border: 1px solid rgba(124, 152, 178, .22);
+    background: rgba(10, 21, 34, .46);
+    display: grid;
+    grid-template-columns: minmax(220px, .86fr) minmax(300px, 1.24fr) minmax(220px, .88fr);
+    gap: 12px 22px;
+    align-items: start
+  }
+
+  .safety-nexus .nexus-main > .nexus-aside > .nexus-section-title {
+    grid-column: 1 / -1;
+    margin-bottom: 2px
+  }
+
+  .safety-nexus .nexus-aside-hero-copy {
+    grid-column: 1;
+    min-width: 0
+  }
+
+  .safety-nexus .nexus-aside-hero-copy h2 {
+    margin: 4px 0 8px;
+    font-size: 20px;
+    line-height: 1.32
+  }
+
+  .safety-nexus .nexus-aside-hero-copy > p {
+    margin: 0 0 10px;
+    font-size: 12.5px;
+    line-height: 1.55
+  }
+
+  .safety-nexus .nexus-aside-metrics {
+    grid-column: 3;
+    min-width: 0;
+    display: grid;
+    gap: 10px
   }
 }
 
-.nexus-constellation-overlay {
+.safety-nexus[data-nexus-theme="light"] .nexus-main > .nexus-aside {
+  background: #f8fafc;
+  border-color: #cbd5e1
+}
+
+.safety-nexus .nexus-ops-deck {
+  scroll-margin-top: 10px
+}
+
+/* Astronomical Horology Engraving inside Stage (zero sticker box clutter) */
+.nexus-constellation-engrave {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1;
+  top: 12px;
+  left: 14px;
+  z-index: 3;
   pointer-events: none;
-  overflow: visible
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: .04em;
+  color: rgba(255, 229, 184, .88);
+  text-shadow: 0 1px 8px rgba(4, 10, 18, .9)
 }
 
-.nexus-constellation-overlay .constellation-sky-glow {
-  fill: rgba(246, 196, 118, .08);
-  transition: opacity .35s
+.nexus-constellation-engrave span {
+  font-weight: 700;
+  color: #fff2db
 }
 
-.nexus-constellation-overlay.tone-cyan .constellation-sky-glow {
-  fill: rgba(114, 224, 234, .09)
+.nexus-constellation-engrave em {
+  font-style: normal;
+  opacity: .55
 }
 
-.nexus-constellation-overlay.tone-violet .constellation-sky-glow {
-  fill: rgba(192, 158, 252, .1)
+.nexus-constellation-engrave small {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9.5px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #b7cede
 }
 
-.nexus-constellation-overlay .constellation-edge {
-  stroke: rgba(255, 224, 168, .66);
-  stroke-width: 1.45;
-  stroke-linecap: round;
-  stroke-dasharray: 100;
-  stroke-dashoffset: 0;
-  animation: nexusConstellationDraw .68s cubic-bezier(.22, .85, .36, 1) both
+.nexus-constellation-engrave.tone-cyan span {
+  color: #bcf7fc
 }
 
-.nexus-constellation-overlay.tone-cyan .constellation-edge {
-  stroke: rgba(132, 238, 245, .72)
+.nexus-constellation-engrave.tone-violet span {
+  color: #e6d8ff
 }
 
-.nexus-constellation-overlay.tone-violet .constellation-edge {
-  stroke: rgba(212, 186, 255, .74)
+.safety-nexus[data-nexus-theme="light"] .nexus-constellation-engrave {
+  color: rgba(255, 232, 188, .92);
+  text-shadow: 0 1px 8px rgba(4, 10, 18, .92)
 }
 
-.nexus-constellation-overlay .star-core {
-  fill: #fff6e0;
-  filter: drop-shadow(0 0 6px #f7c36b)
+.safety-nexus[data-nexus-theme="light"] .nexus-constellation-engrave span {
+  color: #fff6e6
 }
 
-.nexus-constellation-overlay .constellation-star.mag-1 {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: nexusStarTwinkle 3.2s ease-in-out infinite
+.safety-nexus[data-nexus-theme="light"] .nexus-constellation-engrave small {
+  color: #c5d9e8
 }
 
-.nexus-constellation-overlay .star-flare {
-  stroke: rgba(255, 242, 208, .82);
-  stroke-width: 1;
-  stroke-linecap: round
-}
-
-.nexus-constellation-overlay .constellation-kinetic-sweep {
-  animation: nexusAnimSweep 6.5s linear infinite
-}
-
-.nexus-constellation-overlay .constellation-kinetic-sweep path {
-  fill: rgba(248, 205, 134, .12)
-}
-
-.nexus-constellation-overlay .constellation-kinetic-sweep .sweep-ring {
-  fill: none;
-  stroke: rgba(248, 205, 134, .28);
-  stroke-width: 1;
-  stroke-dasharray: 4 6
-}
-
-.nexus-constellation-overlay .constellation-kinetic-trace {
-  fill: none;
-  stroke: #8cf1f7;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-dasharray: 12 36;
-  animation: nexusAnimTrace 2.4s linear infinite
-}
-
-.nexus-constellation-overlay .breathe-ring {
-  fill: none;
-  stroke: rgba(255, 214, 146, .45);
-  stroke-width: 1.1;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: nexusAnimBreathe 3.8s ease-in-out infinite
-}
-
-.nexus-constellation-overlay .breathe-ring.r2 {
-  animation-delay: 1.1s;
-  stroke: rgba(132, 238, 245, .36)
-}
-
-.nexus-constellation-overlay .constellation-kinetic-lock {
-  animation: nexusAnimLock 4.4s ease-in-out infinite
-}
-
-.nexus-constellation-overlay .constellation-kinetic-lock polygon {
-  fill: none;
-  stroke: rgba(255, 218, 152, .56);
-  stroke-width: 1.25;
-  stroke-dasharray: 5 4
-}
-
-.nexus-constellation-overlay .constellation-kinetic-lock .lock-outer {
-  fill: none;
-  stroke: rgba(132, 238, 245, .35);
-  stroke-width: 1
-}
-
-.nexus-constellation-overlay .constellation-kinetic-flow {
-  fill: #ffe2a8;
-  animation: nexusAnimFlow 2.6s ease-out infinite
-}
-
-.nexus-constellation-overlay .constellation-kinetic-weave line {
-  stroke: rgba(164, 230, 242, .3);
-  stroke-width: 1;
-  stroke-dasharray: 3 5;
-  animation: nexusAnimWeave 3s ease-in-out infinite
-}
-
-.nexus-constellation-overlay .constellation-kinetic-weave .weave-ring {
-  fill: none;
-  stroke: rgba(248, 202, 130, .28);
-  stroke-width: 1
-}
-
-/* Synchronized Mini Star-Chart Card inside aside.nexus-detail */
-.nexus-constellation-card {
+/* Inline Astronomical Hairline Crest inside Detail Panel */
+.nexus-constellation-crest {
   display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
+  grid-template-columns: 64px minmax(0, 1fr);
   align-items: center;
-  gap: 11px;
-  padding: 10px 11px;
-  margin-bottom: 13px;
-  border-radius: 10px;
-  border: 1px solid rgba(235, 187, 118, .35);
-  background: linear-gradient(135deg, rgba(11, 23, 36, .9), rgba(16, 33, 50, .86))
+  gap: 12px;
+  padding: 9px 0;
+  margin: 8px 0 12px;
+  border-top: 1px solid rgba(244, 195, 122, .22);
+  border-bottom: 1px solid rgba(124, 152, 178, .20);
+  background: transparent
 }
 
-.nexus-constellation-card.tone-cyan {
-  border-color: rgba(114, 224, 234, .38)
+.nexus-constellation-crest.tone-cyan {
+  border-top-color: rgba(114, 224, 234, .26)
 }
 
-.nexus-constellation-card.tone-violet {
-  border-color: rgba(192, 158, 252, .4)
+.nexus-constellation-crest.tone-violet {
+  border-top-color: rgba(192, 158, 252, .26)
 }
 
 .nexus-mini-constellation {
-  width: 88px;
-  height: 56px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 224, 174, .28);
-  background: radial-gradient(circle at 50% 45%, #1d3249 0%, #0a1624 100%);
+  width: 64px;
+  height: 40px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 224, 174, .22);
+  background: radial-gradient(circle at 50% 45%, rgba(28, 48, 70, .75) 0%, rgba(10, 20, 32, .85) 100%);
   display: block;
   flex-shrink: 0
 }
 
 .nexus-mini-constellation .mini-edge {
-  stroke: rgba(255, 218, 154, .78);
-  stroke-width: 1.5;
+  stroke: rgba(255, 220, 158, .82);
+  stroke-width: 1.4;
   stroke-linecap: round;
   stroke-dasharray: 100;
   animation: nexusConstellationDraw .55s ease-out both
@@ -10202,8 +10241,8 @@
 }
 
 .nexus-mini-constellation .mini-star {
-  fill: #fff7e2;
-  filter: drop-shadow(0 0 3px #f6bd6b)
+  fill: #fff8e4;
+  filter: drop-shadow(0 0 2.5px #f6bd6b)
 }
 
 .nexus-mini-constellation .mini-star.mag-1 {
@@ -10212,101 +10251,402 @@
   animation: nexusStarTwinkle 2.8s ease-in-out infinite
 }
 
-.nexus-constellation-card-body {
+.nexus-constellation-crest-copy {
   min-width: 0;
   display: grid;
-  gap: 4px
+  gap: 3px
 }
 
-.nexus-constellation-card-head {
+.nexus-constellation-crest-meta {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px 8px
+  align-items: baseline;
+  gap: 5px 7px
 }
 
-.nexus-constellation-card-head strong {
+.nexus-constellation-crest-meta strong {
   font-size: 12px;
   font-weight: 760;
-  color: #ffebd0
+  color: #ffe8c2
 }
 
-.nexus-constellation-card-head small {
-  font-size: 10.5px;
-  font-weight: 500;
-  color: #9eb7c9;
-  margin-left: 3px
+.nexus-constellation-crest-meta small {
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #9bb4c6;
+  letter-spacing: .04em
 }
 
-.nexus-constellation-motion-pill {
+.nexus-constellation-crest-meta span {
+  margin-left: auto;
   font-size: 10px;
   font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: rgba(244, 193, 120, .14);
-  border: 1px solid rgba(244, 193, 120, .34);
-  color: #ffdba3;
+  color: #ffd38f;
   white-space: nowrap
 }
 
-.nexus-constellation-card.tone-cyan .nexus-constellation-motion-pill {
-  background: rgba(114, 224, 234, .14);
-  border-color: rgba(114, 224, 234, .34);
-  color: #9bf1f8
+.nexus-constellation-crest.tone-cyan .nexus-constellation-crest-meta span {
+  color: #84edf5
 }
 
-.nexus-constellation-card.tone-violet .nexus-constellation-motion-pill {
-  background: rgba(192, 158, 252, .15);
-  border-color: rgba(192, 158, 252, .36);
-  color: #e2d1ff
+.nexus-constellation-crest.tone-violet .nexus-constellation-crest-meta span {
+  color: #dcc7ff
 }
 
-.nexus-constellation-card-body p {
+.nexus-constellation-crest-copy p {
   margin: 0;
   font-size: 11px;
-  line-height: 1.48;
-  color: #c2d4e0;
+  line-height: 1.44;
+  color: #bfd1de;
   word-break: keep-all
 }
 
-.safety-nexus[data-motion-paused="true"] .nexus-constellation-overlay *,
-.safety-nexus[data-reduced-motion="true"] .nexus-constellation-overlay *,
 .safety-nexus[data-motion-paused="true"] .nexus-mini-constellation *,
 .safety-nexus[data-reduced-motion="true"] .nexus-mini-constellation * {
   animation-play-state: paused !important
 }
 
-.safety-nexus[data-nexus-theme="light"] .nexus-constellation-card {
-  background: #f8fafc;
-  border-color: #cbd5e1;
+.safety-nexus[data-nexus-theme="light"] .nexus-constellation-crest {
+  border-top-color: #d9770645;
+  border-bottom-color: #cbd5e1
 }
 
-.safety-nexus[data-nexus-theme="light"] .nexus-constellation-card-head strong {
-  color: #102a43;
+.safety-nexus[data-nexus-theme="light"] .nexus-mini-constellation {
+  background: #f1f5f9;
+  border-color: #cbd5e1
 }
 
-.safety-nexus[data-nexus-theme="light"] .nexus-constellation-card-head small,
-.safety-nexus[data-nexus-theme="light"] .nexus-constellation-card-body p {
-  color: #486581;
+.safety-nexus[data-nexus-theme="light"] .nexus-mini-constellation .mini-edge {
+  stroke: #b45309
 }
 
-.safety-nexus[data-nexus-theme="light"] .nexus-constellation-motion-pill {
-  background: #fff4df;
-  border-color: #d97706;
-  color: #92400e;
+.safety-nexus[data-nexus-theme="light"] .nexus-mini-constellation.tone-cyan .mini-edge {
+  stroke: #0e7490
 }
 
-.safety-nexus[data-nexus-theme="light"] .nexus-constellation-card.tone-cyan .nexus-constellation-motion-pill {
-  background: #ecfeff;
-  border-color: #0891b2;
-  color: #155e75;
+.safety-nexus[data-nexus-theme="light"] .nexus-mini-constellation.tone-violet .mini-edge {
+  stroke: #6d28d9
 }
 
-.safety-nexus[data-nexus-theme="light"] .nexus-constellation-card.tone-violet .nexus-constellation-motion-pill {
-  background: #f5f3ff;
-  border-color: #7c3aed;
-  color: #4c1d95;
+.safety-nexus[data-nexus-theme="light"] .nexus-mini-constellation .mini-star {
+  fill: #1e293b;
+  filter: none
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-constellation-crest-meta strong {
+  color: #102a43
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-constellation-crest-meta small,
+.safety-nexus[data-nexus-theme="light"] .nexus-constellation-crest-copy p {
+  color: #486581
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-constellation-crest-meta span {
+  color: #b45309
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-constellation-crest.tone-cyan .nexus-constellation-crest-meta span {
+  color: #0e7490
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-constellation-crest.tone-violet .nexus-constellation-crest-meta span {
+  color: #6d28d9
+}
+
+@media (max-width: 1520px) {
+  .nexus-header-right .nexus-status {
+    display: none
+  }
+
+  .nexus-brand {
+    gap: 10px
+  }
+
+  .nexus-symbol {
+    width: 38px;
+    height: 38px;
+    font-size: 25px;
+    border-radius: 10px
+  }
+
+  .nexus-brand h1 {
+    font-size: 18px;
+    margin-top: 2px
+  }
+
+  .nexus-header-right button {
+    padding: 5px 9px;
+    font-size: 11.5px;
+    min-height: 32px
+  }
+}
+
+/* === Smartphone Mobile Specialization (<= 768px / 390x844 above-the-fold Hero) === */
+@media (max-width: 768px) {
+  .safety-nexus {
+    overflow-x: clip
+  }
+
+  .safety-nexus .nexus-header {
+    padding: 8px 0 6px;
+    gap: 6px
+  }
+
+  .safety-nexus .nexus-brand {
+    gap: 8px
+  }
+
+  .safety-nexus .nexus-symbol {
+    width: 32px;
+    height: 32px;
+    font-size: 20px;
+    border-radius: 9px
+  }
+
+  .safety-nexus .nexus-brand small {
+    font-size: 9.5px;
+    line-height: 1.1
+  }
+
+  .safety-nexus .nexus-brand h1 {
+    font-size: 16px;
+    margin-top: 1px
+  }
+
+  .nexus-header-nav-tabs {
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 2px;
+    gap: 3px
+  }
+
+  .nexus-header-nav-tabs::-webkit-scrollbar {
+    display: none
+  }
+
+  .nexus-header-nav-tabs button {
+    min-height: 28px;
+    padding: 3px 8px;
+    font-size: 10.5px
+  }
+
+  /* Compact single-row scrollable utility pills on phones instead of 3-row stacked buttons */
+  .safety-nexus .nexus-header-right {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 5px;
+    width: 100%;
+    padding-bottom: 1px
+  }
+
+  .safety-nexus .nexus-header-right::-webkit-scrollbar {
+    display: none
+  }
+
+  .safety-nexus .nexus-header-right button {
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 28px;
+    padding: 4px 8px;
+    font-size: 10.5px;
+    white-space: nowrap
+  }
+
+  .safety-nexus .nexus-priority-summary {
+    margin: 4px var(--nexus-gutter) 4px;
+    padding: 6px 10px;
+    gap: 4px 8px
+  }
+
+  .safety-nexus .nexus-priority-ribbon-head strong {
+    font-size: 11px
+  }
+
+  .safety-nexus .nexus-priority-ribbon-head p {
+    font-size: 10px
+  }
+
+  .safety-nexus .nexus-priority-counts {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 5px;
+    width: 100%
+  }
+
+  .safety-nexus .nexus-priority-counts::-webkit-scrollbar {
+    display: none
+  }
+
+  .safety-nexus .nexus-priority-counts button,
+  .safety-nexus .nexus-priority-jump {
+    flex: 0 0 auto;
+    min-height: 28px;
+    padding: 3px 8px;
+    font-size: 10.5px;
+    white-space: nowrap
+  }
+
+  .safety-nexus .nexus-visual {
+    border-radius: 14px;
+    overflow: hidden
+  }
+
+  .safety-nexus .nexus-visual-head {
+    display: block;
+    padding: 6px 8px
+  }
+
+  .safety-nexus .nexus-visual-head > span {
+    display: none
+  }
+
+  .safety-nexus .nexus-visual-head > div {
+    display: flex;
+    flex-wrap: nowrap;
+    width: 100%;
+    gap: 4px
+  }
+
+  .safety-nexus .nexus-visual-head button {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 28px;
+    padding: 4px 4px;
+    font-size: 9.8px;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    justify-content: center;
+    text-align: center
+  }
+
+  /* 3-column single-row layer segmented bar */
+  .safety-nexus .nexus-layer-bar {
+    padding: 5px 8px
+  }
+
+  .safety-nexus .nexus-layer-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    width: 100%
+  }
+
+  .safety-nexus .nexus-layer-tab {
+    padding: 5px 3px;
+    min-height: 36px;
+    text-align: center;
+    justify-content: center;
+    min-width: 0;
+    overflow: hidden
+  }
+
+  .safety-nexus .nexus-layer-tab small {
+    font-size: 8.5px;
+    display: block
+  }
+
+  .safety-nexus .nexus-layer-tab span {
+    font-size: 9px;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis
+  }
+
+  .safety-nexus .nexus-axis-toggle-btn {
+    grid-column: 1 / -1;
+    min-height: 28px;
+    padding: 3px 8px;
+    font-size: 10.5px
+  }
+
+  /* Golden Sphere hero immediately visible at Y=0 on 390x844 */
+  .safety-nexus .nexus-stage {
+    height: 330px;
+    min-height: 330px
+  }
+
+  .nexus-constellation-engrave {
+    top: 8px;
+    left: 10px;
+    font-size: 10px
+  }
+
+  .nexus-constellation-engrave em,
+  .nexus-constellation-engrave small {
+    display: none
+  }
+
+  .nexus-scene-caption .nexus-caption-sub {
+    display: none
+  }
+
+  /* Non-selected sphere nodes collapse into ultra-clean 24px circular star beacons on phones */
+  .safety-nexus .nexus-node:not(.selected):not(:hover):not(:focus-visible) {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
+    padding: 0;
+    border-radius: 999px;
+    justify-content: center;
+    gap: 0
+  }
+
+  .safety-nexus .nexus-node:not(.selected):not(:hover):not(:focus-visible) .nexus-node-glyph,
+  .safety-nexus .nexus-node:not(.selected):not(:hover):not(:focus-visible) .nexus-node-label-wrap {
+    display: none
+  }
+
+  .safety-nexus .nexus-node:not(.selected):not(:hover):not(:focus-visible) b {
+    margin: 0;
+    font-size: 10.5px;
+    line-height: 1
+  }
+
+  .safety-nexus .nexus-node.selected {
+    max-width: 168px;
+    padding: 5px 9px
+  }
+
+  /* Horizontal snap-scroll thumb dock */
+  .safety-nexus .nexus-feature-dock {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    gap: 6px;
+    padding: 8px 10px;
+    scrollbar-width: none
+  }
+
+  .safety-nexus .nexus-feature-dock::-webkit-scrollbar {
+    display: none
+  }
+
+  .safety-nexus .nexus-dock-chip {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    min-height: 36px;
+    padding: 5px 10px;
+    white-space: nowrap
+  }
+
+  .safety-nexus .nexus-aside {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 12px
+  }
 }
 
 @media print {

@@ -48,40 +48,37 @@ describe('SafetyNexus Per-Node Constellations & Tailored Kinetic Animations', ()
     expect(seenAnimKinds.size).toBe(6);
   });
 
-  it('wires u_animMode kinetic personality modes into NexusWebGLCore', () => {
+  it('wires u_animMode kinetic personality modes and 3D spherical constellations into NexusWebGLCore', () => {
     const webgl = readText('pages/NexusWebGLCore.tsx');
     expect(webgl).toContain('uniform float u_animMode;');
     expect(webgl).toContain('animationMode = 0');
     expect(webgl).toContain('modeShimmer');
     expect(webgl).toContain('animModeRef.current');
+    expect(webgl).toContain('isConstEdge');
+    expect(webgl).toContain('isConstStar');
+    expect(webgl).toContain('constellationStars');
+    expect(webgl).toContain('constellationEdges');
   });
 
-  it('renders celestial constellation backdrop, constellation tag, and mini star-chart card in SafetyNexus', () => {
+  it('embeds 3D WebGL constellations, horology engraving badge, and hairline crest in SafetyNexus', () => {
     const tsx = readText('pages/SafetyNexus.tsx');
-    expect(tsx).toContain('nexus-constellation-overlay');
-    expect(tsx).toContain('nexus-constellation-tag');
-    expect(tsx).toContain('nexus-constellation-card');
+    expect(tsx).toContain('constellationStars={activeConstellation.stars}');
+    expect(tsx).toContain('constellationEdges={activeConstellation.edges}');
+    expect(tsx).toContain('nexus-constellation-engrave');
+    expect(tsx).toContain('nexus-constellation-crest');
     expect(tsx).toContain('nexus-mini-constellation');
     expect(tsx).toContain('getNodeConstellation');
     expect(tsx).toContain('animationMode={activeConstellation.animModeIndex}');
   });
 
-  it('defines all 6 constellation animation keyframes and motion-paused/reduced guards in CSS', () => {
+  it('defines horology constellation crest animations and motion-paused/reduced guards in CSS', () => {
     const css = readText('pages/SafetyNexus.css');
-    for (const kf of [
-      'nexusConstellationDraw',
-      'nexusStarTwinkle',
-      'nexusAnimSweep',
-      'nexusAnimTrace',
-      'nexusAnimBreathe',
-      'nexusAnimLock',
-      'nexusAnimFlow',
-      'nexusAnimWeave',
-    ]) {
+    for (const kf of ['nexusConstellationDraw', 'nexusStarTwinkle']) {
       expect(css).toContain(`@keyframes ${kf}`);
     }
-    expect(css).toContain('.safety-nexus[data-motion-paused="true"] .nexus-constellation-overlay *');
-    expect(css).toContain('.safety-nexus[data-reduced-motion="true"] .nexus-constellation-overlay *');
-    expect(css).toContain('.nexus-constellation-card');
+    expect(css).toContain('.safety-nexus[data-motion-paused="true"] .nexus-mini-constellation *');
+    expect(css).toContain('.safety-nexus[data-reduced-motion="true"] .nexus-mini-constellation *');
+    expect(css).toContain('.nexus-constellation-engrave');
+    expect(css).toContain('.nexus-constellation-crest');
   });
 });
