@@ -9886,6 +9886,7 @@
     stroke-dashoffset: 100;
     opacity: .15;
   }
+
   to {
     stroke-dashoffset: 0;
     opacity: 1;
@@ -9893,10 +9894,13 @@
 }
 
 @keyframes nexusStarTwinkle {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: .68;
     transform: scale(1);
   }
+
   50% {
     opacity: 1;
     transform: scale(1.12);
@@ -9907,6 +9911,7 @@
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -9916,16 +9921,20 @@
   from {
     stroke-dashoffset: 48;
   }
+
   to {
     stroke-dashoffset: 0;
   }
 }
 
 @keyframes nexusAnimBreathe {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: scale(.9);
     opacity: .22;
   }
+
   50% {
     transform: scale(1.16);
     opacity: .68;
@@ -9933,10 +9942,13 @@
 }
 
 @keyframes nexusAnimLock {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: rotate(0deg) scale(1);
     opacity: .74;
   }
+
   50% {
     transform: rotate(15deg) scale(.91);
     opacity: 1;
@@ -9948,9 +9960,11 @@
     transform: translateY(10px);
     opacity: 0;
   }
+
   35% {
     opacity: .92;
   }
+
   100% {
     transform: translateY(-22px);
     opacity: 0;
@@ -9958,9 +9972,12 @@
 }
 
 @keyframes nexusAnimWeave {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: .18;
   }
+
   50% {
     opacity: .56;
   }
@@ -10054,12 +10071,12 @@
   font-size: 11.5px
 }
 
-/* Desktop Golden-Sphere-First Grid (68% Visual + 32% Detail, Bottom Overview Strip) */
+/* Desktop Golden-Sphere-First Grid (68% Visual + 32% Detail, Pixel-Flush Alignment + Bottom Overview Strip) */
 @media (min-width: 1251px) {
   .safety-nexus .nexus-main {
     grid-template-columns: minmax(0, 1.88fr) minmax(310px, .86fr);
     gap: 16px;
-    align-items: start;
+    align-items: stretch;
     margin: 6px var(--nexus-gutter) 18px;
     border-top: 1px solid #6c809724;
     padding-top: 10px
@@ -10068,24 +10085,113 @@
   .safety-nexus .nexus-main > .nexus-visual {
     grid-column: 1;
     grid-row: 1;
-    min-width: 0
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100%
   }
 
   .safety-nexus .nexus-main > .nexus-visual .nexus-stage {
-    height: clamp(500px, 59vh, 630px);
-    min-height: 500px
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 540px
   }
 
   .safety-nexus .nexus-main > .nexus-detail {
     grid-column: 2;
     grid-row: 1;
     min-width: 0;
-    padding: 12px 2px 14px 18px;
+    padding: 8px 2px 10px 16px;
     border-left: 1px solid #6c809724;
-    border-top: none
+    border-top: none;
+    display: flex;
+    flex-direction: column;
+    gap: 5px
   }
 
-  .safety-nexus .nexus-main > .nexus-aside {
+  .safety-nexus .nexus-main > .nexus-detail .nexus-detail-intro {
+    margin: 0
+  }
+
+  .safety-nexus .nexus-main > .nexus-detail .nexus-detail-intro h2 {
+    font-size: clamp(21px, 1.8vw, 26px);
+    margin: 2px 0 0
+  }
+
+  .safety-nexus .nexus-main > .nexus-detail .nexus-detail-pulse {
+    margin: 2px 0
+  }
+
+  .safety-nexus .nexus-main > .nexus-detail .nexus-constellation-crest {
+    margin: 2px 0;
+    padding: 6px 0
+  }
+
+  .safety-nexus .nexus-main > .nexus-detail .nexus-detail-text {
+    margin: 0;
+    min-height: 0;
+    font-size: 12.5px;
+    line-height: 1.44
+  }
+
+  .safety-nexus .nexus-main > .nexus-detail .nexus-detail-checkpoints {
+    margin: 0;
+    padding: 8px 11px
+  }
+
+  .safety-nexus .nexus-main > .nexus-detail .nexus-detail-checkpoints li {
+    font-size: 11.5px;
+    line-height: 1.38
+  }
+
+  .safety-nexus .nexus-main > .nexus-detail .nexus-detail-signals {
+    margin: 0;
+    gap: 6px
+  }
+
+  .safety-nexus .nexus-main > .nexus-detail .nexus-detail-signals > div {
+    padding: 7px 9px
+  }
+
+  .safety-nexus .nexus-main > .nexus-detail .nexus-seed-panel {
+    margin: 1px 0;
+    padding: 8px 10px;
+    gap: 5px
+  }
+
+  .safety-nexus .nexus-main > .nexus-detail .nexus-seed-panel h4 {
+    font-size: 12px;
+    line-height: 1.35;
+    margin: 1px 0
+  }
+
+  .safety-nexus .nexus-main > .nexus-detail .nexus-seed-cta-row button,
+  .safety-nexus .nexus-main > .nexus-detail .nexus-detail-handoff-row button {
+    min-height: 32px;
+    padding: 5px 9px;
+    font-size: 11.5px
+  }
+
+  .safety-nexus .nexus-main > .nexus-detail .nexus-primary {
+    min-height: 38px;
+    padding: 8px 14px;
+    margin-top: 2px
+  }
+
+  .safety-nexus .nexus-main > .nexus-detail .nexus-next {
+    margin-top: auto;
+    padding-top: 5px
+  }
+
+  .safety-nexus .nexus-main > .nexus-detail .nexus-next ol {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3px 10px;
+    font-size: 11px
+  }
+
+
+  .safety-nexus .nexus-main>.nexus-aside {
     grid-column: 1 / -1;
     grid-row: 2;
     margin-top: 4px;
@@ -10099,7 +10205,7 @@
     align-items: start
   }
 
-  .safety-nexus .nexus-main > .nexus-aside > .nexus-section-title {
+  .safety-nexus .nexus-main>.nexus-aside>.nexus-section-title {
     grid-column: 1 / -1;
     margin-bottom: 2px
   }
@@ -10115,7 +10221,7 @@
     line-height: 1.32
   }
 
-  .safety-nexus .nexus-aside-hero-copy > p {
+  .safety-nexus .nexus-aside-hero-copy>p {
     margin: 0 0 10px;
     font-size: 12.5px;
     line-height: 1.55
@@ -10129,7 +10235,7 @@
   }
 }
 
-.safety-nexus[data-nexus-theme="light"] .nexus-main > .nexus-aside {
+.safety-nexus[data-nexus-theme="light"] .nexus-main>.nexus-aside {
   background: #f8fafc;
   border-color: #cbd5e1
 }
@@ -10139,6 +10245,57 @@
 }
 
 /* Astronomical Horology Engraving inside Stage (zero sticker box clutter) */
+/* Luxury Celestial Observatory Atmosphere & Volumetric Corona */
+.safety-nexus .nexus-stage:not(.is-flat) {
+  background:
+    radial-gradient(circle at 50% 48%, rgba(244, 186, 98, .12) 0%, rgba(16, 39, 64, .58) 38%, rgba(6, 13, 24, .97) 78%, #040912 100%);
+  box-shadow:
+    inset 0 0 64px rgba(244, 195, 122, .08),
+    inset 0 1px 0 rgba(255, 229, 184, .20)
+}
+
+@keyframes nexusNucleusBreathe {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(.96);
+    opacity: .72
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.06);
+    opacity: .96
+  }
+}
+
+.safety-nexus .nexus-nucleus {
+  background: radial-gradient(circle, rgba(255, 232, 182, .34) 0%, rgba(235, 168, 78, .14) 44%, rgba(224, 152, 62, 0) 74%);
+  box-shadow: 0 0 84px rgba(244, 192, 108, .22), inset 0 0 42px rgba(255, 235, 194, .18);
+  animation: nexusNucleusBreathe 5.4s ease-in-out infinite
+}
+
+.safety-nexus[data-motion-paused="true"] .nexus-nucleus,
+.safety-nexus[data-reduced-motion="true"] .nexus-nucleus {
+  animation: none !important
+}
+
+.safety-nexus .nexus-core-label strong {
+  font-family: Georgia, "Times New Roman", serif;
+  letter-spacing: .16em;
+  background: linear-gradient(180deg, #fffaf0 0%, #f7cb82 100%);
+  -webkit-background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 12px rgba(245, 188, 98, .38));
+  text-shadow: none
+}
+
+.safety-nexus .nexus-core-label small {
+  letter-spacing: .24em;
+  font-weight: 600;
+  color: rgba(255, 236, 200, .82)
+}
+
+.safety-nexus .nexus-scene-caption {
+  opacity: .72
+}
+
 .nexus-constellation-engrave {
   position: absolute;
   top: 12px;
@@ -10152,6 +10309,15 @@
   letter-spacing: .04em;
   color: rgba(255, 229, 184, .88);
   text-shadow: 0 1px 8px rgba(4, 10, 18, .9)
+}
+
+.nexus-constellation-engrave .constellation-engrave-star {
+  color: #ffe3a8;
+  font-size: 11px
+}
+
+.nexus-constellation-engrave .engrave-motion {
+  color: #f3cc84
 }
 
 .nexus-constellation-engrave span {
@@ -10238,6 +10404,16 @@
 
 .nexus-mini-constellation.tone-violet .mini-edge {
   stroke: #cfaeff
+}
+
+.nexus-mini-constellation .mini-star-flare {
+  stroke: rgba(255, 240, 198, .85);
+  stroke-width: 1;
+  stroke-linecap: round
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-mini-constellation .mini-star-flare {
+  stroke: #b45309
 }
 
 .nexus-mini-constellation .mini-star {
@@ -10502,11 +10678,11 @@
     padding: 6px 8px
   }
 
-  .safety-nexus .nexus-visual-head > span {
+  .safety-nexus .nexus-visual-head>span {
     display: none
   }
 
-  .safety-nexus .nexus-visual-head > div {
+  .safety-nexus .nexus-visual-head>div {
     display: flex;
     flex-wrap: nowrap;
     width: 100%;

@@ -2051,9 +2051,12 @@ const SafetyNexus: React.FC<Props> = ({
           </svg>}
           {!flat && (
             <div className={'nexus-constellation-engrave tone-' + selected.tone} aria-hidden="true">
+              <span className="constellation-engrave-star">✦</span>
               <span>{activeConstellation.koName}</span>
               <em>·</em>
               <small>{activeConstellation.latinName}</small>
+              <em className="engrave-motion-sep">·</em>
+              <small className="engrave-motion">{activeConstellation.animationLabel}</small>
             </div>
           )}
           {!flat && <svg className="nexus-focus-link" viewBox="0 0 1000 700" preserveAspectRatio="none" aria-hidden="true">
@@ -2233,14 +2236,21 @@ const SafetyNexus: React.FC<Props> = ({
               />
             ))}
             {activeConstellation.stars.map((s, idx) => (
-              <circle
-                key={`ms-${idx}`}
-                cx={s.x}
-                cy={s.y}
-                r={s.mag === 1 ? 3.1 : s.mag === 2 ? 2.1 : 1.4}
-                className={`mini-star mag-${s.mag}`}
-                style={{ animationDelay: `${idx * 90}ms` }}
-              />
+              <g key={`ms-${idx}`}>
+                {s.mag === 1 && (
+                  <path
+                    className="mini-star-flare"
+                    d={`M${s.x - 6.5} ${s.y} L${s.x + 6.5} ${s.y} M${s.x} ${s.y - 6.5} L${s.x} ${s.y + 6.5}`}
+                  />
+                )}
+                <circle
+                  cx={s.x}
+                  cy={s.y}
+                  r={s.mag === 1 ? 3.1 : s.mag === 2 ? 2.1 : 1.4}
+                  className={`mini-star mag-${s.mag}`}
+                  style={{ animationDelay: `${idx * 90}ms` }}
+                />
+              </g>
             ))}
           </svg>
           <div className="nexus-constellation-crest-copy">

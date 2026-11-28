@@ -56,6 +56,8 @@ describe('SafetyNexus Per-Node Constellations & Tailored Kinetic Animations', ()
     expect(webgl).toContain('animModeRef.current');
     expect(webgl).toContain('isConstEdge');
     expect(webgl).toContain('isConstStar');
+    expect(webgl).toContain('isBgStar');
+    expect(webgl).toContain('isConstDust');
     expect(webgl).toContain('constellationStars');
     expect(webgl).toContain('constellationEdges');
   });
@@ -67,6 +69,7 @@ describe('SafetyNexus Per-Node Constellations & Tailored Kinetic Animations', ()
     expect(tsx).toContain('nexus-constellation-engrave');
     expect(tsx).toContain('nexus-constellation-crest');
     expect(tsx).toContain('nexus-mini-constellation');
+    expect(tsx).toContain('mini-star-flare');
     expect(tsx).toContain('getNodeConstellation');
     expect(tsx).toContain('animationMode={activeConstellation.animModeIndex}');
   });

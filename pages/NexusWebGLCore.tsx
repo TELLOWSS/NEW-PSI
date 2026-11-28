@@ -67,14 +67,16 @@ void main() {
   bool isDataArc = kind >= 9.5 && kind < 10.5;
   bool isPhoton = kind >= 10.5 && kind < 11.5;
   bool isConstEdge = kind >= 11.5 && kind < 12.5;
-  bool isConstStar = kind >= 12.5;
+  bool isConstStar = kind >= 12.5 && kind < 14.5;
+  bool isBgStar = kind >= 14.5 && kind < 15.5;
+  bool isConstDust = kind >= 15.5;
   vec3 p = a_data.xyz;
   float t = u_time;
   float reveal = 1.0;
-  if(kind < 0.5 || isGeodesic || isSurfaceNode || isDataArc || isPhoton || isConstEdge || isConstStar) {
+  if(kind < 0.5 || isGeodesic || isSurfaceNode || isDataArc || isPhoton || isConstEdge || isConstStar || isConstDust) {
     float depthYaw = u_yaw + t*0.24 + u_focus*0.04;
     float depthPitch = u_pitch + sin(t*.35)*.08;
-    if(isSurfaceNode || isDataArc || isPhoton || isConstEdge || isConstStar) {
+    if(isSurfaceNode || isDataArc || isPhoton || isConstEdge || isConstStar || isConstDust) {
       depthYaw = u_yaw;
       depthPitch = u_pitch;
     }
@@ -85,8 +87,10 @@ void main() {
       p *= mix(.82,1.0,smoothstep(0.0,2.4,u_story));
     }
     p = yawPitch(p, depthYaw, depthPitch);
-    float pulseScale = (isSurfaceNode || isDataArc || isPhoton || isConstEdge || isConstStar) ? (isActiveNode ? 1.04 : 1.0) : .83*(1.0 + .022*sin(t*2.0+seed*24.0));
+    float pulseScale = (isSurfaceNode || isDataArc || isPhoton || isConstEdge || isConstStar || isConstDust) ? (isActiveNode ? 1.04 : 1.0) : .83*(1.0 + .022*sin(t*2.0+seed*24.0));
     p *= pulseScale;
+  } else if(isBgStar) {
+    p = yawPitch(p, u_yaw * 0.14 + t * 0.018, u_pitch * 0.12);
   } else {
     float azimuth = ring < .5 ? .55 : ring < 1.5 ? -.91 : 1.18;
     float speed = ring < .5 ? .37 : ring < 1.5 ? -.25 : .16;
@@ -120,7 +124,7 @@ void main() {
   vec3 layerAccent = u_tone > 1.5 ? violetBase : u_tone > 0.5 ? cyanBase : goldBase;
   if(kind < .5) {
     float near = clamp((p.z+1.)*.5,0.,1.);
-    float rim = pow(clamp(1.0 - abs(p.z), 0.0, 1.0), 1.45);
+    float rim = pow(clamp(1.0 - abs(p.z), 0.0, 1.0), 2.15);
     float resDot = clamp(dot(normalize(a_data.xyz), u_activeVec), -0.9999, 0.9999);
     float activeAngle = acos(resDot);
     float resWave = smoothstep(0.48, 0.995, resDot) * (0.5 + 0.5 * sin(activeAngle * 18.0 - t * 3.4));
@@ -144,16 +148,21 @@ void main() {
     float alertDot = clamp(dot(normalize(a_data.xyz), u_alertVec), -0.9999, 0.9999);
     float alertWave = clamp(u_alertLevel, 0.0, 1.0) * smoothstep(0.32, 0.99, alertDot) * (0.55 + 0.45 * sin(acos(alertDot) * 14.0 - t * 5.2));
     vec3 alertCrimson = vec3(1.0, 0.34, 0.38);
-    vec3 deepBronze = vec3(0.46, 0.30, 0.16);
-    vec3 frontGold = mix(goldBase, champagneGold, 0.55 + rim * 0.45);
-    vec3 depthGold = mix(deepBronze, frontGold, pow(near, 0.85));
-    vec3 baseCol = seed < .09 ? cyanBase : seed > .84 ? mix(champagneGold, layerAccent, 0.38) : depthGold;
-    vec3 litCol = mix(baseCol, mix(champagneGold, layerAccent, 0.35), resWave * 0.52);
-    litCol = mix(litCol, mix(champagneGold, layerAccent, 0.45), modeShimmer * 0.45);
-    litCol = mix(litCol, vec3(1.0, 0.94, 0.78), clickRipple * 0.65);
+    vec3 deepBronze = vec3(0.38, 0.23, 0.11);
+    vec3 richAmber = vec3(1.0, 0.77, 0.42);
+    vec3 hotChampagne = vec3(1.0, 0.92, 0.72);
+    vec3 frontGold = mix(richAmber, hotChampagne, 0.48 + rim * 0.62);
+    vec3 depthGold = mix(deepBronze, frontGold, pow(near, 0.82));
+    float sparkle = step(0.88, seed) * pow(0.5 + 0.5 * sin(t * 3.2 + seed * 113.0), 10.0);
+    float aurora = kind > .1 ? (0.35 + 0.35 * sin(t * 1.1 + a_data.y * 5.0 + seed * 6.283)) : 0.0;
+    vec3 baseCol = seed < .08 ? cyanBase : seed > .86 ? mix(hotChampagne, layerAccent, 0.36) : depthGold;
+    baseCol = mix(baseCol, mix(hotChampagne, layerAccent, 0.48), aurora * 0.42);
+    vec3 litCol = mix(baseCol, mix(hotChampagne, layerAccent, 0.35), resWave * 0.54);
+    litCol = mix(litCol, mix(hotChampagne, layerAccent, 0.44), modeShimmer * 0.46);
+    litCol = mix(litCol, vec3(1.0, 0.96, 0.84), clickRipple * 0.68 + sparkle * 0.72);
     v_color = mix(litCol, alertCrimson, alertWave * 0.68);
-    v_alpha = mix(.22,.88,near)*(0.70 + .30*sin(t*1.6+seed*31.0)*sin(t*1.6+seed*31.0)) * (kind > .1 ? .52 : 0.96) * (1.0 + resWave * 0.16 + modeShimmer * 0.22 + clickRipple * 0.32 + alertWave * 0.12) * u_intensity;
-    gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 12.5+seed*10.5 : 1.5+seed*2.2)*(1.0 + resWave * 0.24 + modeShimmer * 0.20 + clickRipple * 0.45 + alertWave * 0.18);
+    v_alpha = mix(.22,.92,near)*(0.70 + .30*sin(t*1.6+seed*31.0)*sin(t*1.6+seed*31.0)) * (kind > .1 ? .56 : 0.98) * (1.0 + rim * 0.28 + sparkle * 0.45 + resWave * 0.18 + modeShimmer * 0.22 + clickRipple * 0.32 + alertWave * 0.12) * u_intensity;
+    gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 13.5+seed*11.5 : 1.5+seed*2.3)*(1.0 + sparkle * 0.55 + resWave * 0.24 + modeShimmer * 0.20 + clickRipple * 0.45 + alertWave * 0.18);
   } else if(isGeodesic) {
     float near = clamp((p.z+1.2)*.45,0.16,1.0);
     float geoPulse = 0.78 + 0.22 * sin(t * 2.2 + seed * 18.84);
@@ -178,22 +187,33 @@ void main() {
     v_alpha = clamp(0.68 * front * pulse * u_intensity, 0.12, 0.82);
     gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 16.0 : 4.2);
   } else if(isConstEdge) {
-    float front = smoothstep(-0.38, 0.35, p.z);
-    float glint = 0.78 + 0.22 * sin(t * 2.2 + seed * 6.2831);
-    v_color = mix(vec3(1.0, 0.94, 0.78), layerAccent, 0.28);
-    v_alpha = front * 0.94 * glint * u_intensity;
-    gl_PointSize = u_ratio * 1.5;
+    float front = smoothstep(-0.42, 0.28, p.z);
+    float glint = 0.80 + 0.20 * sin(t * 2.2 + seed * 6.2831);
+    v_color = mix(vec3(1.0, 0.95, 0.80), layerAccent, 0.25);
+    v_alpha = front * 0.96 * glint * u_intensity;
+    gl_PointSize = u_ratio * 1.6;
   } else if(isConstStar) {
     bool isAlphaStar = kind >= 13.5;
-    float front = smoothstep(-0.35, 0.32, p.z);
-    float twinkle = 0.80 + 0.20 * sin(t * 2.8 + seed * 6.2831);
-    v_color = isAlphaStar ? vec3(1.0, 0.98, 0.88) : mix(champagneGold, layerAccent, 0.28);
-    v_alpha = clamp((isAlphaStar ? 1.0 : 0.90) * front * twinkle * u_intensity, 0.04, 1.0);
-    gl_PointSize = u_ratio * lens * (isAlphaStar ? (u_bloom > .5 ? 30.0 : 16.5) : (u_bloom > .5 ? 18.0 : 9.2));
+    float front = smoothstep(-0.40, 0.25, p.z);
+    float twinkle = 0.82 + 0.18 * sin(t * 2.8 + seed * 6.2831);
+    v_color = isAlphaStar ? vec3(1.0, 0.99, 0.90) : mix(vec3(1.0, 0.93, 0.75), layerAccent, 0.24);
+    v_alpha = clamp((isAlphaStar ? 1.0 : 0.94) * front * twinkle * u_intensity, 0.08, 1.0);
+    gl_PointSize = u_ratio * lens * (isAlphaStar ? (u_bloom > .5 ? 46.0 : 22.0) : (u_bloom > .5 ? 28.0 : 12.5));
+  } else if(isBgStar) {
+    float twinkle = 0.55 + 0.45 * sin(t * 1.4 + seed * 47.0);
+    v_color = seed > 0.65 ? vec3(0.84, 0.94, 1.0) : vec3(1.0, 0.93, 0.80);
+    v_alpha = (0.16 + 0.42 * seed * twinkle) * u_intensity;
+    gl_PointSize = u_ratio * (u_bloom > .5 ? 8.5 : 1.7 + seed * 1.6);
+  } else if(isConstDust) {
+    float front = smoothstep(-0.35, 0.30, p.z);
+    float wave = pow(max(0.0, sin(seed * 6.2831 - t * 2.4)), 4.0);
+    v_color = mix(vec3(1.0, 0.97, 0.86), cyanBase, 0.35);
+    v_alpha = front * (0.22 + 0.78 * wave) * u_intensity;
+    gl_PointSize = u_ratio * lens * (u_bloom > .5 ? 16.0 : 3.2 + 3.4 * wave);
   } else {
     float travel=fract(seed-t*(.078+ring*.018)-ring*.23);
     float arc=min(travel,1.0-travel);
-    float spark=exp(-arc*arc*490.0);
+    float spark=exp(-arc*arc*420.0)*1.35;
     vec3 ringColor=ring > 1.5 ? cyanBase : ring > 0.5 ? mix(goldBase, layerAccent, 0.5) : goldBase;
     v_color=isAnchor ? vec3(1.,.88,.60) : mix(ringColor,vec3(1.,.92,.72),spark*.52);
     v_alpha=isAnchor
@@ -227,11 +247,14 @@ void main() {
     float glow=exp(-r2*5.4)*.32;
     gl_FragColor=vec4(v_color*glow, v_alpha*.36);
   } else {
-    if(v_kind >= 12.5) {
-      float flare = exp(-abs(p.x)*6.8 - abs(p.y)*1.7) + exp(-abs(p.y)*6.8 - abs(p.x)*1.7);
-      float core = smoothstep(.32, .03, sqrt(r2));
-      float starA = clamp(flare*.58 + core*.95, 0.0, 1.0);
-      gl_FragColor = vec4(v_color*(core + flare*.85), v_alpha*starA);
+    if(v_kind >= 12.5 && v_kind < 14.5) {
+      float axisFlare = exp(-abs(p.x)*7.4 - abs(p.y)*1.8) + exp(-abs(p.y)*7.4 - abs(p.x)*1.8);
+      vec2 d = vec2(p.x - p.y, p.x + p.y) * 0.7071;
+      float diagFlare = 0.58 * (exp(-abs(d.x)*8.5 - abs(d.y)*2.1) + exp(-abs(d.y)*8.5 - abs(d.x)*2.1));
+      float flare = axisFlare + diagFlare;
+      float core = smoothstep(.28, .02, sqrt(r2));
+      float starA = clamp(flare*.55 + core*.98, 0.0, 1.0);
+      gl_FragColor = vec4(v_color*(core*1.15 + flare*.88), v_alpha*starA);
       return;
     }
     float core=smoothstep(.38,.04,sqrt(r2));
@@ -495,15 +518,33 @@ const WebGLNexusCore: React.FC<Props> = ({
         if (pb) raw.push(pb.x, pb.y, pb.z, 0.75 + pIdx * 0.1, 11);
       }
 
-      // 3D Astronomical Constellation engraved across the spherical tangent around the active node
+      // Distant deep-space celestial starfield with gentle parallax
+      const bgStarCount = lowBudget ? 55 : mobile ? 80 : 160;
+      for (let bIdx = 0; bIdx < bgStarCount; bIdx++) {
+        const sA = ((bIdx * 97 + 19) % 1009) / 1009;
+        const sB = ((bIdx * 193 + 53) % 1013) / 1013;
+        const sC = ((bIdx * 311 + 89) % 997) / 997;
+        const bx = (sA - 0.5) * 5.6;
+        const by = (sB - 0.5) * 4.2;
+        const bz = -1.8 + sC * 1.2;
+        raw.push(bx, by, bz, ((bIdx * 61) % 997) / 997, 15);
+      }
+
+      // Grand 3D Astronomical Constellation crowning the front hemisphere around & above the active node
       const constEdgeStart = raw.length / 5;
       let constEdgeVertexCount = 0;
       if (constellationStars.length > 0) {
         const centerRaw = safeNodes[activeIdx] ?? DEFAULT_NODE_VECS[0];
         const cLen = Math.hypot(centerRaw[0], centerRaw[1], centerRaw[2]) || 1;
-        const N: [number, number, number] = [centerRaw[0] / cLen, centerRaw[1] / cLen, centerRaw[2] / cLen];
+        const centerN: [number, number, number] = [centerRaw[0] / cLen, centerRaw[1] / cLen, centerRaw[2] / cLen];
+        const crownRaw: [number, number, number] = [
+          centerN[0] * 0.35,
+          centerN[1] * 0.35 + 0.18,
+          Math.max(0.75, Math.abs(centerN[2]) + 0.45),
+        ];
+        const crLen = Math.hypot(crownRaw[0], crownRaw[1], crownRaw[2]) || 1;
+        const N: [number, number, number] = [crownRaw[0] / crLen, crownRaw[1] / crLen, crownRaw[2] / crLen];
         const refUp: [number, number, number] = Math.abs(N[1]) < 0.85 ? [0, 1, 0] : [1, 0, 0];
-        // tangentU = normalize(cross(refUp, N))
         const uxRaw: [number, number, number] = [
           refUp[1] * N[2] - refUp[2] * N[1],
           refUp[2] * N[0] - refUp[0] * N[2],
@@ -511,7 +552,6 @@ const WebGLNexusCore: React.FC<Props> = ({
         ];
         const uLen = Math.hypot(uxRaw[0], uxRaw[1], uxRaw[2]) || 1;
         const tangentU: [number, number, number] = [uxRaw[0] / uLen, uxRaw[1] / uLen, uxRaw[2] / uLen];
-        // tangentV = normalize(cross(N, tangentU))
         const vxRaw: [number, number, number] = [
           N[1] * tangentU[2] - N[2] * tangentU[1],
           N[2] * tangentU[0] - N[0] * tangentU[2],
@@ -520,18 +560,18 @@ const WebGLNexusCore: React.FC<Props> = ({
         const vLen = Math.hypot(vxRaw[0], vxRaw[1], vxRaw[2]) || 1;
         const tangentV: [number, number, number] = [vxRaw[0] / vLen, vxRaw[1] / vLen, vxRaw[2] / vLen];
 
+        const shellR = 1.24;
         const sphereStars = constellationStars.map((st) => {
-          const uOff = ((st.x - 50) / 50) * 0.42;
-          const vOff = ((32 - st.y) / 32) * 0.28;
+          const uOff = ((st.x - 50) / 50) * 0.92;
+          const vOff = ((32 - st.y) / 32) * 0.72;
           const px = N[0] + tangentU[0] * uOff + tangentV[0] * vOff;
           const py = N[1] + tangentU[1] * uOff + tangentV[1] * vOff;
           const pz = N[2] + tangentU[2] * uOff + tangentV[2] * vOff;
           const pl = Math.hypot(px, py, pz) || 1;
-          const shellR = 1.078;
           return { x: (px / pl) * shellR, y: (py / pl) * shellR, z: (pz / pl) * shellR, mag: st.mag };
         });
 
-        const constSegs = lowBudget ? 4 : 6;
+        const constSegs = lowBudget ? 5 : 8;
         for (let eIdx = 0; eIdx < constellationEdges.length; eIdx++) {
           const [aIdx, bIdx] = constellationEdges[eIdx];
           const sa = sphereStars[aIdx];
@@ -545,10 +585,27 @@ const WebGLNexusCore: React.FC<Props> = ({
               const my = sa.y + (sb.y - sa.y) * tt;
               const mz = sa.z + (sb.z - sa.z) * tt;
               const ml = Math.hypot(mx, my, mz) || 1;
-              const rLift = 1.078 + 0.014 * Math.sin(Math.PI * tt);
+              const rLift = shellR + 0.02 * Math.sin(Math.PI * tt);
               raw.push((mx / ml) * rLift, (my / ml) * rLift, (mz / ml) * rLift, (eIdx + tt) / Math.max(1, constellationEdges.length), 12);
               constEdgeVertexCount += 1;
             }
+          }
+        }
+
+        // Traveling stardust wave points sampled along every constellation edge (kind = 16)
+        for (let eIdx = 0; eIdx < constellationEdges.length; eIdx++) {
+          const [aIdx, bIdx] = constellationEdges[eIdx];
+          const sa = sphereStars[aIdx];
+          const sb = sphereStars[bIdx];
+          if (!sa || !sb) continue;
+          for (let dIdx = 0; dIdx < 4; dIdx++) {
+            const tt = (dIdx + 0.5) / 4;
+            const mx = sa.x + (sb.x - sa.x) * tt;
+            const my = sa.y + (sb.y - sa.y) * tt;
+            const mz = sa.z + (sb.z - sa.z) * tt;
+            const ml = Math.hypot(mx, my, mz) || 1;
+            const rLift = shellR + 0.02 * Math.sin(Math.PI * tt);
+            raw.push((mx / ml) * rLift, (my / ml) * rLift, (mz / ml) * rLift, eIdx * 0.15 + tt, 16);
           }
         }
 
