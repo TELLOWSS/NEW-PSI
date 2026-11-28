@@ -185,31 +185,34 @@ export const assessOcrUploadFile = async (file: File): Promise<OcrUploadPrefligh
 
     try {
         const image = await loadImage(file);
-        const sourceWidth = 'naturalWidth' in image ? image.naturalWidth : image.width;
-        const sourceHeight = 'naturalHeight' in image ? image.naturalHeight : image.height;
-        const scale = Math.min(1, 256 / Math.max(sourceWidth, sourceHeight));
-        const width = Math.max(8, Math.round(sourceWidth * scale));
-        const height = Math.max(8, Math.round(sourceHeight * scale));
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const context = canvas.getContext('2d', { willReadFrequently: true });
-        if (!context) throw new Error('canvas unavailable');
-        context.drawImage(image, 0, 0, width, height);
-        if ('close' in image && typeof image.close === 'function') image.close();
-        const pixels = context.getImageData(0, 0, width, height).data;
-        const metrics = calculatePixelQualityMetrics(pixels, width, height);
-        const issues = buildOcrUploadIssues(sourceWidth, sourceHeight, metrics);
-        return {
-            key,
-            fileName: file.name,
-            width: sourceWidth,
-            height: sourceHeight,
-            status: issues.some((issue) => issue.severity === 'block')
-                ? 'blocked'
-                : issues.length > 0 ? 'warning' : 'ready',
-            issues,
-        };
+        try {
+            const sourceWidth = 'naturalWidth' in image ? image.naturalWidth : image.width;
+            const sourceHeight = 'naturalHeight' in image ? image.naturalHeight : image.height;
+            const scale = Math.min(1, 256 / Math.max(sourceWidth, sourceHeight));
+            const width = Math.max(8, Math.round(sourceWidth * scale));
+            const height = Math.max(8, Math.round(sourceHeight * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d', { willReadFrequently: true });
+            if (!context) throw new Error('canvas unavailable');
+            context.drawImage(image, 0, 0, width, height);
+            const pixels = context.getImageData(0, 0, width, height).data;
+            const metrics = calculatePixelQualityMetrics(pixels, width, height);
+            const issues = buildOcrUploadIssues(sourceWidth, sourceHeight, metrics);
+            return {
+                key,
+                fileName: file.name,
+                width: sourceWidth,
+                height: sourceHeight,
+                status: issues.some((issue) => issue.severity === 'block')
+                    ? 'blocked'
+                    : issues.length > 0 ? 'warning' : 'ready',
+                issues,
+            };
+        } finally {
+            if ('close' in image && typeof image.close === 'function') image.close();
+        }
     } catch {
         return {
             key,

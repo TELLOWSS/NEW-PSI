@@ -146,7 +146,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
     const imageInputRef = useRef<HTMLInputElement>(null);
     const harnessSourceRecords = useMemo(() => workerRecords.filter((record) => !isManagementRole(record.jobField)), [workerRecords]);
     const harnessSummary = useMemo(() => summarizeHarnessRecords(harnessSourceRecords), [harnessSourceRecords]);
-    
+
     const workerOptions = useMemo(() => buildSafetyCheckWorkerOptions(workerRecords), [workerRecords]);
 
     const selectedWorker = useMemo(
@@ -285,7 +285,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
             alert('등록된 실제 근로자가 없습니다. 근로자 관리에서 대상을 먼저 등록해주세요.');
             return;
         }
-        if(!selectedWorkerId || !riskType) {
+        if (!selectedWorkerId || !riskType) {
             alert('근로자와 점검 유형을 입력해주세요.');
             return;
         }
@@ -341,13 +341,15 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                     : { ok: false, message: '이 기기 안전점검 목록에 저장하지 못했습니다.' });
             }
 
-            // Reset form
-            setSelectedWorkerId('');
-            setRiskType('');
-            setDetails('');
-            setAttachedImage('');
-            if (imageInputRef.current) {
-                imageInputRef.current.value = '';
+            if (locallySaved) {
+                // Reset form only after local persistence succeeds so unsaved input/photo is not lost.
+                setSelectedWorkerId('');
+                setRiskType('');
+                setDetails('');
+                setAttachedImage('');
+                if (imageInputRef.current) {
+                    imageInputRef.current.value = '';
+                }
             }
         } catch (error) {
             const message = extractMessage(error);
@@ -399,7 +401,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                 />
                 <form onSubmit={handleSubmit} className="space-y-4 mt-4 p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                         <div>
+                        <div>
                             <label htmlFor="workerId" className="block text-sm font-medium text-slate-700 dark:text-slate-300">근로자</label>
                             <select id="workerId" value={selectedWorkerId} onChange={e => setSelectedWorkerId(e.target.value)} disabled={workerOptions.length === 0} className={`mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-700 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-60 ${BRAND_TONE.slate}`}>
                                 <option value="">근로자 선택</option>
@@ -419,11 +421,11 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">점검 유형</label>
                         <div className="flex space-x-2">
-                             <button type="button" onClick={() => setType('unsafe_action')} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${type === 'unsafe_action' ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700'}`}>불안전한 행동</button>
-                             <button type="button" onClick={() => setType('unsafe_condition')} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${type === 'unsafe_condition' ? 'bg-orange-500 text-white' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700'}`}>불안전한 상태</button>
+                            <button type="button" onClick={() => setType('unsafe_action')} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${type === 'unsafe_action' ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700'}`}>불안전한 행동</button>
+                            <button type="button" onClick={() => setType('unsafe_condition')} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${type === 'unsafe_condition' ? 'bg-orange-500 text-white' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700'}`}>불안전한 상태</button>
                         </div>
                     </div>
-                     <div>
+                    <div>
                         <label htmlFor="riskType" className="block text-sm font-medium text-slate-700 dark:text-slate-300">위험 요인</label>
                         <input type="text" id="riskType" value={riskType} onChange={e => setRiskType(e.target.value)} placeholder="예: 고소작업" className={`mt-1 block w-full border text-slate-800 dark:text-slate-100 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${BRAND_TONE.slateWhiteDarkPanel}`} />
                     </div>
@@ -491,7 +493,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                 />
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left text-slate-500 dark:text-slate-300">
-                         <thead className="text-xs text-slate-700 dark:text-slate-300 uppercase bg-slate-50 dark:bg-slate-900">
+                        <thead className="text-xs text-slate-700 dark:text-slate-300 uppercase bg-slate-50 dark:bg-slate-900">
                             <tr>
                                 <th scope="col" className="px-6 py-3">점검일</th>
                                 <th scope="col" className="px-6 py-3">근로자</th>
@@ -502,27 +504,27 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                             </tr>
                         </thead>
                         <tbody>
-                           {checkRecords.map(record => (
-                               <tr key={record.id} className={`border-b hover:bg-slate-50 dark:hover:bg-slate-700 ${BRAND_TONE.slateWhiteDarkPanel}`}>
-                                   <td className="px-6 py-4">{record.date}</td>
-                                   <td className="px-6 py-4 font-medium text-slate-900 dark:text-slate-100">{record.workerName}</td>
-                                   <td className="px-6 py-4">
+                            {checkRecords.map(record => (
+                                <tr key={record.id} className={`border-b hover:bg-slate-50 dark:hover:bg-slate-700 ${BRAND_TONE.slateWhiteDarkPanel}`}>
+                                    <td className="px-6 py-4">{record.date}</td>
+                                    <td className="px-6 py-4 font-medium text-slate-900 dark:text-slate-100">{record.workerName}</td>
+                                    <td className="px-6 py-4">
                                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${record.type === 'unsafe_action' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}`}>
                                             {record.type === 'unsafe_action' ? '불안전한 행동' : '불안전한 상태'}
                                         </span>
-                                   </td>
-                                   <td className="px-6 py-4">{record.reason}</td>
-                                   <td className="px-6 py-4">{record.details}</td>
-                                   <td className="px-6 py-4">
+                                    </td>
+                                    <td className="px-6 py-4">{record.reason}</td>
+                                    <td className="px-6 py-4">{record.details}</td>
+                                    <td className="px-6 py-4">
                                         {record.image ? (
                                             <img src={`data:image/jpeg;base64,${record.image}`} alt="점검" className="w-14 h-14 object-cover rounded-md border border-slate-200 dark:border-slate-700" />
                                         ) : (
                                             <span className="text-xs text-slate-400 dark:text-slate-500">없음</span>
                                         )}
-                                   </td>
-                               </tr>
-                           ))}
-                             {checkRecords.length === 0 && (
+                                    </td>
+                                </tr>
+                            ))}
+                            {checkRecords.length === 0 && (
                                 <tr>
                                     <td colSpan={6} className="text-center py-12 text-slate-500 dark:text-slate-400">
                                         <p className="font-semibold">점검 기록이 없습니다.</p>

@@ -38,9 +38,7 @@ import {
     normalizeWorkerIdentityText,
     normalizeNationality,
 } from './utils/workerIdentity';
-import { SITE_ISSUES_UPDATED_EVENT } from './utils/siteIssueStorage';
-import { ACCIDENT_BIGDATA_UPDATED_EVENT } from './utils/accidentBigData';
-import { LOCAL_SAFETY_OBSERVATIONS_STORAGE_KEY } from './utils/safetyClosureLoopHelper';
+import { purgeAllRegisteredAppStorage } from './utils/storageRegistry';
 // Removed checklist imports
 
 const DYNAMIC_IMPORT_RELOAD_KEY = 'psi_dynamic_import_reload_once';
@@ -131,8 +129,9 @@ const InterventionCoaching = lazyWithRecovery('InterventionCoaching', () => impo
 const JudgmentTaggingInput = lazyWithRecovery('JudgmentTaggingInput', () => import('./pages/JudgmentTaggingInput'));
 
 const IDB_NAME = 'PSI_Enterprise_V4';
-const IDB_VERSION = 1;
+const IDB_VERSION = 2;
 const WORKER_STORE = 'worker_records';
+const SAFETY_CHECK_STORE = 'safety_checks';
 const SAFETY_LEVEL_MIGRATION_KEY = 'psi_migrated_safety_level_v20260325';
 const SAFETY_LEVEL_MIGRATION_REPORT_KEY = 'psi_migrated_safety_level_report_v20260325';
 
@@ -224,6 +223,9 @@ const initDB = () => new Promise<IDBDatabase>((resolve, reject) => {
         if (!db.objectStoreNames.contains(WORKER_STORE)) {
             db.createObjectStore(WORKER_STORE, { keyPath: 'id' });
         }
+        if (!db.objectStoreNames.contains(SAFETY_CHECK_STORE)) {
+            db.createObjectStore(SAFETY_CHECK_STORE, { keyPath: 'id' });
+        }
     };
 });
 
@@ -281,6 +283,54 @@ const saveRecordsToDB = async (records: WorkerRecord[]): Promise<void> => {
     });
 };
 
+const loadSafetyChecksFromDB = async (): Promise<SafetyCheckRecord[]> => {
+    const db = await initDB();
+    if (!db.objectStoreNames.contains(SAFETY_CHECK_STORE)) {
+        db.close();
+        return [];
+    }
+    return new Promise<SafetyCheckRecord[]>((resolve, reject) => {
+        const tx = db.transaction([SAFETY_CHECK_STORE], 'readonly');
+        const store = tx.objectStore(SAFETY_CHECK_STORE);
+        const request = store.getAll();
+        let records: SafetyCheckRecord[] = [];
+        request.onsuccess = (e: Event) => {
+            records = (((e.target as IDBRequest).result as SafetyCheckRecord[]) || []);
+        };
+        request.onerror = () => {
+            db.close();
+            reject(request.error || new Error('안전점검 기록을 읽지 못했습니다.'));
+        };
+        tx.oncomplete = () => {
+            db.close();
+            resolve(
+                records.sort((a, b) => Number(b.id || 0) - Number(a.id || 0)),
+            );
+        };
+        tx.onerror = () => {
+            db.close();
+            reject(tx.error || new Error('안전점검 기록 불러오기에 실패했습니다.'));
+        };
+        tx.onabort = () => {
+            db.close();
+            reject(tx.error || new Error('안전점검 기록 불러오기가 중단되었습니다.'));
+        };
+    });
+};
+
+const saveSafetyChecksToDB = async (records: SafetyCheckRecord[]): Promise<void> => {
+    if (records.length === 0) return;
+    const db = await initDB();
+    await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction([SAFETY_CHECK_STORE], 'readwrite');
+        const store = tx.objectStore(SAFETY_CHECK_STORE);
+        records.forEach((record) => store.put(record));
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error || new Error('안전점검 기록 저장에 실패했습니다.')); };
+        tx.onabort = () => { db.close(); reject(tx.error || new Error('안전점검 기록 저장이 중단되었습니다.')); };
+    });
+};
+
 const deleteRecordFromDB = async (id: string): Promise<void> => {
     const db = await initDB();
     await new Promise<void>((resolve, reject) => {
@@ -296,15 +346,22 @@ const deleteRecordFromDB = async (id: string): Promise<void> => {
 const clearDB = async () => {
     try {
         const db = await initDB();
+        const storeNames = [WORKER_STORE, SAFETY_CHECK_STORE].filter((name) =>
+            db.objectStoreNames.contains(name),
+        );
+        if (storeNames.length === 0) {
+            db.close();
+            return true;
+        }
         return new Promise((resolve, reject) => {
-            const tx = db.transaction([WORKER_STORE], 'readwrite');
-            const store = tx.objectStore(WORKER_STORE);
-            const request = store.clear();
+            const tx = db.transaction(storeNames, 'readwrite');
+            for (const name of storeNames) {
+                tx.objectStore(name).clear();
+            }
             
             tx.oncomplete = () => { db.close(); resolve(true); };
             tx.onerror = (e) => { db.close(); reject(e); };
             tx.onabort = (e) => { db.close(); reject(e); };
-            request.onerror = (e) => reject(e);
         });
     } catch (e) { 
         console.error("Clear DB Error:", e);
@@ -718,6 +775,10 @@ const App: React.FC = () => {
         });
         return () => {
             active = false;
+            if (undoTimeoutRef.current) {
+                clearTimeout(undoTimeoutRef.current);
+                undoTimeoutRef.current = null;
+            }
         };
     }, []);
 
@@ -803,6 +864,11 @@ const App: React.FC = () => {
         }
         setNexusInitialTrade('');
         setDashboardReturnTrade('');
+        if (page === 'admin-training') {
+            setSafetyTrainingHandoffOpen(true);
+            setCurrentPage('admin-training');
+            return;
+        }
         setSafetyTrainingHandoffOpen(false);
         const resolvedPage: Page = page === 'ppt-pdf-one-page-summary'
             ? 'a4-education-material'
@@ -866,62 +932,52 @@ const App: React.FC = () => {
             setWorkerRecords(reconciled.records);
             setWorkerRecordsLoadState('ready');
 
-            if (useQaSeed && (forceQaSeed || data.length === 0) && reconciled.records.length > 0) {
-                void (async () => {
-                    try {
-                        for (const record of reconciled.records) {
-                            await saveRecordToDB(record);
-                        }
-                        console.info('[PSI][QASeed] 다국어 QA 검증용 데이터가 DB에 주입되었습니다.', {
-                            count: reconciled.records.length,
-                            mode: qaSeedMode,
-                        });
-                    } catch (error) {
-                        console.warn('[PSI][QASeed] 검증용 데이터 저장 실패:', error);
-                    }
-                })();
-            }
-
-            if (reconciled.changedIds.length > 0) {
-                void (async () => {
-                    try {
-                        for (const record of reconciled.records.filter((item) => reconciled.changedIds.includes(item.id))) {
-                            await saveRecordToDB(record);
-                        }
-                        console.info('[PSI][WorkerProfileReconcile]', {
-                            changedCount: reconciled.changedIds.length,
-                        });
-                    } catch (error) {
-                        console.warn('Worker profile reconcile save skipped:', error);
-                    }
-                })();
-            }
-
             const thresholds = getSafetyLevelThresholds();
             const expectedMigrationSignature = `criteria-${thresholds.advancedMin}-${thresholds.intermediateMin}`;
             const migrated = localStorage.getItem(SAFETY_LEVEL_MIGRATION_KEY) === expectedMigrationSignature;
-            if (!migrated && reconciled.records.length > 0) {
+            const shouldSeedQa = useQaSeed && (forceQaSeed || data.length === 0) && reconciled.records.length > 0;
+            const reconcileTargets = reconciled.changedIds.length > 0
+                ? reconciled.records.filter((item) => reconciled.changedIds.includes(item.id))
+                : [];
+            const shouldMigrateSafetyLevel = !migrated && reconciled.records.length > 0;
+
+            if (shouldSeedQa || reconcileTargets.length > 0 || shouldMigrateSafetyLevel) {
                 void (async () => {
                     try {
-                        let changedCount = 0;
-                        for (const record of reconciled.records) {
-                            const original = data.find((item) => item?.id === record.id) as WorkerRecord | undefined;
-                            if (original?.safetyLevel !== record.safetyLevel) changedCount += 1;
-                            await saveRecordToDB(record);
+                        if (shouldSeedQa) {
+                            await saveRecordsToDB(reconciled.records);
+                            console.info('[PSI][QASeed] 다국어 QA 검증용 데이터가 DB에 주입되었습니다.', {
+                                count: reconciled.records.length,
+                                mode: qaSeedMode,
+                            });
+                        } else if (reconcileTargets.length > 0 && !shouldMigrateSafetyLevel) {
+                            await saveRecordsToDB(reconcileTargets);
+                            console.info('[PSI][WorkerProfileReconcile]', {
+                                changedCount: reconciled.changedIds.length,
+                            });
                         }
-                        localStorage.setItem(SAFETY_LEVEL_MIGRATION_KEY, expectedMigrationSignature);
 
-                        const report = {
-                            runAt: new Date().toISOString(),
-                            totalRecords: reconciled.records.length,
-                            changedCount,
-                            criteria: `${thresholds.advancedMin}/${thresholds.intermediateMin}`,
-                            signature: expectedMigrationSignature,
-                        };
-                        localStorage.setItem(SAFETY_LEVEL_MIGRATION_REPORT_KEY, JSON.stringify(report));
-                        console.info('[PSI][SafetyLevelMigration]', report);
+                        if (shouldMigrateSafetyLevel) {
+                            let changedCount = 0;
+                            for (const record of reconciled.records) {
+                                const original = data.find((item) => item?.id === record.id) as WorkerRecord | undefined;
+                                if (original?.safetyLevel !== record.safetyLevel) changedCount += 1;
+                            }
+                            await saveRecordsToDB(reconciled.records);
+                            localStorage.setItem(SAFETY_LEVEL_MIGRATION_KEY, expectedMigrationSignature);
+
+                            const report = {
+                                runAt: new Date().toISOString(),
+                                totalRecords: reconciled.records.length,
+                                changedCount,
+                                criteria: `${thresholds.advancedMin}/${thresholds.intermediateMin}`,
+                                signature: expectedMigrationSignature,
+                            };
+                            localStorage.setItem(SAFETY_LEVEL_MIGRATION_REPORT_KEY, JSON.stringify(report));
+                            console.info('[PSI][SafetyLevelMigration]', report);
+                        }
                     } catch (error) {
-                        console.warn('Safety level migration skipped:', error);
+                        console.warn('Startup record persistence/migration skipped:', error);
                     }
                 })();
             }
@@ -930,19 +986,48 @@ const App: React.FC = () => {
             console.error('[PSI][Storage] 위험성평가 기록 불러오기 실패:', error);
             setStorageNotice('이 기기에 저장된 위험성평가 기록을 불러오지 못했습니다. 새 기록을 입력하기 전에 화면을 다시 불러와 주세요.');
         });
-        const savedChecks = localStorage.getItem('psi_safety_checks');
-        if (savedChecks) {
-            try {
-                const parsed = JSON.parse(savedChecks);
-                if (Array.isArray(parsed)) {
-                    setSafetyCheckRecords(parsed as SafetyCheckRecord[]);
-                } else {
-                    console.warn('psi_safety_checks 형식이 배열이 아니어서 무시됩니다.');
+        void (async () => {
+            const legacyRaw = localStorage.getItem('psi_safety_checks');
+            let legacyRecords: SafetyCheckRecord[] = [];
+            if (legacyRaw) {
+                try {
+                    const parsed = JSON.parse(legacyRaw);
+                    if (Array.isArray(parsed)) {
+                        legacyRecords = parsed as SafetyCheckRecord[];
+                    } else {
+                        console.warn('psi_safety_checks 형식이 배열이 아니어서 무시됩니다.');
+                    }
+                } catch (e) {
+                    console.warn('psi_safety_checks 파싱 실패로 초기값으로 대체합니다.', e);
                 }
-            } catch (e) {
-                console.warn('psi_safety_checks 파싱 실패로 초기값으로 대체합니다.', e);
             }
-        }
+
+            try {
+                const dbRecords = await loadSafetyChecksFromDB();
+                if (legacyRecords.length > 0) {
+                    const mergedMap = new Map<string, SafetyCheckRecord>();
+                    for (const rec of legacyRecords) {
+                        if (rec && rec.id) mergedMap.set(rec.id, rec);
+                    }
+                    for (const rec of dbRecords) {
+                        if (rec && rec.id) mergedMap.set(rec.id, rec);
+                    }
+                    const merged = Array.from(mergedMap.values()).sort(
+                        (a, b) => Number(b.id || 0) - Number(a.id || 0),
+                    );
+                    await saveSafetyChecksToDB(merged);
+                    localStorage.removeItem('psi_safety_checks');
+                    setSafetyCheckRecords(merged);
+                } else {
+                    setSafetyCheckRecords(dbRecords);
+                }
+            } catch (error) {
+                console.warn('[PSI][Storage] 안전점검 IndexedDB 불러오기 실패, legacy fallback 사용:', error);
+                if (legacyRecords.length > 0) {
+                    setSafetyCheckRecords(legacyRecords);
+                }
+            }
+        })();
     }, []);
 
     // [Updated] Stable Handler using useCallback
@@ -1132,15 +1217,25 @@ const App: React.FC = () => {
         }
     }, [deletedRecord]);
 
-    const handleAddSafetyCheck = useCallback((input: unknown): boolean => {
+    const handleAddSafetyCheck = useCallback(async (input: unknown): Promise<boolean> => {
         const nextRecord: SafetyCheckRecord = {
             ...(input as SafetyCheckRecord),
             id: Date.now().toString(),
         };
-        const nextRecords = [nextRecord, ...safetyCheckRecordsRef.current];
 
         try {
-            localStorage.setItem('psi_safety_checks', JSON.stringify(nextRecords));
+            if (typeof window !== 'undefined' && window.indexedDB) {
+                await saveSafetyChecksToDB([nextRecord]);
+                // Legacy key cleanup once IDB persistence is active so base64 photos do not bloat localStorage.
+                try {
+                    localStorage.removeItem('psi_safety_checks');
+                } catch {
+                    // ignore cleanup failure
+                }
+            } else {
+                const fallbackRecords = [nextRecord, ...safetyCheckRecordsRef.current];
+                localStorage.setItem('psi_safety_checks', JSON.stringify(fallbackRecords));
+            }
         } catch (error) {
             console.error('[PSI][Storage] 안전점검 기록 저장 실패:', error);
             setStorageNotice('안전점검 기록을 이 기기에 저장하지 못했습니다. 저장 공간을 확인한 뒤 다시 시도해 주세요.');
@@ -1148,8 +1243,11 @@ const App: React.FC = () => {
         }
 
         setStorageNotice('');
-        safetyCheckRecordsRef.current = nextRecords;
-        setSafetyCheckRecords(nextRecords);
+        setSafetyCheckRecords((prev) => {
+            const next = [nextRecord, ...prev];
+            safetyCheckRecordsRef.current = next;
+            return next;
+        });
         return true;
     }, []);
 
@@ -1159,16 +1257,7 @@ const App: React.FC = () => {
         
         try {
             await clearDB();
-            localStorage.removeItem('psi_safety_checks');
-            localStorage.removeItem('psi_site_issues');
-            localStorage.removeItem('psi_accident_bigdata_v1');
-            localStorage.removeItem('psi_tbm_education_studio_v2');
-            localStorage.removeItem('psi_tbm_monthly_education_package_v1');
-            localStorage.removeItem('psi_risk_check_sessions_v1');
-            localStorage.removeItem('psi_site_violations_v1');
-            localStorage.removeItem(LOCAL_SAFETY_OBSERVATIONS_STORAGE_KEY);
-            window.dispatchEvent(new CustomEvent(SITE_ISSUES_UPDATED_EVENT));
-            window.dispatchEvent(new CustomEvent(ACCIDENT_BIGDATA_UPDATED_EVENT));
+            await purgeAllRegisteredAppStorage({ skipPrimaryDb: true });
 
             workerRecordsRef.current = [];
             safetyCheckRecordsRef.current = [];
@@ -1240,13 +1329,14 @@ const App: React.FC = () => {
             const enforced = enforceSafetyLevel(withIntegrity);
             const hashed = await attachEvidenceHash(enforced);
             finalRecords.push(hashed);
-            await saveRecordToDB(hashed);
         }
-        setWorkerRecords(prev => {
-            const combined = [...finalRecords, ...prev];
-            const unique = combined.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
-            return unique.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        });
+        await saveRecordsToDB(finalRecords);
+        const combined = [...finalRecords, ...workerRecordsRef.current];
+        const uniqueSorted = combined
+            .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        workerRecordsRef.current = uniqueSorted;
+        setWorkerRecords(uniqueSorted);
     }, []);
 
     const handleReanalyzeRecord = useCallback(async (record: WorkerRecord): Promise<WorkerRecord | null> => {

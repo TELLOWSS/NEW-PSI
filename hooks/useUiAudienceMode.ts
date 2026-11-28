@@ -5,6 +5,7 @@ import { getOperationalMode, OPERATIONAL_MODE_CHANGED_EVENT } from '../utils/ope
 import { DEV_MODE_CHANGED_EVENT, getIsDevMode } from '../utils/devModeUtils';
 import {
     canUseDevDiagnostics,
+    DEV_DIAGNOSTICS_TOGGLE_CHANGED_EVENT,
     hasExplicitDevDiagnosticsPermission,
     isDevDiagnosticsHiddenToggleEnabled,
     isLocalDevelopmentEnvironment,
@@ -37,12 +38,14 @@ export const useUiAudienceMode = (): UiAudienceMode => {
         window.addEventListener(USER_ROLE_PRESET_CHANGED_EVENT, sync);
         window.addEventListener(OPERATIONAL_MODE_CHANGED_EVENT, sync);
         window.addEventListener(DEV_MODE_CHANGED_EVENT, sync);
+        window.addEventListener(DEV_DIAGNOSTICS_TOGGLE_CHANGED_EVENT, sync);
         window.addEventListener('storage', sync);
 
         return () => {
             window.removeEventListener(USER_ROLE_PRESET_CHANGED_EVENT, sync);
             window.removeEventListener(OPERATIONAL_MODE_CHANGED_EVENT, sync);
             window.removeEventListener(DEV_MODE_CHANGED_EVENT, sync);
+            window.removeEventListener(DEV_DIAGNOSTICS_TOGGLE_CHANGED_EVENT, sync);
             window.removeEventListener('storage', sync);
         };
     }, []);

@@ -7,12 +7,14 @@ import {
   isNexusOnline,
   readNexusOfflineQueue,
   writeNexusOfflineQueue,
+  type NexusOfflineMutationEntry,
   type NexusOfflineSyncConflict,
   type NexusSyncServerSnapshot,
 } from './nexusOfflineQueue';
 
 export interface NexusSyncOptions {
   serverSnapshot?: NexusSyncServerSnapshot;
+  serverSender?: (entry: NexusOfflineMutationEntry) => Promise<void>;
 }
 
 export interface NexusSyncTelemetry {
@@ -87,11 +89,25 @@ export const syncNexusOfflineQueueWithServer = async (
     writeNexusOfflineQueue(marked);
   }
 
-  const result = await flushNexusOfflineQueue(async () => {
-    // When authenticated Supabase session is active, server endpoints persist via RLS policies;
-    // in local/pilot hybrid mode, localStorage mirrors serve instant single-browser continuity.
-    if (isSupabaseConfigured && hasSession) {
-      await Promise.resolve();
+  if (isSupabaseConfigured && hasSession && !options?.serverSender) {
+    const remainingPendingCount = readNexusOfflineQueue().filter(item => item.status !== 'synced').length;
+    return {
+      online: true,
+      supabaseConnected: true,
+      modeLabel: '로컬 보관(서버 전송 어댑터 대기)',
+      pendingCount: remainingPendingCount,
+      syncedCount: 0,
+      conflictCount: conflicts.length,
+      conflicts,
+      message: remainingPendingCount > 0
+        ? `서버 동기화 어댑터가 연결되지 않아 현장 대기 기록 ${remainingPendingCount}건을 삭제하지 않고 로컬에 안전하게 보관했습니다.`
+        : '모든 현장·본사 기록이 최신 상태로 유지되고 있습니다.',
+    };
+  }
+
+  const result = await flushNexusOfflineQueue(async (entry) => {
+    if (isSupabaseConfigured && hasSession && options?.serverSender) {
+      await options.serverSender(entry);
     }
   });
 

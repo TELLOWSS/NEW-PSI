@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const supabaseMock = vi.hoisted(() => ({
     from: vi.fn(),
@@ -16,6 +16,12 @@ import {
 describe('worker soft delete fail-closed behavior', () => {
     beforeEach(() => {
         supabaseMock.from.mockReset();
+        vi.stubEnv('SUPABASE_URL', 'https://example.supabase.co');
+        vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-service-role-key');
+    });
+
+    afterEach(() => {
+        vi.unstubAllEnvs();
     });
 
     it('stops a single delete when deleted_at is missing and never calls hard delete', async () => {

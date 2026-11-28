@@ -338,6 +338,66 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const abortRef = useRef<boolean>(false);
 
     // Evidence Verification State
+    const VERIFICATION_HISTORY_STORAGE_KEY = 'psi_reports_verification_history_v1';
+    const VERIFICATION_STATUS_FILTER_STORAGE_KEY = 'psi_reports_verification_status_filter_v1';
+    const VERIFICATION_FAILURE_FILTER_STORAGE_KEY = 'psi_reports_verification_failure_filter_v1';
+    const VERIFICATION_PACKAGE_FILTER_STORAGE_KEY = 'psi_reports_verification_package_filter_v1';
+    const VERIFICATION_HISTORY_RETENTION_DAYS = 30;
+    const VERIFICATION_HISTORY_MAX_ITEMS = 12;
+    const VERIFICATION_STATUS_FILTER_OPTIONS: Array<'ALL' | 'SUCCESS' | 'FAILED'> = ['ALL', 'SUCCESS', 'FAILED'];
+
+    const normalizeStoredVerificationHistory = (entries: Array<{
+        id?: string;
+        verifiedAt?: string;
+        manifestFileName?: string;
+        packageName?: string;
+        isValid?: boolean;
+        totalEntries?: number;
+        verifiedEntries?: number;
+        missingJsonFiles?: number;
+        invalidJsonFiles?: number;
+        hashMismatches?: number;
+        missingHarnessSnapshots?: number;
+        metadataMismatches?: number;
+        packageSummaryHashMatched?: boolean;
+        primaryFailureReason?: string;
+        templateConformanceStatus?: 'CONFORMANT' | 'MISMATCH' | 'UNKNOWN' | string;
+        templateConformanceDescription?: string;
+        summaryText?: string;
+    }>) => {
+        const retentionThreshold = Date.now() - (VERIFICATION_HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+
+        return entries
+            .filter((entry) => entry && typeof entry === 'object')
+            .map((entry, index) => ({
+                id: String(entry.id || `stored-${index}`),
+                verifiedAt: String(entry.verifiedAt || new Date(0).toISOString()),
+                manifestFileName: String(entry.manifestFileName || 'manifest.json'),
+                packageName: String(entry.packageName || ''),
+                isValid: Boolean(entry.isValid),
+                totalEntries: Number(entry.totalEntries || 0),
+                verifiedEntries: Number(entry.verifiedEntries || 0),
+                missingJsonFiles: Number(entry.missingJsonFiles || 0),
+                invalidJsonFiles: Number(entry.invalidJsonFiles || 0),
+                hashMismatches: Number(entry.hashMismatches || 0),
+                missingHarnessSnapshots: Number(entry.missingHarnessSnapshots || 0),
+                metadataMismatches: Number(entry.metadataMismatches || 0),
+                packageSummaryHashMatched: Boolean(entry.packageSummaryHashMatched),
+                primaryFailureReason: String(entry.primaryFailureReason || '실패 기록 없음'),
+                templateConformanceStatus: (entry.templateConformanceStatus === 'CONFORMANT' || entry.templateConformanceStatus === 'MISMATCH'
+                    ? entry.templateConformanceStatus
+                    : 'UNKNOWN') as 'CONFORMANT' | 'MISMATCH' | 'UNKNOWN',
+                templateConformanceDescription: String(entry.templateConformanceDescription || ''),
+                summaryText: String(entry.summaryText || ''),
+            }))
+            .filter((entry) => {
+                const verifiedAt = new Date(entry.verifiedAt).getTime();
+                return !Number.isNaN(verifiedAt) && verifiedAt >= retentionThreshold;
+            })
+            .sort((a, b) => new Date(b.verifiedAt).getTime() - new Date(a.verifiedAt).getTime())
+            .slice(0, VERIFICATION_HISTORY_MAX_ITEMS);
+    };
+
     const [verificationManifestFile, setVerificationManifestFile] = useState<File | null>(null);
     const [verificationJsonFiles, setVerificationJsonFiles] = useState<File[]>([]);
     const [isVerifyingEvidence, setIsVerifyingEvidence] = useState(false);
@@ -361,10 +421,42 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         templateConformanceStatus: 'CONFORMANT' | 'MISMATCH' | 'UNKNOWN';
         templateConformanceDescription: string;
         summaryText: string;
-    }>>([]);
-    const [selectedVerificationStatusFilter, setSelectedVerificationStatusFilter] = useState<'ALL' | 'SUCCESS' | 'FAILED'>('ALL');
-    const [selectedVerificationFailureFilter, setSelectedVerificationFailureFilter] = useState('ALL');
-    const [selectedVerificationPackageFilter, setSelectedVerificationPackageFilter] = useState('ALL');
+    }>>(() => {
+        if (typeof window === 'undefined') return [];
+        try {
+            const raw = window.localStorage.getItem(VERIFICATION_HISTORY_STORAGE_KEY);
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? normalizeStoredVerificationHistory(parsed) : [];
+        } catch {
+            return [];
+        }
+    });
+    const [selectedVerificationStatusFilter, setSelectedVerificationStatusFilter] = useState<'ALL' | 'SUCCESS' | 'FAILED'>(() => {
+        if (typeof window === 'undefined') return 'ALL';
+        try {
+            const savedFilter = window.localStorage.getItem(VERIFICATION_STATUS_FILTER_STORAGE_KEY);
+            return savedFilter === 'ALL' || savedFilter === 'SUCCESS' || savedFilter === 'FAILED' ? savedFilter : 'ALL';
+        } catch {
+            return 'ALL';
+        }
+    });
+    const [selectedVerificationFailureFilter, setSelectedVerificationFailureFilter] = useState(() => {
+        if (typeof window === 'undefined') return 'ALL';
+        try {
+            return window.localStorage.getItem(VERIFICATION_FAILURE_FILTER_STORAGE_KEY) || 'ALL';
+        } catch {
+            return 'ALL';
+        }
+    });
+    const [selectedVerificationPackageFilter, setSelectedVerificationPackageFilter] = useState(() => {
+        if (typeof window === 'undefined') return 'ALL';
+        try {
+            return window.localStorage.getItem(VERIFICATION_PACKAGE_FILTER_STORAGE_KEY) || 'ALL';
+        } catch {
+            return 'ALL';
+        }
+    });
     const [verificationManifestPreview, setVerificationManifestPreview] = useState<EvidenceManifest | null>(null);
     const [verificationManifestPreviewError, setVerificationManifestPreviewError] = useState<string | null>(null);
     const [previewWorkflowStatus, setPreviewWorkflowStatus] = useState<Awaited<ReturnType<typeof fetchHarnessWorkflowStatus>> | null>(null);
@@ -699,66 +791,6 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         return reason;
     };
 
-    const VERIFICATION_HISTORY_STORAGE_KEY = 'psi_reports_verification_history_v1';
-    const VERIFICATION_STATUS_FILTER_STORAGE_KEY = 'psi_reports_verification_status_filter_v1';
-    const VERIFICATION_FAILURE_FILTER_STORAGE_KEY = 'psi_reports_verification_failure_filter_v1';
-    const VERIFICATION_PACKAGE_FILTER_STORAGE_KEY = 'psi_reports_verification_package_filter_v1';
-    const VERIFICATION_HISTORY_RETENTION_DAYS = 30;
-    const VERIFICATION_HISTORY_MAX_ITEMS = 12;
-    const VERIFICATION_STATUS_FILTER_OPTIONS: Array<'ALL' | 'SUCCESS' | 'FAILED'> = ['ALL', 'SUCCESS', 'FAILED'];
-
-    const normalizeStoredVerificationHistory = (entries: Array<{
-        id?: string;
-        verifiedAt?: string;
-        manifestFileName?: string;
-        packageName?: string;
-        isValid?: boolean;
-        totalEntries?: number;
-        verifiedEntries?: number;
-        missingJsonFiles?: number;
-        invalidJsonFiles?: number;
-        hashMismatches?: number;
-        missingHarnessSnapshots?: number;
-        metadataMismatches?: number;
-        packageSummaryHashMatched?: boolean;
-        primaryFailureReason?: string;
-        templateConformanceStatus?: 'CONFORMANT' | 'MISMATCH' | 'UNKNOWN' | string;
-        templateConformanceDescription?: string;
-        summaryText?: string;
-    }>) => {
-        const retentionThreshold = Date.now() - (VERIFICATION_HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000);
-
-        return entries
-            .filter((entry) => entry && typeof entry === 'object')
-            .map((entry, index) => ({
-                id: String(entry.id || `stored-${index}`),
-                verifiedAt: String(entry.verifiedAt || new Date(0).toISOString()),
-                manifestFileName: String(entry.manifestFileName || 'manifest.json'),
-                packageName: String(entry.packageName || ''),
-                isValid: Boolean(entry.isValid),
-                totalEntries: Number(entry.totalEntries || 0),
-                verifiedEntries: Number(entry.verifiedEntries || 0),
-                missingJsonFiles: Number(entry.missingJsonFiles || 0),
-                invalidJsonFiles: Number(entry.invalidJsonFiles || 0),
-                hashMismatches: Number(entry.hashMismatches || 0),
-                missingHarnessSnapshots: Number(entry.missingHarnessSnapshots || 0),
-                metadataMismatches: Number(entry.metadataMismatches || 0),
-                packageSummaryHashMatched: Boolean(entry.packageSummaryHashMatched),
-                primaryFailureReason: String(entry.primaryFailureReason || '실패 기록 없음'),
-                templateConformanceStatus: entry.templateConformanceStatus === 'CONFORMANT' || entry.templateConformanceStatus === 'MISMATCH'
-                    ? entry.templateConformanceStatus
-                    : 'UNKNOWN',
-                templateConformanceDescription: String(entry.templateConformanceDescription || ''),
-                summaryText: String(entry.summaryText || ''),
-            }))
-            .filter((entry) => {
-                const verifiedAt = new Date(entry.verifiedAt).getTime();
-                return !Number.isNaN(verifiedAt) && verifiedAt >= retentionThreshold;
-            })
-            .sort((a, b) => new Date(b.verifiedAt).getTime() - new Date(a.verifiedAt).getTime())
-            .slice(0, VERIFICATION_HISTORY_MAX_ITEMS);
-    };
-
     const dateFilterLabel = useMemo(() => {
         if (datePreset === 'last30') return '최근30일';
         if (datePreset === 'thisMonth') return '달력월-이번달';
@@ -950,69 +982,6 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             // ignore localStorage write failures
         }
     }, [filteredRecords.length, isGenerating, isPackagingEvidence, reportGenerationUi.progress, reportGenerationUi.status, verificationResult]);
-
-    useEffect(() => {
-        try {
-            const raw = window.localStorage.getItem(VERIFICATION_HISTORY_STORAGE_KEY);
-            if (!raw) return;
-
-            const parsed = JSON.parse(raw) as Array<{
-                id?: string;
-                verifiedAt?: string;
-                manifestFileName?: string;
-                packageName?: string;
-                isValid?: boolean;
-                totalEntries?: number;
-                verifiedEntries?: number;
-                missingJsonFiles?: number;
-                invalidJsonFiles?: number;
-                hashMismatches?: number;
-                missingHarnessSnapshots?: number;
-                metadataMismatches?: number;
-                packageSummaryHashMatched?: boolean;
-                primaryFailureReason?: string;
-                summaryText?: string;
-            }>;
-
-            if (!Array.isArray(parsed)) return;
-
-            setVerificationHistory(normalizeStoredVerificationHistory(parsed));
-        } catch {
-            // ignore storage parse failures
-        }
-    }, []);
-
-    useEffect(() => {
-        try {
-            const savedFilter = window.localStorage.getItem(VERIFICATION_STATUS_FILTER_STORAGE_KEY);
-            if (!savedFilter) return;
-            if (savedFilter === 'ALL' || savedFilter === 'SUCCESS' || savedFilter === 'FAILED') {
-                setSelectedVerificationStatusFilter(savedFilter);
-            }
-        } catch {
-            // ignore storage read failures
-        }
-    }, []);
-
-    useEffect(() => {
-        try {
-            const savedFilter = window.localStorage.getItem(VERIFICATION_FAILURE_FILTER_STORAGE_KEY);
-            if (!savedFilter) return;
-            setSelectedVerificationFailureFilter(savedFilter);
-        } catch {
-            // ignore storage read failures
-        }
-    }, []);
-
-    useEffect(() => {
-        try {
-            const savedFilter = window.localStorage.getItem(VERIFICATION_PACKAGE_FILTER_STORAGE_KEY);
-            if (!savedFilter) return;
-            setSelectedVerificationPackageFilter(savedFilter);
-        } catch {
-            // ignore storage read failures
-        }
-    }, []);
 
     useEffect(() => {
         try {
@@ -2935,16 +2904,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             );
             setOpsAlertClickLogs(nextLogs);
 
-            // 🔷 Supabase ops_alert_click_logs 테이블에 저장 (비동기)
-            void logOpsAlertClick({
-                action: action === 'go-intervention' ? 'go-intervention' : 'go-tagging-validation',
-                delayAlertActive: isOpsDelayAlert,
-                taggingErrorCount: taggingQuality?.errorCount || 0,
-                interventionNotStartedCount: interventionDelayCount,
-            }).catch((error) => {
-                console.warn('[Reports] Supabase ops_alert_click_logs 저장 실패:', error);
-            });
-
+            // 관리자 인증 API로만 단일 저장 (비인증 anon 중복 insert 제거)
             void postAdminJson<{ ok: boolean; data?: { saved?: boolean; schemaReady?: boolean } }>(
                 '/api/admin/safety-management',
                 {

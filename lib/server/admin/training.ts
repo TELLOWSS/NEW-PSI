@@ -1,8 +1,41 @@
 import { signTrainingAudioMap } from '../trainingAudio.js';
-import { createClient } from '@supabase/supabase-js';
 import { buildSignedTrainingMobileUrl, resolveLinkTtlMinutes } from '../trainingLinkToken.js';
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../adminAuthGuard.js';
+import { consumeApiQuota, resolveRequestFingerprint } from '../apiSecurity.js';
 import { markSchemaCompatibilityFallback } from '../schemaCompatibility.js';
+import { createSupabaseServerClient } from '../supabaseServer.js';
+
+const TRAINING_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_TRAINING_AUDIO_BYTES = 2 * 1024 * 1024;
+
+function isValidAudioMagicBytes(binary: Buffer): boolean {
+    if (binary.length < 8) return false;
+    const isId3Mp3 = binary[0] === 0x49 && binary[1] === 0x44 && binary[2] === 0x33;
+    const isFrameMp3 = binary[0] === 0xff && (binary[1] & 0xe0) === 0xe0;
+    const isM4aFtyp = binary.subarray(4, 8).toString('ascii') === 'ftyp';
+    return isId3Mp3 || isFrameMp3 || isM4aFtyp;
+}
+
+function resolveSafeTrainingBaseUrl(req: any): string {
+    const envBase = String(process.env.NEXT_PUBLIC_APP_BASE_URL || '').trim().replace(/\/$/, '');
+    if (envBase) return envBase;
+    const vercelUrl = String(process.env.VERCEL_URL || '').trim();
+    const rawOrigin = String(req?.headers?.origin || '').trim();
+    if (rawOrigin) {
+        try {
+            const parsed = new URL(rawOrigin);
+            const host = parsed.hostname.toLowerCase();
+            const isLocal = host === 'localhost' || host === '127.0.0.1';
+            const isAllowedProd = parsed.protocol === 'https:' && (host.endsWith('.vercel.app') || (vercelUrl && host === vercelUrl.toLowerCase()));
+            if (isLocal || isAllowedProd) {
+                return parsed.origin;
+            }
+        } catch {
+            // Ignore malformed Origin header
+        }
+    }
+    return vercelUrl ? `https://${vercelUrl}` : 'http://localhost:5173';
+}
 import {
     assessConstructionTranslation,
     buildConstructionTranslationPrompt,
@@ -82,25 +115,18 @@ function safeGetEnv() {
         '';
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || '';
 
-    const supabaseKey = supabaseServiceRoleKey || supabaseAnonKey;
-    const authMode = supabaseServiceRoleKey ? 'service_role' : 'anon_with_admin_header';
+    const supabaseKey = supabaseServiceRoleKey;
+    const authMode = 'service_role';
     const envError = !supabaseUrl || !supabaseKey
-        ? `환경변수 누락: VITE_SUPABASE_URL=${!!supabaseUrl}, SUPABASE_KEY=${!!supabaseKey}`
+        ? `환경변수 누락: VITE_SUPABASE_URL=${!!supabaseUrl}, SUPABASE_SERVICE_ROLE_KEY=${!!supabaseKey}`
         : null;
 
     return { supabaseUrl, supabaseKey, authMode, psiAdminSecret, geminiApiKey, appBaseUrl, envError };
 }
 
 function getSupabaseClient() {
-    const env = safeGetEnv();
-    if (env.envError) {
-        throw new Error(env.envError);
-    }
-
-    return createClient(env.supabaseUrl, env.supabaseKey, {
-        global: {
-            headers: env.psiAdminSecret ? { 'x-psi-admin-secret': env.psiAdminSecret } : {},
-        },
+    return createSupabaseServerClient({
+        errorMessage: 'Supabase 서버 환경변수가 누락되었습니다. SUPABASE_SERVICE_ROLE_KEY를 확인해 주세요.',
     });
 }
 
@@ -405,6 +431,7 @@ async function translateSingleLanguageSafe(
     apiKey: string,
     sourceTextKo: string,
     languageCode: TrainingLanguageCode,
+    signal?: AbortSignal,
 ): Promise<[TrainingLanguageCode, string | null, TranslationQualityReport | null]> {
     try {
         const response = await fetch(
@@ -412,6 +439,7 @@ async function translateSingleLanguageSafe(
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+                signal,
                 body: JSON.stringify({
                     contents: [
                         {
@@ -453,14 +481,18 @@ async function translateParallelSafe(
     langs: TrainingLanguageCode[],
 ): Promise<{ texts: Record<string, string>; reports: Record<string, TranslationQualityReport> }> {
     let timerId: ReturnType<typeof setTimeout> | null = null;
+    const abortController = new AbortController();
 
     try {
         const workPromise = Promise.all(
-            langs.map((code) => translateSingleLanguageSafe(apiKey, sourceTextKo, code))
+            langs.map((code) => translateSingleLanguageSafe(apiKey, sourceTextKo, code, abortController.signal))
         );
 
         const timerPromise = new Promise<'TIMEOUT'>((resolve) => {
-            timerId = setTimeout(() => resolve('TIMEOUT'), 7000);
+            timerId = setTimeout(() => {
+                abortController.abort();
+                resolve('TIMEOUT');
+            }, 7000);
         });
 
         const raceResult = await Promise.race([workPromise, timerPromise]);
@@ -496,11 +528,7 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
         });
     }
 
-    const supabase = createClient(env.supabaseUrl, env.supabaseKey, {
-        global: {
-            headers: env.psiAdminSecret ? { 'x-psi-admin-secret': env.psiAdminSecret } : {},
-        },
-    });
+    const supabase = createSupabaseServerClient({ includeAdminSecret: Boolean(env.psiAdminSecret) });
 
     const sourceTextKo = body.sourceTextKo;
     const caseId = body.caseId;
@@ -606,7 +634,6 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
         { id: generatedId, source_text_ko: normalizedSourceText, original_script: normalizedSourceText, audio_urls: {} },
         { id: generatedId, source_text_ko: normalizedSourceText, audio_urls: {} },
         { id: generatedId, source_text_ko: normalizedSourceText },
-        {},
     ];
 
     let insertedSessionId = '';
@@ -639,7 +666,7 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
         });
     }
 
-    const baseUrl = env.appBaseUrl || req.headers?.origin || 'http://localhost:5173';
+    const baseUrl = resolveSafeTrainingBaseUrl(req);
     let mobileUrl = '';
     let linkExpiresAt = 0;
     let ttlMinutes = 0;
@@ -712,7 +739,7 @@ async function handleReissue(req: any, res: any, body: Record<string, unknown>) 
         });
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || req.headers.origin || 'http://localhost:5173';
+    const baseUrl = resolveSafeTrainingBaseUrl(req);
     const { mobileUrl, linkExpiresAt, ttlMinutes } = buildSignedTrainingMobileUrl(baseUrl, sessionId, resolveLinkTtlMinutes());
 
     return res.status(200).json({
@@ -828,9 +855,9 @@ async function handleUpdateTargets(res: any, body: Record<string, unknown>) {
 }
 
 async function handleUploadAudio(req: any, res: any, body: Record<string, unknown>) {
-    const sessionId = String(body.sessionId || '');
-    if (!sessionId) {
-        return sendJsonError(res, 400, 'sessionId가 필요합니다.');
+    const sessionId = String(body.sessionId || '').trim();
+    if (!sessionId || !TRAINING_UUID_RE.test(sessionId)) {
+        return sendJsonError(res, 400, '유효한 sessionId 형식이 필요합니다.');
     }
 
     const originalScript = body.originalScript;
@@ -873,6 +900,9 @@ async function handleUploadAudio(req: any, res: any, body: Record<string, unknow
         const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
         const path = `${sessionId}/${code}-${safeFileName}`;
         const binary = Buffer.from(base64, 'base64');
+        if (binary.length === 0 || binary.length > MAX_TRAINING_AUDIO_BYTES || !isValidAudioMagicBytes(binary)) {
+            return sendJsonError(res, 400, `${code} 파일은 유효한 MP3 또는 M4A(2MB 이하)만 허용됩니다.`);
+        }
 
         const uploadRes = await supabase.storage.from('training_audio').upload(path, binary, {
             contentType: lowerFileName.endsWith('.m4a')
@@ -927,7 +957,7 @@ async function handleUploadAudio(req: any, res: any, body: Record<string, unknow
     let linkExpiresAt = 0;
     let ttlMinutes = 0;
     if (releaseReadiness.ready) {
-        const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || req.headers.origin || 'http://localhost:5173';
+        const baseUrl = resolveSafeTrainingBaseUrl(req);
         const linkResult = buildSignedTrainingMobileUrl(baseUrl, sessionId, resolveLinkTtlMinutes());
         mobileUrl = linkResult.mobileUrl;
         linkExpiresAt = linkResult.linkExpiresAt;
@@ -947,9 +977,9 @@ async function handleUploadAudio(req: any, res: any, body: Record<string, unknow
 }
 
 async function handleDeleteSession(res: any, body: Record<string, unknown>) {
-    const sessionId = String(body.sessionId || '');
-    if (!sessionId) {
-        return sendJsonError(res, 400, 'sessionId가 필요합니다.');
+    const sessionId = String(body.sessionId || '').trim();
+    if (!sessionId || !TRAINING_UUID_RE.test(sessionId)) {
+        return sendJsonError(res, 400, '유효한 sessionId 형식이 필요합니다.');
     }
 
     const supabase = getSupabaseClient();
@@ -1007,6 +1037,20 @@ export default async function handler(req: any, res: any) {
 
         if (!isValidAdminAuthRequest(req)) {
             return sendUnauthorizedAdminResponse(res);
+        }
+
+        if (action === 'create' || action === 'upload-audio') {
+            const quota = await consumeApiQuota(getSupabaseClient(), {
+                scope: `admin.training.${action}`,
+                clientKeyHash: resolveRequestFingerprint(req),
+                maxRequests: action === 'upload-audio' ? 40 : 20,
+                windowSeconds: 60,
+                allowAuthenticatedMemoryFallback: true,
+            });
+            if (!quota.allowed) {
+                res.setHeader('Retry-After', String(quota.retryAfterSeconds || 60));
+                return res.status(429).json({ ok: false, code: 'RATE_LIMITED', message: '교육 세션 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.' });
+            }
         }
 
         res.setHeader('Cache-Control', 'private, no-store');

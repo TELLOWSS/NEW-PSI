@@ -173,7 +173,13 @@ export function assertHarnessReanalysisAllowed(options: {
         return;
     }
 
-    if (!['awaiting_manager_approval', 'manager_revised', 'manual_review_required'].includes(currentWorkflowState)) {
+    const canResumeStaleSecondPass =
+        currentWorkflowState === 'second_pass_analyzing' && options.currentSecondPassStatus !== 'IN_PROGRESS';
+
+    if (
+        !['awaiting_manager_approval', 'manager_revised', 'manual_review_required'].includes(currentWorkflowState)
+        && !canResumeStaleSecondPass
+    ) {
         throw new HarnessTransitionError(buildActionBlockedMessage(currentWorkflowState, 'reanalyze'));
     }
 
@@ -181,7 +187,7 @@ export function assertHarnessReanalysisAllowed(options: {
         throw new HarnessTransitionError('승인 완료된 건은 바로 재분석으로 전환할 수 없습니다.');
     }
 
-    if (currentWorkflowState === 'second_pass_analyzing' || options.currentSecondPassStatus === 'IN_PROGRESS') {
+    if (options.currentSecondPassStatus === 'IN_PROGRESS') {
         throw new HarnessTransitionError('이미 재분석이 진행 중이므로 중복 재분석을 시작할 수 없습니다.');
     }
 }
@@ -218,9 +224,7 @@ export function getHarnessTransitionActionStatuses(options: {
                 reason: null,
                 nextWorkflowState: action === 'approve'
                     ? 'completed'
-                    : action === 'reject'
-                        ? 'manager_revised'
-                        : 'second_pass_analyzing',
+                    : 'manager_revised',
             };
         } catch (error) {
             return {
@@ -265,10 +269,11 @@ export function buildHarnessApprovalDecision(options: {
         };
     }
 
+    // 재분석 요청 직후 실제 reanalyze가 실행될 수 있도록 manager_revised + NEEDED 상태로 전환한다.
     return {
-        workflowState: 'second_pass_analyzing',
+        workflowState: 'manager_revised',
         approvalState: 'PENDING',
-        secondPassStatus: 'IN_PROGRESS',
+        secondPassStatus: 'NEEDED',
         requiresManagerApproval: true,
         riskDecision: options.currentDecision,
     };

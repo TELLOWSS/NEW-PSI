@@ -12,6 +12,7 @@ import type {
     WorkerRecord,
 } from '../types';
 import { normalizeJobField } from './workerIdentity';
+import { escapeSpreadsheetCsvCell } from './spreadsheetCsv';
 
 export const ACCIDENT_BIGDATA_STORAGE_KEY = 'psi_accident_bigdata_v1';
 export const ACCIDENT_BIGDATA_UPDATED_EVENT = 'psi-accident-bigdata-updated';
@@ -1517,10 +1518,7 @@ export const persistAccidentBigDataStore = (
 export const exportAccidentRecordsToJson = (records: readonly AccidentBigDataRecord[]): string =>
     `${JSON.stringify(records, null, 2)}\n`;
 
-const escapeCsvCell = (value: unknown): string => {
-    const str = String(value ?? '');
-    return `"${str.replaceAll('"', '""')}"`;
-};
+const escapeCsvCell = (value: unknown): string => escapeSpreadsheetCsvCell(value);
 
 export const exportAccidentRecordsToCsv = (records: readonly AccidentBigDataRecord[]): string => {
     const headers = [

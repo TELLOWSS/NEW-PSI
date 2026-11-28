@@ -5,6 +5,7 @@ import {
     isAdminAuthConfigured,
     isSecureRequest,
     isValidAdminAuthRequest,
+    revokeAdminSessionFromRequest,
     verifyAdminLoginPassword,
     isBypassAllowed,
 } from '../adminAuthGuard.js';
@@ -46,6 +47,7 @@ export default async function handler(req: any, res: any) {
 
     if (action === 'logout') {
         clearSensitiveBody();
+        revokeAdminSessionFromRequest(req);
         res.setHeader('Set-Cookie', buildClearedAdminSessionCookie(secure));
         return res.status(200).json({ ok: true, authenticated: false });
     }

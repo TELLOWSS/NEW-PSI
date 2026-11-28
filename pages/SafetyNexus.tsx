@@ -523,11 +523,18 @@ const SafetyNexus: React.FC<Props> = ({
     if (paused || reduced) return;
     let vx = dragStateRef.current.vx;
     let vy = dragStateRef.current.vy;
+    if (inertiaRafRef.current) {
+      cancelAnimationFrame(inertiaRafRef.current);
+      inertiaRafRef.current = 0;
+    }
     if (Math.hypot(vx, vy) < 0.002) return;
     const stepInertia = () => {
       vx *= 0.91;
       vy *= 0.91;
-      if (Math.hypot(vx, vy) < 0.0005) return;
+      if (Math.hypot(vx, vy) < 0.0005) {
+        inertiaRafRef.current = 0;
+        return;
+      }
       setSphereAngles(prev => ({
         yaw: normalizeAngleRad(prev.yaw + vx),
         pitch: Math.max(-0.78, Math.min(0.78, prev.pitch + vy)),
@@ -536,6 +543,15 @@ const SafetyNexus: React.FC<Props> = ({
     };
     inertiaRafRef.current = requestAnimationFrame(stepInertia);
   };
+
+  useEffect(() => {
+    return () => {
+      if (inertiaRafRef.current) {
+        cancelAnimationFrame(inertiaRafRef.current);
+        inertiaRafRef.current = 0;
+      }
+    };
+  }, []);
 
   const [filterMonth, setFilterMonth] = useState(initialView?.month ?? '');
   const [filterTrade, setFilterTrade] = useState(initialView?.trade ?? initialTrade);
@@ -673,14 +689,31 @@ const SafetyNexus: React.FC<Props> = ({
     window.addEventListener(NEXUS_EQUIPMENT_PHOTO_UPDATED_EVENT, syncEquipment);
     window.addEventListener(NEXUS_SITE_MASTER_UPDATED_EVENT, syncSiteMaster);
     window.addEventListener(NEXUS_OFFLINE_QUEUE_UPDATED_EVENT, syncOffline);
+    const handleStorageChange = (event: StorageEvent) => {
+      const key = event.key;
+      if (key === null) {
+        syncPipeline();
+        syncTraining();
+        syncHqLoop();
+        syncEquipment();
+        syncSiteMaster();
+        syncOffline();
+        return;
+      }
+      if (key === 'psi_nexus_structural_pipeline_v1') syncPipeline();
+      else if (key === 'psi_nexus_ceo_training_campaigns_v1') syncTraining();
+      else if (
+        key === 'psi_nexus_hq_visit_plans_v1' ||
+        key === 'psi_nexus_ai_investigations_v1' ||
+        key === 'psi_nexus_approved_custom_seeds_v1'
+      ) syncHqLoop();
+      else if (key === 'psi_nexus_equipment_photo_reports_v1') syncEquipment();
+      else if (key === 'psi_nexus_site_master_v1') syncSiteMaster();
+      else if (key === 'psi_nexus_offline_sync_queue_v1') syncOffline();
+    };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    window.addEventListener('storage', syncPipeline);
-    window.addEventListener('storage', syncTraining);
-    window.addEventListener('storage', syncHqLoop);
-    window.addEventListener('storage', syncEquipment);
-    window.addEventListener('storage', syncSiteMaster);
-    window.addEventListener('storage', syncOffline);
+    window.addEventListener('storage', handleStorageChange);
     return () => {
       window.removeEventListener(NEXUS_PIPELINE_UPDATED_EVENT, syncPipeline);
       window.removeEventListener(NEXUS_CEO_TRAINING_UPDATED_EVENT, syncTraining);
@@ -690,12 +723,7 @@ const SafetyNexus: React.FC<Props> = ({
       window.removeEventListener(NEXUS_OFFLINE_QUEUE_UPDATED_EVENT, syncOffline);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      window.removeEventListener('storage', syncPipeline);
-      window.removeEventListener('storage', syncTraining);
-      window.removeEventListener('storage', syncHqLoop);
-      window.removeEventListener('storage', syncEquipment);
-      window.removeEventListener('storage', syncSiteMaster);
-      window.removeEventListener('storage', syncOffline);
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, [assignedFieldSiteId, lockedSiteId]);
   useEffect(() => { onViewChange?.({ month: filterMonth, trade: filterTrade, active: safeActive, flat, question: selectedQuestion, priority: priorityFilter, practice: practiceFilter, orbitLayer }); }, [filterMonth, filterTrade, safeActive, flat, selectedQuestion, priorityFilter, practiceFilter, orbitLayer, onViewChange]);

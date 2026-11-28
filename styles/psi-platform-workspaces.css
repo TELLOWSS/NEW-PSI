@@ -108,7 +108,7 @@ html.dark .psi-platform-field-canvas [data-education-return="hero"] >div:first-c
   color:#d2ece5;
   font-size:12px;
 }
-.psi-platform-field-canvas [data-education-return="three-step-flow"] .lg\\:block {
+.psi-platform-field-canvas [data-education-return="three-step-flow"] .lg\:block {
   color:#c7e6de;
 }
 .psi-platform-field-canvas [data-education-return="practice-verification"] {

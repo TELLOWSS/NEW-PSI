@@ -781,16 +781,12 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [], onResetAllData 
             return;
         }
         if (confirm("⚠️ 경고: 모든 데이터가 삭제됩니다 (근로자 기록, 점검 일지 등).\n분석 서비스 연결 정보는 유지됩니다.\n\n정말 초기화 하시겠습니까?")) {
-            localStorage.removeItem('psi_safety_checks');
-            localStorage.removeItem('psi_site_issues');
-            localStorage.removeItem('psi_accident_bigdata_v1');
-            localStorage.removeItem('psi_tbm_education_studio_v2');
-            localStorage.removeItem('psi_tbm_monthly_education_package_v1');
-            if (typeof indexedDB !== 'undefined') {
-                indexedDB.deleteDatabase('PSI_Enterprise_V4');
-            }
-            alert("저장된 데이터를 초기화했습니다.\n페이지를 새로고침합니다.");
-            window.location.reload();
+            void import('../utils/storageRegistry')
+                .then(({ purgeAllRegisteredAppStorage }) => purgeAllRegisteredAppStorage())
+                .finally(() => {
+                    alert("저장된 데이터를 초기화했습니다.\n페이지를 새로고침합니다.");
+                    window.location.reload();
+                });
         }
     };
 

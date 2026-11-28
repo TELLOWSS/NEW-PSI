@@ -13,30 +13,15 @@
  *   { ok: true, action: string, data: { ... } }
  */
 
-import { createClient } from '@supabase/supabase-js';
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../adminAuthGuard.js';
+import { createSupabaseServerClient } from '../supabaseServer.js';
 import {
     PSI_WORKER_JOB_FIELDS as ALLOWED_JOB_FIELDS,
     PSI_WORKER_JOB_FIELD_ALIASES as JOB_FIELD_ALIASES,
 } from '../../../config/psiFormMaster.js';
 
-const createAdminClient = () => createClient(
-    process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SERVICE_KEY ||
-    process.env.SERVICE_ROLE_KEY ||
-    process.env.VITE_SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-    {
-        global: {
-            headers: process.env.PSI_ADMIN_SECRET
-                ? { 'x-psi-admin-secret': process.env.PSI_ADMIN_SECRET || '' }
-                : {},
-        },
-    }
-);
-let cachedSupabase: ReturnType<typeof createAdminClient> | undefined;
-const getSupabase = () => cachedSupabase ??= createAdminClient();
+let cachedSupabase: ReturnType<typeof createSupabaseServerClient> | undefined;
+const getSupabase = () => cachedSupabase ??= createSupabaseServerClient();
 
 // -----------------------------------------------------------------------
 // 프리셋 상수
@@ -333,16 +318,13 @@ async function handleRecordUnsafeBehavior(payload: any): Promise<any> {
     for (const { worker_id, assessment_month } of flaggedWorkerMonths) {
         await getSupabase()
             .from('worker_integrity_reviews')
-            .upsert(
-                {
-                    worker_id,
-                    assessment_month,
-                    integrity_status: '검증보류',
-                    integrity_reason_codes: ['COACHING_MISSING'],
-                    updated_at: new Date().toISOString(),
-                },
-                { onConflict: 'worker_id,assessment_month', ignoreDuplicates: false }
-            )
+            .update({
+                integrity_status: '검증보류',
+                integrity_reason_codes: ['COACHING_MISSING'],
+                updated_at: new Date().toISOString(),
+            })
+            .eq('worker_id', worker_id)
+            .eq('assessment_month', assessment_month)
             .eq('integrity_status', '확정');
     }
 
@@ -519,16 +501,13 @@ async function handleRecordSafetyClosureLoop(payload: any): Promise<any> {
     for (const { worker_id, assessment_month } of flaggedWorkerMonths) {
         await getSupabase()
             .from('worker_integrity_reviews')
-            .upsert(
-                {
-                    worker_id,
-                    assessment_month,
-                    integrity_status: '검증보류',
-                    integrity_reason_codes: ['COACHING_MISSING'],
-                    updated_at: nowIso,
-                },
-                { onConflict: 'worker_id,assessment_month', ignoreDuplicates: false }
-            )
+            .update({
+                integrity_status: '검증보류',
+                integrity_reason_codes: ['COACHING_MISSING'],
+                updated_at: nowIso,
+            })
+            .eq('worker_id', worker_id)
+            .eq('assessment_month', assessment_month)
             .eq('integrity_status', '확정');
     }
 
@@ -587,7 +566,7 @@ async function handleEvaluateWorkerIntegrity(payload: any): Promise<any> {
     const [trainingRes, observationsRes, coachingRes, threeMonthObsRes] = await Promise.all([
         getSupabase()
             .from('training_logs')
-            .select('worker_id, created_at, signature_data, signature_method, selected_language_code, assessment_month')
+            .select('worker_id, session_id, created_at, signature_data, signature_method, selected_language_code, assessment_month')
             .in('worker_id', worker_ids)
             .eq('assessment_month', assessment_month),
 
@@ -616,6 +595,26 @@ async function handleEvaluateWorkerIntegrity(payload: any): Promise<any> {
     (trainingRes.data || []).forEach((row: any) => {
         if (!trainingMap.has(row.worker_id)) trainingMap.set(row.worker_id, row);
     });
+
+    const sessionIds = Array.from(
+        new Set(
+            Array.from(trainingMap.values())
+                .map((row: any) => String(row?.session_id || '').trim())
+                .filter(Boolean),
+        ),
+    );
+    const sessionCreatedAtMap = new Map<string, string>();
+    if (sessionIds.length > 0) {
+        const { data: sessionRows } = await getSupabase()
+            .from('training_sessions')
+            .select('id, created_at')
+            .in('id', sessionIds);
+        for (const row of sessionRows || []) {
+            const sid = String((row as any)?.id || '').trim();
+            const createdAt = String((row as any)?.created_at || '').trim();
+            if (sid && createdAt) sessionCreatedAtMap.set(sid, createdAt);
+        }
+    }
 
     const observationMap = new Map();
     (observationsRes.data || []).forEach((row: any) => {
@@ -652,7 +651,9 @@ async function handleEvaluateWorkerIntegrity(payload: any): Promise<any> {
         const coachingCompleted = coachings.filter((c: any) => c.followup_result === '개선됨');
         const coachingPending = coachings.filter((c: any) => !c.followup_result || c.followup_result === '확인중');
 
-        const timelineIsValid = checkTimeline(training?.created_at || null, training?.created_at || null);
+        const sessionId = String(training?.session_id || '').trim();
+        const educationCompletedAt = sessionCreatedAtMap.get(sessionId) || training?.created_at || null;
+        const timelineIsValid = checkTimeline(educationCompletedAt, training?.created_at || null);
         const documentScore =
             override_document_scores && workerId in override_document_scores
                 ? Number(override_document_scores[workerId])
@@ -872,6 +873,9 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
     let insertedCount = 0;
     let updatedCount = 0;
     let skippedCount = 0;
+    const nowIso = new Date().toISOString();
+    const pendingInserts: Array<Record<string, unknown>> = [];
+    const pendingUpdates = new Map<string, Record<string, unknown>>();
 
     for (const row of normalizedRows) {
         const key = toMatchKey(row.name, row.job_field, row.team_name);
@@ -917,7 +921,6 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
             if (!newHasIdentity || !existingHasIdentity || hasIdentityOverlap(candidates[0], row)) {
                 matched = candidates[0];
             }
-            // else: 신원정보 충돌 → matched 유지 undefined → 아래에서 신규 INSERT
         }
         if (!matched && candidates.length > 1) {
             const rankedCandidate = [...candidates]
@@ -937,51 +940,32 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
         }
 
         if (!matched) {
-            const insertPayload = {
+            const provisionalRow: ExistingWorkerRow & { isPendingInsert?: boolean } = {
+                id: `pending-${pendingInserts.length}`,
+                name: String(row.name || '').trim(),
+                nationality: String(row.nationality || '').trim(),
+                job_field: String(row.job_field || '').trim(),
+                team_name: String(row.team_name || '').trim(),
+                phone_number: normalizePhone(row.phone_number || ''),
+                birth_date: normalizeBirthDate(row.birth_date || ''),
+                passport_number: normalizePassport(row.passport_number || ''),
+                isPendingInsert: true,
+            };
+            pendingInserts.push({
                 ...row,
-                updated_at: new Date().toISOString(),
-            };
+                updated_at: nowIso,
+            });
 
-            const { data: insertedData, error: insertError } = await getSupabase()
-                .from('workers')
-                .insert(insertPayload)
-                .select('id, name, nationality, job_field, team_name, phone_number, birth_date, passport_number')
-                .single();
-
-            if (insertError) {
-                const rawMessage = [insertError.message, (insertError as any).details, (insertError as any).hint]
-                    .filter((item) => Boolean(String(item || '').trim()))
-                    .join(' | ');
-                throw new Error(rawMessage || 'workers insert failed');
+            const nextKey = toMatchKey(provisionalRow.name, provisionalRow.job_field, provisionalRow.team_name);
+            existingByKey.set(nextKey, [...(existingByKey.get(nextKey) || []), provisionalRow]);
+            if (provisionalRow.phone_number) {
+                existingByPhone.set(provisionalRow.phone_number, [...(existingByPhone.get(provisionalRow.phone_number) || []), provisionalRow]);
             }
-
-            insertedCount += 1;
-
-            const insertedRow: ExistingWorkerRow = {
-                id: String(insertedData?.id || '').trim(),
-                name: String(insertedData?.name || row.name).trim(),
-                nationality: String(insertedData?.nationality || row.nationality).trim(),
-                job_field: String(insertedData?.job_field || row.job_field).trim(),
-                team_name: String(insertedData?.team_name || row.team_name).trim(),
-                phone_number: normalizePhone(insertedData?.phone_number || row.phone_number || ''),
-                birth_date: normalizeBirthDate(insertedData?.birth_date || row.birth_date || ''),
-                passport_number: normalizePassport(insertedData?.passport_number || row.passport_number || ''),
-            };
-
-            const nextKey = toMatchKey(insertedRow.name, insertedRow.job_field, insertedRow.team_name);
-            const nextList = existingByKey.get(nextKey) || [];
-            existingByKey.set(nextKey, [...nextList, insertedRow]);
-            if (insertedRow.phone_number) {
-                const nextPhoneList = existingByPhone.get(insertedRow.phone_number) || [];
-                existingByPhone.set(insertedRow.phone_number, [...nextPhoneList, insertedRow]);
+            if (provisionalRow.birth_date) {
+                existingByBirth.set(provisionalRow.birth_date, [...(existingByBirth.get(provisionalRow.birth_date) || []), provisionalRow]);
             }
-            if (insertedRow.birth_date) {
-                const nextBirthList = existingByBirth.get(insertedRow.birth_date) || [];
-                existingByBirth.set(insertedRow.birth_date, [...nextBirthList, insertedRow]);
-            }
-            if (insertedRow.passport_number) {
-                const nextPassportList = existingByPassport.get(insertedRow.passport_number) || [];
-                existingByPassport.set(insertedRow.passport_number, [...nextPassportList, insertedRow]);
+            if (provisionalRow.passport_number) {
+                existingByPassport.set(provisionalRow.passport_number, [...(existingByPassport.get(provisionalRow.passport_number) || []), provisionalRow]);
             }
             continue;
         }
@@ -991,7 +975,7 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
             phone_number: row.phone_number || matched.phone_number || null,
             birth_date: row.birth_date || matched.birth_date || null,
             passport_number: row.passport_number || matched.passport_number || null,
-            updated_at: new Date().toISOString(),
+            updated_at: nowIso,
         };
 
         const isSameNationality = String(merged.nationality || '') === String(matched.nationality || '');
@@ -1004,23 +988,51 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
             continue;
         }
 
-        const { error: updateError } = await getSupabase()
-            .from('workers')
-            .update(merged)
-            .eq('id', matched.id);
-
-        if (updateError) {
-            const rawMessage = [updateError.message, (updateError as any).details, (updateError as any).hint]
-                .filter((item) => Boolean(String(item || '').trim()))
-                .join(' | ');
-            throw new Error(rawMessage || 'workers update failed');
-        }
-
-        updatedCount += 1;
         matched.nationality = String(merged.nationality || '').trim();
         matched.phone_number = normalizePhone(merged.phone_number || '');
         matched.birth_date = normalizeBirthDate(merged.birth_date || '');
         matched.passport_number = normalizePassport(merged.passport_number || '');
+
+        if ((matched as ExistingWorkerRow & { isPendingInsert?: boolean }).isPendingInsert) {
+            const idx = Number(matched.id.replace('pending-', ''));
+            if (Number.isInteger(idx) && pendingInserts[idx]) {
+                pendingInserts[idx] = { ...pendingInserts[idx], ...merged };
+            }
+        } else {
+            if (!pendingUpdates.has(matched.id)) updatedCount += 1;
+            pendingUpdates.set(matched.id, merged);
+        }
+    }
+
+    for (let index = 0; index < pendingInserts.length; index += 200) {
+        const chunk = pendingInserts.slice(index, index + 200);
+        const { error: insertError } = await getSupabase()
+            .from('workers')
+            .insert(chunk);
+        if (insertError) {
+            const rawMessage = [insertError.message, (insertError as any).details, (insertError as any).hint]
+                .filter((item) => Boolean(String(item || '').trim()))
+                .join(' | ');
+            throw new Error(rawMessage || 'workers bulk insert failed');
+        }
+        insertedCount += chunk.length;
+    }
+
+    const updateEntries = Array.from(pendingUpdates.entries());
+    for (let index = 0; index < updateEntries.length; index += 20) {
+        const chunk = updateEntries.slice(index, index + 20);
+        await Promise.all(chunk.map(async ([id, payload]) => {
+            const { error: updateError } = await getSupabase()
+                .from('workers')
+                .update(payload)
+                .eq('id', id);
+            if (updateError) {
+                const rawMessage = [updateError.message, (updateError as any).details, (updateError as any).hint]
+                    .filter((item) => Boolean(String(item || '').trim()))
+                    .join(' | ');
+                throw new Error(rawMessage || 'workers update failed');
+            }
+        }));
     }
 
     return {
@@ -2090,9 +2102,11 @@ async function handleFlushAudioStorage(payload: any): Promise<any> {
         removedFileCount += chunk.length;
     }
 
+    const failedSessionIdSet = new Set(failedSessionIds);
+    const resettableSessionIds = uniqueSessionIds.filter((sessionId) => !failedSessionIdSet.has(sessionId));
     let updatedSessionCount = 0;
-    for (let index = 0; index < uniqueSessionIds.length; index += 200) {
-        const chunkSessionIds = uniqueSessionIds.slice(index, index + 200);
+    for (let index = 0; index < resettableSessionIds.length; index += 200) {
+        const chunkSessionIds = resettableSessionIds.slice(index, index + 200);
         if (chunkSessionIds.length === 0) continue;
 
         const { error: updateError } = await getSupabase()

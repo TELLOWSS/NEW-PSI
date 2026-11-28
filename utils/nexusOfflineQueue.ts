@@ -88,16 +88,36 @@ export const readNexusOfflineQueue = (): NexusOfflineMutationEntry[] => {
   }
 };
 
-export const writeNexusOfflineQueue = (entries: readonly NexusOfflineMutationEntry[]): void => {
+let flushInFlightPromise: Promise<{
+  flushedCount: number;
+  failedCount: number;
+  remainingPendingCount: number;
+  queue: NexusOfflineMutationEntry[];
+}> | null = null;
+
+export const writeNexusOfflineQueue = (entries: readonly NexusOfflineMutationEntry[]): boolean => {
+  const truncated = entries.length > 200;
   memoryOfflineQueue = [...entries].slice(0, 200);
+  if (truncated && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    window.dispatchEvent(new CustomEvent('psi-nexus-offline-queue-quota', { detail: { truncated: true, kept: 200 } }));
+  }
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
       window.localStorage.setItem(NEXUS_OFFLINE_QUEUE_STORAGE_KEY, JSON.stringify(memoryOfflineQueue));
       emitOfflineQueueUpdated();
-    } catch {
-      // Ignore quota errors in constrained underground mobile browsers
+      return true;
+    } catch (error) {
+      if (typeof window.dispatchEvent === 'function') {
+        window.dispatchEvent(
+          new CustomEvent('psi-nexus-offline-queue-quota', {
+            detail: { error: error instanceof Error ? error.message : 'QuotaExceededError' },
+          }),
+        );
+      }
+      return false;
     }
   }
+  return true;
 };
 
 export const enqueueNexusOfflineMutation = (
@@ -148,7 +168,7 @@ export const resetNexusOfflineQueue = (): void => {
   }
 };
 
-export const flushNexusOfflineQueue = async (
+const executeFlushNexusOfflineQueue = async (
   sender: (entry: NexusOfflineMutationEntry) => Promise<void>,
   nowIso = new Date().toISOString(),
 ): Promise<{
@@ -167,44 +187,71 @@ export const flushNexusOfflineQueue = async (
     };
   }
 
-  const current = readNexusOfflineQueue();
+  const candidateIds = readNexusOfflineQueue()
+    .filter(item => item.status !== 'synced' && item.status !== 'conflict')
+    .map(item => item.queueId);
   let flushedCount = 0;
   let failedCount = 0;
-  const updated: NexusOfflineMutationEntry[] = [];
 
-  for (const item of current) {
-    if (item.status === 'synced' || item.status === 'conflict') {
-      updated.push(item);
+  for (const queueId of candidateIds) {
+    const latestSnapshot = readNexusOfflineQueue();
+    const item = latestSnapshot.find(entry => entry.queueId === queueId);
+    if (!item || item.status === 'synced' || item.status === 'conflict') {
       continue;
     }
+
+    let nextPatch: NexusOfflineMutationEntry;
     try {
       await sender(item);
       flushedCount++;
-      updated.push({
+      nextPatch = {
         ...item,
         status: 'synced',
         syncedAt: nowIso,
         attempts: item.attempts + 1,
         lastError: undefined,
-      });
+      };
     } catch (error) {
       failedCount++;
-      updated.push({
+      nextPatch = {
         ...item,
         status: 'failed',
         attempts: item.attempts + 1,
         lastError: error instanceof Error ? error.message : '동기화 오류',
-      });
+      };
     }
+
+    // Re-read current queue after await so items enqueued concurrently are never clobbered
+    const currentAfterAwait = readNexusOfflineQueue();
+    const merged = currentAfterAwait.map(entry => (entry.queueId === queueId ? nextPatch : entry));
+    writeNexusOfflineQueue(merged);
   }
 
-  writeNexusOfflineQueue(updated);
+  const finalQueue = readNexusOfflineQueue();
   return {
     flushedCount,
     failedCount,
-    remainingPendingCount: updated.filter(i => i.status !== 'synced').length,
-    queue: updated,
+    remainingPendingCount: finalQueue.filter(i => i.status !== 'synced').length,
+    queue: finalQueue,
   };
+};
+
+export const flushNexusOfflineQueue = async (
+  sender: (entry: NexusOfflineMutationEntry) => Promise<void>,
+  nowIso = new Date().toISOString(),
+): Promise<{
+  flushedCount: number;
+  failedCount: number;
+  remainingPendingCount: number;
+  queue: NexusOfflineMutationEntry[];
+}> => {
+  if (flushInFlightPromise) {
+    return flushInFlightPromise;
+  }
+  flushInFlightPromise = executeFlushNexusOfflineQueue(sender, nowIso).finally(() => {
+    flushInFlightPromise = null;
+  });
+  return flushInFlightPromise;
 };
 
 export const detectOfflineSyncConflicts = (

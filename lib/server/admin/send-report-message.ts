@@ -2,8 +2,9 @@ import { randomUUID } from 'crypto';
 import { unlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { createClient } from '@supabase/supabase-js';
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../adminAuthGuard.js';
+import { consumeApiQuota, resolveRequestFingerprint } from '../apiSecurity.js';
+import { createSupabaseServerClient } from '../supabaseServer.js';
 
 const MAX_REPORT_IMAGES = 2;
 const MAX_MMS_IMAGE_BYTES = 200 * 1024;
@@ -15,23 +16,8 @@ type ReportImagePayload = {
     pageLabel?: string;
 };
 
-const createAdminClient = () => createClient(
-    process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SERVICE_KEY ||
-    process.env.SERVICE_ROLE_KEY ||
-    process.env.VITE_SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-    {
-        global: {
-            headers: process.env.PSI_ADMIN_SECRET
-                ? { 'x-psi-admin-secret': process.env.PSI_ADMIN_SECRET || '' }
-                : {},
-        },
-    },
-);
-let cachedSupabase: ReturnType<typeof createAdminClient> | undefined;
-const getSupabase = () => cachedSupabase ??= createAdminClient();
+let cachedSupabase: ReturnType<typeof createSupabaseServerClient> | undefined;
+const getSupabase = () => cachedSupabase ??= createSupabaseServerClient();
 
 const normalizePhone = (value: unknown) => String(value || '').replace(/\D/g, '');
 const normalizeWorkerUuid = (value: unknown) => String(value || '').trim();
@@ -114,21 +100,36 @@ async function persistPhoneNumber(workerUuid: string, workerName: string, teamNa
     }
 
     try {
-        let query = getSupabase()
-            .from('workers')
-            .update({ phone_number: phoneNumber });
-
-        if (workerUuid) {
-            query = query.eq('id', workerUuid);
-        } else if (workerName && teamName) {
-            query = query.eq('name', workerName).eq('team_name', teamName);
-        } else if (workerName) {
-            query = query.eq('name', workerName);
-        } else {
-            return { updated: false, reason: '식별자 없음' };
+        let targetWorkerId = workerUuid;
+        if (!targetWorkerId) {
+            let lookupQuery = getSupabase()
+                .from('workers')
+                .select('id')
+                .eq('name', workerName);
+            if (teamName) {
+                lookupQuery = lookupQuery.eq('team_name', teamName);
+            }
+            const { data: candidates, error: lookupError } = await lookupQuery.limit(2);
+            if (lookupError) {
+                return { updated: false, reason: lookupError.message || 'workers 식별 조회 실패' };
+            }
+            if (!candidates || candidates.length === 0) {
+                return { updated: false, reason: '일치하는 근로자가 없습니다.' };
+            }
+            if (candidates.length > 1) {
+                return { updated: false, reason: '동명이인이 있어 workerUuid 없이 전화번호를 자동 저장하지 않았습니다.' };
+            }
+            targetWorkerId = String((candidates[0] as any).id || '').trim();
+            if (!targetWorkerId) {
+                return { updated: false, reason: '식별자 없음' };
+            }
         }
 
-        const { error, data } = await query.select('id').limit(1);
+        const { error, data } = await getSupabase()
+            .from('workers')
+            .update({ phone_number: phoneNumber })
+            .eq('id', targetWorkerId)
+            .select('id');
 
         if (error) {
             return { updated: false, reason: error.message || 'workers.phone_number 저장 실패' };
@@ -188,6 +189,18 @@ export default async function handler(req: any, res: any) {
 
     if (!isValidAdminAuthRequest(req)) {
         return sendUnauthorizedAdminResponse(res);
+    }
+
+    const quota = await consumeApiQuota(getSupabase(), {
+        scope: 'admin.send-report-message',
+        clientKeyHash: resolveRequestFingerprint(req),
+        maxRequests: Number(process.env.ADMIN_SMS_MAX_PER_MIN || 60),
+        windowSeconds: 60,
+        allowAuthenticatedMemoryFallback: true,
+    });
+    if (!quota.allowed) {
+        if (typeof res.setHeader === 'function') res.setHeader('Retry-After', String(quota.retryAfterSeconds || 60));
+        return res.status(429).json({ ok: false, code: 'RATE_LIMITED', message: '문자 발송 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.' });
     }
 
     const tempFilePaths: string[] = [];

@@ -90,17 +90,33 @@ if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
 
+const BootstrapMountSignal: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  React.useEffect(() => {
+    document.documentElement.dataset.psiMounted = '1';
+    clearPendingFatalTimer();
+  }, []);
+  return <>{children}</>;
+};
+
 const renderFatalBootstrapError = (message: string) => {
   if (isAppMounted()) return;
-  rootElement.innerHTML = `
-    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;">
-      <div style="max-width:680px;width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:20px;box-shadow:0 8px 30px rgba(0,0,0,.06);">
-        <h2 style="margin:0 0 8px;font-size:20px;color:#0f172a;">앱 초기화 오류</h2>
-        <p style="margin:0 0 12px;color:#475569;line-height:1.6;">화면 로딩 중 문제가 발생했습니다. 브라우저 새로고침 후에도 동일하면 운영자에게 아래 메시지를 전달해주세요.</p>
-        <pre style="margin:0;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;padding:12px;overflow:auto;color:#334155;font-size:12px;">${message}</pre>
-      </div>
-    </div>
-  `;
+  rootElement.replaceChildren();
+  const outer = document.createElement('div');
+  outer.setAttribute('style', 'min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;');
+  const card = document.createElement('div');
+  card.setAttribute('style', 'max-width:680px;width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:20px;box-shadow:0 8px 30px rgba(0,0,0,.06);');
+  const heading = document.createElement('h2');
+  heading.setAttribute('style', 'margin:0 0 8px;font-size:20px;color:#0f172a;');
+  heading.textContent = '앱 초기화 오류';
+  const desc = document.createElement('p');
+  desc.setAttribute('style', 'margin:0 0 12px;color:#475569;line-height:1.6;');
+  desc.textContent = '화면 로딩 중 문제가 발생했습니다. 브라우저 새로고침 후에도 동일하면 운영자에게 아래 메시지를 전달해주세요.';
+  const pre = document.createElement('pre');
+  pre.setAttribute('style', 'margin:0;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;padding:12px;overflow:auto;color:#334155;font-size:12px;white-space:pre-wrap;word-break:break-word;');
+  pre.textContent = message;
+  card.append(heading, desc, pre);
+  outer.appendChild(card);
+  rootElement.appendChild(outer);
 };
 
 const scheduleFatalBootstrapError = (message: string) => {
@@ -127,29 +143,30 @@ window.addEventListener('unhandledrejection', (event) => {
   scheduleFatalBootstrapError(msg);
 });
 
+const normalizedPath = window.location.pathname.replace(/\/$/, '') || '/';
 const root = ReactDOM.createRoot(rootElement);
 try {
   root.render(
     <React.StrictMode>
-      {window.location.pathname.replace(/\/$/, '') === '/inspection-reply' ? (<React.Suspense fallback={<p role="status">조치 회신 화면 준비 중…</p>}><InspectorReply/></React.Suspense>) : window.location.pathname.replace(/\/$/, '') === '/product' ? (
+      <BootstrapMountSignal>
+      {normalizedPath === '/inspection-reply' ? (<React.Suspense fallback={<p role="status">조치 회신 화면 준비 중…</p>}><InspectorReply/></React.Suspense>) : normalizedPath === '/product' ? (
         <React.Suspense fallback={<p role="status">NEW-PSI 제품 체험을 준비합니다…</p>}><InspectorProduct/></React.Suspense>
-      ) : window.location.pathname.replace(/\/$/, '') === '/camera' ? (
+      ) : normalizedPath === '/camera' ? (
         <React.Suspense fallback={<p role="status">현장 카메라를 준비합니다…</p>}><FieldCamera/></React.Suspense>
       ) : window.location.pathname.replace(/\/$/, '') === '/inspector' ? (
         <React.Suspense fallback={<p role="status">독립 사진점검 화면을 준비합니다…</p>}><InspectorStandalone/></React.Suspense>
-      ) : window.location.pathname === '/saas/education' ? (
+      ) : normalizedPath === '/saas/education' ? (
         <React.Suspense fallback={<p role="status">개인 교육 화면을 불러오는 중…</p>}><WorkerTenantEducation /></React.Suspense>
-      ) : window.location.pathname === '/saas/access' ? (
+      ) : normalizedPath === '/saas/access' ? (
         <React.Suspense fallback={<p role="status">기업 계정 화면을 불러오는 중…</p>}>
           <TenantAccess />
         </React.Suspense>
       ) : (
       <React.Suspense fallback={<p role="status">안전 운영 화면을 불러오는 중…</p>}><OperationalApp/></React.Suspense>
       )}
+      </BootstrapMountSignal>
     </React.StrictMode>
   );
-  document.documentElement.dataset.psiMounted = '1';
-  clearPendingFatalTimer();
 } catch (error) {
   const msg = error instanceof Error ? error.message : String(error);
   if (tryRuntimeRecoveryReload(msg)) {

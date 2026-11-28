@@ -37,13 +37,29 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
+    const filesRef = useRef<File[]>(files);
+    const isMountedRef = useRef<boolean>(true);
+    const capturedSessionCountRef = useRef<number>(0);
+
+    useEffect(() => {
+        filesRef.current = files;
+    }, [files]);
+
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
 
     const handleFileSelect = useCallback((selectedFiles: FileList | null) => {
+        if (isAnalyzing) return;
         if (selectedFiles && selectedFiles.length > 0) {
             const fileArray = Array.from(selectedFiles);
             const supportedFiles = fileArray.filter(isSupportedOcrFile);
             const uploadableFiles = supportedFiles.filter((file) => file.size <= OCR_MAX_FILE_SIZE_BYTES);
-            const merged = mergeUniqueOcrFiles(files, uploadableFiles);
+            const merged = mergeUniqueOcrFiles(filesRef.current, uploadableFiles);
+            filesRef.current = merged.files;
             onFilesChange(merged.files);
             const messages = [
                 supportedFiles.length !== fileArray.length
@@ -60,17 +76,20 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                 ? messages.join(' · ')
                 : `${merged.addedCount}개 파일을 목록에 추가했습니다.`);
         }
-    }, [files, onFilesChange]);
+    }, [isAnalyzing, onFilesChange]);
 
     const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         e.stopPropagation();
-        setIsDragging(true);
+        if (!isAnalyzing) setIsDragging(true);
     };
 
     const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         e.stopPropagation();
+        if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) {
+            return;
+        }
         setIsDragging(false);
     };
 
@@ -83,6 +102,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         e.preventDefault();
         e.stopPropagation();
         setIsDragging(false);
+        if (isAnalyzing) return;
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
             handleFileSelect(e.dataTransfer.files);
             e.dataTransfer.clearData();
@@ -90,16 +110,33 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     };
 
     const onFileUploadClick = () => {
+        if (isAnalyzing) return;
         fileInputRef.current?.click();
     };
 
+    const stopCamera = useCallback(() => {
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+        }
+        setIsCameraActive(false);
+        capturedSessionCountRef.current = 0;
+        setCapturedSessionCount(0);
+    }, []);
+
     const startCamera = async () => {
+        if (isAnalyzing) return;
+        capturedSessionCountRef.current = 0;
         setCapturedSessionCount(0);
         try {
             // First try to get the back camera
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: 'environment' }
             });
+            if (!isMountedRef.current) {
+                stream.getTracks().forEach(track => track.stop());
+                return;
+            }
             streamRef.current = stream;
             setIsCameraActive(true);
         } catch (err) {
@@ -109,6 +146,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: true
                 });
+                if (!isMountedRef.current) {
+                    stream.getTracks().forEach(track => track.stop());
+                    return;
+                }
                 streamRef.current = stream;
                 setIsCameraActive(true);
             } catch (fallbackErr) {
@@ -119,16 +160,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         }
     };
 
-    const stopCamera = () => {
-        if (streamRef.current) {
-            streamRef.current.getTracks().forEach(track => track.stop());
-            streamRef.current = null;
-        }
-        setIsCameraActive(false);
-        setCapturedSessionCount(0);
-    };
-
     const capturePhoto = () => {
+        if (isAnalyzing) return;
         if (videoRef.current && canvasRef.current) {
             const video = videoRef.current;
             const canvas = canvasRef.current;
@@ -139,20 +172,19 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             if (ctx) {
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 canvas.toBlob((blob) => {
-                    if (blob) {
-                        const file = new File([blob], `camera_capture_${Date.now()}.jpg`, { type: 'image/jpeg' });
-                        const merged = mergeUniqueOcrFiles(files, [file]);
-                        onFilesChange(merged.files);
-                        if (continuousCapture) {
-                            setCapturedSessionCount((prev) => {
-                                const next = prev + 1;
-                                setSelectionMessage(`연속 촬영 ${next}장 추가됨 · 다음 기록지를 맞춰 촬영하거나 완료를 누르세요.`);
-                                return next;
-                            });
-                        } else {
-                            setSelectionMessage('촬영 이미지를 목록에 추가했습니다. 아래 품질 점검 결과를 확인해 주세요.');
-                            stopCamera();
-                        }
+                    if (!blob || !isMountedRef.current) return;
+                    const file = new File([blob], `camera_capture_${Date.now()}.jpg`, { type: 'image/jpeg' });
+                    const merged = mergeUniqueOcrFiles(filesRef.current, [file]);
+                    filesRef.current = merged.files;
+                    onFilesChange(merged.files);
+                    if (continuousCapture) {
+                        const next = capturedSessionCountRef.current + 1;
+                        capturedSessionCountRef.current = next;
+                        setCapturedSessionCount(next);
+                        setSelectionMessage(`연속 촬영 ${next}장 추가됨 · 다음 기록지를 맞춰 촬영하거나 완료를 누르세요.`);
+                    } else {
+                        setSelectionMessage('촬영 이미지를 목록에 추가했습니다. 아래 품질 점검 결과를 확인해 주세요.');
+                        stopCamera();
                     }
                 }, 'image/jpeg', 0.95);
             }
@@ -167,7 +199,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
     useEffect(() => {
         return () => stopCamera();
-    }, []);
+    }, [stopCamera]);
 
     useEffect(() => {
         const urls: Record<string, string> = {};
@@ -190,12 +222,18 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         }
 
         setIsCheckingQuality(true);
-        void assessOcrUploadBatch(files).then((reports) => {
-            if (!active) return;
-            setPreflightReports(reports);
-            onPreflightChange?.(reports);
-            setIsCheckingQuality(false);
-        });
+        void assessOcrUploadBatch(files)
+            .then((reports) => {
+                if (!active) return;
+                setPreflightReports(reports);
+                onPreflightChange?.(reports);
+                setIsCheckingQuality(false);
+            })
+            .catch(() => {
+                if (!active) return;
+                setPreflightReports([]);
+                setIsCheckingQuality(false);
+            });
         return () => { active = false; };
     }, [files, onPreflightChange]);
 
@@ -304,13 +342,13 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                 )}
 
                 <div className="flex flex-col sm:flex-row gap-3 w-full max-w-lg justify-center">
-                    <button type="button" onClick={onFileUploadClick} className="flex-1 min-h-[46px] px-6 py-3 bg-white border border-slate-300 text-slate-800 rounded-xl text-sm font-bold hover:bg-slate-100 transition-colors flex items-center justify-center gap-2 shadow-sm">
+                    <button type="button" onClick={onFileUploadClick} disabled={isAnalyzing} className="flex-1 min-h-[46px] px-6 py-3 bg-white border border-slate-300 text-slate-800 rounded-xl text-sm font-bold hover:bg-slate-100 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 shadow-sm">
                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-600" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
                         </svg>
                         <span>이미지 / PDF 찾기</span>
                     </button>
-                    <button type="button" onClick={startCamera} className="flex-1 min-h-[46px] px-6 py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-all flex items-center justify-center gap-2">
+                    <button type="button" onClick={startCamera} disabled={isAnalyzing} className="flex-1 min-h-[46px] px-6 py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 shadow-md shadow-indigo-200 transition-all flex items-center justify-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
                         </svg>
@@ -327,7 +365,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                         <div>
                             <h3 className="text-sm sm:text-base font-black text-slate-900">분석 전 사진 품질 점검 ({files.length}건)</h3>
-                            <p className="mt-0.5 text-xs font-medium text-slate-600">밝기·흐림·반사 추정은 참고 안내이며 분석을 막지 않습니다. 먼저 분석한 뒤 읽히지 않은 부분만 원본과 대조해 주세요.</p>
+                            <p className="mt-0.5 text-xs font-medium text-slate-600">경고 항목은 분석을 막지 않지만, 다시 촬영 필요(차단) 상태 파일은 재촬영 또는 제거 후 분석을 시작할 수 있습니다.</p>
                         </div>
                         <button
                             type="button"

@@ -38,6 +38,10 @@
       "source": "/(.*)",
       "headers": [
         {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains"
+        },
+        {
           "key": "Content-Security-Policy",
           "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://aistudiocdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src 'self' data: blob: https://flagcdn.com https://www.transparenttextures.com; connect-src 'self' https: wss:; worker-src 'self' blob:; media-src 'self' data: blob:; manifest-src 'self'; upgrade-insecure-requests"
         },
@@ -77,7 +81,7 @@
       ]
     },
     {
-      "source": "/(.*\\.js|.*\\.css|.*\\.woff2?|.*\\.png|.*\\.svg|.*\\.ico)",
+      "source": "/assets/(.*)",
       "headers": [
         {
           "key": "Cache-Control",

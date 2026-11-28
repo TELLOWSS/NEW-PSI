@@ -1,6 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../adminAuthGuard.js';
 import { markSchemaCompatibilityFallback } from '../schemaCompatibility.js';
+import { createSupabaseServerClient } from '../supabaseServer.js';
 
 const ALLOWED_STATUSES = new Set([
     'open',
@@ -21,16 +21,8 @@ const ALLOWED_STAGES = new Set([
 ]);
 
 function getSupabaseClient() {
-    const url = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SERVICE_ROLE_KEY || '';
-    const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-    const adminSecret =  process.env.PSI_ADMIN_SECRET || '';
-    const key = serviceKey || anonKey;
-    if (!url || !key) throw new Error('Supabase 환경변수가 누락되었습니다.');
-    return createClient(url, key, {
-        global: {
-            headers: adminSecret ? { 'x-psi-admin-secret': adminSecret } : {},
-        },
+    return createSupabaseServerClient({
+        errorMessage: 'Supabase 서버 환경변수가 누락되었습니다. SUPABASE_SERVICE_ROLE_KEY를 확인해 주세요.',
     });
 }
 

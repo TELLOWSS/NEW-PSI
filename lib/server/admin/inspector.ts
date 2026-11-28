@@ -88,7 +88,7 @@ export default async function inspector(req: any, res: any) {
         if(body.op === 'global-action-register') {
             keys(body,['before','beforeId']);
             if(body.beforeId!==undefined&&(body.before===undefined||typeof body.beforeId!=='string'||!UUID.test(body.beforeId)))reject(400,'INVALID_CURSOR','조치대장 조회 위치를 확인해 주세요.');
-            if(body.before!==undefined&&(typeof body.before!=='string'||body.before.length>40||!/^(?:\\d{4}-\\d{2}-\\d{2})T[\\d:.]+(?:Z|\\+00:00)$/.test(body.before)||!Number.isFinite(Date.parse(body.before))))reject(400,'INVALID_CURSOR','조치대장 조회 위치를 확인해 주세요.');
+            if(body.before!==undefined&&(typeof body.before!=='string'||body.before.length>40||!/^\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z|\+00:00)$/.test(body.before)||!Number.isFinite(Date.parse(body.before))))reject(400,'INVALID_CURSOR','조치대장 조회 위치를 확인해 주세요.');
             // Explicit administrator-only load, 20 inspection documents per page, no evidence blobs or AI calls.
             let query=db.from('psi_inspector_inspections').select('id,revision,document,created_at,updated_at')
                 .order('created_at',{ascending:false}).order('id',{ascending:false}).limit(21);

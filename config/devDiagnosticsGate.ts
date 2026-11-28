@@ -1,5 +1,6 @@
 const DEV_DIAGNOSTICS_HIDDEN_TOGGLE_KEY = 'psi_dev_diagnostics_hidden_toggle_v1';
 const DEV_DIAGNOSTICS_EXPLICIT_PERMISSION_KEY = 'psi_dev_diagnostics_explicit_permission_v1';
+export const DEV_DIAGNOSTICS_TOGGLE_CHANGED_EVENT = 'psi-dev-diagnostics-toggle-changed';
 
 const normalizeEnvFlag = (value: unknown): boolean => {
     if (typeof value !== 'string') return false;
@@ -27,6 +28,7 @@ export const toggleDevDiagnosticsHiddenToggle = (): boolean => {
     if (typeof window === 'undefined') return false;
     const next = !isDevDiagnosticsHiddenToggleEnabled();
     localStorage.setItem(DEV_DIAGNOSTICS_HIDDEN_TOGGLE_KEY, next ? '1' : '0');
+    window.dispatchEvent(new Event(DEV_DIAGNOSTICS_TOGGLE_CHANGED_EVENT));
     return next;
 };
 

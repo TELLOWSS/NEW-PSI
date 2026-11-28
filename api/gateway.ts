@@ -843,6 +843,19 @@ async function handleTrainingCheckAccess(req: any, res: any) {
     }
 
     const supabase = getSupabaseClient();
+    const fingerprint = resolveRequestFingerprint(req);
+    const quota = await consumeApiQuota(supabase, {
+        scope: 'training.check-access',
+        clientKeyHash: `${fingerprint}:${normalizedSessionId}`,
+        maxRequests: Number(process.env.TRAINING_CHECK_ACCESS_MAX_PER_MIN || 30),
+        windowSeconds: 60,
+        allowAuthenticatedMemoryFallback: true,
+    });
+    if (!quota.allowed) {
+        if (typeof res.setHeader === 'function') res.setHeader('Retry-After', String(quota.retryAfterSeconds || 60));
+        return res.status(429).json({ ok: false, code: 'RATE_LIMITED', message: '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.' });
+    }
+
     await authorizeTrainingWorker(supabase, normalizedSessionId, normalizedWorkerId);
     const blocked = await hasExistingTrainingLog(supabase, {
         sessionId: normalizedSessionId,
@@ -877,6 +890,9 @@ type TrainingSignatureCommitInput = {
     errorContext?: string;
 };
 
+const MAX_TRAINING_SIGNATURE_BYTES = 512 * 1024;
+const PNG_MAGIC_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
 async function persistTrainingSignature(supabase: any, input: TrainingSignatureCommitInput) {
     const match = input.signatureDataUrl.match(/^data:image\/png;base64,(.+)$/);
     if (!match?.[1]) {
@@ -884,6 +900,9 @@ async function persistTrainingSignature(supabase: any, input: TrainingSignatureC
     }
 
     const binary = Buffer.from(match[1], 'base64');
+    if (binary.length < 8 || binary.length > MAX_TRAINING_SIGNATURE_BYTES || !binary.subarray(0, 8).equals(PNG_MAGIC_BYTES)) {
+        throw new Error(`유효한 PNG 서명 이미지(512KB 이하)가 아닙니다${input.errorContext ? `: ${input.errorContext}` : ''}`);
+    }
     const path = buildSignatureStoragePath(input.sessionId, { prefix: input.pathPrefix });
     const signatureEvidenceHash = createHash('sha256').update(binary).digest('hex');
     const upload = await supabase.storage.from('signatures').upload(path, binary, {
@@ -1228,6 +1247,9 @@ async function handleGroupSignatures(payload: any): Promise<any> {
     if (!Array.isArray(signatures) || signatures.length === 0) {
         throw new Error('서명 대상 근로자 목록이 필요합니다.');
     }
+    if (signatures.length > 200) {
+        throw new Error('1회 그룹 서명은 최대 200건까지 처리할 수 있습니다.');
+    }
 
     const normalizedSignatures: Array<{ workerId: string; signatureDataUrl: string }> = signatures
         .filter((item: unknown) => item && typeof item === 'object')
@@ -1337,6 +1359,21 @@ async function handleTrainingSubmit(req: any, res: any) {
         ? payload as Record<string, unknown>
         : {};
     const authorization = resolveTrainingSubmissionAuthorization(req, String(type), normalizedPayload);
+
+    const supabase = getSupabaseClient();
+    const fingerprint = resolveRequestFingerprint(req);
+    const submitQuota = await consumeApiQuota(supabase, {
+        scope: 'training.submit',
+        clientKeyHash: fingerprint,
+        maxRequests: Number(process.env.TRAINING_SUBMIT_MAX_PER_MIN || 20),
+        windowSeconds: 60,
+        allowAuthenticatedMemoryFallback: true,
+    });
+    if (!submitQuota.allowed) {
+        if (typeof res.setHeader === 'function') res.setHeader('Retry-After', String(submitQuota.retryAfterSeconds || 60));
+        return res.status(429).json({ ok: false, code: 'RATE_LIMITED', message: '서명 제출 요청이 많습니다. 잠시 후 다시 시도해 주세요.' });
+    }
+
     let data;
 
     switch (type) {
@@ -1839,12 +1876,29 @@ async function analyzeSingleRecord(
         mimeType,
     );
 
+    const overallDeadlineMs = Date.now() + 210_000;
+
     for (let modelIndex = 0; modelIndex < activeModelChain.length; modelIndex++) {
+        const remainingBudgetMs = overallDeadlineMs - Date.now();
+        if (remainingBudgetMs < 5_000) {
+            const budgetExceededError = createGatewayHttpError(
+                '전체 OCR 요청 제한시간(210초)에 도달하여 후속 모델 재시도를 중단했습니다. 잠시 후 해당 문서만 다시 시도해 주세요.',
+                504,
+                'OCR_TIMEOUT',
+            );
+            lastError = budgetExceededError;
+            if (bestParsed) {
+                parsed = bestParsed;
+                break;
+            }
+            throw withFailureTrace(budgetExceededError);
+        }
         const model = activeModelChain[modelIndex];
         modelsAttempted.push(model);
         fallbackDepth = Math.max(fallbackDepth, modelIndex);
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), OCR_RETRY_TIMEOUT_MS);
+        const attemptTimeoutMs = Math.min(OCR_RETRY_TIMEOUT_MS, remainingBudgetMs);
+        const timeout = setTimeout(() => controller.abort(), attemptTimeoutMs);
 
         try {
             // countTokens로 이미지/PDF까지 포함한 실제 입력량을 확인한 뒤 모든 공급자 호출을 fail-closed 한다.
@@ -2651,7 +2705,19 @@ export default async function handler(req: any, res: any) {
             case 'training.material': {
                 res.setHeader('Cache-Control', 'private, no-store');
                 const access = verifyTrainingMaterialAccess(req.body);
-                const session = await readTrainingMaterial(getSupabaseClient(), access);
+                const materialClient = getSupabaseClient();
+                const materialQuota = await consumeApiQuota(materialClient, {
+                    scope: 'training.material',
+                    clientKeyHash: resolveRequestFingerprint(req),
+                    maxRequests: Number(process.env.TRAINING_MATERIAL_MAX_PER_MIN || 30),
+                    windowSeconds: 60,
+                    allowAuthenticatedMemoryFallback: true,
+                });
+                if (!materialQuota.allowed) {
+                    res.setHeader('Retry-After', String(materialQuota.retryAfterSeconds || 60));
+                    return res.status(429).json({ ok: false, code: 'RATE_LIMITED', message: '교육 자료 요청이 많습니다. 잠시 후 다시 시도해 주세요.' });
+                }
+                const session = await readTrainingMaterial(materialClient, access);
                 return res.status(200).json({ ok: true, data: session, audioExpiresAt: access.expiresAt });
             }
             case 'training.check-access':

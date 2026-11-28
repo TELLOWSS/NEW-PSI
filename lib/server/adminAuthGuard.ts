@@ -1,11 +1,19 @@
-import { createHmac, timingSafeEqual } from 'crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 
 const ADMIN_SESSION_COOKIE = 'psi_admin_session';
 const ADMIN_SESSION_TTL_SECONDS = 8 * 60 * 60;
+const revokedSessionTokens = new Map<string, number>();
 
 type AdminSessionPayload = {
     exp: number;
     iat: number;
+    jti?: string;
+};
+
+const pruneRevokedSessions = (nowSec: number) => {
+    for (const [jti, exp] of revokedSessionTokens.entries()) {
+        if (exp <= nowSec) revokedSessionTokens.delete(jti);
+    }
 };
 
 const readSecret = (name: string): string => String(process.env[name] || '').trim();
@@ -74,7 +82,7 @@ export const createAdminSessionToken = (): string => {
     if (!secret) throw new Error('ADMIN_SESSION_SECRET is not configured.');
 
     const now = Math.floor(Date.now() / 1000);
-    const payload: AdminSessionPayload = { iat: now, exp: now + ADMIN_SESSION_TTL_SECONDS };
+    const payload: AdminSessionPayload = { iat: now, exp: now + ADMIN_SESSION_TTL_SECONDS, jti: randomUUID() };
     const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
     return `${encodedPayload}.${signValue(encodedPayload, secret)}`;
 };
@@ -93,12 +101,34 @@ const isValidSessionToken = (token: string): boolean => {
     try {
         const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8')) as AdminSessionPayload;
         const now = Math.floor(Date.now() / 1000);
+        pruneRevokedSessions(now);
+        if (payload.jti && revokedSessionTokens.has(payload.jti)) {
+            return false;
+        }
         return Number.isInteger(payload.exp) && Number.isInteger(payload.iat)
             && payload.exp > now && payload.iat <= now + 60
             && payload.iat >= 0 && payload.exp > payload.iat
             && payload.exp - payload.iat <= ADMIN_SESSION_TTL_SECONDS;
     } catch {
         return false;
+    }
+};
+
+export const revokeAdminSessionFromRequest = (req: any): void => {
+    const secret = getSessionSecret();
+    if (!secret) return;
+    const cookieToken = parseCookies(req)[ADMIN_SESSION_COOKIE] || '';
+    const parts = cookieToken.split('.');
+    if (parts.length !== 2 || !parts[0] || !parts[1]) return;
+    if (!safeEqual(parts[1], signValue(parts[0], secret))) return;
+    try {
+        const payload = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8')) as AdminSessionPayload;
+        if (payload.jti && Number.isInteger(payload.exp)) {
+            pruneRevokedSessions(Math.floor(Date.now() / 1000));
+            revokedSessionTokens.set(payload.jti, payload.exp);
+        }
+    } catch {
+        // Ignore malformed token during logout
     }
 };
 

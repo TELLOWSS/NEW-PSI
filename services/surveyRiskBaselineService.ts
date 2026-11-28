@@ -146,8 +146,35 @@ const createLocalHistoryEntry = (
     changedAt: new Date().toISOString(),
 });
 
+const SURVEY_RISK_BASELINES_PENDING_KEY = 'psi_survey_risk_baselines_pending_v1';
+
+const readPendingBaselineKeys = (): Set<string> => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+        const raw = window.localStorage.getItem(SURVEY_RISK_BASELINES_PENDING_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? new Set(parsed.map((item) => String(item || ''))) : new Set();
+    } catch {
+        return new Set();
+    }
+};
+
+const writePendingBaselineKeys = (keys: Set<string>) => {
+    if (typeof window === 'undefined') return;
+    try {
+        if (keys.size === 0) {
+            window.localStorage.removeItem(SURVEY_RISK_BASELINES_PENDING_KEY);
+        } else {
+            window.localStorage.setItem(SURVEY_RISK_BASELINES_PENDING_KEY, JSON.stringify(Array.from(keys)));
+        }
+    } catch {
+        // Ignore storage errors
+    }
+};
+
 export const loadSurveyRiskBaselines = async (): Promise<SurveyRiskBaselineLoadResult> => {
     const localBaselines = readManagerRiskBaselines();
+    const pendingKeys = readPendingBaselineKeys();
 
     try {
         const response = await postAdminJson<SurveyRiskBaselineApiResponse>(
@@ -172,6 +199,15 @@ export const loadSurveyRiskBaselines = async (): Promise<SurveyRiskBaselineLoadR
                 if (!baseline.basis && localBasis) baseline.basis = localBasis;
             });
         }
+        // Preserve newer or unsynced local edits instead of silently clobbering them with stale server snapshots
+        pendingKeys.forEach((key) => {
+            const local = localBaselines[key];
+            if (!local) return;
+            const remote = baselines[key];
+            if (!remote || String(local.updatedAt || '') >= String(remote.updatedAt || '')) {
+                baselines[key] = local;
+            }
+        });
         writeManagerRiskBaselines(baselines);
         return {
             baselines,
@@ -243,6 +279,11 @@ export const persistSurveyRiskBaseline = async (
         createLocalHistoryEntry(baseline, previousLevel, baseline.level, basis, 'upsert'),
     ]);
 
+    const baselineKey = `${baseline.monthKey}::${baseline.trade}`;
+    const pendingKeys = readPendingBaselineKeys();
+    pendingKeys.add(baselineKey);
+    writePendingBaselineKeys(pendingKeys);
+
     try {
         const response = await postAdminJson<SurveyRiskBaselineApiResponse>(
             '/api/admin/survey-risk-baselines',
@@ -266,6 +307,9 @@ export const persistSurveyRiskBaseline = async (
                 warning: '공유 DB 스키마가 아직 적용되지 않아 이 브라우저에만 저장되었습니다.',
             };
         }
+        const remainingPending = readPendingBaselineKeys();
+        remainingPending.delete(baselineKey);
+        writePendingBaselineKeys(remainingPending);
         return {
             mode: 'shared-db',
             historyAvailable: response.historyAvailable,

@@ -205,9 +205,9 @@ interface IntegrityRow {
 // 상수 / 프리셋
 // ─────────────────────────────────────────────────────────────────────────────
 const COMPLIANCE_META: Record<ComplianceStatus, { label: string; activeClass: string; dotClass: string }> = {
-    'compliant':     { label: '이행',    activeClass: 'bg-emerald-500 text-white border-emerald-500', dotClass: 'bg-emerald-500' },
-    'partial':       { label: '부분이행', activeClass: 'bg-amber-400 text-white border-amber-400',   dotClass: 'bg-amber-400' },
-    'non-compliant': { label: '미이행',  activeClass: 'bg-rose-500 text-white border-rose-500',      dotClass: 'bg-rose-500' },
+    'compliant': { label: '이행', activeClass: 'bg-emerald-500 text-white border-emerald-500', dotClass: 'bg-emerald-500' },
+    'partial': { label: '부분이행', activeClass: 'bg-amber-400 text-white border-amber-400', dotClass: 'bg-amber-400' },
+    'non-compliant': { label: '미이행', activeClass: 'bg-rose-500 text-white border-rose-500', dotClass: 'bg-rose-500' },
 };
 
 // 공종별 위험성평가 기본 체크리스트 항목
@@ -234,9 +234,9 @@ const BEHAVIOR_PRESETS = [
 ] as const;
 
 const SEVERITY_PRESETS = [
-    { value: '낮음',   color: 'bg-blue-100 text-blue-700 border-blue-200' },
-    { value: '보통',   color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-    { value: '높음',   color: 'bg-orange-100 text-orange-700 border-orange-200' },
+    { value: '낮음', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+    { value: '보통', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+    { value: '높음', color: 'bg-orange-100 text-orange-700 border-orange-200' },
     { value: '즉시조치', color: 'bg-red-100 text-red-700 border-red-200' },
 ] as const;
 
@@ -248,13 +248,13 @@ const COACHING_PRESETS = [
 const FOLLOWUP_PRESETS = [
     { value: '개선됨', label: '개선됨', color: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
     { value: '확인중', label: '확인중', color: 'text-amber-700 bg-amber-50 border-amber-200' },
-    { value: '재발',   label: '재발',   color: 'text-red-700 bg-red-50 border-red-200' },
+    { value: '재발', label: '재발', color: 'text-red-700 bg-red-50 border-red-200' },
 ] as const;
 
 const VIOLATION_SOURCES: { value: ViolationSource; label: string; badgeClass: string }[] = [
-    { value: 'self',               label: '자체 점검',    badgeClass: 'bg-slate-100 text-slate-700' },
-    { value: 'general-contractor', label: '원도급사',     badgeClass: 'bg-blue-100 text-blue-700' },
-    { value: 'external',           label: '외부감찰',     badgeClass: 'bg-red-100 text-red-700' },
+    { value: 'self', label: '자체 점검', badgeClass: 'bg-slate-100 text-slate-700' },
+    { value: 'general-contractor', label: '원도급사', badgeClass: 'bg-blue-100 text-blue-700' },
+    { value: 'external', label: '외부감찰', badgeClass: 'bg-red-100 text-red-700' },
 ];
 
 const EXTERNAL_AUTHORITIES = ['고용노동부', '발주처', '소방서', '환경부', '건설안전감독부', '기타'];
@@ -265,9 +265,9 @@ const VIOLATION_CATEGORIES = [
 ];
 
 const VIOLATION_STATUS_META: Record<ViolationStatus, { label: string; badgeClass: string }> = {
-    'open':        { label: VIOLATION_BRAND_LABELS.open,  badgeClass: 'bg-rose-100 text-rose-700' },
-    'in-progress': { label: VIOLATION_BRAND_LABELS['in-progress'],  badgeClass: 'bg-amber-100 text-amber-700' },
-    'resolved':    { label: VIOLATION_BRAND_LABELS.resolved, badgeClass: 'bg-emerald-100 text-emerald-700' },
+    'open': { label: VIOLATION_BRAND_LABELS.open, badgeClass: 'bg-rose-100 text-rose-700' },
+    'in-progress': { label: VIOLATION_BRAND_LABELS['in-progress'], badgeClass: 'bg-amber-100 text-amber-700' },
+    'resolved': { label: VIOLATION_BRAND_LABELS.resolved, badgeClass: 'bg-emerald-100 text-emerald-700' },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -307,9 +307,9 @@ function reasonCodeToKo(code: string): string {
 }
 
 function tlConfig(light: TrafficLight) {
-    if (light === 'green')  return { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500', label: TRAFFIC_LIGHT_BRAND_LABELS.green };
-    if (light === 'yellow') return { bg: 'bg-amber-100',   text: 'text-amber-700',   border: 'border-amber-200',   dot: 'bg-amber-400',   label: TRAFFIC_LIGHT_BRAND_LABELS.yellow };
-    return                         { bg: 'bg-red-100',     text: 'text-red-700',     border: 'border-red-200',     dot: 'bg-red-500',     label: TRAFFIC_LIGHT_BRAND_LABELS.red };
+    if (light === 'green') return { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500', label: TRAFFIC_LIGHT_BRAND_LABELS.green };
+    if (light === 'yellow') return { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-200', dot: 'bg-amber-400', label: TRAFFIC_LIGHT_BRAND_LABELS.yellow };
+    return { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-200', dot: 'bg-red-500', label: TRAFFIC_LIGHT_BRAND_LABELS.red };
 }
 
 const PANEL_CLASS = 'rounded-2xl border border-slate-200 bg-white shadow-[0_10px_30px_-18px_rgba(15,23,42,0.35)]';
@@ -454,179 +454,179 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
     return (
         <div className="space-y-5 xl:space-y-0 xl:grid xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] 2xl:grid-cols-[minmax(0,1.2fr)_420px] xl:gap-6 xl:items-start">
             <div className="space-y-5">
-            {/* 공종 선택 */}
-            <div className={`${PANEL_CLASS} p-4 sm:p-5`}>
-                <div className="mb-4 flex flex-col gap-1">
-                    <h3 className={SECTION_TITLE_CLASS}>⑴ 점검 기본 정보</h3>
-                    <p className={SECTION_SUBTEXT_CLASS}>공종, 팀, 점검 정보를 먼저 정리한 뒤 체크리스트를 시작합니다.</p>
+                {/* 공종 선택 */}
+                <div className={`${PANEL_CLASS} p-4 sm:p-5`}>
+                    <div className="mb-4 flex flex-col gap-1">
+                        <h3 className={SECTION_TITLE_CLASS}>⑴ 점검 기본 정보</h3>
+                        <p className={SECTION_SUBTEXT_CLASS}>공종, 팀, 점검 정보를 먼저 정리한 뒤 체크리스트를 시작합니다.</p>
+                    </div>
+                    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)] gap-4 items-start">
+                        <div>
+                            <label className={FIELD_LABEL_CLASS}>공종 선택</label>
+                            <div className="flex flex-wrap gap-2">
+                                {registeredFields.map(f => (
+                                    <button key={f} onClick={() => handleFieldSelect(f)}
+                                        className={`rounded-xl border px-3 py-2 text-[13px] font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${selectedField === f ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'}`}>
+                                        {f}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <div>
+                                <label className={FIELD_LABEL_CLASS}>팀 / 반</label>
+                                <select value={team} onChange={e => setTeam(e.target.value)}
+                                    className={INPUT_COMPACT_CLASS}>
+                                    <option value="">팀 선택 (선택)</option>
+                                    {allTeams.map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div>
+                                    <label className={FIELD_LABEL_CLASS}>점검일</label>
+                                    <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                                        className={INPUT_COMPACT_CLASS} />
+                                </div>
+                                <div>
+                                    <label className={FIELD_LABEL_CLASS}>점검자</label>
+                                    <input type="text" value={checkerName} onChange={e => setCheckerName(e.target.value)} placeholder="이름(선택)"
+                                        className={INPUT_COMPACT_CLASS} />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)] gap-4 items-start">
-                    <div>
-                        <label className={FIELD_LABEL_CLASS}>공종 선택</label>
-                        <div className="flex flex-wrap gap-2">
-                            {registeredFields.map(f => (
-                                <button key={f} onClick={() => handleFieldSelect(f)}
-                                    className={`rounded-xl border px-3 py-2 text-[13px] font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${selectedField === f ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'}`}>
-                                    {f}
-                                </button>
+
+                <InterpretationCardGrid
+                    items={riskCheckInterpretationCards}
+                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                />
+
+                {/* 체크리스트 */}
+                {items.length > 0 && (
+                    <div className={`${PANEL_CLASS} p-4 sm:p-5`}>
+                        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                            <div>
+                                <h3 className={SECTION_TITLE_CLASS}>⑵ 안전조치 이행 점검 ({selectedField})</h3>
+                                <p className={`${SECTION_SUBTEXT_CLASS} mt-1`}>항목별 상태를 같은 높이의 버튼으로 정리해 빠르게 체크할 수 있도록 조정했습니다.</p>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                                {nonCompliantCount > 0 && <span className="text-[11px] font-bold bg-rose-100 text-rose-700 rounded-full px-2.5 py-1">미이행 {nonCompliantCount}</span>}
+                                {partialCount > 0 && <span className="text-[11px] font-bold bg-amber-100 text-amber-700 rounded-full px-2.5 py-1">부분 {partialCount}</span>}
+                            </div>
+                        </div>
+                        <div className="space-y-3.5">
+                            {items.map(item => (
+                                <div key={item.id} className={`rounded-2xl border p-4 transition-all ${item.status === 'non-compliant' ? 'border-rose-200 bg-rose-50/50' : item.status === 'partial' ? 'border-amber-200 bg-amber-50/40' : 'border-slate-200 bg-slate-50/70'}`}>
+                                    <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                                        <p className="min-w-0 text-sm font-semibold leading-relaxed text-slate-700">{item.label}</p>
+                                        <div className="flex flex-wrap gap-1.5 shrink-0">
+                                            {(['compliant', 'partial', 'non-compliant'] as ComplianceStatus[]).map(s => (
+                                                <button key={s} onClick={() => setItemStatus(item.id, s)}
+                                                    className={`min-w-[74px] rounded-xl border px-3 py-2 text-xs font-black transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${item.status === s ? COMPLIANCE_META[s].activeClass : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>
+                                                    {COMPLIANCE_META[s].label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    {item.status !== 'compliant' && (
+                                        <input type="text" value={item.note} onChange={e => setItemNote(item.id, e.target.value)}
+                                            placeholder="미이행 사유 또는 부분 이행 내용 기록"
+                                            className={`mt-3 ${INPUT_COMPACT_CLASS}`} />
+                                    )}
+                                </div>
                             ))}
                         </div>
                     </div>
-                    <div className="space-y-2">
-                        <div>
-                            <label className={FIELD_LABEL_CLASS}>팀 / 반</label>
-                            <select value={team} onChange={e => setTeam(e.target.value)}
-                                className={INPUT_COMPACT_CLASS}>
-                                <option value="">팀 선택 (선택)</option>
-                                {allTeams.map(t => <option key={t} value={t}>{t}</option>)}
-                            </select>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <div>
-                                <label className={FIELD_LABEL_CLASS}>점검일</label>
-                                <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                                    className={INPUT_COMPACT_CLASS} />
-                            </div>
-                            <div>
-                                <label className={FIELD_LABEL_CLASS}>점검자</label>
-                                <input type="text" value={checkerName} onChange={e => setCheckerName(e.target.value)} placeholder="이름(선택)"
-                                    className={INPUT_COMPACT_CLASS} />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                )}
 
-            <InterpretationCardGrid
-                items={riskCheckInterpretationCards}
-                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
-            />
-
-            {/* 체크리스트 */}
-            {items.length > 0 && (
-                <div className={`${PANEL_CLASS} p-4 sm:p-5`}>
-                    <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                {/* 사진 + 저장 */}
+                {items.length > 0 && (
+                    <div className={`${PANEL_CLASS} p-4 sm:p-5 space-y-4`}>
                         <div>
-                            <h3 className={SECTION_TITLE_CLASS}>⑵ 안전조치 이행 점검 ({selectedField})</h3>
-                            <p className={`${SECTION_SUBTEXT_CLASS} mt-1`}>항목별 상태를 같은 높이의 버튼으로 정리해 빠르게 체크할 수 있도록 조정했습니다.</p>
+                            <h3 className={SECTION_TITLE_CLASS}>⑶ 현장 사진 및 저장</h3>
+                            <p className={`${SECTION_SUBTEXT_CLASS} mt-1`}>증빙 사진과 저장 버튼을 같은 리듬으로 배치해 마감 동선을 단순화했습니다.</p>
                         </div>
-                        <div className="flex flex-wrap gap-1.5">
-                            {nonCompliantCount > 0 && <span className="text-[11px] font-bold bg-rose-100 text-rose-700 rounded-full px-2.5 py-1">미이행 {nonCompliantCount}</span>}
-                            {partialCount > 0 && <span className="text-[11px] font-bold bg-amber-100 text-amber-700 rounded-full px-2.5 py-1">부분 {partialCount}</span>}
-                        </div>
-                    </div>
-                    <div className="space-y-3.5">
-                        {items.map(item => (
-                            <div key={item.id} className={`rounded-2xl border p-4 transition-all ${item.status === 'non-compliant' ? 'border-rose-200 bg-rose-50/50' : item.status === 'partial' ? 'border-amber-200 bg-amber-50/40' : 'border-slate-200 bg-slate-50/70'}`}>
-                                <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-                                    <p className="min-w-0 text-sm font-semibold leading-relaxed text-slate-700">{item.label}</p>
-                                    <div className="flex flex-wrap gap-1.5 shrink-0">
-                                        {(['compliant', 'partial', 'non-compliant'] as ComplianceStatus[]).map(s => (
-                                            <button key={s} onClick={() => setItemStatus(item.id, s)}
-                                                className={`min-w-[74px] rounded-xl border px-3 py-2 text-xs font-black transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${item.status === s ? COMPLIANCE_META[s].activeClass : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>
-                                                {COMPLIANCE_META[s].label}
-                                            </button>
-                                        ))}
-                                    </div>
+                        <div>
+                            <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} className="hidden" />
+                            <button onClick={() => photoRef.current?.click()}
+                                className={SOFT_BUTTON_CLASS}>
+                                📷 현장 사진 첨부 (선택)
+                            </button>
+                            {isCompressing && <span className="ml-2 text-xs text-slate-400">최적화 중...</span>}
+                            {photo && (
+                                <div className="mt-2 flex items-center gap-3">
+                                    <img src={`data:image/jpeg;base64,${photo}`} alt="현장" className="w-16 h-16 object-cover rounded-lg border border-slate-200" />
+                                    <button onClick={() => { setPhoto(''); if (photoRef.current) photoRef.current.value = ''; }}
+                                        className="text-xs font-semibold text-rose-600 transition hover:text-rose-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 rounded-md">삭제</button>
                                 </div>
-                                {item.status !== 'compliant' && (
-                                    <input type="text" value={item.note} onChange={e => setItemNote(item.id, e.target.value)}
-                                        placeholder="미이행 사유 또는 부분 이행 내용 기록"
-                                        className={`mt-3 ${INPUT_COMPACT_CLASS}`} />
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* 사진 + 저장 */}
-            {items.length > 0 && (
-                <div className={`${PANEL_CLASS} p-4 sm:p-5 space-y-4`}>
-                    <div>
-                        <h3 className={SECTION_TITLE_CLASS}>⑶ 현장 사진 및 저장</h3>
-                        <p className={`${SECTION_SUBTEXT_CLASS} mt-1`}>증빙 사진과 저장 버튼을 같은 리듬으로 배치해 마감 동선을 단순화했습니다.</p>
-                    </div>
-                    <div>
-                        <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} className="hidden" />
-                        <button onClick={() => photoRef.current?.click()}
-                            className={SOFT_BUTTON_CLASS}>
-                            📷 현장 사진 첨부 (선택)
+                            )}
+                        </div>
+                        <button onClick={handleSave}
+                            className="w-full rounded-2xl bg-indigo-600 px-4 py-3 text-base font-bold text-white transition-all hover:bg-indigo-700 active:scale-95">
+                            이행점검 기록 저장
                         </button>
-                        {isCompressing && <span className="ml-2 text-xs text-slate-400">최적화 중...</span>}
-                        {photo && (
-                            <div className="mt-2 flex items-center gap-3">
-                                <img src={`data:image/jpeg;base64,${photo}`} alt="현장" className="w-16 h-16 object-cover rounded-lg border border-slate-200" />
-                                <button onClick={() => { setPhoto(''); if (photoRef.current) photoRef.current.value = ''; }}
-                                    className="text-xs font-semibold text-rose-600 transition hover:text-rose-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 rounded-md">삭제</button>
-                            </div>
-                        )}
+                        {saved && <p className="text-xs font-bold text-emerald-600 text-center">✅ 저장되었습니다.</p>}
                     </div>
-                    <button onClick={handleSave}
-                        className="w-full rounded-2xl bg-indigo-600 px-4 py-3 text-base font-bold text-white transition-all hover:bg-indigo-700 active:scale-95">
-                        이행점검 기록 저장
-                    </button>
-                    {saved && <p className="text-xs font-bold text-emerald-600 text-center">✅ 저장되었습니다.</p>}
-                </div>
-            )}
+                )}
 
             </div>{/* ── end 좌: 폼 영역 ── */}
 
             {/* ── 우: 이전기록 패널 ── */}
             <div className="mt-4 xl:mt-0 xl:sticky xl:top-4">
-            {/* 이전 기록 */}
-            {sessions.length > 0 && (
-                <div className={`${PANEL_CLASS} p-4 sm:p-5 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto`}>
-                    <div className="mb-4 flex items-end justify-between gap-2">
-                        <div>
-                            <h3 className={SECTION_TITLE_CLASS}>이행점검 기록 ({sessions.length}건)</h3>
-                            <p className={`${SECTION_SUBTEXT_CLASS} mt-1`}>최근 등록 내역을 우측에 고정해 현재 입력과 이력을 동시에 확인할 수 있습니다.</p>
+                {/* 이전 기록 */}
+                {sessions.length > 0 && (
+                    <div className={`${PANEL_CLASS} p-4 sm:p-5 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto`}>
+                        <div className="mb-4 flex items-end justify-between gap-2">
+                            <div>
+                                <h3 className={SECTION_TITLE_CLASS}>이행점검 기록 ({sessions.length}건)</h3>
+                                <p className={`${SECTION_SUBTEXT_CLASS} mt-1`}>최근 등록 내역을 우측에 고정해 현재 입력과 이력을 동시에 확인할 수 있습니다.</p>
+                            </div>
                         </div>
-                    </div>
-                    <InterpretationCardGrid
-                        items={riskHistoryInterpretationCards}
-                        className="grid grid-cols-1 gap-3"
-                        cardClassName="rounded-2xl border p-4"
-                    />
-                    <div className="space-y-3.5">
-                        {sessions.slice(0, 10).map(s => {
-                            const nc = s.items.filter(it => it.status === 'non-compliant').length;
-                            const pt = s.items.filter(it => it.status === 'partial').length;
-                            const ok = s.items.filter(it => it.status === 'compliant').length;
-                            return (
-                                <div key={s.id} className="rounded-2xl border border-slate-200 p-4">
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div>
-                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                                <span className="text-sm font-black text-slate-800">{s.jobField}</span>
-                                                {s.teamLeader && <span className="text-xs text-slate-500">· {s.teamLeader}</span>}
-                                                <span className="text-xs text-slate-400">{s.date}</span>
-                                                {s.checkerName && <span className="text-xs text-slate-400">· {s.checkerName}</span>}
+                        <InterpretationCardGrid
+                            items={riskHistoryInterpretationCards}
+                            className="grid grid-cols-1 gap-3"
+                            cardClassName="rounded-2xl border p-4"
+                        />
+                        <div className="space-y-3.5">
+                            {sessions.slice(0, 10).map(s => {
+                                const nc = s.items.filter(it => it.status === 'non-compliant').length;
+                                const pt = s.items.filter(it => it.status === 'partial').length;
+                                const ok = s.items.filter(it => it.status === 'compliant').length;
+                                return (
+                                    <div key={s.id} className="rounded-2xl border border-slate-200 p-4">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div>
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <span className="text-sm font-black text-slate-800">{s.jobField}</span>
+                                                    {s.teamLeader && <span className="text-xs text-slate-500">· {s.teamLeader}</span>}
+                                                    <span className="text-xs text-slate-400">{s.date}</span>
+                                                    {s.checkerName && <span className="text-xs text-slate-400">· {s.checkerName}</span>}
+                                                </div>
+                                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                                    <span className="text-[11px] font-bold bg-emerald-100 text-emerald-800 rounded-full px-2 py-1">이행 {ok}</span>
+                                                    {pt > 0 && <span className="text-[11px] font-bold bg-amber-100 text-amber-800 rounded-full px-2 py-1">부분 {pt}</span>}
+                                                    {nc > 0 && <span className="text-[11px] font-bold bg-rose-100 text-rose-800 rounded-full px-2 py-1">미이행 {nc}</span>}
+                                                </div>
+                                                {nc > 0 && (
+                                                    <ul className="mt-2 space-y-1">
+                                                        {s.items.filter(it => it.status === 'non-compliant').map(it => (
+                                                            <li key={it.id} className="text-xs text-rose-600 font-semibold leading-relaxed">▸ {it.label}{it.note ? ` : ${it.note}` : ''}</li>
+                                                        ))}
+                                                    </ul>
+                                                )}
                                             </div>
-                                            <div className="mt-2 flex flex-wrap gap-1.5">
-                                                <span className="text-[11px] font-bold bg-emerald-100 text-emerald-800 rounded-full px-2 py-1">이행 {ok}</span>
-                                                {pt > 0 && <span className="text-[11px] font-bold bg-amber-100 text-amber-800 rounded-full px-2 py-1">부분 {pt}</span>}
-                                                {nc > 0 && <span className="text-[11px] font-bold bg-rose-100 text-rose-800 rounded-full px-2 py-1">미이행 {nc}</span>}
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                {s.photo && <img src={`data:image/jpeg;base64,${s.photo}`} alt="현장" className="w-10 h-10 object-cover rounded-lg border border-slate-200" />}
+                                                <button onClick={() => removeSession(s.id)} className="rounded-md text-[11px] font-semibold text-slate-500 transition hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-200">삭제</button>
                                             </div>
-                                            {nc > 0 && (
-                                                <ul className="mt-2 space-y-1">
-                                                    {s.items.filter(it => it.status === 'non-compliant').map(it => (
-                                                        <li key={it.id} className="text-xs text-rose-600 font-semibold leading-relaxed">▸ {it.label}{it.note ? ` : ${it.note}` : ''}</li>
-                                                    ))}
-                                                </ul>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-2 shrink-0">
-                                            {s.photo && <img src={`data:image/jpeg;base64,${s.photo}`} alt="현장" className="w-10 h-10 object-cover rounded-lg border border-slate-200" />}
-                                            <button onClick={() => removeSession(s.id)} className="rounded-md text-[11px] font-semibold text-slate-500 transition hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-200">삭제</button>
                                         </div>
                                     </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            })}
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
             </div>{/* ── end 우: 이전기록 패널 ── */}
         </div>
     );
@@ -658,13 +658,13 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
     const photoRef = useRef<HTMLInputElement>(null);
 
     const trades = useMemo(() => [...new Set(workers.map(w => w.trade).filter(Boolean))] as string[], [workers]);
-    const teams  = useMemo(() => [...new Set(workers.map(w => w.team).filter(Boolean))] as string[], [workers]);
+    const teams = useMemo(() => [...new Set(workers.map(w => w.team).filter(Boolean))] as string[], [workers]);
     const selectedWorkers = useMemo(() => workers.filter(w => selected.has(w.id)), [workers, selected]);
 
     const filtered = useMemo(() => workers.filter(w => {
-        const matchSearch = !search || w.name.includes(search) || (w.team||'').includes(search) || (w.trade||'').includes(search);
-        const matchTrade  = filterTrade === '전체' || w.trade === filterTrade;
-        const matchTeam   = filterTeam  === '전체' || w.team  === filterTeam;
+        const matchSearch = !search || w.name.includes(search) || (w.team || '').includes(search) || (w.trade || '').includes(search);
+        const matchTrade = filterTrade === '전체' || w.trade === filterTrade;
+        const matchTeam = filterTeam === '전체' || w.team === filterTeam;
         return matchSearch && matchTrade && matchTeam;
     }), [workers, search, filterTrade, filterTeam]);
 
@@ -839,14 +839,14 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
         <div className="space-y-5 xl:space-y-0 xl:grid xl:grid-cols-[360px_minmax(0,1fr)] 2xl:grid-cols-[400px_minmax(0,1fr)] xl:gap-6 xl:items-start">
             {/* ── 좌: 근로자 선택 ── */}
             <div className="xl:sticky xl:top-4">
-            {/* 근로자 선택 */}
-            <div className={`${PANEL_CLASS} p-4 sm:p-5`}>
-                <div className="mb-4 flex flex-col gap-3">
-                    <div>
-                        <h3 className={SECTION_TITLE_CLASS}>관찰 대상 근로자</h3>
-                        <p className={`${SECTION_SUBTEXT_CLASS} mt-1`}>검색, 공종, 팀 기준을 한 줄 흐름으로 정리해 목록 가독성을 높였습니다.</p>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {/* 근로자 선택 */}
+                <div className={`${PANEL_CLASS} p-4 sm:p-5`}>
+                    <div className="mb-4 flex flex-col gap-3">
+                        <div>
+                            <h3 className={SECTION_TITLE_CLASS}>관찰 대상 근로자</h3>
+                            <p className={`${SECTION_SUBTEXT_CLASS} mt-1`}>검색, 공종, 팀 기준을 한 줄 흐름으로 정리해 목록 가독성을 높였습니다.</p>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                             <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="이름·팀·공종 검색"
                                 className={INPUT_COMPACT_CLASS} />
                             <select value={filterTrade} onChange={e => setFilterTrade(e.target.value)}
@@ -859,166 +859,166 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
                                 <option value="전체">팀 전체</option>
                                 {teams.map(t => <option key={t} value={t}>{t}</option>)}
                             </select>
+                        </div>
+                        <button onClick={toggleAll} className="self-start rounded-xl px-3 py-2 text-sm font-bold text-indigo-700 transition hover:bg-indigo-50 hover:text-indigo-900 shrink-0">
+                            {selected.size === filtered.length && filtered.length > 0 ? '전체 해제' : '전체 선택'}
+                        </button>
                     </div>
-                    <button onClick={toggleAll} className="self-start rounded-xl px-3 py-2 text-sm font-bold text-indigo-700 transition hover:bg-indigo-50 hover:text-indigo-900 shrink-0">
-                        {selected.size === filtered.length && filtered.length > 0 ? '전체 해제' : '전체 선택'}
-                    </button>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2 gap-3">
-                    {filtered.length === 0
-                                                ? <div className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-7 text-center">
-                                                        <div className="text-2xl">🔎</div>
-                                                        <p className="mt-2 text-sm font-semibold text-slate-700">조회 결과가 없습니다.</p>
-                                                        <p className="mt-1 text-xs text-slate-500">검색어 또는 공종/팀 필터를 완화해 다시 확인하세요.</p>
-                                                    </div>
-                        : filtered.map(w => (
-                            <label key={w.id} className={`flex items-start gap-3 rounded-2xl border p-3.5 cursor-pointer text-sm font-semibold transition-all select-none
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2 gap-3">
+                        {filtered.length === 0
+                            ? <div className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-7 text-center">
+                                <div className="text-2xl">🔎</div>
+                                <p className="mt-2 text-sm font-semibold text-slate-700">조회 결과가 없습니다.</p>
+                                <p className="mt-1 text-xs text-slate-500">검색어 또는 공종/팀 필터를 완화해 다시 확인하세요.</p>
+                            </div>
+                            : filtered.map(w => (
+                                <label key={w.id} className={`flex items-start gap-3 rounded-2xl border p-3.5 cursor-pointer text-sm font-semibold transition-all select-none
                                 ${selected.has(w.id) ? 'border-indigo-400 bg-indigo-50 text-indigo-800 shadow-sm' : 'border-slate-200 bg-slate-50/70 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50/50'}`}>
-                                <input type="checkbox" className="w-4 h-4 accent-indigo-600" checked={selected.has(w.id)} onChange={() => toggle(w.id)} />
-                                <span className="leading-snug">{w.label}</span>
-                            </label>
-                        ))}
+                                    <input type="checkbox" className="w-4 h-4 accent-indigo-600" checked={selected.has(w.id)} onChange={() => toggle(w.id)} />
+                                    <span className="leading-snug">{w.label}</span>
+                                </label>
+                            ))}
+                    </div>
                 </div>
-            </div>
 
-            <div className="mt-5">
-                <InterpretationCardGrid
-                    items={behaviorInterpretationCards}
-                    className="grid grid-cols-1 gap-3"
-                    cardClassName="rounded-2xl border p-4"
-                />
-            </div>
+                <div className="mt-5">
+                    <InterpretationCardGrid
+                        items={behaviorInterpretationCards}
+                        className="grid grid-cols-1 gap-3"
+                        cardClassName="rounded-2xl border p-4"
+                    />
+                </div>
 
             </div>{/* ── end 좌: 근로자 선택 ── */}
 
             {/* ── 우: 관찰·코칭 폼 ── */}
             <div className="space-y-5 mt-4 xl:mt-0">
-            {/* 불안전행동 유형 */}
-            <div className={`${PANEL_CLASS} p-4 sm:p-5`}>
-                <div className="mb-4">
-                    <h3 className={SECTION_TITLE_CLASS}>불안전행동 유형</h3>
-                    <p className={`${SECTION_SUBTEXT_CLASS} mt-1`}>버튼 높이와 열 개수를 재정렬해 긴 항목도 안정적으로 보이도록 조정했습니다.</p>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-2.5">
-                    {BEHAVIOR_PRESETS.map(p => (
-                        <button key={p} onClick={() => setBehavior(p === behavior ? null : p)}
-                            className={`min-h-[56px] rounded-2xl border px-3.5 py-3 text-left text-sm font-semibold leading-snug transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300
+                {/* 불안전행동 유형 */}
+                <div className={`${PANEL_CLASS} p-4 sm:p-5`}>
+                    <div className="mb-4">
+                        <h3 className={SECTION_TITLE_CLASS}>불안전행동 유형</h3>
+                        <p className={`${SECTION_SUBTEXT_CLASS} mt-1`}>버튼 높이와 열 개수를 재정렬해 긴 항목도 안정적으로 보이도록 조정했습니다.</p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-2.5">
+                        {BEHAVIOR_PRESETS.map(p => (
+                            <button key={p} onClick={() => setBehavior(p === behavior ? null : p)}
+                                className={`min-h-[56px] rounded-2xl border px-3.5 py-3 text-left text-sm font-semibold leading-snug transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300
                                 ${behavior === p ? 'bg-rose-500 text-white border-rose-500 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-rose-300 hover:bg-rose-50'}`}>
-                            {p}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* 심각도 */}
-            <div className={`${PANEL_CLASS} p-4 sm:p-5`}>
-                <h3 className={`${SECTION_TITLE_CLASS} mb-3`}>심각도</h3>
-                <div className="flex flex-wrap gap-2">
-                    {SEVERITY_PRESETS.map(s => (
-                        <button key={s.value} onClick={() => setSeverity(s.value)}
-                            className={`rounded-full border px-4 py-2 text-sm font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${severity === s.value ? s.color + ' ring-2 ring-offset-1 ring-current' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                            {s.value}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* 부가 정보 + 사진 */}
-            <div className={`${PANEL_CLASS} p-4 sm:p-5 space-y-4`}>
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                    <div>
-                        <label className={FIELD_LABEL_CLASS}>관찰자 이름</label>
-                        <input type="text" value={observerName} onChange={e => setObserverName(e.target.value)} placeholder="관리감독자 (선택)"
-                            className={INPUT_CLASS} />
-                    </div>
-                    <div>
-                        <label className={FIELD_LABEL_CLASS}>현장 사진</label>
-                        <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} className="hidden" />
-                        <button onClick={() => photoRef.current?.click()}
-                            className={SOFT_BUTTON_CLASS}>
-                            📷 사진 첨부
-                        </button>
-                        {isCompressing && <span className="ml-2 text-xs text-slate-400">최적화 중...</span>}
-                        {photo && (
-                            <div className="mt-2 flex items-center gap-2">
-                                <img src={`data:image/jpeg;base64,${photo}`} alt="관찰" className="w-12 h-12 object-cover rounded-lg border border-slate-200" />
-                                <button onClick={() => { setPhoto(''); if (photoRef.current) photoRef.current.value = ''; }} className="text-xs text-rose-500 font-semibold">삭제</button>
-                            </div>
-                        )}
+                                {p}
+                            </button>
+                        ))}
                     </div>
                 </div>
-                <div>
-                    <label className={FIELD_LABEL_CLASS}>증빙 메모</label>
-                    <textarea value={evidenceNote} onChange={e => setEvidenceNote(e.target.value)} placeholder="현장 상황 간략 기록 (선택)" rows={2}
-                        className={`${INPUT_CLASS} resize-none`} />
-                </div>
-            </div>
 
-            {/* 코칭 동시 등록 */}
-            <div className={`${PANEL_CLASS} p-4 sm:p-5 space-y-4`}>
-                <div className="flex items-center justify-between">
-                    <h3 className={SECTION_TITLE_CLASS}>코칭 조치 동시 등록</h3>
-                    <button onClick={() => setCoaching(p => !p)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${coaching ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                        {coaching ? 'ON' : 'OFF'}
-                    </button>
+                {/* 심각도 */}
+                <div className={`${PANEL_CLASS} p-4 sm:p-5`}>
+                    <h3 className={`${SECTION_TITLE_CLASS} mb-3`}>심각도</h3>
+                    <div className="flex flex-wrap gap-2">
+                        {SEVERITY_PRESETS.map(s => (
+                            <button key={s.value} onClick={() => setSeverity(s.value)}
+                                className={`rounded-full border px-4 py-2 text-sm font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${severity === s.value ? s.color + ' ring-2 ring-offset-1 ring-current' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                                {s.value}
+                            </button>
+                        ))}
+                    </div>
                 </div>
-                <InterpretationCardGrid
-                    items={coachingInterpretationCards}
-                    className="grid grid-cols-1 xl:grid-cols-3 gap-3"
-                    cardClassName="rounded-2xl border p-4"
-                />
-                {coaching && (
-                    <>
+
+                {/* 부가 정보 + 사진 */}
+                <div className={`${PANEL_CLASS} p-4 sm:p-5 space-y-4`}>
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                         <div>
-                            <h4 className="mb-2 text-sm font-bold text-slate-700">조치 유형</h4>
-                            <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-2.5">
-                                {COACHING_PRESETS.map(a => (
-                                    <button key={a.value} onClick={() => setActionType(a.value === actionType ? null : a.value)}
-                                        className={`flex min-h-[52px] items-center gap-1.5 rounded-2xl border px-3 py-3 text-left text-sm font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300
+                            <label className={FIELD_LABEL_CLASS}>관찰자 이름</label>
+                            <input type="text" value={observerName} onChange={e => setObserverName(e.target.value)} placeholder="관리감독자 (선택)"
+                                className={INPUT_CLASS} />
+                        </div>
+                        <div>
+                            <label className={FIELD_LABEL_CLASS}>현장 사진</label>
+                            <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} className="hidden" />
+                            <button onClick={() => photoRef.current?.click()}
+                                className={SOFT_BUTTON_CLASS}>
+                                📷 사진 첨부
+                            </button>
+                            {isCompressing && <span className="ml-2 text-xs text-slate-400">최적화 중...</span>}
+                            {photo && (
+                                <div className="mt-2 flex items-center gap-2">
+                                    <img src={`data:image/jpeg;base64,${photo}`} alt="관찰" className="w-12 h-12 object-cover rounded-lg border border-slate-200" />
+                                    <button onClick={() => { setPhoto(''); if (photoRef.current) photoRef.current.value = ''; }} className="text-xs text-rose-500 font-semibold">삭제</button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <div>
+                        <label className={FIELD_LABEL_CLASS}>증빙 메모</label>
+                        <textarea value={evidenceNote} onChange={e => setEvidenceNote(e.target.value)} placeholder="현장 상황 간략 기록 (선택)" rows={2}
+                            className={`${INPUT_CLASS} resize-none`} />
+                    </div>
+                </div>
+
+                {/* 코칭 동시 등록 */}
+                <div className={`${PANEL_CLASS} p-4 sm:p-5 space-y-4`}>
+                    <div className="flex items-center justify-between">
+                        <h3 className={SECTION_TITLE_CLASS}>코칭 조치 동시 등록</h3>
+                        <button onClick={() => setCoaching(p => !p)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${coaching ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                            {coaching ? 'ON' : 'OFF'}
+                        </button>
+                    </div>
+                    <InterpretationCardGrid
+                        items={coachingInterpretationCards}
+                        className="grid grid-cols-1 xl:grid-cols-3 gap-3"
+                        cardClassName="rounded-2xl border p-4"
+                    />
+                    {coaching && (
+                        <>
+                            <div>
+                                <h4 className="mb-2 text-sm font-bold text-slate-700">조치 유형</h4>
+                                <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-2.5">
+                                    {COACHING_PRESETS.map(a => (
+                                        <button key={a.value} onClick={() => setActionType(a.value === actionType ? null : a.value)}
+                                            className={`flex min-h-[52px] items-center gap-1.5 rounded-2xl border px-3 py-3 text-left text-sm font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300
                                             ${actionType === a.value ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'}`}>
-                                        <span>{a.icon}</span><span>{a.value}</span>
-                                    </button>
-                                ))}
+                                            <span>{a.icon}</span><span>{a.value}</span>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                        <div>
-                            <h4 className="mb-2 text-sm font-bold text-slate-700">사후조치 결과</h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                {FOLLOWUP_PRESETS.map(f => (
-                                    <button key={f.value} onClick={() => setFollowup(f.value)}
-                                        className={`text-sm font-bold py-2.5 rounded-xl border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300
+                            <div>
+                                <h4 className="mb-2 text-sm font-bold text-slate-700">사후조치 결과</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                    {FOLLOWUP_PRESETS.map(f => (
+                                        <button key={f.value} onClick={() => setFollowup(f.value)}
+                                            className={`text-sm font-bold py-2.5 rounded-xl border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300
                                             ${followup === f.value ? f.color + ' ring-2 ring-offset-1 ring-current' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                                        {f.label}
-                                    </button>
-                                ))}
+                                            {f.label}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                            <div>
-                                <label className={FIELD_LABEL_CLASS}>코치 이름</label>
-                                <input type="text" value={coachName} onChange={e => setCoachName(e.target.value)} placeholder="담당 관리감독자 (선택)"
-                                    className={INPUT_CLASS} />
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                                <div>
+                                    <label className={FIELD_LABEL_CLASS}>코치 이름</label>
+                                    <input type="text" value={coachName} onChange={e => setCoachName(e.target.value)} placeholder="담당 관리감독자 (선택)"
+                                        className={INPUT_CLASS} />
+                                </div>
+                                <div>
+                                    <label className={FIELD_LABEL_CLASS}>조치 내용 메모</label>
+                                    <input type="text" value={actionDetail} onChange={e => setActionDetail(e.target.value)} placeholder="코칭 내용 간략 기록 (선택)"
+                                        className={INPUT_CLASS} />
+                                </div>
                             </div>
-                            <div>
-                                <label className={FIELD_LABEL_CLASS}>조치 내용 메모</label>
-                                <input type="text" value={actionDetail} onChange={e => setActionDetail(e.target.value)} placeholder="코칭 내용 간략 기록 (선택)"
-                                    className={INPUT_CLASS} />
-                            </div>
-                        </div>
-                    </>
-                )}
-            </div>
-
-            <button onClick={handleSubmit} disabled={submitting || selected.size === 0 || !behavior || (coaching && !actionType)}
-                className="w-full rounded-2xl bg-rose-600 px-4 py-3.5 text-base font-bold text-white transition-all hover:bg-rose-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed">
-                {submitting ? '등록 중...' : `관찰+코칭 통합 등록 (${selected.size}명)`}
-            </button>
-            {result && (
-                <div className={`rounded-2xl p-3.5 text-sm font-semibold text-center ${result.ok ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
-                    {result.ok ? '✅ ' : '❌ '}{result.message}
+                        </>
+                    )}
                 </div>
-            )}
+
+                <button onClick={handleSubmit} disabled={submitting || selected.size === 0 || !behavior || (coaching && !actionType)}
+                    className="w-full rounded-2xl bg-rose-600 px-4 py-3.5 text-base font-bold text-white transition-all hover:bg-rose-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed">
+                    {submitting ? '등록 중...' : `관찰+코칭 통합 등록 (${selected.size}명)`}
+                </button>
+                {result && (
+                    <div className={`rounded-2xl p-3.5 text-sm font-semibold text-center ${result.ok ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                        {result.ok ? '✅ ' : '❌ '}{result.message}
+                    </div>
+                )}
             </div>{/* ── end 우: 관찰·코칭 폼 ── */}
         </div>
     );
@@ -1148,230 +1148,230 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
     return (
         <div className="space-y-5 xl:space-y-0 xl:grid xl:grid-cols-[minmax(0,1fr)_420px] 2xl:grid-cols-[minmax(0,1.08fr)_460px] xl:gap-6 xl:items-start">
             <div className="space-y-5">
-            <InterpretationCardGrid
-                items={violationInterpretationCards}
-                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
-            />
-            {/* 요약 바 */}
-            {violations.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-center">
-                        <div className="text-3xl font-black text-rose-600">{openCount}</div>
-                        <div className="mt-1 text-xs font-bold text-rose-700">{BRAND_STATUS_LABELS.actionNeeded}</div>
-                    </div>
-                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center">
-                        <div className="text-3xl font-black text-amber-600">{inProgressCount}</div>
-                        <div className="mt-1 text-xs font-bold text-amber-700">{BRAND_STATUS_LABELS.actionInProgress}</div>
-                    </div>
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
-                        <div className="text-3xl font-black text-emerald-600">{violations.filter(v => v.status === 'resolved').length}</div>
-                        <div className="mt-1 text-xs font-bold text-emerald-700">조치완료</div>
-                    </div>
-                </div>
-            )}
-
-            {/* 신규 등록 버튼 */}
-            <button onClick={() => setShowForm(p => !p)}
-                className={`w-full rounded-2xl px-4 py-3 font-bold text-base border transition-all ${showForm ? 'bg-slate-100 text-slate-700 border-slate-300' : 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 active:scale-95'}`}>
-                {showForm ? '등록 폼 닫기' : '+ 현장 지적사항 등록'}
-            </button>
-
-            <div className="xl:hidden">
-
-            {/* 등록 폼 */}
-            {showForm && (
-                <div className={`${PANEL_CLASS} p-4 sm:p-5 space-y-4`}>
-                    <InterpretationCardGrid
-                        items={violationFormInterpretationCards}
-                        className="grid grid-cols-1 xl:grid-cols-3 gap-3"
-                        cardClassName="rounded-2xl border p-4"
-                    />
-                    {/* 출처 */}
-                    <div>
-                        <label className={`${FIELD_LABEL_CLASS} font-black text-slate-700`}>지적 출처</label>
-                        <div className="flex gap-2">
-                            {VIOLATION_SOURCES.map(s => (
-                                <button key={s.value} onClick={() => setSource(s.value)}
-                                    className={`flex-1 rounded-xl border px-3 py-2.5 text-sm font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${source === s.value ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-indigo-300'}`}>
-                                    {s.label}
-                                </button>
-                            ))}
+                <InterpretationCardGrid
+                    items={violationInterpretationCards}
+                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                />
+                {/* 요약 바 */}
+                {violations.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-center">
+                            <div className="text-3xl font-black text-rose-600">{openCount}</div>
+                            <div className="mt-1 text-xs font-bold text-rose-700">{BRAND_STATUS_LABELS.actionNeeded}</div>
                         </div>
-                        {source === 'external' && (
-                            <div className="mt-2">
-                                <label className={FIELD_LABEL_CLASS}>감찰 기관</label>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {EXTERNAL_AUTHORITIES.map(a => (
-                                        <button key={a} onClick={() => setExtAuth(a)}
-                                            className={`rounded-xl border px-3 py-2 text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 ${extAuth === a ? 'bg-red-500 text-white border-red-500' : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-red-300'}`}>
-                                            {a}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* 지적 분야 + 심각도 */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3">
-                        <div>
-                            <label className={FIELD_LABEL_CLASS}>지적 분야</label>
-                            <div className="flex flex-wrap gap-1.5">
-                                {VIOLATION_CATEGORIES.map(c => (
-                                    <button key={c} onClick={() => setCategory(c)}
-                                        className={`rounded-xl border px-3 py-2 text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 ${category === c ? 'bg-slate-700 text-white border-slate-700' : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-400'}`}>
-                                        {c}
-                                    </button>
-                                ))}
-                            </div>
+                        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center">
+                            <div className="text-3xl font-black text-amber-600">{inProgressCount}</div>
+                            <div className="mt-1 text-xs font-bold text-amber-700">{BRAND_STATUS_LABELS.actionInProgress}</div>
                         </div>
-                        <div className="space-y-2">
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
+                            <div className="text-3xl font-black text-emerald-600">{violations.filter(v => v.status === 'resolved').length}</div>
+                            <div className="mt-1 text-xs font-bold text-emerald-700">조치완료</div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 신규 등록 버튼 */}
+                <button onClick={() => setShowForm(p => !p)}
+                    className={`w-full rounded-2xl px-4 py-3 font-bold text-base border transition-all ${showForm ? 'bg-slate-100 text-slate-700 border-slate-300' : 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 active:scale-95'}`}>
+                    {showForm ? '등록 폼 닫기' : '+ 현장 지적사항 등록'}
+                </button>
+
+                <div className="xl:hidden">
+
+                    {/* 등록 폼 */}
+                    {showForm && (
+                        <div className={`${PANEL_CLASS} p-4 sm:p-5 space-y-4`}>
+                            <InterpretationCardGrid
+                                items={violationFormInterpretationCards}
+                                className="grid grid-cols-1 xl:grid-cols-3 gap-3"
+                                cardClassName="rounded-2xl border p-4"
+                            />
+                            {/* 출처 */}
                             <div>
-                                <label className={FIELD_LABEL_CLASS}>심각도</label>
+                                <label className={`${FIELD_LABEL_CLASS} font-black text-slate-700`}>지적 출처</label>
                                 <div className="flex gap-2">
-                                    {(['경미', '보통', '중대'] as const).map(s => (
-                                        <button key={s} onClick={() => setSeverity(s)}
-                                            className={`flex-1 rounded-xl border px-3 py-2.5 text-sm font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300
-                                                ${severity === s
-                                                    ? s === '중대' ? 'bg-rose-600 text-white border-rose-600' : s === '보통' ? 'bg-amber-500 text-white border-amber-500' : 'bg-blue-500 text-white border-blue-500'
-                                                    : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                                            {s}
+                                    {VIOLATION_SOURCES.map(s => (
+                                        <button key={s.value} onClick={() => setSource(s.value)}
+                                            className={`flex-1 rounded-xl border px-3 py-2.5 text-sm font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${source === s.value ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-indigo-300'}`}>
+                                            {s.label}
                                         </button>
                                     ))}
                                 </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label className={FIELD_LABEL_CLASS}>발생일</label>
-                                    <input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)}
-                                        className={INPUT_COMPACT_CLASS} />
-                                </div>
-                                <div>
-                                    <label className={FIELD_LABEL_CLASS}>조치 기한</label>
-                                    <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
-                                        className={INPUT_COMPACT_CLASS} />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* 지적 내용 + 책임팀 */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3">
-                        <div>
-                            <label className={FIELD_LABEL_CLASS}>지적 내용</label>
-                            <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="구체적 지적 사항 기입" rows={3}
-                                className={`${INPUT_CLASS} resize-none`} />
-                        </div>
-                        <div className="space-y-2">
-                            <div>
-                                <label className={FIELD_LABEL_CLASS}>조치 책임 팀</label>
-                                <select value={responsibleTeam} onChange={e => setResponsibleTeam(e.target.value)}
-                                    className={INPUT_COMPACT_CLASS}>
-                                    <option value="">팀 선택 (선택)</option>
-                                    {allTeams.map(t => <option key={t} value={t}>{t}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className={FIELD_LABEL_CLASS}>현장 사진</label>
-                                <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} className="hidden" />
-                                <button onClick={() => photoRef.current?.click()}
-                                    className={SOFT_BUTTON_CLASS}>
-                                    📷 사진 첨부
-                                </button>
-                                {isCompressing && <span className="ml-2 text-xs text-slate-400">최적화 중...</span>}
-                                {photo && (
-                                    <div className="mt-2 flex items-center gap-2">
-                                        <img src={`data:image/jpeg;base64,${photo}`} alt="지적" className="w-12 h-12 object-cover rounded-lg border border-slate-200" />
-                                        <button onClick={() => { setPhoto(''); if (photoRef.current) photoRef.current.value = ''; }} className="text-xs text-rose-500 font-semibold">삭제</button>
+                                {source === 'external' && (
+                                    <div className="mt-2">
+                                        <label className={FIELD_LABEL_CLASS}>감찰 기관</label>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {EXTERNAL_AUTHORITIES.map(a => (
+                                                <button key={a} onClick={() => setExtAuth(a)}
+                                                    className={`rounded-xl border px-3 py-2 text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 ${extAuth === a ? 'bg-red-500 text-white border-red-500' : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-red-300'}`}>
+                                                    {a}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
                             </div>
-                        </div>
-                    </div>
 
-                    <button onClick={handleAdd}
-                        className="w-full rounded-2xl bg-rose-600 px-4 py-3 text-base font-bold text-white transition-all hover:bg-rose-700 active:scale-95">
-                        지적사항 등록
-                    </button>
-                </div>
-            )}
-            </div>
-
-            {/* 지적사항 목록 */}
-            {violations.length > 0 ? (
-                <div className="space-y-4">
-                    {violations.map(v => {
-                        const srcMeta = VIOLATION_SOURCES.find(s => s.value === v.source);
-                        const stMeta  = VIOLATION_STATUS_META[v.status];
-                        const isOverdue = v.dueDate && v.status !== 'resolved' && v.dueDate < todayStr();
-                        return (
-                            <div key={v.id} className={`bg-white rounded-2xl border p-5 space-y-3 shadow-[0_8px_22px_-18px_rgba(15,23,42,0.45)] ${isOverdue ? 'border-rose-300' : 'border-slate-200'}`}>
-                                <div className="flex items-start justify-between gap-2">
-                                    <div className="flex flex-wrap items-center gap-1.5">
-                                        <span className={`text-[11px] font-bold rounded-full px-2.5 py-1 ${srcMeta?.badgeClass || ''}`}>
-                                            {srcMeta?.label}{v.source === 'external' && v.externalAuthority ? ` · ${v.externalAuthority}` : ''}
-                                        </span>
-                                        <span className="text-[11px] font-bold bg-slate-100 text-slate-700 rounded-full px-2.5 py-1">{v.category}</span>
-                                        <span className={`text-[11px] font-black rounded-full px-2.5 py-1 ${v.severity === '중대' ? 'bg-rose-100 text-rose-800' : v.severity === '보통' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>{v.severity}</span>
-                                        <span className={`text-[11px] font-bold rounded-full px-2.5 py-1 ${stMeta.badgeClass}`}>{v.status === 'open' ? `● ${stMeta.label}` : v.status === 'in-progress' ? `▲ ${stMeta.label}` : `✓ ${stMeta.label}`}</span>
-                                        {isOverdue && <span className="text-[11px] font-black bg-rose-700 text-white rounded-full px-2.5 py-1">기한초과</span>}
+                            {/* 지적 분야 + 심각도 */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3">
+                                <div>
+                                    <label className={FIELD_LABEL_CLASS}>지적 분야</label>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {VIOLATION_CATEGORIES.map(c => (
+                                            <button key={c} onClick={() => setCategory(c)}
+                                                className={`rounded-xl border px-3 py-2 text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 ${category === c ? 'bg-slate-700 text-white border-slate-700' : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-400'}`}>
+                                                {c}
+                                            </button>
+                                        ))}
                                     </div>
-                                    <button onClick={() => remove(v.id)} className="shrink-0 rounded-md text-xs font-semibold text-slate-500 transition hover:text-rose-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-200">삭제</button>
                                 </div>
-                                <p className="text-sm text-slate-600">{v.issueDate}{v.dueDate ? ` → 기한: ${v.dueDate}` : ''}{v.responsibleTeam ? ` · ${v.responsibleTeam}` : ''}</p>
-                                <p className="text-base font-semibold leading-relaxed text-slate-700">{v.description}</p>
-                                {v.photo && <img src={`data:image/jpeg;base64,${v.photo}`} alt="지적" className="w-20 h-20 object-cover rounded-lg border border-slate-200" />}
-                                <StatusEvidenceActionPanel
-                                    items={[
-                                        {
-                                            key: `${v.id}-status`,
-                                            eyebrow: '지금 상태',
-                                            title: stMeta.label,
-                                            description: isOverdue ? '기한이 지나 우선 조치가 필요한 상태입니다.' : v.status === 'resolved' ? '조치 완료 상태로 기록이 정리되고 있습니다.' : '현장 확인과 후속 조치를 이어가야 하는 단계입니다.',
-                                            tone: BRAND_TONE.slate,
-                                        },
-                                        {
-                                            key: `${v.id}-evidence`,
-                                            eyebrow: '판단 근거',
-                                            title: `${v.category} · ${v.severity}`,
-                                            description: `${v.source === 'external' && v.externalAuthority ? `${v.externalAuthority} 지적이며 ` : ''}${v.responsibleTeam ? `${v.responsibleTeam} 팀이 대응 대상으로 지정되어 있습니다.` : '책임 팀 지정 전 상태입니다.'}`,
-                                            tone: BRAND_TONE.slateWhite,
-                                        },
-                                        {
-                                            key: `${v.id}-action`,
-                                            eyebrow: '다음 행동',
-                                            title: '상태 변경과 조치 메모를 이어서 남기세요.',
-                                            description: v.status === 'resolved' ? '필요하면 조치 내용을 짧게 남겨 후속 확인 근거를 보완하세요.' : '아래 상태 버튼으로 진행 상황을 갱신하고, 완료 시 조치 메모를 기록하면 됩니다.',
-                                            tone: BRAND_TONE.amberSoft70,
-                                            eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.22em] text-amber-700',
-                                        },
-                                    ]}
-                                />
-                                {/* 조치 상태 변경 */}
-                                <div className="flex flex-wrap gap-1.5 pt-3 border-t border-slate-100">
-                                    {(['open', 'in-progress', 'resolved'] as ViolationStatus[]).map(s => (
-                                        <button key={s} onClick={() => setStatus(v.id, s)}
-                                            className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${v.status === s ? VIOLATION_STATUS_META[s].badgeClass + ' border-current' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300'}`}>
-                                            {VIOLATION_STATUS_META[s].label}
-                                        </button>
-                                    ))}
-                                    {v.status === 'resolved' && (
-                                        <input type="text" value={v.resolutionNote} onChange={e => setResolution(v.id, e.target.value)}
-                                            placeholder="조치 내용 기록 (선택)"
-                                            className={`min-w-[180px] flex-1 ${INPUT_COMPACT_CLASS}`} />
-                                    )}
+                                <div className="space-y-2">
+                                    <div>
+                                        <label className={FIELD_LABEL_CLASS}>심각도</label>
+                                        <div className="flex gap-2">
+                                            {(['경미', '보통', '중대'] as const).map(s => (
+                                                <button key={s} onClick={() => setSeverity(s)}
+                                                    className={`flex-1 rounded-xl border px-3 py-2.5 text-sm font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300
+                                                ${severity === s
+                                                            ? s === '중대' ? 'bg-rose-600 text-white border-rose-600' : s === '보통' ? 'bg-amber-500 text-white border-amber-500' : 'bg-blue-500 text-white border-blue-500'
+                                                            : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                                                    {s}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className={FIELD_LABEL_CLASS}>발생일</label>
+                                            <input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)}
+                                                className={INPUT_COMPACT_CLASS} />
+                                        </div>
+                                        <div>
+                                            <label className={FIELD_LABEL_CLASS}>조치 기한</label>
+                                            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+                                                className={INPUT_COMPACT_CLASS} />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        );
-                    })}
+
+                            {/* 지적 내용 + 책임팀 */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3">
+                                <div>
+                                    <label className={FIELD_LABEL_CLASS}>지적 내용</label>
+                                    <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="구체적 지적 사항 기입" rows={3}
+                                        className={`${INPUT_CLASS} resize-none`} />
+                                </div>
+                                <div className="space-y-2">
+                                    <div>
+                                        <label className={FIELD_LABEL_CLASS}>조치 책임 팀</label>
+                                        <select value={responsibleTeam} onChange={e => setResponsibleTeam(e.target.value)}
+                                            className={INPUT_COMPACT_CLASS}>
+                                            <option value="">팀 선택 (선택)</option>
+                                            {allTeams.map(t => <option key={t} value={t}>{t}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className={FIELD_LABEL_CLASS}>현장 사진</label>
+                                        <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} className="hidden" />
+                                        <button onClick={() => photoRef.current?.click()}
+                                            className={SOFT_BUTTON_CLASS}>
+                                            📷 사진 첨부
+                                        </button>
+                                        {isCompressing && <span className="ml-2 text-xs text-slate-400">최적화 중...</span>}
+                                        {photo && (
+                                            <div className="mt-2 flex items-center gap-2">
+                                                <img src={`data:image/jpeg;base64,${photo}`} alt="지적" className="w-12 h-12 object-cover rounded-lg border border-slate-200" />
+                                                <button onClick={() => { setPhoto(''); if (photoRef.current) photoRef.current.value = ''; }} className="text-xs text-rose-500 font-semibold">삭제</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button onClick={handleAdd}
+                                className="w-full rounded-2xl bg-rose-600 px-4 py-3 text-base font-bold text-white transition-all hover:bg-rose-700 active:scale-95">
+                                지적사항 등록
+                            </button>
+                        </div>
+                    )}
                 </div>
-            ) : (
-                <div className={EMPTY_STATE_CLASS}>
-                    <div className="text-3xl">🗂️</div>
-                    <p className="mt-3 text-base font-semibold text-slate-700">등록된 현장 지적사항이 없습니다.</p>
-                    <p className="mt-1 text-sm text-slate-500">자체·원도급사·외부감찰 지적사항을 등록해 조치 흐름을 시작하세요.</p>
-                </div>
-            )}
+
+                {/* 지적사항 목록 */}
+                {violations.length > 0 ? (
+                    <div className="space-y-4">
+                        {violations.map(v => {
+                            const srcMeta = VIOLATION_SOURCES.find(s => s.value === v.source);
+                            const stMeta = VIOLATION_STATUS_META[v.status];
+                            const isOverdue = v.dueDate && v.status !== 'resolved' && v.dueDate < todayStr();
+                            return (
+                                <div key={v.id} className={`bg-white rounded-2xl border p-5 space-y-3 shadow-[0_8px_22px_-18px_rgba(15,23,42,0.45)] ${isOverdue ? 'border-rose-300' : 'border-slate-200'}`}>
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                            <span className={`text-[11px] font-bold rounded-full px-2.5 py-1 ${srcMeta?.badgeClass || ''}`}>
+                                                {srcMeta?.label}{v.source === 'external' && v.externalAuthority ? ` · ${v.externalAuthority}` : ''}
+                                            </span>
+                                            <span className="text-[11px] font-bold bg-slate-100 text-slate-700 rounded-full px-2.5 py-1">{v.category}</span>
+                                            <span className={`text-[11px] font-black rounded-full px-2.5 py-1 ${v.severity === '중대' ? 'bg-rose-100 text-rose-800' : v.severity === '보통' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>{v.severity}</span>
+                                            <span className={`text-[11px] font-bold rounded-full px-2.5 py-1 ${stMeta.badgeClass}`}>{v.status === 'open' ? `● ${stMeta.label}` : v.status === 'in-progress' ? `▲ ${stMeta.label}` : `✓ ${stMeta.label}`}</span>
+                                            {isOverdue && <span className="text-[11px] font-black bg-rose-700 text-white rounded-full px-2.5 py-1">기한초과</span>}
+                                        </div>
+                                        <button onClick={() => remove(v.id)} className="shrink-0 rounded-md text-xs font-semibold text-slate-500 transition hover:text-rose-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-200">삭제</button>
+                                    </div>
+                                    <p className="text-sm text-slate-600">{v.issueDate}{v.dueDate ? ` → 기한: ${v.dueDate}` : ''}{v.responsibleTeam ? ` · ${v.responsibleTeam}` : ''}</p>
+                                    <p className="text-base font-semibold leading-relaxed text-slate-700">{v.description}</p>
+                                    {v.photo && <img src={`data:image/jpeg;base64,${v.photo}`} alt="지적" className="w-20 h-20 object-cover rounded-lg border border-slate-200" />}
+                                    <StatusEvidenceActionPanel
+                                        items={[
+                                            {
+                                                key: `${v.id}-status`,
+                                                eyebrow: '지금 상태',
+                                                title: stMeta.label,
+                                                description: isOverdue ? '기한이 지나 우선 조치가 필요한 상태입니다.' : v.status === 'resolved' ? '조치 완료 상태로 기록이 정리되고 있습니다.' : '현장 확인과 후속 조치를 이어가야 하는 단계입니다.',
+                                                tone: BRAND_TONE.slate,
+                                            },
+                                            {
+                                                key: `${v.id}-evidence`,
+                                                eyebrow: '판단 근거',
+                                                title: `${v.category} · ${v.severity}`,
+                                                description: `${v.source === 'external' && v.externalAuthority ? `${v.externalAuthority} 지적이며 ` : ''}${v.responsibleTeam ? `${v.responsibleTeam} 팀이 대응 대상으로 지정되어 있습니다.` : '책임 팀 지정 전 상태입니다.'}`,
+                                                tone: BRAND_TONE.slateWhite,
+                                            },
+                                            {
+                                                key: `${v.id}-action`,
+                                                eyebrow: '다음 행동',
+                                                title: '상태 변경과 조치 메모를 이어서 남기세요.',
+                                                description: v.status === 'resolved' ? '필요하면 조치 내용을 짧게 남겨 후속 확인 근거를 보완하세요.' : '아래 상태 버튼으로 진행 상황을 갱신하고, 완료 시 조치 메모를 기록하면 됩니다.',
+                                                tone: BRAND_TONE.amberSoft70,
+                                                eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.22em] text-amber-700',
+                                            },
+                                        ]}
+                                    />
+                                    {/* 조치 상태 변경 */}
+                                    <div className="flex flex-wrap gap-1.5 pt-3 border-t border-slate-100">
+                                        {(['open', 'in-progress', 'resolved'] as ViolationStatus[]).map(s => (
+                                            <button key={s} onClick={() => setStatus(v.id, s)}
+                                                className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${v.status === s ? VIOLATION_STATUS_META[s].badgeClass + ' border-current' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300'}`}>
+                                                {VIOLATION_STATUS_META[s].label}
+                                            </button>
+                                        ))}
+                                        {v.status === 'resolved' && (
+                                            <input type="text" value={v.resolutionNote} onChange={e => setResolution(v.id, e.target.value)}
+                                                placeholder="조치 내용 기록 (선택)"
+                                                className={`min-w-[180px] flex-1 ${INPUT_COMPACT_CLASS}`} />
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <div className={EMPTY_STATE_CLASS}>
+                        <div className="text-3xl">🗂️</div>
+                        <p className="mt-3 text-base font-semibold text-slate-700">등록된 현장 지적사항이 없습니다.</p>
+                        <p className="mt-1 text-sm text-slate-500">자체·원도급사·외부감찰 지적사항을 등록해 조치 흐름을 시작하세요.</p>
+                    </div>
+                )}
 
             </div>
 
@@ -1525,7 +1525,7 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[]; wo
             const data = await postAdminJson<{ ok: boolean; data?: { results: any[] } }>(
                 '/api/admin/safety-management',
                 { action: 'evaluate-worker-integrity', payload: { worker_ids: workers.map(w => w.id), assessment_month: assessmentMonth } },
-                    { fallbackMessage: `무결성 판정 API 호출 ${BRAND_STATUS_LABELS.attention}` }
+                { fallbackMessage: `무결성 판정 API 호출 ${BRAND_STATUS_LABELS.attention}` }
             );
             const nameMap = Object.fromEntries(workers.map(w => [w.id, w.label]));
             const rows: IntegrityRow[] = (data.data?.results || []).map((r: any) => ({
@@ -1668,9 +1668,9 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[]; wo
                 {reviews.length > 0 && (
                     <>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-                                                        {[{ key: 'green', icon: '🟢', label: TRAFFIC_LIGHT_BRAND_LABELS.green, count: summary.green, bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
-                                                            { key: 'yellow', icon: '🟡', label: TRAFFIC_LIGHT_BRAND_LABELS.yellow, count: summary.yellow, bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
-                                                            { key: 'red', icon: '🔴', label: TRAFFIC_LIGHT_BRAND_LABELS.red, count: summary.red, bg: 'bg-red-50 border-red-200', text: 'text-red-700' }
+                            {[{ key: 'green', icon: '🟢', label: TRAFFIC_LIGHT_BRAND_LABELS.green, count: summary.green, bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
+                            { key: 'yellow', icon: '🟡', label: TRAFFIC_LIGHT_BRAND_LABELS.yellow, count: summary.yellow, bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
+                            { key: 'red', icon: '🔴', label: TRAFFIC_LIGHT_BRAND_LABELS.red, count: summary.red, bg: 'bg-red-50 border-red-200', text: 'text-red-700' }
                             ].map(s => (
                                 <div key={s.key} className={`${s.bg} border rounded-2xl p-4 text-center`}>
                                     <div className="text-xl mb-1">{s.icon}</div>
@@ -1786,7 +1786,7 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
             harnessSummary,
         });
         return isDevMode ? cards : cards.filter((card) => card.key !== 'hub-harness');
-    }, [activeTab, storageRevision, harnessSummary.approvalBacklog, harnessSummary.fallback, harnessSummary.immediateAttention, workerRecords.length]);
+    }, [activeTab, storageRevision, harnessSummary.approvalBacklog, harnessSummary.fallback, harnessSummary.immediateAttention, isDevMode, workerRecords.length]);
 
     const workerOptions: WorkerOption[] = useMemo(() => {
         const seen = new Set<string>();
@@ -1812,10 +1812,10 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
         const violations = loadViolations();
         const openCount = violations.filter(v => v.status === 'open').length;
         return [
-            { id: 'risk-check',  label: '위험성평가 이행점검', shortLabel: '이행점검',  icon: '📋' },
-            { id: 'behavior',    label: '행동관찰 · 코칭',     shortLabel: '관찰·코칭', icon: '👁️' },
-            { id: 'violations',  label: '현장 지적사항',       shortLabel: '지적사항',  icon: '🚨', badge: openCount > 0 ? openCount : undefined },
-            { id: 'review',      label: '이행 종합판정',       shortLabel: '종합판정',  icon: '🏷️' },
+            { id: 'risk-check', label: '위험성평가 이행점검', shortLabel: '이행점검', icon: '📋' },
+            { id: 'behavior', label: '행동관찰 · 코칭', shortLabel: '관찰·코칭', icon: '👁️' },
+            { id: 'violations', label: '현장 지적사항', shortLabel: '지적사항', icon: '🚨', badge: openCount > 0 ? openCount : undefined },
+            { id: 'review', label: '이행 종합판정', shortLabel: '종합판정', icon: '🏷️' },
         ];
     }, [storageRevision]);
 
@@ -2006,10 +2006,10 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
                 aria-labelledby={`hub-tab-${activeTab}`}
                 tabIndex={0}
             >
-                {activeTab === 'risk-check'  && <RiskCheckTab workerRecords={workerRecords} />}
-                {activeTab === 'behavior'    && <BehaviorCoachingTab assessmentMonth={assessmentMonth} workers={workerOptions} />}
-                {activeTab === 'violations'  && <ViolationsTab workerRecords={workerRecords} />}
-                {activeTab === 'review'      && <ReviewTab assessmentMonth={assessmentMonth} workers={workerOptions} workerRecords={workerRecords} />}
+                {activeTab === 'risk-check' && <RiskCheckTab workerRecords={workerRecords} />}
+                {activeTab === 'behavior' && <BehaviorCoachingTab assessmentMonth={assessmentMonth} workers={workerOptions} />}
+                {activeTab === 'violations' && <ViolationsTab workerRecords={workerRecords} />}
+                {activeTab === 'review' && <ReviewTab assessmentMonth={assessmentMonth} workers={workerOptions} workerRecords={workerRecords} />}
             </div>
         </div>
     );

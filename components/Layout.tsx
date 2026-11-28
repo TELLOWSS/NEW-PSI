@@ -58,6 +58,7 @@ import {
 import {
     canUseDevDiagnostics,
     canUseDevDiagnosticsShortcut,
+    DEV_DIAGNOSTICS_TOGGLE_CHANGED_EVENT,
     hasExplicitDevDiagnosticsPermission,
     isDevDiagnosticsHiddenToggleEnabled,
     isLocalDevelopmentEnvironment,
@@ -466,6 +467,18 @@ export const Layout: React.FC<LayoutProps> = ({
         return () => {
             window.removeEventListener('storage', handleStorage);
             window.removeEventListener(UI_COMPOSITION_SYNC_EVENT, syncComposition as EventListener);
+        };
+    }, []);
+
+    useEffect(() => {
+        const syncToggle = () => {
+            setDevDiagnosticsHiddenToggleEnabled(isDevDiagnosticsHiddenToggleEnabled());
+        };
+        window.addEventListener(DEV_DIAGNOSTICS_TOGGLE_CHANGED_EVENT, syncToggle);
+        window.addEventListener('storage', syncToggle);
+        return () => {
+            window.removeEventListener(DEV_DIAGNOSTICS_TOGGLE_CHANGED_EVENT, syncToggle);
+            window.removeEventListener('storage', syncToggle);
         };
     }, []);
 

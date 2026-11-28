@@ -57,14 +57,10 @@ export default async function handler(req: any, res: any) {
             analyzer,
             evaluator,
         });
-        // secondPassStatus 를 workflowState 에 맞게 정확히 설정
-        const reanalysisWorkflowState = decisionResult.workflowState === 'completed'
-            ? 'completed'
-            : 'second_pass_analyzing';
+        // 2차 재분석 평가가 동기 완료되었으므로 영구 IN_PROGRESS 교착 없이 실제 판정 상태를 저장한다.
         const reanalysisDecision: HarnessDecisionResult = {
             ...decisionResult,
-            workflowState: reanalysisWorkflowState,
-            secondPassStatus: reanalysisWorkflowState === 'completed' ? 'DONE' : 'IN_PROGRESS',
+            secondPassStatus: decisionResult.workflowState === 'completed' ? 'DONE' : 'NEEDED',
         };
         const persistence = await persistHarnessAnalysis({
             workflowRunId: payload.workflowRunId,

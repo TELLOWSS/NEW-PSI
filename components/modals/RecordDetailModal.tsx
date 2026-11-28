@@ -510,25 +510,50 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         return synchronizeManagerReviewedRecord(baseRecord, { previousRecord }).record;
     };
 
+    const activeRecordIdRef = useRef(record.id);
+    const hasChangesRef = useRef(hasChanges);
+    const isPhotoAutoSavingRef = useRef(isPhotoAutoSaving);
+    const latestRecordRef = useRef(record);
+
+    useEffect(() => {
+        activeRecordIdRef.current = record.id;
+        latestRecordRef.current = record;
+    }, [record]);
+
+    useEffect(() => {
+        hasChangesRef.current = hasChanges;
+    }, [hasChanges]);
+
+    useEffect(() => {
+        isPhotoAutoSavingRef.current = isPhotoAutoSaving;
+    }, [isPhotoAutoSaving]);
+
     useEffect(() => { 
+        const isSwitchingRecord = initialRecord.id !== activeRecordIdRef.current;
+        if (!isSwitchingRecord && (hasChangesRef.current || isPhotoAutoSavingRef.current)) {
+            return;
+        }
         if (autoAdvanceTimerRef.current) {
             clearTimeout(autoAdvanceTimerRef.current);
             autoAdvanceTimerRef.current = null;
         }
+        activeRecordIdRef.current = initialRecord.id;
         setRecord(getConsistentRecord(initialRecord)); 
-        latestPersistedRecordRef.current = null;
-        setHasChanges(false); 
-        setScoreReasonCode('');
-        setScoreReasonDetail('');
-        setScoreEvidenceSummary('');
-        setIsPhotoAutoSaving(false);
-        setPhotoQueueNotice(null);
-        setReviewViewMode('simple');
-        setIsMobileDetailExpanded(false);
-        setDocZoom(1);
-        setDocRotation(0);
-        setDocHighContrast(false);
-        setMobileDocExpanded(false);
+        if (isSwitchingRecord) {
+            latestPersistedRecordRef.current = null;
+            setHasChanges(false); 
+            setScoreReasonCode('');
+            setScoreReasonDetail('');
+            setScoreEvidenceSummary('');
+            setIsPhotoAutoSaving(false);
+            setPhotoQueueNotice(null);
+            setReviewViewMode('simple');
+            setIsMobileDetailExpanded(false);
+            setDocZoom(1);
+            setDocRotation(0);
+            setDocHighContrast(false);
+            setMobileDocExpanded(false);
+        }
     }, [initialRecord]);
 
     useEffect(() => {
@@ -1718,59 +1743,62 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     };
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'original' | 'profile') => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = async (event) => {
-                const result = event.target?.result as string;
-                if (result) {
-                    if (type === 'original') {
-                        setRecord(prev => ({ ...prev, originalImage: result, filename: file.name }));
-                        setPhotoQueueNotice(null);
-                    } else {
-                        const nextRecord = { ...record, profileImage: result };
-                        setRecord(nextRecord);
-                        if (isPhotoQueueMode) {
-                            try {
-                                setIsPhotoAutoSaving(true);
-                                setPhotoQueueNotice('사진 업로드 후 자동 저장 중입니다...');
-                                await persistRecordSilently(nextRecord);
-                                if (queueContext?.nextRecordName && onOpenNextRecord) {
-                                    setPhotoQueueNotice(`사진 저장 완료. ${queueContext.nextRecordName}(으)로 자동 이동합니다...`);
-                                    if (autoAdvanceTimerRef.current) {
-                                        clearTimeout(autoAdvanceTimerRef.current);
-                                    }
-                                    autoAdvanceTimerRef.current = setTimeout(() => {
-                                        autoAdvanceTimerRef.current = null;
-                                        onOpenNextRecord();
-                                    }, 900);
-                                } else {
-                                    setPhotoQueueNotice('사진 저장 완료. 마지막 대상입니다. 근로자관리 화면으로 돌아갑니다...');
-                                    if (autoAdvanceTimerRef.current) {
-                                        clearTimeout(autoAdvanceTimerRef.current);
-                                    }
-                                    autoAdvanceTimerRef.current = setTimeout(() => {
-                                        autoAdvanceTimerRef.current = null;
-                                        onClose();
-                                    }, 1100);
+        const input = e.currentTarget;
+        const file = input.files?.[0];
+        if (!file) return;
+        input.value = '';
+        const reader = new FileReader();
+        reader.onerror = () => {
+            setPhotoQueueNotice('사진 파일을 읽지 못했습니다. 다른 이미지로 다시 시도해 주세요.');
+        };
+        reader.onload = async (event) => {
+            const result = event.target?.result as string;
+            if (result) {
+                if (type === 'original') {
+                    setRecord(prev => ({ ...prev, originalImage: result, filename: file.name }));
+                    setPhotoQueueNotice(null);
+                } else {
+                    const nextRecord = { ...latestRecordRef.current, profileImage: result };
+                    setRecord(prev => ({ ...prev, profileImage: result }));
+                    if (isPhotoQueueMode) {
+                        try {
+                            setIsPhotoAutoSaving(true);
+                            setPhotoQueueNotice('사진 업로드 후 자동 저장 중입니다...');
+                            await persistRecordSilently(nextRecord);
+                            if (queueContext?.nextRecordName && onOpenNextRecord) {
+                                setPhotoQueueNotice(`사진 저장 완료. ${queueContext.nextRecordName}(으)로 자동 이동합니다...`);
+                                if (autoAdvanceTimerRef.current) {
+                                    clearTimeout(autoAdvanceTimerRef.current);
                                 }
-                            } catch (error) {
-                                console.error('프로필 사진 자동 저장 실패:', error);
-                                setHasChanges(true);
-                                setPhotoQueueNotice('자동 저장에 추가 확인 안내가 필요합니다. 상단 1차 저장 버튼으로 저장해 주세요.');
-                            } finally {
-                                setIsPhotoAutoSaving(false);
+                                autoAdvanceTimerRef.current = setTimeout(() => {
+                                    autoAdvanceTimerRef.current = null;
+                                    onOpenNextRecord();
+                                }, 900);
+                            } else {
+                                setPhotoQueueNotice('사진 저장 완료. 마지막 대상입니다. 근로자관리 화면으로 돌아갑니다...');
+                                if (autoAdvanceTimerRef.current) {
+                                    clearTimeout(autoAdvanceTimerRef.current);
+                                }
+                                autoAdvanceTimerRef.current = setTimeout(() => {
+                                    autoAdvanceTimerRef.current = null;
+                                    onClose();
+                                }, 1100);
                             }
+                        } catch (error) {
+                            console.error('프로필 사진 자동 저장 실패:', error);
+                            setHasChanges(true);
+                            setPhotoQueueNotice('자동 저장에 추가 확인 안내가 필요합니다. 상단 1차 저장 버튼으로 저장해 주세요.');
+                        } finally {
+                            setIsPhotoAutoSaving(false);
                         }
                     }
-                    if (type === 'original' || !isPhotoQueueMode) {
-                        setHasChanges(true);
-                    }
                 }
-                e.target.value = '';
-            };
-            reader.readAsDataURL(file);
-        }
+                if (type === 'original' || !isPhotoQueueMode) {
+                    setHasChanges(true);
+                }
+            }
+        };
+        reader.readAsDataURL(file);
     };
 
     const hasOriginalImage = !!record.originalImage && record.originalImage.length > 50;

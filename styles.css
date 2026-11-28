@@ -302,7 +302,7 @@
             display: none !important;
         }
 
-        #root {
+        body:has(> .report-print-container) #root {
             display: none !important;
         }
 
