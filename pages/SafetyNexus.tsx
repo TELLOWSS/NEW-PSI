@@ -16,6 +16,7 @@ import {
   shortestAngleStep,
   type NexusOrbitLayer,
 } from '../utils/nexusSphereProjection';
+import { getNodeConstellation } from '../utils/nexusConstellations';
 import {
   NEXUS_HAZARD_EQUIPMENT_AXIS_OPTIONS,
   NEXUS_PROCESS_AXIS_OPTIONS,
@@ -902,6 +903,10 @@ const SafetyNexus: React.FC<Props> = ({
         }),
       ),
     [layerNodes, sphereAngles.yaw, sphereAngles.pitch, isMobileViewport],
+  );
+  const activeConstellation = useMemo(
+    () => getNodeConstellation(orbitLayer, selected.index),
+    [orbitLayer, selected.index],
   );
   const activeProjection = projectedNodes[safeActive] ?? projectedNodes[0];
   const dynamicFocusPath = useMemo(() => {
@@ -2003,6 +2008,7 @@ const SafetyNexus: React.FC<Props> = ({
             alertLevel={liveAlertLevel}
             alertVec={liveAlertVec}
             zoomScale={zoomScale}
+            animationMode={activeConstellation.animModeIndex}
             fallback={<CoreArt active={safeActive} paused={paused} reduced={reduced} sequenceNonce={cinematicNonce} cinematicActive={cinematicPlaying} yaw={sphereAngles.yaw} pitch={sphereAngles.pitch} />}
           />}
           {!flat && <div className="nexus-nucleus" aria-hidden="true" />}
@@ -2034,6 +2040,115 @@ const SafetyNexus: React.FC<Props> = ({
               <text x="228" y="353" textAnchor="end">270° W</text>
             </g>
           </svg>}
+          {!flat && (() => {
+            const c = activeConstellation;
+            const mapX = (sx: number) => Math.round(64 + sx * 2.18);
+            const mapY = (sy: number) => Math.round(92 + sy * 2.15);
+            const alphaStar = c.stars.find(s => s.mag === 1) ?? c.stars[0];
+            const ax = mapX(alphaStar.x);
+            const ay = mapY(alphaStar.y);
+            const tracePoints = c.edges
+              .map(([a, b]) => `${mapX(c.stars[a].x)},${mapY(c.stars[a].y)} ${mapX(c.stars[b].x)},${mapY(c.stars[b].y)}`)
+              .join(' ');
+            return (
+              <>
+                <div className={'nexus-constellation-tag anim-' + c.animationKind + ' tone-' + selected.tone} aria-hidden="true">
+                  <span className="constellation-tag-star">✦</span>
+                  <strong>{c.koName}</strong>
+                  <small>{c.latinName}</small>
+                  <em>{c.animationLabel}</em>
+                </div>
+                <svg
+                  className={'nexus-constellation-overlay anim-' + c.animationKind + ' tone-' + selected.tone}
+                  viewBox="0 0 1000 700"
+                  preserveAspectRatio="xMidYMid meet"
+                  aria-hidden="true"
+                >
+                  <defs>
+                    <radialGradient id="nexusStarHalo" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#fff4d6" stopOpacity="0.95" />
+                      <stop offset="45%" stopColor="#f6c57a" stopOpacity="0.38" />
+                      <stop offset="100%" stopColor="#f6c57a" stopOpacity="0" />
+                    </radialGradient>
+                  </defs>
+                  <g key={c.key} className="nexus-constellation-group">
+                    <circle cx={ax} cy={ay} r="88" className="constellation-sky-glow" />
+                    {c.animationKind === 'sweep' && (
+                      <g className="constellation-kinetic-sweep" style={{ transformOrigin: `${ax}px ${ay}px` }}>
+                        <path d={`M ${ax} ${ay} L ${ax + 68} ${ay - 22} A 72 72 0 0 1 ${ax + 68} ${ay + 22} Z`} />
+                        <circle cx={ax} cy={ay} r="64" className="sweep-ring" />
+                      </g>
+                    )}
+                    {c.animationKind === 'breathe' && (
+                      <g className="constellation-kinetic-breathe">
+                        <circle cx={ax} cy={ay} r="32" className="breathe-ring r1" />
+                        <circle cx={ax} cy={ay} r="54" className="breathe-ring r2" />
+                      </g>
+                    )}
+                    {c.animationKind === 'lock' && (
+                      <g className="constellation-kinetic-lock" style={{ transformOrigin: `${ax}px ${ay}px` }}>
+                        <polygon points={`${ax},${ay - 28} ${ax + 24},${ay - 14} ${ax + 24},${ay + 14} ${ax},${ay + 28} ${ax - 24},${ay + 14} ${ax - 24},${ay - 14}`} />
+                        <circle cx={ax} cy={ay} r="36" className="lock-outer" />
+                      </g>
+                    )}
+                    {c.animationKind === 'weave' && (
+                      <g className="constellation-kinetic-weave">
+                        <line x1="68" y1={ay} x2="292" y2={ay} />
+                        <line x1={ax} y1="88" x2={ax} y2="248" />
+                        <circle cx={ax} cy={ay} r="44" className="weave-ring" />
+                      </g>
+                    )}
+                    {c.edges.map(([fromIdx, toIdx], eIdx) => {
+                      const s1 = c.stars[fromIdx];
+                      const s2 = c.stars[toIdx];
+                      return (
+                        <line
+                          key={`edge-${c.key}-${eIdx}`}
+                          x1={mapX(s1.x)}
+                          y1={mapY(s1.y)}
+                          x2={mapX(s2.x)}
+                          y2={mapY(s2.y)}
+                          pathLength={100}
+                          className="constellation-edge"
+                          style={{ animationDelay: `${eIdx * 85}ms` }}
+                        />
+                      );
+                    })}
+                    {c.animationKind === 'trace' && tracePoints && (
+                      <polyline points={tracePoints} className="constellation-kinetic-trace" />
+                    )}
+                    {c.animationKind === 'flow' && c.stars.slice(0, 4).map((star, sIdx) => (
+                      <circle
+                        key={`flow-${sIdx}`}
+                        cx={mapX(star.x)}
+                        cy={mapY(star.y)}
+                        r="2.6"
+                        className="constellation-kinetic-flow"
+                        style={{ animationDelay: `${sIdx * 340}ms` }}
+                      />
+                    ))}
+                    {c.stars.map((star, sIdx) => {
+                      const sx = mapX(star.x);
+                      const sy = mapY(star.y);
+                      const r = star.mag === 1 ? 4.1 : star.mag === 2 ? 2.8 : 2.0;
+                      return (
+                        <g key={`star-${c.key}-${sIdx}`} className={`constellation-star mag-${star.mag}`} style={{ animationDelay: `${sIdx * 110}ms` }}>
+                          <circle cx={sx} cy={sy} r={r * 3.1} fill="url(#nexusStarHalo)" />
+                          {star.mag === 1 && (
+                            <path
+                              className="star-flare"
+                              d={`M${sx - 9} ${sy} L${sx + 9} ${sy} M${sx} ${sy - 9} L${sx} ${sy + 9}`}
+                            />
+                          )}
+                          <circle cx={sx} cy={sy} r={r} className="star-core" />
+                        </g>
+                      );
+                    })}
+                  </g>
+                </svg>
+              </>
+            );
+          })()}
           {!flat && <svg className="nexus-focus-link" viewBox="0 0 1000 700" preserveAspectRatio="none" aria-hidden="true">
             <defs>
               <linearGradient id="nexusTetherGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -2154,6 +2269,7 @@ const SafetyNexus: React.FC<Props> = ({
                 data-tone={topic.tone}
                 aria-pressed={isSelected}
                 className={'nexus-dock-chip' + (isSelected ? ' is-selected' : '')}
+                title={`${topic.title} · ${getNodeConstellation(orbitLayer, topic.index).koName} (${getNodeConstellation(orbitLayer, topic.index).animationLabel})`}
                 onMouseEnter={() => setHoveredNodeIdx(i)}
                 onMouseLeave={() => setHoveredNodeIdx(prev => (prev === i ? null : prev))}
                 onFocus={() => setHoveredNodeIdx(i)}
@@ -2190,6 +2306,44 @@ const SafetyNexus: React.FC<Props> = ({
         </div>
         <div key={`${orbitLayer}-${selected.index}`} className="nexus-detail-intro"><span>{selected.en}</span><h2>{selected.title}</h2></div>
         <div className="nexus-detail-pulse" aria-hidden="true"><i /><i /><i /></div>
+        <div className={'nexus-constellation-card anim-' + activeConstellation.animationKind + ' tone-' + selected.tone} aria-label={`수호 별자리 ${activeConstellation.koName} 안내`}>
+          <svg
+            key={`mini-${activeConstellation.key}`}
+            className={'nexus-mini-constellation anim-' + activeConstellation.animationKind + ' tone-' + selected.tone}
+            viewBox="0 0 100 64"
+            aria-hidden="true"
+          >
+            {activeConstellation.edges.map(([a, b], idx) => (
+              <line
+                key={`me-${idx}`}
+                x1={activeConstellation.stars[a].x}
+                y1={activeConstellation.stars[a].y}
+                x2={activeConstellation.stars[b].x}
+                y2={activeConstellation.stars[b].y}
+                pathLength={100}
+                className="mini-edge"
+                style={{ animationDelay: `${idx * 75}ms` }}
+              />
+            ))}
+            {activeConstellation.stars.map((s, idx) => (
+              <circle
+                key={`ms-${idx}`}
+                cx={s.x}
+                cy={s.y}
+                r={s.mag === 1 ? 3.2 : s.mag === 2 ? 2.2 : 1.5}
+                className={`mini-star mag-${s.mag}`}
+                style={{ animationDelay: `${idx * 90}ms` }}
+              />
+            ))}
+          </svg>
+          <div className="nexus-constellation-card-body">
+            <div className="nexus-constellation-card-head">
+              <strong>✦ {activeConstellation.koName} <small>{activeConstellation.latinName}</small></strong>
+              <span className="nexus-constellation-motion-pill">{activeConstellation.animationLabel}</span>
+            </div>
+            <p>{activeConstellation.symbolism}</p>
+          </div>
+        </div>
         <p className="nexus-detail-text">{selected.detail}</p>
         <div className="nexus-detail-checkpoints" aria-label="선택 포인트 중점 관리사항">
           <strong>중점 관리 포인트</strong>

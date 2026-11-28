@@ -14,6 +14,7 @@ type Props = {
   alertLevel?: number;
   alertVec?: readonly [number, number, number];
   zoomScale?: number;
+  animationMode?: number;
 };
 
 /**
@@ -39,6 +40,7 @@ uniform float u_intensity;
 uniform float u_story;
 uniform vec3 u_activeVec;
 uniform float u_pulse;
+uniform float u_animMode;
 uniform float u_alertLevel;
 uniform vec3 u_alertVec;
 uniform float u_zoom;
@@ -120,6 +122,21 @@ void main() {
     float resWave = smoothstep(0.48, 0.995, resDot) * (0.5 + 0.5 * sin(activeAngle * 18.0 - t * 3.4));
     float ringTravel = (1.0 - clamp(u_pulse, 0.0, 1.0)) * 2.35;
     float clickRipple = clamp(u_pulse, 0.0, 1.0) * exp(-pow(activeAngle - ringTravel, 2.0) * 16.0);
+    float az = atan(a_data.x, a_data.z + 0.0001);
+    float modeShimmer = 0.0;
+    if (u_animMode < 0.5) {
+      modeShimmer = exp(-pow(sin(az - t * 1.45), 2.0) * 12.0) * 0.42;
+    } else if (u_animMode < 1.5) {
+      modeShimmer = pow(abs(cos(a_data.y * 10.0 - t * 2.6) * cos(az * 4.0 + t * 1.5)), 3.0) * 0.46;
+    } else if (u_animMode < 2.5) {
+      modeShimmer = (0.5 + 0.5 * sin(t * 1.45 - length(a_data.xy) * 2.5)) * 0.36;
+    } else if (u_animMode < 3.5) {
+      modeShimmer = (exp(-pow(activeAngle - 0.36, 2.0) * 85.0) + exp(-pow(activeAngle - 0.72, 2.0) * 85.0)) * 0.48;
+    } else if (u_animMode < 4.5) {
+      modeShimmer = (0.5 + 0.5 * sin(-a_data.y * 9.0 - t * 3.6 + seed * 6.283)) * 0.38;
+    } else {
+      modeShimmer = pow(abs(sin(a_data.x * 9.0 + t * 0.85) * sin(a_data.y * 9.0 - t * 0.85)), 2.0) * 0.44;
+    }
     float alertDot = clamp(dot(normalize(a_data.xyz), u_alertVec), -0.9999, 0.9999);
     float alertWave = clamp(u_alertLevel, 0.0, 1.0) * smoothstep(0.32, 0.99, alertDot) * (0.55 + 0.45 * sin(acos(alertDot) * 14.0 - t * 5.2));
     vec3 alertCrimson = vec3(1.0, 0.34, 0.38);
@@ -128,10 +145,11 @@ void main() {
     vec3 depthGold = mix(deepBronze, frontGold, pow(near, 0.85));
     vec3 baseCol = seed < .09 ? cyanBase : seed > .84 ? mix(champagneGold, layerAccent, 0.38) : depthGold;
     vec3 litCol = mix(baseCol, mix(champagneGold, layerAccent, 0.35), resWave * 0.52);
+    litCol = mix(litCol, mix(champagneGold, layerAccent, 0.45), modeShimmer * 0.45);
     litCol = mix(litCol, vec3(1.0, 0.94, 0.78), clickRipple * 0.65);
     v_color = mix(litCol, alertCrimson, alertWave * 0.68);
-    v_alpha = mix(.22,.88,near)*(0.70 + .30*sin(t*1.6+seed*31.0)*sin(t*1.6+seed*31.0)) * (kind > .1 ? .52 : 0.96) * (1.0 + resWave * 0.16 + clickRipple * 0.32 + alertWave * 0.12) * u_intensity;
-    gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 12.5+seed*10.5 : 1.5+seed*2.2)*(1.0 + resWave * 0.24 + clickRipple * 0.45 + alertWave * 0.18);
+    v_alpha = mix(.22,.88,near)*(0.70 + .30*sin(t*1.6+seed*31.0)*sin(t*1.6+seed*31.0)) * (kind > .1 ? .52 : 0.96) * (1.0 + resWave * 0.16 + modeShimmer * 0.22 + clickRipple * 0.32 + alertWave * 0.12) * u_intensity;
+    gl_PointSize = u_ratio*lens*(u_bloom > .5 ? 12.5+seed*10.5 : 1.5+seed*2.2)*(1.0 + resWave * 0.24 + modeShimmer * 0.20 + clickRipple * 0.45 + alertWave * 0.18);
   } else if(isGeodesic) {
     float near = clamp((p.z+1.2)*.45,0.16,1.0);
     float geoPulse = 0.78 + 0.22 * sin(t * 2.2 + seed * 18.84);
@@ -232,6 +250,7 @@ const WebGLNexusCore: React.FC<Props> = ({
   alertLevel = 0,
   alertVec = DEFAULT_NODE_VECS[0],
   zoomScale = 1,
+  animationMode = 0,
 }) => {
   const ref = useRef<HTMLCanvasElement>(null);
   const focus = useRef(active);
@@ -241,6 +260,7 @@ const WebGLNexusCore: React.FC<Props> = ({
   const alertLevelRef = useRef(alertLevel);
   const alertVecRef = useRef(alertVec);
   const zoomRef = useRef(zoomScale);
+  const animModeRef = useRef(animationMode);
   const repaint = useRef<() => void>(() => {});
   const story = useRef<{ active: boolean; started: number }>({ active: false, started: 0 });
   const pulseRef = useRef<{ started: number }>({ started: 0 });
@@ -270,8 +290,9 @@ const WebGLNexusCore: React.FC<Props> = ({
     alertLevelRef.current = alertLevel;
     alertVecRef.current = alertVec;
     zoomRef.current = zoomScale;
+    animModeRef.current = animationMode;
     repaint.current();
-  }, [yaw, pitch, layerTone, alertLevel, alertVec, zoomScale]);
+  }, [yaw, pitch, layerTone, alertLevel, alertVec, zoomScale, animationMode]);
 
   useEffect(() => {
     if (unavailable) return;
@@ -473,6 +494,7 @@ const WebGLNexusCore: React.FC<Props> = ({
       const locStory = gl.getUniformLocation(program, 'u_story');
       const locActiveVec = gl.getUniformLocation(program, 'u_activeVec');
       const locPulse = gl.getUniformLocation(program, 'u_pulse');
+      const locAnimMode = gl.getUniformLocation(program, 'u_animMode');
       const locAlertLevel = gl.getUniformLocation(program, 'u_alertLevel');
       const locAlertVec = gl.getUniformLocation(program, 'u_alertVec');
       const locZoom = gl.getUniformLocation(program, 'u_zoom');
@@ -521,6 +543,7 @@ const WebGLNexusCore: React.FC<Props> = ({
           : 1;
         const pulseVal = pulseElapsed >= 0 && pulseElapsed < 1 ? 1 - pulseElapsed : 0;
         gl.uniform1f(locPulse, pulseVal);
+        gl.uniform1f(locAnimMode, paused || reduced ? 2 : animModeRef.current);
         gl.uniform1f(locAlertLevel, Math.max(0, Math.min(1, alertLevelRef.current)));
         const aVec = alertVecRef.current ?? DEFAULT_NODE_VECS[0];
         gl.uniform3f(locAlertVec, aVec[0], aVec[1], aVec[2]);

@@ -9877,6 +9877,438 @@
   color: #020617 !important;
 }
 
+/* =========================================================================
+   Per-Node Celestial Constellations & Tailored Kinetic Animations
+   ========================================================================= */
+@keyframes nexusConstellationDraw {
+  from {
+    stroke-dashoffset: 100;
+    opacity: .15;
+  }
+  to {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes nexusStarTwinkle {
+  0%, 100% {
+    opacity: .68;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes nexusAnimSweep {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes nexusAnimTrace {
+  from {
+    stroke-dashoffset: 48;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes nexusAnimBreathe {
+  0%, 100% {
+    transform: scale(.9);
+    opacity: .22;
+  }
+  50% {
+    transform: scale(1.16);
+    opacity: .68;
+  }
+}
+
+@keyframes nexusAnimLock {
+  0%, 100% {
+    transform: rotate(0deg) scale(1);
+    opacity: .74;
+  }
+  50% {
+    transform: rotate(15deg) scale(.91);
+    opacity: 1;
+  }
+}
+
+@keyframes nexusAnimFlow {
+  0% {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  35% {
+    opacity: .92;
+  }
+  100% {
+    transform: translateY(-22px);
+    opacity: 0;
+  }
+}
+
+@keyframes nexusAnimWeave {
+  0%, 100% {
+    opacity: .18;
+  }
+  50% {
+    opacity: .56;
+  }
+}
+
+.nexus-constellation-tag {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  z-index: 3;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(8, 18, 29, .78);
+  border: 1px solid rgba(244, 198, 128, .36);
+  backdrop-filter: blur(8px);
+  color: #f6e4c8;
+  font-size: 11px;
+  max-width: calc(50% - 86px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis
+}
+
+.nexus-constellation-tag .constellation-tag-star {
+  color: #ffd992;
+  font-size: 11px
+}
+
+.nexus-constellation-tag strong {
+  font-weight: 760;
+  color: #fff2dc
+}
+
+.nexus-constellation-tag small,
+.nexus-constellation-tag em {
+  display: none
+}
+
+.nexus-constellation-tag.tone-violet em {
+  color: #d4b9ff;
+  border-left-color: rgba(212, 185, 255, .3)
+}
+
+.nexus-constellation-tag.tone-gold em,
+.nexus-constellation-tag.tone-amber em {
+  color: #ffd38a;
+  border-left-color: rgba(255, 211, 138, .3)
+}
+
+@media(max-width:640px) {
+  .nexus-constellation-tag small,
+  .nexus-constellation-tag em {
+    display: none
+  }
+  .nexus-constellation-tag {
+    max-width: 44%;
+    font-size: 10px
+  }
+}
+
+.nexus-constellation-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+  overflow: visible
+}
+
+.nexus-constellation-overlay .constellation-sky-glow {
+  fill: rgba(246, 196, 118, .08);
+  transition: opacity .35s
+}
+
+.nexus-constellation-overlay.tone-cyan .constellation-sky-glow {
+  fill: rgba(114, 224, 234, .09)
+}
+
+.nexus-constellation-overlay.tone-violet .constellation-sky-glow {
+  fill: rgba(192, 158, 252, .1)
+}
+
+.nexus-constellation-overlay .constellation-edge {
+  stroke: rgba(255, 224, 168, .66);
+  stroke-width: 1.45;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 0;
+  animation: nexusConstellationDraw .68s cubic-bezier(.22, .85, .36, 1) both
+}
+
+.nexus-constellation-overlay.tone-cyan .constellation-edge {
+  stroke: rgba(132, 238, 245, .72)
+}
+
+.nexus-constellation-overlay.tone-violet .constellation-edge {
+  stroke: rgba(212, 186, 255, .74)
+}
+
+.nexus-constellation-overlay .star-core {
+  fill: #fff6e0;
+  filter: drop-shadow(0 0 6px #f7c36b)
+}
+
+.nexus-constellation-overlay .constellation-star.mag-1 {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: nexusStarTwinkle 3.2s ease-in-out infinite
+}
+
+.nexus-constellation-overlay .star-flare {
+  stroke: rgba(255, 242, 208, .82);
+  stroke-width: 1;
+  stroke-linecap: round
+}
+
+.nexus-constellation-overlay .constellation-kinetic-sweep {
+  animation: nexusAnimSweep 6.5s linear infinite
+}
+
+.nexus-constellation-overlay .constellation-kinetic-sweep path {
+  fill: rgba(248, 205, 134, .12)
+}
+
+.nexus-constellation-overlay .constellation-kinetic-sweep .sweep-ring {
+  fill: none;
+  stroke: rgba(248, 205, 134, .28);
+  stroke-width: 1;
+  stroke-dasharray: 4 6
+}
+
+.nexus-constellation-overlay .constellation-kinetic-trace {
+  fill: none;
+  stroke: #8cf1f7;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 12 36;
+  animation: nexusAnimTrace 2.4s linear infinite
+}
+
+.nexus-constellation-overlay .breathe-ring {
+  fill: none;
+  stroke: rgba(255, 214, 146, .45);
+  stroke-width: 1.1;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: nexusAnimBreathe 3.8s ease-in-out infinite
+}
+
+.nexus-constellation-overlay .breathe-ring.r2 {
+  animation-delay: 1.1s;
+  stroke: rgba(132, 238, 245, .36)
+}
+
+.nexus-constellation-overlay .constellation-kinetic-lock {
+  animation: nexusAnimLock 4.4s ease-in-out infinite
+}
+
+.nexus-constellation-overlay .constellation-kinetic-lock polygon {
+  fill: none;
+  stroke: rgba(255, 218, 152, .56);
+  stroke-width: 1.25;
+  stroke-dasharray: 5 4
+}
+
+.nexus-constellation-overlay .constellation-kinetic-lock .lock-outer {
+  fill: none;
+  stroke: rgba(132, 238, 245, .35);
+  stroke-width: 1
+}
+
+.nexus-constellation-overlay .constellation-kinetic-flow {
+  fill: #ffe2a8;
+  animation: nexusAnimFlow 2.6s ease-out infinite
+}
+
+.nexus-constellation-overlay .constellation-kinetic-weave line {
+  stroke: rgba(164, 230, 242, .3);
+  stroke-width: 1;
+  stroke-dasharray: 3 5;
+  animation: nexusAnimWeave 3s ease-in-out infinite
+}
+
+.nexus-constellation-overlay .constellation-kinetic-weave .weave-ring {
+  fill: none;
+  stroke: rgba(248, 202, 130, .28);
+  stroke-width: 1
+}
+
+/* Synchronized Mini Star-Chart Card inside aside.nexus-detail */
+.nexus-constellation-card {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  padding: 10px 11px;
+  margin-bottom: 13px;
+  border-radius: 10px;
+  border: 1px solid rgba(235, 187, 118, .35);
+  background: linear-gradient(135deg, rgba(11, 23, 36, .9), rgba(16, 33, 50, .86))
+}
+
+.nexus-constellation-card.tone-cyan {
+  border-color: rgba(114, 224, 234, .38)
+}
+
+.nexus-constellation-card.tone-violet {
+  border-color: rgba(192, 158, 252, .4)
+}
+
+.nexus-mini-constellation {
+  width: 88px;
+  height: 56px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 224, 174, .28);
+  background: radial-gradient(circle at 50% 45%, #1d3249 0%, #0a1624 100%);
+  display: block;
+  flex-shrink: 0
+}
+
+.nexus-mini-constellation .mini-edge {
+  stroke: rgba(255, 218, 154, .78);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  animation: nexusConstellationDraw .55s ease-out both
+}
+
+.nexus-mini-constellation.tone-cyan .mini-edge {
+  stroke: #7deaf2
+}
+
+.nexus-mini-constellation.tone-violet .mini-edge {
+  stroke: #cfaeff
+}
+
+.nexus-mini-constellation .mini-star {
+  fill: #fff7e2;
+  filter: drop-shadow(0 0 3px #f6bd6b)
+}
+
+.nexus-mini-constellation .mini-star.mag-1 {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: nexusStarTwinkle 2.8s ease-in-out infinite
+}
+
+.nexus-constellation-card-body {
+  min-width: 0;
+  display: grid;
+  gap: 4px
+}
+
+.nexus-constellation-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 8px
+}
+
+.nexus-constellation-card-head strong {
+  font-size: 12px;
+  font-weight: 760;
+  color: #ffebd0
+}
+
+.nexus-constellation-card-head small {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #9eb7c9;
+  margin-left: 3px
+}
+
+.nexus-constellation-motion-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(244, 193, 120, .14);
+  border: 1px solid rgba(244, 193, 120, .34);
+  color: #ffdba3;
+  white-space: nowrap
+}
+
+.nexus-constellation-card.tone-cyan .nexus-constellation-motion-pill {
+  background: rgba(114, 224, 234, .14);
+  border-color: rgba(114, 224, 234, .34);
+  color: #9bf1f8
+}
+
+.nexus-constellation-card.tone-violet .nexus-constellation-motion-pill {
+  background: rgba(192, 158, 252, .15);
+  border-color: rgba(192, 158, 252, .36);
+  color: #e2d1ff
+}
+
+.nexus-constellation-card-body p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.48;
+  color: #c2d4e0;
+  word-break: keep-all
+}
+
+.safety-nexus[data-motion-paused="true"] .nexus-constellation-overlay *,
+.safety-nexus[data-reduced-motion="true"] .nexus-constellation-overlay *,
+.safety-nexus[data-motion-paused="true"] .nexus-mini-constellation *,
+.safety-nexus[data-reduced-motion="true"] .nexus-mini-constellation * {
+  animation-play-state: paused !important
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-constellation-card {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-constellation-card-head strong {
+  color: #102a43;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-constellation-card-head small,
+.safety-nexus[data-nexus-theme="light"] .nexus-constellation-card-body p {
+  color: #486581;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-constellation-motion-pill {
+  background: #fff4df;
+  border-color: #d97706;
+  color: #92400e;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-constellation-card.tone-cyan .nexus-constellation-motion-pill {
+  background: #ecfeff;
+  border-color: #0891b2;
+  color: #155e75;
+}
+
+.safety-nexus[data-nexus-theme="light"] .nexus-constellation-card.tone-violet .nexus-constellation-motion-pill {
+  background: #f5f3ff;
+  border-color: #7c3aed;
+  color: #4c1d95;
+}
+
 @media print {
 
   .safety-nexus,
